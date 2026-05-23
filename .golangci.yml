@@ -13,7 +13,7 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - webhookery
+        - github.com/aatuh/evydence
 
 linters:
   default: none
