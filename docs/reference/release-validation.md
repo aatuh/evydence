@@ -22,7 +22,15 @@ Keep this file with release evidence when preparing an internal release review. 
 
 ## Configured Live PostgreSQL Profile
 
-Start the local dependencies and load the test profile:
+For the scripted local profile, run:
+
+```sh
+make release-check-local-postgres
+```
+
+The target starts the Compose PostgreSQL service, waits for readiness, loads `.test.env` when present or `.test.env.example` otherwise, runs `make release-check`, and preserves `tmp/release-check-summary.txt`.
+
+You can also run the sequence manually:
 
 ```sh
 make compose-up

@@ -57,7 +57,6 @@ const (
 	ScopeReportRead      = "report:read"
 	ScopeIdentityAdmin   = "identity:admin"
 	ScopeInstanceAdmin   = "instance:admin"
-	ScopeCustomerPortal  = "customer:portal"
 )
 
 const customerPortalFailedAccessLimit = 5
