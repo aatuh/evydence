@@ -280,6 +280,79 @@ func TestCollectorBuildAttestationHTTPFlow(t *testing.T) {
 	postRaw(t, server, collectorSecret, "/v1/builds/"+buildID+"/attestations", "prov-bad-attestation", []byte(`{"payloadType":"application/vnd.in-toto+json","payload":"@@@","signatures":[{"sig":"abc"}]}`), http.StatusBadRequest)
 }
 
+func TestControlsAndReportsHTTPFlow(t *testing.T) {
+	server, secret := testServer(t)
+	productBody := postJSON(t, server, secret, "/v1/products", "ctrl-prod", map[string]any{"name": "Controls Product", "slug": "controls-product"}, http.StatusCreated)
+	productID := dataField(t, productBody, "id")
+	releaseBody := postJSON(t, server, secret, "/v1/releases", "ctrl-rel", map[string]any{"product_id": productID, "version": "1.0.0"}, http.StatusCreated)
+	releaseID := dataField(t, releaseBody, "id")
+	artifactBody := postJSON(t, server, secret, "/v1/artifacts", "ctrl-artifact", map[string]any{"name": "api.tar.gz", "media_type": "application/gzip", "digest": "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb", "size": 42}, http.StatusCreated)
+	artifactID := dataField(t, artifactBody, "id")
+	sbomBody := postJSON(t, server, secret, "/v1/sboms", "ctrl-sbom", map[string]any{
+		"release_id":  releaseID,
+		"artifact_id": artifactID,
+		"payload": map[string]any{
+			"bomFormat": "CycloneDX", "specVersion": "1.6",
+			"components": []map[string]any{{"name": "api", "purl": "pkg:oci/payments-api"}},
+		},
+	}, http.StatusCreated)
+	sbomID := dataField(t, sbomBody, "id")
+	frameworkBody := postJSON(t, server, secret, "/v1/control-frameworks", "ctrl-framework", map[string]any{"name": "CRA readiness", "slug": "evydence-cra-readiness", "version": "2026.05"}, http.StatusCreated)
+	frameworkID := dataField(t, frameworkBody, "id")
+	replayed := postJSON(t, server, secret, "/v1/control-frameworks", "ctrl-framework", map[string]any{"name": "CRA readiness", "slug": "evydence-cra-readiness", "version": "2026.05"}, http.StatusCreated)
+	if replayed != frameworkBody {
+		t.Fatalf("framework idempotency replay changed response\nfirst=%s\nsecond=%s", frameworkBody, replayed)
+	}
+	postJSON(t, server, secret, "/v1/control-frameworks", "ctrl-framework-conflict", map[string]any{"name": "Changed", "slug": "evydence-cra-readiness", "version": "2026.05"}, http.StatusConflict)
+	controlBody := postJSON(t, server, secret, "/v1/controls", "ctrl-control", map[string]any{
+		"framework_id": frameworkID,
+		"code":         "CRA-SBOM",
+		"title":        "SBOM evidence exists",
+		"objective":    "Release records SBOM evidence.",
+		"evidence_requirements": []map[string]any{{
+			"type":           "sbom",
+			"freshness_days": 90,
+			"required":       true,
+		}},
+		"limitations": []string{"Presence does not prove completeness."},
+	}, http.StatusCreated)
+	controlID := dataField(t, controlBody, "id")
+	getJSON(t, server, secret, "/v1/controls/"+controlID, http.StatusOK)
+	postJSON(t, server, secret, "/v1/controls", "ctrl-control-bad", map[string]any{"framework_id": frameworkID, "code": "BAD", "title": "Bad", "objective": "Bad", "evidence_requirements": []map[string]any{{"type": "unknown", "required": true}}}, http.StatusBadRequest)
+	report := getJSON(t, server, secret, "/v1/reports/control-coverage?framework_id="+frameworkID+"&product_id="+productID+"&release_id="+releaseID, http.StatusOK)
+	if !strings.Contains(report, `"status":"missing"`) {
+		t.Fatalf("expected missing control before link: %s", report)
+	}
+	linkBody := postJSON(t, server, secret, "/v1/controls/"+controlID+"/evidence", "ctrl-link", map[string]any{
+		"evidence_type": "sbom",
+		"subject_type":  "sbom",
+		"subject_id":    sbomID,
+		"product_id":    productID,
+		"release_id":    releaseID,
+		"confidence":    "high",
+	}, http.StatusCreated)
+	linkReplay := postJSON(t, server, secret, "/v1/controls/"+controlID+"/evidence", "ctrl-link", map[string]any{
+		"evidence_type": "sbom",
+		"subject_type":  "sbom",
+		"subject_id":    sbomID,
+		"product_id":    productID,
+		"release_id":    releaseID,
+		"confidence":    "high",
+	}, http.StatusCreated)
+	if linkReplay != linkBody {
+		t.Fatalf("control evidence idempotency replay changed response\nfirst=%s\nsecond=%s", linkBody, linkReplay)
+	}
+	getJSON(t, server, secret, "/v1/control-evidence?control_id="+controlID+"&release_id="+releaseID, http.StatusOK)
+	report = getJSON(t, server, secret, "/v1/reports/control-coverage?framework_id="+frameworkID+"&product_id="+productID+"&release_id="+releaseID, http.StatusOK)
+	if !strings.Contains(report, `"status":"satisfied"`) || !strings.Contains(report, `"confidence":"high"`) {
+		t.Fatalf("expected satisfied control after link: %s", report)
+	}
+	cra := getJSON(t, server, secret, "/v1/reports/cra-readiness?product_id="+productID+"&release_id="+releaseID, http.StatusOK)
+	if strings.Contains(strings.ToLower(cra), "automatically compliant") || strings.Contains(strings.ToLower(cra), "certified secure") {
+		t.Fatalf("CRA report contains forbidden claim: %s", cra)
+	}
+}
+
 func testServer(t *testing.T) (*Server, string) {
 	t.Helper()
 	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})

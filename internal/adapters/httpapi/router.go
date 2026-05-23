@@ -66,6 +66,12 @@ func (s *Server) registerRoutes() error {
 		{http.MethodGet, "/v1/openapi.json", op("openapi", http.MethodGet, "/v1/openapi.json", "OpenAPI", nil), http.HandlerFunc(s.openapi)},
 		{http.MethodPost, "/v1/collectors", op("createCollector", http.MethodPost, "/v1/collectors", "Create collector", []string{app.ScopeCollectorAdmin}), http.HandlerFunc(s.createCollector)},
 		{http.MethodGet, "/v1/collectors", op("listCollectors", http.MethodGet, "/v1/collectors", "List collectors", []string{app.ScopeCollectorRead}), http.HandlerFunc(s.listCollectors)},
+		{http.MethodPost, "/v1/control-frameworks", op("createControlFramework", http.MethodPost, "/v1/control-frameworks", "Create control framework", []string{app.ScopeControlsAdmin}), http.HandlerFunc(s.createControlFramework)},
+		{http.MethodGet, "/v1/control-frameworks", op("listControlFrameworks", http.MethodGet, "/v1/control-frameworks", "List control frameworks", []string{app.ScopeControlsRead}), http.HandlerFunc(s.listControlFrameworks)},
+		{http.MethodPost, "/v1/controls", op("createSecurityControl", http.MethodPost, "/v1/controls", "Create security control", []string{app.ScopeControlsAdmin}), http.HandlerFunc(s.createSecurityControl)},
+		{http.MethodGet, "/v1/controls/{id}", op("getSecurityControl", http.MethodGet, "/v1/controls/{id}", "Get security control", []string{app.ScopeControlsRead}), http.HandlerFunc(s.getSecurityControl)},
+		{http.MethodPost, "/v1/controls/{id}/evidence", op("linkControlEvidence", http.MethodPost, "/v1/controls/{id}/evidence", "Link control evidence", []string{app.ScopeControlsWrite}), http.HandlerFunc(s.linkControlEvidence)},
+		{http.MethodGet, "/v1/control-evidence", op("listControlEvidence", http.MethodGet, "/v1/control-evidence", "List control evidence", []string{app.ScopeControlsRead}), http.HandlerFunc(s.listControlEvidence)},
 		{http.MethodPost, "/v1/products", op("createProduct", http.MethodPost, "/v1/products", "Create product", []string{app.ScopeProductWrite}), http.HandlerFunc(s.createProduct)},
 		{http.MethodGet, "/v1/products", op("listProducts", http.MethodGet, "/v1/products", "List products", []string{app.ScopeProductRead}), http.HandlerFunc(s.listProducts)},
 		{http.MethodPost, "/v1/projects", op("createProject", http.MethodPost, "/v1/projects", "Create project", []string{app.ScopeProjectWrite}), http.HandlerFunc(s.createProject)},
@@ -97,6 +103,8 @@ func (s *Server) registerRoutes() error {
 		{http.MethodPost, "/v1/exceptions/{id}/approve", op("approveException", http.MethodPost, "/v1/exceptions/{id}/approve", "Approve exception", []string{app.ScopeReleaseWrite}), http.HandlerFunc(s.approveException)},
 		{http.MethodGet, "/v1/reports/missing-evidence", op("missingEvidenceReport", http.MethodGet, "/v1/reports/missing-evidence", "Missing evidence report", []string{app.ScopeVerifyRead}), http.HandlerFunc(s.missingEvidenceReport)},
 		{http.MethodGet, "/v1/reports/release-readiness", op("releaseReadinessReport", http.MethodGet, "/v1/reports/release-readiness", "Release readiness report", []string{app.ScopeVerifyRead}), http.HandlerFunc(s.releaseReadinessReport)},
+		{http.MethodGet, "/v1/reports/control-coverage", op("controlCoverageReport", http.MethodGet, "/v1/reports/control-coverage", "Control coverage report", []string{app.ScopeReportRead}), http.HandlerFunc(s.controlCoverageReport)},
+		{http.MethodGet, "/v1/reports/cra-readiness", op("craReadinessReport", http.MethodGet, "/v1/reports/cra-readiness", "CRA readiness report", []string{app.ScopeReportRead}), http.HandlerFunc(s.craReadinessReport)},
 		{http.MethodPost, "/v1/release-bundles", op("createReleaseBundle", http.MethodPost, "/v1/release-bundles", "Create release bundle", []string{app.ScopeBundleWrite}), http.HandlerFunc(s.createReleaseBundle)},
 		{http.MethodGet, "/v1/release-bundles/{id}", op("getReleaseBundle", http.MethodGet, "/v1/release-bundles/{id}", "Get release bundle", []string{app.ScopeBundleRead}), http.HandlerFunc(s.getReleaseBundle)},
 		{http.MethodGet, "/v1/release-bundles/{id}/manifest", op("getReleaseBundleManifest", http.MethodGet, "/v1/release-bundles/{id}/manifest", "Get release bundle manifest", []string{app.ScopeBundleRead}), http.HandlerFunc(s.getReleaseBundleManifest)},
@@ -167,6 +175,120 @@ func (s *Server) listCollectors(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeData(w, http.StatusOK, collectors)
+}
+
+func (s *Server) createControlFramework(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name        string `json:"name"`
+		Slug        string `json:"slug"`
+		Version     string `json:"version"`
+		Description string `json:"description"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		framework, err := s.ledger.CreateControlFramework(r.Context(), actor, app.CreateControlFrameworkInput{
+			Name:        req.Name,
+			Slug:        req.Slug,
+			Version:     req.Version,
+			Description: req.Description,
+		})
+		return http.StatusCreated, framework, err
+	})
+}
+
+func (s *Server) listControlFrameworks(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	frameworks, err := s.ledger.ListControlFrameworks(r.Context(), actor)
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, frameworks)
+}
+
+func (s *Server) createSecurityControl(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		FrameworkID          string                              `json:"framework_id"`
+		Code                 string                              `json:"code"`
+		Title                string                              `json:"title"`
+		Objective            string                              `json:"objective"`
+		EvidenceRequirements []domain.ControlEvidenceRequirement `json:"evidence_requirements"`
+		Applicability        []string                            `json:"applicability"`
+		Limitations          []string                            `json:"limitations"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		control, err := s.ledger.CreateSecurityControl(r.Context(), actor, app.CreateSecurityControlInput{
+			FrameworkID:          req.FrameworkID,
+			Code:                 req.Code,
+			Title:                req.Title,
+			Objective:            req.Objective,
+			EvidenceRequirements: req.EvidenceRequirements,
+			Applicability:        req.Applicability,
+			Limitations:          req.Limitations,
+		})
+		return http.StatusCreated, control, err
+	})
+}
+
+func (s *Server) getSecurityControl(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	control, err := s.ledger.GetSecurityControl(r.Context(), actor, r.PathValue("id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, control)
+}
+
+func (s *Server) linkControlEvidence(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		EvidenceType string `json:"evidence_type"`
+		SubjectType  string `json:"subject_type"`
+		SubjectID    string `json:"subject_id"`
+		ProductID    string `json:"product_id"`
+		ReleaseID    string `json:"release_id"`
+		Confidence   string `json:"confidence"`
+		Notes        string `json:"notes"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		link, err := s.ledger.LinkControlEvidence(r.Context(), actor, r.PathValue("id"), app.LinkControlEvidenceInput{
+			EvidenceType: req.EvidenceType,
+			SubjectType:  req.SubjectType,
+			SubjectID:    req.SubjectID,
+			ProductID:    req.ProductID,
+			ReleaseID:    req.ReleaseID,
+			Confidence:   req.Confidence,
+			Notes:        req.Notes,
+		})
+		return http.StatusCreated, link, err
+	})
+}
+
+func (s *Server) listControlEvidence(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	links, err := s.ledger.ListControlEvidence(r.Context(), actor, r.URL.Query().Get("control_id"), r.URL.Query().Get("product_id"), r.URL.Query().Get("release_id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, links)
 }
 
 func (s *Server) createProduct(w http.ResponseWriter, r *http.Request) {
@@ -625,6 +747,39 @@ func (s *Server) releaseReadinessReport(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	report, err := s.ledger.ReleaseReadinessReport(r.Context(), actor, r.URL.Query().Get("release_id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, report)
+}
+
+func (s *Server) controlCoverageReport(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	report, err := s.ledger.ControlCoverageReport(r.Context(), actor, app.ControlCoverageReportInput{
+		FrameworkID: r.URL.Query().Get("framework_id"),
+		ProductID:   r.URL.Query().Get("product_id"),
+		ReleaseID:   r.URL.Query().Get("release_id"),
+	})
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, report)
+}
+
+func (s *Server) craReadinessReport(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	report, err := s.ledger.CRAReadinessReport(r.Context(), actor, app.CRAReadinessReportInput{
+		ProductID: r.URL.Query().Get("product_id"),
+		ReleaseID: r.URL.Query().Get("release_id"),
+	})
 	if err != nil {
 		writeProblem(w, r, err)
 		return
