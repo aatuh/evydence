@@ -1,0 +1,16 @@
+DROP TABLE IF EXISTS verification_results;
+DROP TABLE IF EXISTS release_bundles;
+DROP TABLE IF EXISTS policy_evaluations;
+DROP TABLE IF EXISTS openapi_contracts;
+DROP TABLE IF EXISTS vulnerability_scans;
+DROP TABLE IF EXISTS sboms;
+DROP TABLE IF EXISTS signatures;
+DROP TABLE IF EXISTS signing_keys;
+DROP TABLE IF EXISTS audit_chain_entries;
+DROP TABLE IF EXISTS evidence_items;
+DROP TABLE IF EXISTS artifacts;
+DROP TABLE IF EXISTS releases;
+DROP TABLE IF EXISTS projects;
+DROP TABLE IF EXISTS products;
+DROP TABLE IF EXISTS api_keys;
+DROP TABLE IF EXISTS tenants;
