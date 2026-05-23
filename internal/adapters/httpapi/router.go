@@ -69,6 +69,8 @@ func (s *Server) registerRoutes() error {
 		{http.MethodGet, "/v1/openapi.json", op("openapi", http.MethodGet, "/v1/openapi.json", "OpenAPI", nil), http.HandlerFunc(s.openapi)},
 		{http.MethodPost, "/v1/collectors", op("createCollector", http.MethodPost, "/v1/collectors", "Create collector", []string{app.ScopeCollectorAdmin}), http.HandlerFunc(s.createCollector)},
 		{http.MethodGet, "/v1/collectors", op("listCollectors", http.MethodGet, "/v1/collectors", "List collectors", []string{app.ScopeCollectorRead}), http.HandlerFunc(s.listCollectors)},
+		{http.MethodPost, "/v1/collectors/{id}/releases", op("recordCollectorRelease", http.MethodPost, "/v1/collectors/{id}/releases", "Record collector release evidence", []string{app.ScopeCollectorAdmin}), http.HandlerFunc(s.recordCollectorRelease)},
+		{http.MethodGet, "/v1/collectors/{id}/health", op("collectorHealthReport", http.MethodGet, "/v1/collectors/{id}/health", "Collector health report", []string{app.ScopeCollectorRead}), http.HandlerFunc(s.collectorHealthReport)},
 		{http.MethodPost, "/v1/control-frameworks", op("createControlFramework", http.MethodPost, "/v1/control-frameworks", "Create control framework", []string{app.ScopeControlsAdmin}), http.HandlerFunc(s.createControlFramework)},
 		{http.MethodGet, "/v1/control-frameworks", op("listControlFrameworks", http.MethodGet, "/v1/control-frameworks", "List control frameworks", []string{app.ScopeControlsRead}), http.HandlerFunc(s.listControlFrameworks)},
 		{http.MethodGet, "/v1/control-framework-template-packs", op("listControlFrameworkTemplatePacks", http.MethodGet, "/v1/control-framework-template-packs", "List control framework template packs", []string{app.ScopeControlsRead}), http.HandlerFunc(s.listControlFrameworkTemplatePacks)},
@@ -265,6 +267,45 @@ func (s *Server) listCollectors(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeData(w, http.StatusOK, collectors)
+}
+
+func (s *Server) recordCollectorRelease(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Version        string `json:"version"`
+		ArtifactDigest string `json:"artifact_digest"`
+		SignatureID    string `json:"signature_id"`
+		SBOMID         string `json:"sbom_id"`
+		ScanID         string `json:"scan_id"`
+		Pinned         bool   `json:"pinned"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		release, err := s.ledger.RecordCollectorRelease(r.Context(), actor, app.RecordCollectorReleaseInput{
+			CollectorID:    r.PathValue("id"),
+			Version:        req.Version,
+			ArtifactDigest: req.ArtifactDigest,
+			SignatureID:    req.SignatureID,
+			SBOMID:         req.SBOMID,
+			ScanID:         req.ScanID,
+			Pinned:         req.Pinned,
+		})
+		return http.StatusCreated, release, err
+	})
+}
+
+func (s *Server) collectorHealthReport(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	report, err := s.ledger.CollectorHealthReport(r.Context(), actor, r.PathValue("id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, report)
 }
 
 func (s *Server) createControlFramework(w http.ResponseWriter, r *http.Request) {

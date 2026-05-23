@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "evydence.fullname" . }}-config
+data:
+  ENV: {{ ternary "production" "development" .Values.env.production | quote }}
+  EVYDENCE_ADDR: {{ .Values.api.addr | quote }}
+  EVYDENCE_OBJECT_STORE: {{ .Values.env.objectStore | quote }}
+  EVYDENCE_S3_ENDPOINT: {{ .Values.env.s3Endpoint | quote }}
+  EVYDENCE_S3_BUCKET: {{ .Values.env.s3Bucket | quote }}
+  EVYDENCE_S3_REGION: {{ .Values.env.s3Region | quote }}
+  EVYDENCE_S3_USE_SSL: {{ .Values.env.s3UseSSL | quote }}
+  EVYDENCE_SIGNING_KEY_MODE: {{ .Values.env.signingKeyMode | quote }}
+  EVYDENCE_WORKER_POLL_INTERVAL: {{ .Values.worker.pollInterval | quote }}

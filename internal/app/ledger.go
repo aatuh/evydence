@@ -77,6 +77,7 @@ type Ledger struct {
 	tenants           map[string]domain.Tenant
 	apiKeys           map[string]domain.APIKey
 	collectors        map[string]domain.Collector
+	collectorReleases map[string]domain.CollectorRelease
 	products          map[string]domain.Product
 	projects          map[string]domain.Project
 	releases          map[string]domain.Release
@@ -165,6 +166,7 @@ func NewLedgerWithError(cfg Config) (*Ledger, error) {
 		tenants:           map[string]domain.Tenant{},
 		apiKeys:           map[string]domain.APIKey{},
 		collectors:        map[string]domain.Collector{},
+		collectorReleases: map[string]domain.CollectorRelease{},
 		products:          map[string]domain.Product{},
 		projects:          map[string]domain.Project{},
 		releases:          map[string]domain.Release{},

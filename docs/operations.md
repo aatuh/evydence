@@ -79,6 +79,14 @@ go run ./cmd/evydence github-actions upload-build \
 
 The command reads `GITHUB_REPOSITORY`, `GITHUB_WORKFLOW_REF`, `GITHUB_RUN_ID`, `GITHUB_RUN_ATTEMPT`, `GITHUB_JOB`, `GITHUB_ACTOR`, `GITHUB_REF`, and `GITHUB_SHA` from the Actions environment. `EVYDENCE_GITHUB_OIDC_SUBJECT` or `--oidc-subject` can capture an OIDC subject string when a workflow already has it, but this slice does not request or verify GitHub OIDC tokens.
 
+End-to-end workflow examples are stored in `docs/github-actions/release-evidence-workflow.yml` and `docs/gitlab/evydence-release-evidence.gitlab-ci.yml`.
+
+## CLI Uploads
+
+Use `evydence upload manifest` for bulk upload manifests that contain explicit `/v1` paths, idempotency keys, and JSON payloads or local payload files. Use `evydence import-bundle upload` for air-gapped evidence bundle imports.
+
+Use `evydence release manifest`, `evydence release sign`, and `evydence release verify` to create and verify release artifact manifests before publishing binaries, images, or collector artifacts.
+
 ## Integrity Operations
 
 Use `GET /v1/ready` for low-detail readiness checks. Use `GET /v1/metrics` only with an admin API key; it returns safe tenant resource counts, not raw evidence payloads or secrets.

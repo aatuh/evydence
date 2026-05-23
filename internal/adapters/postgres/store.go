@@ -269,6 +269,9 @@ func resourceProjections(state app.PersistedState) []resourceProjection {
 	for _, v := range state.DSSETrustRoots {
 		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "dsse_trust_root", ResourceID: v.ID, CreatedAt: v.CreatedAt})
 	}
+	for _, v := range state.CollectorReleases {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "collector_release", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
 	for _, v := range state.CosignVerifications {
 		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "cosign_verification", ResourceID: v.ID, CreatedAt: v.CreatedAt})
 	}

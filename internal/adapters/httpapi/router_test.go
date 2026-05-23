@@ -329,6 +329,30 @@ func TestCollectorBuildAttestationHTTPFlow(t *testing.T) {
 	postRaw(t, server, collectorSecret, "/v1/builds/"+buildID+"/attestations", "prov-bad-attestation", []byte(`{"payloadType":"application/vnd.in-toto+json","payload":"@@@","signatures":[{"sig":"abc"}]}`), http.StatusBadRequest)
 }
 
+func TestCollectorSupplyChainHTTPFlow(t *testing.T) {
+	server, secret := testServer(t)
+	collectorBody := postJSON(t, server, secret, "/v1/collectors", "supply-collector", map[string]any{"name": "import-bundle", "type": "import_bundle", "version": "0.1.0", "scopes": []string{"bundle:write", "evidence:write"}}, http.StatusCreated)
+	collector, ok := dataMap(t, collectorBody)["collector"].(map[string]any)
+	if !ok {
+		t.Fatalf("collector missing: %s", collectorBody)
+	}
+	collectorID, ok := collector["id"].(string)
+	if !ok || collectorID == "" {
+		t.Fatalf("collector id missing: %s", collectorBody)
+	}
+	artifactDigest := "sha256:2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"
+	artifactBody := postJSON(t, server, secret, "/v1/artifacts", "supply-artifact", map[string]any{"name": "evydence-collector", "media_type": "application/octet-stream", "digest": artifactDigest, "size": 6}, http.StatusCreated)
+	artifactID := dataField(t, artifactBody, "id")
+	sigBody := postJSON(t, server, secret, "/v1/artifact-signatures", "supply-signature", map[string]any{"artifact_id": artifactID, "algorithm": "cosign", "signature": "sig"}, http.StatusCreated)
+	sigID := dataField(t, sigBody, "id")
+	releaseBody := postJSON(t, server, secret, "/v1/collectors/"+collectorID+"/releases", "supply-release", map[string]any{"version": "0.1.0", "artifact_digest": artifactDigest, "signature_id": sigID, "pinned": true}, http.StatusCreated)
+	releaseID := dataField(t, releaseBody, "id")
+	health := getJSON(t, server, secret, "/v1/collectors/"+collectorID+"/health", http.StatusOK)
+	if !strings.Contains(health, releaseID) || !strings.Contains(health, `"collector_version_pinned"`) {
+		t.Fatalf("collector health response: %s", health)
+	}
+}
+
 func TestControlsAndReportsHTTPFlow(t *testing.T) {
 	server, secret := testServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "ctrl-prod", map[string]any{"name": "Controls Product", "slug": "controls-product"}, http.StatusCreated)

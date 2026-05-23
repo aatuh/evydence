@@ -39,6 +39,8 @@ The generated OpenAPI document is committed at `openapi.yaml` and served at `/v1
 
 Collectors are tenant-scoped automated ingesters. `POST /v1/collectors` creates a `github_actions`, `gitlab_ci`, or `generic_ci` collector and returns a one-time API key secret scoped for build/evidence upload. `GET /v1/collectors` lists collectors without key hashes or secrets. The server binds collector identity from the API key; clients must not submit `collector_id` for build attribution.
 
+`import_bundle` collectors are also supported for air-gapped workflows that move evidence bundles through controlled media before upload. `POST /v1/collectors/{id}/releases` records collector release supply-chain evidence such as version, artifact digest, signature, SBOM, scan, and pinning. `GET /v1/collectors/{id}/health` returns a tenant-scoped collector health report with checks and limitations.
+
 `POST /v1/builds` records an immutable build run. For `provider=github_actions`, the request must include `project_id`, `release_id`, `commit_sha`, `status`, `started_at`, `repository`, `workflow_ref`, `run_id`, and `run_attempt`. Supported statuses are `queued`, `running`, `passed`, `failed`, and `cancelled`. `GET /v1/builds/{id}` requires `build:read`.
 
 `POST /v1/builds/{id}/attestations` accepts raw DSSE JSON containing `payloadType`, base64 `payload`, and `signatures`. Evydence decodes the in-toto Statement, records subjects, predicate type, SLSA builder/build metadata when present, stores raw bytes as tenant-prefixed evidence, and marks the record structurally valid. This slice does not perform cryptographic trust-root verification.

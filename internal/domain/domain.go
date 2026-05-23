@@ -53,6 +53,7 @@ const (
 	TransparencyCheckpointVersion   = "transparency-checkpoint.v1.0.0"
 	ObjectRetentionPolicyVersion    = "object-retention-policy.v1.0.0"
 	BackupManifestSchemaVersion     = "backup-manifest.v1.0.0"
+	CollectorReleaseSchemaVersion   = "collector-release.v1.0.0"
 )
 
 type Actor struct {
@@ -103,6 +104,37 @@ type Collector struct {
 	LastSeenAt    *time.Time `json:"last_seen_at,omitempty"`
 	SchemaVersion string     `json:"schema_version"`
 	CreatedAt     time.Time  `json:"created_at"`
+}
+
+type CollectorRelease struct {
+	ID                 string    `json:"id"`
+	TenantID           string    `json:"tenant_id"`
+	CollectorID        string    `json:"collector_id"`
+	Version            string    `json:"version"`
+	ArtifactDigest     string    `json:"artifact_digest"`
+	SignatureID        string    `json:"signature_id,omitempty"`
+	SBOMID             string    `json:"sbom_id,omitempty"`
+	ScanID             string    `json:"scan_id,omitempty"`
+	Pinned             bool      `json:"pinned"`
+	VerificationStatus string    `json:"verification_status"`
+	HealthStatus       string    `json:"health_status"`
+	Limitations        []string  `json:"limitations,omitempty"`
+	SchemaVersion      string    `json:"schema_version"`
+	CreatedAt          time.Time `json:"created_at"`
+}
+
+type CollectorHealthReport struct {
+	ReportType        string            `json:"report_type"`
+	CollectorID       string            `json:"collector_id"`
+	CollectorStatus   string            `json:"collector_status"`
+	Version           string            `json:"version,omitempty"`
+	PinnedReleaseID   string            `json:"pinned_release_id,omitempty"`
+	SupplyChainStatus string            `json:"supply_chain_status"`
+	Checks            []VerifyCheck     `json:"checks"`
+	LatestRelease     *CollectorRelease `json:"latest_release,omitempty"`
+	Assumptions       []string          `json:"assumptions"`
+	Limitations       []string          `json:"limitations"`
+	GeneratedAt       time.Time         `json:"generated_at"`
 }
 
 type Product struct {

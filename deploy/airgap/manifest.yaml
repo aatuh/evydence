@@ -1,0 +1,16 @@
+schema_version: evydence-airgap-package.v1.0.0
+images:
+  - name: evydence
+    repository: ghcr.io/aatuh/evydence
+    tag: dev
+    required: true
+bundled_paths:
+  - migrations/
+  - openapi.yaml
+  - deploy/helm/evydence/
+  - docs/air-gapped.md
+verification:
+  checksums: SHA256SUMS
+  signature: SHA256SUMS.sig.json
+limitations:
+  - The air-gapped package manifest describes required artifacts; operators must build, sign, and transfer actual images and archives through their controlled process.

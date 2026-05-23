@@ -19,7 +19,8 @@ This repository now contains the release-ledger MVP scaffold:
 - Docker Compose dependencies for PostgreSQL and MinIO.
 - A polling `cmd/evydence-worker` process that claims persisted outbox jobs with PostgreSQL row locking and records retry or terminal status.
 - A local `cmd/evydence` helper for hashing, manifest verification, and GitHub Actions build provenance upload.
-- Offline `cmd/evydence` verification for exported evidence bundle manifests.
+- Offline `cmd/evydence` verification for exported evidence bundle manifests, release artifact manifest signing/verification, bulk upload manifests, and air-gapped evidence bundle import.
+- Kubernetes Helm chart, air-gapped package manifest, SDK examples, GitHub Actions release workflow example, and GitLab CI template.
 
 ## Local API
 

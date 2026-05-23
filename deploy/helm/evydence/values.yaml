@@ -1,0 +1,37 @@
+image:
+  repository: ghcr.io/aatuh/evydence
+  tag: dev
+  pullPolicy: IfNotPresent
+
+api:
+  replicas: 1
+  addr: ":8080"
+
+worker:
+  replicas: 1
+  pollInterval: 1s
+
+env:
+  production: true
+  databaseURLSecretKey: EVYDENCE_DATABASE_URL
+  apiKeyPepperSecretKey: EVYDENCE_API_KEY_PEPPER
+  objectStore: s3
+  s3Endpoint: ""
+  s3Bucket: ""
+  s3Region: ""
+  s3UseSSL: "true"
+  signingKeyMode: external
+
+existingSecret: evydence-secrets
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: false
+  className: ""
+  host: evydence.example.com
+  tlsSecretName: ""
+
+resources: {}

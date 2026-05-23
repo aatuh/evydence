@@ -1,0 +1,24 @@
+stages:
+  - build
+  - evidence
+
+build:
+  image: golang:1.25
+  stage: build
+  script:
+    - go build -o dist/evydence ./cmd/evydence
+    - ./dist/evydence hash dist/evydence > artifact.digest
+  artifacts:
+    paths:
+      - dist/evydence
+      - artifact.digest
+
+evydence:evidence:
+  image: golang:1.25
+  stage: evidence
+  dependencies:
+    - build
+  script:
+    - go run ./cmd/evydence upload manifest --url "$EVYDENCE_API_URL" --api-key "$EVYDENCE_API_KEY" --manifest evydence-upload-manifest.json
+  rules:
+    - if: $EVYDENCE_API_URL && $EVYDENCE_API_KEY

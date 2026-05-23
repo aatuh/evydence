@@ -26,6 +26,7 @@ type PersistedState struct {
 	APIKeys                 map[string]domain.APIKey                      `json:"api_keys"`
 	APIKeyHashes            map[string]string                             `json:"api_key_hashes,omitempty"`
 	Collectors              map[string]domain.Collector                   `json:"collectors"`
+	CollectorReleases       map[string]domain.CollectorRelease            `json:"collector_releases"`
 	Products                map[string]domain.Product                     `json:"products"`
 	Projects                map[string]domain.Project                     `json:"projects"`
 	Releases                map[string]domain.Release                     `json:"releases"`

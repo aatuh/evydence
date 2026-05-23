@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "evydence.fullname" . }}-worker
+spec:
+  replicas: {{ .Values.worker.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "evydence.name" . }}
+      app.kubernetes.io/component: worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "evydence.name" . }}
+        app.kubernetes.io/component: worker
+    spec:
+      containers:
+        - name: worker
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/evydence-worker"]
+          envFrom:
+            - configMapRef:
+                name: {{ include "evydence.fullname" . }}-config
+          env:
+            - name: EVYDENCE_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingSecret }}
+                  key: {{ .Values.env.databaseURLSecretKey }}
+            - name: EVYDENCE_API_KEY_PEPPER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingSecret }}
+                  key: {{ .Values.env.apiKeyPepperSecretKey }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

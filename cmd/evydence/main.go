@@ -3,7 +3,10 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -55,13 +58,39 @@ func run(args []string) error {
 			return usage()
 		}
 		return uploadGitHubActionsBuild(context.Background(), http.DefaultClient, args[2:])
+	case "import-bundle":
+		if len(args) < 2 || args[1] != "upload" {
+			return usage()
+		}
+		return uploadEvidenceBundleImport(context.Background(), http.DefaultClient, args[2:])
+	case "upload":
+		if len(args) < 2 || args[1] != "manifest" {
+			return usage()
+		}
+		return uploadManifestRequests(context.Background(), http.DefaultClient, args[2:])
+	case "release":
+		if len(args) < 2 {
+			return usage()
+		}
+		switch args[1] {
+		case "manifest":
+			return createReleaseArtifactManifest(args[2:])
+		case "sign":
+			return signReleaseArtifactManifest(args[2:])
+		case "verify":
+			return verifyReleaseArtifactManifest(args[2:])
+		case "keygen":
+			return generateReleaseSigningKey(args[2:])
+		default:
+			return usage()
+		}
 	default:
 		return usage()
 	}
 }
 
 func usage() error {
-	return errors.New("usage: evydence hash <file> | evydence verify-manifest <manifest.json> --hash sha256:<hex> | evydence verify-evidence-bundle <bundle.json> | evydence github-actions upload-build --url <api-url> --api-key <key> --project-id <id> --release-id <id> [--artifact-id <id> --artifact-digest sha256:<hex> --attestation-path <file>]")
+	return errors.New("usage: evydence hash <file> | evydence verify-manifest <manifest.json> --hash sha256:<hex> | evydence verify-evidence-bundle <bundle.json> | evydence github-actions upload-build ... | evydence import-bundle upload ... | evydence upload manifest ... | evydence release manifest|sign|verify|keygen")
 }
 
 func hashFile(path string) (string, error) {
@@ -271,12 +300,346 @@ func uploadGitHubActionsBuild(ctx context.Context, client *http.Client, args []s
 	return nil
 }
 
+func uploadEvidenceBundleImport(ctx context.Context, client *http.Client, args []string) error {
+	fs := flag.NewFlagSet("import-bundle upload", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	apiURL := fs.String("url", strings.TrimSpace(os.Getenv("EVYDENCE_API_URL")), "Evydence API URL")
+	apiKey := fs.String("api-key", strings.TrimSpace(os.Getenv("EVYDENCE_API_KEY")), "Evydence API key")
+	path := fs.String("path", "", "evidence bundle JSON path")
+	idem := fs.String("idempotency-key", "", "idempotency key")
+	if err := fs.Parse(args); err != nil {
+		return usage()
+	}
+	if strings.TrimSpace(*apiURL) == "" || strings.TrimSpace(*apiKey) == "" || strings.TrimSpace(*path) == "" {
+		return usage()
+	}
+	cleaned, err := cleanOperatorPath(*path)
+	if err != nil {
+		return err
+	}
+	// #nosec G304,G703 -- this CLI command intentionally reads a local operator-specified import bundle.
+	body, err := os.ReadFile(cleaned)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(*idem) == "" {
+		digest := sha256.Sum256(body)
+		*idem = "import-bundle-" + hex.EncodeToString(digest[:8])
+	}
+	response, err := postRawEvydence(ctx, client, *apiURL, *apiKey, "/v1/evidence-bundles/import", *idem, body)
+	if err != nil {
+		return err
+	}
+	id, err := responseDataID(response)
+	if err != nil {
+		return err
+	}
+	fmt.Println("evidence bundle import recorded: " + id)
+	return nil
+}
+
+func uploadManifestRequests(ctx context.Context, client *http.Client, args []string) error {
+	fs := flag.NewFlagSet("upload manifest", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	apiURL := fs.String("url", strings.TrimSpace(os.Getenv("EVYDENCE_API_URL")), "Evydence API URL")
+	apiKey := fs.String("api-key", strings.TrimSpace(os.Getenv("EVYDENCE_API_KEY")), "Evydence API key")
+	manifestPath := fs.String("manifest", "", "upload manifest JSON path")
+	if err := fs.Parse(args); err != nil {
+		return usage()
+	}
+	if strings.TrimSpace(*apiURL) == "" || strings.TrimSpace(*apiKey) == "" || strings.TrimSpace(*manifestPath) == "" {
+		return usage()
+	}
+	cleaned, err := cleanOperatorPath(*manifestPath)
+	if err != nil {
+		return err
+	}
+	// #nosec G304,G703 -- this CLI command intentionally reads a local operator-specified upload manifest.
+	body, err := os.ReadFile(cleaned)
+	if err != nil {
+		return err
+	}
+	var manifest struct {
+		Requests []struct {
+			Path           string          `json:"path"`
+			IdempotencyKey string          `json:"idempotency_key"`
+			Payload        json.RawMessage `json:"payload"`
+			PayloadFile    string          `json:"payload_file"`
+		} `json:"requests"`
+	}
+	if err := json.Unmarshal(body, &manifest); err != nil {
+		return errors.New("upload manifest is not valid JSON")
+	}
+	if len(manifest.Requests) == 0 || len(manifest.Requests) > 100 {
+		return errors.New("upload manifest must contain 1-100 requests")
+	}
+	baseDir := filepath.Dir(cleaned)
+	for i, req := range manifest.Requests {
+		path := strings.TrimSpace(req.Path)
+		idem := strings.TrimSpace(req.IdempotencyKey)
+		if !strings.HasPrefix(path, "/v1/") || idem == "" {
+			return fmt.Errorf("upload request %d missing /v1 path or idempotency key", i)
+		}
+		payload := req.Payload
+		if strings.TrimSpace(req.PayloadFile) != "" {
+			payloadPath, err := cleanOperatorPath(filepath.Join(baseDir, req.PayloadFile))
+			if err != nil {
+				return err
+			}
+			// #nosec G304,G703 -- payload files are local operator-selected files referenced by the manifest.
+			payload, err = os.ReadFile(payloadPath)
+			if err != nil {
+				return err
+			}
+		}
+		if len(bytes.TrimSpace(payload)) == 0 {
+			return fmt.Errorf("upload request %d has empty payload", i)
+		}
+		response, err := postRawEvydence(ctx, client, *apiURL, *apiKey, path, idem, payload)
+		if err != nil {
+			return err
+		}
+		id, err := responseDataID(response)
+		if err != nil {
+			return err
+		}
+		fmt.Println("uploaded " + path + ": " + id)
+	}
+	return nil
+}
+
+func createReleaseArtifactManifest(args []string) error {
+	fs := flag.NewFlagSet("release manifest", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	out := fs.String("out", "evydence-release-manifest.json", "output manifest path")
+	if err := fs.Parse(args); err != nil {
+		return usage()
+	}
+	files := fs.Args()
+	if len(files) == 0 {
+		return usage()
+	}
+	artifacts := []map[string]any{}
+	for _, path := range files {
+		cleaned, err := cleanOperatorPath(path)
+		if err != nil {
+			return err
+		}
+		info, err := os.Stat(cleaned)
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return errors.New("release artifact path must be a file")
+		}
+		digest, err := hashFile(cleaned)
+		if err != nil {
+			return err
+		}
+		artifacts = append(artifacts, map[string]any{"path": filepath.Base(cleaned), "size": info.Size(), "digest": digest})
+	}
+	manifest := map[string]any{"schema_version": "evydence-release-artifacts.v1.0.0", "generated_at": time.Now().UTC().Format(time.RFC3339), "artifacts": artifacts}
+	return writeJSONFile(*out, manifest)
+}
+
+func generateReleaseSigningKey(args []string) error {
+	fs := flag.NewFlagSet("release keygen", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	privateOut := fs.String("private-out", "evydence-release-private.key", "private key output path")
+	publicOut := fs.String("public-out", "evydence-release-public.key", "public key output path")
+	if err := fs.Parse(args); err != nil {
+		return usage()
+	}
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Clean(*privateOut), []byte(base64.StdEncoding.EncodeToString(priv)), 0o600); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Clean(*publicOut), []byte(base64.StdEncoding.EncodeToString(pub)), 0o600); err != nil {
+		return err
+	}
+	fmt.Println("release signing keypair generated")
+	return nil
+}
+
+func signReleaseArtifactManifest(args []string) error {
+	fs := flag.NewFlagSet("release sign", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	manifestPath := fs.String("manifest", "", "release manifest path")
+	privateKeyPath := fs.String("private-key", "", "base64 Ed25519 private key file")
+	out := fs.String("out", "evydence-release-manifest.sig.json", "signature output path")
+	if err := fs.Parse(args); err != nil {
+		return usage()
+	}
+	if strings.TrimSpace(*manifestPath) == "" || strings.TrimSpace(*privateKeyPath) == "" {
+		return usage()
+	}
+	canonical, hash, err := canonicalFileHash(*manifestPath)
+	if err != nil {
+		return err
+	}
+	priv, err := readBase64File(*privateKeyPath, ed25519.PrivateKeySize)
+	if err != nil {
+		return err
+	}
+	sig := ed25519.Sign(ed25519.PrivateKey(priv), canonical)
+	pub := ed25519.PrivateKey(priv).Public().(ed25519.PublicKey)
+	signature := map[string]any{"schema_version": "evydence-release-signature.v1.0.0", "manifest_hash": hash, "algorithm": "Ed25519", "public_key": base64.StdEncoding.EncodeToString(pub), "signature": base64.StdEncoding.EncodeToString(sig)}
+	return writeJSONFile(*out, signature)
+}
+
+func verifyReleaseArtifactManifest(args []string) error {
+	fs := flag.NewFlagSet("release verify", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	manifestPath := fs.String("manifest", "", "release manifest path")
+	signaturePath := fs.String("signature", "", "release signature path")
+	if err := fs.Parse(args); err != nil {
+		return usage()
+	}
+	if strings.TrimSpace(*manifestPath) == "" || strings.TrimSpace(*signaturePath) == "" {
+		return usage()
+	}
+	canonical, hash, err := canonicalFileHash(*manifestPath)
+	if err != nil {
+		return err
+	}
+	var signature struct {
+		ManifestHash string `json:"manifest_hash"`
+		Algorithm    string `json:"algorithm"`
+		PublicKey    string `json:"public_key"`
+		Signature    string `json:"signature"`
+	}
+	body, err := readFileStrict(*signaturePath)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(body, &signature); err != nil {
+		return errors.New("release signature is not valid JSON")
+	}
+	pub, err := base64.StdEncoding.DecodeString(signature.PublicKey)
+	if err != nil || len(pub) != ed25519.PublicKeySize || signature.Algorithm != "Ed25519" {
+		return errors.New("invalid release signature metadata")
+	}
+	value, err := base64.StdEncoding.DecodeString(signature.Signature)
+	if err != nil || len(value) != ed25519.SignatureSize {
+		return errors.New("invalid release signature value")
+	}
+	if signature.ManifestHash != hash || !ed25519.Verify(ed25519.PublicKey(pub), canonical, value) {
+		return errors.New("release manifest signature verification failed")
+	}
+	if err := verifyReleaseArtifactFiles(*manifestPath, body); err != nil {
+		return err
+	}
+	fmt.Println("release manifest verified")
+	return nil
+}
+
 func postEvydence(ctx context.Context, client *http.Client, apiURL, apiKey, path, idem string, payload any) ([]byte, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
 	}
 	return postRawEvydence(ctx, client, apiURL, apiKey, path, idem, body)
+}
+
+func writeJSONFile(path string, value any) error {
+	cleaned, err := cleanOperatorPath(path)
+	if err != nil {
+		return err
+	}
+	body, err := json.MarshalIndent(value, "", "  ")
+	if err != nil {
+		return err
+	}
+	body = append(body, '\n')
+	if err := os.WriteFile(cleaned, body, 0o600); err != nil {
+		return err
+	}
+	fmt.Println("wrote " + cleaned)
+	return nil
+}
+
+func readFileStrict(path string) ([]byte, error) {
+	cleaned, err := cleanOperatorPath(path)
+	if err != nil {
+		return nil, err
+	}
+	// #nosec G304,G703 -- this CLI intentionally reads a local operator-specified file.
+	body, err := os.ReadFile(cleaned)
+	if err != nil {
+		return nil, err
+	}
+	return body, nil
+}
+
+func readBase64File(path string, size int) ([]byte, error) {
+	body, err := readFileStrict(path)
+	if err != nil {
+		return nil, err
+	}
+	decoded, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(body)))
+	if err != nil || len(decoded) != size {
+		return nil, errors.New("invalid base64 key file")
+	}
+	return decoded, nil
+}
+
+func canonicalFileHash(path string) ([]byte, string, error) {
+	body, err := readFileStrict(path)
+	if err != nil {
+		return nil, "", err
+	}
+	var normalized any
+	if err := json.Unmarshal(body, &normalized); err != nil {
+		return nil, "", errors.New("manifest is not valid JSON")
+	}
+	canonical, err := json.Marshal(normalized)
+	if err != nil {
+		return nil, "", err
+	}
+	sum := sha256.Sum256(canonical)
+	return canonical, "sha256:" + hex.EncodeToString(sum[:]), nil
+}
+
+func verifyReleaseArtifactFiles(manifestPath string, _ []byte) error {
+	body, err := readFileStrict(manifestPath)
+	if err != nil {
+		return err
+	}
+	var manifest struct {
+		Artifacts []struct {
+			Path   string `json:"path"`
+			Digest string `json:"digest"`
+			Size   int64  `json:"size"`
+		} `json:"artifacts"`
+	}
+	if err := json.Unmarshal(body, &manifest); err != nil {
+		return errors.New("release manifest is not valid JSON")
+	}
+	if len(manifest.Artifacts) == 0 {
+		return errors.New("release manifest has no artifacts")
+	}
+	baseDir := filepath.Dir(filepath.Clean(manifestPath))
+	for _, artifact := range manifest.Artifacts {
+		path := filepath.Join(baseDir, artifact.Path)
+		digest, err := hashFile(path)
+		if err != nil {
+			return err
+		}
+		if digest != artifact.Digest {
+			return fmt.Errorf("artifact digest mismatch for %s", artifact.Path)
+		}
+		info, err := os.Stat(path)
+		if err != nil {
+			return err
+		}
+		if info.Size() != artifact.Size {
+			return fmt.Errorf("artifact size mismatch for %s", artifact.Path)
+		}
+	}
+	return nil
 }
 
 func postRawEvydence(ctx context.Context, client *http.Client, apiURL, apiKey, path, idem string, body []byte) ([]byte, error) {

@@ -22,6 +22,7 @@ func (l *Ledger) snapshotLocked() PersistedState {
 		APIKeys:                 apiKeys,
 		APIKeyHashes:            map[string]string{},
 		Collectors:              l.collectors,
+		CollectorReleases:       l.collectorReleases,
 		Products:                l.products,
 		Projects:                l.projects,
 		Releases:                l.releases,
@@ -122,6 +123,7 @@ func (l *Ledger) applyState(state PersistedState) {
 	l.tenants = state.Tenants
 	l.apiKeys = state.APIKeys
 	l.collectors = state.Collectors
+	l.collectorReleases = state.CollectorReleases
 	l.products = state.Products
 	l.projects = state.Projects
 	l.releases = state.Releases
@@ -254,6 +256,9 @@ func normalizeState(state PersistedState) PersistedState {
 	}
 	if state.Collectors == nil {
 		state.Collectors = map[string]domain.Collector{}
+	}
+	if state.CollectorReleases == nil {
+		state.CollectorReleases = map[string]domain.CollectorRelease{}
 	}
 	if state.Products == nil {
 		state.Products = map[string]domain.Product{}

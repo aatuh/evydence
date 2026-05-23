@@ -7,7 +7,7 @@ GOLANGCI_LINT_VERSION ?= v2.11.4
 GOSEC_VERSION ?= v2.25.0
 GOVULNCHECK_VERSION ?= v1.2.0
 
-.PHONY: help tools fmt lint vuln gosec test test-race coverage openapi-check docs-check fast-check finalize compose-up compose-down migrate live-postgres-check postgres-integration-test clean
+.PHONY: help tools fmt lint vuln gosec test test-race coverage openapi-check docs-check deploy-check sdk-check fast-check finalize compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -52,18 +52,38 @@ docs-check: ## Validate canonical docs exist and avoid forbidden product claims
 	@test -f docs/architecture.md
 	@test -f docs/api.md
 	@test -f docs/operations.md
+	@test -f docs/kubernetes.md
+	@test -f docs/air-gapped.md
+	@test -f docs/release-signing.md
+	@test -f docs/production-hardening.md
 	@! grep -R -i "automatically compliant\|certified secure\|legally sufficient\|SBOM is complete\|all vulnerabilities detected" README.md docs
+
+deploy-check: ## Validate deployment and air-gap skeletons exist
+	@test -f deploy/helm/evydence/Chart.yaml
+	@test -f deploy/helm/evydence/values.yaml
+	@test -f deploy/helm/evydence/templates/deployment-api.yaml
+	@test -f deploy/helm/evydence/templates/deployment-worker.yaml
+	@test -f deploy/airgap/manifest.yaml
+
+sdk-check: ## Validate curated SDK example files exist
+	@test -f sdk/go/evydence/client.go
+	@test -f sdk/typescript/client.ts
+	@test -f sdk/python/evydence_client.py
 
 fast-check: ## Run non-mutating fast validation
 	@$(MAKE) test
 	@$(MAKE) openapi-check
 	@$(MAKE) docs-check
+	@$(MAKE) deploy-check
+	@$(MAKE) sdk-check
 
 finalize: ## Thorough validity check
 	@$(MAKE) fmt
 	@$(MAKE) test
 	@$(MAKE) openapi-check
 	@$(MAKE) docs-check
+	@$(MAKE) deploy-check
+	@$(MAKE) sdk-check
 
 compose-up: ## Start local dependencies
 	@docker compose up -d
