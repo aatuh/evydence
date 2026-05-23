@@ -19,6 +19,42 @@ evydence:evidence:
   dependencies:
     - build
   script:
+    - export EVYDENCE_ARTIFACT_DIGEST="$(cat artifact.digest)"
+    - |
+      cat > evydence-upload-manifest.json <<EOF
+      {
+        "requests": [
+          {
+            "path": "/v1/builds",
+            "idempotency_key": "gitlab-build-${CI_PIPELINE_ID}-${CI_JOB_ID}",
+            "payload": {
+              "project_id": "${EVYDENCE_PROJECT_ID}",
+              "release_id": "${EVYDENCE_RELEASE_ID}",
+              "provider": "gitlab_ci",
+              "commit_sha": "${CI_COMMIT_SHA}",
+              "repository": "${CI_PROJECT_PATH}",
+              "workflow_ref": "${CI_PROJECT_PATH}/.gitlab-ci.yml@${CI_COMMIT_REF_NAME}",
+              "run_id": "${CI_PIPELINE_ID}",
+              "job_id": "${CI_JOB_ID}",
+              "actor": "${GITLAB_USER_LOGIN}",
+              "ref": "${CI_COMMIT_REF_NAME}",
+              "status": "passed",
+              "started_at": "${CI_PIPELINE_CREATED_AT}",
+              "provider_metadata": {
+                "pipeline_url": "${CI_PIPELINE_URL}",
+                "job_url": "${CI_JOB_URL}"
+              },
+              "outputs": [
+                {
+                  "artifact_id": "${EVYDENCE_ARTIFACT_ID}",
+                  "digest": "${EVYDENCE_ARTIFACT_DIGEST}"
+                }
+              ]
+            }
+          }
+        ]
+      }
+      EOF
     - go run ./cmd/evydence upload manifest --url "$EVYDENCE_API_URL" --api-key "$EVYDENCE_API_KEY" --manifest evydence-upload-manifest.json
   rules:
     - if: $EVYDENCE_API_URL && $EVYDENCE_API_KEY
