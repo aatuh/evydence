@@ -150,6 +150,7 @@ func (l *Ledger) UploadVEX(ctx context.Context, actor domain.Actor, releaseID, a
 				ActionStatement: statement.ActionStatement,
 			}, "vex", actor.KeyID, item.ID, vex.ID)
 			l.decisions[decision.ID] = decision
+			_, _ = l.appendChainLocked(actor.TenantID, "vulnerability_decision.created", "vulnerability_finding", matched.finding.ID, "api_key", actor.KeyID, payloadHash, "")
 			createdDecisions++
 		}
 	}

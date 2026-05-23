@@ -11,7 +11,7 @@ This repository now contains the release-ledger MVP scaffold:
 - Go module `github.com/aatuh/evydence`.
 - HTTP API under `/v1` using `github.com/aatuh/api-toolkit/v3` route contracts, OpenAPI generation, response helpers, and Problem Details.
 - Multi-tenant scoped API keys with one-time secret output, HMAC-SHA256 storage, and server-side scope checks.
-- Products, projects, releases, artifacts, evidence, CycloneDX SBOM upload, generic vulnerability scan upload, OpenAPI upload, policy evaluation, missing-evidence report, signing keys, signed release bundles, and verification endpoints.
+- Products, projects, releases, artifacts, evidence, CycloneDX SBOM upload, OpenVEX upload, generic vulnerability scan upload, vulnerability decisions, exceptions, OpenAPI upload, policy evaluation, missing-evidence and release-readiness reports, signing keys, signed release bundles, and verification endpoints.
 - In-process store for local demos and unit-test execution when `EVYDENCE_DATABASE_URL` is unset.
 - PostgreSQL-backed durable ledger state and persisted outbox jobs when `EVYDENCE_DATABASE_URL` is set.
 - Filesystem object storage for raw upload payload bytes, keyed under tenant-prefixed paths.

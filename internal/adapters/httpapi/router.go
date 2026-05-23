@@ -79,12 +79,19 @@ func (s *Server) registerRoutes() error {
 		{http.MethodPost, "/v1/evidence/{id}/link", op("linkEvidence", http.MethodPost, "/v1/evidence/{id}/link", "Link evidence", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.linkEvidence)},
 		{http.MethodPost, "/v1/sboms", op("uploadSBOM", http.MethodPost, "/v1/sboms", "Upload CycloneDX SBOM", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.uploadSBOM)},
 		{http.MethodGet, "/v1/sboms/{id}", op("getSBOM", http.MethodGet, "/v1/sboms/{id}", "Get SBOM", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.getSBOM)},
+		{http.MethodPost, "/v1/vex", op("uploadVEX", http.MethodPost, "/v1/vex", "Upload OpenVEX document", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.uploadVEX)},
+		{http.MethodGet, "/v1/vex/{id}", op("getVEX", http.MethodGet, "/v1/vex/{id}", "Get VEX document", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.getVEX)},
 		{http.MethodPost, "/v1/vulnerability-scans", op("uploadVulnerabilityScan", http.MethodPost, "/v1/vulnerability-scans", "Upload vulnerability scan", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.uploadVulnerabilityScan)},
 		{http.MethodGet, "/v1/vulnerability-scans/{id}", op("getVulnerabilityScan", http.MethodGet, "/v1/vulnerability-scans/{id}", "Get vulnerability scan", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.getVulnerabilityScan)},
+		{http.MethodPost, "/v1/vulnerability-findings/{id}/decisions", op("createVulnerabilityDecision", http.MethodPost, "/v1/vulnerability-findings/{id}/decisions", "Create vulnerability decision", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.createVulnerabilityDecision)},
 		{http.MethodPost, "/v1/openapi-contracts", op("uploadOpenAPIContract", http.MethodPost, "/v1/openapi-contracts", "Upload OpenAPI contract", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.uploadOpenAPIContract)},
 		{http.MethodGet, "/v1/openapi-contracts/{id}", op("getOpenAPIContract", http.MethodGet, "/v1/openapi-contracts/{id}", "Get OpenAPI contract", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.getOpenAPIContract)},
 		{http.MethodPost, "/v1/policies/evaluate", op("evaluatePolicy", http.MethodPost, "/v1/policies/evaluate", "Evaluate release policy", []string{app.ScopeVerifyRead}), http.HandlerFunc(s.evaluatePolicy)},
+		{http.MethodPost, "/v1/exceptions", op("createException", http.MethodPost, "/v1/exceptions", "Create exception", []string{app.ScopeReleaseWrite}), http.HandlerFunc(s.createException)},
+		{http.MethodGet, "/v1/exceptions", op("listExceptions", http.MethodGet, "/v1/exceptions", "List exceptions", []string{app.ScopeVerifyRead}), http.HandlerFunc(s.listExceptions)},
+		{http.MethodPost, "/v1/exceptions/{id}/approve", op("approveException", http.MethodPost, "/v1/exceptions/{id}/approve", "Approve exception", []string{app.ScopeReleaseWrite}), http.HandlerFunc(s.approveException)},
 		{http.MethodGet, "/v1/reports/missing-evidence", op("missingEvidenceReport", http.MethodGet, "/v1/reports/missing-evidence", "Missing evidence report", []string{app.ScopeVerifyRead}), http.HandlerFunc(s.missingEvidenceReport)},
+		{http.MethodGet, "/v1/reports/release-readiness", op("releaseReadinessReport", http.MethodGet, "/v1/reports/release-readiness", "Release readiness report", []string{app.ScopeVerifyRead}), http.HandlerFunc(s.releaseReadinessReport)},
 		{http.MethodPost, "/v1/release-bundles", op("createReleaseBundle", http.MethodPost, "/v1/release-bundles", "Create release bundle", []string{app.ScopeBundleWrite}), http.HandlerFunc(s.createReleaseBundle)},
 		{http.MethodGet, "/v1/release-bundles/{id}", op("getReleaseBundle", http.MethodGet, "/v1/release-bundles/{id}", "Get release bundle", []string{app.ScopeBundleRead}), http.HandlerFunc(s.getReleaseBundle)},
 		{http.MethodGet, "/v1/release-bundles/{id}/manifest", op("getReleaseBundleManifest", http.MethodGet, "/v1/release-bundles/{id}/manifest", "Get release bundle manifest", []string{app.ScopeBundleRead}), http.HandlerFunc(s.getReleaseBundleManifest)},
@@ -335,6 +342,34 @@ func (s *Server) getSBOM(w http.ResponseWriter, r *http.Request) {
 	writeData(w, http.StatusOK, sbom)
 }
 
+func (s *Server) uploadVEX(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ReleaseID  string          `json:"release_id"`
+		ArtifactID string          `json:"artifact_id"`
+		Payload    json.RawMessage `json:"payload"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		vex, err := s.ledger.UploadVEX(r.Context(), actor, req.ReleaseID, req.ArtifactID, req.Payload)
+		return http.StatusCreated, vex, err
+	})
+}
+
+func (s *Server) getVEX(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	vex, err := s.ledger.GetVEXDocument(r.Context(), actor, r.PathValue("id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, vex)
+}
+
 func (s *Server) uploadVulnerabilityScan(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
 		scan, err := s.ledger.UploadVulnerabilityScan(r.Context(), actor, body)
@@ -353,6 +388,27 @@ func (s *Server) getVulnerabilityScan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeData(w, http.StatusOK, scan)
+}
+
+func (s *Server) createVulnerabilityDecision(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Status          string `json:"status"`
+		Justification   string `json:"justification"`
+		ImpactStatement string `json:"impact_statement"`
+		ActionStatement string `json:"action_statement"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		decision, err := s.ledger.CreateVulnerabilityDecision(r.Context(), actor, r.PathValue("id"), app.CreateVulnerabilityDecisionInput{
+			Status:          req.Status,
+			Justification:   req.Justification,
+			ImpactStatement: req.ImpactStatement,
+			ActionStatement: req.ActionStatement,
+		})
+		return http.StatusCreated, decision, err
+	})
 }
 
 func (s *Server) uploadOpenAPIContract(w http.ResponseWriter, r *http.Request) {
@@ -403,6 +459,64 @@ func (s *Server) missingEvidenceReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	report, err := s.ledger.MissingEvidenceReport(r.Context(), actor, r.URL.Query().Get("release_id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, report)
+}
+
+func (s *Server) createException(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ReleaseID string    `json:"release_id"`
+		FindingID string    `json:"finding_id"`
+		ControlID string    `json:"control_id"`
+		Reason    string    `json:"reason"`
+		Owner     string    `json:"owner"`
+		ExpiresAt time.Time `json:"expires_at"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		exception, err := s.ledger.CreateException(r.Context(), actor, app.CreateExceptionInput{
+			ReleaseID: req.ReleaseID,
+			FindingID: req.FindingID,
+			ControlID: req.ControlID,
+			Reason:    req.Reason,
+			Owner:     req.Owner,
+			ExpiresAt: req.ExpiresAt,
+		})
+		return http.StatusCreated, exception, err
+	})
+}
+
+func (s *Server) listExceptions(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	exceptions, err := s.ledger.ListExceptions(r.Context(), actor, r.URL.Query().Get("release_id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, exceptions)
+}
+
+func (s *Server) approveException(w http.ResponseWriter, r *http.Request) {
+	s.create(w, r, func(actor domain.Actor, _ []byte) (int, any, error) {
+		exception, err := s.ledger.ApproveException(r.Context(), actor, r.PathValue("id"))
+		return http.StatusOK, exception, err
+	})
+}
+
+func (s *Server) releaseReadinessReport(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	report, err := s.ledger.ReleaseReadinessReport(r.Context(), actor, r.URL.Query().Get("release_id"))
 	if err != nil {
 		writeProblem(w, r, err)
 		return

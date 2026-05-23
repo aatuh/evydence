@@ -13,9 +13,11 @@ Core logic does not depend on HTTP routers, SQL drivers, object storage SDKs, qu
 
 ## Security Boundaries
 
-Tenant isolation is enforced in application methods before reads and writes return data. API keys are scoped, revocable, and stored as HMAC-SHA256 hashes with `EVYDENCE_API_KEY_PEPPER`. Evidence and release bundle records are append-only in behavior; changes are represented by supersession, links, verification receipts, or new audit-chain entries.
+Tenant isolation is enforced in application methods before reads and writes return data. API keys are scoped, revocable, and stored as HMAC-SHA256 hashes with `EVYDENCE_API_KEY_PEPPER`. Evidence, VEX documents, vulnerability decisions, exceptions, and release bundle records are append-only in behavior; changes are represented by supersession, approval transitions, links, verification receipts, or new audit-chain entries.
 
-When `EVYDENCE_DATABASE_URL` is set, mutations are saved to PostgreSQL before successful responses return. Upload payload bytes are written to the configured filesystem object store with tenant-prefixed keys and SHA-256 digest checks before metadata is accepted. Outbox jobs are persisted in PostgreSQL and claimed by workers with `FOR UPDATE SKIP LOCKED`.
+When `EVYDENCE_DATABASE_URL` is set, mutations are saved to PostgreSQL before successful responses return. Upload payload bytes, including raw SBOM, vulnerability scan, OpenAPI, and OpenVEX payloads, are written to the configured filesystem object store with tenant-prefixed keys and SHA-256 digest checks before metadata is accepted. Outbox jobs are persisted in PostgreSQL and claimed by workers with `FOR UPDATE SKIP LOCKED`.
+
+Release readiness is deterministic and evidence-scoped. Open critical vulnerability findings block readiness unless the latest decision marks the finding `not_affected` or `fixed`, or an approved unexpired exception applies to the release/finding. Reports include gaps, assumptions, and limitations and do not make legal compliance or secure-release claims.
 
 ## Limitations
 
