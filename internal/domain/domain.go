@@ -39,6 +39,14 @@ const (
 	ContractDiffSchemaVersion       = "contract-diff.v1.0.0"
 	CustomPolicySchemaVersion       = "custom-policy.v1.0.0"
 	CustomPolicyEvalSchemaVersion   = "custom-policy-evaluation.v1.0.0"
+	WaiverSchemaVersion             = "waiver.v1.0.0"
+	ApprovalRecordSchemaVersion     = "approval-record.v1.0.0"
+	RedactionProfileSchemaVersion   = "redaction-profile.v1.0.0"
+	CustomerPackageSchemaVersion    = "customer-security-package.v1.0.0"
+	ReportTemplateSchemaVersion     = "report-template.v1.0.0"
+	EvidenceBundleSchemaVersion     = "evidence-bundle.v1.0.0"
+	EvidenceBundleImportVersion     = "evidence-bundle-import.v1.0.0"
+	DSSETrustRootSchemaVersion      = "dsse-trust-root.v1.0.0"
 )
 
 type Actor struct {
@@ -858,4 +866,157 @@ type CustomPolicyEvaluation struct {
 	InputHash     string        `json:"input_hash"`
 	SchemaVersion string        `json:"schema_version"`
 	CreatedAt     time.Time     `json:"created_at"`
+}
+
+type Waiver struct {
+	ID            string     `json:"id"`
+	TenantID      string     `json:"tenant_id"`
+	ScopeType     string     `json:"scope_type"`
+	ScopeID       string     `json:"scope_id"`
+	ControlID     string     `json:"control_id,omitempty"`
+	PolicyID      string     `json:"policy_id,omitempty"`
+	Owner         string     `json:"owner"`
+	Risk          string     `json:"risk"`
+	Reason        string     `json:"reason"`
+	ExpiresAt     time.Time  `json:"expires_at"`
+	Approved      bool       `json:"approved"`
+	ApprovedBy    string     `json:"approved_by,omitempty"`
+	ApprovedAt    *time.Time `json:"approved_at,omitempty"`
+	Supersedes    string     `json:"supersedes,omitempty"`
+	SupersededBy  string     `json:"superseded_by,omitempty"`
+	SchemaVersion string     `json:"schema_version"`
+	CreatedAt     time.Time  `json:"created_at"`
+}
+
+type ApprovalRecord struct {
+	ID            string    `json:"id"`
+	TenantID      string    `json:"tenant_id"`
+	SubjectType   string    `json:"subject_type"`
+	SubjectID     string    `json:"subject_id"`
+	Decision      string    `json:"decision"`
+	Reason        string    `json:"reason"`
+	ApproverID    string    `json:"approver_id"`
+	EvidenceID    string    `json:"evidence_id,omitempty"`
+	SchemaVersion string    `json:"schema_version"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type RedactionProfile struct {
+	ID             string    `json:"id"`
+	TenantID       string    `json:"tenant_id"`
+	Name           string    `json:"name"`
+	Description    string    `json:"description,omitempty"`
+	AllowedTypes   []string  `json:"allowed_types,omitempty"`
+	ExcludedFields []string  `json:"excluded_fields,omitempty"`
+	SchemaVersion  string    `json:"schema_version"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+type CustomerSecurityPackage struct {
+	ID                 string         `json:"id"`
+	TenantID           string         `json:"tenant_id"`
+	ProductID          string         `json:"product_id"`
+	ReleaseID          string         `json:"release_id,omitempty"`
+	RedactionProfileID string         `json:"redaction_profile_id"`
+	Title              string         `json:"title"`
+	State              string         `json:"state"`
+	Manifest           map[string]any `json:"manifest"`
+	ManifestHash       string         `json:"manifest_hash"`
+	ExpiresAt          time.Time      `json:"expires_at"`
+	AccessCount        int            `json:"access_count"`
+	SchemaVersion      string         `json:"schema_version"`
+	CreatedAt          time.Time      `json:"created_at"`
+}
+
+type SecurityReviewPackageReport struct {
+	ReportType      string    `json:"report_type"`
+	TemplateVersion string    `json:"template_version"`
+	PackageID       string    `json:"package_id"`
+	ProductID       string    `json:"product_id"`
+	ReleaseID       string    `json:"release_id,omitempty"`
+	EvidenceIDs     []string  `json:"evidence_ids"`
+	Assumptions     []string  `json:"assumptions"`
+	Limitations     []string  `json:"limitations"`
+	GeneratedAt     time.Time `json:"generated_at"`
+}
+
+type HTMLReportPackage struct {
+	ID            string    `json:"id"`
+	TenantID      string    `json:"tenant_id"`
+	ReportType    string    `json:"report_type"`
+	ProductID     string    `json:"product_id"`
+	ReleaseID     string    `json:"release_id,omitempty"`
+	HTML          string    `json:"html"`
+	Hash          string    `json:"hash"`
+	SchemaVersion string    `json:"schema_version"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type ControlFrameworkTemplatePack struct {
+	ID            string            `json:"id"`
+	Name          string            `json:"name"`
+	Slug          string            `json:"slug"`
+	Version       string            `json:"version"`
+	Description   string            `json:"description,omitempty"`
+	Controls      []SecurityControl `json:"controls"`
+	SchemaVersion string            `json:"schema_version"`
+}
+
+type CustomReportTemplate struct {
+	ID            string    `json:"id"`
+	TenantID      string    `json:"tenant_id"`
+	Name          string    `json:"name"`
+	Version       string    `json:"version"`
+	ReportType    string    `json:"report_type"`
+	AllowedFields []string  `json:"allowed_fields"`
+	Template      string    `json:"template"`
+	SchemaVersion string    `json:"schema_version"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type RenderedCustomReport struct {
+	ID            string         `json:"id"`
+	TenantID      string         `json:"tenant_id"`
+	TemplateID    string         `json:"template_id"`
+	SubjectType   string         `json:"subject_type"`
+	SubjectID     string         `json:"subject_id"`
+	Output        map[string]any `json:"output"`
+	Hash          string         `json:"hash"`
+	SchemaVersion string         `json:"schema_version"`
+	CreatedAt     time.Time      `json:"created_at"`
+}
+
+type EvidenceBundle struct {
+	ID               string         `json:"id"`
+	TenantID         string         `json:"tenant_id"`
+	ReleaseID        string         `json:"release_id,omitempty"`
+	EvidenceIDs      []string       `json:"evidence_ids"`
+	Manifest         map[string]any `json:"manifest"`
+	ManifestHash     string         `json:"manifest_hash"`
+	SignatureRefs    []string       `json:"signature_refs,omitempty"`
+	VerificationText string         `json:"verification_text"`
+	SchemaVersion    string         `json:"schema_version"`
+	CreatedAt        time.Time      `json:"created_at"`
+}
+
+type EvidenceBundleImport struct {
+	ID            string    `json:"id"`
+	TenantID      string    `json:"tenant_id"`
+	BundleHash    string    `json:"bundle_hash"`
+	Result        string    `json:"result"`
+	ImportedCount int       `json:"imported_count"`
+	SchemaVersion string    `json:"schema_version"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type DSSETrustRoot struct {
+	ID            string    `json:"id"`
+	TenantID      string    `json:"tenant_id"`
+	Name          string    `json:"name"`
+	KeyID         string    `json:"key_id"`
+	Algorithm     string    `json:"algorithm"`
+	PublicKey     string    `json:"public_key"`
+	Status        string    `json:"status"`
+	SchemaVersion string    `json:"schema_version"`
+	CreatedAt     time.Time `json:"created_at"`
 }

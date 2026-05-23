@@ -49,6 +49,8 @@ const (
 	ScopeSecurityRead    = "security:read"
 	ScopePolicyWrite     = "policy:write"
 	ScopePolicyRead      = "policy:read"
+	ScopePackageWrite    = "package:write"
+	ScopePackageRead     = "package:read"
 	ScopeControlsAdmin   = "controls:admin"
 	ScopeControlsRead    = "controls:read"
 	ScopeControlsWrite   = "controls:write"
@@ -103,6 +105,16 @@ type Ledger struct {
 	contractDiffs     map[string]domain.ContractDiff
 	customPolicies    map[string]domain.CustomPolicy
 	customPolicyEvals map[string]domain.CustomPolicyEvaluation
+	waivers           map[string]domain.Waiver
+	approvals         map[string]domain.ApprovalRecord
+	redactions        map[string]domain.RedactionProfile
+	customerPackages  map[string]domain.CustomerSecurityPackage
+	htmlReports       map[string]domain.HTMLReportPackage
+	reportTemplates   map[string]domain.CustomReportTemplate
+	renderedReports   map[string]domain.RenderedCustomReport
+	evidenceBundles   map[string]domain.EvidenceBundle
+	bundleImports     map[string]domain.EvidenceBundleImport
+	dsseTrustRoots    map[string]domain.DSSETrustRoot
 	frameworks        map[string]domain.ControlFramework
 	controls          map[string]domain.SecurityControl
 	controlLinks      map[string]domain.ControlEvidence
@@ -175,6 +187,16 @@ func NewLedgerWithError(cfg Config) (*Ledger, error) {
 		contractDiffs:     map[string]domain.ContractDiff{},
 		customPolicies:    map[string]domain.CustomPolicy{},
 		customPolicyEvals: map[string]domain.CustomPolicyEvaluation{},
+		waivers:           map[string]domain.Waiver{},
+		approvals:         map[string]domain.ApprovalRecord{},
+		redactions:        map[string]domain.RedactionProfile{},
+		customerPackages:  map[string]domain.CustomerSecurityPackage{},
+		htmlReports:       map[string]domain.HTMLReportPackage{},
+		reportTemplates:   map[string]domain.CustomReportTemplate{},
+		renderedReports:   map[string]domain.RenderedCustomReport{},
+		evidenceBundles:   map[string]domain.EvidenceBundle{},
+		bundleImports:     map[string]domain.EvidenceBundleImport{},
+		dsseTrustRoots:    map[string]domain.DSSETrustRoot{},
 		frameworks:        map[string]domain.ControlFramework{},
 		controls:          map[string]domain.SecurityControl{},
 		controlLinks:      map[string]domain.ControlEvidence{},

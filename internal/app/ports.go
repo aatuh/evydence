@@ -54,6 +54,16 @@ type PersistedState struct {
 	ContractDiffs           map[string]domain.ContractDiff                `json:"contract_diffs"`
 	CustomPolicies          map[string]domain.CustomPolicy                `json:"custom_policies"`
 	CustomPolicyEvaluations map[string]domain.CustomPolicyEvaluation      `json:"custom_policy_evaluations"`
+	Waivers                 map[string]domain.Waiver                      `json:"waivers"`
+	Approvals               map[string]domain.ApprovalRecord              `json:"approvals"`
+	RedactionProfiles       map[string]domain.RedactionProfile            `json:"redaction_profiles"`
+	CustomerPackages        map[string]domain.CustomerSecurityPackage     `json:"customer_packages"`
+	HTMLReports             map[string]domain.HTMLReportPackage           `json:"html_reports"`
+	ReportTemplates         map[string]domain.CustomReportTemplate        `json:"report_templates"`
+	RenderedReports         map[string]domain.RenderedCustomReport        `json:"rendered_reports"`
+	EvidenceBundles         map[string]domain.EvidenceBundle              `json:"evidence_bundles"`
+	BundleImports           map[string]domain.EvidenceBundleImport        `json:"bundle_imports"`
+	DSSETrustRoots          map[string]domain.DSSETrustRoot               `json:"dsse_trust_roots"`
 	ControlFrameworks       map[string]domain.ControlFramework            `json:"control_frameworks"`
 	SecurityControls        map[string]domain.SecurityControl             `json:"security_controls"`
 	ControlEvidence         map[string]domain.ControlEvidence             `json:"control_evidence"`

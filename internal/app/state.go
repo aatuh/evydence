@@ -50,6 +50,16 @@ func (l *Ledger) snapshotLocked() PersistedState {
 		ContractDiffs:           l.contractDiffs,
 		CustomPolicies:          l.customPolicies,
 		CustomPolicyEvaluations: l.customPolicyEvals,
+		Waivers:                 l.waivers,
+		Approvals:               l.approvals,
+		RedactionProfiles:       l.redactions,
+		CustomerPackages:        l.customerPackages,
+		HTMLReports:             l.htmlReports,
+		ReportTemplates:         l.reportTemplates,
+		RenderedReports:         l.renderedReports,
+		EvidenceBundles:         l.evidenceBundles,
+		BundleImports:           l.bundleImports,
+		DSSETrustRoots:          l.dsseTrustRoots,
 		ControlFrameworks:       l.frameworks,
 		SecurityControls:        l.controls,
 		ControlEvidence:         l.controlLinks,
@@ -134,6 +144,16 @@ func (l *Ledger) applyState(state PersistedState) {
 	l.contractDiffs = state.ContractDiffs
 	l.customPolicies = state.CustomPolicies
 	l.customPolicyEvals = state.CustomPolicyEvaluations
+	l.waivers = state.Waivers
+	l.approvals = state.Approvals
+	l.redactions = state.RedactionProfiles
+	l.customerPackages = state.CustomerPackages
+	l.htmlReports = state.HTMLReports
+	l.reportTemplates = state.ReportTemplates
+	l.renderedReports = state.RenderedReports
+	l.evidenceBundles = state.EvidenceBundles
+	l.bundleImports = state.BundleImports
+	l.dsseTrustRoots = state.DSSETrustRoots
 	l.frameworks = state.ControlFrameworks
 	l.controls = state.SecurityControls
 	l.controlLinks = state.ControlEvidence
@@ -306,6 +326,36 @@ func normalizeState(state PersistedState) PersistedState {
 	}
 	if state.CustomPolicyEvaluations == nil {
 		state.CustomPolicyEvaluations = map[string]domain.CustomPolicyEvaluation{}
+	}
+	if state.Waivers == nil {
+		state.Waivers = map[string]domain.Waiver{}
+	}
+	if state.Approvals == nil {
+		state.Approvals = map[string]domain.ApprovalRecord{}
+	}
+	if state.RedactionProfiles == nil {
+		state.RedactionProfiles = map[string]domain.RedactionProfile{}
+	}
+	if state.CustomerPackages == nil {
+		state.CustomerPackages = map[string]domain.CustomerSecurityPackage{}
+	}
+	if state.HTMLReports == nil {
+		state.HTMLReports = map[string]domain.HTMLReportPackage{}
+	}
+	if state.ReportTemplates == nil {
+		state.ReportTemplates = map[string]domain.CustomReportTemplate{}
+	}
+	if state.RenderedReports == nil {
+		state.RenderedReports = map[string]domain.RenderedCustomReport{}
+	}
+	if state.EvidenceBundles == nil {
+		state.EvidenceBundles = map[string]domain.EvidenceBundle{}
+	}
+	if state.BundleImports == nil {
+		state.BundleImports = map[string]domain.EvidenceBundleImport{}
+	}
+	if state.DSSETrustRoots == nil {
+		state.DSSETrustRoots = map[string]domain.DSSETrustRoot{}
 	}
 	if state.ControlFrameworks == nil {
 		state.ControlFrameworks = map[string]domain.ControlFramework{}
