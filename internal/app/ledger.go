@@ -22,27 +22,31 @@ import (
 )
 
 const (
-	ScopeAdmin          = "admin"
-	ScopeProductWrite   = "product:write"
-	ScopeProductRead    = "product:read"
-	ScopeProjectWrite   = "project:write"
-	ScopeProjectRead    = "project:read"
-	ScopeReleaseWrite   = "release:write"
-	ScopeReleaseRead    = "release:read"
-	ScopeEvidenceWrite  = "evidence:write"
-	ScopeEvidenceRead   = "evidence:read"
-	ScopeBundleWrite    = "bundle:write"
-	ScopeBundleRead     = "bundle:read"
-	ScopeVerifyRead     = "verify:read"
-	ScopeKeysAdmin      = "keys:admin"
-	ScopeCollectorAdmin = "collector:admin"
-	ScopeCollectorRead  = "collector:read"
-	ScopeBuildWrite     = "build:write"
-	ScopeBuildRead      = "build:read"
-	ScopeControlsAdmin  = "controls:admin"
-	ScopeControlsRead   = "controls:read"
-	ScopeControlsWrite  = "controls:write"
-	ScopeReportRead     = "report:read"
+	ScopeAdmin           = "admin"
+	ScopeProductWrite    = "product:write"
+	ScopeProductRead     = "product:read"
+	ScopeProjectWrite    = "project:write"
+	ScopeProjectRead     = "project:read"
+	ScopeReleaseWrite    = "release:write"
+	ScopeReleaseRead     = "release:read"
+	ScopeEvidenceWrite   = "evidence:write"
+	ScopeEvidenceRead    = "evidence:read"
+	ScopeBundleWrite     = "bundle:write"
+	ScopeBundleRead      = "bundle:read"
+	ScopeVerifyRead      = "verify:read"
+	ScopeKeysAdmin       = "keys:admin"
+	ScopeCollectorAdmin  = "collector:admin"
+	ScopeCollectorRead   = "collector:read"
+	ScopeBuildWrite      = "build:write"
+	ScopeBuildRead       = "build:read"
+	ScopeSourceWrite     = "source:write"
+	ScopeSourceRead      = "source:read"
+	ScopeDeploymentWrite = "deployment:write"
+	ScopeDeploymentRead  = "deployment:read"
+	ScopeControlsAdmin   = "controls:admin"
+	ScopeControlsRead    = "controls:read"
+	ScopeControlsWrite   = "controls:write"
+	ScopeReportRead      = "report:read"
 )
 
 type Config struct {
@@ -72,6 +76,16 @@ type Ledger struct {
 	buildRuns     map[string]domain.BuildRun
 	attestations  map[string]domain.BuildAttestation
 	evidence      map[string]domain.EvidenceItem
+	lifecycle     map[string]domain.EvidenceLifecycleEvent
+	candidates    map[string]domain.ReleaseCandidate
+	images        map[string]domain.ContainerImage
+	artifactSigs  map[string]domain.ArtifactSignature
+	repositories  map[string]domain.SourceRepository
+	commits       map[string]domain.SourceCommit
+	branches      map[string]domain.SourceBranch
+	pullRequests  map[string]domain.PullRequest
+	environments  map[string]domain.DeploymentEnvironment
+	deployments   map[string]domain.DeploymentEvent
 	frameworks    map[string]domain.ControlFramework
 	controls      map[string]domain.SecurityControl
 	controlLinks  map[string]domain.ControlEvidence
@@ -123,6 +137,16 @@ func NewLedgerWithError(cfg Config) (*Ledger, error) {
 		buildRuns:     map[string]domain.BuildRun{},
 		attestations:  map[string]domain.BuildAttestation{},
 		evidence:      map[string]domain.EvidenceItem{},
+		lifecycle:     map[string]domain.EvidenceLifecycleEvent{},
+		candidates:    map[string]domain.ReleaseCandidate{},
+		images:        map[string]domain.ContainerImage{},
+		artifactSigs:  map[string]domain.ArtifactSignature{},
+		repositories:  map[string]domain.SourceRepository{},
+		commits:       map[string]domain.SourceCommit{},
+		branches:      map[string]domain.SourceBranch{},
+		pullRequests:  map[string]domain.PullRequest{},
+		environments:  map[string]domain.DeploymentEnvironment{},
+		deployments:   map[string]domain.DeploymentEvent{},
 		frameworks:    map[string]domain.ControlFramework{},
 		controls:      map[string]domain.SecurityControl{},
 		controlLinks:  map[string]domain.ControlEvidence{},
@@ -1074,6 +1098,27 @@ func (l *Ledger) VerifySubject(ctx context.Context, actor domain.Actor, subjectT
 			checks = append(checks, domain.VerifyCheck{Name: "bundle_signature", Result: "failed"})
 		} else {
 			checks = append(checks, domain.VerifyCheck{Name: "bundle_signature", Result: "passed"})
+		}
+	case "artifact_signature":
+		sig, ok := l.artifactSigs[strings.TrimSpace(subjectID)]
+		if !ok || sig.TenantID != actor.TenantID {
+			return domain.VerificationResult{}, ErrNotFound
+		}
+		artifact, ok := l.artifacts[sig.ArtifactID]
+		if !ok || artifact.TenantID != actor.TenantID {
+			return domain.VerificationResult{}, ErrNotFound
+		}
+		if artifact.Digest != sig.SubjectDigest {
+			result = "failed"
+			checks = append(checks, domain.VerifyCheck{Name: "subject_digest", Result: "failed"})
+		} else {
+			checks = append(checks, domain.VerifyCheck{Name: "subject_digest", Result: "passed"})
+		}
+		if sig.Algorithm == "" || sig.Signature == "" {
+			result = "failed"
+			checks = append(checks, domain.VerifyCheck{Name: "signature_present", Result: "failed"})
+		} else {
+			checks = append(checks, domain.VerifyCheck{Name: "signature_present", Result: "passed", Detail: "signature recorded; cryptographic trust-root verification is deferred"})
 		}
 	default:
 		return domain.VerificationResult{}, ErrValidation

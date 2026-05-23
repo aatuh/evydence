@@ -19,6 +19,16 @@ const (
 	ControlEvidenceSchemaVersion    = "control-evidence.v1.0.0"
 	ControlCoverageTemplateVersion  = "control-coverage.v1.0.0"
 	CRAReadinessTemplateVersion     = "cra-readiness.v1.0.0"
+	EvidenceLifecycleSchemaVersion  = "evidence-lifecycle-event.v1.0.0"
+	ReleaseCandidateSchemaVersion   = "release-candidate.v1.0.0"
+	ContainerImageSchemaVersion     = "container-image.v1.0.0"
+	ArtifactSignatureSchemaVersion  = "artifact-signature.v1.0.0"
+	SourceRepositorySchemaVersion   = "source-repository.v1.0.0"
+	SourceCommitSchemaVersion       = "source-commit.v1.0.0"
+	SourceBranchSchemaVersion       = "source-branch.v1.0.0"
+	PullRequestSchemaVersion        = "pull-request.v1.0.0"
+	DeploymentEnvironmentVersion    = "deployment-environment.v1.0.0"
+	DeploymentEventSchemaVersion    = "deployment-event.v1.0.0"
 )
 
 type Actor struct {
@@ -214,6 +224,118 @@ type EvidenceRef struct {
 type EvidenceNotice struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
+}
+
+type EvidenceLifecycleEvent struct {
+	ID            string         `json:"id"`
+	TenantID      string         `json:"tenant_id"`
+	EvidenceID    string         `json:"evidence_id"`
+	Action        string         `json:"action"`
+	Reason        string         `json:"reason"`
+	Details       map[string]any `json:"details,omitempty"`
+	ReplacementID string         `json:"replacement_id,omitempty"`
+	ActorID       string         `json:"actor_id"`
+	SchemaVersion string         `json:"schema_version"`
+	CreatedAt     time.Time      `json:"created_at"`
+}
+
+type ReleaseCandidate struct {
+	ID            string     `json:"id"`
+	TenantID      string     `json:"tenant_id"`
+	ReleaseID     string     `json:"release_id"`
+	Name          string     `json:"name"`
+	State         string     `json:"state"`
+	BuildIDs      []string   `json:"build_ids,omitempty"`
+	ArtifactIDs   []string   `json:"artifact_ids,omitempty"`
+	SBOMIDs       []string   `json:"sbom_ids,omitempty"`
+	ScanIDs       []string   `json:"scan_ids,omitempty"`
+	VEXIDs        []string   `json:"vex_ids,omitempty"`
+	ContractIDs   []string   `json:"contract_ids,omitempty"`
+	BundleIDs     []string   `json:"bundle_ids,omitempty"`
+	SnapshotHash  string     `json:"snapshot_hash"`
+	SchemaVersion string     `json:"schema_version"`
+	CreatedAt     time.Time  `json:"created_at"`
+	PromotedAt    *time.Time `json:"promoted_at,omitempty"`
+	RejectedAt    *time.Time `json:"rejected_at,omitempty"`
+}
+
+type ContainerImage struct {
+	ID            string    `json:"id"`
+	TenantID      string    `json:"tenant_id"`
+	ArtifactID    string    `json:"artifact_id,omitempty"`
+	Repository    string    `json:"repository"`
+	Tag           string    `json:"tag,omitempty"`
+	Digest        string    `json:"digest"`
+	Platform      string    `json:"platform,omitempty"`
+	SchemaVersion string    `json:"schema_version"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type ArtifactSignature struct {
+	ID                 string    `json:"id"`
+	TenantID           string    `json:"tenant_id"`
+	ArtifactID         string    `json:"artifact_id"`
+	SubjectDigest      string    `json:"subject_digest"`
+	Algorithm          string    `json:"algorithm"`
+	KeyID              string    `json:"key_id,omitempty"`
+	Signature          string    `json:"signature"`
+	PayloadRef         string    `json:"payload_ref,omitempty"`
+	PayloadHash        string    `json:"payload_hash,omitempty"`
+	VerificationStatus string    `json:"verification_status"`
+	SchemaVersion      string    `json:"schema_version"`
+	CreatedAt          time.Time `json:"created_at"`
+}
+
+type SourceRepository struct {
+	ID            string    `json:"id"`
+	TenantID      string    `json:"tenant_id"`
+	ProjectID     string    `json:"project_id,omitempty"`
+	Provider      string    `json:"provider"`
+	FullName      string    `json:"full_name"`
+	CloneURL      string    `json:"clone_url,omitempty"`
+	DefaultBranch string    `json:"default_branch,omitempty"`
+	SchemaVersion string    `json:"schema_version"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type SourceCommit struct {
+	ID            string    `json:"id"`
+	TenantID      string    `json:"tenant_id"`
+	RepositoryID  string    `json:"repository_id"`
+	SHA           string    `json:"sha"`
+	Author        string    `json:"author,omitempty"`
+	MessageHash   string    `json:"message_hash,omitempty"`
+	CommittedAt   time.Time `json:"committed_at"`
+	SchemaVersion string    `json:"schema_version"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type SourceBranch struct {
+	ID             string    `json:"id"`
+	TenantID       string    `json:"tenant_id"`
+	RepositoryID   string    `json:"repository_id"`
+	Name           string    `json:"name"`
+	HeadCommitID   string    `json:"head_commit_id,omitempty"`
+	Protected      bool      `json:"protected"`
+	ProtectionHash string    `json:"protection_hash,omitempty"`
+	SchemaVersion  string    `json:"schema_version"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+type PullRequest struct {
+	ID             string    `json:"id"`
+	TenantID       string    `json:"tenant_id"`
+	RepositoryID   string    `json:"repository_id"`
+	Provider       string    `json:"provider"`
+	ProviderID     string    `json:"provider_id"`
+	Title          string    `json:"title"`
+	State          string    `json:"state"`
+	SourceBranch   string    `json:"source_branch,omitempty"`
+	TargetBranch   string    `json:"target_branch,omitempty"`
+	HeadCommitID   string    `json:"head_commit_id,omitempty"`
+	ReviewDecision string    `json:"review_decision,omitempty"`
+	SchemaVersion  string    `json:"schema_version"`
+	CreatedAt      time.Time `json:"created_at"`
 }
 
 type ControlFramework struct {
@@ -521,4 +643,29 @@ type BlockingFinding struct {
 	Component     string `json:"component,omitempty"`
 	Severity      string `json:"severity"`
 	State         string `json:"state"`
+}
+
+type DeploymentEnvironment struct {
+	ID            string    `json:"id"`
+	TenantID      string    `json:"tenant_id"`
+	ProductID     string    `json:"product_id"`
+	Name          string    `json:"name"`
+	Kind          string    `json:"kind"`
+	SchemaVersion string    `json:"schema_version"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type DeploymentEvent struct {
+	ID            string     `json:"id"`
+	TenantID      string     `json:"tenant_id"`
+	EnvironmentID string     `json:"environment_id"`
+	ReleaseID     string     `json:"release_id"`
+	ArtifactIDs   []string   `json:"artifact_ids,omitempty"`
+	Status        string     `json:"status"`
+	StartedAt     time.Time  `json:"started_at"`
+	FinishedAt    *time.Time `json:"finished_at,omitempty"`
+	RollbackOf    string     `json:"rollback_of,omitempty"`
+	EvidenceID    string     `json:"evidence_id,omitempty"`
+	SchemaVersion string     `json:"schema_version"`
+	CreatedAt     time.Time  `json:"created_at"`
 }

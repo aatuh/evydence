@@ -16,6 +16,8 @@ import (
 
 const (
 	collectorTypeGitHubActions = "github_actions"
+	collectorTypeGitLabCI      = "gitlab_ci"
+	collectorTypeGenericCI     = "generic_ci"
 	collectorStatusActive      = "active"
 
 	buildStatusQueued    = "queued"
@@ -33,24 +35,25 @@ type CreateCollectorInput struct {
 }
 
 type CreateBuildRunInput struct {
-	ProjectID       string
-	ReleaseID       string
-	Provider        string
-	CommitSHA       string
-	Repository      string
-	WorkflowRef     string
-	RunID           string
-	RunAttempt      int
-	JobID           string
-	GitHubActor     string
-	Ref             string
-	OIDCSubject     string
-	Status          string
-	StartedAt       time.Time
-	FinishedAt      *time.Time
-	ParametersHash  string
-	EnvironmentHash string
-	Outputs         []domain.BuildOutput
+	ProjectID        string
+	ReleaseID        string
+	Provider         string
+	CommitSHA        string
+	Repository       string
+	WorkflowRef      string
+	RunID            string
+	RunAttempt       int
+	JobID            string
+	GitHubActor      string
+	Ref              string
+	OIDCSubject      string
+	Status           string
+	StartedAt        time.Time
+	FinishedAt       *time.Time
+	ParametersHash   string
+	EnvironmentHash  string
+	ProviderMetadata map[string]any
+	Outputs          []domain.BuildOutput
 }
 
 func (l *Ledger) CreateCollector(ctx context.Context, actor domain.Actor, in CreateCollectorInput) (domain.Collector, domain.APIKey, string, error) {
@@ -63,7 +66,7 @@ func (l *Ledger) CreateCollector(ctx context.Context, actor domain.Actor, in Cre
 	in.Name = strings.TrimSpace(in.Name)
 	in.Type = strings.TrimSpace(in.Type)
 	in.Version = strings.TrimSpace(in.Version)
-	if in.Name == "" || in.Version == "" || in.Type != collectorTypeGitHubActions {
+	if in.Name == "" || in.Version == "" || !validCollectorType(in.Type) {
 		return domain.Collector{}, domain.APIKey{}, "", ErrValidation
 	}
 	scopes := in.Scopes
@@ -286,12 +289,21 @@ func (l *Ledger) UploadBuildAttestation(ctx context.Context, actor domain.Actor,
 func validCollectorScopes(scopes []string) bool {
 	for _, scope := range scopes {
 		switch strings.TrimSpace(scope) {
-		case ScopeBuildWrite, ScopeBuildRead, ScopeEvidenceWrite:
+		case ScopeBuildWrite, ScopeBuildRead, ScopeEvidenceWrite, ScopeEvidenceRead, ScopeSourceWrite, ScopeSourceRead:
 		default:
 			return false
 		}
 	}
 	return len(scopes) > 0
+}
+
+func validCollectorType(typ string) bool {
+	switch strings.TrimSpace(typ) {
+	case collectorTypeGitHubActions, collectorTypeGitLabCI, collectorTypeGenericCI:
+		return true
+	default:
+		return false
+	}
 }
 
 func normalizeBuildInput(in CreateBuildRunInput) (domain.BuildRun, error) {
@@ -313,6 +325,7 @@ func normalizeBuildInput(in CreateBuildRunInput) (domain.BuildRun, error) {
 		FinishedAt:      in.FinishedAt,
 		ParametersHash:  strings.TrimSpace(in.ParametersHash),
 		EnvironmentHash: strings.TrimSpace(in.EnvironmentHash),
+		SourceIdentity:  cloneMap(in.ProviderMetadata),
 		Outputs:         normalizeBuildOutputs(in.Outputs),
 	}
 	if build.ProjectID == "" || build.ReleaseID == "" || build.Provider == "" || build.CommitSHA == "" || build.Status == "" || build.StartedAt.IsZero() {
@@ -329,6 +342,11 @@ func normalizeBuildInput(in CreateBuildRunInput) (domain.BuildRun, error) {
 	}
 	if build.Provider == collectorTypeGitHubActions {
 		if build.Repository == "" || build.WorkflowRef == "" || build.RunID == "" || build.RunAttempt <= 0 {
+			return domain.BuildRun{}, ErrValidation
+		}
+	}
+	if build.Provider == collectorTypeGitLabCI {
+		if build.Repository == "" || build.RunID == "" {
 			return domain.BuildRun{}, ErrValidation
 		}
 	}
@@ -419,6 +437,11 @@ func buildSourceIdentity(build domain.BuildRun, actor domain.Actor) map[string]a
 	}
 	if build.OIDCSubject != "" {
 		identity["oidc_subject"] = build.OIDCSubject
+	}
+	for key, value := range build.SourceIdentity {
+		if _, exists := identity[key]; !exists {
+			identity[key] = value
+		}
 	}
 	return identity
 }

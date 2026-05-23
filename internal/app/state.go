@@ -18,34 +18,44 @@ func (l *Ledger) snapshotLocked() PersistedState {
 		signingKeys[id] = key
 	}
 	state := PersistedState{
-		Tenants:           l.tenants,
-		APIKeys:           apiKeys,
-		APIKeyHashes:      map[string]string{},
-		Collectors:        l.collectors,
-		Products:          l.products,
-		Projects:          l.projects,
-		Releases:          l.releases,
-		Artifacts:         l.artifacts,
-		BuildRuns:         l.buildRuns,
-		BuildAttestations: l.attestations,
-		Evidence:          l.evidence,
-		ControlFrameworks: l.frameworks,
-		SecurityControls:  l.controls,
-		ControlEvidence:   l.controlLinks,
-		SBOMs:             l.sboms,
-		Scans:             l.scans,
-		VEXDocuments:      l.vexDocuments,
-		Decisions:         l.decisions,
-		Contracts:         l.contracts,
-		Policies:          l.policies,
-		Exceptions:        l.exceptions,
-		Bundles:           l.bundles,
-		SigningKeys:       signingKeys,
-		SigningKeyPrivate: map[string][]byte{},
-		Signatures:        l.signatures,
-		Verifications:     l.verifications,
-		Chain:             l.chain,
-		Idempotency:       l.idempotency,
+		Tenants:            l.tenants,
+		APIKeys:            apiKeys,
+		APIKeyHashes:       map[string]string{},
+		Collectors:         l.collectors,
+		Products:           l.products,
+		Projects:           l.projects,
+		Releases:           l.releases,
+		Artifacts:          l.artifacts,
+		BuildRuns:          l.buildRuns,
+		BuildAttestations:  l.attestations,
+		Evidence:           l.evidence,
+		EvidenceLifecycle:  l.lifecycle,
+		ReleaseCandidates:  l.candidates,
+		ContainerImages:    l.images,
+		ArtifactSignatures: l.artifactSigs,
+		Repositories:       l.repositories,
+		Commits:            l.commits,
+		Branches:           l.branches,
+		PullRequests:       l.pullRequests,
+		Environments:       l.environments,
+		Deployments:        l.deployments,
+		ControlFrameworks:  l.frameworks,
+		SecurityControls:   l.controls,
+		ControlEvidence:    l.controlLinks,
+		SBOMs:              l.sboms,
+		Scans:              l.scans,
+		VEXDocuments:       l.vexDocuments,
+		Decisions:          l.decisions,
+		Contracts:          l.contracts,
+		Policies:           l.policies,
+		Exceptions:         l.exceptions,
+		Bundles:            l.bundles,
+		SigningKeys:        signingKeys,
+		SigningKeyPrivate:  map[string][]byte{},
+		Signatures:         l.signatures,
+		Verifications:      l.verifications,
+		Chain:              l.chain,
+		Idempotency:        l.idempotency,
 	}
 	for id, key := range state.APIKeys {
 		if key.Hash != "" {
@@ -92,6 +102,16 @@ func (l *Ledger) applyState(state PersistedState) {
 	l.buildRuns = state.BuildRuns
 	l.attestations = state.BuildAttestations
 	l.evidence = state.Evidence
+	l.lifecycle = state.EvidenceLifecycle
+	l.candidates = state.ReleaseCandidates
+	l.images = state.ContainerImages
+	l.artifactSigs = state.ArtifactSignatures
+	l.repositories = state.Repositories
+	l.commits = state.Commits
+	l.branches = state.Branches
+	l.pullRequests = state.PullRequests
+	l.environments = state.Environments
+	l.deployments = state.Deployments
 	l.frameworks = state.ControlFrameworks
 	l.controls = state.SecurityControls
 	l.controlLinks = state.ControlEvidence
@@ -201,6 +221,36 @@ func normalizeState(state PersistedState) PersistedState {
 	}
 	if state.Evidence == nil {
 		state.Evidence = map[string]domain.EvidenceItem{}
+	}
+	if state.EvidenceLifecycle == nil {
+		state.EvidenceLifecycle = map[string]domain.EvidenceLifecycleEvent{}
+	}
+	if state.ReleaseCandidates == nil {
+		state.ReleaseCandidates = map[string]domain.ReleaseCandidate{}
+	}
+	if state.ContainerImages == nil {
+		state.ContainerImages = map[string]domain.ContainerImage{}
+	}
+	if state.ArtifactSignatures == nil {
+		state.ArtifactSignatures = map[string]domain.ArtifactSignature{}
+	}
+	if state.Repositories == nil {
+		state.Repositories = map[string]domain.SourceRepository{}
+	}
+	if state.Commits == nil {
+		state.Commits = map[string]domain.SourceCommit{}
+	}
+	if state.Branches == nil {
+		state.Branches = map[string]domain.SourceBranch{}
+	}
+	if state.PullRequests == nil {
+		state.PullRequests = map[string]domain.PullRequest{}
+	}
+	if state.Environments == nil {
+		state.Environments = map[string]domain.DeploymentEnvironment{}
+	}
+	if state.Deployments == nil {
+		state.Deployments = map[string]domain.DeploymentEvent{}
 	}
 	if state.ControlFrameworks == nil {
 		state.ControlFrameworks = map[string]domain.ControlFramework{}
