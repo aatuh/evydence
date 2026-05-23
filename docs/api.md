@@ -2,7 +2,7 @@
 
 The public API base path is `/v1`. The generated contract is committed at [`../openapi.yaml`](../openapi.yaml) and served by the API at `/v1/openapi.json`.
 
-Use this page for common integration workflows and route lookup. Use `openapi.yaml` as the generated contract source.
+Use this page for common integration workflows and route lookup. The endpoint catalog is expected to list every path in `openapi.yaml`; the generated contract remains the source of truth for operation details, schemas, status codes, security metadata, and route drift checks.
 
 ## Request Contract
 
@@ -271,12 +271,21 @@ Current SSO endpoints model admin-managed provider, identity-link, and session r
 | `GET` | `/v1/evidence/{id}/lifecycle-events` | Read lifecycle timeline. |
 | `POST` | `/v1/sboms` | Upload CycloneDX SBOM. |
 | `POST` | `/v1/sboms/spdx` | Upload SPDX SBOM. |
+| `GET` | `/v1/sboms/{id}` | Read SBOM metadata. |
 | `POST` | `/v1/sbom-diffs` | Compare stored SBOMs. |
 | `POST` | `/v1/vulnerability-scans` | Upload normalized vulnerability scan. |
+| `GET` | `/v1/vulnerability-scans/{id}` | Read vulnerability scan metadata. |
 | `POST` | `/v1/vulnerability-findings/{id}/decisions` | Superseding decision record. |
 | `POST` | `/v1/vulnerability-findings/{id}/workflow` | Append workflow event. |
 | `GET` | `/v1/reports/vulnerability-posture` | Summarize findings for a release. |
 | `GET` | `/v1/reports/release-readiness` | Deterministic readiness report. |
+| `GET` | `/v1/reports/missing-evidence` | Missing evidence report for review. |
+| `POST` | `/v1/release-candidates` | Create release candidate. |
+| `GET` | `/v1/release-candidates` | List release candidates. |
+| `GET` | `/v1/release-candidates/{id}` | Read release candidate. |
+| `POST` | `/v1/release-candidates/{id}/promote` | Promote release candidate. |
+| `POST` | `/v1/release-candidates/{id}/reject` | Reject release candidate. |
+| `POST` | `/v1/remediation-tasks` | Create remediation task. |
 
 ### CI, Source, Deployment, And Collectors
 
@@ -286,10 +295,13 @@ Current SSO endpoints model admin-managed provider, identity-link, and session r
 | `GET` | `/v1/collectors` | List collectors without secrets. |
 | `POST` | `/v1/collectors/{id}/releases` | Record collector release evidence. |
 | `GET` | `/v1/collectors/{id}/health` | Collector health report. |
+| `POST` | `/v1/commercial-collectors` | Create commercial collector definition. |
+| `GET` | `/v1/commercial-collectors` | List commercial collector definitions. |
 | `POST` | `/v1/builds` | Record immutable build run. |
 | `GET` | `/v1/builds/{id}` | Read build run. |
 | `POST` | `/v1/builds/{id}/attestations` | Upload DSSE in-toto attestation JSON. |
 | `POST` | `/v1/build-attestations/{id}/verify-signature` | Verify against configured DSSE trust roots. |
+| `POST` | `/v1/dsse-trust-roots` | Create DSSE trust root. |
 | `POST` | `/v1/source/repositories` | Record source repository. |
 | `GET` | `/v1/source/repositories` | List repositories. |
 | `POST` | `/v1/source/commits` | Record source commit. |
@@ -302,6 +314,7 @@ Current SSO endpoints model admin-managed provider, identity-link, and session r
 | `POST` | `/v1/deployments` | Record deployment event. |
 | `GET` | `/v1/deployments` | List deployments. |
 | `GET` | `/v1/deployments/{id}` | Read deployment event. |
+| `POST` | `/v1/container-images` | Register container image metadata. |
 
 Source snapshots capture submitted provider metadata. They do not call provider APIs or verify OIDC tokens.
 
@@ -334,8 +347,11 @@ Source snapshots capture submitted provider metadata. They do not call provider 
 | `POST` | `/v1/questionnaire-packages` | Generate evidence-backed responses. |
 | `GET` | `/v1/reports/security-review-package` | Redaction-aware package report. |
 | `GET` | `/v1/reports/cra-readiness-html` | HTML CRA-readiness review content. |
+| `GET` | `/v1/reports/incident-package` | Incident package report. |
 | `POST` | `/v1/report-templates` | Create allowed-field template. |
 | `POST` | `/v1/report-templates/{id}/render` | Render deterministic JSON report. |
+| `POST` | `/v1/incidents` | Create incident. |
+| `POST` | `/v1/incidents/{id}/timeline` | Append incident timeline event. |
 
 ### Integrity, Verification, And Operations
 
@@ -345,6 +361,8 @@ Source snapshots capture submitted provider metadata. They do not call provider 
 | `GET` | `/v1/release-bundles/{id}` | Read bundle metadata. |
 | `GET` | `/v1/release-bundles/{id}/manifest` | Read bundle manifest. |
 | `GET` | `/v1/release-bundles/{id}/verify` | Verify bundle. |
+| `POST` | `/v1/evidence-bundles` | Export evidence bundle. |
+| `POST` | `/v1/evidence-bundles/import` | Import evidence bundle. |
 | `POST` | `/v1/verify` | Verify supported subject types. |
 | `GET` | `/v1/audit-chain/verify` | Verify tenant audit chain. |
 | `GET` | `/v1/audit-log` | List tenant audit entries; admin scope required. |
@@ -352,6 +370,9 @@ Source snapshots capture submitted provider metadata. They do not call provider 
 | `POST` | `/v1/signing-keys/rotate` | Rotate signing key. |
 | `POST` | `/v1/signing-keys/{id}/revoke` | Revoke key for new signatures. |
 | `POST` | `/v1/signing-providers` | Record external signing-provider metadata. |
+| `POST` | `/v1/artifact-signatures` | Create artifact signature metadata. |
+| `GET` | `/v1/artifact-signatures/{id}` | Read artifact signature. |
+| `POST` | `/v1/artifact-signatures/{id}/verify-cosign` | Verify cosign-style artifact signature. |
 | `POST` | `/v1/merkle-batches` | Create signed checkpoint batch. |
 | `GET` | `/v1/merkle-batches/{id}/verify` | Verify batch. |
 | `POST` | `/v1/transparency-checkpoints` | Record external anchoring metadata. |

@@ -53,7 +53,7 @@ Notes:
 
 Description: Make the human API reference accurately track the generated OpenAPI contract, reducing route drift for API integrators.
 
-### Ticket E2-T1 - Complete Or Scope The API Endpoint Catalog [ ]
+### Ticket E2-T1 - Complete Or Scope The API Endpoint Catalog [x]
 
 Description: Update `docs/api.md` so every implemented OpenAPI path is listed, or clearly mark the catalog as selected routes and point readers to `openapi.yaml` for the complete path list.
 
