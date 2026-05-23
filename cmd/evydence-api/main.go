@@ -29,16 +29,8 @@ func run() error {
 	production := strings.EqualFold(os.Getenv("ENV"), "production")
 	databaseURL := strings.TrimSpace(os.Getenv("EVYDENCE_DATABASE_URL"))
 	pepper := strings.TrimSpace(os.Getenv("EVYDENCE_API_KEY_PEPPER"))
-	if production {
-		if databaseURL == "" {
-			return errors.New("production requires EVYDENCE_DATABASE_URL")
-		}
-		if pepper == "" || pepper == "local-dev-pepper-change-me" {
-			return errors.New("production requires a non-default EVYDENCE_API_KEY_PEPPER")
-		}
-		if strings.TrimSpace(os.Getenv("EVYDENCE_SIGNING_KEY_MODE")) != "external" {
-			return errors.New("production requires EVYDENCE_SIGNING_KEY_MODE=external; plaintext local signing keys are dev-only")
-		}
+	if err := validateRuntimeConfig(production, databaseURL, pepper, strings.TrimSpace(os.Getenv("EVYDENCE_SIGNING_KEY_MODE")), strings.EqualFold(os.Getenv("EVYDENCE_PRINT_BOOTSTRAP_SECRET"), "true")); err != nil {
+		return err
 	}
 	cfg := app.Config{APIKeyPepper: pepper}
 	var closeStore func()
@@ -100,6 +92,25 @@ func run() error {
 	}
 	log.Printf("evydence api listening on %s", addr)
 	return httpServer.ListenAndServe()
+}
+
+func validateRuntimeConfig(production bool, databaseURL, pepper, signingKeyMode string, printBootstrapSecret bool) error {
+	if !production {
+		return nil
+	}
+	if strings.TrimSpace(databaseURL) == "" {
+		return errors.New("production requires EVYDENCE_DATABASE_URL")
+	}
+	if strings.TrimSpace(pepper) == "" || strings.TrimSpace(pepper) == "local-dev-pepper-change-me" {
+		return errors.New("production requires a non-default EVYDENCE_API_KEY_PEPPER")
+	}
+	if strings.TrimSpace(signingKeyMode) != "external" {
+		return errors.New("production requires EVYDENCE_SIGNING_KEY_MODE=external; plaintext local signing keys are dev-only")
+	}
+	if printBootstrapSecret {
+		return errors.New("production refuses EVYDENCE_PRINT_BOOTSTRAP_SECRET=true")
+	}
+	return nil
 }
 
 func envDefault(name, fallback string) string {
