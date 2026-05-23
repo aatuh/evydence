@@ -115,6 +115,12 @@ type Ledger struct {
 	evidenceBundles   map[string]domain.EvidenceBundle
 	bundleImports     map[string]domain.EvidenceBundleImport
 	dsseTrustRoots    map[string]domain.DSSETrustRoot
+	cosignVerifs      map[string]domain.CosignVerification
+	signingProviders  map[string]domain.SigningProvider
+	merkleBatches     map[string]domain.MerkleBatch
+	transparency      map[string]domain.TransparencyCheckpoint
+	retentionPolicies map[string]domain.ObjectRetentionPolicy
+	backupManifests   map[string]domain.BackupManifest
 	frameworks        map[string]domain.ControlFramework
 	controls          map[string]domain.SecurityControl
 	controlLinks      map[string]domain.ControlEvidence
@@ -197,6 +203,12 @@ func NewLedgerWithError(cfg Config) (*Ledger, error) {
 		evidenceBundles:   map[string]domain.EvidenceBundle{},
 		bundleImports:     map[string]domain.EvidenceBundleImport{},
 		dsseTrustRoots:    map[string]domain.DSSETrustRoot{},
+		cosignVerifs:      map[string]domain.CosignVerification{},
+		signingProviders:  map[string]domain.SigningProvider{},
+		merkleBatches:     map[string]domain.MerkleBatch{},
+		transparency:      map[string]domain.TransparencyCheckpoint{},
+		retentionPolicies: map[string]domain.ObjectRetentionPolicy{},
+		backupManifests:   map[string]domain.BackupManifest{},
 		frameworks:        map[string]domain.ControlFramework{},
 		controls:          map[string]domain.SecurityControl{},
 		controlLinks:      map[string]domain.ControlEvidence{},
@@ -1441,6 +1453,9 @@ func (l *Ledger) verifySignatureLocked(tenantID string, signatureRefs []string, 
 		}
 		key, ok := l.signingKeys[sig.KeyID]
 		if !ok || key.TenantID != tenantID {
+			continue
+		}
+		if key.Status == "revoked" && (key.RevokedAt == nil || sig.CreatedAt.After(*key.RevokedAt)) {
 			continue
 		}
 		pub, err := base64.RawStdEncoding.DecodeString(key.PublicKey)

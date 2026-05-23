@@ -269,6 +269,24 @@ func resourceProjections(state app.PersistedState) []resourceProjection {
 	for _, v := range state.DSSETrustRoots {
 		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "dsse_trust_root", ResourceID: v.ID, CreatedAt: v.CreatedAt})
 	}
+	for _, v := range state.CosignVerifications {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "cosign_verification", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.SigningProviders {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "signing_provider", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.MerkleBatches {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "merkle_batch", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.TransparencyCheckpoints {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "transparency_checkpoint", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.ObjectRetentionPolicies {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "object_retention_policy", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.BackupManifests {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "backup_manifest", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
 	return out
 }
 

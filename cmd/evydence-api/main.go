@@ -14,6 +14,7 @@ import (
 
 	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/adapters/objectstore/filesystem"
+	s3store "github.com/aatuh/evydence/internal/adapters/objectstore/s3"
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/app"
 )
@@ -55,8 +56,7 @@ func run() error {
 				return fmt.Errorf("apply migrations: %w", err)
 			}
 		}
-		objectRoot := envDefault("EVYDENCE_OBJECT_DIR", filepath.Join("tmp", "objects"))
-		objectStore, err := filesystem.New(objectRoot)
+		objectStore, objectDescription, err := openObjectStore(ctx)
 		if err != nil {
 			closeStore()
 			return err
@@ -64,7 +64,7 @@ func run() error {
 		cfg.Store = pgStore
 		cfg.Outbox = pgStore
 		cfg.ObjectStore = objectStore
-		log.Printf("evydence api using postgres state store and filesystem object store root %s", objectRoot)
+		log.Printf("evydence api using postgres state store and %s object store", objectDescription)
 	}
 	if closeStore != nil {
 		defer closeStore()
@@ -107,4 +107,31 @@ func envDefault(name, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func openObjectStore(ctx context.Context) (app.ObjectStore, string, error) {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("EVYDENCE_OBJECT_STORE"))) {
+	case "", "file", "filesystem":
+		objectRoot := envDefault("EVYDENCE_OBJECT_DIR", filepath.Join("tmp", "objects"))
+		objectStore, err := filesystem.New(objectRoot)
+		if err != nil {
+			return nil, "", err
+		}
+		return objectStore, "filesystem root " + objectRoot, nil
+	case "s3", "minio":
+		objectStore, err := s3store.New(ctx, s3store.Config{
+			Endpoint:        os.Getenv("EVYDENCE_S3_ENDPOINT"),
+			AccessKeyID:     os.Getenv("EVYDENCE_S3_ACCESS_KEY_ID"),
+			SecretAccessKey: os.Getenv("EVYDENCE_S3_SECRET_ACCESS_KEY"),
+			Bucket:          os.Getenv("EVYDENCE_S3_BUCKET"),
+			Region:          os.Getenv("EVYDENCE_S3_REGION"),
+			UseSSL:          strings.EqualFold(os.Getenv("EVYDENCE_S3_USE_SSL"), "true"),
+		})
+		if err != nil {
+			return nil, "", err
+		}
+		return objectStore, "S3-compatible bucket " + envDefault("EVYDENCE_S3_BUCKET", ""), nil
+	default:
+		return nil, "", errors.New("unsupported EVYDENCE_OBJECT_STORE")
+	}
 }

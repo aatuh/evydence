@@ -192,6 +192,55 @@ func TestReleaseRiskDecisionHTTPFlow(t *testing.T) {
 	}
 }
 
+func TestIntegrityRuntimeHTTPFlow(t *testing.T) {
+	server, secret := testServer(t)
+	productBody := postJSON(t, server, secret, "/v1/products", "int-prod", map[string]any{"name": "Payments", "slug": "int-payments"}, http.StatusCreated)
+	productID := dataField(t, productBody, "id")
+	releaseBody := postJSON(t, server, secret, "/v1/releases", "int-rel", map[string]any{"product_id": productID, "version": "3.0.0"}, http.StatusCreated)
+	releaseID := dataField(t, releaseBody, "id")
+	artifactDigest := "sha256:2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"
+	artifactBody := postJSON(t, server, secret, "/v1/artifacts", "int-artifact", map[string]any{"name": "api.tar.gz", "media_type": "application/gzip", "digest": artifactDigest, "size": 3}, http.StatusCreated)
+	artifactID := dataField(t, artifactBody, "id")
+	postJSON(t, server, secret, "/v1/container-images", "int-image", map[string]any{"artifact_id": artifactID, "repository": "registry.example.com/payments", "tag": "3.0.0", "digest": artifactDigest}, http.StatusCreated)
+	sigBody := postJSON(t, server, secret, "/v1/artifact-signatures", "int-sig", map[string]any{"artifact_id": artifactID, "algorithm": "cosign", "signature": "MEUCIQ"}, http.StatusCreated)
+	sigID := dataField(t, sigBody, "id")
+	cosign := postJSON(t, server, secret, "/v1/artifact-signatures/"+sigID+"/verify-cosign", "int-cosign", map[string]any{"rekor_uuid": "uuid", "rekor_log_index": "1"}, http.StatusOK)
+	if !strings.Contains(cosign, `"result":"passed"`) {
+		t.Fatalf("cosign response: %s", cosign)
+	}
+	postJSON(t, server, secret, "/v1/signing-providers", "int-provider", map[string]any{"name": "dev", "type": "local_encrypted_dev", "key_ref": "file://dev.keys", "encrypted": true}, http.StatusCreated)
+	batchBody := postJSON(t, server, secret, "/v1/merkle-batches", "int-batch", map[string]any{}, http.StatusCreated)
+	batchID := dataField(t, batchBody, "id")
+	verifyBatch := getJSON(t, server, secret, "/v1/merkle-batches/"+batchID+"/verify", http.StatusOK)
+	if !strings.Contains(verifyBatch, `"result":"passed"`) {
+		t.Fatalf("batch verify: %s", verifyBatch)
+	}
+	postJSON(t, server, secret, "/v1/transparency-checkpoints", "int-transparency", map[string]any{"batch_id": batchID, "provider": "internal-rfc3161", "external_id": "ts-1"}, http.StatusCreated)
+	retentionBody := postJSON(t, server, secret, "/v1/object-retention-policies", "int-retention", map[string]any{"name": "lock", "mode": "governance", "retention_days": 30}, http.StatusCreated)
+	retentionID := dataField(t, retentionBody, "id")
+	postJSON(t, server, secret, "/v1/object-retention-policies/"+retentionID+"/verify", "int-retention-verify", map[string]any{}, http.StatusOK)
+	backupBody := postJSON(t, server, secret, "/v1/backup-manifests", "int-backup", map[string]any{}, http.StatusCreated)
+	backupID := dataField(t, backupBody, "id")
+	backupVerify := getJSON(t, server, secret, "/v1/backup-manifests/"+backupID+"/verify", http.StatusOK)
+	if !strings.Contains(backupVerify, `"result":"passed"`) {
+		t.Fatalf("backup verify: %s", backupVerify)
+	}
+	audit := getJSON(t, server, secret, "/v1/audit-log?subject_type=release&subject_id="+releaseID, http.StatusOK)
+	if !strings.Contains(audit, releaseID) {
+		t.Fatalf("audit log missing release: %s", audit)
+	}
+	metrics := getJSON(t, server, secret, "/v1/metrics", http.StatusOK)
+	if !strings.Contains(metrics, `"resource_counts"`) {
+		t.Fatalf("metrics response: %s", metrics)
+	}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/ready", nil)
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"status":"ok"`) {
+		t.Fatalf("ready status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestVEXAndExceptionHTTPValidation(t *testing.T) {
 	server, secret := testServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "vex-prod", map[string]any{"name": "VEX Product", "slug": "vex-product"}, http.StatusCreated)

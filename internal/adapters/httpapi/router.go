@@ -63,7 +63,9 @@ func (s *Server) registerRoutes() error {
 		handler http.Handler
 	}{
 		{http.MethodGet, "/v1/health", op("health", http.MethodGet, "/v1/health", "Health", nil), http.HandlerFunc(s.health)},
+		{http.MethodGet, "/v1/ready", op("ready", http.MethodGet, "/v1/ready", "Readiness", nil), http.HandlerFunc(s.ready)},
 		{http.MethodGet, "/v1/version", op("version", http.MethodGet, "/v1/version", "Version", nil), http.HandlerFunc(s.version)},
+		{http.MethodGet, "/v1/metrics", op("metrics", http.MethodGet, "/v1/metrics", "Safe tenant metrics", []string{app.ScopeAdmin}), http.HandlerFunc(s.metrics)},
 		{http.MethodGet, "/v1/openapi.json", op("openapi", http.MethodGet, "/v1/openapi.json", "OpenAPI", nil), http.HandlerFunc(s.openapi)},
 		{http.MethodPost, "/v1/collectors", op("createCollector", http.MethodPost, "/v1/collectors", "Create collector", []string{app.ScopeCollectorAdmin}), http.HandlerFunc(s.createCollector)},
 		{http.MethodGet, "/v1/collectors", op("listCollectors", http.MethodGet, "/v1/collectors", "List collectors", []string{app.ScopeCollectorRead}), http.HandlerFunc(s.listCollectors)},
@@ -91,6 +93,7 @@ func (s *Server) registerRoutes() error {
 		{http.MethodPost, "/v1/container-images", op("registerContainerImage", http.MethodPost, "/v1/container-images", "Register container image", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.registerContainerImage)},
 		{http.MethodPost, "/v1/artifact-signatures", op("createArtifactSignature", http.MethodPost, "/v1/artifact-signatures", "Create artifact signature", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.createArtifactSignature)},
 		{http.MethodGet, "/v1/artifact-signatures/{id}", op("getArtifactSignature", http.MethodGet, "/v1/artifact-signatures/{id}", "Get artifact signature", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.getArtifactSignature)},
+		{http.MethodPost, "/v1/artifact-signatures/{id}/verify-cosign", op("verifyCosignSignature", http.MethodPost, "/v1/artifact-signatures/{id}/verify-cosign", "Verify cosign-style artifact signature", []string{app.ScopeVerifyRead}), http.HandlerFunc(s.verifyCosignSignature)},
 		{http.MethodPost, "/v1/builds", op("createBuild", http.MethodPost, "/v1/builds", "Create build run", []string{app.ScopeBuildWrite}), http.HandlerFunc(s.createBuild)},
 		{http.MethodGet, "/v1/builds/{id}", op("getBuild", http.MethodGet, "/v1/builds/{id}", "Get build run", []string{app.ScopeBuildRead}), http.HandlerFunc(s.getBuild)},
 		{http.MethodPost, "/v1/builds/{id}/attestations", op("uploadBuildAttestation", http.MethodPost, "/v1/builds/{id}/attestations", "Upload build attestation", []string{app.ScopeBuildWrite}), http.HandlerFunc(s.uploadBuildAttestation)},
@@ -165,8 +168,18 @@ func (s *Server) registerRoutes() error {
 		{http.MethodGet, "/v1/release-bundles/{id}/manifest", op("getReleaseBundleManifest", http.MethodGet, "/v1/release-bundles/{id}/manifest", "Get release bundle manifest", []string{app.ScopeBundleRead}), http.HandlerFunc(s.getReleaseBundleManifest)},
 		{http.MethodGet, "/v1/release-bundles/{id}/verify", op("verifyReleaseBundle", http.MethodGet, "/v1/release-bundles/{id}/verify", "Verify release bundle", []string{app.ScopeVerifyRead}), http.HandlerFunc(s.verifyReleaseBundle)},
 		{http.MethodGet, "/v1/audit-chain/verify", op("verifyAuditChain", http.MethodGet, "/v1/audit-chain/verify", "Verify audit chain", []string{app.ScopeVerifyRead}), http.HandlerFunc(s.verifyAuditChain)},
+		{http.MethodGet, "/v1/audit-log", op("listAuditLog", http.MethodGet, "/v1/audit-log", "List tenant audit log", []string{app.ScopeAdmin}), http.HandlerFunc(s.listAuditLog)},
+		{http.MethodPost, "/v1/merkle-batches", op("createMerkleBatch", http.MethodPost, "/v1/merkle-batches", "Create Merkle checkpoint batch", []string{app.ScopeKeysAdmin}), http.HandlerFunc(s.createMerkleBatch)},
+		{http.MethodGet, "/v1/merkle-batches/{id}/verify", op("verifyMerkleBatch", http.MethodGet, "/v1/merkle-batches/{id}/verify", "Verify Merkle checkpoint batch", []string{app.ScopeVerifyRead}), http.HandlerFunc(s.verifyMerkleBatch)},
+		{http.MethodPost, "/v1/transparency-checkpoints", op("createTransparencyCheckpoint", http.MethodPost, "/v1/transparency-checkpoints", "Record external transparency checkpoint", []string{app.ScopeKeysAdmin}), http.HandlerFunc(s.createTransparencyCheckpoint)},
+		{http.MethodPost, "/v1/object-retention-policies", op("createObjectRetentionPolicy", http.MethodPost, "/v1/object-retention-policies", "Create object retention policy record", []string{app.ScopeAdmin}), http.HandlerFunc(s.createObjectRetentionPolicy)},
+		{http.MethodPost, "/v1/object-retention-policies/{id}/verify", op("verifyObjectRetentionPolicy", http.MethodPost, "/v1/object-retention-policies/{id}/verify", "Verify object retention policy record", []string{app.ScopeVerifyRead}), http.HandlerFunc(s.verifyObjectRetentionPolicy)},
+		{http.MethodPost, "/v1/backup-manifests", op("generateBackupManifest", http.MethodPost, "/v1/backup-manifests", "Generate backup manifest", []string{app.ScopeAdmin}), http.HandlerFunc(s.generateBackupManifest)},
+		{http.MethodGet, "/v1/backup-manifests/{id}/verify", op("verifyBackupManifest", http.MethodGet, "/v1/backup-manifests/{id}/verify", "Verify backup manifest", []string{app.ScopeVerifyRead}), http.HandlerFunc(s.verifyBackupManifest)},
 		{http.MethodGet, "/v1/signing-keys", op("listSigningKeys", http.MethodGet, "/v1/signing-keys", "List signing keys", []string{app.ScopeVerifyRead}), http.HandlerFunc(s.listSigningKeys)},
 		{http.MethodPost, "/v1/signing-keys/rotate", op("rotateSigningKey", http.MethodPost, "/v1/signing-keys/rotate", "Rotate signing key", []string{app.ScopeKeysAdmin}), http.HandlerFunc(s.rotateSigningKey)},
+		{http.MethodPost, "/v1/signing-keys/{id}/revoke", op("revokeSigningKey", http.MethodPost, "/v1/signing-keys/{id}/revoke", "Revoke signing key", []string{app.ScopeKeysAdmin}), http.HandlerFunc(s.revokeSigningKey)},
+		{http.MethodPost, "/v1/signing-providers", op("createSigningProvider", http.MethodPost, "/v1/signing-providers", "Create signing provider record", []string{app.ScopeKeysAdmin}), http.HandlerFunc(s.createSigningProvider)},
 		{http.MethodPost, "/v1/verify", op("verify", http.MethodPost, "/v1/verify", "Verify subject", []string{app.ScopeVerifyRead}), http.HandlerFunc(s.verifySubject)},
 		{http.MethodPost, "/v1/api-keys", op("createAPIKey", http.MethodPost, "/v1/api-keys", "Create API key", []string{app.ScopeAdmin}), http.HandlerFunc(s.createAPIKey)},
 		{http.MethodGet, "/v1/api-keys", op("listAPIKeys", http.MethodGet, "/v1/api-keys", "List API keys", []string{app.ScopeAdmin}), http.HandlerFunc(s.listAPIKeys)},
@@ -181,6 +194,28 @@ func (s *Server) registerRoutes() error {
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 	writeData(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (s *Server) ready(w http.ResponseWriter, r *http.Request) {
+	status, err := s.ledger.ReadinessStatus(r.Context())
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, status)
+}
+
+func (s *Server) metrics(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	metrics, err := s.ledger.Metrics(r.Context(), actor)
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, metrics)
 }
 
 func (s *Server) version(w http.ResponseWriter, _ *http.Request) {
@@ -583,6 +618,28 @@ func (s *Server) getArtifactSignature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeData(w, http.StatusOK, sig)
+}
+
+func (s *Server) verifyCosignSignature(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		RekorUUID           string `json:"rekor_uuid"`
+		RekorLogIndex       string `json:"rekor_log_index"`
+		CertificateIdentity string `json:"certificate_identity"`
+		CertificateIssuer   string `json:"certificate_issuer"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		result, err := s.ledger.VerifyCosignSignature(r.Context(), actor, app.VerifyCosignInput{
+			ArtifactSignatureID: r.PathValue("id"),
+			RekorUUID:           req.RekorUUID,
+			RekorLogIndex:       req.RekorLogIndex,
+			CertificateIdentity: req.CertificateIdentity,
+			CertificateIssuer:   req.CertificateIssuer,
+		})
+		return http.StatusOK, result, err
+	})
 }
 
 func (s *Server) createBuild(w http.ResponseWriter, r *http.Request) {
@@ -1752,6 +1809,128 @@ func (s *Server) verifyAuditChain(w http.ResponseWriter, r *http.Request) {
 	writeData(w, http.StatusOK, result)
 }
 
+func (s *Server) listAuditLog(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	var since *time.Time
+	if value := strings.TrimSpace(r.URL.Query().Get("since")); value != "" {
+		parsed, err := time.Parse(time.RFC3339, value)
+		if err != nil {
+			writeProblem(w, r, app.ErrValidation)
+			return
+		}
+		since = &parsed
+	}
+	limit := 0
+	if value := strings.TrimSpace(r.URL.Query().Get("limit")); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			writeProblem(w, r, app.ErrValidation)
+			return
+		}
+		limit = parsed
+	}
+	entries, err := s.ledger.ListAuditLog(r.Context(), actor, app.AuditLogFilter{
+		SubjectType: r.URL.Query().Get("subject_type"),
+		SubjectID:   r.URL.Query().Get("subject_id"),
+		Since:       since,
+		Limit:       limit,
+	})
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, entries)
+}
+
+func (s *Server) createMerkleBatch(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		FromSequence int64 `json:"from_sequence"`
+		ToSequence   int64 `json:"to_sequence"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		batch, err := s.ledger.CreateMerkleBatch(r.Context(), actor, app.CreateMerkleBatchInput{FromSequence: req.FromSequence, ToSequence: req.ToSequence})
+		return http.StatusCreated, batch, err
+	})
+}
+
+func (s *Server) verifyMerkleBatch(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	result, err := s.ledger.VerifyMerkleBatch(r.Context(), actor, r.PathValue("id"))
+	if err != nil && !errors.Is(err, app.ErrVerificationFailed) {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, result)
+}
+
+func (s *Server) createTransparencyCheckpoint(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		BatchID     string `json:"batch_id"`
+		Provider    string `json:"provider"`
+		ExternalURL string `json:"external_url"`
+		ExternalID  string `json:"external_id"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		checkpoint, err := s.ledger.CreateTransparencyCheckpoint(r.Context(), actor, app.CreateTransparencyCheckpointInput{BatchID: req.BatchID, Provider: req.Provider, ExternalURL: req.ExternalURL, ExternalID: req.ExternalID})
+		return http.StatusCreated, checkpoint, err
+	})
+}
+
+func (s *Server) createObjectRetentionPolicy(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name          string `json:"name"`
+		ObjectPrefix  string `json:"object_prefix"`
+		Mode          string `json:"mode"`
+		RetentionDays int    `json:"retention_days"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		policy, err := s.ledger.CreateObjectRetentionPolicy(r.Context(), actor, app.CreateObjectRetentionPolicyInput{Name: req.Name, ObjectPrefix: req.ObjectPrefix, Mode: req.Mode, RetentionDays: req.RetentionDays})
+		return http.StatusCreated, policy, err
+	})
+}
+
+func (s *Server) verifyObjectRetentionPolicy(w http.ResponseWriter, r *http.Request) {
+	s.create(w, r, func(actor domain.Actor, _ []byte) (int, any, error) {
+		policy, err := s.ledger.VerifyObjectRetentionPolicy(r.Context(), actor, r.PathValue("id"))
+		return http.StatusOK, policy, err
+	})
+}
+
+func (s *Server) generateBackupManifest(w http.ResponseWriter, r *http.Request) {
+	s.create(w, r, func(actor domain.Actor, _ []byte) (int, any, error) {
+		manifest, err := s.ledger.GenerateBackupManifest(r.Context(), actor)
+		return http.StatusCreated, manifest, err
+	})
+}
+
+func (s *Server) verifyBackupManifest(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	result, err := s.ledger.VerifyBackupManifest(r.Context(), actor, r.PathValue("id"))
+	if err != nil && !errors.Is(err, app.ErrVerificationFailed) {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, result)
+}
+
 func (s *Server) listSigningKeys(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
@@ -1777,6 +1956,37 @@ func (s *Server) rotateSigningKey(w http.ResponseWriter, r *http.Request) {
 		}
 		key, err := s.ledger.RotateSigningKey(r.Context(), actor, req.Reason)
 		return http.StatusCreated, key, err
+	})
+}
+
+func (s *Server) revokeSigningKey(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if len(bytes.TrimSpace(body)) > 0 {
+			if err := decodeJSON(body, &req); err != nil {
+				return 0, nil, err
+			}
+		}
+		key, err := s.ledger.RevokeSigningKey(r.Context(), actor, r.PathValue("id"), req.Reason)
+		return http.StatusOK, key, err
+	})
+}
+
+func (s *Server) createSigningProvider(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name      string `json:"name"`
+		Type      string `json:"type"`
+		KeyRef    string `json:"key_ref"`
+		Encrypted bool   `json:"encrypted"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		provider, err := s.ledger.CreateSigningProvider(r.Context(), actor, app.CreateSigningProviderInput{Name: req.Name, Type: req.Type, KeyRef: req.KeyRef, Encrypted: req.Encrypted})
+		return http.StatusCreated, provider, err
 	})
 }
 

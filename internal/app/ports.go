@@ -64,6 +64,12 @@ type PersistedState struct {
 	EvidenceBundles         map[string]domain.EvidenceBundle              `json:"evidence_bundles"`
 	BundleImports           map[string]domain.EvidenceBundleImport        `json:"bundle_imports"`
 	DSSETrustRoots          map[string]domain.DSSETrustRoot               `json:"dsse_trust_roots"`
+	CosignVerifications     map[string]domain.CosignVerification          `json:"cosign_verifications"`
+	SigningProviders        map[string]domain.SigningProvider             `json:"signing_providers"`
+	MerkleBatches           map[string]domain.MerkleBatch                 `json:"merkle_batches"`
+	TransparencyCheckpoints map[string]domain.TransparencyCheckpoint      `json:"transparency_checkpoints"`
+	ObjectRetentionPolicies map[string]domain.ObjectRetentionPolicy       `json:"object_retention_policies"`
+	BackupManifests         map[string]domain.BackupManifest              `json:"backup_manifests"`
 	ControlFrameworks       map[string]domain.ControlFramework            `json:"control_frameworks"`
 	SecurityControls        map[string]domain.SecurityControl             `json:"security_controls"`
 	ControlEvidence         map[string]domain.ControlEvidence             `json:"control_evidence"`

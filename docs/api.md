@@ -53,7 +53,9 @@ Collectors are tenant-scoped automated ingesters. `POST /v1/collectors` creates 
 
 `POST /v1/release-candidates` records an immutable release-candidate snapshot over explicit builds, artifacts, SBOMs, scans, VEX documents, OpenAPI contracts, and bundles. `POST /v1/release-candidates/{id}/promote` and `/reject` append the terminal transition; a candidate cannot be transitioned twice.
 
-`POST /v1/container-images` records OCI-style image repository, tag, digest, platform, and optional artifact binding. `POST /v1/artifact-signatures` records detached artifact signature metadata and optional raw signature payload bytes in object storage. `POST /v1/verify` supports `subject_type=artifact_signature` for digest binding and signature-presence verification; cryptographic trust-root verification remains future work.
+`POST /v1/container-images` records OCI-style image repository, tag, digest, platform, and optional artifact binding. `POST /v1/artifact-signatures` records detached artifact signature metadata and optional raw signature payload bytes in object storage. `POST /v1/verify` supports `subject_type=artifact_signature` for digest binding and signature-presence verification.
+
+`POST /v1/artifact-signatures/{id}/verify-cosign` records cosign-style digest-bound verification metadata, including optional Rekor UUID/log index and certificate identity/issuer. The check verifies the stored artifact digest binding and signature presence, and captures transparency metadata when supplied. It does not claim full Sigstore trust-chain verification unless a later trust-root integration proves it.
 
 ## Source And Deployment Evidence
 
@@ -102,6 +104,24 @@ Scoped exceptions are created with `POST /v1/exceptions` and approved separately
 `POST /v1/evidence-bundles` exports a portable evidence bundle manifest with evidence IDs, manifest hash, signature references, and verification instructions. `POST /v1/evidence-bundles/import` verifies and records an imported bundle manifest. The CLI command `evydence verify-evidence-bundle <bundle.json>` verifies bundle manifest hashes offline.
 
 `POST /v1/dsse-trust-roots` configures an Ed25519 DSSE verification trust root. `POST /v1/build-attestations/{id}/verify-signature` verifies stored DSSE attestation signatures against configured trust roots and records a verification result.
+
+## Integrity, Audit, And Operations
+
+`POST /v1/signing-keys/{id}/revoke` revokes a tenant signing key. Historical signatures created before revocation remain valid-at-signing when their cryptographic signature still verifies; revoked keys are not used for new signatures.
+
+`POST /v1/signing-providers` records a signing-provider configuration reference such as `local_encrypted_dev`, `aws_kms`, `gcp_kms`, `azure_key_vault`, or `pkcs11_hsm`. The API stores provider metadata and key references, not private key material. Production still requires an external signing mode.
+
+`POST /v1/merkle-batches` creates a signed Merkle batch over a tenant audit-chain sequence range. `GET /v1/merkle-batches/{id}/verify` recomputes the Merkle root and verifies the checkpoint signature.
+
+`POST /v1/transparency-checkpoints` records optional external timestamp/transparency anchoring metadata for a Merkle batch. Public transparency is optional and not required for local trust.
+
+`POST /v1/object-retention-policies` records tenant-prefixed object-retention policy intent. `POST /v1/object-retention-policies/{id}/verify` records a verification transition for the policy record. Object-lock enforcement depends on the configured object store.
+
+`POST /v1/backup-manifests` generates a backup manifest with a state hash, resource counts, audit-chain consistency checks, and limitations. `GET /v1/backup-manifests/{id}/verify` verifies the recorded manifest checks. The manifest intentionally excludes raw payload bytes and private keys; restore requires matched database and object-store backups.
+
+`GET /v1/ready` returns a low-detail readiness response. `GET /v1/metrics` returns tenant-scoped safe resource counts and requires admin scope.
+
+`GET /v1/audit-log` lists tenant audit-chain entries with optional `subject_type`, `subject_id`, `since`, and `limit` filters. It requires admin scope and returns tenant-scoped audit fields only.
 
 ## Contracts And Policy V2
 

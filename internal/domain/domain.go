@@ -47,6 +47,12 @@ const (
 	EvidenceBundleSchemaVersion     = "evidence-bundle.v1.0.0"
 	EvidenceBundleImportVersion     = "evidence-bundle-import.v1.0.0"
 	DSSETrustRootSchemaVersion      = "dsse-trust-root.v1.0.0"
+	CosignVerificationSchemaVersion = "cosign-verification.v1.0.0"
+	SigningProviderSchemaVersion    = "signing-provider.v1.0.0"
+	MerkleBatchSchemaVersion        = "merkle-batch.v1.0.0"
+	TransparencyCheckpointVersion   = "transparency-checkpoint.v1.0.0"
+	ObjectRetentionPolicyVersion    = "object-retention-policy.v1.0.0"
+	BackupManifestSchemaVersion     = "backup-manifest.v1.0.0"
 )
 
 type Actor struct {
@@ -477,6 +483,18 @@ type SigningKey struct {
 	RevokedAt *time.Time `json:"revoked_at,omitempty"`
 }
 
+type SigningProvider struct {
+	ID            string    `json:"id"`
+	TenantID      string    `json:"tenant_id"`
+	Name          string    `json:"name"`
+	Type          string    `json:"type"`
+	Status        string    `json:"status"`
+	KeyRef        string    `json:"key_ref"`
+	Encrypted     bool      `json:"encrypted"`
+	SchemaVersion string    `json:"schema_version"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
 type Signature struct {
 	ID          string    `json:"id"`
 	TenantID    string    `json:"tenant_id"`
@@ -486,6 +504,73 @@ type Signature struct {
 	Algorithm   string    `json:"algorithm"`
 	Value       string    `json:"value"`
 	CreatedAt   time.Time `json:"created_at"`
+}
+
+type CosignVerification struct {
+	ID                  string        `json:"id"`
+	TenantID            string        `json:"tenant_id"`
+	ArtifactID          string        `json:"artifact_id,omitempty"`
+	ContainerImageID    string        `json:"container_image_id,omitempty"`
+	ArtifactSignatureID string        `json:"artifact_signature_id"`
+	SubjectDigest       string        `json:"subject_digest"`
+	RekorUUID           string        `json:"rekor_uuid,omitempty"`
+	RekorLogIndex       string        `json:"rekor_log_index,omitempty"`
+	CertificateIdentity string        `json:"certificate_identity,omitempty"`
+	CertificateIssuer   string        `json:"certificate_issuer,omitempty"`
+	Result              string        `json:"result"`
+	Checks              []VerifyCheck `json:"checks"`
+	SchemaVersion       string        `json:"schema_version"`
+	CreatedAt           time.Time     `json:"created_at"`
+}
+
+type MerkleBatch struct {
+	ID            string    `json:"id"`
+	TenantID      string    `json:"tenant_id"`
+	FromSequence  int64     `json:"from_sequence"`
+	ToSequence    int64     `json:"to_sequence"`
+	EntryCount    int       `json:"entry_count"`
+	LeafHashes    []string  `json:"leaf_hashes"`
+	RootHash      string    `json:"root_hash"`
+	SignatureRefs []string  `json:"signature_refs,omitempty"`
+	SchemaVersion string    `json:"schema_version"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type TransparencyCheckpoint struct {
+	ID            string    `json:"id"`
+	TenantID      string    `json:"tenant_id"`
+	BatchID       string    `json:"batch_id"`
+	Provider      string    `json:"provider"`
+	ExternalURL   string    `json:"external_url,omitempty"`
+	ExternalID    string    `json:"external_id,omitempty"`
+	TimestampHash string    `json:"timestamp_hash"`
+	State         string    `json:"state"`
+	SchemaVersion string    `json:"schema_version"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type ObjectRetentionPolicy struct {
+	ID            string     `json:"id"`
+	TenantID      string     `json:"tenant_id"`
+	Name          string     `json:"name"`
+	ObjectPrefix  string     `json:"object_prefix"`
+	Mode          string     `json:"mode"`
+	RetentionDays int        `json:"retention_days"`
+	Status        string     `json:"status"`
+	VerifiedAt    *time.Time `json:"verified_at,omitempty"`
+	SchemaVersion string     `json:"schema_version"`
+	CreatedAt     time.Time  `json:"created_at"`
+}
+
+type BackupManifest struct {
+	ID                string         `json:"id"`
+	TenantID          string         `json:"tenant_id"`
+	StateHash         string         `json:"state_hash"`
+	ResourceCounts    map[string]int `json:"resource_counts"`
+	ConsistencyChecks []VerifyCheck  `json:"consistency_checks"`
+	Limitations       []string       `json:"limitations"`
+	SchemaVersion     string         `json:"schema_version"`
+	CreatedAt         time.Time      `json:"created_at"`
 }
 
 type SBOM struct {

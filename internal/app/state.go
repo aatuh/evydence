@@ -60,6 +60,12 @@ func (l *Ledger) snapshotLocked() PersistedState {
 		EvidenceBundles:         l.evidenceBundles,
 		BundleImports:           l.bundleImports,
 		DSSETrustRoots:          l.dsseTrustRoots,
+		CosignVerifications:     l.cosignVerifs,
+		SigningProviders:        l.signingProviders,
+		MerkleBatches:           l.merkleBatches,
+		TransparencyCheckpoints: l.transparency,
+		ObjectRetentionPolicies: l.retentionPolicies,
+		BackupManifests:         l.backupManifests,
 		ControlFrameworks:       l.frameworks,
 		SecurityControls:        l.controls,
 		ControlEvidence:         l.controlLinks,
@@ -154,6 +160,12 @@ func (l *Ledger) applyState(state PersistedState) {
 	l.evidenceBundles = state.EvidenceBundles
 	l.bundleImports = state.BundleImports
 	l.dsseTrustRoots = state.DSSETrustRoots
+	l.cosignVerifs = state.CosignVerifications
+	l.signingProviders = state.SigningProviders
+	l.merkleBatches = state.MerkleBatches
+	l.transparency = state.TransparencyCheckpoints
+	l.retentionPolicies = state.ObjectRetentionPolicies
+	l.backupManifests = state.BackupManifests
 	l.frameworks = state.ControlFrameworks
 	l.controls = state.SecurityControls
 	l.controlLinks = state.ControlEvidence
@@ -356,6 +368,24 @@ func normalizeState(state PersistedState) PersistedState {
 	}
 	if state.DSSETrustRoots == nil {
 		state.DSSETrustRoots = map[string]domain.DSSETrustRoot{}
+	}
+	if state.CosignVerifications == nil {
+		state.CosignVerifications = map[string]domain.CosignVerification{}
+	}
+	if state.SigningProviders == nil {
+		state.SigningProviders = map[string]domain.SigningProvider{}
+	}
+	if state.MerkleBatches == nil {
+		state.MerkleBatches = map[string]domain.MerkleBatch{}
+	}
+	if state.TransparencyCheckpoints == nil {
+		state.TransparencyCheckpoints = map[string]domain.TransparencyCheckpoint{}
+	}
+	if state.ObjectRetentionPolicies == nil {
+		state.ObjectRetentionPolicies = map[string]domain.ObjectRetentionPolicy{}
+	}
+	if state.BackupManifests == nil {
+		state.BackupManifests = map[string]domain.BackupManifest{}
 	}
 	if state.ControlFrameworks == nil {
 		state.ControlFrameworks = map[string]domain.ControlFramework{}
