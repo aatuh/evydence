@@ -58,12 +58,44 @@ docs-check: ## Validate canonical docs exist and avoid forbidden product claims
 	@test -f docs/release-signing.md
 	@test -f docs/production-hardening.md
 	@test -f docs/tutorials/getting-started.md
+	@test -f docs/how-to/integrate-ci.md
 	@test -f docs/how-to/install-and-operate.md
+	@test -f docs/reference/configuration.md
 	@test -f docs/reference/openapi.md
 	@test -f docs/reference/worker-outbox.md
 	@test -f docs/reference/release-validation.md
 	@test -f docs/explanation/trust-model.md
-	@! grep -R -i "automatically compliant\|certified secure\|legally sufficient\|SBOM is complete\|all vulnerabilities detected" README.md docs
+	@test -f docs/collectors/source-snapshots.md
+	@test -f docs/collectors/supply-chain.md
+	@test -f docs/github-actions/release-evidence-workflow.yml
+	@test -f docs/github-actions/upload-build/action.yml
+	@test -f docs/gitlab/evydence-release-evidence.gitlab-ci.yml
+	@test -f docs/sdk/README.md
+	@for path in \
+		"tutorials/getting-started.md" \
+		"how-to/install-and-operate.md" \
+		"how-to/integrate-ci.md" \
+		"api.md" \
+		"operations.md" \
+		"kubernetes.md" \
+		"air-gapped.md" \
+		"release-signing.md" \
+		"production-hardening.md" \
+		"reference/configuration.md" \
+		"reference/openapi.md" \
+		"reference/worker-outbox.md" \
+		"reference/release-validation.md" \
+		"collectors/source-snapshots.md" \
+		"collectors/supply-chain.md" \
+		"github-actions/release-evidence-workflow.yml" \
+		"github-actions/upload-build/action.yml" \
+		"gitlab/evydence-release-evidence.gitlab-ci.yml" \
+		"sdk/README.md" \
+		"architecture.md" \
+		"explanation/trust-model.md"; do \
+		grep -F "$$path" docs/README.md >/dev/null || { echo "docs/README.md missing link to $$path"; exit 1; }; \
+	done
+	@! grep -R -i "automatically compliant\|certified secure\|legally sufficient\|SBOM is complete\|all vulnerabilities detected\|scanner findings are authoritative\|regulator-ready without review" README.md docs
 
 deploy-check: ## Validate deployment and air-gap skeletons exist
 	@test -f deploy/helm/evydence/Chart.yaml
