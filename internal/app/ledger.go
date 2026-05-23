@@ -60,6 +60,8 @@ const (
 	ScopeCustomerPortal  = "customer:portal"
 )
 
+const customerPortalFailedAccessLimit = 5
+
 type Config struct {
 	APIKeyPepper string
 	Now          func() time.Time
@@ -320,7 +322,7 @@ func (l *Ledger) Authenticate(ctx context.Context, secret string) (domain.Actor,
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	for id, key := range l.apiKeys {
-		if key.Prefix != prefix || key.Hash != hash || key.RevokedAt != nil {
+		if key.Prefix != prefix || !secretHashEqual(key.Hash, hash) || key.RevokedAt != nil {
 			continue
 		}
 		if key.ExpiresAt != nil && !key.ExpiresAt.After(l.now()) {
@@ -342,7 +344,7 @@ func (l *Ledger) Authenticate(ctx context.Context, secret string) (domain.Actor,
 		return domain.Actor{TenantID: key.TenantID, KeyID: key.ID, Name: key.Name, Scopes: append([]string(nil), key.Scopes...), CollectorID: collectorID}, nil
 	}
 	for id, session := range l.ssoSessions {
-		if session.Prefix != prefix || session.Hash != hash || session.RevokedAt != nil || !session.ExpiresAt.After(l.now()) {
+		if session.Prefix != prefix || !secretHashEqual(session.Hash, hash) || session.RevokedAt != nil || !session.ExpiresAt.After(l.now()) {
 			continue
 		}
 		user, ok := l.users[session.UserID]
@@ -367,6 +369,9 @@ func (l *Ledger) CreateAPIKey(ctx context.Context, actor domain.Actor, name stri
 	}
 	if strings.TrimSpace(name) == "" || len(scopes) == 0 {
 		return domain.APIKey{}, "", ErrValidation
+	}
+	if err := requireGrantableScopes(actor, scopes); err != nil {
+		return domain.APIKey{}, "", err
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -1468,6 +1473,13 @@ func (l *Ledger) hashSecret(secret string) string {
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
+func secretHashEqual(stored, candidate string) bool {
+	if len(stored) != sha256.Size*2 || len(candidate) != sha256.Size*2 {
+		return false
+	}
+	return hmac.Equal([]byte(stored), []byte(candidate))
+}
+
 func (l *Ledger) ensureScopeLocked(tenantID, productID, projectID, releaseID string) error {
 	if productID != "" {
 		product, ok := l.products[productID]
@@ -1649,10 +1661,39 @@ func require(actor domain.Actor, scope string) error {
 	if actor.TenantID == "" || (actor.KeyID == "" && actor.UserID == "" && actor.CollectorID == "") {
 		return ErrUnauthorized
 	}
+	if requiresExplicitScope(scope) {
+		if actorHasExactScope(actor, scope) {
+			return nil
+		}
+		return ErrForbidden
+	}
 	if actor.HasScope(scope) || actor.HasScope(ScopeAdmin) {
 		return nil
 	}
 	return ErrForbidden
+}
+
+func requireGrantableScopes(actor domain.Actor, scopes []string) error {
+	for _, scope := range scopes {
+		scope = strings.TrimSpace(scope)
+		if requiresExplicitScope(scope) && !actorHasExactScope(actor, scope) {
+			return ErrForbidden
+		}
+	}
+	return nil
+}
+
+func requiresExplicitScope(scope string) bool {
+	return scope == ScopeInstanceAdmin
+}
+
+func actorHasExactScope(actor domain.Actor, scope string) bool {
+	for _, got := range actor.Scopes {
+		if got == scope {
+			return true
+		}
+	}
+	return false
 }
 
 func canonicalHash(item domain.EvidenceItem) (string, error) {

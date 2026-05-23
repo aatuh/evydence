@@ -15,6 +15,7 @@ This documentation is organized by task type so roadmap intent and implemented b
 - [API reference](api.md) describes the implemented `/v1` HTTP surface.
 - [OpenAPI contract](reference/openapi.md) explains how `openapi.yaml` is generated and checked.
 - [Worker outbox contract](reference/worker-outbox.md) documents durable job inputs, idempotency, and safe failure behavior.
+- [Release validation](reference/release-validation.md) documents the configured release-check profile and live PostgreSQL evidence.
 
 ## Explanation
 
