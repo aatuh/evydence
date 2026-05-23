@@ -236,6 +236,9 @@ func (l *Ledger) CreateCustomerSecurityPackage(ctx context.Context, actor domain
 	if err := l.ensureScopeLocked(actor.TenantID, in.ProductID, "", in.ReleaseID); err != nil {
 		return domain.CustomerSecurityPackage{}, err
 	}
+	if err := l.authorizeResourceLocked(actor, ScopePackageWrite, resourceRefs{ProductID: in.ProductID, ReleaseID: in.ReleaseID}); err != nil {
+		return domain.CustomerSecurityPackage{}, err
+	}
 	profile, ok := l.redactions[in.RedactionProfileID]
 	if !ok || profile.TenantID != actor.TenantID {
 		return domain.CustomerSecurityPackage{}, ErrNotFound
@@ -275,6 +278,9 @@ func (l *Ledger) AccessCustomerSecurityPackage(ctx context.Context, actor domain
 	pkg, ok := l.customerPackages[strings.TrimSpace(id)]
 	if !ok || pkg.TenantID != actor.TenantID {
 		return domain.CustomerSecurityPackage{}, ErrNotFound
+	}
+	if err := l.authorizeResourceLocked(actor, ScopePackageRead, resourceRefs{ProductID: pkg.ProductID, ReleaseID: pkg.ReleaseID, CustomerPackageID: pkg.ID}); err != nil {
+		return domain.CustomerSecurityPackage{}, err
 	}
 	if !pkg.ExpiresAt.After(l.now()) {
 		return domain.CustomerSecurityPackage{}, ErrConflict
@@ -442,8 +448,19 @@ func (l *Ledger) ExportEvidenceBundle(ctx context.Context, actor domain.Actor, r
 	defer l.mu.Unlock()
 	ids := []string{}
 	if len(evidenceIDs) == 0 {
+		if releaseID != "" {
+			release, ok := l.releases[strings.TrimSpace(releaseID)]
+			if !ok || release.TenantID != actor.TenantID {
+				return domain.EvidenceBundle{}, ErrNotFound
+			}
+			if err := l.authorizeResourceLocked(actor, ScopeBundleRead, resourceRefs{ReleaseID: release.ID}); err != nil {
+				return domain.EvidenceBundle{}, err
+			}
+		} else if err := l.authorizeResourceLocked(actor, ScopeBundleRead, resourceRefs{}); err != nil {
+			return domain.EvidenceBundle{}, err
+		}
 		for _, item := range l.evidence {
-			if item.TenantID == actor.TenantID && (releaseID == "" || item.ReleaseID == releaseID) {
+			if item.TenantID == actor.TenantID && (releaseID == "" || item.ReleaseID == releaseID) && l.resourceAllowedLocked(actor, ScopeBundleRead, refsForEvidence(item)) {
 				ids = append(ids, item.ID)
 			}
 		}
@@ -452,6 +469,9 @@ func (l *Ledger) ExportEvidenceBundle(ctx context.Context, actor domain.Actor, r
 			item, ok := l.evidence[strings.TrimSpace(id)]
 			if !ok || item.TenantID != actor.TenantID {
 				return domain.EvidenceBundle{}, ErrNotFound
+			}
+			if err := l.authorizeResourceLocked(actor, ScopeBundleRead, refsForEvidence(item)); err != nil {
+				return domain.EvidenceBundle{}, err
 			}
 			ids = append(ids, item.ID)
 		}

@@ -92,12 +92,16 @@ func TestUnknownJSONFieldReturnsProblem(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+secret)
 	req.Header.Set("Idempotency-Key", "unknown-field")
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Request-ID", "req-test-validation")
 	server.Handler().ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400 body=%s", rec.Code, rec.Body.String())
 	}
 	if !strings.Contains(rec.Body.String(), `"code":"VALIDATION_FAILED"`) {
 		t.Fatalf("problem code missing: %s", rec.Body.String())
+	}
+	if rec.Header().Get("X-Request-ID") != "req-test-validation" || !strings.Contains(rec.Body.String(), `"request_id":"req-test-validation"`) {
+		t.Fatalf("request id missing from problem/header: header=%q body=%s", rec.Header().Get("X-Request-ID"), rec.Body.String())
 	}
 }
 

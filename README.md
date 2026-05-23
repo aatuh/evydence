@@ -57,4 +57,4 @@ make live-postgres-check
 make postgres-integration-test
 ```
 
-`make finalize` runs the project-owned formatting, unit, OpenAPI, and docs gates.
+`make finalize` runs the project-owned formatting, unit, OpenAPI, docs, deployment, and SDK gates. `make release-check` extends that with lint, gosec, govulncheck, race tests, and live PostgreSQL gates when `EVYDENCE_TEST_DATABASE_URL` is configured.

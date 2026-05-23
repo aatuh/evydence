@@ -13,7 +13,7 @@ Accept: application/json
 
 Create and action endpoints require `Idempotency-Key`. Reusing the same key with the same request returns the original response. Reusing it with different request content returns `409` with `IDEMPOTENCY_KEY_REUSED`.
 
-Errors use RFC 9457 Problem Details and include a stable `code` field.
+Errors use RFC 9457 Problem Details and include stable `code` and `request_id` fields. Clients may send `X-Request-ID`; otherwise the API generates one and returns it in the response header and Problem Details body.
 
 The generated OpenAPI document is committed at `openapi.yaml` and served at `/v1/openapi.json`.
 
@@ -21,7 +21,7 @@ The generated OpenAPI document is committed at `openapi.yaml` and served at `/v1
 
 `POST /v1/organizations` creates a tenant-scoped organization. `POST /v1/users` creates a human user with normalized email, and `POST /v1/users/{id}/deactivate` records a deactivation transition.
 
-`POST /v1/role-bindings` assigns a role to a user or collector. Current roles are `tenant_admin`, `security_engineer`, `release_manager`, `customer_verifier`, and `collector`. Human SSO session actors derive API scopes from role bindings. `GET /v1/role-bindings` lists tenant-scoped bindings.
+`POST /v1/role-bindings` assigns a role to a user or collector. Current roles are `tenant_admin`, `security_engineer`, `release_manager`, `customer_verifier`, and `collector`. Human SSO session actors derive API scopes from role bindings and enforce `resource_type`/`resource_id` constraints for product, project, release, customer package, evidence bundle, report, export, read, and write operations where those resources are part of the request. API key and collector API key scopes remain tenant-scoped. `GET /v1/role-bindings` lists tenant-scoped bindings.
 
 `POST /v1/sso/providers` records OIDC or SAML provider metadata. `POST /v1/sso/identity-links` links a verified provider subject to an existing user. `POST /v1/sso/sessions` issues an expiring one-time session token response; the token hash is stored server-side and is not returned by list/read paths. `POST /v1/sso/sessions/{id}/revoke` revokes the session.
 
@@ -109,7 +109,7 @@ Scoped exceptions are created with `POST /v1/exceptions` and approved separately
 
 `POST /v1/redaction-profiles` creates an explicit package redaction profile. `POST /v1/customer-packages` creates a scoped customer security package manifest with expiry and access auditing. `GET /v1/customer-packages/{id}` reads the manifest and records an access event; raw payload bytes are not returned.
 
-`POST /v1/customer-portal/access` creates an expiring customer portal access token for one package and returns the token once. `POST /v1/customer-portal/package` accepts that token and returns the scoped package manifest without exposing the token or raw tenant evidence.
+`POST /v1/customer-portal/access` creates an expiring customer portal access token for one package and returns the token once. `POST /v1/customer-portal/package` accepts that token and returns the scoped package manifest without exposing the token or raw tenant evidence. Failed portal token attempts that match a known token prefix record a safe audit-chain signal without storing or returning the supplied token.
 
 `POST /v1/questionnaire-templates` creates tenant-defined customer questionnaire templates with question-to-evidence hints. `POST /v1/questionnaire-packages` generates deterministic evidence-backed responses for a package, product, and release scope. Responses cite linked evidence IDs and include limitations for human review.
 

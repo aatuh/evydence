@@ -349,13 +349,14 @@ func (l *Ledger) Authenticate(ctx context.Context, secret string) (domain.Actor,
 		if !ok || user.TenantID != session.TenantID || user.Status != "active" {
 			return domain.Actor{}, ErrUnauthorized
 		}
-		scopes := l.scopesForUserLocked(user.ID)
+		grants := l.resourceGrantsForUserLocked(user.ID)
+		scopes := scopesFromResourceGrants(grants)
 		if len(scopes) == 0 {
 			return domain.Actor{}, ErrForbidden
 		}
 		l.ssoSessions[id] = session
 		_ = l.persistLocked(ctx)
-		return domain.Actor{TenantID: user.TenantID, UserID: user.ID, Name: user.Email, Scopes: scopes}, nil
+		return domain.Actor{TenantID: user.TenantID, UserID: user.ID, Name: user.Email, Scopes: scopes, ResourceGrants: grants}, nil
 	}
 	return domain.Actor{}, ErrUnauthorized
 }
@@ -413,6 +414,9 @@ func (l *Ledger) CreateProduct(ctx context.Context, actor domain.Actor, name, sl
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.authorizeResourceLocked(actor, ScopeProductWrite, resourceRefs{}); err != nil {
+		return domain.Product{}, err
+	}
 	for _, existing := range l.products {
 		if existing.TenantID == actor.TenantID && existing.Slug == slug {
 			return domain.Product{}, ErrConflict
@@ -438,7 +442,7 @@ func (l *Ledger) ListProducts(ctx context.Context, actor domain.Actor) ([]domain
 	defer l.mu.Unlock()
 	out := []domain.Product{}
 	for _, product := range l.products {
-		if product.TenantID == actor.TenantID {
+		if product.TenantID == actor.TenantID && l.resourceAllowedLocked(actor, ScopeProductRead, resourceRefs{ProductID: product.ID}) {
 			out = append(out, product)
 		}
 	}
@@ -462,6 +466,9 @@ func (l *Ledger) CreateProject(ctx context.Context, actor domain.Actor, productI
 	product, ok := l.products[productID]
 	if !ok || product.TenantID != actor.TenantID {
 		return domain.Project{}, ErrNotFound
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeProjectWrite, resourceRefs{ProductID: product.ID}); err != nil {
+		return domain.Project{}, err
 	}
 	project := domain.Project{ID: newID("proj"), TenantID: actor.TenantID, ProductID: productID, Name: name, CreatedAt: l.now()}
 	l.projects[project.ID] = project
@@ -488,6 +495,9 @@ func (l *Ledger) CreateRelease(ctx context.Context, actor domain.Actor, productI
 	product, ok := l.products[productID]
 	if !ok || product.TenantID != actor.TenantID {
 		return domain.Release{}, ErrNotFound
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeReleaseWrite, resourceRefs{ProductID: product.ID}); err != nil {
+		return domain.Release{}, err
 	}
 	for _, existing := range l.releases {
 		if existing.TenantID == actor.TenantID && existing.ProductID == productID && existing.Version == version {
@@ -516,6 +526,9 @@ func (l *Ledger) GetRelease(ctx context.Context, actor domain.Actor, releaseID s
 	if !ok || release.TenantID != actor.TenantID {
 		return domain.Release{}, ErrNotFound
 	}
+	if err := l.authorizeResourceLocked(actor, ScopeReleaseRead, resourceRefs{ReleaseID: release.ID}); err != nil {
+		return domain.Release{}, err
+	}
 	return release, nil
 }
 
@@ -531,6 +544,9 @@ func (l *Ledger) FreezeRelease(ctx context.Context, actor domain.Actor, releaseI
 	release, ok := l.releases[strings.TrimSpace(releaseID)]
 	if !ok || release.TenantID != actor.TenantID {
 		return domain.Release{}, ErrNotFound
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeReleaseWrite, resourceRefs{ReleaseID: release.ID}); err != nil {
+		return domain.Release{}, err
 	}
 	if release.State != "draft" {
 		return domain.Release{}, ErrConflict
@@ -558,6 +574,9 @@ func (l *Ledger) ApproveRelease(ctx context.Context, actor domain.Actor, release
 	release, ok := l.releases[strings.TrimSpace(releaseID)]
 	if !ok || release.TenantID != actor.TenantID {
 		return domain.Release{}, ErrNotFound
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeReleaseWrite, resourceRefs{ReleaseID: release.ID}); err != nil {
+		return domain.Release{}, err
 	}
 	if release.State != "frozen" {
 		return domain.Release{}, ErrConflict
@@ -647,6 +666,9 @@ func (l *Ledger) CreateEvidence(ctx context.Context, actor domain.Actor, in Crea
 	if err := l.ensureScopeLocked(actor.TenantID, in.ProductID, in.ProjectID, in.ReleaseID); err != nil {
 		return domain.EvidenceItem{}, err
 	}
+	if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, resourceRefs{ProductID: in.ProductID, ProjectID: in.ProjectID, ReleaseID: in.ReleaseID}); err != nil {
+		return domain.EvidenceItem{}, err
+	}
 	now := l.now()
 	item := domain.EvidenceItem{
 		ID:                  newID("ev"),
@@ -710,6 +732,9 @@ func (l *Ledger) GetEvidence(ctx context.Context, actor domain.Actor, id string)
 	if !ok || item.TenantID != actor.TenantID {
 		return domain.EvidenceItem{}, ErrNotFound
 	}
+	if err := l.authorizeResourceLocked(actor, ScopeEvidenceRead, refsForEvidence(item)); err != nil {
+		return domain.EvidenceItem{}, err
+	}
 	return item, nil
 }
 
@@ -731,6 +756,9 @@ func (l *Ledger) ListEvidence(ctx context.Context, actor domain.Actor, releaseID
 			continue
 		}
 		if typ != "" && item.Type != typ {
+			continue
+		}
+		if !l.resourceAllowedLocked(actor, ScopeEvidenceRead, refsForEvidence(item)) {
 			continue
 		}
 		out = append(out, item)
@@ -755,6 +783,12 @@ func (l *Ledger) SupersedeEvidence(ctx context.Context, actor domain.Actor, id, 
 	replacement, rok := l.evidence[strings.TrimSpace(replacementID)]
 	if !ok || !rok || item.TenantID != actor.TenantID || replacement.TenantID != actor.TenantID {
 		return domain.EvidenceItem{}, ErrNotFound
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, refsForEvidence(item)); err != nil {
+		return domain.EvidenceItem{}, err
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, refsForEvidence(replacement)); err != nil {
+		return domain.EvidenceItem{}, err
 	}
 	if item.SupersededBy != "" {
 		return domain.EvidenceItem{}, ErrConflict
@@ -787,17 +821,26 @@ func (l *Ledger) LinkEvidence(ctx context.Context, actor domain.Actor, id, targe
 	if !ok || item.TenantID != actor.TenantID {
 		return domain.EvidenceItem{}, ErrNotFound
 	}
+	if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, refsForEvidence(item)); err != nil {
+		return domain.EvidenceItem{}, err
+	}
 	switch targetType {
 	case "release":
 		rel, ok := l.releases[targetID]
 		if !ok || rel.TenantID != actor.TenantID {
 			return domain.EvidenceItem{}, ErrNotFound
 		}
+		if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, resourceRefs{ReleaseID: rel.ID}); err != nil {
+			return domain.EvidenceItem{}, err
+		}
 		item.ReleaseID = targetID
 	case "product":
 		prod, ok := l.products[targetID]
 		if !ok || prod.TenantID != actor.TenantID {
 			return domain.EvidenceItem{}, ErrNotFound
+		}
+		if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, resourceRefs{ProductID: prod.ID}); err != nil {
+			return domain.EvidenceItem{}, err
 		}
 		item.ProductID = targetID
 	default:
@@ -1007,6 +1050,9 @@ func (l *Ledger) EvaluateRelease(ctx context.Context, actor domain.Actor, releas
 	if !ok || release.TenantID != actor.TenantID {
 		return domain.PolicyEvaluation{}, ErrNotFound
 	}
+	if err := l.authorizeResourceLocked(actor, ScopeVerifyRead, resourceRefs{ReleaseID: release.ID}); err != nil {
+		return domain.PolicyEvaluation{}, err
+	}
 	checks := []domain.PolicyCheck{
 		l.checkReleaseHasEvidenceLocked(actor.TenantID, release.ID, "sbom", "release_requires_sbom", "high"),
 		l.checkReleaseHasEvidenceLocked(actor.TenantID, release.ID, "vulnerability_scan", "release_requires_vulnerability_scan", "high"),
@@ -1044,6 +1090,9 @@ func (l *Ledger) CreateReleaseBundle(ctx context.Context, actor domain.Actor, re
 	release, ok := l.releases[strings.TrimSpace(releaseID)]
 	if !ok || release.TenantID != actor.TenantID {
 		return domain.ReleaseBundle{}, ErrNotFound
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeBundleWrite, resourceRefs{ReleaseID: release.ID}); err != nil {
+		return domain.ReleaseBundle{}, err
 	}
 	evidenceIDs := []string{}
 	for _, item := range l.evidence {
@@ -1111,6 +1160,9 @@ func (l *Ledger) GetReleaseBundle(ctx context.Context, actor domain.Actor, id st
 	if !ok || bundle.TenantID != actor.TenantID {
 		return domain.ReleaseBundle{}, ErrNotFound
 	}
+	if err := l.authorizeResourceLocked(actor, ScopeBundleRead, resourceRefs{ReleaseID: bundle.ReleaseID}); err != nil {
+		return domain.ReleaseBundle{}, err
+	}
 	return bundle, nil
 }
 
@@ -1126,6 +1178,9 @@ func (l *Ledger) GetSBOM(ctx context.Context, actor domain.Actor, id string) (do
 	sbom, ok := l.sboms[strings.TrimSpace(id)]
 	if !ok || sbom.TenantID != actor.TenantID {
 		return domain.SBOM{}, ErrNotFound
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeEvidenceRead, resourceRefs{ReleaseID: sbom.ReleaseID}); err != nil {
+		return domain.SBOM{}, err
 	}
 	return sbom, nil
 }
@@ -1143,6 +1198,9 @@ func (l *Ledger) GetVulnerabilityScan(ctx context.Context, actor domain.Actor, i
 	if !ok || scan.TenantID != actor.TenantID {
 		return domain.VulnerabilityScan{}, ErrNotFound
 	}
+	if err := l.authorizeResourceLocked(actor, ScopeEvidenceRead, resourceRefs{ReleaseID: scan.ReleaseID}); err != nil {
+		return domain.VulnerabilityScan{}, err
+	}
 	return scan, nil
 }
 
@@ -1158,6 +1216,9 @@ func (l *Ledger) GetOpenAPIContract(ctx context.Context, actor domain.Actor, id 
 	contract, ok := l.contracts[strings.TrimSpace(id)]
 	if !ok || contract.TenantID != actor.TenantID {
 		return domain.OpenAPIContract{}, ErrNotFound
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeEvidenceRead, resourceRefs{ProductID: contract.ProductID, ReleaseID: contract.ReleaseID}); err != nil {
+		return domain.OpenAPIContract{}, err
 	}
 	return contract, nil
 }
@@ -1175,11 +1236,17 @@ func (l *Ledger) VerifySubject(ctx context.Context, actor domain.Actor, subjectT
 	result := "passed"
 	switch strings.TrimSpace(subjectType) {
 	case "audit_chain":
+		if err := l.authorizeResourceLocked(actor, ScopeVerifyRead, resourceRefs{}); err != nil {
+			return domain.VerificationResult{}, err
+		}
 		checks = l.verifyChainLocked(actor.TenantID)
 	case "evidence_item":
 		item, ok := l.evidence[strings.TrimSpace(subjectID)]
 		if !ok || item.TenantID != actor.TenantID {
 			return domain.VerificationResult{}, ErrNotFound
+		}
+		if err := l.authorizeResourceLocked(actor, ScopeVerifyRead, refsForEvidence(item)); err != nil {
+			return domain.VerificationResult{}, err
 		}
 		hash, err := canonicalHash(item)
 		if err != nil || hash != item.CanonicalHash {
@@ -1192,6 +1259,9 @@ func (l *Ledger) VerifySubject(ctx context.Context, actor domain.Actor, subjectT
 		bundle, ok := l.bundles[strings.TrimSpace(subjectID)]
 		if !ok || bundle.TenantID != actor.TenantID {
 			return domain.VerificationResult{}, ErrNotFound
+		}
+		if err := l.authorizeResourceLocked(actor, ScopeVerifyRead, resourceRefs{ReleaseID: bundle.ReleaseID}); err != nil {
+			return domain.VerificationResult{}, err
 		}
 		hash, err := canonicalAnyHash(bundle.Manifest)
 		if err != nil || hash != bundle.ManifestHash {
