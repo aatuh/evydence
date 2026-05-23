@@ -17,6 +17,18 @@ Errors use RFC 9457 Problem Details and include a stable `code` field.
 
 The generated OpenAPI document is committed at `openapi.yaml` and served at `/v1/openapi.json`.
 
+## Controls And Reports
+
+`POST /v1/control-frameworks` creates a tenant-scoped framework version such as an internal CRA-readiness or SSDF-lite mapping. `GET /v1/control-frameworks` lists framework versions for the tenant.
+
+`POST /v1/controls` creates a framework-owned control with evidence requirements. Supported requirement types currently match implemented evidence resources: `sbom`, `vulnerability_scan`, `vex`, `vulnerability_decision`, `artifact`, `build`, `build_attestation`, `openapi_contract`, `release_bundle`, and `exception`. `GET /v1/controls/{id}` reads a tenant-scoped control.
+
+`POST /v1/controls/{id}/evidence` appends a control evidence link to an existing subject and confidence value of `high`, `medium`, `low`, or `unsupported`. Duplicate links return the existing link. `GET /v1/control-evidence` lists links by optional control, product, or release filters.
+
+`GET /v1/reports/control-coverage?framework_id=...&product_id=...&release_id=...` returns deterministic coverage statuses per control: `satisfied`, `partial`, `missing`, `waived`, `not_applicable`, or `unknown`. Approved, unexpired exceptions with a matching `control_id` may waive a control.
+
+`GET /v1/reports/cra-readiness?product_id=...&release_id=...` returns a CRA-oriented technical evidence report built from the same control coverage engine. It includes assumptions and limitations and does not make legal compliance, certification, complete-SBOM, or secure-release claims.
+
 ## CI Provenance
 
 Collectors are tenant-scoped automated ingesters. `POST /v1/collectors` creates a `github_actions` collector and returns a one-time API key secret scoped for build/evidence upload. `GET /v1/collectors` lists collectors without key hashes or secrets. The server binds collector identity from the API key; clients must not submit `collector_id` for build attribution.
