@@ -467,6 +467,10 @@ func (l *Ledger) AccessCustomerPortalPackage(ctx context.Context, token string) 
 	for id, access := range l.portalAccess {
 		if access.Hash != hash || access.RevokedAt != nil || !access.ExpiresAt.After(l.now()) {
 			if access.Prefix == prefix {
+				now := l.now()
+				access.FailedAccessCount++
+				access.LastFailedAt = &now
+				l.portalAccess[id] = access
 				_, _ = l.appendChainLocked(access.TenantID, "customer_portal_package.access_failed", "customer_portal_access", access.ID, "customer_portal", "unverified", "", "")
 				_ = l.persistLocked(ctx)
 			}
@@ -477,6 +481,8 @@ func (l *Ledger) AccessCustomerPortalPackage(ctx context.Context, token string) 
 			return domain.CustomerSecurityPackage{}, ErrNotFound
 		}
 		access.AccessCount++
+		now := l.now()
+		access.LastAccessedAt = &now
 		l.portalAccess[id] = access
 		_, _ = l.appendChainLocked(access.TenantID, "customer_portal_package.accessed", "customer_security_package", pkg.ID, "customer_portal", access.ID, pkg.ManifestHash, "")
 		if err := l.persistLocked(ctx); err != nil {
@@ -747,11 +753,18 @@ func scopesFromResourceGrants(grants []domain.ResourceGrant) []string {
 }
 
 type resourceRefs struct {
-	ProductID         string
-	ProjectID         string
-	ReleaseID         string
-	CustomerPackageID string
-	EvidenceBundleID  string
+	ProductID          string
+	ProjectID          string
+	ReleaseID          string
+	ArtifactID         string
+	BuildID            string
+	DeploymentID       string
+	EnvironmentID      string
+	IncidentID         string
+	SecurityScanID     string
+	SourceRepositoryID string
+	CustomerPackageID  string
+	EvidenceBundleID   string
 }
 
 func refsForEvidence(item domain.EvidenceItem) resourceRefs {
@@ -825,11 +838,82 @@ func (l *Ledger) productCoversRefsLocked(tenantID, productID string, refs resour
 			return false
 		}
 	}
+	if refs.SourceRepositoryID != "" {
+		repo, ok := l.repositories[refs.SourceRepositoryID]
+		if !ok || repo.TenantID != tenantID {
+			return false
+		}
+		if repo.ProjectID == "" {
+			return false
+		}
+		project, ok := l.projects[repo.ProjectID]
+		if !ok || project.TenantID != tenantID || project.ProductID != productID {
+			return false
+		}
+	}
 	if refs.ReleaseID != "" {
 		release, ok := l.releases[refs.ReleaseID]
 		if !ok || release.TenantID != tenantID || release.ProductID != productID {
 			return false
 		}
+	}
+	if refs.BuildID != "" {
+		build, ok := l.buildRuns[refs.BuildID]
+		if !ok || build.TenantID != tenantID {
+			return false
+		}
+		if build.ReleaseID != "" {
+			release, ok := l.releases[build.ReleaseID]
+			if !ok || release.TenantID != tenantID || release.ProductID != productID {
+				return false
+			}
+		}
+		if build.ProjectID != "" {
+			project, ok := l.projects[build.ProjectID]
+			if !ok || project.TenantID != tenantID || project.ProductID != productID {
+				return false
+			}
+		}
+	}
+	if refs.EnvironmentID != "" {
+		env, ok := l.environments[refs.EnvironmentID]
+		if !ok || env.TenantID != tenantID || env.ProductID != productID {
+			return false
+		}
+	}
+	if refs.DeploymentID != "" {
+		deployment, ok := l.deployments[refs.DeploymentID]
+		if !ok || deployment.TenantID != tenantID {
+			return false
+		}
+		release, ok := l.releases[deployment.ReleaseID]
+		if !ok || release.TenantID != tenantID || release.ProductID != productID {
+			return false
+		}
+	}
+	if refs.IncidentID != "" {
+		incident, ok := l.incidents[refs.IncidentID]
+		if !ok || incident.TenantID != tenantID || incident.ProductID != productID {
+			return false
+		}
+	}
+	if refs.SecurityScanID != "" {
+		scan, ok := l.securityScans[refs.SecurityScanID]
+		if !ok || scan.TenantID != tenantID {
+			return false
+		}
+		if scan.ProductID != "" && scan.ProductID != productID {
+			return false
+		}
+		if scan.ReleaseID != "" {
+			release, ok := l.releases[scan.ReleaseID]
+			if !ok || release.TenantID != tenantID || release.ProductID != productID {
+				return false
+			}
+		}
+	}
+	if refs.ArtifactID != "" && !l.artifactCoversProductLocked(tenantID, refs.ArtifactID, productID) {
+		return false
 	}
 	if refs.CustomerPackageID != "" {
 		pkg, ok := l.customerPackages[refs.CustomerPackageID]
@@ -857,6 +941,14 @@ func (l *Ledger) projectCoversRefsLocked(tenantID, projectID string, refs resour
 		project, ok := l.projects[refs.ProjectID]
 		return ok && project.TenantID == tenantID && project.ID == projectID
 	}
+	if refs.SourceRepositoryID != "" {
+		repo, ok := l.repositories[refs.SourceRepositoryID]
+		return ok && repo.TenantID == tenantID && repo.ProjectID == projectID
+	}
+	if refs.BuildID != "" {
+		build, ok := l.buildRuns[refs.BuildID]
+		return ok && build.TenantID == tenantID && build.ProjectID == projectID
+	}
 	return false
 }
 
@@ -872,6 +964,76 @@ func (l *Ledger) releaseCoversRefsLocked(tenantID, releaseID string, refs resour
 	if refs.EvidenceBundleID != "" {
 		bundle, ok := l.evidenceBundles[refs.EvidenceBundleID]
 		return ok && bundle.TenantID == tenantID && bundle.ReleaseID == releaseID
+	}
+	if refs.BuildID != "" {
+		build, ok := l.buildRuns[refs.BuildID]
+		return ok && build.TenantID == tenantID && build.ReleaseID == releaseID
+	}
+	if refs.DeploymentID != "" {
+		deployment, ok := l.deployments[refs.DeploymentID]
+		return ok && deployment.TenantID == tenantID && deployment.ReleaseID == releaseID
+	}
+	if refs.IncidentID != "" {
+		incident, ok := l.incidents[refs.IncidentID]
+		return ok && incident.TenantID == tenantID && incident.ReleaseID == releaseID
+	}
+	if refs.SecurityScanID != "" {
+		scan, ok := l.securityScans[refs.SecurityScanID]
+		return ok && scan.TenantID == tenantID && scan.ReleaseID == releaseID
+	}
+	if refs.ArtifactID != "" && l.artifactCoversReleaseLocked(tenantID, refs.ArtifactID, releaseID) {
+		return true
+	}
+	return false
+}
+
+func (l *Ledger) artifactCoversProductLocked(tenantID, artifactID, productID string) bool {
+	for _, item := range l.evidence {
+		if item.TenantID == tenantID && item.ProductID == productID && evidenceReferencesArtifact(item, artifactID) {
+			return true
+		}
+	}
+	for _, build := range l.buildRuns {
+		if build.TenantID != tenantID {
+			continue
+		}
+		for _, output := range build.Outputs {
+			if output.ArtifactID != artifactID {
+				continue
+			}
+			release, ok := l.releases[build.ReleaseID]
+			if ok && release.TenantID == tenantID && release.ProductID == productID {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (l *Ledger) artifactCoversReleaseLocked(tenantID, artifactID, releaseID string) bool {
+	for _, item := range l.evidence {
+		if item.TenantID == tenantID && item.ReleaseID == releaseID && evidenceReferencesArtifact(item, artifactID) {
+			return true
+		}
+	}
+	for _, build := range l.buildRuns {
+		if build.TenantID != tenantID || build.ReleaseID != releaseID {
+			continue
+		}
+		for _, output := range build.Outputs {
+			if output.ArtifactID == artifactID {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func evidenceReferencesArtifact(item domain.EvidenceItem, artifactID string) bool {
+	for _, ref := range item.SubjectRefs {
+		if ref.Type == "artifact" && ref.ID == artifactID {
+			return true
+		}
 	}
 	return false
 }

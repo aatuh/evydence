@@ -741,17 +741,20 @@ type RetentionReport struct {
 }
 
 type CustomerPortalAccess struct {
-	ID            string     `json:"id"`
-	TenantID      string     `json:"tenant_id"`
-	PackageID     string     `json:"package_id"`
-	CustomerName  string     `json:"customer_name"`
-	Prefix        string     `json:"prefix"`
-	ExpiresAt     time.Time  `json:"expires_at"`
-	RevokedAt     *time.Time `json:"revoked_at,omitempty"`
-	AccessCount   int        `json:"access_count"`
-	SchemaVersion string     `json:"schema_version"`
-	CreatedAt     time.Time  `json:"created_at"`
-	Hash          string     `json:"-"`
+	ID                string     `json:"id"`
+	TenantID          string     `json:"tenant_id"`
+	PackageID         string     `json:"package_id"`
+	CustomerName      string     `json:"customer_name"`
+	Prefix            string     `json:"prefix"`
+	ExpiresAt         time.Time  `json:"expires_at"`
+	RevokedAt         *time.Time `json:"revoked_at,omitempty"`
+	AccessCount       int        `json:"access_count"`
+	FailedAccessCount int        `json:"failed_access_count"`
+	LastAccessedAt    *time.Time `json:"last_accessed_at,omitempty"`
+	LastFailedAt      *time.Time `json:"last_failed_at,omitempty"`
+	SchemaVersion     string     `json:"schema_version"`
+	CreatedAt         time.Time  `json:"created_at"`
+	Hash              string     `json:"-"`
 }
 
 type QuestionnaireTemplate struct {
