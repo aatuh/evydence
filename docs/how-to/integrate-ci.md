@@ -53,9 +53,8 @@ Required CI variables mirror the GitHub flow:
 - `EVYDENCE_PROJECT_ID`
 - `EVYDENCE_RELEASE_ID`
 - `EVYDENCE_ARTIFACT_ID`
-- `EVYDENCE_ARTIFACT_DIGEST`
 
-GitLab-provided variables such as `CI_PROJECT_PATH`, `CI_COMMIT_SHA`, `CI_PIPELINE_ID`, and `CI_JOB_ID` can be included in source snapshots or build evidence.
+The template builds `dist/evydence`, writes `artifact.digest`, creates `evydence-upload-manifest.json` in the evidence job, and uploads that manifest with `go run ./cmd/evydence upload manifest`. GitLab-provided variables such as `CI_PROJECT_PATH`, `CI_COMMIT_SHA`, `CI_PIPELINE_ID`, and `CI_JOB_ID` are recorded as submitted CI metadata; Evydence does not verify GitLab identity or pipeline policy from those fields alone.
 
 ## Source Snapshots
 

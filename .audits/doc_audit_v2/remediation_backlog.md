@@ -7,7 +7,7 @@ Status legend:
 - [ ] not done
 - [x] done
 
-## Epic E1 - Fix Executable Example Accuracy [ ]
+## Epic E1 - Fix Executable Example Accuracy [x]
 
 Description: Correct the remaining documentation examples that can fail when followed literally, before expanding documentation depth.
 
@@ -30,7 +30,7 @@ Notes:
 
 - Evidence paths: `docs/air-gapped.md`, `docs/release-signing.md`, `cmd/evydence/main.go`.
 
-### Ticket E1-T2 - Repair The GitLab CI Upload Example [ ]
+### Ticket E1-T2 - Repair The GitLab CI Upload Example [x]
 
 Description: Change the GitLab CI example so `evydence-upload-manifest.json` is created, supplied as an artifact, or replaced by a command that uses files produced by the shown pipeline.
 
