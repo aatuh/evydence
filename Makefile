@@ -60,6 +60,7 @@ docs-check: ## Validate canonical docs exist and avoid forbidden product claims
 	@test -f docs/tutorials/getting-started.md
 	@test -f docs/how-to/install-and-operate.md
 	@test -f docs/reference/openapi.md
+	@test -f docs/reference/worker-outbox.md
 	@test -f docs/explanation/trust-model.md
 	@! grep -R -i "automatically compliant\|certified secure\|legally sufficient\|SBOM is complete\|all vulnerabilities detected" README.md docs
 
@@ -98,6 +99,23 @@ release-check: ## Release validation with security, race, and configured live in
 	@$(MAKE) test-race
 	@$(MAKE) live-postgres-check
 	@$(MAKE) postgres-integration-test
+	@mkdir -p tmp
+	@{ \
+		echo "evydence release-check summary"; \
+		echo "generated_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)"; \
+		echo "finalize=passed"; \
+		echo "lint=passed"; \
+		echo "gosec=passed"; \
+		echo "govulncheck=passed"; \
+		echo "race=passed"; \
+		if [ -n "$$EVYDENCE_TEST_DATABASE_URL" ]; then \
+			echo "live_postgres=passed"; \
+			echo "postgres_integration=passed"; \
+		else \
+			echo "live_postgres=skipped EVYDENCE_TEST_DATABASE_URL unset"; \
+			echo "postgres_integration=skipped EVYDENCE_TEST_DATABASE_URL unset"; \
+		fi; \
+	} | tee tmp/release-check-summary.txt
 
 compose-up: ## Start local dependencies
 	@docker compose up -d
