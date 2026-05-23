@@ -1,0 +1,12 @@
+DROP TABLE IF EXISTS commercial_collectors;
+DROP TABLE IF EXISTS questionnaire_packages;
+DROP TABLE IF EXISTS questionnaire_templates;
+DROP TABLE IF EXISTS customer_portal_access;
+DROP TABLE IF EXISTS retention_overrides;
+DROP TABLE IF EXISTS legal_holds;
+DROP TABLE IF EXISTS sso_sessions;
+DROP TABLE IF EXISTS user_identity_links;
+DROP TABLE IF EXISTS sso_providers;
+DROP TABLE IF EXISTS role_bindings;
+DROP TABLE IF EXISTS human_users;
+DROP TABLE IF EXISTS organizations;

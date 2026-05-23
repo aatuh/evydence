@@ -93,6 +93,12 @@ Use `GET /v1/ready` for low-detail readiness checks. Use `GET /v1/metrics` only 
 
 Use `POST /v1/backup-manifests` after database and object-store backups complete to record a hash and consistency checks for the ledger state. The manifest is not a backup by itself and intentionally excludes raw payload bytes and private signing-key material.
 
+Use `GET /v1/admin/instance` with an instance-admin scoped actor for low-detail tenant/resource counts. Do not expose this endpoint to customer verifier roles.
+
+Legal holds and retention overrides are ledger records. They help explain why evidence should be retained, but they do not configure external database backups, S3 lifecycle rules, or object-lock policies.
+
+Customer portal access tokens are returned once by `POST /v1/customer-portal/access`, expire, and are stored as hashes. Treat them like bearer secrets and do not place them in logs or long-lived documentation.
+
 Use `POST /v1/merkle-batches` and `POST /v1/transparency-checkpoints` to record signed local checkpoints and optional external anchoring metadata. These support tamper-evidence but do not make public transparency mandatory.
 
 Object-retention policy APIs record and verify retention intent for tenant-prefixed object paths. Enforcing WORM/object-lock settings remains the responsibility of the configured object store and deployment policy.

@@ -548,12 +548,18 @@ func actorType(actor domain.Actor) string {
 	if actor.CollectorID != "" {
 		return "collector"
 	}
+	if actor.UserID != "" {
+		return "human_user"
+	}
 	return "api_key"
 }
 
 func actorID(actor domain.Actor) string {
 	if actor.CollectorID != "" {
 		return actor.CollectorID
+	}
+	if actor.UserID != "" {
+		return actor.UserID
 	}
 	return actor.KeyID
 }

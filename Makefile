@@ -49,6 +49,7 @@ openapi-check: openapi.yaml ## Validate OpenAPI generation and route contract te
 
 docs-check: ## Validate canonical docs exist and avoid forbidden product claims
 	@test -f README.md
+	@test -f docs/README.md
 	@test -f docs/architecture.md
 	@test -f docs/api.md
 	@test -f docs/operations.md
@@ -56,6 +57,10 @@ docs-check: ## Validate canonical docs exist and avoid forbidden product claims
 	@test -f docs/air-gapped.md
 	@test -f docs/release-signing.md
 	@test -f docs/production-hardening.md
+	@test -f docs/tutorials/getting-started.md
+	@test -f docs/how-to/install-and-operate.md
+	@test -f docs/reference/openapi.md
+	@test -f docs/explanation/trust-model.md
 	@! grep -R -i "automatically compliant\|certified secure\|legally sufficient\|SBOM is complete\|all vulnerabilities detected" README.md docs
 
 deploy-check: ## Validate deployment and air-gap skeletons exist

@@ -575,6 +575,62 @@ func TestGovernancePackageAndBundleHTTPFlow(t *testing.T) {
 	postJSON(t, server, secret, "/v1/dsse-trust-roots", "gov-bad-root", map[string]any{"name": "bad", "key_id": "root", "algorithm": "Ed25519", "public_key": "bad"}, http.StatusBadRequest)
 }
 
+func TestEnterprisePortalRetentionAndCommercialCollectorHTTPFlow(t *testing.T) {
+	server, secret := testServer(t)
+	orgBody := postJSON(t, server, secret, "/v1/organizations", "ent-org", map[string]any{"name": "Example", "slug": "example"}, http.StatusCreated)
+	orgID := dataField(t, orgBody, "id")
+	userBody := postJSON(t, server, secret, "/v1/users", "ent-user", map[string]any{"organization_id": orgID, "email": "Admin@Example.test", "display_name": "Admin"}, http.StatusCreated)
+	userID := dataField(t, userBody, "id")
+	postJSON(t, server, secret, "/v1/role-bindings", "ent-role", map[string]any{"subject_type": "user", "subject_id": userID, "role": "tenant_admin", "resource_type": "tenant"}, http.StatusCreated)
+	providerBody := postJSON(t, server, secret, "/v1/sso/providers", "ent-sso", map[string]any{"name": "Okta", "type": "oidc", "issuer": "https://idp.example.test", "client_id": "client"}, http.StatusCreated)
+	providerID := dataField(t, providerBody, "id")
+	postJSON(t, server, secret, "/v1/sso/identity-links", "ent-link", map[string]any{"user_id": userID, "provider_id": providerID, "subject": "sub-1", "email": "admin@example.test", "verified": true}, http.StatusCreated)
+	sessionBody := postJSON(t, server, secret, "/v1/sso/sessions", "ent-session", map[string]any{"user_id": userID, "provider_id": providerID, "expires_at": time.Now().UTC().Add(time.Hour).Format(time.RFC3339)}, http.StatusCreated)
+	sessionSecret := nestedDataField(t, sessionBody, "secret")
+	if strings.Contains(getJSON(t, server, secret, "/v1/role-bindings", http.StatusOK), sessionSecret) {
+		t.Fatalf("session secret leaked in role binding response")
+	}
+	getJSON(t, server, sessionSecret, "/v1/admin/instance", http.StatusOK)
+
+	productBody := postJSON(t, server, sessionSecret, "/v1/products", "ent-product", map[string]any{"name": "Enterprise Product", "slug": "enterprise-product"}, http.StatusCreated)
+	productID := dataField(t, productBody, "id")
+	releaseBody := postJSON(t, server, sessionSecret, "/v1/releases", "ent-release", map[string]any{"product_id": productID, "version": "1.0.0"}, http.StatusCreated)
+	releaseID := dataField(t, releaseBody, "id")
+	evidenceBody := postJSON(t, server, sessionSecret, "/v1/evidence", "ent-evidence", map[string]any{"product_id": productID, "release_id": releaseID, "type": "security_review", "title": "Review", "payload_hash": "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb"}, http.StatusCreated)
+	evidenceID := dataField(t, evidenceBody, "id")
+	profileBody := postJSON(t, server, sessionSecret, "/v1/redaction-profiles", "ent-profile", map[string]any{"name": "customer", "allowed_types": []string{"security_review"}}, http.StatusCreated)
+	profileID := dataField(t, profileBody, "id")
+	packageBody := postJSON(t, server, sessionSecret, "/v1/customer-packages", "ent-package", map[string]any{"product_id": productID, "release_id": releaseID, "redaction_profile_id": profileID, "title": "Customer package", "expires_at": time.Now().UTC().Add(time.Hour).Format(time.RFC3339)}, http.StatusCreated)
+	packageID := dataField(t, packageBody, "id")
+	accessBody := postJSON(t, server, sessionSecret, "/v1/customer-portal/access", "ent-access", map[string]any{"package_id": packageID, "customer_name": "ACME", "expires_at": time.Now().UTC().Add(time.Hour).Format(time.RFC3339)}, http.StatusCreated)
+	portalSecret := nestedDataField(t, accessBody, "secret")
+	portalBody := postJSONNoAuth(t, server, "/v1/customer-portal/package", map[string]any{"token": portalSecret}, http.StatusOK)
+	if !strings.Contains(portalBody, packageID) || strings.Contains(portalBody, portalSecret) {
+		t.Fatalf("portal package response invalid: %s", portalBody)
+	}
+	postJSON(t, server, sessionSecret, "/v1/legal-holds", "ent-hold", map[string]any{"scope_type": "release", "scope_id": releaseID, "reason": "extended review", "owner": "legal"}, http.StatusCreated)
+	postJSON(t, server, sessionSecret, "/v1/retention-overrides", "ent-retention", map[string]any{"scope_type": "evidence", "scope_id": evidenceID, "retention_until": time.Now().UTC().Add(24 * time.Hour).Format(time.RFC3339), "reason": "review", "owner": "security"}, http.StatusCreated)
+	retention := getJSON(t, server, sessionSecret, "/v1/reports/retention?scope_type=release&scope_id="+releaseID, http.StatusOK)
+	if !strings.Contains(retention, `"legal_holds"`) {
+		t.Fatalf("retention report missing legal holds: %s", retention)
+	}
+	templateBody := postJSON(t, server, sessionSecret, "/v1/questionnaire-templates", "ent-question-template", map[string]any{"name": "customer", "version": "1", "questions": []map[string]any{{"id": "q1", "prompt": "Is review evidence available?", "evidence_type": "security_review"}}}, http.StatusCreated)
+	templateID := dataField(t, templateBody, "id")
+	questionnaire := postJSON(t, server, sessionSecret, "/v1/questionnaire-packages", "ent-question-package", map[string]any{"template_id": templateID, "package_id": packageID, "product_id": productID, "release_id": releaseID}, http.StatusCreated)
+	if !strings.Contains(questionnaire, evidenceID) {
+		t.Fatalf("questionnaire package missing evidence id: %s", questionnaire)
+	}
+	collectorBody := postJSON(t, server, sessionSecret, "/v1/commercial-collectors", "ent-commercial-collector", map[string]any{"name": "jira", "provider": "jira", "version": "1.0.0", "manifest_hash": "sha256:2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae", "allowed_scopes": []string{"evidence:write"}}, http.StatusCreated)
+	collectorID := dataField(t, collectorBody, "id")
+	collectors := getJSON(t, server, sessionSecret, "/v1/commercial-collectors", http.StatusOK)
+	if !strings.Contains(collectors, collectorID) {
+		t.Fatalf("commercial collector list missing id: %s", collectors)
+	}
+	sessionID := dataFieldFromNestedObject(t, sessionBody, "session", "id")
+	postJSON(t, server, secret, "/v1/sso/sessions/"+sessionID+"/revoke", "ent-session-revoke", map[string]any{}, http.StatusOK)
+	getJSON(t, server, sessionSecret, "/v1/admin/instance", http.StatusUnauthorized)
+}
+
 func testServer(t *testing.T) (*Server, string) {
 	t.Helper()
 	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
@@ -621,6 +677,22 @@ func postRaw(t *testing.T, server *Server, secret, path, idem string, body []byt
 	return rec.Body.String()
 }
 
+func postJSONNoAuth(t *testing.T, server *Server, path string, payload any, want int) string {
+	t.Helper()
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != want {
+		t.Fatalf("POST %s status=%d want=%d body=%s", path, rec.Code, want, rec.Body.String())
+	}
+	return rec.Body.String()
+}
+
 func dataField(t *testing.T, body, field string) string {
 	t.Helper()
 	var decoded struct {
@@ -645,6 +717,20 @@ func dataMap(t *testing.T, body string) map[string]any {
 		t.Fatalf("unmarshal body: %v body=%s", err, body)
 	}
 	return decoded.Data
+}
+
+func dataFieldFromNestedObject(t *testing.T, body, object, field string) string {
+	t.Helper()
+	data := dataMap(t, body)
+	nested, ok := data[object].(map[string]any)
+	if !ok {
+		t.Fatalf("object %s missing in %s", object, body)
+	}
+	value, ok := nested[field].(string)
+	if !ok || value == "" {
+		t.Fatalf("field %s.%s missing in %s", object, field, body)
+	}
+	return value
 }
 
 func nestedDataField(t *testing.T, body, field string) string {

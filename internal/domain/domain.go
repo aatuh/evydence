@@ -54,11 +54,23 @@ const (
 	ObjectRetentionPolicyVersion    = "object-retention-policy.v1.0.0"
 	BackupManifestSchemaVersion     = "backup-manifest.v1.0.0"
 	CollectorReleaseSchemaVersion   = "collector-release.v1.0.0"
+	OrganizationSchemaVersion       = "organization.v1.0.0"
+	HumanUserSchemaVersion          = "human-user.v1.0.0"
+	RoleBindingSchemaVersion        = "role-binding.v1.0.0"
+	SSOProviderSchemaVersion        = "sso-provider.v1.0.0"
+	SSOSessionSchemaVersion         = "sso-session.v1.0.0"
+	LegalHoldSchemaVersion          = "legal-hold.v1.0.0"
+	RetentionOverrideSchemaVersion  = "retention-override.v1.0.0"
+	CustomerPortalAccessVersion     = "customer-portal-access.v1.0.0"
+	QuestionnaireTemplateVersion    = "questionnaire-template.v1.0.0"
+	QuestionnairePackageVersion     = "questionnaire-package.v1.0.0"
+	CommercialCollectorVersion      = "commercial-collector.v1.0.0"
 )
 
 type Actor struct {
 	TenantID    string
 	KeyID       string
+	UserID      string
 	Name        string
 	Scopes      []string
 	CollectorID string
@@ -77,6 +89,79 @@ type Tenant struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type Organization struct {
+	ID            string    `json:"id"`
+	TenantID      string    `json:"tenant_id"`
+	Name          string    `json:"name"`
+	Slug          string    `json:"slug"`
+	Status        string    `json:"status"`
+	SchemaVersion string    `json:"schema_version"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type HumanUser struct {
+	ID             string     `json:"id"`
+	TenantID       string     `json:"tenant_id"`
+	OrganizationID string     `json:"organization_id,omitempty"`
+	Email          string     `json:"email"`
+	DisplayName    string     `json:"display_name"`
+	Status         string     `json:"status"`
+	DeactivatedAt  *time.Time `json:"deactivated_at,omitempty"`
+	SchemaVersion  string     `json:"schema_version"`
+	CreatedAt      time.Time  `json:"created_at"`
+}
+
+type RoleBinding struct {
+	ID            string    `json:"id"`
+	TenantID      string    `json:"tenant_id"`
+	SubjectType   string    `json:"subject_type"`
+	SubjectID     string    `json:"subject_id"`
+	Role          string    `json:"role"`
+	ResourceType  string    `json:"resource_type,omitempty"`
+	ResourceID    string    `json:"resource_id,omitempty"`
+	SchemaVersion string    `json:"schema_version"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type SSOProvider struct {
+	ID            string            `json:"id"`
+	TenantID      string            `json:"tenant_id"`
+	Name          string            `json:"name"`
+	Type          string            `json:"type"`
+	Issuer        string            `json:"issuer"`
+	ClientID      string            `json:"client_id"`
+	GroupsClaim   string            `json:"groups_claim,omitempty"`
+	RoleMapping   map[string]string `json:"role_mapping,omitempty"`
+	Status        string            `json:"status"`
+	SchemaVersion string            `json:"schema_version"`
+	CreatedAt     time.Time         `json:"created_at"`
+}
+
+type UserIdentityLink struct {
+	ID            string    `json:"id"`
+	TenantID      string    `json:"tenant_id"`
+	UserID        string    `json:"user_id"`
+	ProviderID    string    `json:"provider_id"`
+	Subject       string    `json:"subject"`
+	Email         string    `json:"email"`
+	Verified      bool      `json:"verified"`
+	SchemaVersion string    `json:"schema_version"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type SSOSession struct {
+	ID            string     `json:"id"`
+	TenantID      string     `json:"tenant_id"`
+	UserID        string     `json:"user_id"`
+	ProviderID    string     `json:"provider_id"`
+	Prefix        string     `json:"prefix"`
+	ExpiresAt     time.Time  `json:"expires_at"`
+	RevokedAt     *time.Time `json:"revoked_at,omitempty"`
+	SchemaVersion string     `json:"schema_version"`
+	CreatedAt     time.Time  `json:"created_at"`
+	Hash          string     `json:"-"`
 }
 
 type APIKey struct {
@@ -603,6 +688,113 @@ type BackupManifest struct {
 	Limitations       []string       `json:"limitations"`
 	SchemaVersion     string         `json:"schema_version"`
 	CreatedAt         time.Time      `json:"created_at"`
+}
+
+type InstanceAdminSnapshot struct {
+	ReportType     string         `json:"report_type"`
+	TenantCount    int            `json:"tenant_count"`
+	ResourceCounts map[string]int `json:"resource_counts"`
+	Limitations    []string       `json:"limitations"`
+	GeneratedAt    time.Time      `json:"generated_at"`
+}
+
+type LegalHold struct {
+	ID            string     `json:"id"`
+	TenantID      string     `json:"tenant_id"`
+	ScopeType     string     `json:"scope_type"`
+	ScopeID       string     `json:"scope_id"`
+	Reason        string     `json:"reason"`
+	Owner         string     `json:"owner"`
+	ReleasedAt    *time.Time `json:"released_at,omitempty"`
+	SchemaVersion string     `json:"schema_version"`
+	CreatedAt     time.Time  `json:"created_at"`
+}
+
+type RetentionOverride struct {
+	ID             string    `json:"id"`
+	TenantID       string    `json:"tenant_id"`
+	ScopeType      string    `json:"scope_type"`
+	ScopeID        string    `json:"scope_id"`
+	RetentionUntil time.Time `json:"retention_until"`
+	Reason         string    `json:"reason"`
+	Owner          string    `json:"owner"`
+	SchemaVersion  string    `json:"schema_version"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+type RetentionReport struct {
+	ReportType         string              `json:"report_type"`
+	ScopeType          string              `json:"scope_type,omitempty"`
+	ScopeID            string              `json:"scope_id,omitempty"`
+	LegalHolds         []LegalHold         `json:"legal_holds,omitempty"`
+	RetentionOverrides []RetentionOverride `json:"retention_overrides,omitempty"`
+	Limitations        []string            `json:"limitations"`
+	GeneratedAt        time.Time           `json:"generated_at"`
+}
+
+type CustomerPortalAccess struct {
+	ID            string     `json:"id"`
+	TenantID      string     `json:"tenant_id"`
+	PackageID     string     `json:"package_id"`
+	CustomerName  string     `json:"customer_name"`
+	Prefix        string     `json:"prefix"`
+	ExpiresAt     time.Time  `json:"expires_at"`
+	RevokedAt     *time.Time `json:"revoked_at,omitempty"`
+	AccessCount   int        `json:"access_count"`
+	SchemaVersion string     `json:"schema_version"`
+	CreatedAt     time.Time  `json:"created_at"`
+	Hash          string     `json:"-"`
+}
+
+type QuestionnaireTemplate struct {
+	ID            string                  `json:"id"`
+	TenantID      string                  `json:"tenant_id"`
+	Name          string                  `json:"name"`
+	Version       string                  `json:"version"`
+	Questions     []QuestionnaireQuestion `json:"questions"`
+	SchemaVersion string                  `json:"schema_version"`
+	CreatedAt     time.Time               `json:"created_at"`
+}
+
+type QuestionnaireQuestion struct {
+	ID            string   `json:"id"`
+	Prompt        string   `json:"prompt"`
+	EvidenceType  string   `json:"evidence_type,omitempty"`
+	ControlID     string   `json:"control_id,omitempty"`
+	AllowedFields []string `json:"allowed_fields,omitempty"`
+}
+
+type QuestionnairePackage struct {
+	ID            string                  `json:"id"`
+	TenantID      string                  `json:"tenant_id"`
+	TemplateID    string                  `json:"template_id"`
+	PackageID     string                  `json:"package_id,omitempty"`
+	ProductID     string                  `json:"product_id,omitempty"`
+	ReleaseID     string                  `json:"release_id,omitempty"`
+	Responses     []QuestionnaireResponse `json:"responses"`
+	ManifestHash  string                  `json:"manifest_hash"`
+	SchemaVersion string                  `json:"schema_version"`
+	CreatedAt     time.Time               `json:"created_at"`
+}
+
+type QuestionnaireResponse struct {
+	QuestionID  string   `json:"question_id"`
+	Answer      string   `json:"answer"`
+	EvidenceIDs []string `json:"evidence_ids,omitempty"`
+	Limitations []string `json:"limitations,omitempty"`
+}
+
+type CommercialCollectorDefinition struct {
+	ID            string    `json:"id"`
+	TenantID      string    `json:"tenant_id"`
+	Name          string    `json:"name"`
+	Provider      string    `json:"provider"`
+	Version       string    `json:"version"`
+	ManifestHash  string    `json:"manifest_hash"`
+	AllowedScopes []string  `json:"allowed_scopes"`
+	Status        string    `json:"status"`
+	SchemaVersion string    `json:"schema_version"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 type SBOM struct {

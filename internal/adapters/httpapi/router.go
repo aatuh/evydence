@@ -67,6 +67,16 @@ func (s *Server) registerRoutes() error {
 		{http.MethodGet, "/v1/version", op("version", http.MethodGet, "/v1/version", "Version", nil), http.HandlerFunc(s.version)},
 		{http.MethodGet, "/v1/metrics", op("metrics", http.MethodGet, "/v1/metrics", "Safe tenant metrics", []string{app.ScopeAdmin}), http.HandlerFunc(s.metrics)},
 		{http.MethodGet, "/v1/openapi.json", op("openapi", http.MethodGet, "/v1/openapi.json", "OpenAPI", nil), http.HandlerFunc(s.openapi)},
+		{http.MethodGet, "/v1/admin/instance", op("instanceAdminSnapshot", http.MethodGet, "/v1/admin/instance", "Instance admin snapshot", []string{app.ScopeInstanceAdmin}), http.HandlerFunc(s.instanceAdminSnapshot)},
+		{http.MethodPost, "/v1/organizations", op("createOrganization", http.MethodPost, "/v1/organizations", "Create organization", []string{app.ScopeIdentityAdmin}), http.HandlerFunc(s.createOrganization)},
+		{http.MethodPost, "/v1/users", op("createUser", http.MethodPost, "/v1/users", "Create user", []string{app.ScopeIdentityAdmin}), http.HandlerFunc(s.createUser)},
+		{http.MethodPost, "/v1/users/{id}/deactivate", op("deactivateUser", http.MethodPost, "/v1/users/{id}/deactivate", "Deactivate user", []string{app.ScopeIdentityAdmin}), http.HandlerFunc(s.deactivateUser)},
+		{http.MethodPost, "/v1/role-bindings", op("createRoleBinding", http.MethodPost, "/v1/role-bindings", "Create role binding", []string{app.ScopeIdentityAdmin}), http.HandlerFunc(s.createRoleBinding)},
+		{http.MethodGet, "/v1/role-bindings", op("listRoleBindings", http.MethodGet, "/v1/role-bindings", "List role bindings", []string{app.ScopeIdentityAdmin}), http.HandlerFunc(s.listRoleBindings)},
+		{http.MethodPost, "/v1/sso/providers", op("createSSOProvider", http.MethodPost, "/v1/sso/providers", "Create SSO provider", []string{app.ScopeIdentityAdmin}), http.HandlerFunc(s.createSSOProvider)},
+		{http.MethodPost, "/v1/sso/identity-links", op("linkSSOIdentity", http.MethodPost, "/v1/sso/identity-links", "Link SSO identity", []string{app.ScopeIdentityAdmin}), http.HandlerFunc(s.linkSSOIdentity)},
+		{http.MethodPost, "/v1/sso/sessions", op("createSSOSession", http.MethodPost, "/v1/sso/sessions", "Create SSO session", []string{app.ScopeIdentityAdmin}), http.HandlerFunc(s.createSSOSession)},
+		{http.MethodPost, "/v1/sso/sessions/{id}/revoke", op("revokeSSOSession", http.MethodPost, "/v1/sso/sessions/{id}/revoke", "Revoke SSO session", []string{app.ScopeIdentityAdmin}), http.HandlerFunc(s.revokeSSOSession)},
 		{http.MethodPost, "/v1/collectors", op("createCollector", http.MethodPost, "/v1/collectors", "Create collector", []string{app.ScopeCollectorAdmin}), http.HandlerFunc(s.createCollector)},
 		{http.MethodGet, "/v1/collectors", op("listCollectors", http.MethodGet, "/v1/collectors", "List collectors", []string{app.ScopeCollectorRead}), http.HandlerFunc(s.listCollectors)},
 		{http.MethodPost, "/v1/collectors/{id}/releases", op("recordCollectorRelease", http.MethodPost, "/v1/collectors/{id}/releases", "Record collector release evidence", []string{app.ScopeCollectorAdmin}), http.HandlerFunc(s.recordCollectorRelease)},
@@ -126,6 +136,10 @@ func (s *Server) registerRoutes() error {
 		{http.MethodPost, "/v1/redaction-profiles", op("createRedactionProfile", http.MethodPost, "/v1/redaction-profiles", "Create redaction profile", []string{app.ScopePackageWrite}), http.HandlerFunc(s.createRedactionProfile)},
 		{http.MethodPost, "/v1/customer-packages", op("createCustomerPackage", http.MethodPost, "/v1/customer-packages", "Create customer security package", []string{app.ScopePackageWrite}), http.HandlerFunc(s.createCustomerPackage)},
 		{http.MethodGet, "/v1/customer-packages/{id}", op("getCustomerPackage", http.MethodGet, "/v1/customer-packages/{id}", "Get customer security package", []string{app.ScopePackageRead}), http.HandlerFunc(s.getCustomerPackage)},
+		{http.MethodPost, "/v1/customer-portal/access", op("createCustomerPortalAccess", http.MethodPost, "/v1/customer-portal/access", "Create customer portal access", []string{app.ScopePackageWrite}), http.HandlerFunc(s.createCustomerPortalAccess)},
+		{http.MethodPost, "/v1/customer-portal/package", op("accessCustomerPortalPackage", http.MethodPost, "/v1/customer-portal/package", "Access customer portal package", nil), http.HandlerFunc(s.accessCustomerPortalPackage)},
+		{http.MethodPost, "/v1/questionnaire-templates", op("createQuestionnaireTemplate", http.MethodPost, "/v1/questionnaire-templates", "Create questionnaire template", []string{app.ScopePackageWrite}), http.HandlerFunc(s.createQuestionnaireTemplate)},
+		{http.MethodPost, "/v1/questionnaire-packages", op("createQuestionnairePackage", http.MethodPost, "/v1/questionnaire-packages", "Create questionnaire package", []string{app.ScopePackageWrite}), http.HandlerFunc(s.createQuestionnairePackage)},
 		{http.MethodGet, "/v1/reports/security-review-package", op("securityReviewPackageReport", http.MethodGet, "/v1/reports/security-review-package", "Security review package report", []string{app.ScopePackageRead}), http.HandlerFunc(s.securityReviewPackageReport)},
 		{http.MethodGet, "/v1/reports/cra-readiness-html", op("craReadinessHTMLPackage", http.MethodGet, "/v1/reports/cra-readiness-html", "CRA readiness HTML package", []string{app.ScopeReportRead}), http.HandlerFunc(s.craReadinessHTMLPackage)},
 		{http.MethodPost, "/v1/report-templates", op("createReportTemplate", http.MethodPost, "/v1/report-templates", "Create report template", []string{app.ScopeReportRead}), http.HandlerFunc(s.createReportTemplate)},
@@ -176,12 +190,17 @@ func (s *Server) registerRoutes() error {
 		{http.MethodPost, "/v1/transparency-checkpoints", op("createTransparencyCheckpoint", http.MethodPost, "/v1/transparency-checkpoints", "Record external transparency checkpoint", []string{app.ScopeKeysAdmin}), http.HandlerFunc(s.createTransparencyCheckpoint)},
 		{http.MethodPost, "/v1/object-retention-policies", op("createObjectRetentionPolicy", http.MethodPost, "/v1/object-retention-policies", "Create object retention policy record", []string{app.ScopeAdmin}), http.HandlerFunc(s.createObjectRetentionPolicy)},
 		{http.MethodPost, "/v1/object-retention-policies/{id}/verify", op("verifyObjectRetentionPolicy", http.MethodPost, "/v1/object-retention-policies/{id}/verify", "Verify object retention policy record", []string{app.ScopeVerifyRead}), http.HandlerFunc(s.verifyObjectRetentionPolicy)},
+		{http.MethodPost, "/v1/legal-holds", op("createLegalHold", http.MethodPost, "/v1/legal-holds", "Create legal hold", []string{app.ScopeAdmin}), http.HandlerFunc(s.createLegalHold)},
+		{http.MethodPost, "/v1/retention-overrides", op("createRetentionOverride", http.MethodPost, "/v1/retention-overrides", "Create retention override", []string{app.ScopeAdmin}), http.HandlerFunc(s.createRetentionOverride)},
+		{http.MethodGet, "/v1/reports/retention", op("retentionReport", http.MethodGet, "/v1/reports/retention", "Retention report", []string{app.ScopeAdmin}), http.HandlerFunc(s.retentionReport)},
 		{http.MethodPost, "/v1/backup-manifests", op("generateBackupManifest", http.MethodPost, "/v1/backup-manifests", "Generate backup manifest", []string{app.ScopeAdmin}), http.HandlerFunc(s.generateBackupManifest)},
 		{http.MethodGet, "/v1/backup-manifests/{id}/verify", op("verifyBackupManifest", http.MethodGet, "/v1/backup-manifests/{id}/verify", "Verify backup manifest", []string{app.ScopeVerifyRead}), http.HandlerFunc(s.verifyBackupManifest)},
 		{http.MethodGet, "/v1/signing-keys", op("listSigningKeys", http.MethodGet, "/v1/signing-keys", "List signing keys", []string{app.ScopeVerifyRead}), http.HandlerFunc(s.listSigningKeys)},
 		{http.MethodPost, "/v1/signing-keys/rotate", op("rotateSigningKey", http.MethodPost, "/v1/signing-keys/rotate", "Rotate signing key", []string{app.ScopeKeysAdmin}), http.HandlerFunc(s.rotateSigningKey)},
 		{http.MethodPost, "/v1/signing-keys/{id}/revoke", op("revokeSigningKey", http.MethodPost, "/v1/signing-keys/{id}/revoke", "Revoke signing key", []string{app.ScopeKeysAdmin}), http.HandlerFunc(s.revokeSigningKey)},
 		{http.MethodPost, "/v1/signing-providers", op("createSigningProvider", http.MethodPost, "/v1/signing-providers", "Create signing provider record", []string{app.ScopeKeysAdmin}), http.HandlerFunc(s.createSigningProvider)},
+		{http.MethodPost, "/v1/commercial-collectors", op("createCommercialCollector", http.MethodPost, "/v1/commercial-collectors", "Create commercial collector definition", []string{app.ScopeCollectorAdmin}), http.HandlerFunc(s.createCommercialCollector)},
+		{http.MethodGet, "/v1/commercial-collectors", op("listCommercialCollectors", http.MethodGet, "/v1/commercial-collectors", "List commercial collector definitions", []string{app.ScopeCollectorRead}), http.HandlerFunc(s.listCommercialCollectors)},
 		{http.MethodPost, "/v1/verify", op("verify", http.MethodPost, "/v1/verify", "Verify subject", []string{app.ScopeVerifyRead}), http.HandlerFunc(s.verifySubject)},
 		{http.MethodPost, "/v1/api-keys", op("createAPIKey", http.MethodPost, "/v1/api-keys", "Create API key", []string{app.ScopeAdmin}), http.HandlerFunc(s.createAPIKey)},
 		{http.MethodGet, "/v1/api-keys", op("listAPIKeys", http.MethodGet, "/v1/api-keys", "List API keys", []string{app.ScopeAdmin}), http.HandlerFunc(s.listAPIKeys)},
@@ -233,6 +252,142 @@ func (s *Server) openapi(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(doc)
+}
+
+func (s *Server) instanceAdminSnapshot(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	snapshot, err := s.ledger.InstanceAdminSnapshot(r.Context(), actor)
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, snapshot)
+}
+
+func (s *Server) createOrganization(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name string `json:"name"`
+		Slug string `json:"slug"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		org, err := s.ledger.CreateOrganization(r.Context(), actor, app.CreateOrganizationInput{Name: req.Name, Slug: req.Slug})
+		return http.StatusCreated, org, err
+	})
+}
+
+func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		OrganizationID string `json:"organization_id"`
+		Email          string `json:"email"`
+		DisplayName    string `json:"display_name"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		user, err := s.ledger.CreateUser(r.Context(), actor, app.CreateUserInput{OrganizationID: req.OrganizationID, Email: req.Email, DisplayName: req.DisplayName})
+		return http.StatusCreated, user, err
+	})
+}
+
+func (s *Server) deactivateUser(w http.ResponseWriter, r *http.Request) {
+	s.create(w, r, func(actor domain.Actor, _ []byte) (int, any, error) {
+		user, err := s.ledger.DeactivateUser(r.Context(), actor, r.PathValue("id"))
+		return http.StatusOK, user, err
+	})
+}
+
+func (s *Server) createRoleBinding(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		SubjectType  string `json:"subject_type"`
+		SubjectID    string `json:"subject_id"`
+		Role         string `json:"role"`
+		ResourceType string `json:"resource_type"`
+		ResourceID   string `json:"resource_id"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		binding, err := s.ledger.CreateRoleBinding(r.Context(), actor, app.CreateRoleBindingInput{SubjectType: req.SubjectType, SubjectID: req.SubjectID, Role: req.Role, ResourceType: req.ResourceType, ResourceID: req.ResourceID})
+		return http.StatusCreated, binding, err
+	})
+}
+
+func (s *Server) listRoleBindings(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	bindings, err := s.ledger.ListRoleBindings(r.Context(), actor)
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, bindings)
+}
+
+func (s *Server) createSSOProvider(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name        string            `json:"name"`
+		Type        string            `json:"type"`
+		Issuer      string            `json:"issuer"`
+		ClientID    string            `json:"client_id"`
+		GroupsClaim string            `json:"groups_claim"`
+		RoleMapping map[string]string `json:"role_mapping"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		provider, err := s.ledger.CreateSSOProvider(r.Context(), actor, app.CreateSSOProviderInput{Name: req.Name, Type: req.Type, Issuer: req.Issuer, ClientID: req.ClientID, GroupsClaim: req.GroupsClaim, RoleMapping: req.RoleMapping})
+		return http.StatusCreated, provider, err
+	})
+}
+
+func (s *Server) linkSSOIdentity(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		UserID     string `json:"user_id"`
+		ProviderID string `json:"provider_id"`
+		Subject    string `json:"subject"`
+		Email      string `json:"email"`
+		Verified   bool   `json:"verified"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		link, err := s.ledger.LinkSSOIdentity(r.Context(), actor, app.LinkSSOIdentityInput{UserID: req.UserID, ProviderID: req.ProviderID, Subject: req.Subject, Email: req.Email, Verified: req.Verified})
+		return http.StatusCreated, link, err
+	})
+}
+
+func (s *Server) createSSOSession(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		UserID     string    `json:"user_id"`
+		ProviderID string    `json:"provider_id"`
+		ExpiresAt  time.Time `json:"expires_at"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		session, secret, err := s.ledger.CreateSSOSession(r.Context(), actor, app.CreateSSOSessionInput{UserID: req.UserID, ProviderID: req.ProviderID, ExpiresAt: req.ExpiresAt})
+		return http.StatusCreated, map[string]any{"session": session, "secret": secret}, err
+	})
+}
+
+func (s *Server) revokeSSOSession(w http.ResponseWriter, r *http.Request) {
+	s.create(w, r, func(actor domain.Actor, _ []byte) (int, any, error) {
+		session, err := s.ledger.RevokeSSOSession(r.Context(), actor, r.PathValue("id"))
+		return http.StatusOK, session, err
+	})
 }
 
 func (s *Server) createCollector(w http.ResponseWriter, r *http.Request) {
@@ -1174,6 +1329,73 @@ func (s *Server) getCustomerPackage(w http.ResponseWriter, r *http.Request) {
 	writeData(w, http.StatusOK, pkg)
 }
 
+func (s *Server) createCustomerPortalAccess(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		PackageID    string    `json:"package_id"`
+		CustomerName string    `json:"customer_name"`
+		ExpiresAt    time.Time `json:"expires_at"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		access, secret, err := s.ledger.CreateCustomerPortalAccess(r.Context(), actor, app.CreateCustomerPortalAccessInput{PackageID: req.PackageID, CustomerName: req.CustomerName, ExpiresAt: req.ExpiresAt})
+		return http.StatusCreated, map[string]any{"access": access, "secret": secret}, err
+	})
+}
+
+func (s *Server) accessCustomerPortalPackage(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Token string `json:"token"`
+	}
+	body, err := readBody(r)
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	if err := decodeJSON(body, &req); err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	pkg, err := s.ledger.AccessCustomerPortalPackage(r.Context(), req.Token)
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, pkg)
+}
+
+func (s *Server) createQuestionnaireTemplate(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name      string                         `json:"name"`
+		Version   string                         `json:"version"`
+		Questions []domain.QuestionnaireQuestion `json:"questions"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		tpl, err := s.ledger.CreateQuestionnaireTemplate(r.Context(), actor, app.CreateQuestionnaireTemplateInput{Name: req.Name, Version: req.Version, Questions: req.Questions})
+		return http.StatusCreated, tpl, err
+	})
+}
+
+func (s *Server) createQuestionnairePackage(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		TemplateID string `json:"template_id"`
+		PackageID  string `json:"package_id"`
+		ProductID  string `json:"product_id"`
+		ReleaseID  string `json:"release_id"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		pkg, err := s.ledger.CreateQuestionnairePackage(r.Context(), actor, app.CreateQuestionnairePackageInput{TemplateID: req.TemplateID, PackageID: req.PackageID, ProductID: req.ProductID, ReleaseID: req.ReleaseID})
+		return http.StatusCreated, pkg, err
+	})
+}
+
 func (s *Server) securityReviewPackageReport(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
@@ -1952,6 +2174,52 @@ func (s *Server) verifyObjectRetentionPolicy(w http.ResponseWriter, r *http.Requ
 	})
 }
 
+func (s *Server) createLegalHold(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ScopeType string `json:"scope_type"`
+		ScopeID   string `json:"scope_id"`
+		Reason    string `json:"reason"`
+		Owner     string `json:"owner"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		hold, err := s.ledger.CreateLegalHold(r.Context(), actor, app.CreateLegalHoldInput{ScopeType: req.ScopeType, ScopeID: req.ScopeID, Reason: req.Reason, Owner: req.Owner})
+		return http.StatusCreated, hold, err
+	})
+}
+
+func (s *Server) createRetentionOverride(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ScopeType      string    `json:"scope_type"`
+		ScopeID        string    `json:"scope_id"`
+		RetentionUntil time.Time `json:"retention_until"`
+		Reason         string    `json:"reason"`
+		Owner          string    `json:"owner"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		override, err := s.ledger.CreateRetentionOverride(r.Context(), actor, app.CreateRetentionOverrideInput{ScopeType: req.ScopeType, ScopeID: req.ScopeID, RetentionUntil: req.RetentionUntil, Reason: req.Reason, Owner: req.Owner})
+		return http.StatusCreated, override, err
+	})
+}
+
+func (s *Server) retentionReport(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	report, err := s.ledger.RetentionReport(r.Context(), actor, r.URL.Query().Get("scope_type"), r.URL.Query().Get("scope_id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, report)
+}
+
 func (s *Server) generateBackupManifest(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(actor domain.Actor, _ []byte) (int, any, error) {
 		manifest, err := s.ledger.GenerateBackupManifest(r.Context(), actor)
@@ -2029,6 +2297,42 @@ func (s *Server) createSigningProvider(w http.ResponseWriter, r *http.Request) {
 		provider, err := s.ledger.CreateSigningProvider(r.Context(), actor, app.CreateSigningProviderInput{Name: req.Name, Type: req.Type, KeyRef: req.KeyRef, Encrypted: req.Encrypted})
 		return http.StatusCreated, provider, err
 	})
+}
+
+func (s *Server) createCommercialCollector(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name          string   `json:"name"`
+		Provider      string   `json:"provider"`
+		Version       string   `json:"version"`
+		ManifestHash  string   `json:"manifest_hash"`
+		AllowedScopes []string `json:"allowed_scopes"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		definition, err := s.ledger.CreateCommercialCollectorDefinition(r.Context(), actor, app.CreateCommercialCollectorInput{
+			Name:          req.Name,
+			Provider:      req.Provider,
+			Version:       req.Version,
+			ManifestHash:  req.ManifestHash,
+			AllowedScopes: req.AllowedScopes,
+		})
+		return http.StatusCreated, definition, err
+	})
+}
+
+func (s *Server) listCommercialCollectors(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	definitions, err := s.ledger.ListCommercialCollectorDefinitions(r.Context(), actor)
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, definitions)
 }
 
 func (s *Server) verifySubject(w http.ResponseWriter, r *http.Request) {

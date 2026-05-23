@@ -134,6 +134,24 @@ func resourceProjections(state app.PersistedState) []resourceProjection {
 	for _, v := range state.Tenants {
 		out = append(out, resourceProjection{TenantID: v.ID, ResourceType: "tenant", ResourceID: v.ID, CreatedAt: v.CreatedAt})
 	}
+	for _, v := range state.Organizations {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "organization", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.Users {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "human_user", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.RoleBindings {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "role_binding", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.SSOProviders {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "sso_provider", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.IdentityLinks {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "user_identity_link", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.SSOSessions {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "sso_session", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
 	for _, v := range state.Products {
 		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "product", ResourceID: v.ID, ProductID: v.ID, CreatedAt: v.CreatedAt})
 	}
@@ -289,6 +307,24 @@ func resourceProjections(state app.PersistedState) []resourceProjection {
 	}
 	for _, v := range state.BackupManifests {
 		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "backup_manifest", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.LegalHolds {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "legal_hold", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.RetentionOverrides {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "retention_override", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.CustomerPortalAccess {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "customer_portal_access", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.QuestionnaireTemplates {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "questionnaire_template", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.QuestionnairePackages {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "questionnaire_package", ResourceID: v.ID, ProductID: v.ProductID, ReleaseID: v.ReleaseID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.CommercialCollectors {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "commercial_collector", ResourceID: v.ID, CreatedAt: v.CreatedAt})
 	}
 	return out
 }

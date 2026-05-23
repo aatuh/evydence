@@ -13,12 +13,27 @@ func (l *Ledger) snapshotLocked() PersistedState {
 	for id, key := range l.apiKeys {
 		apiKeys[id] = key
 	}
+	ssoSessions := make(map[string]domain.SSOSession, len(l.ssoSessions))
+	for id, session := range l.ssoSessions {
+		ssoSessions[id] = session
+	}
+	portalAccess := make(map[string]domain.CustomerPortalAccess, len(l.portalAccess))
+	for id, access := range l.portalAccess {
+		portalAccess[id] = access
+	}
 	signingKeys := make(map[string]domain.SigningKey, len(l.signingKeys))
 	for id, key := range l.signingKeys {
 		signingKeys[id] = key
 	}
 	state := PersistedState{
 		Tenants:                 l.tenants,
+		Organizations:           l.organizations,
+		Users:                   l.users,
+		RoleBindings:            l.roleBindings,
+		SSOProviders:            l.ssoProviders,
+		IdentityLinks:           l.identityLinks,
+		SSOSessions:             ssoSessions,
+		SSOSessionHashes:        map[string]string{},
 		APIKeys:                 apiKeys,
 		APIKeyHashes:            map[string]string{},
 		Collectors:              l.collectors,
@@ -67,6 +82,13 @@ func (l *Ledger) snapshotLocked() PersistedState {
 		TransparencyCheckpoints: l.transparency,
 		ObjectRetentionPolicies: l.retentionPolicies,
 		BackupManifests:         l.backupManifests,
+		LegalHolds:              l.legalHolds,
+		RetentionOverrides:      l.retentionOverrides,
+		CustomerPortalAccess:    portalAccess,
+		CustomerPortalHashes:    map[string]string{},
+		QuestionnaireTemplates:  l.questionTemplates,
+		QuestionnairePackages:   l.questionPackages,
+		CommercialCollectors:    l.commercialCollectors,
 		ControlFrameworks:       l.frameworks,
 		SecurityControls:        l.controls,
 		ControlEvidence:         l.controlLinks,
@@ -92,6 +114,20 @@ func (l *Ledger) snapshotLocked() PersistedState {
 			state.APIKeys[id] = key
 		}
 	}
+	for id, session := range state.SSOSessions {
+		if session.Hash != "" {
+			state.SSOSessionHashes[id] = session.Hash
+			session.Hash = ""
+			state.SSOSessions[id] = session
+		}
+	}
+	for id, access := range state.CustomerPortalAccess {
+		if access.Hash != "" {
+			state.CustomerPortalHashes[id] = access.Hash
+			access.Hash = ""
+			state.CustomerPortalAccess[id] = access
+		}
+	}
 	for id, key := range state.SigningKeys {
 		if len(key.Private) > 0 {
 			state.SigningKeyPrivate[id] = append([]byte(nil), key.Private...)
@@ -112,6 +148,22 @@ func (l *Ledger) applyState(state PersistedState) {
 		key.Hash = hash
 		state.APIKeys[id] = key
 	}
+	for id, hash := range state.SSOSessionHashes {
+		session, ok := state.SSOSessions[id]
+		if !ok {
+			continue
+		}
+		session.Hash = hash
+		state.SSOSessions[id] = session
+	}
+	for id, hash := range state.CustomerPortalHashes {
+		access, ok := state.CustomerPortalAccess[id]
+		if !ok {
+			continue
+		}
+		access.Hash = hash
+		state.CustomerPortalAccess[id] = access
+	}
 	for id, private := range state.SigningKeyPrivate {
 		key, ok := state.SigningKeys[id]
 		if !ok {
@@ -121,6 +173,12 @@ func (l *Ledger) applyState(state PersistedState) {
 		state.SigningKeys[id] = key
 	}
 	l.tenants = state.Tenants
+	l.organizations = state.Organizations
+	l.users = state.Users
+	l.roleBindings = state.RoleBindings
+	l.ssoProviders = state.SSOProviders
+	l.identityLinks = state.IdentityLinks
+	l.ssoSessions = state.SSOSessions
 	l.apiKeys = state.APIKeys
 	l.collectors = state.Collectors
 	l.collectorReleases = state.CollectorReleases
@@ -168,6 +226,12 @@ func (l *Ledger) applyState(state PersistedState) {
 	l.transparency = state.TransparencyCheckpoints
 	l.retentionPolicies = state.ObjectRetentionPolicies
 	l.backupManifests = state.BackupManifests
+	l.legalHolds = state.LegalHolds
+	l.retentionOverrides = state.RetentionOverrides
+	l.portalAccess = state.CustomerPortalAccess
+	l.questionTemplates = state.QuestionnaireTemplates
+	l.questionPackages = state.QuestionnairePackages
+	l.commercialCollectors = state.CommercialCollectors
 	l.frameworks = state.ControlFrameworks
 	l.controls = state.SecurityControls
 	l.controlLinks = state.ControlEvidence
@@ -247,6 +311,27 @@ func cloneState(state PersistedState) PersistedState {
 func normalizeState(state PersistedState) PersistedState {
 	if state.Tenants == nil {
 		state.Tenants = map[string]domain.Tenant{}
+	}
+	if state.Organizations == nil {
+		state.Organizations = map[string]domain.Organization{}
+	}
+	if state.Users == nil {
+		state.Users = map[string]domain.HumanUser{}
+	}
+	if state.RoleBindings == nil {
+		state.RoleBindings = map[string]domain.RoleBinding{}
+	}
+	if state.SSOProviders == nil {
+		state.SSOProviders = map[string]domain.SSOProvider{}
+	}
+	if state.IdentityLinks == nil {
+		state.IdentityLinks = map[string]domain.UserIdentityLink{}
+	}
+	if state.SSOSessions == nil {
+		state.SSOSessions = map[string]domain.SSOSession{}
+	}
+	if state.SSOSessionHashes == nil {
+		state.SSOSessionHashes = map[string]string{}
 	}
 	if state.APIKeys == nil {
 		state.APIKeys = map[string]domain.APIKey{}
@@ -391,6 +476,27 @@ func normalizeState(state PersistedState) PersistedState {
 	}
 	if state.BackupManifests == nil {
 		state.BackupManifests = map[string]domain.BackupManifest{}
+	}
+	if state.LegalHolds == nil {
+		state.LegalHolds = map[string]domain.LegalHold{}
+	}
+	if state.RetentionOverrides == nil {
+		state.RetentionOverrides = map[string]domain.RetentionOverride{}
+	}
+	if state.CustomerPortalAccess == nil {
+		state.CustomerPortalAccess = map[string]domain.CustomerPortalAccess{}
+	}
+	if state.CustomerPortalHashes == nil {
+		state.CustomerPortalHashes = map[string]string{}
+	}
+	if state.QuestionnaireTemplates == nil {
+		state.QuestionnaireTemplates = map[string]domain.QuestionnaireTemplate{}
+	}
+	if state.QuestionnairePackages == nil {
+		state.QuestionnairePackages = map[string]domain.QuestionnairePackage{}
+	}
+	if state.CommercialCollectors == nil {
+		state.CommercialCollectors = map[string]domain.CommercialCollectorDefinition{}
 	}
 	if state.ControlFrameworks == nil {
 		state.ControlFrameworks = map[string]domain.ControlFramework{}

@@ -17,6 +17,16 @@ Errors use RFC 9457 Problem Details and include a stable `code` field.
 
 The generated OpenAPI document is committed at `openapi.yaml` and served at `/v1/openapi.json`.
 
+## Enterprise Identity And Administration
+
+`POST /v1/organizations` creates a tenant-scoped organization. `POST /v1/users` creates a human user with normalized email, and `POST /v1/users/{id}/deactivate` records a deactivation transition.
+
+`POST /v1/role-bindings` assigns a role to a user or collector. Current roles are `tenant_admin`, `security_engineer`, `release_manager`, `customer_verifier`, and `collector`. Human SSO session actors derive API scopes from role bindings. `GET /v1/role-bindings` lists tenant-scoped bindings.
+
+`POST /v1/sso/providers` records OIDC or SAML provider metadata. `POST /v1/sso/identity-links` links a verified provider subject to an existing user. `POST /v1/sso/sessions` issues an expiring one-time session token response; the token hash is stored server-side and is not returned by list/read paths. `POST /v1/sso/sessions/{id}/revoke` revokes the session.
+
+`GET /v1/admin/instance` returns low-detail instance diagnostics for instance admins. It exposes operational counts only, not raw evidence payloads, API keys, session hashes, or customer portal tokens.
+
 ## Controls And Reports
 
 `POST /v1/control-frameworks` creates a tenant-scoped framework version such as an internal CRA-readiness or SSDF-lite mapping. `GET /v1/control-frameworks` lists framework versions for the tenant.
@@ -29,7 +39,7 @@ The generated OpenAPI document is committed at `openapi.yaml` and served at `/v1
 
 `GET /v1/reports/cra-readiness?product_id=...&release_id=...` returns a CRA-oriented technical evidence report built from the same control coverage engine. It includes assumptions and limitations and does not make legal compliance, certification, complete-SBOM, or secure-release claims.
 
-`GET /v1/control-framework-template-packs` lists built-in starter packs. `POST /v1/control-framework-template-packs/{slug}/install` copies a pack into tenant-owned framework/control records.
+`GET /v1/control-framework-template-packs` lists built-in starter packs for CRA-readiness, NIST SSDF-lite, SOC 2-style technical evidence, and ISO 27001-style technical evidence. `POST /v1/control-framework-template-packs/{slug}/install` copies a pack into tenant-owned framework/control records.
 
 `POST /v1/waivers` creates a first-class waiver for a release, finding, control, or custom policy. `POST /v1/waivers/{id}/approve` records the append-only approval transition. Waivers are separate from exceptions and carry owner, risk, reason, expiry, supersession, and audit-chain entries.
 
@@ -99,6 +109,10 @@ Scoped exceptions are created with `POST /v1/exceptions` and approved separately
 
 `POST /v1/redaction-profiles` creates an explicit package redaction profile. `POST /v1/customer-packages` creates a scoped customer security package manifest with expiry and access auditing. `GET /v1/customer-packages/{id}` reads the manifest and records an access event; raw payload bytes are not returned.
 
+`POST /v1/customer-portal/access` creates an expiring customer portal access token for one package and returns the token once. `POST /v1/customer-portal/package` accepts that token and returns the scoped package manifest without exposing the token or raw tenant evidence.
+
+`POST /v1/questionnaire-templates` creates tenant-defined customer questionnaire templates with question-to-evidence hints. `POST /v1/questionnaire-packages` generates deterministic evidence-backed responses for a package, product, and release scope. Responses cite linked evidence IDs and include limitations for human review.
+
 `GET /v1/reports/security-review-package?package_id=...` returns a redaction-aware security review package report. `GET /v1/reports/cra-readiness-html?product_id=...&release_id=...` returns deterministic HTML content for CRA-readiness review with limitations and no compliance conclusion.
 
 `POST /v1/report-templates` creates a tenant report template with explicit allowed fields. `POST /v1/report-templates/{id}/render` renders only those allowed fields into a deterministic JSON report.
@@ -124,6 +138,10 @@ Scoped exceptions are created with `POST /v1/exceptions` and approved separately
 `GET /v1/ready` returns a low-detail readiness response. `GET /v1/metrics` returns tenant-scoped safe resource counts and requires admin scope.
 
 `GET /v1/audit-log` lists tenant audit-chain entries with optional `subject_type`, `subject_id`, `since`, and `limit` filters. It requires admin scope and returns tenant-scoped audit fields only.
+
+`POST /v1/legal-holds` records a legal hold for tenant, product, project, release, or evidence scope. `POST /v1/retention-overrides` records an expiring retention override. `GET /v1/reports/retention` lists tenant-scoped legal hold and retention override records with limitations.
+
+`POST /v1/commercial-collectors` records a commercial collector definition with provider, version, manifest digest, allowed scopes, and status. `GET /v1/commercial-collectors` lists tenant-scoped definitions. These records define extension metadata and do not grant provider trust by themselves.
 
 ## Contracts And Policy V2
 

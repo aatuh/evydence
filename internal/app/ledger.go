@@ -55,6 +55,9 @@ const (
 	ScopeControlsRead    = "controls:read"
 	ScopeControlsWrite   = "controls:write"
 	ScopeReportRead      = "report:read"
+	ScopeIdentityAdmin   = "identity:admin"
+	ScopeInstanceAdmin   = "instance:admin"
+	ScopeCustomerPortal  = "customer:portal"
 )
 
 type Config struct {
@@ -74,70 +77,82 @@ type Ledger struct {
 	objects ObjectStore
 	outbox  Outbox
 
-	tenants           map[string]domain.Tenant
-	apiKeys           map[string]domain.APIKey
-	collectors        map[string]domain.Collector
-	collectorReleases map[string]domain.CollectorRelease
-	products          map[string]domain.Product
-	projects          map[string]domain.Project
-	releases          map[string]domain.Release
-	artifacts         map[string]domain.Artifact
-	buildRuns         map[string]domain.BuildRun
-	attestations      map[string]domain.BuildAttestation
-	evidence          map[string]domain.EvidenceItem
-	lifecycle         map[string]domain.EvidenceLifecycleEvent
-	candidates        map[string]domain.ReleaseCandidate
-	images            map[string]domain.ContainerImage
-	artifactSigs      map[string]domain.ArtifactSignature
-	repositories      map[string]domain.SourceRepository
-	commits           map[string]domain.SourceCommit
-	branches          map[string]domain.SourceBranch
-	pullRequests      map[string]domain.PullRequest
-	environments      map[string]domain.DeploymentEnvironment
-	deployments       map[string]domain.DeploymentEvent
-	incidents         map[string]domain.Incident
-	timeline          map[string]domain.IncidentTimelineEvent
-	tasks             map[string]domain.RemediationTask
-	securityScans     map[string]domain.SecurityScan
-	manualDocs        map[string]domain.ManualSecurityDocument
-	sbomDiffs         map[string]domain.SBOMDiff
-	depChanges        map[string]domain.DependencyChange
-	vulnWorkflow      map[string]domain.VulnerabilityWorkflowRecord
-	contractDiffs     map[string]domain.ContractDiff
-	customPolicies    map[string]domain.CustomPolicy
-	customPolicyEvals map[string]domain.CustomPolicyEvaluation
-	waivers           map[string]domain.Waiver
-	approvals         map[string]domain.ApprovalRecord
-	redactions        map[string]domain.RedactionProfile
-	customerPackages  map[string]domain.CustomerSecurityPackage
-	htmlReports       map[string]domain.HTMLReportPackage
-	reportTemplates   map[string]domain.CustomReportTemplate
-	renderedReports   map[string]domain.RenderedCustomReport
-	evidenceBundles   map[string]domain.EvidenceBundle
-	bundleImports     map[string]domain.EvidenceBundleImport
-	dsseTrustRoots    map[string]domain.DSSETrustRoot
-	cosignVerifs      map[string]domain.CosignVerification
-	signingProviders  map[string]domain.SigningProvider
-	merkleBatches     map[string]domain.MerkleBatch
-	transparency      map[string]domain.TransparencyCheckpoint
-	retentionPolicies map[string]domain.ObjectRetentionPolicy
-	backupManifests   map[string]domain.BackupManifest
-	frameworks        map[string]domain.ControlFramework
-	controls          map[string]domain.SecurityControl
-	controlLinks      map[string]domain.ControlEvidence
-	sboms             map[string]domain.SBOM
-	scans             map[string]domain.VulnerabilityScan
-	vexDocuments      map[string]domain.VEXDocument
-	decisions         map[string]domain.VulnerabilityDecision
-	contracts         map[string]domain.OpenAPIContract
-	policies          map[string]domain.PolicyEvaluation
-	exceptions        map[string]domain.Exception
-	bundles           map[string]domain.ReleaseBundle
-	signingKeys       map[string]domain.SigningKey
-	signatures        map[string]domain.Signature
-	verifications     map[string]domain.VerificationResult
-	chain             map[string][]domain.AuditChainEntry
-	idempotency       map[string]IdempotencyRecord
+	tenants              map[string]domain.Tenant
+	organizations        map[string]domain.Organization
+	users                map[string]domain.HumanUser
+	roleBindings         map[string]domain.RoleBinding
+	ssoProviders         map[string]domain.SSOProvider
+	identityLinks        map[string]domain.UserIdentityLink
+	ssoSessions          map[string]domain.SSOSession
+	apiKeys              map[string]domain.APIKey
+	collectors           map[string]domain.Collector
+	collectorReleases    map[string]domain.CollectorRelease
+	products             map[string]domain.Product
+	projects             map[string]domain.Project
+	releases             map[string]domain.Release
+	artifacts            map[string]domain.Artifact
+	buildRuns            map[string]domain.BuildRun
+	attestations         map[string]domain.BuildAttestation
+	evidence             map[string]domain.EvidenceItem
+	lifecycle            map[string]domain.EvidenceLifecycleEvent
+	candidates           map[string]domain.ReleaseCandidate
+	images               map[string]domain.ContainerImage
+	artifactSigs         map[string]domain.ArtifactSignature
+	repositories         map[string]domain.SourceRepository
+	commits              map[string]domain.SourceCommit
+	branches             map[string]domain.SourceBranch
+	pullRequests         map[string]domain.PullRequest
+	environments         map[string]domain.DeploymentEnvironment
+	deployments          map[string]domain.DeploymentEvent
+	incidents            map[string]domain.Incident
+	timeline             map[string]domain.IncidentTimelineEvent
+	tasks                map[string]domain.RemediationTask
+	securityScans        map[string]domain.SecurityScan
+	manualDocs           map[string]domain.ManualSecurityDocument
+	sbomDiffs            map[string]domain.SBOMDiff
+	depChanges           map[string]domain.DependencyChange
+	vulnWorkflow         map[string]domain.VulnerabilityWorkflowRecord
+	contractDiffs        map[string]domain.ContractDiff
+	customPolicies       map[string]domain.CustomPolicy
+	customPolicyEvals    map[string]domain.CustomPolicyEvaluation
+	waivers              map[string]domain.Waiver
+	approvals            map[string]domain.ApprovalRecord
+	redactions           map[string]domain.RedactionProfile
+	customerPackages     map[string]domain.CustomerSecurityPackage
+	htmlReports          map[string]domain.HTMLReportPackage
+	reportTemplates      map[string]domain.CustomReportTemplate
+	renderedReports      map[string]domain.RenderedCustomReport
+	evidenceBundles      map[string]domain.EvidenceBundle
+	bundleImports        map[string]domain.EvidenceBundleImport
+	dsseTrustRoots       map[string]domain.DSSETrustRoot
+	cosignVerifs         map[string]domain.CosignVerification
+	signingProviders     map[string]domain.SigningProvider
+	merkleBatches        map[string]domain.MerkleBatch
+	transparency         map[string]domain.TransparencyCheckpoint
+	retentionPolicies    map[string]domain.ObjectRetentionPolicy
+	backupManifests      map[string]domain.BackupManifest
+	legalHolds           map[string]domain.LegalHold
+	retentionOverrides   map[string]domain.RetentionOverride
+	portalAccess         map[string]domain.CustomerPortalAccess
+	questionTemplates    map[string]domain.QuestionnaireTemplate
+	questionPackages     map[string]domain.QuestionnairePackage
+	commercialCollectors map[string]domain.CommercialCollectorDefinition
+	frameworks           map[string]domain.ControlFramework
+	controls             map[string]domain.SecurityControl
+	controlLinks         map[string]domain.ControlEvidence
+	sboms                map[string]domain.SBOM
+	scans                map[string]domain.VulnerabilityScan
+	vexDocuments         map[string]domain.VEXDocument
+	decisions            map[string]domain.VulnerabilityDecision
+	contracts            map[string]domain.OpenAPIContract
+	policies             map[string]domain.PolicyEvaluation
+	exceptions           map[string]domain.Exception
+	bundles              map[string]domain.ReleaseBundle
+	signingKeys          map[string]domain.SigningKey
+	signatures           map[string]domain.Signature
+	verifications        map[string]domain.VerificationResult
+	chain                map[string][]domain.AuditChainEntry
+	idempotency          map[string]IdempotencyRecord
 }
 
 func NewLedger(cfg Config) *Ledger {
@@ -158,75 +173,87 @@ func NewLedgerWithError(cfg Config) (*Ledger, error) {
 		pepper = "local-dev-pepper-change-me"
 	}
 	ledger := &Ledger{
-		pepper:            []byte(pepper),
-		now:               now,
-		store:             cfg.Store,
-		objects:           cfg.ObjectStore,
-		outbox:            cfg.Outbox,
-		tenants:           map[string]domain.Tenant{},
-		apiKeys:           map[string]domain.APIKey{},
-		collectors:        map[string]domain.Collector{},
-		collectorReleases: map[string]domain.CollectorRelease{},
-		products:          map[string]domain.Product{},
-		projects:          map[string]domain.Project{},
-		releases:          map[string]domain.Release{},
-		artifacts:         map[string]domain.Artifact{},
-		buildRuns:         map[string]domain.BuildRun{},
-		attestations:      map[string]domain.BuildAttestation{},
-		evidence:          map[string]domain.EvidenceItem{},
-		lifecycle:         map[string]domain.EvidenceLifecycleEvent{},
-		candidates:        map[string]domain.ReleaseCandidate{},
-		images:            map[string]domain.ContainerImage{},
-		artifactSigs:      map[string]domain.ArtifactSignature{},
-		repositories:      map[string]domain.SourceRepository{},
-		commits:           map[string]domain.SourceCommit{},
-		branches:          map[string]domain.SourceBranch{},
-		pullRequests:      map[string]domain.PullRequest{},
-		environments:      map[string]domain.DeploymentEnvironment{},
-		deployments:       map[string]domain.DeploymentEvent{},
-		incidents:         map[string]domain.Incident{},
-		timeline:          map[string]domain.IncidentTimelineEvent{},
-		tasks:             map[string]domain.RemediationTask{},
-		securityScans:     map[string]domain.SecurityScan{},
-		manualDocs:        map[string]domain.ManualSecurityDocument{},
-		sbomDiffs:         map[string]domain.SBOMDiff{},
-		depChanges:        map[string]domain.DependencyChange{},
-		vulnWorkflow:      map[string]domain.VulnerabilityWorkflowRecord{},
-		contractDiffs:     map[string]domain.ContractDiff{},
-		customPolicies:    map[string]domain.CustomPolicy{},
-		customPolicyEvals: map[string]domain.CustomPolicyEvaluation{},
-		waivers:           map[string]domain.Waiver{},
-		approvals:         map[string]domain.ApprovalRecord{},
-		redactions:        map[string]domain.RedactionProfile{},
-		customerPackages:  map[string]domain.CustomerSecurityPackage{},
-		htmlReports:       map[string]domain.HTMLReportPackage{},
-		reportTemplates:   map[string]domain.CustomReportTemplate{},
-		renderedReports:   map[string]domain.RenderedCustomReport{},
-		evidenceBundles:   map[string]domain.EvidenceBundle{},
-		bundleImports:     map[string]domain.EvidenceBundleImport{},
-		dsseTrustRoots:    map[string]domain.DSSETrustRoot{},
-		cosignVerifs:      map[string]domain.CosignVerification{},
-		signingProviders:  map[string]domain.SigningProvider{},
-		merkleBatches:     map[string]domain.MerkleBatch{},
-		transparency:      map[string]domain.TransparencyCheckpoint{},
-		retentionPolicies: map[string]domain.ObjectRetentionPolicy{},
-		backupManifests:   map[string]domain.BackupManifest{},
-		frameworks:        map[string]domain.ControlFramework{},
-		controls:          map[string]domain.SecurityControl{},
-		controlLinks:      map[string]domain.ControlEvidence{},
-		sboms:             map[string]domain.SBOM{},
-		scans:             map[string]domain.VulnerabilityScan{},
-		vexDocuments:      map[string]domain.VEXDocument{},
-		decisions:         map[string]domain.VulnerabilityDecision{},
-		contracts:         map[string]domain.OpenAPIContract{},
-		policies:          map[string]domain.PolicyEvaluation{},
-		exceptions:        map[string]domain.Exception{},
-		bundles:           map[string]domain.ReleaseBundle{},
-		signingKeys:       map[string]domain.SigningKey{},
-		signatures:        map[string]domain.Signature{},
-		verifications:     map[string]domain.VerificationResult{},
-		chain:             map[string][]domain.AuditChainEntry{},
-		idempotency:       map[string]IdempotencyRecord{},
+		pepper:               []byte(pepper),
+		now:                  now,
+		store:                cfg.Store,
+		objects:              cfg.ObjectStore,
+		outbox:               cfg.Outbox,
+		tenants:              map[string]domain.Tenant{},
+		organizations:        map[string]domain.Organization{},
+		users:                map[string]domain.HumanUser{},
+		roleBindings:         map[string]domain.RoleBinding{},
+		ssoProviders:         map[string]domain.SSOProvider{},
+		identityLinks:        map[string]domain.UserIdentityLink{},
+		ssoSessions:          map[string]domain.SSOSession{},
+		apiKeys:              map[string]domain.APIKey{},
+		collectors:           map[string]domain.Collector{},
+		collectorReleases:    map[string]domain.CollectorRelease{},
+		products:             map[string]domain.Product{},
+		projects:             map[string]domain.Project{},
+		releases:             map[string]domain.Release{},
+		artifacts:            map[string]domain.Artifact{},
+		buildRuns:            map[string]domain.BuildRun{},
+		attestations:         map[string]domain.BuildAttestation{},
+		evidence:             map[string]domain.EvidenceItem{},
+		lifecycle:            map[string]domain.EvidenceLifecycleEvent{},
+		candidates:           map[string]domain.ReleaseCandidate{},
+		images:               map[string]domain.ContainerImage{},
+		artifactSigs:         map[string]domain.ArtifactSignature{},
+		repositories:         map[string]domain.SourceRepository{},
+		commits:              map[string]domain.SourceCommit{},
+		branches:             map[string]domain.SourceBranch{},
+		pullRequests:         map[string]domain.PullRequest{},
+		environments:         map[string]domain.DeploymentEnvironment{},
+		deployments:          map[string]domain.DeploymentEvent{},
+		incidents:            map[string]domain.Incident{},
+		timeline:             map[string]domain.IncidentTimelineEvent{},
+		tasks:                map[string]domain.RemediationTask{},
+		securityScans:        map[string]domain.SecurityScan{},
+		manualDocs:           map[string]domain.ManualSecurityDocument{},
+		sbomDiffs:            map[string]domain.SBOMDiff{},
+		depChanges:           map[string]domain.DependencyChange{},
+		vulnWorkflow:         map[string]domain.VulnerabilityWorkflowRecord{},
+		contractDiffs:        map[string]domain.ContractDiff{},
+		customPolicies:       map[string]domain.CustomPolicy{},
+		customPolicyEvals:    map[string]domain.CustomPolicyEvaluation{},
+		waivers:              map[string]domain.Waiver{},
+		approvals:            map[string]domain.ApprovalRecord{},
+		redactions:           map[string]domain.RedactionProfile{},
+		customerPackages:     map[string]domain.CustomerSecurityPackage{},
+		htmlReports:          map[string]domain.HTMLReportPackage{},
+		reportTemplates:      map[string]domain.CustomReportTemplate{},
+		renderedReports:      map[string]domain.RenderedCustomReport{},
+		evidenceBundles:      map[string]domain.EvidenceBundle{},
+		bundleImports:        map[string]domain.EvidenceBundleImport{},
+		dsseTrustRoots:       map[string]domain.DSSETrustRoot{},
+		cosignVerifs:         map[string]domain.CosignVerification{},
+		signingProviders:     map[string]domain.SigningProvider{},
+		merkleBatches:        map[string]domain.MerkleBatch{},
+		transparency:         map[string]domain.TransparencyCheckpoint{},
+		retentionPolicies:    map[string]domain.ObjectRetentionPolicy{},
+		backupManifests:      map[string]domain.BackupManifest{},
+		legalHolds:           map[string]domain.LegalHold{},
+		retentionOverrides:   map[string]domain.RetentionOverride{},
+		portalAccess:         map[string]domain.CustomerPortalAccess{},
+		questionTemplates:    map[string]domain.QuestionnaireTemplate{},
+		questionPackages:     map[string]domain.QuestionnairePackage{},
+		commercialCollectors: map[string]domain.CommercialCollectorDefinition{},
+		frameworks:           map[string]domain.ControlFramework{},
+		controls:             map[string]domain.SecurityControl{},
+		controlLinks:         map[string]domain.ControlEvidence{},
+		sboms:                map[string]domain.SBOM{},
+		scans:                map[string]domain.VulnerabilityScan{},
+		vexDocuments:         map[string]domain.VEXDocument{},
+		decisions:            map[string]domain.VulnerabilityDecision{},
+		contracts:            map[string]domain.OpenAPIContract{},
+		policies:             map[string]domain.PolicyEvaluation{},
+		exceptions:           map[string]domain.Exception{},
+		bundles:              map[string]domain.ReleaseBundle{},
+		signingKeys:          map[string]domain.SigningKey{},
+		signatures:           map[string]domain.Signature{},
+		verifications:        map[string]domain.VerificationResult{},
+		chain:                map[string][]domain.AuditChainEntry{},
+		idempotency:          map[string]IdempotencyRecord{},
 	}
 	if ledger.outbox == nil {
 		ledger.outbox = nopOutbox{}
@@ -313,6 +340,22 @@ func (l *Ledger) Authenticate(ctx context.Context, secret string) (domain.Actor,
 		}
 		_ = l.persistLocked(ctx)
 		return domain.Actor{TenantID: key.TenantID, KeyID: key.ID, Name: key.Name, Scopes: append([]string(nil), key.Scopes...), CollectorID: collectorID}, nil
+	}
+	for id, session := range l.ssoSessions {
+		if session.Prefix != prefix || session.Hash != hash || session.RevokedAt != nil || !session.ExpiresAt.After(l.now()) {
+			continue
+		}
+		user, ok := l.users[session.UserID]
+		if !ok || user.TenantID != session.TenantID || user.Status != "active" {
+			return domain.Actor{}, ErrUnauthorized
+		}
+		scopes := l.scopesForUserLocked(user.ID)
+		if len(scopes) == 0 {
+			return domain.Actor{}, ErrForbidden
+		}
+		l.ssoSessions[id] = session
+		_ = l.persistLocked(ctx)
+		return domain.Actor{TenantID: user.TenantID, UserID: user.ID, Name: user.Email, Scopes: scopes}, nil
 	}
 	return domain.Actor{}, ErrUnauthorized
 }
@@ -1493,7 +1536,7 @@ func (l *Ledger) checkNoOpenCriticalLocked(tenantID, releaseID string) domain.Po
 }
 
 func require(actor domain.Actor, scope string) error {
-	if actor.TenantID == "" || actor.KeyID == "" {
+	if actor.TenantID == "" || (actor.KeyID == "" && actor.UserID == "" && actor.CollectorID == "") {
 		return ErrUnauthorized
 	}
 	if actor.HasScope(scope) || actor.HasScope(ScopeAdmin) {
