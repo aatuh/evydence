@@ -64,6 +64,8 @@ func (s *Server) registerRoutes() error {
 		{http.MethodGet, "/v1/health", op("health", http.MethodGet, "/v1/health", "Health", nil), http.HandlerFunc(s.health)},
 		{http.MethodGet, "/v1/version", op("version", http.MethodGet, "/v1/version", "Version", nil), http.HandlerFunc(s.version)},
 		{http.MethodGet, "/v1/openapi.json", op("openapi", http.MethodGet, "/v1/openapi.json", "OpenAPI", nil), http.HandlerFunc(s.openapi)},
+		{http.MethodPost, "/v1/collectors", op("createCollector", http.MethodPost, "/v1/collectors", "Create collector", []string{app.ScopeCollectorAdmin}), http.HandlerFunc(s.createCollector)},
+		{http.MethodGet, "/v1/collectors", op("listCollectors", http.MethodGet, "/v1/collectors", "List collectors", []string{app.ScopeCollectorRead}), http.HandlerFunc(s.listCollectors)},
 		{http.MethodPost, "/v1/products", op("createProduct", http.MethodPost, "/v1/products", "Create product", []string{app.ScopeProductWrite}), http.HandlerFunc(s.createProduct)},
 		{http.MethodGet, "/v1/products", op("listProducts", http.MethodGet, "/v1/products", "List products", []string{app.ScopeProductRead}), http.HandlerFunc(s.listProducts)},
 		{http.MethodPost, "/v1/projects", op("createProject", http.MethodPost, "/v1/projects", "Create project", []string{app.ScopeProjectWrite}), http.HandlerFunc(s.createProject)},
@@ -72,6 +74,9 @@ func (s *Server) registerRoutes() error {
 		{http.MethodPost, "/v1/releases/{id}/freeze", op("freezeRelease", http.MethodPost, "/v1/releases/{id}/freeze", "Freeze release", []string{app.ScopeReleaseWrite}), http.HandlerFunc(s.freezeRelease)},
 		{http.MethodPost, "/v1/releases/{id}/approve", op("approveRelease", http.MethodPost, "/v1/releases/{id}/approve", "Approve release", []string{app.ScopeReleaseWrite}), http.HandlerFunc(s.approveRelease)},
 		{http.MethodPost, "/v1/artifacts", op("registerArtifact", http.MethodPost, "/v1/artifacts", "Register artifact", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.registerArtifact)},
+		{http.MethodPost, "/v1/builds", op("createBuild", http.MethodPost, "/v1/builds", "Create build run", []string{app.ScopeBuildWrite}), http.HandlerFunc(s.createBuild)},
+		{http.MethodGet, "/v1/builds/{id}", op("getBuild", http.MethodGet, "/v1/builds/{id}", "Get build run", []string{app.ScopeBuildRead}), http.HandlerFunc(s.getBuild)},
+		{http.MethodPost, "/v1/builds/{id}/attestations", op("uploadBuildAttestation", http.MethodPost, "/v1/builds/{id}/attestations", "Upload build attestation", []string{app.ScopeBuildWrite}), http.HandlerFunc(s.uploadBuildAttestation)},
 		{http.MethodPost, "/v1/evidence", op("createEvidence", http.MethodPost, "/v1/evidence", "Create evidence", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.createEvidence)},
 		{http.MethodGet, "/v1/evidence", op("listEvidence", http.MethodGet, "/v1/evidence", "List evidence", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.listEvidence)},
 		{http.MethodGet, "/v1/evidence/{id}", op("getEvidence", http.MethodGet, "/v1/evidence/{id}", "Get evidence", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.getEvidence)},
@@ -128,6 +133,40 @@ func (s *Server) openapi(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(doc)
+}
+
+func (s *Server) createCollector(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name    string   `json:"name"`
+		Type    string   `json:"type"`
+		Version string   `json:"version"`
+		Scopes  []string `json:"scopes"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		collector, key, secret, err := s.ledger.CreateCollector(r.Context(), actor, app.CreateCollectorInput{
+			Name:    req.Name,
+			Type:    req.Type,
+			Version: req.Version,
+			Scopes:  req.Scopes,
+		})
+		return http.StatusCreated, map[string]any{"collector": collector, "api_key": key, "secret": secret}, err
+	})
+}
+
+func (s *Server) listCollectors(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	collectors, err := s.ledger.ListCollectors(r.Context(), actor)
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, collectors)
 }
 
 func (s *Server) createProduct(w http.ResponseWriter, r *http.Request) {
@@ -222,6 +261,75 @@ func (s *Server) registerArtifact(w http.ResponseWriter, r *http.Request) {
 		}
 		artifact, err := s.ledger.RegisterArtifact(r.Context(), actor, req.Name, req.MediaType, req.Digest, req.Size)
 		return http.StatusCreated, artifact, err
+	})
+}
+
+func (s *Server) createBuild(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ProjectID       string               `json:"project_id"`
+		ReleaseID       string               `json:"release_id"`
+		Provider        string               `json:"provider"`
+		CommitSHA       string               `json:"commit_sha"`
+		Repository      string               `json:"repository"`
+		WorkflowRef     string               `json:"workflow_ref"`
+		RunID           string               `json:"run_id"`
+		RunAttempt      int                  `json:"run_attempt"`
+		JobID           string               `json:"job_id"`
+		GitHubActor     string               `json:"actor"`
+		Ref             string               `json:"ref"`
+		OIDCSubject     string               `json:"oidc_subject"`
+		Status          string               `json:"status"`
+		StartedAt       time.Time            `json:"started_at"`
+		FinishedAt      *time.Time           `json:"finished_at"`
+		ParametersHash  string               `json:"parameters_hash"`
+		EnvironmentHash string               `json:"environment_hash"`
+		Outputs         []domain.BuildOutput `json:"outputs"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		build, err := s.ledger.CreateBuildRun(r.Context(), actor, app.CreateBuildRunInput{
+			ProjectID:       req.ProjectID,
+			ReleaseID:       req.ReleaseID,
+			Provider:        req.Provider,
+			CommitSHA:       req.CommitSHA,
+			Repository:      req.Repository,
+			WorkflowRef:     req.WorkflowRef,
+			RunID:           req.RunID,
+			RunAttempt:      req.RunAttempt,
+			JobID:           req.JobID,
+			GitHubActor:     req.GitHubActor,
+			Ref:             req.Ref,
+			OIDCSubject:     req.OIDCSubject,
+			Status:          req.Status,
+			StartedAt:       req.StartedAt,
+			FinishedAt:      req.FinishedAt,
+			ParametersHash:  req.ParametersHash,
+			EnvironmentHash: req.EnvironmentHash,
+			Outputs:         req.Outputs,
+		})
+		return http.StatusCreated, build, err
+	})
+}
+
+func (s *Server) getBuild(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	build, err := s.ledger.GetBuildRun(r.Context(), actor, r.PathValue("id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, build)
+}
+
+func (s *Server) uploadBuildAttestation(w http.ResponseWriter, r *http.Request) {
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		attestation, err := s.ledger.UploadBuildAttestation(r.Context(), actor, r.PathValue("id"), body)
+		return http.StatusCreated, attestation, err
 	})
 }
 
