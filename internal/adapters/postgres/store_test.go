@@ -40,6 +40,13 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	if !ok || got.Tenants["ten_test"].ID != "ten_test" {
 		t.Fatalf("unexpected loaded state: ok=%v state=%#v", ok, got.Tenants)
 	}
+	var indexed int
+	if err := store.pool.QueryRow(ctx, `SELECT count(*) FROM resource_index WHERE tenant_id = 'ten_test' AND resource_type = 'tenant'`).Scan(&indexed); err != nil {
+		t.Fatal(err)
+	}
+	if indexed != 1 {
+		t.Fatalf("resource index rows = %d, want 1", indexed)
+	}
 	job := app.OutboxJob{ID: "job_test_" + time.Now().Format("150405.000000000"), TenantID: "ten_test", Kind: "verify_subject", SubjectType: "audit_chain", SubjectID: "audit_chain", CreatedAt: time.Now().UTC()}
 	if err := store.Enqueue(ctx, job); err != nil {
 		t.Fatal(err)

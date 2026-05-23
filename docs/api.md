@@ -31,11 +31,31 @@ The generated OpenAPI document is committed at `openapi.yaml` and served at `/v1
 
 ## CI Provenance
 
-Collectors are tenant-scoped automated ingesters. `POST /v1/collectors` creates a `github_actions` collector and returns a one-time API key secret scoped for build/evidence upload. `GET /v1/collectors` lists collectors without key hashes or secrets. The server binds collector identity from the API key; clients must not submit `collector_id` for build attribution.
+Collectors are tenant-scoped automated ingesters. `POST /v1/collectors` creates a `github_actions`, `gitlab_ci`, or `generic_ci` collector and returns a one-time API key secret scoped for build/evidence upload. `GET /v1/collectors` lists collectors without key hashes or secrets. The server binds collector identity from the API key; clients must not submit `collector_id` for build attribution.
 
 `POST /v1/builds` records an immutable build run. For `provider=github_actions`, the request must include `project_id`, `release_id`, `commit_sha`, `status`, `started_at`, `repository`, `workflow_ref`, `run_id`, and `run_attempt`. Supported statuses are `queued`, `running`, `passed`, `failed`, and `cancelled`. `GET /v1/builds/{id}` requires `build:read`.
 
 `POST /v1/builds/{id}/attestations` accepts raw DSSE JSON containing `payloadType`, base64 `payload`, and `signatures`. Evydence decodes the in-toto Statement, records subjects, predicate type, SLSA builder/build metadata when present, stores raw bytes as tenant-prefixed evidence, and marks the record structurally valid. This slice does not perform cryptographic trust-root verification.
+
+## Evidence Lifecycle And Search
+
+`GET /v1/evidence/search` filters tenant evidence by product, project, release, build, deployment, type, subtype, source system, collector, verification status, subject ref, tag, created time, and limit. Results are tenant-scoped and sorted newest first.
+
+`POST /v1/evidence/{id}/lifecycle-events` appends lifecycle records for `amendment`, `redaction`, `tombstone`, or `retention_marker`. These records do not mutate the immutable evidence core fields. `GET /v1/evidence/{id}/lifecycle-events` returns the timeline for one evidence item.
+
+## Release Candidates And Artifacts
+
+`POST /v1/release-candidates` records an immutable release-candidate snapshot over explicit builds, artifacts, SBOMs, scans, VEX documents, OpenAPI contracts, and bundles. `POST /v1/release-candidates/{id}/promote` and `/reject` append the terminal transition; a candidate cannot be transitioned twice.
+
+`POST /v1/container-images` records OCI-style image repository, tag, digest, platform, and optional artifact binding. `POST /v1/artifact-signatures` records detached artifact signature metadata and optional raw signature payload bytes in object storage. `POST /v1/verify` supports `subject_type=artifact_signature` for digest binding and signature-presence verification; cryptographic trust-root verification remains future work.
+
+## Source And Deployment Evidence
+
+`POST /v1/source/repositories`, `/v1/source/commits`, `/v1/source/branches`, and `/v1/source/pull-requests` record source-control evidence without replacing the source provider as the source of truth. Commit messages are represented by hashes, not stored as raw report text.
+
+`POST /v1/collectors/github/source-snapshots` and `/v1/collectors/gitlab/source-snapshots` accept strict JSON snapshots containing repository, commit, branch-protection, and pull-request metadata. No live provider API calls or OIDC token verification are performed by these endpoints.
+
+`POST /v1/environments` creates deployment environments for a product. `POST /v1/deployments` records deployment events linking an environment, release, artifacts, status, timing, and optional rollback reference. Rollbacks are recorded as new deployment events, not destructive edits.
 
 ## Release Risk Decisions
 

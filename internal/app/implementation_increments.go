@@ -297,6 +297,29 @@ func (l *Ledger) GetReleaseCandidate(ctx context.Context, actor domain.Actor, id
 	return candidate, nil
 }
 
+func (l *Ledger) ListReleaseCandidates(ctx context.Context, actor domain.Actor, releaseID string) ([]domain.ReleaseCandidate, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := require(actor, ScopeReleaseRead); err != nil {
+		return nil, err
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	out := []domain.ReleaseCandidate{}
+	for _, candidate := range l.candidates {
+		if candidate.TenantID != actor.TenantID {
+			continue
+		}
+		if releaseID != "" && candidate.ReleaseID != releaseID {
+			continue
+		}
+		out = append(out, candidate)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
+	return out, nil
+}
+
 func (l *Ledger) UpdateReleaseCandidateState(ctx context.Context, actor domain.Actor, id, state, reason string) (domain.ReleaseCandidate, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.ReleaseCandidate{}, err
@@ -424,6 +447,45 @@ func (l *Ledger) CreateArtifactSignature(ctx context.Context, actor domain.Actor
 		return domain.ArtifactSignature{}, err
 	}
 	return sig, nil
+}
+
+func (l *Ledger) GetArtifactSignature(ctx context.Context, actor domain.Actor, id string) (domain.ArtifactSignature, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.ArtifactSignature{}, err
+	}
+	if err := require(actor, ScopeEvidenceRead); err != nil {
+		return domain.ArtifactSignature{}, err
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	sig, ok := l.artifactSigs[strings.TrimSpace(id)]
+	if !ok || sig.TenantID != actor.TenantID {
+		return domain.ArtifactSignature{}, ErrNotFound
+	}
+	return sig, nil
+}
+
+func (l *Ledger) ListSourceRepositories(ctx context.Context, actor domain.Actor, projectID string) ([]domain.SourceRepository, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := require(actor, ScopeSourceRead); err != nil {
+		return nil, err
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	out := []domain.SourceRepository{}
+	for _, repo := range l.repositories {
+		if repo.TenantID != actor.TenantID {
+			continue
+		}
+		if projectID != "" && repo.ProjectID != projectID {
+			continue
+		}
+		out = append(out, repo)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
+	return out, nil
 }
 
 func (l *Ledger) CreateSourceRepository(ctx context.Context, actor domain.Actor, in CreateRepositoryInput) (domain.SourceRepository, error) {
@@ -618,6 +680,29 @@ func (l *Ledger) RecordPullRequest(ctx context.Context, actor domain.Actor, in R
 	return pr, nil
 }
 
+func (l *Ledger) ListDeploymentEnvironments(ctx context.Context, actor domain.Actor, productID string) ([]domain.DeploymentEnvironment, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := require(actor, ScopeDeploymentRead); err != nil {
+		return nil, err
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	out := []domain.DeploymentEnvironment{}
+	for _, env := range l.environments {
+		if env.TenantID != actor.TenantID {
+			continue
+		}
+		if productID != "" && env.ProductID != productID {
+			continue
+		}
+		out = append(out, env)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
+	return out, nil
+}
+
 func (l *Ledger) CreateDeploymentEnvironment(ctx context.Context, actor domain.Actor, in CreateEnvironmentInput) (domain.DeploymentEnvironment, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.DeploymentEnvironment{}, err
@@ -741,6 +826,48 @@ func (l *Ledger) RecordDeployment(ctx context.Context, actor domain.Actor, in Re
 		return domain.DeploymentEvent{}, err
 	}
 	return deployment, nil
+}
+
+func (l *Ledger) GetDeployment(ctx context.Context, actor domain.Actor, id string) (domain.DeploymentEvent, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.DeploymentEvent{}, err
+	}
+	if err := require(actor, ScopeDeploymentRead); err != nil {
+		return domain.DeploymentEvent{}, err
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	deployment, ok := l.deployments[strings.TrimSpace(id)]
+	if !ok || deployment.TenantID != actor.TenantID {
+		return domain.DeploymentEvent{}, ErrNotFound
+	}
+	return deployment, nil
+}
+
+func (l *Ledger) ListDeployments(ctx context.Context, actor domain.Actor, releaseID, environmentID string) ([]domain.DeploymentEvent, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := require(actor, ScopeDeploymentRead); err != nil {
+		return nil, err
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	out := []domain.DeploymentEvent{}
+	for _, deployment := range l.deployments {
+		if deployment.TenantID != actor.TenantID {
+			continue
+		}
+		if releaseID != "" && deployment.ReleaseID != releaseID {
+			continue
+		}
+		if environmentID != "" && deployment.EnvironmentID != environmentID {
+			continue
+		}
+		out = append(out, deployment)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
+	return out, nil
 }
 
 func (l *Ledger) UploadGitHubSourceSnapshot(ctx context.Context, actor domain.Actor, raw []byte) (map[string]any, error) {

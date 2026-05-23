@@ -66,7 +66,12 @@ func (s *Store) SaveState(ctx context.Context, state app.PersistedState) error {
 	if err != nil {
 		return fmt.Errorf("encode ledger state: %w", err)
 	}
-	_, err = s.pool.Exec(ctx, `
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("begin save ledger state transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	_, err = tx.Exec(ctx, `
 		INSERT INTO ledger_state (id, state, updated_at)
 		VALUES ('default', $1, now())
 		ON CONFLICT (id) DO UPDATE SET state = EXCLUDED.state, updated_at = EXCLUDED.updated_at
@@ -74,7 +79,141 @@ func (s *Store) SaveState(ctx context.Context, state app.PersistedState) error {
 	if err != nil {
 		return fmt.Errorf("save ledger state: %w", err)
 	}
+	if err := syncResourceIndex(ctx, tx, state); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit save ledger state transaction: %w", err)
+	}
 	return nil
+}
+
+type resourceProjection struct {
+	TenantID     string
+	ResourceType string
+	ResourceID   string
+	ProductID    string
+	ProjectID    string
+	ReleaseID    string
+	CreatedAt    time.Time
+}
+
+func syncResourceIndex(ctx context.Context, tx pgx.Tx, state app.PersistedState) error {
+	if _, err := tx.Exec(ctx, `DELETE FROM resource_index`); err != nil {
+		return fmt.Errorf("clear resource index: %w", err)
+	}
+	projections := resourceProjections(state)
+	for _, projection := range projections {
+		if projection.TenantID == "" || projection.ResourceID == "" || projection.ResourceType == "" {
+			continue
+		}
+		if projection.CreatedAt.IsZero() {
+			projection.CreatedAt = time.Now().UTC()
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO resource_index (
+				tenant_id, resource_type, resource_id, product_id, project_id,
+				release_id, created_at, updated_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, now())
+			ON CONFLICT (tenant_id, resource_type, resource_id)
+			DO UPDATE SET product_id = EXCLUDED.product_id,
+			              project_id = EXCLUDED.project_id,
+			              release_id = EXCLUDED.release_id,
+			              created_at = EXCLUDED.created_at,
+			              updated_at = EXCLUDED.updated_at
+		`, projection.TenantID, projection.ResourceType, projection.ResourceID, nullableString(projection.ProductID), nullableString(projection.ProjectID), nullableString(projection.ReleaseID), projection.CreatedAt); err != nil {
+			return fmt.Errorf("upsert resource index: %w", err)
+		}
+	}
+	return nil
+}
+
+func resourceProjections(state app.PersistedState) []resourceProjection {
+	out := []resourceProjection{}
+	for _, v := range state.Tenants {
+		out = append(out, resourceProjection{TenantID: v.ID, ResourceType: "tenant", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.Products {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "product", ResourceID: v.ID, ProductID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.Projects {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "project", ResourceID: v.ID, ProductID: v.ProductID, ProjectID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.Releases {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "release", ResourceID: v.ID, ProductID: v.ProductID, ReleaseID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.Artifacts {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "artifact", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.Evidence {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "evidence_item", ResourceID: v.ID, ProductID: v.ProductID, ProjectID: v.ProjectID, ReleaseID: v.ReleaseID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.ReleaseCandidates {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "release_candidate", ResourceID: v.ID, ReleaseID: v.ReleaseID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.BuildRuns {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "build_run", ResourceID: v.ID, ProjectID: v.ProjectID, ReleaseID: v.ReleaseID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.BuildAttestations {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "build_attestation", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.SBOMs {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "sbom", ResourceID: v.ID, ReleaseID: v.ReleaseID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.Scans {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "vulnerability_scan", ResourceID: v.ID, ReleaseID: v.ReleaseID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.VEXDocuments {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "vex_document", ResourceID: v.ID, ReleaseID: v.ReleaseID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.Contracts {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "openapi_contract", ResourceID: v.ID, ProductID: v.ProductID, ReleaseID: v.ReleaseID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.Bundles {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "release_bundle", ResourceID: v.ID, ReleaseID: v.ReleaseID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.ControlFrameworks {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "control_framework", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.SecurityControls {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "security_control", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.ControlEvidence {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "control_evidence", ResourceID: v.ID, ProductID: v.ProductID, ReleaseID: v.ReleaseID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.ContainerImages {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "container_image", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.ArtifactSignatures {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "artifact_signature", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.Repositories {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "source_repository", ResourceID: v.ID, ProjectID: v.ProjectID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.Commits {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "source_commit", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.Branches {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "source_branch", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.PullRequests {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "pull_request", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.Environments {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "deployment_environment", ResourceID: v.ID, ProductID: v.ProductID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.Deployments {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "deployment", ResourceID: v.ID, ReleaseID: v.ReleaseID, CreatedAt: v.CreatedAt})
+	}
+	return out
+}
+
+func nullableString(value string) any {
+	if value == "" {
+		return nil
+	}
+	return value
 }
 
 func (s *Store) Enqueue(ctx context.Context, job app.OutboxJob) error {

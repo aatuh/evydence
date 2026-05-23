@@ -1,0 +1,11 @@
+DROP TABLE IF EXISTS deployment_events;
+DROP TABLE IF EXISTS deployment_environments;
+DROP TABLE IF EXISTS pull_requests;
+DROP TABLE IF EXISTS source_branches;
+DROP TABLE IF EXISTS source_commits;
+DROP TABLE IF EXISTS source_repositories;
+DROP TABLE IF EXISTS artifact_signatures;
+DROP TABLE IF EXISTS container_images;
+DROP TABLE IF EXISTS release_candidates;
+DROP TABLE IF EXISTS evidence_lifecycle_events;
+DROP TABLE IF EXISTS resource_index;

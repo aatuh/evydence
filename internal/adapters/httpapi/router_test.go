@@ -353,6 +353,55 @@ func TestControlsAndReportsHTTPFlow(t *testing.T) {
 	}
 }
 
+func TestEvidenceLifecycleSourceDeploymentHTTPFlow(t *testing.T) {
+	server, secret := testServer(t)
+	productBody := postJSON(t, server, secret, "/v1/products", "inc-prod", map[string]any{"name": "Increment Product", "slug": "increment-product"}, http.StatusCreated)
+	productID := dataField(t, productBody, "id")
+	projectBody := postJSON(t, server, secret, "/v1/projects", "inc-project", map[string]any{"product_id": productID, "name": "api"}, http.StatusCreated)
+	projectID := dataField(t, projectBody, "id")
+	releaseBody := postJSON(t, server, secret, "/v1/releases", "inc-release", map[string]any{"product_id": productID, "version": "3.0.0"}, http.StatusCreated)
+	releaseID := dataField(t, releaseBody, "id")
+	digest := "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb"
+	artifactBody := postJSON(t, server, secret, "/v1/artifacts", "inc-artifact", map[string]any{"name": "api.tar.gz", "media_type": "application/gzip", "digest": digest, "size": 42}, http.StatusCreated)
+	artifactID := dataField(t, artifactBody, "id")
+	evidenceBody := postJSON(t, server, secret, "/v1/evidence", "inc-evidence", map[string]any{
+		"release_id": releaseID, "type": "build", "subtype": "log", "title": "Build", "payload_hash": digest, "tags": []string{"ci"},
+	}, http.StatusCreated)
+	evidenceID := dataField(t, evidenceBody, "id")
+	search := getJSON(t, server, secret, "/v1/evidence/search?release_id="+releaseID+"&type=build&tag=ci&limit=10", http.StatusOK)
+	if !strings.Contains(search, evidenceID) {
+		t.Fatalf("evidence search missing evidence id %s: %s", evidenceID, search)
+	}
+	postJSON(t, server, secret, "/v1/evidence/"+evidenceID+"/lifecycle-events", "inc-life", map[string]any{"action": "redaction", "reason": "redacted from external package"}, http.StatusCreated)
+	events := getJSON(t, server, secret, "/v1/evidence/"+evidenceID+"/lifecycle-events", http.StatusOK)
+	if !strings.Contains(events, `"action":"redaction"`) {
+		t.Fatalf("lifecycle events missing redaction: %s", events)
+	}
+	rcBody := postJSON(t, server, secret, "/v1/release-candidates", "inc-rc", map[string]any{"release_id": releaseID, "name": "rc.1", "artifact_ids": []string{artifactID}}, http.StatusCreated)
+	rcID := dataField(t, rcBody, "id")
+	getJSON(t, server, secret, "/v1/release-candidates?release_id="+releaseID, http.StatusOK)
+	postJSON(t, server, secret, "/v1/release-candidates/"+rcID+"/promote", "inc-rc-promote", map[string]any{"reason": "accepted"}, http.StatusOK)
+	postJSON(t, server, secret, "/v1/container-images", "inc-image", map[string]any{"artifact_id": artifactID, "repository": "ghcr.io/example/api", "tag": "3.0.0", "digest": digest, "platform": "linux/amd64"}, http.StatusCreated)
+	sigBody := postJSON(t, server, secret, "/v1/artifact-signatures", "inc-sig", map[string]any{"artifact_id": artifactID, "algorithm": "cosign", "key_id": "test", "signature": "c2ln", "payload": map[string]any{"sig": "c2ln"}}, http.StatusCreated)
+	sigID := dataField(t, sigBody, "id")
+	getJSON(t, server, secret, "/v1/artifact-signatures/"+sigID, http.StatusOK)
+
+	repoBody := postJSON(t, server, secret, "/v1/source/repositories", "inc-repo", map[string]any{"project_id": projectID, "provider": "github", "full_name": "example/api", "clone_url": "https://github.com/example/api.git", "default_branch": "main"}, http.StatusCreated)
+	repoID := dataField(t, repoBody, "id")
+	commitBody := postJSON(t, server, secret, "/v1/source/commits", "inc-commit", map[string]any{"repository_id": repoID, "sha": "0123456789abcdef0123456789abcdef01234567", "author": "dev@example.test", "message": "change", "committed_at": "2026-05-28T10:00:00Z"}, http.StatusCreated)
+	commitID := dataField(t, commitBody, "id")
+	postJSON(t, server, secret, "/v1/source/branches", "inc-branch", map[string]any{"repository_id": repoID, "name": "main", "head_commit_id": commitID, "protected": true, "protection_hash": digest}, http.StatusCreated)
+	postJSON(t, server, secret, "/v1/source/pull-requests", "inc-pr", map[string]any{"repository_id": repoID, "provider_id": "42", "title": "Change", "state": "merged", "source_branch": "feature", "target_branch": "main", "head_commit_id": commitID}, http.StatusCreated)
+	getJSON(t, server, secret, "/v1/source/repositories?project_id="+projectID, http.StatusOK)
+
+	envBody := postJSON(t, server, secret, "/v1/environments", "inc-env", map[string]any{"product_id": productID, "name": "production", "kind": "production"}, http.StatusCreated)
+	envID := dataField(t, envBody, "id")
+	deploymentBody := postJSON(t, server, secret, "/v1/deployments", "inc-deploy", map[string]any{"environment_id": envID, "release_id": releaseID, "artifact_ids": []string{artifactID}, "status": "succeeded", "started_at": "2026-05-28T12:00:00Z"}, http.StatusCreated)
+	deploymentID := dataField(t, deploymentBody, "id")
+	getJSON(t, server, secret, "/v1/deployments/"+deploymentID, http.StatusOK)
+	getJSON(t, server, secret, "/v1/deployments?release_id="+releaseID+"&environment_id="+envID, http.StatusOK)
+}
+
 func testServer(t *testing.T) (*Server, string) {
 	t.Helper()
 	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -79,15 +80,38 @@ func (s *Server) registerRoutes() error {
 		{http.MethodGet, "/v1/releases/{id}", op("getRelease", http.MethodGet, "/v1/releases/{id}", "Get release", []string{app.ScopeReleaseRead}), http.HandlerFunc(s.getRelease)},
 		{http.MethodPost, "/v1/releases/{id}/freeze", op("freezeRelease", http.MethodPost, "/v1/releases/{id}/freeze", "Freeze release", []string{app.ScopeReleaseWrite}), http.HandlerFunc(s.freezeRelease)},
 		{http.MethodPost, "/v1/releases/{id}/approve", op("approveRelease", http.MethodPost, "/v1/releases/{id}/approve", "Approve release", []string{app.ScopeReleaseWrite}), http.HandlerFunc(s.approveRelease)},
+		{http.MethodPost, "/v1/release-candidates", op("createReleaseCandidate", http.MethodPost, "/v1/release-candidates", "Create release candidate", []string{app.ScopeReleaseWrite}), http.HandlerFunc(s.createReleaseCandidate)},
+		{http.MethodGet, "/v1/release-candidates", op("listReleaseCandidates", http.MethodGet, "/v1/release-candidates", "List release candidates", []string{app.ScopeReleaseRead}), http.HandlerFunc(s.listReleaseCandidates)},
+		{http.MethodGet, "/v1/release-candidates/{id}", op("getReleaseCandidate", http.MethodGet, "/v1/release-candidates/{id}", "Get release candidate", []string{app.ScopeReleaseRead}), http.HandlerFunc(s.getReleaseCandidate)},
+		{http.MethodPost, "/v1/release-candidates/{id}/promote", op("promoteReleaseCandidate", http.MethodPost, "/v1/release-candidates/{id}/promote", "Promote release candidate", []string{app.ScopeReleaseWrite}), http.HandlerFunc(s.promoteReleaseCandidate)},
+		{http.MethodPost, "/v1/release-candidates/{id}/reject", op("rejectReleaseCandidate", http.MethodPost, "/v1/release-candidates/{id}/reject", "Reject release candidate", []string{app.ScopeReleaseWrite}), http.HandlerFunc(s.rejectReleaseCandidate)},
 		{http.MethodPost, "/v1/artifacts", op("registerArtifact", http.MethodPost, "/v1/artifacts", "Register artifact", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.registerArtifact)},
+		{http.MethodPost, "/v1/container-images", op("registerContainerImage", http.MethodPost, "/v1/container-images", "Register container image", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.registerContainerImage)},
+		{http.MethodPost, "/v1/artifact-signatures", op("createArtifactSignature", http.MethodPost, "/v1/artifact-signatures", "Create artifact signature", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.createArtifactSignature)},
+		{http.MethodGet, "/v1/artifact-signatures/{id}", op("getArtifactSignature", http.MethodGet, "/v1/artifact-signatures/{id}", "Get artifact signature", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.getArtifactSignature)},
 		{http.MethodPost, "/v1/builds", op("createBuild", http.MethodPost, "/v1/builds", "Create build run", []string{app.ScopeBuildWrite}), http.HandlerFunc(s.createBuild)},
 		{http.MethodGet, "/v1/builds/{id}", op("getBuild", http.MethodGet, "/v1/builds/{id}", "Get build run", []string{app.ScopeBuildRead}), http.HandlerFunc(s.getBuild)},
 		{http.MethodPost, "/v1/builds/{id}/attestations", op("uploadBuildAttestation", http.MethodPost, "/v1/builds/{id}/attestations", "Upload build attestation", []string{app.ScopeBuildWrite}), http.HandlerFunc(s.uploadBuildAttestation)},
+		{http.MethodPost, "/v1/source/repositories", op("createSourceRepository", http.MethodPost, "/v1/source/repositories", "Create source repository", []string{app.ScopeSourceWrite}), http.HandlerFunc(s.createSourceRepository)},
+		{http.MethodGet, "/v1/source/repositories", op("listSourceRepositories", http.MethodGet, "/v1/source/repositories", "List source repositories", []string{app.ScopeSourceRead}), http.HandlerFunc(s.listSourceRepositories)},
+		{http.MethodPost, "/v1/source/commits", op("recordSourceCommit", http.MethodPost, "/v1/source/commits", "Record source commit", []string{app.ScopeSourceWrite}), http.HandlerFunc(s.recordSourceCommit)},
+		{http.MethodPost, "/v1/source/branches", op("upsertSourceBranch", http.MethodPost, "/v1/source/branches", "Record source branch", []string{app.ScopeSourceWrite}), http.HandlerFunc(s.upsertSourceBranch)},
+		{http.MethodPost, "/v1/source/pull-requests", op("recordPullRequest", http.MethodPost, "/v1/source/pull-requests", "Record pull request", []string{app.ScopeSourceWrite}), http.HandlerFunc(s.recordPullRequest)},
+		{http.MethodPost, "/v1/collectors/github/source-snapshots", op("uploadGitHubSourceSnapshot", http.MethodPost, "/v1/collectors/github/source-snapshots", "Upload GitHub source snapshot", []string{app.ScopeSourceWrite}), http.HandlerFunc(s.uploadGitHubSourceSnapshot)},
+		{http.MethodPost, "/v1/collectors/gitlab/source-snapshots", op("uploadGitLabSourceSnapshot", http.MethodPost, "/v1/collectors/gitlab/source-snapshots", "Upload GitLab source snapshot", []string{app.ScopeSourceWrite}), http.HandlerFunc(s.uploadGitLabSourceSnapshot)},
+		{http.MethodPost, "/v1/environments", op("createDeploymentEnvironment", http.MethodPost, "/v1/environments", "Create deployment environment", []string{app.ScopeDeploymentWrite}), http.HandlerFunc(s.createDeploymentEnvironment)},
+		{http.MethodGet, "/v1/environments", op("listDeploymentEnvironments", http.MethodGet, "/v1/environments", "List deployment environments", []string{app.ScopeDeploymentRead}), http.HandlerFunc(s.listDeploymentEnvironments)},
+		{http.MethodPost, "/v1/deployments", op("recordDeployment", http.MethodPost, "/v1/deployments", "Record deployment", []string{app.ScopeDeploymentWrite}), http.HandlerFunc(s.recordDeployment)},
+		{http.MethodGet, "/v1/deployments", op("listDeployments", http.MethodGet, "/v1/deployments", "List deployments", []string{app.ScopeDeploymentRead}), http.HandlerFunc(s.listDeployments)},
+		{http.MethodGet, "/v1/deployments/{id}", op("getDeployment", http.MethodGet, "/v1/deployments/{id}", "Get deployment", []string{app.ScopeDeploymentRead}), http.HandlerFunc(s.getDeployment)},
 		{http.MethodPost, "/v1/evidence", op("createEvidence", http.MethodPost, "/v1/evidence", "Create evidence", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.createEvidence)},
 		{http.MethodGet, "/v1/evidence", op("listEvidence", http.MethodGet, "/v1/evidence", "List evidence", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.listEvidence)},
+		{http.MethodGet, "/v1/evidence/search", op("searchEvidence", http.MethodGet, "/v1/evidence/search", "Search evidence", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.searchEvidence)},
 		{http.MethodGet, "/v1/evidence/{id}", op("getEvidence", http.MethodGet, "/v1/evidence/{id}", "Get evidence", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.getEvidence)},
 		{http.MethodPost, "/v1/evidence/{id}/supersede", op("supersedeEvidence", http.MethodPost, "/v1/evidence/{id}/supersede", "Supersede evidence", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.supersedeEvidence)},
 		{http.MethodPost, "/v1/evidence/{id}/link", op("linkEvidence", http.MethodPost, "/v1/evidence/{id}/link", "Link evidence", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.linkEvidence)},
+		{http.MethodPost, "/v1/evidence/{id}/lifecycle-events", op("recordEvidenceLifecycleEvent", http.MethodPost, "/v1/evidence/{id}/lifecycle-events", "Record evidence lifecycle event", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.recordEvidenceLifecycleEvent)},
+		{http.MethodGet, "/v1/evidence/{id}/lifecycle-events", op("listEvidenceLifecycleEvents", http.MethodGet, "/v1/evidence/{id}/lifecycle-events", "List evidence lifecycle events", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.listEvidenceLifecycleEvents)},
 		{http.MethodPost, "/v1/sboms", op("uploadSBOM", http.MethodPost, "/v1/sboms", "Upload CycloneDX SBOM", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.uploadSBOM)},
 		{http.MethodGet, "/v1/sboms/{id}", op("getSBOM", http.MethodGet, "/v1/sboms/{id}", "Get SBOM", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.getSBOM)},
 		{http.MethodPost, "/v1/vex", op("uploadVEX", http.MethodPost, "/v1/vex", "Upload OpenVEX document", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.uploadVEX)},
@@ -370,6 +394,77 @@ func (s *Server) approveRelease(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) createReleaseCandidate(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ReleaseID   string   `json:"release_id"`
+		Name        string   `json:"name"`
+		BuildIDs    []string `json:"build_ids"`
+		ArtifactIDs []string `json:"artifact_ids"`
+		SBOMIDs     []string `json:"sbom_ids"`
+		ScanIDs     []string `json:"scan_ids"`
+		VEXIDs      []string `json:"vex_ids"`
+		ContractIDs []string `json:"contract_ids"`
+		BundleIDs   []string `json:"bundle_ids"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		candidate, err := s.ledger.CreateReleaseCandidate(r.Context(), actor, app.CreateReleaseCandidateInput{
+			ReleaseID: req.ReleaseID, Name: req.Name, BuildIDs: req.BuildIDs, ArtifactIDs: req.ArtifactIDs,
+			SBOMIDs: req.SBOMIDs, ScanIDs: req.ScanIDs, VEXIDs: req.VEXIDs, ContractIDs: req.ContractIDs, BundleIDs: req.BundleIDs,
+		})
+		return http.StatusCreated, candidate, err
+	})
+}
+
+func (s *Server) listReleaseCandidates(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	candidates, err := s.ledger.ListReleaseCandidates(r.Context(), actor, r.URL.Query().Get("release_id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, candidates)
+}
+
+func (s *Server) getReleaseCandidate(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	candidate, err := s.ledger.GetReleaseCandidate(r.Context(), actor, r.PathValue("id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, candidate)
+}
+
+func (s *Server) promoteReleaseCandidate(w http.ResponseWriter, r *http.Request) {
+	s.transitionReleaseCandidate(w, r, "promoted")
+}
+
+func (s *Server) rejectReleaseCandidate(w http.ResponseWriter, r *http.Request) {
+	s.transitionReleaseCandidate(w, r, "rejected")
+}
+
+func (s *Server) transitionReleaseCandidate(w http.ResponseWriter, r *http.Request, state string) {
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		candidate, err := s.ledger.UpdateReleaseCandidateState(r.Context(), actor, r.PathValue("id"), state, req.Reason)
+		return http.StatusOK, candidate, err
+	})
+}
+
 func (s *Server) registerArtifact(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name      string `json:"name"`
@@ -386,50 +481,105 @@ func (s *Server) registerArtifact(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) registerContainerImage(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ArtifactID string `json:"artifact_id"`
+		Repository string `json:"repository"`
+		Tag        string `json:"tag"`
+		Digest     string `json:"digest"`
+		Platform   string `json:"platform"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		image, err := s.ledger.RegisterContainerImage(r.Context(), actor, app.RegisterContainerImageInput{
+			ArtifactID: req.ArtifactID, Repository: req.Repository, Tag: req.Tag, Digest: req.Digest, Platform: req.Platform,
+		})
+		return http.StatusCreated, image, err
+	})
+}
+
+func (s *Server) createArtifactSignature(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ArtifactID       string          `json:"artifact_id"`
+		Algorithm        string          `json:"algorithm"`
+		KeyID            string          `json:"key_id"`
+		Signature        string          `json:"signature"`
+		Payload          json.RawMessage `json:"payload"`
+		PayloadMediaType string          `json:"payload_media_type"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		sig, err := s.ledger.CreateArtifactSignature(r.Context(), actor, app.CreateArtifactSignatureInput{
+			ArtifactID: req.ArtifactID, Algorithm: req.Algorithm, KeyID: req.KeyID, Signature: req.Signature,
+			RawPayload: req.Payload, PayloadMediaType: req.PayloadMediaType,
+		})
+		return http.StatusCreated, sig, err
+	})
+}
+
+func (s *Server) getArtifactSignature(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	sig, err := s.ledger.GetArtifactSignature(r.Context(), actor, r.PathValue("id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, sig)
+}
+
 func (s *Server) createBuild(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		ProjectID       string               `json:"project_id"`
-		ReleaseID       string               `json:"release_id"`
-		Provider        string               `json:"provider"`
-		CommitSHA       string               `json:"commit_sha"`
-		Repository      string               `json:"repository"`
-		WorkflowRef     string               `json:"workflow_ref"`
-		RunID           string               `json:"run_id"`
-		RunAttempt      int                  `json:"run_attempt"`
-		JobID           string               `json:"job_id"`
-		GitHubActor     string               `json:"actor"`
-		Ref             string               `json:"ref"`
-		OIDCSubject     string               `json:"oidc_subject"`
-		Status          string               `json:"status"`
-		StartedAt       time.Time            `json:"started_at"`
-		FinishedAt      *time.Time           `json:"finished_at"`
-		ParametersHash  string               `json:"parameters_hash"`
-		EnvironmentHash string               `json:"environment_hash"`
-		Outputs         []domain.BuildOutput `json:"outputs"`
+		ProjectID        string               `json:"project_id"`
+		ReleaseID        string               `json:"release_id"`
+		Provider         string               `json:"provider"`
+		CommitSHA        string               `json:"commit_sha"`
+		Repository       string               `json:"repository"`
+		WorkflowRef      string               `json:"workflow_ref"`
+		RunID            string               `json:"run_id"`
+		RunAttempt       int                  `json:"run_attempt"`
+		JobID            string               `json:"job_id"`
+		GitHubActor      string               `json:"actor"`
+		Ref              string               `json:"ref"`
+		OIDCSubject      string               `json:"oidc_subject"`
+		Status           string               `json:"status"`
+		StartedAt        time.Time            `json:"started_at"`
+		FinishedAt       *time.Time           `json:"finished_at"`
+		ParametersHash   string               `json:"parameters_hash"`
+		EnvironmentHash  string               `json:"environment_hash"`
+		ProviderMetadata map[string]any       `json:"provider_metadata"`
+		Outputs          []domain.BuildOutput `json:"outputs"`
 	}
 	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
 		build, err := s.ledger.CreateBuildRun(r.Context(), actor, app.CreateBuildRunInput{
-			ProjectID:       req.ProjectID,
-			ReleaseID:       req.ReleaseID,
-			Provider:        req.Provider,
-			CommitSHA:       req.CommitSHA,
-			Repository:      req.Repository,
-			WorkflowRef:     req.WorkflowRef,
-			RunID:           req.RunID,
-			RunAttempt:      req.RunAttempt,
-			JobID:           req.JobID,
-			GitHubActor:     req.GitHubActor,
-			Ref:             req.Ref,
-			OIDCSubject:     req.OIDCSubject,
-			Status:          req.Status,
-			StartedAt:       req.StartedAt,
-			FinishedAt:      req.FinishedAt,
-			ParametersHash:  req.ParametersHash,
-			EnvironmentHash: req.EnvironmentHash,
-			Outputs:         req.Outputs,
+			ProjectID:        req.ProjectID,
+			ReleaseID:        req.ReleaseID,
+			Provider:         req.Provider,
+			CommitSHA:        req.CommitSHA,
+			Repository:       req.Repository,
+			WorkflowRef:      req.WorkflowRef,
+			RunID:            req.RunID,
+			RunAttempt:       req.RunAttempt,
+			JobID:            req.JobID,
+			GitHubActor:      req.GitHubActor,
+			Ref:              req.Ref,
+			OIDCSubject:      req.OIDCSubject,
+			Status:           req.Status,
+			StartedAt:        req.StartedAt,
+			FinishedAt:       req.FinishedAt,
+			ParametersHash:   req.ParametersHash,
+			EnvironmentHash:  req.EnvironmentHash,
+			ProviderMetadata: req.ProviderMetadata,
+			Outputs:          req.Outputs,
 		})
 		return http.StatusCreated, build, err
 	})
@@ -453,6 +603,190 @@ func (s *Server) uploadBuildAttestation(w http.ResponseWriter, r *http.Request) 
 		attestation, err := s.ledger.UploadBuildAttestation(r.Context(), actor, r.PathValue("id"), body)
 		return http.StatusCreated, attestation, err
 	})
+}
+
+func (s *Server) createSourceRepository(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ProjectID     string `json:"project_id"`
+		Provider      string `json:"provider"`
+		FullName      string `json:"full_name"`
+		CloneURL      string `json:"clone_url"`
+		DefaultBranch string `json:"default_branch"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		repo, err := s.ledger.CreateSourceRepository(r.Context(), actor, app.CreateRepositoryInput{
+			ProjectID: req.ProjectID, Provider: req.Provider, FullName: req.FullName, CloneURL: req.CloneURL, DefaultBranch: req.DefaultBranch,
+		})
+		return http.StatusCreated, repo, err
+	})
+}
+
+func (s *Server) listSourceRepositories(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	repos, err := s.ledger.ListSourceRepositories(r.Context(), actor, r.URL.Query().Get("project_id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, repos)
+}
+
+func (s *Server) recordSourceCommit(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		RepositoryID string    `json:"repository_id"`
+		SHA          string    `json:"sha"`
+		Author       string    `json:"author"`
+		Message      string    `json:"message"`
+		CommittedAt  time.Time `json:"committed_at"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		commit, err := s.ledger.RecordSourceCommit(r.Context(), actor, app.RecordCommitInput{
+			RepositoryID: req.RepositoryID, SHA: req.SHA, Author: req.Author, Message: req.Message, CommittedAt: req.CommittedAt,
+		})
+		return http.StatusCreated, commit, err
+	})
+}
+
+func (s *Server) upsertSourceBranch(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		RepositoryID   string `json:"repository_id"`
+		Name           string `json:"name"`
+		HeadCommitID   string `json:"head_commit_id"`
+		Protected      bool   `json:"protected"`
+		ProtectionHash string `json:"protection_hash"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		branch, err := s.ledger.UpsertSourceBranch(r.Context(), actor, app.UpsertBranchInput{
+			RepositoryID: req.RepositoryID, Name: req.Name, HeadCommitID: req.HeadCommitID, Protected: req.Protected, ProtectionHash: req.ProtectionHash,
+		})
+		return http.StatusCreated, branch, err
+	})
+}
+
+func (s *Server) recordPullRequest(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		RepositoryID   string `json:"repository_id"`
+		Provider       string `json:"provider"`
+		ProviderID     string `json:"provider_id"`
+		Title          string `json:"title"`
+		State          string `json:"state"`
+		SourceBranch   string `json:"source_branch"`
+		TargetBranch   string `json:"target_branch"`
+		HeadCommitID   string `json:"head_commit_id"`
+		ReviewDecision string `json:"review_decision"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		pr, err := s.ledger.RecordPullRequest(r.Context(), actor, app.RecordPullRequestInput{
+			RepositoryID: req.RepositoryID, Provider: req.Provider, ProviderID: req.ProviderID, Title: req.Title, State: req.State,
+			SourceBranch: req.SourceBranch, TargetBranch: req.TargetBranch, HeadCommitID: req.HeadCommitID, ReviewDecision: req.ReviewDecision,
+		})
+		return http.StatusCreated, pr, err
+	})
+}
+
+func (s *Server) uploadGitHubSourceSnapshot(w http.ResponseWriter, r *http.Request) {
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		result, err := s.ledger.UploadGitHubSourceSnapshot(r.Context(), actor, body)
+		return http.StatusCreated, result, err
+	})
+}
+
+func (s *Server) uploadGitLabSourceSnapshot(w http.ResponseWriter, r *http.Request) {
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		result, err := s.ledger.UploadGitLabSourceSnapshot(r.Context(), actor, body)
+		return http.StatusCreated, result, err
+	})
+}
+
+func (s *Server) createDeploymentEnvironment(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ProductID string `json:"product_id"`
+		Name      string `json:"name"`
+		Kind      string `json:"kind"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		env, err := s.ledger.CreateDeploymentEnvironment(r.Context(), actor, app.CreateEnvironmentInput{ProductID: req.ProductID, Name: req.Name, Kind: req.Kind})
+		return http.StatusCreated, env, err
+	})
+}
+
+func (s *Server) listDeploymentEnvironments(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	envs, err := s.ledger.ListDeploymentEnvironments(r.Context(), actor, r.URL.Query().Get("product_id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, envs)
+}
+
+func (s *Server) recordDeployment(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		EnvironmentID string     `json:"environment_id"`
+		ReleaseID     string     `json:"release_id"`
+		ArtifactIDs   []string   `json:"artifact_ids"`
+		Status        string     `json:"status"`
+		StartedAt     time.Time  `json:"started_at"`
+		FinishedAt    *time.Time `json:"finished_at"`
+		RollbackOf    string     `json:"rollback_of"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		deployment, err := s.ledger.RecordDeployment(r.Context(), actor, app.RecordDeploymentInput{
+			EnvironmentID: req.EnvironmentID, ReleaseID: req.ReleaseID, ArtifactIDs: req.ArtifactIDs,
+			Status: req.Status, StartedAt: req.StartedAt, FinishedAt: req.FinishedAt, RollbackOf: req.RollbackOf,
+		})
+		return http.StatusCreated, deployment, err
+	})
+}
+
+func (s *Server) listDeployments(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	deployments, err := s.ledger.ListDeployments(r.Context(), actor, r.URL.Query().Get("release_id"), r.URL.Query().Get("environment_id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, deployments)
+}
+
+func (s *Server) getDeployment(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	deployment, err := s.ledger.GetDeployment(r.Context(), actor, r.PathValue("id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, deployment)
 }
 
 func (s *Server) createEvidence(w http.ResponseWriter, r *http.Request) {
@@ -503,6 +837,56 @@ func (s *Server) listEvidence(w http.ResponseWriter, r *http.Request) {
 	writeData(w, http.StatusOK, items)
 }
 
+func (s *Server) searchEvidence(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	query := r.URL.Query()
+	limit := 0
+	if query.Get("limit") != "" {
+		parsed, err := strconv.Atoi(query.Get("limit"))
+		if err != nil || parsed < 0 {
+			writeProblem(w, r, app.ErrValidation)
+			return
+		}
+		limit = parsed
+	}
+	createdAfter, err := parseOptionalRFC3339(query.Get("created_after"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	createdBefore, err := parseOptionalRFC3339(query.Get("created_before"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	items, err := s.ledger.SearchEvidence(r.Context(), actor, app.EvidenceSearchInput{
+		ProductID:          query.Get("product_id"),
+		ProjectID:          query.Get("project_id"),
+		ReleaseID:          query.Get("release_id"),
+		BuildID:            query.Get("build_id"),
+		DeploymentID:       query.Get("deployment_id"),
+		Type:               query.Get("type"),
+		Subtype:            query.Get("subtype"),
+		SourceSystem:       query.Get("source_system"),
+		CollectorID:        query.Get("collector_id"),
+		VerificationStatus: query.Get("verification_status"),
+		SubjectType:        query.Get("subject_type"),
+		SubjectID:          query.Get("subject_id"),
+		Tag:                query.Get("tag"),
+		CreatedAfter:       createdAfter,
+		CreatedBefore:      createdBefore,
+		Limit:              limit,
+	})
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, items)
+}
+
 func (s *Server) getEvidence(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
@@ -542,6 +926,37 @@ func (s *Server) linkEvidence(w http.ResponseWriter, r *http.Request) {
 		item, err := s.ledger.LinkEvidence(r.Context(), actor, r.PathValue("id"), req.TargetType, req.TargetID)
 		return http.StatusCreated, item, err
 	})
+}
+
+func (s *Server) recordEvidenceLifecycleEvent(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Action        string         `json:"action"`
+		Reason        string         `json:"reason"`
+		Details       map[string]any `json:"details"`
+		ReplacementID string         `json:"replacement_id"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		event, err := s.ledger.RecordEvidenceLifecycleEvent(r.Context(), actor, r.PathValue("id"), app.RecordEvidenceLifecycleInput{
+			Action: req.Action, Reason: req.Reason, Details: req.Details, ReplacementID: req.ReplacementID,
+		})
+		return http.StatusCreated, event, err
+	})
+}
+
+func (s *Server) listEvidenceLifecycleEvents(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	events, err := s.ledger.ListEvidenceLifecycleEvents(r.Context(), actor, r.PathValue("id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, events)
 }
 
 func (s *Server) uploadSBOM(w http.ResponseWriter, r *http.Request) {
@@ -979,6 +1394,17 @@ func decodeJSON(body []byte, out any) error {
 		return app.ErrValidation
 	}
 	return nil
+}
+
+func parseOptionalRFC3339(value string) (time.Time, error) {
+	if strings.TrimSpace(value) == "" {
+		return time.Time{}, nil
+	}
+	parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(value))
+	if err != nil {
+		return time.Time{}, app.ErrValidation
+	}
+	return parsed, nil
 }
 
 func writeData(w http.ResponseWriter, status int, data any) {
