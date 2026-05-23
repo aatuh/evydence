@@ -57,4 +57,4 @@ make live-postgres-check
 make postgres-integration-test
 ```
 
-`make finalize` runs the project-owned formatting, unit, OpenAPI, docs, deployment, and SDK gates. `make release-check` extends that with lint, gosec, govulncheck, race tests, and live PostgreSQL gates when `EVYDENCE_TEST_DATABASE_URL` is configured. The target writes `tmp/release-check-summary.txt`; see `docs/reference/release-validation.md` for the configured Postgres release profile.
+`make finalize` runs the project-owned formatting, unit, OpenAPI, docs, deployment, and SDK gates. `make release-check` extends that with lint, gosec, govulncheck, race tests, and live PostgreSQL gates when `EVYDENCE_TEST_DATABASE_URL` is configured. `make release-check-local-postgres` starts the local Compose PostgreSQL service, loads `.test.env` or `.test.env.example`, and runs that release gate. The target writes `tmp/release-check-summary.txt`; see `docs/reference/release-validation.md` for the configured Postgres release profile.

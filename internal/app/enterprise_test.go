@@ -304,6 +304,51 @@ func TestCustomerPortalAccessRevokesAfterRepeatedFailedAttempts(t *testing.T) {
 	}
 }
 
+func TestCustomerPortalAccessAbuseBoundaries(t *testing.T) {
+	now := fixedNow()
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: func() time.Time { return now }})
+	ctx := context.Background()
+	actor, release, _ := setupReleaseRiskFixture(t, ledger)
+	profile, err := ledger.CreateRedactionProfile(ctx, actor, CreateRedactionProfileInput{Name: "customer", AllowedTypes: []string{"sbom"}})
+	if err != nil {
+		t.Fatalf("profile: %v", err)
+	}
+	pkg, err := ledger.CreateCustomerSecurityPackage(ctx, actor, CreateCustomerPackageInput{ProductID: release.ProductID, ReleaseID: release.ID, RedactionProfileID: profile.ID, Title: "Customer", ExpiresAt: now.Add(4 * time.Hour)})
+	if err != nil {
+		t.Fatalf("customer package: %v", err)
+	}
+	access, token, err := ledger.CreateCustomerPortalAccess(ctx, actor, CreateCustomerPortalAccessInput{PackageID: pkg.ID, CustomerName: "ACME", ExpiresAt: now.Add(time.Hour)})
+	if err != nil {
+		t.Fatalf("portal access: %v", err)
+	}
+	if _, err := ledger.AccessCustomerPortalPackage(ctx, "evycp_wrongprefix"); !errors.Is(err, ErrUnauthorized) {
+		t.Fatalf("wrong-prefix token err=%v, want unauthorized", err)
+	}
+	metrics, err := ledger.Metrics(ctx, actor)
+	if err != nil {
+		t.Fatalf("metrics: %v", err)
+	}
+	if metrics["customer_portal_failed_access_count"] != 0 || metrics["customer_portal_revoked_access_count"] != 0 {
+		t.Fatalf("wrong-prefix attempt should not increment known-access metrics: %#v", metrics)
+	}
+	now = now.Add(2 * time.Hour)
+	if _, err := ledger.AccessCustomerPortalPackage(ctx, token); !errors.Is(err, ErrUnauthorized) {
+		t.Fatalf("expired token err=%v, want unauthorized", err)
+	}
+	entries, err := ledger.ListAuditLog(ctx, actor, AuditLogFilter{SubjectType: "customer_portal_access", SubjectID: access.ID, Limit: 20})
+	if err != nil {
+		t.Fatalf("audit log: %v", err)
+	}
+	for _, entry := range entries {
+		if entry.EntryType == "customer_portal_package.access_failed" {
+			t.Fatalf("expired token should not produce failed-access audit entry: %#v", entry)
+		}
+		if strings.Contains(entry.ActorID, token) || strings.Contains(entry.PayloadHash, token) {
+			t.Fatalf("portal audit leaked token: %#v", entry)
+		}
+	}
+}
+
 func TestSecretHashComparisonHelper(t *testing.T) {
 	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	hash := ledger.hashSecret("evy_test_secret")
@@ -315,6 +360,89 @@ func TestSecretHashComparisonHelper(t *testing.T) {
 	}
 	if secretHashEqual(hash, "short") {
 		t.Fatalf("malformed hash compared equal")
+	}
+}
+
+func TestResourceGrantHelperBranchCoverage(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	admin, release, artifact := setupReleaseRiskFixture(t, ledger)
+	project, err := ledger.CreateProject(ctx, admin, release.ProductID, "api")
+	if err != nil {
+		t.Fatalf("project: %v", err)
+	}
+	repo, err := ledger.CreateSourceRepository(ctx, admin, CreateRepositoryInput{ProjectID: project.ID, Provider: "github", FullName: "example/api", CloneURL: "https://github.com/example/api.git", DefaultBranch: "main"})
+	if err != nil {
+		t.Fatalf("repo: %v", err)
+	}
+	build, err := ledger.CreateBuildRun(ctx, admin, CreateBuildRunInput{
+		ProjectID: project.ID,
+		ReleaseID: release.ID,
+		Provider:  "generic",
+		CommitSHA: "0123456789abcdef0123456789abcdef01234567",
+		Status:    "passed",
+		StartedAt: fixedNow(),
+		Outputs:   []domain.BuildOutput{{ArtifactID: artifact.ID, Digest: artifact.Digest}},
+	})
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	evidence, err := ledger.CreateEvidence(ctx, admin, CreateEvidenceInput{
+		ProductID:   release.ProductID,
+		ProjectID:   project.ID,
+		ReleaseID:   release.ID,
+		Type:        "build",
+		Title:       "Build",
+		PayloadHash: sampleDigest("resource-helper"),
+		SubjectRefs: []domain.SubjectRef{{Type: "artifact", ID: artifact.ID}},
+	})
+	if err != nil {
+		t.Fatalf("evidence: %v", err)
+	}
+	_ = evidence
+	otherProduct, err := ledger.CreateProduct(ctx, admin, "Other", "other-resource-helper")
+	if err != nil {
+		t.Fatalf("other product: %v", err)
+	}
+	otherRelease, err := ledger.CreateRelease(ctx, admin, otherProduct.ID, "1")
+	if err != nil {
+		t.Fatalf("other release: %v", err)
+	}
+
+	ledger.mu.Lock()
+	defer ledger.mu.Unlock()
+	if !ledger.productCoversRefsLocked(admin.TenantID, release.ProductID, resourceRefs{ProjectID: project.ID, SourceRepositoryID: repo.ID, ReleaseID: release.ID, BuildID: build.ID, ArtifactID: artifact.ID}) {
+		t.Fatalf("product grant should cover project/source/release/build/artifact refs")
+	}
+	if ledger.productCoversRefsLocked(admin.TenantID, otherProduct.ID, resourceRefs{ArtifactID: artifact.ID}) {
+		t.Fatalf("foreign product grant unexpectedly covered artifact")
+	}
+	if !ledger.projectCoversRefsLocked(admin.TenantID, project.ID, resourceRefs{ProjectID: project.ID}) {
+		t.Fatalf("project grant should cover direct project ref")
+	}
+	if !ledger.projectCoversRefsLocked(admin.TenantID, project.ID, resourceRefs{SourceRepositoryID: repo.ID}) {
+		t.Fatalf("project grant should cover source repository ref")
+	}
+	if !ledger.projectCoversRefsLocked(admin.TenantID, project.ID, resourceRefs{BuildID: build.ID}) {
+		t.Fatalf("project grant should cover build ref")
+	}
+	if !ledger.releaseCoversRefsLocked(admin.TenantID, release.ID, resourceRefs{ReleaseID: release.ID}) {
+		t.Fatalf("release grant should cover direct release ref")
+	}
+	if !ledger.releaseCoversRefsLocked(admin.TenantID, release.ID, resourceRefs{BuildID: build.ID, ArtifactID: artifact.ID}) {
+		t.Fatalf("release grant should cover build and artifact refs")
+	}
+	if ledger.releaseCoversRefsLocked(admin.TenantID, otherRelease.ID, resourceRefs{ArtifactID: artifact.ID}) {
+		t.Fatalf("foreign release grant unexpectedly covered artifact")
+	}
+	if !ledger.artifactCoversProductLocked(admin.TenantID, artifact.ID, release.ProductID) {
+		t.Fatalf("artifact should be linked to product through evidence/build output")
+	}
+	if !ledger.artifactCoversReleaseLocked(admin.TenantID, artifact.ID, release.ID) {
+		t.Fatalf("artifact should be linked to release through evidence/build output")
+	}
+	if ledger.artifactCoversReleaseLocked(admin.TenantID, artifact.ID, otherRelease.ID) {
+		t.Fatalf("artifact unexpectedly covered foreign release")
 	}
 }
 
