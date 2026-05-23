@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/adapters/postgres"
+	"github.com/aatuh/evydence/internal/app"
 )
 
 func main() {
@@ -56,7 +57,7 @@ func run() error {
 		}
 		for _, job := range jobs {
 			log.Printf("processing outbox job id=%s kind=%s subject_type=%s subject_id=%s attempt=%d", job.ID, job.Kind, job.SubjectType, job.SubjectID, job.Attempts)
-			if err := processJob(ctx, job); err != nil {
+			if err := processJob(ctx, store, job); err != nil {
 				log.Printf("outbox job failed id=%s kind=%s: %v", job.ID, job.Kind, err)
 				if failErr := store.FailJob(ctx, job.ID, err); failErr != nil {
 					log.Printf("record outbox failure failed id=%s: %v", job.ID, failErr)
@@ -70,16 +71,102 @@ func run() error {
 	}
 }
 
-func processJob(ctx context.Context, job postgres.ClaimedJob) error {
+type jobStateLoader interface {
+	LoadState(context.Context) (app.PersistedState, bool, error)
+}
+
+func processJob(ctx context.Context, state jobStateLoader, job postgres.ClaimedJob) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	if state == nil {
+		return errors.New("outbox job handler requires durable state")
+	}
+	snapshot, ok, err := state.LoadState(ctx)
+	if err != nil {
+		return errors.New("load durable state for outbox job")
+	}
+	if !ok {
+		return errors.New("durable state is not initialized")
+	}
 	switch job.Kind {
-	case "parse_sbom", "parse_vulnerability_scan", "parse_openapi_contract", "parse_vex", "sign_bundle", "verify_subject", "verify_attestation":
-		return errors.New("outbox job handler is not configured")
+	case "parse_sbom":
+		sbom, ok := snapshot.SBOMs[job.SubjectID]
+		if !ok || sbom.TenantID != job.TenantID {
+			return errors.New("parsed sbom is not available in durable state")
+		}
+		return requirePayloadHash(job, "")
+	case "parse_vulnerability_scan":
+		scan, ok := snapshot.Scans[job.SubjectID]
+		if !ok || scan.TenantID != job.TenantID {
+			return errors.New("parsed vulnerability scan is not available in durable state")
+		}
+		return requirePayloadHash(job, "")
+	case "parse_openapi_contract":
+		contract, ok := snapshot.Contracts[job.SubjectID]
+		if !ok || contract.TenantID != job.TenantID {
+			return errors.New("parsed openapi contract is not available in durable state")
+		}
+		return requirePayloadHash(job, contract.Hash)
+	case "parse_vex":
+		vex, ok := snapshot.VEXDocuments[job.SubjectID]
+		if !ok || vex.TenantID != job.TenantID {
+			return errors.New("parsed vex document is not available in durable state")
+		}
+		return requirePayloadHash(job, "")
+	case "sign_bundle":
+		bundle, ok := snapshot.Bundles[job.SubjectID]
+		if !ok || bundle.TenantID != job.TenantID {
+			return errors.New("release bundle is not available in durable state")
+		}
+		if len(bundle.SignatureRefs) == 0 {
+			return errors.New("release bundle signature is missing")
+		}
+		return requirePayloadHash(job, bundle.ManifestHash)
+	case "verify_subject":
+		resultID := payloadString(job, "result_id")
+		if resultID == "" {
+			return errors.New("verification result reference is missing")
+		}
+		result, ok := snapshot.Verifications[resultID]
+		if !ok || result.TenantID != job.TenantID || result.SubjectType != job.SubjectType || result.SubjectID != job.SubjectID {
+			return errors.New("verification result is not available in durable state")
+		}
+		if result.Result == "" {
+			return errors.New("verification result is incomplete")
+		}
+		return nil
+	case "verify_attestation":
+		attestation, ok := snapshot.BuildAttestations[job.SubjectID]
+		if !ok || attestation.TenantID != job.TenantID {
+			return errors.New("build attestation is not available in durable state")
+		}
+		if attestation.VerificationStatus == "" {
+			return errors.New("build attestation verification status is incomplete")
+		}
+		return requirePayloadHash(job, attestation.PayloadHash)
 	default:
 		return errors.New("unsupported outbox job kind")
 	}
+}
+
+func requirePayloadHash(job postgres.ClaimedJob, recordedHash string) error {
+	want := payloadString(job, "payload_hash")
+	if want == "" || recordedHash == "" {
+		return nil
+	}
+	if want != recordedHash {
+		return errors.New("outbox payload hash does not match durable state")
+	}
+	return nil
+}
+
+func payloadString(job postgres.ClaimedJob, key string) string {
+	if job.Payload == nil {
+		return ""
+	}
+	value, _ := job.Payload[key].(string)
+	return strings.TrimSpace(value)
 }
 
 func envDefault(name, fallback string) string {
