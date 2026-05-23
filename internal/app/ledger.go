@@ -39,6 +39,10 @@ const (
 	ScopeCollectorRead  = "collector:read"
 	ScopeBuildWrite     = "build:write"
 	ScopeBuildRead      = "build:read"
+	ScopeControlsAdmin  = "controls:admin"
+	ScopeControlsRead   = "controls:read"
+	ScopeControlsWrite  = "controls:write"
+	ScopeReportRead     = "report:read"
 )
 
 type Config struct {
@@ -68,6 +72,9 @@ type Ledger struct {
 	buildRuns     map[string]domain.BuildRun
 	attestations  map[string]domain.BuildAttestation
 	evidence      map[string]domain.EvidenceItem
+	frameworks    map[string]domain.ControlFramework
+	controls      map[string]domain.SecurityControl
+	controlLinks  map[string]domain.ControlEvidence
 	sboms         map[string]domain.SBOM
 	scans         map[string]domain.VulnerabilityScan
 	vexDocuments  map[string]domain.VEXDocument
@@ -116,6 +123,9 @@ func NewLedgerWithError(cfg Config) (*Ledger, error) {
 		buildRuns:     map[string]domain.BuildRun{},
 		attestations:  map[string]domain.BuildAttestation{},
 		evidence:      map[string]domain.EvidenceItem{},
+		frameworks:    map[string]domain.ControlFramework{},
+		controls:      map[string]domain.SecurityControl{},
+		controlLinks:  map[string]domain.ControlEvidence{},
 		sboms:         map[string]domain.SBOM{},
 		scans:         map[string]domain.VulnerabilityScan{},
 		vexDocuments:  map[string]domain.VEXDocument{},

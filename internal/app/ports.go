@@ -33,6 +33,9 @@ type PersistedState struct {
 	BuildRuns         map[string]domain.BuildRun              `json:"build_runs"`
 	BuildAttestations map[string]domain.BuildAttestation      `json:"build_attestations"`
 	Evidence          map[string]domain.EvidenceItem          `json:"evidence"`
+	ControlFrameworks map[string]domain.ControlFramework      `json:"control_frameworks"`
+	SecurityControls  map[string]domain.SecurityControl       `json:"security_controls"`
+	ControlEvidence   map[string]domain.ControlEvidence       `json:"control_evidence"`
 	SBOMs             map[string]domain.SBOM                  `json:"sboms"`
 	Scans             map[string]domain.VulnerabilityScan     `json:"scans"`
 	VEXDocuments      map[string]domain.VEXDocument           `json:"vex_documents"`

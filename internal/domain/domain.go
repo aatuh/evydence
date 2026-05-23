@@ -14,6 +14,11 @@ const (
 	CollectorSchemaVersion          = "collector.v1.0.0"
 	BuildRunSchemaVersion           = "build-run.v1.0.0"
 	BuildAttestationSchemaVersion   = "build-attestation.v1.0.0"
+	ControlFrameworkSchemaVersion   = "control-framework.v1.0.0"
+	SecurityControlSchemaVersion    = "security-control.v1.0.0"
+	ControlEvidenceSchemaVersion    = "control-evidence.v1.0.0"
+	ControlCoverageTemplateVersion  = "control-coverage.v1.0.0"
+	CRAReadinessTemplateVersion     = "cra-readiness.v1.0.0"
 )
 
 type Actor struct {
@@ -209,6 +214,94 @@ type EvidenceRef struct {
 type EvidenceNotice struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
+}
+
+type ControlFramework struct {
+	ID            string    `json:"id"`
+	TenantID      string    `json:"tenant_id"`
+	Name          string    `json:"name"`
+	Slug          string    `json:"slug"`
+	Version       string    `json:"version"`
+	Description   string    `json:"description,omitempty"`
+	Status        string    `json:"status"`
+	SchemaVersion string    `json:"schema_version"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type SecurityControl struct {
+	ID                   string                       `json:"id"`
+	TenantID             string                       `json:"tenant_id"`
+	FrameworkID          string                       `json:"framework_id"`
+	Code                 string                       `json:"code"`
+	Title                string                       `json:"title"`
+	Objective            string                       `json:"objective"`
+	EvidenceRequirements []ControlEvidenceRequirement `json:"evidence_requirements,omitempty"`
+	Applicability        []string                     `json:"applicability,omitempty"`
+	Limitations          []string                     `json:"limitations,omitempty"`
+	SchemaVersion        string                       `json:"schema_version"`
+	CreatedAt            time.Time                    `json:"created_at"`
+}
+
+type ControlEvidenceRequirement struct {
+	Type          string `json:"type"`
+	FreshnessDays int    `json:"freshness_days,omitempty"`
+	Required      bool   `json:"required"`
+}
+
+type ControlEvidence struct {
+	ID            string    `json:"id"`
+	TenantID      string    `json:"tenant_id"`
+	ControlID     string    `json:"control_id"`
+	EvidenceType  string    `json:"evidence_type"`
+	SubjectType   string    `json:"subject_type"`
+	SubjectID     string    `json:"subject_id"`
+	ProductID     string    `json:"product_id,omitempty"`
+	ReleaseID     string    `json:"release_id,omitempty"`
+	Confidence    string    `json:"confidence"`
+	Notes         string    `json:"notes,omitempty"`
+	SchemaVersion string    `json:"schema_version"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type ControlCoverageReport struct {
+	ReportType         string                `json:"report_type"`
+	TemplateVersion    string                `json:"template_version"`
+	FrameworkID        string                `json:"framework_id"`
+	ProductID          string                `json:"product_id,omitempty"`
+	ReleaseID          string                `json:"release_id,omitempty"`
+	Result             string                `json:"result"`
+	Controls           []ControlCoverageItem `json:"controls"`
+	MissingEvidence    []string              `json:"missing_evidence,omitempty"`
+	AcceptedExceptions []Exception           `json:"accepted_exceptions,omitempty"`
+	Assumptions        []string              `json:"assumptions"`
+	Limitations        []string              `json:"limitations"`
+	GeneratedAt        time.Time             `json:"generated_at"`
+}
+
+type ControlCoverageItem struct {
+	ControlID      string            `json:"control_id"`
+	Code           string            `json:"code"`
+	Title          string            `json:"title"`
+	Status         string            `json:"status"`
+	Confidence     string            `json:"confidence"`
+	LinkedEvidence []ControlEvidence `json:"linked_evidence,omitempty"`
+	Missing        []string          `json:"missing,omitempty"`
+	Explanation    string            `json:"explanation"`
+	Limitations    []string          `json:"limitations,omitempty"`
+}
+
+type CRAReadinessReport struct {
+	ReportType         string                `json:"report_type"`
+	TemplateVersion    string                `json:"template_version"`
+	ProductID          string                `json:"product_id"`
+	ReleaseID          string                `json:"release_id,omitempty"`
+	Result             string                `json:"result"`
+	Controls           []ControlCoverageItem `json:"controls"`
+	MissingEvidence    []string              `json:"missing_evidence,omitempty"`
+	AcceptedExceptions []Exception           `json:"accepted_exceptions,omitempty"`
+	Assumptions        []string              `json:"assumptions"`
+	Limitations        []string              `json:"limitations"`
+	GeneratedAt        time.Time             `json:"generated_at"`
 }
 
 type AuditChainEntry struct {

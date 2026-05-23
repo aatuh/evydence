@@ -231,6 +231,12 @@ func (l *Ledger) CreateException(ctx context.Context, actor domain.Actor, in Cre
 			return domain.Exception{}, ErrNotFound
 		}
 	}
+	if strings.TrimSpace(in.ControlID) != "" {
+		control, ok := l.controls[strings.TrimSpace(in.ControlID)]
+		if !ok || control.TenantID != actor.TenantID {
+			return domain.Exception{}, ErrNotFound
+		}
+	}
 	exception := domain.Exception{
 		ID:        newID("ex"),
 		TenantID:  actor.TenantID,

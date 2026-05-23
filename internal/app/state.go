@@ -29,6 +29,9 @@ func (l *Ledger) snapshotLocked() PersistedState {
 		BuildRuns:         l.buildRuns,
 		BuildAttestations: l.attestations,
 		Evidence:          l.evidence,
+		ControlFrameworks: l.frameworks,
+		SecurityControls:  l.controls,
+		ControlEvidence:   l.controlLinks,
 		SBOMs:             l.sboms,
 		Scans:             l.scans,
 		VEXDocuments:      l.vexDocuments,
@@ -89,6 +92,9 @@ func (l *Ledger) applyState(state PersistedState) {
 	l.buildRuns = state.BuildRuns
 	l.attestations = state.BuildAttestations
 	l.evidence = state.Evidence
+	l.frameworks = state.ControlFrameworks
+	l.controls = state.SecurityControls
+	l.controlLinks = state.ControlEvidence
 	l.sboms = state.SBOMs
 	l.scans = state.Scans
 	l.vexDocuments = state.VEXDocuments
@@ -195,6 +201,15 @@ func normalizeState(state PersistedState) PersistedState {
 	}
 	if state.Evidence == nil {
 		state.Evidence = map[string]domain.EvidenceItem{}
+	}
+	if state.ControlFrameworks == nil {
+		state.ControlFrameworks = map[string]domain.ControlFramework{}
+	}
+	if state.SecurityControls == nil {
+		state.SecurityControls = map[string]domain.SecurityControl{}
+	}
+	if state.ControlEvidence == nil {
+		state.ControlEvidence = map[string]domain.ControlEvidence{}
 	}
 	if state.SBOMs == nil {
 		state.SBOMs = map[string]domain.SBOM{}
