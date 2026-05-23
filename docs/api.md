@@ -61,8 +61,32 @@ Collectors are tenant-scoped automated ingesters. `POST /v1/collectors` creates 
 
 OpenVEX ingestion is available at `POST /v1/vex` with a request body containing `release_id`, optional `artifact_id`, and `payload`. The payload must be OpenVEX JSON with author, timestamp, and one or more statements. Raw VEX bytes are stored as tenant-prefixed object payloads and represented as immutable `vex` evidence.
 
+CycloneDX VEX ingestion is available at `POST /v1/vex/cyclonedx` for CycloneDX JSON with `vulnerabilities[].analysis`. It preserves raw payload bytes, records a `vex` evidence item, and normalizes matching finding decisions when a release finding has the same vulnerability ID.
+
 Vulnerability findings from `POST /v1/vulnerability-scans` can be resolved with `POST /v1/vulnerability-findings/{id}/decisions`. Supported statuses are `affected`, `not_affected`, `fixed`, and `under_investigation`. New decisions supersede earlier decisions for the same finding.
+
+`POST /v1/vulnerability-findings/{id}/workflow` appends workflow records such as scanner metadata, SLA notes, scanner disagreement, supersession, or re-open markers. `GET /v1/reports/vulnerability-posture?release_id=...` summarizes uploaded findings. These records organize scanner evidence and do not make scanner findings authoritative.
 
 Scoped exceptions are created with `POST /v1/exceptions` and approved separately with `POST /v1/exceptions/{id}/approve`. Only approved, unexpired exceptions can affect release readiness.
 
 `GET /v1/reports/release-readiness?release_id=...` returns deterministic readiness JSON with checks, blocking findings, accepted exceptions, gaps, assumptions, and limitations. Readiness requires SBOM, vulnerability scan, artifact digest evidence, signed bundle, passed build provenance, build attestation subject matching a release artifact digest, and no unhandled open critical finding. It supports compliance readiness only and is not a legal compliance or secure-release conclusion.
+
+## Incidents And Remediation
+
+`POST /v1/incidents` creates an incident linked to a product and optional release. `POST /v1/incidents/{id}/timeline` appends timeline events, optionally linked to evidence. `POST /v1/remediation-tasks` creates remediation tasks linked to an incident or release.
+
+`GET /v1/reports/incident-package?incident_id=...` returns a deterministic incident package with timeline events, remediation tasks, linked evidence IDs, assumptions, and limitations. It is an evidence organization report and does not prove root cause completeness or remediation sufficiency.
+
+## Security Evidence And SBOM Expansion
+
+`POST /v1/security-scans` uploads normalized SAST, DAST, secret scan, license scan, or API-security scan JSON. `POST /v1/api-security-scans` is a convenience route for API security scan evidence. Generic payloads use `findings[].severity`; SARIF payloads use `runs[].results[].level`. Secret scan evidence is marked redacted and quarantined when findings are present.
+
+`POST /v1/security-documents` uploads sensitive manual security documents with type `threat_model`, `security_review`, or `pen_test_report` and sensitivity `internal`, `confidential`, or `restricted`. Raw bytes are stored as object payloads and the API response exposes metadata, not payload contents.
+
+`POST /v1/sboms/spdx` ingests SPDX JSON as first-class SBOM evidence. `POST /v1/sbom-diffs` compares two stored SBOMs and records added, removed, and unchanged component counts. SBOM handling does not prove SBOM completeness.
+
+## Contracts And Policy V2
+
+`POST /v1/openapi-diffs` compares two uploaded OpenAPI contracts by stored contract metadata and classifies the result as unchanged, changed, or breaking when target path count decreases. Rich operation-level diffing remains future work.
+
+`POST /v1/custom-policies` creates a versioned deterministic policy with simple required evidence rules. `POST /v1/custom-policies/{id}/evaluate` stores a replayable evaluation with input hash and policy checks for one release.

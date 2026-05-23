@@ -1,0 +1,11 @@
+DROP TABLE IF EXISTS custom_policy_evaluations;
+DROP TABLE IF EXISTS custom_policies;
+DROP TABLE IF EXISTS contract_diffs;
+DROP TABLE IF EXISTS vulnerability_workflow_records;
+DROP TABLE IF EXISTS dependency_changes;
+DROP TABLE IF EXISTS sbom_diffs;
+DROP TABLE IF EXISTS manual_security_documents;
+DROP TABLE IF EXISTS security_scans;
+DROP TABLE IF EXISTS remediation_tasks;
+DROP TABLE IF EXISTS incident_timeline_events;
+DROP TABLE IF EXISTS incidents;

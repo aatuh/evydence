@@ -104,6 +104,15 @@ func (s *Server) registerRoutes() error {
 		{http.MethodPost, "/v1/deployments", op("recordDeployment", http.MethodPost, "/v1/deployments", "Record deployment", []string{app.ScopeDeploymentWrite}), http.HandlerFunc(s.recordDeployment)},
 		{http.MethodGet, "/v1/deployments", op("listDeployments", http.MethodGet, "/v1/deployments", "List deployments", []string{app.ScopeDeploymentRead}), http.HandlerFunc(s.listDeployments)},
 		{http.MethodGet, "/v1/deployments/{id}", op("getDeployment", http.MethodGet, "/v1/deployments/{id}", "Get deployment", []string{app.ScopeDeploymentRead}), http.HandlerFunc(s.getDeployment)},
+		{http.MethodPost, "/v1/incidents", op("createIncident", http.MethodPost, "/v1/incidents", "Create incident", []string{app.ScopeIncidentWrite}), http.HandlerFunc(s.createIncident)},
+		{http.MethodPost, "/v1/incidents/{id}/timeline", op("recordIncidentTimeline", http.MethodPost, "/v1/incidents/{id}/timeline", "Record incident timeline event", []string{app.ScopeIncidentWrite}), http.HandlerFunc(s.recordIncidentTimeline)},
+		{http.MethodPost, "/v1/remediation-tasks", op("createRemediationTask", http.MethodPost, "/v1/remediation-tasks", "Create remediation task", []string{app.ScopeIncidentWrite}), http.HandlerFunc(s.createRemediationTask)},
+		{http.MethodGet, "/v1/reports/incident-package", op("incidentReport", http.MethodGet, "/v1/reports/incident-package", "Incident package report", []string{app.ScopeIncidentRead}), http.HandlerFunc(s.incidentReport)},
+		{http.MethodPost, "/v1/security-scans", op("uploadSecurityScan", http.MethodPost, "/v1/security-scans", "Upload security scan", []string{app.ScopeSecurityWrite}), http.HandlerFunc(s.uploadSecurityScan)},
+		{http.MethodPost, "/v1/api-security-scans", op("uploadAPISecurityScan", http.MethodPost, "/v1/api-security-scans", "Upload API security scan", []string{app.ScopeSecurityWrite}), http.HandlerFunc(s.uploadAPISecurityScan)},
+		{http.MethodPost, "/v1/security-documents", op("uploadManualSecurityDocument", http.MethodPost, "/v1/security-documents", "Upload manual security document", []string{app.ScopeSecurityWrite}), http.HandlerFunc(s.uploadManualSecurityDocument)},
+		{http.MethodPost, "/v1/sboms/spdx", op("uploadSPDXSBOM", http.MethodPost, "/v1/sboms/spdx", "Upload SPDX SBOM", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.uploadSPDXSBOM)},
+		{http.MethodPost, "/v1/sbom-diffs", op("createSBOMDiff", http.MethodPost, "/v1/sbom-diffs", "Create SBOM diff", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.createSBOMDiff)},
 		{http.MethodPost, "/v1/evidence", op("createEvidence", http.MethodPost, "/v1/evidence", "Create evidence", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.createEvidence)},
 		{http.MethodGet, "/v1/evidence", op("listEvidence", http.MethodGet, "/v1/evidence", "List evidence", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.listEvidence)},
 		{http.MethodGet, "/v1/evidence/search", op("searchEvidence", http.MethodGet, "/v1/evidence/search", "Search evidence", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.searchEvidence)},
@@ -115,13 +124,19 @@ func (s *Server) registerRoutes() error {
 		{http.MethodPost, "/v1/sboms", op("uploadSBOM", http.MethodPost, "/v1/sboms", "Upload CycloneDX SBOM", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.uploadSBOM)},
 		{http.MethodGet, "/v1/sboms/{id}", op("getSBOM", http.MethodGet, "/v1/sboms/{id}", "Get SBOM", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.getSBOM)},
 		{http.MethodPost, "/v1/vex", op("uploadVEX", http.MethodPost, "/v1/vex", "Upload OpenVEX document", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.uploadVEX)},
+		{http.MethodPost, "/v1/vex/cyclonedx", op("uploadCycloneDXVEX", http.MethodPost, "/v1/vex/cyclonedx", "Upload CycloneDX VEX document", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.uploadCycloneDXVEX)},
 		{http.MethodGet, "/v1/vex/{id}", op("getVEX", http.MethodGet, "/v1/vex/{id}", "Get VEX document", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.getVEX)},
 		{http.MethodPost, "/v1/vulnerability-scans", op("uploadVulnerabilityScan", http.MethodPost, "/v1/vulnerability-scans", "Upload vulnerability scan", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.uploadVulnerabilityScan)},
 		{http.MethodGet, "/v1/vulnerability-scans/{id}", op("getVulnerabilityScan", http.MethodGet, "/v1/vulnerability-scans/{id}", "Get vulnerability scan", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.getVulnerabilityScan)},
 		{http.MethodPost, "/v1/vulnerability-findings/{id}/decisions", op("createVulnerabilityDecision", http.MethodPost, "/v1/vulnerability-findings/{id}/decisions", "Create vulnerability decision", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.createVulnerabilityDecision)},
+		{http.MethodPost, "/v1/vulnerability-findings/{id}/workflow", op("recordVulnerabilityWorkflow", http.MethodPost, "/v1/vulnerability-findings/{id}/workflow", "Record vulnerability workflow event", []string{app.ScopeSecurityWrite}), http.HandlerFunc(s.recordVulnerabilityWorkflow)},
+		{http.MethodGet, "/v1/reports/vulnerability-posture", op("vulnerabilityPostureReport", http.MethodGet, "/v1/reports/vulnerability-posture", "Vulnerability posture report", []string{app.ScopeSecurityRead}), http.HandlerFunc(s.vulnerabilityPostureReport)},
 		{http.MethodPost, "/v1/openapi-contracts", op("uploadOpenAPIContract", http.MethodPost, "/v1/openapi-contracts", "Upload OpenAPI contract", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.uploadOpenAPIContract)},
 		{http.MethodGet, "/v1/openapi-contracts/{id}", op("getOpenAPIContract", http.MethodGet, "/v1/openapi-contracts/{id}", "Get OpenAPI contract", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.getOpenAPIContract)},
+		{http.MethodPost, "/v1/openapi-diffs", op("createOpenAPIDiff", http.MethodPost, "/v1/openapi-diffs", "Create OpenAPI contract diff", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.createOpenAPIDiff)},
 		{http.MethodPost, "/v1/policies/evaluate", op("evaluatePolicy", http.MethodPost, "/v1/policies/evaluate", "Evaluate release policy", []string{app.ScopeVerifyRead}), http.HandlerFunc(s.evaluatePolicy)},
+		{http.MethodPost, "/v1/custom-policies", op("createCustomPolicy", http.MethodPost, "/v1/custom-policies", "Create custom policy", []string{app.ScopePolicyWrite}), http.HandlerFunc(s.createCustomPolicy)},
+		{http.MethodPost, "/v1/custom-policies/{id}/evaluate", op("evaluateCustomPolicy", http.MethodPost, "/v1/custom-policies/{id}/evaluate", "Evaluate custom policy", []string{app.ScopePolicyRead}), http.HandlerFunc(s.evaluateCustomPolicy)},
 		{http.MethodPost, "/v1/exceptions", op("createException", http.MethodPost, "/v1/exceptions", "Create exception", []string{app.ScopeReleaseWrite}), http.HandlerFunc(s.createException)},
 		{http.MethodGet, "/v1/exceptions", op("listExceptions", http.MethodGet, "/v1/exceptions", "List exceptions", []string{app.ScopeVerifyRead}), http.HandlerFunc(s.listExceptions)},
 		{http.MethodPost, "/v1/exceptions/{id}/approve", op("approveException", http.MethodPost, "/v1/exceptions/{id}/approve", "Approve exception", []string{app.ScopeReleaseWrite}), http.HandlerFunc(s.approveException)},
@@ -789,6 +804,158 @@ func (s *Server) getDeployment(w http.ResponseWriter, r *http.Request) {
 	writeData(w, http.StatusOK, deployment)
 }
 
+func (s *Server) createIncident(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ProductID string    `json:"product_id"`
+		ReleaseID string    `json:"release_id"`
+		Title     string    `json:"title"`
+		Severity  string    `json:"severity"`
+		OpenedAt  time.Time `json:"opened_at"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		incident, err := s.ledger.CreateIncident(r.Context(), actor, app.CreateIncidentInput{ProductID: req.ProductID, ReleaseID: req.ReleaseID, Title: req.Title, Severity: req.Severity, OpenedAt: req.OpenedAt})
+		return http.StatusCreated, incident, err
+	})
+}
+
+func (s *Server) recordIncidentTimeline(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		EventType  string    `json:"event_type"`
+		Summary    string    `json:"summary"`
+		EvidenceID string    `json:"evidence_id"`
+		OccurredAt time.Time `json:"occurred_at"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		event, err := s.ledger.RecordIncidentTimelineEvent(r.Context(), actor, r.PathValue("id"), app.RecordIncidentTimelineInput{EventType: req.EventType, Summary: req.Summary, EvidenceID: req.EvidenceID, OccurredAt: req.OccurredAt})
+		return http.StatusCreated, event, err
+	})
+}
+
+func (s *Server) createRemediationTask(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		IncidentID string     `json:"incident_id"`
+		ReleaseID  string     `json:"release_id"`
+		Title      string     `json:"title"`
+		Owner      string     `json:"owner"`
+		DueAt      *time.Time `json:"due_at"`
+		EvidenceID string     `json:"evidence_id"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		task, err := s.ledger.CreateRemediationTask(r.Context(), actor, app.CreateRemediationTaskInput{IncidentID: req.IncidentID, ReleaseID: req.ReleaseID, Title: req.Title, Owner: req.Owner, DueAt: req.DueAt, EvidenceID: req.EvidenceID})
+		return http.StatusCreated, task, err
+	})
+}
+
+func (s *Server) incidentReport(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	report, err := s.ledger.IncidentReport(r.Context(), actor, r.URL.Query().Get("incident_id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, report)
+}
+
+func (s *Server) uploadSecurityScan(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ProductID  string          `json:"product_id"`
+		ReleaseID  string          `json:"release_id"`
+		ArtifactID string          `json:"artifact_id"`
+		Category   string          `json:"category"`
+		Format     string          `json:"format"`
+		Scanner    string          `json:"scanner"`
+		TargetRef  string          `json:"target_ref"`
+		Payload    json.RawMessage `json:"payload"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		scan, err := s.ledger.UploadSecurityScan(r.Context(), actor, app.UploadSecurityScanInput{ProductID: req.ProductID, ReleaseID: req.ReleaseID, ArtifactID: req.ArtifactID, Category: req.Category, Format: req.Format, Scanner: req.Scanner, TargetRef: req.TargetRef, Raw: req.Payload})
+		return http.StatusCreated, scan, err
+	})
+}
+
+func (s *Server) uploadAPISecurityScan(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ProductID  string          `json:"product_id"`
+		ReleaseID  string          `json:"release_id"`
+		ArtifactID string          `json:"artifact_id"`
+		Format     string          `json:"format"`
+		Scanner    string          `json:"scanner"`
+		TargetRef  string          `json:"target_ref"`
+		Payload    json.RawMessage `json:"payload"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		scan, err := s.ledger.UploadAPISecurityScan(r.Context(), actor, app.UploadSecurityScanInput{ProductID: req.ProductID, ReleaseID: req.ReleaseID, ArtifactID: req.ArtifactID, Format: req.Format, Scanner: req.Scanner, TargetRef: req.TargetRef, Raw: req.Payload})
+		return http.StatusCreated, scan, err
+	})
+}
+
+func (s *Server) uploadManualSecurityDocument(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ProductID    string          `json:"product_id"`
+		ReleaseID    string          `json:"release_id"`
+		DocumentType string          `json:"document_type"`
+		Title        string          `json:"title"`
+		Sensitivity  string          `json:"sensitivity"`
+		MediaType    string          `json:"media_type"`
+		Payload      json.RawMessage `json:"payload"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		doc, err := s.ledger.UploadManualSecurityDocument(r.Context(), actor, app.UploadManualSecurityDocumentInput{ProductID: req.ProductID, ReleaseID: req.ReleaseID, DocumentType: req.DocumentType, Title: req.Title, Sensitivity: req.Sensitivity, Raw: req.Payload, MediaType: req.MediaType})
+		return http.StatusCreated, doc, err
+	})
+}
+
+func (s *Server) uploadSPDXSBOM(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ReleaseID  string          `json:"release_id"`
+		ArtifactID string          `json:"artifact_id"`
+		Payload    json.RawMessage `json:"payload"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		sbom, err := s.ledger.UploadSPDXSBOM(r.Context(), actor, req.ReleaseID, req.ArtifactID, req.Payload)
+		return http.StatusCreated, sbom, err
+	})
+}
+
+func (s *Server) createSBOMDiff(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		BaseSBOMID   string `json:"base_sbom_id"`
+		TargetSBOMID string `json:"target_sbom_id"`
+		ReleaseID    string `json:"release_id"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		diff, err := s.ledger.CreateSBOMDiff(r.Context(), actor, app.CreateSBOMDiffInput{BaseSBOMID: req.BaseSBOMID, TargetSBOMID: req.TargetSBOMID, ReleaseID: req.ReleaseID})
+		return http.StatusCreated, diff, err
+	})
+}
+
 func (s *Server) createEvidence(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ProductID        string              `json:"product_id"`
@@ -1015,6 +1182,21 @@ func (s *Server) getVEX(w http.ResponseWriter, r *http.Request) {
 	writeData(w, http.StatusOK, vex)
 }
 
+func (s *Server) uploadCycloneDXVEX(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ReleaseID  string          `json:"release_id"`
+		ArtifactID string          `json:"artifact_id"`
+		Payload    json.RawMessage `json:"payload"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		vex, err := s.ledger.UploadCycloneDXVEX(r.Context(), actor, req.ReleaseID, req.ArtifactID, req.Payload)
+		return http.StatusCreated, vex, err
+	})
+}
+
 func (s *Server) uploadVulnerabilityScan(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
 		scan, err := s.ledger.UploadVulnerabilityScan(r.Context(), actor, body)
@@ -1056,6 +1238,33 @@ func (s *Server) createVulnerabilityDecision(w http.ResponseWriter, r *http.Requ
 	})
 }
 
+func (s *Server) recordVulnerabilityWorkflow(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Action string `json:"action"`
+		Reason string `json:"reason"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		record, err := s.ledger.RecordVulnerabilityWorkflow(r.Context(), actor, app.RecordVulnerabilityWorkflowInput{FindingID: r.PathValue("id"), Action: req.Action, Reason: req.Reason})
+		return http.StatusCreated, record, err
+	})
+}
+
+func (s *Server) vulnerabilityPostureReport(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	report, err := s.ledger.VulnerabilityPostureReport(r.Context(), actor, r.URL.Query().Get("release_id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, report)
+}
+
 func (s *Server) uploadOpenAPIContract(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ProductID string          `json:"product_id"`
@@ -1085,6 +1294,21 @@ func (s *Server) getOpenAPIContract(w http.ResponseWriter, r *http.Request) {
 	writeData(w, http.StatusOK, contract)
 }
 
+func (s *Server) createOpenAPIDiff(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		BaseContractID   string `json:"base_contract_id"`
+		TargetContractID string `json:"target_contract_id"`
+		ReleaseID        string `json:"release_id"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		diff, err := s.ledger.CreateContractDiff(r.Context(), actor, app.CreateContractDiffInput{BaseContractID: req.BaseContractID, TargetContractID: req.TargetContractID, ReleaseID: req.ReleaseID})
+		return http.StatusCreated, diff, err
+	})
+}
+
 func (s *Server) evaluatePolicy(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ReleaseID string `json:"release_id"`
@@ -1094,6 +1318,35 @@ func (s *Server) evaluatePolicy(w http.ResponseWriter, r *http.Request) {
 			return 0, nil, err
 		}
 		eval, err := s.ledger.EvaluateRelease(r.Context(), actor, req.ReleaseID)
+		return http.StatusCreated, eval, err
+	})
+}
+
+func (s *Server) createCustomPolicy(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name        string              `json:"name"`
+		Version     string              `json:"version"`
+		Description string              `json:"description"`
+		Rules       []domain.PolicyRule `json:"rules"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		policy, err := s.ledger.CreateCustomPolicy(r.Context(), actor, app.CreateCustomPolicyInput{Name: req.Name, Version: req.Version, Description: req.Description, Rules: req.Rules})
+		return http.StatusCreated, policy, err
+	})
+}
+
+func (s *Server) evaluateCustomPolicy(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ReleaseID string `json:"release_id"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		eval, err := s.ledger.EvaluateCustomPolicy(r.Context(), actor, r.PathValue("id"), req.ReleaseID)
 		return http.StatusCreated, eval, err
 	})
 }

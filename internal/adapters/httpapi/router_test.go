@@ -402,6 +402,65 @@ func TestEvidenceLifecycleSourceDeploymentHTTPFlow(t *testing.T) {
 	getJSON(t, server, secret, "/v1/deployments?release_id="+releaseID+"&environment_id="+envID, http.StatusOK)
 }
 
+func TestRiskWorkflowHTTPFlow(t *testing.T) {
+	server, secret := testServer(t)
+	productBody := postJSON(t, server, secret, "/v1/products", "risk2-prod", map[string]any{"name": "Risk Product", "slug": "risk-product"}, http.StatusCreated)
+	productID := dataField(t, productBody, "id")
+	releaseBody := postJSON(t, server, secret, "/v1/releases", "risk2-release", map[string]any{"product_id": productID, "version": "4.0.0"}, http.StatusCreated)
+	releaseID := dataField(t, releaseBody, "id")
+	digest := "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb"
+	artifactBody := postJSON(t, server, secret, "/v1/artifacts", "risk2-artifact", map[string]any{"name": "api.tar.gz", "media_type": "application/gzip", "digest": digest, "size": 42}, http.StatusCreated)
+	artifactID := dataField(t, artifactBody, "id")
+
+	incidentBody := postJSON(t, server, secret, "/v1/incidents", "risk2-incident", map[string]any{"product_id": productID, "release_id": releaseID, "title": "API outage", "severity": "high"}, http.StatusCreated)
+	incidentID := dataField(t, incidentBody, "id")
+	postJSON(t, server, secret, "/v1/incidents/"+incidentID+"/timeline", "risk2-timeline", map[string]any{"event_type": "detected", "summary": "monitor alert"}, http.StatusCreated)
+	postJSON(t, server, secret, "/v1/remediation-tasks", "risk2-task", map[string]any{"incident_id": incidentID, "title": "patch", "owner": "security"}, http.StatusCreated)
+	incidentReport := getJSON(t, server, secret, "/v1/reports/incident-package?incident_id="+incidentID, http.StatusOK)
+	if !strings.Contains(incidentReport, `"report_type":"incident_package"`) {
+		t.Fatalf("incident report missing type: %s", incidentReport)
+	}
+
+	scanBody := postJSON(t, server, secret, "/v1/security-scans", "risk2-secscan", map[string]any{
+		"product_id": productID, "release_id": releaseID, "artifact_id": artifactID, "category": "secret_scan", "format": "generic", "scanner": "trufflehog", "target_ref": digest,
+		"payload": map[string]any{"findings": []map[string]any{{"severity": "high"}}},
+	}, http.StatusCreated)
+	if !strings.Contains(scanBody, `"quarantined":true`) {
+		t.Fatalf("secret scan should be quarantined: %s", scanBody)
+	}
+	postJSON(t, server, secret, "/v1/api-security-scans", "risk2-api-scan", map[string]any{
+		"product_id": productID, "release_id": releaseID, "format": "sarif", "scanner": "spectral", "target_ref": "openapi",
+		"payload": map[string]any{"version": "2.1.0", "runs": []map[string]any{{"results": []map[string]any{{"level": "warning"}}}}},
+	}, http.StatusCreated)
+	postJSON(t, server, secret, "/v1/security-documents", "risk2-doc", map[string]any{"product_id": productID, "release_id": releaseID, "document_type": "pen_test_report", "title": "Pen test", "sensitivity": "restricted", "payload": map[string]any{"summary": "manual evidence"}}, http.StatusCreated)
+
+	baseSBOM := postJSON(t, server, secret, "/v1/sboms/spdx", "risk2-spdx-base", map[string]any{"release_id": releaseID, "artifact_id": artifactID, "payload": map[string]any{"spdxVersion": "SPDX-2.3", "packages": []map[string]any{{"name": "openssl", "versionInfo": "3.1.0"}}}}, http.StatusCreated)
+	targetSBOM := postJSON(t, server, secret, "/v1/sboms/spdx", "risk2-spdx-target", map[string]any{"release_id": releaseID, "artifact_id": artifactID, "payload": map[string]any{"spdxVersion": "SPDX-2.3", "packages": []map[string]any{{"name": "openssl", "versionInfo": "3.1.0"}, {"name": "curl", "versionInfo": "8.0.0"}}}}, http.StatusCreated)
+	diffBody := postJSON(t, server, secret, "/v1/sbom-diffs", "risk2-sbom-diff", map[string]any{"base_sbom_id": dataField(t, baseSBOM, "id"), "target_sbom_id": dataField(t, targetSBOM, "id"), "release_id": releaseID}, http.StatusCreated)
+	if !strings.Contains(diffBody, `"added_components"`) {
+		t.Fatalf("sbom diff missing added components: %s", diffBody)
+	}
+
+	vulnScan := postJSON(t, server, secret, "/v1/vulnerability-scans", "risk2-vuln-scan", map[string]any{"scanner": "grype", "target_ref": "pkg:oci/api", "release_id": releaseID, "findings": []map[string]any{{"vulnerability": "CVE-2026-4242", "component": "openssl", "severity": "critical", "state": "open"}}}, http.StatusCreated)
+	findingID := firstFindingID(t, vulnScan)
+	postJSON(t, server, secret, "/v1/vex/cyclonedx", "risk2-cdx-vex", map[string]any{"release_id": releaseID, "artifact_id": artifactID, "payload": map[string]any{"bomFormat": "CycloneDX", "specVersion": "1.6", "vulnerabilities": []map[string]any{{"id": "CVE-2026-4242", "analysis": map[string]any{"state": "resolved", "justification": "code_not_present", "detail": "fixed", "response": []string{"update"}}}}}}, http.StatusCreated)
+	postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/workflow", "risk2-vuln-flow", map[string]any{"action": "scanner_disagreement", "reason": "secondary scanner found no issue"}, http.StatusCreated)
+	getJSON(t, server, secret, "/v1/reports/vulnerability-posture?release_id="+releaseID, http.StatusOK)
+
+	baseContract := postJSON(t, server, secret, "/v1/openapi-contracts", "risk2-oas-base", map[string]any{"product_id": productID, "release_id": releaseID, "version": "1", "spec": map[string]any{"openapi": "3.1.0", "info": map[string]any{"title": "API", "version": "1"}, "paths": map[string]any{"/v1/a": map[string]any{"get": map[string]any{"responses": map[string]any{"200": map[string]any{"description": "ok"}}}}}}}, http.StatusCreated)
+	targetContract := postJSON(t, server, secret, "/v1/openapi-contracts", "risk2-oas-target", map[string]any{"product_id": productID, "release_id": releaseID, "version": "2", "spec": map[string]any{"openapi": "3.1.0", "info": map[string]any{"title": "API", "version": "2"}, "paths": map[string]any{}}}, http.StatusCreated)
+	contractDiff := postJSON(t, server, secret, "/v1/openapi-diffs", "risk2-oas-diff", map[string]any{"base_contract_id": dataField(t, baseContract, "id"), "target_contract_id": dataField(t, targetContract, "id"), "release_id": releaseID}, http.StatusCreated)
+	if !strings.Contains(contractDiff, `"result":"breaking"`) {
+		t.Fatalf("contract diff should be breaking: %s", contractDiff)
+	}
+
+	policyBody := postJSON(t, server, secret, "/v1/custom-policies", "risk2-policy", map[string]any{"name": "release custom", "version": "1", "rules": []map[string]any{{"name": "requires sbom", "evidence_type": "sbom", "severity": "high", "required": true}}}, http.StatusCreated)
+	eval := postJSON(t, server, secret, "/v1/custom-policies/"+dataField(t, policyBody, "id")+"/evaluate", "risk2-policy-eval", map[string]any{"release_id": releaseID}, http.StatusCreated)
+	if !strings.Contains(eval, `"result":"passed"`) {
+		t.Fatalf("custom policy should pass after sbom upload: %s", eval)
+	}
+}
+
 func testServer(t *testing.T) (*Server, string) {
 	t.Helper()
 	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
