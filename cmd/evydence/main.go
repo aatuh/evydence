@@ -45,6 +45,11 @@ func run(args []string) error {
 			return usage()
 		}
 		return verifyManifest(args[1], args[3])
+	case "verify-evidence-bundle":
+		if len(args) != 2 {
+			return usage()
+		}
+		return verifyEvidenceBundle(args[1])
 	case "github-actions":
 		if len(args) < 2 || args[1] != "upload-build" {
 			return usage()
@@ -56,7 +61,7 @@ func run(args []string) error {
 }
 
 func usage() error {
-	return errors.New("usage: evydence hash <file> | evydence verify-manifest <manifest.json> --hash sha256:<hex> | evydence github-actions upload-build --url <api-url> --api-key <key> --project-id <id> --release-id <id> [--artifact-id <id> --artifact-digest sha256:<hex> --attestation-path <file>]")
+	return errors.New("usage: evydence hash <file> | evydence verify-manifest <manifest.json> --hash sha256:<hex> | evydence verify-evidence-bundle <bundle.json> | evydence github-actions upload-build --url <api-url> --api-key <key> --project-id <id> --release-id <id> [--artifact-id <id> --artifact-digest sha256:<hex> --attestation-path <file>]")
 }
 
 func hashFile(path string) (string, error) {
@@ -107,6 +112,47 @@ func verifyManifest(path, expected string) error {
 		return fmt.Errorf("manifest hash mismatch: got %s want %s", got, expected)
 	}
 	fmt.Println("manifest hash verified")
+	return nil
+}
+
+func verifyEvidenceBundle(path string) error {
+	cleaned, err := cleanOperatorPath(path)
+	if err != nil {
+		return err
+	}
+	// #nosec G304,G703 -- this CLI command intentionally reads a local operator-specified bundle file.
+	body, err := os.ReadFile(cleaned)
+	if err != nil {
+		return err
+	}
+	var bundle struct {
+		Manifest     map[string]any `json:"manifest"`
+		ManifestHash string         `json:"manifest_hash"`
+	}
+	if err := json.Unmarshal(body, &bundle); err != nil {
+		return errors.New("evidence bundle is not JSON")
+	}
+	if len(bundle.Manifest) == 0 || strings.TrimSpace(bundle.ManifestHash) == "" {
+		return errors.New("evidence bundle missing manifest or manifest_hash")
+	}
+	canonical, err := json.Marshal(bundle.Manifest)
+	if err != nil {
+		return err
+	}
+	var normalized any
+	if err := json.Unmarshal(canonical, &normalized); err != nil {
+		return err
+	}
+	canonical, err = json.Marshal(normalized)
+	if err != nil {
+		return err
+	}
+	sum := sha256.Sum256(canonical)
+	got := "sha256:" + hex.EncodeToString(sum[:])
+	if got != bundle.ManifestHash {
+		return fmt.Errorf("evidence bundle hash mismatch: got %s want %s", got, bundle.ManifestHash)
+	}
+	fmt.Println("evidence bundle manifest verified")
 	return nil
 }
 

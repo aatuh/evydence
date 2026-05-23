@@ -461,6 +461,47 @@ func TestRiskWorkflowHTTPFlow(t *testing.T) {
 	}
 }
 
+func TestGovernancePackageAndBundleHTTPFlow(t *testing.T) {
+	server, secret := testServer(t)
+	productBody := postJSON(t, server, secret, "/v1/products", "gov-prod", map[string]any{"name": "Gov Product", "slug": "gov-product"}, http.StatusCreated)
+	productID := dataField(t, productBody, "id")
+	releaseBody := postJSON(t, server, secret, "/v1/releases", "gov-release", map[string]any{"product_id": productID, "version": "5.0.0"}, http.StatusCreated)
+	releaseID := dataField(t, releaseBody, "id")
+	evidenceBody := postJSON(t, server, secret, "/v1/evidence", "gov-evidence", map[string]any{"product_id": productID, "release_id": releaseID, "type": "security_review", "title": "Review", "payload_hash": "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb"}, http.StatusCreated)
+	evidenceID := dataField(t, evidenceBody, "id")
+
+	packs := getJSON(t, server, secret, "/v1/control-framework-template-packs", http.StatusOK)
+	if !strings.Contains(packs, "evydence-cra-readiness") {
+		t.Fatalf("template packs missing CRA pack: %s", packs)
+	}
+	postJSON(t, server, secret, "/v1/control-framework-template-packs/evydence-cra-readiness/install", "gov-install-pack", map[string]any{}, http.StatusCreated)
+	waiverBody := postJSON(t, server, secret, "/v1/waivers", "gov-waiver", map[string]any{"scope_type": "release", "scope_id": releaseID, "owner": "security", "risk": "accepted", "reason": "temporary", "expires_at": time.Now().UTC().Add(time.Hour).Format(time.RFC3339)}, http.StatusCreated)
+	waiverID := dataField(t, waiverBody, "id")
+	postJSON(t, server, secret, "/v1/waivers/"+waiverID+"/approve", "gov-waiver-approve", map[string]any{}, http.StatusOK)
+	postJSON(t, server, secret, "/v1/approvals", "gov-approval", map[string]any{"subject_type": "waiver", "subject_id": waiverID, "decision": "approved", "reason": "accepted", "evidence_id": evidenceID}, http.StatusCreated)
+
+	profileBody := postJSON(t, server, secret, "/v1/redaction-profiles", "gov-profile", map[string]any{"name": "customer", "allowed_types": []string{"security_review"}, "excluded_fields": []string{"payload_ref"}}, http.StatusCreated)
+	profileID := dataField(t, profileBody, "id")
+	packageBody := postJSON(t, server, secret, "/v1/customer-packages", "gov-package", map[string]any{"product_id": productID, "release_id": releaseID, "redaction_profile_id": profileID, "title": "Customer package", "expires_at": time.Now().UTC().Add(time.Hour).Format(time.RFC3339)}, http.StatusCreated)
+	packageID := dataField(t, packageBody, "id")
+	getJSON(t, server, secret, "/v1/customer-packages/"+packageID, http.StatusOK)
+	packageReport := getJSON(t, server, secret, "/v1/reports/security-review-package?package_id="+packageID, http.StatusOK)
+	if !strings.Contains(packageReport, `"report_type":"security_review_package"`) {
+		t.Fatalf("security review report missing type: %s", packageReport)
+	}
+	htmlReport := getJSON(t, server, secret, "/v1/reports/cra-readiness-html?product_id="+productID+"&release_id="+releaseID, http.StatusOK)
+	if !strings.Contains(htmlReport, `"report_type":"cra_readiness"`) {
+		t.Fatalf("CRA HTML package missing report type: %s", htmlReport)
+	}
+	templateBody := postJSON(t, server, secret, "/v1/report-templates", "gov-report-template", map[string]any{"name": "simple", "version": "1", "report_type": "summary", "allowed_fields": []string{"subject_type", "subject_id"}, "template": "json"}, http.StatusCreated)
+	templateID := dataField(t, templateBody, "id")
+	postJSON(t, server, secret, "/v1/report-templates/"+templateID+"/render", "gov-report-render", map[string]any{"subject_type": "release", "subject_id": releaseID}, http.StatusCreated)
+	bundleBody := postJSON(t, server, secret, "/v1/evidence-bundles", "gov-bundle", map[string]any{"release_id": releaseID}, http.StatusCreated)
+	bundle := dataMap(t, bundleBody)
+	postJSON(t, server, secret, "/v1/evidence-bundles/import", "gov-bundle-import", bundle, http.StatusCreated)
+	postJSON(t, server, secret, "/v1/dsse-trust-roots", "gov-bad-root", map[string]any{"name": "bad", "key_id": "root", "algorithm": "Ed25519", "public_key": "bad"}, http.StatusBadRequest)
+}
+
 func testServer(t *testing.T) (*Server, string) {
 	t.Helper()
 	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
@@ -520,6 +561,17 @@ func dataField(t *testing.T, body, field string) string {
 		t.Fatalf("field %s missing in %s", field, body)
 	}
 	return value
+}
+
+func dataMap(t *testing.T, body string) map[string]any {
+	t.Helper()
+	var decoded struct {
+		Data map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(body), &decoded); err != nil {
+		t.Fatalf("unmarshal body: %v body=%s", err, body)
+	}
+	return decoded.Data
 }
 
 func nestedDataField(t *testing.T, body, field string) string {

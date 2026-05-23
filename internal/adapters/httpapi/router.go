@@ -69,6 +69,8 @@ func (s *Server) registerRoutes() error {
 		{http.MethodGet, "/v1/collectors", op("listCollectors", http.MethodGet, "/v1/collectors", "List collectors", []string{app.ScopeCollectorRead}), http.HandlerFunc(s.listCollectors)},
 		{http.MethodPost, "/v1/control-frameworks", op("createControlFramework", http.MethodPost, "/v1/control-frameworks", "Create control framework", []string{app.ScopeControlsAdmin}), http.HandlerFunc(s.createControlFramework)},
 		{http.MethodGet, "/v1/control-frameworks", op("listControlFrameworks", http.MethodGet, "/v1/control-frameworks", "List control frameworks", []string{app.ScopeControlsRead}), http.HandlerFunc(s.listControlFrameworks)},
+		{http.MethodGet, "/v1/control-framework-template-packs", op("listControlFrameworkTemplatePacks", http.MethodGet, "/v1/control-framework-template-packs", "List control framework template packs", []string{app.ScopeControlsRead}), http.HandlerFunc(s.listControlFrameworkTemplatePacks)},
+		{http.MethodPost, "/v1/control-framework-template-packs/{slug}/install", op("installControlFrameworkTemplatePack", http.MethodPost, "/v1/control-framework-template-packs/{slug}/install", "Install control framework template pack", []string{app.ScopeControlsAdmin}), http.HandlerFunc(s.installControlFrameworkTemplatePack)},
 		{http.MethodPost, "/v1/controls", op("createSecurityControl", http.MethodPost, "/v1/controls", "Create security control", []string{app.ScopeControlsAdmin}), http.HandlerFunc(s.createSecurityControl)},
 		{http.MethodGet, "/v1/controls/{id}", op("getSecurityControl", http.MethodGet, "/v1/controls/{id}", "Get security control", []string{app.ScopeControlsRead}), http.HandlerFunc(s.getSecurityControl)},
 		{http.MethodPost, "/v1/controls/{id}/evidence", op("linkControlEvidence", http.MethodPost, "/v1/controls/{id}/evidence", "Link control evidence", []string{app.ScopeControlsWrite}), http.HandlerFunc(s.linkControlEvidence)},
@@ -92,6 +94,8 @@ func (s *Server) registerRoutes() error {
 		{http.MethodPost, "/v1/builds", op("createBuild", http.MethodPost, "/v1/builds", "Create build run", []string{app.ScopeBuildWrite}), http.HandlerFunc(s.createBuild)},
 		{http.MethodGet, "/v1/builds/{id}", op("getBuild", http.MethodGet, "/v1/builds/{id}", "Get build run", []string{app.ScopeBuildRead}), http.HandlerFunc(s.getBuild)},
 		{http.MethodPost, "/v1/builds/{id}/attestations", op("uploadBuildAttestation", http.MethodPost, "/v1/builds/{id}/attestations", "Upload build attestation", []string{app.ScopeBuildWrite}), http.HandlerFunc(s.uploadBuildAttestation)},
+		{http.MethodPost, "/v1/build-attestations/{id}/verify-signature", op("verifyBuildAttestationSignature", http.MethodPost, "/v1/build-attestations/{id}/verify-signature", "Verify build attestation signature", []string{app.ScopeVerifyRead}), http.HandlerFunc(s.verifyBuildAttestationSignature)},
+		{http.MethodPost, "/v1/dsse-trust-roots", op("createDSSETrustRoot", http.MethodPost, "/v1/dsse-trust-roots", "Create DSSE trust root", []string{app.ScopeKeysAdmin}), http.HandlerFunc(s.createDSSETrustRoot)},
 		{http.MethodPost, "/v1/source/repositories", op("createSourceRepository", http.MethodPost, "/v1/source/repositories", "Create source repository", []string{app.ScopeSourceWrite}), http.HandlerFunc(s.createSourceRepository)},
 		{http.MethodGet, "/v1/source/repositories", op("listSourceRepositories", http.MethodGet, "/v1/source/repositories", "List source repositories", []string{app.ScopeSourceRead}), http.HandlerFunc(s.listSourceRepositories)},
 		{http.MethodPost, "/v1/source/commits", op("recordSourceCommit", http.MethodPost, "/v1/source/commits", "Record source commit", []string{app.ScopeSourceWrite}), http.HandlerFunc(s.recordSourceCommit)},
@@ -111,6 +115,18 @@ func (s *Server) registerRoutes() error {
 		{http.MethodPost, "/v1/security-scans", op("uploadSecurityScan", http.MethodPost, "/v1/security-scans", "Upload security scan", []string{app.ScopeSecurityWrite}), http.HandlerFunc(s.uploadSecurityScan)},
 		{http.MethodPost, "/v1/api-security-scans", op("uploadAPISecurityScan", http.MethodPost, "/v1/api-security-scans", "Upload API security scan", []string{app.ScopeSecurityWrite}), http.HandlerFunc(s.uploadAPISecurityScan)},
 		{http.MethodPost, "/v1/security-documents", op("uploadManualSecurityDocument", http.MethodPost, "/v1/security-documents", "Upload manual security document", []string{app.ScopeSecurityWrite}), http.HandlerFunc(s.uploadManualSecurityDocument)},
+		{http.MethodPost, "/v1/waivers", op("createWaiver", http.MethodPost, "/v1/waivers", "Create waiver", []string{app.ScopePolicyWrite}), http.HandlerFunc(s.createWaiver)},
+		{http.MethodPost, "/v1/waivers/{id}/approve", op("approveWaiver", http.MethodPost, "/v1/waivers/{id}/approve", "Approve waiver", []string{app.ScopePolicyWrite}), http.HandlerFunc(s.approveWaiver)},
+		{http.MethodPost, "/v1/approvals", op("createApproval", http.MethodPost, "/v1/approvals", "Create approval record", []string{app.ScopeReleaseWrite}), http.HandlerFunc(s.createApproval)},
+		{http.MethodPost, "/v1/redaction-profiles", op("createRedactionProfile", http.MethodPost, "/v1/redaction-profiles", "Create redaction profile", []string{app.ScopePackageWrite}), http.HandlerFunc(s.createRedactionProfile)},
+		{http.MethodPost, "/v1/customer-packages", op("createCustomerPackage", http.MethodPost, "/v1/customer-packages", "Create customer security package", []string{app.ScopePackageWrite}), http.HandlerFunc(s.createCustomerPackage)},
+		{http.MethodGet, "/v1/customer-packages/{id}", op("getCustomerPackage", http.MethodGet, "/v1/customer-packages/{id}", "Get customer security package", []string{app.ScopePackageRead}), http.HandlerFunc(s.getCustomerPackage)},
+		{http.MethodGet, "/v1/reports/security-review-package", op("securityReviewPackageReport", http.MethodGet, "/v1/reports/security-review-package", "Security review package report", []string{app.ScopePackageRead}), http.HandlerFunc(s.securityReviewPackageReport)},
+		{http.MethodGet, "/v1/reports/cra-readiness-html", op("craReadinessHTMLPackage", http.MethodGet, "/v1/reports/cra-readiness-html", "CRA readiness HTML package", []string{app.ScopeReportRead}), http.HandlerFunc(s.craReadinessHTMLPackage)},
+		{http.MethodPost, "/v1/report-templates", op("createReportTemplate", http.MethodPost, "/v1/report-templates", "Create report template", []string{app.ScopeReportRead}), http.HandlerFunc(s.createReportTemplate)},
+		{http.MethodPost, "/v1/report-templates/{id}/render", op("renderReportTemplate", http.MethodPost, "/v1/report-templates/{id}/render", "Render report template", []string{app.ScopeReportRead}), http.HandlerFunc(s.renderReportTemplate)},
+		{http.MethodPost, "/v1/evidence-bundles", op("exportEvidenceBundle", http.MethodPost, "/v1/evidence-bundles", "Export evidence bundle", []string{app.ScopeBundleRead}), http.HandlerFunc(s.exportEvidenceBundle)},
+		{http.MethodPost, "/v1/evidence-bundles/import", op("importEvidenceBundle", http.MethodPost, "/v1/evidence-bundles/import", "Import evidence bundle", []string{app.ScopeBundleWrite}), http.HandlerFunc(s.importEvidenceBundle)},
 		{http.MethodPost, "/v1/sboms/spdx", op("uploadSPDXSBOM", http.MethodPost, "/v1/sboms/spdx", "Upload SPDX SBOM", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.uploadSPDXSBOM)},
 		{http.MethodPost, "/v1/sbom-diffs", op("createSBOMDiff", http.MethodPost, "/v1/sbom-diffs", "Create SBOM diff", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.createSBOMDiff)},
 		{http.MethodPost, "/v1/evidence", op("createEvidence", http.MethodPost, "/v1/evidence", "Create evidence", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.createEvidence)},
@@ -248,6 +264,26 @@ func (s *Server) listControlFrameworks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeData(w, http.StatusOK, frameworks)
+}
+
+func (s *Server) listControlFrameworkTemplatePacks(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	packs, err := s.ledger.ListControlFrameworkTemplatePacks(r.Context(), actor)
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, packs)
+}
+
+func (s *Server) installControlFrameworkTemplatePack(w http.ResponseWriter, r *http.Request) {
+	s.create(w, r, func(actor domain.Actor, _ []byte) (int, any, error) {
+		framework, err := s.ledger.InstallControlFrameworkTemplatePack(r.Context(), actor, r.PathValue("slug"))
+		return http.StatusCreated, framework, err
+	})
 }
 
 func (s *Server) createSecurityControl(w http.ResponseWriter, r *http.Request) {
@@ -620,6 +656,29 @@ func (s *Server) uploadBuildAttestation(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
+func (s *Server) verifyBuildAttestationSignature(w http.ResponseWriter, r *http.Request) {
+	s.create(w, r, func(actor domain.Actor, _ []byte) (int, any, error) {
+		result, err := s.ledger.VerifyDSSEAttestationSignature(r.Context(), actor, r.PathValue("id"))
+		return http.StatusOK, result, err
+	})
+}
+
+func (s *Server) createDSSETrustRoot(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name      string `json:"name"`
+		KeyID     string `json:"key_id"`
+		Algorithm string `json:"algorithm"`
+		PublicKey string `json:"public_key"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		root, err := s.ledger.CreateDSSETrustRoot(r.Context(), actor, app.CreateDSSETrustRootInput{Name: req.Name, KeyID: req.KeyID, Algorithm: req.Algorithm, PublicKey: req.PublicKey})
+		return http.StatusCreated, root, err
+	})
+}
+
 func (s *Server) createSourceRepository(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ProjectID     string `json:"project_id"`
@@ -923,6 +982,179 @@ func (s *Server) uploadManualSecurityDocument(w http.ResponseWriter, r *http.Req
 		}
 		doc, err := s.ledger.UploadManualSecurityDocument(r.Context(), actor, app.UploadManualSecurityDocumentInput{ProductID: req.ProductID, ReleaseID: req.ReleaseID, DocumentType: req.DocumentType, Title: req.Title, Sensitivity: req.Sensitivity, Raw: req.Payload, MediaType: req.MediaType})
 		return http.StatusCreated, doc, err
+	})
+}
+
+func (s *Server) createWaiver(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ScopeType  string    `json:"scope_type"`
+		ScopeID    string    `json:"scope_id"`
+		ControlID  string    `json:"control_id"`
+		PolicyID   string    `json:"policy_id"`
+		Owner      string    `json:"owner"`
+		Risk       string    `json:"risk"`
+		Reason     string    `json:"reason"`
+		ExpiresAt  time.Time `json:"expires_at"`
+		Supersedes string    `json:"supersedes"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		waiver, err := s.ledger.CreateWaiver(r.Context(), actor, app.CreateWaiverInput{ScopeType: req.ScopeType, ScopeID: req.ScopeID, ControlID: req.ControlID, PolicyID: req.PolicyID, Owner: req.Owner, Risk: req.Risk, Reason: req.Reason, ExpiresAt: req.ExpiresAt, Supersedes: req.Supersedes})
+		return http.StatusCreated, waiver, err
+	})
+}
+
+func (s *Server) approveWaiver(w http.ResponseWriter, r *http.Request) {
+	s.create(w, r, func(actor domain.Actor, _ []byte) (int, any, error) {
+		waiver, err := s.ledger.ApproveWaiver(r.Context(), actor, r.PathValue("id"))
+		return http.StatusOK, waiver, err
+	})
+}
+
+func (s *Server) createApproval(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		SubjectType string `json:"subject_type"`
+		SubjectID   string `json:"subject_id"`
+		Decision    string `json:"decision"`
+		Reason      string `json:"reason"`
+		EvidenceID  string `json:"evidence_id"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		approval, err := s.ledger.CreateApprovalRecord(r.Context(), actor, app.CreateApprovalInput{SubjectType: req.SubjectType, SubjectID: req.SubjectID, Decision: req.Decision, Reason: req.Reason, EvidenceID: req.EvidenceID})
+		return http.StatusCreated, approval, err
+	})
+}
+
+func (s *Server) createRedactionProfile(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name           string   `json:"name"`
+		Description    string   `json:"description"`
+		AllowedTypes   []string `json:"allowed_types"`
+		ExcludedFields []string `json:"excluded_fields"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		profile, err := s.ledger.CreateRedactionProfile(r.Context(), actor, app.CreateRedactionProfileInput{Name: req.Name, Description: req.Description, AllowedTypes: req.AllowedTypes, ExcludedFields: req.ExcludedFields})
+		return http.StatusCreated, profile, err
+	})
+}
+
+func (s *Server) createCustomerPackage(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ProductID          string    `json:"product_id"`
+		ReleaseID          string    `json:"release_id"`
+		RedactionProfileID string    `json:"redaction_profile_id"`
+		Title              string    `json:"title"`
+		ExpiresAt          time.Time `json:"expires_at"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		pkg, err := s.ledger.CreateCustomerSecurityPackage(r.Context(), actor, app.CreateCustomerPackageInput{ProductID: req.ProductID, ReleaseID: req.ReleaseID, RedactionProfileID: req.RedactionProfileID, Title: req.Title, ExpiresAt: req.ExpiresAt})
+		return http.StatusCreated, pkg, err
+	})
+}
+
+func (s *Server) getCustomerPackage(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	pkg, err := s.ledger.AccessCustomerSecurityPackage(r.Context(), actor, r.PathValue("id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, pkg)
+}
+
+func (s *Server) securityReviewPackageReport(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	report, err := s.ledger.SecurityReviewPackageReport(r.Context(), actor, r.URL.Query().Get("package_id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, report)
+}
+
+func (s *Server) craReadinessHTMLPackage(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	report, err := s.ledger.CRAReadinessHTMLPackage(r.Context(), actor, r.URL.Query().Get("product_id"), r.URL.Query().Get("release_id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, report)
+}
+
+func (s *Server) createReportTemplate(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name          string   `json:"name"`
+		Version       string   `json:"version"`
+		ReportType    string   `json:"report_type"`
+		AllowedFields []string `json:"allowed_fields"`
+		Template      string   `json:"template"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		tpl, err := s.ledger.CreateCustomReportTemplate(r.Context(), actor, app.CreateReportTemplateInput{Name: req.Name, Version: req.Version, ReportType: req.ReportType, AllowedFields: req.AllowedFields, Template: req.Template})
+		return http.StatusCreated, tpl, err
+	})
+}
+
+func (s *Server) renderReportTemplate(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		SubjectType string `json:"subject_type"`
+		SubjectID   string `json:"subject_id"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		report, err := s.ledger.RenderCustomReport(r.Context(), actor, app.RenderReportInput{TemplateID: r.PathValue("id"), SubjectType: req.SubjectType, SubjectID: req.SubjectID})
+		return http.StatusCreated, report, err
+	})
+}
+
+func (s *Server) exportEvidenceBundle(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ReleaseID   string   `json:"release_id"`
+		EvidenceIDs []string `json:"evidence_ids"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		bundle, err := s.ledger.ExportEvidenceBundle(r.Context(), actor, req.ReleaseID, req.EvidenceIDs)
+		return http.StatusCreated, bundle, err
+	})
+}
+
+func (s *Server) importEvidenceBundle(w http.ResponseWriter, r *http.Request) {
+	var req domain.EvidenceBundle
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		record, err := s.ledger.ImportEvidenceBundle(r.Context(), actor, req)
+		return http.StatusCreated, record, err
 	})
 }
 

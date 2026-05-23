@@ -1,0 +1,10 @@
+DROP TABLE IF EXISTS dsse_trust_roots;
+DROP TABLE IF EXISTS evidence_bundle_imports;
+DROP TABLE IF EXISTS evidence_bundles;
+DROP TABLE IF EXISTS rendered_reports;
+DROP TABLE IF EXISTS report_templates;
+DROP TABLE IF EXISTS html_report_packages;
+DROP TABLE IF EXISTS customer_security_packages;
+DROP TABLE IF EXISTS redaction_profiles;
+DROP TABLE IF EXISTS approval_records;
+DROP TABLE IF EXISTS waivers;

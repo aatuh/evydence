@@ -29,6 +29,12 @@ The generated OpenAPI document is committed at `openapi.yaml` and served at `/v1
 
 `GET /v1/reports/cra-readiness?product_id=...&release_id=...` returns a CRA-oriented technical evidence report built from the same control coverage engine. It includes assumptions and limitations and does not make legal compliance, certification, complete-SBOM, or secure-release claims.
 
+`GET /v1/control-framework-template-packs` lists built-in starter packs. `POST /v1/control-framework-template-packs/{slug}/install` copies a pack into tenant-owned framework/control records.
+
+`POST /v1/waivers` creates a first-class waiver for a release, finding, control, or custom policy. `POST /v1/waivers/{id}/approve` records the append-only approval transition. Waivers are separate from exceptions and carry owner, risk, reason, expiry, supersession, and audit-chain entries.
+
+`POST /v1/approvals` creates immutable approval records for releases, contract diffs, waivers, security reviews, and customer packages.
+
 ## CI Provenance
 
 Collectors are tenant-scoped automated ingesters. `POST /v1/collectors` creates a `github_actions`, `gitlab_ci`, or `generic_ci` collector and returns a one-time API key secret scoped for build/evidence upload. `GET /v1/collectors` lists collectors without key hashes or secrets. The server binds collector identity from the API key; clients must not submit `collector_id` for build attribution.
@@ -84,6 +90,18 @@ Scoped exceptions are created with `POST /v1/exceptions` and approved separately
 `POST /v1/security-documents` uploads sensitive manual security documents with type `threat_model`, `security_review`, or `pen_test_report` and sensitivity `internal`, `confidential`, or `restricted`. Raw bytes are stored as object payloads and the API response exposes metadata, not payload contents.
 
 `POST /v1/sboms/spdx` ingests SPDX JSON as first-class SBOM evidence. `POST /v1/sbom-diffs` compares two stored SBOMs and records added, removed, and unchanged component counts. SBOM handling does not prove SBOM completeness.
+
+## Packages, Templates, And Bundles
+
+`POST /v1/redaction-profiles` creates an explicit package redaction profile. `POST /v1/customer-packages` creates a scoped customer security package manifest with expiry and access auditing. `GET /v1/customer-packages/{id}` reads the manifest and records an access event; raw payload bytes are not returned.
+
+`GET /v1/reports/security-review-package?package_id=...` returns a redaction-aware security review package report. `GET /v1/reports/cra-readiness-html?product_id=...&release_id=...` returns deterministic HTML content for CRA-readiness review with limitations and no compliance conclusion.
+
+`POST /v1/report-templates` creates a tenant report template with explicit allowed fields. `POST /v1/report-templates/{id}/render` renders only those allowed fields into a deterministic JSON report.
+
+`POST /v1/evidence-bundles` exports a portable evidence bundle manifest with evidence IDs, manifest hash, signature references, and verification instructions. `POST /v1/evidence-bundles/import` verifies and records an imported bundle manifest. The CLI command `evydence verify-evidence-bundle <bundle.json>` verifies bundle manifest hashes offline.
+
+`POST /v1/dsse-trust-roots` configures an Ed25519 DSSE verification trust root. `POST /v1/build-attestations/{id}/verify-signature` verifies stored DSSE attestation signatures against configured trust roots and records a verification result.
 
 ## Contracts And Policy V2
 

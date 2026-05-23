@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +14,26 @@ import (
 func TestCleanOperatorPathRejectsNUL(t *testing.T) {
 	if _, err := cleanOperatorPath("attestation.json\x00"); err == nil {
 		t.Fatal("expected NUL path rejection")
+	}
+}
+
+func TestVerifyEvidenceBundle(t *testing.T) {
+	manifest := map[string]any{"bundle_version": "evidence-bundle.v1.0.0", "evidence_ids": []any{"ev_1"}}
+	body, err := json.Marshal(manifest)
+	if err != nil {
+		t.Fatalf("marshal manifest: %v", err)
+	}
+	sum := sha256.Sum256(body)
+	bundleBody, err := json.Marshal(map[string]any{"manifest": manifest, "manifest_hash": "sha256:" + hex.EncodeToString(sum[:])})
+	if err != nil {
+		t.Fatalf("marshal bundle: %v", err)
+	}
+	path := t.TempDir() + "/bundle.json"
+	if err := os.WriteFile(path, bundleBody, 0o600); err != nil {
+		t.Fatalf("write bundle: %v", err)
+	}
+	if err := verifyEvidenceBundle(path); err != nil {
+		t.Fatalf("verify bundle: %v", err)
 	}
 }
 
