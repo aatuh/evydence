@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,7 +13,7 @@ import (
 func TestEnterpriseIdentityRBACSSOAndAdminSnapshot(t *testing.T) {
 	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
-	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
+	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*", ScopeInstanceAdmin})
 	if err != nil {
 		t.Fatalf("bootstrap: %v", err)
 	}
@@ -77,6 +78,78 @@ func TestEnterpriseIdentityRBACSSOAndAdminSnapshot(t *testing.T) {
 	}
 }
 
+func TestInstanceAdminRequiresExplicitScope(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	_, _, tenantAdminSecret, err := ledger.BootstrapTenant(ctx, "Tenant", "tenant-admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap tenant admin: %v", err)
+	}
+	tenantAdmin, err := ledger.Authenticate(ctx, tenantAdminSecret)
+	if err != nil {
+		t.Fatalf("tenant admin auth: %v", err)
+	}
+	if _, err := ledger.InstanceAdminSnapshot(ctx, tenantAdmin); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("tenant wildcard snapshot err=%v, want forbidden", err)
+	}
+	if _, err := ledger.CreateProduct(ctx, tenantAdmin, "Tenant Product", "tenant-product"); err != nil {
+		t.Fatalf("tenant admin should still create tenant resources: %v", err)
+	}
+	if _, _, err := ledger.CreateAPIKey(ctx, tenantAdmin, "instance-escalation", []string{ScopeInstanceAdmin}, nil); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("tenant admin instance key creation err=%v, want forbidden", err)
+	}
+
+	_, _, instanceSecret, err := ledger.BootstrapTenant(ctx, "Instance Tenant", "instance-admin", []string{"*", ScopeInstanceAdmin})
+	if err != nil {
+		t.Fatalf("bootstrap instance admin: %v", err)
+	}
+	instanceAdmin, err := ledger.Authenticate(ctx, instanceSecret)
+	if err != nil {
+		t.Fatalf("instance admin auth: %v", err)
+	}
+	if _, err := ledger.InstanceAdminSnapshot(ctx, instanceAdmin); err != nil {
+		t.Fatalf("explicit instance admin snapshot: %v", err)
+	}
+	_, instanceKeySecret, err := ledger.CreateAPIKey(ctx, instanceAdmin, "instance-read", []string{ScopeInstanceAdmin}, nil)
+	if err != nil {
+		t.Fatalf("explicit instance key creation: %v", err)
+	}
+	instanceKeyActor, err := ledger.Authenticate(ctx, instanceKeySecret)
+	if err != nil {
+		t.Fatalf("instance key auth: %v", err)
+	}
+	if _, err := ledger.InstanceAdminSnapshot(ctx, instanceKeyActor); err != nil {
+		t.Fatalf("instance key snapshot: %v", err)
+	}
+
+	org, err := ledger.CreateOrganization(ctx, tenantAdmin, CreateOrganizationInput{Name: "Example", Slug: "example"})
+	if err != nil {
+		t.Fatalf("org: %v", err)
+	}
+	user, err := ledger.CreateUser(ctx, tenantAdmin, CreateUserInput{OrganizationID: org.ID, Email: "admin@example.test", DisplayName: "Admin"})
+	if err != nil {
+		t.Fatalf("user: %v", err)
+	}
+	if _, err := ledger.CreateRoleBinding(ctx, tenantAdmin, CreateRoleBindingInput{SubjectType: "user", SubjectID: user.ID, Role: "tenant_admin", ResourceType: "tenant", ResourceID: tenantAdmin.TenantID}); err != nil {
+		t.Fatalf("role binding: %v", err)
+	}
+	provider, err := ledger.CreateSSOProvider(ctx, tenantAdmin, CreateSSOProviderInput{Name: "OIDC", Type: "oidc", Issuer: "https://idp.example.test", ClientID: "client"})
+	if err != nil {
+		t.Fatalf("provider: %v", err)
+	}
+	_, sessionSecret, err := ledger.CreateSSOSession(ctx, tenantAdmin, CreateSSOSessionInput{UserID: user.ID, ProviderID: provider.ID, ExpiresAt: fixedNow().Add(time.Hour)})
+	if err != nil {
+		t.Fatalf("session: %v", err)
+	}
+	sessionActor, err := ledger.Authenticate(ctx, sessionSecret)
+	if err != nil {
+		t.Fatalf("session auth: %v", err)
+	}
+	if _, err := ledger.InstanceAdminSnapshot(ctx, sessionActor); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("tenant-admin SSO snapshot err=%v, want forbidden", err)
+	}
+}
+
 func TestCustomerPortalRetentionQuestionnairesAndCommercialCollectors(t *testing.T) {
 	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
@@ -107,10 +180,7 @@ func TestCustomerPortalRetentionQuestionnairesAndCommercialCollectors(t *testing
 	if portalPkg.ID != pkg.ID {
 		t.Fatalf("portal package id = %s want %s", portalPkg.ID, pkg.ID)
 	}
-	badToken := token[:len(token)-1] + "x"
-	if badToken == token {
-		badToken = token[:len(token)-1] + "y"
-	}
+	badToken := mutateTokenSuffix(token)
 	if _, err := ledger.AccessCustomerPortalPackage(ctx, badToken); !errors.Is(err, ErrUnauthorized) {
 		t.Fatalf("bad portal token err=%v, want unauthorized", err)
 	}
@@ -179,6 +249,80 @@ func TestCustomerPortalRetentionQuestionnairesAndCommercialCollectors(t *testing
 	if _, _, err := ledger.CreateCustomerPortalAccess(ctx, other, CreateCustomerPortalAccessInput{PackageID: pkg.ID, CustomerName: "bad", ExpiresAt: fixedNow().Add(time.Hour)}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("cross tenant portal err=%v, want not found", err)
 	}
+}
+
+func TestCustomerPortalAccessRevokesAfterRepeatedFailedAttempts(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	actor, release, _ := setupReleaseRiskFixture(t, ledger)
+	profile, err := ledger.CreateRedactionProfile(ctx, actor, CreateRedactionProfileInput{Name: "customer", AllowedTypes: []string{"sbom"}})
+	if err != nil {
+		t.Fatalf("profile: %v", err)
+	}
+	pkg, err := ledger.CreateCustomerSecurityPackage(ctx, actor, CreateCustomerPackageInput{ProductID: release.ProductID, ReleaseID: release.ID, RedactionProfileID: profile.ID, Title: "Customer", ExpiresAt: fixedNow().Add(time.Hour)})
+	if err != nil {
+		t.Fatalf("customer package: %v", err)
+	}
+	access, token, err := ledger.CreateCustomerPortalAccess(ctx, actor, CreateCustomerPortalAccessInput{PackageID: pkg.ID, CustomerName: "ACME", ExpiresAt: fixedNow().Add(time.Hour)})
+	if err != nil {
+		t.Fatalf("portal access: %v", err)
+	}
+	badToken := mutateTokenSuffix(token)
+	for i := 0; i < customerPortalFailedAccessLimit; i++ {
+		if _, err := ledger.AccessCustomerPortalPackage(ctx, badToken); !errors.Is(err, ErrUnauthorized) {
+			t.Fatalf("bad portal token attempt %d err=%v, want unauthorized", i+1, err)
+		}
+	}
+	if _, err := ledger.AccessCustomerPortalPackage(ctx, token); !errors.Is(err, ErrUnauthorized) {
+		t.Fatalf("revoked portal token err=%v, want unauthorized", err)
+	}
+	entries, err := ledger.ListAuditLog(ctx, actor, AuditLogFilter{SubjectType: "customer_portal_access", SubjectID: access.ID, Limit: 20})
+	if err != nil {
+		t.Fatalf("audit log: %v", err)
+	}
+	var failures, revocations int
+	for _, entry := range entries {
+		switch entry.EntryType {
+		case "customer_portal_package.access_failed":
+			failures++
+		case "customer_portal_access.revoked_after_failed_access":
+			revocations++
+		}
+		if entry.ActorID == badToken || entry.PayloadHash == badToken {
+			t.Fatalf("portal audit leaked token: %#v", entry)
+		}
+	}
+	if failures != customerPortalFailedAccessLimit || revocations != 1 {
+		t.Fatalf("audit entries failures=%d revocations=%d", failures, revocations)
+	}
+	metrics, err := ledger.Metrics(ctx, actor)
+	if err != nil {
+		t.Fatalf("metrics: %v", err)
+	}
+	if metrics["customer_portal_failed_access_count"] != customerPortalFailedAccessLimit || metrics["customer_portal_revoked_access_count"] != 1 {
+		t.Fatalf("portal metrics = %#v", metrics)
+	}
+}
+
+func TestSecretHashComparisonHelper(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	hash := ledger.hashSecret("evy_test_secret")
+	if !secretHashEqual(hash, hash) {
+		t.Fatalf("same HMAC hash did not compare equal")
+	}
+	if secretHashEqual(hash, ledger.hashSecret("evy_test_other")) {
+		t.Fatalf("different HMAC hashes compared equal")
+	}
+	if secretHashEqual(hash, "short") {
+		t.Fatalf("malformed hash compared equal")
+	}
+}
+
+func mutateTokenSuffix(token string) string {
+	if strings.HasSuffix(token, "x") {
+		return token[:len(token)-1] + "y"
+	}
+	return token[:len(token)-1] + "x"
 }
 
 func TestHumanSSOSessionRoleBindingsAreResourceScoped(t *testing.T) {

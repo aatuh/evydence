@@ -133,6 +133,24 @@ func TestCrossTenantEvidenceReadDenied(t *testing.T) {
 	}
 }
 
+func TestInstanceAdminHTTPRequiresExplicitScope(t *testing.T) {
+	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
+	_, _, tenantSecret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "tenant-admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap tenant: %v", err)
+	}
+	_, _, instanceSecret, err := ledger.BootstrapTenant(t.Context(), "Instance Tenant", "instance-admin", []string{"*", app.ScopeInstanceAdmin})
+	if err != nil {
+		t.Fatalf("bootstrap instance: %v", err)
+	}
+	server, err := NewServer(ledger)
+	if err != nil {
+		t.Fatalf("server: %v", err)
+	}
+	getJSON(t, server, tenantSecret, "/v1/admin/instance", http.StatusForbidden)
+	getJSON(t, server, instanceSecret, "/v1/admin/instance", http.StatusOK)
+}
+
 func TestReleaseBundleVerifyFlow(t *testing.T) {
 	server, secret := testServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "prod", map[string]any{"name": "Payments", "slug": "payments"}, http.StatusCreated)
@@ -594,7 +612,8 @@ func TestEnterprisePortalRetentionAndCommercialCollectorHTTPFlow(t *testing.T) {
 	if strings.Contains(getJSON(t, server, secret, "/v1/role-bindings", http.StatusOK), sessionSecret) {
 		t.Fatalf("session secret leaked in role binding response")
 	}
-	getJSON(t, server, sessionSecret, "/v1/admin/instance", http.StatusOK)
+	getJSON(t, server, secret, "/v1/admin/instance", http.StatusForbidden)
+	getJSON(t, server, sessionSecret, "/v1/admin/instance", http.StatusForbidden)
 
 	productBody := postJSON(t, server, sessionSecret, "/v1/products", "ent-product", map[string]any{"name": "Enterprise Product", "slug": "enterprise-product"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")

@@ -61,6 +61,7 @@ docs-check: ## Validate canonical docs exist and avoid forbidden product claims
 	@test -f docs/how-to/install-and-operate.md
 	@test -f docs/reference/openapi.md
 	@test -f docs/reference/worker-outbox.md
+	@test -f docs/reference/release-validation.md
 	@test -f docs/explanation/trust-model.md
 	@! grep -R -i "automatically compliant\|certified secure\|legally sufficient\|SBOM is complete\|all vulnerabilities detected" README.md docs
 

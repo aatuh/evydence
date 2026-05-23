@@ -23,9 +23,9 @@ The generated OpenAPI document is committed at `openapi.yaml` and served at `/v1
 
 `POST /v1/role-bindings` assigns a role to a user or collector. Current roles are `tenant_admin`, `security_engineer`, `release_manager`, `customer_verifier`, and `collector`. Human SSO session actors derive API scopes from role bindings and enforce `resource_type`/`resource_id` constraints for product, project, release, customer package, evidence bundle, build, control evidence, source, deployment, incident, security scan, report, export, read, and write operations where those resources are part of the request. API key and collector API key scopes remain tenant-scoped. `GET /v1/role-bindings` lists tenant-scoped bindings.
 
-`POST /v1/sso/providers` records OIDC or SAML provider metadata. `POST /v1/sso/identity-links` links a verified provider subject to an existing user. `POST /v1/sso/sessions` issues an expiring one-time session token response; the token hash is stored server-side and is not returned by list/read paths. `POST /v1/sso/sessions/{id}/revoke` revokes the session.
+`POST /v1/sso/providers` records OIDC or SAML provider metadata. `POST /v1/sso/identity-links` links a verified provider subject to an existing user. `POST /v1/sso/sessions` issues an expiring one-time session token response; the token hash is stored server-side and is not returned by list/read paths. `POST /v1/sso/sessions/{id}/revoke` revokes the session. These endpoints model admin-managed identity/session records; they do not perform live OIDC discovery, JWKS validation, SAML assertion verification, browser redirects, or provider login callbacks.
 
-`GET /v1/admin/instance` returns low-detail instance diagnostics for instance admins. It exposes operational counts only, not raw evidence payloads, API keys, session hashes, or customer portal tokens.
+`GET /v1/admin/instance` returns low-detail instance diagnostics only for actors explicitly granted `instance:admin`. Tenant `admin` and ordinary wildcard `*` tenant keys remain tenant-scoped and do not satisfy this instance-wide scope unless `instance:admin` is also present. The endpoint exposes operational counts only, not raw evidence payloads, API keys, session hashes, or customer portal tokens.
 
 ## Controls And Reports
 
@@ -109,7 +109,7 @@ Scoped exceptions are created with `POST /v1/exceptions` and approved separately
 
 `POST /v1/redaction-profiles` creates an explicit package redaction profile. `POST /v1/customer-packages` creates a scoped customer security package manifest with expiry and access auditing. `GET /v1/customer-packages/{id}` reads the manifest and records an access event; raw payload bytes are not returned.
 
-`POST /v1/customer-portal/access` creates an expiring customer portal access token for one package and returns the token once. `POST /v1/customer-portal/package` accepts that token and returns the scoped package manifest without exposing the token or raw tenant evidence. Failed portal token attempts that match a known token prefix record a safe audit-chain signal without storing or returning the supplied token.
+`POST /v1/customer-portal/access` creates an expiring customer portal access token for one package and returns the token once. `POST /v1/customer-portal/package` accepts that token and returns the scoped package manifest without exposing the token or raw tenant evidence. Failed portal token attempts that match a known token prefix record a safe audit-chain signal without storing or returning the supplied token. After repeated failed attempts for one active access record, Evydence revokes that access record and reports only tenant-safe counters.
 
 `POST /v1/questionnaire-templates` creates tenant-defined customer questionnaire templates with question-to-evidence hints. `POST /v1/questionnaire-packages` generates deterministic evidence-backed responses for a package, product, and release scope. Responses cite linked evidence IDs and include limitations for human review.
 

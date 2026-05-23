@@ -465,13 +465,19 @@ func (l *Ledger) AccessCustomerPortalPackage(ctx context.Context, token string) 
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	for id, access := range l.portalAccess {
-		if access.Hash != hash || access.RevokedAt != nil || !access.ExpiresAt.After(l.now()) {
-			if access.Prefix == prefix {
+		if !secretHashEqual(access.Hash, hash) || access.RevokedAt != nil || !access.ExpiresAt.After(l.now()) {
+			if access.Prefix == prefix && access.RevokedAt == nil && access.ExpiresAt.After(l.now()) {
 				now := l.now()
 				access.FailedAccessCount++
+				if access.RevokedAt == nil && access.FailedAccessCount >= customerPortalFailedAccessLimit {
+					access.RevokedAt = &now
+				}
 				access.LastFailedAt = &now
 				l.portalAccess[id] = access
 				_, _ = l.appendChainLocked(access.TenantID, "customer_portal_package.access_failed", "customer_portal_access", access.ID, "customer_portal", "unverified", "", "")
+				if access.RevokedAt != nil && access.FailedAccessCount == customerPortalFailedAccessLimit {
+					_, _ = l.appendChainLocked(access.TenantID, "customer_portal_access.revoked_after_failed_access", "customer_portal_access", access.ID, "customer_portal", "unverified", "", "")
+				}
 				_ = l.persistLocked(ctx)
 			}
 			continue

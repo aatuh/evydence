@@ -26,4 +26,6 @@ make postgres-integration-test
 make finalize
 ```
 
+For release validation with live PostgreSQL evidence, start Compose, load `.test.env`, and run `make release-check`. The target writes `tmp/release-check-summary.txt`; the release validation reference explains the expected pass and skip lines.
+
 Back up PostgreSQL and the configured object store together. Backup manifests help compare recorded ledger state, but restore confidence depends on matched database and object payload backups.
