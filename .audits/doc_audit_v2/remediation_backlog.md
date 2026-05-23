@@ -92,7 +92,7 @@ Notes:
 
 - Evidence paths: `Makefile`, `docs/api.md`, `openapi.yaml`, `docs/reference/openapi.md`.
 
-## Epic E3 - Improve Copy-Paste Task Support [ ]
+## Epic E3 - Improve Copy-Paste Task Support [x]
 
 Description: Tighten remaining examples so developers can use the docs without inferring imports, setup, or validation behavior.
 
@@ -115,7 +115,7 @@ Notes:
 
 - Evidence paths: `docs/sdk/README.md`, `sdk/go/evydence/client.go`, `sdk/typescript/client.ts`, `sdk/python/evydence_client.py`.
 
-### Ticket E3-T2 - Add Lightweight Documentation Example Checks [ ]
+### Ticket E3-T2 - Add Lightweight Documentation Example Checks [x]
 
 Description: Extend documentation validation with cheap checks for CLI command names, workflow example prerequisites, or documented generated files so example drift is caught before release.
 
