@@ -91,6 +91,10 @@ func (l *Ledger) UploadVEX(ctx context.Context, actor domain.Actor, releaseID, a
 			return domain.VEXDocument{}, ErrNotFound
 		}
 	}
+	if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, resourceRefs{ReleaseID: releaseID}); err != nil {
+		l.mu.Unlock()
+		return domain.VEXDocument{}, err
+	}
 	l.mu.Unlock()
 
 	payloadHash := hashBytes(raw)
@@ -177,6 +181,9 @@ func (l *Ledger) GetVEXDocument(ctx context.Context, actor domain.Actor, id stri
 	if !ok || vex.TenantID != actor.TenantID {
 		return domain.VEXDocument{}, ErrNotFound
 	}
+	if err := l.authorizeResourceLocked(actor, ScopeEvidenceRead, resourceRefs{ReleaseID: vex.ReleaseID}); err != nil {
+		return domain.VEXDocument{}, err
+	}
 	return vex, nil
 }
 
@@ -195,6 +202,9 @@ func (l *Ledger) CreateVulnerabilityDecision(ctx context.Context, actor domain.A
 	scan, finding, ok := l.findFindingLocked(actor.TenantID, strings.TrimSpace(findingID))
 	if !ok {
 		return domain.VulnerabilityDecision{}, ErrNotFound
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, resourceRefs{ReleaseID: scan.ReleaseID}); err != nil {
+		return domain.VulnerabilityDecision{}, err
 	}
 	decision := l.createDecisionLocked(actor.TenantID, scan, finding, in, "api", actor.KeyID, "", "")
 	l.decisions[decision.ID] = decision
@@ -224,6 +234,9 @@ func (l *Ledger) CreateException(ctx context.Context, actor domain.Actor, in Cre
 	release, ok := l.releases[in.ReleaseID]
 	if !ok || release.TenantID != actor.TenantID {
 		return domain.Exception{}, ErrNotFound
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeReleaseWrite, resourceRefs{ProductID: release.ProductID, ReleaseID: release.ID}); err != nil {
+		return domain.Exception{}, err
 	}
 	if in.FindingID != "" {
 		scan, _, ok := l.findFindingLocked(actor.TenantID, in.FindingID)
@@ -274,6 +287,9 @@ func (l *Ledger) ListExceptions(ctx context.Context, actor domain.Actor, release
 		if releaseID != "" && exception.ReleaseID != releaseID {
 			continue
 		}
+		if !l.resourceAllowedLocked(actor, ScopeVerifyRead, resourceRefs{ReleaseID: exception.ReleaseID}) {
+			continue
+		}
 		out = append(out, exception)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
@@ -295,6 +311,9 @@ func (l *Ledger) ApproveException(ctx context.Context, actor domain.Actor, id st
 	}
 	if !exception.ExpiresAt.After(l.now()) {
 		return domain.Exception{}, ErrConflict
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeReleaseWrite, resourceRefs{ReleaseID: exception.ReleaseID}); err != nil {
+		return domain.Exception{}, err
 	}
 	if exception.Approved {
 		return exception, nil

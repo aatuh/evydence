@@ -130,6 +130,13 @@ func TestCustomerPortalRetentionQuestionnairesAndCommercialCollectors(t *testing
 	if !foundFailedAccess {
 		t.Fatalf("missing failed portal access audit entry: %#v", entries)
 	}
+	metrics, err := ledger.Metrics(ctx, actor)
+	if err != nil {
+		t.Fatalf("metrics: %v", err)
+	}
+	if got := metrics["customer_portal_failed_access_count"]; got != 1 {
+		t.Fatalf("portal failed access metric = %#v, want 1", got)
+	}
 	if _, err := ledger.CreateLegalHold(ctx, actor, CreateLegalHoldInput{ScopeType: "release", ScopeID: release.ID, Reason: "customer dispute", Owner: "legal"}); err != nil {
 		t.Fatalf("legal hold: %v", err)
 	}
@@ -292,5 +299,168 @@ func TestHumanSSOSessionRoleBindingsAreResourceScoped(t *testing.T) {
 	}
 	if _, err := ledger.SecurityReviewPackageReport(ctx, verifierActor, pkgB.ID); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("foreign package report err=%v, want forbidden", err)
+	}
+}
+
+func TestHumanSSOSessionResourceScopeCoversWorkflowFamilies(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	admin, err := ledger.Authenticate(ctx, secret)
+	if err != nil {
+		t.Fatalf("auth: %v", err)
+	}
+	productA, err := ledger.CreateProduct(ctx, admin, "A", "a")
+	if err != nil {
+		t.Fatalf("product A: %v", err)
+	}
+	releaseA, err := ledger.CreateRelease(ctx, admin, productA.ID, "1")
+	if err != nil {
+		t.Fatalf("release A: %v", err)
+	}
+	projectA, err := ledger.CreateProject(ctx, admin, productA.ID, "api")
+	if err != nil {
+		t.Fatalf("project A: %v", err)
+	}
+	artifactA, err := ledger.RegisterArtifact(ctx, admin, "api", "application/octet-stream", sampleDigest("artifact-a"), 10)
+	if err != nil {
+		t.Fatalf("artifact A: %v", err)
+	}
+	productB, err := ledger.CreateProduct(ctx, admin, "B", "b")
+	if err != nil {
+		t.Fatalf("product B: %v", err)
+	}
+	releaseB, err := ledger.CreateRelease(ctx, admin, productB.ID, "1")
+	if err != nil {
+		t.Fatalf("release B: %v", err)
+	}
+	projectB, err := ledger.CreateProject(ctx, admin, productB.ID, "api")
+	if err != nil {
+		t.Fatalf("project B: %v", err)
+	}
+	artifactB, err := ledger.RegisterArtifact(ctx, admin, "api-b", "application/octet-stream", sampleDigest("artifact-b"), 10)
+	if err != nil {
+		t.Fatalf("artifact B: %v", err)
+	}
+
+	framework, err := ledger.CreateControlFramework(ctx, admin, CreateControlFrameworkInput{Name: "Controls", Version: "1"})
+	if err != nil {
+		t.Fatalf("framework: %v", err)
+	}
+	control, err := ledger.CreateSecurityControl(ctx, admin, CreateSecurityControlInput{FrameworkID: framework.ID, Code: "EVD-1", Title: "Evidence", Objective: "Collect evidence", EvidenceRequirements: []domain.ControlEvidenceRequirement{{Type: "build", Required: true}}})
+	if err != nil {
+		t.Fatalf("control: %v", err)
+	}
+	buildA, err := ledger.CreateBuildRun(ctx, admin, CreateBuildRunInput{ProjectID: projectA.ID, ReleaseID: releaseA.ID, Provider: "generic_ci", CommitSHA: "0123456789abcdef0123456789abcdef01234567", Status: "passed", StartedAt: fixedNow(), Outputs: []domain.BuildOutput{{ArtifactID: artifactA.ID, Digest: artifactA.Digest}}})
+	if err != nil {
+		t.Fatalf("build A: %v", err)
+	}
+	buildB, err := ledger.CreateBuildRun(ctx, admin, CreateBuildRunInput{ProjectID: projectB.ID, ReleaseID: releaseB.ID, Provider: "generic_ci", CommitSHA: "1123456789abcdef0123456789abcdef01234567", Status: "passed", StartedAt: fixedNow(), Outputs: []domain.BuildOutput{{ArtifactID: artifactB.ID, Digest: artifactB.Digest}}})
+	if err != nil {
+		t.Fatalf("build B: %v", err)
+	}
+	incidentA, err := ledger.CreateIncident(ctx, admin, CreateIncidentInput{ProductID: productA.ID, ReleaseID: releaseA.ID, Title: "incident A", Severity: "high"})
+	if err != nil {
+		t.Fatalf("incident A: %v", err)
+	}
+	incidentB, err := ledger.CreateIncident(ctx, admin, CreateIncidentInput{ProductID: productB.ID, ReleaseID: releaseB.ID, Title: "incident B", Severity: "high"})
+	if err != nil {
+		t.Fatalf("incident B: %v", err)
+	}
+	envA, err := ledger.CreateDeploymentEnvironment(ctx, admin, CreateEnvironmentInput{ProductID: productA.ID, Name: "prod-a", Kind: "production"})
+	if err != nil {
+		t.Fatalf("env A: %v", err)
+	}
+	envB, err := ledger.CreateDeploymentEnvironment(ctx, admin, CreateEnvironmentInput{ProductID: productB.ID, Name: "prod-b", Kind: "production"})
+	if err != nil {
+		t.Fatalf("env B: %v", err)
+	}
+	depA, err := ledger.RecordDeployment(ctx, admin, RecordDeploymentInput{EnvironmentID: envA.ID, ReleaseID: releaseA.ID, ArtifactIDs: []string{artifactA.ID}, Status: deploymentStatusSucceeded, StartedAt: fixedNow()})
+	if err != nil {
+		t.Fatalf("deployment A: %v", err)
+	}
+	depB, err := ledger.RecordDeployment(ctx, admin, RecordDeploymentInput{EnvironmentID: envB.ID, ReleaseID: releaseB.ID, ArtifactIDs: []string{artifactB.ID}, Status: deploymentStatusSucceeded, StartedAt: fixedNow()})
+	if err != nil {
+		t.Fatalf("deployment B: %v", err)
+	}
+	repoA, err := ledger.CreateSourceRepository(ctx, admin, CreateRepositoryInput{ProjectID: projectA.ID, Provider: "github", FullName: "org/a"})
+	if err != nil {
+		t.Fatalf("repo A: %v", err)
+	}
+	repoB, err := ledger.CreateSourceRepository(ctx, admin, CreateRepositoryInput{ProjectID: projectB.ID, Provider: "github", FullName: "org/b"})
+	if err != nil {
+		t.Fatalf("repo B: %v", err)
+	}
+
+	org, err := ledger.CreateOrganization(ctx, admin, CreateOrganizationInput{Name: "Example", Slug: "example"})
+	if err != nil {
+		t.Fatalf("org: %v", err)
+	}
+	user, err := ledger.CreateUser(ctx, admin, CreateUserInput{OrganizationID: org.ID, Email: "scoped@example.test", DisplayName: "Scoped"})
+	if err != nil {
+		t.Fatalf("user: %v", err)
+	}
+	if _, err := ledger.CreateRoleBinding(ctx, admin, CreateRoleBindingInput{SubjectType: "user", SubjectID: user.ID, Role: "tenant_admin", ResourceType: "product", ResourceID: productA.ID}); err != nil {
+		t.Fatalf("role binding: %v", err)
+	}
+	provider, err := ledger.CreateSSOProvider(ctx, admin, CreateSSOProviderInput{Name: "OIDC", Type: "oidc", Issuer: "https://idp.example.test", ClientID: "client"})
+	if err != nil {
+		t.Fatalf("provider: %v", err)
+	}
+	_, sessionSecret, err := ledger.CreateSSOSession(ctx, admin, CreateSSOSessionInput{UserID: user.ID, ProviderID: provider.ID, ExpiresAt: fixedNow().Add(time.Hour)})
+	if err != nil {
+		t.Fatalf("session: %v", err)
+	}
+	scoped, err := ledger.Authenticate(ctx, sessionSecret)
+	if err != nil {
+		t.Fatalf("scoped auth: %v", err)
+	}
+
+	if _, err := ledger.GetBuildRun(ctx, scoped, buildA.ID); err != nil {
+		t.Fatalf("get allowed build: %v", err)
+	}
+	if _, err := ledger.GetBuildRun(ctx, scoped, buildB.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("get foreign build err=%v, want forbidden", err)
+	}
+	if _, err := ledger.LinkControlEvidence(ctx, scoped, control.ID, LinkControlEvidenceInput{EvidenceType: "build", SubjectType: "build", SubjectID: buildA.ID, ProductID: productA.ID, ReleaseID: releaseA.ID, Confidence: confidenceHigh}); err != nil {
+		t.Fatalf("link allowed control evidence: %v", err)
+	}
+	if _, err := ledger.LinkControlEvidence(ctx, scoped, control.ID, LinkControlEvidenceInput{EvidenceType: "build", SubjectType: "build", SubjectID: buildB.ID, ProductID: productB.ID, ReleaseID: releaseB.ID, Confidence: confidenceHigh}); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("link foreign control evidence err=%v, want forbidden", err)
+	}
+	if _, err := ledger.IncidentReport(ctx, scoped, incidentA.ID); err != nil {
+		t.Fatalf("incident report A: %v", err)
+	}
+	if _, err := ledger.IncidentReport(ctx, scoped, incidentB.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("incident report B err=%v, want forbidden", err)
+	}
+	if _, err := ledger.UploadSecurityScan(ctx, scoped, UploadSecurityScanInput{ProductID: productB.ID, ReleaseID: releaseB.ID, Category: "secret_scan", Format: "generic", Scanner: "scan", TargetRef: "target", Raw: []byte(`{"findings":[]}`)}); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("foreign security scan err=%v, want forbidden", err)
+	}
+	if _, err := ledger.GetDeployment(ctx, scoped, depA.ID); err != nil {
+		t.Fatalf("get deployment A: %v", err)
+	}
+	if _, err := ledger.GetDeployment(ctx, scoped, depB.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("get deployment B err=%v, want forbidden", err)
+	}
+	repos, err := ledger.ListSourceRepositories(ctx, scoped, "")
+	if err != nil {
+		t.Fatalf("list repos: %v", err)
+	}
+	if len(repos) != 1 || repos[0].ID != repoA.ID {
+		t.Fatalf("scoped repos=%#v want only %s; foreign repo was %s", repos, repoA.ID, repoB.ID)
+	}
+	if _, err := ledger.RecordSourceCommit(ctx, scoped, RecordCommitInput{RepositoryID: repoB.ID, SHA: "2123456789abcdef0123456789abcdef01234567", CommittedAt: fixedNow()}); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("foreign source commit err=%v, want forbidden", err)
+	}
+	deployments, err := ledger.ListDeployments(ctx, scoped, "", "")
+	if err != nil {
+		t.Fatalf("list deployments: %v", err)
+	}
+	if len(deployments) != 1 || deployments[0].ID != depA.ID {
+		t.Fatalf("scoped deployments=%#v want only %s", deployments, depA.ID)
 	}
 }

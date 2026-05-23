@@ -152,6 +152,9 @@ func (l *Ledger) SearchEvidence(ctx context.Context, actor domain.Actor, in Evid
 		if item.TenantID != actor.TenantID || !matchesEvidenceSearch(item, in) {
 			continue
 		}
+		if !l.resourceAllowedLocked(actor, ScopeEvidenceRead, refsForEvidence(item)) {
+			continue
+		}
 		out = append(out, item)
 	}
 	sort.Slice(out, func(i, j int) bool {
@@ -184,10 +187,16 @@ func (l *Ledger) RecordEvidenceLifecycleEvent(ctx context.Context, actor domain.
 	if !ok || item.TenantID != actor.TenantID {
 		return domain.EvidenceLifecycleEvent{}, ErrNotFound
 	}
+	if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, refsForEvidence(item)); err != nil {
+		return domain.EvidenceLifecycleEvent{}, err
+	}
 	if in.ReplacementID != "" {
 		replacement, ok := l.evidence[strings.TrimSpace(in.ReplacementID)]
 		if !ok || replacement.TenantID != actor.TenantID {
 			return domain.EvidenceLifecycleEvent{}, ErrNotFound
+		}
+		if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, refsForEvidence(replacement)); err != nil {
+			return domain.EvidenceLifecycleEvent{}, err
 		}
 	}
 	event := domain.EvidenceLifecycleEvent{
@@ -223,6 +232,9 @@ func (l *Ledger) ListEvidenceLifecycleEvents(ctx context.Context, actor domain.A
 	if !ok || item.TenantID != actor.TenantID {
 		return nil, ErrNotFound
 	}
+	if err := l.authorizeResourceLocked(actor, ScopeEvidenceRead, refsForEvidence(item)); err != nil {
+		return nil, err
+	}
 	out := []domain.EvidenceLifecycleEvent{}
 	for _, event := range l.lifecycle {
 		if event.TenantID == actor.TenantID && event.EvidenceID == item.ID {
@@ -245,6 +257,9 @@ func (l *Ledger) CreateReleaseCandidate(ctx context.Context, actor domain.Actor,
 	release, ok := l.releases[strings.TrimSpace(in.ReleaseID)]
 	if !ok || release.TenantID != actor.TenantID {
 		return domain.ReleaseCandidate{}, ErrNotFound
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeReleaseWrite, resourceRefs{ProductID: release.ProductID, ReleaseID: release.ID}); err != nil {
+		return domain.ReleaseCandidate{}, err
 	}
 	if strings.TrimSpace(in.Name) == "" {
 		return domain.ReleaseCandidate{}, ErrValidation
@@ -294,6 +309,9 @@ func (l *Ledger) GetReleaseCandidate(ctx context.Context, actor domain.Actor, id
 	if !ok || candidate.TenantID != actor.TenantID {
 		return domain.ReleaseCandidate{}, ErrNotFound
 	}
+	if err := l.authorizeResourceLocked(actor, ScopeReleaseRead, resourceRefs{ReleaseID: candidate.ReleaseID}); err != nil {
+		return domain.ReleaseCandidate{}, err
+	}
 	return candidate, nil
 }
 
@@ -312,6 +330,9 @@ func (l *Ledger) ListReleaseCandidates(ctx context.Context, actor domain.Actor, 
 			continue
 		}
 		if releaseID != "" && candidate.ReleaseID != releaseID {
+			continue
+		}
+		if !l.resourceAllowedLocked(actor, ScopeReleaseRead, resourceRefs{ReleaseID: candidate.ReleaseID}) {
 			continue
 		}
 		out = append(out, candidate)
@@ -339,6 +360,9 @@ func (l *Ledger) UpdateReleaseCandidateState(ctx context.Context, actor domain.A
 	}
 	if candidate.State != candidateOpen {
 		return domain.ReleaseCandidate{}, ErrConflict
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeReleaseWrite, resourceRefs{ReleaseID: candidate.ReleaseID}); err != nil {
+		return domain.ReleaseCandidate{}, err
 	}
 	now := l.now()
 	candidate.State = state
@@ -372,6 +396,9 @@ func (l *Ledger) RegisterContainerImage(ctx context.Context, actor domain.Actor,
 		artifact, ok := l.artifacts[strings.TrimSpace(in.ArtifactID)]
 		if !ok || artifact.TenantID != actor.TenantID || artifact.Digest != in.Digest {
 			return domain.ContainerImage{}, ErrNotFound
+		}
+		if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, resourceRefs{ArtifactID: artifact.ID}); err != nil {
+			return domain.ContainerImage{}, err
 		}
 	}
 	for _, existing := range l.images {
@@ -414,6 +441,10 @@ func (l *Ledger) CreateArtifactSignature(ctx context.Context, actor domain.Actor
 	if !ok || artifact.TenantID != actor.TenantID {
 		l.mu.Unlock()
 		return domain.ArtifactSignature{}, ErrNotFound
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, resourceRefs{ArtifactID: artifact.ID}); err != nil {
+		l.mu.Unlock()
+		return domain.ArtifactSignature{}, err
 	}
 	l.mu.Unlock()
 	payloadHash, payloadRef := "", ""
@@ -462,6 +493,9 @@ func (l *Ledger) GetArtifactSignature(ctx context.Context, actor domain.Actor, i
 	if !ok || sig.TenantID != actor.TenantID {
 		return domain.ArtifactSignature{}, ErrNotFound
 	}
+	if err := l.authorizeResourceLocked(actor, ScopeEvidenceRead, resourceRefs{ArtifactID: sig.ArtifactID}); err != nil {
+		return domain.ArtifactSignature{}, err
+	}
 	return sig, nil
 }
 
@@ -480,6 +514,9 @@ func (l *Ledger) ListSourceRepositories(ctx context.Context, actor domain.Actor,
 			continue
 		}
 		if projectID != "" && repo.ProjectID != projectID {
+			continue
+		}
+		if !l.resourceAllowedLocked(actor, ScopeSourceRead, resourceRefs{ProjectID: repo.ProjectID, SourceRepositoryID: repo.ID}) {
 			continue
 		}
 		out = append(out, repo)
@@ -505,6 +542,9 @@ func (l *Ledger) CreateSourceRepository(ctx context.Context, actor domain.Actor,
 		project, ok := l.projects[strings.TrimSpace(in.ProjectID)]
 		if !ok || project.TenantID != actor.TenantID {
 			return domain.SourceRepository{}, ErrNotFound
+		}
+		if err := l.authorizeResourceLocked(actor, ScopeSourceWrite, resourceRefs{ProductID: project.ProductID, ProjectID: project.ID}); err != nil {
+			return domain.SourceRepository{}, err
 		}
 	}
 	for _, existing := range l.repositories {
@@ -551,6 +591,9 @@ func (l *Ledger) RecordSourceCommit(ctx context.Context, actor domain.Actor, in 
 	if !ok || repo.TenantID != actor.TenantID {
 		return domain.SourceCommit{}, ErrNotFound
 	}
+	if err := l.authorizeResourceLocked(actor, ScopeSourceWrite, resourceRefs{ProjectID: repo.ProjectID, SourceRepositoryID: repo.ID}); err != nil {
+		return domain.SourceCommit{}, err
+	}
 	for _, existing := range l.commits {
 		if existing.TenantID == actor.TenantID && existing.RepositoryID == repo.ID && existing.SHA == in.SHA {
 			return existing, nil
@@ -595,6 +638,9 @@ func (l *Ledger) UpsertSourceBranch(ctx context.Context, actor domain.Actor, in 
 	repo, ok := l.repositories[in.RepositoryID]
 	if !ok || repo.TenantID != actor.TenantID {
 		return domain.SourceBranch{}, ErrNotFound
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeSourceWrite, resourceRefs{ProjectID: repo.ProjectID, SourceRepositoryID: repo.ID}); err != nil {
+		return domain.SourceBranch{}, err
 	}
 	if in.HeadCommitID != "" {
 		commit, ok := l.commits[strings.TrimSpace(in.HeadCommitID)]
@@ -651,6 +697,9 @@ func (l *Ledger) RecordPullRequest(ctx context.Context, actor domain.Actor, in R
 	if !ok || repo.TenantID != actor.TenantID {
 		return domain.PullRequest{}, ErrNotFound
 	}
+	if err := l.authorizeResourceLocked(actor, ScopeSourceWrite, resourceRefs{ProjectID: repo.ProjectID, SourceRepositoryID: repo.ID}); err != nil {
+		return domain.PullRequest{}, err
+	}
 	if in.HeadCommitID != "" {
 		commit, ok := l.commits[strings.TrimSpace(in.HeadCommitID)]
 		if !ok || commit.TenantID != actor.TenantID || commit.RepositoryID != repo.ID {
@@ -697,6 +746,9 @@ func (l *Ledger) ListDeploymentEnvironments(ctx context.Context, actor domain.Ac
 		if productID != "" && env.ProductID != productID {
 			continue
 		}
+		if !l.resourceAllowedLocked(actor, ScopeDeploymentRead, resourceRefs{ProductID: env.ProductID, EnvironmentID: env.ID}) {
+			continue
+		}
 		out = append(out, env)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
@@ -719,6 +771,9 @@ func (l *Ledger) CreateDeploymentEnvironment(ctx context.Context, actor domain.A
 	product, ok := l.products[in.ProductID]
 	if !ok || product.TenantID != actor.TenantID {
 		return domain.DeploymentEnvironment{}, ErrNotFound
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeDeploymentWrite, resourceRefs{ProductID: product.ID}); err != nil {
+		return domain.DeploymentEnvironment{}, err
 	}
 	for _, existing := range l.environments {
 		if existing.TenantID == actor.TenantID && existing.ProductID == product.ID && existing.Name == in.Name {
@@ -766,6 +821,10 @@ func (l *Ledger) RecordDeployment(ctx context.Context, actor domain.Actor, in Re
 	if !ok || release.TenantID != actor.TenantID || release.ProductID != env.ProductID {
 		l.mu.Unlock()
 		return domain.DeploymentEvent{}, ErrNotFound
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeDeploymentWrite, resourceRefs{ProductID: env.ProductID, ReleaseID: release.ID, EnvironmentID: env.ID}); err != nil {
+		l.mu.Unlock()
+		return domain.DeploymentEvent{}, err
 	}
 	for _, artifactID := range in.ArtifactIDs {
 		artifact, ok := l.artifacts[strings.TrimSpace(artifactID)]
@@ -841,6 +900,9 @@ func (l *Ledger) GetDeployment(ctx context.Context, actor domain.Actor, id strin
 	if !ok || deployment.TenantID != actor.TenantID {
 		return domain.DeploymentEvent{}, ErrNotFound
 	}
+	if err := l.authorizeResourceLocked(actor, ScopeDeploymentRead, resourceRefs{ReleaseID: deployment.ReleaseID, DeploymentID: deployment.ID}); err != nil {
+		return domain.DeploymentEvent{}, err
+	}
 	return deployment, nil
 }
 
@@ -862,6 +924,9 @@ func (l *Ledger) ListDeployments(ctx context.Context, actor domain.Actor, releas
 			continue
 		}
 		if environmentID != "" && deployment.EnvironmentID != environmentID {
+			continue
+		}
+		if !l.resourceAllowedLocked(actor, ScopeDeploymentRead, resourceRefs{ReleaseID: deployment.ReleaseID, DeploymentID: deployment.ID, EnvironmentID: deployment.EnvironmentID}) {
 			continue
 		}
 		out = append(out, deployment)

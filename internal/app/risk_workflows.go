@@ -102,6 +102,9 @@ func (l *Ledger) CreateIncident(ctx context.Context, actor domain.Actor, in Crea
 	if err := l.ensureScopeLocked(actor.TenantID, in.ProductID, "", in.ReleaseID); err != nil {
 		return domain.Incident{}, err
 	}
+	if err := l.authorizeResourceLocked(actor, ScopeIncidentWrite, resourceRefs{ProductID: in.ProductID, ReleaseID: in.ReleaseID}); err != nil {
+		return domain.Incident{}, err
+	}
 	incident := domain.Incident{
 		ID:            newID("inc"),
 		TenantID:      actor.TenantID,
@@ -142,10 +145,16 @@ func (l *Ledger) RecordIncidentTimelineEvent(ctx context.Context, actor domain.A
 	if !ok || incident.TenantID != actor.TenantID {
 		return domain.IncidentTimelineEvent{}, ErrNotFound
 	}
+	if err := l.authorizeResourceLocked(actor, ScopeIncidentWrite, resourceRefs{ProductID: incident.ProductID, ReleaseID: incident.ReleaseID, IncidentID: incident.ID}); err != nil {
+		return domain.IncidentTimelineEvent{}, err
+	}
 	if in.EvidenceID != "" {
 		item, ok := l.evidence[strings.TrimSpace(in.EvidenceID)]
 		if !ok || item.TenantID != actor.TenantID {
 			return domain.IncidentTimelineEvent{}, ErrNotFound
+		}
+		if err := l.authorizeResourceLocked(actor, ScopeIncidentWrite, refsForEvidence(item)); err != nil {
+			return domain.IncidentTimelineEvent{}, err
 		}
 	}
 	event := domain.IncidentTimelineEvent{
@@ -186,17 +195,26 @@ func (l *Ledger) CreateRemediationTask(ctx context.Context, actor domain.Actor, 
 		if !ok || incident.TenantID != actor.TenantID {
 			return domain.RemediationTask{}, ErrNotFound
 		}
+		if err := l.authorizeResourceLocked(actor, ScopeIncidentWrite, resourceRefs{ProductID: incident.ProductID, ReleaseID: incident.ReleaseID, IncidentID: incident.ID}); err != nil {
+			return domain.RemediationTask{}, err
+		}
 	}
 	if in.ReleaseID != "" {
 		release, ok := l.releases[in.ReleaseID]
 		if !ok || release.TenantID != actor.TenantID {
 			return domain.RemediationTask{}, ErrNotFound
 		}
+		if err := l.authorizeResourceLocked(actor, ScopeIncidentWrite, resourceRefs{ProductID: release.ProductID, ReleaseID: release.ID}); err != nil {
+			return domain.RemediationTask{}, err
+		}
 	}
 	if in.EvidenceID != "" {
 		item, ok := l.evidence[strings.TrimSpace(in.EvidenceID)]
 		if !ok || item.TenantID != actor.TenantID {
 			return domain.RemediationTask{}, ErrNotFound
+		}
+		if err := l.authorizeResourceLocked(actor, ScopeIncidentWrite, refsForEvidence(item)); err != nil {
+			return domain.RemediationTask{}, err
 		}
 	}
 	task := domain.RemediationTask{
@@ -232,6 +250,9 @@ func (l *Ledger) IncidentReport(ctx context.Context, actor domain.Actor, inciden
 	incident, ok := l.incidents[strings.TrimSpace(incidentID)]
 	if !ok || incident.TenantID != actor.TenantID {
 		return domain.IncidentReport{}, ErrNotFound
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeIncidentRead, resourceRefs{ProductID: incident.ProductID, ReleaseID: incident.ReleaseID, IncidentID: incident.ID}); err != nil {
+		return domain.IncidentReport{}, err
 	}
 	timeline := []domain.IncidentTimelineEvent{}
 	linked := []string{}
@@ -300,6 +321,16 @@ func (l *Ledger) uploadSecurityScan(ctx context.Context, actor domain.Actor, in 
 	if in.Format == "" {
 		in.Format = parsed.Format
 	}
+	l.mu.Lock()
+	if err := l.ensureScopeLocked(actor.TenantID, strings.TrimSpace(in.ProductID), "", strings.TrimSpace(in.ReleaseID)); err != nil {
+		l.mu.Unlock()
+		return domain.SecurityScan{}, err
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeSecurityWrite, resourceRefs{ProductID: strings.TrimSpace(in.ProductID), ReleaseID: strings.TrimSpace(in.ReleaseID)}); err != nil {
+		l.mu.Unlock()
+		return domain.SecurityScan{}, err
+	}
+	l.mu.Unlock()
 	payloadHash := hashBytes(in.Raw)
 	payloadRef, err := l.storePayload(ctx, actor.TenantID, "security-scan", "application/json", payloadHash, in.Raw)
 	if err != nil {
@@ -329,10 +360,16 @@ func (l *Ledger) uploadSecurityScan(ctx context.Context, actor domain.Actor, in 
 	if err := l.ensureScopeLocked(actor.TenantID, in.ProductID, "", in.ReleaseID); err != nil {
 		return domain.SecurityScan{}, err
 	}
+	if err := l.authorizeResourceLocked(actor, ScopeSecurityWrite, resourceRefs{ProductID: in.ProductID, ReleaseID: in.ReleaseID}); err != nil {
+		return domain.SecurityScan{}, err
+	}
 	if in.ArtifactID != "" {
 		artifact, ok := l.artifacts[strings.TrimSpace(in.ArtifactID)]
 		if !ok || artifact.TenantID != actor.TenantID {
 			return domain.SecurityScan{}, ErrNotFound
+		}
+		if err := l.authorizeResourceLocked(actor, ScopeSecurityWrite, resourceRefs{ProductID: in.ProductID, ReleaseID: in.ReleaseID, ArtifactID: artifact.ID}); err != nil {
+			return domain.SecurityScan{}, err
 		}
 	}
 	scan := domain.SecurityScan{
@@ -374,6 +411,16 @@ func (l *Ledger) UploadManualSecurityDocument(ctx context.Context, actor domain.
 	if len(in.Raw) == 0 || len(in.Raw) > 20<<20 || !validManualDocType(in.DocumentType) || in.Title == "" || !validSensitivity(in.Sensitivity) {
 		return domain.ManualSecurityDocument{}, ErrValidation
 	}
+	l.mu.Lock()
+	if err := l.ensureScopeLocked(actor.TenantID, strings.TrimSpace(in.ProductID), "", strings.TrimSpace(in.ReleaseID)); err != nil {
+		l.mu.Unlock()
+		return domain.ManualSecurityDocument{}, err
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeSecurityWrite, resourceRefs{ProductID: strings.TrimSpace(in.ProductID), ReleaseID: strings.TrimSpace(in.ReleaseID)}); err != nil {
+		l.mu.Unlock()
+		return domain.ManualSecurityDocument{}, err
+	}
+	l.mu.Unlock()
 	payloadHash := hashBytes(in.Raw)
 	payloadRef, err := l.storePayload(ctx, actor.TenantID, "manual-security-document", nonEmpty(in.MediaType, "application/octet-stream"), payloadHash, in.Raw)
 	if err != nil {
@@ -402,6 +449,9 @@ func (l *Ledger) UploadManualSecurityDocument(ctx context.Context, actor domain.
 	if err := l.ensureScopeLocked(actor.TenantID, in.ProductID, "", in.ReleaseID); err != nil {
 		return domain.ManualSecurityDocument{}, err
 	}
+	if err := l.authorizeResourceLocked(actor, ScopeSecurityWrite, resourceRefs{ProductID: in.ProductID, ReleaseID: in.ReleaseID}); err != nil {
+		return domain.ManualSecurityDocument{}, err
+	}
 	doc := domain.ManualSecurityDocument{
 		ID:            newID("msd"),
 		TenantID:      actor.TenantID,
@@ -425,6 +475,9 @@ func (l *Ledger) UploadManualSecurityDocument(ctx context.Context, actor domain.
 }
 
 func (l *Ledger) UploadSPDXSBOM(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.SBOM, error) {
+	if err := require(actor, ScopeEvidenceWrite); err != nil {
+		return domain.SBOM{}, err
+	}
 	if len(raw) == 0 || len(raw) > 20<<20 {
 		return domain.SBOM{}, ErrValidation
 	}
@@ -456,6 +509,16 @@ func (l *Ledger) UploadSPDXSBOM(ctx context.Context, actor domain.Actor, release
 		}
 		components = append(components, domain.SBOMComponent{Name: pkg.Name, Version: pkg.VersionInfo, PURL: purl})
 	}
+	l.mu.Lock()
+	if err := l.ensureScopeLocked(actor.TenantID, "", "", strings.TrimSpace(releaseID)); err != nil {
+		l.mu.Unlock()
+		return domain.SBOM{}, err
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, resourceRefs{ReleaseID: strings.TrimSpace(releaseID)}); err != nil {
+		l.mu.Unlock()
+		return domain.SBOM{}, err
+	}
+	l.mu.Unlock()
 	payloadHash := hashBytes(raw)
 	payloadRef, err := l.storePayload(ctx, actor.TenantID, "sbom-spdx", "application/spdx+json", payloadHash, raw)
 	if err != nil {
@@ -504,6 +567,12 @@ func (l *Ledger) CreateSBOMDiff(ctx context.Context, actor domain.Actor, in Crea
 	if !bok || !tok || base.TenantID != actor.TenantID || target.TenantID != actor.TenantID {
 		return domain.SBOMDiff{}, ErrNotFound
 	}
+	if err := l.authorizeResourceLocked(actor, ScopeEvidenceRead, resourceRefs{ReleaseID: base.ReleaseID, ArtifactID: base.ArtifactID}); err != nil {
+		return domain.SBOMDiff{}, err
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeEvidenceRead, resourceRefs{ReleaseID: target.ReleaseID, ArtifactID: target.ArtifactID}); err != nil {
+		return domain.SBOMDiff{}, err
+	}
 	added, removed, unchanged := diffComponents(base.Components, target.Components)
 	diff := domain.SBOMDiff{
 		ID:                newID("sdiff"),
@@ -536,6 +605,9 @@ func (l *Ledger) CreateSBOMDiff(ctx context.Context, actor domain.Actor, in Crea
 }
 
 func (l *Ledger) UploadCycloneDXVEX(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.VEXDocument, error) {
+	if err := require(actor, ScopeEvidenceWrite); err != nil {
+		return domain.VEXDocument{}, err
+	}
 	if len(raw) == 0 || len(raw) > 20<<20 {
 		return domain.VEXDocument{}, ErrValidation
 	}
@@ -555,6 +627,16 @@ func (l *Ledger) UploadCycloneDXVEX(ctx context.Context, actor domain.Actor, rel
 	if err := strictDecode(raw, &doc); err != nil || strings.ToLower(doc.BOMFormat) != "cyclonedx" || len(doc.Vulnerabilities) == 0 {
 		return domain.VEXDocument{}, ErrValidation
 	}
+	l.mu.Lock()
+	if err := l.ensureScopeLocked(actor.TenantID, "", "", strings.TrimSpace(releaseID)); err != nil {
+		l.mu.Unlock()
+		return domain.VEXDocument{}, err
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, resourceRefs{ReleaseID: strings.TrimSpace(releaseID)}); err != nil {
+		l.mu.Unlock()
+		return domain.VEXDocument{}, err
+	}
+	l.mu.Unlock()
 	statusSummary := map[string]int{}
 	payloadHash := hashBytes(raw)
 	payloadRef, err := l.storePayload(ctx, actor.TenantID, "vex-cyclonedx", "application/vnd.cyclonedx+json", payloadHash, raw)
@@ -616,6 +698,9 @@ func (l *Ledger) RecordVulnerabilityWorkflow(ctx context.Context, actor domain.A
 	if !ok {
 		return domain.VulnerabilityWorkflowRecord{}, ErrNotFound
 	}
+	if err := l.authorizeResourceLocked(actor, ScopeSecurityWrite, resourceRefs{ReleaseID: scan.ReleaseID}); err != nil {
+		return domain.VulnerabilityWorkflowRecord{}, err
+	}
 	record := domain.VulnerabilityWorkflowRecord{ID: newID("vw"), TenantID: actor.TenantID, FindingID: in.FindingID, ReleaseID: scan.ReleaseID, Action: in.Action, Reason: in.Reason, ActorID: actorID(actor), SchemaVersion: "vulnerability-workflow.v1.0.0", CreatedAt: l.now()}
 	l.vulnWorkflow[record.ID] = record
 	_, _ = l.appendChainLocked(actor.TenantID, "vulnerability_workflow."+record.Action, "vulnerability_finding", in.FindingID, actorType(actor), actorID(actor), "", "")
@@ -634,6 +719,15 @@ func (l *Ledger) VulnerabilityPostureReport(ctx context.Context, actor domain.Ac
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if strings.TrimSpace(releaseID) != "" {
+		release, ok := l.releases[strings.TrimSpace(releaseID)]
+		if !ok || release.TenantID != actor.TenantID {
+			return domain.VulnerabilityPostureReport{}, ErrNotFound
+		}
+		if err := l.authorizeResourceLocked(actor, ScopeSecurityRead, resourceRefs{ProductID: release.ProductID, ReleaseID: release.ID}); err != nil {
+			return domain.VulnerabilityPostureReport{}, err
+		}
+	}
 	summary := map[string]int{}
 	openCritical := 0
 	for _, scan := range l.scans {
@@ -663,6 +757,12 @@ func (l *Ledger) CreateContractDiff(ctx context.Context, actor domain.Actor, in 
 	target, tok := l.contracts[strings.TrimSpace(in.TargetContractID)]
 	if !bok || !tok || base.TenantID != actor.TenantID || target.TenantID != actor.TenantID || base.ProductID != target.ProductID {
 		return domain.ContractDiff{}, ErrNotFound
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeEvidenceRead, resourceRefs{ProductID: base.ProductID, ReleaseID: base.ReleaseID}); err != nil {
+		return domain.ContractDiff{}, err
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeEvidenceRead, resourceRefs{ProductID: target.ProductID, ReleaseID: target.ReleaseID}); err != nil {
+		return domain.ContractDiff{}, err
 	}
 	result := "unchanged"
 	breaking, nonBreaking := []string{}, []string{}
@@ -733,6 +833,9 @@ func (l *Ledger) EvaluateCustomPolicy(ctx context.Context, actor domain.Actor, p
 	release, rok := l.releases[strings.TrimSpace(releaseID)]
 	if !ok || !rok || policy.TenantID != actor.TenantID || release.TenantID != actor.TenantID {
 		return domain.CustomPolicyEvaluation{}, ErrNotFound
+	}
+	if err := l.authorizeResourceLocked(actor, ScopePolicyRead, resourceRefs{ProductID: release.ProductID, ReleaseID: release.ID}); err != nil {
+		return domain.CustomPolicyEvaluation{}, err
 	}
 	checks := []domain.PolicyCheck{}
 	result := "passed"

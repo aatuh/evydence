@@ -308,6 +308,9 @@ func (l *Ledger) CreateBuildRun(ctx context.Context, actor domain.Actor, in Crea
 	if project.ProductID != release.ProductID {
 		return domain.BuildRun{}, ErrValidation
 	}
+	if err := l.authorizeResourceLocked(actor, ScopeBuildWrite, resourceRefs{ProductID: project.ProductID, ProjectID: project.ID, ReleaseID: release.ID}); err != nil {
+		return domain.BuildRun{}, err
+	}
 	for _, output := range build.Outputs {
 		if !validDigest(output.Digest) {
 			return domain.BuildRun{}, ErrValidation
@@ -350,6 +353,9 @@ func (l *Ledger) GetBuildRun(ctx context.Context, actor domain.Actor, id string)
 	if !ok || build.TenantID != actor.TenantID {
 		return domain.BuildRun{}, ErrNotFound
 	}
+	if err := l.authorizeResourceLocked(actor, ScopeBuildRead, resourceRefs{ProjectID: build.ProjectID, ReleaseID: build.ReleaseID, BuildID: build.ID}); err != nil {
+		return domain.BuildRun{}, err
+	}
 	return build, nil
 }
 
@@ -373,6 +379,10 @@ func (l *Ledger) UploadBuildAttestation(ctx context.Context, actor domain.Actor,
 	if !ok || build.TenantID != actor.TenantID {
 		l.mu.Unlock()
 		return domain.BuildAttestation{}, ErrNotFound
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeBuildWrite, resourceRefs{ProjectID: build.ProjectID, ReleaseID: build.ReleaseID, BuildID: build.ID}); err != nil {
+		l.mu.Unlock()
+		return domain.BuildAttestation{}, err
 	}
 	if !subjectsMatchBuildOutputs(parsed.SubjectDigests, build.Outputs) {
 		l.mu.Unlock()

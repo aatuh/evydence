@@ -856,6 +856,9 @@ func (l *Ledger) LinkEvidence(ctx context.Context, actor domain.Actor, id, targe
 }
 
 func (l *Ledger) UploadSBOM(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.SBOM, error) {
+	if err := require(actor, ScopeEvidenceWrite); err != nil {
+		return domain.SBOM{}, err
+	}
 	if len(raw) == 0 || len(raw) > 20<<20 {
 		return domain.SBOM{}, ErrValidation
 	}
@@ -880,6 +883,16 @@ func (l *Ledger) UploadSBOM(ctx context.Context, actor domain.Actor, releaseID, 
 		}
 		components = append(components, domain.SBOMComponent{Name: component.Name, Version: component.Version, PURL: component.PURL})
 	}
+	l.mu.Lock()
+	if err := l.ensureScopeLocked(actor.TenantID, "", "", strings.TrimSpace(releaseID)); err != nil {
+		l.mu.Unlock()
+		return domain.SBOM{}, err
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, resourceRefs{ReleaseID: strings.TrimSpace(releaseID)}); err != nil {
+		l.mu.Unlock()
+		return domain.SBOM{}, err
+	}
+	l.mu.Unlock()
 	payloadHash := hashBytes(raw)
 	payloadRef, err := l.storePayload(ctx, actor.TenantID, "sbom", "application/vnd.cyclonedx+json", payloadHash, raw)
 	if err != nil {
@@ -921,6 +934,9 @@ func (l *Ledger) UploadSBOM(ctx context.Context, actor domain.Actor, releaseID, 
 }
 
 func (l *Ledger) UploadVulnerabilityScan(ctx context.Context, actor domain.Actor, raw []byte) (domain.VulnerabilityScan, error) {
+	if err := require(actor, ScopeEvidenceWrite); err != nil {
+		return domain.VulnerabilityScan{}, err
+	}
 	if len(raw) == 0 || len(raw) > 20<<20 {
 		return domain.VulnerabilityScan{}, ErrValidation
 	}
@@ -943,6 +959,17 @@ func (l *Ledger) UploadVulnerabilityScan(ctx context.Context, actor domain.Actor
 	if doc.ReleaseID == "" {
 		return domain.VulnerabilityScan{}, ErrValidation
 	}
+	l.mu.Lock()
+	release, ok := l.releases[strings.TrimSpace(doc.ReleaseID)]
+	if !ok || release.TenantID != actor.TenantID {
+		l.mu.Unlock()
+		return domain.VulnerabilityScan{}, ErrNotFound
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, resourceRefs{ProductID: release.ProductID, ReleaseID: release.ID}); err != nil {
+		l.mu.Unlock()
+		return domain.VulnerabilityScan{}, err
+	}
+	l.mu.Unlock()
 	payloadHash := hashBytes(raw)
 	payloadRef, err := l.storePayload(ctx, actor.TenantID, "vulnerability-scan", "application/json", payloadHash, raw)
 	if err != nil {
@@ -1001,6 +1028,16 @@ func (l *Ledger) UploadOpenAPIContract(ctx context.Context, actor domain.Actor, 
 	if err := doc.Validate(ctx); err != nil {
 		return domain.OpenAPIContract{}, ErrValidation
 	}
+	l.mu.Lock()
+	if err := l.ensureScopeLocked(actor.TenantID, strings.TrimSpace(productID), "", strings.TrimSpace(releaseID)); err != nil {
+		l.mu.Unlock()
+		return domain.OpenAPIContract{}, err
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, resourceRefs{ProductID: strings.TrimSpace(productID), ReleaseID: strings.TrimSpace(releaseID)}); err != nil {
+		l.mu.Unlock()
+		return domain.OpenAPIContract{}, err
+	}
+	l.mu.Unlock()
 	payloadHash := hashBytes(raw)
 	payloadRef, err := l.storePayload(ctx, actor.TenantID, "openapi-contract", "application/vnd.oai.openapi+json", payloadHash, raw)
 	if err != nil {
@@ -1280,6 +1317,9 @@ func (l *Ledger) VerifySubject(ctx context.Context, actor domain.Actor, subjectT
 		sig, ok := l.artifactSigs[strings.TrimSpace(subjectID)]
 		if !ok || sig.TenantID != actor.TenantID {
 			return domain.VerificationResult{}, ErrNotFound
+		}
+		if err := l.authorizeResourceLocked(actor, ScopeVerifyRead, resourceRefs{ArtifactID: sig.ArtifactID}); err != nil {
+			return domain.VerificationResult{}, err
 		}
 		artifact, ok := l.artifacts[sig.ArtifactID]
 		if !ok || artifact.TenantID != actor.TenantID {

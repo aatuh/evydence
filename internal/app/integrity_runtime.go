@@ -435,7 +435,13 @@ func (l *Ledger) Metrics(ctx context.Context, actor domain.Actor) (map[string]an
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return map[string]any{"tenant_id": actor.TenantID, "resource_counts": l.resourceCountsLocked(actor.TenantID)}, nil
+	portalFailures := 0
+	for _, access := range l.portalAccess {
+		if access.TenantID == actor.TenantID {
+			portalFailures += access.FailedAccessCount
+		}
+	}
+	return map[string]any{"tenant_id": actor.TenantID, "resource_counts": l.resourceCountsLocked(actor.TenantID), "customer_portal_failed_access_count": portalFailures}, nil
 }
 
 func (l *Ledger) ListAuditLog(ctx context.Context, actor domain.Actor, filter AuditLogFilter) ([]domain.AuditChainEntry, error) {

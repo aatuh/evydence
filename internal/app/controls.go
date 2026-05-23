@@ -219,6 +219,10 @@ func (l *Ledger) LinkControlEvidence(ctx context.Context, actor domain.Actor, co
 	if err := l.ensureScopeLocked(actor.TenantID, in.ProductID, "", in.ReleaseID); err != nil {
 		return domain.ControlEvidence{}, err
 	}
+	refs := l.refsForControlEvidenceSubjectLocked(in.SubjectType, in.SubjectID, in.ProductID, in.ReleaseID)
+	if err := l.authorizeResourceLocked(actor, ScopeControlsWrite, refs); err != nil {
+		return domain.ControlEvidence{}, err
+	}
 	if !l.controlSubjectExistsLocked(actor.TenantID, in.SubjectType, in.SubjectID, in.ProductID, in.ReleaseID) {
 		return domain.ControlEvidence{}, ErrNotFound
 	}
@@ -272,6 +276,9 @@ func (l *Ledger) ListControlEvidence(ctx context.Context, actor domain.Actor, co
 		if releaseID != "" && link.ReleaseID != releaseID {
 			continue
 		}
+		if !l.resourceAllowedLocked(actor, ScopeControlsRead, l.refsForControlEvidenceSubjectLocked(link.SubjectType, link.SubjectID, link.ProductID, link.ReleaseID)) {
+			continue
+		}
 		out = append(out, link)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
@@ -291,6 +298,9 @@ func (l *Ledger) ControlCoverageReport(ctx context.Context, actor domain.Actor, 
 	if err != nil {
 		return domain.ControlCoverageReport{}, err
 	}
+	if err := l.authorizeResourceLocked(actor, ScopeReportRead, resourceRefs{ProductID: report.ProductID, ReleaseID: report.ReleaseID}); err != nil {
+		return domain.ControlCoverageReport{}, err
+	}
 	return report, nil
 }
 
@@ -307,6 +317,9 @@ func (l *Ledger) CRAReadinessReport(ctx context.Context, actor domain.Actor, in 
 		return domain.CRAReadinessReport{}, ErrValidation
 	}
 	if err := l.ensureScopeLocked(actor.TenantID, in.ProductID, "", in.ReleaseID); err != nil {
+		return domain.CRAReadinessReport{}, err
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeReportRead, resourceRefs{ProductID: in.ProductID, ReleaseID: in.ReleaseID}); err != nil {
 		return domain.CRAReadinessReport{}, err
 	}
 	frameworkID := l.firstFrameworkIDLocked(actor.TenantID)
@@ -488,6 +501,50 @@ func (l *Ledger) controlSubjectExistsLocked(tenantID, subjectType, subjectID, pr
 	default:
 		return false
 	}
+}
+
+func (l *Ledger) refsForControlEvidenceSubjectLocked(subjectType, subjectID, productID, releaseID string) resourceRefs {
+	refs := resourceRefs{ProductID: strings.TrimSpace(productID), ReleaseID: strings.TrimSpace(releaseID)}
+	switch strings.TrimSpace(subjectType) {
+	case "evidence", "evidence_item":
+		if item, ok := l.evidence[strings.TrimSpace(subjectID)]; ok {
+			refs.ProductID = nonEmpty(refs.ProductID, item.ProductID)
+			refs.ProjectID = item.ProjectID
+			refs.ReleaseID = nonEmpty(refs.ReleaseID, item.ReleaseID)
+		}
+	case "release":
+		refs.ReleaseID = nonEmpty(refs.ReleaseID, strings.TrimSpace(subjectID))
+	case "artifact":
+		refs.ArtifactID = strings.TrimSpace(subjectID)
+	case "build":
+		refs.BuildID = strings.TrimSpace(subjectID)
+	case "build_attestation":
+		if attestation, ok := l.attestations[strings.TrimSpace(subjectID)]; ok {
+			refs.BuildID = attestation.BuildID
+		}
+	case "security_scan":
+		refs.SecurityScanID = strings.TrimSpace(subjectID)
+	case "vulnerability_scan":
+		if scan, ok := l.scans[strings.TrimSpace(subjectID)]; ok {
+			refs.ReleaseID = nonEmpty(refs.ReleaseID, scan.ReleaseID)
+		}
+	case "incident":
+		refs.IncidentID = strings.TrimSpace(subjectID)
+	case "deployment":
+		refs.DeploymentID = strings.TrimSpace(subjectID)
+	case "openapi_contract":
+		if contract, ok := l.contracts[strings.TrimSpace(subjectID)]; ok {
+			refs.ProductID = nonEmpty(refs.ProductID, contract.ProductID)
+			refs.ReleaseID = nonEmpty(refs.ReleaseID, contract.ReleaseID)
+		}
+	case "release_bundle":
+		if bundle, ok := l.bundles[strings.TrimSpace(subjectID)]; ok {
+			refs.ReleaseID = nonEmpty(refs.ReleaseID, bundle.ReleaseID)
+		}
+	case "customer_package":
+		refs.CustomerPackageID = strings.TrimSpace(subjectID)
+	}
+	return refs
 }
 
 func (l *Ledger) controlEvidenceTimeLocked(link domain.ControlEvidence) time.Time {
