@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -236,13 +237,19 @@ func postRawEvydence(ctx context.Context, client *http.Client, apiURL, apiKey, p
 	if client == nil {
 		client = http.DefaultClient
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(apiURL, "/")+path, bytes.NewReader(body))
+	baseURL, err := cleanAPIURL(apiURL)
+	if err != nil {
+		return nil, err
+	}
+	// #nosec G704 -- this CLI intentionally sends requests to an operator-specified Evydence API URL after scheme and host validation.
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+path, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(apiKey))
 	req.Header.Set("Idempotency-Key", idem)
 	req.Header.Set("Content-Type", "application/json")
+	// #nosec G704 -- request target is the validated operator-specified Evydence API URL for this CLI command.
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
@@ -258,6 +265,22 @@ func postRawEvydence(ctx context.Context, client *http.Client, apiURL, apiKey, p
 		return nil, safeAPIError(resp.StatusCode, responseBody)
 	}
 	return responseBody, nil
+}
+
+func cleanAPIURL(raw string) (string, error) {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return "", errors.New("invalid Evydence API URL")
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return "", errors.New("evydence API URL must use http or https")
+	}
+	if parsed.Host == "" {
+		return "", errors.New("evydence API URL host is required")
+	}
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+	return strings.TrimRight(parsed.String(), "/"), nil
 }
 
 func safeAPIError(status int, body []byte) error {
