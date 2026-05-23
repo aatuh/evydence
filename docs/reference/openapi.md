@@ -18,6 +18,8 @@ make openapi-check
 
 `make openapi-check` regenerates the contract, compares it with the committed file, and runs route contract tests for the HTTP adapter.
 
+`make docs-check` compares the paths in `openapi.yaml` with the endpoint catalog in [API reference](../api.md). Add every generated path to that catalog, or the docs check fails.
+
 ## Review The Contract
 
 The committed file is compact. For human review, pretty-print it without editing the generated source:

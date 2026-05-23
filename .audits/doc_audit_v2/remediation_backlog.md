@@ -49,7 +49,7 @@ Notes:
 
 - Evidence paths: `docs/gitlab/evydence-release-evidence.gitlab-ci.yml`, `docs/how-to/integrate-ci.md`, `cmd/evydence/main.go`.
 
-## Epic E2 - Synchronize API Documentation With The Contract [ ]
+## Epic E2 - Synchronize API Documentation With The Contract [x]
 
 Description: Make the human API reference accurately track the generated OpenAPI contract, reducing route drift for API integrators.
 
@@ -73,7 +73,7 @@ Notes:
 - Missing paths found in iteration 2 include `/v1/artifact-signatures`, `/v1/commercial-collectors`, `/v1/container-images`, `/v1/dsse-trust-roots`, `/v1/evidence-bundles`, `/v1/incidents`, `/v1/release-candidates`, `/v1/remediation-tasks`, `/v1/reports/incident-package`, `/v1/reports/missing-evidence`, `/v1/sboms/{id}`, and `/v1/vulnerability-scans/{id}` plus related subpaths.
 - Evidence paths: `docs/api.md`, `openapi.yaml`, `internal/adapters/httpapi/route_registration.go`, `internal/adapters/httpapi/openapi_operations.go`.
 
-### Ticket E2-T2 - Add An API Catalog Drift Check [ ]
+### Ticket E2-T2 - Add An API Catalog Drift Check [x]
 
 Description: Add a project-owned docs check that detects when paths in `openapi.yaml` are absent from the human API catalog, unless the catalog is explicitly scoped and the check enforces that wording instead.
 
