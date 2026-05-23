@@ -96,6 +96,21 @@ docs-check: ## Validate canonical docs exist and avoid forbidden product claims
 		grep -F "$$path" docs/README.md >/dev/null || { echo "docs/README.md missing link to $$path"; exit 1; }; \
 	done
 	@python3 -c 'import json,re,sys; from pathlib import Path; spec=json.loads(Path("openapi.yaml").read_text()); doc=Path("docs/api.md").read_text(); openapi=set(spec["paths"]); catalog=set(re.findall(r"`(/v1/[^`]+)`", doc)); missing=sorted(openapi-catalog); extra=sorted(catalog-openapi); [print("docs/api.md missing OpenAPI path: "+p) for p in missing]; [print("docs/api.md lists non-OpenAPI path: "+p) for p in extra]; sys.exit(1 if missing or extra else 0)'
+	@grep -F 'case "release"' cmd/evydence/main.go >/dev/null
+	@grep -F 'case "import-bundle"' cmd/evydence/main.go >/dev/null
+	@grep -F 'case "upload"' cmd/evydence/main.go >/dev/null
+	@grep -F './dist/evydence release manifest' docs/release-signing.md >/dev/null
+	@grep -F './dist/evydence release keygen' docs/release-signing.md >/dev/null
+	@grep -F './dist/evydence release sign' docs/release-signing.md >/dev/null
+	@grep -F './dist/evydence release verify' docs/release-signing.md >/dev/null
+	@grep -F './dist/evydence release manifest' docs/air-gapped.md >/dev/null
+	@grep -F './evydence release verify' docs/air-gapped.md >/dev/null
+	@grep -F './evydence import-bundle upload' docs/air-gapped.md >/dev/null
+	@grep -F 'dist/evydence github-actions upload-build' docs/github-actions/release-evidence-workflow.yml >/dev/null
+	@grep -F 'go run ./cmd/evydence "$${args[@]}"' docs/github-actions/upload-build/action.yml >/dev/null
+	@grep -F 'cat > evydence-upload-manifest.json' docs/gitlab/evydence-release-evidence.gitlab-ci.yml >/dev/null
+	@grep -F 'artifact.digest' docs/gitlab/evydence-release-evidence.gitlab-ci.yml >/dev/null
+	@grep -F -- '--manifest evydence-upload-manifest.json' docs/gitlab/evydence-release-evidence.gitlab-ci.yml >/dev/null
 	@! grep -R -i "automatically compliant\|certified secure\|legally sufficient\|SBOM is complete\|all vulnerabilities detected\|scanner findings are authoritative\|regulator-ready without review" README.md docs
 
 deploy-check: ## Validate deployment and air-gap skeletons exist
