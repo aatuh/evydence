@@ -96,7 +96,7 @@ Notes:
 
 Description: Tighten remaining examples so developers can use the docs without inferring imports, setup, or validation behavior.
 
-### Ticket E3-T1 - Add SDK Setup Context [ ]
+### Ticket E3-T1 - Add SDK Setup Context [x]
 
 Description: Add minimal import/package setup context to the Go, TypeScript, and Python SDK examples, including any necessary imports used by the snippets.
 

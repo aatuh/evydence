@@ -12,9 +12,23 @@ The wrappers provide authenticated JSON `POST` helpers with explicit idempotency
 
 They do not expose typed methods for every route. Broader generated clients should be regenerated from the committed `openapi.yaml`, reviewed, and released through a separate SDK publishing process.
 
+No package publishing manifests are committed for these wrappers yet. Use them as in-repository examples or copy them into an application-owned SDK package until a release process publishes versioned SDK artifacts.
+
 ## Go
 
+Import the wrapper from this module path when your code is in this repository or uses a local `replace` to this checkout:
+
 ```go
+package main
+
+import (
+	"context"
+	"os"
+
+	"github.com/aatuh/evydence/sdk/go/evydence"
+)
+
+func createProduct() error {
 client := evydence.Client{
 	BaseURL: "http://localhost:8080",
 	APIKey:  os.Getenv("EVYDENCE_API_KEY"),
@@ -31,13 +45,19 @@ err := client.Post(
 if err != nil {
 	return err
 }
+return nil
+}
 ```
 
 The helper rejects paths that do not start with `/v1/` and blank idempotency keys. Non-2xx responses return an error containing the HTTP status code; callers that need Problem Details bodies should use a generated or custom client.
 
 ## TypeScript
 
+Import the source wrapper directly from the checkout or from your application-owned package copy. The wrapper uses `fetch`; Node.js 18+ provides it globally, and older runtimes should pass `fetchImpl`.
+
 ```ts
+import { EvydenceClient } from "./sdk/typescript/client";
+
 const client = new EvydenceClient({
   baseUrl: "http://localhost:8080",
   apiKey: process.env.EVYDENCE_API_KEY!,
@@ -54,7 +74,11 @@ The helper validates `/v1/` paths and idempotency keys. Non-2xx responses throw 
 
 ## Python
 
+Put `sdk/python` on `PYTHONPATH`, install the copied module in your application package, or run the example from that directory:
+
 ```python
+import os
+
 from evydence_client import EvydenceClient
 
 client = EvydenceClient(
