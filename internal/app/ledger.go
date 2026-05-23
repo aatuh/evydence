@@ -22,19 +22,23 @@ import (
 )
 
 const (
-	ScopeAdmin         = "admin"
-	ScopeProductWrite  = "product:write"
-	ScopeProductRead   = "product:read"
-	ScopeProjectWrite  = "project:write"
-	ScopeProjectRead   = "project:read"
-	ScopeReleaseWrite  = "release:write"
-	ScopeReleaseRead   = "release:read"
-	ScopeEvidenceWrite = "evidence:write"
-	ScopeEvidenceRead  = "evidence:read"
-	ScopeBundleWrite   = "bundle:write"
-	ScopeBundleRead    = "bundle:read"
-	ScopeVerifyRead    = "verify:read"
-	ScopeKeysAdmin     = "keys:admin"
+	ScopeAdmin          = "admin"
+	ScopeProductWrite   = "product:write"
+	ScopeProductRead    = "product:read"
+	ScopeProjectWrite   = "project:write"
+	ScopeProjectRead    = "project:read"
+	ScopeReleaseWrite   = "release:write"
+	ScopeReleaseRead    = "release:read"
+	ScopeEvidenceWrite  = "evidence:write"
+	ScopeEvidenceRead   = "evidence:read"
+	ScopeBundleWrite    = "bundle:write"
+	ScopeBundleRead     = "bundle:read"
+	ScopeVerifyRead     = "verify:read"
+	ScopeKeysAdmin      = "keys:admin"
+	ScopeCollectorAdmin = "collector:admin"
+	ScopeCollectorRead  = "collector:read"
+	ScopeBuildWrite     = "build:write"
+	ScopeBuildRead      = "build:read"
 )
 
 type Config struct {
@@ -56,10 +60,13 @@ type Ledger struct {
 
 	tenants       map[string]domain.Tenant
 	apiKeys       map[string]domain.APIKey
+	collectors    map[string]domain.Collector
 	products      map[string]domain.Product
 	projects      map[string]domain.Project
 	releases      map[string]domain.Release
 	artifacts     map[string]domain.Artifact
+	buildRuns     map[string]domain.BuildRun
+	attestations  map[string]domain.BuildAttestation
 	evidence      map[string]domain.EvidenceItem
 	sboms         map[string]domain.SBOM
 	scans         map[string]domain.VulnerabilityScan
@@ -101,10 +108,13 @@ func NewLedgerWithError(cfg Config) (*Ledger, error) {
 		outbox:        cfg.Outbox,
 		tenants:       map[string]domain.Tenant{},
 		apiKeys:       map[string]domain.APIKey{},
+		collectors:    map[string]domain.Collector{},
 		products:      map[string]domain.Product{},
 		projects:      map[string]domain.Project{},
 		releases:      map[string]domain.Release{},
 		artifacts:     map[string]domain.Artifact{},
+		buildRuns:     map[string]domain.BuildRun{},
+		attestations:  map[string]domain.BuildAttestation{},
 		evidence:      map[string]domain.EvidenceItem{},
 		sboms:         map[string]domain.SBOM{},
 		scans:         map[string]domain.VulnerabilityScan{},
@@ -194,8 +204,17 @@ func (l *Ledger) Authenticate(ctx context.Context, secret string) (domain.Actor,
 		now := l.now()
 		key.LastUsedAt = &now
 		l.apiKeys[id] = key
+		collectorID := ""
+		for collectorMapID, collector := range l.collectors {
+			if collector.TenantID == key.TenantID && collector.APIKeyID == key.ID {
+				collectorID = collector.ID
+				collector.LastSeenAt = &now
+				l.collectors[collectorMapID] = collector
+				break
+			}
+		}
 		_ = l.persistLocked(ctx)
-		return domain.Actor{TenantID: key.TenantID, KeyID: key.ID, Name: key.Name, Scopes: append([]string(nil), key.Scopes...)}, nil
+		return domain.Actor{TenantID: key.TenantID, KeyID: key.ID, Name: key.Name, Scopes: append([]string(nil), key.Scopes...), CollectorID: collectorID}, nil
 	}
 	return domain.Actor{}, ErrUnauthorized
 }
@@ -478,6 +497,9 @@ func (l *Ledger) CreateEvidence(ctx context.Context, actor domain.Actor, in Crea
 	}
 	if in.ObservedAt.IsZero() {
 		in.ObservedAt = l.now()
+	}
+	if actor.CollectorID != "" {
+		in.CollectorID = actor.CollectorID
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -849,6 +871,8 @@ func (l *Ledger) EvaluateRelease(ctx context.Context, actor domain.Actor, releas
 		l.checkReleaseHasEvidenceLocked(actor.TenantID, release.ID, "vulnerability_scan", "release_requires_vulnerability_scan", "high"),
 		l.checkReleaseHasArtifactDigestLocked(actor.TenantID, release.ID),
 		l.checkReleaseHasSignedBundleLocked(actor.TenantID, release.ID),
+		l.checkReleaseHasPassedBuildLocked(actor.TenantID, release.ID),
+		l.checkReleaseHasBuildAttestationLocked(actor.TenantID, release.ID),
 		l.checkNoOpenCriticalLocked(actor.TenantID, release.ID),
 	}
 	result := "passed"

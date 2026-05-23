@@ -11,13 +11,17 @@ const (
 	VEXDocumentSchemaVersion        = "vex-document.v1.0.0"
 	VulnerabilityDecisionVersion    = "vulnerability-decision.v1.0.0"
 	ReleaseReadinessTemplateVersion = "release-readiness.v1.0.0"
+	CollectorSchemaVersion          = "collector.v1.0.0"
+	BuildRunSchemaVersion           = "build-run.v1.0.0"
+	BuildAttestationSchemaVersion   = "build-attestation.v1.0.0"
 )
 
 type Actor struct {
-	TenantID string
-	KeyID    string
-	Name     string
-	Scopes   []string
+	TenantID    string
+	KeyID       string
+	Name        string
+	Scopes      []string
+	CollectorID string
 }
 
 func (a Actor) HasScope(scope string) bool {
@@ -46,6 +50,20 @@ type APIKey struct {
 	RevokedAt  *time.Time `json:"revoked_at,omitempty"`
 	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
 	Hash       string     `json:"-"`
+}
+
+type Collector struct {
+	ID            string     `json:"id"`
+	TenantID      string     `json:"tenant_id"`
+	Name          string     `json:"name"`
+	Type          string     `json:"type"`
+	Version       string     `json:"version"`
+	APIKeyID      string     `json:"api_key_id"`
+	Status        string     `json:"status"`
+	AllowedScopes []string   `json:"allowed_scopes"`
+	LastSeenAt    *time.Time `json:"last_seen_at,omitempty"`
+	SchemaVersion string     `json:"schema_version"`
+	CreatedAt     time.Time  `json:"created_at"`
 }
 
 type Product struct {
@@ -83,6 +101,58 @@ type Artifact struct {
 	Size      int64     `json:"size"`
 	Digest    string    `json:"digest"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type BuildRun struct {
+	ID              string         `json:"id"`
+	TenantID        string         `json:"tenant_id"`
+	ProjectID       string         `json:"project_id"`
+	ReleaseID       string         `json:"release_id"`
+	CollectorID     string         `json:"collector_id,omitempty"`
+	Provider        string         `json:"provider"`
+	CommitSHA       string         `json:"commit_sha"`
+	Repository      string         `json:"repository,omitempty"`
+	WorkflowRef     string         `json:"workflow_ref,omitempty"`
+	RunID           string         `json:"run_id,omitempty"`
+	RunAttempt      int            `json:"run_attempt,omitempty"`
+	JobID           string         `json:"job_id,omitempty"`
+	Actor           string         `json:"actor,omitempty"`
+	Ref             string         `json:"ref,omitempty"`
+	OIDCSubject     string         `json:"oidc_subject,omitempty"`
+	Status          string         `json:"status"`
+	StartedAt       time.Time      `json:"started_at"`
+	FinishedAt      *time.Time     `json:"finished_at,omitempty"`
+	ParametersHash  string         `json:"parameters_hash,omitempty"`
+	EnvironmentHash string         `json:"environment_hash,omitempty"`
+	SourceIdentity  map[string]any `json:"source_identity,omitempty"`
+	Outputs         []BuildOutput  `json:"outputs,omitempty"`
+	SchemaVersion   string         `json:"schema_version"`
+	CreatedAt       time.Time      `json:"created_at"`
+}
+
+type BuildOutput struct {
+	ArtifactID string `json:"artifact_id,omitempty"`
+	Digest     string `json:"digest"`
+}
+
+type BuildAttestation struct {
+	ID                 string    `json:"id"`
+	TenantID           string    `json:"tenant_id"`
+	BuildID            string    `json:"build_id"`
+	EvidenceID         string    `json:"evidence_id"`
+	PayloadRef         string    `json:"payload_ref,omitempty"`
+	PayloadHash        string    `json:"payload_hash"`
+	PayloadSize        int64     `json:"payload_size"`
+	PayloadType        string    `json:"payload_type"`
+	PredicateType      string    `json:"predicate_type"`
+	SubjectDigests     []string  `json:"subject_digests"`
+	BuilderID          string    `json:"builder_id,omitempty"`
+	BuildType          string    `json:"build_type,omitempty"`
+	MaterialsCount     int       `json:"materials_count"`
+	SignatureCount     int       `json:"signature_count"`
+	VerificationStatus string    `json:"verification_status"`
+	SchemaVersion      string    `json:"schema_version"`
+	CreatedAt          time.Time `json:"created_at"`
 }
 
 type EvidenceItem struct {

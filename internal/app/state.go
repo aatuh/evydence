@@ -21,10 +21,13 @@ func (l *Ledger) snapshotLocked() PersistedState {
 		Tenants:           l.tenants,
 		APIKeys:           apiKeys,
 		APIKeyHashes:      map[string]string{},
+		Collectors:        l.collectors,
 		Products:          l.products,
 		Projects:          l.projects,
 		Releases:          l.releases,
 		Artifacts:         l.artifacts,
+		BuildRuns:         l.buildRuns,
+		BuildAttestations: l.attestations,
 		Evidence:          l.evidence,
 		SBOMs:             l.sboms,
 		Scans:             l.scans,
@@ -78,10 +81,13 @@ func (l *Ledger) applyState(state PersistedState) {
 	}
 	l.tenants = state.Tenants
 	l.apiKeys = state.APIKeys
+	l.collectors = state.Collectors
 	l.products = state.Products
 	l.projects = state.Projects
 	l.releases = state.Releases
 	l.artifacts = state.Artifacts
+	l.buildRuns = state.BuildRuns
+	l.attestations = state.BuildAttestations
 	l.evidence = state.Evidence
 	l.sboms = state.SBOMs
 	l.scans = state.Scans
@@ -166,6 +172,9 @@ func normalizeState(state PersistedState) PersistedState {
 	if state.APIKeyHashes == nil {
 		state.APIKeyHashes = map[string]string{}
 	}
+	if state.Collectors == nil {
+		state.Collectors = map[string]domain.Collector{}
+	}
 	if state.Products == nil {
 		state.Products = map[string]domain.Product{}
 	}
@@ -177,6 +186,12 @@ func normalizeState(state PersistedState) PersistedState {
 	}
 	if state.Artifacts == nil {
 		state.Artifacts = map[string]domain.Artifact{}
+	}
+	if state.BuildRuns == nil {
+		state.BuildRuns = map[string]domain.BuildRun{}
+	}
+	if state.BuildAttestations == nil {
+		state.BuildAttestations = map[string]domain.BuildAttestation{}
 	}
 	if state.Evidence == nil {
 		state.Evidence = map[string]domain.EvidenceItem{}

@@ -25,10 +25,13 @@ type PersistedState struct {
 	Tenants           map[string]domain.Tenant                `json:"tenants"`
 	APIKeys           map[string]domain.APIKey                `json:"api_keys"`
 	APIKeyHashes      map[string]string                       `json:"api_key_hashes,omitempty"`
+	Collectors        map[string]domain.Collector             `json:"collectors"`
 	Products          map[string]domain.Product               `json:"products"`
 	Projects          map[string]domain.Project               `json:"projects"`
 	Releases          map[string]domain.Release               `json:"releases"`
 	Artifacts         map[string]domain.Artifact              `json:"artifacts"`
+	BuildRuns         map[string]domain.BuildRun              `json:"build_runs"`
+	BuildAttestations map[string]domain.BuildAttestation      `json:"build_attestations"`
 	Evidence          map[string]domain.EvidenceItem          `json:"evidence"`
 	SBOMs             map[string]domain.SBOM                  `json:"sboms"`
 	Scans             map[string]domain.VulnerabilityScan     `json:"scans"`
