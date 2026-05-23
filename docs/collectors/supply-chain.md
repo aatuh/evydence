@@ -2,12 +2,46 @@
 
 This is a reference for collector release evidence.
 
-Collector releases can be recorded with:
+Collector records describe automated ingesters such as GitHub Actions, GitLab CI, generic CI, and import-bundle collectors. A collector API key is tenant-scoped and should be stored in the CI secret store.
+
+## Record A Collector Release
 
 ```http
 POST /v1/collectors/{id}/releases
 ```
 
-The release record includes version, artifact digest, optional signature evidence, optional SBOM, optional vulnerability scan, and whether the version is pinned. `GET /v1/collectors/{id}/health` returns the collector status and supply-chain evidence checks.
+Representative request:
 
-Collector health reports help operators see whether collector evidence exists and whether a version is pinned. They do not prove that a collector is free of vulnerabilities or safe at runtime.
+```json
+{
+  "version": "0.1.0",
+  "artifact_digest": "sha256:2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae",
+  "signature_id": "sig_...",
+  "sbom_id": "sbom_...",
+  "scan_id": "scan_...",
+  "pinned": true
+}
+```
+
+Expected status is `201`. Optional fields should reference evidence already recorded in the same tenant.
+
+## Review Collector Health
+
+```http
+GET /v1/collectors/{id}/health
+```
+
+The health report can show whether:
+
+- a collector release record exists;
+- the collector version is pinned;
+- signature, SBOM, or vulnerability scan evidence was linked where available.
+
+Health reports help operators see collector evidence gaps. They do not prove that a collector is free of vulnerabilities, provider-verified, or safe to run.
+
+## Related Docs
+
+- [Integrate CI collectors](../how-to/integrate-ci.md)
+- [Source snapshot collectors](source-snapshots.md)
+- [GitHub Actions release evidence workflow](../github-actions/release-evidence-workflow.yml)
+- [GitLab release evidence CI template](../gitlab/evydence-release-evidence.gitlab-ci.yml)

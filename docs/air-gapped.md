@@ -2,6 +2,8 @@
 
 This is a how-to guide for offline or disconnected environments.
 
+## Build The Package
+
 Prepare the package on a connected build host:
 
 ```sh
@@ -14,13 +16,36 @@ evydence release keygen --private-out dist/release-private.key --public-out dist
 evydence release sign --manifest dist/evydence-release-manifest.json --private-key dist/release-private.key --out dist/evydence-release-manifest.sig.json
 ```
 
-Transfer only the package, public key, checksums, and signature through the approved media path. Do not transfer private signing keys into the target environment unless that is the controlled signing location.
+Expected package contents include:
 
-Verify offline:
+- `evydence-api`
+- `evydence-worker`
+- `evydence`
+- `migrations/`
+- `openapi.yaml`
+- `deploy/helm/evydence/`
+- `docs/air-gapped.md`
+- `evydence-release-manifest.json`
+- `evydence-release-manifest.sig.json`
+- `release-public.key`
+
+The package manifest at `deploy/airgap/manifest.yaml` lists expected package contents. Keep it with release evidence.
+
+## Transfer
+
+Transfer only the package, public key, checksums, and signature through the approved media path. Do not transfer private signing keys into the target environment unless that environment is the controlled signing location.
+
+Record transfer approvals, media handling, and hash verification as separate operational evidence where your process requires it.
+
+## Verify Offline
 
 ```sh
 evydence release verify --manifest evydence-release-manifest.json --signature evydence-release-manifest.sig.json
 ```
+
+Expected result: the command exits successfully and reports that the manifest signature and referenced artifact hashes verify.
+
+## Import Evidence Bundles
 
 For CI systems that cannot call the API, write an evidence bundle in CI, move it through the same controlled transfer process, then upload it from the connected side:
 
@@ -31,4 +56,6 @@ evydence import-bundle upload \
   --path evidence-bundle.json
 ```
 
-The package manifest at `deploy/airgap/manifest.yaml` lists expected package contents. It is not a backup and does not replace database, object-store, or key-management restore procedures.
+Expected result: Evydence verifies and records the imported bundle manifest through the tenant-scoped API path.
+
+Air-gapped package manifests are not backups and do not replace database, object-store, or key-management restore procedures. Pair package evidence with the backup guidance in [Production hardening review](production-hardening.md).
