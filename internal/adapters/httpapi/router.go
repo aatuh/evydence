@@ -2,6 +2,8 @@ package httpapi
 
 import (
 	"bytes"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -20,6 +22,7 @@ import (
 )
 
 const maxJSONBody = 2 << 20
+const requestIDHeader = "X-Request-ID"
 
 type Server struct {
 	ledger *app.Ledger
@@ -44,7 +47,7 @@ func NewServer(ledger *app.Ledger) (*Server, error) {
 }
 
 func (s *Server) Handler() http.Handler {
-	return secureHeaders(s.mux)
+	return secureHeaders(requestIDMiddleware(s.mux))
 }
 
 func (s *Server) OpenAPI() ([]byte, error) {
@@ -2453,18 +2456,64 @@ func writeData(w http.ResponseWriter, status int, data any) {
 
 func writeProblem(w http.ResponseWriter, r *http.Request, err error) {
 	status := app.StatusCode(err)
+	requestID := requestIDFromRequest(r)
 	problem := httpx.Problem{
 		Type:   "https://evydence.local/problems/" + strings.ToLower(strings.ReplaceAll(app.ProblemCode(err), "_", "-")),
 		Title:  http.StatusText(status),
 		Detail: app.SafeErrorDetail(err),
 		Ext: map[string]any{
-			"code": app.ProblemCode(err),
+			"code":       app.ProblemCode(err),
+			"request_id": requestID,
 		},
 	}
 	if r != nil {
 		problem.Instance = r.URL.Path
 	}
 	httpx.WriteProblem(w, status, problem)
+}
+
+func requestIDMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestID := strings.TrimSpace(r.Header.Get(requestIDHeader))
+		if !safeRequestID(requestID) {
+			requestID = newRequestID()
+		}
+		r.Header.Set(requestIDHeader, requestID)
+		w.Header().Set(requestIDHeader, requestID)
+		next.ServeHTTP(w, r)
+	})
+}
+
+func requestIDFromRequest(r *http.Request) string {
+	if r == nil {
+		return newRequestID()
+	}
+	requestID := strings.TrimSpace(r.Header.Get(requestIDHeader))
+	if safeRequestID(requestID) {
+		return requestID
+	}
+	return newRequestID()
+}
+
+func newRequestID() string {
+	var buf [16]byte
+	if _, err := rand.Read(buf[:]); err != nil {
+		return "req_unavailable"
+	}
+	return "req_" + hex.EncodeToString(buf[:])
+}
+
+func safeRequestID(value string) bool {
+	if len(value) < 3 || len(value) > 128 {
+		return false
+	}
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' || r == ':' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func secureHeaders(next http.Handler) http.Handler {

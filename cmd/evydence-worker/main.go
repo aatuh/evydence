@@ -76,7 +76,7 @@ func processJob(ctx context.Context, job postgres.ClaimedJob) error {
 	}
 	switch job.Kind {
 	case "parse_sbom", "parse_vulnerability_scan", "parse_openapi_contract", "parse_vex", "sign_bundle", "verify_subject", "verify_attestation":
-		return nil
+		return errors.New("outbox job handler is not configured")
 	default:
 		return errors.New("unsupported outbox job kind")
 	}

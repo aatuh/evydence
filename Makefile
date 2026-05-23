@@ -7,7 +7,7 @@ GOLANGCI_LINT_VERSION ?= v2.11.4
 GOSEC_VERSION ?= v2.25.0
 GOVULNCHECK_VERSION ?= v1.2.0
 
-.PHONY: help tools fmt lint vuln gosec test test-race coverage openapi-check docs-check deploy-check sdk-check fast-check finalize compose-up compose-down migrate live-postgres-check postgres-integration-test clean
+.PHONY: help tools fmt lint vuln gosec test test-race coverage openapi-check docs-check deploy-check sdk-check fast-check finalize release-check compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -89,6 +89,15 @@ finalize: ## Thorough validity check
 	@$(MAKE) docs-check
 	@$(MAKE) deploy-check
 	@$(MAKE) sdk-check
+
+release-check: ## Release validation with security, race, and configured live integration gates
+	@$(MAKE) finalize
+	@$(MAKE) lint
+	@$(MAKE) gosec
+	@$(MAKE) vuln
+	@$(MAKE) test-race
+	@$(MAKE) live-postgres-check
+	@$(MAKE) postgres-integration-test
 
 compose-up: ## Start local dependencies
 	@docker compose up -d

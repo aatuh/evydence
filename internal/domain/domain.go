@@ -68,12 +68,13 @@ const (
 )
 
 type Actor struct {
-	TenantID    string
-	KeyID       string
-	UserID      string
-	Name        string
-	Scopes      []string
-	CollectorID string
+	TenantID       string
+	KeyID          string
+	UserID         string
+	Name           string
+	Scopes         []string
+	CollectorID    string
+	ResourceGrants []ResourceGrant
 }
 
 func (a Actor) HasScope(scope string) bool {
@@ -83,6 +84,13 @@ func (a Actor) HasScope(scope string) bool {
 		}
 	}
 	return false
+}
+
+type ResourceGrant struct {
+	Role         string
+	ResourceType string
+	ResourceID   string
+	Scopes       []string
 }
 
 type Tenant struct {

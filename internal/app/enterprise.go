@@ -197,6 +197,9 @@ func (l *Ledger) CreateRoleBinding(ctx context.Context, actor domain.Actor, in C
 	if err := l.ensureRoleSubjectLocked(actor.TenantID, in.SubjectType, in.SubjectID); err != nil {
 		return domain.RoleBinding{}, err
 	}
+	if err := l.ensureRoleResourceLocked(actor.TenantID, in.ResourceType, in.ResourceID); err != nil {
+		return domain.RoleBinding{}, err
+	}
 	binding := domain.RoleBinding{ID: newID("rbac"), TenantID: actor.TenantID, SubjectType: in.SubjectType, SubjectID: in.SubjectID, Role: in.Role, ResourceType: in.ResourceType, ResourceID: in.ResourceID, SchemaVersion: domain.RoleBindingSchemaVersion, CreatedAt: l.now()}
 	l.roleBindings[binding.ID] = binding
 	_, _ = l.appendChainLocked(actor.TenantID, "role_binding.created", "role_binding", binding.ID, actorType(actor), actorID(actor), "", "")
@@ -457,11 +460,16 @@ func (l *Ledger) AccessCustomerPortalPackage(ctx context.Context, token string) 
 	if token == "" {
 		return domain.CustomerSecurityPackage{}, ErrUnauthorized
 	}
+	prefix := secretPrefix(token)
 	hash := l.hashSecret(token)
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	for id, access := range l.portalAccess {
 		if access.Hash != hash || access.RevokedAt != nil || !access.ExpiresAt.After(l.now()) {
+			if access.Prefix == prefix {
+				_, _ = l.appendChainLocked(access.TenantID, "customer_portal_package.access_failed", "customer_portal_access", access.ID, "customer_portal", "unverified", "", "")
+				_ = l.persistLocked(ctx)
+			}
 			continue
 		}
 		pkg, ok := l.customerPackages[access.PackageID]
@@ -646,6 +654,51 @@ func (l *Ledger) ensureRetentionScopeLocked(tenantID, scopeType, scopeID string)
 	return nil
 }
 
+func (l *Ledger) ensureRoleResourceLocked(tenantID, resourceType, resourceID string) error {
+	switch resourceType {
+	case "":
+		if resourceID != "" {
+			return ErrValidation
+		}
+	case "tenant":
+		if resourceID == "" {
+			return nil
+		}
+		tenant, ok := l.tenants[resourceID]
+		if !ok || tenant.ID != tenantID {
+			return ErrNotFound
+		}
+	case "product":
+		product, ok := l.products[resourceID]
+		if resourceID == "" || !ok || product.TenantID != tenantID {
+			return ErrNotFound
+		}
+	case "project":
+		project, ok := l.projects[resourceID]
+		if resourceID == "" || !ok || project.TenantID != tenantID {
+			return ErrNotFound
+		}
+	case "release":
+		release, ok := l.releases[resourceID]
+		if resourceID == "" || !ok || release.TenantID != tenantID {
+			return ErrNotFound
+		}
+	case "customer_security_package":
+		pkg, ok := l.customerPackages[resourceID]
+		if resourceID == "" || !ok || pkg.TenantID != tenantID {
+			return ErrNotFound
+		}
+	case "evidence_bundle":
+		bundle, ok := l.evidenceBundles[resourceID]
+		if resourceID == "" || !ok || bundle.TenantID != tenantID {
+			return ErrNotFound
+		}
+	default:
+		return ErrValidation
+	}
+	return nil
+}
+
 func validRoleSubject(value string) bool {
 	return value == "user" || value == "collector"
 }
@@ -659,13 +712,30 @@ func validRole(value string) bool {
 	}
 }
 
-func (l *Ledger) scopesForUserLocked(userID string) []string {
-	scopes := map[string]struct{}{}
+func (l *Ledger) resourceGrantsForUserLocked(userID string) []domain.ResourceGrant {
+	grants := []domain.ResourceGrant{}
 	for _, binding := range l.roleBindings {
 		if binding.SubjectType != "user" || binding.SubjectID != userID {
 			continue
 		}
-		for _, scope := range scopesForRole(binding.Role) {
+		scopes := scopesForRole(binding.Role)
+		if len(scopes) == 0 {
+			continue
+		}
+		grants = append(grants, domain.ResourceGrant{
+			Role:         binding.Role,
+			ResourceType: binding.ResourceType,
+			ResourceID:   binding.ResourceID,
+			Scopes:       scopes,
+		})
+	}
+	return grants
+}
+
+func scopesFromResourceGrants(grants []domain.ResourceGrant) []string {
+	scopes := map[string]struct{}{}
+	for _, grant := range grants {
+		for _, scope := range grant.Scopes {
 			scopes[scope] = struct{}{}
 		}
 	}
@@ -674,6 +744,136 @@ func (l *Ledger) scopesForUserLocked(userID string) []string {
 		out = append(out, scope)
 	}
 	return sortedStrings(out)
+}
+
+type resourceRefs struct {
+	ProductID         string
+	ProjectID         string
+	ReleaseID         string
+	CustomerPackageID string
+	EvidenceBundleID  string
+}
+
+func refsForEvidence(item domain.EvidenceItem) resourceRefs {
+	return resourceRefs{ProductID: item.ProductID, ProjectID: item.ProjectID, ReleaseID: item.ReleaseID}
+}
+
+func (l *Ledger) authorizeResourceLocked(actor domain.Actor, scope string, refs resourceRefs) error {
+	if l.resourceAllowedLocked(actor, scope, refs) {
+		return nil
+	}
+	return ErrForbidden
+}
+
+func (l *Ledger) resourceAllowedLocked(actor domain.Actor, scope string, refs resourceRefs) bool {
+	if !humanSessionActor(actor) {
+		return true
+	}
+	for _, grant := range actor.ResourceGrants {
+		if !grantHasScope(grant, scope) {
+			continue
+		}
+		if l.grantCoversResourceLocked(actor.TenantID, grant, refs) {
+			return true
+		}
+	}
+	return false
+}
+
+func humanSessionActor(actor domain.Actor) bool {
+	return actor.UserID != "" && actor.KeyID == "" && actor.CollectorID == ""
+}
+
+func grantHasScope(grant domain.ResourceGrant, scope string) bool {
+	for _, got := range grant.Scopes {
+		if got == "*" || got == scope || got == ScopeAdmin {
+			return true
+		}
+	}
+	return false
+}
+
+func (l *Ledger) grantCoversResourceLocked(tenantID string, grant domain.ResourceGrant, refs resourceRefs) bool {
+	switch grant.ResourceType {
+	case "", "tenant":
+		return grant.ResourceID == "" || grant.ResourceID == tenantID
+	case "product":
+		return grant.ResourceID != "" && l.productCoversRefsLocked(tenantID, grant.ResourceID, refs)
+	case "project":
+		return grant.ResourceID != "" && l.projectCoversRefsLocked(tenantID, grant.ResourceID, refs)
+	case "release":
+		return grant.ResourceID != "" && l.releaseCoversRefsLocked(tenantID, grant.ResourceID, refs)
+	case "customer_security_package":
+		return refs.CustomerPackageID != "" && refs.CustomerPackageID == grant.ResourceID
+	case "evidence_bundle":
+		return refs.EvidenceBundleID != "" && refs.EvidenceBundleID == grant.ResourceID
+	default:
+		return false
+	}
+}
+
+func (l *Ledger) productCoversRefsLocked(tenantID, productID string, refs resourceRefs) bool {
+	if refs == (resourceRefs{}) {
+		return false
+	}
+	if refs.ProductID != "" && refs.ProductID != productID {
+		return false
+	}
+	if refs.ProjectID != "" {
+		project, ok := l.projects[refs.ProjectID]
+		if !ok || project.TenantID != tenantID || project.ProductID != productID {
+			return false
+		}
+	}
+	if refs.ReleaseID != "" {
+		release, ok := l.releases[refs.ReleaseID]
+		if !ok || release.TenantID != tenantID || release.ProductID != productID {
+			return false
+		}
+	}
+	if refs.CustomerPackageID != "" {
+		pkg, ok := l.customerPackages[refs.CustomerPackageID]
+		if !ok || pkg.TenantID != tenantID || pkg.ProductID != productID {
+			return false
+		}
+	}
+	if refs.EvidenceBundleID != "" {
+		bundle, ok := l.evidenceBundles[refs.EvidenceBundleID]
+		if !ok || bundle.TenantID != tenantID {
+			return false
+		}
+		if bundle.ReleaseID != "" {
+			release, ok := l.releases[bundle.ReleaseID]
+			if !ok || release.TenantID != tenantID || release.ProductID != productID {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (l *Ledger) projectCoversRefsLocked(tenantID, projectID string, refs resourceRefs) bool {
+	if refs.ProjectID != "" {
+		project, ok := l.projects[refs.ProjectID]
+		return ok && project.TenantID == tenantID && project.ID == projectID
+	}
+	return false
+}
+
+func (l *Ledger) releaseCoversRefsLocked(tenantID, releaseID string, refs resourceRefs) bool {
+	if refs.ReleaseID != "" {
+		release, ok := l.releases[refs.ReleaseID]
+		return ok && release.TenantID == tenantID && release.ID == releaseID
+	}
+	if refs.CustomerPackageID != "" {
+		pkg, ok := l.customerPackages[refs.CustomerPackageID]
+		return ok && pkg.TenantID == tenantID && pkg.ReleaseID == releaseID
+	}
+	if refs.EvidenceBundleID != "" {
+		bundle, ok := l.evidenceBundles[refs.EvidenceBundleID]
+		return ok && bundle.TenantID == tenantID && bundle.ReleaseID == releaseID
+	}
+	return false
 }
 
 func scopesForRole(role string) []string {
