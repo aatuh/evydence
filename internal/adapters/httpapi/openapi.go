@@ -18,7 +18,100 @@ func NewSpecRegistry() *specs.Registry {
 			"detail":   map[string]any{"type": "string"},
 			"instance": map[string]any{"type": "string"},
 			"code":     map[string]any{"type": "string"},
+			"request_id": map[string]any{
+				"type":        "string",
+				"description": "Request identifier mirrored from the X-Request-ID response header.",
+			},
 		},
 	})
+	registerCriticalSchemas(registry)
 	return registry
+}
+
+func registerCriticalSchemas(registry *specs.Registry) {
+	registry.RegisterSchema("DataEnvelope", objectSchema(map[string]any{
+		"data": map[string]any{},
+		"meta": objectSchema(map[string]any{
+			"api_version": map[string]any{"type": "string"},
+		}, "api_version"),
+	}, "data", "meta"))
+	registry.RegisterSchema("InstanceAdminSnapshot", objectSchema(map[string]any{
+		"tenant_count":    map[string]any{"type": "integer"},
+		"user_count":      map[string]any{"type": "integer"},
+		"api_key_count":   map[string]any{"type": "integer"},
+		"resource_counts": map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "integer"}},
+	}, "tenant_count", "resource_counts"))
+	registry.RegisterSchema("CreateSSOSessionRequest", objectSchema(map[string]any{
+		"user_id":     map[string]any{"type": "string"},
+		"provider_id": map[string]any{"type": "string"},
+		"expires_at":  map[string]any{"type": "string", "format": "date-time"},
+	}, "user_id", "provider_id", "expires_at"))
+	registry.RegisterSchema("SSOSessionCreateResponse", objectSchema(map[string]any{
+		"session": map[string]any{"type": "object"},
+		"secret":  map[string]any{"type": "string", "description": "One-time SSO session bearer secret; not returned by list/read operations."},
+	}, "session", "secret"))
+	registry.RegisterSchema("SSOSessionCreateEnvelope", dataEnvelopeSchema("#/components/schemas/SSOSessionCreateResponse"))
+	registry.RegisterSchema("CreateEvidenceRequest", objectSchema(map[string]any{
+		"product_id":   map[string]any{"type": "string"},
+		"project_id":   map[string]any{"type": "string"},
+		"release_id":   map[string]any{"type": "string"},
+		"artifact_id":  map[string]any{"type": "string"},
+		"type":         map[string]any{"type": "string"},
+		"subtype":      map[string]any{"type": "string"},
+		"title":        map[string]any{"type": "string"},
+		"payload_hash": map[string]any{"type": "string", "pattern": "^sha256:"},
+		"payload":      map[string]any{},
+		"tags":         map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"source":       map[string]any{"type": "string"},
+		"subject_refs": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+	}, "type", "title"))
+	registry.RegisterSchema("EvidenceSearchResponse", objectSchema(map[string]any{
+		"items":       map[string]any{"type": "array", "items": map[string]any{"type": "object"}},
+		"next_cursor": map[string]any{"type": "string"},
+	}, "items"))
+	registry.RegisterSchema("EvidenceSearchEnvelope", dataEnvelopeSchema("#/components/schemas/EvidenceSearchResponse"))
+	registry.RegisterSchema("CreateReleaseBundleRequest", objectSchema(map[string]any{
+		"release_id": map[string]any{"type": "string"},
+	}, "release_id"))
+	registry.RegisterSchema("ReleaseBundleVerification", objectSchema(map[string]any{
+		"result":       map[string]any{"type": "string", "enum": []string{"passed", "failed"}},
+		"subject_type": map[string]any{"type": "string"},
+		"subject_id":   map[string]any{"type": "string"},
+		"checked_at":   map[string]any{"type": "string", "format": "date-time"},
+	}, "result"))
+	registry.RegisterSchema("ReleaseBundleVerificationEnvelope", dataEnvelopeSchema("#/components/schemas/ReleaseBundleVerification"))
+	registry.RegisterSchema("CreateCustomerPortalAccessRequest", objectSchema(map[string]any{
+		"package_id":    map[string]any{"type": "string"},
+		"customer_name": map[string]any{"type": "string"},
+		"expires_at":    map[string]any{"type": "string", "format": "date-time"},
+	}, "package_id", "customer_name", "expires_at"))
+	registry.RegisterSchema("CustomerPortalAccessCreateResponse", objectSchema(map[string]any{
+		"access": map[string]any{"type": "object"},
+		"secret": map[string]any{"type": "string", "description": "One-time portal token; stored only as a HMAC hash."},
+	}, "access", "secret"))
+	registry.RegisterSchema("CustomerPortalAccessCreateEnvelope", dataEnvelopeSchema("#/components/schemas/CustomerPortalAccessCreateResponse"))
+	registry.RegisterSchema("CustomerPortalPackageRequest", objectSchema(map[string]any{
+		"token": map[string]any{"type": "string", "description": "Customer portal access token issued by createCustomerPortalAccess."},
+	}, "token"))
+}
+
+func objectSchema(properties map[string]any, required ...string) map[string]any {
+	schema := map[string]any{
+		"type":                 "object",
+		"properties":           properties,
+		"additionalProperties": false,
+	}
+	if len(required) > 0 {
+		schema["required"] = required
+	}
+	return schema
+}
+
+func dataEnvelopeSchema(dataRef string) map[string]any {
+	return objectSchema(map[string]any{
+		"data": map[string]any{"$ref": dataRef},
+		"meta": objectSchema(map[string]any{
+			"api_version": map[string]any{"type": "string"},
+		}, "api_version"),
+	}, "data", "meta")
 }

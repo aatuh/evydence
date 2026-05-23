@@ -31,6 +31,86 @@ func TestRoutesValidateAndOpenAPIRenders(t *testing.T) {
 	}
 }
 
+func TestRouteFamiliesRegisterCriticalPaths(t *testing.T) {
+	server, _ := testServer(t)
+	groups := map[string][]routeDef{
+		"system":   server.systemRoutes(),
+		"identity": server.identityRoutes(),
+		"portal":   server.packagePortalRoutes(),
+		"ops":      server.integrityOpsRoutes(),
+	}
+	for name, routes := range groups {
+		if len(routes) == 0 {
+			t.Fatalf("%s route group is empty", name)
+		}
+	}
+	want := map[string]string{
+		"instanceAdminSnapshot":       "/v1/admin/instance",
+		"createSSOSession":            "/v1/sso/sessions",
+		"createCustomerPortalAccess":  "/v1/customer-portal/access",
+		"accessCustomerPortalPackage": "/v1/customer-portal/package",
+		"createLegalHold":             "/v1/legal-holds",
+		"verifyReleaseBundle":         "/v1/release-bundles/{id}/verify",
+	}
+	got := map[string]string{}
+	for _, route := range server.routeDefinitions() {
+		got[route.op.OperationID] = route.path
+	}
+	for opID, path := range want {
+		if got[opID] != path {
+			t.Fatalf("operation %s path = %q, want %q", opID, got[opID], path)
+		}
+	}
+}
+
+func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
+	server, _ := testServer(t)
+	docBytes, err := server.OpenAPI()
+	if err != nil {
+		t.Fatalf("OpenAPI: %v", err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(docBytes, &doc); err != nil {
+		t.Fatalf("decode OpenAPI: %v", err)
+	}
+	schemas := asStringAnyMap(t, asStringAnyMap(t, doc["components"])["schemas"])
+	problem := asStringAnyMap(t, schemas["Problem"])
+	problemProps := asStringAnyMap(t, problem["properties"])
+	if _, ok := problemProps["request_id"]; !ok {
+		t.Fatalf("Problem schema missing request_id: %#v", problemProps)
+	}
+	for _, schemaName := range []string{"CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalPackageRequest", "DataEnvelope"} {
+		if _, ok := schemas[schemaName]; !ok {
+			t.Fatalf("schema %s missing from OpenAPI components", schemaName)
+		}
+	}
+
+	paths := asStringAnyMap(t, doc["paths"])
+	createEvidence := operationMap(t, paths, "/v1/evidence", "post")
+	assertRequestRef(t, createEvidence, "#/components/schemas/CreateEvidenceRequest")
+	assertProblemResponseRef(t, createEvidence, "400")
+	searchEvidence := operationMap(t, paths, "/v1/evidence/search", "get")
+	assertQueryParams(t, searchEvidence, "product_id", "project_id", "release_id", "type", "source", "tag", "cursor", "limit")
+	createPortalAccess := operationMap(t, paths, "/v1/customer-portal/access", "post")
+	assertRequestRef(t, createPortalAccess, "#/components/schemas/CreateCustomerPortalAccessRequest")
+	assertResponseRef(t, createPortalAccess, "201", "#/components/schemas/CustomerPortalAccessCreateEnvelope")
+	portalPackage := operationMap(t, paths, "/v1/customer-portal/package", "post")
+	assertRequestRef(t, portalPackage, "#/components/schemas/CustomerPortalPackageRequest")
+	if _, ok := portalPackage["security"]; ok {
+		t.Fatalf("public portal token exchange should not advertise bearer security: %#v", portalPackage["security"])
+	}
+	createSession := operationMap(t, paths, "/v1/sso/sessions", "post")
+	assertRequestRef(t, createSession, "#/components/schemas/CreateSSOSessionRequest")
+	assertResponseRef(t, createSession, "201", "#/components/schemas/SSOSessionCreateEnvelope")
+	verifyBundle := operationMap(t, paths, "/v1/release-bundles/{id}/verify", "get")
+	assertQueryParams(t, verifyBundle, "id")
+	assertResponseRef(t, verifyBundle, "200", "#/components/schemas/ReleaseBundleVerificationEnvelope")
+	instanceAdmin := operationMap(t, paths, "/v1/admin/instance", "get")
+	if !strings.Contains(asString(t, instanceAdmin["description"]), "instance:admin") {
+		t.Fatalf("instance admin description should document exact scope: %#v", instanceAdmin["description"])
+	}
+}
+
 func TestCreateProductRequiresAuthAndIdempotency(t *testing.T) {
 	server, secret := testServer(t)
 	rec := httptest.NewRecorder()
@@ -781,6 +861,81 @@ func getJSON(t *testing.T, server *Server, secret, path string, want int) string
 		t.Fatalf("GET %s status=%d want=%d body=%s", path, rec.Code, want, rec.Body.String())
 	}
 	return rec.Body.String()
+}
+
+func asStringAnyMap(t *testing.T, value any) map[string]any {
+	t.Helper()
+	out, ok := value.(map[string]any)
+	if !ok {
+		t.Fatalf("value is %T, want map[string]any: %#v", value, value)
+	}
+	return out
+}
+
+func asString(t *testing.T, value any) string {
+	t.Helper()
+	out, ok := value.(string)
+	if !ok {
+		t.Fatalf("value is %T, want string: %#v", value, value)
+	}
+	return out
+}
+
+func operationMap(t *testing.T, paths map[string]any, path, method string) map[string]any {
+	t.Helper()
+	pathItem := asStringAnyMap(t, paths[path])
+	return asStringAnyMap(t, pathItem[method])
+}
+
+func assertRequestRef(t *testing.T, operation map[string]any, wantRef string) {
+	t.Helper()
+	body := asStringAnyMap(t, operation["requestBody"])
+	content := asStringAnyMap(t, body["content"])
+	media := asStringAnyMap(t, content["application/json"])
+	schema := asStringAnyMap(t, media["schema"])
+	if got := asString(t, schema["$ref"]); got != wantRef {
+		t.Fatalf("request schema ref = %q, want %q", got, wantRef)
+	}
+}
+
+func assertProblemResponseRef(t *testing.T, operation map[string]any, status string) {
+	t.Helper()
+	assertMediaResponseRef(t, operation, status, "application/problem+json", "#/components/schemas/Problem")
+}
+
+func assertResponseRef(t *testing.T, operation map[string]any, status, wantRef string) {
+	t.Helper()
+	assertMediaResponseRef(t, operation, status, "application/json", wantRef)
+}
+
+func assertMediaResponseRef(t *testing.T, operation map[string]any, status, mediaType, wantRef string) {
+	t.Helper()
+	responses := asStringAnyMap(t, operation["responses"])
+	response := asStringAnyMap(t, responses[status])
+	content := asStringAnyMap(t, response["content"])
+	media := asStringAnyMap(t, content[mediaType])
+	schema := asStringAnyMap(t, media["schema"])
+	if got := asString(t, schema["$ref"]); got != wantRef {
+		t.Fatalf("response schema ref = %q, want %q", got, wantRef)
+	}
+}
+
+func assertQueryParams(t *testing.T, operation map[string]any, names ...string) {
+	t.Helper()
+	rawParams, ok := operation["parameters"].([]any)
+	if !ok {
+		t.Fatalf("parameters missing: %#v", operation["parameters"])
+	}
+	got := map[string]bool{}
+	for _, raw := range rawParams {
+		param := asStringAnyMap(t, raw)
+		got[asString(t, param["name"])] = true
+	}
+	for _, name := range names {
+		if !got[name] {
+			t.Fatalf("parameter %s missing from %#v", name, rawParams)
+		}
+	}
 }
 
 func firstFindingID(t *testing.T, body string) string {
