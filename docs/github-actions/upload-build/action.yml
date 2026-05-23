@@ -1,0 +1,47 @@
+name: Upload Evydence build provenance
+description: Repository-local composite action example for uploading GitHub Actions build provenance to Evydence.
+inputs:
+  evydence-url:
+    required: true
+    description: Evydence API base URL.
+  evydence-api-key:
+    required: true
+    description: Collector API key secret.
+  project-id:
+    required: true
+    description: Evydence project ID.
+  release-id:
+    required: true
+    description: Evydence release ID.
+  artifact-id:
+    required: false
+    description: Evydence artifact ID.
+  artifact-digest:
+    required: false
+    description: Artifact digest as sha256:<hex>.
+  attestation-path:
+    required: false
+    description: Path to a DSSE in-toto attestation JSON file.
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        EVYDENCE_API_URL: ${{ inputs.evydence-url }}
+        EVYDENCE_API_KEY: ${{ inputs.evydence-api-key }}
+      run: |
+        set -euo pipefail
+        args=(
+          github-actions upload-build
+          --url "$EVYDENCE_API_URL"
+          --api-key "$EVYDENCE_API_KEY"
+          --project-id "${{ inputs.project-id }}"
+          --release-id "${{ inputs.release-id }}"
+        )
+        if [ -n "${{ inputs.artifact-id }}" ] || [ -n "${{ inputs.artifact-digest }}" ]; then
+          args+=(--artifact-id "${{ inputs.artifact-id }}" --artifact-digest "${{ inputs.artifact-digest }}")
+        fi
+        if [ -n "${{ inputs.attestation-path }}" ]; then
+          args+=(--attestation-path "${{ inputs.attestation-path }}")
+        fi
+        go run ./cmd/evydence "${args[@]}"

@@ -44,6 +44,23 @@ go run ./cmd/evydence-worker
 
 The current object-store implementation is filesystem-backed. MinIO is present in Docker Compose for the next S3-compatible runtime adapter slice.
 
+## GitHub Actions Provenance Upload
+
+Create a `github_actions` collector with `POST /v1/collectors`, store the one-time returned secret in GitHub Actions secrets, and use the CLI from a workflow step:
+
+```sh
+go run ./cmd/evydence github-actions upload-build \
+  --url "$EVYDENCE_API_URL" \
+  --api-key "$EVYDENCE_API_KEY" \
+  --project-id "$EVYDENCE_PROJECT_ID" \
+  --release-id "$EVYDENCE_RELEASE_ID" \
+  --artifact-id "$EVYDENCE_ARTIFACT_ID" \
+  --artifact-digest "$EVYDENCE_ARTIFACT_DIGEST" \
+  --attestation-path provenance.dsse.json
+```
+
+The command reads `GITHUB_REPOSITORY`, `GITHUB_WORKFLOW_REF`, `GITHUB_RUN_ID`, `GITHUB_RUN_ATTEMPT`, `GITHUB_JOB`, `GITHUB_ACTOR`, `GITHUB_REF`, and `GITHUB_SHA` from the Actions environment. `EVYDENCE_GITHUB_OIDC_SUBJECT` or `--oidc-subject` can capture an OIDC subject string when a workflow already has it, but this slice does not request or verify GitHub OIDC tokens.
+
 ## Production Caveat
 
 The API refuses `ENV=production` unless PostgreSQL is configured, a non-default API key pepper is set, and local plaintext signing-key mode is disabled. External signing-key provider support is still roadmap work, so production mode intentionally fails closed until that provider is implemented.
