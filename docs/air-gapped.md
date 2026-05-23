@@ -11,9 +11,9 @@ go build -o dist/evydence-api ./cmd/evydence-api
 go build -o dist/evydence-worker ./cmd/evydence-worker
 go build -o dist/evydence ./cmd/evydence
 cp -R migrations openapi.yaml deploy/helm/evydence docs/air-gapped.md dist/
-evydence release manifest --out dist/evydence-release-manifest.json dist/evydence-api dist/evydence-worker dist/evydence
-evydence release keygen --private-out dist/release-private.key --public-out dist/release-public.key
-evydence release sign --manifest dist/evydence-release-manifest.json --private-key dist/release-private.key --out dist/evydence-release-manifest.sig.json
+./dist/evydence release manifest --out dist/evydence-release-manifest.json dist/evydence-api dist/evydence-worker dist/evydence
+./dist/evydence release keygen --private-out dist/release-private.key --public-out dist/release-public.key
+./dist/evydence release sign --manifest dist/evydence-release-manifest.json --private-key dist/release-private.key --out dist/evydence-release-manifest.sig.json
 ```
 
 Expected package contents include:
@@ -39,8 +39,10 @@ Record transfer approvals, media handling, and hash verification as separate ope
 
 ## Verify Offline
 
+Run the verifier from the transferred package directory. Use `./evydence` for the packaged binary unless your operating procedure installs the same binary as `evydence` on `PATH`.
+
 ```sh
-evydence release verify --manifest evydence-release-manifest.json --signature evydence-release-manifest.sig.json
+./evydence release verify --manifest evydence-release-manifest.json --signature evydence-release-manifest.sig.json
 ```
 
 Expected result: the command exits successfully and reports that the manifest signature and referenced artifact hashes verify.
@@ -50,7 +52,7 @@ Expected result: the command exits successfully and reports that the manifest si
 For CI systems that cannot call the API, write an evidence bundle in CI, move it through the same controlled transfer process, then upload it from the connected side:
 
 ```sh
-evydence import-bundle upload \
+./evydence import-bundle upload \
   --url "$EVYDENCE_API_URL" \
   --api-key "$EVYDENCE_API_KEY" \
   --path evidence-bundle.json
