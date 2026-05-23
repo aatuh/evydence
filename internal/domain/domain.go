@@ -29,6 +29,16 @@ const (
 	PullRequestSchemaVersion        = "pull-request.v1.0.0"
 	DeploymentEnvironmentVersion    = "deployment-environment.v1.0.0"
 	DeploymentEventSchemaVersion    = "deployment-event.v1.0.0"
+	IncidentSchemaVersion           = "incident.v1.0.0"
+	IncidentTimelineSchemaVersion   = "incident-timeline-event.v1.0.0"
+	RemediationTaskSchemaVersion    = "remediation-task.v1.0.0"
+	SecurityScanSchemaVersion       = "security-scan.v1.0.0"
+	ManualSecurityDocSchemaVersion  = "manual-security-document.v1.0.0"
+	SBOMDiffSchemaVersion           = "sbom-diff.v1.0.0"
+	DependencyChangeSchemaVersion   = "dependency-change.v1.0.0"
+	ContractDiffSchemaVersion       = "contract-diff.v1.0.0"
+	CustomPolicySchemaVersion       = "custom-policy.v1.0.0"
+	CustomPolicyEvalSchemaVersion   = "custom-policy-evaluation.v1.0.0"
 )
 
 type Actor struct {
@@ -668,4 +678,184 @@ type DeploymentEvent struct {
 	EvidenceID    string     `json:"evidence_id,omitempty"`
 	SchemaVersion string     `json:"schema_version"`
 	CreatedAt     time.Time  `json:"created_at"`
+}
+
+type Incident struct {
+	ID            string     `json:"id"`
+	TenantID      string     `json:"tenant_id"`
+	ProductID     string     `json:"product_id"`
+	ReleaseID     string     `json:"release_id,omitempty"`
+	Title         string     `json:"title"`
+	Severity      string     `json:"severity"`
+	Status        string     `json:"status"`
+	OpenedAt      time.Time  `json:"opened_at"`
+	ClosedAt      *time.Time `json:"closed_at,omitempty"`
+	SchemaVersion string     `json:"schema_version"`
+	CreatedAt     time.Time  `json:"created_at"`
+}
+
+type IncidentTimelineEvent struct {
+	ID            string    `json:"id"`
+	TenantID      string    `json:"tenant_id"`
+	IncidentID    string    `json:"incident_id"`
+	EventType     string    `json:"event_type"`
+	Summary       string    `json:"summary"`
+	EvidenceID    string    `json:"evidence_id,omitempty"`
+	OccurredAt    time.Time `json:"occurred_at"`
+	SchemaVersion string    `json:"schema_version"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type RemediationTask struct {
+	ID            string     `json:"id"`
+	TenantID      string     `json:"tenant_id"`
+	IncidentID    string     `json:"incident_id,omitempty"`
+	ReleaseID     string     `json:"release_id,omitempty"`
+	Title         string     `json:"title"`
+	Owner         string     `json:"owner"`
+	Status        string     `json:"status"`
+	DueAt         *time.Time `json:"due_at,omitempty"`
+	EvidenceID    string     `json:"evidence_id,omitempty"`
+	SchemaVersion string     `json:"schema_version"`
+	CreatedAt     time.Time  `json:"created_at"`
+}
+
+type IncidentReport struct {
+	ReportType      string                  `json:"report_type"`
+	TemplateVersion string                  `json:"template_version"`
+	IncidentID      string                  `json:"incident_id"`
+	Result          string                  `json:"result"`
+	Timeline        []IncidentTimelineEvent `json:"timeline"`
+	Tasks           []RemediationTask       `json:"tasks"`
+	LinkedEvidence  []string                `json:"linked_evidence,omitempty"`
+	Assumptions     []string                `json:"assumptions"`
+	Limitations     []string                `json:"limitations"`
+	GeneratedAt     time.Time               `json:"generated_at"`
+}
+
+type SecurityScan struct {
+	ID            string         `json:"id"`
+	TenantID      string         `json:"tenant_id"`
+	ProductID     string         `json:"product_id,omitempty"`
+	ReleaseID     string         `json:"release_id,omitempty"`
+	ArtifactID    string         `json:"artifact_id,omitempty"`
+	Category      string         `json:"category"`
+	Format        string         `json:"format"`
+	Scanner       string         `json:"scanner"`
+	TargetRef     string         `json:"target_ref"`
+	EvidenceID    string         `json:"evidence_id"`
+	PayloadRef    string         `json:"payload_ref,omitempty"`
+	PayloadHash   string         `json:"payload_hash"`
+	FindingCount  int            `json:"finding_count"`
+	Summary       map[string]int `json:"summary,omitempty"`
+	Redacted      bool           `json:"redacted"`
+	Quarantined   bool           `json:"quarantined"`
+	SchemaVersion string         `json:"schema_version"`
+	CreatedAt     time.Time      `json:"created_at"`
+}
+
+type ManualSecurityDocument struct {
+	ID            string    `json:"id"`
+	TenantID      string    `json:"tenant_id"`
+	ProductID     string    `json:"product_id,omitempty"`
+	ReleaseID     string    `json:"release_id,omitempty"`
+	DocumentType  string    `json:"document_type"`
+	Title         string    `json:"title"`
+	Sensitivity   string    `json:"sensitivity"`
+	EvidenceID    string    `json:"evidence_id"`
+	PayloadRef    string    `json:"payload_ref,omitempty"`
+	PayloadHash   string    `json:"payload_hash"`
+	SchemaVersion string    `json:"schema_version"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type SBOMDiff struct {
+	ID                string             `json:"id"`
+	TenantID          string             `json:"tenant_id"`
+	BaseSBOMID        string             `json:"base_sbom_id"`
+	TargetSBOMID      string             `json:"target_sbom_id"`
+	ReleaseID         string             `json:"release_id,omitempty"`
+	AddedComponents   []SBOMComponent    `json:"added_components,omitempty"`
+	RemovedComponents []SBOMComponent    `json:"removed_components,omitempty"`
+	UnchangedCount    int                `json:"unchanged_count"`
+	DependencyChanges []DependencyChange `json:"dependency_changes,omitempty"`
+	SchemaVersion     string             `json:"schema_version"`
+	CreatedAt         time.Time          `json:"created_at"`
+}
+
+type DependencyChange struct {
+	ID            string        `json:"id"`
+	TenantID      string        `json:"tenant_id"`
+	SBOMDiffID    string        `json:"sbom_diff_id"`
+	ChangeType    string        `json:"change_type"`
+	Component     SBOMComponent `json:"component"`
+	SchemaVersion string        `json:"schema_version"`
+	CreatedAt     time.Time     `json:"created_at"`
+}
+
+type VulnerabilityWorkflowRecord struct {
+	ID            string    `json:"id"`
+	TenantID      string    `json:"tenant_id"`
+	FindingID     string    `json:"finding_id"`
+	ReleaseID     string    `json:"release_id,omitempty"`
+	Action        string    `json:"action"`
+	Reason        string    `json:"reason"`
+	ActorID       string    `json:"actor_id"`
+	SchemaVersion string    `json:"schema_version"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type VulnerabilityPostureReport struct {
+	ReportType      string         `json:"report_type"`
+	TemplateVersion string         `json:"template_version"`
+	ReleaseID       string         `json:"release_id,omitempty"`
+	Summary         map[string]int `json:"summary"`
+	OpenCritical    int            `json:"open_critical"`
+	Assumptions     []string       `json:"assumptions"`
+	Limitations     []string       `json:"limitations"`
+	GeneratedAt     time.Time      `json:"generated_at"`
+}
+
+type ContractDiff struct {
+	ID                 string    `json:"id"`
+	TenantID           string    `json:"tenant_id"`
+	BaseContractID     string    `json:"base_contract_id"`
+	TargetContractID   string    `json:"target_contract_id"`
+	ProductID          string    `json:"product_id"`
+	ReleaseID          string    `json:"release_id,omitempty"`
+	Result             string    `json:"result"`
+	BreakingChanges    []string  `json:"breaking_changes,omitempty"`
+	NonBreakingChanges []string  `json:"non_breaking_changes,omitempty"`
+	SchemaVersion      string    `json:"schema_version"`
+	CreatedAt          time.Time `json:"created_at"`
+}
+
+type CustomPolicy struct {
+	ID            string       `json:"id"`
+	TenantID      string       `json:"tenant_id"`
+	Name          string       `json:"name"`
+	Version       string       `json:"version"`
+	Description   string       `json:"description,omitempty"`
+	Rules         []PolicyRule `json:"rules"`
+	SchemaVersion string       `json:"schema_version"`
+	CreatedAt     time.Time    `json:"created_at"`
+}
+
+type PolicyRule struct {
+	Name         string `json:"name"`
+	EvidenceType string `json:"evidence_type,omitempty"`
+	Severity     string `json:"severity"`
+	Required     bool   `json:"required"`
+}
+
+type CustomPolicyEvaluation struct {
+	ID            string        `json:"id"`
+	TenantID      string        `json:"tenant_id"`
+	PolicyID      string        `json:"policy_id"`
+	ReleaseID     string        `json:"release_id"`
+	Result        string        `json:"result"`
+	Checks        []PolicyCheck `json:"checks"`
+	InputHash     string        `json:"input_hash"`
+	SchemaVersion string        `json:"schema_version"`
+	CreatedAt     time.Time     `json:"created_at"`
 }

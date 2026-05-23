@@ -18,44 +18,55 @@ func (l *Ledger) snapshotLocked() PersistedState {
 		signingKeys[id] = key
 	}
 	state := PersistedState{
-		Tenants:            l.tenants,
-		APIKeys:            apiKeys,
-		APIKeyHashes:       map[string]string{},
-		Collectors:         l.collectors,
-		Products:           l.products,
-		Projects:           l.projects,
-		Releases:           l.releases,
-		Artifacts:          l.artifacts,
-		BuildRuns:          l.buildRuns,
-		BuildAttestations:  l.attestations,
-		Evidence:           l.evidence,
-		EvidenceLifecycle:  l.lifecycle,
-		ReleaseCandidates:  l.candidates,
-		ContainerImages:    l.images,
-		ArtifactSignatures: l.artifactSigs,
-		Repositories:       l.repositories,
-		Commits:            l.commits,
-		Branches:           l.branches,
-		PullRequests:       l.pullRequests,
-		Environments:       l.environments,
-		Deployments:        l.deployments,
-		ControlFrameworks:  l.frameworks,
-		SecurityControls:   l.controls,
-		ControlEvidence:    l.controlLinks,
-		SBOMs:              l.sboms,
-		Scans:              l.scans,
-		VEXDocuments:       l.vexDocuments,
-		Decisions:          l.decisions,
-		Contracts:          l.contracts,
-		Policies:           l.policies,
-		Exceptions:         l.exceptions,
-		Bundles:            l.bundles,
-		SigningKeys:        signingKeys,
-		SigningKeyPrivate:  map[string][]byte{},
-		Signatures:         l.signatures,
-		Verifications:      l.verifications,
-		Chain:              l.chain,
-		Idempotency:        l.idempotency,
+		Tenants:                 l.tenants,
+		APIKeys:                 apiKeys,
+		APIKeyHashes:            map[string]string{},
+		Collectors:              l.collectors,
+		Products:                l.products,
+		Projects:                l.projects,
+		Releases:                l.releases,
+		Artifacts:               l.artifacts,
+		BuildRuns:               l.buildRuns,
+		BuildAttestations:       l.attestations,
+		Evidence:                l.evidence,
+		EvidenceLifecycle:       l.lifecycle,
+		ReleaseCandidates:       l.candidates,
+		ContainerImages:         l.images,
+		ArtifactSignatures:      l.artifactSigs,
+		Repositories:            l.repositories,
+		Commits:                 l.commits,
+		Branches:                l.branches,
+		PullRequests:            l.pullRequests,
+		Environments:            l.environments,
+		Deployments:             l.deployments,
+		Incidents:               l.incidents,
+		TimelineEvents:          l.timeline,
+		RemediationTasks:        l.tasks,
+		SecurityScans:           l.securityScans,
+		ManualSecurityDocs:      l.manualDocs,
+		SBOMDiffs:               l.sbomDiffs,
+		DependencyChanges:       l.depChanges,
+		VulnerabilityWorkflow:   l.vulnWorkflow,
+		ContractDiffs:           l.contractDiffs,
+		CustomPolicies:          l.customPolicies,
+		CustomPolicyEvaluations: l.customPolicyEvals,
+		ControlFrameworks:       l.frameworks,
+		SecurityControls:        l.controls,
+		ControlEvidence:         l.controlLinks,
+		SBOMs:                   l.sboms,
+		Scans:                   l.scans,
+		VEXDocuments:            l.vexDocuments,
+		Decisions:               l.decisions,
+		Contracts:               l.contracts,
+		Policies:                l.policies,
+		Exceptions:              l.exceptions,
+		Bundles:                 l.bundles,
+		SigningKeys:             signingKeys,
+		SigningKeyPrivate:       map[string][]byte{},
+		Signatures:              l.signatures,
+		Verifications:           l.verifications,
+		Chain:                   l.chain,
+		Idempotency:             l.idempotency,
 	}
 	for id, key := range state.APIKeys {
 		if key.Hash != "" {
@@ -112,6 +123,17 @@ func (l *Ledger) applyState(state PersistedState) {
 	l.pullRequests = state.PullRequests
 	l.environments = state.Environments
 	l.deployments = state.Deployments
+	l.incidents = state.Incidents
+	l.timeline = state.TimelineEvents
+	l.tasks = state.RemediationTasks
+	l.securityScans = state.SecurityScans
+	l.manualDocs = state.ManualSecurityDocs
+	l.sbomDiffs = state.SBOMDiffs
+	l.depChanges = state.DependencyChanges
+	l.vulnWorkflow = state.VulnerabilityWorkflow
+	l.contractDiffs = state.ContractDiffs
+	l.customPolicies = state.CustomPolicies
+	l.customPolicyEvals = state.CustomPolicyEvaluations
 	l.frameworks = state.ControlFrameworks
 	l.controls = state.SecurityControls
 	l.controlLinks = state.ControlEvidence
@@ -251,6 +273,39 @@ func normalizeState(state PersistedState) PersistedState {
 	}
 	if state.Deployments == nil {
 		state.Deployments = map[string]domain.DeploymentEvent{}
+	}
+	if state.Incidents == nil {
+		state.Incidents = map[string]domain.Incident{}
+	}
+	if state.TimelineEvents == nil {
+		state.TimelineEvents = map[string]domain.IncidentTimelineEvent{}
+	}
+	if state.RemediationTasks == nil {
+		state.RemediationTasks = map[string]domain.RemediationTask{}
+	}
+	if state.SecurityScans == nil {
+		state.SecurityScans = map[string]domain.SecurityScan{}
+	}
+	if state.ManualSecurityDocs == nil {
+		state.ManualSecurityDocs = map[string]domain.ManualSecurityDocument{}
+	}
+	if state.SBOMDiffs == nil {
+		state.SBOMDiffs = map[string]domain.SBOMDiff{}
+	}
+	if state.DependencyChanges == nil {
+		state.DependencyChanges = map[string]domain.DependencyChange{}
+	}
+	if state.VulnerabilityWorkflow == nil {
+		state.VulnerabilityWorkflow = map[string]domain.VulnerabilityWorkflowRecord{}
+	}
+	if state.ContractDiffs == nil {
+		state.ContractDiffs = map[string]domain.ContractDiff{}
+	}
+	if state.CustomPolicies == nil {
+		state.CustomPolicies = map[string]domain.CustomPolicy{}
+	}
+	if state.CustomPolicyEvaluations == nil {
+		state.CustomPolicyEvaluations = map[string]domain.CustomPolicyEvaluation{}
 	}
 	if state.ControlFrameworks == nil {
 		state.ControlFrameworks = map[string]domain.ControlFramework{}
