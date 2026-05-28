@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Validate curated SDK helper coverage against the committed OpenAPI contract."""
+"""Validate SDK helper and route-catalog coverage against committed OpenAPI."""
 
 from __future__ import annotations
 
 import json
 import pathlib
+import subprocess
 import sys
 from dataclasses import dataclass
 
@@ -107,6 +108,26 @@ def require_text(source: str, token: str, label: str) -> None:
 
 def main() -> None:
     spec = load_openapi()
+    catalog_path = ROOT / "sdk" / "openapi-route-catalog.json"
+    if not catalog_path.exists():
+        fail("missing sdk/openapi-route-catalog.json")
+    generated_catalog = subprocess.check_output(
+        [sys.executable, str(ROOT / "scripts" / "generate_sdk_route_catalog.py")],
+        text=True,
+    )
+    committed_catalog = catalog_path.read_text(encoding="utf-8")
+    if json.loads(generated_catalog) != json.loads(committed_catalog):
+        fail("sdk/openapi-route-catalog.json is out of date; run scripts/generate_sdk_route_catalog.py")
+    catalog = json.loads(committed_catalog)
+    if catalog.get("route_count") != len(
+        [
+            None
+            for path_item in spec.get("paths", {}).values()
+            for method in path_item
+            if method.lower() in {"get", "post", "put", "patch", "delete"}
+        ]
+    ):
+        fail("SDK route catalog route_count does not match openapi.yaml")
     for helper in REQUIRED_HELPERS:
         operation(spec, helper)
 
@@ -123,7 +144,10 @@ def main() -> None:
     require_text(typescript_client, "path.startsWith(\"/v1/\")", "TypeScript SDK path validation")
     require_text(python_client, "path.startswith(\"/v1/\")", "Python SDK path validation")
 
-    print(f"sdk-check: validated {len(REQUIRED_HELPERS)} SDK helpers against openapi.yaml")
+    print(
+        f"sdk-check: validated {len(REQUIRED_HELPERS)} SDK helpers and "
+        f"{catalog.get('route_count')} generated route catalog entries against openapi.yaml"
+    )
 
 
 if __name__ == "__main__":
