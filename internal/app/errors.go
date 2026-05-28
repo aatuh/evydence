@@ -11,4 +11,5 @@ var (
 	ErrImmutable           = errors.New("immutable resource")
 	ErrIdempotencyConflict = errors.New("idempotency key reused with different request")
 	ErrVerificationFailed  = errors.New("verification failed")
+	ErrRateLimited         = errors.New("rate limited")
 )

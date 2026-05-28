@@ -2023,6 +2023,8 @@ func ProblemCode(err error) string {
 		return "IDEMPOTENCY_KEY_REUSED"
 	case errors.Is(err, ErrVerificationFailed):
 		return "VERIFICATION_FAILED"
+	case errors.Is(err, ErrRateLimited):
+		return "RATE_LIMITED"
 	case errors.Is(err, ErrValidation):
 		return "VALIDATION_FAILED"
 	default:
@@ -2044,6 +2046,8 @@ func StatusCode(err error) int {
 		return 400
 	case errors.Is(err, ErrVerificationFailed):
 		return 422
+	case errors.Is(err, ErrRateLimited):
+		return 429
 	default:
 		return 500
 	}

@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aatuh/api-toolkit/v3/httpx"
@@ -25,13 +27,22 @@ const maxJSONBody = 2 << 20
 const requestIDHeader = "X-Request-ID"
 
 type Server struct {
-	ledger *app.Ledger
-	mux    *http.ServeMux
-	specs  *specs.Registry
-	routes *routecontracts.Registry
+	ledger  *app.Ledger
+	mux     *http.ServeMux
+	specs   *specs.Registry
+	routes  *routecontracts.Registry
+	limiter *requestRateLimiter
+}
+
+type ServerOptions struct {
+	RateLimitRequestsPerMinute int
 }
 
 func NewServer(ledger *app.Ledger) (*Server, error) {
+	return NewServerWithOptions(ledger, ServerOptions{})
+}
+
+func NewServerWithOptions(ledger *app.Ledger, opts ServerOptions) (*Server, error) {
 	if ledger == nil {
 		ledger = app.NewLedger(app.Config{})
 	}
@@ -39,7 +50,7 @@ func NewServer(ledger *app.Ledger) (*Server, error) {
 	specRegistry := NewSpecRegistry()
 	router := &serveMuxRouter{mux: mux}
 	routeRegistry := routecontracts.NewRegistry(router, specRegistry)
-	server := &Server{ledger: ledger, mux: mux, specs: specRegistry, routes: routeRegistry}
+	server := &Server{ledger: ledger, mux: mux, specs: specRegistry, routes: routeRegistry, limiter: newRequestRateLimiter(opts.RateLimitRequestsPerMinute)}
 	if err := server.registerRoutes(); err != nil {
 		return nil, err
 	}
@@ -47,7 +58,7 @@ func NewServer(ledger *app.Ledger) (*Server, error) {
 }
 
 func (s *Server) Handler() http.Handler {
-	return secureHeaders(requestIDMiddleware(s.mux))
+	return secureHeaders(requestIDMiddleware(s.rateLimitMiddleware(s.mux)))
 }
 
 func (s *Server) OpenAPI() ([]byte, error) {
@@ -2114,6 +2125,66 @@ func writeProblem(w http.ResponseWriter, r *http.Request, err error) {
 		problem.Instance = r.URL.Path
 	}
 	httpx.WriteProblem(w, status, problem)
+}
+
+type requestRateLimiter struct {
+	mu      sync.Mutex
+	limit   int
+	window  time.Duration
+	buckets map[string]rateLimitBucket
+}
+
+type rateLimitBucket struct {
+	reset time.Time
+	used  int
+}
+
+func newRequestRateLimiter(limit int) *requestRateLimiter {
+	if limit <= 0 {
+		return nil
+	}
+	return &requestRateLimiter{limit: limit, window: time.Minute, buckets: map[string]rateLimitBucket{}}
+}
+
+func (s *Server) rateLimitMiddleware(next http.Handler) http.Handler {
+	if s.limiter == nil {
+		return next
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !s.limiter.allow(clientRateLimitKey(r), time.Now().UTC()) {
+			w.Header().Set("Retry-After", "60")
+			writeProblem(w, r, app.ErrRateLimited)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (l *requestRateLimiter) allow(key string, now time.Time) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	bucket := l.buckets[key]
+	if bucket.reset.IsZero() || !now.Before(bucket.reset) {
+		bucket = rateLimitBucket{reset: now.Add(l.window)}
+	}
+	if bucket.used >= l.limit {
+		l.buckets[key] = bucket
+		return false
+	}
+	bucket.used++
+	l.buckets[key] = bucket
+	return true
+}
+
+func clientRateLimitKey(r *http.Request) string {
+	host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
+	if err == nil && host != "" {
+		return host
+	}
+	if remote := strings.TrimSpace(r.RemoteAddr); remote != "" {
+		return remote
+	}
+	return "unknown"
 }
 
 func requestIDMiddleware(next http.Handler) http.Handler {
