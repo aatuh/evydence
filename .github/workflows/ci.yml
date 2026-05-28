@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-check:
+    name: Release Check
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: evydence
+          POSTGRES_USER: evydence
+          POSTGRES_PASSWORD: change-me
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U evydence"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      EVYDENCE_API_KEY_PEPPER: ci-test-pepper
+      EVYDENCE_TEST_DATABASE_URL: postgres://evydence:change-me@localhost:5432/evydence?sslmode=disable
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install QA tools
+        run: make tools
+
+      - name: Run release check with live PostgreSQL
+        run: make release-check
+
+      - name: Generate coverage report
+        run: make coverage
+
+      - name: Upload release evidence artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evydence-ci-evidence
+          path: |
+            coverage.out
+            tmp/release-check-summary.txt
+          if-no-files-found: ignore

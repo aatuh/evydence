@@ -77,4 +77,12 @@ If either line is skipped, the release evidence should state that durable-store 
 
 ## CI Usage
 
-CI should provide a disposable PostgreSQL service, set `EVYDENCE_TEST_DATABASE_URL`, run `make release-check`, and preserve `tmp/release-check-summary.txt` as a build artifact. The database should not contain production evidence, customer package tokens, signing-key material, or other real secrets.
+The checked-in GitHub Actions workflow provides a disposable PostgreSQL service,
+sets `EVYDENCE_TEST_DATABASE_URL`, runs `make release-check`, runs
+`make coverage`, and preserves `tmp/release-check-summary.txt` plus
+`coverage.out` as build artifacts. The database must not contain production
+evidence, customer package tokens, signing-key material, or other real secrets.
+
+The workflow is release-evidence CI, not the final production-readiness gate.
+`make production-check` remains the strict local/CI gate once coverage and the
+remaining production-hardening tickets are complete.
