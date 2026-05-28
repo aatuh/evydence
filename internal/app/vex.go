@@ -146,7 +146,15 @@ func (l *Ledger) UploadVEX(ctx context.Context, actor domain.Actor, releaseID, a
 		SchemaVersion:  domain.VEXDocumentSchemaVersion,
 		CreatedAt:      l.now(),
 	}
-	l.vexDocuments[vex.ID] = vex
+	persistedVEX := vex
+	chainAction := "vex.parsed"
+	if l.workerOwnedParsers {
+		persistedVEX.Author = ""
+		persistedVEX.StatementCount = 0
+		persistedVEX.StatusSummary = nil
+		chainAction = "vex.accepted"
+	}
+	l.vexDocuments[vex.ID] = persistedVEX
 	createdDecisions := 0
 	for _, statement := range doc.Statements {
 		for _, matched := range l.findMatchingFindingsLocked(actor.TenantID, releaseID, statement) {
@@ -161,7 +169,7 @@ func (l *Ledger) UploadVEX(ctx context.Context, actor domain.Actor, releaseID, a
 			createdDecisions++
 		}
 	}
-	_, _ = l.appendChainLocked(actor.TenantID, "vex.parsed", "vex_document", vex.ID, "api_key", actor.KeyID, payloadHash, "")
+	_, _ = l.appendChainLocked(actor.TenantID, chainAction, "vex_document", vex.ID, "api_key", actor.KeyID, payloadHash, "")
 	if err := l.enqueue(ctx, actor.TenantID, "parse_vex", "vex_document", vex.ID, map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionOpenVEXJSON, "decisions_created": createdDecisions}); err != nil {
 		return domain.VEXDocument{}, err
 	}

@@ -39,11 +39,11 @@ Known hardening work remains:
 - worker parser jobs re-read raw object-store payloads for key formats,
   verify digests, validate durable state, and persist missing parser-derived
   normalized fields. CycloneDX SBOM, generic vulnerability-scan, and OpenAPI
-  contract and DSSE build-attestation uploads can run with worker-owned
-  normalized side effects by setting
-  `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`; OpenVEX upload still
-  creates initial normalized records, so fully worker-owned parsing for every
-  payload remains hardening work;
+  contract, DSSE build-attestation, and OpenVEX document uploads can run with
+  worker-owned document side effects by setting
+  `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`; OpenVEX-derived
+  vulnerability decisions still run in the request path, so fully worker-owned
+  decision creation remains hardening work;
 - OpenAPI precision is enforced across the registered public API. The generated
   matrix remains the source of truth for operation ids, scopes, idempotency,
   parameters, and request/response schemas;
@@ -145,11 +145,12 @@ implemented capabilities:
 - Split the large application ledger aggregate into focused services or
   repositories once relational writes are in place, preserving tenant isolation
   and append-only behavior throughout.
-- Continue moving parser-owned side effects for VEX payloads into worker
-  processors. CycloneDX SBOM, generic vulnerability scan, OpenAPI contract, and
-  DSSE build-attestation normalized fields can be worker-owned behind
-  `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`; workers also persist
-  missing parser-derived fields for replay-compatible records.
+- Continue moving OpenVEX-derived vulnerability decision creation into an
+  idempotent worker processor. CycloneDX SBOM, generic vulnerability scan,
+  OpenAPI contract, DSSE build-attestation, and OpenVEX document metadata can
+  be worker-owned behind `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`;
+  workers also persist missing parser-derived fields for replay-compatible
+  records.
 - Keep OpenAPI precision at zero broad operations as routes are added or
   changed, and expand generated SDK coverage from the committed contract.
 - Add direct cloud KMS/HSM SDK adapters where required. The current HTTPS
