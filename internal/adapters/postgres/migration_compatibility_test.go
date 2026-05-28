@@ -38,9 +38,9 @@ func TestMigrationCompatibilityFromEveryCommittedState(t *testing.T) {
 			if _, err := basePool.Exec(ctx, "CREATE SCHEMA "+quotedSchema); err != nil {
 				t.Fatal(err)
 			}
-			defer func() {
-				_, _ = basePool.Exec(context.Background(), "DROP SCHEMA "+quotedSchema+" CASCADE")
-			}()
+			defer func(cleanupCtx context.Context) {
+				_, _ = basePool.Exec(cleanupCtx, "DROP SCHEMA "+quotedSchema+" CASCADE")
+			}(context.WithoutCancel(ctx))
 
 			store, err := Open(ctx, databaseURLWithSearchPath(t, databaseURL, schema))
 			if err != nil {
