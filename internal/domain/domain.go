@@ -1014,6 +1014,15 @@ type SBOMComponent struct {
 	PURL    string `json:"purl,omitempty"`
 }
 
+type SBOMComponentRecord struct {
+	SBOMID      string        `json:"sbom_id"`
+	ReleaseID   string        `json:"release_id,omitempty"`
+	ArtifactID  string        `json:"artifact_id,omitempty"`
+	Format      string        `json:"format"`
+	SpecVersion string        `json:"spec_version"`
+	Component   SBOMComponent `json:"component"`
+}
+
 type VulnerabilityScan struct {
 	ID         string                 `json:"id"`
 	TenantID   string                 `json:"tenant_id"`

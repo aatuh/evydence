@@ -1320,6 +1320,36 @@ func (s *Server) getSBOM(w http.ResponseWriter, r *http.Request) {
 	writeData(w, http.StatusOK, sbom)
 }
 
+func (s *Server) listSBOMComponents(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	query := r.URL.Query()
+	limit := 0
+	if value := strings.TrimSpace(query.Get("limit")); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			writeProblem(w, r, app.ErrValidation)
+			return
+		}
+		limit = parsed
+	}
+	components, err := s.ledger.ListSBOMComponents(r.Context(), actor, app.ListSBOMComponentsInput{
+		SBOMID:     query.Get("sbom_id"),
+		ReleaseID:  query.Get("release_id"),
+		ArtifactID: query.Get("artifact_id"),
+		Query:      query.Get("query"),
+		PURL:       query.Get("purl"),
+		Limit:      limit,
+	})
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, components)
+}
+
 func (s *Server) uploadVEX(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ReleaseID  string          `json:"release_id"`

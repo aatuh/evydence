@@ -33,6 +33,17 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 			queryParam("limit", "Maximum returned records.", "integer"),
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("Evidence search result envelope.", "#/components/schemas/EvidenceSearchEnvelope")
+	case "listSBOMComponents":
+		operation.Description = "Lists tenant-scoped SBOM components by SBOM, release, artifact, name/version/PURL query, or exact PURL."
+		operation.Parameters = append(operation.Parameters,
+			queryParam("sbom_id", "Filter by SBOM id.", "string"),
+			queryParam("release_id", "Filter by release id.", "string"),
+			queryParam("artifact_id", "Filter by artifact id.", "string"),
+			queryParam("query", "Case-insensitive component name, version, or PURL search.", "string"),
+			queryParam("purl", "Exact package URL filter.", "string"),
+			queryParam("limit", "Maximum returned component records.", "integer"),
+		)
+		operation.Responses[http.StatusOK] = jsonResponse("SBOM component result envelope.", "#/components/schemas/DataEnvelope")
 	case "createReleaseBundle":
 		operation.Description = "Creates an immutable signed release bundle for a release."
 		operation.RequestBody = jsonRequest("Release bundle creation request.", "#/components/schemas/CreateReleaseBundleRequest")

@@ -274,6 +274,7 @@ Current SSO endpoints model admin-managed provider, identity-link, and session r
 | `POST` | `/v1/sboms` | Upload CycloneDX SBOM. |
 | `POST` | `/v1/sboms/spdx` | Upload SPDX SBOM. |
 | `GET` | `/v1/sboms/{id}` | Read SBOM metadata. |
+| `GET` | `/v1/sbom-components` | Search stored SBOM components by SBOM, release, artifact, query, exact PURL, and limit. |
 | `POST` | `/v1/sbom-diffs` | Compare stored SBOMs. |
 | `POST` | `/v1/vulnerability-scans` | Upload normalized vulnerability scan. |
 | `GET` | `/v1/vulnerability-scans/{id}` | Read vulnerability scan metadata. |

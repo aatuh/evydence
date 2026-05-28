@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -82,6 +83,23 @@ func TestRiskWorkflowEvidenceFormatsAndReports(t *testing.T) {
 	}
 	if diff.UnchangedCount != 1 || len(diff.AddedComponents) != 1 || len(diff.RemovedComponents) != 1 || len(diff.DependencyChanges) != 2 {
 		t.Fatalf("diff = %#v", diff)
+	}
+	components, err := ledger.ListSBOMComponents(ctx, actor, ListSBOMComponentsInput{ReleaseID: release.ID, Query: "new"})
+	if err != nil {
+		t.Fatalf("list sbom components: %v", err)
+	}
+	if len(components) != 1 || components[0].SBOMID != target.ID || components[0].Component.Name != "new" {
+		t.Fatalf("component query = %#v", components)
+	}
+	purlComponents, err := ledger.ListSBOMComponents(ctx, actor, ListSBOMComponentsInput{SBOMID: base.ID, PURL: "pkg:oci/api@1.0.0", Limit: 1})
+	if err != nil {
+		t.Fatalf("list sbom components by purl: %v", err)
+	}
+	if len(purlComponents) != 1 || purlComponents[0].Component.PURL != "pkg:oci/api@1.0.0" {
+		t.Fatalf("purl component query = %#v", purlComponents)
+	}
+	if _, err := ledger.ListSBOMComponents(ctx, actor, ListSBOMComponentsInput{Limit: 501}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("large component limit err=%v, want validation", err)
 	}
 
 	scan, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{"scanner":"grype","target_ref":"pkg:oci/api","release_id":"`+release.ID+`","findings":[{"vulnerability":"CVE-2026-0002","component":"api","severity":"critical","state":"open"}]}`))

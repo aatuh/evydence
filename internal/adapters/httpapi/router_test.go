@@ -625,6 +625,10 @@ func TestRiskWorkflowHTTPFlow(t *testing.T) {
 	if !strings.Contains(diffBody, `"added_components"`) {
 		t.Fatalf("sbom diff missing added components: %s", diffBody)
 	}
+	componentSearch := getJSON(t, server, secret, "/v1/sbom-components?release_id="+releaseID+"&query=curl&limit=10", http.StatusOK)
+	if !strings.Contains(componentSearch, `"name":"curl"`) {
+		t.Fatalf("sbom component search missing curl: %s", componentSearch)
+	}
 
 	vulnScan := postJSON(t, server, secret, "/v1/vulnerability-scans", "risk2-vuln-scan", map[string]any{"scanner": "grype", "target_ref": "pkg:oci/api", "release_id": releaseID, "findings": []map[string]any{{"vulnerability": "CVE-2026-4242", "component": "openssl", "severity": "critical", "state": "open"}}}, http.StatusCreated)
 	findingID := firstFindingID(t, vulnScan)
