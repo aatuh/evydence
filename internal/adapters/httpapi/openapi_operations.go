@@ -9,6 +9,11 @@ import (
 func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 	addProblemResponses(&operation)
 	switch operation.OperationID {
+	case "ready":
+		operation.Description = "Returns low-detail process readiness without tenant evidence or secret material."
+		operation.Security = nil
+		operation.Scopes = nil
+		operation.Responses[http.StatusOK] = jsonResponse("Readiness status envelope.", "#/components/schemas/ReadinessStatusEnvelope")
 	case "instanceAdminSnapshot":
 		operation.Description = "Returns instance-level diagnostic counts. Requires the explicit instance:admin scope; tenant admin and ordinary wildcard tenant keys are insufficient."
 		operation.Responses[http.StatusOK] = jsonResponse("Instance admin snapshot envelope.", "#/components/schemas/DataEnvelope")
@@ -143,6 +148,33 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Description = "Verifies a tenant-scoped release bundle and returns a deterministic verification result."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Release bundle id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Release bundle verification envelope.", "#/components/schemas/ReleaseBundleVerificationEnvelope")
+	case "generateBackupManifest":
+		operation.Description = "Generates a tenant-scoped backup manifest after an operator backup completes. The manifest excludes raw payload bytes and private key material."
+		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
+		operation.Responses[http.StatusCreated] = jsonResponse("Backup manifest envelope.", "#/components/schemas/BackupManifestEnvelope")
+	case "verifyBackupManifest":
+		operation.Description = "Verifies a tenant-scoped backup manifest and returns deterministic manifest verification checks."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Backup manifest id."))
+		operation.Responses[http.StatusOK] = jsonResponse("Backup manifest verification envelope.", "#/components/schemas/VerificationResultEnvelope")
+	case "releaseReadinessReport":
+		operation.Description = "Returns a deterministic release-readiness report with gaps, assumptions, and limitations."
+		operation.Parameters = append(operation.Parameters, queryParam("release_id", "Release id.", "string"))
+		operation.Responses[http.StatusOK] = jsonResponse("Release readiness report envelope.", "#/components/schemas/ReadinessReportEnvelope")
+	case "craReadinessReport":
+		operation.Description = "Returns a CRA-oriented readiness report without legal compliance or certification conclusions."
+		operation.Parameters = append(operation.Parameters,
+			queryParam("product_id", "Product id.", "string"),
+			queryParam("release_id", "Release id.", "string"),
+		)
+		operation.Responses[http.StatusOK] = jsonResponse("CRA readiness report envelope.", "#/components/schemas/ReadinessReportEnvelope")
+	case "controlCoverageReport":
+		operation.Description = "Returns deterministic control coverage with linked evidence, missing evidence, assumptions, and limitations."
+		operation.Parameters = append(operation.Parameters,
+			queryParam("framework_id", "Control framework id.", "string"),
+			queryParam("product_id", "Product id.", "string"),
+			queryParam("release_id", "Release id.", "string"),
+		)
+		operation.Responses[http.StatusOK] = jsonResponse("Control coverage report envelope.", "#/components/schemas/ReadinessReportEnvelope")
 	case "createCustomerPortalAccess":
 		operation.Description = "Creates token-based customer portal access for a customer package and returns the token once."
 		operation.RequestBody = jsonRequest("Customer portal access creation request.", "#/components/schemas/CreateCustomerPortalAccessRequest")

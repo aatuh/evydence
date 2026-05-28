@@ -84,13 +84,26 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	if _, ok := problemProps["request_id"]; !ok {
 		t.Fatalf("Problem schema missing request_id: %#v", problemProps)
 	}
-	for _, schemaName := range []string{"CreateProductRequest", "ProductEnvelope", "ProductListEnvelope", "CreateProjectRequest", "ProjectEnvelope", "CreateReleaseRequest", "ReleaseEnvelope", "RegisterArtifactRequest", "ArtifactEnvelope", "CreateBuildRequest", "BuildRunEnvelope", "EvidenceUploadRequest", "SBOMEnvelope", "VEXDocumentEnvelope", "UploadVulnerabilityScanRequest", "VulnerabilityScanEnvelope", "CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOProviderRequest", "SSOProviderEnvelope", "VerifyProviderIdentityRequest", "ProviderVerificationEnvelope", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalPackageRequest", "DataEnvelope"} {
+	for _, schemaName := range []string{"ReadinessStatusEnvelope", "BackupManifestEnvelope", "VerificationResultEnvelope", "ReadinessReportEnvelope", "CreateProductRequest", "ProductEnvelope", "ProductListEnvelope", "CreateProjectRequest", "ProjectEnvelope", "CreateReleaseRequest", "ReleaseEnvelope", "RegisterArtifactRequest", "ArtifactEnvelope", "CreateBuildRequest", "BuildRunEnvelope", "EvidenceUploadRequest", "SBOMEnvelope", "VEXDocumentEnvelope", "UploadVulnerabilityScanRequest", "VulnerabilityScanEnvelope", "CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOProviderRequest", "SSOProviderEnvelope", "VerifyProviderIdentityRequest", "ProviderVerificationEnvelope", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalPackageRequest", "DataEnvelope"} {
 		if _, ok := schemas[schemaName]; !ok {
 			t.Fatalf("schema %s missing from OpenAPI components", schemaName)
 		}
 	}
 
 	paths := asStringAnyMap(t, doc["paths"])
+	ready := operationMap(t, paths, "/v1/ready", "get")
+	assertResponseRef(t, ready, "200", "#/components/schemas/ReadinessStatusEnvelope")
+	backupManifest := operationMap(t, paths, "/v1/backup-manifests", "post")
+	assertRequestRef(t, backupManifest, "#/components/schemas/EmptyObject")
+	assertResponseRef(t, backupManifest, "201", "#/components/schemas/BackupManifestEnvelope")
+	verifyBackup := operationMap(t, paths, "/v1/backup-manifests/{id}/verify", "get")
+	assertResponseRef(t, verifyBackup, "200", "#/components/schemas/VerificationResultEnvelope")
+	releaseReadiness := operationMap(t, paths, "/v1/reports/release-readiness", "get")
+	assertQueryParams(t, releaseReadiness, "release_id")
+	assertResponseRef(t, releaseReadiness, "200", "#/components/schemas/ReadinessReportEnvelope")
+	craReadiness := operationMap(t, paths, "/v1/reports/cra-readiness", "get")
+	assertQueryParams(t, craReadiness, "product_id", "release_id")
+	assertResponseRef(t, craReadiness, "200", "#/components/schemas/ReadinessReportEnvelope")
 	createProduct := operationMap(t, paths, "/v1/products", "post")
 	assertRequestRef(t, createProduct, "#/components/schemas/CreateProductRequest")
 	assertResponseRef(t, createProduct, "201", "#/components/schemas/ProductEnvelope")
