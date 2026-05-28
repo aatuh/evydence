@@ -163,6 +163,14 @@ type IdempotencyRecord struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
+type IdempotencyRecordKey struct {
+	TenantID       string
+	ActorID        string
+	Method         string
+	Path           string
+	IdempotencyKey string
+}
+
 type Object struct {
 	Key       string
 	TenantID  string
