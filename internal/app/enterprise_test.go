@@ -278,6 +278,66 @@ func TestOIDCProviderIdentityVerificationUsesStaticJWKS(t *testing.T) {
 	}
 }
 
+func TestExchangeSSOCredentialIssuesSessionFromVerifiedOIDCToken(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	_, _, _, actor := bootstrapEnterpriseTestTenant(t, ledger)
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("keygen: %v", err)
+	}
+	jwks := map[string]any{"keys": []any{map[string]any{"kty": "OKP", "crv": "Ed25519", "kid": "kid-login", "alg": "EdDSA", "x": base64.RawURLEncoding.EncodeToString(pub)}}}
+	provider, err := ledger.CreateSSOProvider(ctx, actor, CreateSSOProviderInput{Name: "OIDC Login", Type: "oidc", Issuer: "https://login-idp.example.test", ClientID: "login-client", JWKS: jwks})
+	if err != nil {
+		t.Fatalf("sso provider: %v", err)
+	}
+	org, err := ledger.CreateOrganization(ctx, actor, CreateOrganizationInput{Name: "Login Example", Slug: "login-example"})
+	if err != nil {
+		t.Fatalf("org: %v", err)
+	}
+	user, err := ledger.CreateUser(ctx, actor, CreateUserInput{OrganizationID: org.ID, Email: "login@example.test", DisplayName: "Login User"})
+	if err != nil {
+		t.Fatalf("user: %v", err)
+	}
+	if _, err := ledger.LinkSSOIdentity(ctx, actor, LinkSSOIdentityInput{UserID: user.ID, ProviderID: provider.ID, Subject: "login-sub", Email: user.Email, Verified: true}); err != nil {
+		t.Fatalf("identity link: %v", err)
+	}
+	if _, err := ledger.CreateRoleBinding(ctx, actor, CreateRoleBindingInput{SubjectType: "user", SubjectID: user.ID, Role: "security_engineer"}); err != nil {
+		t.Fatalf("role binding: %v", err)
+	}
+	idToken := signedTestIDToken(t, priv, "kid-login", map[string]any{
+		"iss":            provider.Issuer,
+		"aud":            provider.ClientID,
+		"sub":            "login-sub",
+		"email":          user.Email,
+		"email_verified": true,
+		"exp":            fixedNow().Add(time.Hour).Unix(),
+	})
+	verification, session, secret, err := ledger.ExchangeSSOCredential(ctx, ExchangeSSOCredentialInput{ProviderID: provider.ID, Subject: "login-sub", IDToken: idToken})
+	if err != nil {
+		t.Fatalf("exchange credential: %v", err)
+	}
+	if verification.Result != "passed" || session.UserID != user.ID || session.ProviderID != provider.ID || secret == "" || session.Hash != "" {
+		t.Fatalf("exchange result verification=%#v session=%#v secret=%q", verification, session, secret)
+	}
+	sessionActor, err := ledger.Authenticate(ctx, secret)
+	if err != nil {
+		t.Fatalf("authenticate exchanged session: %v", err)
+	}
+	if sessionActor.UserID != user.ID || sessionActor.SessionID != session.ID || !sessionActor.HasScope(ScopeEvidenceWrite) {
+		t.Fatalf("session actor = %#v", sessionActor)
+	}
+	bad, badSession, badSecret, err := ledger.ExchangeSSOCredential(ctx, ExchangeSSOCredentialInput{ProviderID: provider.ID, Subject: "other-sub", IDToken: idToken})
+	if !errors.Is(err, ErrVerificationFailed) || bad.Result != "failed" || badSession.ID != "" || badSecret != "" {
+		t.Fatalf("bad exchange verification=%#v session=%#v secret=%q err=%v", bad, badSession, badSecret, err)
+	}
+	for _, check := range bad.Checks {
+		if strings.Contains(check.Detail, idToken) {
+			t.Fatalf("exchange leaked token in check detail: %#v", bad)
+		}
+	}
+}
+
 func TestOIDCProviderDiscoveryRefreshesTenantTrustMaterial(t *testing.T) {
 	pub, _, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {

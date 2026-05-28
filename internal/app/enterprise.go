@@ -61,6 +61,14 @@ type CreateSSOSessionInput struct {
 	ExpiresAt  time.Time
 }
 
+type ExchangeSSOCredentialInput struct {
+	ProviderID    string
+	Subject       string
+	IDToken       string
+	SAMLAssertion string
+	ExpiresAt     time.Time
+}
+
 type CreateLegalHoldInput struct {
 	ScopeType string
 	ScopeID   string
@@ -470,6 +478,108 @@ func (l *Ledger) CreateSSOSession(ctx context.Context, actor domain.Actor, in Cr
 	}
 	session.Hash = ""
 	return session, secret, nil
+}
+
+func (l *Ledger) ExchangeSSOCredential(ctx context.Context, in ExchangeSSOCredentialInput) (domain.ProviderVerification, domain.SSOSession, string, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.ProviderVerification{}, domain.SSOSession{}, "", err
+	}
+	providerID, subject := strings.TrimSpace(in.ProviderID), strings.TrimSpace(in.Subject)
+	idToken, samlAssertion := strings.TrimSpace(in.IDToken), strings.TrimSpace(in.SAMLAssertion)
+	if providerID == "" || subject == "" || (idToken == "" && samlAssertion == "") || (idToken != "" && samlAssertion != "") {
+		return domain.ProviderVerification{}, domain.SSOSession{}, "", ErrValidation
+	}
+	expiresAt := in.ExpiresAt.UTC()
+	now := l.now()
+	if expiresAt.IsZero() {
+		expiresAt = now.Add(8 * time.Hour)
+	}
+	if !expiresAt.After(now) || expiresAt.After(now.Add(12*time.Hour)) {
+		return domain.ProviderVerification{}, domain.SSOSession{}, "", ErrValidation
+	}
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	provider, ok := l.ssoProviders[providerID]
+	if !ok || provider.Status != "active" {
+		return domain.ProviderVerification{}, domain.SSOSession{}, "", ErrNotFound
+	}
+	if (provider.Type == "oidc" && samlAssertion != "") || (provider.Type == "saml" && idToken != "") {
+		return domain.ProviderVerification{}, domain.SSOSession{}, "", ErrValidation
+	}
+	checks := []domain.VerifyCheck{}
+	result := "passed"
+	if idToken != "" {
+		tokenChecks, err := verifyOIDCIDToken(provider, subject, idToken, now)
+		checks = append(checks, tokenChecks...)
+		if err != nil {
+			result = "failed"
+		}
+	}
+	if samlAssertion != "" {
+		assertionChecks, err := verifySAMLAssertion(provider, subject, samlAssertion, now)
+		checks = append(checks, assertionChecks...)
+		if err != nil {
+			result = "failed"
+		}
+	}
+
+	var link domain.UserIdentityLink
+	for _, candidate := range l.identityLinks {
+		if candidate.TenantID == provider.TenantID && candidate.ProviderID == provider.ID && candidate.Subject == subject && candidate.Verified {
+			link = candidate
+			break
+		}
+	}
+	if link.ID == "" {
+		result = "failed"
+		checks = append(checks, domain.VerifyCheck{Name: "verified_identity_link", Result: "failed"})
+	} else {
+		checks = append(checks, domain.VerifyCheck{Name: "verified_identity_link", Result: "passed"})
+	}
+
+	verification := domain.ProviderVerification{
+		ID:            newID("pvr"),
+		TenantID:      provider.TenantID,
+		ProviderType:  provider.Type,
+		ProviderID:    provider.ID,
+		Subject:       subject,
+		Result:        result,
+		Checks:        checks,
+		Limitations:   []string{"Credential exchange uses configured local token/assertion trust roots and verified identity links; no live provider API or group synchronization call is made."},
+		SchemaVersion: domain.ProviderVerificationVersion,
+		CreatedAt:     now,
+	}
+	l.providerVerifications[verification.ID] = verification
+	_, _ = l.appendChainLocked(provider.TenantID, "provider_identity.verified", "provider_identity", verification.ID, "sso_provider", provider.ID, "", "")
+	if result != "passed" {
+		if err := l.persistLocked(ctx); err != nil {
+			return domain.ProviderVerification{}, domain.SSOSession{}, "", err
+		}
+		return verification, domain.SSOSession{}, "", ErrVerificationFailed
+	}
+	user, ok := l.users[link.UserID]
+	if !ok || user.TenantID != provider.TenantID || user.Status != "active" {
+		verification.Result = "failed"
+		verification.Checks = append(verification.Checks, domain.VerifyCheck{Name: "active_user", Result: "failed"})
+		l.providerVerifications[verification.ID] = verification
+		if err := l.persistLocked(ctx); err != nil {
+			return domain.ProviderVerification{}, domain.SSOSession{}, "", err
+		}
+		return verification, domain.SSOSession{}, "", ErrVerificationFailed
+	}
+	verification.Checks = append(verification.Checks, domain.VerifyCheck{Name: "active_user", Result: "passed"})
+	l.providerVerifications[verification.ID] = verification
+
+	secret := "evysso_" + randomToken(32)
+	session := domain.SSOSession{ID: newID("sess"), TenantID: provider.TenantID, UserID: user.ID, ProviderID: provider.ID, Prefix: secretPrefix(secret), ExpiresAt: expiresAt, SchemaVersion: domain.SSOSessionSchemaVersion, CreatedAt: now, Hash: l.hashSecret(secret)}
+	l.ssoSessions[session.ID] = session
+	_, _ = l.appendChainLocked(provider.TenantID, "sso_session.created", "human_user", user.ID, "sso_provider", provider.ID, "", "")
+	if err := l.persistLocked(ctx); err != nil {
+		return domain.ProviderVerification{}, domain.SSOSession{}, "", err
+	}
+	session.Hash = ""
+	return verification, session, secret, nil
 }
 
 func (l *Ledger) RevokeSSOSession(ctx context.Context, actor domain.Actor, id string) (domain.SSOSession, error) {

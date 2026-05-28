@@ -66,6 +66,12 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Description = "Creates an admin-managed human SSO session record and returns a one-time bearer secret."
 		operation.RequestBody = jsonRequest("SSO session creation request.", "#/components/schemas/CreateSSOSessionRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created SSO session and one-time secret envelope.", "#/components/schemas/SSOSessionCreateEnvelope")
+	case "exchangeSSOCredential":
+		operation.Description = "Exchanges a locally verified OIDC ID token or SAML assertion for an SSO session and HttpOnly browser cookie using configured tenant trust material and verified identity links. No live provider API or group synchronization call is made."
+		operation.Security = nil
+		operation.Scopes = nil
+		operation.RequestBody = jsonRequest("SSO credential exchange request.", "#/components/schemas/ExchangeSSOCredentialRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created SSO session, verification receipt, and one-time secret envelope.", "#/components/schemas/SSOCredentialExchangeEnvelope")
 	case "revokeSSOSession":
 		operation.Description = "Revokes a tenant-scoped SSO session as an audited lifecycle transition."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "SSO session id."))

@@ -245,12 +245,13 @@ Important scope boundaries:
 | `POST` | `/v1/sso/providers/{id}/discover-oidc` | Fetch OIDC discovery metadata and refresh public JWKS trust material. |
 | `POST` | `/v1/sso/identity-links` | Link verified provider subject to user. |
 | `POST` | `/v1/sso/sessions` | Issue one-time session secret. |
+| `POST` | `/v1/sso/session-exchanges` | Exchange a locally verified OIDC ID token or SAML assertion for a session secret and HttpOnly cookie. |
 | `POST` | `/v1/sso/sessions/{id}/revoke` | Revoke session. |
 | `POST` | `/v1/sso/logout` | Revoke the currently authenticated SSO session. |
 | `POST` | `/v1/api-keys` | Create one-time API key secret. |
 | `GET` | `/v1/api-keys` | List keys without secret hashes. |
 
-Current SSO endpoints model admin-managed provider, identity-link, trust-material, and session records plus API-first session logout. OIDC provider records can include public JWKS material, and SAML provider records can include PEM-encoded assertion signing certificates; both can be rotated through `POST /v1/sso/providers/{id}/trust-material`. OIDC public JWKS can also be refreshed from the configured issuer with `POST /v1/sso/providers/{id}/discover-oidc`. `POST /v1/provider-verifications` can verify a supplied OIDC ID token or SAML assertion locally for issuer, audience, subject, time bounds, and signature. Live provider API calls, full browser login callbacks, browser cookie/session handling, and group synchronization are not implemented in this slice.
+Current SSO endpoints model admin-managed provider, identity-link, trust-material, and session records plus API-first session logout. OIDC provider records can include public JWKS material, and SAML provider records can include PEM-encoded assertion signing certificates; both can be rotated through `POST /v1/sso/providers/{id}/trust-material`. OIDC public JWKS can also be refreshed from the configured issuer with `POST /v1/sso/providers/{id}/discover-oidc`. `POST /v1/provider-verifications` can verify a supplied OIDC ID token or SAML assertion locally for issuer, audience, subject, time bounds, and signature. `POST /v1/sso/session-exchanges` uses the same local verification and a verified identity link to issue a one-time SSO bearer secret and an HttpOnly cookie for browser clients. Live provider API validation and group synchronization are not implemented in this slice.
 
 ### Products, Releases, Evidence, And Risk
 

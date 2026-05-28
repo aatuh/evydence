@@ -85,7 +85,7 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	if _, ok := problemProps["request_id"]; !ok {
 		t.Fatalf("Problem schema missing request_id: %#v", problemProps)
 	}
-	for _, schemaName := range []string{"ReadinessStatusEnvelope", "BackupManifestEnvelope", "VerificationResultEnvelope", "ReadinessReportEnvelope", "CreateProductRequest", "ProductEnvelope", "ProductListEnvelope", "CreateProjectRequest", "ProjectEnvelope", "CreateReleaseRequest", "ReleaseEnvelope", "RegisterArtifactRequest", "ArtifactEnvelope", "CreateBuildRequest", "BuildRunEnvelope", "EvidenceUploadRequest", "SBOMEnvelope", "VEXDocumentEnvelope", "UploadVulnerabilityScanRequest", "VulnerabilityScanEnvelope", "CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOProviderRequest", "UpdateSSOProviderTrustMaterialRequest", "SSOProviderEnvelope", "VerifyProviderIdentityRequest", "ProviderVerificationEnvelope", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalPackageRequest", "DataEnvelope"} {
+	for _, schemaName := range []string{"ReadinessStatusEnvelope", "BackupManifestEnvelope", "VerificationResultEnvelope", "ReadinessReportEnvelope", "CreateProductRequest", "ProductEnvelope", "ProductListEnvelope", "CreateProjectRequest", "ProjectEnvelope", "CreateReleaseRequest", "ReleaseEnvelope", "RegisterArtifactRequest", "ArtifactEnvelope", "CreateBuildRequest", "BuildRunEnvelope", "EvidenceUploadRequest", "SBOMEnvelope", "VEXDocumentEnvelope", "UploadVulnerabilityScanRequest", "VulnerabilityScanEnvelope", "CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOProviderRequest", "UpdateSSOProviderTrustMaterialRequest", "SSOProviderEnvelope", "VerifyProviderIdentityRequest", "ProviderVerificationEnvelope", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "ExchangeSSOCredentialRequest", "SSOCredentialExchangeEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalPackageRequest", "DataEnvelope"} {
 		if _, ok := schemas[schemaName]; !ok {
 			t.Fatalf("schema %s missing from OpenAPI components", schemaName)
 		}
@@ -177,6 +177,12 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	verifyProvider := operationMap(t, paths, "/v1/provider-verifications", "post")
 	assertRequestRef(t, verifyProvider, "#/components/schemas/VerifyProviderIdentityRequest")
 	assertResponseRef(t, verifyProvider, "201", "#/components/schemas/ProviderVerificationEnvelope")
+	exchangeSSO := operationMap(t, paths, "/v1/sso/session-exchanges", "post")
+	assertRequestRef(t, exchangeSSO, "#/components/schemas/ExchangeSSOCredentialRequest")
+	assertResponseRef(t, exchangeSSO, "201", "#/components/schemas/SSOCredentialExchangeEnvelope")
+	if _, ok := exchangeSSO["security"]; ok {
+		t.Fatalf("public SSO credential exchange should not require bearer auth in OpenAPI: %#v", exchangeSSO)
+	}
 	fetchTransparencyProof := operationMap(t, paths, "/v1/public-transparency-log-entries/{id}/fetch-proof", "post")
 	assertRequestRef(t, fetchTransparencyProof, "#/components/schemas/EmptyObject")
 	assertResponseRef(t, fetchTransparencyProof, "200", "#/components/schemas/PublicTransparencyLogEntryEnvelope")
@@ -215,6 +221,76 @@ func TestSSOProviderOIDCDiscoveryRefreshRoute(t *testing.T) {
 	}
 	if discovery.request.ProviderID != providerID || discovery.request.Issuer != "https://idp.example.test" {
 		t.Fatalf("discovery request = %#v", discovery.request)
+	}
+}
+
+func TestSSOCredentialExchangeRouteSetsSessionCookie(t *testing.T) {
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("keygen: %v", err)
+	}
+	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
+	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	admin, err := ledger.Authenticate(t.Context(), secret)
+	if err != nil {
+		t.Fatalf("auth: %v", err)
+	}
+	jwks := map[string]any{"keys": []any{map[string]any{"kty": "OKP", "crv": "Ed25519", "kid": "kid-login", "x": base64.RawURLEncoding.EncodeToString(pub)}}}
+	provider, err := ledger.CreateSSOProvider(t.Context(), admin, app.CreateSSOProviderInput{Name: "OIDC", Type: "oidc", Issuer: "https://idp.example.test", ClientID: "client", JWKS: jwks})
+	if err != nil {
+		t.Fatalf("provider: %v", err)
+	}
+	org, err := ledger.CreateOrganization(t.Context(), admin, app.CreateOrganizationInput{Name: "Example", Slug: "example"})
+	if err != nil {
+		t.Fatalf("org: %v", err)
+	}
+	user, err := ledger.CreateUser(t.Context(), admin, app.CreateUserInput{OrganizationID: org.ID, Email: "user@example.test", DisplayName: "User"})
+	if err != nil {
+		t.Fatalf("user: %v", err)
+	}
+	if _, err := ledger.LinkSSOIdentity(t.Context(), admin, app.LinkSSOIdentityInput{UserID: user.ID, ProviderID: provider.ID, Subject: "sub-1", Email: user.Email, Verified: true}); err != nil {
+		t.Fatalf("link: %v", err)
+	}
+	if _, err := ledger.CreateRoleBinding(t.Context(), admin, app.CreateRoleBindingInput{SubjectType: "user", SubjectID: user.ID, Role: "security_engineer"}); err != nil {
+		t.Fatalf("role binding: %v", err)
+	}
+	server, err := NewServer(ledger)
+	if err != nil {
+		t.Fatalf("server: %v", err)
+	}
+	idToken := signedRouterIDToken(t, priv, "kid-login", map[string]any{"iss": provider.Issuer, "aud": provider.ClientID, "sub": "sub-1", "email": user.Email, "email_verified": true, "exp": time.Now().Add(time.Hour).Unix()})
+	body, err := json.Marshal(map[string]any{"provider_id": provider.ID, "subject": "sub-1", "id_token": idToken})
+	if err != nil {
+		t.Fatalf("marshal body: %v", err)
+	}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/sso/session-exchanges", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("exchange status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	cookie := rec.Result().Cookies()[0]
+	if cookie.Name != ssoSessionCookieName || !cookie.HttpOnly || cookie.Value == "" {
+		t.Fatalf("session cookie = %#v", cookie)
+	}
+	if strings.Contains(rec.Body.String(), idToken) {
+		t.Fatalf("exchange response leaked id token: %s", rec.Body.String())
+	}
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/v1/sso/logout", strings.NewReader(`{}`))
+	req.AddCookie(cookie)
+	req.Header.Set("Idempotency-Key", "logout-cookie-session")
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("cookie logout status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	cleared := rec.Result().Cookies()[0]
+	if cleared.Name != ssoSessionCookieName || cleared.MaxAge != -1 {
+		t.Fatalf("cleared cookie = %#v", cleared)
 	}
 }
 

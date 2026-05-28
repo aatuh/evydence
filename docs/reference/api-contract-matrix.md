@@ -3,7 +3,7 @@
 This generated reference inventories Evydence `/v1` route contract precision from `openapi.yaml`.
 It is a planning aid for production contract hardening; `broad` means the route still uses a shared envelope, unspecified body, or generic schema where an endpoint-specific contract should be considered.
 
-Generated from 165 operations: 165 precise, 0 broad.
+Generated from 166 operations: 166 precise, 0 broad.
 
 | Method | Path | Operation | Auth | Scopes | Idempotency | Params | Request | 2xx Response | Precision |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -156,6 +156,7 @@ Generated from 165 operations: 165 precise, 0 broad.
 | POST | /v1/sso/providers | createSSOProvider | Bearer | identity:admin | required | - | application/json:CreateSSOProviderRequest | 201:application/json:SSOProviderEnvelope | precise |
 | POST | /v1/sso/providers/{id}/discover-oidc | refreshSSOProviderOIDCTrustMaterial | Bearer | identity:admin | required | path:id | application/json:EmptyObject | 200:application/json:SSOProviderEnvelope | precise |
 | POST | /v1/sso/providers/{id}/trust-material | updateSSOProviderTrustMaterial | Bearer | identity:admin | required | path:id | application/json:UpdateSSOProviderTrustMaterialRequest | 200:application/json:SSOProviderEnvelope | precise |
+| POST | /v1/sso/session-exchanges | exchangeSSOCredential | public | - | not required | - | application/json:ExchangeSSOCredentialRequest | 201:application/json:SSOCredentialExchangeEnvelope | precise |
 | POST | /v1/sso/sessions | createSSOSession | Bearer | identity:admin | required | - | application/json:CreateSSOSessionRequest | 201:application/json:SSOSessionCreateEnvelope | precise |
 | POST | /v1/sso/sessions/{id}/revoke | revokeSSOSession | Bearer | identity:admin | required | path:id | application/json:EmptyObject | 200:application/json:SSOSessionEnvelope | precise |
 | POST | /v1/transparency-checkpoints | createTransparencyCheckpoint | Bearer | keys:admin | required | - | application/json:CreateTransparencyCheckpointRequest | 201:application/json:TransparencyCheckpointEnvelope | precise |

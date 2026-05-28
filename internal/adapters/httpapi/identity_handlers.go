@@ -8,6 +8,8 @@ import (
 	"github.com/aatuh/evydence/internal/domain"
 )
 
+const ssoSessionCookieName = "evydence_session"
+
 func (s *Server) instanceAdminSnapshot(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
@@ -160,6 +162,32 @@ func (s *Server) createSSOSession(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) exchangeSSOCredential(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ProviderID    string    `json:"provider_id"`
+		Subject       string    `json:"subject"`
+		IDToken       string    `json:"id_token"`
+		SAMLAssertion string    `json:"saml_assertion"`
+		ExpiresAt     time.Time `json:"expires_at"`
+	}
+	body, err := readBody(r)
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	if err := decodeJSON(body, &req); err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	verification, session, secret, err := s.ledger.ExchangeSSOCredential(r.Context(), app.ExchangeSSOCredentialInput{ProviderID: req.ProviderID, Subject: req.Subject, IDToken: req.IDToken, SAMLAssertion: req.SAMLAssertion, ExpiresAt: req.ExpiresAt})
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	setSSOSessionCookie(w, secret, session.ExpiresAt)
+	writeData(w, http.StatusCreated, map[string]any{"verification": verification, "session": session, "secret": secret})
+}
+
 func (s *Server) revokeSSOSession(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
 		session, err := s.ledger.RevokeSSOSession(ctx, actor, r.PathValue("id"))
@@ -170,6 +198,34 @@ func (s *Server) revokeSSOSession(w http.ResponseWriter, r *http.Request) {
 func (s *Server) logoutSSOSession(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
 		session, err := s.ledger.RevokeCurrentSSOSession(ctx, actor)
+		if err == nil {
+			clearSSOSessionCookie(w)
+		}
 		return http.StatusOK, session, err
+	})
+}
+
+func setSSOSessionCookie(w http.ResponseWriter, secret string, expiresAt time.Time) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     ssoSessionCookieName,
+		Value:    secret,
+		Path:     "/v1",
+		Expires:  expiresAt.UTC(),
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+}
+
+func clearSSOSessionCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     ssoSessionCookieName,
+		Value:    "",
+		Path:     "/v1",
+		Expires:  time.Unix(0, 0).UTC(),
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
 	})
 }
