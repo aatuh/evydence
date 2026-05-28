@@ -61,4 +61,27 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	if err := store.CompleteJob(ctx, jobs[0].ID); err != nil {
 		t.Fatal(err)
 	}
+
+	retryJob := app.OutboxJob{ID: "job_retry_" + time.Now().Format("150405.000000000"), TenantID: "ten_test", Kind: "parse_sbom", SubjectType: "sbom", SubjectID: "sbom_test", CreatedAt: time.Now().UTC()}
+	if err := store.Enqueue(ctx, retryJob); err != nil {
+		t.Fatal(err)
+	}
+	if pending, err := store.CountPendingJobs(ctx); err != nil {
+		t.Fatal(err)
+	} else if pending == 0 {
+		t.Fatal("expected pending outbox job")
+	}
+	claimed, err := store.ClaimJobs(ctx, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(claimed) == 0 {
+		t.Fatal("expected retry job claim")
+	}
+	if err := store.FailJob(ctx, claimed[0].ID, context.Canceled); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Now(ctx); err != nil {
+		t.Fatal(err)
+	}
 }

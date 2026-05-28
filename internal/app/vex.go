@@ -64,6 +64,9 @@ type openVEXProduct struct {
 }
 
 func (l *Ledger) UploadVEX(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.VEXDocument, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.VEXDocument{}, err
+	}
 	if err := require(actor, ScopeEvidenceWrite); err != nil {
 		return domain.VEXDocument{}, err
 	}

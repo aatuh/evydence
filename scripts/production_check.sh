@@ -16,26 +16,26 @@ make coverage-check
 
 workdir="tmp/production-check"
 rm -rf "$workdir"
-mkdir -p "$workdir/dist"
+mkdir -p "$workdir"
 
-go build -o "$workdir/dist/evydence" ./cmd/evydence
-cp openapi.yaml "$workdir/dist/openapi.yaml"
+go build -o "$workdir/evydence" ./cmd/evydence
+cp openapi.yaml "$workdir/openapi.yaml"
 
-"$workdir/dist/evydence" release manifest \
+"$workdir/evydence" release manifest \
   --out "$workdir/evydence-release-manifest.json" \
-  "$workdir/dist/evydence" \
-  "$workdir/dist/openapi.yaml"
+  "$workdir/evydence" \
+  "$workdir/openapi.yaml"
 
-"$workdir/dist/evydence" release keygen \
+"$workdir/evydence" release keygen \
   --private-out "$workdir/release-private.key" \
   --public-out "$workdir/release-public.key" >/dev/null
 
-"$workdir/dist/evydence" release sign \
+"$workdir/evydence" release sign \
   --manifest "$workdir/evydence-release-manifest.json" \
   --private-key "$workdir/release-private.key" \
   --out "$workdir/evydence-release-manifest.sig.json"
 
-"$workdir/dist/evydence" release verify \
+"$workdir/evydence" release verify \
   --manifest "$workdir/evydence-release-manifest.json" \
   --signature "$workdir/evydence-release-manifest.sig.json"
 

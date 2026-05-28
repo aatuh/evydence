@@ -677,6 +677,9 @@ func (l *Ledger) UploadManualSecurityDocument(ctx context.Context, actor domain.
 }
 
 func (l *Ledger) UploadSPDXSBOM(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.SBOM, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.SBOM{}, err
+	}
 	if err := require(actor, ScopeEvidenceWrite); err != nil {
 		return domain.SBOM{}, err
 	}
@@ -807,6 +810,9 @@ func (l *Ledger) CreateSBOMDiff(ctx context.Context, actor domain.Actor, in Crea
 }
 
 func (l *Ledger) UploadCycloneDXVEX(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.VEXDocument, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.VEXDocument{}, err
+	}
 	if err := require(actor, ScopeEvidenceWrite); err != nil {
 		return domain.VEXDocument{}, err
 	}

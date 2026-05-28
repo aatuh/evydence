@@ -217,6 +217,77 @@ func TestCreateProductRequiresAuthAndIdempotency(t *testing.T) {
 	}
 }
 
+func TestAuthenticatedReadRoutesRejectMissingBearerToken(t *testing.T) {
+	server, _ := testServer(t)
+	paths := []string{
+		"/v1/admin/instance",
+		"/v1/api-keys",
+		"/v1/artifact-signatures/sig_missing",
+		"/v1/audit-chain/verify",
+		"/v1/audit-log",
+		"/v1/backup-manifests/backup_missing/verify",
+		"/v1/builds/build_missing",
+		"/v1/collectors",
+		"/v1/collectors/collector_missing/health",
+		"/v1/commercial-collectors",
+		"/v1/control-evidence",
+		"/v1/control-framework-template-packs",
+		"/v1/control-frameworks",
+		"/v1/controls/control_missing",
+		"/v1/customer-packages/package_missing",
+		"/v1/customer-packages/package_missing/download",
+		"/v1/deployments",
+		"/v1/deployments/deployment_missing",
+		"/v1/environments",
+		"/v1/evidence",
+		"/v1/evidence/search",
+		"/v1/evidence/ev_missing",
+		"/v1/evidence/ev_missing/lifecycle-events",
+		"/v1/exceptions",
+		"/v1/marketplace-collectors",
+		"/v1/marketplace-collectors/collector_missing/health",
+		"/v1/openapi-contracts/contract_missing",
+		"/v1/products",
+		"/v1/release-bundles/bundle_missing",
+		"/v1/release-bundles/bundle_missing/manifest",
+		"/v1/release-bundles/bundle_missing/verify",
+		"/v1/release-candidates",
+		"/v1/release-candidates/rc_missing",
+		"/v1/releases/release_missing",
+		"/v1/reports/control-coverage",
+		"/v1/reports/cra-readiness",
+		"/v1/reports/cra-readiness-html",
+		"/v1/reports/incident-package",
+		"/v1/reports/missing-evidence",
+		"/v1/reports/retention",
+		"/v1/reports/security-review-package",
+		"/v1/reports/vulnerability-posture",
+		"/v1/role-bindings",
+		"/v1/sboms/sbom_missing",
+		"/v1/signing-keys",
+		"/v1/source/repositories",
+		"/v1/vex/vex_missing",
+		"/v1/vulnerability-scans/scan_missing",
+	}
+	for _, path := range paths {
+		t.Run(path, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			server.Handler().ServeHTTP(rec, req)
+			if rec.Code != http.StatusUnauthorized {
+				t.Fatalf("GET %s status=%d want 401 body=%s", path, rec.Code, rec.Body.String())
+			}
+			var problem map[string]any
+			if err := json.Unmarshal(rec.Body.Bytes(), &problem); err != nil {
+				t.Fatalf("decode problem response: %v body=%s", err, rec.Body.String())
+			}
+			if problem["detail"] != "unauthorized" || strings.Contains(asString(t, problem["detail"]), "missing") {
+				t.Fatalf("unauthorized detail should stay generic: %#v", problem)
+			}
+		})
+	}
+}
+
 func TestUnknownJSONFieldReturnsProblem(t *testing.T) {
 	server, secret := testServer(t)
 	rec := httptest.NewRecorder()
