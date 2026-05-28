@@ -247,7 +247,7 @@ Important scope boundaries:
 | `POST` | `/v1/api-keys` | Create one-time API key secret. |
 | `GET` | `/v1/api-keys` | List keys without secret hashes. |
 
-Current SSO endpoints model admin-managed provider, identity-link, and session records. OIDC provider records can include static JWKS public-key material, and `POST /v1/provider-verifications` can verify a supplied ID token locally for issuer, audience, subject, expiry, and EdDSA or RS256 signature. Live OIDC discovery, live provider API calls, SAML assertion verification, browser redirects, provider login callbacks, and group synchronization are not implemented in this slice.
+Current SSO endpoints model admin-managed provider, identity-link, and session records. OIDC provider records can include static JWKS public-key material, and SAML provider records can include PEM-encoded assertion signing certificates. `POST /v1/provider-verifications` can verify a supplied OIDC ID token or SAML assertion locally for issuer, audience, subject, time bounds, and signature. Live OIDC discovery, live provider API calls, full browser login callbacks, and group synchronization are not implemented in this slice.
 
 ### Products, Releases, Evidence, And Risk
 

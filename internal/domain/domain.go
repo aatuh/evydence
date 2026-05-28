@@ -147,18 +147,19 @@ type RoleBinding struct {
 }
 
 type SSOProvider struct {
-	ID            string            `json:"id"`
-	TenantID      string            `json:"tenant_id"`
-	Name          string            `json:"name"`
-	Type          string            `json:"type"`
-	Issuer        string            `json:"issuer"`
-	ClientID      string            `json:"client_id"`
-	GroupsClaim   string            `json:"groups_claim,omitempty"`
-	RoleMapping   map[string]string `json:"role_mapping,omitempty"`
-	JWKS          map[string]any    `json:"jwks,omitempty"`
-	Status        string            `json:"status"`
-	SchemaVersion string            `json:"schema_version"`
-	CreatedAt     time.Time         `json:"created_at"`
+	ID                      string            `json:"id"`
+	TenantID                string            `json:"tenant_id"`
+	Name                    string            `json:"name"`
+	Type                    string            `json:"type"`
+	Issuer                  string            `json:"issuer"`
+	ClientID                string            `json:"client_id"`
+	GroupsClaim             string            `json:"groups_claim,omitempty"`
+	RoleMapping             map[string]string `json:"role_mapping,omitempty"`
+	JWKS                    map[string]any    `json:"jwks,omitempty"`
+	SAMLSigningCertificates []string          `json:"saml_signing_certificates,omitempty"`
+	Status                  string            `json:"status"`
+	SchemaVersion           string            `json:"schema_version"`
+	CreatedAt               time.Time         `json:"created_at"`
 }
 
 type UserIdentityLink struct {

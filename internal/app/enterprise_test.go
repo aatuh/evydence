@@ -7,9 +7,13 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
+	"math/big"
 	"strings"
 	"testing"
 	"time"
@@ -82,6 +86,59 @@ func TestEnterpriseIdentityRBACSSOAndAdminSnapshot(t *testing.T) {
 	}
 	if _, err := ledger.DeactivateUser(ctx, actor, user.ID); err != nil {
 		t.Fatalf("deactivate user: %v", err)
+	}
+}
+
+func TestSAMLProviderIdentityVerificationUsesConfiguredCertificate(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	actor, err := ledger.Authenticate(ctx, secret)
+	if err != nil {
+		t.Fatalf("auth: %v", err)
+	}
+	privateKey, certPEM := samlTestCertificate(t)
+	provider, err := ledger.CreateSSOProvider(ctx, actor, CreateSSOProviderInput{
+		Name:                    "SAML",
+		Type:                    "saml",
+		Issuer:                  "https://saml-idp.example.test",
+		ClientID:                "saml-client",
+		SAMLSigningCertificates: []string{certPEM},
+	})
+	if err != nil {
+		t.Fatalf("saml provider: %v", err)
+	}
+	org, err := ledger.CreateOrganization(ctx, actor, CreateOrganizationInput{Name: "SAML Example", Slug: "saml-example"})
+	if err != nil {
+		t.Fatalf("org: %v", err)
+	}
+	user, err := ledger.CreateUser(ctx, actor, CreateUserInput{OrganizationID: org.ID, Email: "saml@example.test", DisplayName: "SAML User"})
+	if err != nil {
+		t.Fatalf("user: %v", err)
+	}
+	if _, err := ledger.LinkSSOIdentity(ctx, actor, LinkSSOIdentityInput{UserID: user.ID, ProviderID: provider.ID, Subject: "saml-sub", Email: user.Email, Verified: true}); err != nil {
+		t.Fatalf("identity link: %v", err)
+	}
+	assertion := signedTestSAMLAssertion(t, privateKey, "https://saml-idp.example.test", "saml-client", "saml-sub", fixedNow().Add(-time.Minute), fixedNow().Add(time.Hour))
+	verification, err := ledger.VerifyProviderIdentity(ctx, actor, VerifyProviderIdentityInput{ProviderType: "saml", ProviderID: provider.ID, Subject: "saml-sub", SAMLAssertion: assertion})
+	if err != nil {
+		t.Fatalf("provider verification: %v", err)
+	}
+	if verification.Result != "passed" || !hasVerifyCheck(verification.Checks, "saml_assertion_signature", "passed") {
+		t.Fatalf("verification = %#v", verification)
+	}
+	badAssertion := strings.Replace(assertion, "saml-sub", "other-sub", 1)
+	failed, err := ledger.VerifyProviderIdentity(ctx, actor, VerifyProviderIdentityInput{ProviderType: "saml", ProviderID: provider.ID, Subject: "saml-sub", SAMLAssertion: badAssertion})
+	if !errors.Is(err, ErrVerificationFailed) || failed.Result != "failed" {
+		t.Fatalf("bad assertion verification = %#v err=%v", failed, err)
+	}
+	for _, check := range failed.Checks {
+		if strings.Contains(check.Detail, badAssertion) {
+			t.Fatalf("verification leaked assertion in check detail: %#v", failed)
+		}
 	}
 }
 
@@ -889,6 +946,55 @@ func signedTestRSAIDToken(t *testing.T, private *rsa.PrivateKey, kid string, cla
 		t.Fatalf("rsa sign: %v", err)
 	}
 	return unsigned + "." + base64.RawURLEncoding.EncodeToString(signature)
+}
+
+func samlTestCertificate(t *testing.T) (*rsa.PrivateKey, string) {
+	t.Helper()
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("rsa keygen: %v", err)
+	}
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "saml-idp.example.test"},
+		NotBefore:    fixedNow().Add(-time.Hour),
+		NotAfter:     fixedNow().Add(24 * time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, template, template, &privateKey.PublicKey, privateKey)
+	if err != nil {
+		t.Fatalf("certificate: %v", err)
+	}
+	return privateKey, string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}))
+}
+
+func signedTestSAMLAssertion(t *testing.T, privateKey *rsa.PrivateKey, issuer, audience, subject string, notBefore, notOnOrAfter time.Time) string {
+	t.Helper()
+	notBeforeText := notBefore.UTC().Format(time.RFC3339)
+	notOnOrAfterText := notOnOrAfter.UTC().Format(time.RFC3339)
+	payload := samlAssertionSignaturePayload(issuer, audience, subject, notBeforeText, notOnOrAfterText)
+	sum := sha256.Sum256([]byte(payload))
+	signature, err := rsa.SignPKCS1v15(rand.Reader, privateKey, crypto.SHA256, sum[:])
+	if err != nil {
+		t.Fatalf("sign saml assertion: %v", err)
+	}
+	return `<Assertion ID="assertion-1" Version="2.0" IssueInstant="` + fixedNow().UTC().Format(time.RFC3339) + `">` +
+		`<Issuer>` + issuer + `</Issuer>` +
+		`<Subject><NameID>` + subject + `</NameID></Subject>` +
+		`<Conditions NotBefore="` + notBeforeText + `" NotOnOrAfter="` + notOnOrAfterText + `">` +
+		`<AudienceRestriction><Audience>` + audience + `</Audience></AudienceRestriction>` +
+		`</Conditions>` +
+		`<Signature Algorithm="rsa-sha256"><SignatureValue>` + base64.StdEncoding.EncodeToString(signature) + `</SignatureValue></Signature>` +
+		`</Assertion>`
+}
+
+func hasVerifyCheck(checks []domain.VerifyCheck, name, result string) bool {
+	for _, check := range checks {
+		if check.Name == name && check.Result == result {
+			return true
+		}
+	}
+	return false
 }
 
 func bigEndianExponent(value int) []byte {

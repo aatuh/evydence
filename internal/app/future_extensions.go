@@ -6,8 +6,11 @@ import (
 	"crypto/ed25519"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
+	"encoding/xml"
 	"errors"
 	"math/big"
 	"strings"
@@ -84,10 +87,11 @@ type CreateSigningOperationInput struct {
 }
 
 type VerifyProviderIdentityInput struct {
-	ProviderType string
-	ProviderID   string
-	Subject      string
-	IDToken      string
+	ProviderType  string
+	ProviderID    string
+	Subject       string
+	IDToken       string
+	SAMLAssertion string
 }
 
 func (l *Ledger) CreateEvidenceSummary(ctx context.Context, actor domain.Actor, in CreateEvidenceSummaryInput) (domain.EvidenceSummary, error) {
@@ -710,6 +714,109 @@ func audienceContains(audience any, expected string) bool {
 	return false
 }
 
+type samlAssertionDocument struct {
+	XMLName    xml.Name                `xml:"Assertion"`
+	Issuer     string                  `xml:"Issuer"`
+	Subject    samlAssertionSubject    `xml:"Subject"`
+	Conditions samlAssertionConditions `xml:"Conditions"`
+	Signature  samlAssertionSignature  `xml:"Signature"`
+}
+
+type samlAssertionSubject struct {
+	NameID string `xml:"NameID"`
+}
+
+type samlAssertionConditions struct {
+	NotBefore    string                  `xml:"NotBefore,attr"`
+	NotOnOrAfter string                  `xml:"NotOnOrAfter,attr"`
+	Audience     samlAudienceRestriction `xml:"AudienceRestriction"`
+}
+
+type samlAudienceRestriction struct {
+	Audience string `xml:"Audience"`
+}
+
+type samlAssertionSignature struct {
+	Algorithm      string `xml:"Algorithm,attr"`
+	SignatureValue string `xml:"SignatureValue"`
+}
+
+func verifySAMLAssertion(provider domain.SSOProvider, expectedSubject, assertion string, now time.Time) ([]domain.VerifyCheck, error) {
+	if len(assertion) > 128*1024 {
+		return []domain.VerifyCheck{{Name: "saml_assertion_size", Result: "failed"}}, ErrVerificationFailed
+	}
+	if len(provider.SAMLSigningCertificates) == 0 {
+		return []domain.VerifyCheck{{Name: "saml_signing_certificate", Result: "failed"}}, ErrVerificationFailed
+	}
+	var doc samlAssertionDocument
+	decoder := xml.NewDecoder(strings.NewReader(assertion))
+	decoder.Strict = true
+	if err := decoder.Decode(&doc); err != nil {
+		return []domain.VerifyCheck{{Name: "saml_assertion_shape", Result: "failed"}}, ErrVerificationFailed
+	}
+	checks := []domain.VerifyCheck{{Name: "saml_assertion_shape", Result: "passed"}}
+	notBefore, err := time.Parse(time.RFC3339, strings.TrimSpace(doc.Conditions.NotBefore))
+	if err != nil {
+		return checksWithFailure(checks, "saml_assertion_time"), ErrVerificationFailed
+	}
+	notOnOrAfter, err := time.Parse(time.RFC3339, strings.TrimSpace(doc.Conditions.NotOnOrAfter))
+	if err != nil {
+		return checksWithFailure(checks, "saml_assertion_time"), ErrVerificationFailed
+	}
+	signatureValue, err := base64.StdEncoding.DecodeString(strings.TrimSpace(doc.Signature.SignatureValue))
+	if err != nil || strings.TrimSpace(doc.Signature.Algorithm) != "rsa-sha256" {
+		return checksWithFailure(checks, "saml_assertion_signature"), ErrVerificationFailed
+	}
+	payload := samlAssertionSignaturePayload(strings.TrimSpace(doc.Issuer), strings.TrimSpace(doc.Conditions.Audience.Audience), strings.TrimSpace(doc.Subject.NameID), notBefore.UTC().Format(time.RFC3339), notOnOrAfter.UTC().Format(time.RFC3339))
+	if err := verifySAMLAssertionSignature(provider.SAMLSigningCertificates, []byte(payload), signatureValue); err != nil {
+		return checksWithFailure(checks, "saml_assertion_signature"), ErrVerificationFailed
+	}
+	checks = append(checks, domain.VerifyCheck{Name: "saml_assertion_signature", Result: "passed"})
+	if strings.TrimSpace(doc.Issuer) != provider.Issuer {
+		return checksWithFailure(checks, "issuer"), ErrVerificationFailed
+	}
+	checks = append(checks, domain.VerifyCheck{Name: "issuer", Result: "passed"})
+	if strings.TrimSpace(doc.Conditions.Audience.Audience) != provider.ClientID {
+		return checksWithFailure(checks, "audience"), ErrVerificationFailed
+	}
+	checks = append(checks, domain.VerifyCheck{Name: "audience", Result: "passed"})
+	if strings.TrimSpace(doc.Subject.NameID) == "" || strings.TrimSpace(doc.Subject.NameID) != expectedSubject {
+		return checksWithFailure(checks, "subject"), ErrVerificationFailed
+	}
+	checks = append(checks, domain.VerifyCheck{Name: "subject", Result: "passed"})
+	if notBefore.After(now.Add(time.Minute)) || !notOnOrAfter.After(now) {
+		return checksWithFailure(checks, "saml_assertion_time"), ErrVerificationFailed
+	}
+	checks = append(checks, domain.VerifyCheck{Name: "saml_assertion_time", Result: "passed"})
+	return checks, nil
+}
+
+func samlAssertionSignaturePayload(issuer, audience, subject, notBefore, notOnOrAfter string) string {
+	return strings.Join([]string{issuer, audience, subject, notBefore, notOnOrAfter}, "\n")
+}
+
+func verifySAMLAssertionSignature(certs []string, payload, signature []byte) error {
+	sum := sha256.Sum256(payload)
+	for _, raw := range certs {
+		block, _ := pem.Decode([]byte(raw))
+		if block == nil {
+			continue
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			continue
+		}
+		key, ok := cert.PublicKey.(*rsa.PublicKey)
+		if !ok {
+			continue
+		}
+		if rsa.VerifyPKCS1v15(key, crypto.SHA256, sum[:], signature) == nil {
+			return nil
+		}
+	}
+	return errors.New("no configured saml signing certificate verified assertion")
+}
+
 func (l *Ledger) CreatePDFReportPackage(ctx context.Context, actor domain.Actor, in CreatePDFReportPackageInput) (domain.PDFReportPackage, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.PDFReportPackage{}, err
@@ -846,7 +953,11 @@ func (l *Ledger) VerifyProviderIdentity(ctx context.Context, actor domain.Actor,
 	}
 	providerType, providerID, subject := strings.TrimSpace(in.ProviderType), strings.TrimSpace(in.ProviderID), strings.TrimSpace(in.Subject)
 	idToken := strings.TrimSpace(in.IDToken)
+	samlAssertion := strings.TrimSpace(in.SAMLAssertion)
 	if providerType == "" || providerID == "" || subject == "" {
+		return domain.ProviderVerification{}, ErrValidation
+	}
+	if (providerType == "oidc" && samlAssertion != "") || (providerType == "saml" && idToken != "") {
 		return domain.ProviderVerification{}, ErrValidation
 	}
 	l.mu.Lock()
@@ -862,6 +973,13 @@ func (l *Ledger) VerifyProviderIdentity(ctx context.Context, actor domain.Actor,
 		if idToken != "" {
 			tokenChecks, err := verifyOIDCIDToken(provider, subject, idToken, l.now())
 			checks = append(checks, tokenChecks...)
+			if err != nil {
+				result = "failed"
+			}
+		}
+		if samlAssertion != "" {
+			assertionChecks, err := verifySAMLAssertion(provider, subject, samlAssertion, l.now())
+			checks = append(checks, assertionChecks...)
 			if err != nil {
 				result = "failed"
 			}
@@ -882,8 +1000,8 @@ func (l *Ledger) VerifyProviderIdentity(ctx context.Context, actor domain.Actor,
 	default:
 		return domain.ProviderVerification{}, ErrValidation
 	}
-	limitations := []string{"Verification uses stored provider metadata and configured local JWKS material; no live provider API or discovery call is made."}
-	if idToken == "" {
+	limitations := []string{"Verification uses stored provider metadata and configured local token/assertion trust roots; no live provider API or discovery call is made."}
+	if idToken == "" && samlAssertion == "" {
 		limitations = []string{"Verification is limited to stored provider/link metadata because no provider token was supplied."}
 	}
 	record := domain.ProviderVerification{ID: newID("pvr"), TenantID: actor.TenantID, ProviderType: providerType, ProviderID: providerID, Subject: subject, Result: result, Checks: checks, Limitations: limitations, SchemaVersion: domain.ProviderVerificationVersion, CreatedAt: l.now()}

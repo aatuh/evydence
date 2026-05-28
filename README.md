@@ -43,7 +43,7 @@ This repository contains a Go release-ledger MVP scaffold under module `github.c
 - GitHub Actions and GitLab CI workflow examples.
 - Documentation portal under `docs/`.
 
-Implemented-but-partial areas are documented explicitly: signing-provider operation receipts do not replace production KMS/HSM adapters, local static-JWKS OIDC token verification does not replace live provider discovery/API validation or SAML assertion verification, and public transparency records do not prove external log inclusion without the configured operator workflow.
+Implemented-but-partial areas are documented explicitly: signing-provider operation receipts do not replace production KMS/HSM adapters, local OIDC/SAML verification does not replace live provider discovery/API validation or browser login callbacks, and public transparency records do not prove external log inclusion without the configured operator workflow.
 
 ## Local API
 
