@@ -37,7 +37,7 @@ Implementation rules:
 - use Conventional Commits style for the commit message
 - update the ticket checkmark from `[ ]` to `[x]` only after checks pass
 
-### Ticket E1-T3 - Cover Command, SDK, And Adapter Helpers [ ]
+### Ticket E1-T3 - Cover Command, SDK, And Adapter Helpers [x]
 
 Description: Add tests for CLI helper commands, worker/API env helpers, Go SDK request behavior, S3 constructor/metadata behavior, and Postgres migration/resource projection helper paths that can be tested without external services.
 
