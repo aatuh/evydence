@@ -61,6 +61,39 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"subject":       map[string]any{"type": "string"},
 		"id_token":      map[string]any{"type": "string", "description": "Optional OIDC ID token verified locally against the provider's configured static JWKS."},
 	}, "provider_type", "provider_id", "subject"))
+	registry.RegisterSchema("VerifyCheck", objectSchema(map[string]any{
+		"name":   map[string]any{"type": "string"},
+		"result": map[string]any{"type": "string", "enum": []string{"passed", "failed", "warning"}},
+		"detail": map[string]any{"type": "string"},
+	}, "name", "result"))
+	registry.RegisterSchema("SSOProvider", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"name":           map[string]any{"type": "string"},
+		"type":           map[string]any{"type": "string", "enum": []string{"oidc", "saml"}},
+		"issuer":         map[string]any{"type": "string"},
+		"client_id":      map[string]any{"type": "string"},
+		"groups_claim":   map[string]any{"type": "string"},
+		"role_mapping":   map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "string"}},
+		"jwks":           map[string]any{"type": "object", "description": "Configured public JWKS material, when supplied."},
+		"status":         map[string]any{"type": "string"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "name", "type", "issuer", "client_id", "status", "schema_version", "created_at"))
+	registry.RegisterSchema("SSOProviderEnvelope", dataEnvelopeSchema("#/components/schemas/SSOProvider"))
+	registry.RegisterSchema("ProviderVerification", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"provider_type":  map[string]any{"type": "string", "enum": []string{"oidc", "saml"}},
+		"provider_id":    map[string]any{"type": "string"},
+		"subject":        map[string]any{"type": "string"},
+		"result":         map[string]any{"type": "string", "enum": []string{"passed", "failed"}},
+		"checks":         map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/VerifyCheck"}},
+		"limitations":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "provider_type", "provider_id", "subject", "result", "checks", "limitations", "schema_version", "created_at"))
+	registry.RegisterSchema("ProviderVerificationEnvelope", dataEnvelopeSchema("#/components/schemas/ProviderVerification"))
 	registry.RegisterSchema("SSOSessionCreateResponse", objectSchema(map[string]any{
 		"session": map[string]any{"type": "object"},
 		"secret":  map[string]any{"type": "string", "description": "One-time SSO session bearer secret; not returned by list/read operations."},

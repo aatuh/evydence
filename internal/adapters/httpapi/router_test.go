@@ -84,7 +84,7 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	if _, ok := problemProps["request_id"]; !ok {
 		t.Fatalf("Problem schema missing request_id: %#v", problemProps)
 	}
-	for _, schemaName := range []string{"CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOProviderRequest", "VerifyProviderIdentityRequest", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalPackageRequest", "DataEnvelope"} {
+	for _, schemaName := range []string{"CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOProviderRequest", "SSOProviderEnvelope", "VerifyProviderIdentityRequest", "ProviderVerificationEnvelope", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalPackageRequest", "DataEnvelope"} {
 		if _, ok := schemas[schemaName]; !ok {
 			t.Fatalf("schema %s missing from OpenAPI components", schemaName)
 		}
@@ -120,6 +120,12 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	createSession := operationMap(t, paths, "/v1/sso/sessions", "post")
 	assertRequestRef(t, createSession, "#/components/schemas/CreateSSOSessionRequest")
 	assertResponseRef(t, createSession, "201", "#/components/schemas/SSOSessionCreateEnvelope")
+	createProvider := operationMap(t, paths, "/v1/sso/providers", "post")
+	assertRequestRef(t, createProvider, "#/components/schemas/CreateSSOProviderRequest")
+	assertResponseRef(t, createProvider, "201", "#/components/schemas/SSOProviderEnvelope")
+	verifyProvider := operationMap(t, paths, "/v1/provider-verifications", "post")
+	assertRequestRef(t, verifyProvider, "#/components/schemas/VerifyProviderIdentityRequest")
+	assertResponseRef(t, verifyProvider, "201", "#/components/schemas/ProviderVerificationEnvelope")
 	verifyBundle := operationMap(t, paths, "/v1/release-bundles/{id}/verify", "get")
 	assertQueryParams(t, verifyBundle, "id")
 	assertResponseRef(t, verifyBundle, "200", "#/components/schemas/ReleaseBundleVerificationEnvelope")
