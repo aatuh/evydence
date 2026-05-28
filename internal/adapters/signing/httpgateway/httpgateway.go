@@ -58,7 +58,7 @@ func New(cfg Config) (*Executor, error) {
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
 		return nil, app.ErrValidation
 	}
-	if parsed.Scheme != "https" && !(cfg.AllowInsecureForLocalhost && parsed.Scheme == "http" && localhostHost(parsed.Hostname())) {
+	if parsed.Scheme != "https" && (!cfg.AllowInsecureForLocalhost || parsed.Scheme != "http" || !localhostHost(parsed.Hostname())) {
 		return nil, errors.New("signing gateway endpoint must use https")
 	}
 	timeout := cfg.Timeout

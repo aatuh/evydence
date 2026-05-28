@@ -17,6 +17,10 @@ type ObjectStore interface {
 	Get(context.Context, string) (Object, error)
 }
 
+type ObjectRetentionVerifier interface {
+	VerifyObjectRetention(context.Context, ObjectRetentionRequest) (ObjectRetentionResult, error)
+}
+
 type SigningExecutor interface {
 	Sign(context.Context, SigningRequest) (SigningResult, error)
 }
@@ -40,6 +44,20 @@ type SigningResult struct {
 	KeyID     string
 	Algorithm string
 	Checks    []domain.VerifyCheck
+}
+
+type ObjectRetentionRequest struct {
+	TenantID      string
+	ObjectPrefix  string
+	Mode          string
+	RetentionDays int
+}
+
+type ObjectRetentionResult struct {
+	Provider    string
+	Enforced    bool
+	Checks      []domain.VerifyCheck
+	Limitations []string
 }
 
 type PersistedState struct {

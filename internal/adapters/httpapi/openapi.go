@@ -199,8 +199,13 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"status":            map[string]any{"type": "string"},
 		"verified_at":       map[string]any{"type": "string", "format": "date-time"},
 		"verification_hash": map[string]any{"type": "string", "pattern": "^sha256:"},
-		"schema_version":    map[string]any{"type": "string"},
-		"created_at":        map[string]any{"type": "string", "format": "date-time"},
+		"verification_checks": map[string]any{
+			"type":  "array",
+			"items": map[string]any{"$ref": "#/components/schemas/VerifyCheck"},
+		},
+		"verification_limitations": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"schema_version":           map[string]any{"type": "string"},
+		"created_at":               map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "name", "object_prefix", "mode", "retention_days", "status", "schema_version", "created_at"))
 	registry.RegisterSchema("ObjectRetentionPolicyEnvelope", dataEnvelopeSchema("#/components/schemas/ObjectRetentionPolicy"))
 	registry.RegisterSchema("CreateLegalHoldRequest", objectSchema(map[string]any{

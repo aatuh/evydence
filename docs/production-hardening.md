@@ -18,6 +18,7 @@ These checks are enforced by API startup. See [Configuration](reference/configur
 
 - PostgreSQL is external, backed up, monitored, and restored in a test environment.
 - Object storage is external S3/MinIO-compatible storage with tenant-prefixed paths, encryption, lifecycle policy, and retention/object-lock policy where required.
+- S3/MinIO object-retention policy verification has been run for required tenant prefixes, and records show bucket versioning plus default object-lock mode/duration checks with documented limitations.
 - Ingress terminates TLS and does not expose internal diagnostics.
 - Edge rate limiting is configured at the reverse proxy or ingress. The optional `EVYDENCE_RATE_LIMIT_REQUESTS_PER_MINUTE` in-process limiter is a local safety net and keys by TCP remote address only.
 - `/v1/metrics`, `/v1/audit-log`, and `/v1/admin/instance` are protected by server-side scopes and are not public.

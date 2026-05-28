@@ -11,6 +11,7 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 
 	"github.com/aatuh/evydence/internal/app"
+	"github.com/aatuh/evydence/internal/domain"
 )
 
 type Config struct {
@@ -99,6 +100,24 @@ func (s *Store) Get(ctx context.Context, key string) (app.Object, error) {
 	}, nil
 }
 
+func (s *Store) VerifyObjectRetention(ctx context.Context, req app.ObjectRetentionRequest) (app.ObjectRetentionResult, error) {
+	if s == nil || s.client == nil {
+		return app.ObjectRetentionResult{}, app.ErrValidation
+	}
+	if strings.TrimSpace(req.TenantID) == "" || !strings.HasPrefix(strings.TrimSpace(req.ObjectPrefix), "tenants/"+strings.TrimSpace(req.TenantID)+"/") {
+		return app.ObjectRetentionResult{}, app.ErrValidation
+	}
+	versioning, err := s.client.GetBucketVersioning(ctx, s.bucket)
+	if err != nil {
+		return app.ObjectRetentionResult{}, fmt.Errorf("check s3 bucket versioning: %w", err)
+	}
+	mode, validity, unit, err := s.client.GetBucketObjectLockConfig(ctx, s.bucket)
+	if err != nil && !objectLockConfigMissing(err) {
+		return app.ObjectRetentionResult{}, fmt.Errorf("check s3 object lock: %w", err)
+	}
+	return evaluateObjectRetention(req, versioning.Enabled(), mode, validity, unit), nil
+}
+
 func metadataValue(metadata map[string]string, keys ...string) string {
 	for _, key := range keys {
 		if value := metadata[key]; value != "" {
@@ -106,4 +125,72 @@ func metadataValue(metadata map[string]string, keys ...string) string {
 		}
 	}
 	return ""
+}
+
+func objectLockConfigMissing(err error) bool {
+	resp := minio.ToErrorResponse(err)
+	return resp.Code == "NoSuchObjectLockConfiguration" || resp.Code == "ObjectLockConfigurationNotFoundError"
+}
+
+func evaluateObjectRetention(req app.ObjectRetentionRequest, versioningEnabled bool, mode *minio.RetentionMode, validity *uint, unit *minio.ValidityUnit) app.ObjectRetentionResult {
+	expectedPrefix := "tenants/" + strings.TrimSpace(req.TenantID) + "/"
+	prefixOK := strings.HasPrefix(strings.TrimSpace(req.ObjectPrefix), expectedPrefix)
+	expectedMode := retentionMode(req.Mode)
+	actualMode := ""
+	if mode != nil {
+		actualMode = strings.ToUpper(mode.String())
+	}
+	retentionDays := retentionDays(validity, unit)
+	modeOK := expectedMode != "" && actualMode == expectedMode
+	retentionOK := req.RetentionDays > 0 && retentionDays >= uint(req.RetentionDays)
+	checks := []domain.VerifyCheck{
+		{Name: "s3_bucket_versioning", Result: checkResult(versioningEnabled), Detail: "Bucket versioning must be enabled for object-lock retention."},
+		{Name: "s3_object_lock_mode", Result: checkResult(modeOK), Detail: "Bucket default object-lock mode must match the policy mode."},
+		{Name: "s3_object_lock_retention", Result: checkResult(retentionOK), Detail: "Bucket default object-lock retention must meet or exceed the policy duration."},
+		{Name: "tenant_object_prefix", Result: checkResult(prefixOK), Detail: "Object prefix must stay under the tenant namespace."},
+	}
+	return app.ObjectRetentionResult{
+		Provider: "s3",
+		Enforced: versioningEnabled && modeOK && retentionOK && prefixOK,
+		Checks:   checks,
+		Limitations: []string{
+			"S3/MinIO checks validate bucket-level versioning and default object-lock settings only.",
+			"Operators remain responsible for bucket creation mode, IAM policy, lifecycle rules, backups, and deployment-specific retention review.",
+		},
+	}
+}
+
+func retentionMode(mode string) string {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "governance":
+		return minio.Governance.String()
+	case "compliance":
+		return minio.Compliance.String()
+	default:
+		return ""
+	}
+}
+
+func retentionDays(validity *uint, unit *minio.ValidityUnit) uint {
+	if validity == nil || unit == nil {
+		return 0
+	}
+	switch *unit {
+	case minio.Days:
+		return *validity
+	case minio.Years:
+		if *validity > ^uint(0)/365 {
+			return ^uint(0)
+		}
+		return *validity * 365
+	default:
+		return 0
+	}
+}
+
+func checkResult(ok bool) string {
+	if ok {
+		return "passed"
+	}
+	return "failed"
 }

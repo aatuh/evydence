@@ -66,6 +66,7 @@ type Config struct {
 	Now          func() time.Time
 	Store        Store
 	ObjectStore  ObjectStore
+	Retention    ObjectRetentionVerifier
 	Signer       SigningExecutor
 	Outbox       Outbox
 }
@@ -73,12 +74,13 @@ type Config struct {
 type Ledger struct {
 	mu sync.Mutex
 
-	pepper  []byte
-	now     func() time.Time
-	store   Store
-	objects ObjectStore
-	signer  SigningExecutor
-	outbox  Outbox
+	pepper    []byte
+	now       func() time.Time
+	store     Store
+	objects   ObjectStore
+	retention ObjectRetentionVerifier
+	signer    SigningExecutor
+	outbox    Outbox
 
 	tenants               map[string]domain.Tenant
 	organizations         map[string]domain.Organization
@@ -188,11 +190,18 @@ func NewLedgerWithError(cfg Config) (*Ledger, error) {
 	if pepper == "" {
 		pepper = "local-dev-pepper-change-me"
 	}
+	retention := cfg.Retention
+	if retention == nil && cfg.ObjectStore != nil {
+		if verifier, ok := cfg.ObjectStore.(ObjectRetentionVerifier); ok {
+			retention = verifier
+		}
+	}
 	ledger := &Ledger{
 		pepper:                []byte(pepper),
 		now:                   now,
 		store:                 cfg.Store,
 		objects:               cfg.ObjectStore,
+		retention:             retention,
 		signer:                cfg.Signer,
 		outbox:                cfg.Outbox,
 		tenants:               map[string]domain.Tenant{},

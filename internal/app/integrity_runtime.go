@@ -322,38 +322,83 @@ func (l *Ledger) VerifyObjectRetentionPolicy(ctx context.Context, actor domain.A
 	if err := require(actor, ScopeVerifyRead); err != nil {
 		return domain.ObjectRetentionPolicy{}, err
 	}
+	id = strings.TrimSpace(id)
 	l.mu.Lock()
-	defer l.mu.Unlock()
-	policy, ok := l.retentionPolicies[strings.TrimSpace(id)]
+	policy, ok := l.retentionPolicies[id]
 	if !ok || policy.TenantID != actor.TenantID {
+		l.mu.Unlock()
 		return domain.ObjectRetentionPolicy{}, ErrNotFound
 	}
+	verifier := l.retention
+	l.mu.Unlock()
+
+	retentionResult := ObjectRetentionResult{
+		Provider: "local_record",
+		Checks: []domain.VerifyCheck{{
+			Name:   "object_retention_provider_verifier",
+			Result: "warning",
+			Detail: "No provider-backed object-lock verifier is configured; this records tenant-scoped retention intent only.",
+		}},
+		Limitations: []string{"Provider-enforced object-lock, bucket versioning, and WORM settings were not checked by this ledger instance."},
+	}
+	status := "verified"
+	if verifier != nil {
+		result, err := verifier.VerifyObjectRetention(ctx, ObjectRetentionRequest{
+			TenantID:      policy.TenantID,
+			ObjectPrefix:  policy.ObjectPrefix,
+			Mode:          policy.Mode,
+			RetentionDays: policy.RetentionDays,
+		})
+		if err != nil {
+			return domain.ObjectRetentionPolicy{}, ErrVerificationFailed
+		}
+		retentionResult = result
+		if !result.Enforced {
+			status = "not_enforced"
+		}
+	}
+
 	now := l.now()
-	policy.Status = "verified"
+	policy.Status = status
 	policy.VerifiedAt = &now
+	policy.VerificationChecks = append([]domain.VerifyCheck(nil), retentionResult.Checks...)
+	policy.VerificationLimitations = append([]string(nil), retentionResult.Limitations...)
 	verificationHash, err := canonicalAnyHash(struct {
-		ID            string `json:"id"`
-		TenantID      string `json:"tenant_id"`
-		ObjectPrefix  string `json:"object_prefix"`
-		Mode          string `json:"mode"`
-		RetentionDays int    `json:"retention_days"`
-		Status        string `json:"status"`
-		VerifiedAt    string `json:"verified_at"`
+		ID            string               `json:"id"`
+		TenantID      string               `json:"tenant_id"`
+		ObjectPrefix  string               `json:"object_prefix"`
+		Mode          string               `json:"mode"`
+		Provider      string               `json:"provider"`
+		RetentionDays int                  `json:"retention_days"`
+		Status        string               `json:"status"`
+		VerifiedAt    string               `json:"verified_at"`
+		Checks        []domain.VerifyCheck `json:"checks"`
+		Limitations   []string             `json:"limitations"`
 	}{
 		ID:            policy.ID,
 		TenantID:      policy.TenantID,
 		ObjectPrefix:  policy.ObjectPrefix,
 		Mode:          policy.Mode,
+		Provider:      retentionResult.Provider,
 		RetentionDays: policy.RetentionDays,
 		Status:        policy.Status,
 		VerifiedAt:    now.Format(time.RFC3339Nano),
+		Checks:        policy.VerificationChecks,
+		Limitations:   policy.VerificationLimitations,
 	})
 	if err != nil {
 		return domain.ObjectRetentionPolicy{}, err
 	}
 	policy.VerificationHash = verificationHash
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	l.retentionPolicies[policy.ID] = policy
-	_, _ = l.appendChainLocked(actor.TenantID, "object_retention_policy.verified", "object_retention_policy", policy.ID, actorType(actor), actorID(actor), "", "")
+	entryType := "object_retention_policy.verified"
+	if policy.Status != "verified" {
+		entryType = "object_retention_policy.verification_failed"
+	}
+	_, _ = l.appendChainLocked(actor.TenantID, entryType, "object_retention_policy", policy.ID, actorType(actor), actorID(actor), policy.VerificationHash, "")
 	if err := l.persistLocked(ctx); err != nil {
 		return domain.ObjectRetentionPolicy{}, err
 	}
