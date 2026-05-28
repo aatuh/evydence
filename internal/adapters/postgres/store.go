@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/aatuh/evydence/internal/app"
+	"github.com/aatuh/evydence/internal/domain"
 )
 
 type Store struct {
@@ -49,7 +51,7 @@ func (s *Store) LoadState(ctx context.Context) (app.PersistedState, bool, error)
 	var body []byte
 	err := s.pool.QueryRow(ctx, `SELECT state FROM ledger_state WHERE id = 'default'`).Scan(&body)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return app.PersistedState{}, false, nil
+		return s.loadRelationalState(ctx)
 	}
 	if err != nil {
 		return app.PersistedState{}, false, fmt.Errorf("load ledger state: %w", err)
@@ -59,6 +61,539 @@ func (s *Store) LoadState(ctx context.Context) (app.PersistedState, bool, error)
 		return app.PersistedState{}, false, fmt.Errorf("decode ledger state: %w", err)
 	}
 	return state, true, nil
+}
+
+func (s *Store) loadRelationalState(ctx context.Context) (app.PersistedState, bool, error) {
+	state := relationalEmptyState()
+	loaded := false
+	if err := s.loadRelationalTenants(ctx, &state, &loaded); err != nil {
+		return app.PersistedState{}, false, err
+	}
+	if err := s.loadRelationalAPIKeys(ctx, &state, &loaded); err != nil {
+		return app.PersistedState{}, false, err
+	}
+	if err := s.loadRelationalReleaseCore(ctx, &state, &loaded); err != nil {
+		return app.PersistedState{}, false, err
+	}
+	if err := s.loadRelationalIdempotency(ctx, &state, &loaded); err != nil {
+		return app.PersistedState{}, false, err
+	}
+	return state, loaded, nil
+}
+
+func relationalEmptyState() app.PersistedState {
+	return app.PersistedState{
+		Tenants:           map[string]domain.Tenant{},
+		APIKeys:           map[string]domain.APIKey{},
+		APIKeyHashes:      map[string]string{},
+		Products:          map[string]domain.Product{},
+		Projects:          map[string]domain.Project{},
+		Releases:          map[string]domain.Release{},
+		Artifacts:         map[string]domain.Artifact{},
+		Evidence:          map[string]domain.EvidenceItem{},
+		SBOMs:             map[string]domain.SBOM{},
+		Scans:             map[string]domain.VulnerabilityScan{},
+		Contracts:         map[string]domain.OpenAPIContract{},
+		Policies:          map[string]domain.PolicyEvaluation{},
+		Bundles:           map[string]domain.ReleaseBundle{},
+		SigningKeys:       map[string]domain.SigningKey{},
+		SigningKeyPrivate: map[string][]byte{},
+		Signatures:        map[string]domain.Signature{},
+		Verifications:     map[string]domain.VerificationResult{},
+		Chain:             map[string][]domain.AuditChainEntry{},
+		Idempotency:       map[string]app.IdempotencyRecord{},
+	}
+}
+
+func (s *Store) loadRelationalTenants(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	rows, err := s.pool.Query(ctx, `SELECT id, name, created_at FROM tenants`)
+	if err != nil {
+		return fmt.Errorf("load relational tenants: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var tenant domain.Tenant
+		if err := rows.Scan(&tenant.ID, &tenant.Name, &tenant.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational tenant: %w", err)
+		}
+		state.Tenants[tenant.ID] = tenant
+		*loaded = true
+	}
+	return rows.Err()
+}
+
+func (s *Store) loadRelationalAPIKeys(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, tenant_id, name, prefix, hash, scopes, expires_at,
+		       revoked_at, last_used_at, created_at
+		FROM api_keys
+	`)
+	if err != nil {
+		return fmt.Errorf("load relational api keys: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var key domain.APIKey
+		var hash string
+		var scopes []byte
+		var expiresAt, revokedAt, lastUsedAt sql.NullTime
+		if err := rows.Scan(&key.ID, &key.TenantID, &key.Name, &key.Prefix, &hash, &scopes, &expiresAt, &revokedAt, &lastUsedAt, &key.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational api key: %w", err)
+		}
+		if err := decodeJSON(scopes, &key.Scopes); err != nil {
+			return fmt.Errorf("decode relational api key scopes: %w", err)
+		}
+		key.ExpiresAt = nullableSQLTime(expiresAt)
+		key.RevokedAt = nullableSQLTime(revokedAt)
+		key.LastUsedAt = nullableSQLTime(lastUsedAt)
+		state.APIKeys[key.ID] = key
+		state.APIKeyHashes[key.ID] = hash
+		*loaded = true
+	}
+	return rows.Err()
+}
+
+func (s *Store) loadRelationalReleaseCore(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	if err := s.loadRelationalProducts(ctx, state, loaded); err != nil {
+		return err
+	}
+	if err := s.loadRelationalProjects(ctx, state, loaded); err != nil {
+		return err
+	}
+	if err := s.loadRelationalReleases(ctx, state, loaded); err != nil {
+		return err
+	}
+	if err := s.loadRelationalArtifacts(ctx, state, loaded); err != nil {
+		return err
+	}
+	if err := s.loadRelationalEvidence(ctx, state, loaded); err != nil {
+		return err
+	}
+	if err := s.loadRelationalAuditChain(ctx, state, loaded); err != nil {
+		return err
+	}
+	if err := s.loadRelationalSigning(ctx, state, loaded); err != nil {
+		return err
+	}
+	if err := s.loadRelationalParsedResources(ctx, state, loaded); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Store) loadRelationalProducts(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	rows, err := s.pool.Query(ctx, `SELECT id, tenant_id, name, slug, created_at FROM products`)
+	if err != nil {
+		return fmt.Errorf("load relational products: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var product domain.Product
+		if err := rows.Scan(&product.ID, &product.TenantID, &product.Name, &product.Slug, &product.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational product: %w", err)
+		}
+		state.Products[product.ID] = product
+		*loaded = true
+	}
+	return rows.Err()
+}
+
+func (s *Store) loadRelationalProjects(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	rows, err := s.pool.Query(ctx, `SELECT id, tenant_id, product_id, name, created_at FROM projects`)
+	if err != nil {
+		return fmt.Errorf("load relational projects: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var project domain.Project
+		if err := rows.Scan(&project.ID, &project.TenantID, &project.ProductID, &project.Name, &project.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational project: %w", err)
+		}
+		state.Projects[project.ID] = project
+		*loaded = true
+	}
+	return rows.Err()
+}
+
+func (s *Store) loadRelationalReleases(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	rows, err := s.pool.Query(ctx, `SELECT id, tenant_id, product_id, version, state, frozen_at, approved_at, created_at FROM releases`)
+	if err != nil {
+		return fmt.Errorf("load relational releases: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var release domain.Release
+		var frozenAt, approvedAt sql.NullTime
+		if err := rows.Scan(&release.ID, &release.TenantID, &release.ProductID, &release.Version, &release.State, &frozenAt, &approvedAt, &release.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational release: %w", err)
+		}
+		release.FrozenAt = nullableSQLTime(frozenAt)
+		release.ApprovedAt = nullableSQLTime(approvedAt)
+		state.Releases[release.ID] = release
+		*loaded = true
+	}
+	return rows.Err()
+}
+
+func (s *Store) loadRelationalArtifacts(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	rows, err := s.pool.Query(ctx, `SELECT id, tenant_id, name, media_type, size, digest, created_at FROM artifacts`)
+	if err != nil {
+		return fmt.Errorf("load relational artifacts: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var artifact domain.Artifact
+		if err := rows.Scan(&artifact.ID, &artifact.TenantID, &artifact.Name, &artifact.MediaType, &artifact.Size, &artifact.Digest, &artifact.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational artifact: %w", err)
+		}
+		state.Artifacts[artifact.ID] = artifact
+		*loaded = true
+	}
+	return rows.Err()
+}
+
+func (s *Store) loadRelationalEvidence(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, tenant_id, product_id, project_id, release_id, build_id, deployment_id,
+		       type, subtype, title, source_system, source_identity, collector_id,
+		       uploaded_by, observed_at, evidence_version, schema_version, payload_ref,
+		       payload_hash, payload_media_type, payload_size, canonical_hash,
+		       canonicalization, subject_refs, related_evidence_refs, supersedes,
+		       superseded_by, trust_level, verification_status, signature_refs,
+		       chain_entry_id, tags, metadata, warnings, limitations, created_at
+		FROM evidence_items
+	`)
+	if err != nil {
+		return fmt.Errorf("load relational evidence items: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var evidence domain.EvidenceItem
+		var productID, projectID, releaseID, buildID, deploymentID, subtype, collectorID, uploadedBy, payloadRef, payloadMediaType, supersedes, supersededBy, chainEntryID sql.NullString
+		var payloadSize sql.NullInt64
+		var sourceIdentity, subjectRefs, relatedRefs, signatureRefs, tags, metadata, warnings, limitations []byte
+		if err := rows.Scan(
+			&evidence.ID, &evidence.TenantID, &productID, &projectID, &releaseID, &buildID, &deploymentID,
+			&evidence.Type, &subtype, &evidence.Title, &evidence.SourceSystem, &sourceIdentity, &collectorID,
+			&uploadedBy, &evidence.ObservedAt, &evidence.EvidenceVersion, &evidence.SchemaVersion, &payloadRef,
+			&evidence.PayloadHash, &payloadMediaType, &payloadSize, &evidence.CanonicalHash,
+			&evidence.Canonicalization, &subjectRefs, &relatedRefs, &supersedes,
+			&supersededBy, &evidence.TrustLevel, &evidence.VerificationStatus, &signatureRefs,
+			&chainEntryID, &tags, &metadata, &warnings, &limitations, &evidence.CreatedAt,
+		); err != nil {
+			return fmt.Errorf("scan relational evidence item: %w", err)
+		}
+		evidence.ProductID = nullableSQLString(productID)
+		evidence.ProjectID = nullableSQLString(projectID)
+		evidence.ReleaseID = nullableSQLString(releaseID)
+		evidence.BuildID = nullableSQLString(buildID)
+		evidence.DeploymentID = nullableSQLString(deploymentID)
+		evidence.Subtype = nullableSQLString(subtype)
+		evidence.CollectorID = nullableSQLString(collectorID)
+		evidence.UploadedBy = nullableSQLString(uploadedBy)
+		evidence.PayloadRef = nullableSQLString(payloadRef)
+		evidence.PayloadMediaType = nullableSQLString(payloadMediaType)
+		if payloadSize.Valid {
+			evidence.PayloadSize = payloadSize.Int64
+		}
+		evidence.Supersedes = nullableSQLString(supersedes)
+		evidence.SupersededBy = nullableSQLString(supersededBy)
+		evidence.ChainEntryID = nullableSQLString(chainEntryID)
+		if err := decodeJSON(sourceIdentity, &evidence.SourceIdentity); err != nil {
+			return fmt.Errorf("decode relational evidence source identity: %w", err)
+		}
+		if err := decodeJSON(subjectRefs, &evidence.SubjectRefs); err != nil {
+			return fmt.Errorf("decode relational evidence subject refs: %w", err)
+		}
+		if err := decodeJSON(relatedRefs, &evidence.RelatedEvidenceRefs); err != nil {
+			return fmt.Errorf("decode relational evidence related refs: %w", err)
+		}
+		if err := decodeJSON(signatureRefs, &evidence.SignatureRefs); err != nil {
+			return fmt.Errorf("decode relational evidence signature refs: %w", err)
+		}
+		if err := decodeJSON(tags, &evidence.Tags); err != nil {
+			return fmt.Errorf("decode relational evidence tags: %w", err)
+		}
+		if err := decodeJSON(metadata, &evidence.Metadata); err != nil {
+			return fmt.Errorf("decode relational evidence metadata: %w", err)
+		}
+		if err := decodeJSON(warnings, &evidence.Warnings); err != nil {
+			return fmt.Errorf("decode relational evidence warnings: %w", err)
+		}
+		if err := decodeJSON(limitations, &evidence.Limitations); err != nil {
+			return fmt.Errorf("decode relational evidence limitations: %w", err)
+		}
+		state.Evidence[evidence.ID] = evidence
+		*loaded = true
+	}
+	return rows.Err()
+}
+
+func (s *Store) loadRelationalAuditChain(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, tenant_id, sequence, entry_type, subject_type, subject_id,
+		       actor_type, actor_id, occurred_at, payload_hash,
+		       canonical_entry_hash, previous_entry_hash, entry_hash,
+		       signature_ref, metadata, schema_version
+		FROM audit_chain_entries
+		ORDER BY tenant_id, sequence
+	`)
+	if err != nil {
+		return fmt.Errorf("load relational audit chain: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var entry domain.AuditChainEntry
+		var payloadHash, signatureRef sql.NullString
+		var metadata []byte
+		if err := rows.Scan(
+			&entry.ID, &entry.TenantID, &entry.Sequence, &entry.EntryType, &entry.SubjectType, &entry.SubjectID,
+			&entry.ActorType, &entry.ActorID, &entry.OccurredAt, &payloadHash,
+			&entry.CanonicalEntryHash, &entry.PreviousEntryHash, &entry.EntryHash,
+			&signatureRef, &metadata, &entry.SchemaVersion,
+		); err != nil {
+			return fmt.Errorf("scan relational audit chain entry: %w", err)
+		}
+		entry.PayloadHash = nullableSQLString(payloadHash)
+		entry.SignatureRef = nullableSQLString(signatureRef)
+		if err := decodeJSON(metadata, &entry.Metadata); err != nil {
+			return fmt.Errorf("decode relational audit metadata: %w", err)
+		}
+		state.Chain[entry.TenantID] = append(state.Chain[entry.TenantID], entry)
+		*loaded = true
+	}
+	return rows.Err()
+}
+
+func (s *Store) loadRelationalSigning(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	keyRows, err := s.pool.Query(ctx, `
+		SELECT id, tenant_id, kid, algorithm, status, public_key,
+		       encrypted_private_key, created_at, revoked_at
+		FROM signing_keys
+	`)
+	if err != nil {
+		return fmt.Errorf("load relational signing keys: %w", err)
+	}
+	defer keyRows.Close()
+	for keyRows.Next() {
+		var key domain.SigningKey
+		var private []byte
+		var revokedAt sql.NullTime
+		if err := keyRows.Scan(&key.ID, &key.TenantID, &key.KID, &key.Algorithm, &key.Status, &key.PublicKey, &private, &key.CreatedAt, &revokedAt); err != nil {
+			return fmt.Errorf("scan relational signing key: %w", err)
+		}
+		key.RevokedAt = nullableSQLTime(revokedAt)
+		state.SigningKeys[key.ID] = key
+		if len(private) != 0 {
+			state.SigningKeyPrivate[key.ID] = append([]byte(nil), private...)
+		}
+		*loaded = true
+	}
+	if err := keyRows.Err(); err != nil {
+		return err
+	}
+
+	sigRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, subject_type, subject_id, key_id, algorithm, value, created_at FROM signatures`)
+	if err != nil {
+		return fmt.Errorf("load relational signatures: %w", err)
+	}
+	defer sigRows.Close()
+	for sigRows.Next() {
+		var signature domain.Signature
+		if err := sigRows.Scan(&signature.ID, &signature.TenantID, &signature.SubjectType, &signature.SubjectID, &signature.KeyID, &signature.Algorithm, &signature.Value, &signature.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational signature: %w", err)
+		}
+		state.Signatures[signature.ID] = signature
+		*loaded = true
+	}
+	return sigRows.Err()
+}
+
+func (s *Store) loadRelationalParsedResources(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	if err := s.loadRelationalSBOMs(ctx, state, loaded); err != nil {
+		return err
+	}
+	if err := s.loadRelationalScans(ctx, state, loaded); err != nil {
+		return err
+	}
+	if err := s.loadRelationalContracts(ctx, state, loaded); err != nil {
+		return err
+	}
+	if err := s.loadRelationalPolicies(ctx, state, loaded); err != nil {
+		return err
+	}
+	if err := s.loadRelationalBundles(ctx, state, loaded); err != nil {
+		return err
+	}
+	if err := s.loadRelationalVerifications(ctx, state, loaded); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Store) loadRelationalSBOMs(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	rows, err := s.pool.Query(ctx, `SELECT id, tenant_id, evidence_id, release_id, artifact_id, format, spec_version, component_count, components, created_at FROM sboms`)
+	if err != nil {
+		return fmt.Errorf("load relational sboms: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var sbom domain.SBOM
+		var releaseID, artifactID sql.NullString
+		var components []byte
+		if err := rows.Scan(&sbom.ID, &sbom.TenantID, &sbom.EvidenceID, &releaseID, &artifactID, &sbom.Format, &sbom.SpecVersion, &sbom.ComponentCount, &components, &sbom.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational sbom: %w", err)
+		}
+		sbom.ReleaseID = nullableSQLString(releaseID)
+		sbom.ArtifactID = nullableSQLString(artifactID)
+		if err := decodeJSON(components, &sbom.Components); err != nil {
+			return fmt.Errorf("decode relational sbom components: %w", err)
+		}
+		state.SBOMs[sbom.ID] = sbom
+		*loaded = true
+	}
+	return rows.Err()
+}
+
+func (s *Store) loadRelationalScans(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	rows, err := s.pool.Query(ctx, `SELECT id, tenant_id, evidence_id, release_id, scanner, target_ref, summary, findings, created_at FROM vulnerability_scans`)
+	if err != nil {
+		return fmt.Errorf("load relational vulnerability scans: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var scan domain.VulnerabilityScan
+		var releaseID sql.NullString
+		var summary, findings []byte
+		if err := rows.Scan(&scan.ID, &scan.TenantID, &scan.EvidenceID, &releaseID, &scan.Scanner, &scan.TargetRef, &summary, &findings, &scan.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational vulnerability scan: %w", err)
+		}
+		scan.ReleaseID = nullableSQLString(releaseID)
+		if err := decodeJSON(summary, &scan.Summary); err != nil {
+			return fmt.Errorf("decode relational vulnerability scan summary: %w", err)
+		}
+		if err := decodeJSON(findings, &scan.Findings); err != nil {
+			return fmt.Errorf("decode relational vulnerability scan findings: %w", err)
+		}
+		state.Scans[scan.ID] = scan
+		*loaded = true
+	}
+	return rows.Err()
+}
+
+func (s *Store) loadRelationalContracts(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	rows, err := s.pool.Query(ctx, `SELECT id, tenant_id, product_id, release_id, version, hash, path_count, operations, evidence_id, created_at FROM openapi_contracts`)
+	if err != nil {
+		return fmt.Errorf("load relational openapi contracts: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var contract domain.OpenAPIContract
+		var releaseID sql.NullString
+		var operations []byte
+		if err := rows.Scan(&contract.ID, &contract.TenantID, &contract.ProductID, &releaseID, &contract.Version, &contract.Hash, &contract.PathCount, &operations, &contract.EvidenceID, &contract.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational openapi contract: %w", err)
+		}
+		contract.ReleaseID = nullableSQLString(releaseID)
+		if err := decodeJSON(operations, &contract.Operations); err != nil {
+			return fmt.Errorf("decode relational openapi operations: %w", err)
+		}
+		state.Contracts[contract.ID] = contract
+		*loaded = true
+	}
+	return rows.Err()
+}
+
+func (s *Store) loadRelationalPolicies(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	rows, err := s.pool.Query(ctx, `SELECT id, tenant_id, release_id, result, policy_set, checks, created_at FROM policy_evaluations`)
+	if err != nil {
+		return fmt.Errorf("load relational policy evaluations: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var policy domain.PolicyEvaluation
+		var checks []byte
+		if err := rows.Scan(&policy.ID, &policy.TenantID, &policy.ReleaseID, &policy.Result, &policy.PolicySet, &checks, &policy.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational policy evaluation: %w", err)
+		}
+		if err := decodeJSON(checks, &policy.Checks); err != nil {
+			return fmt.Errorf("decode relational policy checks: %w", err)
+		}
+		state.Policies[policy.ID] = policy
+		*loaded = true
+	}
+	return rows.Err()
+}
+
+func (s *Store) loadRelationalBundles(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	rows, err := s.pool.Query(ctx, `SELECT id, tenant_id, release_id, state, manifest, manifest_hash, signature_refs, created_at, published_at, revoked_at FROM release_bundles`)
+	if err != nil {
+		return fmt.Errorf("load relational release bundles: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var bundle domain.ReleaseBundle
+		var manifest, signatureRefs []byte
+		var publishedAt, revokedAt sql.NullTime
+		if err := rows.Scan(&bundle.ID, &bundle.TenantID, &bundle.ReleaseID, &bundle.State, &manifest, &bundle.ManifestHash, &signatureRefs, &bundle.CreatedAt, &publishedAt, &revokedAt); err != nil {
+			return fmt.Errorf("scan relational release bundle: %w", err)
+		}
+		if err := decodeJSON(manifest, &bundle.Manifest); err != nil {
+			return fmt.Errorf("decode relational release bundle manifest: %w", err)
+		}
+		if err := decodeJSON(signatureRefs, &bundle.SignatureRefs); err != nil {
+			return fmt.Errorf("decode relational release bundle signature refs: %w", err)
+		}
+		bundle.PublishedAt = nullableSQLTime(publishedAt)
+		bundle.RevokedAt = nullableSQLTime(revokedAt)
+		state.Bundles[bundle.ID] = bundle
+		*loaded = true
+	}
+	return rows.Err()
+}
+
+func (s *Store) loadRelationalVerifications(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	rows, err := s.pool.Query(ctx, `SELECT id, tenant_id, subject_type, subject_id, result, checks, verified_at FROM verification_results`)
+	if err != nil {
+		return fmt.Errorf("load relational verification results: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var verification domain.VerificationResult
+		var checks []byte
+		if err := rows.Scan(&verification.ID, &verification.TenantID, &verification.SubjectType, &verification.SubjectID, &verification.Result, &checks, &verification.VerifiedAt); err != nil {
+			return fmt.Errorf("scan relational verification result: %w", err)
+		}
+		if err := decodeJSON(checks, &verification.Checks); err != nil {
+			return fmt.Errorf("decode relational verification checks: %w", err)
+		}
+		state.Verifications[verification.ID] = verification
+		*loaded = true
+	}
+	return rows.Err()
+}
+
+func (s *Store) loadRelationalIdempotency(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	rows, err := s.pool.Query(ctx, `SELECT tenant_id, actor_key_id, method, path, idempotency_key, request_hash, status, response, created_at FROM idempotency_records`)
+	if err != nil {
+		return fmt.Errorf("load relational idempotency records: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var tenantID, actorID, method, path, idempotencyKey string
+		var record app.IdempotencyRecord
+		var response []byte
+		if err := rows.Scan(&tenantID, &actorID, &method, &path, &idempotencyKey, &record.RequestHash, &record.Status, &response, &record.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational idempotency record: %w", err)
+		}
+		if err := decodeJSON(response, &record.Response); err != nil {
+			return fmt.Errorf("decode relational idempotency response: %w", err)
+		}
+		key := app.NewIdempotencyRecordKey(tenantID, actorID, method, path, idempotencyKey)
+		state.Idempotency[key] = record
+		*loaded = true
+	}
+	return rows.Err()
 }
 
 func (s *Store) SaveState(ctx context.Context, state app.PersistedState) error {
@@ -903,6 +1438,28 @@ func nullableString(value string) any {
 		return nil
 	}
 	return value
+}
+
+func nullableSQLString(value sql.NullString) string {
+	if !value.Valid {
+		return ""
+	}
+	return value.String
+}
+
+func nullableSQLTime(value sql.NullTime) *time.Time {
+	if !value.Valid || value.Time.IsZero() {
+		return nil
+	}
+	t := value.Time.UTC()
+	return &t
+}
+
+func decodeJSON(raw []byte, out any) error {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil
+	}
+	return json.Unmarshal(raw, out)
 }
 
 func nullableTime(value *time.Time) any {
