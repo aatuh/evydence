@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/minio/minio-go/v7"
 
@@ -61,7 +62,7 @@ func TestEvaluateObjectRetentionRequiresVersioningLockAndTenantPrefix(t *testing
 		ObjectPrefix:  "tenants/ten_1/raw/",
 		Mode:          "compliance",
 		RetentionDays: 30,
-	}, true, &mode, &validity, &unit)
+	}, true, &mode, &validity, &unit, nil, nil, time.Date(2026, 5, 29, 0, 0, 0, 0, time.UTC))
 	if !result.Enforced {
 		t.Fatalf("expected enforced retention: %#v", result)
 	}
@@ -82,7 +83,7 @@ func TestEvaluateObjectRetentionReportsMissingProviderControls(t *testing.T) {
 		ObjectPrefix:  "tenants/other/raw/",
 		Mode:          "compliance",
 		RetentionDays: 30,
-	}, false, &mode, &validity, &unit)
+	}, false, &mode, &validity, &unit, nil, nil, time.Date(2026, 5, 29, 0, 0, 0, 0, time.UTC))
 	if result.Enforced {
 		t.Fatalf("unexpected enforced retention: %#v", result)
 	}
@@ -94,6 +95,27 @@ func TestEvaluateObjectRetentionReportsMissingProviderControls(t *testing.T) {
 	}
 	if failed != 4 {
 		t.Fatalf("failed checks = %d, checks = %#v", failed, result.Checks)
+	}
+}
+
+func TestEvaluateObjectRetentionChecksSampleObjectRetention(t *testing.T) {
+	mode := minio.Compliance
+	validity := uint(90)
+	unit := minio.Days
+	now := time.Date(2026, 5, 29, 0, 0, 0, 0, time.UTC)
+	retainUntil := now.Add(45 * 24 * time.Hour)
+	result := evaluateObjectRetention(app.ObjectRetentionRequest{
+		TenantID:      "ten_1",
+		ObjectPrefix:  "tenants/ten_1/raw/",
+		ObjectKey:     "tenants/ten_1/raw/sample.json",
+		Mode:          "compliance",
+		RetentionDays: 30,
+	}, true, &mode, &validity, &unit, &mode, &retainUntil, now)
+	if !result.Enforced {
+		t.Fatalf("expected object-level enforced retention: %#v", result)
+	}
+	if len(result.Checks) != 7 {
+		t.Fatalf("checks = %#v", result.Checks)
 	}
 }
 

@@ -1853,6 +1853,7 @@ func (s *Server) createObjectRetentionPolicy(w http.ResponseWriter, r *http.Requ
 	var req struct {
 		Name          string `json:"name"`
 		ObjectPrefix  string `json:"object_prefix"`
+		ObjectKey     string `json:"object_key"`
 		Mode          string `json:"mode"`
 		RetentionDays int    `json:"retention_days"`
 	}
@@ -1860,7 +1861,7 @@ func (s *Server) createObjectRetentionPolicy(w http.ResponseWriter, r *http.Requ
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		policy, err := s.ledger.CreateObjectRetentionPolicy(ctx, actor, app.CreateObjectRetentionPolicyInput{Name: req.Name, ObjectPrefix: req.ObjectPrefix, Mode: req.Mode, RetentionDays: req.RetentionDays})
+		policy, err := s.ledger.CreateObjectRetentionPolicy(ctx, actor, app.CreateObjectRetentionPolicyInput{Name: req.Name, ObjectPrefix: req.ObjectPrefix, ObjectKey: req.ObjectKey, Mode: req.Mode, RetentionDays: req.RetentionDays})
 		return http.StatusCreated, policy, err
 	})
 }

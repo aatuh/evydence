@@ -38,6 +38,7 @@ type CreateTransparencyCheckpointInput struct {
 type CreateObjectRetentionPolicyInput struct {
 	Name          string
 	ObjectPrefix  string
+	ObjectKey     string
 	Mode          string
 	RetentionDays int
 }
@@ -293,7 +294,7 @@ func (l *Ledger) CreateObjectRetentionPolicy(ctx context.Context, actor domain.A
 	if err := require(actor, ScopeAdmin); err != nil {
 		return domain.ObjectRetentionPolicy{}, err
 	}
-	in.Name, in.ObjectPrefix, in.Mode = strings.TrimSpace(in.Name), strings.TrimSpace(in.ObjectPrefix), strings.TrimSpace(in.Mode)
+	in.Name, in.ObjectPrefix, in.ObjectKey, in.Mode = strings.TrimSpace(in.Name), strings.TrimSpace(in.ObjectPrefix), strings.TrimSpace(in.ObjectKey), strings.TrimSpace(in.Mode)
 	if in.Name == "" || in.RetentionDays <= 0 || (in.Mode != "governance" && in.Mode != "compliance") {
 		return domain.ObjectRetentionPolicy{}, ErrValidation
 	}
@@ -304,9 +305,12 @@ func (l *Ledger) CreateObjectRetentionPolicy(ctx context.Context, actor domain.A
 	if !strings.HasPrefix(in.ObjectPrefix, expectedPrefix) {
 		return domain.ObjectRetentionPolicy{}, ErrValidation
 	}
+	if in.ObjectKey != "" && (!strings.HasPrefix(in.ObjectKey, expectedPrefix) || !strings.HasPrefix(in.ObjectKey, in.ObjectPrefix)) {
+		return domain.ObjectRetentionPolicy{}, ErrValidation
+	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	policy := domain.ObjectRetentionPolicy{ID: newID("orp"), TenantID: actor.TenantID, Name: in.Name, ObjectPrefix: in.ObjectPrefix, Mode: in.Mode, RetentionDays: in.RetentionDays, Status: "configured", SchemaVersion: domain.ObjectRetentionPolicyVersion, CreatedAt: l.now()}
+	policy := domain.ObjectRetentionPolicy{ID: newID("orp"), TenantID: actor.TenantID, Name: in.Name, ObjectPrefix: in.ObjectPrefix, ObjectKey: in.ObjectKey, Mode: in.Mode, RetentionDays: in.RetentionDays, Status: "configured", SchemaVersion: domain.ObjectRetentionPolicyVersion, CreatedAt: l.now()}
 	l.retentionPolicies[policy.ID] = policy
 	_, _ = l.appendChainLocked(actor.TenantID, "object_retention_policy.created", "object_retention_policy", policy.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {
@@ -346,6 +350,7 @@ func (l *Ledger) VerifyObjectRetentionPolicy(ctx context.Context, actor domain.A
 		result, err := verifier.VerifyObjectRetention(ctx, ObjectRetentionRequest{
 			TenantID:      policy.TenantID,
 			ObjectPrefix:  policy.ObjectPrefix,
+			ObjectKey:     policy.ObjectKey,
 			Mode:          policy.Mode,
 			RetentionDays: policy.RetentionDays,
 		})
@@ -367,6 +372,7 @@ func (l *Ledger) VerifyObjectRetentionPolicy(ctx context.Context, actor domain.A
 		ID            string               `json:"id"`
 		TenantID      string               `json:"tenant_id"`
 		ObjectPrefix  string               `json:"object_prefix"`
+		ObjectKey     string               `json:"object_key,omitempty"`
 		Mode          string               `json:"mode"`
 		Provider      string               `json:"provider"`
 		RetentionDays int                  `json:"retention_days"`
@@ -378,6 +384,7 @@ func (l *Ledger) VerifyObjectRetentionPolicy(ctx context.Context, actor domain.A
 		ID:            policy.ID,
 		TenantID:      policy.TenantID,
 		ObjectPrefix:  policy.ObjectPrefix,
+		ObjectKey:     policy.ObjectKey,
 		Mode:          policy.Mode,
 		Provider:      retentionResult.Provider,
 		RetentionDays: policy.RetentionDays,
