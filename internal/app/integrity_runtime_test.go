@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -116,6 +117,89 @@ func TestRuntimeRetentionBackupReadinessMetricsAndAudit(t *testing.T) {
 	}
 	if _, err := ledger.VerifyObjectRetentionPolicy(ctx, other, policy.ID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("cross-tenant retention verify err = %v, want not found", err)
+	}
+}
+
+func TestBackupRestoreRehearsalPreservesLedgerAndObjectPayloads(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	objects := newTestObjectStore()
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store, ObjectStore: objects})
+	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	actor, err := ledger.Authenticate(ctx, secret)
+	if err != nil {
+		t.Fatalf("auth: %v", err)
+	}
+	product, err := ledger.CreateProduct(ctx, actor, "Payments API", "payments")
+	if err != nil {
+		t.Fatalf("product: %v", err)
+	}
+	release, err := ledger.CreateRelease(ctx, actor, product.ID, "1.0.0")
+	if err != nil {
+		t.Fatalf("release: %v", err)
+	}
+	artifact, err := ledger.RegisterArtifact(ctx, actor, "payments-api.tar.gz", "application/gzip", sampleDigest("artifact"), 123)
+	if err != nil {
+		t.Fatalf("artifact: %v", err)
+	}
+	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api","purl":"pkg:oci/api"}]}`))
+	if err != nil {
+		t.Fatalf("upload sbom: %v", err)
+	}
+	bundle, err := ledger.CreateReleaseBundle(ctx, actor, release.ID)
+	if err != nil {
+		t.Fatalf("release bundle: %v", err)
+	}
+	manifest, err := ledger.GenerateBackupManifest(ctx, actor)
+	if err != nil {
+		t.Fatalf("backup manifest: %v", err)
+	}
+	if manifest.StateHash == "" || manifest.ResourceCounts["evidence"] == 0 {
+		t.Fatalf("manifest missing restore-relevant counts: %#v", manifest)
+	}
+
+	dbBackup, ok, err := store.LoadState(ctx)
+	if err != nil || !ok {
+		t.Fatalf("load backed-up state ok=%v err=%v", ok, err)
+	}
+	objectBackup := map[string]Object{}
+	for key, object := range objects.objects {
+		objectBackup[key] = object
+	}
+	restoredStore := NewMemoryStore()
+	if err := restoredStore.SaveState(ctx, dbBackup); err != nil {
+		t.Fatalf("restore state: %v", err)
+	}
+	restoredObjects := &testObjectStore{objects: objectBackup}
+	restored := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: restoredStore, ObjectStore: restoredObjects})
+
+	restoredActor, err := restored.Authenticate(ctx, secret)
+	if err != nil {
+		t.Fatalf("authenticate restored api key: %v", err)
+	}
+	if _, err := restored.VerifyBackupManifest(ctx, restoredActor, manifest.ID); err != nil {
+		t.Fatalf("verify restored backup manifest: %v", err)
+	}
+	restoredSBOM, err := restored.GetSBOM(ctx, restoredActor, sbom.ID)
+	if err != nil || restoredSBOM.ComponentCount != sbom.ComponentCount {
+		t.Fatalf("restored sbom = %#v err=%v", restoredSBOM, err)
+	}
+	evidence, err := restored.GetEvidence(ctx, restoredActor, restoredSBOM.EvidenceID)
+	if err != nil {
+		t.Fatalf("restored evidence: %v", err)
+	}
+	payloadKey := strings.TrimPrefix(evidence.PayloadRef, "object://")
+	if payloadKey == "" {
+		t.Fatalf("restored evidence missing payload ref: %#v", evidence)
+	}
+	if object, err := restoredObjects.Get(ctx, payloadKey); err != nil || object.Digest != evidence.PayloadHash {
+		t.Fatalf("restored object digest=%q err=%v want %q", object.Digest, err, evidence.PayloadHash)
+	}
+	if vr, err := restored.VerifySubject(ctx, restoredActor, "release_bundle", bundle.ID); err != nil || vr.Result != "passed" {
+		t.Fatalf("verify restored bundle = %#v err=%v", vr, err)
 	}
 }
 
