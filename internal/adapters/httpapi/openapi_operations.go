@@ -443,6 +443,49 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Description = "Lists append-only lifecycle events for a tenant-scoped evidence item."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Evidence item id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Evidence lifecycle event list envelope.", "#/components/schemas/EvidenceLifecycleEventListEnvelope")
+	case "createSourceRepository":
+		operation.Description = "Creates a tenant-scoped source repository record."
+		operation.RequestBody = jsonRequest("Source repository creation request.", "#/components/schemas/CreateSourceRepositoryRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created source repository envelope.", "#/components/schemas/SourceRepositoryEnvelope")
+	case "listSourceRepositories":
+		operation.Description = "Lists tenant-scoped source repositories, optionally filtered by project."
+		operation.Parameters = append(operation.Parameters, queryParam("project_id", "Project id.", "string"))
+		operation.Responses[http.StatusOK] = jsonResponse("Source repository list envelope.", "#/components/schemas/SourceRepositoryListEnvelope")
+	case "recordSourceCommit":
+		operation.Description = "Records immutable source commit metadata and stores only a hash of the commit message."
+		operation.RequestBody = jsonRequest("Source commit creation request.", "#/components/schemas/RecordSourceCommitRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created source commit envelope.", "#/components/schemas/SourceCommitEnvelope")
+	case "upsertSourceBranch":
+		operation.Description = "Records or updates source branch metadata and protected-branch snapshot hash."
+		operation.RequestBody = jsonRequest("Source branch upsert request.", "#/components/schemas/UpsertSourceBranchRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Source branch envelope.", "#/components/schemas/SourceBranchEnvelope")
+	case "recordPullRequest":
+		operation.Description = "Records pull-request review metadata linked to source repository evidence."
+		operation.RequestBody = jsonRequest("Pull request record request.", "#/components/schemas/RecordPullRequestRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created pull request envelope.", "#/components/schemas/PullRequestEnvelope")
+	case "createDeploymentEnvironment":
+		operation.Description = "Creates a tenant-scoped deployment environment for release deployment evidence."
+		operation.RequestBody = jsonRequest("Deployment environment creation request.", "#/components/schemas/CreateDeploymentEnvironmentRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created deployment environment envelope.", "#/components/schemas/DeploymentEnvironmentEnvelope")
+	case "listDeploymentEnvironments":
+		operation.Description = "Lists tenant-scoped deployment environments, optionally filtered by product."
+		operation.Parameters = append(operation.Parameters, queryParam("product_id", "Product id.", "string"))
+		operation.Responses[http.StatusOK] = jsonResponse("Deployment environment list envelope.", "#/components/schemas/DeploymentEnvironmentListEnvelope")
+	case "recordDeployment":
+		operation.Description = "Records append-only deployment evidence for a release/environment/artifact set."
+		operation.RequestBody = jsonRequest("Deployment event creation request.", "#/components/schemas/RecordDeploymentRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created deployment event envelope.", "#/components/schemas/DeploymentEventEnvelope")
+	case "listDeployments":
+		operation.Description = "Lists tenant-scoped deployment events by optional release and environment filters."
+		operation.Parameters = append(operation.Parameters,
+			queryParam("release_id", "Release id.", "string"),
+			queryParam("environment_id", "Deployment environment id.", "string"),
+		)
+		operation.Responses[http.StatusOK] = jsonResponse("Deployment event list envelope.", "#/components/schemas/DeploymentEventListEnvelope")
+	case "getDeployment":
+		operation.Description = "Returns a tenant-scoped deployment event by id."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Deployment event id."))
+		operation.Responses[http.StatusOK] = jsonResponse("Deployment event envelope.", "#/components/schemas/DeploymentEventEnvelope")
 	case "craReadinessReport":
 		operation.Description = "Returns a CRA-oriented readiness report without legal compliance or certification conclusions."
 		operation.Parameters = append(operation.Parameters,
