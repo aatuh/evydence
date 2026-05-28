@@ -84,13 +84,44 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	if _, ok := problemProps["request_id"]; !ok {
 		t.Fatalf("Problem schema missing request_id: %#v", problemProps)
 	}
-	for _, schemaName := range []string{"CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOProviderRequest", "SSOProviderEnvelope", "VerifyProviderIdentityRequest", "ProviderVerificationEnvelope", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalPackageRequest", "DataEnvelope"} {
+	for _, schemaName := range []string{"CreateProductRequest", "ProductEnvelope", "ProductListEnvelope", "CreateProjectRequest", "ProjectEnvelope", "CreateReleaseRequest", "ReleaseEnvelope", "RegisterArtifactRequest", "ArtifactEnvelope", "CreateBuildRequest", "BuildRunEnvelope", "EvidenceUploadRequest", "SBOMEnvelope", "VEXDocumentEnvelope", "UploadVulnerabilityScanRequest", "VulnerabilityScanEnvelope", "CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOProviderRequest", "SSOProviderEnvelope", "VerifyProviderIdentityRequest", "ProviderVerificationEnvelope", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalPackageRequest", "DataEnvelope"} {
 		if _, ok := schemas[schemaName]; !ok {
 			t.Fatalf("schema %s missing from OpenAPI components", schemaName)
 		}
 	}
 
 	paths := asStringAnyMap(t, doc["paths"])
+	createProduct := operationMap(t, paths, "/v1/products", "post")
+	assertRequestRef(t, createProduct, "#/components/schemas/CreateProductRequest")
+	assertResponseRef(t, createProduct, "201", "#/components/schemas/ProductEnvelope")
+	listProducts := operationMap(t, paths, "/v1/products", "get")
+	assertResponseRef(t, listProducts, "200", "#/components/schemas/ProductListEnvelope")
+	createProject := operationMap(t, paths, "/v1/projects", "post")
+	assertRequestRef(t, createProject, "#/components/schemas/CreateProjectRequest")
+	assertResponseRef(t, createProject, "201", "#/components/schemas/ProjectEnvelope")
+	createRelease := operationMap(t, paths, "/v1/releases", "post")
+	assertRequestRef(t, createRelease, "#/components/schemas/CreateReleaseRequest")
+	assertResponseRef(t, createRelease, "201", "#/components/schemas/ReleaseEnvelope")
+	getRelease := operationMap(t, paths, "/v1/releases/{id}", "get")
+	assertResponseRef(t, getRelease, "200", "#/components/schemas/ReleaseEnvelope")
+	freezeRelease := operationMap(t, paths, "/v1/releases/{id}/freeze", "post")
+	assertRequestRef(t, freezeRelease, "#/components/schemas/EmptyObject")
+	assertResponseRef(t, freezeRelease, "200", "#/components/schemas/ReleaseEnvelope")
+	registerArtifact := operationMap(t, paths, "/v1/artifacts", "post")
+	assertRequestRef(t, registerArtifact, "#/components/schemas/RegisterArtifactRequest")
+	assertResponseRef(t, registerArtifact, "201", "#/components/schemas/ArtifactEnvelope")
+	createBuild := operationMap(t, paths, "/v1/builds", "post")
+	assertRequestRef(t, createBuild, "#/components/schemas/CreateBuildRequest")
+	assertResponseRef(t, createBuild, "201", "#/components/schemas/BuildRunEnvelope")
+	uploadSBOM := operationMap(t, paths, "/v1/sboms", "post")
+	assertRequestRef(t, uploadSBOM, "#/components/schemas/EvidenceUploadRequest")
+	assertResponseRef(t, uploadSBOM, "201", "#/components/schemas/SBOMEnvelope")
+	uploadVulnerabilityScan := operationMap(t, paths, "/v1/vulnerability-scans", "post")
+	assertRequestRef(t, uploadVulnerabilityScan, "#/components/schemas/UploadVulnerabilityScanRequest")
+	assertResponseRef(t, uploadVulnerabilityScan, "201", "#/components/schemas/VulnerabilityScanEnvelope")
+	uploadVEX := operationMap(t, paths, "/v1/vex", "post")
+	assertRequestRef(t, uploadVEX, "#/components/schemas/EvidenceUploadRequest")
+	assertResponseRef(t, uploadVEX, "201", "#/components/schemas/VEXDocumentEnvelope")
 	createEvidence := operationMap(t, paths, "/v1/evidence", "post")
 	assertRequestRef(t, createEvidence, "#/components/schemas/CreateEvidenceRequest")
 	assertProblemResponseRef(t, createEvidence, "400")
