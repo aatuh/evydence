@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -272,28 +271,7 @@ func TestPostgresBackupRestoreRehearsalPreservesLedgerAndObjects(t *testing.T) {
 
 func copyTree(t *testing.T, sourceRoot, targetRoot string) {
 	t.Helper()
-	err := filepath.WalkDir(sourceRoot, func(path string, entry os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		rel, err := filepath.Rel(sourceRoot, path)
-		if err != nil {
-			return err
-		}
-		if rel == "." {
-			return nil
-		}
-		target := filepath.Join(targetRoot, rel)
-		if entry.IsDir() {
-			return os.MkdirAll(target, 0o700)
-		}
-		body, err := os.ReadFile(path) // #nosec G304 -- test copies files found under sourceRoot.
-		if err != nil {
-			return err
-		}
-		return os.WriteFile(target, body, 0o600)
-	})
-	if err != nil {
+	if err := os.CopyFS(targetRoot, os.DirFS(sourceRoot)); err != nil {
 		t.Fatal(err)
 	}
 }
