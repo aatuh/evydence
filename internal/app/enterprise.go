@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"strings"
 	"time"
 
@@ -571,8 +573,24 @@ func (l *Ledger) ExchangeSSOCredential(ctx context.Context, in ExchangeSSOCreden
 	verification.Checks = append(verification.Checks, domain.VerifyCheck{Name: "active_user", Result: "passed"})
 	l.providerVerifications[verification.ID] = verification
 
+	groups := oidcGroupsFromVerifiedToken(provider, idToken)
+	grants := append(l.resourceGrantsForUserLocked(user.ID), resourceGrantsForProviderGroups(provider, groups)...)
+	if len(scopesFromResourceGrants(grants)) == 0 {
+		verification.Result = "failed"
+		verification.Checks = append(verification.Checks, domain.VerifyCheck{Name: "authorization_grant", Result: "failed"})
+		l.providerVerifications[verification.ID] = verification
+		if err := l.persistLocked(ctx); err != nil {
+			return domain.ProviderVerification{}, domain.SSOSession{}, "", err
+		}
+		return verification, domain.SSOSession{}, "", ErrForbidden
+	}
+	if len(groups) > 0 && len(resourceGrantsForProviderGroups(provider, groups)) > 0 {
+		verification.Checks = append(verification.Checks, domain.VerifyCheck{Name: "mapped_group_roles", Result: "passed", Detail: fmt.Sprintf("%d session-scoped provider group role mapping(s) applied", len(resourceGrantsForProviderGroups(provider, groups)))})
+	}
+	l.providerVerifications[verification.ID] = verification
+
 	secret := "evysso_" + randomToken(32)
-	session := domain.SSOSession{ID: newID("sess"), TenantID: provider.TenantID, UserID: user.ID, ProviderID: provider.ID, Prefix: secretPrefix(secret), ExpiresAt: expiresAt, SchemaVersion: domain.SSOSessionSchemaVersion, CreatedAt: now, Hash: l.hashSecret(secret)}
+	session := domain.SSOSession{ID: newID("sess"), TenantID: provider.TenantID, UserID: user.ID, ProviderID: provider.ID, Prefix: secretPrefix(secret), Groups: groups, ExpiresAt: expiresAt, SchemaVersion: domain.SSOSessionSchemaVersion, CreatedAt: now, Hash: l.hashSecret(secret)}
 	l.ssoSessions[session.ID] = session
 	_, _ = l.appendChainLocked(provider.TenantID, "sso_session.created", "human_user", user.ID, "sso_provider", provider.ID, "", "")
 	if err := l.persistLocked(ctx); err != nil {
@@ -1042,6 +1060,33 @@ func (l *Ledger) resourceGrantsForUserLocked(userID string) []domain.ResourceGra
 	return grants
 }
 
+func (l *Ledger) resourceGrantsForSSOSessionLocked(session domain.SSOSession) []domain.ResourceGrant {
+	provider, ok := l.ssoProviders[session.ProviderID]
+	if !ok || provider.TenantID != session.TenantID {
+		return nil
+	}
+	return resourceGrantsForProviderGroups(provider, session.Groups)
+}
+
+func resourceGrantsForProviderGroups(provider domain.SSOProvider, groups []string) []domain.ResourceGrant {
+	if provider.GroupsClaim == "" || len(provider.RoleMapping) == 0 || len(groups) == 0 {
+		return nil
+	}
+	grants := []domain.ResourceGrant{}
+	for _, group := range groups {
+		role := strings.TrimSpace(provider.RoleMapping[group])
+		if !validRole(role) {
+			continue
+		}
+		scopes := scopesForRole(role)
+		if len(scopes) == 0 {
+			continue
+		}
+		grants = append(grants, domain.ResourceGrant{Role: role, Scopes: scopes})
+	}
+	return grants
+}
+
 func scopesFromResourceGrants(grants []domain.ResourceGrant) []string {
 	scopes := map[string]struct{}{}
 	for _, grant := range grants {
@@ -1369,6 +1414,53 @@ func scopesForRole(role string) []string {
 	default:
 		return nil
 	}
+}
+
+func oidcGroupsFromVerifiedToken(provider domain.SSOProvider, token string) []string {
+	claimName := strings.TrimSpace(provider.GroupsClaim)
+	if claimName == "" || token == "" || provider.Type != "oidc" {
+		return nil
+	}
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return nil
+	}
+	body, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil
+	}
+	var claims map[string]any
+	if err := json.Unmarshal(body, &claims); err != nil {
+		return nil
+	}
+	return sortedStrings(stringClaimValues(claims[claimName]))
+}
+
+func stringClaimValues(value any) []string {
+	seen := map[string]struct{}{}
+	out := []string{}
+	add := func(raw string) {
+		item := strings.TrimSpace(raw)
+		if item == "" {
+			return
+		}
+		if _, ok := seen[item]; ok {
+			return
+		}
+		seen[item] = struct{}{}
+		out = append(out, item)
+	}
+	switch got := value.(type) {
+	case string:
+		add(got)
+	case []any:
+		for _, item := range got {
+			if text, ok := item.(string); ok {
+				add(text)
+			}
+		}
+	}
+	return out
 }
 
 func validSSOType(value string) bool {

@@ -182,6 +182,7 @@ type SSOSession struct {
 	UserID        string     `json:"user_id"`
 	ProviderID    string     `json:"provider_id"`
 	Prefix        string     `json:"prefix"`
+	Groups        []string   `json:"groups,omitempty"`
 	ExpiresAt     time.Time  `json:"expires_at"`
 	RevokedAt     *time.Time `json:"revoked_at,omitempty"`
 	SchemaVersion string     `json:"schema_version"`
