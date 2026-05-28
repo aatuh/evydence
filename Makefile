@@ -7,7 +7,7 @@ GOLANGCI_LINT_VERSION ?= v2.11.4
 GOSEC_VERSION ?= v2.25.0
 GOVULNCHECK_VERSION ?= v1.2.0
 
-.PHONY: help tools fmt lint vuln gosec test test-race coverage coverage-check openapi-check meta-check docs-check deploy-check sdk-check fast-check finalize release-acceptance release-check production-check migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
+.PHONY: help tools fmt lint vuln gosec test test-race coverage coverage-check openapi-check openapi-precision-check meta-check docs-check deploy-check sdk-check fast-check finalize release-acceptance release-check production-check migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -49,6 +49,9 @@ openapi-check: openapi.yaml ## Validate OpenAPI generation and route contract te
 	@$(GO) test ./internal/adapters/httpapi -run 'TestRoutesValidateAndOpenAPIRenders'
 	@$(GO) run ./cmd/openapi > /tmp/evydence-openapi.yaml
 	@cmp -s openapi.yaml /tmp/evydence-openapi.yaml
+
+openapi-precision-check: ## Enforce current OpenAPI precision floor and broad-route ceiling
+	@python3 scripts/openapi_precision_check.py
 
 meta-check: ## Validate root legal, governance, support, and release-evidence metadata
 	@test -f LICENSE
@@ -173,6 +176,7 @@ sdk-check: ## Validate curated SDK helper coverage against OpenAPI
 fast-check: ## Run non-mutating fast validation
 	@$(MAKE) test
 	@$(MAKE) openapi-check
+	@$(MAKE) openapi-precision-check
 	@$(MAKE) docs-check
 	@$(MAKE) deploy-check
 	@$(MAKE) sdk-check
@@ -181,6 +185,7 @@ finalize: ## Thorough validity check
 	@$(MAKE) fmt
 	@$(MAKE) test
 	@$(MAKE) openapi-check
+	@$(MAKE) openapi-precision-check
 	@$(MAKE) docs-check
 	@$(MAKE) deploy-check
 	@$(MAKE) sdk-check

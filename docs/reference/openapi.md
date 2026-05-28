@@ -18,6 +18,17 @@ make openapi-check
 
 `make openapi-check` regenerates the contract, compares it with the committed file, and runs route contract tests for the HTTP adapter.
 
+Check precision regression:
+
+```sh
+make openapi-precision-check
+```
+
+`make openapi-precision-check` enforces the current floor for endpoint-specific
+contracts and the current ceiling for broad contracts. Raise
+`EVYDENCE_OPENAPI_MIN_PRECISE` and lower `EVYDENCE_OPENAPI_MAX_BROAD` as more
+routes receive concrete request and response schemas.
+
 `make docs-check` compares the paths in `openapi.yaml` with the endpoint catalog in [API reference](../api.md). Add every generated path to that catalog, or the docs check fails.
 
 ## Review The Contract
