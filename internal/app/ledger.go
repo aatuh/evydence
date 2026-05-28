@@ -1147,8 +1147,15 @@ func (l *Ledger) UploadOpenAPIContract(ctx context.Context, actor domain.Actor, 
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	contract := domain.OpenAPIContract{ID: newID("oas"), TenantID: actor.TenantID, ProductID: productID, ReleaseID: releaseID, Version: version, Hash: payloadHash, PathCount: len(doc.Paths.Map()), Operations: operations, EvidenceID: item.ID, CreatedAt: l.now()}
-	l.contracts[contract.ID] = contract
-	_, _ = l.appendChainLocked(actor.TenantID, "openapi_contract.parsed", "openapi_contract", contract.ID, "api_key", actor.KeyID, contract.Hash, "")
+	persistedContract := contract
+	chainAction := "openapi_contract.parsed"
+	if l.workerOwnedParsers {
+		persistedContract.PathCount = 0
+		persistedContract.Operations = nil
+		chainAction = "openapi_contract.accepted"
+	}
+	l.contracts[contract.ID] = persistedContract
+	_, _ = l.appendChainLocked(actor.TenantID, chainAction, "openapi_contract", contract.ID, "api_key", actor.KeyID, contract.Hash, "")
 	if err := l.enqueue(ctx, actor.TenantID, "parse_openapi_contract", "openapi_contract", contract.ID, map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionOpenAPIJSON}); err != nil {
 		return domain.OpenAPIContract{}, err
 	}

@@ -266,6 +266,69 @@ func TestUploadVulnerabilityScanCanDeferParserSideEffectsToWorker(t *testing.T) 
 	}
 }
 
+func TestUploadOpenAPIContractCanDeferParserSideEffectsToWorker(t *testing.T) {
+	outbox := &recordingOutbox{}
+	store := NewMemoryStore()
+	objects := newTestObjectStore()
+	ledger := NewLedger(Config{
+		APIKeyPepper:                 "test-pepper",
+		Now:                          fixedNow,
+		Store:                        store,
+		ObjectStore:                  objects,
+		Outbox:                       outbox,
+		WorkerOwnedParserSideEffects: true,
+	})
+	ctx := context.Background()
+	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	actor, err := ledger.Authenticate(ctx, secret)
+	if err != nil {
+		t.Fatalf("auth: %v", err)
+	}
+	product, err := ledger.CreateProduct(ctx, actor, "Payments API", "payments-worker-openapi")
+	if err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	release, err := ledger.CreateRelease(ctx, actor, product.ID, "1.0.0")
+	if err != nil {
+		t.Fatalf("create release: %v", err)
+	}
+
+	contract, err := ledger.UploadOpenAPIContract(ctx, actor, product.ID, release.ID, "v1", []byte(`{"openapi":"3.1.0","info":{"title":"API","version":"1"},"paths":{"/v1/a":{"get":{"responses":{"200":{"description":"ok"}}}}}}`))
+	if err != nil {
+		t.Fatalf("upload contract: %v", err)
+	}
+	if contract.PathCount != 1 || len(contract.Operations) != 1 {
+		t.Fatalf("upload response should keep parsed contract fields: %#v", contract)
+	}
+
+	state, ok, err := store.LoadState(ctx)
+	if err != nil || !ok {
+		t.Fatalf("load state ok=%v err=%v", ok, err)
+	}
+	persisted := state.Contracts[contract.ID]
+	if persisted.PathCount != 0 || len(persisted.Operations) != 0 || persisted.Hash == "" {
+		t.Fatalf("persisted contract should wait for worker parser side effects but keep hash: %#v", persisted)
+	}
+	if len(outbox.jobs) != 1 {
+		t.Fatalf("outbox jobs = %d, want 1", len(outbox.jobs))
+	}
+	job := outbox.jobs[0]
+	if job.Kind != "parse_openapi_contract" || job.Payload["payload_ref"] == "" || job.Payload["payload_hash"] == "" || job.Payload["parser_version"] != ParserVersionOpenAPIJSON {
+		t.Fatalf("outbox job missing replay metadata: %#v", job)
+	}
+	payloadRef, ok := job.Payload["payload_ref"].(string)
+	payloadKey := strings.TrimPrefix(payloadRef, "object://")
+	if !ok || !strings.HasPrefix(payloadKey, "tenants/"+actor.TenantID+"/") {
+		t.Fatalf("payload ref %q is not tenant-prefixed", job.Payload["payload_ref"])
+	}
+	if _, err := objects.Get(ctx, payloadKey); err != nil {
+		t.Fatalf("stored payload missing: %v", err)
+	}
+}
+
 func TestIdempotencyReplayAndConflict(t *testing.T) {
 	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
