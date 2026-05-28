@@ -68,3 +68,11 @@ func TestEnvDefaultAndObjectStoreSelection(t *testing.T) {
 		t.Fatalf("unsupported object store err=%v", err)
 	}
 }
+
+func TestOpenObjectStoreRejectsIncompleteS3Config(t *testing.T) {
+	t.Setenv("EVYDENCE_OBJECT_STORE", "s3")
+	t.Setenv("EVYDENCE_S3_ENDPOINT", "localhost:9000")
+	if _, _, err := openObjectStore(t.Context()); err == nil {
+		t.Fatal("expected incomplete S3 config to be rejected")
+	}
+}

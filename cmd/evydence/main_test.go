@@ -283,3 +283,73 @@ func TestResponseAndURLHelpersValidateInputs(t *testing.T) {
 		t.Fatal("expected NUL path error")
 	}
 }
+
+func TestRunCoversHashBundleAndReleaseCommands(t *testing.T) {
+	dir := t.TempDir()
+	artifact := dir + "/artifact.bin"
+	if err := os.WriteFile(artifact, []byte("binary"), 0o600); err != nil {
+		t.Fatalf("write artifact: %v", err)
+	}
+	if err := run([]string{"hash", artifact}); err != nil {
+		t.Fatalf("run hash: %v", err)
+	}
+	manifest := dir + "/manifest.json"
+	if err := run([]string{"release", "manifest", "--out", manifest, artifact}); err != nil {
+		t.Fatalf("run release manifest: %v", err)
+	}
+	privateKey := dir + "/private.key"
+	publicKey := dir + "/public.key"
+	if err := run([]string{"release", "keygen", "--private-out", privateKey, "--public-out", publicKey}); err != nil {
+		t.Fatalf("run release keygen: %v", err)
+	}
+	signature := dir + "/manifest.sig.json"
+	if err := run([]string{"release", "sign", "--manifest", manifest, "--private-key", privateKey, "--out", signature}); err != nil {
+		t.Fatalf("run release sign: %v", err)
+	}
+	if err := run([]string{"release", "verify", "--manifest", manifest, "--signature", signature}); err != nil {
+		t.Fatalf("run release verify: %v", err)
+	}
+	var decoded map[string]any
+	canonical, hash, err := canonicalFileHash(manifest)
+	if err != nil {
+		t.Fatalf("canonical hash: %v", err)
+	}
+	if err := json.Unmarshal(canonical, &decoded); err != nil || decoded["schema_version"] == "" {
+		t.Fatalf("canonical manifest decode=%#v err=%v", decoded, err)
+	}
+	if err := run([]string{"verify-manifest", manifest, "--hash", hash}); err != nil {
+		t.Fatalf("run verify manifest: %v", err)
+	}
+	bundleManifest := map[string]any{"schema_version": "evidence-bundle.v1.0.0", "evidence_ids": []any{"ev_1"}}
+	bundleBody, err := json.Marshal(bundleManifest)
+	if err != nil {
+		t.Fatalf("marshal bundle manifest: %v", err)
+	}
+	sum := sha256.Sum256(bundleBody)
+	bundlePath := dir + "/bundle.json"
+	body, err := json.Marshal(map[string]any{"manifest": bundleManifest, "manifest_hash": "sha256:" + hex.EncodeToString(sum[:])})
+	if err != nil {
+		t.Fatalf("marshal bundle: %v", err)
+	}
+	if err := os.WriteFile(bundlePath, body, 0o600); err != nil {
+		t.Fatalf("write bundle: %v", err)
+	}
+	if err := run([]string{"verify-evidence-bundle", bundlePath}); err != nil {
+		t.Fatalf("run verify evidence bundle: %v", err)
+	}
+}
+
+func TestRunUploadCommandsAndGitHubUsageBranches(t *testing.T) {
+	if err := run([]string{"github-actions"}); err == nil || !strings.Contains(err.Error(), "usage") {
+		t.Fatalf("github usage err=%v", err)
+	}
+	if err := run([]string{"import-bundle"}); err == nil || !strings.Contains(err.Error(), "usage") {
+		t.Fatalf("import usage err=%v", err)
+	}
+	if err := run([]string{"upload"}); err == nil || !strings.Contains(err.Error(), "usage") {
+		t.Fatalf("upload usage err=%v", err)
+	}
+	if err := run([]string{"release", "unknown"}); err == nil || !strings.Contains(err.Error(), "usage") {
+		t.Fatalf("release usage err=%v", err)
+	}
+}

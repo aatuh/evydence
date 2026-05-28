@@ -167,3 +167,16 @@ func TestWorkerHelpersValidatePayloadHashAndEnv(t *testing.T) {
 		t.Fatalf("intEnv fallback = %d", got)
 	}
 }
+
+func TestRunRequiresDatabaseURLAndWrapsOpenFailure(t *testing.T) {
+	t.Setenv("EVYDENCE_DATABASE_URL", "")
+	err := run()
+	if err == nil || !strings.Contains(err.Error(), "EVYDENCE_DATABASE_URL") {
+		t.Fatalf("missing database err=%v", err)
+	}
+	t.Setenv("EVYDENCE_DATABASE_URL", "postgres://invalid-host.invalid/evydence")
+	t.Setenv("EVYDENCE_SKIP_MIGRATIONS", "true")
+	if err := run(); err == nil {
+		t.Fatal("expected postgres open failure")
+	}
+}
