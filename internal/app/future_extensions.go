@@ -3,9 +3,9 @@ package app
 import (
 	"context"
 	"strings"
-)
 
-import "github.com/aatuh/evydence/internal/domain"
+	"github.com/aatuh/evydence/internal/domain"
+)
 
 type CreateEvidenceSummaryInput struct {
 	SubjectType string
