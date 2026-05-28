@@ -28,6 +28,20 @@ tmp/release-check-summary.txt
 
 Keep this file with release evidence when preparing an internal release review. It records the pass/skip status for the gate families, including whether live PostgreSQL checks ran.
 
+## Production Readiness Gate
+
+For self-hosted production-readiness evidence, run:
+
+```sh
+make production-check
+```
+
+That gate is stricter than `make release-check`: it requires
+`EVYDENCE_TEST_DATABASE_URL`, rejects skipped live PostgreSQL checks, enforces
+the configured coverage threshold, and runs a release artifact signing smoke
+test. See [Production readiness](production-readiness.md) for the supported
+profiles and exit criteria.
+
 ## Configured Live PostgreSQL Profile
 
 For the scripted local profile, run:

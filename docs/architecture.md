@@ -10,7 +10,7 @@ Evydence follows a ports-and-adapters shape:
 - `internal/adapters/objectstore/s3` stores the same tenant-prefixed object keys in S3/MinIO-compatible buckets.
 - `cmd/*` contains process entry points.
 
-Core logic does not depend on HTTP routers, SQL drivers, object storage SDKs, queues, KMS providers, provider clients, or UI frameworks. PostgreSQL persistence currently stores a versioned ledger snapshot and rebuilds tenant-scoped relational projection rows plus forward-compatible per-resource tables for implemented release, evidence, source, deployment, and control resources.
+Core logic does not depend on HTTP routers, SQL drivers, object storage SDKs, queues, KMS providers, provider clients, or UI frameworks. PostgreSQL persistence currently stores a versioned ledger snapshot and rebuilds tenant-scoped relational projection rows plus forward-compatible per-resource tables for implemented release, evidence, source, deployment, and control resources. Moving canonical production writes to dependency-ordered relational repositories is tracked as production hardening, not as a completed production maturity claim.
 
 ## Tenant And Auth Boundaries
 
@@ -26,7 +26,7 @@ When `EVYDENCE_DATABASE_URL` is set, mutations are saved to PostgreSQL before su
 
 Evidence, evidence lifecycle events, incidents, remediation tasks, security scans, manual security documents, SBOM diffs, VEX documents, vulnerability decisions/workflow records, organizations, users, role bindings, SSO providers, SSO sessions, legal holds, retention overrides, customer portal access records, questionnaire packages and drafts, evidence summaries, evidence graph snapshots, commercial and marketplace collector definitions, waivers, approvals, customer packages, report templates, evidence bundles, exceptions, build runs, build attestations, release candidates, artifact signatures, source-control records, deployment events, contract diffs, custom policy evaluations, provider verifications, signing operations, control evidence links, public transparency log entries, and release bundle records are append-only in behavior. Changes are represented by supersession, lifecycle events, approval transitions, session revocation, package access records, links, verification receipts, rollback-as-new-event records, or new audit-chain entries.
 
-Outbox jobs are persisted in PostgreSQL and claimed by workers with `FOR UPDATE SKIP LOCKED`.
+Outbox jobs are persisted in PostgreSQL and claimed by workers with `FOR UPDATE SKIP LOCKED`. Current parser jobs validate durable state and fail closed on mismatches; production hardening must make parser jobs re-read tenant-prefixed object-store payloads, verify digests, and produce parser side effects independently of the API request path.
 
 ## Verification And Trust
 
@@ -52,6 +52,6 @@ Air-gapped import-bundle workflows preserve the same tenant-scoped import path a
 
 ## Limitations
 
-The in-process store remains available only when `EVYDENCE_DATABASE_URL` is unset. S3/MinIO runtime object storage is available through the object-store port. Signing-provider operation receipts are implemented, but production KMS/HSM provider adapters and live Sigstore/public-transparency verification remain deployment hardening work. Hand-tuned per-resource repository implementations remain roadmap work. `ENV=production` rejects the in-process store, default API-key pepper, local plaintext signing-key mode, and bootstrap secret printing.
+The in-process store remains available only when `EVYDENCE_DATABASE_URL` is unset. S3/MinIO runtime object storage is available through the object-store port. Signing-provider operation receipts are implemented, but production KMS/HSM provider adapters and live Sigstore/public-transparency verification remain deployment hardening work. Hand-tuned per-resource repository implementations, object-store replay parsers, complete endpoint-specific OpenAPI schemas, CI-enforced live PostgreSQL checks, and the production coverage threshold remain production-readiness work. `ENV=production` rejects the in-process store, default API-key pepper, local plaintext signing-key mode, and bootstrap secret printing.
 
 Evydence does not prove provider truth, scanner authority, runtime security, legal compliance, or release security by itself.
