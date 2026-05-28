@@ -22,3 +22,11 @@ func TestEnvDefault(t *testing.T) {
 		t.Fatalf("fallback envDefault = %q", got)
 	}
 }
+
+func TestRunReturnsPostgresOpenFailure(t *testing.T) {
+	t.Setenv("EVYDENCE_DATABASE_URL", "postgres://invalid-host.invalid/evydence")
+	err := run()
+	if err == nil {
+		t.Fatal("expected postgres open failure")
+	}
+}
