@@ -518,8 +518,12 @@ func TestReplayMergeHelpersCoverParserSideEffects(t *testing.T) {
 		BuildType:      "test",
 		MaterialsCount: 2,
 	}, raw)
-	if !changed || attestation.PayloadHash == "" || attestation.PayloadSize == 0 || attestation.PredicateType == "" || len(attestation.SubjectDigests) != 1 || attestation.SignatureCount != 1 || attestation.BuilderID == "" || attestation.BuildType == "" || attestation.MaterialsCount != 2 {
+	if !changed || attestation.PayloadHash == "" || attestation.PayloadSize == 0 || attestation.PredicateType == "" || len(attestation.SubjectDigests) != 1 || attestation.SignatureCount != 1 || attestation.BuilderID == "" || attestation.BuildType == "" || attestation.MaterialsCount != 2 || attestation.VerificationStatus != "structurally_valid" {
 		t.Fatalf("merged attestation = %#v changed=%v", attestation, changed)
+	}
+	accepted, changed := mergeReplayedAttestation(domain.BuildAttestation{VerificationStatus: "accepted"}, replayedAttestation{}, raw)
+	if !changed || accepted.VerificationStatus != "structurally_valid" {
+		t.Fatalf("accepted attestation status was not completed: %#v changed=%v", accepted, changed)
 	}
 	if err := verifyReplayedAttestation(raw, replayedAttestation{PredicateType: "other", SubjectDigests: attestation.SubjectDigests}, attestation); err == nil {
 		t.Fatal("expected attestation predicate mismatch")

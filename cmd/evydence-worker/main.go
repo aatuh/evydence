@@ -786,6 +786,10 @@ func mergeReplayedAttestation(attestation domain.BuildAttestation, parsed replay
 		attestation.MaterialsCount = parsed.MaterialsCount
 		changed = true
 	}
+	if attestation.VerificationStatus == "" || attestation.VerificationStatus == "accepted" {
+		attestation.VerificationStatus = "structurally_valid"
+		changed = true
+	}
 	return attestation, changed
 }
 
