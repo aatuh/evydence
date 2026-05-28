@@ -12,7 +12,9 @@ Configured job kinds:
 - `verify_subject`
 - `verify_attestation`
 
-Current behavior is intentionally conservative. The API performs parsing, signing, and verification synchronously before enqueueing jobs. The worker then validates that the expected durable state exists and, when a `payload_hash` is present, that the hash matches the recorded state. Missing state, incomplete verification, missing signatures, hash mismatch, uninitialized storage, and unsupported job kinds fail the job safely.
+Current behavior is intentionally conservative. The API performs parsing, signing, and verification synchronously before enqueueing jobs. The worker then validates that tenant-prefixed payload objects can be read when `payload_ref` is present, verifies object metadata and byte digests when `payload_hash` is present, and validates that the expected durable state exists. Missing objects, wrong tenant prefixes, tenant mismatches, oversized payload objects, incomplete verification, missing signatures, hash mismatch, uninitialized storage, and unsupported job kinds fail the job safely.
+
+Workers use the same object-store environment variables as the API. The default worker payload replay limit is 20 MiB and can be adjusted with `EVYDENCE_WORKER_MAX_PAYLOAD_BYTES`.
 
 Safe logging rules:
 

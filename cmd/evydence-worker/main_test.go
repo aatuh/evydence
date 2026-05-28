@@ -22,6 +22,18 @@ func (f fakeStateLoader) LoadState(context.Context) (app.PersistedState, bool, e
 	return f.state, f.ok, f.err
 }
 
+type fakeObjectGetter struct {
+	object app.Object
+	err    error
+}
+
+func (f fakeObjectGetter) Get(context.Context, string) (app.Object, error) {
+	if f.err != nil {
+		return app.Object{}, f.err
+	}
+	return f.object, nil
+}
+
 func TestProcessJobVerifiesConfiguredJobState(t *testing.T) {
 	job := postgres.ClaimedJob{
 		ID:          "job_test",
@@ -36,6 +48,111 @@ func TestProcessJobVerifiesConfiguredJobState(t *testing.T) {
 	}}
 	if err := processJob(context.Background(), fakeStateLoader{state: state, ok: true}, job); err != nil {
 		t.Fatalf("process configured verification job: %v", err)
+	}
+}
+
+func TestProcessJobWithObjectsVerifiesTenantPrefixedPayload(t *testing.T) {
+	body := []byte(`{"bomFormat":"CycloneDX"}`)
+	hash := digestBytes(body)
+	job := postgres.ClaimedJob{
+		ID:        "job_test",
+		TenantID:  "ten_test",
+		Kind:      "parse_sbom",
+		SubjectID: "sbom_test",
+		Payload:   map[string]any{"payload_ref": "tenants/ten_test/payloads/sbom.json", "payload_hash": hash},
+	}
+	state := app.PersistedState{SBOMs: map[string]domain.SBOM{
+		"sbom_test": {ID: "sbom_test", TenantID: "ten_test"},
+	}}
+	object := app.Object{Key: "tenants/ten_test/payloads/sbom.json", TenantID: "ten_test", Digest: hash, Bytes: body}
+	if err := processJobWithObjects(context.Background(), fakeStateLoader{state: state, ok: true}, fakeObjectGetter{object: object}, job); err != nil {
+		t.Fatalf("process object-backed job: %v", err)
+	}
+}
+
+func TestProcessJobWithObjectsFailsSafelyForPayloadProblems(t *testing.T) {
+	state := app.PersistedState{SBOMs: map[string]domain.SBOM{
+		"sbom_test": {ID: "sbom_test", TenantID: "ten_test"},
+	}}
+	base := postgres.ClaimedJob{
+		ID:        "job_test",
+		TenantID:  "ten_test",
+		Kind:      "parse_sbom",
+		SubjectID: "sbom_test",
+		Payload:   map[string]any{"payload_ref": "tenants/ten_test/payloads/raw-secret-name", "payload_hash": digestBytes([]byte("ok"))},
+	}
+	tests := []struct {
+		name    string
+		job     postgres.ClaimedJob
+		objects jobObjectGetter
+		want    string
+	}{
+		{
+			name:    "wrong tenant prefix",
+			job:     postgres.ClaimedJob{TenantID: "ten_test", Kind: "parse_sbom", SubjectID: "sbom_test", Payload: map[string]any{"payload_ref": "tenants/other/payloads/raw-secret-name"}},
+			objects: fakeObjectGetter{},
+			want:    "tenant-prefixed",
+		},
+		{
+			name: "missing object store",
+			job:  base,
+			want: "object store is not configured",
+		},
+		{
+			name:    "object read failure",
+			job:     base,
+			objects: fakeObjectGetter{err: errors.New("backend leaked secret")},
+			want:    "read outbox payload object",
+		},
+		{
+			name:    "object tenant mismatch",
+			job:     base,
+			objects: fakeObjectGetter{object: app.Object{TenantID: "other", Bytes: []byte("ok"), Digest: digestBytes([]byte("ok"))}},
+			want:    "tenant mismatch",
+		},
+		{
+			name:    "metadata digest mismatch",
+			job:     base,
+			objects: fakeObjectGetter{object: app.Object{TenantID: "ten_test", Bytes: []byte("ok"), Digest: digestBytes([]byte("other"))}},
+			want:    "metadata digest mismatch",
+		},
+		{
+			name:    "byte digest mismatch",
+			job:     base,
+			objects: fakeObjectGetter{object: app.Object{TenantID: "ten_test", Bytes: []byte("other")}},
+			want:    "digest mismatch",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := processJobWithObjects(context.Background(), fakeStateLoader{state: state, ok: true}, tt.objects, tt.job)
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("err=%v want %q", err, tt.want)
+			}
+			if strings.Contains(err.Error(), "raw-secret-name") || strings.Contains(err.Error(), "backend leaked secret") {
+				t.Fatalf("error leaked payload details: %v", err)
+			}
+		})
+	}
+}
+
+func TestProcessJobWithObjectsRejectsOversizedPayload(t *testing.T) {
+	t.Setenv("EVYDENCE_WORKER_MAX_PAYLOAD_BYTES", "2")
+	body := []byte("large")
+	hash := digestBytes(body)
+	state := app.PersistedState{SBOMs: map[string]domain.SBOM{
+		"sbom_test": {ID: "sbom_test", TenantID: "ten_test"},
+	}}
+	job := postgres.ClaimedJob{
+		TenantID:  "ten_test",
+		Kind:      "parse_sbom",
+		SubjectID: "sbom_test",
+		Payload:   map[string]any{"payload_ref": "tenants/ten_test/payloads/sbom.json", "payload_hash": hash},
+	}
+	object := app.Object{TenantID: "ten_test", Digest: hash, Bytes: body}
+	err := processJobWithObjects(context.Background(), fakeStateLoader{state: state, ok: true}, fakeObjectGetter{object: object}, job)
+	if err == nil || !strings.Contains(err.Error(), "size limit") {
+		t.Fatalf("err=%v", err)
 	}
 }
 
