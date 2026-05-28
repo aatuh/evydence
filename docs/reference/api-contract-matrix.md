@@ -3,7 +3,7 @@
 This generated reference inventories Evydence `/v1` route contract precision from `openapi.yaml`.
 It is a planning aid for production contract hardening; `broad` means the route still uses a shared envelope, unspecified body, or generic schema where an endpoint-specific contract should be considered.
 
-Generated from 160 operations: 89 precise, 71 broad.
+Generated from 160 operations: 98 precise, 62 broad.
 
 | Method | Path | Operation | Auth | Scopes | Idempotency | Params | Request | 2xx Response | Precision |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -63,10 +63,10 @@ Generated from 160 operations: 89 precise, 71 broad.
 | POST | /v1/evidence-summaries | createEvidenceSummary | Bearer | report:read | required | - | - | 201:unspecified | broad |
 | GET | /v1/evidence/search | searchEvidence | Bearer | evidence:read | - | query:cursor, query:limit, query:product_id, query:project_id, query:release_id, query:source, query:tag, query:type | - | 200:application/json:EvidenceSearchEnvelope | precise |
 | GET | /v1/evidence/{id} | getEvidence | Bearer | evidence:read | - | path:id | - | 200:application/json:EvidenceItemEnvelope | precise |
-| GET | /v1/evidence/{id}/lifecycle-events | listEvidenceLifecycleEvents | Bearer | evidence:read | - | - | - | 200:unspecified | broad |
-| POST | /v1/evidence/{id}/lifecycle-events | recordEvidenceLifecycleEvent | Bearer | evidence:write | required | - | - | 201:unspecified | broad |
-| POST | /v1/evidence/{id}/link | linkEvidence | Bearer | evidence:write | required | - | - | 201:unspecified | broad |
-| POST | /v1/evidence/{id}/supersede | supersedeEvidence | Bearer | evidence:write | required | - | - | 201:unspecified | broad |
+| GET | /v1/evidence/{id}/lifecycle-events | listEvidenceLifecycleEvents | Bearer | evidence:read | - | path:id | - | 200:application/json:EvidenceLifecycleEventListEnvelope | precise |
+| POST | /v1/evidence/{id}/lifecycle-events | recordEvidenceLifecycleEvent | Bearer | evidence:write | required | path:id | application/json:RecordEvidenceLifecycleEventRequest | 201:application/json:EvidenceLifecycleEventEnvelope | precise |
+| POST | /v1/evidence/{id}/link | linkEvidence | Bearer | evidence:write | required | path:id | application/json:LinkEvidenceRequest | 201:application/json:EvidenceItemEnvelope | precise |
+| POST | /v1/evidence/{id}/supersede | supersedeEvidence | Bearer | evidence:write | required | path:id | application/json:SupersedeEvidenceRequest | 201:application/json:EvidenceItemEnvelope | precise |
 | GET | /v1/exceptions | listExceptions | Bearer | verify:read | - | query:release_id | - | 200:application/json:ExceptionListEnvelope | precise |
 | POST | /v1/exceptions | createException | Bearer | release:write | required | - | application/json:CreateExceptionRequest | 201:application/json:ExceptionEnvelope | precise |
 | POST | /v1/exceptions/{id}/approve | approveException | Bearer | release:write | required | path:id | application/json:EmptyObject | 200:application/json:ExceptionEnvelope | precise |
@@ -105,11 +105,11 @@ Generated from 160 operations: 89 precise, 71 broad.
 | GET | /v1/release-bundles/{id} | getReleaseBundle | Bearer | bundle:read | - | path:id | - | 200:application/json:ReleaseBundleEnvelope | precise |
 | GET | /v1/release-bundles/{id}/manifest | getReleaseBundleManifest | Bearer | bundle:read | - | path:id | - | 200:application/json:ReleaseBundleManifestEnvelope | precise |
 | GET | /v1/release-bundles/{id}/verify | verifyReleaseBundle | Bearer | verify:read | - | path:id | - | 200:application/json:VerificationResultEnvelope | precise |
-| GET | /v1/release-candidates | listReleaseCandidates | Bearer | release:read | - | - | - | 200:unspecified | broad |
-| POST | /v1/release-candidates | createReleaseCandidate | Bearer | release:write | required | - | - | 201:unspecified | broad |
-| GET | /v1/release-candidates/{id} | getReleaseCandidate | Bearer | release:read | - | - | - | 200:unspecified | broad |
-| POST | /v1/release-candidates/{id}/promote | promoteReleaseCandidate | Bearer | release:write | required | - | - | 200:unspecified | broad |
-| POST | /v1/release-candidates/{id}/reject | rejectReleaseCandidate | Bearer | release:write | required | - | - | 200:unspecified | broad |
+| GET | /v1/release-candidates | listReleaseCandidates | Bearer | release:read | - | query:release_id | - | 200:application/json:ReleaseCandidateListEnvelope | precise |
+| POST | /v1/release-candidates | createReleaseCandidate | Bearer | release:write | required | - | application/json:CreateReleaseCandidateRequest | 201:application/json:ReleaseCandidateEnvelope | precise |
+| GET | /v1/release-candidates/{id} | getReleaseCandidate | Bearer | release:read | - | path:id | - | 200:application/json:ReleaseCandidateEnvelope | precise |
+| POST | /v1/release-candidates/{id}/promote | promoteReleaseCandidate | Bearer | release:write | required | path:id | application/json:ReleaseCandidateTransitionRequest | 200:application/json:ReleaseCandidateEnvelope | precise |
+| POST | /v1/release-candidates/{id}/reject | rejectReleaseCandidate | Bearer | release:write | required | path:id | application/json:ReleaseCandidateTransitionRequest | 200:application/json:ReleaseCandidateEnvelope | precise |
 | POST | /v1/releases | createRelease | Bearer | release:write | required | - | application/json:CreateReleaseRequest | 201:application/json:ReleaseEnvelope | precise |
 | GET | /v1/releases/{id} | getRelease | Bearer | release:read | - | path:id | - | 200:application/json:ReleaseEnvelope | precise |
 | POST | /v1/releases/{id}/approve | approveRelease | Bearer | release:write | required | path:id | application/json:EmptyObject | 200:application/json:ReleaseEnvelope | precise |

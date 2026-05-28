@@ -407,6 +407,42 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Description = "Creates a tenant-scoped DSSE trust root using public verification key material only."
 		operation.RequestBody = jsonRequest("DSSE trust-root creation request.", "#/components/schemas/CreateDSSETrustRootRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created DSSE trust root envelope.", "#/components/schemas/DSSETrustRootEnvelope")
+	case "createReleaseCandidate":
+		operation.Description = "Creates an immutable release-candidate snapshot of selected release evidence references."
+		operation.RequestBody = jsonRequest("Release candidate creation request.", "#/components/schemas/CreateReleaseCandidateRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created release candidate envelope.", "#/components/schemas/ReleaseCandidateEnvelope")
+	case "listReleaseCandidates":
+		operation.Description = "Lists tenant-scoped release candidates, optionally filtered by release."
+		operation.Parameters = append(operation.Parameters, queryParam("release_id", "Release id.", "string"))
+		operation.Responses[http.StatusOK] = jsonResponse("Release candidate list envelope.", "#/components/schemas/ReleaseCandidateListEnvelope")
+	case "getReleaseCandidate":
+		operation.Description = "Returns a tenant-scoped release candidate by id."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Release candidate id."))
+		operation.Responses[http.StatusOK] = jsonResponse("Release candidate envelope.", "#/components/schemas/ReleaseCandidateEnvelope")
+	case "promoteReleaseCandidate", "rejectReleaseCandidate":
+		operation.Description = "Records a release-candidate lifecycle transition without mutating the original snapshot."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Release candidate id."))
+		operation.RequestBody = jsonRequest("Release candidate transition request.", "#/components/schemas/ReleaseCandidateTransitionRequest")
+		operation.Responses[http.StatusOK] = jsonResponse("Transitioned release candidate envelope.", "#/components/schemas/ReleaseCandidateEnvelope")
+	case "supersedeEvidence":
+		operation.Description = "Supersedes immutable evidence by linking it to replacement evidence and appending lifecycle metadata."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Evidence item id."))
+		operation.RequestBody = jsonRequest("Evidence supersession request.", "#/components/schemas/SupersedeEvidenceRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Superseded evidence item envelope.", "#/components/schemas/EvidenceItemEnvelope")
+	case "linkEvidence":
+		operation.Description = "Creates an append-only relationship from evidence to another tenant-scoped subject."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Evidence item id."))
+		operation.RequestBody = jsonRequest("Evidence link request.", "#/components/schemas/LinkEvidenceRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Linked evidence item envelope.", "#/components/schemas/EvidenceItemEnvelope")
+	case "recordEvidenceLifecycleEvent":
+		operation.Description = "Appends an evidence lifecycle event such as amendment, redaction marker, tombstone, or retention marker."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Evidence item id."))
+		operation.RequestBody = jsonRequest("Evidence lifecycle event request.", "#/components/schemas/RecordEvidenceLifecycleEventRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created evidence lifecycle event envelope.", "#/components/schemas/EvidenceLifecycleEventEnvelope")
+	case "listEvidenceLifecycleEvents":
+		operation.Description = "Lists append-only lifecycle events for a tenant-scoped evidence item."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Evidence item id."))
+		operation.Responses[http.StatusOK] = jsonResponse("Evidence lifecycle event list envelope.", "#/components/schemas/EvidenceLifecycleEventListEnvelope")
 	case "craReadinessReport":
 		operation.Description = "Returns a CRA-oriented readiness report without legal compliance or certification conclusions."
 		operation.Parameters = append(operation.Parameters,
