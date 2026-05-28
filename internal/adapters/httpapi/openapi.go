@@ -683,6 +683,137 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "id", "tenant_id", "environment_id", "release_id", "status", "started_at", "schema_version", "created_at"))
 	registry.RegisterSchema("DeploymentEventEnvelope", dataEnvelopeSchema("#/components/schemas/DeploymentEvent"))
 	registry.RegisterSchema("DeploymentEventListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/DeploymentEvent"))
+	registry.RegisterSchema("RecordCollectorReleaseRequest", objectSchema(map[string]any{
+		"version":         map[string]any{"type": "string"},
+		"artifact_digest": map[string]any{"type": "string"},
+		"signature_id":    map[string]any{"type": "string"},
+		"sbom_id":         map[string]any{"type": "string"},
+		"scan_id":         map[string]any{"type": "string"},
+		"pinned":          map[string]any{"type": "boolean"},
+	}, "version", "artifact_digest"))
+	registry.RegisterSchema("CollectorRelease", objectSchema(map[string]any{
+		"id":                  map[string]any{"type": "string"},
+		"tenant_id":           map[string]any{"type": "string"},
+		"collector_id":        map[string]any{"type": "string"},
+		"version":             map[string]any{"type": "string"},
+		"artifact_digest":     map[string]any{"type": "string"},
+		"signature_id":        map[string]any{"type": "string"},
+		"sbom_id":             map[string]any{"type": "string"},
+		"scan_id":             map[string]any{"type": "string"},
+		"pinned":              map[string]any{"type": "boolean"},
+		"verification_status": map[string]any{"type": "string"},
+		"health_status":       map[string]any{"type": "string"},
+		"limitations":         map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"schema_version":      map[string]any{"type": "string"},
+		"created_at":          map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "collector_id", "version", "artifact_digest", "pinned", "verification_status", "health_status", "schema_version", "created_at"))
+	registry.RegisterSchema("CollectorReleaseEnvelope", dataEnvelopeSchema("#/components/schemas/CollectorRelease"))
+	registry.RegisterSchema("CollectorHealthReport", objectSchema(map[string]any{
+		"report_type":         map[string]any{"type": "string"},
+		"collector_id":        map[string]any{"type": "string"},
+		"collector_status":    map[string]any{"type": "string"},
+		"version":             map[string]any{"type": "string"},
+		"pinned_release_id":   map[string]any{"type": "string"},
+		"supply_chain_status": map[string]any{"type": "string"},
+		"checks":              map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/VerifyCheck"}},
+		"latest_release":      map[string]any{"$ref": "#/components/schemas/CollectorRelease"},
+		"assumptions":         map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"limitations":         map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"generated_at":        map[string]any{"type": "string", "format": "date-time"},
+	}, "report_type", "collector_id", "collector_status", "supply_chain_status", "checks", "assumptions", "limitations", "generated_at"))
+	registry.RegisterSchema("CollectorHealthReportEnvelope", dataEnvelopeSchema("#/components/schemas/CollectorHealthReport"))
+	registry.RegisterSchema("CreateCommercialCollectorRequest", objectSchema(map[string]any{
+		"name":           map[string]any{"type": "string"},
+		"provider":       map[string]any{"type": "string"},
+		"version":        map[string]any{"type": "string"},
+		"manifest_hash":  map[string]any{"type": "string", "pattern": "^sha256:"},
+		"allowed_scopes": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+	}, "name", "provider", "version", "manifest_hash"))
+	registry.RegisterSchema("CommercialCollectorDefinition", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"name":           map[string]any{"type": "string"},
+		"provider":       map[string]any{"type": "string"},
+		"version":        map[string]any{"type": "string"},
+		"manifest_hash":  map[string]any{"type": "string", "pattern": "^sha256:"},
+		"allowed_scopes": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"status":         map[string]any{"type": "string"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "name", "provider", "version", "manifest_hash", "allowed_scopes", "status", "schema_version", "created_at"))
+	registry.RegisterSchema("CommercialCollectorDefinitionEnvelope", dataEnvelopeSchema("#/components/schemas/CommercialCollectorDefinition"))
+	registry.RegisterSchema("CommercialCollectorDefinitionListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/CommercialCollectorDefinition"))
+	registry.RegisterSchema("CreateMarketplaceCollectorRequest", objectSchema(map[string]any{
+		"name":          map[string]any{"type": "string"},
+		"provider":      map[string]any{"type": "string"},
+		"version":       map[string]any{"type": "string"},
+		"publisher":     map[string]any{"type": "string"},
+		"manifest_hash": map[string]any{"type": "string", "pattern": "^sha256:"},
+		"signature_id":  map[string]any{"type": "string"},
+		"sbom_id":       map[string]any{"type": "string"},
+		"scan_id":       map[string]any{"type": "string"},
+	}, "name", "provider", "version", "publisher", "manifest_hash"))
+	registry.RegisterSchema("MarketplaceCollector", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"name":           map[string]any{"type": "string"},
+		"provider":       map[string]any{"type": "string"},
+		"version":        map[string]any{"type": "string"},
+		"publisher":      map[string]any{"type": "string"},
+		"manifest_hash":  map[string]any{"type": "string", "pattern": "^sha256:"},
+		"signature_id":   map[string]any{"type": "string"},
+		"sbom_id":        map[string]any{"type": "string"},
+		"scan_id":        map[string]any{"type": "string"},
+		"state":          map[string]any{"type": "string"},
+		"limitations":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "name", "provider", "version", "publisher", "manifest_hash", "state", "schema_version", "created_at"))
+	registry.RegisterSchema("MarketplaceCollectorEnvelope", dataEnvelopeSchema("#/components/schemas/MarketplaceCollector"))
+	registry.RegisterSchema("MarketplaceCollectorListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/MarketplaceCollector"))
+	registry.RegisterSchema("MarketplaceCollectorHealthReport", objectSchema(map[string]any{
+		"report_type":         map[string]any{"type": "string"},
+		"collector_id":        map[string]any{"type": "string"},
+		"name":                map[string]any{"type": "string"},
+		"provider":            map[string]any{"type": "string"},
+		"version":             map[string]any{"type": "string"},
+		"supply_chain_status": map[string]any{"type": "string"},
+		"checks":              map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/VerifyCheck"}},
+		"collector":           map[string]any{"$ref": "#/components/schemas/MarketplaceCollector"},
+		"assumptions":         map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"limitations":         map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"generated_at":        map[string]any{"type": "string", "format": "date-time"},
+	}, "report_type", "collector_id", "name", "provider", "version", "supply_chain_status", "checks", "collector", "assumptions", "limitations", "generated_at"))
+	registry.RegisterSchema("MarketplaceCollectorHealthReportEnvelope", dataEnvelopeSchema("#/components/schemas/MarketplaceCollectorHealthReport"))
+	registry.RegisterSchema("ControlFrameworkTemplatePack", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"name":           map[string]any{"type": "string"},
+		"slug":           map[string]any{"type": "string"},
+		"version":        map[string]any{"type": "string"},
+		"description":    map[string]any{"type": "string"},
+		"controls":       map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/SecurityControl"}},
+		"schema_version": map[string]any{"type": "string"},
+	}, "id", "name", "slug", "version", "controls", "schema_version"))
+	registry.RegisterSchema("ControlFrameworkTemplatePackListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/ControlFrameworkTemplatePack"))
+	registry.RegisterSchema("RegisterContainerImageRequest", objectSchema(map[string]any{
+		"artifact_id": map[string]any{"type": "string"},
+		"repository":  map[string]any{"type": "string"},
+		"tag":         map[string]any{"type": "string"},
+		"digest":      map[string]any{"type": "string"},
+		"platform":    map[string]any{"type": "string"},
+	}, "repository", "digest"))
+	registry.RegisterSchema("ContainerImage", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"artifact_id":    map[string]any{"type": "string"},
+		"repository":     map[string]any{"type": "string"},
+		"tag":            map[string]any{"type": "string"},
+		"digest":         map[string]any{"type": "string"},
+		"platform":       map[string]any{"type": "string"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "repository", "digest", "schema_version", "created_at"))
+	registry.RegisterSchema("ContainerImageEnvelope", dataEnvelopeSchema("#/components/schemas/ContainerImage"))
 	registry.RegisterSchema("ReadinessReport", objectSchema(map[string]any{
 		"report_type":      map[string]any{"type": "string"},
 		"template_version": map[string]any{"type": "string"},

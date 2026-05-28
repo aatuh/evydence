@@ -3,7 +3,7 @@
 This generated reference inventories Evydence `/v1` route contract precision from `openapi.yaml`.
 It is a planning aid for production contract hardening; `broad` means the route still uses a shared envelope, unspecified body, or generic schema where an endpoint-specific contract should be considered.
 
-Generated from 160 operations: 108 precise, 52 broad.
+Generated from 160 operations: 118 precise, 42 broad.
 
 | Method | Path | Operation | Auth | Scopes | Idempotency | Params | Request | 2xx Response | Precision |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -28,14 +28,14 @@ Generated from 160 operations: 108 precise, 52 broad.
 | POST | /v1/collectors | createCollector | Bearer | collector:admin | required | - | application/json:CreateCollectorRequest | 201:application/json:CollectorCreateEnvelope | precise |
 | POST | /v1/collectors/github/source-snapshots | uploadGitHubSourceSnapshot | Bearer | source:write | required | - | application/json:SourceSnapshotRequest | 201:application/json:SourceSnapshotEnvelope | precise |
 | POST | /v1/collectors/gitlab/source-snapshots | uploadGitLabSourceSnapshot | Bearer | source:write | required | - | application/json:SourceSnapshotRequest | 201:application/json:SourceSnapshotEnvelope | precise |
-| GET | /v1/collectors/{id}/health | collectorHealthReport | Bearer | collector:read | - | - | - | 200:unspecified | broad |
-| POST | /v1/collectors/{id}/releases | recordCollectorRelease | Bearer | collector:admin | required | - | - | 201:unspecified | broad |
-| GET | /v1/commercial-collectors | listCommercialCollectors | Bearer | collector:read | - | - | - | 200:unspecified | broad |
-| POST | /v1/commercial-collectors | createCommercialCollector | Bearer | collector:admin | required | - | - | 201:unspecified | broad |
-| POST | /v1/container-images | registerContainerImage | Bearer | evidence:write | required | - | - | 201:unspecified | broad |
+| GET | /v1/collectors/{id}/health | collectorHealthReport | Bearer | collector:read | - | path:id | - | 200:application/json:CollectorHealthReportEnvelope | precise |
+| POST | /v1/collectors/{id}/releases | recordCollectorRelease | Bearer | collector:admin | required | path:id | application/json:RecordCollectorReleaseRequest | 201:application/json:CollectorReleaseEnvelope | precise |
+| GET | /v1/commercial-collectors | listCommercialCollectors | Bearer | collector:read | - | - | - | 200:application/json:CommercialCollectorDefinitionListEnvelope | precise |
+| POST | /v1/commercial-collectors | createCommercialCollector | Bearer | collector:admin | required | - | application/json:CreateCommercialCollectorRequest | 201:application/json:CommercialCollectorDefinitionEnvelope | precise |
+| POST | /v1/container-images | registerContainerImage | Bearer | evidence:write | required | - | application/json:RegisterContainerImageRequest | 201:application/json:ContainerImageEnvelope | precise |
 | GET | /v1/control-evidence | listControlEvidence | Bearer | controls:read | - | query:control_id, query:product_id, query:release_id | - | 200:application/json:ControlEvidenceListEnvelope | precise |
-| GET | /v1/control-framework-template-packs | listControlFrameworkTemplatePacks | Bearer | controls:read | - | - | - | 200:unspecified | broad |
-| POST | /v1/control-framework-template-packs/{slug}/install | installControlFrameworkTemplatePack | Bearer | controls:admin | required | - | - | 201:unspecified | broad |
+| GET | /v1/control-framework-template-packs | listControlFrameworkTemplatePacks | Bearer | controls:read | - | - | - | 200:application/json:ControlFrameworkTemplatePackListEnvelope | precise |
+| POST | /v1/control-framework-template-packs/{slug}/install | installControlFrameworkTemplatePack | Bearer | controls:admin | required | path:slug | application/json:EmptyObject | 201:application/json:ControlFrameworkEnvelope | precise |
 | GET | /v1/control-frameworks | listControlFrameworks | Bearer | controls:read | - | - | - | 200:application/json:ControlFrameworkListEnvelope | precise |
 | POST | /v1/control-frameworks | createControlFramework | Bearer | controls:admin | required | - | application/json:CreateControlFrameworkRequest | 201:application/json:ControlFrameworkEnvelope | precise |
 | POST | /v1/controls | createSecurityControl | Bearer | controls:admin | required | - | application/json:CreateSecurityControlRequest | 201:application/json:SecurityControlEnvelope | precise |
@@ -76,9 +76,9 @@ Generated from 160 operations: 108 precise, 52 broad.
 | POST | /v1/incidents/{id}/timeline | recordIncidentTimeline | Bearer | incident:write | required | - | - | 201:unspecified | broad |
 | POST | /v1/incidents/{id}/webhook-receivers | createIncidentWebhookReceiver | Bearer | incident:write | required | path:id | application/json:DataEnvelope | 201:application/json:DataEnvelope | broad |
 | POST | /v1/legal-holds | createLegalHold | Bearer | admin | required | - | - | 201:unspecified | broad |
-| GET | /v1/marketplace-collectors | listMarketplaceCollectors | Bearer | collector:read | - | - | - | 200:unspecified | broad |
-| POST | /v1/marketplace-collectors | createMarketplaceCollector | Bearer | collector:admin | required | - | - | 201:unspecified | broad |
-| GET | /v1/marketplace-collectors/{id}/health | marketplaceCollectorHealth | Bearer | collector:read | - | - | - | 200:unspecified | broad |
+| GET | /v1/marketplace-collectors | listMarketplaceCollectors | Bearer | collector:read | - | - | - | 200:application/json:MarketplaceCollectorListEnvelope | precise |
+| POST | /v1/marketplace-collectors | createMarketplaceCollector | Bearer | collector:admin | required | - | application/json:CreateMarketplaceCollectorRequest | 201:application/json:MarketplaceCollectorEnvelope | precise |
+| GET | /v1/marketplace-collectors/{id}/health | marketplaceCollectorHealth | Bearer | collector:read | - | path:id | - | 200:application/json:MarketplaceCollectorHealthReportEnvelope | precise |
 | POST | /v1/merkle-batches | createMerkleBatch | Bearer | keys:admin | required | - | - | 201:unspecified | broad |
 | GET | /v1/merkle-batches/{id}/verify | verifyMerkleBatch | Bearer | verify:read | - | - | - | 200:unspecified | broad |
 | GET | /v1/metrics | metrics | Bearer | admin | - | - | - | 200:application/json:MetricsSnapshotEnvelope,text/plain:string | precise |
