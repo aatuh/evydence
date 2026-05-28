@@ -2,8 +2,11 @@ package app
 
 import (
 	"context"
+	"crypto"
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -79,6 +82,60 @@ func TestEnterpriseIdentityRBACSSOAndAdminSnapshot(t *testing.T) {
 	}
 	if _, err := ledger.DeactivateUser(ctx, actor, user.ID); err != nil {
 		t.Fatalf("deactivate user: %v", err)
+	}
+}
+
+func TestOIDCProviderIdentityVerificationSupportsRS256JWKS(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	actor, err := ledger.Authenticate(ctx, secret)
+	if err != nil {
+		t.Fatalf("auth: %v", err)
+	}
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("rsa keygen: %v", err)
+	}
+	jwks := map[string]any{"keys": []any{map[string]any{
+		"kty": "RSA",
+		"kid": "rsa-1",
+		"alg": "RS256",
+		"n":   base64.RawURLEncoding.EncodeToString(privateKey.PublicKey.N.Bytes()),
+		"e":   base64.RawURLEncoding.EncodeToString(bigEndianExponent(privateKey.PublicKey.E)),
+	}}}
+	provider, err := ledger.CreateSSOProvider(ctx, actor, CreateSSOProviderInput{Name: "OIDC RSA", Type: "oidc", Issuer: "https://rsa-idp.example.test", ClientID: "rsa-client", JWKS: jwks})
+	if err != nil {
+		t.Fatalf("sso provider: %v", err)
+	}
+	org, err := ledger.CreateOrganization(ctx, actor, CreateOrganizationInput{Name: "RSA Example", Slug: "rsa-example"})
+	if err != nil {
+		t.Fatalf("org: %v", err)
+	}
+	user, err := ledger.CreateUser(ctx, actor, CreateUserInput{OrganizationID: org.ID, Email: "rsa@example.test", DisplayName: "RSA User"})
+	if err != nil {
+		t.Fatalf("user: %v", err)
+	}
+	if _, err := ledger.LinkSSOIdentity(ctx, actor, LinkSSOIdentityInput{UserID: user.ID, ProviderID: provider.ID, Subject: "rsa-sub", Email: user.Email, Verified: true}); err != nil {
+		t.Fatalf("identity link: %v", err)
+	}
+	idToken := signedTestRSAIDToken(t, privateKey, "rsa-1", map[string]any{
+		"iss":            "https://rsa-idp.example.test",
+		"aud":            []string{"other", "rsa-client"},
+		"sub":            "rsa-sub",
+		"email":          user.Email,
+		"email_verified": true,
+		"exp":            fixedNow().Add(time.Hour).Unix(),
+	})
+	verification, err := ledger.VerifyProviderIdentity(ctx, actor, VerifyProviderIdentityInput{ProviderType: "oidc", ProviderID: provider.ID, Subject: "rsa-sub", IDToken: idToken})
+	if err != nil {
+		t.Fatalf("provider verification: %v", err)
+	}
+	if verification.Result != "passed" {
+		t.Fatalf("verification = %#v", verification)
 	}
 }
 
@@ -814,4 +871,39 @@ func signedTestIDToken(t *testing.T, private ed25519.PrivateKey, kid string, cla
 	unsigned := base64.RawURLEncoding.EncodeToString(headerBody) + "." + base64.RawURLEncoding.EncodeToString(claimsBody)
 	signature := ed25519.Sign(private, []byte(unsigned))
 	return unsigned + "." + base64.RawURLEncoding.EncodeToString(signature)
+}
+
+func signedTestRSAIDToken(t *testing.T, private *rsa.PrivateKey, kid string, claims map[string]any) string {
+	t.Helper()
+	headerBody, err := json.Marshal(map[string]any{"alg": "RS256", "kid": kid, "typ": "JWT"})
+	if err != nil {
+		t.Fatalf("marshal header: %v", err)
+	}
+	claimsBody, err := json.Marshal(claims)
+	if err != nil {
+		t.Fatalf("marshal claims: %v", err)
+	}
+	unsigned := base64.RawURLEncoding.EncodeToString(headerBody) + "." + base64.RawURLEncoding.EncodeToString(claimsBody)
+	signature, err := signRS256TestJWT(private, []byte(unsigned))
+	if err != nil {
+		t.Fatalf("rsa sign: %v", err)
+	}
+	return unsigned + "." + base64.RawURLEncoding.EncodeToString(signature)
+}
+
+func bigEndianExponent(value int) []byte {
+	if value == 0 {
+		return []byte{0}
+	}
+	out := []byte{}
+	for value > 0 {
+		out = append([]byte{byte(value)}, out...)
+		value >>= 8
+	}
+	return out
+}
+
+func signRS256TestJWT(private *rsa.PrivateKey, body []byte) ([]byte, error) {
+	sum := sha256.Sum256(body)
+	return rsa.SignPKCS1v15(rand.Reader, private, crypto.SHA256, sum[:])
 }

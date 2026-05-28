@@ -21,7 +21,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("SSO provider creation request.", "#/components/schemas/CreateSSOProviderRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created SSO provider envelope.", "#/components/schemas/DataEnvelope")
 	case "verifyProviderIdentity":
-		operation.Description = "Verifies stored provider identity metadata and, when id_token is supplied, locally verifies OIDC issuer, audience, subject, expiry, and Ed25519 signature against configured JWKS."
+		operation.Description = "Verifies stored provider identity metadata and, when id_token is supplied, locally verifies OIDC issuer, audience, subject, expiry, and EdDSA or RS256 signature against configured JWKS."
 		operation.RequestBody = jsonRequest("Provider identity verification request.", "#/components/schemas/VerifyProviderIdentityRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Provider verification envelope.", "#/components/schemas/DataEnvelope")
 	case "createEvidence":

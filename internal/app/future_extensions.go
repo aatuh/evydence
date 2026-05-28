@@ -2,10 +2,14 @@ package app
 
 import (
 	"context"
+	"crypto"
 	"crypto/ed25519"
+	"crypto/rsa"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"math/big"
 	"strings"
 	"time"
 
@@ -563,19 +567,15 @@ func verifyOIDCIDToken(provider domain.SSOProvider, expectedSubject, token strin
 	if err := json.Unmarshal(headerBody, &header); err != nil {
 		return []domain.VerifyCheck{{Name: "id_token_header", Result: "failed"}}, ErrVerificationFailed
 	}
-	if header.Alg != "EdDSA" || strings.TrimSpace(header.KID) == "" {
+	if (header.Alg != "EdDSA" && header.Alg != "RS256") || strings.TrimSpace(header.KID) == "" {
 		return []domain.VerifyCheck{{Name: "id_token_algorithm", Result: "failed"}}, ErrVerificationFailed
 	}
-	key, err := oidcJWKEd25519Key(provider.JWKS, header.KID)
-	if err != nil {
-		return []domain.VerifyCheck{{Name: "id_token_key", Result: "failed"}}, ErrVerificationFailed
-	}
 	signature, err := base64.RawURLEncoding.DecodeString(parts[2])
-	if err != nil || len(signature) != ed25519.SignatureSize {
+	if err != nil {
 		return []domain.VerifyCheck{{Name: "id_token_signature", Result: "failed"}}, ErrVerificationFailed
 	}
 	unsigned := parts[0] + "." + parts[1]
-	if !ed25519.Verify(key, []byte(unsigned), signature) {
+	if err := verifyOIDCJWTSignature(provider.JWKS, header, []byte(unsigned), signature); err != nil {
 		return []domain.VerifyCheck{{Name: "id_token_signature", Result: "failed"}}, ErrVerificationFailed
 	}
 	checks = append(checks, domain.VerifyCheck{Name: "id_token_signature", Result: "passed"})
@@ -632,6 +632,64 @@ func oidcJWKEd25519Key(jwks map[string]any, kid string) (ed25519.PublicKey, erro
 		}
 	}
 	return nil, errors.New("matching jwk not found")
+}
+
+func verifyOIDCJWTSignature(jwks map[string]any, header oidcJWTHeader, unsigned, signature []byte) error {
+	switch header.Alg {
+	case "EdDSA":
+		if len(signature) != ed25519.SignatureSize {
+			return errors.New("invalid ed25519 signature size")
+		}
+		key, err := oidcJWKEd25519Key(jwks, header.KID)
+		if err != nil {
+			return err
+		}
+		if !ed25519.Verify(key, unsigned, signature) {
+			return errors.New("invalid ed25519 signature")
+		}
+		return nil
+	case "RS256":
+		key, err := oidcJWKRSAKey(jwks, header.KID)
+		if err != nil {
+			return err
+		}
+		sum := sha256.Sum256(unsigned)
+		return rsa.VerifyPKCS1v15(key, crypto.SHA256, sum[:], signature)
+	default:
+		return errors.New("unsupported jwt algorithm")
+	}
+}
+
+func oidcJWKRSAKey(jwks map[string]any, kid string) (*rsa.PublicKey, error) {
+	keys, ok := jwks["keys"].([]any)
+	if !ok {
+		return nil, errors.New("jwks missing keys")
+	}
+	for _, raw := range keys {
+		key, ok := raw.(map[string]any)
+		if !ok || key["kid"] != kid || key["kty"] != "RSA" {
+			continue
+		}
+		nValue, _ := key["n"].(string)
+		eValue, _ := key["e"].(string)
+		modulusBytes, err := base64.RawURLEncoding.DecodeString(nValue)
+		if err != nil || len(modulusBytes) == 0 {
+			continue
+		}
+		exponentBytes, err := base64.RawURLEncoding.DecodeString(eValue)
+		if err != nil || len(exponentBytes) == 0 || len(exponentBytes) > 8 {
+			continue
+		}
+		exponent := 0
+		for _, b := range exponentBytes {
+			exponent = exponent<<8 + int(b)
+		}
+		if exponent < 3 {
+			continue
+		}
+		return &rsa.PublicKey{N: new(big.Int).SetBytes(modulusBytes), E: exponent}, nil
+	}
+	return nil, errors.New("matching rsa jwk not found")
 }
 
 func checksWithFailure(checks []domain.VerifyCheck, name string) []domain.VerifyCheck {

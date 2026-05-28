@@ -1116,6 +1116,12 @@ func normalizeJWKS(jwks map[string]any) (map[string]any, error) {
 			if crv != "Ed25519" || strings.TrimSpace(x) == "" {
 				return nil, ErrValidation
 			}
+		case "RSA":
+			n, _ := key["n"].(string)
+			e, _ := key["e"].(string)
+			if strings.TrimSpace(n) == "" || strings.TrimSpace(e) == "" {
+				return nil, ErrValidation
+			}
 		default:
 			return nil, ErrValidation
 		}
