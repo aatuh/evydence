@@ -107,4 +107,4 @@ make postgres-integration-test
 
 `make finalize` runs the project-owned formatting, unit, OpenAPI, docs, deployment, and SDK gates. `make release-check` extends that with lint, gosec, govulncheck, race tests, and live PostgreSQL gates when `EVYDENCE_TEST_DATABASE_URL` is configured.
 
-`make production-check` is stricter: it requires `EVYDENCE_TEST_DATABASE_URL`, enforces the configured coverage threshold, and runs a release artifact signing smoke test. It is expected to fail until the repository satisfies the production-readiness exit criteria.
+`make production-check` is stricter: it requires `EVYDENCE_TEST_DATABASE_URL`, enforces the configured coverage threshold, and runs a release artifact signing smoke test. Passing the gate is required production-readiness evidence, but it does not by itself close the remaining relational persistence, worker side-effect, SDK, backup/restore, KMS/HSM, SSO, object-lock, transparency, and exit-review work.

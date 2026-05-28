@@ -16,12 +16,13 @@ Known hardening work remains:
 
 - canonical production persistence still needs hand-tuned relational repository
   paths for all high-risk resource families;
-- worker parser jobs need to re-read raw object-store payloads and produce
-  parser side effects independently of the request path;
+- worker parser jobs re-read raw object-store payloads for key formats and
+  validate durable state, but parser side effects still need to move
+  independently out of the request path;
 - OpenAPI schemas need endpoint-specific precision across the full public API;
-- default coverage must reach the production threshold;
-- GitHub CI enforces live PostgreSQL release checks; the 80 percent production
-  coverage threshold remains hardening work.
+- GitHub CI enforces live PostgreSQL release checks and the default 80 percent
+  production coverage threshold, but the broader production exit review remains
+  incomplete.
 
 ## Production Profiles
 

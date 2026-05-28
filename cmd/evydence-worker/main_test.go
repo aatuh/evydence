@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -25,13 +27,17 @@ func (f fakeStateLoader) LoadState(context.Context) (app.PersistedState, bool, e
 }
 
 type fakeObjectGetter struct {
-	object app.Object
-	err    error
+	object  app.Object
+	err     error
+	wantKey string
 }
 
-func (f fakeObjectGetter) Get(context.Context, string) (app.Object, error) {
+func (f fakeObjectGetter) Get(_ context.Context, key string) (app.Object, error) {
 	if f.err != nil {
 		return app.Object{}, f.err
+	}
+	if f.wantKey != "" && key != f.wantKey {
+		return app.Object{}, errors.New("unexpected object key")
 	}
 	return f.object, nil
 }
@@ -61,14 +67,104 @@ func TestProcessJobWithObjectsVerifiesTenantPrefixedPayload(t *testing.T) {
 		TenantID:  "ten_test",
 		Kind:      "parse_sbom",
 		SubjectID: "sbom_test",
-		Payload:   map[string]any{"payload_ref": "tenants/ten_test/payloads/sbom.json", "payload_hash": hash},
+		Payload:   map[string]any{"payload_ref": "object://tenants/ten_test/payloads/sbom.json", "payload_hash": hash},
 	}
 	state := app.PersistedState{SBOMs: map[string]domain.SBOM{
 		"sbom_test": {ID: "sbom_test", TenantID: "ten_test"},
 	}}
 	object := app.Object{Key: "tenants/ten_test/payloads/sbom.json", TenantID: "ten_test", Digest: hash, Bytes: body}
-	if err := processJobWithObjects(context.Background(), fakeStateLoader{state: state, ok: true}, fakeObjectGetter{object: object}, job); err != nil {
+	if err := processJobWithObjects(context.Background(), fakeStateLoader{state: state, ok: true}, fakeObjectGetter{object: object, wantKey: "tenants/ten_test/payloads/sbom.json"}, job); err != nil {
 		t.Fatalf("process object-backed job: %v", err)
+	}
+}
+
+func TestProcessJobWithObjectsParsesPayloadAndChecksDurableState(t *testing.T) {
+	now := time.Now().UTC()
+	attestationBody := dsseEnvelopeForTest(t, "sha256:"+strings.Repeat("a", 64))
+	tests := []struct {
+		name   string
+		body   []byte
+		job    postgres.ClaimedJob
+		state  app.PersistedState
+		object app.Object
+	}{
+		{
+			name: "sbom component count",
+			body: []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api"},{"name":"worker"}]}`),
+			job:  postgres.ClaimedJob{TenantID: "ten_test", Kind: "parse_sbom", SubjectID: "sbom_test"},
+			state: app.PersistedState{SBOMs: map[string]domain.SBOM{
+				"sbom_test": {ID: "sbom_test", TenantID: "ten_test", SpecVersion: "1.6", ComponentCount: 2},
+			}},
+		},
+		{
+			name: "vulnerability scan summary",
+			body: []byte(`{"scanner":"grype","target_ref":"pkg:oci/api","release_id":"rel_test","findings":[{"vulnerability":"CVE-1","severity":"critical"},{"vulnerability":"CVE-2","severity":"high"}]}`),
+			job:  postgres.ClaimedJob{TenantID: "ten_test", Kind: "parse_vulnerability_scan", SubjectID: "scan_test"},
+			state: app.PersistedState{Scans: map[string]domain.VulnerabilityScan{
+				"scan_test": {ID: "scan_test", TenantID: "ten_test", Scanner: "grype", TargetRef: "pkg:oci/api", Summary: map[string]int{"critical": 1, "high": 1}, Findings: []domain.VulnerabilityFinding{{ID: "vf_1"}, {ID: "vf_2"}}},
+			}},
+		},
+		{
+			name: "openapi contract path count",
+			body: []byte(`{"openapi":"3.1.0","info":{"title":"API","version":"1"},"paths":{"/v1/a":{"get":{"responses":{"200":{"description":"ok"}}}}}}`),
+			job:  postgres.ClaimedJob{TenantID: "ten_test", Kind: "parse_openapi_contract", SubjectID: "oas_test"},
+			state: app.PersistedState{Contracts: map[string]domain.OpenAPIContract{
+				"oas_test": {ID: "oas_test", TenantID: "ten_test", PathCount: 1},
+			}},
+		},
+		{
+			name: "openvex statement count",
+			body: []byte(`{"@context":"https://openvex.dev/ns/v0.2.0","@id":"https://example.test/vex","author":"security@example.test","timestamp":"2026-05-28T12:00:00Z","version":1,"statements":[{"vulnerability":{"name":"CVE-1"},"products":[{"@id":"pkg:oci/api"}],"status":"fixed","justification":"fixed","impact_statement":"fixed","action_statement":"none"}]}`),
+			job:  postgres.ClaimedJob{TenantID: "ten_test", Kind: "parse_vex", SubjectID: "vex_test"},
+			state: app.PersistedState{VEXDocuments: map[string]domain.VEXDocument{
+				"vex_test": {ID: "vex_test", TenantID: "ten_test", Format: "openvex", Author: "security@example.test", StatementCount: 1, StatusSummary: map[string]int{"fixed": 1}},
+			}},
+		},
+		{
+			name: "dsse attestation subject digest",
+			body: attestationBody,
+			job:  postgres.ClaimedJob{TenantID: "ten_test", Kind: "verify_attestation", SubjectID: "att_test"},
+			state: app.PersistedState{BuildAttestations: map[string]domain.BuildAttestation{
+				"att_test": {ID: "att_test", TenantID: "ten_test", PayloadHash: digestBytes(attestationBody), SubjectDigests: []string{"sha256:" + strings.Repeat("a", 64)}, VerificationStatus: "structurally_valid", CreatedAt: now},
+			}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hash := digestBytes(tt.body)
+			tt.job.Payload = map[string]any{"payload_ref": "tenants/ten_test/payloads/replay.json", "payload_hash": hash}
+			tt.object = app.Object{Key: "tenants/ten_test/payloads/replay.json", TenantID: "ten_test", Digest: hash, Bytes: tt.body}
+			if tt.job.Kind == "parse_openapi_contract" {
+				contract := tt.state.Contracts[tt.job.SubjectID]
+				contract.Hash = hash
+				tt.state.Contracts[tt.job.SubjectID] = contract
+			}
+			if err := processJobWithObjects(context.Background(), fakeStateLoader{state: tt.state, ok: true}, fakeObjectGetter{object: tt.object}, tt.job); err != nil {
+				t.Fatalf("process replay payload: %v", err)
+			}
+		})
+	}
+}
+
+func TestProcessJobWithObjectsFailsSafelyForParserMismatches(t *testing.T) {
+	body := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api"},{"name":"worker"}]}`)
+	hash := digestBytes(body)
+	job := postgres.ClaimedJob{
+		TenantID:  "ten_test",
+		Kind:      "parse_sbom",
+		SubjectID: "sbom_test",
+		Payload:   map[string]any{"payload_ref": "tenants/ten_test/payloads/raw-secret-name", "payload_hash": hash},
+	}
+	state := app.PersistedState{SBOMs: map[string]domain.SBOM{
+		"sbom_test": {ID: "sbom_test", TenantID: "ten_test", ComponentCount: 1},
+	}}
+	object := app.Object{Key: "tenants/ten_test/payloads/raw-secret-name", TenantID: "ten_test", Digest: hash, Bytes: body}
+	err := processJobWithObjects(context.Background(), fakeStateLoader{state: state, ok: true}, fakeObjectGetter{object: object}, job)
+	if err == nil || !strings.Contains(err.Error(), "replayed sbom payload does not match durable state") {
+		t.Fatalf("err=%v", err)
+	}
+	if strings.Contains(err.Error(), "raw-secret-name") || strings.Contains(err.Error(), string(body)) {
+		t.Fatalf("error leaked payload details: %v", err)
 	}
 }
 
@@ -331,4 +427,29 @@ func TestOpenObjectStoreRejectsIncompleteS3ConfigurationWithoutSecretsInError(t 
 	if strings.Contains(err.Error(), "super-secret") || strings.Contains(err.Error(), os.Getenv("EVYDENCE_S3_ACCESS_KEY_ID")) {
 		t.Fatalf("S3 configuration error leaked credential material: %v", err)
 	}
+}
+
+func dsseEnvelopeForTest(t *testing.T, digest string) []byte {
+	t.Helper()
+	statement, err := json.Marshal(map[string]any{
+		"_type":         "https://in-toto.io/Statement/v1",
+		"predicateType": "https://slsa.dev/provenance/v1",
+		"subject": []map[string]any{{
+			"name":   "api",
+			"digest": map[string]string{"sha256": strings.TrimPrefix(digest, "sha256:")},
+		}},
+		"predicate": map[string]any{"builder": map[string]string{"id": "github-actions"}, "buildType": "test", "materials": []any{}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	envelope, err := json.Marshal(map[string]any{
+		"payloadType": "application/vnd.in-toto+json",
+		"payload":     base64.StdEncoding.EncodeToString(statement),
+		"signatures":  []map[string]string{{"sig": "abc"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return envelope
 }

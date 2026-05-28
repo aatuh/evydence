@@ -1,13 +1,18 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -16,6 +21,8 @@ import (
 	s3store "github.com/aatuh/evydence/internal/adapters/objectstore/s3"
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/app"
+	"github.com/aatuh/evydence/internal/domain"
+	"github.com/getkin/kin-openapi/openapi3"
 )
 
 const defaultMaxWorkerPayloadBytes = 20 << 20
@@ -105,10 +112,14 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 	if state == nil {
 		return errors.New("outbox job handler requires durable state")
 	}
+	var replayed app.Object
+	var hasReplayedObject bool
 	if requireObjectReplay {
-		if err := verifyJobObject(ctx, objects, job); err != nil {
+		object, ok, err := verifyJobObject(ctx, objects, job)
+		if err != nil {
 			return err
 		}
+		replayed, hasReplayedObject = object, ok
 	}
 	snapshot, ok, err := state.LoadState(ctx)
 	if err != nil {
@@ -123,11 +134,21 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 		if !ok || sbom.TenantID != job.TenantID {
 			return errors.New("parsed sbom is not available in durable state")
 		}
+		if hasReplayedObject {
+			if err := verifyReplayedSBOM(replayed.Bytes, sbom); err != nil {
+				return err
+			}
+		}
 		return requirePayloadHash(job, "")
 	case "parse_vulnerability_scan":
 		scan, ok := snapshot.Scans[job.SubjectID]
 		if !ok || scan.TenantID != job.TenantID {
 			return errors.New("parsed vulnerability scan is not available in durable state")
+		}
+		if hasReplayedObject {
+			if err := verifyReplayedVulnerabilityScan(replayed.Bytes, scan); err != nil {
+				return err
+			}
 		}
 		return requirePayloadHash(job, "")
 	case "parse_openapi_contract":
@@ -135,11 +156,21 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 		if !ok || contract.TenantID != job.TenantID {
 			return errors.New("parsed openapi contract is not available in durable state")
 		}
+		if hasReplayedObject {
+			if err := verifyReplayedOpenAPIContract(ctx, replayed.Bytes, contract); err != nil {
+				return err
+			}
+		}
 		return requirePayloadHash(job, contract.Hash)
 	case "parse_vex":
 		vex, ok := snapshot.VEXDocuments[job.SubjectID]
 		if !ok || vex.TenantID != job.TenantID {
 			return errors.New("parsed vex document is not available in durable state")
+		}
+		if hasReplayedObject {
+			if err := verifyReplayedVEX(replayed.Bytes, vex); err != nil {
+				return err
+			}
 		}
 		return requirePayloadHash(job, "")
 	case "sign_bundle":
@@ -172,44 +203,49 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 		if attestation.VerificationStatus == "" {
 			return errors.New("build attestation verification status is incomplete")
 		}
+		if hasReplayedObject {
+			if err := verifyReplayedAttestation(replayed.Bytes, attestation); err != nil {
+				return err
+			}
+		}
 		return requirePayloadHash(job, attestation.PayloadHash)
 	default:
 		return errors.New("unsupported outbox job kind")
 	}
 }
 
-func verifyJobObject(ctx context.Context, objects jobObjectGetter, job postgres.ClaimedJob) error {
-	key := payloadString(job, "payload_ref")
+func verifyJobObject(ctx context.Context, objects jobObjectGetter, job postgres.ClaimedJob) (app.Object, bool, error) {
+	key := payloadObjectKey(job)
 	if key == "" {
-		return nil
+		return app.Object{}, false, nil
 	}
 	if !strings.HasPrefix(key, "tenants/"+job.TenantID+"/") {
-		return errors.New("outbox payload object key is not tenant-prefixed")
+		return app.Object{}, false, errors.New("outbox payload object key is not tenant-prefixed")
 	}
 	if objects == nil {
-		return errors.New("outbox object store is not configured")
+		return app.Object{}, false, errors.New("outbox object store is not configured")
 	}
 	object, err := objects.Get(ctx, key)
 	if err != nil {
-		return errors.New("read outbox payload object")
+		return app.Object{}, false, errors.New("read outbox payload object")
 	}
 	if object.TenantID != "" && object.TenantID != job.TenantID {
-		return errors.New("outbox payload object tenant mismatch")
+		return app.Object{}, false, errors.New("outbox payload object tenant mismatch")
 	}
 	if len(object.Bytes) > intEnv("EVYDENCE_WORKER_MAX_PAYLOAD_BYTES", defaultMaxWorkerPayloadBytes) {
-		return errors.New("outbox payload object exceeds worker size limit")
+		return app.Object{}, false, errors.New("outbox payload object exceeds worker size limit")
 	}
 	want := payloadString(job, "payload_hash")
 	if want == "" {
-		return nil
+		return object, true, nil
 	}
 	if object.Digest != "" && object.Digest != want {
-		return errors.New("outbox payload object metadata digest mismatch")
+		return app.Object{}, false, errors.New("outbox payload object metadata digest mismatch")
 	}
 	if digestBytes(object.Bytes) != want {
-		return errors.New("outbox payload object digest mismatch")
+		return app.Object{}, false, errors.New("outbox payload object digest mismatch")
 	}
-	return nil
+	return object, true, nil
 }
 
 func requirePayloadHash(job postgres.ClaimedJob, recordedHash string) error {
@@ -229,6 +265,295 @@ func payloadString(job postgres.ClaimedJob, key string) string {
 	}
 	value, _ := job.Payload[key].(string)
 	return strings.TrimSpace(value)
+}
+
+func payloadObjectKey(job postgres.ClaimedJob) string {
+	ref := payloadString(job, "payload_ref")
+	return strings.TrimPrefix(ref, "object://")
+}
+
+type replayedSBOM struct {
+	SpecVersion    string
+	ComponentCount int
+}
+
+func verifyReplayedSBOM(raw []byte, sbom domain.SBOM) error {
+	parsed, err := parseReplayedSBOM(raw)
+	if err != nil {
+		return err
+	}
+	if sbom.SpecVersion != "" && parsed.SpecVersion != sbom.SpecVersion {
+		return errors.New("replayed sbom payload does not match durable state")
+	}
+	if sbom.ComponentCount != 0 && parsed.ComponentCount != sbom.ComponentCount {
+		return errors.New("replayed sbom payload does not match durable state")
+	}
+	if len(sbom.Components) != 0 && parsed.ComponentCount != len(sbom.Components) {
+		return errors.New("replayed sbom payload does not match durable state")
+	}
+	return nil
+}
+
+func parseReplayedSBOM(raw []byte) (replayedSBOM, error) {
+	var doc struct {
+		BOMFormat   string `json:"bomFormat"`
+		SpecVersion string `json:"specVersion"`
+		Components  []struct {
+			Name    string `json:"name"`
+			Version string `json:"version"`
+			PURL    string `json:"purl"`
+		} `json:"components"`
+	}
+	if err := strictDecodeWorker(raw, &doc); err != nil || strings.ToLower(strings.TrimSpace(doc.BOMFormat)) != "cyclonedx" {
+		return replayedSBOM{}, errors.New("replayed sbom payload is invalid")
+	}
+	for _, component := range doc.Components {
+		if strings.TrimSpace(component.Name) == "" {
+			return replayedSBOM{}, errors.New("replayed sbom payload is invalid")
+		}
+	}
+	return replayedSBOM{SpecVersion: strings.TrimSpace(doc.SpecVersion), ComponentCount: len(doc.Components)}, nil
+}
+
+type replayedVulnerabilityScan struct {
+	Scanner      string
+	TargetRef    string
+	FindingCount int
+	Summary      map[string]int
+}
+
+func verifyReplayedVulnerabilityScan(raw []byte, scan domain.VulnerabilityScan) error {
+	parsed, err := parseReplayedVulnerabilityScan(raw)
+	if err != nil {
+		return err
+	}
+	if scan.Scanner != "" && parsed.Scanner != scan.Scanner {
+		return errors.New("replayed vulnerability scan payload does not match durable state")
+	}
+	if scan.TargetRef != "" && parsed.TargetRef != scan.TargetRef {
+		return errors.New("replayed vulnerability scan payload does not match durable state")
+	}
+	if len(scan.Findings) != 0 && parsed.FindingCount != len(scan.Findings) {
+		return errors.New("replayed vulnerability scan payload does not match durable state")
+	}
+	for severity, count := range scan.Summary {
+		if parsed.Summary[severity] != count {
+			return errors.New("replayed vulnerability scan payload does not match durable state")
+		}
+	}
+	return nil
+}
+
+func parseReplayedVulnerabilityScan(raw []byte) (replayedVulnerabilityScan, error) {
+	var doc struct {
+		Scanner   string `json:"scanner"`
+		TargetRef string `json:"target_ref"`
+		Findings  []struct {
+			Vulnerability string `json:"vulnerability"`
+			Component     string `json:"component"`
+			Severity      string `json:"severity"`
+			State         string `json:"state"`
+		} `json:"findings"`
+		ReleaseID string `json:"release_id"`
+	}
+	if err := strictDecodeWorker(raw, &doc); err != nil || strings.TrimSpace(doc.Scanner) == "" || strings.TrimSpace(doc.TargetRef) == "" || strings.TrimSpace(doc.ReleaseID) == "" {
+		return replayedVulnerabilityScan{}, errors.New("replayed vulnerability scan payload is invalid")
+	}
+	summary := map[string]int{}
+	for _, finding := range doc.Findings {
+		if strings.TrimSpace(finding.Vulnerability) == "" || strings.TrimSpace(finding.Severity) == "" {
+			return replayedVulnerabilityScan{}, errors.New("replayed vulnerability scan payload is invalid")
+		}
+		summary[strings.ToLower(strings.TrimSpace(finding.Severity))]++
+	}
+	return replayedVulnerabilityScan{Scanner: strings.TrimSpace(doc.Scanner), TargetRef: strings.TrimSpace(doc.TargetRef), FindingCount: len(doc.Findings), Summary: summary}, nil
+}
+
+func verifyReplayedOpenAPIContract(ctx context.Context, raw []byte, contract domain.OpenAPIContract) error {
+	loader := openapi3.NewLoader()
+	doc, err := loader.LoadFromData(raw)
+	if err != nil {
+		return errors.New("replayed openapi contract payload is invalid")
+	}
+	if err := doc.Validate(ctx); err != nil {
+		return errors.New("replayed openapi contract payload is invalid")
+	}
+	pathCount := 0
+	if doc.Paths != nil {
+		pathCount = len(doc.Paths.Map())
+	}
+	if contract.PathCount != 0 && pathCount != contract.PathCount {
+		return errors.New("replayed openapi contract payload does not match durable state")
+	}
+	if contract.Hash != "" && digestBytes(raw) != contract.Hash {
+		return errors.New("replayed openapi contract payload does not match durable state")
+	}
+	return nil
+}
+
+type replayedVEX struct {
+	Author         string
+	StatementCount int
+	StatusSummary  map[string]int
+}
+
+func verifyReplayedVEX(raw []byte, vex domain.VEXDocument) error {
+	parsed, err := parseReplayedVEX(raw)
+	if err != nil {
+		return err
+	}
+	if vex.Author != "" && parsed.Author != vex.Author {
+		return errors.New("replayed vex payload does not match durable state")
+	}
+	if vex.StatementCount != 0 && parsed.StatementCount != vex.StatementCount {
+		return errors.New("replayed vex payload does not match durable state")
+	}
+	for status, count := range vex.StatusSummary {
+		if parsed.StatusSummary[status] != count {
+			return errors.New("replayed vex payload does not match durable state")
+		}
+	}
+	return nil
+}
+
+func parseReplayedVEX(raw []byte) (replayedVEX, error) {
+	var doc struct {
+		Context    any    `json:"@context"`
+		ID         string `json:"@id"`
+		Author     string `json:"author"`
+		Timestamp  string `json:"timestamp"`
+		Version    any    `json:"version"`
+		Statements []struct {
+			Vulnerability struct {
+				Name string `json:"name"`
+			} `json:"vulnerability"`
+			Products        []map[string]any `json:"products"`
+			Status          string           `json:"status"`
+			Justification   string           `json:"justification"`
+			ImpactStatement string           `json:"impact_statement"`
+			ActionStatement string           `json:"action_statement"`
+		} `json:"statements"`
+	}
+	if err := strictDecodeWorker(raw, &doc); err != nil || strings.TrimSpace(doc.Author) == "" || strings.TrimSpace(doc.Timestamp) == "" || len(doc.Statements) == 0 {
+		return replayedVEX{}, errors.New("replayed vex payload is invalid")
+	}
+	summary := map[string]int{}
+	for _, statement := range doc.Statements {
+		status := strings.TrimSpace(statement.Status)
+		if strings.TrimSpace(statement.Vulnerability.Name) == "" || status == "" || len(statement.Products) == 0 {
+			return replayedVEX{}, errors.New("replayed vex payload is invalid")
+		}
+		switch status {
+		case "affected", "not_affected", "fixed", "under_investigation":
+		default:
+			return replayedVEX{}, errors.New("replayed vex payload is invalid")
+		}
+		summary[status]++
+	}
+	return replayedVEX{Author: strings.TrimSpace(doc.Author), StatementCount: len(doc.Statements), StatusSummary: summary}, nil
+}
+
+func verifyReplayedAttestation(raw []byte, attestation domain.BuildAttestation) error {
+	parsed, err := parseReplayedAttestation(raw)
+	if err != nil {
+		return err
+	}
+	if attestation.PayloadHash != "" && digestBytes(raw) != attestation.PayloadHash {
+		return errors.New("replayed build attestation payload does not match durable state")
+	}
+	if len(attestation.SubjectDigests) != 0 && !equalStringSets(parsed.SubjectDigests, attestation.SubjectDigests) {
+		return errors.New("replayed build attestation payload does not match durable state")
+	}
+	if attestation.PredicateType != "" && parsed.PredicateType != attestation.PredicateType {
+		return errors.New("replayed build attestation payload does not match durable state")
+	}
+	return nil
+}
+
+type replayedAttestation struct {
+	PredicateType  string
+	SubjectDigests []string
+}
+
+func parseReplayedAttestation(raw []byte) (replayedAttestation, error) {
+	var envelope struct {
+		PayloadType string `json:"payloadType"`
+		Payload     string `json:"payload"`
+		Signatures  []struct {
+			KeyID string `json:"keyid,omitempty"`
+			Sig   string `json:"sig"`
+		} `json:"signatures"`
+	}
+	if err := strictDecodeWorker(raw, &envelope); err != nil || strings.TrimSpace(envelope.PayloadType) == "" || strings.TrimSpace(envelope.Payload) == "" || len(envelope.Signatures) == 0 {
+		return replayedAttestation{}, errors.New("replayed build attestation payload is invalid")
+	}
+	for _, signature := range envelope.Signatures {
+		if strings.TrimSpace(signature.Sig) == "" {
+			return replayedAttestation{}, errors.New("replayed build attestation payload is invalid")
+		}
+	}
+	payload, err := base64.StdEncoding.DecodeString(envelope.Payload)
+	if err != nil {
+		return replayedAttestation{}, errors.New("replayed build attestation payload is invalid")
+	}
+	var statement struct {
+		Type          string `json:"_type"`
+		PredicateType string `json:"predicateType"`
+		Subject       []struct {
+			Name   string            `json:"name"`
+			Digest map[string]string `json:"digest"`
+		} `json:"subject"`
+		Predicate map[string]any `json:"predicate"`
+	}
+	if err := strictDecodeWorker(payload, &statement); err != nil || strings.TrimSpace(statement.Type) == "" || strings.TrimSpace(statement.PredicateType) == "" || len(statement.Subject) == 0 {
+		return replayedAttestation{}, errors.New("replayed build attestation payload is invalid")
+	}
+	digests := make([]string, 0, len(statement.Subject))
+	for _, subject := range statement.Subject {
+		digest := "sha256:" + strings.ToLower(strings.TrimSpace(subject.Digest["sha256"]))
+		if !validWorkerDigest(digest) {
+			return replayedAttestation{}, errors.New("replayed build attestation payload is invalid")
+		}
+		digests = append(digests, digest)
+	}
+	sort.Strings(digests)
+	return replayedAttestation{PredicateType: strings.TrimSpace(statement.PredicateType), SubjectDigests: digests}, nil
+}
+
+func equalStringSets(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	left := append([]string(nil), a...)
+	right := append([]string(nil), b...)
+	sort.Strings(left)
+	sort.Strings(right)
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func strictDecodeWorker(raw []byte, out any) error {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(out); err != nil {
+		return err
+	}
+	if err := dec.Decode(&struct{}{}); err != io.EOF {
+		return errors.New("trailing json")
+	}
+	return nil
+}
+
+func validWorkerDigest(value string) bool {
+	if !strings.HasPrefix(value, "sha256:") || len(value) != len("sha256:")+64 {
+		return false
+	}
+	_, err := hex.DecodeString(strings.TrimPrefix(value, "sha256:"))
+	return err == nil
 }
 
 func envDefault(name, fallback string) string {
