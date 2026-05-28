@@ -203,6 +203,69 @@ func TestUploadSBOMCanDeferParserSideEffectsToWorker(t *testing.T) {
 	}
 }
 
+func TestUploadVulnerabilityScanCanDeferParserSideEffectsToWorker(t *testing.T) {
+	outbox := &recordingOutbox{}
+	store := NewMemoryStore()
+	objects := newTestObjectStore()
+	ledger := NewLedger(Config{
+		APIKeyPepper:                 "test-pepper",
+		Now:                          fixedNow,
+		Store:                        store,
+		ObjectStore:                  objects,
+		Outbox:                       outbox,
+		WorkerOwnedParserSideEffects: true,
+	})
+	ctx := context.Background()
+	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	actor, err := ledger.Authenticate(ctx, secret)
+	if err != nil {
+		t.Fatalf("auth: %v", err)
+	}
+	product, err := ledger.CreateProduct(ctx, actor, "Payments API", "payments-worker-scan")
+	if err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	release, err := ledger.CreateRelease(ctx, actor, product.ID, "1.0.0")
+	if err != nil {
+		t.Fatalf("create release: %v", err)
+	}
+
+	scan, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{"scanner":"grype","target_ref":"pkg:oci/api","release_id":"`+release.ID+`","findings":[{"vulnerability":"CVE-2026-0001","component":"api","severity":"critical","state":"open"}]}`))
+	if err != nil {
+		t.Fatalf("upload scan: %v", err)
+	}
+	if scan.Scanner != "grype" || scan.Summary["critical"] != 1 || len(scan.Findings) != 1 || !strings.HasPrefix(scan.Findings[0].ID, scan.ID+":finding:") {
+		t.Fatalf("upload response should keep parsed scan fields with stable finding ids: %#v", scan)
+	}
+
+	state, ok, err := store.LoadState(ctx)
+	if err != nil || !ok {
+		t.Fatalf("load state ok=%v err=%v", ok, err)
+	}
+	persisted := state.Scans[scan.ID]
+	if persisted.Scanner != "" || persisted.TargetRef != "" || persisted.Summary != nil || len(persisted.Findings) != 0 {
+		t.Fatalf("persisted scan should wait for worker parser side effects: %#v", persisted)
+	}
+	if len(outbox.jobs) != 1 {
+		t.Fatalf("outbox jobs = %d, want 1", len(outbox.jobs))
+	}
+	job := outbox.jobs[0]
+	if job.Kind != "parse_vulnerability_scan" || job.Payload["payload_ref"] == "" || job.Payload["payload_hash"] == "" || job.Payload["parser_version"] != ParserVersionGenericVulnerabilityJSON {
+		t.Fatalf("outbox job missing replay metadata: %#v", job)
+	}
+	payloadRef, ok := job.Payload["payload_ref"].(string)
+	payloadKey := strings.TrimPrefix(payloadRef, "object://")
+	if !ok || !strings.HasPrefix(payloadKey, "tenants/"+actor.TenantID+"/") {
+		t.Fatalf("payload ref %q is not tenant-prefixed", job.Payload["payload_ref"])
+	}
+	if _, err := objects.Get(ctx, payloadKey); err != nil {
+		t.Fatalf("stored payload missing: %v", err)
+	}
+}
+
 func TestIdempotencyReplayAndConflict(t *testing.T) {
 	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
