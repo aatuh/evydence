@@ -196,6 +196,7 @@ func (s *Server) evidenceRiskPolicyRoutes() []routeDef {
 		{http.MethodGet, "/v1/evidence/{id}/lifecycle-events", op("listEvidenceLifecycleEvents", http.MethodGet, "/v1/evidence/{id}/lifecycle-events", "List evidence lifecycle events", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.listEvidenceLifecycleEvents)},
 		{http.MethodPost, "/v1/sboms", op("uploadSBOM", http.MethodPost, "/v1/sboms", "Upload CycloneDX SBOM", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.uploadSBOM)},
 		{http.MethodGet, "/v1/sboms/{id}", op("getSBOM", http.MethodGet, "/v1/sboms/{id}", "Get SBOM", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.getSBOM)},
+		{http.MethodGet, "/v1/sbom-components", op("listSBOMComponents", http.MethodGet, "/v1/sbom-components", "List SBOM components", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.listSBOMComponents)},
 		{http.MethodPost, "/v1/vex", op("uploadVEX", http.MethodPost, "/v1/vex", "Upload OpenVEX document", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.uploadVEX)},
 		{http.MethodPost, "/v1/vex/cyclonedx", op("uploadCycloneDXVEX", http.MethodPost, "/v1/vex/cyclonedx", "Upload CycloneDX VEX document", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.uploadCycloneDXVEX)},
 		{http.MethodGet, "/v1/vex/{id}", op("getVEX", http.MethodGet, "/v1/vex/{id}", "Get VEX document", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.getVEX)},
