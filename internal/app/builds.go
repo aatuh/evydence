@@ -445,7 +445,7 @@ func (l *Ledger) UploadBuildAttestation(ctx context.Context, actor domain.Actor,
 	}
 	l.attestations[attestation.ID] = attestation
 	_, _ = l.appendChainLocked(actor.TenantID, "build_attestation.created", "build_attestation", attestation.ID, actorType(actor), actorID(actor), payloadHash, "")
-	if err := l.enqueue(ctx, actor.TenantID, "verify_attestation", "build_attestation", attestation.ID, map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash}); err != nil {
+	if err := l.enqueue(ctx, actor.TenantID, "verify_attestation", "build_attestation", attestation.ID, map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionDSSEInTotoJSON}); err != nil {
 		return domain.BuildAttestation{}, err
 	}
 	if err := l.persistLocked(ctx); err != nil {

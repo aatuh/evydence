@@ -121,6 +121,22 @@ func TestProcessJobWithObjectsRequiresWritableStateForParserSideEffects(t *testi
 	}
 }
 
+func TestProcessJobRejectsUnsupportedParserVersion(t *testing.T) {
+	job := postgres.ClaimedJob{
+		TenantID:  "ten_test",
+		Kind:      "parse_sbom",
+		SubjectID: "sbom_test",
+		Payload:   map[string]any{"parser_version": "cyclonedx-json.v0.0.1"},
+	}
+	state := app.PersistedState{SBOMs: map[string]domain.SBOM{
+		"sbom_test": {ID: "sbom_test", TenantID: "ten_test"},
+	}}
+	err := processJob(context.Background(), fakeStateLoader{state: state, ok: true}, job)
+	if err == nil || !strings.Contains(err.Error(), "unsupported outbox parser version") {
+		t.Fatalf("err=%v", err)
+	}
+}
+
 func TestProcessJobWithObjectsVerifiesTenantPrefixedPayload(t *testing.T) {
 	body := []byte(`{"bomFormat":"CycloneDX"}`)
 	hash := digestBytes(body)
