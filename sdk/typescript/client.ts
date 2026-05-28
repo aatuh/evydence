@@ -4,6 +4,42 @@ export type EvydenceClientOptions = {
   fetchImpl?: typeof fetch;
 };
 
+export type CreateProductRequest = {
+  name: string;
+  slug: string;
+};
+
+export type CreateReleaseRequest = {
+  product_id: string;
+  project_id?: string;
+  version: string;
+};
+
+export type RegisterArtifactRequest = {
+  release_id?: string;
+  name?: string;
+  media_type?: string;
+  digest: string;
+  size?: number;
+};
+
+export type BuildOutput = {
+  artifact_id?: string;
+  digest: string;
+  name?: string;
+};
+
+export type CreateBuildRequest = {
+  project_id: string;
+  release_id: string;
+  provider: "github_actions" | "generic";
+  commit_sha: string;
+  status: "queued" | "running" | "passed" | "failed" | "cancelled";
+  started_at: string;
+  outputs?: BuildOutput[];
+  github?: Record<string, unknown>;
+};
+
 export type CreateSSOProviderRequest = {
   name: string;
   type: "oidc" | "saml";
@@ -51,6 +87,60 @@ export class EvydenceClient {
       throw new Error(`Evydence request failed with status ${response.status}`);
     }
     return response.json() as Promise<T>;
+  }
+
+  async get<T>(path: string): Promise<T> {
+    if (!path.startsWith("/v1/")) {
+      throw new Error("invalid Evydence path");
+    }
+    const headers: Record<string, string> = {};
+    if (this.apiKey.trim()) {
+      headers["Authorization"] = `Bearer ${this.apiKey.trim()}`;
+    }
+    const response = await this.fetchImpl(`${this.baseUrl}${path}`, {
+      method: "GET",
+      headers,
+    });
+    if (!response.ok) {
+      throw new Error(`Evydence request failed with status ${response.status}`);
+    }
+    return response.json() as Promise<T>;
+  }
+
+  async createProduct<T>(
+    idempotencyKey: string,
+    payload: CreateProductRequest,
+  ): Promise<T> {
+    return this.post<T>("/v1/products", idempotencyKey, payload);
+  }
+
+  async createRelease<T>(
+    idempotencyKey: string,
+    payload: CreateReleaseRequest,
+  ): Promise<T> {
+    return this.post<T>("/v1/releases", idempotencyKey, payload);
+  }
+
+  async registerArtifact<T>(
+    idempotencyKey: string,
+    payload: RegisterArtifactRequest,
+  ): Promise<T> {
+    return this.post<T>("/v1/artifacts", idempotencyKey, payload);
+  }
+
+  async createBuild<T>(
+    idempotencyKey: string,
+    payload: CreateBuildRequest,
+  ): Promise<T> {
+    return this.post<T>("/v1/builds", idempotencyKey, payload);
+  }
+
+  async readiness<T>(): Promise<T> {
+    return this.get<T>("/v1/ready");
+  }
+
+  async releaseReadiness<T>(releaseId: string): Promise<T> {
+    return this.get<T>(`/v1/reports/release-readiness?release_id=${encodeURIComponent(releaseId)}`);
   }
 
   async createSSOProvider<T>(
