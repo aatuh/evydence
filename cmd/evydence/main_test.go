@@ -197,6 +197,10 @@ func TestVerifyAuditChainDetectsHashTampering(t *testing.T) {
 func TestGitHubActionsUploadBuildRequiresGitHubMetadata(t *testing.T) {
 	t.Setenv("EVYDENCE_API_URL", "http://127.0.0.1")
 	t.Setenv("EVYDENCE_API_KEY", "evy_secret")
+	t.Setenv("GITHUB_RUN_ID", "")
+	t.Setenv("GITHUB_SHA", "")
+	t.Setenv("GITHUB_REPOSITORY", "")
+	t.Setenv("GITHUB_WORKFLOW_REF", "")
 	err := uploadGitHubActionsBuild(t.Context(), http.DefaultClient, []string{"--project-id", "proj_1", "--release-id", "rel_1"})
 	if err == nil || !strings.Contains(err.Error(), "GITHUB_RUN_ID") {
 		t.Fatalf("err=%v, want missing GitHub metadata error", err)
