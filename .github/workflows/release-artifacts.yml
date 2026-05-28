@@ -1,0 +1,179 @@
+name: Release Artifacts
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to package, for example v0.1.0"
+        required: true
+        type: string
+      upload_draft_release:
+        description: "Create or update a draft GitHub release with the generated artifacts"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    name: Package Signed Release Artifacts
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: evydence
+          POSTGRES_USER: evydence
+          POSTGRES_PASSWORD: change-me
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U evydence"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      EVYDENCE_API_KEY_PEPPER: ci-test-pepper
+      EVYDENCE_TEST_DATABASE_URL: postgres://evydence:change-me@localhost:5432/evydence?sslmode=disable
+      RELEASE_SIGNING_PRIVATE_KEY_B64: ${{ secrets.EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64 }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release tag
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            tag="${GITHUB_REF_NAME}"
+          else
+            tag="${{ github.event.inputs.tag }}"
+          fi
+          if [[ ! "${tag}" =~ ^v[0-9]+(\.[0-9]+){1,2}(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "release tag must look like v1.2.3 or v1.2.3-rc.1" >&2
+            exit 2
+          fi
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install QA tools
+        run: make tools
+
+      - name: Run production gate
+        run: make production-check
+
+      - name: Require release signing secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${RELEASE_SIGNING_PRIVATE_KEY_B64}" ]]; then
+            echo "EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64 secret is required to sign release artifacts" >&2
+            exit 2
+          fi
+
+      - name: Build release archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ steps.release.outputs.tag }}"
+          mkdir -p dist tmp/release
+          commands=(evydence evydence-api evydence-worker evydence-migrate)
+          targets=(linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64)
+          for target in "${targets[@]}"; do
+            goos="${target%/*}"
+            goarch="${target#*/}"
+            outdir="tmp/release/evydence_${version}_${goos}_${goarch}"
+            mkdir -p "${outdir}"
+            for command in "${commands[@]}"; do
+              suffix=""
+              if [[ "${goos}" == "windows" ]]; then
+                suffix=".exe"
+              fi
+              GOOS="${goos}" GOARCH="${goarch}" CGO_ENABLED=0 \
+                go build -trimpath -ldflags "-s -w" \
+                -o "${outdir}/${command}${suffix}" "./cmd/${command}"
+            done
+            cp LICENSE README.md "${outdir}/"
+            if [[ "${goos}" == "windows" ]]; then
+              (cd tmp/release && zip -qr "../../dist/evydence_${version}_${goos}_${goarch}.zip" "evydence_${version}_${goos}_${goarch}")
+            else
+              tar -C tmp/release -czf "dist/evydence_${version}_${goos}_${goarch}.tar.gz" "evydence_${version}_${goos}_${goarch}"
+            fi
+          done
+          cp openapi.yaml dist/openapi.yaml
+          cp coverage.out dist/coverage.out
+          cp tmp/release-check-summary.txt dist/release-check-summary.txt
+          find migrations -type f -print | LC_ALL=C sort | xargs sha256sum > dist/migrations.sha256
+          (cd dist && sha256sum evydence_${version}_*.tar.gz evydence_${version}_*.zip openapi.yaml coverage.out release-check-summary.txt migrations.sha256 > SHA256SUMS)
+
+      - name: Create and sign release manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -m 700 -d tmp/release-signing
+          signing_key="tmp/release-signing/private.key"
+          umask 077
+          printf '%s' "${RELEASE_SIGNING_PRIVATE_KEY_B64}" > "${signing_key}"
+          tar -xzf "dist/evydence_${{ steps.release.outputs.tag }}_linux_amd64.tar.gz" -C tmp/release-signing
+          cli="tmp/release-signing/evydence_${{ steps.release.outputs.tag }}_linux_amd64/evydence"
+          "${cli}" release manifest \
+            --out dist/evydence-release-manifest.json \
+            dist/evydence_${{ steps.release.outputs.tag }}_*.tar.gz \
+            dist/evydence_${{ steps.release.outputs.tag }}_*.zip \
+            dist/openapi.yaml \
+            dist/coverage.out \
+            dist/release-check-summary.txt \
+            dist/migrations.sha256 \
+            dist/SHA256SUMS
+          "${cli}" release sign \
+            --manifest dist/evydence-release-manifest.json \
+            --private-key "${signing_key}" \
+            --out dist/evydence-release-manifest.sig.json
+          rm -f "${signing_key}"
+          "${cli}" release verify \
+            --manifest dist/evydence-release-manifest.json \
+            --signature dist/evydence-release-manifest.sig.json
+
+      - name: Write release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > dist/release-notes.md <<'NOTES'
+          Evydence release artifacts include binaries, checksums, the OpenAPI contract, migration checksums, coverage output, a release-check summary, a signed release artifact manifest, and verification metadata.
+
+          This release evidence supports engineering review of technical evidence handling. It is not legal compliance proof, certification, a secure-release guarantee, complete SBOM proof, or authoritative vulnerability coverage.
+          NOTES
+
+      - name: Upload packaged release evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: evydence-release-artifacts-${{ steps.release.outputs.tag }}
+          path: dist/
+          if-no-files-found: error
+
+      - name: Create or update draft GitHub release
+        if: github.event_name == 'push' || github.event.inputs.upload_draft_release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ steps.release.outputs.tag }}"
+          if gh release view "${tag}" >/dev/null 2>&1; then
+            gh release upload "${tag}" dist/* --clobber
+          else
+            gh release create "${tag}" dist/* --draft --title "Evydence ${tag}" --notes-file dist/release-notes.md
+          fi
