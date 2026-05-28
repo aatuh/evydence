@@ -116,6 +116,51 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 		Verifications: map[string]domain.VerificationResult{
 			"verify_test": {ID: "verify_test", TenantID: "ten_test", SubjectType: "release_bundle", SubjectID: "bundle_test", Result: "pass", Checks: []domain.VerifyCheck{{Name: "signature", Result: "passed"}}, VerifiedAt: time.Now().UTC()},
 		},
+		RedactionProfiles: map[string]domain.RedactionProfile{
+			"redact_test": {ID: "redact_test", TenantID: "ten_test", Name: "Default", Description: "profile", AllowedTypes: []string{"sbom"}, ExcludedFields: []string{"metadata.secret"}, SchemaVersion: domain.RedactionProfileSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		CustomerPackages: map[string]domain.CustomerSecurityPackage{
+			"pkg_test": {ID: "pkg_test", TenantID: "ten_test", ProductID: "prod_test", ReleaseID: "rel_test", RedactionProfileID: "redact_test", Title: "Package", State: "generated", Manifest: map[string]any{"release_id": "rel_test"}, ManifestHash: "sha256:" + strings.Repeat("2", 64), ExpiresAt: time.Now().UTC().Add(24 * time.Hour), AccessCount: 3, SchemaVersion: domain.CustomerPackageSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		HTMLReports: map[string]domain.HTMLReportPackage{
+			"html_test": {ID: "html_test", TenantID: "ten_test", ReportType: "cra_readiness", ProductID: "prod_test", ReleaseID: "rel_test", HTML: "<html></html>", Hash: "sha256:" + strings.Repeat("3", 64), SchemaVersion: "html-report-package.v1.0.0", CreatedAt: time.Now().UTC()},
+		},
+		ReportTemplates: map[string]domain.CustomReportTemplate{
+			"tpl_test": {ID: "tpl_test", TenantID: "ten_test", Name: "report", Version: "1", ReportType: "custom", AllowedFields: []string{"id"}, Template: "{{id}}", SchemaVersion: domain.ReportTemplateSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		RenderedReports: map[string]domain.RenderedCustomReport{
+			"render_test": {ID: "render_test", TenantID: "ten_test", TemplateID: "tpl_test", SubjectType: "release", SubjectID: "rel_test", Output: map[string]any{"id": "rel_test"}, Hash: "sha256:" + strings.Repeat("4", 64), SchemaVersion: "rendered-report.v1.0.0", CreatedAt: time.Now().UTC()},
+		},
+		EvidenceBundles: map[string]domain.EvidenceBundle{
+			"eb_test": {ID: "eb_test", TenantID: "ten_test", ReleaseID: "rel_test", EvidenceIDs: []string{"ev_test"}, Manifest: map[string]any{"evidence_ids": []any{"ev_test"}}, ManifestHash: "sha256:" + strings.Repeat("5", 64), SignatureRefs: []string{"sig_test"}, VerificationText: "verify", SchemaVersion: domain.EvidenceBundleSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		BundleImports: map[string]domain.EvidenceBundleImport{
+			"ebi_test": {ID: "ebi_test", TenantID: "ten_test", BundleHash: "sha256:" + strings.Repeat("5", 64), Result: "imported", ImportedCount: 1, SchemaVersion: domain.EvidenceBundleImportVersion, CreatedAt: time.Now().UTC()},
+		},
+		ObjectRetentionPolicies: map[string]domain.ObjectRetentionPolicy{
+			"orp_test": {ID: "orp_test", TenantID: "ten_test", Name: "retain", ObjectPrefix: "tenants/ten_test/", Mode: "governance", RetentionDays: 30, Status: "verified", VerifiedAt: ptrTime(time.Now().UTC()), VerificationHash: "sha256:" + strings.Repeat("6", 64), VerificationChecks: []domain.VerifyCheck{{Name: "versioning", Result: "passed"}}, VerificationLimitations: []string{"test"}, SchemaVersion: domain.ObjectRetentionPolicyVersion, CreatedAt: time.Now().UTC()},
+		},
+		BackupManifests: map[string]domain.BackupManifest{
+			"bak_test": {ID: "bak_test", TenantID: "ten_test", StateHash: "sha256:" + strings.Repeat("7", 64), ResourceCounts: map[string]int{"evidence": 1}, ConsistencyChecks: []domain.VerifyCheck{{Name: "chain", Result: "passed"}}, Limitations: []string{"objects separately backed up"}, SchemaVersion: domain.BackupManifestSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		LegalHolds: map[string]domain.LegalHold{
+			"hold_test": {ID: "hold_test", TenantID: "ten_test", ScopeType: "release", ScopeID: "rel_test", Reason: "review", Owner: "security", ReleasedAt: ptrTime(time.Now().UTC()), SchemaVersion: domain.LegalHoldSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		RetentionOverrides: map[string]domain.RetentionOverride{
+			"ret_test": {ID: "ret_test", TenantID: "ten_test", ScopeType: "release", ScopeID: "rel_test", RetentionUntil: time.Now().UTC().Add(365 * 24 * time.Hour), Reason: "policy", Owner: "security", SchemaVersion: domain.RetentionOverrideSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		QuestionnaireTemplates: map[string]domain.QuestionnaireTemplate{
+			"qt_test": {ID: "qt_test", TenantID: "ten_test", Name: "questionnaire", Version: "1", Questions: []domain.QuestionnaireQuestion{{ID: "q1", Prompt: "Evidence?", EvidenceType: "sbom"}}, SchemaVersion: domain.QuestionnaireTemplateVersion, CreatedAt: time.Now().UTC()},
+		},
+		QuestionnairePackages: map[string]domain.QuestionnairePackage{
+			"qp_test": {ID: "qp_test", TenantID: "ten_test", TemplateID: "qt_test", PackageID: "pkg_test", ProductID: "prod_test", ReleaseID: "rel_test", Responses: []domain.QuestionnaireResponse{{QuestionID: "q1", Answer: "See evidence", EvidenceIDs: []string{"ev_test"}}}, ManifestHash: "sha256:" + strings.Repeat("8", 64), SchemaVersion: domain.QuestionnairePackageVersion, CreatedAt: time.Now().UTC()},
+		},
+		PDFReports: map[string]domain.PDFReportPackage{
+			"pdf_test": {ID: "pdf_test", TenantID: "ten_test", ReportType: "cra_readiness", ProductID: "prod_test", ReleaseID: "rel_test", Title: "PDF", PayloadRef: "object://tenants/ten_test/reports/pdf", PayloadHash: "sha256:" + strings.Repeat("9", 64), PayloadSize: 10, Limitations: []string{"test"}, SchemaVersion: domain.PDFReportPackageVersion, CreatedAt: time.Now().UTC()},
+		},
+		AnomalyReports: map[string]domain.AnomalyReport{
+			"anom_test": {ID: "anom_test", TenantID: "ten_test", SubjectType: "release", SubjectID: "rel_test", Result: "review", Signals: []domain.AnomalySignal{{Name: "gap", Severity: "medium", Detail: "test"}}, Assumptions: []string{"heuristic"}, Limitations: []string{"not ML"}, SchemaVersion: domain.AnomalyReportVersion, CreatedAt: time.Now().UTC()},
+		},
 		Idempotency: map[string]app.IdempotencyRecord{
 			app.NewIdempotencyRecordKey("ten_test", "user:user_test", "POST", "/v1/products", "idem"): {RequestHash: "sha256:request", Status: 201, Response: map[string]any{"ok": true}, CreatedAt: time.Now().UTC()},
 		},
@@ -190,6 +235,21 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 		{name: "policy", query: `SELECT count(*) FROM policy_evaluations WHERE tenant_id = 'ten_test' AND id = 'policy_test'`},
 		{name: "bundle", query: `SELECT count(*) FROM release_bundles WHERE tenant_id = 'ten_test' AND id = 'bundle_test'`},
 		{name: "verification", query: `SELECT count(*) FROM verification_results WHERE tenant_id = 'ten_test' AND id = 'verify_test'`},
+		{name: "redaction profile", query: `SELECT count(*) FROM redaction_profiles WHERE tenant_id = 'ten_test' AND id = 'redact_test' AND allowed_types = ARRAY['sbom']`},
+		{name: "customer package", query: `SELECT count(*) FROM customer_security_packages WHERE tenant_id = 'ten_test' AND id = 'pkg_test' AND access_count = 3`},
+		{name: "html report", query: `SELECT count(*) FROM html_report_packages WHERE tenant_id = 'ten_test' AND id = 'html_test'`},
+		{name: "report template", query: `SELECT count(*) FROM report_templates WHERE tenant_id = 'ten_test' AND id = 'tpl_test'`},
+		{name: "rendered report", query: `SELECT count(*) FROM rendered_reports WHERE tenant_id = 'ten_test' AND id = 'render_test'`},
+		{name: "evidence bundle", query: `SELECT count(*) FROM evidence_bundles WHERE tenant_id = 'ten_test' AND id = 'eb_test'`},
+		{name: "evidence bundle import", query: `SELECT count(*) FROM evidence_bundle_imports WHERE tenant_id = 'ten_test' AND id = 'ebi_test'`},
+		{name: "object retention", query: `SELECT count(*) FROM object_retention_policies WHERE tenant_id = 'ten_test' AND id = 'orp_test' AND verification_checks <> '[]'::jsonb`},
+		{name: "backup manifest", query: `SELECT count(*) FROM backup_manifests WHERE tenant_id = 'ten_test' AND id = 'bak_test'`},
+		{name: "legal hold", query: `SELECT count(*) FROM legal_holds WHERE tenant_id = 'ten_test' AND id = 'hold_test' AND released_at IS NOT NULL`},
+		{name: "retention override", query: `SELECT count(*) FROM retention_overrides WHERE tenant_id = 'ten_test' AND id = 'ret_test'`},
+		{name: "questionnaire template", query: `SELECT count(*) FROM questionnaire_templates WHERE tenant_id = 'ten_test' AND id = 'qt_test'`},
+		{name: "questionnaire package", query: `SELECT count(*) FROM questionnaire_packages WHERE tenant_id = 'ten_test' AND id = 'qp_test'`},
+		{name: "pdf report", query: `SELECT count(*) FROM pdf_report_packages WHERE tenant_id = 'ten_test' AND id = 'pdf_test'`},
+		{name: "anomaly report", query: `SELECT count(*) FROM anomaly_reports WHERE tenant_id = 'ten_test' AND id = 'anom_test'`},
 	}
 	for _, check := range coreChecks {
 		var rows int

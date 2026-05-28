@@ -660,6 +660,9 @@ func (s *Store) SaveState(ctx context.Context, state app.PersistedState) error {
 	if err := syncReleaseLedgerCore(ctx, tx, state); err != nil {
 		return err
 	}
+	if err := syncPackageReportRetentionRows(ctx, tx, state); err != nil {
+		return err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit save ledger state transaction: %w", err)
 	}
@@ -981,6 +984,321 @@ func syncReleaseLedgerCore(ctx context.Context, tx pgx.Tx, state app.PersistedSt
 			ON CONFLICT (id) DO UPDATE SET result = EXCLUDED.result, checks = EXCLUDED.checks
 		`, verification.ID, verification.TenantID, verification.SubjectType, verification.SubjectID, verification.Result, checks, nonZeroTime(verification.VerifiedAt)); err != nil {
 			return fmt.Errorf("upsert verification result row: %w", err)
+		}
+	}
+	return nil
+}
+
+func syncPackageReportRetentionRows(ctx context.Context, tx pgx.Tx, state app.PersistedState) error {
+	for _, profile := range state.RedactionProfiles {
+		if profile.ID == "" || profile.TenantID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO redaction_profiles (
+				id, tenant_id, name, description, allowed_types, excluded_fields,
+				schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			ON CONFLICT (id) DO UPDATE SET
+				name = EXCLUDED.name,
+				description = EXCLUDED.description,
+				allowed_types = EXCLUDED.allowed_types,
+				excluded_fields = EXCLUDED.excluded_fields,
+				schema_version = EXCLUDED.schema_version
+		`, profile.ID, profile.TenantID, profile.Name, nullableString(profile.Description), profile.AllowedTypes, profile.ExcludedFields, profile.SchemaVersion, nonZeroTime(profile.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert redaction profile row: %w", err)
+		}
+	}
+	for _, pkg := range state.CustomerPackages {
+		if pkg.ID == "" || pkg.TenantID == "" {
+			continue
+		}
+		manifest, err := json.Marshal(pkg.Manifest)
+		if err != nil {
+			return fmt.Errorf("encode customer package manifest: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO customer_security_packages (
+				id, tenant_id, product_id, release_id, redaction_profile_id,
+				title, state, manifest, manifest_hash, expires_at, access_count,
+				schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+			ON CONFLICT (id) DO UPDATE SET
+				state = EXCLUDED.state,
+				manifest = EXCLUDED.manifest,
+				manifest_hash = EXCLUDED.manifest_hash,
+				expires_at = EXCLUDED.expires_at,
+				access_count = EXCLUDED.access_count,
+				schema_version = EXCLUDED.schema_version
+		`, pkg.ID, pkg.TenantID, pkg.ProductID, nullableString(pkg.ReleaseID), pkg.RedactionProfileID, pkg.Title, pkg.State, manifest, pkg.ManifestHash, pkg.ExpiresAt, pkg.AccessCount, pkg.SchemaVersion, nonZeroTime(pkg.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert customer package row: %w", err)
+		}
+	}
+	for _, report := range state.HTMLReports {
+		if report.ID == "" || report.TenantID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO html_report_packages (
+				id, tenant_id, report_type, product_id, release_id, html, hash,
+				schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			ON CONFLICT (id) DO UPDATE SET html = EXCLUDED.html, hash = EXCLUDED.hash, schema_version = EXCLUDED.schema_version
+		`, report.ID, report.TenantID, report.ReportType, report.ProductID, nullableString(report.ReleaseID), report.HTML, report.Hash, report.SchemaVersion, nonZeroTime(report.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert html report row: %w", err)
+		}
+	}
+	for _, template := range state.ReportTemplates {
+		if template.ID == "" || template.TenantID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO report_templates (
+				id, tenant_id, name, version, report_type, allowed_fields,
+				template, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			ON CONFLICT (id) DO UPDATE SET
+				report_type = EXCLUDED.report_type,
+				allowed_fields = EXCLUDED.allowed_fields,
+				template = EXCLUDED.template,
+				schema_version = EXCLUDED.schema_version
+		`, template.ID, template.TenantID, template.Name, template.Version, template.ReportType, template.AllowedFields, template.Template, template.SchemaVersion, nonZeroTime(template.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert report template row: %w", err)
+		}
+	}
+	for _, report := range state.RenderedReports {
+		if report.ID == "" || report.TenantID == "" {
+			continue
+		}
+		output, err := json.Marshal(report.Output)
+		if err != nil {
+			return fmt.Errorf("encode rendered report output: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO rendered_reports (
+				id, tenant_id, template_id, subject_type, subject_id, output,
+				hash, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			ON CONFLICT (id) DO UPDATE SET output = EXCLUDED.output, hash = EXCLUDED.hash, schema_version = EXCLUDED.schema_version
+		`, report.ID, report.TenantID, report.TemplateID, report.SubjectType, report.SubjectID, output, report.Hash, report.SchemaVersion, nonZeroTime(report.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert rendered report row: %w", err)
+		}
+	}
+	for _, bundle := range state.EvidenceBundles {
+		if bundle.ID == "" || bundle.TenantID == "" {
+			continue
+		}
+		manifest, err := json.Marshal(bundle.Manifest)
+		if err != nil {
+			return fmt.Errorf("encode evidence bundle manifest: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO evidence_bundles (
+				id, tenant_id, release_id, evidence_ids, manifest, manifest_hash,
+				signature_refs, verification_text, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			ON CONFLICT (id) DO UPDATE SET
+				manifest = EXCLUDED.manifest,
+				manifest_hash = EXCLUDED.manifest_hash,
+				signature_refs = EXCLUDED.signature_refs,
+				verification_text = EXCLUDED.verification_text,
+				schema_version = EXCLUDED.schema_version
+		`, bundle.ID, bundle.TenantID, nullableString(bundle.ReleaseID), bundle.EvidenceIDs, manifest, bundle.ManifestHash, bundle.SignatureRefs, bundle.VerificationText, bundle.SchemaVersion, nonZeroTime(bundle.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert evidence bundle row: %w", err)
+		}
+	}
+	for _, imported := range state.BundleImports {
+		if imported.ID == "" || imported.TenantID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO evidence_bundle_imports (
+				id, tenant_id, bundle_hash, result, imported_count,
+				schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			ON CONFLICT (id) DO UPDATE SET result = EXCLUDED.result, imported_count = EXCLUDED.imported_count, schema_version = EXCLUDED.schema_version
+		`, imported.ID, imported.TenantID, imported.BundleHash, imported.Result, imported.ImportedCount, imported.SchemaVersion, nonZeroTime(imported.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert evidence bundle import row: %w", err)
+		}
+	}
+	for _, policy := range state.ObjectRetentionPolicies {
+		if policy.ID == "" || policy.TenantID == "" {
+			continue
+		}
+		checks, err := json.Marshal(policy.VerificationChecks)
+		if err != nil {
+			return fmt.Errorf("encode object retention checks: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO object_retention_policies (
+				id, tenant_id, name, object_prefix, mode, retention_days, status,
+				verified_at, verification_hash, verification_checks,
+				verification_limitations, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+			ON CONFLICT (id) DO UPDATE SET
+				status = EXCLUDED.status,
+				verified_at = EXCLUDED.verified_at,
+				verification_hash = EXCLUDED.verification_hash,
+				verification_checks = EXCLUDED.verification_checks,
+				verification_limitations = EXCLUDED.verification_limitations,
+				schema_version = EXCLUDED.schema_version
+		`, policy.ID, policy.TenantID, policy.Name, policy.ObjectPrefix, policy.Mode, policy.RetentionDays, policy.Status, nullableTime(policy.VerifiedAt), nullableString(policy.VerificationHash), checks, policy.VerificationLimitations, policy.SchemaVersion, nonZeroTime(policy.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert object retention policy row: %w", err)
+		}
+	}
+	for _, manifest := range state.BackupManifests {
+		if manifest.ID == "" || manifest.TenantID == "" {
+			continue
+		}
+		counts, err := json.Marshal(manifest.ResourceCounts)
+		if err != nil {
+			return fmt.Errorf("encode backup manifest counts: %w", err)
+		}
+		checks, err := json.Marshal(manifest.ConsistencyChecks)
+		if err != nil {
+			return fmt.Errorf("encode backup manifest checks: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO backup_manifests (
+				id, tenant_id, state_hash, resource_counts, consistency_checks,
+				limitations, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			ON CONFLICT (id) DO UPDATE SET
+				resource_counts = EXCLUDED.resource_counts,
+				consistency_checks = EXCLUDED.consistency_checks,
+				limitations = EXCLUDED.limitations,
+				schema_version = EXCLUDED.schema_version
+		`, manifest.ID, manifest.TenantID, manifest.StateHash, counts, checks, manifest.Limitations, manifest.SchemaVersion, nonZeroTime(manifest.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert backup manifest row: %w", err)
+		}
+	}
+	for _, hold := range state.LegalHolds {
+		if hold.ID == "" || hold.TenantID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO legal_holds (
+				id, tenant_id, scope_type, scope_id, reason, owner, released_at,
+				schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			ON CONFLICT (id) DO UPDATE SET
+				reason = EXCLUDED.reason,
+				owner = EXCLUDED.owner,
+				released_at = EXCLUDED.released_at,
+				schema_version = EXCLUDED.schema_version
+		`, hold.ID, hold.TenantID, hold.ScopeType, hold.ScopeID, hold.Reason, hold.Owner, nullableTime(hold.ReleasedAt), hold.SchemaVersion, nonZeroTime(hold.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert legal hold row: %w", err)
+		}
+	}
+	for _, override := range state.RetentionOverrides {
+		if override.ID == "" || override.TenantID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO retention_overrides (
+				id, tenant_id, scope_type, scope_id, retention_until, reason,
+				owner, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			ON CONFLICT (id) DO UPDATE SET
+				retention_until = EXCLUDED.retention_until,
+				reason = EXCLUDED.reason,
+				owner = EXCLUDED.owner,
+				schema_version = EXCLUDED.schema_version
+		`, override.ID, override.TenantID, override.ScopeType, override.ScopeID, override.RetentionUntil, override.Reason, override.Owner, override.SchemaVersion, nonZeroTime(override.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert retention override row: %w", err)
+		}
+	}
+	for _, template := range state.QuestionnaireTemplates {
+		if template.ID == "" || template.TenantID == "" {
+			continue
+		}
+		questions, err := json.Marshal(template.Questions)
+		if err != nil {
+			return fmt.Errorf("encode questionnaire template questions: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO questionnaire_templates (
+				id, tenant_id, name, version, questions, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			ON CONFLICT (id) DO UPDATE SET questions = EXCLUDED.questions, schema_version = EXCLUDED.schema_version
+		`, template.ID, template.TenantID, template.Name, template.Version, questions, template.SchemaVersion, nonZeroTime(template.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert questionnaire template row: %w", err)
+		}
+	}
+	for _, pkg := range state.QuestionnairePackages {
+		if pkg.ID == "" || pkg.TenantID == "" {
+			continue
+		}
+		responses, err := json.Marshal(pkg.Responses)
+		if err != nil {
+			return fmt.Errorf("encode questionnaire package responses: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO questionnaire_packages (
+				id, tenant_id, template_id, package_id, product_id, release_id,
+				responses, manifest_hash, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			ON CONFLICT (id) DO UPDATE SET responses = EXCLUDED.responses, manifest_hash = EXCLUDED.manifest_hash, schema_version = EXCLUDED.schema_version
+		`, pkg.ID, pkg.TenantID, pkg.TemplateID, nullableString(pkg.PackageID), nullableString(pkg.ProductID), nullableString(pkg.ReleaseID), responses, pkg.ManifestHash, pkg.SchemaVersion, nonZeroTime(pkg.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert questionnaire package row: %w", err)
+		}
+	}
+	for _, report := range state.PDFReports {
+		if report.ID == "" || report.TenantID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO pdf_report_packages (
+				id, tenant_id, report_type, product_id, release_id, title,
+				payload_ref, payload_hash, payload_size, limitations,
+				schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			ON CONFLICT (id) DO UPDATE SET
+				payload_ref = EXCLUDED.payload_ref,
+				payload_hash = EXCLUDED.payload_hash,
+				payload_size = EXCLUDED.payload_size,
+				limitations = EXCLUDED.limitations,
+				schema_version = EXCLUDED.schema_version
+		`, report.ID, report.TenantID, report.ReportType, nullableString(report.ProductID), nullableString(report.ReleaseID), report.Title, nullableString(report.PayloadRef), report.PayloadHash, report.PayloadSize, report.Limitations, report.SchemaVersion, nonZeroTime(report.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert pdf report row: %w", err)
+		}
+	}
+	for _, report := range state.AnomalyReports {
+		if report.ID == "" || report.TenantID == "" {
+			continue
+		}
+		signals, err := json.Marshal(report.Signals)
+		if err != nil {
+			return fmt.Errorf("encode anomaly report signals: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO anomaly_reports (
+				id, tenant_id, subject_type, subject_id, result, signals,
+				assumptions, limitations, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			ON CONFLICT (id) DO UPDATE SET
+				result = EXCLUDED.result,
+				signals = EXCLUDED.signals,
+				assumptions = EXCLUDED.assumptions,
+				limitations = EXCLUDED.limitations,
+				schema_version = EXCLUDED.schema_version
+		`, report.ID, report.TenantID, report.SubjectType, report.SubjectID, report.Result, signals, report.Assumptions, report.Limitations, report.SchemaVersion, nonZeroTime(report.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert anomaly report row: %w", err)
 		}
 	}
 	return nil
