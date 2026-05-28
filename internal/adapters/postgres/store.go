@@ -92,14 +92,14 @@ func (s *Store) LoadState(ctx context.Context) (app.PersistedState, bool, error)
 
 func ResolveLoadMode(raw string, production bool) (LoadMode, error) {
 	if strings.TrimSpace(raw) == "" && production {
-		return LoadModeRelationalPreferred, nil
+		return LoadModeRelationalOnly, nil
 	}
 	return normalizeLoadMode(LoadMode(raw))
 }
 
 func ValidateProductionLoadMode(mode LoadMode) error {
-	if mode == LoadModeSnapshotPreferred {
-		return errors.New("production refuses EVYDENCE_POSTGRES_LOAD_MODE=snapshot_preferred")
+	if mode != LoadModeRelationalOnly {
+		return errors.New("production requires EVYDENCE_POSTGRES_LOAD_MODE=relational_only or unset")
 	}
 	return nil
 }

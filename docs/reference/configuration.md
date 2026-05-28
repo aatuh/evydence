@@ -27,7 +27,7 @@ The example secrets are placeholders. Replace them before using shared or produc
 | `EVYDENCE_ADDR` | No | `:8080` | API bind address. |
 | `EVYDENCE_API_KEY_PEPPER` | Production yes | `change-me-long-random-pepper` | HMAC pepper for API key, session, and portal-token hashes. Use a long random value. |
 | `EVYDENCE_DATABASE_URL` | Production yes | `postgres://evydence:change-me@localhost:5432/evydence?sslmode=disable` | Enables PostgreSQL durable state, projections, migrations, and persisted outbox jobs. If unset, the API uses in-process state. |
-| `EVYDENCE_POSTGRES_LOAD_MODE` | No | `snapshot_preferred` locally, `relational_preferred` when `ENV=production` | PostgreSQL state load mode. Supported values are `snapshot_preferred`, `relational_preferred`, and `relational_only`. Production defaults to relational-preferred startup reads, refuses `snapshot_preferred`, and disables compatibility snapshot writes; snapshots remain available for local compatibility and non-production migration checks. |
+| `EVYDENCE_POSTGRES_LOAD_MODE` | No | `snapshot_preferred` locally, `relational_only` when `ENV=production` | PostgreSQL state load mode. Supported values are `snapshot_preferred`, `relational_preferred`, and `relational_only`. Production defaults to relational-only startup reads, refuses snapshot fallback modes, and disables compatibility snapshot writes; snapshots remain available for local compatibility and non-production migration checks. |
 | `EVYDENCE_OBJECT_STORE` | No | `filesystem` | Supported values are `filesystem`, `s3`, and `minio`. |
 | `EVYDENCE_OBJECT_DIR` | Filesystem object store | `./tmp/objects` | Local raw payload storage root. |
 | `EVYDENCE_S3_ENDPOINT` | S3/MinIO object store | `localhost:9000` | Endpoint for S3-compatible object storage. |
@@ -60,18 +60,17 @@ When `ENV=production`, the API refuses to start unless:
 - `EVYDENCE_API_KEY_PEPPER` is non-empty and not the local default.
 - `EVYDENCE_SIGNING_KEY_MODE=external`.
 - `EVYDENCE_PRINT_BOOTSTRAP_SECRET` is not `true`.
-- `EVYDENCE_POSTGRES_LOAD_MODE`, when set, is not `snapshot_preferred`.
+- `EVYDENCE_POSTGRES_LOAD_MODE`, when set, is `relational_only`.
 
 These checks reduce unsafe runtime defaults. They do not replace secret management, network controls, backup validation, or external signing operations.
 
 When `ENV=production` and `EVYDENCE_POSTGRES_LOAD_MODE` is unset, API and worker
-processes prefer reconstructing state from tenant-scoped relational rows before
-falling back to the compatibility snapshot and do not write new compatibility
-snapshots. Production refuses `snapshot_preferred`. Local development keeps
-`snapshot_preferred` and snapshot writes by default to preserve existing
-workflows. Use `relational_only` only for controlled migration or recovery
-checks where a missing relational row should fail closed instead of falling back
-to the snapshot.
+processes load only from tenant-scoped relational rows and do not write new
+compatibility snapshots. Production refuses snapshot fallback modes. Local
+development keeps `snapshot_preferred` and snapshot writes by default to
+preserve existing workflows. Use `relational_preferred` only for controlled
+non-production migration or recovery checks that intentionally fall back to the
+snapshot.
 
 ## S3/MinIO Object-Retention Verification
 

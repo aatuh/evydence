@@ -23,7 +23,7 @@ func TestResolveLoadMode(t *testing.T) {
 		wantErr    bool
 	}{
 		{name: "local default", want: LoadModeSnapshotPreferred},
-		{name: "production default", production: true, want: LoadModeRelationalPreferred},
+		{name: "production default", production: true, want: LoadModeRelationalOnly},
 		{name: "snapshot alias", raw: "snapshot", production: true, want: LoadModeSnapshotPreferred},
 		{name: "relational alias", raw: "relational", want: LoadModeRelationalPreferred},
 		{name: "relational only", raw: "relational-only", want: LoadModeRelationalOnly},
@@ -48,16 +48,15 @@ func TestResolveLoadMode(t *testing.T) {
 	}
 }
 
-func TestValidateProductionLoadModeRejectsSnapshotPreferred(t *testing.T) {
-	if err := ValidateProductionLoadMode(LoadModeRelationalPreferred); err != nil {
-		t.Fatalf("relational-preferred production mode: %v", err)
-	}
+func TestValidateProductionLoadModeRequiresRelationalOnly(t *testing.T) {
 	if err := ValidateProductionLoadMode(LoadModeRelationalOnly); err != nil {
 		t.Fatalf("relational-only production mode: %v", err)
 	}
-	err := ValidateProductionLoadMode(LoadModeSnapshotPreferred)
-	if err == nil || !strings.Contains(err.Error(), "EVYDENCE_POSTGRES_LOAD_MODE") {
-		t.Fatalf("snapshot-preferred production err=%v", err)
+	for _, mode := range []LoadMode{LoadModeSnapshotPreferred, LoadModeRelationalPreferred} {
+		err := ValidateProductionLoadMode(mode)
+		if err == nil || !strings.Contains(err.Error(), "EVYDENCE_POSTGRES_LOAD_MODE") {
+			t.Fatalf("%s production err=%v", mode, err)
+		}
 	}
 }
 
