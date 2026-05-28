@@ -69,6 +69,17 @@ func TestEnvDefaultAndObjectStoreSelection(t *testing.T) {
 	}
 }
 
+func TestIntEnvParsesRateLimitConfiguration(t *testing.T) {
+	t.Setenv("EVYDENCE_RATE_LIMIT_REQUESTS_PER_MINUTE", "25")
+	if got := intEnv("EVYDENCE_RATE_LIMIT_REQUESTS_PER_MINUTE", 0); got != 25 {
+		t.Fatalf("configured int env = %d", got)
+	}
+	t.Setenv("EVYDENCE_RATE_LIMIT_REQUESTS_PER_MINUTE", "-1")
+	if got := intEnv("EVYDENCE_RATE_LIMIT_REQUESTS_PER_MINUTE", 7); got != 7 {
+		t.Fatalf("negative int env fallback = %d", got)
+	}
+}
+
 func TestOpenObjectStoreRejectsIncompleteS3Config(t *testing.T) {
 	t.Setenv("EVYDENCE_OBJECT_STORE", "s3")
 	t.Setenv("EVYDENCE_S3_ENDPOINT", "localhost:9000")

@@ -248,6 +248,38 @@ func TestCreateProductRequiresAuthAndIdempotency(t *testing.T) {
 	}
 }
 
+func TestServerRateLimitReturnsSafeProblem(t *testing.T) {
+	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
+	server, err := NewServerWithOptions(ledger, ServerOptions{RateLimitRequestsPerMinute: 2})
+	if err != nil {
+		t.Fatalf("NewServerWithOptions: %v", err)
+	}
+	handler := server.Handler()
+	for i := 0; i < 2; i++ {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/v1/version", nil)
+		req.RemoteAddr = "203.0.113.10:12345"
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("request %d status=%d body=%s", i, rec.Code, rec.Body.String())
+		}
+	}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/version", nil)
+	req.RemoteAddr = "203.0.113.10:23456"
+	req.Header.Set("Authorization", "Bearer should-not-leak")
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("rate limited status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "RATE_LIMITED") || strings.Contains(rec.Body.String(), "should-not-leak") {
+		t.Fatalf("unsafe rate limit problem body: %s", rec.Body.String())
+	}
+	if rec.Header().Get("Retry-After") == "" || rec.Header().Get(requestIDHeader) == "" {
+		t.Fatalf("missing retry/request headers: %#v", rec.Header())
+	}
+}
+
 func TestAuthenticatedReadRoutesRejectMissingBearerToken(t *testing.T) {
 	server, _ := testServer(t)
 	paths := []string{

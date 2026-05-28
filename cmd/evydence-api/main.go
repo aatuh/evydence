@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -80,7 +81,9 @@ func run() error {
 			log.Printf("bootstrapped tenant %s and key %s; set EVYDENCE_PRINT_BOOTSTRAP_SECRET=true for local-only secret output", tenant.ID, key.ID)
 		}
 	}
-	server, err := httpapi.NewServer(ledger)
+	server, err := httpapi.NewServerWithOptions(ledger, httpapi.ServerOptions{
+		RateLimitRequestsPerMinute: intEnv("EVYDENCE_RATE_LIMIT_REQUESTS_PER_MINUTE", 0),
+	})
 	if err != nil {
 		return fmt.Errorf("create server: %w", err)
 	}
@@ -118,6 +121,18 @@ func envDefault(name, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func intEnv(name string, fallback int) int {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed < 0 {
+		return fallback
+	}
+	return parsed
 }
 
 func openObjectStore(ctx context.Context) (app.ObjectStore, string, error) {
