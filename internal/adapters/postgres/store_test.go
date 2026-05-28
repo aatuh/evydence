@@ -122,6 +122,54 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 		Deployments: map[string]domain.DeploymentEvent{
 			"deploy_test": {ID: "deploy_test", TenantID: "ten_test", EnvironmentID: "env_test", ReleaseID: "rel_test", ArtifactIDs: []string{"art_test"}, Status: "succeeded", StartedAt: time.Now().UTC(), FinishedAt: ptrTime(time.Now().UTC()), EvidenceID: "ev_test", SchemaVersion: domain.DeploymentEventSchemaVersion, CreatedAt: time.Now().UTC()},
 		},
+		Incidents: map[string]domain.Incident{
+			"incident_test": {ID: "incident_test", TenantID: "ten_test", ProductID: "prod_test", ReleaseID: "rel_test", Title: "Incident", Severity: "medium", Status: "resolved", OpenedAt: time.Now().UTC(), ClosedAt: ptrTime(time.Now().UTC()), SchemaVersion: domain.IncidentSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		TimelineEvents: map[string]domain.IncidentTimelineEvent{
+			"timeline_test": {ID: "timeline_test", TenantID: "ten_test", IncidentID: "incident_test", EventType: "detected", Summary: "detected", EvidenceID: "ev_test", OccurredAt: time.Now().UTC(), SchemaVersion: domain.IncidentTimelineSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		IncidentWebhookReceivers: map[string]domain.IncidentWebhookReceiver{
+			"receiver_test": {ID: "receiver_test", TenantID: "ten_test", IncidentID: "incident_test", Name: "pager", Provider: "generic", PublicKey: "pub", Status: "active", SchemaVersion: domain.IncidentWebhookReceiverVersion, CreatedAt: time.Now().UTC()},
+		},
+		IncidentWebhookEvents: map[string]domain.IncidentWebhookEvent{
+			"webhook_event_test": {ID: "webhook_event_test", TenantID: "ten_test", ReceiverID: "receiver_test", IncidentID: "incident_test", Provider: "generic", EventID: "evt-1", PayloadHash: "sha256:" + strings.Repeat("a", 64), SignatureHash: "sha256:" + strings.Repeat("b", 64), TimelineEventID: "timeline_test", Result: "accepted", SchemaVersion: domain.IncidentWebhookEventVersion, CreatedAt: time.Now().UTC()},
+		},
+		RemediationTasks: map[string]domain.RemediationTask{
+			"remediation_test": {ID: "remediation_test", TenantID: "ten_test", IncidentID: "incident_test", ReleaseID: "rel_test", Title: "Patch", Owner: "security", Status: "done", DueAt: ptrTime(time.Now().UTC().Add(24 * time.Hour)), EvidenceID: "ev_test", SchemaVersion: domain.RemediationTaskSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		SecurityScans: map[string]domain.SecurityScan{
+			"secscan_test": {ID: "secscan_test", TenantID: "ten_test", ProductID: "prod_test", ReleaseID: "rel_test", ArtifactID: "art_test", Category: "sast", Format: "sarif", Scanner: "scanner", TargetRef: "repo", EvidenceID: "ev_test", PayloadRef: "object://tenants/ten_test/security/sarif", PayloadHash: "sha256:" + strings.Repeat("c", 64), FindingCount: 1, Summary: map[string]int{"high": 1}, Redacted: true, SchemaVersion: domain.SecurityScanSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		ManualSecurityDocs: map[string]domain.ManualSecurityDocument{
+			"manual_doc_test": {ID: "manual_doc_test", TenantID: "ten_test", ProductID: "prod_test", ReleaseID: "rel_test", DocumentType: "security_review", Title: "Review", Sensitivity: "restricted", EvidenceID: "ev_test", PayloadRef: "object://tenants/ten_test/manual/review", PayloadHash: "sha256:" + strings.Repeat("d", 64), SchemaVersion: domain.ManualSecurityDocSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		SBOMDiffs: map[string]domain.SBOMDiff{
+			"sbomdiff_test": {ID: "sbomdiff_test", TenantID: "ten_test", BaseSBOMID: "sbom_test", TargetSBOMID: "sbom_test", ReleaseID: "rel_test", AddedComponents: []domain.SBOMComponent{{Name: "lib2"}}, UnchangedCount: 1, SchemaVersion: domain.SBOMDiffSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		DependencyChanges: map[string]domain.DependencyChange{
+			"depchange_test": {ID: "depchange_test", TenantID: "ten_test", SBOMDiffID: "sbomdiff_test", ChangeType: "added", Component: domain.SBOMComponent{Name: "lib2"}, SchemaVersion: domain.DependencyChangeSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		VulnerabilityWorkflow: map[string]domain.VulnerabilityWorkflowRecord{
+			"vulnwf_test": {ID: "vulnwf_test", TenantID: "ten_test", FindingID: "finding_test", ReleaseID: "rel_test", Action: "reopened", Reason: "new evidence", ActorID: "user_test", SchemaVersion: "vulnerability-workflow.v1.0.0", CreatedAt: time.Now().UTC()},
+		},
+		ContractDiffs: map[string]domain.ContractDiff{
+			"contractdiff_test": {ID: "contractdiff_test", TenantID: "ten_test", BaseContractID: "contract_test", TargetContractID: "contract_test", ProductID: "prod_test", ReleaseID: "rel_test", Result: "non_breaking", NonBreakingChanges: []string{"metadata"}, SchemaVersion: domain.ContractDiffSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		CustomPolicies: map[string]domain.CustomPolicy{
+			"custom_policy_test": {ID: "custom_policy_test", TenantID: "ten_test", Name: "policy", Version: "1", Description: "test", Rules: []domain.PolicyRule{{Name: "sbom", EvidenceType: "sbom", Severity: "high", Required: true}}, SchemaVersion: domain.CustomPolicySchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		CustomPolicyEvaluations: map[string]domain.CustomPolicyEvaluation{
+			"custom_policy_eval_test": {ID: "custom_policy_eval_test", TenantID: "ten_test", PolicyID: "custom_policy_test", ReleaseID: "rel_test", Result: "pass", Checks: []domain.PolicyCheck{{Name: "sbom", Result: "passed", Severity: "high"}}, InputHash: "sha256:" + strings.Repeat("e", 64), SchemaVersion: domain.CustomPolicyEvalSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		Waivers: map[string]domain.Waiver{
+			"waiver_test": {ID: "waiver_test", TenantID: "ten_test", ScopeType: "release", ScopeID: "rel_test", ControlID: "control_test", PolicyID: "custom_policy_test", Owner: "security", Risk: "accepted", Reason: "test", ExpiresAt: time.Now().UTC().Add(24 * time.Hour), Approved: true, ApprovedBy: "user_test", ApprovedAt: ptrTime(time.Now().UTC()), SchemaVersion: domain.WaiverSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		Approvals: map[string]domain.ApprovalRecord{
+			"approval_test": {ID: "approval_test", TenantID: "ten_test", SubjectType: "release", SubjectID: "rel_test", Decision: "approved", Reason: "test", ApproverID: "user_test", EvidenceID: "ev_test", SchemaVersion: domain.ApprovalRecordSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		DSSETrustRoots: map[string]domain.DSSETrustRoot{
+			"dsse_root_test": {ID: "dsse_root_test", TenantID: "ten_test", Name: "root", KeyID: "key-1", Algorithm: "Ed25519", PublicKey: "pub", Status: "active", SchemaVersion: domain.DSSETrustRootSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
 		Chain: map[string][]domain.AuditChainEntry{
 			"ten_test": {{
 				ID: "chain_test", TenantID: "ten_test", Sequence: 1, EntryType: "evidence.created", SubjectType: "evidence_item", SubjectID: "ev_test",
@@ -296,6 +344,22 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 		{name: "pull request", query: `SELECT count(*) FROM pull_requests WHERE tenant_id = 'ten_test' AND id = 'pr_test' AND review_decision = 'approved'`},
 		{name: "deployment environment", query: `SELECT count(*) FROM deployment_environments WHERE tenant_id = 'ten_test' AND id = 'env_test'`},
 		{name: "deployment event", query: `SELECT count(*) FROM deployment_events WHERE tenant_id = 'ten_test' AND id = 'deploy_test' AND artifact_ids = ARRAY['art_test']`},
+		{name: "incident", query: `SELECT count(*) FROM incidents WHERE tenant_id = 'ten_test' AND id = 'incident_test' AND status = 'resolved'`},
+		{name: "incident timeline", query: `SELECT count(*) FROM incident_timeline_events WHERE tenant_id = 'ten_test' AND id = 'timeline_test' AND evidence_id = 'ev_test'`},
+		{name: "incident webhook receiver", query: `SELECT count(*) FROM incident_webhook_receivers WHERE tenant_id = 'ten_test' AND id = 'receiver_test' AND status = 'active'`},
+		{name: "incident webhook event", query: `SELECT count(*) FROM incident_webhook_events WHERE tenant_id = 'ten_test' AND id = 'webhook_event_test' AND timeline_event_id = 'timeline_test'`},
+		{name: "remediation task", query: `SELECT count(*) FROM remediation_tasks WHERE tenant_id = 'ten_test' AND id = 'remediation_test' AND status = 'done'`},
+		{name: "security scan", query: `SELECT count(*) FROM security_scans WHERE tenant_id = 'ten_test' AND id = 'secscan_test' AND summary <> '{}'::jsonb`},
+		{name: "manual security doc", query: `SELECT count(*) FROM manual_security_documents WHERE tenant_id = 'ten_test' AND id = 'manual_doc_test' AND sensitivity = 'restricted'`},
+		{name: "sbom diff", query: `SELECT count(*) FROM sbom_diffs WHERE tenant_id = 'ten_test' AND id = 'sbomdiff_test' AND document <> '{}'::jsonb`},
+		{name: "dependency change", query: `SELECT count(*) FROM dependency_changes WHERE tenant_id = 'ten_test' AND id = 'depchange_test' AND component <> '{}'::jsonb`},
+		{name: "vulnerability workflow", query: `SELECT count(*) FROM vulnerability_workflow_records WHERE tenant_id = 'ten_test' AND id = 'vulnwf_test' AND action = 'reopened'`},
+		{name: "contract diff", query: `SELECT count(*) FROM contract_diffs WHERE tenant_id = 'ten_test' AND id = 'contractdiff_test' AND document <> '{}'::jsonb`},
+		{name: "custom policy", query: `SELECT count(*) FROM custom_policies WHERE tenant_id = 'ten_test' AND id = 'custom_policy_test' AND rules <> '[]'::jsonb`},
+		{name: "custom policy evaluation", query: `SELECT count(*) FROM custom_policy_evaluations WHERE tenant_id = 'ten_test' AND id = 'custom_policy_eval_test' AND checks <> '[]'::jsonb`},
+		{name: "waiver", query: `SELECT count(*) FROM waivers WHERE tenant_id = 'ten_test' AND id = 'waiver_test' AND approved = true`},
+		{name: "approval", query: `SELECT count(*) FROM approval_records WHERE tenant_id = 'ten_test' AND id = 'approval_test' AND evidence_id = 'ev_test'`},
+		{name: "dsse trust root", query: `SELECT count(*) FROM dsse_trust_roots WHERE tenant_id = 'ten_test' AND id = 'dsse_root_test' AND status = 'active'`},
 		{name: "audit chain", query: `SELECT count(*) FROM audit_chain_entries WHERE tenant_id = 'ten_test' AND sequence = 1`},
 		{name: "signing key", query: `SELECT count(*) FROM signing_keys WHERE tenant_id = 'ten_test' AND id = 'sigkey_test' AND encrypted_private_key IS NOT NULL`},
 		{name: "signature", query: `SELECT count(*) FROM signatures WHERE tenant_id = 'ten_test' AND id = 'sig_test'`},
@@ -372,6 +436,30 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	}
 	if relational.Environments["env_test"].Name != "production" || relational.Deployments["deploy_test"].Status != "succeeded" {
 		t.Fatalf("relational deployment rows missing: env=%#v deployment=%#v", relational.Environments["env_test"], relational.Deployments["deploy_test"])
+	}
+	if relational.Incidents["incident_test"].Status != "resolved" || relational.TimelineEvents["timeline_test"].EvidenceID != "ev_test" {
+		t.Fatalf("relational incident rows missing: incident=%#v timeline=%#v", relational.Incidents["incident_test"], relational.TimelineEvents["timeline_test"])
+	}
+	if relational.IncidentWebhookReceivers["receiver_test"].Status != "active" || relational.IncidentWebhookEvents["webhook_event_test"].TimelineEventID != "timeline_test" {
+		t.Fatalf("relational incident webhook rows missing: receiver=%#v event=%#v", relational.IncidentWebhookReceivers["receiver_test"], relational.IncidentWebhookEvents["webhook_event_test"])
+	}
+	if relational.RemediationTasks["remediation_test"].Status != "done" {
+		t.Fatalf("relational remediation task missing: task=%#v", relational.RemediationTasks["remediation_test"])
+	}
+	if relational.SecurityScans["secscan_test"].Summary["high"] != 1 || relational.ManualSecurityDocs["manual_doc_test"].Sensitivity != "restricted" {
+		t.Fatalf("relational security evidence rows missing: scan=%#v doc=%#v", relational.SecurityScans["secscan_test"], relational.ManualSecurityDocs["manual_doc_test"])
+	}
+	if len(relational.SBOMDiffs["sbomdiff_test"].AddedComponents) != 1 || relational.DependencyChanges["depchange_test"].Component.Name != "lib2" {
+		t.Fatalf("relational sbom diff rows missing: diff=%#v change=%#v", relational.SBOMDiffs["sbomdiff_test"], relational.DependencyChanges["depchange_test"])
+	}
+	if relational.VulnerabilityWorkflow["vulnwf_test"].Action != "reopened" || relational.ContractDiffs["contractdiff_test"].Result != "non_breaking" {
+		t.Fatalf("relational workflow/diff rows missing: workflow=%#v diff=%#v", relational.VulnerabilityWorkflow["vulnwf_test"], relational.ContractDiffs["contractdiff_test"])
+	}
+	if len(relational.CustomPolicies["custom_policy_test"].Rules) != 1 || relational.CustomPolicyEvaluations["custom_policy_eval_test"].Result != "pass" {
+		t.Fatalf("relational custom policy rows missing: policy=%#v eval=%#v", relational.CustomPolicies["custom_policy_test"], relational.CustomPolicyEvaluations["custom_policy_eval_test"])
+	}
+	if !relational.Waivers["waiver_test"].Approved || relational.Approvals["approval_test"].EvidenceID != "ev_test" || relational.DSSETrustRoots["dsse_root_test"].Status != "active" {
+		t.Fatalf("relational governance/trust rows missing: waiver=%#v approval=%#v trust=%#v", relational.Waivers["waiver_test"], relational.Approvals["approval_test"], relational.DSSETrustRoots["dsse_root_test"])
 	}
 	if relational.Products["prod_test"].Slug != "product" || relational.Evidence["ev_test"].ReleaseID != "rel_test" || relational.SBOMs["sbom_test"].ComponentCount != 1 {
 		t.Fatalf("relational fallback missing core rows: product=%#v evidence=%#v sbom=%#v", relational.Products["prod_test"], relational.Evidence["ev_test"], relational.SBOMs["sbom_test"])

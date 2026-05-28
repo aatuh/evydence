@@ -87,6 +87,9 @@ func (s *Store) loadRelationalState(ctx context.Context) (app.PersistedState, bo
 	if err := s.loadRelationalSourceDeploymentLifecycle(ctx, &state, &loaded); err != nil {
 		return app.PersistedState{}, false, err
 	}
+	if err := s.loadRelationalIncidentSecurityGovernance(ctx, &state, &loaded); err != nil {
+		return app.PersistedState{}, false, err
+	}
 	if err := s.loadRelationalPackageReportRetention(ctx, &state, &loaded); err != nil {
 		return app.PersistedState{}, false, err
 	}
@@ -98,68 +101,84 @@ func (s *Store) loadRelationalState(ctx context.Context) (app.PersistedState, bo
 
 func relationalEmptyState() app.PersistedState {
 	return app.PersistedState{
-		Tenants:                 map[string]domain.Tenant{},
-		Organizations:           map[string]domain.Organization{},
-		Users:                   map[string]domain.HumanUser{},
-		RoleBindings:            map[string]domain.RoleBinding{},
-		SSOProviders:            map[string]domain.SSOProvider{},
-		IdentityLinks:           map[string]domain.UserIdentityLink{},
-		SSOSessions:             map[string]domain.SSOSession{},
-		SSOSessionHashes:        map[string]string{},
-		APIKeys:                 map[string]domain.APIKey{},
-		APIKeyHashes:            map[string]string{},
-		Collectors:              map[string]domain.Collector{},
-		BuildRuns:               map[string]domain.BuildRun{},
-		BuildAttestations:       map[string]domain.BuildAttestation{},
-		EvidenceLifecycle:       map[string]domain.EvidenceLifecycleEvent{},
-		ReleaseCandidates:       map[string]domain.ReleaseCandidate{},
-		ContainerImages:         map[string]domain.ContainerImage{},
-		ArtifactSignatures:      map[string]domain.ArtifactSignature{},
-		Repositories:            map[string]domain.SourceRepository{},
-		Commits:                 map[string]domain.SourceCommit{},
-		Branches:                map[string]domain.SourceBranch{},
-		PullRequests:            map[string]domain.PullRequest{},
-		Environments:            map[string]domain.DeploymentEnvironment{},
-		Deployments:             map[string]domain.DeploymentEvent{},
-		CustomerPortalAccess:    map[string]domain.CustomerPortalAccess{},
-		CustomerPortalHashes:    map[string]string{},
-		RedactionProfiles:       map[string]domain.RedactionProfile{},
-		CustomerPackages:        map[string]domain.CustomerSecurityPackage{},
-		HTMLReports:             map[string]domain.HTMLReportPackage{},
-		ReportTemplates:         map[string]domain.CustomReportTemplate{},
-		RenderedReports:         map[string]domain.RenderedCustomReport{},
-		EvidenceBundles:         map[string]domain.EvidenceBundle{},
-		BundleImports:           map[string]domain.EvidenceBundleImport{},
-		ObjectRetentionPolicies: map[string]domain.ObjectRetentionPolicy{},
-		BackupManifests:         map[string]domain.BackupManifest{},
-		LegalHolds:              map[string]domain.LegalHold{},
-		RetentionOverrides:      map[string]domain.RetentionOverride{},
-		QuestionnaireTemplates:  map[string]domain.QuestionnaireTemplate{},
-		QuestionnairePackages:   map[string]domain.QuestionnairePackage{},
-		PDFReports:              map[string]domain.PDFReportPackage{},
-		AnomalyReports:          map[string]domain.AnomalyReport{},
-		ControlFrameworks:       map[string]domain.ControlFramework{},
-		SecurityControls:        map[string]domain.SecurityControl{},
-		ControlEvidence:         map[string]domain.ControlEvidence{},
-		Products:                map[string]domain.Product{},
-		Projects:                map[string]domain.Project{},
-		Releases:                map[string]domain.Release{},
-		Artifacts:               map[string]domain.Artifact{},
-		Evidence:                map[string]domain.EvidenceItem{},
-		SBOMs:                   map[string]domain.SBOM{},
-		Scans:                   map[string]domain.VulnerabilityScan{},
-		VEXDocuments:            map[string]domain.VEXDocument{},
-		Decisions:               map[string]domain.VulnerabilityDecision{},
-		Contracts:               map[string]domain.OpenAPIContract{},
-		Policies:                map[string]domain.PolicyEvaluation{},
-		Exceptions:              map[string]domain.Exception{},
-		Bundles:                 map[string]domain.ReleaseBundle{},
-		SigningKeys:             map[string]domain.SigningKey{},
-		SigningKeyPrivate:       map[string][]byte{},
-		Signatures:              map[string]domain.Signature{},
-		Verifications:           map[string]domain.VerificationResult{},
-		Chain:                   map[string][]domain.AuditChainEntry{},
-		Idempotency:             map[string]app.IdempotencyRecord{},
+		Tenants:                  map[string]domain.Tenant{},
+		Organizations:            map[string]domain.Organization{},
+		Users:                    map[string]domain.HumanUser{},
+		RoleBindings:             map[string]domain.RoleBinding{},
+		SSOProviders:             map[string]domain.SSOProvider{},
+		IdentityLinks:            map[string]domain.UserIdentityLink{},
+		SSOSessions:              map[string]domain.SSOSession{},
+		SSOSessionHashes:         map[string]string{},
+		APIKeys:                  map[string]domain.APIKey{},
+		APIKeyHashes:             map[string]string{},
+		Collectors:               map[string]domain.Collector{},
+		BuildRuns:                map[string]domain.BuildRun{},
+		BuildAttestations:        map[string]domain.BuildAttestation{},
+		EvidenceLifecycle:        map[string]domain.EvidenceLifecycleEvent{},
+		ReleaseCandidates:        map[string]domain.ReleaseCandidate{},
+		ContainerImages:          map[string]domain.ContainerImage{},
+		ArtifactSignatures:       map[string]domain.ArtifactSignature{},
+		Repositories:             map[string]domain.SourceRepository{},
+		Commits:                  map[string]domain.SourceCommit{},
+		Branches:                 map[string]domain.SourceBranch{},
+		PullRequests:             map[string]domain.PullRequest{},
+		Environments:             map[string]domain.DeploymentEnvironment{},
+		Deployments:              map[string]domain.DeploymentEvent{},
+		Incidents:                map[string]domain.Incident{},
+		TimelineEvents:           map[string]domain.IncidentTimelineEvent{},
+		IncidentWebhookReceivers: map[string]domain.IncidentWebhookReceiver{},
+		IncidentWebhookEvents:    map[string]domain.IncidentWebhookEvent{},
+		RemediationTasks:         map[string]domain.RemediationTask{},
+		SecurityScans:            map[string]domain.SecurityScan{},
+		ManualSecurityDocs:       map[string]domain.ManualSecurityDocument{},
+		SBOMDiffs:                map[string]domain.SBOMDiff{},
+		DependencyChanges:        map[string]domain.DependencyChange{},
+		VulnerabilityWorkflow:    map[string]domain.VulnerabilityWorkflowRecord{},
+		ContractDiffs:            map[string]domain.ContractDiff{},
+		CustomPolicies:           map[string]domain.CustomPolicy{},
+		CustomPolicyEvaluations:  map[string]domain.CustomPolicyEvaluation{},
+		Waivers:                  map[string]domain.Waiver{},
+		Approvals:                map[string]domain.ApprovalRecord{},
+		DSSETrustRoots:           map[string]domain.DSSETrustRoot{},
+		CustomerPortalAccess:     map[string]domain.CustomerPortalAccess{},
+		CustomerPortalHashes:     map[string]string{},
+		RedactionProfiles:        map[string]domain.RedactionProfile{},
+		CustomerPackages:         map[string]domain.CustomerSecurityPackage{},
+		HTMLReports:              map[string]domain.HTMLReportPackage{},
+		ReportTemplates:          map[string]domain.CustomReportTemplate{},
+		RenderedReports:          map[string]domain.RenderedCustomReport{},
+		EvidenceBundles:          map[string]domain.EvidenceBundle{},
+		BundleImports:            map[string]domain.EvidenceBundleImport{},
+		ObjectRetentionPolicies:  map[string]domain.ObjectRetentionPolicy{},
+		BackupManifests:          map[string]domain.BackupManifest{},
+		LegalHolds:               map[string]domain.LegalHold{},
+		RetentionOverrides:       map[string]domain.RetentionOverride{},
+		QuestionnaireTemplates:   map[string]domain.QuestionnaireTemplate{},
+		QuestionnairePackages:    map[string]domain.QuestionnairePackage{},
+		PDFReports:               map[string]domain.PDFReportPackage{},
+		AnomalyReports:           map[string]domain.AnomalyReport{},
+		ControlFrameworks:        map[string]domain.ControlFramework{},
+		SecurityControls:         map[string]domain.SecurityControl{},
+		ControlEvidence:          map[string]domain.ControlEvidence{},
+		Products:                 map[string]domain.Product{},
+		Projects:                 map[string]domain.Project{},
+		Releases:                 map[string]domain.Release{},
+		Artifacts:                map[string]domain.Artifact{},
+		Evidence:                 map[string]domain.EvidenceItem{},
+		SBOMs:                    map[string]domain.SBOM{},
+		Scans:                    map[string]domain.VulnerabilityScan{},
+		VEXDocuments:             map[string]domain.VEXDocument{},
+		Decisions:                map[string]domain.VulnerabilityDecision{},
+		Contracts:                map[string]domain.OpenAPIContract{},
+		Policies:                 map[string]domain.PolicyEvaluation{},
+		Exceptions:               map[string]domain.Exception{},
+		Bundles:                  map[string]domain.ReleaseBundle{},
+		SigningKeys:              map[string]domain.SigningKey{},
+		SigningKeyPrivate:        map[string][]byte{},
+		Signatures:               map[string]domain.Signature{},
+		Verifications:            map[string]domain.VerificationResult{},
+		Chain:                    map[string][]domain.AuditChainEntry{},
+		Idempotency:              map[string]app.IdempotencyRecord{},
 	}
 }
 
@@ -1335,6 +1354,367 @@ func (s *Store) loadRelationalDeployments(ctx context.Context, state *app.Persis
 	return deploymentRows.Err()
 }
 
+func (s *Store) loadRelationalIncidentSecurityGovernance(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	if err := s.loadRelationalIncidents(ctx, state, loaded); err != nil {
+		return err
+	}
+	if err := s.loadRelationalSecurityEvidence(ctx, state, loaded); err != nil {
+		return err
+	}
+	if err := s.loadRelationalDiffsAndPolicies(ctx, state, loaded); err != nil {
+		return err
+	}
+	if err := s.loadRelationalWaiversApprovalsTrust(ctx, state, loaded); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Store) loadRelationalIncidents(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	incidentRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, product_id, release_id, title, severity, status, opened_at, closed_at, schema_version, created_at FROM incidents`)
+	if err != nil {
+		return fmt.Errorf("load relational incidents: %w", err)
+	}
+	defer incidentRows.Close()
+	for incidentRows.Next() {
+		var incident domain.Incident
+		var releaseID sql.NullString
+		var closedAt sql.NullTime
+		if err := incidentRows.Scan(&incident.ID, &incident.TenantID, &incident.ProductID, &releaseID, &incident.Title, &incident.Severity, &incident.Status, &incident.OpenedAt, &closedAt, &incident.SchemaVersion, &incident.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational incident: %w", err)
+		}
+		incident.ReleaseID = nullableSQLString(releaseID)
+		incident.ClosedAt = nullableSQLTime(closedAt)
+		state.Incidents[incident.ID] = incident
+		*loaded = true
+	}
+	if err := incidentRows.Err(); err != nil {
+		return err
+	}
+
+	timelineRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, incident_id, event_type, summary, evidence_id, occurred_at, schema_version, created_at FROM incident_timeline_events`)
+	if err != nil {
+		return fmt.Errorf("load relational incident timeline: %w", err)
+	}
+	defer timelineRows.Close()
+	for timelineRows.Next() {
+		var event domain.IncidentTimelineEvent
+		var evidenceID sql.NullString
+		if err := timelineRows.Scan(&event.ID, &event.TenantID, &event.IncidentID, &event.EventType, &event.Summary, &evidenceID, &event.OccurredAt, &event.SchemaVersion, &event.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational incident timeline: %w", err)
+		}
+		event.EvidenceID = nullableSQLString(evidenceID)
+		state.TimelineEvents[event.ID] = event
+		*loaded = true
+	}
+	if err := timelineRows.Err(); err != nil {
+		return err
+	}
+
+	receiverRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, incident_id, name, provider, public_key, status, schema_version, created_at FROM incident_webhook_receivers`)
+	if err != nil {
+		return fmt.Errorf("load relational incident webhook receivers: %w", err)
+	}
+	defer receiverRows.Close()
+	for receiverRows.Next() {
+		var receiver domain.IncidentWebhookReceiver
+		if err := receiverRows.Scan(&receiver.ID, &receiver.TenantID, &receiver.IncidentID, &receiver.Name, &receiver.Provider, &receiver.PublicKey, &receiver.Status, &receiver.SchemaVersion, &receiver.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational incident webhook receiver: %w", err)
+		}
+		state.IncidentWebhookReceivers[receiver.ID] = receiver
+		*loaded = true
+	}
+	if err := receiverRows.Err(); err != nil {
+		return err
+	}
+
+	webhookRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, receiver_id, incident_id, provider, event_id, payload_hash, signature_hash, timeline_event_id, result, schema_version, created_at FROM incident_webhook_events`)
+	if err != nil {
+		return fmt.Errorf("load relational incident webhook events: %w", err)
+	}
+	defer webhookRows.Close()
+	for webhookRows.Next() {
+		var event domain.IncidentWebhookEvent
+		var timelineEventID sql.NullString
+		if err := webhookRows.Scan(&event.ID, &event.TenantID, &event.ReceiverID, &event.IncidentID, &event.Provider, &event.EventID, &event.PayloadHash, &event.SignatureHash, &timelineEventID, &event.Result, &event.SchemaVersion, &event.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational incident webhook event: %w", err)
+		}
+		event.TimelineEventID = nullableSQLString(timelineEventID)
+		state.IncidentWebhookEvents[event.ID] = event
+		*loaded = true
+	}
+	if err := webhookRows.Err(); err != nil {
+		return err
+	}
+
+	taskRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, incident_id, release_id, title, owner, status, due_at, evidence_id, schema_version, created_at FROM remediation_tasks`)
+	if err != nil {
+		return fmt.Errorf("load relational remediation tasks: %w", err)
+	}
+	defer taskRows.Close()
+	for taskRows.Next() {
+		var task domain.RemediationTask
+		var incidentID, releaseID, evidenceID sql.NullString
+		var dueAt sql.NullTime
+		if err := taskRows.Scan(&task.ID, &task.TenantID, &incidentID, &releaseID, &task.Title, &task.Owner, &task.Status, &dueAt, &evidenceID, &task.SchemaVersion, &task.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational remediation task: %w", err)
+		}
+		task.IncidentID = nullableSQLString(incidentID)
+		task.ReleaseID = nullableSQLString(releaseID)
+		task.DueAt = nullableSQLTime(dueAt)
+		task.EvidenceID = nullableSQLString(evidenceID)
+		state.RemediationTasks[task.ID] = task
+		*loaded = true
+	}
+	return taskRows.Err()
+}
+
+func (s *Store) loadRelationalSecurityEvidence(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	scanRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, product_id, release_id, artifact_id, category, format, scanner, target_ref, evidence_id, payload_ref, payload_hash, finding_count, summary, redacted, quarantined, schema_version, created_at FROM security_scans`)
+	if err != nil {
+		return fmt.Errorf("load relational security scans: %w", err)
+	}
+	defer scanRows.Close()
+	for scanRows.Next() {
+		var scan domain.SecurityScan
+		var productID, releaseID, artifactID, payloadRef sql.NullString
+		var summary []byte
+		if err := scanRows.Scan(&scan.ID, &scan.TenantID, &productID, &releaseID, &artifactID, &scan.Category, &scan.Format, &scan.Scanner, &scan.TargetRef, &scan.EvidenceID, &payloadRef, &scan.PayloadHash, &scan.FindingCount, &summary, &scan.Redacted, &scan.Quarantined, &scan.SchemaVersion, &scan.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational security scan: %w", err)
+		}
+		scan.ProductID = nullableSQLString(productID)
+		scan.ReleaseID = nullableSQLString(releaseID)
+		scan.ArtifactID = nullableSQLString(artifactID)
+		scan.PayloadRef = nullableSQLString(payloadRef)
+		if err := decodeJSON(summary, &scan.Summary); err != nil {
+			return fmt.Errorf("decode relational security scan summary: %w", err)
+		}
+		state.SecurityScans[scan.ID] = scan
+		*loaded = true
+	}
+	if err := scanRows.Err(); err != nil {
+		return err
+	}
+
+	docRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, product_id, release_id, document_type, title, sensitivity, evidence_id, payload_ref, payload_hash, schema_version, created_at FROM manual_security_documents`)
+	if err != nil {
+		return fmt.Errorf("load relational manual security documents: %w", err)
+	}
+	defer docRows.Close()
+	for docRows.Next() {
+		var document domain.ManualSecurityDocument
+		var productID, releaseID, payloadRef sql.NullString
+		if err := docRows.Scan(&document.ID, &document.TenantID, &productID, &releaseID, &document.DocumentType, &document.Title, &document.Sensitivity, &document.EvidenceID, &payloadRef, &document.PayloadHash, &document.SchemaVersion, &document.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational manual security document: %w", err)
+		}
+		document.ProductID = nullableSQLString(productID)
+		document.ReleaseID = nullableSQLString(releaseID)
+		document.PayloadRef = nullableSQLString(payloadRef)
+		state.ManualSecurityDocs[document.ID] = document
+		*loaded = true
+	}
+	return docRows.Err()
+}
+
+func (s *Store) loadRelationalDiffsAndPolicies(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	sbomRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, base_sbom_id, target_sbom_id, release_id, document, schema_version, created_at FROM sbom_diffs`)
+	if err != nil {
+		return fmt.Errorf("load relational sbom diffs: %w", err)
+	}
+	defer sbomRows.Close()
+	for sbomRows.Next() {
+		var diff domain.SBOMDiff
+		var releaseID sql.NullString
+		var document []byte
+		if err := sbomRows.Scan(&diff.ID, &diff.TenantID, &diff.BaseSBOMID, &diff.TargetSBOMID, &releaseID, &document, &diff.SchemaVersion, &diff.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational sbom diff: %w", err)
+		}
+		diff.ReleaseID = nullableSQLString(releaseID)
+		var embedded domain.SBOMDiff
+		if err := decodeJSON(document, &embedded); err != nil {
+			return fmt.Errorf("decode relational sbom diff document: %w", err)
+		}
+		diff.AddedComponents = embedded.AddedComponents
+		diff.RemovedComponents = embedded.RemovedComponents
+		diff.UnchangedCount = embedded.UnchangedCount
+		diff.DependencyChanges = embedded.DependencyChanges
+		state.SBOMDiffs[diff.ID] = diff
+		*loaded = true
+	}
+	if err := sbomRows.Err(); err != nil {
+		return err
+	}
+
+	dependencyRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, sbom_diff_id, change_type, component, schema_version, created_at FROM dependency_changes`)
+	if err != nil {
+		return fmt.Errorf("load relational dependency changes: %w", err)
+	}
+	defer dependencyRows.Close()
+	for dependencyRows.Next() {
+		var change domain.DependencyChange
+		var component []byte
+		if err := dependencyRows.Scan(&change.ID, &change.TenantID, &change.SBOMDiffID, &change.ChangeType, &component, &change.SchemaVersion, &change.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational dependency change: %w", err)
+		}
+		if err := decodeJSON(component, &change.Component); err != nil {
+			return fmt.Errorf("decode relational dependency component: %w", err)
+		}
+		state.DependencyChanges[change.ID] = change
+		*loaded = true
+	}
+	if err := dependencyRows.Err(); err != nil {
+		return err
+	}
+
+	workflowRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, finding_id, release_id, action, reason, actor_id, schema_version, created_at FROM vulnerability_workflow_records`)
+	if err != nil {
+		return fmt.Errorf("load relational vulnerability workflow: %w", err)
+	}
+	defer workflowRows.Close()
+	for workflowRows.Next() {
+		var record domain.VulnerabilityWorkflowRecord
+		var releaseID sql.NullString
+		if err := workflowRows.Scan(&record.ID, &record.TenantID, &record.FindingID, &releaseID, &record.Action, &record.Reason, &record.ActorID, &record.SchemaVersion, &record.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational vulnerability workflow: %w", err)
+		}
+		record.ReleaseID = nullableSQLString(releaseID)
+		state.VulnerabilityWorkflow[record.ID] = record
+		*loaded = true
+	}
+	if err := workflowRows.Err(); err != nil {
+		return err
+	}
+
+	contractRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, base_contract_id, target_contract_id, product_id, release_id, result, document, schema_version, created_at FROM contract_diffs`)
+	if err != nil {
+		return fmt.Errorf("load relational contract diffs: %w", err)
+	}
+	defer contractRows.Close()
+	for contractRows.Next() {
+		var diff domain.ContractDiff
+		var releaseID sql.NullString
+		var document []byte
+		if err := contractRows.Scan(&diff.ID, &diff.TenantID, &diff.BaseContractID, &diff.TargetContractID, &diff.ProductID, &releaseID, &diff.Result, &document, &diff.SchemaVersion, &diff.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational contract diff: %w", err)
+		}
+		diff.ReleaseID = nullableSQLString(releaseID)
+		var embedded domain.ContractDiff
+		if err := decodeJSON(document, &embedded); err != nil {
+			return fmt.Errorf("decode relational contract diff document: %w", err)
+		}
+		diff.BreakingChanges = embedded.BreakingChanges
+		diff.NonBreakingChanges = embedded.NonBreakingChanges
+		state.ContractDiffs[diff.ID] = diff
+		*loaded = true
+	}
+	if err := contractRows.Err(); err != nil {
+		return err
+	}
+
+	policyRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, name, version, description, rules, schema_version, created_at FROM custom_policies`)
+	if err != nil {
+		return fmt.Errorf("load relational custom policies: %w", err)
+	}
+	defer policyRows.Close()
+	for policyRows.Next() {
+		var policy domain.CustomPolicy
+		var description sql.NullString
+		var rules []byte
+		if err := policyRows.Scan(&policy.ID, &policy.TenantID, &policy.Name, &policy.Version, &description, &rules, &policy.SchemaVersion, &policy.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational custom policy: %w", err)
+		}
+		policy.Description = nullableSQLString(description)
+		if err := decodeJSON(rules, &policy.Rules); err != nil {
+			return fmt.Errorf("decode relational custom policy rules: %w", err)
+		}
+		state.CustomPolicies[policy.ID] = policy
+		*loaded = true
+	}
+	if err := policyRows.Err(); err != nil {
+		return err
+	}
+
+	evalRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, policy_id, release_id, result, checks, input_hash, schema_version, created_at FROM custom_policy_evaluations`)
+	if err != nil {
+		return fmt.Errorf("load relational custom policy evaluations: %w", err)
+	}
+	defer evalRows.Close()
+	for evalRows.Next() {
+		var evaluation domain.CustomPolicyEvaluation
+		var checks []byte
+		if err := evalRows.Scan(&evaluation.ID, &evaluation.TenantID, &evaluation.PolicyID, &evaluation.ReleaseID, &evaluation.Result, &checks, &evaluation.InputHash, &evaluation.SchemaVersion, &evaluation.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational custom policy evaluation: %w", err)
+		}
+		if err := decodeJSON(checks, &evaluation.Checks); err != nil {
+			return fmt.Errorf("decode relational custom policy checks: %w", err)
+		}
+		state.CustomPolicyEvaluations[evaluation.ID] = evaluation
+		*loaded = true
+	}
+	return evalRows.Err()
+}
+
+func (s *Store) loadRelationalWaiversApprovalsTrust(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	waiverRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, scope_type, scope_id, control_id, policy_id, owner, risk, reason, expires_at, approved, approved_by, approved_at, supersedes, superseded_by, schema_version, created_at FROM waivers`)
+	if err != nil {
+		return fmt.Errorf("load relational waivers: %w", err)
+	}
+	defer waiverRows.Close()
+	for waiverRows.Next() {
+		var waiver domain.Waiver
+		var controlID, policyID, approvedBy, supersedes, supersededBy sql.NullString
+		var approvedAt sql.NullTime
+		if err := waiverRows.Scan(&waiver.ID, &waiver.TenantID, &waiver.ScopeType, &waiver.ScopeID, &controlID, &policyID, &waiver.Owner, &waiver.Risk, &waiver.Reason, &waiver.ExpiresAt, &waiver.Approved, &approvedBy, &approvedAt, &supersedes, &supersededBy, &waiver.SchemaVersion, &waiver.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational waiver: %w", err)
+		}
+		waiver.ControlID = nullableSQLString(controlID)
+		waiver.PolicyID = nullableSQLString(policyID)
+		waiver.ApprovedBy = nullableSQLString(approvedBy)
+		waiver.ApprovedAt = nullableSQLTime(approvedAt)
+		waiver.Supersedes = nullableSQLString(supersedes)
+		waiver.SupersededBy = nullableSQLString(supersededBy)
+		state.Waivers[waiver.ID] = waiver
+		*loaded = true
+	}
+	if err := waiverRows.Err(); err != nil {
+		return err
+	}
+
+	approvalRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, subject_type, subject_id, decision, reason, approver_id, evidence_id, schema_version, created_at FROM approval_records`)
+	if err != nil {
+		return fmt.Errorf("load relational approvals: %w", err)
+	}
+	defer approvalRows.Close()
+	for approvalRows.Next() {
+		var approval domain.ApprovalRecord
+		var evidenceID sql.NullString
+		if err := approvalRows.Scan(&approval.ID, &approval.TenantID, &approval.SubjectType, &approval.SubjectID, &approval.Decision, &approval.Reason, &approval.ApproverID, &evidenceID, &approval.SchemaVersion, &approval.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational approval: %w", err)
+		}
+		approval.EvidenceID = nullableSQLString(evidenceID)
+		state.Approvals[approval.ID] = approval
+		*loaded = true
+	}
+	if err := approvalRows.Err(); err != nil {
+		return err
+	}
+
+	trustRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, name, key_id, algorithm, public_key, status, schema_version, created_at FROM dsse_trust_roots`)
+	if err != nil {
+		return fmt.Errorf("load relational dsse trust roots: %w", err)
+	}
+	defer trustRows.Close()
+	for trustRows.Next() {
+		var root domain.DSSETrustRoot
+		if err := trustRows.Scan(&root.ID, &root.TenantID, &root.Name, &root.KeyID, &root.Algorithm, &root.PublicKey, &root.Status, &root.SchemaVersion, &root.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational dsse trust root: %w", err)
+		}
+		state.DSSETrustRoots[root.ID] = root
+		*loaded = true
+	}
+	return trustRows.Err()
+}
+
 func (s *Store) loadRelationalPackageReportRetention(ctx context.Context, state *app.PersistedState, loaded *bool) error {
 	if err := s.loadRelationalPackages(ctx, state, loaded); err != nil {
 		return err
@@ -1714,6 +2094,9 @@ func (s *Store) SaveState(ctx context.Context, state app.PersistedState) error {
 		return err
 	}
 	if err := syncSourceDeploymentLifecycleRows(ctx, tx, state); err != nil {
+		return err
+	}
+	if err := syncIncidentSecurityGovernanceRows(ctx, tx, state); err != nil {
 		return err
 	}
 	if err := syncPackageReportRetentionRows(ctx, tx, state); err != nil {
@@ -2491,6 +2874,302 @@ func syncSourceDeploymentLifecycleRows(ctx context.Context, tx pgx.Tx, state app
 			deployment.Status, nonZeroTime(deployment.StartedAt), nullableTime(deployment.FinishedAt), nullableString(deployment.RollbackOf), nullableString(deployment.EvidenceID),
 			deployment.SchemaVersion, nonZeroTime(deployment.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert deployment event row: %w", err)
+		}
+	}
+	return nil
+}
+
+func syncIncidentSecurityGovernanceRows(ctx context.Context, tx pgx.Tx, state app.PersistedState) error {
+	for _, incident := range state.Incidents {
+		if incident.ID == "" || incident.TenantID == "" || incident.ProductID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO incidents (
+				id, tenant_id, product_id, release_id, title, severity, status,
+				opened_at, closed_at, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			ON CONFLICT (id) DO UPDATE SET
+				status = EXCLUDED.status,
+				closed_at = EXCLUDED.closed_at
+		`, incident.ID, incident.TenantID, incident.ProductID, nullableString(incident.ReleaseID), incident.Title, incident.Severity, incident.Status,
+			nonZeroTime(incident.OpenedAt), nullableTime(incident.ClosedAt), incident.SchemaVersion, nonZeroTime(incident.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert incident row: %w", err)
+		}
+	}
+	for _, event := range state.TimelineEvents {
+		if event.ID == "" || event.TenantID == "" || event.IncidentID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO incident_timeline_events (
+				id, tenant_id, incident_id, event_type, summary, evidence_id,
+				occurred_at, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			ON CONFLICT (id) DO NOTHING
+		`, event.ID, event.TenantID, event.IncidentID, event.EventType, event.Summary, nullableString(event.EvidenceID),
+			nonZeroTime(event.OccurredAt), event.SchemaVersion, nonZeroTime(event.CreatedAt)); err != nil {
+			return fmt.Errorf("insert incident timeline row: %w", err)
+		}
+	}
+	for _, receiver := range state.IncidentWebhookReceivers {
+		if receiver.ID == "" || receiver.TenantID == "" || receiver.IncidentID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO incident_webhook_receivers (
+				id, tenant_id, incident_id, name, provider, public_key, status,
+				schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status
+		`, receiver.ID, receiver.TenantID, receiver.IncidentID, receiver.Name, receiver.Provider, receiver.PublicKey, receiver.Status, receiver.SchemaVersion, nonZeroTime(receiver.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert incident webhook receiver row: %w", err)
+		}
+	}
+	for _, event := range state.IncidentWebhookEvents {
+		if event.ID == "" || event.TenantID == "" || event.ReceiverID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO incident_webhook_events (
+				id, tenant_id, receiver_id, incident_id, provider, event_id,
+				payload_hash, signature_hash, timeline_event_id, result,
+				schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			ON CONFLICT (id) DO UPDATE SET result = EXCLUDED.result, timeline_event_id = EXCLUDED.timeline_event_id
+		`, event.ID, event.TenantID, event.ReceiverID, event.IncidentID, event.Provider, event.EventID,
+			event.PayloadHash, event.SignatureHash, nullableString(event.TimelineEventID), event.Result, event.SchemaVersion, nonZeroTime(event.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert incident webhook event row: %w", err)
+		}
+	}
+	for _, task := range state.RemediationTasks {
+		if task.ID == "" || task.TenantID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO remediation_tasks (
+				id, tenant_id, incident_id, release_id, title, owner, status,
+				due_at, evidence_id, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, evidence_id = EXCLUDED.evidence_id
+		`, task.ID, task.TenantID, nullableString(task.IncidentID), nullableString(task.ReleaseID), task.Title, task.Owner, task.Status,
+			nullableTime(task.DueAt), nullableString(task.EvidenceID), task.SchemaVersion, nonZeroTime(task.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert remediation task row: %w", err)
+		}
+	}
+	for _, scan := range state.SecurityScans {
+		if scan.ID == "" || scan.TenantID == "" || scan.EvidenceID == "" {
+			continue
+		}
+		summary, err := json.Marshal(scan.Summary)
+		if err != nil {
+			return fmt.Errorf("encode security scan summary: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO security_scans (
+				id, tenant_id, product_id, release_id, artifact_id, category,
+				format, scanner, target_ref, evidence_id, payload_ref,
+				payload_hash, finding_count, summary, redacted, quarantined,
+				schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+			ON CONFLICT (id) DO UPDATE SET
+				finding_count = EXCLUDED.finding_count,
+				summary = EXCLUDED.summary,
+				redacted = EXCLUDED.redacted,
+				quarantined = EXCLUDED.quarantined
+		`, scan.ID, scan.TenantID, nullableString(scan.ProductID), nullableString(scan.ReleaseID), nullableString(scan.ArtifactID), scan.Category,
+			scan.Format, scan.Scanner, scan.TargetRef, scan.EvidenceID, nullableString(scan.PayloadRef),
+			scan.PayloadHash, scan.FindingCount, summary, scan.Redacted, scan.Quarantined,
+			scan.SchemaVersion, nonZeroTime(scan.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert security scan row: %w", err)
+		}
+	}
+	for _, document := range state.ManualSecurityDocs {
+		if document.ID == "" || document.TenantID == "" || document.EvidenceID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO manual_security_documents (
+				id, tenant_id, product_id, release_id, document_type, title,
+				sensitivity, evidence_id, payload_ref, payload_hash,
+				schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			ON CONFLICT (id) DO UPDATE SET sensitivity = EXCLUDED.sensitivity
+		`, document.ID, document.TenantID, nullableString(document.ProductID), nullableString(document.ReleaseID), document.DocumentType, document.Title,
+			document.Sensitivity, document.EvidenceID, nullableString(document.PayloadRef), document.PayloadHash, document.SchemaVersion, nonZeroTime(document.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert manual security document row: %w", err)
+		}
+	}
+	for _, diff := range state.SBOMDiffs {
+		if diff.ID == "" || diff.TenantID == "" || diff.BaseSBOMID == "" || diff.TargetSBOMID == "" {
+			continue
+		}
+		document, err := json.Marshal(diff)
+		if err != nil {
+			return fmt.Errorf("encode sbom diff document: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO sbom_diffs (
+				id, tenant_id, base_sbom_id, target_sbom_id, release_id,
+				document, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			ON CONFLICT (id) DO UPDATE SET document = EXCLUDED.document
+		`, diff.ID, diff.TenantID, diff.BaseSBOMID, diff.TargetSBOMID, nullableString(diff.ReleaseID),
+			document, diff.SchemaVersion, nonZeroTime(diff.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert sbom diff row: %w", err)
+		}
+	}
+	for _, change := range state.DependencyChanges {
+		if change.ID == "" || change.TenantID == "" || change.SBOMDiffID == "" {
+			continue
+		}
+		component, err := json.Marshal(change.Component)
+		if err != nil {
+			return fmt.Errorf("encode dependency component: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO dependency_changes (
+				id, tenant_id, sbom_diff_id, change_type, component,
+				schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			ON CONFLICT (id) DO UPDATE SET component = EXCLUDED.component
+		`, change.ID, change.TenantID, change.SBOMDiffID, change.ChangeType, component, change.SchemaVersion, nonZeroTime(change.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert dependency change row: %w", err)
+		}
+	}
+	for _, record := range state.VulnerabilityWorkflow {
+		if record.ID == "" || record.TenantID == "" || record.FindingID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO vulnerability_workflow_records (
+				id, tenant_id, finding_id, release_id, action, reason,
+				actor_id, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			ON CONFLICT (id) DO NOTHING
+		`, record.ID, record.TenantID, record.FindingID, nullableString(record.ReleaseID), record.Action, record.Reason, record.ActorID, record.SchemaVersion, nonZeroTime(record.CreatedAt)); err != nil {
+			return fmt.Errorf("insert vulnerability workflow row: %w", err)
+		}
+	}
+	for _, diff := range state.ContractDiffs {
+		if diff.ID == "" || diff.TenantID == "" || diff.BaseContractID == "" || diff.TargetContractID == "" {
+			continue
+		}
+		document, err := json.Marshal(diff)
+		if err != nil {
+			return fmt.Errorf("encode contract diff document: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO contract_diffs (
+				id, tenant_id, base_contract_id, target_contract_id, product_id,
+				release_id, result, document, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			ON CONFLICT (id) DO UPDATE SET result = EXCLUDED.result, document = EXCLUDED.document
+		`, diff.ID, diff.TenantID, diff.BaseContractID, diff.TargetContractID, diff.ProductID,
+			nullableString(diff.ReleaseID), diff.Result, document, diff.SchemaVersion, nonZeroTime(diff.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert contract diff row: %w", err)
+		}
+	}
+	for _, policy := range state.CustomPolicies {
+		if policy.ID == "" || policy.TenantID == "" {
+			continue
+		}
+		rules, err := json.Marshal(policy.Rules)
+		if err != nil {
+			return fmt.Errorf("encode custom policy rules: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO custom_policies (
+				id, tenant_id, name, version, description, rules,
+				schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			ON CONFLICT (id) DO UPDATE SET description = EXCLUDED.description, rules = EXCLUDED.rules
+		`, policy.ID, policy.TenantID, policy.Name, policy.Version, nullableString(policy.Description), rules, policy.SchemaVersion, nonZeroTime(policy.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert custom policy row: %w", err)
+		}
+	}
+	for _, evaluation := range state.CustomPolicyEvaluations {
+		if evaluation.ID == "" || evaluation.TenantID == "" || evaluation.PolicyID == "" {
+			continue
+		}
+		checks, err := json.Marshal(evaluation.Checks)
+		if err != nil {
+			return fmt.Errorf("encode custom policy checks: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO custom_policy_evaluations (
+				id, tenant_id, policy_id, release_id, result, checks,
+				input_hash, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			ON CONFLICT (id) DO UPDATE SET result = EXCLUDED.result, checks = EXCLUDED.checks
+		`, evaluation.ID, evaluation.TenantID, evaluation.PolicyID, evaluation.ReleaseID, evaluation.Result, checks, evaluation.InputHash, evaluation.SchemaVersion, nonZeroTime(evaluation.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert custom policy evaluation row: %w", err)
+		}
+	}
+	for _, waiver := range state.Waivers {
+		if waiver.ID == "" || waiver.TenantID == "" || waiver.ScopeID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO waivers (
+				id, tenant_id, scope_type, scope_id, control_id, policy_id,
+				owner, risk, reason, expires_at, approved, approved_by,
+				approved_at, supersedes, superseded_by, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+			ON CONFLICT (id) DO UPDATE SET
+				approved = EXCLUDED.approved,
+				approved_by = EXCLUDED.approved_by,
+				approved_at = EXCLUDED.approved_at,
+				superseded_by = EXCLUDED.superseded_by
+		`, waiver.ID, waiver.TenantID, waiver.ScopeType, waiver.ScopeID, nullableString(waiver.ControlID), nullableString(waiver.PolicyID),
+			waiver.Owner, waiver.Risk, waiver.Reason, waiver.ExpiresAt, waiver.Approved, nullableString(waiver.ApprovedBy),
+			nullableTime(waiver.ApprovedAt), nullableString(waiver.Supersedes), nullableString(waiver.SupersededBy), waiver.SchemaVersion, nonZeroTime(waiver.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert waiver row: %w", err)
+		}
+	}
+	for _, approval := range state.Approvals {
+		if approval.ID == "" || approval.TenantID == "" || approval.SubjectID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO approval_records (
+				id, tenant_id, subject_type, subject_id, decision, reason,
+				approver_id, evidence_id, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			ON CONFLICT (id) DO NOTHING
+		`, approval.ID, approval.TenantID, approval.SubjectType, approval.SubjectID, approval.Decision, approval.Reason,
+			approval.ApproverID, nullableString(approval.EvidenceID), approval.SchemaVersion, nonZeroTime(approval.CreatedAt)); err != nil {
+			return fmt.Errorf("insert approval row: %w", err)
+		}
+	}
+	for _, root := range state.DSSETrustRoots {
+		if root.ID == "" || root.TenantID == "" || root.KeyID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO dsse_trust_roots (
+				id, tenant_id, name, key_id, algorithm, public_key, status,
+				schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, public_key = EXCLUDED.public_key
+		`, root.ID, root.TenantID, root.Name, root.KeyID, root.Algorithm, root.PublicKey, root.Status, root.SchemaVersion, nonZeroTime(root.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert dsse trust root row: %w", err)
 		}
 	}
 	return nil
