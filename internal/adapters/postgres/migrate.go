@@ -55,7 +55,7 @@ func (s *Store) ApplyMigrations(ctx context.Context, dir string) (int, error) {
 			_ = tx.Rollback(ctx)
 			return applied, fmt.Errorf("apply migration %s: %w", version, err)
 		}
-		if _, err := tx.Exec(ctx, `INSERT INTO schema_migrations (version) VALUES ($1)`, version); err != nil {
+		if _, err := tx.Exec(ctx, `INSERT INTO schema_migrations (version) VALUES ($1) ON CONFLICT (version) DO NOTHING`, version); err != nil {
 			_ = tx.Rollback(ctx)
 			return applied, fmt.Errorf("record migration %s: %w", version, err)
 		}
