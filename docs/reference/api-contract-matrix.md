@@ -3,7 +3,7 @@
 This generated reference inventories Evydence `/v1` route contract precision from `openapi.yaml`.
 It is a planning aid for production contract hardening; `broad` means the route still uses a shared envelope, unspecified body, or generic schema where an endpoint-specific contract should be considered.
 
-Generated from 160 operations: 83 precise, 77 broad.
+Generated from 160 operations: 89 precise, 71 broad.
 
 | Method | Path | Operation | Auth | Scopes | Idempotency | Params | Request | 2xx Response | Precision |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -12,18 +12,18 @@ Generated from 160 operations: 83 precise, 77 broad.
 | POST | /v1/api-keys | createAPIKey | Bearer | admin | required | - | application/json:CreateAPIKeyRequest | 201:application/json:APIKeyCreateEnvelope | precise |
 | POST | /v1/api-security-scans | uploadAPISecurityScan | Bearer | security:write | required | - | - | 201:unspecified | broad |
 | POST | /v1/approvals | createApproval | Bearer | release:write | required | - | - | 201:unspecified | broad |
-| POST | /v1/artifact-signatures | createArtifactSignature | Bearer | evidence:write | required | - | - | 201:unspecified | broad |
-| GET | /v1/artifact-signatures/{id} | getArtifactSignature | Bearer | evidence:read | - | - | - | 200:unspecified | broad |
-| POST | /v1/artifact-signatures/{id}/verify-cosign | verifyCosignSignature | Bearer | verify:read | required | - | - | 200:unspecified | broad |
+| POST | /v1/artifact-signatures | createArtifactSignature | Bearer | evidence:write | required | - | application/json:CreateArtifactSignatureRequest | 201:application/json:ArtifactSignatureEnvelope | precise |
+| GET | /v1/artifact-signatures/{id} | getArtifactSignature | Bearer | evidence:read | - | path:id | - | 200:application/json:ArtifactSignatureEnvelope | precise |
+| POST | /v1/artifact-signatures/{id}/verify-cosign | verifyCosignSignature | Bearer | verify:read | required | path:id | application/json:VerifyCosignSignatureRequest | 200:application/json:CosignVerificationEnvelope | precise |
 | POST | /v1/artifacts | registerArtifact | Bearer | evidence:write | required | - | application/json:RegisterArtifactRequest | 201:application/json:ArtifactEnvelope | precise |
 | GET | /v1/audit-chain/verify | verifyAuditChain | Bearer | verify:read | - | - | - | 200:application/json:VerificationResultEnvelope | precise |
 | GET | /v1/audit-log | listAuditLog | Bearer | admin | - | query:limit, query:since, query:subject_id, query:subject_type | - | 200:application/json:AuditChainEntryListEnvelope | precise |
 | POST | /v1/backup-manifests | generateBackupManifest | Bearer | admin | required | - | application/json:EmptyObject | 201:application/json:BackupManifestEnvelope | precise |
 | GET | /v1/backup-manifests/{id}/verify | verifyBackupManifest | Bearer | verify:read | - | path:id | - | 200:application/json:VerificationResultEnvelope | precise |
-| POST | /v1/build-attestations/{id}/verify-signature | verifyBuildAttestationSignature | Bearer | verify:read | required | - | - | 200:unspecified | broad |
+| POST | /v1/build-attestations/{id}/verify-signature | verifyBuildAttestationSignature | Bearer | verify:read | required | path:id | application/json:EmptyObject | 200:application/json:VerificationResultEnvelope | precise |
 | POST | /v1/builds | createBuild | Bearer | build:write | required | - | application/json:CreateBuildRequest | 201:application/json:BuildRunEnvelope | precise |
 | GET | /v1/builds/{id} | getBuild | Bearer | build:read | - | path:id | - | 200:application/json:BuildRunEnvelope | precise |
-| POST | /v1/builds/{id}/attestations | uploadBuildAttestation | Bearer | build:write | required | - | - | 201:unspecified | broad |
+| POST | /v1/builds/{id}/attestations | uploadBuildAttestation | Bearer | build:write | required | path:id | application/json:DSSEEnvelope | 201:application/json:BuildAttestationEnvelope | precise |
 | GET | /v1/collectors | listCollectors | Bearer | collector:read | - | - | - | 200:application/json:CollectorListEnvelope | precise |
 | POST | /v1/collectors | createCollector | Bearer | collector:admin | required | - | application/json:CreateCollectorRequest | 201:application/json:CollectorCreateEnvelope | precise |
 | POST | /v1/collectors/github/source-snapshots | uploadGitHubSourceSnapshot | Bearer | source:write | required | - | application/json:SourceSnapshotRequest | 201:application/json:SourceSnapshotEnvelope | precise |
@@ -52,7 +52,7 @@ Generated from 160 operations: 83 precise, 77 broad.
 | GET | /v1/deployments | listDeployments | Bearer | deployment:read | - | - | - | 200:unspecified | broad |
 | POST | /v1/deployments | recordDeployment | Bearer | deployment:write | required | - | - | 201:unspecified | broad |
 | GET | /v1/deployments/{id} | getDeployment | Bearer | deployment:read | - | - | - | 200:unspecified | broad |
-| POST | /v1/dsse-trust-roots | createDSSETrustRoot | Bearer | keys:admin | required | - | - | 201:unspecified | broad |
+| POST | /v1/dsse-trust-roots | createDSSETrustRoot | Bearer | keys:admin | required | - | application/json:CreateDSSETrustRootRequest | 201:application/json:DSSETrustRootEnvelope | precise |
 | GET | /v1/environments | listDeploymentEnvironments | Bearer | deployment:read | - | - | - | 200:unspecified | broad |
 | POST | /v1/environments | createDeploymentEnvironment | Bearer | deployment:write | required | - | - | 201:unspecified | broad |
 | GET | /v1/evidence | listEvidence | Bearer | evidence:read | - | query:release_id, query:type | - | 200:application/json:EvidenceItemListEnvelope | precise |
