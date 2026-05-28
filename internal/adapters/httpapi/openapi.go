@@ -195,6 +195,78 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "collector", "api_key", "secret"))
 	registry.RegisterSchema("CollectorCreateEnvelope", dataEnvelopeSchema("#/components/schemas/CollectorCreateResponse"))
 	registry.RegisterSchema("CollectorListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/Collector"))
+	registry.RegisterSchema("CreateControlFrameworkRequest", objectSchema(map[string]any{
+		"name":        map[string]any{"type": "string"},
+		"slug":        map[string]any{"type": "string"},
+		"version":     map[string]any{"type": "string"},
+		"description": map[string]any{"type": "string"},
+	}, "name", "version"))
+	registry.RegisterSchema("ControlFramework", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"name":           map[string]any{"type": "string"},
+		"slug":           map[string]any{"type": "string"},
+		"version":        map[string]any{"type": "string"},
+		"description":    map[string]any{"type": "string"},
+		"status":         map[string]any{"type": "string"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "name", "slug", "version", "status", "schema_version", "created_at"))
+	registry.RegisterSchema("ControlFrameworkEnvelope", dataEnvelopeSchema("#/components/schemas/ControlFramework"))
+	registry.RegisterSchema("ControlFrameworkListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/ControlFramework"))
+	registry.RegisterSchema("ControlEvidenceRequirement", objectSchema(map[string]any{
+		"type":           map[string]any{"type": "string"},
+		"freshness_days": map[string]any{"type": "integer", "minimum": 0},
+		"required":       map[string]any{"type": "boolean"},
+	}, "type", "required"))
+	registry.RegisterSchema("CreateSecurityControlRequest", objectSchema(map[string]any{
+		"framework_id":          map[string]any{"type": "string"},
+		"code":                  map[string]any{"type": "string"},
+		"title":                 map[string]any{"type": "string"},
+		"objective":             map[string]any{"type": "string"},
+		"evidence_requirements": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/ControlEvidenceRequirement"}},
+		"applicability":         map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"limitations":           map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+	}, "framework_id", "code", "title", "objective"))
+	registry.RegisterSchema("SecurityControl", objectSchema(map[string]any{
+		"id":                    map[string]any{"type": "string"},
+		"tenant_id":             map[string]any{"type": "string"},
+		"framework_id":          map[string]any{"type": "string"},
+		"code":                  map[string]any{"type": "string"},
+		"title":                 map[string]any{"type": "string"},
+		"objective":             map[string]any{"type": "string"},
+		"evidence_requirements": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/ControlEvidenceRequirement"}},
+		"applicability":         map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"limitations":           map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"schema_version":        map[string]any{"type": "string"},
+		"created_at":            map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "framework_id", "code", "title", "objective", "schema_version", "created_at"))
+	registry.RegisterSchema("SecurityControlEnvelope", dataEnvelopeSchema("#/components/schemas/SecurityControl"))
+	registry.RegisterSchema("LinkControlEvidenceRequest", objectSchema(map[string]any{
+		"evidence_type": map[string]any{"type": "string"},
+		"subject_type":  map[string]any{"type": "string"},
+		"subject_id":    map[string]any{"type": "string"},
+		"product_id":    map[string]any{"type": "string"},
+		"release_id":    map[string]any{"type": "string"},
+		"confidence":    map[string]any{"type": "string", "enum": []string{"high", "medium", "low", "unsupported"}},
+		"notes":         map[string]any{"type": "string"},
+	}, "evidence_type", "subject_type", "subject_id", "confidence"))
+	registry.RegisterSchema("ControlEvidence", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"control_id":     map[string]any{"type": "string"},
+		"evidence_type":  map[string]any{"type": "string"},
+		"subject_type":   map[string]any{"type": "string"},
+		"subject_id":     map[string]any{"type": "string"},
+		"product_id":     map[string]any{"type": "string"},
+		"release_id":     map[string]any{"type": "string"},
+		"confidence":     map[string]any{"type": "string"},
+		"notes":          map[string]any{"type": "string"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "control_id", "evidence_type", "subject_type", "subject_id", "confidence", "schema_version", "created_at"))
+	registry.RegisterSchema("ControlEvidenceEnvelope", dataEnvelopeSchema("#/components/schemas/ControlEvidence"))
+	registry.RegisterSchema("ControlEvidenceListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/ControlEvidence"))
 	registry.RegisterSchema("CreateProductRequest", objectSchema(map[string]any{
 		"name": map[string]any{"type": "string"},
 		"slug": map[string]any{"type": "string"},

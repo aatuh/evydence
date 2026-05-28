@@ -3,7 +3,7 @@
 This generated reference inventories Evydence `/v1` route contract precision from `openapi.yaml`.
 It is a planning aid for production contract hardening; `broad` means the route still uses a shared envelope, unspecified body, or generic schema where an endpoint-specific contract should be considered.
 
-Generated from 160 operations: 42 precise, 118 broad.
+Generated from 160 operations: 48 precise, 112 broad.
 
 | Method | Path | Operation | Auth | Scopes | Idempotency | Params | Request | 2xx Response | Precision |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -33,14 +33,14 @@ Generated from 160 operations: 42 precise, 118 broad.
 | GET | /v1/commercial-collectors | listCommercialCollectors | Bearer | collector:read | - | - | - | 200:unspecified | broad |
 | POST | /v1/commercial-collectors | createCommercialCollector | Bearer | collector:admin | required | - | - | 201:unspecified | broad |
 | POST | /v1/container-images | registerContainerImage | Bearer | evidence:write | required | - | - | 201:unspecified | broad |
-| GET | /v1/control-evidence | listControlEvidence | Bearer | controls:read | - | - | - | 200:unspecified | broad |
+| GET | /v1/control-evidence | listControlEvidence | Bearer | controls:read | - | query:control_id, query:product_id, query:release_id | - | 200:application/json:ControlEvidenceListEnvelope | precise |
 | GET | /v1/control-framework-template-packs | listControlFrameworkTemplatePacks | Bearer | controls:read | - | - | - | 200:unspecified | broad |
 | POST | /v1/control-framework-template-packs/{slug}/install | installControlFrameworkTemplatePack | Bearer | controls:admin | required | - | - | 201:unspecified | broad |
-| GET | /v1/control-frameworks | listControlFrameworks | Bearer | controls:read | - | - | - | 200:unspecified | broad |
-| POST | /v1/control-frameworks | createControlFramework | Bearer | controls:admin | required | - | - | 201:unspecified | broad |
-| POST | /v1/controls | createSecurityControl | Bearer | controls:admin | required | - | - | 201:unspecified | broad |
-| GET | /v1/controls/{id} | getSecurityControl | Bearer | controls:read | - | - | - | 200:unspecified | broad |
-| POST | /v1/controls/{id}/evidence | linkControlEvidence | Bearer | controls:write | required | - | - | 201:unspecified | broad |
+| GET | /v1/control-frameworks | listControlFrameworks | Bearer | controls:read | - | - | - | 200:application/json:ControlFrameworkListEnvelope | precise |
+| POST | /v1/control-frameworks | createControlFramework | Bearer | controls:admin | required | - | application/json:CreateControlFrameworkRequest | 201:application/json:ControlFrameworkEnvelope | precise |
+| POST | /v1/controls | createSecurityControl | Bearer | controls:admin | required | - | application/json:CreateSecurityControlRequest | 201:application/json:SecurityControlEnvelope | precise |
+| GET | /v1/controls/{id} | getSecurityControl | Bearer | controls:read | - | path:id | - | 200:application/json:SecurityControlEnvelope | precise |
+| POST | /v1/controls/{id}/evidence | linkControlEvidence | Bearer | controls:write | required | path:id | application/json:LinkControlEvidenceRequest | 201:application/json:ControlEvidenceEnvelope | precise |
 | POST | /v1/custom-policies | createCustomPolicy | Bearer | policy:write | required | - | - | 201:unspecified | broad |
 | POST | /v1/custom-policies/{id}/evaluate | evaluateCustomPolicy | Bearer | policy:read | required | - | - | 201:unspecified | broad |
 | POST | /v1/customer-packages | createCustomerPackage | Bearer | package:write | required | - | - | 201:unspecified | broad |
