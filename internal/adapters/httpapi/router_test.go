@@ -734,6 +734,162 @@ func TestEnterprisePortalRetentionAndCommercialCollectorHTTPFlow(t *testing.T) {
 	getJSON(t, server, sessionSecret, "/v1/admin/instance", http.StatusUnauthorized)
 }
 
+func TestFutureExtensionAndReadAdminHTTPGaps(t *testing.T) {
+	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
+	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*", app.ScopeInstanceAdmin})
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	server, err := NewServer(ledger)
+	if err != nil {
+		t.Fatalf("server: %v", err)
+	}
+	productBody := postJSON(t, server, secret, "/v1/products", "future-product", map[string]any{"name": "Future Product", "slug": "future-product"}, http.StatusCreated)
+	productID := dataField(t, productBody, "id")
+	getJSON(t, server, secret, "/v1/products", http.StatusOK)
+	postJSON(t, server, secret, "/v1/projects", "future-project", map[string]any{"product_id": productID, "name": "api"}, http.StatusCreated)
+	releaseBody := postJSON(t, server, secret, "/v1/releases", "future-release", map[string]any{"product_id": productID, "version": "9.0.0"}, http.StatusCreated)
+	releaseID := dataField(t, releaseBody, "id")
+	getJSON(t, server, secret, "/v1/releases/"+releaseID, http.StatusOK)
+	postJSON(t, server, secret, "/v1/releases/"+releaseID+"/freeze", "future-freeze", map[string]any{}, http.StatusOK)
+	postJSON(t, server, secret, "/v1/releases/"+releaseID+"/approve", "future-approve", map[string]any{}, http.StatusOK)
+
+	digest := "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb"
+	artifactBody := postJSON(t, server, secret, "/v1/artifacts", "future-artifact", map[string]any{"name": "api.tar.gz", "media_type": "application/gzip", "digest": digest, "size": 42}, http.StatusCreated)
+	artifactID := dataField(t, artifactBody, "id")
+	evidenceBody := postJSON(t, server, secret, "/v1/evidence", "future-evidence", map[string]any{"product_id": productID, "release_id": releaseID, "type": "security_review", "title": "Review", "payload_hash": digest, "subject_refs": []map[string]any{{"type": "artifact", "id": artifactID}}}, http.StatusCreated)
+	evidenceID := dataField(t, evidenceBody, "id")
+	replacementBody := postJSON(t, server, secret, "/v1/evidence", "future-evidence-replacement", map[string]any{"product_id": productID, "type": "security_review", "title": "Review replacement", "payload_hash": "sha256:2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"}, http.StatusCreated)
+	replacementID := dataField(t, replacementBody, "id")
+	getJSON(t, server, secret, "/v1/evidence?release_id="+releaseID+"&type=security_review", http.StatusOK)
+	postJSON(t, server, secret, "/v1/evidence/"+replacementID+"/link", "future-link", map[string]any{"target_type": "release", "target_id": releaseID}, http.StatusCreated)
+	postJSON(t, server, secret, "/v1/evidence/"+evidenceID+"/supersede", "future-supersede", map[string]any{"replacement_evidence_id": replacementID, "reason": "updated review"}, http.StatusCreated)
+	summary := postJSON(t, server, secret, "/v1/evidence-summaries", "future-summary", map[string]any{"subject_type": "release", "subject_id": releaseID, "evidence_ids": []string{evidenceID, replacementID}}, http.StatusCreated)
+	if !strings.Contains(summary, `"citations"`) {
+		t.Fatalf("summary missing citations: %s", summary)
+	}
+	graph := postJSON(t, server, secret, "/v1/evidence-graph-snapshots", "future-graph", map[string]any{"product_id": productID, "release_id": releaseID}, http.StatusCreated)
+	if !strings.Contains(graph, `"graph_hash"`) {
+		t.Fatalf("graph missing hash: %s", graph)
+	}
+
+	templateBody := postJSON(t, server, secret, "/v1/questionnaire-templates", "future-q-template", map[string]any{"name": "customer", "version": "2", "questions": []map[string]any{{"id": "q1", "prompt": "Review?", "evidence_type": "security_review"}}}, http.StatusCreated)
+	templateID := dataField(t, templateBody, "id")
+	draft := postJSON(t, server, secret, "/v1/questionnaire-drafts", "future-q-draft", map[string]any{"template_id": templateID, "product_id": productID, "release_id": releaseID}, http.StatusCreated)
+	if !strings.Contains(draft, evidenceID) {
+		t.Fatalf("draft missing evidence reference: %s", draft)
+	}
+	pdf := postJSON(t, server, secret, "/v1/reports/pdf", "future-pdf", map[string]any{"report_type": "release_readiness", "product_id": productID, "release_id": releaseID, "title": "Readiness"}, http.StatusCreated)
+	if !strings.Contains(pdf, `"payload_hash"`) {
+		t.Fatalf("pdf report missing hash: %s", pdf)
+	}
+	anomaly := postJSON(t, server, secret, "/v1/reports/anomaly", "future-anomaly", map[string]any{"subject_type": "release", "subject_id": releaseID}, http.StatusCreated)
+	if !strings.Contains(anomaly, `"limitations"`) {
+		t.Fatalf("anomaly missing limitations: %s", anomaly)
+	}
+
+	sbomBody := postJSON(t, server, secret, "/v1/sboms", "future-sbom", map[string]any{"release_id": releaseID, "artifact_id": artifactID, "payload": map[string]any{"bomFormat": "CycloneDX", "specVersion": "1.6", "components": []map[string]any{{"name": "api", "purl": "pkg:oci/api"}}}}, http.StatusCreated)
+	sbomID := dataField(t, sbomBody, "id")
+	getJSON(t, server, secret, "/v1/sboms/"+sbomID, http.StatusOK)
+	scanBody := postJSON(t, server, secret, "/v1/vulnerability-scans", "future-vuln-scan", map[string]any{"scanner": "grype", "target_ref": "pkg:oci/api", "release_id": releaseID, "findings": []map[string]any{}}, http.StatusCreated)
+	scanID := dataField(t, scanBody, "id")
+	getJSON(t, server, secret, "/v1/vulnerability-scans/"+scanID, http.StatusOK)
+	contractBody := postJSON(t, server, secret, "/v1/openapi-contracts", "future-oas", map[string]any{"product_id": productID, "release_id": releaseID, "version": "1", "spec": map[string]any{"openapi": "3.1.0", "info": map[string]any{"title": "API", "version": "1"}, "paths": map[string]any{"/health": map[string]any{"get": map[string]any{"responses": map[string]any{"200": map[string]any{"description": "ok"}}}}}}}, http.StatusCreated)
+	contractID := dataField(t, contractBody, "id")
+	getJSON(t, server, secret, "/v1/openapi-contracts/"+contractID, http.StatusOK)
+	postJSON(t, server, secret, "/v1/policies/evaluate", "future-policy", map[string]any{"release_id": releaseID}, http.StatusCreated)
+	getJSON(t, server, secret, "/v1/reports/missing-evidence?release_id="+releaseID, http.StatusOK)
+
+	releaseBundle := postJSON(t, server, secret, "/v1/release-bundles", "future-release-bundle", map[string]any{"release_id": releaseID}, http.StatusCreated)
+	bundleID := dataField(t, releaseBundle, "id")
+	getJSON(t, server, secret, "/v1/release-bundles/"+bundleID, http.StatusOK)
+	getJSON(t, server, secret, "/v1/release-bundles/"+bundleID+"/manifest", http.StatusOK)
+	getJSON(t, server, secret, "/v1/audit-chain/verify", http.StatusOK)
+	getJSON(t, server, secret, "/v1/signing-keys", http.StatusOK)
+	keys := dataSlice(t, getJSON(t, server, secret, "/v1/signing-keys", http.StatusOK))
+	keyID := keys[0]["id"].(string)
+	postJSON(t, server, secret, "/v1/signing-keys/rotate", "future-key-rotate", map[string]any{"reason": "coverage"}, http.StatusCreated)
+	postJSON(t, server, secret, "/v1/signing-keys/"+keyID+"/revoke", "future-key-revoke", map[string]any{"reason": "coverage"}, http.StatusOK)
+	apiKeyBody := postJSON(t, server, secret, "/v1/api-keys", "future-api-key", map[string]any{"name": "reader", "scopes": []string{"evidence:read"}}, http.StatusCreated)
+	if strings.Contains(getJSON(t, server, secret, "/v1/api-keys", http.StatusOK), nestedDataField(t, apiKeyBody, "secret")) {
+		t.Fatalf("API key secret leaked in key list")
+	}
+
+	providerBody := postJSON(t, server, secret, "/v1/signing-providers", "future-provider", map[string]any{"name": "kms", "type": "aws_kms", "key_ref": "arn:aws:kms:example", "encrypted": true}, http.StatusCreated)
+	providerID := dataField(t, providerBody, "id")
+	op := postJSON(t, server, secret, "/v1/signing-operations", "future-sign-op", map[string]any{"provider_id": providerID, "subject_type": "release", "subject_id": releaseID, "payload_hash": digest, "external_signature": "sig"}, http.StatusCreated)
+	if !strings.Contains(op, `"result":"passed"`) {
+		t.Fatalf("signing operation did not pass: %s", op)
+	}
+	saas := postJSON(t, server, secret, "/v1/saas/profiles", "future-saas", map[string]any{"name": "hosted", "region": "eu", "admin_tenant_id": dataField(t, productBody, "tenant_id"), "isolation_model": "shared-control-plane"}, http.StatusCreated)
+	if !strings.Contains(saas, `"config_hash"`) {
+		t.Fatalf("saas profile missing hash: %s", saas)
+	}
+
+	logBody := postJSON(t, server, secret, "/v1/public-transparency-logs", "future-public-log", map[string]any{"name": "public", "endpoint": "https://transparency.example.test", "public_key": "pub"}, http.StatusCreated)
+	logID := dataField(t, logBody, "id")
+	batchBody := postJSON(t, server, secret, "/v1/merkle-batches", "future-batch", map[string]any{}, http.StatusCreated)
+	batchID := dataField(t, batchBody, "id")
+	checkpointBody := postJSON(t, server, secret, "/v1/transparency-checkpoints", "future-checkpoint", map[string]any{"batch_id": batchID, "provider": "internal", "external_id": "ts"}, http.StatusCreated)
+	checkpointID := dataField(t, checkpointBody, "id")
+	entry := postJSON(t, server, secret, "/v1/public-transparency-log-entries", "future-public-entry", map[string]any{"log_id": logID, "checkpoint_id": checkpointID, "external_id": "entry"}, http.StatusCreated)
+	if !strings.Contains(entry, `"entry_hash"`) {
+		t.Fatalf("public log entry missing hash: %s", entry)
+	}
+	marketplace := postJSON(t, server, secret, "/v1/marketplace-collectors", "future-marketplace", map[string]any{"name": "scanner", "provider": "scannerco", "version": "1.0.0", "publisher": "scannerco", "manifest_hash": digest}, http.StatusCreated)
+	if !strings.Contains(getJSON(t, server, secret, "/v1/marketplace-collectors", http.StatusOK), dataField(t, marketplace, "id")) {
+		t.Fatalf("marketplace list missing collector")
+	}
+
+	orgBody := postJSON(t, server, secret, "/v1/organizations", "future-org", map[string]any{"name": "Example", "slug": "future-example"}, http.StatusCreated)
+	userBody := postJSON(t, server, secret, "/v1/users", "future-user", map[string]any{"organization_id": dataField(t, orgBody, "id"), "email": "future@example.test", "display_name": "Future"}, http.StatusCreated)
+	ssoBody := postJSON(t, server, secret, "/v1/sso/providers", "future-sso", map[string]any{"name": "OIDC", "type": "oidc", "issuer": "https://idp.example.test", "client_id": "client"}, http.StatusCreated)
+	ssoID := dataField(t, ssoBody, "id")
+	postJSON(t, server, secret, "/v1/sso/identity-links", "future-id-link", map[string]any{"user_id": dataField(t, userBody, "id"), "provider_id": ssoID, "subject": "sub-1", "email": "future@example.test", "verified": true}, http.StatusCreated)
+	providerVerification := postJSON(t, server, secret, "/v1/provider-verifications", "future-provider-verification", map[string]any{"provider_type": "oidc", "provider_id": ssoID, "subject": "sub-1"}, http.StatusCreated)
+	if !strings.Contains(providerVerification, `"result":"passed"`) {
+		t.Fatalf("provider verification failed: %s", providerVerification)
+	}
+}
+
+func TestSourceSnapshotAndSystemHTTPGaps(t *testing.T) {
+	server, secret := testServer(t)
+	productBody := postJSON(t, server, secret, "/v1/products", "snapshot-product", map[string]any{"name": "Snapshot Product", "slug": "snapshot-product"}, http.StatusCreated)
+	projectBody := postJSON(t, server, secret, "/v1/projects", "snapshot-project", map[string]any{"product_id": dataField(t, productBody, "id"), "name": "api"}, http.StatusCreated)
+	projectID := dataField(t, projectBody, "id")
+	payload := map[string]any{
+		"project_id": projectID,
+		"repository": map[string]any{"full_name": "aatuh/evydence", "clone_url": "https://github.com/aatuh/evydence.git", "default_branch": "main"},
+		"commit":     map[string]any{"sha": "0123456789abcdef0123456789abcdef01234567", "author": "aatu", "message": "change", "committed_at": "2026-05-28T12:00:00Z"},
+		"branch":     map[string]any{"name": "main", "protected": true, "protection_hash": "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb"},
+		"pull_request": map[string]any{
+			"provider_id": "42", "title": "Change", "state": "merged", "source_branch": "feature", "target_branch": "main", "review_decision": "approved",
+		},
+	}
+	githubSnapshot := postJSON(t, server, secret, "/v1/collectors/github/source-snapshots", "snapshot-github", payload, http.StatusCreated)
+	if !strings.Contains(githubSnapshot, `"repository_id"`) {
+		t.Fatalf("github snapshot missing repository id: %s", githubSnapshot)
+	}
+	postJSON(t, server, secret, "/v1/collectors/gitlab/source-snapshots", "snapshot-gitlab", payload, http.StatusCreated)
+
+	for _, path := range []string{"/v1/health", "/v1/version", "/v1/openapi.json"} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		server.Handler().ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET %s status=%d body=%s", path, rec.Code, rec.Body.String())
+		}
+	}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/products", strings.NewReader(`{"name":`))
+	req.Header.Set("Authorization", "Bearer "+secret)
+	req.Header.Set("Idempotency-Key", "bad-json")
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "VALIDATION_FAILED") {
+		t.Fatalf("bad JSON status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func testServer(t *testing.T) (*Server, string) {
 	t.Helper()
 	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
@@ -818,6 +974,20 @@ func dataMap(t *testing.T, body string) map[string]any {
 	}
 	if err := json.Unmarshal([]byte(body), &decoded); err != nil {
 		t.Fatalf("unmarshal body: %v body=%s", err, body)
+	}
+	return decoded.Data
+}
+
+func dataSlice(t *testing.T, body string) []map[string]any {
+	t.Helper()
+	var decoded struct {
+		Data []map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(body), &decoded); err != nil {
+		t.Fatalf("unmarshal body: %v body=%s", err, body)
+	}
+	if len(decoded.Data) == 0 {
+		t.Fatalf("data array is empty in %s", body)
 	}
 	return decoded.Data
 }
