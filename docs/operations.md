@@ -8,6 +8,7 @@ This operator index points to the canonical references for running Evydence. Kee
 |------|---------------|------------------|
 | Choose local or durable runtime mode | [Install and operate](how-to/install-and-operate.md) | API and worker run with either in-process state or PostgreSQL-backed state. |
 | Configure environment variables | [Configuration](reference/configuration.md) | Runtime variables are set from local untracked files or deployment secrets. |
+| Wire observability | [Observability](reference/observability.md) | Readiness, admin metrics, Prometheus rules, and dashboard starter assets are reviewed for the deployment. |
 | Run release validation | [Release validation](reference/release-validation.md) | `tmp/release-check-summary.txt` records pass and explicit skip lines. |
 | Operate outbox workers | [Worker outbox contract](reference/worker-outbox.md) | Workers claim persisted jobs and fail safely on missing state, hash mismatch, or unsupported jobs. |
 | Integrate CI evidence | [Integrate CI collectors](how-to/integrate-ci.md) | CI jobs upload build, attestation, source snapshot, or collector evidence with scoped secrets. |
@@ -18,7 +19,7 @@ This operator index points to the canonical references for running Evydence. Kee
 ## Integrity Operations
 
 - Use `GET /v1/ready` for low-detail readiness checks.
-- Use `GET /v1/metrics` only with an admin API key; it returns safe tenant resource counts, not raw evidence payloads or secrets.
+- Use `GET /v1/metrics` only with an admin API key; it returns safe tenant resource counts as JSON or Prometheus text when `Accept: text/plain` is sent, not raw evidence payloads or secrets.
 - Use `GET /v1/admin/instance` only with an actor explicitly granted `instance:admin`. Tenant admin and ordinary wildcard tenant keys do not satisfy this instance-wide scope by themselves.
 - Use `POST /v1/backup-manifests` after database and object-store backups complete. The manifest intentionally excludes raw payload bytes and private signing-key material.
 - Use `POST /v1/merkle-batches` and `POST /v1/transparency-checkpoints` to record signed local checkpoints and optional external anchoring metadata.

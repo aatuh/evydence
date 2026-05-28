@@ -62,6 +62,7 @@ docs-check: ## Validate canonical docs exist and avoid forbidden product claims
 	@test -f docs/how-to/install-and-operate.md
 	@test -f docs/reference/configuration.md
 	@test -f docs/reference/openapi.md
+	@test -f docs/reference/observability.md
 	@test -f docs/reference/worker-outbox.md
 	@test -f docs/reference/release-validation.md
 	@test -f docs/explanation/trust-model.md
@@ -83,6 +84,7 @@ docs-check: ## Validate canonical docs exist and avoid forbidden product claims
 		"production-hardening.md" \
 		"reference/configuration.md" \
 		"reference/openapi.md" \
+		"reference/observability.md" \
 		"reference/worker-outbox.md" \
 		"reference/release-validation.md" \
 		"collectors/source-snapshots.md" \
@@ -119,6 +121,8 @@ deploy-check: ## Validate deployment and air-gap skeletons exist
 	@test -f deploy/helm/evydence/templates/deployment-api.yaml
 	@test -f deploy/helm/evydence/templates/deployment-worker.yaml
 	@test -f deploy/airgap/manifest.yaml
+	@test -f deploy/observability/prometheus-rules.yaml
+	@test -f deploy/observability/grafana-dashboard.json
 
 sdk-check: ## Validate curated SDK example files exist
 	@test -f sdk/go/evydence/client.go

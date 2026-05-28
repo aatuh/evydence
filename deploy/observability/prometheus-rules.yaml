@@ -1,0 +1,27 @@
+groups:
+  - name: evydence-runtime
+    rules:
+      - alert: EvydenceAPIDown
+        expr: up{job="evydence-api"} == 0
+        for: 2m
+        labels:
+          severity: page
+        annotations:
+          summary: Evydence API scrape target is down
+          description: The API target has not been reachable by Prometheus for at least two minutes.
+      - alert: EvydenceWorkerBacklogGrowing
+        expr: evydence_resource_count{resource="audit_chain_entries"} > 0 and absent(evydence_worker_last_success_timestamp_seconds)
+        for: 15m
+        labels:
+          severity: ticket
+        annotations:
+          summary: Evydence worker success signal is missing
+          description: Configure worker success instrumentation or check the worker when API ledger activity is present without a worker success signal.
+      - alert: EvydencePortalAccessFailures
+        expr: increase(evydence_customer_portal_failed_access_count[15m]) > 10
+        for: 5m
+        labels:
+          severity: ticket
+        annotations:
+          summary: Customer portal access failures increased
+          description: Failed customer portal access attempts increased for a tenant-scoped scrape target. Review access records and gateway rate limits.
