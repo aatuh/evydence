@@ -307,6 +307,47 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Description = "Evaluates built-in deterministic release policy checks for a release."
 		operation.RequestBody = jsonRequest("Policy evaluation request.", "#/components/schemas/EvaluatePolicyRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Policy evaluation envelope.", "#/components/schemas/PolicyEvaluationEnvelope")
+	case "createVulnerabilityDecision":
+		operation.Description = "Creates an append-only vulnerability decision for a tenant-scoped scan finding."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Vulnerability finding id."))
+		operation.RequestBody = jsonRequest("Vulnerability decision creation request.", "#/components/schemas/CreateVulnerabilityDecisionRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created vulnerability decision envelope.", "#/components/schemas/VulnerabilityDecisionEnvelope")
+	case "recordVulnerabilityWorkflow":
+		operation.Description = "Records an append-only vulnerability workflow event for a tenant-scoped finding."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Vulnerability finding id."))
+		operation.RequestBody = jsonRequest("Vulnerability workflow event request.", "#/components/schemas/RecordVulnerabilityWorkflowRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created vulnerability workflow record envelope.", "#/components/schemas/VulnerabilityWorkflowRecordEnvelope")
+	case "createException":
+		operation.Description = "Creates a scoped, expiring release/finding/control exception that is inactive until approved."
+		operation.RequestBody = jsonRequest("Exception creation request.", "#/components/schemas/CreateExceptionRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created exception envelope.", "#/components/schemas/ExceptionEnvelope")
+	case "listExceptions":
+		operation.Description = "Lists tenant-scoped exceptions, optionally filtered by release."
+		operation.Parameters = append(operation.Parameters, queryParam("release_id", "Release id.", "string"))
+		operation.Responses[http.StatusOK] = jsonResponse("Exception list envelope.", "#/components/schemas/ExceptionListEnvelope")
+	case "approveException":
+		operation.Description = "Approves an unexpired exception as an audited append-only transition."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Exception id."))
+		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
+		operation.Responses[http.StatusOK] = jsonResponse("Approved exception envelope.", "#/components/schemas/ExceptionEnvelope")
+	case "createCustomPolicy":
+		operation.Description = "Creates a deterministic custom policy definition for tenant-managed release checks."
+		operation.RequestBody = jsonRequest("Custom policy creation request.", "#/components/schemas/CreateCustomPolicyRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created custom policy envelope.", "#/components/schemas/CustomPolicyEnvelope")
+	case "evaluateCustomPolicy":
+		operation.Description = "Evaluates a tenant custom policy against a release and records the input hash."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Custom policy id."))
+		operation.RequestBody = jsonRequest("Custom policy evaluation request.", "#/components/schemas/EvaluatePolicyRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Custom policy evaluation envelope.", "#/components/schemas/CustomPolicyEvaluationEnvelope")
+	case "createWaiver":
+		operation.Description = "Creates a first-class scoped waiver for controls or policies. Approval is a separate audited transition."
+		operation.RequestBody = jsonRequest("Waiver creation request.", "#/components/schemas/CreateWaiverRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created waiver envelope.", "#/components/schemas/WaiverEnvelope")
+	case "approveWaiver":
+		operation.Description = "Approves an unexpired waiver as an audited transition."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Waiver id."))
+		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
+		operation.Responses[http.StatusOK] = jsonResponse("Approved waiver envelope.", "#/components/schemas/WaiverEnvelope")
 	case "craReadinessReport":
 		operation.Description = "Returns a CRA-oriented readiness report without legal compliance or certification conclusions."
 		operation.Parameters = append(operation.Parameters,

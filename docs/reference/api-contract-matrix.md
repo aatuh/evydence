@@ -3,7 +3,7 @@
 This generated reference inventories Evydence `/v1` route contract precision from `openapi.yaml`.
 It is a planning aid for production contract hardening; `broad` means the route still uses a shared envelope, unspecified body, or generic schema where an endpoint-specific contract should be considered.
 
-Generated from 160 operations: 66 precise, 94 broad.
+Generated from 160 operations: 75 precise, 85 broad.
 
 | Method | Path | Operation | Auth | Scopes | Idempotency | Params | Request | 2xx Response | Precision |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -41,8 +41,8 @@ Generated from 160 operations: 66 precise, 94 broad.
 | POST | /v1/controls | createSecurityControl | Bearer | controls:admin | required | - | application/json:CreateSecurityControlRequest | 201:application/json:SecurityControlEnvelope | precise |
 | GET | /v1/controls/{id} | getSecurityControl | Bearer | controls:read | - | path:id | - | 200:application/json:SecurityControlEnvelope | precise |
 | POST | /v1/controls/{id}/evidence | linkControlEvidence | Bearer | controls:write | required | path:id | application/json:LinkControlEvidenceRequest | 201:application/json:ControlEvidenceEnvelope | precise |
-| POST | /v1/custom-policies | createCustomPolicy | Bearer | policy:write | required | - | - | 201:unspecified | broad |
-| POST | /v1/custom-policies/{id}/evaluate | evaluateCustomPolicy | Bearer | policy:read | required | - | - | 201:unspecified | broad |
+| POST | /v1/custom-policies | createCustomPolicy | Bearer | policy:write | required | - | application/json:CreateCustomPolicyRequest | 201:application/json:CustomPolicyEnvelope | precise |
+| POST | /v1/custom-policies/{id}/evaluate | evaluateCustomPolicy | Bearer | policy:read | required | path:id | application/json:EvaluatePolicyRequest | 201:application/json:CustomPolicyEvaluationEnvelope | precise |
 | POST | /v1/customer-packages | createCustomerPackage | Bearer | package:write | required | - | - | 201:unspecified | broad |
 | GET | /v1/customer-packages/{id} | getCustomerPackage | Bearer | package:read | - | - | - | 200:unspecified | broad |
 | GET | /v1/customer-packages/{id}/download | downloadCustomerPackage | Bearer | package:read | - | path:id | - | 200:application/zip:string/binary | precise |
@@ -67,9 +67,9 @@ Generated from 160 operations: 66 precise, 94 broad.
 | POST | /v1/evidence/{id}/lifecycle-events | recordEvidenceLifecycleEvent | Bearer | evidence:write | required | - | - | 201:unspecified | broad |
 | POST | /v1/evidence/{id}/link | linkEvidence | Bearer | evidence:write | required | - | - | 201:unspecified | broad |
 | POST | /v1/evidence/{id}/supersede | supersedeEvidence | Bearer | evidence:write | required | - | - | 201:unspecified | broad |
-| GET | /v1/exceptions | listExceptions | Bearer | verify:read | - | - | - | 200:unspecified | broad |
-| POST | /v1/exceptions | createException | Bearer | release:write | required | - | - | 201:unspecified | broad |
-| POST | /v1/exceptions/{id}/approve | approveException | Bearer | release:write | required | - | - | 200:unspecified | broad |
+| GET | /v1/exceptions | listExceptions | Bearer | verify:read | - | query:release_id | - | 200:application/json:ExceptionListEnvelope | precise |
+| POST | /v1/exceptions | createException | Bearer | release:write | required | - | application/json:CreateExceptionRequest | 201:application/json:ExceptionEnvelope | precise |
+| POST | /v1/exceptions/{id}/approve | approveException | Bearer | release:write | required | path:id | application/json:EmptyObject | 200:application/json:ExceptionEnvelope | precise |
 | GET | /v1/health | health | public | - | - | - | - | 200:application/json:HealthStatusEnvelope | precise |
 | POST | /v1/incident-webhooks/{receiver_id} | receiveIncidentWebhook | public | - | not required | header:X-Evydence-Webhook-Event-ID, header:X-Evydence-Webhook-Signature, header:X-Evydence-Webhook-Timestamp, path:receiver_id | application/json:DataEnvelope | 201:application/json:DataEnvelope | broad |
 | POST | /v1/incidents | createIncident | Bearer | incident:write | required | - | - | 201:unspecified | broad |
@@ -161,10 +161,10 @@ Generated from 160 operations: 66 precise, 94 broad.
 | POST | /v1/vex | uploadVEX | Bearer | evidence:write | required | - | application/json:EvidenceUploadRequest | 201:application/json:VEXDocumentEnvelope | precise |
 | POST | /v1/vex/cyclonedx | uploadCycloneDXVEX | Bearer | evidence:write | required | - | application/json:EvidenceUploadRequest | 201:application/json:VEXDocumentEnvelope | precise |
 | GET | /v1/vex/{id} | getVEX | Bearer | evidence:read | - | path:id | - | 200:application/json:VEXDocumentEnvelope | precise |
-| POST | /v1/vulnerability-findings/{id}/decisions | createVulnerabilityDecision | Bearer | evidence:write | required | - | - | 201:unspecified | broad |
-| POST | /v1/vulnerability-findings/{id}/workflow | recordVulnerabilityWorkflow | Bearer | security:write | required | - | - | 201:unspecified | broad |
+| POST | /v1/vulnerability-findings/{id}/decisions | createVulnerabilityDecision | Bearer | evidence:write | required | path:id | application/json:CreateVulnerabilityDecisionRequest | 201:application/json:VulnerabilityDecisionEnvelope | precise |
+| POST | /v1/vulnerability-findings/{id}/workflow | recordVulnerabilityWorkflow | Bearer | security:write | required | path:id | application/json:RecordVulnerabilityWorkflowRequest | 201:application/json:VulnerabilityWorkflowRecordEnvelope | precise |
 | POST | /v1/vulnerability-scans | uploadVulnerabilityScan | Bearer | evidence:write | required | - | application/json:UploadVulnerabilityScanRequest | 201:application/json:VulnerabilityScanEnvelope | precise |
 | GET | /v1/vulnerability-scans/{id} | getVulnerabilityScan | Bearer | evidence:read | - | path:id | - | 200:application/json:VulnerabilityScanEnvelope | precise |
-| POST | /v1/waivers | createWaiver | Bearer | policy:write | required | - | - | 201:unspecified | broad |
-| POST | /v1/waivers/{id}/approve | approveWaiver | Bearer | policy:write | required | - | - | 200:unspecified | broad |
+| POST | /v1/waivers | createWaiver | Bearer | policy:write | required | - | application/json:CreateWaiverRequest | 201:application/json:WaiverEnvelope | precise |
+| POST | /v1/waivers/{id}/approve | approveWaiver | Bearer | policy:write | required | path:id | application/json:EmptyObject | 200:application/json:WaiverEnvelope | precise |
 

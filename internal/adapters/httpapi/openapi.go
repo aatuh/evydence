@@ -167,6 +167,140 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	registry.RegisterSchema("EvaluatePolicyRequest", objectSchema(map[string]any{
 		"release_id": map[string]any{"type": "string"},
 	}, "release_id"))
+	registry.RegisterSchema("CreateVulnerabilityDecisionRequest", objectSchema(map[string]any{
+		"status":           map[string]any{"type": "string", "enum": []string{"affected", "not_affected", "fixed", "under_investigation"}},
+		"justification":    map[string]any{"type": "string"},
+		"impact_statement": map[string]any{"type": "string"},
+		"action_statement": map[string]any{"type": "string"},
+	}, "status", "justification"))
+	registry.RegisterSchema("VulnerabilityDecision", objectSchema(map[string]any{
+		"id":               map[string]any{"type": "string"},
+		"tenant_id":        map[string]any{"type": "string"},
+		"finding_id":       map[string]any{"type": "string"},
+		"scan_id":          map[string]any{"type": "string"},
+		"release_id":       map[string]any{"type": "string"},
+		"vulnerability":    map[string]any{"type": "string"},
+		"component":        map[string]any{"type": "string"},
+		"status":           map[string]any{"type": "string"},
+		"justification":    map[string]any{"type": "string"},
+		"impact_statement": map[string]any{"type": "string"},
+		"action_statement": map[string]any{"type": "string"},
+		"source":           map[string]any{"type": "string"},
+		"evidence_id":      map[string]any{"type": "string"},
+		"vex_document_id":  map[string]any{"type": "string"},
+		"supersedes":       map[string]any{"type": "string"},
+		"superseded_by":    map[string]any{"type": "string"},
+		"approved_by":      map[string]any{"type": "string"},
+		"schema_version":   map[string]any{"type": "string"},
+		"created_at":       map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "finding_id", "scan_id", "vulnerability", "status", "justification", "source", "schema_version", "created_at"))
+	registry.RegisterSchema("VulnerabilityDecisionEnvelope", dataEnvelopeSchema("#/components/schemas/VulnerabilityDecision"))
+	registry.RegisterSchema("RecordVulnerabilityWorkflowRequest", objectSchema(map[string]any{
+		"action": map[string]any{"type": "string"},
+		"reason": map[string]any{"type": "string"},
+	}, "action", "reason"))
+	registry.RegisterSchema("VulnerabilityWorkflowRecord", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"finding_id":     map[string]any{"type": "string"},
+		"release_id":     map[string]any{"type": "string"},
+		"action":         map[string]any{"type": "string"},
+		"reason":         map[string]any{"type": "string"},
+		"actor_id":       map[string]any{"type": "string"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "finding_id", "action", "reason", "actor_id", "schema_version", "created_at"))
+	registry.RegisterSchema("VulnerabilityWorkflowRecordEnvelope", dataEnvelopeSchema("#/components/schemas/VulnerabilityWorkflowRecord"))
+	registry.RegisterSchema("CreateExceptionRequest", objectSchema(map[string]any{
+		"release_id": map[string]any{"type": "string"},
+		"finding_id": map[string]any{"type": "string"},
+		"control_id": map[string]any{"type": "string"},
+		"reason":     map[string]any{"type": "string"},
+		"owner":      map[string]any{"type": "string"},
+		"expires_at": map[string]any{"type": "string", "format": "date-time"},
+	}, "release_id", "reason", "owner", "expires_at"))
+	registry.RegisterSchema("Exception", objectSchema(map[string]any{
+		"id":          map[string]any{"type": "string"},
+		"tenant_id":   map[string]any{"type": "string"},
+		"release_id":  map[string]any{"type": "string"},
+		"finding_id":  map[string]any{"type": "string"},
+		"control_id":  map[string]any{"type": "string"},
+		"reason":      map[string]any{"type": "string"},
+		"owner":       map[string]any{"type": "string"},
+		"expires_at":  map[string]any{"type": "string", "format": "date-time"},
+		"approved":    map[string]any{"type": "boolean"},
+		"approved_by": map[string]any{"type": "string"},
+		"approved_at": map[string]any{"type": "string", "format": "date-time"},
+		"created_at":  map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "release_id", "reason", "owner", "expires_at", "approved", "created_at"))
+	registry.RegisterSchema("ExceptionEnvelope", dataEnvelopeSchema("#/components/schemas/Exception"))
+	registry.RegisterSchema("ExceptionListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/Exception"))
+	registry.RegisterSchema("PolicyRule", objectSchema(map[string]any{
+		"name":          map[string]any{"type": "string"},
+		"evidence_type": map[string]any{"type": "string"},
+		"severity":      map[string]any{"type": "string"},
+		"required":      map[string]any{"type": "boolean"},
+	}, "name", "severity", "required"))
+	registry.RegisterSchema("CreateCustomPolicyRequest", objectSchema(map[string]any{
+		"name":        map[string]any{"type": "string"},
+		"version":     map[string]any{"type": "string"},
+		"description": map[string]any{"type": "string"},
+		"rules":       map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/PolicyRule"}},
+	}, "name", "version", "rules"))
+	registry.RegisterSchema("CustomPolicy", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"name":           map[string]any{"type": "string"},
+		"version":        map[string]any{"type": "string"},
+		"description":    map[string]any{"type": "string"},
+		"rules":          map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/PolicyRule"}},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "name", "version", "rules", "schema_version", "created_at"))
+	registry.RegisterSchema("CustomPolicyEnvelope", dataEnvelopeSchema("#/components/schemas/CustomPolicy"))
+	registry.RegisterSchema("CustomPolicyEvaluation", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"policy_id":      map[string]any{"type": "string"},
+		"release_id":     map[string]any{"type": "string"},
+		"result":         map[string]any{"type": "string", "enum": []string{"passed", "failed"}},
+		"checks":         map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/PolicyCheck"}},
+		"input_hash":     map[string]any{"type": "string", "pattern": "^sha256:"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "policy_id", "release_id", "result", "checks", "input_hash", "schema_version", "created_at"))
+	registry.RegisterSchema("CustomPolicyEvaluationEnvelope", dataEnvelopeSchema("#/components/schemas/CustomPolicyEvaluation"))
+	registry.RegisterSchema("CreateWaiverRequest", objectSchema(map[string]any{
+		"scope_type": map[string]any{"type": "string"},
+		"scope_id":   map[string]any{"type": "string"},
+		"control_id": map[string]any{"type": "string"},
+		"policy_id":  map[string]any{"type": "string"},
+		"owner":      map[string]any{"type": "string"},
+		"risk":       map[string]any{"type": "string"},
+		"reason":     map[string]any{"type": "string"},
+		"expires_at": map[string]any{"type": "string", "format": "date-time"},
+		"supersedes": map[string]any{"type": "string"},
+	}, "scope_type", "scope_id", "owner", "risk", "reason", "expires_at"))
+	registry.RegisterSchema("Waiver", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"scope_type":     map[string]any{"type": "string"},
+		"scope_id":       map[string]any{"type": "string"},
+		"control_id":     map[string]any{"type": "string"},
+		"policy_id":      map[string]any{"type": "string"},
+		"owner":          map[string]any{"type": "string"},
+		"risk":           map[string]any{"type": "string"},
+		"reason":         map[string]any{"type": "string"},
+		"expires_at":     map[string]any{"type": "string", "format": "date-time"},
+		"approved":       map[string]any{"type": "boolean"},
+		"approved_by":    map[string]any{"type": "string"},
+		"approved_at":    map[string]any{"type": "string", "format": "date-time"},
+		"supersedes":     map[string]any{"type": "string"},
+		"superseded_by":  map[string]any{"type": "string"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "scope_type", "scope_id", "owner", "risk", "reason", "expires_at", "approved", "schema_version", "created_at"))
+	registry.RegisterSchema("WaiverEnvelope", dataEnvelopeSchema("#/components/schemas/Waiver"))
 	registry.RegisterSchema("ReadinessReport", objectSchema(map[string]any{
 		"report_type":      map[string]any{"type": "string"},
 		"template_version": map[string]any{"type": "string"},
