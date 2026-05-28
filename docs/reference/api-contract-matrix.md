@@ -3,11 +3,11 @@
 This generated reference inventories Evydence `/v1` route contract precision from `openapi.yaml`.
 It is a planning aid for production contract hardening; `broad` means the route still uses a shared envelope, unspecified body, or generic schema where an endpoint-specific contract should be considered.
 
-Generated from 160 operations: 31 precise, 129 broad.
+Generated from 160 operations: 35 precise, 125 broad.
 
 | Method | Path | Operation | Auth | Scopes | Idempotency | Params | Request | 2xx Response | Precision |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| GET | /v1/admin/instance | instanceAdminSnapshot | Bearer | instance:admin | - | - | - | 200:application/json:DataEnvelope | broad |
+| GET | /v1/admin/instance | instanceAdminSnapshot | Bearer | instance:admin | - | - | - | 200:application/json:InstanceAdminSnapshotEnvelope | precise |
 | GET | /v1/api-keys | listAPIKeys | Bearer | admin | - | - | - | 200:unspecified | broad |
 | POST | /v1/api-keys | createAPIKey | Bearer | admin | required | - | - | 201:unspecified | broad |
 | POST | /v1/api-security-scans | uploadAPISecurityScan | Bearer | security:write | required | - | - | 201:unspecified | broad |
@@ -26,8 +26,8 @@ Generated from 160 operations: 31 precise, 129 broad.
 | POST | /v1/builds/{id}/attestations | uploadBuildAttestation | Bearer | build:write | required | - | - | 201:unspecified | broad |
 | GET | /v1/collectors | listCollectors | Bearer | collector:read | - | - | - | 200:unspecified | broad |
 | POST | /v1/collectors | createCollector | Bearer | collector:admin | required | - | - | 201:unspecified | broad |
-| POST | /v1/collectors/github/source-snapshots | uploadGitHubSourceSnapshot | Bearer | source:write | required | - | - | 201:unspecified | broad |
-| POST | /v1/collectors/gitlab/source-snapshots | uploadGitLabSourceSnapshot | Bearer | source:write | required | - | - | 201:unspecified | broad |
+| POST | /v1/collectors/github/source-snapshots | uploadGitHubSourceSnapshot | Bearer | source:write | required | - | application/json:SourceSnapshotRequest | 201:application/json:SourceSnapshotEnvelope | precise |
+| POST | /v1/collectors/gitlab/source-snapshots | uploadGitLabSourceSnapshot | Bearer | source:write | required | - | application/json:SourceSnapshotRequest | 201:application/json:SourceSnapshotEnvelope | precise |
 | GET | /v1/collectors/{id}/health | collectorHealthReport | Bearer | collector:read | - | - | - | 200:unspecified | broad |
 | POST | /v1/collectors/{id}/releases | recordCollectorRelease | Bearer | collector:admin | required | - | - | 201:unspecified | broad |
 | GET | /v1/commercial-collectors | listCommercialCollectors | Bearer | collector:read | - | - | - | 200:unspecified | broad |
@@ -59,7 +59,7 @@ Generated from 160 operations: 31 precise, 129 broad.
 | POST | /v1/evidence | createEvidence | Bearer | evidence:write | required | - | application/json:CreateEvidenceRequest | 201:application/json:DataEnvelope | broad |
 | POST | /v1/evidence-bundles | exportEvidenceBundle | Bearer | bundle:read | required | - | - | 201:unspecified | broad |
 | POST | /v1/evidence-bundles/import | importEvidenceBundle | Bearer | bundle:write | required | - | - | 201:unspecified | broad |
-| POST | /v1/evidence-graph-snapshots | createGraphSnapshot | Bearer | evidence:read | required | - | - | 201:unspecified | broad |
+| POST | /v1/evidence-graph-snapshots | createGraphSnapshot | Bearer | evidence:read | required | - | application/json:CreateGraphSnapshotRequest | 201:application/json:EvidenceGraphSnapshotEnvelope | precise |
 | POST | /v1/evidence-summaries | createEvidenceSummary | Bearer | report:read | required | - | - | 201:unspecified | broad |
 | GET | /v1/evidence/search | searchEvidence | Bearer | evidence:read | - | query:cursor, query:limit, query:product_id, query:project_id, query:release_id, query:source, query:tag, query:type | - | 200:application/json:EvidenceSearchEnvelope | precise |
 | GET | /v1/evidence/{id} | getEvidence | Bearer | evidence:read | - | - | - | 200:unspecified | broad |
