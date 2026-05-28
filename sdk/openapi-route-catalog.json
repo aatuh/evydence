@@ -1,0 +1,2710 @@
+{
+  "route_count": 160,
+  "routes": [
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "instanceAdminSnapshot",
+      "path": "/v1/admin/instance",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/InstanceAdminSnapshotEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "instance:admin"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "listAPIKeys",
+      "path": "/v1/api-keys",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/APIKeyListEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "admin"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createAPIKey",
+      "path": "/v1/api-keys",
+      "request_schema": "#/components/schemas/CreateAPIKeyRequest",
+      "response_schemas": [
+        "#/components/schemas/APIKeyCreateEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "admin"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "uploadAPISecurityScan",
+      "path": "/v1/api-security-scans",
+      "request_schema": "#/components/schemas/UploadSecurityScanRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SecurityScanEnvelope"
+      ],
+      "scopes": [
+        "security:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createApproval",
+      "path": "/v1/approvals",
+      "request_schema": "#/components/schemas/CreateApprovalRequest",
+      "response_schemas": [
+        "#/components/schemas/ApprovalRecordEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "release:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createArtifactSignature",
+      "path": "/v1/artifact-signatures",
+      "request_schema": "#/components/schemas/CreateArtifactSignatureRequest",
+      "response_schemas": [
+        "#/components/schemas/ArtifactSignatureEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "evidence:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "getArtifactSignature",
+      "path": "/v1/artifact-signatures/{id}",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/ArtifactSignatureEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "evidence:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "verifyCosignSignature",
+      "path": "/v1/artifact-signatures/{id}/verify-cosign",
+      "request_schema": "#/components/schemas/VerifyCosignSignatureRequest",
+      "response_schemas": [
+        "#/components/schemas/CosignVerificationEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "verify:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "registerArtifact",
+      "path": "/v1/artifacts",
+      "request_schema": "#/components/schemas/RegisterArtifactRequest",
+      "response_schemas": [
+        "#/components/schemas/ArtifactEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "evidence:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "verifyAuditChain",
+      "path": "/v1/audit-chain/verify",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/VerificationResultEnvelope"
+      ],
+      "scopes": [
+        "verify:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "listAuditLog",
+      "path": "/v1/audit-log",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/AuditChainEntryListEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "admin"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "generateBackupManifest",
+      "path": "/v1/backup-manifests",
+      "request_schema": "#/components/schemas/EmptyObject",
+      "response_schemas": [
+        "#/components/schemas/BackupManifestEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "admin"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "verifyBackupManifest",
+      "path": "/v1/backup-manifests/{id}/verify",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/VerificationResultEnvelope"
+      ],
+      "scopes": [
+        "verify:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "verifyBuildAttestationSignature",
+      "path": "/v1/build-attestations/{id}/verify-signature",
+      "request_schema": "#/components/schemas/EmptyObject",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/VerificationResultEnvelope"
+      ],
+      "scopes": [
+        "verify:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createBuild",
+      "path": "/v1/builds",
+      "request_schema": "#/components/schemas/CreateBuildRequest",
+      "response_schemas": [
+        "#/components/schemas/BuildRunEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "build:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "getBuild",
+      "path": "/v1/builds/{id}",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/BuildRunEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "build:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "uploadBuildAttestation",
+      "path": "/v1/builds/{id}/attestations",
+      "request_schema": "#/components/schemas/DSSEEnvelope",
+      "response_schemas": [
+        "#/components/schemas/BuildAttestationEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "build:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "listCollectors",
+      "path": "/v1/collectors",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/CollectorListEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "collector:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createCollector",
+      "path": "/v1/collectors",
+      "request_schema": "#/components/schemas/CreateCollectorRequest",
+      "response_schemas": [
+        "#/components/schemas/CollectorCreateEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "collector:admin"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "uploadGitHubSourceSnapshot",
+      "path": "/v1/collectors/github/source-snapshots",
+      "request_schema": "#/components/schemas/SourceSnapshotRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SourceSnapshotEnvelope"
+      ],
+      "scopes": [
+        "source:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "uploadGitLabSourceSnapshot",
+      "path": "/v1/collectors/gitlab/source-snapshots",
+      "request_schema": "#/components/schemas/SourceSnapshotRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SourceSnapshotEnvelope"
+      ],
+      "scopes": [
+        "source:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "collectorHealthReport",
+      "path": "/v1/collectors/{id}/health",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/CollectorHealthReportEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "collector:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "recordCollectorRelease",
+      "path": "/v1/collectors/{id}/releases",
+      "request_schema": "#/components/schemas/RecordCollectorReleaseRequest",
+      "response_schemas": [
+        "#/components/schemas/CollectorReleaseEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "collector:admin"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "listCommercialCollectors",
+      "path": "/v1/commercial-collectors",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/CommercialCollectorDefinitionListEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "collector:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createCommercialCollector",
+      "path": "/v1/commercial-collectors",
+      "request_schema": "#/components/schemas/CreateCommercialCollectorRequest",
+      "response_schemas": [
+        "#/components/schemas/CommercialCollectorDefinitionEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "collector:admin"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "registerContainerImage",
+      "path": "/v1/container-images",
+      "request_schema": "#/components/schemas/RegisterContainerImageRequest",
+      "response_schemas": [
+        "#/components/schemas/ContainerImageEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "evidence:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "listControlEvidence",
+      "path": "/v1/control-evidence",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/ControlEvidenceListEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "controls:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "listControlFrameworkTemplatePacks",
+      "path": "/v1/control-framework-template-packs",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/ControlFrameworkTemplatePackListEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "controls:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "installControlFrameworkTemplatePack",
+      "path": "/v1/control-framework-template-packs/{slug}/install",
+      "request_schema": "#/components/schemas/EmptyObject",
+      "response_schemas": [
+        "#/components/schemas/ControlFrameworkEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "controls:admin"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "listControlFrameworks",
+      "path": "/v1/control-frameworks",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/ControlFrameworkListEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "controls:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createControlFramework",
+      "path": "/v1/control-frameworks",
+      "request_schema": "#/components/schemas/CreateControlFrameworkRequest",
+      "response_schemas": [
+        "#/components/schemas/ControlFrameworkEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "controls:admin"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createSecurityControl",
+      "path": "/v1/controls",
+      "request_schema": "#/components/schemas/CreateSecurityControlRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SecurityControlEnvelope"
+      ],
+      "scopes": [
+        "controls:admin"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "getSecurityControl",
+      "path": "/v1/controls/{id}",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SecurityControlEnvelope"
+      ],
+      "scopes": [
+        "controls:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "linkControlEvidence",
+      "path": "/v1/controls/{id}/evidence",
+      "request_schema": "#/components/schemas/LinkControlEvidenceRequest",
+      "response_schemas": [
+        "#/components/schemas/ControlEvidenceEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "controls:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createCustomPolicy",
+      "path": "/v1/custom-policies",
+      "request_schema": "#/components/schemas/CreateCustomPolicyRequest",
+      "response_schemas": [
+        "#/components/schemas/CustomPolicyEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "policy:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "evaluateCustomPolicy",
+      "path": "/v1/custom-policies/{id}/evaluate",
+      "request_schema": "#/components/schemas/EvaluatePolicyRequest",
+      "response_schemas": [
+        "#/components/schemas/CustomPolicyEvaluationEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "policy:read"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createCustomerPackage",
+      "path": "/v1/customer-packages",
+      "request_schema": "#/components/schemas/CreateCustomerPackageRequest",
+      "response_schemas": [
+        "#/components/schemas/CustomerSecurityPackageEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "package:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "getCustomerPackage",
+      "path": "/v1/customer-packages/{id}",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/CustomerSecurityPackageEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "package:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "downloadCustomerPackage",
+      "path": "/v1/customer-packages/{id}/download",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "package:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createCustomerPortalAccess",
+      "path": "/v1/customer-portal/access",
+      "request_schema": "#/components/schemas/CreateCustomerPortalAccessRequest",
+      "response_schemas": [
+        "#/components/schemas/CustomerPortalAccessCreateEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "package:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "accessCustomerPortalPackage",
+      "path": "/v1/customer-portal/package",
+      "request_schema": "#/components/schemas/CustomerPortalPackageRequest",
+      "response_schemas": [
+        "#/components/schemas/CustomerSecurityPackageEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "downloadCustomerPortalPackage",
+      "path": "/v1/customer-portal/package/download",
+      "request_schema": "#/components/schemas/CustomerPortalPackageRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "listDeployments",
+      "path": "/v1/deployments",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/DeploymentEventListEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "deployment:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "recordDeployment",
+      "path": "/v1/deployments",
+      "request_schema": "#/components/schemas/RecordDeploymentRequest",
+      "response_schemas": [
+        "#/components/schemas/DeploymentEventEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "deployment:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "getDeployment",
+      "path": "/v1/deployments/{id}",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/DeploymentEventEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "deployment:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createDSSETrustRoot",
+      "path": "/v1/dsse-trust-roots",
+      "request_schema": "#/components/schemas/CreateDSSETrustRootRequest",
+      "response_schemas": [
+        "#/components/schemas/DSSETrustRootEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "keys:admin"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "listDeploymentEnvironments",
+      "path": "/v1/environments",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/DeploymentEnvironmentListEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "deployment:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createDeploymentEnvironment",
+      "path": "/v1/environments",
+      "request_schema": "#/components/schemas/CreateDeploymentEnvironmentRequest",
+      "response_schemas": [
+        "#/components/schemas/DeploymentEnvironmentEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "deployment:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "listEvidence",
+      "path": "/v1/evidence",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/EvidenceItemListEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "evidence:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createEvidence",
+      "path": "/v1/evidence",
+      "request_schema": "#/components/schemas/CreateEvidenceRequest",
+      "response_schemas": [
+        "#/components/schemas/EvidenceItemEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "evidence:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "exportEvidenceBundle",
+      "path": "/v1/evidence-bundles",
+      "request_schema": "#/components/schemas/ExportEvidenceBundleRequest",
+      "response_schemas": [
+        "#/components/schemas/EvidenceBundleEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "bundle:read"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "importEvidenceBundle",
+      "path": "/v1/evidence-bundles/import",
+      "request_schema": "#/components/schemas/EvidenceBundle",
+      "response_schemas": [
+        "#/components/schemas/EvidenceBundleImportEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "bundle:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createGraphSnapshot",
+      "path": "/v1/evidence-graph-snapshots",
+      "request_schema": "#/components/schemas/CreateGraphSnapshotRequest",
+      "response_schemas": [
+        "#/components/schemas/EvidenceGraphSnapshotEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "evidence:read"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createEvidenceSummary",
+      "path": "/v1/evidence-summaries",
+      "request_schema": "#/components/schemas/CreateEvidenceSummaryRequest",
+      "response_schemas": [
+        "#/components/schemas/EvidenceSummaryEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "report:read"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "searchEvidence",
+      "path": "/v1/evidence/search",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/EvidenceSearchEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "evidence:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "getEvidence",
+      "path": "/v1/evidence/{id}",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/EvidenceItemEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "evidence:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "listEvidenceLifecycleEvents",
+      "path": "/v1/evidence/{id}/lifecycle-events",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/EvidenceLifecycleEventListEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "evidence:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "recordEvidenceLifecycleEvent",
+      "path": "/v1/evidence/{id}/lifecycle-events",
+      "request_schema": "#/components/schemas/RecordEvidenceLifecycleEventRequest",
+      "response_schemas": [
+        "#/components/schemas/EvidenceLifecycleEventEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "evidence:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "linkEvidence",
+      "path": "/v1/evidence/{id}/link",
+      "request_schema": "#/components/schemas/LinkEvidenceRequest",
+      "response_schemas": [
+        "#/components/schemas/EvidenceItemEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "evidence:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "supersedeEvidence",
+      "path": "/v1/evidence/{id}/supersede",
+      "request_schema": "#/components/schemas/SupersedeEvidenceRequest",
+      "response_schemas": [
+        "#/components/schemas/EvidenceItemEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "evidence:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "listExceptions",
+      "path": "/v1/exceptions",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/ExceptionListEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "verify:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createException",
+      "path": "/v1/exceptions",
+      "request_schema": "#/components/schemas/CreateExceptionRequest",
+      "response_schemas": [
+        "#/components/schemas/ExceptionEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "release:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "approveException",
+      "path": "/v1/exceptions/{id}/approve",
+      "request_schema": "#/components/schemas/EmptyObject",
+      "response_schemas": [
+        "#/components/schemas/ExceptionEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "release:write"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "health",
+      "path": "/v1/health",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/HealthStatusEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "POST",
+      "operation_id": "receiveIncidentWebhook",
+      "path": "/v1/incident-webhooks/{receiver_id}",
+      "request_schema": "#/components/schemas/SignedIncidentWebhookPayload",
+      "response_schemas": [
+        "#/components/schemas/IncidentWebhookDeliveryEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createIncident",
+      "path": "/v1/incidents",
+      "request_schema": "#/components/schemas/CreateIncidentRequest",
+      "response_schemas": [
+        "#/components/schemas/IncidentEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "incident:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "recordIncidentTimeline",
+      "path": "/v1/incidents/{id}/timeline",
+      "request_schema": "#/components/schemas/RecordIncidentTimelineRequest",
+      "response_schemas": [
+        "#/components/schemas/IncidentTimelineEventEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "incident:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createIncidentWebhookReceiver",
+      "path": "/v1/incidents/{id}/webhook-receivers",
+      "request_schema": "#/components/schemas/CreateIncidentWebhookReceiverRequest",
+      "response_schemas": [
+        "#/components/schemas/IncidentWebhookReceiverEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "incident:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createLegalHold",
+      "path": "/v1/legal-holds",
+      "request_schema": "#/components/schemas/CreateLegalHoldRequest",
+      "response_schemas": [
+        "#/components/schemas/LegalHoldEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "admin"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "listMarketplaceCollectors",
+      "path": "/v1/marketplace-collectors",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/MarketplaceCollectorListEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "collector:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createMarketplaceCollector",
+      "path": "/v1/marketplace-collectors",
+      "request_schema": "#/components/schemas/CreateMarketplaceCollectorRequest",
+      "response_schemas": [
+        "#/components/schemas/MarketplaceCollectorEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "collector:admin"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "marketplaceCollectorHealth",
+      "path": "/v1/marketplace-collectors/{id}/health",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/MarketplaceCollectorHealthReportEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "collector:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createMerkleBatch",
+      "path": "/v1/merkle-batches",
+      "request_schema": "#/components/schemas/CreateMerkleBatchRequest",
+      "response_schemas": [
+        "#/components/schemas/MerkleBatchEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "keys:admin"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "verifyMerkleBatch",
+      "path": "/v1/merkle-batches/{id}/verify",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/VerificationResultEnvelope"
+      ],
+      "scopes": [
+        "verify:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "metrics",
+      "path": "/v1/metrics",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/MetricsSnapshotEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "admin"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createObjectRetentionPolicy",
+      "path": "/v1/object-retention-policies",
+      "request_schema": "#/components/schemas/CreateObjectRetentionPolicyRequest",
+      "response_schemas": [
+        "#/components/schemas/ObjectRetentionPolicyEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "admin"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "verifyObjectRetentionPolicy",
+      "path": "/v1/object-retention-policies/{id}/verify",
+      "request_schema": "#/components/schemas/EmptyObject",
+      "response_schemas": [
+        "#/components/schemas/ObjectRetentionPolicyEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "verify:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "uploadOpenAPIContract",
+      "path": "/v1/openapi-contracts",
+      "request_schema": "#/components/schemas/UploadOpenAPIContractRequest",
+      "response_schemas": [
+        "#/components/schemas/OpenAPIContractEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "evidence:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "getOpenAPIContract",
+      "path": "/v1/openapi-contracts/{id}",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/OpenAPIContractEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "evidence:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createOpenAPIDiff",
+      "path": "/v1/openapi-diffs",
+      "request_schema": "#/components/schemas/CreateOpenAPIDiffRequest",
+      "response_schemas": [
+        "#/components/schemas/ContractDiffEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "evidence:read"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "openapi",
+      "path": "/v1/openapi.json",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/OpenAPIDocument",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createOrganization",
+      "path": "/v1/organizations",
+      "request_schema": "#/components/schemas/CreateOrganizationRequest",
+      "response_schemas": [
+        "#/components/schemas/OrganizationEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "identity:admin"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "evaluatePolicy",
+      "path": "/v1/policies/evaluate",
+      "request_schema": "#/components/schemas/EvaluatePolicyRequest",
+      "response_schemas": [
+        "#/components/schemas/PolicyEvaluationEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "verify:read"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "listProducts",
+      "path": "/v1/products",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/ProductListEnvelope"
+      ],
+      "scopes": [
+        "product:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createProduct",
+      "path": "/v1/products",
+      "request_schema": "#/components/schemas/CreateProductRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/ProductEnvelope"
+      ],
+      "scopes": [
+        "product:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createProject",
+      "path": "/v1/projects",
+      "request_schema": "#/components/schemas/CreateProjectRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/ProjectEnvelope"
+      ],
+      "scopes": [
+        "project:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "verifyProviderIdentity",
+      "path": "/v1/provider-verifications",
+      "request_schema": "#/components/schemas/VerifyProviderIdentityRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/ProviderVerificationEnvelope"
+      ],
+      "scopes": [
+        "identity:admin"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "publishPublicTransparencyLogEntry",
+      "path": "/v1/public-transparency-log-entries",
+      "request_schema": "#/components/schemas/PublishPublicTransparencyLogEntryRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/PublicTransparencyLogEntryEnvelope"
+      ],
+      "scopes": [
+        "keys:admin"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createPublicTransparencyLog",
+      "path": "/v1/public-transparency-logs",
+      "request_schema": "#/components/schemas/CreatePublicTransparencyLogRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/PublicTransparencyLogEnvelope"
+      ],
+      "scopes": [
+        "keys:admin"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createQuestionnaireDraft",
+      "path": "/v1/questionnaire-drafts",
+      "request_schema": "#/components/schemas/CreateQuestionnaireDraftRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/QuestionnaireDraftEnvelope"
+      ],
+      "scopes": [
+        "package:read"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createQuestionnairePackage",
+      "path": "/v1/questionnaire-packages",
+      "request_schema": "#/components/schemas/CreateQuestionnairePackageRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/QuestionnairePackageEnvelope"
+      ],
+      "scopes": [
+        "package:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createQuestionnaireTemplate",
+      "path": "/v1/questionnaire-templates",
+      "request_schema": "#/components/schemas/CreateQuestionnaireTemplateRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/QuestionnaireTemplateEnvelope"
+      ],
+      "scopes": [
+        "package:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "ready",
+      "path": "/v1/ready",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/ReadinessStatusEnvelope"
+      ],
+      "scopes": [],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createRedactionProfile",
+      "path": "/v1/redaction-profiles",
+      "request_schema": "#/components/schemas/CreateRedactionProfileRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/RedactionProfileEnvelope"
+      ],
+      "scopes": [
+        "package:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createReleaseBundle",
+      "path": "/v1/release-bundles",
+      "request_schema": "#/components/schemas/CreateReleaseBundleRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/ReleaseBundleEnvelope"
+      ],
+      "scopes": [
+        "bundle:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "getReleaseBundle",
+      "path": "/v1/release-bundles/{id}",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/ReleaseBundleEnvelope"
+      ],
+      "scopes": [
+        "bundle:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "getReleaseBundleManifest",
+      "path": "/v1/release-bundles/{id}/manifest",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/ReleaseBundleManifestEnvelope"
+      ],
+      "scopes": [
+        "bundle:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "verifyReleaseBundle",
+      "path": "/v1/release-bundles/{id}/verify",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/VerificationResultEnvelope"
+      ],
+      "scopes": [
+        "verify:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "listReleaseCandidates",
+      "path": "/v1/release-candidates",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/ReleaseCandidateListEnvelope"
+      ],
+      "scopes": [
+        "release:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createReleaseCandidate",
+      "path": "/v1/release-candidates",
+      "request_schema": "#/components/schemas/CreateReleaseCandidateRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/ReleaseCandidateEnvelope"
+      ],
+      "scopes": [
+        "release:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "getReleaseCandidate",
+      "path": "/v1/release-candidates/{id}",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/ReleaseCandidateEnvelope"
+      ],
+      "scopes": [
+        "release:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "promoteReleaseCandidate",
+      "path": "/v1/release-candidates/{id}/promote",
+      "request_schema": "#/components/schemas/ReleaseCandidateTransitionRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/ReleaseCandidateEnvelope"
+      ],
+      "scopes": [
+        "release:write"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "rejectReleaseCandidate",
+      "path": "/v1/release-candidates/{id}/reject",
+      "request_schema": "#/components/schemas/ReleaseCandidateTransitionRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/ReleaseCandidateEnvelope"
+      ],
+      "scopes": [
+        "release:write"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createRelease",
+      "path": "/v1/releases",
+      "request_schema": "#/components/schemas/CreateReleaseRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/ReleaseEnvelope"
+      ],
+      "scopes": [
+        "release:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "getRelease",
+      "path": "/v1/releases/{id}",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/ReleaseEnvelope"
+      ],
+      "scopes": [
+        "release:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "approveRelease",
+      "path": "/v1/releases/{id}/approve",
+      "request_schema": "#/components/schemas/EmptyObject",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/ReleaseEnvelope"
+      ],
+      "scopes": [
+        "release:write"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "freezeRelease",
+      "path": "/v1/releases/{id}/freeze",
+      "request_schema": "#/components/schemas/EmptyObject",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/ReleaseEnvelope"
+      ],
+      "scopes": [
+        "release:write"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createRemediationTask",
+      "path": "/v1/remediation-tasks",
+      "request_schema": "#/components/schemas/CreateRemediationTaskRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/RemediationTaskEnvelope"
+      ],
+      "scopes": [
+        "incident:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createReportTemplate",
+      "path": "/v1/report-templates",
+      "request_schema": "#/components/schemas/CreateReportTemplateRequest",
+      "response_schemas": [
+        "#/components/schemas/CustomReportTemplateEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "report:read"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "renderReportTemplate",
+      "path": "/v1/report-templates/{id}/render",
+      "request_schema": "#/components/schemas/RenderReportTemplateRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/RenderedCustomReportEnvelope"
+      ],
+      "scopes": [
+        "report:read"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "generateAnomalyReport",
+      "path": "/v1/reports/anomaly",
+      "request_schema": "#/components/schemas/CreateAnomalyReportRequest",
+      "response_schemas": [
+        "#/components/schemas/AnomalyReportEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "report:read"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "controlCoverageReport",
+      "path": "/v1/reports/control-coverage",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/ReadinessReportEnvelope"
+      ],
+      "scopes": [
+        "report:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "craReadinessReport",
+      "path": "/v1/reports/cra-readiness",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/ReadinessReportEnvelope"
+      ],
+      "scopes": [
+        "report:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "craReadinessHTMLPackage",
+      "path": "/v1/reports/cra-readiness-html",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/HTMLReportPackageEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "report:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "incidentReport",
+      "path": "/v1/reports/incident-package",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/IncidentReportEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "incident:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "missingEvidenceReport",
+      "path": "/v1/reports/missing-evidence",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/MissingEvidenceReportEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "verify:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createPDFReportPackage",
+      "path": "/v1/reports/pdf",
+      "request_schema": "#/components/schemas/CreatePDFReportPackageRequest",
+      "response_schemas": [
+        "#/components/schemas/PDFReportPackageEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "report:read"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "releaseReadinessReport",
+      "path": "/v1/reports/release-readiness",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/ReadinessReportEnvelope"
+      ],
+      "scopes": [
+        "verify:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "retentionReport",
+      "path": "/v1/reports/retention",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/RetentionReportEnvelope"
+      ],
+      "scopes": [
+        "admin"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "securityReviewPackageReport",
+      "path": "/v1/reports/security-review-package",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SecurityReviewPackageReportEnvelope"
+      ],
+      "scopes": [
+        "package:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "vulnerabilityPostureReport",
+      "path": "/v1/reports/vulnerability-posture",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/VulnerabilityPostureReportEnvelope"
+      ],
+      "scopes": [
+        "security:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createRetentionOverride",
+      "path": "/v1/retention-overrides",
+      "request_schema": "#/components/schemas/CreateRetentionOverrideRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/RetentionOverrideEnvelope"
+      ],
+      "scopes": [
+        "admin"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "listRoleBindings",
+      "path": "/v1/role-bindings",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/RoleBindingListEnvelope"
+      ],
+      "scopes": [
+        "identity:admin"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createRoleBinding",
+      "path": "/v1/role-bindings",
+      "request_schema": "#/components/schemas/CreateRoleBindingRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/RoleBindingEnvelope"
+      ],
+      "scopes": [
+        "identity:admin"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createSaaSEditionProfile",
+      "path": "/v1/saas/profiles",
+      "request_schema": "#/components/schemas/CreateSaaSEditionProfileRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SaaSEditionProfileEnvelope"
+      ],
+      "scopes": [
+        "instance:admin"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "listSBOMComponents",
+      "path": "/v1/sbom-components",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SBOMComponentRecordListEnvelope"
+      ],
+      "scopes": [
+        "evidence:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createSBOMDiff",
+      "path": "/v1/sbom-diffs",
+      "request_schema": "#/components/schemas/CreateSBOMDiffRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SBOMDiffEnvelope"
+      ],
+      "scopes": [
+        "evidence:read"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "uploadSBOM",
+      "path": "/v1/sboms",
+      "request_schema": "#/components/schemas/EvidenceUploadRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SBOMEnvelope"
+      ],
+      "scopes": [
+        "evidence:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "uploadSPDXSBOM",
+      "path": "/v1/sboms/spdx",
+      "request_schema": "#/components/schemas/UploadSPDXSBOMRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SBOMEnvelope"
+      ],
+      "scopes": [
+        "evidence:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "getSBOM",
+      "path": "/v1/sboms/{id}",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SBOMEnvelope"
+      ],
+      "scopes": [
+        "evidence:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "uploadManualSecurityDocument",
+      "path": "/v1/security-documents",
+      "request_schema": "#/components/schemas/UploadManualSecurityDocumentRequest",
+      "response_schemas": [
+        "#/components/schemas/ManualSecurityDocumentEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "security:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "uploadSecurityScan",
+      "path": "/v1/security-scans",
+      "request_schema": "#/components/schemas/UploadSecurityScanRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SecurityScanEnvelope"
+      ],
+      "scopes": [
+        "security:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "listSigningKeys",
+      "path": "/v1/signing-keys",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SigningKeyListEnvelope"
+      ],
+      "scopes": [
+        "verify:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "rotateSigningKey",
+      "path": "/v1/signing-keys/rotate",
+      "request_schema": "#/components/schemas/SigningKeyTransitionRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SigningKeyEnvelope"
+      ],
+      "scopes": [
+        "keys:admin"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "revokeSigningKey",
+      "path": "/v1/signing-keys/{id}/revoke",
+      "request_schema": "#/components/schemas/SigningKeyTransitionRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SigningKeyEnvelope"
+      ],
+      "scopes": [
+        "keys:admin"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createSigningOperation",
+      "path": "/v1/signing-operations",
+      "request_schema": "#/components/schemas/CreateSigningOperationRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SigningOperationEnvelope"
+      ],
+      "scopes": [
+        "keys:admin"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createSigningProvider",
+      "path": "/v1/signing-providers",
+      "request_schema": "#/components/schemas/CreateSigningProviderRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SigningProviderEnvelope"
+      ],
+      "scopes": [
+        "keys:admin"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "upsertSourceBranch",
+      "path": "/v1/source/branches",
+      "request_schema": "#/components/schemas/UpsertSourceBranchRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SourceBranchEnvelope"
+      ],
+      "scopes": [
+        "source:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "recordSourceCommit",
+      "path": "/v1/source/commits",
+      "request_schema": "#/components/schemas/RecordSourceCommitRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SourceCommitEnvelope"
+      ],
+      "scopes": [
+        "source:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "recordPullRequest",
+      "path": "/v1/source/pull-requests",
+      "request_schema": "#/components/schemas/RecordPullRequestRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/PullRequestEnvelope"
+      ],
+      "scopes": [
+        "source:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "listSourceRepositories",
+      "path": "/v1/source/repositories",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SourceRepositoryListEnvelope"
+      ],
+      "scopes": [
+        "source:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createSourceRepository",
+      "path": "/v1/source/repositories",
+      "request_schema": "#/components/schemas/CreateSourceRepositoryRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SourceRepositoryEnvelope"
+      ],
+      "scopes": [
+        "source:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "linkSSOIdentity",
+      "path": "/v1/sso/identity-links",
+      "request_schema": "#/components/schemas/LinkSSOIdentityRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/UserIdentityLinkEnvelope"
+      ],
+      "scopes": [
+        "identity:admin"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createSSOProvider",
+      "path": "/v1/sso/providers",
+      "request_schema": "#/components/schemas/CreateSSOProviderRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SSOProviderEnvelope"
+      ],
+      "scopes": [
+        "identity:admin"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createSSOSession",
+      "path": "/v1/sso/sessions",
+      "request_schema": "#/components/schemas/CreateSSOSessionRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SSOSessionCreateEnvelope"
+      ],
+      "scopes": [
+        "identity:admin"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "revokeSSOSession",
+      "path": "/v1/sso/sessions/{id}/revoke",
+      "request_schema": "#/components/schemas/EmptyObject",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SSOSessionEnvelope"
+      ],
+      "scopes": [
+        "identity:admin"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createTransparencyCheckpoint",
+      "path": "/v1/transparency-checkpoints",
+      "request_schema": "#/components/schemas/CreateTransparencyCheckpointRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/TransparencyCheckpointEnvelope"
+      ],
+      "scopes": [
+        "keys:admin"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createUser",
+      "path": "/v1/users",
+      "request_schema": "#/components/schemas/CreateUserRequest",
+      "response_schemas": [
+        "#/components/schemas/HumanUserEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "identity:admin"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "deactivateUser",
+      "path": "/v1/users/{id}/deactivate",
+      "request_schema": "#/components/schemas/EmptyObject",
+      "response_schemas": [
+        "#/components/schemas/HumanUserEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "identity:admin"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "verify",
+      "path": "/v1/verify",
+      "request_schema": "#/components/schemas/VerifySubjectRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/VerificationResultEnvelope"
+      ],
+      "scopes": [
+        "verify:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "version",
+      "path": "/v1/version",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/VersionInfoEnvelope"
+      ],
+      "scopes": [],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "uploadVEX",
+      "path": "/v1/vex",
+      "request_schema": "#/components/schemas/EvidenceUploadRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/VEXDocumentEnvelope"
+      ],
+      "scopes": [
+        "evidence:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "uploadCycloneDXVEX",
+      "path": "/v1/vex/cyclonedx",
+      "request_schema": "#/components/schemas/EvidenceUploadRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/VEXDocumentEnvelope"
+      ],
+      "scopes": [
+        "evidence:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "getVEX",
+      "path": "/v1/vex/{id}",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/VEXDocumentEnvelope"
+      ],
+      "scopes": [
+        "evidence:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createVulnerabilityDecision",
+      "path": "/v1/vulnerability-findings/{id}/decisions",
+      "request_schema": "#/components/schemas/CreateVulnerabilityDecisionRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/VulnerabilityDecisionEnvelope"
+      ],
+      "scopes": [
+        "evidence:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "recordVulnerabilityWorkflow",
+      "path": "/v1/vulnerability-findings/{id}/workflow",
+      "request_schema": "#/components/schemas/RecordVulnerabilityWorkflowRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/VulnerabilityWorkflowRecordEnvelope"
+      ],
+      "scopes": [
+        "security:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "uploadVulnerabilityScan",
+      "path": "/v1/vulnerability-scans",
+      "request_schema": "#/components/schemas/UploadVulnerabilityScanRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/VulnerabilityScanEnvelope"
+      ],
+      "scopes": [
+        "evidence:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "getVulnerabilityScan",
+      "path": "/v1/vulnerability-scans/{id}",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/VulnerabilityScanEnvelope"
+      ],
+      "scopes": [
+        "evidence:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createWaiver",
+      "path": "/v1/waivers",
+      "request_schema": "#/components/schemas/CreateWaiverRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/WaiverEnvelope"
+      ],
+      "scopes": [
+        "policy:write"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "approveWaiver",
+      "path": "/v1/waivers/{id}/approve",
+      "request_schema": "#/components/schemas/EmptyObject",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/WaiverEnvelope"
+      ],
+      "scopes": [
+        "policy:write"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    }
+  ],
+  "source": "openapi.yaml"
+}

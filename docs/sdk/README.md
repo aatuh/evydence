@@ -10,7 +10,9 @@ The wrappers provide authenticated JSON helpers with explicit idempotency keys a
 - TypeScript: `sdk/typescript/client.ts`
 - Python: `sdk/python/evydence_client.py`
 
-They do not expose typed methods for every route. The current typed coverage is intentionally narrow: products, releases, artifacts, build runs, process readiness, release-readiness reports, SSO provider creation, and provider identity verification. Broader generated clients should be regenerated from the committed `openapi.yaml`, reviewed, and released through a separate SDK publishing process.
+They do not expose typed methods for every route. The current typed coverage is intentionally narrow: products, releases, artifacts, build runs, process readiness, release-readiness reports, SSO provider creation, and provider identity verification.
+
+The generated SDK route catalog at [`sdk/openapi-route-catalog.json`](../../sdk/openapi-route-catalog.json) lists every committed public operation with method, path, scopes, idempotency requirement, and request/response schema references. Use that catalog as the checked input for broader generated clients, then review and release language-specific packages through a separate SDK publishing process.
 
 No package publishing manifests are committed for these wrappers yet. Use them as in-repository examples or copy them into an application-owned SDK package until a release process publishes versioned SDK artifacts.
 
@@ -120,4 +122,4 @@ make test
 make sdk-check
 ```
 
-`make sdk-check` runs `scripts/sdk_check.py`, which verifies that the curated helper methods still map to committed OpenAPI operations, idempotent routes still require `Idempotency-Key`, and SDKs keep basic `/v1/` path validation. Generated SDK publishing is not an API runtime dependency. Keep generated clients tied to the committed `openapi.yaml` and document any route coverage gaps at release time.
+`make sdk-check` runs `scripts/sdk_check.py`, which verifies that the curated helper methods still map to committed OpenAPI operations, idempotent routes still require `Idempotency-Key`, SDKs keep basic `/v1/` path validation, and the generated route catalog matches `openapi.yaml`. Generated SDK publishing is not an API runtime dependency. Keep generated clients tied to the committed `openapi.yaml` and document any route coverage gaps at release time.
