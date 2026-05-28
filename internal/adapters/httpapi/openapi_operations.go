@@ -105,7 +105,14 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 	case "createEvidence":
 		operation.Description = "Creates immutable evidence metadata and optional raw payload evidence. Evidence core fields are append-only after creation."
 		operation.RequestBody = jsonRequest("Evidence creation request.", "#/components/schemas/CreateEvidenceRequest")
-		operation.Responses[http.StatusCreated] = jsonResponse("Created evidence item envelope.", "#/components/schemas/DataEnvelope")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created evidence item envelope.", "#/components/schemas/EvidenceItemEnvelope")
+	case "listEvidence":
+		operation.Description = "Lists tenant-scoped evidence by optional release and evidence type filters."
+		operation.Parameters = append(operation.Parameters,
+			queryParam("release_id", "Filter by release id.", "string"),
+			queryParam("type", "Filter by evidence type.", "string"),
+		)
+		operation.Responses[http.StatusOK] = jsonResponse("Evidence item list envelope.", "#/components/schemas/EvidenceItemListEnvelope")
 	case "searchEvidence":
 		operation.Description = "Searches tenant-scoped evidence with deterministic filters and cursor-style pagination."
 		operation.Parameters = append(operation.Parameters,
@@ -119,6 +126,10 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 			queryParam("limit", "Maximum returned records.", "integer"),
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("Evidence search result envelope.", "#/components/schemas/EvidenceSearchEnvelope")
+	case "getEvidence":
+		operation.Description = "Returns a tenant-scoped immutable evidence item by id."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Evidence item id."))
+		operation.Responses[http.StatusOK] = jsonResponse("Evidence item envelope.", "#/components/schemas/EvidenceItemEnvelope")
 	case "createGraphSnapshot":
 		operation.Description = "Creates a deterministic product/release evidence adjacency snapshot from stored tenant-scoped evidence records."
 		operation.RequestBody = jsonRequest("Evidence graph snapshot creation request.", "#/components/schemas/CreateGraphSnapshotRequest")
