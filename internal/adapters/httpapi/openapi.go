@@ -69,6 +69,48 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"result": map[string]any{"type": "string", "enum": []string{"passed", "failed", "warning"}},
 		"detail": map[string]any{"type": "string"},
 	}, "name", "result"))
+	registry.RegisterSchema("ReadinessStatus", objectSchema(map[string]any{
+		"status": map[string]any{"type": "string"},
+		"checks": map[string]any{"type": "array", "items": objectSchema(map[string]any{
+			"name":   map[string]any{"type": "string"},
+			"status": map[string]any{"type": "string"},
+		}, "name", "status")},
+	}, "status", "checks"))
+	registry.RegisterSchema("ReadinessStatusEnvelope", dataEnvelopeSchema("#/components/schemas/ReadinessStatus"))
+	registry.RegisterSchema("BackupManifest", objectSchema(map[string]any{
+		"id":                 map[string]any{"type": "string"},
+		"tenant_id":          map[string]any{"type": "string"},
+		"state_hash":         map[string]any{"type": "string", "pattern": "^sha256:"},
+		"resource_counts":    map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "integer"}},
+		"consistency_checks": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/VerifyCheck"}},
+		"limitations":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"schema_version":     map[string]any{"type": "string"},
+		"created_at":         map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "state_hash", "resource_counts", "consistency_checks", "limitations", "schema_version", "created_at"))
+	registry.RegisterSchema("BackupManifestEnvelope", dataEnvelopeSchema("#/components/schemas/BackupManifest"))
+	registry.RegisterSchema("VerificationResult", objectSchema(map[string]any{
+		"id":           map[string]any{"type": "string"},
+		"tenant_id":    map[string]any{"type": "string"},
+		"subject_type": map[string]any{"type": "string"},
+		"subject_id":   map[string]any{"type": "string"},
+		"result":       map[string]any{"type": "string", "enum": []string{"passed", "failed"}},
+		"checks":       map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/VerifyCheck"}},
+		"verified_at":  map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "subject_type", "subject_id", "result", "checks", "verified_at"))
+	registry.RegisterSchema("VerificationResultEnvelope", dataEnvelopeSchema("#/components/schemas/VerificationResult"))
+	registry.RegisterSchema("ReadinessReport", objectSchema(map[string]any{
+		"report_type":      map[string]any{"type": "string"},
+		"template_version": map[string]any{"type": "string"},
+		"product_id":       map[string]any{"type": "string"},
+		"release_id":       map[string]any{"type": "string"},
+		"result":           map[string]any{"type": "string"},
+		"checks":           map[string]any{"type": "array", "items": map[string]any{"type": "object"}},
+		"gaps":             map[string]any{"type": "array", "items": map[string]any{"type": "object"}},
+		"assumptions":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"limitations":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"generated_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "report_type", "template_version", "result", "assumptions", "limitations", "generated_at"))
+	registry.RegisterSchema("ReadinessReportEnvelope", dataEnvelopeSchema("#/components/schemas/ReadinessReport"))
 	registry.RegisterSchema("SSOProvider", objectSchema(map[string]any{
 		"id":                        map[string]any{"type": "string"},
 		"tenant_id":                 map[string]any{"type": "string"},

@@ -3,7 +3,7 @@
 This generated reference inventories Evydence `/v1` route contract precision from `openapi.yaml`.
 It is a planning aid for production contract hardening; `broad` means the route still uses a shared envelope, unspecified body, or generic schema where an endpoint-specific contract should be considered.
 
-Generated from 160 operations: 25 precise, 135 broad.
+Generated from 160 operations: 31 precise, 129 broad.
 
 | Method | Path | Operation | Auth | Scopes | Idempotency | Params | Request | 2xx Response | Precision |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -18,8 +18,8 @@ Generated from 160 operations: 25 precise, 135 broad.
 | POST | /v1/artifacts | registerArtifact | Bearer | evidence:write | required | - | application/json:RegisterArtifactRequest | 201:application/json:ArtifactEnvelope | precise |
 | GET | /v1/audit-chain/verify | verifyAuditChain | Bearer | verify:read | - | - | - | 200:unspecified | broad |
 | GET | /v1/audit-log | listAuditLog | Bearer | admin | - | - | - | 200:unspecified | broad |
-| POST | /v1/backup-manifests | generateBackupManifest | Bearer | admin | required | - | - | 201:unspecified | broad |
-| GET | /v1/backup-manifests/{id}/verify | verifyBackupManifest | Bearer | verify:read | - | - | - | 200:unspecified | broad |
+| POST | /v1/backup-manifests | generateBackupManifest | Bearer | admin | required | - | application/json:EmptyObject | 201:application/json:BackupManifestEnvelope | precise |
+| GET | /v1/backup-manifests/{id}/verify | verifyBackupManifest | Bearer | verify:read | - | path:id | - | 200:application/json:VerificationResultEnvelope | precise |
 | POST | /v1/build-attestations/{id}/verify-signature | verifyBuildAttestationSignature | Bearer | verify:read | required | - | - | 200:unspecified | broad |
 | POST | /v1/builds | createBuild | Bearer | build:write | required | - | application/json:CreateBuildRequest | 201:application/json:BuildRunEnvelope | precise |
 | GET | /v1/builds/{id} | getBuild | Bearer | build:read | - | path:id | - | 200:application/json:BuildRunEnvelope | precise |
@@ -99,7 +99,7 @@ Generated from 160 operations: 25 precise, 135 broad.
 | POST | /v1/questionnaire-drafts | createQuestionnaireDraft | Bearer | package:read | required | - | - | 201:unspecified | broad |
 | POST | /v1/questionnaire-packages | createQuestionnairePackage | Bearer | package:write | required | - | - | 201:unspecified | broad |
 | POST | /v1/questionnaire-templates | createQuestionnaireTemplate | Bearer | package:write | required | - | - | 201:unspecified | broad |
-| GET | /v1/ready | ready | public | - | - | - | - | 200:unspecified | broad |
+| GET | /v1/ready | ready | public | - | - | - | - | 200:application/json:ReadinessStatusEnvelope | precise |
 | POST | /v1/redaction-profiles | createRedactionProfile | Bearer | package:write | required | - | - | 201:unspecified | broad |
 | POST | /v1/release-bundles | createReleaseBundle | Bearer | bundle:write | required | - | application/json:CreateReleaseBundleRequest | 201:application/json:DataEnvelope | broad |
 | GET | /v1/release-bundles/{id} | getReleaseBundle | Bearer | bundle:read | - | - | - | 200:unspecified | broad |
@@ -118,13 +118,13 @@ Generated from 160 operations: 25 precise, 135 broad.
 | POST | /v1/report-templates | createReportTemplate | Bearer | report:read | required | - | - | 201:unspecified | broad |
 | POST | /v1/report-templates/{id}/render | renderReportTemplate | Bearer | report:read | required | - | - | 201:unspecified | broad |
 | POST | /v1/reports/anomaly | generateAnomalyReport | Bearer | report:read | required | - | - | 201:unspecified | broad |
-| GET | /v1/reports/control-coverage | controlCoverageReport | Bearer | report:read | - | - | - | 200:unspecified | broad |
-| GET | /v1/reports/cra-readiness | craReadinessReport | Bearer | report:read | - | - | - | 200:unspecified | broad |
+| GET | /v1/reports/control-coverage | controlCoverageReport | Bearer | report:read | - | query:framework_id, query:product_id, query:release_id | - | 200:application/json:ReadinessReportEnvelope | precise |
+| GET | /v1/reports/cra-readiness | craReadinessReport | Bearer | report:read | - | query:product_id, query:release_id | - | 200:application/json:ReadinessReportEnvelope | precise |
 | GET | /v1/reports/cra-readiness-html | craReadinessHTMLPackage | Bearer | report:read | - | - | - | 200:unspecified | broad |
 | GET | /v1/reports/incident-package | incidentReport | Bearer | incident:read | - | - | - | 200:unspecified | broad |
 | GET | /v1/reports/missing-evidence | missingEvidenceReport | Bearer | verify:read | - | - | - | 200:unspecified | broad |
 | POST | /v1/reports/pdf | createPDFReportPackage | Bearer | report:read | required | - | - | 201:unspecified | broad |
-| GET | /v1/reports/release-readiness | releaseReadinessReport | Bearer | verify:read | - | - | - | 200:unspecified | broad |
+| GET | /v1/reports/release-readiness | releaseReadinessReport | Bearer | verify:read | - | query:release_id | - | 200:application/json:ReadinessReportEnvelope | precise |
 | GET | /v1/reports/retention | retentionReport | Bearer | admin | - | - | - | 200:unspecified | broad |
 | GET | /v1/reports/security-review-package | securityReviewPackageReport | Bearer | package:read | - | - | - | 200:unspecified | broad |
 | GET | /v1/reports/vulnerability-posture | vulnerabilityPostureReport | Bearer | security:read | - | - | - | 200:unspecified | broad |
