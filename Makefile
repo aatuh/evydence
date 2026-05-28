@@ -89,6 +89,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@test -f docs/how-to/integrate-ci.md
 	@test -f docs/how-to/install-and-operate.md
 	@test -f docs/reference/configuration.md
+	@test -f docs/reference/api-contract-matrix.md
 	@test -f docs/reference/openapi.md
 	@test -f docs/reference/observability.md
 	@test -f docs/reference/production-readiness.md
@@ -112,6 +113,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 		"release-signing.md" \
 		"production-hardening.md" \
 		"reference/configuration.md" \
+		"reference/api-contract-matrix.md" \
 		"reference/openapi.md" \
 		"reference/observability.md" \
 		"reference/production-readiness.md" \
@@ -128,6 +130,8 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 		grep -F "$$path" docs/README.md >/dev/null || { echo "docs/README.md missing link to $$path"; exit 1; }; \
 	done
 	@python3 -c 'import json,re,sys; from pathlib import Path; spec=json.loads(Path("openapi.yaml").read_text()); doc=Path("docs/api.md").read_text(); openapi=set(spec["paths"]); catalog=set(re.findall(r"`(/v1/[^`]+)`", doc)); missing=sorted(openapi-catalog); extra=sorted(catalog-openapi); [print("docs/api.md missing OpenAPI path: "+p) for p in missing]; [print("docs/api.md lists non-OpenAPI path: "+p) for p in extra]; sys.exit(1 if missing or extra else 0)'
+	@scripts/openapi_contract_matrix.py > /tmp/evydence-api-contract-matrix.md
+	@cmp -s docs/reference/api-contract-matrix.md /tmp/evydence-api-contract-matrix.md
 	@grep -F 'case "release"' cmd/evydence/main.go >/dev/null
 	@grep -F 'case "import-bundle"' cmd/evydence/main.go >/dev/null
 	@grep -F 'case "upload"' cmd/evydence/main.go >/dev/null
