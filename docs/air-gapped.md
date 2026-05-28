@@ -47,6 +47,15 @@ Run the verifier from the transferred package directory. Use `./evydence` for th
 
 Expected result: the command exits successfully and reports that the manifest signature and referenced artifact hashes verify.
 
+Evidence bundles and audit-chain exports can also be checked without API access:
+
+```sh
+./evydence verify-evidence-bundle evidence-bundle.json
+./evydence verify-audit-chain audit-chain.json
+```
+
+`verify-evidence-bundle` always checks the canonical manifest hash. If the bundle file includes `signature_refs`, `signatures`, and `signing_keys`, it also verifies an Ed25519 signature over the manifest hash. `verify-audit-chain` checks sequence continuity, previous-entry linkage, canonical entry hashes, and entry hashes. These checks validate the exported bytes and included public material; they do not contact external transparency logs or key-management systems.
+
 ## Import Evidence Bundles
 
 For CI systems that cannot call the API, write an evidence bundle in CI, move it through the same controlled transfer process, then upload it from the connected side:

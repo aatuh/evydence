@@ -53,6 +53,11 @@ func run(args []string) error {
 			return usage()
 		}
 		return verifyEvidenceBundle(args[1])
+	case "verify-audit-chain":
+		if len(args) != 2 {
+			return usage()
+		}
+		return verifyAuditChain(args[1])
 	case "github-actions":
 		if len(args) < 2 || args[1] != "upload-build" {
 			return usage()
@@ -90,7 +95,7 @@ func run(args []string) error {
 }
 
 func usage() error {
-	return errors.New("usage: evydence hash <file> | evydence verify-manifest <manifest.json> --hash sha256:<hex> | evydence verify-evidence-bundle <bundle.json> | evydence github-actions upload-build ... | evydence import-bundle upload ... | evydence upload manifest ... | evydence release manifest|sign|verify|keygen")
+	return errors.New("usage: evydence hash <file> | evydence verify-manifest <manifest.json> --hash sha256:<hex> | evydence verify-evidence-bundle <bundle.json> | evydence verify-audit-chain <chain.json> | evydence github-actions upload-build ... | evydence import-bundle upload ... | evydence upload manifest ... | evydence release manifest|sign|verify|keygen")
 }
 
 func hashFile(path string) (string, error) {
@@ -155,8 +160,11 @@ func verifyEvidenceBundle(path string) error {
 		return err
 	}
 	var bundle struct {
-		Manifest     map[string]any `json:"manifest"`
-		ManifestHash string         `json:"manifest_hash"`
+		Manifest      map[string]any      `json:"manifest"`
+		ManifestHash  string              `json:"manifest_hash"`
+		SignatureRefs []string            `json:"signature_refs"`
+		Signatures    []offlineSignature  `json:"signatures"`
+		SigningKeys   []offlineSigningKey `json:"signing_keys"`
 	}
 	if err := json.Unmarshal(body, &bundle); err != nil {
 		return errors.New("evidence bundle is not JSON")
@@ -181,8 +189,171 @@ func verifyEvidenceBundle(path string) error {
 	if got != bundle.ManifestHash {
 		return fmt.Errorf("evidence bundle hash mismatch: got %s want %s", got, bundle.ManifestHash)
 	}
+	if err := verifyOfflineSignatures(bundle.ManifestHash, bundle.SignatureRefs, bundle.Signatures, bundle.SigningKeys); err != nil {
+		return err
+	}
+	if len(bundle.Signatures) > 0 || len(bundle.SigningKeys) > 0 {
+		fmt.Println("evidence bundle manifest and signature verified")
+		return nil
+	}
 	fmt.Println("evidence bundle manifest verified")
 	return nil
+}
+
+type offlineSignature struct {
+	ID        string    `json:"id"`
+	KeyID     string    `json:"key_id"`
+	Algorithm string    `json:"algorithm"`
+	Value     string    `json:"value"`
+	CreatedAt time.Time `json:"created_at,omitempty"`
+}
+
+type offlineSigningKey struct {
+	ID        string     `json:"id"`
+	Algorithm string     `json:"algorithm"`
+	Status    string     `json:"status"`
+	PublicKey string     `json:"public_key"`
+	RevokedAt *time.Time `json:"revoked_at,omitempty"`
+}
+
+type offlineAuditChainEntry struct {
+	ID                 string    `json:"id"`
+	TenantID           string    `json:"tenant_id"`
+	Sequence           int64     `json:"sequence"`
+	EntryType          string    `json:"entry_type"`
+	SubjectType        string    `json:"subject_type"`
+	SubjectID          string    `json:"subject_id"`
+	ActorType          string    `json:"actor_type"`
+	ActorID            string    `json:"actor_id"`
+	OccurredAt         time.Time `json:"occurred_at"`
+	PayloadHash        string    `json:"payload_hash"`
+	PreviousEntryHash  string    `json:"previous_entry_hash"`
+	SignatureRef       string    `json:"signature_ref"`
+	SchemaVersion      string    `json:"schema_version"`
+	CanonicalEntryHash string    `json:"canonical_entry_hash"`
+	EntryHash          string    `json:"entry_hash"`
+}
+
+func verifyAuditChain(path string) error {
+	body, err := readFileStrict(path)
+	if err != nil {
+		return err
+	}
+	entries, err := decodeAuditChain(body)
+	if err != nil {
+		return err
+	}
+	if len(entries) == 0 {
+		return errors.New("audit chain contains no entries")
+	}
+	previous := ""
+	for i, entry := range entries {
+		if entry.Sequence != int64(i+1) {
+			return fmt.Errorf("audit chain sequence mismatch at entry %d", i+1)
+		}
+		if entry.PreviousEntryHash != previous {
+			return fmt.Errorf("audit chain previous hash mismatch at entry %d", i+1)
+		}
+		canonical, err := auditEntryCanonicalHash(entry)
+		if err != nil {
+			return err
+		}
+		if entry.CanonicalEntryHash != canonical {
+			return fmt.Errorf("audit chain canonical hash mismatch at entry %d", i+1)
+		}
+		if hashString(previous+"\n"+entry.CanonicalEntryHash) != entry.EntryHash {
+			return fmt.Errorf("audit chain entry hash mismatch at entry %d", i+1)
+		}
+		previous = entry.EntryHash
+	}
+	fmt.Println("audit chain verified")
+	return nil
+}
+
+func decodeAuditChain(body []byte) ([]offlineAuditChainEntry, error) {
+	var envelope struct {
+		Entries []offlineAuditChainEntry `json:"entries"`
+		Chain   []offlineAuditChainEntry `json:"chain"`
+	}
+	if err := json.Unmarshal(body, &envelope); err == nil {
+		if len(envelope.Entries) > 0 {
+			return envelope.Entries, nil
+		}
+		if len(envelope.Chain) > 0 {
+			return envelope.Chain, nil
+		}
+	}
+	var entries []offlineAuditChainEntry
+	if err := json.Unmarshal(body, &entries); err != nil {
+		return nil, errors.New("audit chain is not JSON array or entries envelope")
+	}
+	return entries, nil
+}
+
+func auditEntryCanonicalHash(entry offlineAuditChainEntry) (string, error) {
+	if strings.TrimSpace(entry.TenantID) == "" || entry.Sequence <= 0 || strings.TrimSpace(entry.EntryType) == "" || strings.TrimSpace(entry.SubjectType) == "" || strings.TrimSpace(entry.SubjectID) == "" || strings.TrimSpace(entry.ActorType) == "" || strings.TrimSpace(entry.SchemaVersion) == "" || entry.OccurredAt.IsZero() {
+		return "", errors.New("audit chain entry missing required fields")
+	}
+	return canonicalJSONHash(map[string]any{
+		"tenant_id":           entry.TenantID,
+		"sequence":            entry.Sequence,
+		"entry_type":          entry.EntryType,
+		"subject_type":        entry.SubjectType,
+		"subject_id":          entry.SubjectID,
+		"actor_type":          entry.ActorType,
+		"actor_id":            entry.ActorID,
+		"occurred_at":         entry.OccurredAt.UTC().Format(time.RFC3339Nano),
+		"payload_hash":        entry.PayloadHash,
+		"previous_entry_hash": entry.PreviousEntryHash,
+		"signature_ref":       entry.SignatureRef,
+		"schema_version":      entry.SchemaVersion,
+	})
+}
+
+func verifyOfflineSignatures(payloadHash string, refs []string, signatures []offlineSignature, keys []offlineSigningKey) error {
+	if len(signatures) == 0 && len(keys) == 0 {
+		return nil
+	}
+	if strings.TrimSpace(payloadHash) == "" || len(refs) == 0 || len(signatures) == 0 || len(keys) == 0 {
+		return errors.New("offline signature material is incomplete")
+	}
+	keyByID := map[string]offlineSigningKey{}
+	for _, key := range keys {
+		if key.ID != "" {
+			keyByID[key.ID] = key
+		}
+	}
+	signatureByID := map[string]offlineSignature{}
+	for _, signature := range signatures {
+		if signature.ID != "" {
+			signatureByID[signature.ID] = signature
+		}
+	}
+	for _, ref := range refs {
+		signature, ok := signatureByID[strings.TrimSpace(ref)]
+		if !ok || signature.Algorithm != "Ed25519" {
+			continue
+		}
+		key, ok := keyByID[signature.KeyID]
+		if !ok || key.Algorithm != "Ed25519" {
+			continue
+		}
+		if key.Status == "revoked" && (key.RevokedAt == nil || signature.CreatedAt.IsZero() || signature.CreatedAt.After(*key.RevokedAt)) {
+			continue
+		}
+		pub, err := decodeBase64Flexible(key.PublicKey)
+		if err != nil || len(pub) != ed25519.PublicKeySize {
+			continue
+		}
+		value, err := decodeBase64Flexible(signature.Value)
+		if err != nil || len(value) != ed25519.SignatureSize {
+			continue
+		}
+		if ed25519.Verify(ed25519.PublicKey(pub), []byte(payloadHash), value) {
+			return nil
+		}
+	}
+	return errors.New("offline signature verification failed")
 }
 
 func cleanOperatorPath(path string) (string, error) {
@@ -601,6 +772,39 @@ func canonicalFileHash(path string) ([]byte, string, error) {
 	}
 	sum := sha256.Sum256(canonical)
 	return canonical, "sha256:" + hex.EncodeToString(sum[:]), nil
+}
+
+func canonicalJSONHash(value any) (string, error) {
+	body, err := json.Marshal(value)
+	if err != nil {
+		return "", err
+	}
+	var normalized any
+	if err := json.Unmarshal(body, &normalized); err != nil {
+		return "", err
+	}
+	body, err = json.Marshal(normalized)
+	if err != nil {
+		return "", err
+	}
+	return hashBytes(body), nil
+}
+
+func hashBytes(body []byte) string {
+	sum := sha256.Sum256(body)
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+func hashString(value string) string {
+	return hashBytes([]byte(value))
+}
+
+func decodeBase64Flexible(value string) ([]byte, error) {
+	value = strings.TrimSpace(value)
+	if decoded, err := base64.RawStdEncoding.DecodeString(value); err == nil {
+		return decoded, nil
+	}
+	return base64.StdEncoding.DecodeString(value)
 }
 
 func verifyReleaseArtifactFiles(manifestPath string, _ []byte) error {
