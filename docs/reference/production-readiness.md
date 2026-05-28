@@ -38,8 +38,11 @@ Known hardening work remains:
   signing operation, and future-extension state from relational rows;
 - worker parser jobs re-read raw object-store payloads for key formats,
   verify digests, validate durable state, and persist missing parser-derived
-  normalized fields. Upload paths still create initial accepted records, so
-  fully worker-owned parsing for every payload remains hardening work;
+  normalized fields. CycloneDX SBOM uploads can run with worker-owned
+  normalized SBOM side effects by setting
+  `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`; the other parser-backed
+  upload paths still create initial normalized records, so fully worker-owned
+  parsing for every payload remains hardening work;
 - OpenAPI precision is enforced across the registered public API. The generated
   matrix remains the source of truth for operation ids, scopes, idempotency,
   parameters, and request/response schemas;
@@ -141,10 +144,11 @@ implemented capabilities:
 - Split the large application ledger aggregate into focused services or
   repositories once relational writes are in place, preserving tenant isolation
   and append-only behavior throughout.
-- Continue moving parser-owned side effects for SBOM, vulnerability scan,
-  OpenAPI, VEX, and attestation payloads into worker processors. Workers now
-  persist missing parser-derived fields after object replay, but upload
-  endpoints still create initial accepted records.
+- Continue moving parser-owned side effects for vulnerability scan, OpenAPI,
+  VEX, and attestation payloads into worker processors. CycloneDX SBOM
+  normalized fields can be worker-owned behind
+  `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`; workers also persist
+  missing parser-derived fields for replay-compatible records.
 - Keep OpenAPI precision at zero broad operations as routes are added or
   changed, and expand generated SDK coverage from the committed contract.
 - Add direct cloud KMS/HSM SDK adapters where required. The current HTTPS

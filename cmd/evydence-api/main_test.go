@@ -104,6 +104,17 @@ func TestIntEnvParsesRateLimitConfiguration(t *testing.T) {
 	}
 }
 
+func TestBoolEnvRequiresExplicitTrue(t *testing.T) {
+	t.Setenv("EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS", " true ")
+	if !boolEnv("EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS") {
+		t.Fatal("expected explicit true env to be enabled")
+	}
+	t.Setenv("EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS", "yes")
+	if boolEnv("EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS") {
+		t.Fatal("expected non-true env value to be disabled")
+	}
+}
+
 func TestOpenObjectStoreRejectsIncompleteS3Config(t *testing.T) {
 	t.Setenv("EVYDENCE_OBJECT_STORE", "s3")
 	t.Setenv("EVYDENCE_S3_ENDPOINT", "localhost:9000")
