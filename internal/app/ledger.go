@@ -68,6 +68,7 @@ type Config struct {
 	ObjectStore  ObjectStore
 	Retention    ObjectRetentionVerifier
 	Signer       SigningExecutor
+	OIDC         OIDCDiscoveryClient
 	Outbox       Outbox
 }
 
@@ -80,6 +81,7 @@ type Ledger struct {
 	objects   ObjectStore
 	retention ObjectRetentionVerifier
 	signer    SigningExecutor
+	oidc      OIDCDiscoveryClient
 	outbox    Outbox
 
 	tenants               map[string]domain.Tenant
@@ -203,6 +205,7 @@ func NewLedgerWithError(cfg Config) (*Ledger, error) {
 		objects:               cfg.ObjectStore,
 		retention:             retention,
 		signer:                cfg.Signer,
+		oidc:                  cfg.OIDC,
 		outbox:                cfg.Outbox,
 		tenants:               map[string]domain.Tenant{},
 		organizations:         map[string]domain.Organization{},

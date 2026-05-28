@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"bytes"
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
@@ -170,6 +171,9 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	updateProviderTrust := operationMap(t, paths, "/v1/sso/providers/{id}/trust-material", "post")
 	assertRequestRef(t, updateProviderTrust, "#/components/schemas/UpdateSSOProviderTrustMaterialRequest")
 	assertResponseRef(t, updateProviderTrust, "200", "#/components/schemas/SSOProviderEnvelope")
+	refreshProviderTrust := operationMap(t, paths, "/v1/sso/providers/{id}/discover-oidc", "post")
+	assertRequestRef(t, refreshProviderTrust, "#/components/schemas/EmptyObject")
+	assertResponseRef(t, refreshProviderTrust, "200", "#/components/schemas/SSOProviderEnvelope")
 	verifyProvider := operationMap(t, paths, "/v1/provider-verifications", "post")
 	assertRequestRef(t, verifyProvider, "#/components/schemas/VerifyProviderIdentityRequest")
 	assertResponseRef(t, verifyProvider, "201", "#/components/schemas/ProviderVerificationEnvelope")
@@ -179,6 +183,35 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	instanceAdmin := operationMap(t, paths, "/v1/admin/instance", "get")
 	if !strings.Contains(asString(t, instanceAdmin["description"]), "instance:admin") {
 		t.Fatalf("instance admin description should document exact scope: %#v", instanceAdmin["description"])
+	}
+}
+
+func TestSSOProviderOIDCDiscoveryRefreshRoute(t *testing.T) {
+	pub, _, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("keygen: %v", err)
+	}
+	discovery := &fakeOIDCDiscoveryHTTP{result: app.OIDCDiscoveryResult{
+		Issuer: "https://idp.example.test",
+		JWKS:   map[string]any{"keys": []any{map[string]any{"kty": "OKP", "crv": "Ed25519", "kid": "kid-route", "x": base64.RawURLEncoding.EncodeToString(pub)}}},
+	}}
+	ledger := app.NewLedger(app.Config{APIKeyPepper: "test", OIDC: discovery})
+	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	server, err := NewServer(ledger)
+	if err != nil {
+		t.Fatalf("server: %v", err)
+	}
+	body := postJSON(t, server, secret, "/v1/sso/providers", "sso-discovery-provider", map[string]any{"name": "OIDC", "type": "oidc", "issuer": "https://idp.example.test", "client_id": "client"}, http.StatusCreated)
+	providerID := dataField(t, body, "id")
+	refreshed := postJSON(t, server, secret, "/v1/sso/providers/"+providerID+"/discover-oidc", "sso-discovery-refresh", map[string]any{}, http.StatusOK)
+	if !strings.Contains(refreshed, `"trust_material_updated_at"`) || !strings.Contains(refreshed, `"kid-route"`) {
+		t.Fatalf("refreshed response missing public trust material: %s", refreshed)
+	}
+	if discovery.request.ProviderID != providerID || discovery.request.Issuer != "https://idp.example.test" {
+		t.Fatalf("discovery request = %#v", discovery.request)
 	}
 }
 
@@ -1176,6 +1209,20 @@ func testServer(t *testing.T) (*Server, string) {
 		t.Fatalf("server: %v", err)
 	}
 	return server, secret
+}
+
+type fakeOIDCDiscoveryHTTP struct {
+	request app.OIDCDiscoveryRequest
+	result  app.OIDCDiscoveryResult
+	err     error
+}
+
+func (f *fakeOIDCDiscoveryHTTP) FetchOIDCTrustMaterial(_ context.Context, req app.OIDCDiscoveryRequest) (app.OIDCDiscoveryResult, error) {
+	f.request = req
+	if f.err != nil {
+		return app.OIDCDiscoveryResult{}, f.err
+	}
+	return f.result, nil
 }
 
 func postJSON(t *testing.T, server *Server, secret, path, idem string, payload any, want int) string {

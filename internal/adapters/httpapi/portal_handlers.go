@@ -14,11 +14,11 @@ func (s *Server) createCustomerPortalAccess(w http.ResponseWriter, r *http.Reque
 		CustomerName string    `json:"customer_name"`
 		ExpiresAt    time.Time `json:"expires_at"`
 	}
-	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		access, secret, err := s.ledger.CreateCustomerPortalAccess(r.Context(), actor, app.CreateCustomerPortalAccessInput{PackageID: req.PackageID, CustomerName: req.CustomerName, ExpiresAt: req.ExpiresAt})
+		access, secret, err := s.ledger.CreateCustomerPortalAccess(ctx, actor, app.CreateCustomerPortalAccessInput{PackageID: req.PackageID, CustomerName: req.CustomerName, ExpiresAt: req.ExpiresAt})
 		return http.StatusCreated, map[string]any{"access": access, "secret": secret}, err
 	})
 }
@@ -71,11 +71,11 @@ func (s *Server) createQuestionnaireTemplate(w http.ResponseWriter, r *http.Requ
 		Version   string                         `json:"version"`
 		Questions []domain.QuestionnaireQuestion `json:"questions"`
 	}
-	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		tpl, err := s.ledger.CreateQuestionnaireTemplate(r.Context(), actor, app.CreateQuestionnaireTemplateInput{Name: req.Name, Version: req.Version, Questions: req.Questions})
+		tpl, err := s.ledger.CreateQuestionnaireTemplate(ctx, actor, app.CreateQuestionnaireTemplateInput{Name: req.Name, Version: req.Version, Questions: req.Questions})
 		return http.StatusCreated, tpl, err
 	})
 }
@@ -87,11 +87,11 @@ func (s *Server) createQuestionnairePackage(w http.ResponseWriter, r *http.Reque
 		ProductID  string `json:"product_id"`
 		ReleaseID  string `json:"release_id"`
 	}
-	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		pkg, err := s.ledger.CreateQuestionnairePackage(r.Context(), actor, app.CreateQuestionnairePackageInput{TemplateID: req.TemplateID, PackageID: req.PackageID, ProductID: req.ProductID, ReleaseID: req.ReleaseID})
+		pkg, err := s.ledger.CreateQuestionnairePackage(ctx, actor, app.CreateQuestionnairePackageInput{TemplateID: req.TemplateID, PackageID: req.PackageID, ProductID: req.ProductID, ReleaseID: req.ReleaseID})
 		return http.StatusCreated, pkg, err
 	})
 }

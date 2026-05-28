@@ -26,11 +26,11 @@ func (s *Server) createOrganization(w http.ResponseWriter, r *http.Request) {
 		Name string `json:"name"`
 		Slug string `json:"slug"`
 	}
-	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		org, err := s.ledger.CreateOrganization(r.Context(), actor, app.CreateOrganizationInput{Name: req.Name, Slug: req.Slug})
+		org, err := s.ledger.CreateOrganization(ctx, actor, app.CreateOrganizationInput{Name: req.Name, Slug: req.Slug})
 		return http.StatusCreated, org, err
 	})
 }
@@ -41,18 +41,18 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 		Email          string `json:"email"`
 		DisplayName    string `json:"display_name"`
 	}
-	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		user, err := s.ledger.CreateUser(r.Context(), actor, app.CreateUserInput{OrganizationID: req.OrganizationID, Email: req.Email, DisplayName: req.DisplayName})
+		user, err := s.ledger.CreateUser(ctx, actor, app.CreateUserInput{OrganizationID: req.OrganizationID, Email: req.Email, DisplayName: req.DisplayName})
 		return http.StatusCreated, user, err
 	})
 }
 
 func (s *Server) deactivateUser(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(actor domain.Actor, _ []byte) (int, any, error) {
-		user, err := s.ledger.DeactivateUser(r.Context(), actor, r.PathValue("id"))
+	s.create(w, r, func(ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
+		user, err := s.ledger.DeactivateUser(ctx, actor, r.PathValue("id"))
 		return http.StatusOK, user, err
 	})
 }
@@ -65,11 +65,11 @@ func (s *Server) createRoleBinding(w http.ResponseWriter, r *http.Request) {
 		ResourceType string `json:"resource_type"`
 		ResourceID   string `json:"resource_id"`
 	}
-	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		binding, err := s.ledger.CreateRoleBinding(r.Context(), actor, app.CreateRoleBindingInput{SubjectType: req.SubjectType, SubjectID: req.SubjectID, Role: req.Role, ResourceType: req.ResourceType, ResourceID: req.ResourceID})
+		binding, err := s.ledger.CreateRoleBinding(ctx, actor, app.CreateRoleBindingInput{SubjectType: req.SubjectType, SubjectID: req.SubjectID, Role: req.Role, ResourceType: req.ResourceType, ResourceID: req.ResourceID})
 		return http.StatusCreated, binding, err
 	})
 }
@@ -98,11 +98,11 @@ func (s *Server) createSSOProvider(w http.ResponseWriter, r *http.Request) {
 		JWKS                    map[string]any    `json:"jwks"`
 		SAMLSigningCertificates []string          `json:"saml_signing_certificates"`
 	}
-	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		provider, err := s.ledger.CreateSSOProvider(r.Context(), actor, app.CreateSSOProviderInput{Name: req.Name, Type: req.Type, Issuer: req.Issuer, ClientID: req.ClientID, GroupsClaim: req.GroupsClaim, RoleMapping: req.RoleMapping, JWKS: req.JWKS, SAMLSigningCertificates: req.SAMLSigningCertificates})
+		provider, err := s.ledger.CreateSSOProvider(ctx, actor, app.CreateSSOProviderInput{Name: req.Name, Type: req.Type, Issuer: req.Issuer, ClientID: req.ClientID, GroupsClaim: req.GroupsClaim, RoleMapping: req.RoleMapping, JWKS: req.JWKS, SAMLSigningCertificates: req.SAMLSigningCertificates})
 		return http.StatusCreated, provider, err
 	})
 }
@@ -112,11 +112,18 @@ func (s *Server) updateSSOProviderTrustMaterial(w http.ResponseWriter, r *http.R
 		JWKS                    map[string]any `json:"jwks"`
 		SAMLSigningCertificates []string       `json:"saml_signing_certificates"`
 	}
-	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		provider, err := s.ledger.UpdateSSOProviderTrustMaterial(r.Context(), actor, r.PathValue("id"), app.UpdateSSOProviderTrustMaterialInput{JWKS: req.JWKS, SAMLSigningCertificates: req.SAMLSigningCertificates})
+		provider, err := s.ledger.UpdateSSOProviderTrustMaterial(ctx, actor, r.PathValue("id"), app.UpdateSSOProviderTrustMaterialInput{JWKS: req.JWKS, SAMLSigningCertificates: req.SAMLSigningCertificates})
+		return http.StatusOK, provider, err
+	})
+}
+
+func (s *Server) refreshSSOProviderOIDCTrustMaterial(w http.ResponseWriter, r *http.Request) {
+	s.create(w, r, func(ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
+		provider, err := s.ledger.RefreshSSOProviderOIDCTrustMaterial(ctx, actor, r.PathValue("id"))
 		return http.StatusOK, provider, err
 	})
 }
@@ -129,11 +136,11 @@ func (s *Server) linkSSOIdentity(w http.ResponseWriter, r *http.Request) {
 		Email      string `json:"email"`
 		Verified   bool   `json:"verified"`
 	}
-	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		link, err := s.ledger.LinkSSOIdentity(r.Context(), actor, app.LinkSSOIdentityInput{UserID: req.UserID, ProviderID: req.ProviderID, Subject: req.Subject, Email: req.Email, Verified: req.Verified})
+		link, err := s.ledger.LinkSSOIdentity(ctx, actor, app.LinkSSOIdentityInput{UserID: req.UserID, ProviderID: req.ProviderID, Subject: req.Subject, Email: req.Email, Verified: req.Verified})
 		return http.StatusCreated, link, err
 	})
 }
@@ -144,25 +151,25 @@ func (s *Server) createSSOSession(w http.ResponseWriter, r *http.Request) {
 		ProviderID string    `json:"provider_id"`
 		ExpiresAt  time.Time `json:"expires_at"`
 	}
-	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		session, secret, err := s.ledger.CreateSSOSession(r.Context(), actor, app.CreateSSOSessionInput{UserID: req.UserID, ProviderID: req.ProviderID, ExpiresAt: req.ExpiresAt})
+		session, secret, err := s.ledger.CreateSSOSession(ctx, actor, app.CreateSSOSessionInput{UserID: req.UserID, ProviderID: req.ProviderID, ExpiresAt: req.ExpiresAt})
 		return http.StatusCreated, map[string]any{"session": session, "secret": secret}, err
 	})
 }
 
 func (s *Server) revokeSSOSession(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(actor domain.Actor, _ []byte) (int, any, error) {
-		session, err := s.ledger.RevokeSSOSession(r.Context(), actor, r.PathValue("id"))
+	s.create(w, r, func(ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
+		session, err := s.ledger.RevokeSSOSession(ctx, actor, r.PathValue("id"))
 		return http.StatusOK, session, err
 	})
 }
 
 func (s *Server) logoutSSOSession(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(actor domain.Actor, _ []byte) (int, any, error) {
-		session, err := s.ledger.RevokeCurrentSSOSession(r.Context(), actor)
+	s.create(w, r, func(ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
+		session, err := s.ledger.RevokeCurrentSSOSession(ctx, actor)
 		return http.StatusOK, session, err
 	})
 }

@@ -45,7 +45,7 @@ Known hardening work remains:
   parameters, and request/response schemas;
 - production signing can use the HTTPS signing gateway executor, but direct
   cloud KMS/HSM SDK adapters, full browser OIDC/SAML login flows, provider
-  discovery/group sync, object-lock enforcement proof, and live
+  API validation/group sync, object-lock enforcement proof, and live
   transparency-proof fetching remain provider- and deployment-dependent
   hardening areas;
 - the broader production exit review remains incomplete.
@@ -145,10 +145,11 @@ implemented capabilities:
 - Add direct cloud KMS/HSM SDK adapters where required. The current HTTPS
   signing gateway executor covers deployments that put KMS/HSM custody behind a
   tenant-controlled signing service and do not send raw payload bytes.
-- Complete live OIDC/SAML browser login callbacks, provider discovery, JWKS
-  fetching, browser cookie/session handling, and optional group mapping where
-  those profiles are enabled. Manual JWKS and SAML signing-certificate rotation
-  is implemented through the SSO provider trust-material endpoint, and API-first
+- Complete live OIDC/SAML browser login callbacks, browser cookie/session
+  handling, provider API validation, and optional group mapping where those
+  profiles are enabled. OIDC discovery/JWKS refresh is implemented for public
+  trust-material updates, manual JWKS and SAML signing-certificate rotation is
+  implemented through the SSO provider trust-material endpoint, and API-first
   session logout can revoke the current SSO bearer session.
 - Extend object-lock/WORM verification beyond current S3/MinIO bucket-level
   checks where deployments require object-level legal hold proofs or provider

@@ -15,11 +15,11 @@ func (s *Server) createLegalHold(w http.ResponseWriter, r *http.Request) {
 		Reason    string `json:"reason"`
 		Owner     string `json:"owner"`
 	}
-	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		hold, err := s.ledger.CreateLegalHold(r.Context(), actor, app.CreateLegalHoldInput{ScopeType: req.ScopeType, ScopeID: req.ScopeID, Reason: req.Reason, Owner: req.Owner})
+		hold, err := s.ledger.CreateLegalHold(ctx, actor, app.CreateLegalHoldInput{ScopeType: req.ScopeType, ScopeID: req.ScopeID, Reason: req.Reason, Owner: req.Owner})
 		return http.StatusCreated, hold, err
 	})
 }
@@ -32,11 +32,11 @@ func (s *Server) createRetentionOverride(w http.ResponseWriter, r *http.Request)
 		Reason         string    `json:"reason"`
 		Owner          string    `json:"owner"`
 	}
-	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		override, err := s.ledger.CreateRetentionOverride(r.Context(), actor, app.CreateRetentionOverrideInput{ScopeType: req.ScopeType, ScopeID: req.ScopeID, RetentionUntil: req.RetentionUntil, Reason: req.Reason, Owner: req.Owner})
+		override, err := s.ledger.CreateRetentionOverride(ctx, actor, app.CreateRetentionOverrideInput{ScopeType: req.ScopeType, ScopeID: req.ScopeID, RetentionUntil: req.RetentionUntil, Reason: req.Reason, Owner: req.Owner})
 		return http.StatusCreated, override, err
 	})
 }
