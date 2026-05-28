@@ -12,7 +12,7 @@ Configured job kinds:
 - `verify_subject`
 - `verify_attestation`
 
-Current behavior is intentionally conservative. The API still records normalized signing and verification results before enqueueing jobs for the implemented paths. Parser jobs independently replay tenant-prefixed payload objects when `payload_ref` is present, verify object metadata and byte digests when `payload_hash` is present, parse SBOM, vulnerability-scan, OpenAPI, OpenVEX, and DSSE attestation payloads, and check that replayed payload summaries match the expected durable state. When `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`, parser-backed uploads store accepted records first and workers write parser-derived document fields after replay. OpenVEX-derived vulnerability decisions are still created in the request path so release-readiness decisions stay deterministic before the `parse_vex` worker runs. Missing objects, wrong tenant prefixes, tenant mismatches, oversized payload objects, malformed replay payloads, durable-state mismatches, incomplete verification, missing signatures, hash mismatch, uninitialized storage, and unsupported job kinds fail the job safely.
+Current behavior is intentionally conservative. The API still records normalized signing and verification results before enqueueing jobs for the implemented paths. Parser jobs independently replay tenant-prefixed payload objects when `payload_ref` is present, verify object metadata and byte digests when `payload_hash` is present, parse SBOM, vulnerability-scan, OpenAPI, OpenVEX, and DSSE attestation payloads, and check that replayed payload summaries match the expected durable state. When `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`, parser-backed uploads store accepted records first and workers write parser-derived document fields after replay. The `parse_vex` worker also creates OpenVEX-derived vulnerability decisions idempotently in that mode. Missing objects, wrong tenant prefixes, tenant mismatches, oversized payload objects, malformed replay payloads, durable-state mismatches, incomplete verification, missing signatures, hash mismatch, uninitialized storage, and unsupported job kinds fail the job safely.
 
 Parser and attestation jobs include a deterministic `parser_version` payload
 field for new uploads. Workers reject unsupported parser versions and accept
@@ -21,9 +21,8 @@ older jobs with no parser version for upgrade compatibility.
 Parser replay is worker-owned for CycloneDX SBOM, generic vulnerability-scan,
 OpenAPI contract, DSSE build-attestation, and OpenVEX document metadata when
 `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`. OpenVEX-derived
-vulnerability decision creation still runs in the request path. Moving that
-decision side effect into an idempotent worker processor remains production
-hardening work.
+vulnerability decision creation is also worker-owned in that mode and uses
+deterministic decision IDs to avoid duplicate side effects on retry.
 
 Workers use the same object-store environment variables as the API. The default worker payload replay limit is 20 MiB and can be adjusted with `EVYDENCE_WORKER_MAX_PAYLOAD_BYTES`.
 

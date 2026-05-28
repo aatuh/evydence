@@ -242,6 +242,15 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 				snapshot.VEXDocuments[job.SubjectID] = updated
 				stateChanged = true
 			}
+			if payloadBool(job, "worker_create_decisions") {
+				created, err := applyReplayedVEXDecisions(&snapshot, job, vex, parsed, replayed.Digest)
+				if err != nil {
+					return err
+				}
+				if created > 0 {
+					stateChanged = true
+				}
+			}
 		}
 		if err := requirePayloadHash(job, ""); err != nil {
 			return err
@@ -373,6 +382,14 @@ func payloadString(job postgres.ClaimedJob, key string) string {
 	}
 	value, _ := job.Payload[key].(string)
 	return strings.TrimSpace(value)
+}
+
+func payloadBool(job postgres.ClaimedJob, key string) bool {
+	if job.Payload == nil {
+		return false
+	}
+	value, _ := job.Payload[key].(bool)
+	return value
 }
 
 func payloadObjectKey(job postgres.ClaimedJob) string {
@@ -595,6 +612,16 @@ type replayedVEX struct {
 	Author         string
 	StatementCount int
 	StatusSummary  map[string]int
+	Statements     []replayedVEXStatement
+}
+
+type replayedVEXStatement struct {
+	Vulnerability   string
+	Products        map[string]struct{}
+	Status          string
+	Justification   string
+	ImpactStatement string
+	ActionStatement string
 }
 
 func verifyReplayedVEX(parsed replayedVEX, vex domain.VEXDocument) error {
@@ -651,6 +678,7 @@ func parseReplayedVEX(raw []byte) (replayedVEX, error) {
 		return replayedVEX{}, errors.New("replayed vex payload is invalid")
 	}
 	summary := map[string]int{}
+	statements := make([]replayedVEXStatement, 0, len(doc.Statements))
 	for _, statement := range doc.Statements {
 		status := strings.TrimSpace(statement.Status)
 		if strings.TrimSpace(statement.Vulnerability.Name) == "" || status == "" || len(statement.Products) == 0 {
@@ -662,8 +690,131 @@ func parseReplayedVEX(raw []byte) (replayedVEX, error) {
 			return replayedVEX{}, errors.New("replayed vex payload is invalid")
 		}
 		summary[status]++
+		statements = append(statements, replayedVEXStatement{
+			Vulnerability:   strings.TrimSpace(statement.Vulnerability.Name),
+			Products:        replayedVEXProductIDs(statement.Products),
+			Status:          status,
+			Justification:   strings.TrimSpace(statement.Justification),
+			ImpactStatement: strings.TrimSpace(statement.ImpactStatement),
+			ActionStatement: strings.TrimSpace(statement.ActionStatement),
+		})
 	}
-	return replayedVEX{Author: strings.TrimSpace(doc.Author), StatementCount: len(doc.Statements), StatusSummary: summary}, nil
+	return replayedVEX{Author: strings.TrimSpace(doc.Author), StatementCount: len(doc.Statements), StatusSummary: summary, Statements: statements}, nil
+}
+
+func replayedVEXProductIDs(products []map[string]any) map[string]struct{} {
+	out := map[string]struct{}{}
+	var walk func([]map[string]any)
+	walk = func(items []map[string]any) {
+		for _, item := range items {
+			if id, ok := item["@id"].(string); ok {
+				if id = strings.TrimSpace(id); id != "" {
+					out[id] = struct{}{}
+				}
+			}
+			if children, ok := item["subcomponents"].([]any); ok {
+				mapped := make([]map[string]any, 0, len(children))
+				for _, child := range children {
+					if childMap, ok := child.(map[string]any); ok {
+						mapped = append(mapped, childMap)
+					}
+				}
+				walk(mapped)
+			}
+		}
+	}
+	walk(products)
+	return out
+}
+
+func applyReplayedVEXDecisions(state *app.PersistedState, job postgres.ClaimedJob, vex domain.VEXDocument, parsed replayedVEX, payloadHash string) (int, error) {
+	if state.Decisions == nil {
+		state.Decisions = map[string]domain.VulnerabilityDecision{}
+	}
+	actorType := nonEmptyWorker(payloadString(job, "actor_type"), "worker")
+	actorID := nonEmptyWorker(payloadString(job, "actor_id"), job.ID)
+	evidenceID := payloadString(job, "evidence_id")
+	now := time.Now().UTC()
+	created := 0
+	scanIDs := make([]string, 0, len(state.Scans))
+	for id, scan := range state.Scans {
+		if scan.TenantID == job.TenantID && scan.ReleaseID == vex.ReleaseID {
+			scanIDs = append(scanIDs, id)
+		}
+	}
+	sort.Strings(scanIDs)
+	for _, statement := range parsed.Statements {
+		for _, scanID := range scanIDs {
+			scan := state.Scans[scanID]
+			for _, finding := range scan.Findings {
+				if finding.Vulnerability != statement.Vulnerability {
+					continue
+				}
+				if len(statement.Products) > 0 && finding.Component != "" {
+					if _, ok := statement.Products[finding.Component]; !ok {
+						continue
+					}
+				}
+				if replayedVEXDecisionExists(state.Decisions, job.TenantID, vex.ID, finding.ID) {
+					continue
+				}
+				decisionID := replayedVEXDecisionID(vex.ID, finding.ID, statement.Status)
+				if _, exists := state.Decisions[decisionID]; exists {
+					continue
+				}
+				supersedes := ""
+				for id, existing := range state.Decisions {
+					if existing.TenantID == job.TenantID && existing.FindingID == finding.ID && existing.SupersededBy == "" {
+						supersedes = existing.ID
+						existing.SupersededBy = decisionID
+						state.Decisions[id] = existing
+					}
+				}
+				state.Decisions[decisionID] = domain.VulnerabilityDecision{
+					ID:              decisionID,
+					TenantID:        job.TenantID,
+					FindingID:       finding.ID,
+					ScanID:          scan.ID,
+					ReleaseID:       scan.ReleaseID,
+					Vulnerability:   finding.Vulnerability,
+					Component:       finding.Component,
+					Status:          statement.Status,
+					Justification:   statement.Justification,
+					ImpactStatement: statement.ImpactStatement,
+					ActionStatement: statement.ActionStatement,
+					Source:          "vex",
+					EvidenceID:      evidenceID,
+					VEXDocumentID:   vex.ID,
+					Supersedes:      supersedes,
+					ApprovedBy:      actorID,
+					SchemaVersion:   domain.VulnerabilityDecisionVersion,
+					CreatedAt:       now,
+				}
+				if _, err := app.AppendPersistedChainEntry(state, now, job.TenantID, "vulnerability_decision.created", "vulnerability_finding", finding.ID, actorType, actorID, payloadHash, ""); err != nil {
+					return created, errors.New("append replayed vex decision audit entry")
+				}
+				created++
+			}
+		}
+	}
+	return created, nil
+}
+
+func replayedVEXDecisionExists(decisions map[string]domain.VulnerabilityDecision, tenantID, vexID, findingID string) bool {
+	for _, decision := range decisions {
+		if decision.TenantID == tenantID && decision.VEXDocumentID == vexID && decision.FindingID == findingID {
+			return true
+		}
+	}
+	return false
+}
+
+func replayedVEXDecisionID(vexID, findingID, status string) string {
+	sum := strings.TrimPrefix(digestBytes([]byte(vexID+"\n"+findingID+"\n"+status)), "sha256:")
+	if len(sum) > 32 {
+		sum = sum[:32]
+	}
+	return "vd_" + sum
 }
 
 func verifyReplayedAttestation(raw []byte, parsed replayedAttestation, attestation domain.BuildAttestation) error {

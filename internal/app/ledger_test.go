@@ -776,14 +776,14 @@ func TestUploadVEXCanDeferDocumentParserSideEffectsToWorker(t *testing.T) {
 			decisionFound = true
 		}
 	}
-	if !decisionFound {
-		t.Fatal("request path should still create OpenVEX-derived vulnerability decisions")
+	if decisionFound {
+		t.Fatal("worker-owned parser mode should leave OpenVEX-derived vulnerability decisions to the worker")
 	}
 	if len(outbox.jobs) != 1 {
 		t.Fatalf("outbox jobs = %d, want 1", len(outbox.jobs))
 	}
 	job := outbox.jobs[0]
-	if job.Kind != "parse_vex" || job.Payload["payload_ref"] == "" || job.Payload["payload_hash"] == "" || job.Payload["parser_version"] != ParserVersionOpenVEXJSON {
+	if job.Kind != "parse_vex" || job.Payload["payload_ref"] == "" || job.Payload["payload_hash"] == "" || job.Payload["parser_version"] != ParserVersionOpenVEXJSON || job.Payload["worker_create_decisions"] != true {
 		t.Fatalf("outbox job missing replay metadata: %#v", job)
 	}
 	payloadRef, ok := job.Payload["payload_ref"].(string)

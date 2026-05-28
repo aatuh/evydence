@@ -225,6 +225,61 @@ func TestProcessJobWithObjectsParsesPayloadAndChecksDurableState(t *testing.T) {
 	}
 }
 
+func TestProcessJobWithObjectsCreatesVEXDecisionsIdempotently(t *testing.T) {
+	body := []byte(`{"@context":"https://openvex.dev/ns/v0.2.0","@id":"https://example.test/vex","author":"security@example.test","timestamp":"2026-05-28T12:00:00Z","version":1,"statements":[{"vulnerability":{"name":"CVE-1"},"products":[{"@id":"pkg:oci/api"}],"status":"fixed","justification":"fixed","impact_statement":"patched","action_statement":"ship"}]}`)
+	hash := digestBytes(body)
+	job := postgres.ClaimedJob{
+		ID:        "job_vex",
+		TenantID:  "ten_test",
+		Kind:      "parse_vex",
+		SubjectID: "vex_test",
+		Payload: map[string]any{
+			"payload_ref":             "object://tenants/ten_test/payloads/vex.json",
+			"payload_hash":            hash,
+			"parser_version":          app.ParserVersionOpenVEXJSON,
+			"worker_create_decisions": true,
+			"actor_type":              "api_key",
+			"actor_id":                "key_test",
+			"evidence_id":             "ev_vex",
+		},
+	}
+	store := &fakeStateStore{ok: true, state: app.PersistedState{
+		VEXDocuments: map[string]domain.VEXDocument{
+			"vex_test": {ID: "vex_test", TenantID: "ten_test", ReleaseID: "rel_test", EvidenceID: "ev_vex", Format: "openvex"},
+		},
+		Scans: map[string]domain.VulnerabilityScan{
+			"scan_test": {ID: "scan_test", TenantID: "ten_test", ReleaseID: "rel_test", Findings: []domain.VulnerabilityFinding{{ID: "finding_1", Vulnerability: "CVE-1", Component: "pkg:oci/api", Severity: "critical", State: "open"}}},
+		},
+		Decisions: map[string]domain.VulnerabilityDecision{},
+		Chain:     map[string][]domain.AuditChainEntry{},
+	}}
+	object := app.Object{Key: "tenants/ten_test/payloads/vex.json", TenantID: "ten_test", Digest: hash, Bytes: body}
+	if err := processJobWithObjects(context.Background(), store, fakeObjectGetter{object: object}, job); err != nil {
+		t.Fatalf("process vex job: %v", err)
+	}
+	if len(store.saved.Decisions) != 1 {
+		t.Fatalf("decisions = %#v, want one", store.saved.Decisions)
+	}
+	for _, decision := range store.saved.Decisions {
+		if decision.FindingID != "finding_1" || decision.Status != "fixed" || decision.VEXDocumentID != "vex_test" || decision.ApprovedBy != "key_test" {
+			t.Fatalf("decision = %#v", decision)
+		}
+	}
+	if got := len(store.saved.Chain["ten_test"]); got != 1 {
+		t.Fatalf("chain entries = %d, want 1", got)
+	}
+
+	previous := store.saved
+	store.state = previous
+	store.saved = app.PersistedState{}
+	if err := processJobWithObjects(context.Background(), store, fakeObjectGetter{object: object}, job); err != nil {
+		t.Fatalf("reprocess vex job: %v", err)
+	}
+	if len(store.saved.Decisions) != 0 || len(previous.Decisions) != 1 || len(previous.Chain["ten_test"]) != 1 {
+		t.Fatalf("replay duplicated side effects: saved=%#v previous=%#v", store.saved.Decisions, previous.Decisions)
+	}
+}
+
 func TestProcessJobWithObjectsFailsSafelyForParserMismatches(t *testing.T) {
 	body := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api"},{"name":"worker"}]}`)
 	hash := digestBytes(body)

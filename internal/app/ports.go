@@ -198,6 +198,53 @@ type PersistedState struct {
 	Idempotency              map[string]IdempotencyRecord                    `json:"idempotency"`
 }
 
+func AppendPersistedChainEntry(state *PersistedState, now time.Time, tenantID, entryType, subjectType, subjectID, actorType, actorID, payloadHash, signatureRef string) (domain.AuditChainEntry, error) {
+	if state.Chain == nil {
+		state.Chain = map[string][]domain.AuditChainEntry{}
+	}
+	entries := state.Chain[tenantID]
+	previous := ""
+	if len(entries) > 0 {
+		previous = entries[len(entries)-1].EntryHash
+	}
+	entry := domain.AuditChainEntry{
+		ID:                newID("ace"),
+		TenantID:          tenantID,
+		Sequence:          int64(len(entries) + 1),
+		EntryType:         entryType,
+		SubjectType:       subjectType,
+		SubjectID:         subjectID,
+		ActorType:         actorType,
+		ActorID:           actorID,
+		OccurredAt:        now.UTC(),
+		PayloadHash:       payloadHash,
+		PreviousEntryHash: previous,
+		SignatureRef:      signatureRef,
+		SchemaVersion:     domain.AuditChainEntrySchemaVersion,
+	}
+	canonical, err := canonicalAnyHash(map[string]any{
+		"tenant_id":           entry.TenantID,
+		"sequence":            entry.Sequence,
+		"entry_type":          entry.EntryType,
+		"subject_type":        entry.SubjectType,
+		"subject_id":          entry.SubjectID,
+		"actor_type":          entry.ActorType,
+		"actor_id":            entry.ActorID,
+		"occurred_at":         entry.OccurredAt.UTC().Format(time.RFC3339Nano),
+		"payload_hash":        entry.PayloadHash,
+		"previous_entry_hash": entry.PreviousEntryHash,
+		"signature_ref":       entry.SignatureRef,
+		"schema_version":      entry.SchemaVersion,
+	})
+	if err != nil {
+		return domain.AuditChainEntry{}, err
+	}
+	entry.CanonicalEntryHash = canonical
+	entry.EntryHash = hashBytes([]byte(previous + "\n" + canonical))
+	state.Chain[tenantID] = append(entries, entry)
+	return entry, nil
+}
+
 type IdempotencyRecord struct {
 	RequestHash string    `json:"request_hash"`
 	Status      int       `json:"status"`
