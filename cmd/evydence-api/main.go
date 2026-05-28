@@ -53,7 +53,7 @@ func run() error {
 				return err
 			}
 		}
-		pgStore, err := postgres.OpenWithOptions(ctx, databaseURL, postgres.StoreOptions{LoadMode: loadMode})
+		pgStore, err := postgres.OpenWithOptions(ctx, databaseURL, postgres.StoreOptions{LoadMode: loadMode, DisableSnapshotWrites: production})
 		if err != nil {
 			return err
 		}
