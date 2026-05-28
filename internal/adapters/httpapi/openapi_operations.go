@@ -19,11 +19,11 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 	case "createSSOProvider":
 		operation.Description = "Records tenant SSO provider metadata. Optional static JWKS public keys can be supplied for local OIDC ID-token verification without live provider calls."
 		operation.RequestBody = jsonRequest("SSO provider creation request.", "#/components/schemas/CreateSSOProviderRequest")
-		operation.Responses[http.StatusCreated] = jsonResponse("Created SSO provider envelope.", "#/components/schemas/DataEnvelope")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created SSO provider envelope.", "#/components/schemas/SSOProviderEnvelope")
 	case "verifyProviderIdentity":
 		operation.Description = "Verifies stored provider identity metadata and, when id_token is supplied, locally verifies OIDC issuer, audience, subject, expiry, and EdDSA or RS256 signature against configured JWKS."
 		operation.RequestBody = jsonRequest("Provider identity verification request.", "#/components/schemas/VerifyProviderIdentityRequest")
-		operation.Responses[http.StatusCreated] = jsonResponse("Provider verification envelope.", "#/components/schemas/DataEnvelope")
+		operation.Responses[http.StatusCreated] = jsonResponse("Provider verification envelope.", "#/components/schemas/ProviderVerificationEnvelope")
 	case "createEvidence":
 		operation.Description = "Creates immutable evidence metadata and optional raw payload evidence. Evidence core fields are append-only after creation."
 		operation.RequestBody = jsonRequest("Evidence creation request.", "#/components/schemas/CreateEvidenceRequest")
