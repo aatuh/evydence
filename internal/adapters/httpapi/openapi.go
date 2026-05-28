@@ -402,6 +402,98 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"created_at":     map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "provider_id", "subject_type", "subject_id", "payload_hash", "result", "checks", "schema_version", "created_at"))
 	registry.RegisterSchema("SigningOperationEnvelope", dataEnvelopeSchema("#/components/schemas/SigningOperation"))
+	registry.RegisterSchema("CreateArtifactSignatureRequest", objectSchema(map[string]any{
+		"artifact_id":        map[string]any{"type": "string"},
+		"algorithm":          map[string]any{"type": "string"},
+		"key_id":             map[string]any{"type": "string"},
+		"signature":          map[string]any{"type": "string"},
+		"payload":            map[string]any{"type": "object", "additionalProperties": true},
+		"payload_media_type": map[string]any{"type": "string"},
+	}, "artifact_id", "algorithm", "signature"))
+	registry.RegisterSchema("ArtifactSignature", objectSchema(map[string]any{
+		"id":                  map[string]any{"type": "string"},
+		"tenant_id":           map[string]any{"type": "string"},
+		"artifact_id":         map[string]any{"type": "string"},
+		"subject_digest":      map[string]any{"type": "string"},
+		"algorithm":           map[string]any{"type": "string"},
+		"key_id":              map[string]any{"type": "string"},
+		"signature":           map[string]any{"type": "string"},
+		"payload_ref":         map[string]any{"type": "string"},
+		"payload_hash":        map[string]any{"type": "string", "pattern": "^sha256:"},
+		"verification_status": map[string]any{"type": "string"},
+		"schema_version":      map[string]any{"type": "string"},
+		"created_at":          map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "artifact_id", "subject_digest", "algorithm", "signature", "verification_status", "schema_version", "created_at"))
+	registry.RegisterSchema("ArtifactSignatureEnvelope", dataEnvelopeSchema("#/components/schemas/ArtifactSignature"))
+	registry.RegisterSchema("VerifyCosignSignatureRequest", objectSchema(map[string]any{
+		"rekor_uuid":           map[string]any{"type": "string"},
+		"rekor_log_index":      map[string]any{"type": "string"},
+		"certificate_identity": map[string]any{"type": "string"},
+		"certificate_issuer":   map[string]any{"type": "string"},
+	}))
+	registry.RegisterSchema("CosignVerification", objectSchema(map[string]any{
+		"id":                    map[string]any{"type": "string"},
+		"tenant_id":             map[string]any{"type": "string"},
+		"artifact_id":           map[string]any{"type": "string"},
+		"container_image_id":    map[string]any{"type": "string"},
+		"artifact_signature_id": map[string]any{"type": "string"},
+		"subject_digest":        map[string]any{"type": "string"},
+		"rekor_uuid":            map[string]any{"type": "string"},
+		"rekor_log_index":       map[string]any{"type": "string"},
+		"certificate_identity":  map[string]any{"type": "string"},
+		"certificate_issuer":    map[string]any{"type": "string"},
+		"result":                map[string]any{"type": "string", "enum": []string{"passed", "failed"}},
+		"checks":                map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/VerifyCheck"}},
+		"schema_version":        map[string]any{"type": "string"},
+		"created_at":            map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "artifact_signature_id", "subject_digest", "result", "checks", "schema_version", "created_at"))
+	registry.RegisterSchema("CosignVerificationEnvelope", dataEnvelopeSchema("#/components/schemas/CosignVerification"))
+	registry.RegisterSchema("DSSEEnvelope", objectSchema(map[string]any{
+		"payloadType": map[string]any{"type": "string"},
+		"payload":     map[string]any{"type": "string"},
+		"signatures": map[string]any{"type": "array", "items": objectSchema(map[string]any{
+			"keyid": map[string]any{"type": "string"},
+			"sig":   map[string]any{"type": "string"},
+		}, "sig")},
+	}, "payloadType", "payload", "signatures"))
+	registry.RegisterSchema("BuildAttestation", objectSchema(map[string]any{
+		"id":                  map[string]any{"type": "string"},
+		"tenant_id":           map[string]any{"type": "string"},
+		"build_id":            map[string]any{"type": "string"},
+		"evidence_id":         map[string]any{"type": "string"},
+		"payload_ref":         map[string]any{"type": "string"},
+		"payload_hash":        map[string]any{"type": "string", "pattern": "^sha256:"},
+		"payload_size":        map[string]any{"type": "integer"},
+		"payload_type":        map[string]any{"type": "string"},
+		"predicate_type":      map[string]any{"type": "string"},
+		"subject_digests":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"builder_id":          map[string]any{"type": "string"},
+		"build_type":          map[string]any{"type": "string"},
+		"materials_count":     map[string]any{"type": "integer"},
+		"signature_count":     map[string]any{"type": "integer"},
+		"verification_status": map[string]any{"type": "string"},
+		"schema_version":      map[string]any{"type": "string"},
+		"created_at":          map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "build_id", "evidence_id", "payload_hash", "payload_size", "payload_type", "predicate_type", "subject_digests", "signature_count", "verification_status", "schema_version", "created_at"))
+	registry.RegisterSchema("BuildAttestationEnvelope", dataEnvelopeSchema("#/components/schemas/BuildAttestation"))
+	registry.RegisterSchema("CreateDSSETrustRootRequest", objectSchema(map[string]any{
+		"name":       map[string]any{"type": "string"},
+		"key_id":     map[string]any{"type": "string"},
+		"algorithm":  map[string]any{"type": "string", "enum": []string{"Ed25519"}},
+		"public_key": map[string]any{"type": "string", "description": "Base64-encoded Ed25519 public key."},
+	}, "name", "key_id", "algorithm", "public_key"))
+	registry.RegisterSchema("DSSETrustRoot", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"name":           map[string]any{"type": "string"},
+		"key_id":         map[string]any{"type": "string"},
+		"algorithm":      map[string]any{"type": "string"},
+		"public_key":     map[string]any{"type": "string"},
+		"status":         map[string]any{"type": "string"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "name", "key_id", "algorithm", "public_key", "status", "schema_version", "created_at"))
+	registry.RegisterSchema("DSSETrustRootEnvelope", dataEnvelopeSchema("#/components/schemas/DSSETrustRoot"))
 	registry.RegisterSchema("ReadinessReport", objectSchema(map[string]any{
 		"report_type":      map[string]any{"type": "string"},
 		"template_version": map[string]any{"type": "string"},

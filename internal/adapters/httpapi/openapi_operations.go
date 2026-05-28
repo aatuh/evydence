@@ -380,6 +380,33 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Description = "Records an external signing operation receipt and checks payload/signature metadata without logging secrets."
 		operation.RequestBody = jsonRequest("Signing operation creation request.", "#/components/schemas/CreateSigningOperationRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created signing operation envelope.", "#/components/schemas/SigningOperationEnvelope")
+	case "createArtifactSignature":
+		operation.Description = "Records detached artifact signature evidence and optional raw signature payload metadata."
+		operation.RequestBody = jsonRequest("Artifact signature creation request.", "#/components/schemas/CreateArtifactSignatureRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created artifact signature envelope.", "#/components/schemas/ArtifactSignatureEnvelope")
+	case "getArtifactSignature":
+		operation.Description = "Returns tenant-scoped artifact signature metadata by id."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Artifact signature id."))
+		operation.Responses[http.StatusOK] = jsonResponse("Artifact signature envelope.", "#/components/schemas/ArtifactSignatureEnvelope")
+	case "verifyCosignSignature":
+		operation.Description = "Records deterministic cosign-style verification metadata for an artifact signature without implying online transparency trust."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Artifact signature id."))
+		operation.RequestBody = jsonRequest("Cosign verification metadata request.", "#/components/schemas/VerifyCosignSignatureRequest")
+		operation.Responses[http.StatusOK] = jsonResponse("Cosign verification envelope.", "#/components/schemas/CosignVerificationEnvelope")
+	case "uploadBuildAttestation":
+		operation.Description = "Uploads a DSSE/in-toto build attestation for a tenant-scoped build and stores raw bytes in object storage."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Build run id."))
+		operation.RequestBody = jsonRequest("DSSE envelope.", "#/components/schemas/DSSEEnvelope")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created build attestation envelope.", "#/components/schemas/BuildAttestationEnvelope")
+	case "verifyBuildAttestationSignature":
+		operation.Description = "Verifies a build attestation signature against configured tenant DSSE trust roots."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Build attestation id."))
+		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
+		operation.Responses[http.StatusOK] = jsonResponse("Build attestation verification envelope.", "#/components/schemas/VerificationResultEnvelope")
+	case "createDSSETrustRoot":
+		operation.Description = "Creates a tenant-scoped DSSE trust root using public verification key material only."
+		operation.RequestBody = jsonRequest("DSSE trust-root creation request.", "#/components/schemas/CreateDSSETrustRootRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created DSSE trust root envelope.", "#/components/schemas/DSSETrustRootEnvelope")
 	case "craReadinessReport":
 		operation.Description = "Returns a CRA-oriented readiness report without legal compliance or certification conclusions."
 		operation.Parameters = append(operation.Parameters,
