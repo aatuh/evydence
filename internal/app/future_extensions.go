@@ -906,33 +906,81 @@ func (l *Ledger) CreateSigningOperation(ctx context.Context, actor domain.Actor,
 	}
 	providerID, subjectType, subjectID := strings.TrimSpace(in.ProviderID), strings.TrimSpace(in.SubjectType), strings.TrimSpace(in.SubjectID)
 	signatureValue := strings.TrimSpace(in.ExternalSignature)
-	if providerID == "" || subjectType == "" || subjectID == "" || !validDigest(strings.TrimSpace(in.PayloadHash)) || signatureValue == "" || len(signatureValue) > 32768 {
+	payloadHash := strings.TrimSpace(in.PayloadHash)
+	if providerID == "" || subjectType == "" || subjectID == "" || !validDigest(payloadHash) || len(signatureValue) > 32768 {
 		return domain.SigningOperation{}, ErrValidation
 	}
 	l.mu.Lock()
-	defer l.mu.Unlock()
 	provider, ok := l.signingProviders[providerID]
+	if !ok || provider.TenantID != actor.TenantID {
+		l.mu.Unlock()
+		return domain.SigningOperation{}, ErrNotFound
+	}
+	if _, err := l.ensureFutureSubjectLocked(actor.TenantID, subjectType, subjectID); err != nil {
+		l.mu.Unlock()
+		return domain.SigningOperation{}, err
+	}
+	providerActive := provider.Status == "active"
+	l.mu.Unlock()
+
+	checks := []domain.VerifyCheck{
+		{Name: "provider_active", Result: "passed"},
+		{Name: "payload_hash_valid", Result: "passed"},
+	}
+	if !providerActive {
+		checks[0].Result = "failed"
+	}
+	signatureAlgorithm := "external-" + provider.Type
+	if signatureValue == "" {
+		if l.signer == nil {
+			return domain.SigningOperation{}, ErrValidation
+		}
+		if !providerActive {
+			return domain.SigningOperation{}, ErrVerificationFailed
+		}
+		signed, err := l.signer.Sign(ctx, SigningRequest{
+			TenantID:     actor.TenantID,
+			ProviderID:   provider.ID,
+			ProviderType: provider.Type,
+			KeyRef:       provider.KeyRef,
+			SubjectType:  subjectType,
+			SubjectID:    subjectID,
+			PayloadHash:  payloadHash,
+		})
+		if err != nil {
+			return domain.SigningOperation{}, err
+		}
+		signatureValue = strings.TrimSpace(signed.Signature)
+		if signatureValue == "" || len(signatureValue) > 32768 {
+			return domain.SigningOperation{}, ErrValidation
+		}
+		if strings.TrimSpace(signed.Algorithm) != "" {
+			signatureAlgorithm = strings.TrimSpace(signed.Algorithm)
+		}
+		checks = append(checks, signed.Checks...)
+		checks = append(checks, domain.VerifyCheck{Name: "signing_executor_invoked", Result: "passed", Detail: strings.TrimSpace(signed.KeyID)})
+	} else {
+		checks = append(checks, domain.VerifyCheck{Name: "external_signature_present", Result: "passed", Detail: "Signature value was supplied by the configured provider path; local cryptographic trust verification is not implied."})
+	}
+	result := "passed"
+	for _, check := range checks {
+		if check.Result == "failed" {
+			result = "failed"
+			break
+		}
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	provider, ok = l.signingProviders[providerID]
 	if !ok || provider.TenantID != actor.TenantID {
 		return domain.SigningOperation{}, ErrNotFound
 	}
 	if _, err := l.ensureFutureSubjectLocked(actor.TenantID, subjectType, subjectID); err != nil {
 		return domain.SigningOperation{}, err
 	}
-	checks := []domain.VerifyCheck{
-		{Name: "provider_active", Result: "passed"},
-		{Name: "payload_hash_valid", Result: "passed"},
-		{Name: "external_signature_present", Result: "passed", Detail: "Signature value was supplied by the configured provider path; local cryptographic trust verification is not implied."},
-	}
-	if provider.Status != "active" {
-		checks[0].Result = "failed"
-	}
-	result := "passed"
-	if checks[0].Result != "passed" {
-		result = "failed"
-	}
-	signature := domain.Signature{ID: newID("sig"), TenantID: actor.TenantID, SubjectType: subjectType, SubjectID: subjectID, KeyID: provider.ID, Algorithm: "external-" + provider.Type, Value: signatureValue, CreatedAt: l.now()}
+	signature := domain.Signature{ID: newID("sig"), TenantID: actor.TenantID, SubjectType: subjectType, SubjectID: subjectID, KeyID: provider.ID, Algorithm: signatureAlgorithm, Value: signatureValue, CreatedAt: l.now()}
 	l.signatures[signature.ID] = signature
-	op := domain.SigningOperation{ID: newID("sop"), TenantID: actor.TenantID, ProviderID: provider.ID, SubjectType: subjectType, SubjectID: subjectID, PayloadHash: strings.TrimSpace(in.PayloadHash), SignatureRef: signature.ID, Result: result, Checks: checks, SchemaVersion: domain.SigningOperationVersion, CreatedAt: l.now()}
+	op := domain.SigningOperation{ID: newID("sop"), TenantID: actor.TenantID, ProviderID: provider.ID, SubjectType: subjectType, SubjectID: subjectID, PayloadHash: payloadHash, SignatureRef: signature.ID, Result: result, Checks: checks, SchemaVersion: domain.SigningOperationVersion, CreatedAt: l.now()}
 	l.signingOperations[op.ID] = op
 	_, _ = l.appendChainLocked(actor.TenantID, "signing_operation.created", "signing_operation", op.ID, actorType(actor), actorID(actor), op.PayloadHash, signature.ID)
 	if err := l.persistLocked(ctx); err != nil {

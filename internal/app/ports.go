@@ -17,8 +17,29 @@ type ObjectStore interface {
 	Get(context.Context, string) (Object, error)
 }
 
+type SigningExecutor interface {
+	Sign(context.Context, SigningRequest) (SigningResult, error)
+}
+
 type Outbox interface {
 	Enqueue(context.Context, OutboxJob) error
+}
+
+type SigningRequest struct {
+	TenantID     string
+	ProviderID   string
+	ProviderType string
+	KeyRef       string
+	SubjectType  string
+	SubjectID    string
+	PayloadHash  string
+}
+
+type SigningResult struct {
+	Signature string
+	KeyID     string
+	Algorithm string
+	Checks    []domain.VerifyCheck
 }
 
 type PersistedState struct {

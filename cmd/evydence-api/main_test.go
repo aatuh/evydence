@@ -87,3 +87,19 @@ func TestOpenObjectStoreRejectsIncompleteS3Config(t *testing.T) {
 		t.Fatal("expected incomplete S3 config to be rejected")
 	}
 }
+
+func TestOpenSigningExecutorRequiresHTTPSUnlessLocalOverride(t *testing.T) {
+	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_URL", "http://signer.example.test/sign")
+	if _, err := openSigningExecutor(); err == nil || !strings.Contains(err.Error(), "https") {
+		t.Fatalf("remote http signer err=%v, want https rejection", err)
+	}
+	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_URL", "http://127.0.0.1/sign")
+	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST", "true")
+	signer, err := openSigningExecutor()
+	if err != nil {
+		t.Fatalf("localhost signer should be accepted: %v", err)
+	}
+	if signer == nil {
+		t.Fatal("expected signer")
+	}
+}

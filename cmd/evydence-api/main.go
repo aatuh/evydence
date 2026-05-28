@@ -17,6 +17,7 @@ import (
 	"github.com/aatuh/evydence/internal/adapters/objectstore/filesystem"
 	s3store "github.com/aatuh/evydence/internal/adapters/objectstore/s3"
 	"github.com/aatuh/evydence/internal/adapters/postgres"
+	"github.com/aatuh/evydence/internal/adapters/signing/httpgateway"
 	"github.com/aatuh/evydence/internal/app"
 )
 
@@ -34,6 +35,11 @@ func run() error {
 		return err
 	}
 	cfg := app.Config{APIKeyPepper: pepper}
+	if signer, err := openSigningExecutor(); err != nil {
+		return err
+	} else {
+		cfg.Signer = signer
+	}
 	var closeStore func()
 	if databaseURL != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -99,6 +105,23 @@ func run() error {
 	}
 	log.Printf("evydence api listening on %s", addr)
 	return httpServer.ListenAndServe()
+}
+
+func openSigningExecutor() (app.SigningExecutor, error) {
+	endpoint := strings.TrimSpace(os.Getenv("EVYDENCE_SIGNING_EXECUTOR_URL"))
+	if endpoint == "" {
+		return nil, nil
+	}
+	executor, err := httpgateway.New(httpgateway.Config{
+		Endpoint:                  endpoint,
+		BearerToken:               os.Getenv("EVYDENCE_SIGNING_EXECUTOR_TOKEN"),
+		AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST"), "true"),
+		Timeout:                   time.Duration(intEnv("EVYDENCE_SIGNING_EXECUTOR_TIMEOUT_SECONDS", 10)) * time.Second,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("configure signing executor: %w", err)
+	}
+	return executor, nil
 }
 
 func validateRuntimeConfig(production bool, databaseURL, pepper, signingKeyMode string, printBootstrapSecret bool) error {
