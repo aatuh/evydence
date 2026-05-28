@@ -38,7 +38,7 @@ Known hardening work remains:
   signing operation, and future-extension state from relational rows;
 - worker parser jobs re-read raw object-store payloads for key formats,
   verify digests, validate durable state, and persist missing parser-derived
-  normalized fields. CycloneDX SBOM, generic vulnerability-scan, and OpenAPI
+  normalized fields. CycloneDX SBOM, generic vulnerability-scan, OpenAPI
   contract, DSSE build-attestation, and OpenVEX uploads can run with
   worker-owned parser side effects by setting
   `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`; OpenVEX-derived
