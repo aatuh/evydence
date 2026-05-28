@@ -151,10 +151,11 @@ implemented capabilities:
   trust-material updates, manual JWKS and SAML signing-certificate rotation is
   implemented through the SSO provider trust-material endpoint, and API-first
   session logout can revoke the current SSO bearer session.
-- Extend object-lock/WORM verification beyond current S3/MinIO bucket-level
-  checks where deployments require object-level legal hold proofs or provider
-  policy evidence, and add live provider fetching for public transparency proofs
-  where deployments require it.
+- Extend object-lock/WORM verification beyond the current S3/MinIO bucket-level
+  checks plus optional sample-object retention checks where deployments require
+  broader object-level legal hold proofs or provider policy evidence, and add
+  live provider fetching for public transparency proofs where deployments
+  require it.
 - Run final product, codebase, security, documentation, and test audits before
   changing release status beyond controlled self-hosted production candidate.
 

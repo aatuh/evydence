@@ -73,9 +73,15 @@ func TestRuntimeRetentionBackupReadinessMetricsAndAudit(t *testing.T) {
 	if _, err := ledger.CreateSigningProvider(ctx, actor, CreateSigningProviderInput{Name: "dev", Type: "local_encrypted_dev", KeyRef: "file://dev.keys", Encrypted: true}); err != nil {
 		t.Fatalf("signing provider: %v", err)
 	}
-	policy, err := ledger.CreateObjectRetentionPolicy(ctx, actor, CreateObjectRetentionPolicyInput{Name: "tenant payload lock", Mode: "governance", RetentionDays: 30})
+	policy, err := ledger.CreateObjectRetentionPolicy(ctx, actor, CreateObjectRetentionPolicyInput{Name: "tenant payload lock", ObjectKey: "tenants/" + actor.TenantID + "/raw/sample.json", Mode: "governance", RetentionDays: 30})
 	if err != nil {
 		t.Fatalf("retention policy: %v", err)
+	}
+	if policy.ObjectKey == "" {
+		t.Fatalf("policy missing object key: %#v", policy)
+	}
+	if _, err := ledger.CreateObjectRetentionPolicy(ctx, actor, CreateObjectRetentionPolicyInput{Name: "bad key", ObjectKey: "tenants/other/raw/sample.json", Mode: "governance", RetentionDays: 30}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("foreign object key err=%v, want validation", err)
 	}
 	verifiedPolicy, err := ledger.VerifyObjectRetentionPolicy(ctx, actor, policy.ID)
 	if err != nil {

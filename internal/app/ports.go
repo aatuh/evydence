@@ -66,6 +66,7 @@ type OIDCDiscoveryResult struct {
 type ObjectRetentionRequest struct {
 	TenantID      string
 	ObjectPrefix  string
+	ObjectKey     string
 	Mode          string
 	RetentionDays int
 }

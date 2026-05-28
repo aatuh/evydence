@@ -190,6 +190,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	registry.RegisterSchema("CreateObjectRetentionPolicyRequest", objectSchema(map[string]any{
 		"name":           map[string]any{"type": "string"},
 		"object_prefix":  map[string]any{"type": "string"},
+		"object_key":     map[string]any{"type": "string", "description": "Optional tenant-prefixed sample object key used for object-level retention verification when supported by the object store."},
 		"mode":           map[string]any{"type": "string", "enum": []string{"governance", "compliance"}},
 		"retention_days": map[string]any{"type": "integer", "minimum": 1},
 	}, "name", "mode", "retention_days"))
@@ -198,6 +199,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"tenant_id":         map[string]any{"type": "string"},
 		"name":              map[string]any{"type": "string"},
 		"object_prefix":     map[string]any{"type": "string"},
+		"object_key":        map[string]any{"type": "string"},
 		"mode":              map[string]any{"type": "string"},
 		"retention_days":    map[string]any{"type": "integer"},
 		"status":            map[string]any{"type": "string"},
