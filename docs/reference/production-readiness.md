@@ -112,9 +112,9 @@ These items are tracked separately from the feature-completeness checklist in
 `.implementation_increments.md` because they are hardening work on already
 implemented capabilities:
 
-- Replace canonical snapshot writes with dependency-ordered relational
-  repositories for remaining secondary resources. Identity, idempotency,
-  customer portal token, release-ledger core, build provenance,
+- Continue replacing aggregate `SaveState` synchronization with
+  dependency-ordered relational repositories for focused resource families.
+  Identity, idempotency, customer portal token, release-ledger core, build provenance,
   source/deployment, incident, security evidence, SBOM diff, vulnerability
   workflow, contract diff, custom policy, waiver, approval, DSSE trust-root,
   collector release, Cosign verification, signing provider, Merkle batch,
@@ -122,17 +122,17 @@ implemented capabilities:
   decision, control, audit-chain, signing, bundle, policy, verification,
   package, report, retention, provider verification, signing operation, and
   future-extension rows are synchronized into relational tables. Production
-  startup defaults to relational-preferred loading, and missing-snapshot
-  recovery can rebuild identity, SSO session, customer portal token,
+  startup defaults to relational-preferred loading, production writes skip the
+  compatibility snapshot, and missing-snapshot recovery can rebuild identity,
+  SSO session, customer portal token,
   release-ledger core, build provenance, source/deployment, incident, security
   evidence, SBOM diff, vulnerability workflow, contract diff, custom policy,
   waiver, approval, DSSE trust-root, collector release, Cosign verification,
   signing provider, Merkle batch, transparency checkpoint, evidence lifecycle,
   release candidate, VEX/risk decision, control, package, report, retention,
   provider verification, signing operation, and future-extension families from
-  relational rows.
-  Keep snapshots only for export/import and upgrade compatibility after the
-  remaining families have repository-backed reads and writes.
+  relational rows. Snapshots remain for local compatibility, export/import, and
+  non-production migration checks.
 - Split the large application ledger aggregate into focused services or
   repositories once relational writes are in place, preserving tenant isolation
   and append-only behavior throughout.
