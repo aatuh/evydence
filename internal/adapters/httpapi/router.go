@@ -2193,6 +2193,7 @@ func (r *serveMuxRouter) Patch(pattern string, h http.HandlerFunc) {
 }
 
 func op(id, method, path, summary string, scopes []string) specs.Operation {
+	successStatus := defaultSuccessStatus(id, method)
 	operation := specs.Operation{
 		OperationID: id,
 		Method:      method,
@@ -2200,14 +2201,13 @@ func op(id, method, path, summary string, scopes []string) specs.Operation {
 		Summary:     summary,
 		Tags:        []string{"evydence"},
 		Responses: map[int]specs.Response{
-			200: {Description: "OK"},
-			201: {Description: "Created"},
-			400: {Description: "Bad request"},
-			401: {Description: "Unauthorized"},
-			403: {Description: "Forbidden"},
-			404: {Description: "Not found"},
-			409: {Description: "Conflict"},
-			422: {Description: "Verification failed"},
+			successStatus: {Description: summary + " response"},
+			400:           {Description: "Bad request"},
+			401:           {Description: "Unauthorized"},
+			403:           {Description: "Forbidden"},
+			404:           {Description: "Not found"},
+			409:           {Description: "Conflict"},
+			422:           {Description: "Verification failed"},
 		},
 	}
 	if len(scopes) > 0 {
@@ -2218,4 +2218,33 @@ func op(id, method, path, summary string, scopes []string) specs.Operation {
 		operation.Extensions = idempotent.OperationExtensions(true)
 	}
 	return withCriticalOperationDetails(operation)
+}
+
+func defaultSuccessStatus(operationID, method string) int {
+	if method == http.MethodGet {
+		return http.StatusOK
+	}
+	if method != http.MethodPost {
+		return http.StatusOK
+	}
+	switch operationID {
+	case "deactivateUser",
+		"revokeSSOSession",
+		"freezeRelease",
+		"approveRelease",
+		"promoteReleaseCandidate",
+		"rejectReleaseCandidate",
+		"verifyCosignSignature",
+		"verifyBuildAttestationSignature",
+		"approveWaiver",
+		"accessCustomerPortalPackage",
+		"downloadCustomerPortalPackage",
+		"approveException",
+		"verifyObjectRetentionPolicy",
+		"revokeSigningKey",
+		"verify":
+		return http.StatusOK
+	default:
+		return http.StatusCreated
+	}
 }
