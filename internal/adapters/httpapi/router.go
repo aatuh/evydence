@@ -997,6 +997,19 @@ func (s *Server) getCustomerPackage(w http.ResponseWriter, r *http.Request) {
 	writeData(w, http.StatusOK, pkg)
 }
 
+func (s *Server) downloadCustomerPackage(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	archive, err := s.ledger.ExportCustomerSecurityPackageArchive(r.Context(), actor, r.PathValue("id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeArchive(w, archive)
+}
+
 func (s *Server) securityReviewPackageReport(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
@@ -2004,6 +2017,15 @@ func parseOptionalRFC3339(value string) (time.Time, error) {
 
 func writeData(w http.ResponseWriter, status int, data any) {
 	httpx.WriteJSON(w, status, map[string]any{"data": data, "meta": map[string]string{"api_version": "v1"}})
+}
+
+func writeArchive(w http.ResponseWriter, archive app.CustomerPackageArchive) {
+	w.Header().Set("Content-Type", archive.MediaType)
+	w.Header().Set("Content-Disposition", `attachment; filename="`+archive.Filename+`"`)
+	w.Header().Set("Content-Length", strconv.FormatInt(archive.Size, 10))
+	w.Header().Set("X-Evydence-Archive-Hash", archive.Hash)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(archive.Bytes)
 }
 
 func writeProblem(w http.ResponseWriter, r *http.Request, err error) {

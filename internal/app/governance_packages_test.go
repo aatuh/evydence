@@ -1,12 +1,16 @@
 package app
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -57,6 +61,37 @@ func TestWaiverApprovalAndCustomerPackageFlow(t *testing.T) {
 	if len(report.EvidenceIDs) != 1 || report.EvidenceIDs[0] != item.ID {
 		t.Fatalf("report evidence ids = %#v, want package evidence", report.EvidenceIDs)
 	}
+	archive, err := ledger.ExportCustomerSecurityPackageArchive(ctx, actor, pkg.ID)
+	if err != nil {
+		t.Fatalf("export package archive: %v", err)
+	}
+	if archive.MediaType != "application/zip" || archive.Hash != hashBytes(archive.Bytes) || archive.Size != int64(len(archive.Bytes)) {
+		t.Fatalf("archive metadata invalid: %#v", archive)
+	}
+	files := packageArchiveFiles(t, archive.Bytes)
+	for _, name := range []string{"manifest.json", "package.json", "verification.json", "README.txt"} {
+		if files[name] == "" {
+			t.Fatalf("archive missing %s: %#v", name, files)
+		}
+	}
+	archiveText := strings.Join([]string{files["manifest.json"], files["package.json"], files["verification.json"], files["README.txt"]}, "\n")
+	if !strings.Contains(archiveText, item.ID) {
+		t.Fatalf("archive manifest missing package evidence id: %s", archiveText)
+	}
+	if strings.Contains(archiveText, `"tenant_id"`) || strings.Contains(archiveText, "legally compliant") || strings.Contains(archiveText, "certified secure") {
+		t.Fatalf("archive leaked tenant internals or prohibited claims: %s", archiveText)
+	}
+	_, portalSecret, err := ledger.CreateCustomerPortalAccess(ctx, actor, CreateCustomerPortalAccessInput{PackageID: pkg.ID, CustomerName: "Customer", ExpiresAt: fixedNow().Add(time.Hour)})
+	if err != nil {
+		t.Fatalf("portal access: %v", err)
+	}
+	portalArchive, err := ledger.ExportCustomerPortalPackageArchive(ctx, portalSecret)
+	if err != nil {
+		t.Fatalf("portal export archive: %v", err)
+	}
+	if strings.Contains(strings.Join(mapValues(packageArchiveFiles(t, portalArchive.Bytes)), "\n"), portalSecret) {
+		t.Fatalf("portal archive leaked access token")
+	}
 	_, _, secretB, err := ledger.BootstrapTenant(ctx, "Tenant B", "admin-b", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap B: %v", err)
@@ -68,6 +103,39 @@ func TestWaiverApprovalAndCustomerPackageFlow(t *testing.T) {
 	if _, err := ledger.AccessCustomerSecurityPackage(ctx, actorB, pkg.ID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("cross-tenant package err=%v, want not found", err)
 	}
+	if _, err := ledger.ExportCustomerSecurityPackageArchive(ctx, actorB, pkg.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("cross-tenant package archive err=%v, want not found", err)
+	}
+}
+
+func packageArchiveFiles(t *testing.T, body []byte) map[string]string {
+	t.Helper()
+	reader, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
+	if err != nil {
+		t.Fatalf("read archive: %v", err)
+	}
+	files := map[string]string{}
+	for _, file := range reader.File {
+		rc, err := file.Open()
+		if err != nil {
+			t.Fatalf("open %s: %v", file.Name, err)
+		}
+		content, err := io.ReadAll(rc)
+		_ = rc.Close()
+		if err != nil {
+			t.Fatalf("read %s: %v", file.Name, err)
+		}
+		files[file.Name] = string(content)
+	}
+	return files
+}
+
+func mapValues(values map[string]string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		out = append(out, value)
+	}
+	return out
 }
 
 func TestTemplatesReportsEvidenceBundleAndCRAHTML(t *testing.T) {
