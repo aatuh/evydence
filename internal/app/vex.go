@@ -162,7 +162,7 @@ func (l *Ledger) UploadVEX(ctx context.Context, actor domain.Actor, releaseID, a
 		}
 	}
 	_, _ = l.appendChainLocked(actor.TenantID, "vex.parsed", "vex_document", vex.ID, "api_key", actor.KeyID, payloadHash, "")
-	if err := l.enqueue(ctx, actor.TenantID, "parse_vex", "vex_document", vex.ID, map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "decisions_created": createdDecisions}); err != nil {
+	if err := l.enqueue(ctx, actor.TenantID, "parse_vex", "vex_document", vex.ID, map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionOpenVEXJSON, "decisions_created": createdDecisions}); err != nil {
 		return domain.VEXDocument{}, err
 	}
 	if err := l.persistLocked(ctx); err != nil {

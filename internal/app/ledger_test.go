@@ -12,6 +12,15 @@ import (
 	"github.com/aatuh/evydence/internal/domain"
 )
 
+type recordingOutbox struct {
+	jobs []OutboxJob
+}
+
+func (r *recordingOutbox) Enqueue(_ context.Context, job OutboxJob) error {
+	r.jobs = append(r.jobs, job)
+	return nil
+}
+
 func TestTenantScopedEvidenceAndAPIKeyAuth(t *testing.T) {
 	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
@@ -88,6 +97,42 @@ func TestScopedAPIKeyCannotWriteEvidence(t *testing.T) {
 	_, err = ledger.CreateEvidence(ctx, reader, CreateEvidenceInput{Type: "build", Title: "Build", PayloadHash: sampleDigest("x")})
 	if !errors.Is(err, ErrForbidden) {
 		t.Fatalf("reader create evidence err = %v, want forbidden", err)
+	}
+}
+
+func TestUploadSBOMEnqueuesParserVersion(t *testing.T) {
+	outbox := &recordingOutbox{}
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Outbox: outbox})
+	ctx := context.Background()
+	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	actor, err := ledger.Authenticate(ctx, secret)
+	if err != nil {
+		t.Fatalf("auth: %v", err)
+	}
+	product, err := ledger.CreateProduct(ctx, actor, "Payments API", "payments-parser-version")
+	if err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	release, err := ledger.CreateRelease(ctx, actor, product.ID, "1.0.0")
+	if err != nil {
+		t.Fatalf("create release: %v", err)
+	}
+	artifact, err := ledger.RegisterArtifact(ctx, actor, "api.tar.gz", "application/gzip", sampleDigest("api"), 42)
+	if err != nil {
+		t.Fatalf("artifact: %v", err)
+	}
+	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api"}]}`)); err != nil {
+		t.Fatalf("upload sbom: %v", err)
+	}
+	if len(outbox.jobs) != 1 {
+		t.Fatalf("outbox jobs = %d, want 1", len(outbox.jobs))
+	}
+	job := outbox.jobs[0]
+	if job.Kind != "parse_sbom" || job.Payload["parser_version"] != ParserVersionCycloneDXJSON {
+		t.Fatalf("outbox job = %#v", job)
 	}
 }
 

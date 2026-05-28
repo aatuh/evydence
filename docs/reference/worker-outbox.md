@@ -14,6 +14,10 @@ Configured job kinds:
 
 Current behavior is intentionally conservative. The API still records normalized parser, signing, and verification results before enqueueing jobs for the implemented upload paths. The worker independently replays tenant-prefixed payload objects when `payload_ref` is present, verifies object metadata and byte digests when `payload_hash` is present, parses SBOM, vulnerability-scan, OpenAPI, OpenVEX, and DSSE attestation payloads, and checks that replayed payload summaries match the expected durable state. Missing objects, wrong tenant prefixes, tenant mismatches, oversized payload objects, malformed replay payloads, durable-state mismatches, incomplete verification, missing signatures, hash mismatch, uninitialized storage, and unsupported job kinds fail the job safely.
 
+Parser and attestation jobs include a deterministic `parser_version` payload
+field for new uploads. Workers reject unsupported parser versions and accept
+older jobs with no parser version for upgrade compatibility.
+
 Parser replay currently validates durable side effects instead of being the only writer of normalized records. Moving parser side effects fully out of the request path remains production hardening work.
 
 Workers use the same object-store environment variables as the API. The default worker payload replay limit is 20 MiB and can be adjusted with `EVYDENCE_WORKER_MAX_PAYLOAD_BYTES`.

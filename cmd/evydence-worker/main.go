@@ -29,6 +29,14 @@ import (
 
 const defaultMaxWorkerPayloadBytes = 20 << 20
 
+var expectedParserVersions = map[string]string{
+	"parse_sbom":               app.ParserVersionCycloneDXJSON,
+	"parse_vulnerability_scan": app.ParserVersionGenericVulnerabilityJSON,
+	"parse_openapi_contract":   app.ParserVersionOpenAPIJSON,
+	"parse_vex":                app.ParserVersionOpenVEXJSON,
+	"verify_attestation":       app.ParserVersionDSSEInTotoJSON,
+}
+
 func main() {
 	if err := run(); err != nil {
 		log.Fatal(err)
@@ -143,6 +151,9 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 	}
 	if !ok {
 		return errors.New("durable state is not initialized")
+	}
+	if err := requireParserVersion(job); err != nil {
+		return err
 	}
 	stateChanged := false
 	switch job.Kind {
@@ -287,6 +298,21 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 		if err := stateStore.SaveState(ctx, snapshot); err != nil {
 			return errors.New("persist durable parser side effects")
 		}
+	}
+	return nil
+}
+
+func requireParserVersion(job postgres.ClaimedJob) error {
+	expected, ok := expectedParserVersions[job.Kind]
+	if !ok {
+		return nil
+	}
+	got := payloadString(job, "parser_version")
+	if got == "" {
+		return nil
+	}
+	if got != expected {
+		return errors.New("unsupported outbox parser version")
 	}
 	return nil
 }
