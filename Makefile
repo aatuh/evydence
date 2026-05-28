@@ -158,10 +158,11 @@ deploy-check: ## Validate deployment and air-gap skeletons exist
 	@test -f deploy/observability/prometheus-rules.yaml
 	@test -f deploy/observability/grafana-dashboard.json
 
-sdk-check: ## Validate curated SDK example files exist
+sdk-check: ## Validate curated SDK helper coverage against OpenAPI
 	@test -f sdk/go/evydence/client.go
 	@test -f sdk/typescript/client.ts
 	@test -f sdk/python/evydence_client.py
+	@python3 scripts/sdk_check.py
 
 fast-check: ## Run non-mutating fast validation
 	@$(MAKE) test
