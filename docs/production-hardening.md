@@ -61,7 +61,7 @@ Expected result: rendered manifests reference the configured secret and object s
 Air-gapped packages:
 
 ```sh
-evydence release verify --manifest evydence-release-manifest.json --signature evydence-release-manifest.sig.json
+./dist/evydence release verify --manifest evydence-release-manifest.json --signature evydence-release-manifest.sig.json
 ```
 
 Expected result: manifest signature and referenced artifact hashes verify before import.

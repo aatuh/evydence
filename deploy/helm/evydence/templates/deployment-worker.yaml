@@ -18,7 +18,7 @@ spec:
         - name: worker
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: ["/evydence-worker"]
+          command: ["evydence-worker"]
           envFrom:
             - configMapRef:
                 name: {{ include "evydence.fullname" . }}-config

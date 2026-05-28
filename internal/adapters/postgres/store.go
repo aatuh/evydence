@@ -326,6 +326,39 @@ func resourceProjections(state app.PersistedState) []resourceProjection {
 	for _, v := range state.CommercialCollectors {
 		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "commercial_collector", ResourceID: v.ID, CreatedAt: v.CreatedAt})
 	}
+	for _, v := range state.EvidenceSummaries {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "evidence_summary", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.QuestionnaireDrafts {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "questionnaire_draft", ResourceID: v.ID, ProductID: v.ProductID, ReleaseID: v.ReleaseID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.GraphSnapshots {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "evidence_graph_snapshot", ResourceID: v.ID, ProductID: v.ProductID, ReleaseID: v.ReleaseID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.SaaSProfiles {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "saas_profile", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.PublicTransparencyLogs {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "public_transparency_log", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.PublicTransparencyItems {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "public_transparency_log_entry", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.MarketplaceCollectors {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "marketplace_collector", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.PDFReports {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "pdf_report", ResourceID: v.ID, ProductID: v.ProductID, ReleaseID: v.ReleaseID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.AnomalyReports {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "anomaly_report", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.ProviderVerifications {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "provider_verification", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.SigningOperations {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "signing_operation", ResourceID: v.ID, CreatedAt: v.CreatedAt})
+	}
 	return out
 }
 

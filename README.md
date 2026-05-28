@@ -24,7 +24,7 @@ This repository contains a Go release-ledger MVP scaffold under module `github.c
 
 - Products, projects, releases, release candidates, artifacts, container images, artifact signatures, evidence search, evidence lifecycle events, SBOM and VEX upload, vulnerability scans, vulnerability decisions, exceptions, waivers, approvals, incidents, remediation tasks, source records, deployment events, controls, reports, policies, release bundles, evidence bundles, backup manifests, and retention records.
 - Immutable or append-only behavior for evidence core fields, release bundles, approvals, exceptions, audit entries, chain entries, and related transition records.
-- Release-readiness, control-coverage, CRA-readiness, vulnerability-posture, incident-package, security-review-package, retention, and backup-manifest reports with assumptions and limitations.
+- Release-readiness, control-coverage, CRA-readiness, vulnerability-posture, incident-package, security-review-package, evidence-summary, questionnaire-draft, graph-snapshot, PDF-package, anomaly, retention, and backup-manifest reports with assumptions and limitations.
 
 ### Persistence, Object Storage, And Workers
 
@@ -42,6 +42,8 @@ This repository contains a Go release-ledger MVP scaffold under module `github.c
 - Lightweight Go, TypeScript, and Python SDK wrappers.
 - GitHub Actions and GitLab CI workflow examples.
 - Documentation portal under `docs/`.
+
+Implemented-but-partial areas are documented explicitly: signing-provider operation receipts do not replace production KMS/HSM adapters, stored provider identity checks do not verify live OIDC/SAML tokens, and public transparency records do not prove external log inclusion without the configured operator workflow.
 
 ## Local API
 

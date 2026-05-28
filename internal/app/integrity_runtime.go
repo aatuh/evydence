@@ -331,6 +331,27 @@ func (l *Ledger) VerifyObjectRetentionPolicy(ctx context.Context, actor domain.A
 	now := l.now()
 	policy.Status = "verified"
 	policy.VerifiedAt = &now
+	verificationHash, err := canonicalAnyHash(struct {
+		ID            string `json:"id"`
+		TenantID      string `json:"tenant_id"`
+		ObjectPrefix  string `json:"object_prefix"`
+		Mode          string `json:"mode"`
+		RetentionDays int    `json:"retention_days"`
+		Status        string `json:"status"`
+		VerifiedAt    string `json:"verified_at"`
+	}{
+		ID:            policy.ID,
+		TenantID:      policy.TenantID,
+		ObjectPrefix:  policy.ObjectPrefix,
+		Mode:          policy.Mode,
+		RetentionDays: policy.RetentionDays,
+		Status:        policy.Status,
+		VerifiedAt:    now.Format(time.RFC3339Nano),
+	})
+	if err != nil {
+		return domain.ObjectRetentionPolicy{}, err
+	}
+	policy.VerificationHash = verificationHash
 	l.retentionPolicies[policy.ID] = policy
 	_, _ = l.appendChainLocked(actor.TenantID, "object_retention_policy.verified", "object_retention_policy", policy.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {

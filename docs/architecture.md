@@ -24,7 +24,7 @@ Instance diagnostics require explicit `instance:admin` scope. Tenant admin and o
 
 When `EVYDENCE_DATABASE_URL` is set, mutations are saved to PostgreSQL before successful responses return. Upload payload bytes, including raw SBOM, vulnerability scan, OpenAPI, OpenVEX, and DSSE build-attestation payloads, are written to the configured object store with tenant-prefixed keys and SHA-256 digest checks before metadata is accepted.
 
-Evidence, evidence lifecycle events, incidents, remediation tasks, security scans, manual security documents, SBOM diffs, VEX documents, vulnerability decisions/workflow records, organizations, users, role bindings, SSO providers, SSO sessions, legal holds, retention overrides, customer portal access records, questionnaire packages, commercial collector definitions, waivers, approvals, customer packages, report templates, evidence bundles, exceptions, build runs, build attestations, release candidates, artifact signatures, source-control records, deployment events, contract diffs, custom policy evaluations, control evidence links, and release bundle records are append-only in behavior. Changes are represented by supersession, lifecycle events, approval transitions, session revocation, package access records, links, verification receipts, rollback-as-new-event records, or new audit-chain entries.
+Evidence, evidence lifecycle events, incidents, remediation tasks, security scans, manual security documents, SBOM diffs, VEX documents, vulnerability decisions/workflow records, organizations, users, role bindings, SSO providers, SSO sessions, legal holds, retention overrides, customer portal access records, questionnaire packages and drafts, evidence summaries, evidence graph snapshots, commercial and marketplace collector definitions, waivers, approvals, customer packages, report templates, evidence bundles, exceptions, build runs, build attestations, release candidates, artifact signatures, source-control records, deployment events, contract diffs, custom policy evaluations, provider verifications, signing operations, control evidence links, public transparency log entries, and release bundle records are append-only in behavior. Changes are represented by supersession, lifecycle events, approval transitions, session revocation, package access records, links, verification receipts, rollback-as-new-event records, or new audit-chain entries.
 
 Outbox jobs are persisted in PostgreSQL and claimed by workers with `FOR UPDATE SKIP LOCKED`.
 
@@ -34,7 +34,7 @@ Release readiness is deterministic and evidence-scoped. Open critical vulnerabil
 
 DSSE attestation signatures can be verified against configured Ed25519 trust roots when raw attestation bytes are available. Cosign-style artifact verification records digest binding, signature presence, and optional Rekor metadata without overstating full Sigstore trust-chain validation. Signing keys support revocation and valid-at-signing semantics for historical signatures.
 
-Merkle batches, signed checkpoints, optional transparency checkpoint records, backup manifests, object-retention policy records, legal holds, retention overrides, readiness, metrics, instance admin diagnostics, and admin audit queries provide operational integrity and review surfaces.
+Merkle batches, signed checkpoints, optional transparency checkpoint/public transparency records, backup manifests, object-retention policy records with verification hashes, legal holds, retention overrides, readiness, metrics, instance admin diagnostics, and admin audit queries provide operational integrity and review surfaces.
 
 ## Reports And Customer-Facing Packages
 
@@ -42,16 +42,16 @@ Control coverage and CRA-readiness reports use versioned tenant-created controls
 
 Source snapshots, deployment records, incident packages, security scans, manual reviews, SBOM diffs, contract diffs, API security checks, customer packages, customer portal package access, questionnaire packages, evidence bundles, and custom policies add traceability and reproducible decisions. Reports include gaps, assumptions, and limitations.
 
-Customer-facing packages require explicit package scope, redaction profile, expiry, and access auditing. Raw tenant evidence payload bytes are not returned by customer package read paths.
+Evidence summaries, questionnaire drafts, graph snapshots, PDF packages, and anomaly reports are generated from stored records with citations, assumptions, and limitations. Customer-facing packages require explicit package scope, redaction profile, expiry, and access auditing. Raw tenant evidence payload bytes are not returned by customer package read paths.
 
 ## Provider And Deployment Boundaries
 
-GitHub OIDC subject metadata can be captured, but OIDC token verification and live provider API verification are roadmap work. Collector supply-chain records track pinned collector versions with signature, SBOM, and scan evidence where available; commercial collector definitions add extension metadata without granting provider trust.
+GitHub OIDC subject metadata can be captured, and stored OIDC/SAML identity links can be verified against tenant metadata. Live provider token/API verification remains a trust boundary outside those records. Collector supply-chain records track pinned collector versions with signature, SBOM, and scan evidence where available; commercial and marketplace collector definitions add extension metadata without granting provider trust.
 
 Air-gapped import-bundle workflows preserve the same tenant-scoped import path after controlled transfer. Object-retention policy APIs record and verify retention intent for tenant-prefixed object paths, but WORM/object-lock enforcement remains the responsibility of the configured object store and deployment policy.
 
 ## Limitations
 
-The in-process store remains available only when `EVYDENCE_DATABASE_URL` is unset. S3/MinIO runtime object storage is available through the object-store port. Signing-provider records are implemented, but production-grade KMS/HSM signing operations remain a hardening area behind the external signing mode. Hand-tuned per-resource repository implementations remain roadmap work. `ENV=production` rejects the in-process store, default API-key pepper, local plaintext signing-key mode, and bootstrap secret printing.
+The in-process store remains available only when `EVYDENCE_DATABASE_URL` is unset. S3/MinIO runtime object storage is available through the object-store port. Signing-provider operation receipts are implemented, but production KMS/HSM provider adapters and live Sigstore/public-transparency verification remain deployment hardening work. Hand-tuned per-resource repository implementations remain roadmap work. `ENV=production` rejects the in-process store, default API-key pepper, local plaintext signing-key mode, and bootstrap secret printing.
 
 Evydence does not prove provider truth, scanner authority, runtime security, legal compliance, or release security by itself.
