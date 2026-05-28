@@ -148,6 +148,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@grep -F 'cat > evydence-upload-manifest.json' docs/gitlab/evydence-release-evidence.gitlab-ci.yml >/dev/null
 	@grep -F 'artifact.digest' docs/gitlab/evydence-release-evidence.gitlab-ci.yml >/dev/null
 	@grep -F -- '--manifest evydence-upload-manifest.json' docs/gitlab/evydence-release-evidence.gitlab-ci.yml >/dev/null
+	@grep -F 'make production-check' .github/workflows/ci.yml >/dev/null
 	@grep -F 'make production-check' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'evydence-release-manifest.sig.json' .github/workflows/release-artifacts.yml >/dev/null
