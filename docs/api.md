@@ -422,7 +422,7 @@ Source snapshots capture submitted provider metadata. They do not call provider 
 ## Current Contract Limitations
 
 - `openapi.yaml` is generated as compact JSON-style YAML and is optimized for drift checks and tooling, not prose review.
-- A subset of high-value operations has precise named schemas and response envelopes. Many route responses remain generic envelopes.
+- A subset of high-value operations has precise named schemas and response envelopes. Some broad resource families still use generic data envelopes until generated clients require fully named response schemas for every route.
 - Operation-level examples are maintained here and in tests until the generator emits richer examples.
 - OpenAPI diffing classifies operation removal/addition, required request-body and request-field changes, response status changes, and broad path-count fallback for older stored contracts.
 

@@ -46,7 +46,7 @@ GET /v1/openapi.json
 
 - `openapi.yaml` is generated in a compact JSON-compatible representation.
 - Critical routes such as evidence creation, evidence search, release bundle verification, SSO session creation, customer portal token exchange, and instance diagnostics have more precise request/response schemas.
-- Many routes still use generic response envelopes while the human examples live in [API reference](../api.md) and HTTP tests.
+- Some broad resource families still use generic data envelopes while the human examples live in [API reference](../api.md) and HTTP tests.
 - Do not hand-edit `openapi.yaml`; update route metadata or the generator, then run `make openapi-check`.
 
 Route registration and OpenAPI generation use the same HTTP adapter registry so tests can catch missing routes or stale operation metadata.
