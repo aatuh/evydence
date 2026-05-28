@@ -2,16 +2,23 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/aatuh/evydence/internal/adapters/objectstore/filesystem"
+	s3store "github.com/aatuh/evydence/internal/adapters/objectstore/s3"
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/app"
 )
+
+const defaultMaxWorkerPayloadBytes = 20 << 20
 
 func main() {
 	if err := run(); err != nil {
@@ -38,9 +45,13 @@ func run() error {
 		}
 		cancel()
 	}
+	objectStore, objectDescription, err := openObjectStore(ctx)
+	if err != nil {
+		return err
+	}
 	pollInterval := durationEnv("EVYDENCE_WORKER_POLL_INTERVAL", time.Second)
 	batchSize := intEnv("EVYDENCE_WORKER_BATCH_SIZE", 10)
-	log.Printf("evydence worker started with postgres outbox polling interval %s", pollInterval)
+	log.Printf("evydence worker started with postgres outbox, %s object store, polling interval %s", objectDescription, pollInterval)
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -57,7 +68,7 @@ func run() error {
 		}
 		for _, job := range jobs {
 			log.Printf("processing outbox job id=%s kind=%s subject_type=%s subject_id=%s attempt=%d", job.ID, job.Kind, job.SubjectType, job.SubjectID, job.Attempts)
-			if err := processJob(ctx, store, job); err != nil {
+			if err := processJobWithObjects(ctx, store, objectStore, job); err != nil {
 				log.Printf("outbox job failed id=%s kind=%s: %v", job.ID, job.Kind, err)
 				if failErr := store.FailJob(ctx, job.ID, err); failErr != nil {
 					log.Printf("record outbox failure failed id=%s: %v", job.ID, failErr)
@@ -75,12 +86,29 @@ type jobStateLoader interface {
 	LoadState(context.Context) (app.PersistedState, bool, error)
 }
 
+type jobObjectGetter interface {
+	Get(context.Context, string) (app.Object, error)
+}
+
 func processJob(ctx context.Context, state jobStateLoader, job postgres.ClaimedJob) error {
+	return processJobInternal(ctx, state, nil, job, false)
+}
+
+func processJobWithObjects(ctx context.Context, state jobStateLoader, objects jobObjectGetter, job postgres.ClaimedJob) error {
+	return processJobInternal(ctx, state, objects, job, true)
+}
+
+func processJobInternal(ctx context.Context, state jobStateLoader, objects jobObjectGetter, job postgres.ClaimedJob, requireObjectReplay bool) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if state == nil {
 		return errors.New("outbox job handler requires durable state")
+	}
+	if requireObjectReplay {
+		if err := verifyJobObject(ctx, objects, job); err != nil {
+			return err
+		}
 	}
 	snapshot, ok, err := state.LoadState(ctx)
 	if err != nil {
@@ -150,6 +178,40 @@ func processJob(ctx context.Context, state jobStateLoader, job postgres.ClaimedJ
 	}
 }
 
+func verifyJobObject(ctx context.Context, objects jobObjectGetter, job postgres.ClaimedJob) error {
+	key := payloadString(job, "payload_ref")
+	if key == "" {
+		return nil
+	}
+	if !strings.HasPrefix(key, "tenants/"+job.TenantID+"/") {
+		return errors.New("outbox payload object key is not tenant-prefixed")
+	}
+	if objects == nil {
+		return errors.New("outbox object store is not configured")
+	}
+	object, err := objects.Get(ctx, key)
+	if err != nil {
+		return errors.New("read outbox payload object")
+	}
+	if object.TenantID != "" && object.TenantID != job.TenantID {
+		return errors.New("outbox payload object tenant mismatch")
+	}
+	if len(object.Bytes) > intEnv("EVYDENCE_WORKER_MAX_PAYLOAD_BYTES", defaultMaxWorkerPayloadBytes) {
+		return errors.New("outbox payload object exceeds worker size limit")
+	}
+	want := payloadString(job, "payload_hash")
+	if want == "" {
+		return nil
+	}
+	if object.Digest != "" && object.Digest != want {
+		return errors.New("outbox payload object metadata digest mismatch")
+	}
+	if digestBytes(object.Bytes) != want {
+		return errors.New("outbox payload object digest mismatch")
+	}
+	return nil
+}
+
 func requirePayloadHash(job postgres.ClaimedJob, recordedHash string) error {
 	want := payloadString(job, "payload_hash")
 	if want == "" || recordedHash == "" {
@@ -198,4 +260,36 @@ func intEnv(name string, fallback int) int {
 		return fallback
 	}
 	return parsed
+}
+
+func digestBytes(body []byte) string {
+	sum := sha256.Sum256(body)
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+func openObjectStore(ctx context.Context) (app.ObjectStore, string, error) {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("EVYDENCE_OBJECT_STORE"))) {
+	case "", "file", "filesystem":
+		objectRoot := envDefault("EVYDENCE_OBJECT_DIR", filepath.Join("tmp", "objects"))
+		objectStore, err := filesystem.New(objectRoot)
+		if err != nil {
+			return nil, "", err
+		}
+		return objectStore, "filesystem root " + objectRoot, nil
+	case "s3", "minio":
+		objectStore, err := s3store.New(ctx, s3store.Config{
+			Endpoint:        os.Getenv("EVYDENCE_S3_ENDPOINT"),
+			AccessKeyID:     os.Getenv("EVYDENCE_S3_ACCESS_KEY_ID"),
+			SecretAccessKey: os.Getenv("EVYDENCE_S3_SECRET_ACCESS_KEY"),
+			Bucket:          os.Getenv("EVYDENCE_S3_BUCKET"),
+			Region:          os.Getenv("EVYDENCE_S3_REGION"),
+			UseSSL:          strings.EqualFold(os.Getenv("EVYDENCE_S3_USE_SSL"), "true"),
+		})
+		if err != nil {
+			return nil, "", err
+		}
+		return objectStore, "S3-compatible bucket " + envDefault("EVYDENCE_S3_BUCKET", ""), nil
+	default:
+		return nil, "", errors.New("unsupported EVYDENCE_OBJECT_STORE")
+	}
 }
