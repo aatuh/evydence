@@ -69,6 +69,9 @@ func (s *Store) loadRelationalState(ctx context.Context) (app.PersistedState, bo
 	if err := s.loadRelationalTenants(ctx, &state, &loaded); err != nil {
 		return app.PersistedState{}, false, err
 	}
+	if err := s.loadRelationalIdentity(ctx, &state, &loaded); err != nil {
+		return app.PersistedState{}, false, err
+	}
 	if err := s.loadRelationalAPIKeys(ctx, &state, &loaded); err != nil {
 		return app.PersistedState{}, false, err
 	}
@@ -90,6 +93,13 @@ func (s *Store) loadRelationalState(ctx context.Context) (app.PersistedState, bo
 func relationalEmptyState() app.PersistedState {
 	return app.PersistedState{
 		Tenants:                 map[string]domain.Tenant{},
+		Organizations:           map[string]domain.Organization{},
+		Users:                   map[string]domain.HumanUser{},
+		RoleBindings:            map[string]domain.RoleBinding{},
+		SSOProviders:            map[string]domain.SSOProvider{},
+		IdentityLinks:           map[string]domain.UserIdentityLink{},
+		SSOSessions:             map[string]domain.SSOSession{},
+		SSOSessionHashes:        map[string]string{},
 		APIKeys:                 map[string]domain.APIKey{},
 		APIKeyHashes:            map[string]string{},
 		CustomerPortalAccess:    map[string]domain.CustomerPortalAccess{},
@@ -140,6 +150,164 @@ func (s *Store) loadRelationalTenants(ctx context.Context, state *app.PersistedS
 			return fmt.Errorf("scan relational tenant: %w", err)
 		}
 		state.Tenants[tenant.ID] = tenant
+		*loaded = true
+	}
+	return rows.Err()
+}
+
+func (s *Store) loadRelationalIdentity(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	if err := s.loadRelationalOrganizations(ctx, state, loaded); err != nil {
+		return err
+	}
+	if err := s.loadRelationalUsers(ctx, state, loaded); err != nil {
+		return err
+	}
+	if err := s.loadRelationalRoleBindings(ctx, state, loaded); err != nil {
+		return err
+	}
+	if err := s.loadRelationalSSOProviders(ctx, state, loaded); err != nil {
+		return err
+	}
+	if err := s.loadRelationalIdentityLinks(ctx, state, loaded); err != nil {
+		return err
+	}
+	if err := s.loadRelationalSSOSessions(ctx, state, loaded); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Store) loadRelationalOrganizations(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	rows, err := s.pool.Query(ctx, `SELECT id, tenant_id, name, slug, status, schema_version, created_at FROM organizations`)
+	if err != nil {
+		return fmt.Errorf("load relational organizations: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var org domain.Organization
+		if err := rows.Scan(&org.ID, &org.TenantID, &org.Name, &org.Slug, &org.Status, &org.SchemaVersion, &org.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational organization: %w", err)
+		}
+		state.Organizations[org.ID] = org
+		*loaded = true
+	}
+	return rows.Err()
+}
+
+func (s *Store) loadRelationalUsers(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	rows, err := s.pool.Query(ctx, `SELECT id, tenant_id, organization_id, email, display_name, status, deactivated_at, schema_version, created_at FROM human_users`)
+	if err != nil {
+		return fmt.Errorf("load relational users: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var user domain.HumanUser
+		var organizationID sql.NullString
+		var deactivatedAt sql.NullTime
+		if err := rows.Scan(&user.ID, &user.TenantID, &organizationID, &user.Email, &user.DisplayName, &user.Status, &deactivatedAt, &user.SchemaVersion, &user.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational user: %w", err)
+		}
+		user.OrganizationID = nullableSQLString(organizationID)
+		user.DeactivatedAt = nullableSQLTime(deactivatedAt)
+		state.Users[user.ID] = user
+		*loaded = true
+	}
+	return rows.Err()
+}
+
+func (s *Store) loadRelationalRoleBindings(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	rows, err := s.pool.Query(ctx, `SELECT id, tenant_id, subject_type, subject_id, role, resource_type, resource_id, schema_version, created_at FROM role_bindings`)
+	if err != nil {
+		return fmt.Errorf("load relational role bindings: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var binding domain.RoleBinding
+		var resourceType, resourceID sql.NullString
+		if err := rows.Scan(&binding.ID, &binding.TenantID, &binding.SubjectType, &binding.SubjectID, &binding.Role, &resourceType, &resourceID, &binding.SchemaVersion, &binding.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational role binding: %w", err)
+		}
+		binding.ResourceType = nullableSQLString(resourceType)
+		binding.ResourceID = nullableSQLString(resourceID)
+		state.RoleBindings[binding.ID] = binding
+		*loaded = true
+	}
+	return rows.Err()
+}
+
+func (s *Store) loadRelationalSSOProviders(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, tenant_id, name, type, issuer, client_id, groups_claim,
+		       role_mapping, status, schema_version, created_at, jwks,
+		       saml_signing_certificates, trust_material_updated_at
+		FROM sso_providers
+	`)
+	if err != nil {
+		return fmt.Errorf("load relational sso providers: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var provider domain.SSOProvider
+		var groupsClaim sql.NullString
+		var roleMapping, jwks, samlCerts []byte
+		var trustMaterialUpdatedAt sql.NullTime
+		if err := rows.Scan(
+			&provider.ID, &provider.TenantID, &provider.Name, &provider.Type, &provider.Issuer, &provider.ClientID, &groupsClaim,
+			&roleMapping, &provider.Status, &provider.SchemaVersion, &provider.CreatedAt, &jwks,
+			&samlCerts, &trustMaterialUpdatedAt,
+		); err != nil {
+			return fmt.Errorf("scan relational sso provider: %w", err)
+		}
+		provider.GroupsClaim = nullableSQLString(groupsClaim)
+		provider.TrustMaterialUpdatedAt = nullableSQLTime(trustMaterialUpdatedAt)
+		if err := decodeJSON(roleMapping, &provider.RoleMapping); err != nil {
+			return fmt.Errorf("decode relational sso role mapping: %w", err)
+		}
+		if err := decodeJSON(jwks, &provider.JWKS); err != nil {
+			return fmt.Errorf("decode relational sso jwks: %w", err)
+		}
+		if err := decodeJSON(samlCerts, &provider.SAMLSigningCertificates); err != nil {
+			return fmt.Errorf("decode relational sso certificates: %w", err)
+		}
+		state.SSOProviders[provider.ID] = provider
+		*loaded = true
+	}
+	return rows.Err()
+}
+
+func (s *Store) loadRelationalIdentityLinks(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	rows, err := s.pool.Query(ctx, `SELECT id, tenant_id, user_id, provider_id, subject, email, verified, schema_version, created_at FROM user_identity_links`)
+	if err != nil {
+		return fmt.Errorf("load relational identity links: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var link domain.UserIdentityLink
+		if err := rows.Scan(&link.ID, &link.TenantID, &link.UserID, &link.ProviderID, &link.Subject, &link.Email, &link.Verified, &link.SchemaVersion, &link.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational identity link: %w", err)
+		}
+		state.IdentityLinks[link.ID] = link
+		*loaded = true
+	}
+	return rows.Err()
+}
+
+func (s *Store) loadRelationalSSOSessions(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	rows, err := s.pool.Query(ctx, `SELECT id, tenant_id, user_id, provider_id, prefix, hash, expires_at, revoked_at, schema_version, created_at FROM sso_sessions`)
+	if err != nil {
+		return fmt.Errorf("load relational sso sessions: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var session domain.SSOSession
+		var hash string
+		var revokedAt sql.NullTime
+		if err := rows.Scan(&session.ID, &session.TenantID, &session.UserID, &session.ProviderID, &session.Prefix, &hash, &session.ExpiresAt, &revokedAt, &session.SchemaVersion, &session.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational sso session: %w", err)
+		}
+		session.RevokedAt = nullableSQLTime(revokedAt)
+		state.SSOSessions[session.ID] = session
+		state.SSOSessionHashes[session.ID] = hash
 		*loaded = true
 	}
 	return rows.Err()
