@@ -28,6 +28,18 @@ This documentation is organized by reader task. Implementation claims should be 
 - [Collector supply chain](collectors/supply-chain.md): collector release evidence and health checks.
 - [Source snapshot collectors](collectors/source-snapshots.md): GitHub and GitLab source metadata upload examples.
 
+## Project Metadata
+
+- [License](../LICENSE): `AGPL-3.0-only` public license text.
+- [Commercial licensing](../COMMERCIAL.md): commercial license exceptions, self-hosted support, release evidence packages, deployment review, and custom integration support.
+- [Security policy](../SECURITY.md): vulnerability reporting guidance for tenant isolation, evidence integrity, credentials, collectors, object storage, signing, reports, exports, and raw evidence payloads.
+- [Support](../SUPPORT.md): community support expectations, commercial support boundaries, and sanitized bug-report requirements.
+- [Governance](../GOVERNANCE.md): maintainer-led decision process, contribution acceptance, release evidence expectations, and conservative product-language policy.
+- [Contributing](../CONTRIBUTING.md): contribution workflow, CLA expectation, licensing compatibility, and implementation invariants.
+- [Trademarks](../TRADEMARKS.md): conservative use of the Evydence name and modified-build naming rules.
+- [Release evidence](../RELEASE_EVIDENCE.md): release evidence routing, local acceptance checks, and limits of release validation.
+- [Changelog](../CHANGELOG.md): unreleased and future public-release notes.
+
 ## Workflow Examples
 
 - [GitHub Actions release evidence workflow](github-actions/release-evidence-workflow.yml)
