@@ -67,7 +67,8 @@ Do not describe an Evydence build as broadly self-hosted production-ready until:
 - `make production-check` passes in CI with live PostgreSQL;
 - coverage is at or above the configured threshold;
 - release artifacts have signed manifests and published checksums;
-- backup and restore have been tested for the target deployment profile;
+- the built-in local restore rehearsal passes and backup/restore have been
+  tested for the target deployment profile;
 - OpenAPI and SDK drift checks pass;
 - production hardening review is current;
 - unresolved limitations are documented in release notes.
