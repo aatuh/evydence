@@ -814,6 +814,243 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"created_at":     map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "repository", "digest", "schema_version", "created_at"))
 	registry.RegisterSchema("ContainerImageEnvelope", dataEnvelopeSchema("#/components/schemas/ContainerImage"))
+	registry.RegisterSchema("CreateRedactionProfileRequest", objectSchema(map[string]any{
+		"name":            map[string]any{"type": "string"},
+		"description":     map[string]any{"type": "string"},
+		"allowed_types":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"excluded_fields": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+	}, "name"))
+	registry.RegisterSchema("RedactionProfile", objectSchema(map[string]any{
+		"id":              map[string]any{"type": "string"},
+		"tenant_id":       map[string]any{"type": "string"},
+		"name":            map[string]any{"type": "string"},
+		"description":     map[string]any{"type": "string"},
+		"allowed_types":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"excluded_fields": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"schema_version":  map[string]any{"type": "string"},
+		"created_at":      map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "name", "schema_version", "created_at"))
+	registry.RegisterSchema("RedactionProfileEnvelope", dataEnvelopeSchema("#/components/schemas/RedactionProfile"))
+	registry.RegisterSchema("CreateCustomerPackageRequest", objectSchema(map[string]any{
+		"product_id":           map[string]any{"type": "string"},
+		"release_id":           map[string]any{"type": "string"},
+		"redaction_profile_id": map[string]any{"type": "string"},
+		"title":                map[string]any{"type": "string"},
+		"expires_at":           map[string]any{"type": "string", "format": "date-time"},
+	}, "product_id", "redaction_profile_id", "title", "expires_at"))
+	registry.RegisterSchema("CustomerSecurityPackage", objectSchema(map[string]any{
+		"id":                   map[string]any{"type": "string"},
+		"tenant_id":            map[string]any{"type": "string"},
+		"product_id":           map[string]any{"type": "string"},
+		"release_id":           map[string]any{"type": "string"},
+		"redaction_profile_id": map[string]any{"type": "string"},
+		"title":                map[string]any{"type": "string"},
+		"state":                map[string]any{"type": "string"},
+		"manifest":             map[string]any{"type": "object", "additionalProperties": true},
+		"manifest_hash":        map[string]any{"type": "string", "pattern": "^sha256:"},
+		"expires_at":           map[string]any{"type": "string", "format": "date-time"},
+		"access_count":         map[string]any{"type": "integer"},
+		"schema_version":       map[string]any{"type": "string"},
+		"created_at":           map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "product_id", "redaction_profile_id", "title", "state", "manifest", "manifest_hash", "expires_at", "access_count", "schema_version", "created_at"))
+	registry.RegisterSchema("CustomerSecurityPackageEnvelope", dataEnvelopeSchema("#/components/schemas/CustomerSecurityPackage"))
+	registry.RegisterSchema("SecurityReviewPackageReport", objectSchema(map[string]any{
+		"report_type":      map[string]any{"type": "string"},
+		"template_version": map[string]any{"type": "string"},
+		"package_id":       map[string]any{"type": "string"},
+		"product_id":       map[string]any{"type": "string"},
+		"release_id":       map[string]any{"type": "string"},
+		"evidence_ids":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"assumptions":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"limitations":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"generated_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "report_type", "template_version", "package_id", "product_id", "evidence_ids", "assumptions", "limitations", "generated_at"))
+	registry.RegisterSchema("SecurityReviewPackageReportEnvelope", dataEnvelopeSchema("#/components/schemas/SecurityReviewPackageReport"))
+	registry.RegisterSchema("HTMLReportPackage", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"report_type":    map[string]any{"type": "string"},
+		"product_id":     map[string]any{"type": "string"},
+		"release_id":     map[string]any{"type": "string"},
+		"html":           map[string]any{"type": "string"},
+		"hash":           map[string]any{"type": "string", "pattern": "^sha256:"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "report_type", "product_id", "html", "hash", "schema_version", "created_at"))
+	registry.RegisterSchema("HTMLReportPackageEnvelope", dataEnvelopeSchema("#/components/schemas/HTMLReportPackage"))
+	registry.RegisterSchema("CreateReportTemplateRequest", objectSchema(map[string]any{
+		"name":           map[string]any{"type": "string"},
+		"version":        map[string]any{"type": "string"},
+		"report_type":    map[string]any{"type": "string"},
+		"allowed_fields": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"template":       map[string]any{"type": "string"},
+	}, "name", "version", "report_type", "allowed_fields", "template"))
+	registry.RegisterSchema("CustomReportTemplate", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"name":           map[string]any{"type": "string"},
+		"version":        map[string]any{"type": "string"},
+		"report_type":    map[string]any{"type": "string"},
+		"allowed_fields": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"template":       map[string]any{"type": "string"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "name", "version", "report_type", "allowed_fields", "template", "schema_version", "created_at"))
+	registry.RegisterSchema("CustomReportTemplateEnvelope", dataEnvelopeSchema("#/components/schemas/CustomReportTemplate"))
+	registry.RegisterSchema("RenderReportTemplateRequest", objectSchema(map[string]any{
+		"subject_type": map[string]any{"type": "string"},
+		"subject_id":   map[string]any{"type": "string"},
+	}, "subject_type", "subject_id"))
+	registry.RegisterSchema("RenderedCustomReport", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"template_id":    map[string]any{"type": "string"},
+		"subject_type":   map[string]any{"type": "string"},
+		"subject_id":     map[string]any{"type": "string"},
+		"output":         map[string]any{"type": "object", "additionalProperties": true},
+		"hash":           map[string]any{"type": "string", "pattern": "^sha256:"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "template_id", "subject_type", "subject_id", "output", "hash", "schema_version", "created_at"))
+	registry.RegisterSchema("RenderedCustomReportEnvelope", dataEnvelopeSchema("#/components/schemas/RenderedCustomReport"))
+	registry.RegisterSchema("ExportEvidenceBundleRequest", objectSchema(map[string]any{
+		"release_id":   map[string]any{"type": "string"},
+		"evidence_ids": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+	}))
+	registry.RegisterSchema("EvidenceBundle", objectSchema(map[string]any{
+		"id":                map[string]any{"type": "string"},
+		"tenant_id":         map[string]any{"type": "string"},
+		"release_id":        map[string]any{"type": "string"},
+		"evidence_ids":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"manifest":          map[string]any{"type": "object", "additionalProperties": true},
+		"manifest_hash":     map[string]any{"type": "string", "pattern": "^sha256:"},
+		"signature_refs":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"verification_text": map[string]any{"type": "string"},
+		"schema_version":    map[string]any{"type": "string"},
+		"created_at":        map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "evidence_ids", "manifest", "manifest_hash", "verification_text", "schema_version", "created_at"))
+	registry.RegisterSchema("EvidenceBundleEnvelope", dataEnvelopeSchema("#/components/schemas/EvidenceBundle"))
+	registry.RegisterSchema("EvidenceBundleImport", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"bundle_hash":    map[string]any{"type": "string", "pattern": "^sha256:"},
+		"result":         map[string]any{"type": "string"},
+		"imported_count": map[string]any{"type": "integer"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "bundle_hash", "result", "imported_count", "schema_version", "created_at"))
+	registry.RegisterSchema("EvidenceBundleImportEnvelope", dataEnvelopeSchema("#/components/schemas/EvidenceBundleImport"))
+	registry.RegisterSchema("CreateEvidenceSummaryRequest", objectSchema(map[string]any{
+		"subject_type": map[string]any{"type": "string"},
+		"subject_id":   map[string]any{"type": "string"},
+		"evidence_ids": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+	}, "subject_type", "subject_id", "evidence_ids"))
+	registry.RegisterSchema("EvidenceCitation", objectSchema(map[string]any{
+		"evidence_id":    map[string]any{"type": "string"},
+		"type":           map[string]any{"type": "string"},
+		"title":          map[string]any{"type": "string"},
+		"canonical_hash": map[string]any{"type": "string", "pattern": "^sha256:"},
+	}, "evidence_id", "type", "title", "canonical_hash"))
+	registry.RegisterSchema("EvidenceSummary", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"subject_type":   map[string]any{"type": "string"},
+		"subject_id":     map[string]any{"type": "string"},
+		"evidence_ids":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"summary":        map[string]any{"type": "string"},
+		"citations":      map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/EvidenceCitation"}},
+		"assumptions":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"limitations":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "subject_type", "subject_id", "evidence_ids", "summary", "citations", "assumptions", "limitations", "schema_version", "created_at"))
+	registry.RegisterSchema("EvidenceSummaryEnvelope", dataEnvelopeSchema("#/components/schemas/EvidenceSummary"))
+	registry.RegisterSchema("QuestionnaireQuestion", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"prompt":         map[string]any{"type": "string"},
+		"evidence_type":  map[string]any{"type": "string"},
+		"control_id":     map[string]any{"type": "string"},
+		"allowed_fields": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+	}, "id", "prompt"))
+	registry.RegisterSchema("QuestionnaireResponse", objectSchema(map[string]any{
+		"question_id":  map[string]any{"type": "string"},
+		"answer":       map[string]any{"type": "string"},
+		"evidence_ids": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"limitations":  map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+	}, "question_id", "answer"))
+	registry.RegisterSchema("CreateQuestionnaireTemplateRequest", objectSchema(map[string]any{
+		"name":      map[string]any{"type": "string"},
+		"version":   map[string]any{"type": "string"},
+		"questions": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/QuestionnaireQuestion"}},
+	}, "name", "version", "questions"))
+	registry.RegisterSchema("QuestionnaireTemplate", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"name":           map[string]any{"type": "string"},
+		"version":        map[string]any{"type": "string"},
+		"questions":      map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/QuestionnaireQuestion"}},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "name", "version", "questions", "schema_version", "created_at"))
+	registry.RegisterSchema("QuestionnaireTemplateEnvelope", dataEnvelopeSchema("#/components/schemas/QuestionnaireTemplate"))
+	registry.RegisterSchema("CreateQuestionnairePackageRequest", objectSchema(map[string]any{
+		"template_id": map[string]any{"type": "string"},
+		"package_id":  map[string]any{"type": "string"},
+		"product_id":  map[string]any{"type": "string"},
+		"release_id":  map[string]any{"type": "string"},
+	}, "template_id"))
+	registry.RegisterSchema("QuestionnairePackage", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"template_id":    map[string]any{"type": "string"},
+		"package_id":     map[string]any{"type": "string"},
+		"product_id":     map[string]any{"type": "string"},
+		"release_id":     map[string]any{"type": "string"},
+		"responses":      map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/QuestionnaireResponse"}},
+		"manifest_hash":  map[string]any{"type": "string", "pattern": "^sha256:"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "template_id", "responses", "manifest_hash", "schema_version", "created_at"))
+	registry.RegisterSchema("QuestionnairePackageEnvelope", dataEnvelopeSchema("#/components/schemas/QuestionnairePackage"))
+	registry.RegisterSchema("CreateQuestionnaireDraftRequest", objectSchema(map[string]any{
+		"template_id": map[string]any{"type": "string"},
+		"product_id":  map[string]any{"type": "string"},
+		"release_id":  map[string]any{"type": "string"},
+	}, "template_id"))
+	registry.RegisterSchema("QuestionnaireDraft", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"template_id":    map[string]any{"type": "string"},
+		"product_id":     map[string]any{"type": "string"},
+		"release_id":     map[string]any{"type": "string"},
+		"responses":      map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/QuestionnaireResponse"}},
+		"manifest_hash":  map[string]any{"type": "string", "pattern": "^sha256:"},
+		"limitations":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "template_id", "responses", "manifest_hash", "limitations", "schema_version", "created_at"))
+	registry.RegisterSchema("QuestionnaireDraftEnvelope", dataEnvelopeSchema("#/components/schemas/QuestionnaireDraft"))
+	registry.RegisterSchema("CreatePDFReportPackageRequest", objectSchema(map[string]any{
+		"report_type": map[string]any{"type": "string"},
+		"product_id":  map[string]any{"type": "string"},
+		"release_id":  map[string]any{"type": "string"},
+		"title":       map[string]any{"type": "string"},
+	}, "report_type", "title"))
+	registry.RegisterSchema("PDFReportPackage", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"report_type":    map[string]any{"type": "string"},
+		"product_id":     map[string]any{"type": "string"},
+		"release_id":     map[string]any{"type": "string"},
+		"title":          map[string]any{"type": "string"},
+		"payload_ref":    map[string]any{"type": "string"},
+		"payload_hash":   map[string]any{"type": "string", "pattern": "^sha256:"},
+		"payload_size":   map[string]any{"type": "integer"},
+		"limitations":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "report_type", "title", "payload_hash", "payload_size", "limitations", "schema_version", "created_at"))
+	registry.RegisterSchema("PDFReportPackageEnvelope", dataEnvelopeSchema("#/components/schemas/PDFReportPackage"))
 	registry.RegisterSchema("ReadinessReport", objectSchema(map[string]any{
 		"report_type":      map[string]any{"type": "string"},
 		"template_version": map[string]any{"type": "string"},

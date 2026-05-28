@@ -540,6 +540,18 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 			queryParam("release_id", "Release id.", "string"),
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("Control coverage report envelope.", "#/components/schemas/ReadinessReportEnvelope")
+	case "createRedactionProfile":
+		operation.Description = "Creates an explicit redaction profile for customer and report package generation."
+		operation.RequestBody = jsonRequest("Redaction profile creation request.", "#/components/schemas/CreateRedactionProfileRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created redaction profile envelope.", "#/components/schemas/RedactionProfileEnvelope")
+	case "createCustomerPackage":
+		operation.Description = "Creates a scoped customer security package manifest using an explicit redaction profile."
+		operation.RequestBody = jsonRequest("Customer package creation request.", "#/components/schemas/CreateCustomerPackageRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created customer security package envelope.", "#/components/schemas/CustomerSecurityPackageEnvelope")
+	case "getCustomerPackage":
+		operation.Description = "Returns a tenant-scoped customer security package manifest by id."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Customer package id."))
+		operation.Responses[http.StatusOK] = jsonResponse("Customer security package envelope.", "#/components/schemas/CustomerSecurityPackageEnvelope")
 	case "createCustomerPortalAccess":
 		operation.Description = "Creates token-based customer portal access for a customer package and returns the token once."
 		operation.RequestBody = jsonRequest("Customer portal access creation request.", "#/components/schemas/CreateCustomerPortalAccessRequest")
@@ -553,13 +565,61 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Customer portal token request.", "#/components/schemas/CustomerPortalPackageRequest")
 		operation.Security = nil
 		operation.Scopes = nil
-		operation.Responses[http.StatusOK] = jsonResponse("Scoped customer package envelope.", "#/components/schemas/DataEnvelope")
+		operation.Responses[http.StatusOK] = jsonResponse("Scoped customer package envelope.", "#/components/schemas/CustomerSecurityPackageEnvelope")
 	case "downloadCustomerPortalPackage":
 		operation.Description = "Public token exchange endpoint for downloading a scoped customer package ZIP. It intentionally uses no bearer authentication and accepts only the issued portal token in the JSON body."
 		operation.RequestBody = jsonRequest("Customer portal token request.", "#/components/schemas/CustomerPortalPackageRequest")
 		operation.Security = nil
 		operation.Scopes = nil
 		operation.Responses[http.StatusOK] = binaryResponse("Customer security package ZIP archive.")
+	case "securityReviewPackageReport":
+		operation.Description = "Returns a redaction-aware security-review package report with assumptions and limitations."
+		operation.Parameters = append(operation.Parameters, queryParam("package_id", "Customer package id.", "string"))
+		operation.Responses[http.StatusOK] = jsonResponse("Security review package report envelope.", "#/components/schemas/SecurityReviewPackageReportEnvelope")
+	case "craReadinessHTMLPackage":
+		operation.Description = "Creates a deterministic CRA-readiness HTML package without legal compliance or certification conclusions."
+		operation.Parameters = append(operation.Parameters,
+			queryParam("product_id", "Product id.", "string"),
+			queryParam("release_id", "Release id.", "string"),
+		)
+		operation.Responses[http.StatusOK] = jsonResponse("CRA readiness HTML package envelope.", "#/components/schemas/HTMLReportPackageEnvelope")
+	case "createReportTemplate":
+		operation.Description = "Creates a tenant-defined deterministic report template with an explicit allowed-field list."
+		operation.RequestBody = jsonRequest("Report template creation request.", "#/components/schemas/CreateReportTemplateRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created report template envelope.", "#/components/schemas/CustomReportTemplateEnvelope")
+	case "renderReportTemplate":
+		operation.Description = "Renders a tenant report template for a scoped subject using allowed fields only."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Report template id."))
+		operation.RequestBody = jsonRequest("Report template render request.", "#/components/schemas/RenderReportTemplateRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Rendered report envelope.", "#/components/schemas/RenderedCustomReportEnvelope")
+	case "exportEvidenceBundle":
+		operation.Description = "Exports a portable evidence bundle manifest with hashes, signatures, and verification text."
+		operation.RequestBody = jsonRequest("Evidence bundle export request.", "#/components/schemas/ExportEvidenceBundleRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created evidence bundle envelope.", "#/components/schemas/EvidenceBundleEnvelope")
+	case "importEvidenceBundle":
+		operation.Description = "Imports a portable evidence bundle manifest and records deterministic import metadata."
+		operation.RequestBody = jsonRequest("Evidence bundle import request.", "#/components/schemas/EvidenceBundle")
+		operation.Responses[http.StatusCreated] = jsonResponse("Evidence bundle import result envelope.", "#/components/schemas/EvidenceBundleImportEnvelope")
+	case "createEvidenceSummary":
+		operation.Description = "Creates an evidence-backed summary with citations, assumptions, and limitations."
+		operation.RequestBody = jsonRequest("Evidence summary creation request.", "#/components/schemas/CreateEvidenceSummaryRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created evidence summary envelope.", "#/components/schemas/EvidenceSummaryEnvelope")
+	case "createQuestionnaireTemplate":
+		operation.Description = "Creates a tenant questionnaire template with explicit evidence/control mapping fields."
+		operation.RequestBody = jsonRequest("Questionnaire template creation request.", "#/components/schemas/CreateQuestionnaireTemplateRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created questionnaire template envelope.", "#/components/schemas/QuestionnaireTemplateEnvelope")
+	case "createQuestionnairePackage":
+		operation.Description = "Creates a questionnaire response package from a template and scoped evidence package."
+		operation.RequestBody = jsonRequest("Questionnaire package creation request.", "#/components/schemas/CreateQuestionnairePackageRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created questionnaire package envelope.", "#/components/schemas/QuestionnairePackageEnvelope")
+	case "createQuestionnaireDraft":
+		operation.Description = "Creates an evidence-backed questionnaire draft with limitations."
+		operation.RequestBody = jsonRequest("Questionnaire draft creation request.", "#/components/schemas/CreateQuestionnaireDraftRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created questionnaire draft envelope.", "#/components/schemas/QuestionnaireDraftEnvelope")
+	case "createPDFReportPackage":
+		operation.Description = "Creates a deterministic PDF report package record and payload metadata."
+		operation.RequestBody = jsonRequest("PDF report package creation request.", "#/components/schemas/CreatePDFReportPackageRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created PDF report package envelope.", "#/components/schemas/PDFReportPackageEnvelope")
 	}
 	return operation
 }
