@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -66,5 +67,103 @@ func TestProcessJobRejectsUnsupportedKinds(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "unsupported outbox job kind") || strings.Contains(err.Error(), "secret") {
 		t.Fatalf("unexpected unsupported job error: %v", err)
+	}
+}
+
+func TestProcessJobRecognizedKindsUseDurableTenantScopedState(t *testing.T) {
+	now := time.Now().UTC()
+	state := app.PersistedState{
+		SBOMs: map[string]domain.SBOM{
+			"sbom_1": {ID: "sbom_1", TenantID: "ten_1"},
+		},
+		Scans: map[string]domain.VulnerabilityScan{
+			"scan_1": {ID: "scan_1", TenantID: "ten_1"},
+		},
+		Contracts: map[string]domain.OpenAPIContract{
+			"contract_1": {ID: "contract_1", TenantID: "ten_1", Hash: "sha256:contract"},
+		},
+		VEXDocuments: map[string]domain.VEXDocument{
+			"vex_1": {ID: "vex_1", TenantID: "ten_1"},
+		},
+		Bundles: map[string]domain.ReleaseBundle{
+			"bundle_1": {ID: "bundle_1", TenantID: "ten_1", ManifestHash: "sha256:bundle", SignatureRefs: []string{"sig_1"}},
+		},
+		BuildAttestations: map[string]domain.BuildAttestation{
+			"att_1": {ID: "att_1", TenantID: "ten_1", PayloadHash: "sha256:att", VerificationStatus: "structurally_valid", CreatedAt: now},
+		},
+	}
+	tests := []postgres.ClaimedJob{
+		{TenantID: "ten_1", Kind: "parse_sbom", SubjectID: "sbom_1"},
+		{TenantID: "ten_1", Kind: "parse_vulnerability_scan", SubjectID: "scan_1"},
+		{TenantID: "ten_1", Kind: "parse_openapi_contract", SubjectID: "contract_1", Payload: map[string]any{"payload_hash": "sha256:contract"}},
+		{TenantID: "ten_1", Kind: "parse_vex", SubjectID: "vex_1"},
+		{TenantID: "ten_1", Kind: "sign_bundle", SubjectID: "bundle_1", Payload: map[string]any{"payload_hash": "sha256:bundle"}},
+		{TenantID: "ten_1", Kind: "verify_attestation", SubjectID: "att_1", Payload: map[string]any{"payload_hash": "sha256:att"}},
+	}
+	for _, job := range tests {
+		t.Run(job.Kind, func(t *testing.T) {
+			if err := processJob(context.Background(), fakeStateLoader{state: state, ok: true}, job); err != nil {
+				t.Fatalf("process %s: %v", job.Kind, err)
+			}
+		})
+	}
+}
+
+func TestProcessJobFailsClosedForStateLoadAndTenantMismatches(t *testing.T) {
+	if err := processJob(context.Background(), nil, postgres.ClaimedJob{}); err == nil || !strings.Contains(err.Error(), "requires durable state") {
+		t.Fatalf("nil state err=%v", err)
+	}
+	if err := processJob(context.Background(), fakeStateLoader{err: errors.New("database secret")}, postgres.ClaimedJob{}); err == nil || err.Error() != "load durable state for outbox job" {
+		t.Fatalf("state load err=%v", err)
+	}
+	if err := processJob(context.Background(), fakeStateLoader{ok: false}, postgres.ClaimedJob{}); err == nil || !strings.Contains(err.Error(), "not initialized") {
+		t.Fatalf("missing state err=%v", err)
+	}
+	state := app.PersistedState{Contracts: map[string]domain.OpenAPIContract{
+		"contract_1": {ID: "contract_1", TenantID: "other", Hash: "sha256:contract"},
+	}}
+	err := processJob(context.Background(), fakeStateLoader{state: state, ok: true}, postgres.ClaimedJob{TenantID: "ten_1", Kind: "parse_openapi_contract", SubjectID: "contract_1"})
+	if err == nil || !strings.Contains(err.Error(), "parsed openapi contract is not available") || strings.Contains(err.Error(), "contract_1") {
+		t.Fatalf("tenant mismatch err=%v", err)
+	}
+}
+
+func TestWorkerHelpersValidatePayloadHashAndEnv(t *testing.T) {
+	job := postgres.ClaimedJob{Payload: map[string]any{"payload_hash": " sha256:abc ", "ignored": 12}}
+	if got := payloadString(job, "payload_hash"); got != "sha256:abc" {
+		t.Fatalf("payloadString = %q", got)
+	}
+	if err := requirePayloadHash(job, "sha256:abc"); err != nil {
+		t.Fatalf("matching payload hash: %v", err)
+	}
+	if err := requirePayloadHash(job, "sha256:def"); err == nil || !strings.Contains(err.Error(), "payload hash") {
+		t.Fatalf("mismatch err=%v", err)
+	}
+	if err := requirePayloadHash(postgres.ClaimedJob{}, "sha256:def"); err != nil {
+		t.Fatalf("missing wanted hash should be ignored: %v", err)
+	}
+
+	t.Setenv("EVYDENCE_WORKER_TEST_ENV", " value ")
+	if got := envDefault("EVYDENCE_WORKER_TEST_ENV", "fallback"); got != "value" {
+		t.Fatalf("envDefault configured = %q", got)
+	}
+	if got := envDefault("EVYDENCE_WORKER_MISSING_ENV", "fallback"); got != "fallback" {
+		t.Fatalf("envDefault fallback = %q", got)
+	}
+	t.Setenv("EVYDENCE_WORKER_TEST_DURATION", "250ms")
+	if got := durationEnv("EVYDENCE_WORKER_TEST_DURATION", time.Second); got != 250*time.Millisecond {
+		t.Fatalf("durationEnv configured = %s", got)
+	}
+	t.Setenv("EVYDENCE_WORKER_TEST_DURATION", "-1s")
+	if got := durationEnv("EVYDENCE_WORKER_TEST_DURATION", time.Second); got != time.Second {
+		t.Fatalf("durationEnv fallback = %s", got)
+	}
+	t.Setenv("EVYDENCE_WORKER_TEST_INT", "7")
+	if got := intEnv("EVYDENCE_WORKER_TEST_INT", 10); got != 7 {
+		t.Fatalf("intEnv configured = %d", got)
+	}
+	t.Setenv("EVYDENCE_WORKER_TEST_INT", "0")
+	if got := intEnv("EVYDENCE_WORKER_TEST_INT", 10); got != 10 {
+		t.Fatalf("intEnv fallback = %d", got)
 	}
 }

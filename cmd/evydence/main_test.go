@@ -196,3 +196,90 @@ func TestGitHubActionsUploadBuildPostsBuildAndAttestationSafely(t *testing.T) {
 		t.Fatalf("sawBuild=%v sawAttestation=%v", sawBuild, sawAttestation)
 	}
 }
+
+func TestUsageRunAndManifestVerificationHelpers(t *testing.T) {
+	if err := usage(); err == nil || !strings.Contains(err.Error(), "evydence hash") {
+		t.Fatalf("usage err=%v", err)
+	}
+	if err := run(nil); err == nil || !strings.Contains(err.Error(), "usage") {
+		t.Fatalf("empty run err=%v", err)
+	}
+	if err := run([]string{"unknown"}); err == nil || !strings.Contains(err.Error(), "usage") {
+		t.Fatalf("unknown run err=%v", err)
+	}
+
+	manifest := map[string]any{"name": "release", "artifacts": []any{}}
+	canonical, err := json.Marshal(manifest)
+	if err != nil {
+		t.Fatalf("marshal manifest: %v", err)
+	}
+	sum := sha256.Sum256(canonical)
+	path := t.TempDir() + "/manifest.json"
+	if err := os.WriteFile(path, []byte(`{"artifacts":[],"name":"release"}`), 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	if err := verifyManifest(path, "sha256:"+hex.EncodeToString(sum[:])); err != nil {
+		t.Fatalf("verify manifest: %v", err)
+	}
+	if err := verifyManifest(path, hex.EncodeToString(sum[:])); err == nil || !strings.Contains(err.Error(), "sha256") {
+		t.Fatalf("bad expected hash err=%v", err)
+	}
+	if err := verifyManifest(path, "sha256:"+strings.Repeat("0", 64)); err == nil || !strings.Contains(err.Error(), "mismatch") {
+		t.Fatalf("hash mismatch err=%v", err)
+	}
+}
+
+func TestGenerateReleaseSigningKeyWritesBase64Keys(t *testing.T) {
+	dir := t.TempDir()
+	privatePath := dir + "/private.key"
+	publicPath := dir + "/public.key"
+	if err := generateReleaseSigningKey([]string{"--private-out", privatePath, "--public-out", publicPath}); err != nil {
+		t.Fatalf("keygen: %v", err)
+	}
+	privateKey, err := readBase64File(privatePath, ed25519.PrivateKeySize)
+	if err != nil {
+		t.Fatalf("private key: %v", err)
+	}
+	publicKey, err := readBase64File(publicPath, ed25519.PublicKeySize)
+	if err != nil {
+		t.Fatalf("public key: %v", err)
+	}
+	if !ed25519.PrivateKey(privateKey).Public().(ed25519.PublicKey).Equal(ed25519.PublicKey(publicKey)) {
+		t.Fatal("public key does not match private key")
+	}
+}
+
+func TestSafeAPIErrorUsesProblemCodeWithoutLeakingRawFallbackBody(t *testing.T) {
+	err := safeAPIError(http.StatusConflict, []byte(`{"code":"IDEMPOTENCY_KEY_REUSED","detail":"same key changed content"}`))
+	if err == nil || !strings.Contains(err.Error(), "IDEMPOTENCY_KEY_REUSED") || !strings.Contains(err.Error(), "same key changed content") {
+		t.Fatalf("problem error=%v", err)
+	}
+	err = safeAPIError(http.StatusForbidden, []byte(`bearer token secret`))
+	if err == nil || !strings.Contains(err.Error(), "Forbidden") || strings.Contains(err.Error(), "secret") {
+		t.Fatalf("fallback error leaked body or missed status text: %v", err)
+	}
+}
+
+func TestResponseAndURLHelpersValidateInputs(t *testing.T) {
+	if got, err := cleanAPIURL("https://example.test/api?token=secret#frag"); err != nil || got != "https://example.test/api" {
+		t.Fatalf("cleanAPIURL got=%q err=%v", got, err)
+	}
+	if _, err := cleanAPIURL("file:///tmp/evydence"); err == nil || !strings.Contains(err.Error(), "http") {
+		t.Fatalf("file URL err=%v", err)
+	}
+	if _, err := responseDataID([]byte(`{"data":{}}`)); err == nil || !strings.Contains(err.Error(), "data.id") {
+		t.Fatalf("missing id err=%v", err)
+	}
+	if _, err := responseDataID([]byte(`not-json`)); err == nil {
+		t.Fatal("expected JSON decode error")
+	}
+	if got := atoiDefault(" 3 ", 1); got != 3 {
+		t.Fatalf("atoi configured = %d", got)
+	}
+	if got := atoiDefault("nope", 1); got != 1 {
+		t.Fatalf("atoi fallback = %d", got)
+	}
+	if _, err := cleanOperatorPath("\x00"); err == nil {
+		t.Fatal("expected NUL path error")
+	}
+}
