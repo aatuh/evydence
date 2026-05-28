@@ -38,9 +38,10 @@ make production-check
 
 That gate is stricter than `make release-check`: it requires
 `EVYDENCE_TEST_DATABASE_URL`, rejects skipped live PostgreSQL checks, enforces
-the configured coverage threshold, and runs a release artifact signing smoke
-test. See [Production readiness](production-readiness.md) for the supported
-profiles and exit criteria.
+the configured coverage threshold, verifies every committed migration prefix can
+upgrade to the current schema in a temporary PostgreSQL schema, and runs a
+release artifact signing smoke test. See [Production readiness](production-readiness.md)
+for the supported profiles and exit criteria.
 
 ## Configured Live PostgreSQL Profile
 
@@ -80,8 +81,8 @@ If either line is skipped, the release evidence should state that durable-store 
 The checked-in GitHub Actions workflow provides a disposable PostgreSQL service,
 sets `EVYDENCE_TEST_DATABASE_URL`, and runs `make production-check`. That gate
 runs the live PostgreSQL release check, coverage threshold enforcement, lint,
-gosec, govulncheck, race tests, OpenAPI/docs/deployment/SDK checks, and a
-release manifest signing smoke test.
+gosec, govulncheck, race tests, OpenAPI/docs/deployment/SDK checks, migration
+compatibility tests, and a release manifest signing smoke test.
 
 The workflow preserves `tmp/release-check-summary.txt`, `coverage.out`, and the
 production-check release manifest/signature smoke artifacts as build artifacts.

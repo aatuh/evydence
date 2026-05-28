@@ -7,7 +7,7 @@ GOLANGCI_LINT_VERSION ?= v2.11.4
 GOSEC_VERSION ?= v2.25.0
 GOVULNCHECK_VERSION ?= v1.2.0
 
-.PHONY: help tools fmt lint vuln gosec test test-race coverage coverage-check openapi-check meta-check docs-check deploy-check sdk-check fast-check finalize release-acceptance release-check production-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
+.PHONY: help tools fmt lint vuln gosec test test-race coverage coverage-check openapi-check meta-check docs-check deploy-check sdk-check fast-check finalize release-acceptance release-check production-check migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -217,6 +217,9 @@ release-check: ## Release validation with security, race, and configured live in
 
 production-check: ## Strict self-hosted production readiness gate; requires live PostgreSQL and coverage threshold
 	@scripts/production_check.sh
+
+migration-compatibility-check: ## Verify every committed migration prefix upgrades to current schema
+	@$(GO) test ./internal/adapters/postgres -run TestMigrationCompatibilityFromEveryCommittedState -count=1
 
 release-check-local-postgres: ## Start Compose Postgres, load .test.env or .test.env.example, and run release-check
 	@docker compose up -d postgres
