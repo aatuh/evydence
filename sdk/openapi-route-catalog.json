@@ -1,5 +1,5 @@
 {
-  "route_count": 165,
+  "route_count": 166,
   "routes": [
     {
       "idempotency_key_required": false,
@@ -2516,6 +2516,21 @@
       ],
       "success_statuses": [
         "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "POST",
+      "operation_id": "exchangeSSOCredential",
+      "path": "/v1/sso/session-exchanges",
+      "request_schema": "#/components/schemas/ExchangeSSOCredentialRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SSOCredentialExchangeEnvelope"
+      ],
+      "scopes": [],
+      "success_statuses": [
+        "201"
       ]
     },
     {

@@ -2055,7 +2055,14 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request, run func(request
 }
 
 func (s *Server) authenticate(w http.ResponseWriter, r *http.Request) (domain.Actor, bool) {
-	actor, err := s.ledger.Authenticate(r.Context(), strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")))
+	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
+	token := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
+	if authHeader == "" {
+		if cookie, err := r.Cookie(ssoSessionCookieName); err == nil {
+			token = strings.TrimSpace(cookie.Value)
+		}
+	}
+	actor, err := s.ledger.Authenticate(r.Context(), token)
 	if err != nil {
 		writeProblem(w, r, err)
 		return domain.Actor{}, false
@@ -2299,6 +2306,14 @@ func op(id, method, path, summary string, scopes []string) specs.Operation {
 func authenticatedOp(id, method, path, summary string) specs.Operation {
 	operation := op(id, method, path, summary, nil)
 	operation.Security = []specs.SecurityRequirement{{Name: "BearerAuth"}}
+	return operation
+}
+
+func publicPostOp(id, method, path, summary string) specs.Operation {
+	operation := op(id, method, path, summary, nil)
+	operation.Security = nil
+	operation.Scopes = nil
+	operation.Extensions = nil
 	return operation
 }
 

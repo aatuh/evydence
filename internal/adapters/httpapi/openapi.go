@@ -75,6 +75,13 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"provider_id": map[string]any{"type": "string"},
 		"expires_at":  map[string]any{"type": "string", "format": "date-time"},
 	}, "user_id", "provider_id", "expires_at"))
+	registry.RegisterSchema("ExchangeSSOCredentialRequest", objectSchema(map[string]any{
+		"provider_id":    map[string]any{"type": "string"},
+		"subject":        map[string]any{"type": "string"},
+		"id_token":       map[string]any{"type": "string", "description": "OIDC ID token verified locally against configured public JWKS trust material."},
+		"saml_assertion": map[string]any{"type": "string", "description": "SAML assertion verified locally against configured SAML signing certificates."},
+		"expires_at":     map[string]any{"type": "string", "format": "date-time", "description": "Optional session expiry, capped by the server."},
+	}, "provider_id", "subject"))
 	registry.RegisterSchema("CreateSSOProviderRequest", objectSchema(map[string]any{
 		"name":                      map[string]any{"type": "string"},
 		"type":                      map[string]any{"type": "string", "enum": []string{"oidc", "saml"}},
@@ -1325,6 +1332,12 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"secret":  map[string]any{"type": "string", "description": "One-time SSO session bearer secret; not returned by list/read operations."},
 	}, "session", "secret"))
 	registry.RegisterSchema("SSOSessionCreateEnvelope", dataEnvelopeSchema("#/components/schemas/SSOSessionCreateResponse"))
+	registry.RegisterSchema("SSOCredentialExchangeResponse", objectSchema(map[string]any{
+		"verification": map[string]any{"$ref": "#/components/schemas/ProviderVerification"},
+		"session":      map[string]any{"$ref": "#/components/schemas/SSOSession"},
+		"secret":       map[string]any{"type": "string", "description": "One-time SSO session bearer secret; also set as an HttpOnly cookie for browser clients."},
+	}, "verification", "session", "secret"))
+	registry.RegisterSchema("SSOCredentialExchangeEnvelope", dataEnvelopeSchema("#/components/schemas/SSOCredentialExchangeResponse"))
 	registry.RegisterSchema("CreateAPIKeyRequest", objectSchema(map[string]any{
 		"name":       map[string]any{"type": "string"},
 		"scopes":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
