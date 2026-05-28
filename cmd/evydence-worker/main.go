@@ -99,6 +99,11 @@ type jobStateLoader interface {
 	LoadState(context.Context) (app.PersistedState, bool, error)
 }
 
+type jobStateStore interface {
+	jobStateLoader
+	SaveState(context.Context, app.PersistedState) error
+}
+
 type jobObjectGetter interface {
 	Get(context.Context, string) (app.Object, error)
 }
@@ -134,6 +139,7 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 	if !ok {
 		return errors.New("durable state is not initialized")
 	}
+	stateChanged := false
 	switch job.Kind {
 	case "parse_sbom":
 		sbom, ok := snapshot.SBOMs[job.SubjectID]
@@ -141,44 +147,84 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 			return errors.New("parsed sbom is not available in durable state")
 		}
 		if hasReplayedObject {
-			if err := verifyReplayedSBOM(replayed.Bytes, sbom); err != nil {
+			parsed, err := parseReplayedSBOM(replayed.Bytes)
+			if err != nil {
 				return err
 			}
+			if err := verifyReplayedSBOM(parsed, sbom); err != nil {
+				return err
+			}
+			if updated, changed := mergeReplayedSBOM(sbom, parsed); changed {
+				snapshot.SBOMs[job.SubjectID] = updated
+				stateChanged = true
+			}
 		}
-		return requirePayloadHash(job, "")
+		if err := requirePayloadHash(job, ""); err != nil {
+			return err
+		}
 	case "parse_vulnerability_scan":
 		scan, ok := snapshot.Scans[job.SubjectID]
 		if !ok || scan.TenantID != job.TenantID {
 			return errors.New("parsed vulnerability scan is not available in durable state")
 		}
 		if hasReplayedObject {
-			if err := verifyReplayedVulnerabilityScan(replayed.Bytes, scan); err != nil {
+			parsed, err := parseReplayedVulnerabilityScan(replayed.Bytes, job.SubjectID)
+			if err != nil {
 				return err
 			}
+			if err := verifyReplayedVulnerabilityScan(parsed, scan); err != nil {
+				return err
+			}
+			if updated, changed := mergeReplayedVulnerabilityScan(scan, parsed); changed {
+				snapshot.Scans[job.SubjectID] = updated
+				stateChanged = true
+			}
 		}
-		return requirePayloadHash(job, "")
+		if err := requirePayloadHash(job, ""); err != nil {
+			return err
+		}
 	case "parse_openapi_contract":
 		contract, ok := snapshot.Contracts[job.SubjectID]
 		if !ok || contract.TenantID != job.TenantID {
 			return errors.New("parsed openapi contract is not available in durable state")
 		}
 		if hasReplayedObject {
-			if err := verifyReplayedOpenAPIContract(ctx, replayed.Bytes, contract); err != nil {
+			parsed, err := parseReplayedOpenAPIContract(ctx, replayed.Bytes)
+			if err != nil {
 				return err
 			}
+			if err := verifyReplayedOpenAPIContract(replayed.Bytes, parsed, contract); err != nil {
+				return err
+			}
+			if updated, changed := mergeReplayedOpenAPIContract(contract, parsed); changed {
+				snapshot.Contracts[job.SubjectID] = updated
+				stateChanged = true
+			}
 		}
-		return requirePayloadHash(job, contract.Hash)
+		if err := requirePayloadHash(job, contract.Hash); err != nil {
+			return err
+		}
 	case "parse_vex":
 		vex, ok := snapshot.VEXDocuments[job.SubjectID]
 		if !ok || vex.TenantID != job.TenantID {
 			return errors.New("parsed vex document is not available in durable state")
 		}
 		if hasReplayedObject {
-			if err := verifyReplayedVEX(replayed.Bytes, vex); err != nil {
+			parsed, err := parseReplayedVEX(replayed.Bytes)
+			if err != nil {
 				return err
 			}
+			if err := verifyReplayedVEX(parsed, vex); err != nil {
+				return err
+			}
+			if updated, changed := mergeReplayedVEX(vex, parsed); changed {
+				snapshot.VEXDocuments[job.SubjectID] = updated
+				stateChanged = true
+			}
 		}
-		return requirePayloadHash(job, "")
+		if err := requirePayloadHash(job, ""); err != nil {
+			return err
+		}
 	case "sign_bundle":
 		bundle, ok := snapshot.Bundles[job.SubjectID]
 		if !ok || bundle.TenantID != job.TenantID {
@@ -210,14 +256,34 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 			return errors.New("build attestation verification status is incomplete")
 		}
 		if hasReplayedObject {
-			if err := verifyReplayedAttestation(replayed.Bytes, attestation); err != nil {
+			parsed, err := parseReplayedAttestation(replayed.Bytes)
+			if err != nil {
 				return err
 			}
+			if err := verifyReplayedAttestation(replayed.Bytes, parsed, attestation); err != nil {
+				return err
+			}
+			if updated, changed := mergeReplayedAttestation(attestation, parsed, replayed.Bytes); changed {
+				snapshot.BuildAttestations[job.SubjectID] = updated
+				stateChanged = true
+			}
 		}
-		return requirePayloadHash(job, attestation.PayloadHash)
+		if err := requirePayloadHash(job, attestation.PayloadHash); err != nil {
+			return err
+		}
 	default:
 		return errors.New("unsupported outbox job kind")
 	}
+	if stateChanged {
+		stateStore, ok := state.(jobStateStore)
+		if !ok {
+			return errors.New("durable parser side effects require writable state")
+		}
+		if err := stateStore.SaveState(ctx, snapshot); err != nil {
+			return errors.New("persist durable parser side effects")
+		}
+	}
+	return nil
 }
 
 func verifyJobObject(ctx context.Context, objects jobObjectGetter, job postgres.ClaimedJob) (app.Object, bool, error) {
@@ -281,13 +347,10 @@ func payloadObjectKey(job postgres.ClaimedJob) string {
 type replayedSBOM struct {
 	SpecVersion    string
 	ComponentCount int
+	Components     []domain.SBOMComponent
 }
 
-func verifyReplayedSBOM(raw []byte, sbom domain.SBOM) error {
-	parsed, err := parseReplayedSBOM(raw)
-	if err != nil {
-		return err
-	}
+func verifyReplayedSBOM(parsed replayedSBOM, sbom domain.SBOM) error {
 	if sbom.SpecVersion != "" && parsed.SpecVersion != sbom.SpecVersion {
 		return errors.New("replayed sbom payload does not match durable state")
 	}
@@ -298,6 +361,23 @@ func verifyReplayedSBOM(raw []byte, sbom domain.SBOM) error {
 		return errors.New("replayed sbom payload does not match durable state")
 	}
 	return nil
+}
+
+func mergeReplayedSBOM(sbom domain.SBOM, parsed replayedSBOM) (domain.SBOM, bool) {
+	changed := false
+	if sbom.SpecVersion == "" && parsed.SpecVersion != "" {
+		sbom.SpecVersion = parsed.SpecVersion
+		changed = true
+	}
+	if sbom.ComponentCount == 0 && parsed.ComponentCount != 0 {
+		sbom.ComponentCount = parsed.ComponentCount
+		changed = true
+	}
+	if len(sbom.Components) == 0 && len(parsed.Components) != 0 {
+		sbom.Components = append([]domain.SBOMComponent(nil), parsed.Components...)
+		changed = true
+	}
+	return sbom, changed
 }
 
 func parseReplayedSBOM(raw []byte) (replayedSBOM, error) {
@@ -313,12 +393,14 @@ func parseReplayedSBOM(raw []byte) (replayedSBOM, error) {
 	if err := strictDecodeWorker(raw, &doc); err != nil || strings.ToLower(strings.TrimSpace(doc.BOMFormat)) != "cyclonedx" {
 		return replayedSBOM{}, errors.New("replayed sbom payload is invalid")
 	}
+	components := make([]domain.SBOMComponent, 0, len(doc.Components))
 	for _, component := range doc.Components {
 		if strings.TrimSpace(component.Name) == "" {
 			return replayedSBOM{}, errors.New("replayed sbom payload is invalid")
 		}
+		components = append(components, domain.SBOMComponent{Name: strings.TrimSpace(component.Name), Version: strings.TrimSpace(component.Version), PURL: strings.TrimSpace(component.PURL)})
 	}
-	return replayedSBOM{SpecVersion: strings.TrimSpace(doc.SpecVersion), ComponentCount: len(doc.Components)}, nil
+	return replayedSBOM{SpecVersion: strings.TrimSpace(doc.SpecVersion), ComponentCount: len(doc.Components), Components: components}, nil
 }
 
 type replayedVulnerabilityScan struct {
@@ -326,13 +408,10 @@ type replayedVulnerabilityScan struct {
 	TargetRef    string
 	FindingCount int
 	Summary      map[string]int
+	Findings     []domain.VulnerabilityFinding
 }
 
-func verifyReplayedVulnerabilityScan(raw []byte, scan domain.VulnerabilityScan) error {
-	parsed, err := parseReplayedVulnerabilityScan(raw)
-	if err != nil {
-		return err
-	}
+func verifyReplayedVulnerabilityScan(parsed replayedVulnerabilityScan, scan domain.VulnerabilityScan) error {
 	if scan.Scanner != "" && parsed.Scanner != scan.Scanner {
 		return errors.New("replayed vulnerability scan payload does not match durable state")
 	}
@@ -350,7 +429,28 @@ func verifyReplayedVulnerabilityScan(raw []byte, scan domain.VulnerabilityScan) 
 	return nil
 }
 
-func parseReplayedVulnerabilityScan(raw []byte) (replayedVulnerabilityScan, error) {
+func mergeReplayedVulnerabilityScan(scan domain.VulnerabilityScan, parsed replayedVulnerabilityScan) (domain.VulnerabilityScan, bool) {
+	changed := false
+	if scan.Scanner == "" && parsed.Scanner != "" {
+		scan.Scanner = parsed.Scanner
+		changed = true
+	}
+	if scan.TargetRef == "" && parsed.TargetRef != "" {
+		scan.TargetRef = parsed.TargetRef
+		changed = true
+	}
+	if scan.Summary == nil && parsed.Summary != nil {
+		scan.Summary = cloneIntMap(parsed.Summary)
+		changed = true
+	}
+	if len(scan.Findings) == 0 && len(parsed.Findings) != 0 {
+		scan.Findings = append([]domain.VulnerabilityFinding(nil), parsed.Findings...)
+		changed = true
+	}
+	return scan, changed
+}
+
+func parseReplayedVulnerabilityScan(raw []byte, subjectID string) (replayedVulnerabilityScan, error) {
 	var doc struct {
 		Scanner   string `json:"scanner"`
 		TargetRef string `json:"target_ref"`
@@ -366,29 +466,74 @@ func parseReplayedVulnerabilityScan(raw []byte) (replayedVulnerabilityScan, erro
 		return replayedVulnerabilityScan{}, errors.New("replayed vulnerability scan payload is invalid")
 	}
 	summary := map[string]int{}
-	for _, finding := range doc.Findings {
+	findings := make([]domain.VulnerabilityFinding, 0, len(doc.Findings))
+	for i, finding := range doc.Findings {
 		if strings.TrimSpace(finding.Vulnerability) == "" || strings.TrimSpace(finding.Severity) == "" {
 			return replayedVulnerabilityScan{}, errors.New("replayed vulnerability scan payload is invalid")
 		}
-		summary[strings.ToLower(strings.TrimSpace(finding.Severity))]++
+		severity := strings.ToLower(strings.TrimSpace(finding.Severity))
+		summary[severity]++
+		findings = append(findings, domain.VulnerabilityFinding{
+			ID:            fmt.Sprintf("%s:finding:%d", strings.TrimSpace(subjectID), i+1),
+			Vulnerability: strings.TrimSpace(finding.Vulnerability),
+			Component:     strings.TrimSpace(finding.Component),
+			Severity:      severity,
+			State:         nonEmptyWorker(finding.State, "open"),
+		})
 	}
-	return replayedVulnerabilityScan{Scanner: strings.TrimSpace(doc.Scanner), TargetRef: strings.TrimSpace(doc.TargetRef), FindingCount: len(doc.Findings), Summary: summary}, nil
+	return replayedVulnerabilityScan{Scanner: strings.TrimSpace(doc.Scanner), TargetRef: strings.TrimSpace(doc.TargetRef), FindingCount: len(doc.Findings), Summary: summary, Findings: findings}, nil
 }
 
-func verifyReplayedOpenAPIContract(ctx context.Context, raw []byte, contract domain.OpenAPIContract) error {
+type replayedOpenAPIContract struct {
+	PathCount  int
+	Operations []domain.OpenAPIOperation
+}
+
+func parseReplayedOpenAPIContract(ctx context.Context, raw []byte) (replayedOpenAPIContract, error) {
 	loader := openapi3.NewLoader()
 	doc, err := loader.LoadFromData(raw)
 	if err != nil {
-		return errors.New("replayed openapi contract payload is invalid")
+		return replayedOpenAPIContract{}, errors.New("replayed openapi contract payload is invalid")
 	}
 	if err := doc.Validate(ctx); err != nil {
-		return errors.New("replayed openapi contract payload is invalid")
+		return replayedOpenAPIContract{}, errors.New("replayed openapi contract payload is invalid")
 	}
 	pathCount := 0
+	operations := []domain.OpenAPIOperation{}
 	if doc.Paths != nil {
-		pathCount = len(doc.Paths.Map())
+		paths := doc.Paths.Map()
+		pathCount = len(paths)
+		pathNames := make([]string, 0, len(paths))
+		for path := range paths {
+			pathNames = append(pathNames, path)
+		}
+		sort.Strings(pathNames)
+		for _, path := range pathNames {
+			item := paths[path]
+			if item == nil {
+				continue
+			}
+			for _, method := range []string{"get", "put", "post", "delete", "options", "head", "patch", "trace"} {
+				operation := operationForMethod(item, method)
+				if operation == nil {
+					continue
+				}
+				statuses := []string{}
+				if operation.Responses != nil {
+					for status := range operation.Responses.Map() {
+						statuses = append(statuses, status)
+					}
+					sort.Strings(statuses)
+				}
+				operations = append(operations, domain.OpenAPIOperation{Path: path, Method: method, OperationID: operation.OperationID, Deprecated: operation.Deprecated, ResponseStatuses: statuses})
+			}
+		}
 	}
-	if contract.PathCount != 0 && pathCount != contract.PathCount {
+	return replayedOpenAPIContract{PathCount: pathCount, Operations: operations}, nil
+}
+
+func verifyReplayedOpenAPIContract(raw []byte, parsed replayedOpenAPIContract, contract domain.OpenAPIContract) error {
+	if contract.PathCount != 0 && parsed.PathCount != contract.PathCount {
 		return errors.New("replayed openapi contract payload does not match durable state")
 	}
 	if contract.Hash != "" && digestBytes(raw) != contract.Hash {
@@ -397,17 +542,26 @@ func verifyReplayedOpenAPIContract(ctx context.Context, raw []byte, contract dom
 	return nil
 }
 
+func mergeReplayedOpenAPIContract(contract domain.OpenAPIContract, parsed replayedOpenAPIContract) (domain.OpenAPIContract, bool) {
+	changed := false
+	if contract.PathCount == 0 && parsed.PathCount != 0 {
+		contract.PathCount = parsed.PathCount
+		changed = true
+	}
+	if len(contract.Operations) == 0 && len(parsed.Operations) != 0 {
+		contract.Operations = append([]domain.OpenAPIOperation(nil), parsed.Operations...)
+		changed = true
+	}
+	return contract, changed
+}
+
 type replayedVEX struct {
 	Author         string
 	StatementCount int
 	StatusSummary  map[string]int
 }
 
-func verifyReplayedVEX(raw []byte, vex domain.VEXDocument) error {
-	parsed, err := parseReplayedVEX(raw)
-	if err != nil {
-		return err
-	}
+func verifyReplayedVEX(parsed replayedVEX, vex domain.VEXDocument) error {
 	if vex.Author != "" && parsed.Author != vex.Author {
 		return errors.New("replayed vex payload does not match durable state")
 	}
@@ -420,6 +574,23 @@ func verifyReplayedVEX(raw []byte, vex domain.VEXDocument) error {
 		}
 	}
 	return nil
+}
+
+func mergeReplayedVEX(vex domain.VEXDocument, parsed replayedVEX) (domain.VEXDocument, bool) {
+	changed := false
+	if vex.Author == "" && parsed.Author != "" {
+		vex.Author = parsed.Author
+		changed = true
+	}
+	if vex.StatementCount == 0 && parsed.StatementCount != 0 {
+		vex.StatementCount = parsed.StatementCount
+		changed = true
+	}
+	if vex.StatusSummary == nil && parsed.StatusSummary != nil {
+		vex.StatusSummary = cloneIntMap(parsed.StatusSummary)
+		changed = true
+	}
+	return vex, changed
 }
 
 func parseReplayedVEX(raw []byte) (replayedVEX, error) {
@@ -459,11 +630,7 @@ func parseReplayedVEX(raw []byte) (replayedVEX, error) {
 	return replayedVEX{Author: strings.TrimSpace(doc.Author), StatementCount: len(doc.Statements), StatusSummary: summary}, nil
 }
 
-func verifyReplayedAttestation(raw []byte, attestation domain.BuildAttestation) error {
-	parsed, err := parseReplayedAttestation(raw)
-	if err != nil {
-		return err
-	}
+func verifyReplayedAttestation(raw []byte, parsed replayedAttestation, attestation domain.BuildAttestation) error {
 	if attestation.PayloadHash != "" && digestBytes(raw) != attestation.PayloadHash {
 		return errors.New("replayed build attestation payload does not match durable state")
 	}
@@ -479,6 +646,11 @@ func verifyReplayedAttestation(raw []byte, attestation domain.BuildAttestation) 
 type replayedAttestation struct {
 	PredicateType  string
 	SubjectDigests []string
+	PayloadType    string
+	SignatureCount int
+	BuilderID      string
+	BuildType      string
+	MaterialsCount int
 }
 
 func parseReplayedAttestation(raw []byte) (replayedAttestation, error) {
@@ -523,7 +695,113 @@ func parseReplayedAttestation(raw []byte) (replayedAttestation, error) {
 		digests = append(digests, digest)
 	}
 	sort.Strings(digests)
-	return replayedAttestation{PredicateType: strings.TrimSpace(statement.PredicateType), SubjectDigests: digests}, nil
+	builderID, _ := nestedString(statement.Predicate, "builder", "id")
+	buildType, _ := statement.Predicate["buildType"].(string)
+	materialsCount := 0
+	if materials, ok := statement.Predicate["materials"].([]any); ok {
+		materialsCount = len(materials)
+	}
+	return replayedAttestation{
+		PayloadType:    strings.TrimSpace(envelope.PayloadType),
+		PredicateType:  strings.TrimSpace(statement.PredicateType),
+		SubjectDigests: digests,
+		SignatureCount: len(envelope.Signatures),
+		BuilderID:      strings.TrimSpace(builderID),
+		BuildType:      strings.TrimSpace(buildType),
+		MaterialsCount: materialsCount,
+	}, nil
+}
+
+func mergeReplayedAttestation(attestation domain.BuildAttestation, parsed replayedAttestation, raw []byte) (domain.BuildAttestation, bool) {
+	changed := false
+	if attestation.PayloadHash == "" {
+		attestation.PayloadHash = digestBytes(raw)
+		changed = true
+	}
+	if attestation.PayloadSize == 0 {
+		attestation.PayloadSize = int64(len(raw))
+		changed = true
+	}
+	if attestation.PayloadType == "" && parsed.PayloadType != "" {
+		attestation.PayloadType = parsed.PayloadType
+		changed = true
+	}
+	if attestation.PredicateType == "" && parsed.PredicateType != "" {
+		attestation.PredicateType = parsed.PredicateType
+		changed = true
+	}
+	if len(attestation.SubjectDigests) == 0 && len(parsed.SubjectDigests) != 0 {
+		attestation.SubjectDigests = append([]string(nil), parsed.SubjectDigests...)
+		changed = true
+	}
+	if attestation.SignatureCount == 0 && parsed.SignatureCount != 0 {
+		attestation.SignatureCount = parsed.SignatureCount
+		changed = true
+	}
+	if attestation.BuilderID == "" && parsed.BuilderID != "" {
+		attestation.BuilderID = parsed.BuilderID
+		changed = true
+	}
+	if attestation.BuildType == "" && parsed.BuildType != "" {
+		attestation.BuildType = parsed.BuildType
+		changed = true
+	}
+	if attestation.MaterialsCount == 0 && parsed.MaterialsCount != 0 {
+		attestation.MaterialsCount = parsed.MaterialsCount
+		changed = true
+	}
+	return attestation, changed
+}
+
+func operationForMethod(item *openapi3.PathItem, method string) *openapi3.Operation {
+	switch method {
+	case "get":
+		return item.Get
+	case "put":
+		return item.Put
+	case "post":
+		return item.Post
+	case "delete":
+		return item.Delete
+	case "options":
+		return item.Options
+	case "head":
+		return item.Head
+	case "patch":
+		return item.Patch
+	case "trace":
+		return item.Trace
+	default:
+		return nil
+	}
+}
+
+func cloneIntMap(in map[string]int) map[string]int {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]int, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}
+
+func nonEmptyWorker(value, fallback string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return fallback
+	}
+	return value
+}
+
+func nestedString(in map[string]any, outer, inner string) (string, bool) {
+	rawOuter, ok := in[outer].(map[string]any)
+	if !ok {
+		return "", false
+	}
+	value, ok := rawOuter[inner].(string)
+	return value, ok
 }
 
 func equalStringSets(a, b []string) bool {

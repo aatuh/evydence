@@ -19,9 +19,10 @@ Known hardening work remains:
   relational identity, idempotency, release-ledger core, audit-chain, signing,
   bundle, policy, and verification rows alongside the canonical snapshot, but
   the snapshot remains the runtime load source;
-- worker parser jobs re-read raw object-store payloads for key formats and
-  validate durable state, but parser side effects still need to move
-  independently out of the request path;
+- worker parser jobs re-read raw object-store payloads for key formats,
+  verify digests, validate durable state, and persist missing parser-derived
+  normalized fields. Upload paths still create initial accepted records, so
+  fully worker-owned parsing for every payload remains hardening work;
 - OpenAPI precision is enforced across the registered public API. The generated
   matrix remains the source of truth for operation ids, scopes, idempotency,
   parameters, and request/response schemas;
@@ -103,9 +104,10 @@ implemented capabilities:
 - Split the large application ledger aggregate into focused services or
   repositories once relational writes are in place, preserving tenant isolation
   and append-only behavior throughout.
-- Move parser-owned side effects for SBOM, vulnerability scan, OpenAPI, VEX,
-  and attestation payloads fully into worker processors while keeping upload
-  responses backward compatible.
+- Continue moving parser-owned side effects for SBOM, vulnerability scan,
+  OpenAPI, VEX, and attestation payloads into worker processors. Workers now
+  persist missing parser-derived fields after object replay, but upload
+  endpoints still create initial accepted records.
 - Keep OpenAPI precision at zero broad operations as routes are added or
   changed, and expand generated SDK coverage from the committed contract.
 - Add direct cloud KMS/HSM SDK adapters where required. The current HTTPS
