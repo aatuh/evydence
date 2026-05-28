@@ -48,6 +48,11 @@ func run() error {
 		if err != nil {
 			return err
 		}
+		if production {
+			if err := postgres.ValidateProductionLoadMode(loadMode); err != nil {
+				return err
+			}
+		}
 		pgStore, err := postgres.OpenWithOptions(ctx, databaseURL, postgres.StoreOptions{LoadMode: loadMode})
 		if err != nil {
 			return err

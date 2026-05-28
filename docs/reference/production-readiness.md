@@ -26,8 +26,8 @@ Known hardening work remains:
   operation, and future-extension rows alongside the compatibility snapshot.
   When `ENV=production` and `EVYDENCE_POSTGRES_LOAD_MODE` is unset, API and
   worker startup prefer relational reconstruction before falling back to the
-  snapshot. Local development still defaults to snapshot-preferred loading. If
-  the snapshot row is absent, the store can
+  snapshot. Production refuses `snapshot_preferred`; local development still
+  defaults to snapshot-preferred loading. If the snapshot row is absent, the store can
   rebuild identity, SSO session, customer portal token, release-ledger core,
   build provenance, source/deployment, incident, security evidence, SBOM diff,
   vulnerability workflow, contract diff, custom policy, waiver, approval, DSSE

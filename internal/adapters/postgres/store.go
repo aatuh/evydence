@@ -95,6 +95,13 @@ func ResolveLoadMode(raw string, production bool) (LoadMode, error) {
 	return normalizeLoadMode(LoadMode(raw))
 }
 
+func ValidateProductionLoadMode(mode LoadMode) error {
+	if mode == LoadModeSnapshotPreferred {
+		return errors.New("production refuses EVYDENCE_POSTGRES_LOAD_MODE=snapshot_preferred")
+	}
+	return nil
+}
+
 func normalizeLoadMode(mode LoadMode) (LoadMode, error) {
 	switch strings.ToLower(strings.TrimSpace(string(mode))) {
 	case "", "snapshot", "snapshot_preferred", "snapshot-preferred":

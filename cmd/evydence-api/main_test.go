@@ -62,6 +62,10 @@ func TestPostgresLoadModeDefaultsToRelationalPreferredInProduction(t *testing.T)
 	if mode != postgres.LoadModeSnapshotPreferred {
 		t.Fatalf("local load mode = %q, want %q", mode, postgres.LoadModeSnapshotPreferred)
 	}
+
+	if err := postgres.ValidateProductionLoadMode(postgres.LoadModeSnapshotPreferred); err == nil || !strings.Contains(err.Error(), "EVYDENCE_POSTGRES_LOAD_MODE") {
+		t.Fatalf("snapshot-preferred production validation err=%v", err)
+	}
 }
 
 func TestEnvDefaultAndObjectStoreSelection(t *testing.T) {
