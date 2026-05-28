@@ -2291,6 +2291,12 @@ func op(id, method, path, summary string, scopes []string) specs.Operation {
 	return withCriticalOperationDetails(operation)
 }
 
+func authenticatedOp(id, method, path, summary string) specs.Operation {
+	operation := op(id, method, path, summary, nil)
+	operation.Security = []specs.SecurityRequirement{{Name: "BearerAuth"}}
+	return operation
+}
+
 func defaultSuccessStatus(operationID, method string) int {
 	if method == http.MethodGet {
 		return http.StatusOK
@@ -2300,6 +2306,7 @@ func defaultSuccessStatus(operationID, method string) int {
 	}
 	switch operationID {
 	case "deactivateUser",
+		"logoutSSOSession",
 		"revokeSSOSession",
 		"updateSSOProviderTrustMaterial",
 		"freezeRelease",

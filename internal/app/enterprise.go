@@ -422,6 +422,33 @@ func (l *Ledger) RevokeSSOSession(ctx context.Context, actor domain.Actor, id st
 	return session, nil
 }
 
+func (l *Ledger) RevokeCurrentSSOSession(ctx context.Context, actor domain.Actor) (domain.SSOSession, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.SSOSession{}, err
+	}
+	if strings.TrimSpace(actor.UserID) == "" || strings.TrimSpace(actor.SessionID) == "" {
+		return domain.SSOSession{}, ErrForbidden
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	session, ok := l.ssoSessions[strings.TrimSpace(actor.SessionID)]
+	if !ok || session.TenantID != actor.TenantID || session.UserID != actor.UserID {
+		return domain.SSOSession{}, ErrNotFound
+	}
+	if session.RevokedAt != nil {
+		return domain.SSOSession{}, ErrConflict
+	}
+	now := l.now()
+	session.RevokedAt = &now
+	l.ssoSessions[session.ID] = session
+	_, _ = l.appendChainLocked(actor.TenantID, "sso_session.revoked", "sso_session", session.ID, actorType(actor), actorID(actor), "", "")
+	if err := l.persistLocked(ctx); err != nil {
+		return domain.SSOSession{}, err
+	}
+	session.Hash = ""
+	return session, nil
+}
+
 func (l *Ledger) InstanceAdminSnapshot(ctx context.Context, actor domain.Actor) (domain.InstanceAdminSnapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.InstanceAdminSnapshot{}, err

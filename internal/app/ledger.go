@@ -395,7 +395,7 @@ func (l *Ledger) Authenticate(ctx context.Context, secret string) (domain.Actor,
 		}
 		l.ssoSessions[id] = session
 		_ = l.persistLocked(ctx)
-		return domain.Actor{TenantID: user.TenantID, UserID: user.ID, Name: user.Email, Scopes: scopes, ResourceGrants: grants}, nil
+		return domain.Actor{TenantID: user.TenantID, UserID: user.ID, SessionID: session.ID, Name: user.Email, Scopes: scopes, ResourceGrants: grants}, nil
 	}
 	return domain.Actor{}, ErrUnauthorized
 }

@@ -71,6 +71,10 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "SSO session id."))
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Revoked SSO session envelope.", "#/components/schemas/SSOSessionEnvelope")
+	case "logoutSSOSession":
+		operation.Description = "Revokes the currently authenticated SSO session without requiring identity administrator privileges. API keys and collector keys cannot use this route."
+		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
+		operation.Responses[http.StatusOK] = jsonResponse("Revoked current SSO session envelope.", "#/components/schemas/SSOSessionEnvelope")
 	case "createSSOProvider":
 		operation.Description = "Records tenant SSO provider metadata. Optional static JWKS public keys and SAML signing certificates can be supplied for local token/assertion verification without live provider calls."
 		operation.RequestBody = jsonRequest("SSO provider creation request.", "#/components/schemas/CreateSSOProviderRequest")

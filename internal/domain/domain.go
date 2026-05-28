@@ -84,6 +84,7 @@ type Actor struct {
 	TenantID       string
 	KeyID          string
 	UserID         string
+	SessionID      string
 	Name           string
 	Scopes         []string
 	CollectorID    string

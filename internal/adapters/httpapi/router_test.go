@@ -972,7 +972,11 @@ func TestEnterprisePortalRetentionAndCommercialCollectorHTTPFlow(t *testing.T) {
 		t.Fatalf("commercial collector list missing id: %s", collectors)
 	}
 	sessionID := dataFieldFromNestedObject(t, sessionBody, "session", "id")
-	postJSON(t, server, secret, "/v1/sso/sessions/"+sessionID+"/revoke", "ent-session-revoke", map[string]any{}, http.StatusOK)
+	postJSON(t, server, secret, "/v1/sso/logout", "ent-api-logout", map[string]any{}, http.StatusForbidden)
+	logoutBody := postJSON(t, server, sessionSecret, "/v1/sso/logout", "ent-session-logout", map[string]any{}, http.StatusOK)
+	if !strings.Contains(logoutBody, sessionID) || !strings.Contains(logoutBody, `"revoked_at"`) {
+		t.Fatalf("logout response did not revoke current session: %s", logoutBody)
+	}
 	getJSON(t, server, sessionSecret, "/v1/admin/instance", http.StatusUnauthorized)
 	postJSON(t, server, secret, "/v1/users/"+userID+"/deactivate", "ent-user-deactivate", map[string]any{}, http.StatusOK)
 }

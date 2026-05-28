@@ -69,6 +69,7 @@ func (s *Server) identityRoutes() []routeDef {
 		{http.MethodPost, "/v1/sso/identity-links", op("linkSSOIdentity", http.MethodPost, "/v1/sso/identity-links", "Link SSO identity", []string{app.ScopeIdentityAdmin}), http.HandlerFunc(s.linkSSOIdentity)},
 		{http.MethodPost, "/v1/sso/sessions", op("createSSOSession", http.MethodPost, "/v1/sso/sessions", "Create SSO session", []string{app.ScopeIdentityAdmin}), http.HandlerFunc(s.createSSOSession)},
 		{http.MethodPost, "/v1/sso/sessions/{id}/revoke", op("revokeSSOSession", http.MethodPost, "/v1/sso/sessions/{id}/revoke", "Revoke SSO session", []string{app.ScopeIdentityAdmin}), http.HandlerFunc(s.revokeSSOSession)},
+		{http.MethodPost, "/v1/sso/logout", authenticatedOp("logoutSSOSession", http.MethodPost, "/v1/sso/logout", "Logout SSO session"), http.HandlerFunc(s.logoutSSOSession)},
 	}
 }
 
