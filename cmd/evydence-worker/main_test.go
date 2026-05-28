@@ -26,6 +26,22 @@ func (f fakeStateLoader) LoadState(context.Context) (app.PersistedState, bool, e
 	return f.state, f.ok, f.err
 }
 
+type fakeStateStore struct {
+	state app.PersistedState
+	saved app.PersistedState
+	ok    bool
+	err   error
+}
+
+func (f *fakeStateStore) LoadState(context.Context) (app.PersistedState, bool, error) {
+	return f.state, f.ok, f.err
+}
+
+func (f *fakeStateStore) SaveState(_ context.Context, state app.PersistedState) error {
+	f.saved = state
+	return nil
+}
+
 type fakeObjectGetter struct {
 	object  app.Object
 	err     error
@@ -56,6 +72,50 @@ func TestProcessJobVerifiesConfiguredJobState(t *testing.T) {
 	}}
 	if err := processJob(context.Background(), fakeStateLoader{state: state, ok: true}, job); err != nil {
 		t.Fatalf("process configured verification job: %v", err)
+	}
+}
+
+func TestProcessJobWithObjectsPersistsParserDerivedFields(t *testing.T) {
+	body := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api","version":"1.0.0","purl":"pkg:generic/api@1.0.0"}]}`)
+	hash := digestBytes(body)
+	job := postgres.ClaimedJob{
+		TenantID:  "ten_test",
+		Kind:      "parse_sbom",
+		SubjectID: "sbom_test",
+		Payload:   map[string]any{"payload_ref": "object://tenants/ten_test/payloads/sbom.json", "payload_hash": hash},
+	}
+	store := &fakeStateStore{
+		ok: true,
+		state: app.PersistedState{SBOMs: map[string]domain.SBOM{
+			"sbom_test": {ID: "sbom_test", TenantID: "ten_test"},
+		}},
+	}
+	object := app.Object{Key: "tenants/ten_test/payloads/sbom.json", TenantID: "ten_test", Digest: hash, Bytes: body}
+	if err := processJobWithObjects(context.Background(), store, fakeObjectGetter{object: object}, job); err != nil {
+		t.Fatalf("process object-backed job: %v", err)
+	}
+	updated := store.saved.SBOMs["sbom_test"]
+	if updated.SpecVersion != "1.6" || updated.ComponentCount != 1 || len(updated.Components) != 1 || updated.Components[0].Name != "api" {
+		t.Fatalf("saved sbom = %#v", updated)
+	}
+}
+
+func TestProcessJobWithObjectsRequiresWritableStateForParserSideEffects(t *testing.T) {
+	body := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api"}]}`)
+	hash := digestBytes(body)
+	job := postgres.ClaimedJob{
+		TenantID:  "ten_test",
+		Kind:      "parse_sbom",
+		SubjectID: "sbom_test",
+		Payload:   map[string]any{"payload_ref": "tenants/ten_test/payloads/sbom.json", "payload_hash": hash},
+	}
+	state := app.PersistedState{SBOMs: map[string]domain.SBOM{
+		"sbom_test": {ID: "sbom_test", TenantID: "ten_test"},
+	}}
+	object := app.Object{Key: "tenants/ten_test/payloads/sbom.json", TenantID: "ten_test", Digest: hash, Bytes: body}
+	err := processJobWithObjects(context.Background(), fakeStateLoader{state: state, ok: true}, fakeObjectGetter{object: object}, job)
+	if err == nil || !strings.Contains(err.Error(), "writable state") {
+		t.Fatalf("err=%v", err)
 	}
 }
 
@@ -139,7 +199,8 @@ func TestProcessJobWithObjectsParsesPayloadAndChecksDurableState(t *testing.T) {
 				contract.Hash = hash
 				tt.state.Contracts[tt.job.SubjectID] = contract
 			}
-			if err := processJobWithObjects(context.Background(), fakeStateLoader{state: tt.state, ok: true}, fakeObjectGetter{object: tt.object}, tt.job); err != nil {
+			store := &fakeStateStore{state: tt.state, ok: true}
+			if err := processJobWithObjects(context.Background(), store, fakeObjectGetter{object: tt.object}, tt.job); err != nil {
 				t.Fatalf("process replay payload: %v", err)
 			}
 		})
