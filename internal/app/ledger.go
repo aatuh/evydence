@@ -389,6 +389,9 @@ func (l *Ledger) Authenticate(ctx context.Context, secret string) (domain.Actor,
 }
 
 func (l *Ledger) CreateAPIKey(ctx context.Context, actor domain.Actor, name string, scopes []string, expiresAt *time.Time) (domain.APIKey, string, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.APIKey{}, "", err
+	}
 	if err := require(actor, ScopeAdmin); err != nil {
 		return domain.APIKey{}, "", err
 	}
@@ -886,6 +889,9 @@ func (l *Ledger) LinkEvidence(ctx context.Context, actor domain.Actor, id, targe
 }
 
 func (l *Ledger) UploadSBOM(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.SBOM, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.SBOM{}, err
+	}
 	if err := require(actor, ScopeEvidenceWrite); err != nil {
 		return domain.SBOM{}, err
 	}
@@ -964,6 +970,9 @@ func (l *Ledger) UploadSBOM(ctx context.Context, actor domain.Actor, releaseID, 
 }
 
 func (l *Ledger) UploadVulnerabilityScan(ctx context.Context, actor domain.Actor, raw []byte) (domain.VulnerabilityScan, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.VulnerabilityScan{}, err
+	}
 	if err := require(actor, ScopeEvidenceWrite); err != nil {
 		return domain.VulnerabilityScan{}, err
 	}
@@ -1047,6 +1056,9 @@ func (l *Ledger) UploadVulnerabilityScan(ctx context.Context, actor domain.Actor
 }
 
 func (l *Ledger) UploadOpenAPIContract(ctx context.Context, actor domain.Actor, productID, releaseID, version string, raw []byte) (domain.OpenAPIContract, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.OpenAPIContract{}, err
+	}
 	if err := require(actor, ScopeEvidenceWrite); err != nil {
 		return domain.OpenAPIContract{}, err
 	}

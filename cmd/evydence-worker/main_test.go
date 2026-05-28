@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -295,5 +297,38 @@ func TestRunRequiresDatabaseURLAndWrapsOpenFailure(t *testing.T) {
 	t.Setenv("EVYDENCE_SKIP_MIGRATIONS", "true")
 	if err := run(); err == nil {
 		t.Fatal("expected postgres open failure")
+	}
+}
+
+func TestOpenObjectStoreSelectsFilesystemAndRejectsUnsupportedBackend(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("EVYDENCE_OBJECT_STORE", "filesystem")
+	t.Setenv("EVYDENCE_OBJECT_DIR", filepath.Join(root, "objects"))
+	store, description, err := openObjectStore(context.Background())
+	if err != nil {
+		t.Fatalf("open filesystem object store: %v", err)
+	}
+	if store == nil || !strings.Contains(description, "filesystem root") || !strings.Contains(description, "objects") {
+		t.Fatalf("filesystem object store description=%q store=%T", description, store)
+	}
+
+	t.Setenv("EVYDENCE_OBJECT_STORE", "memory")
+	if store, description, err := openObjectStore(context.Background()); err == nil || store != nil || description != "" || !strings.Contains(err.Error(), "unsupported") {
+		t.Fatalf("unsupported backend store=%T description=%q err=%v", store, description, err)
+	}
+}
+
+func TestOpenObjectStoreRejectsIncompleteS3ConfigurationWithoutSecretsInError(t *testing.T) {
+	t.Setenv("EVYDENCE_OBJECT_STORE", "s3")
+	t.Setenv("EVYDENCE_S3_ENDPOINT", "")
+	t.Setenv("EVYDENCE_S3_ACCESS_KEY_ID", "access-key")
+	t.Setenv("EVYDENCE_S3_SECRET_ACCESS_KEY", "super-secret")
+	t.Setenv("EVYDENCE_S3_BUCKET", "")
+	_, _, err := openObjectStore(context.Background())
+	if err == nil {
+		t.Fatal("expected incomplete S3 configuration to fail")
+	}
+	if strings.Contains(err.Error(), "super-secret") || strings.Contains(err.Error(), os.Getenv("EVYDENCE_S3_ACCESS_KEY_ID")) {
+		t.Fatalf("S3 configuration error leaked credential material: %v", err)
 	}
 }
