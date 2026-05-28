@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -16,7 +17,20 @@ import (
 )
 
 type Store struct {
-	pool *pgxpool.Pool
+	pool     *pgxpool.Pool
+	loadMode LoadMode
+}
+
+type LoadMode string
+
+const (
+	LoadModeSnapshotPreferred   LoadMode = "snapshot_preferred"
+	LoadModeRelationalPreferred LoadMode = "relational_preferred"
+	LoadModeRelationalOnly      LoadMode = "relational_only"
+)
+
+type StoreOptions struct {
+	LoadMode LoadMode
 }
 
 type ClaimedJob struct {
@@ -30,6 +44,14 @@ type ClaimedJob struct {
 }
 
 func Open(ctx context.Context, databaseURL string) (*Store, error) {
+	return OpenWithOptions(ctx, databaseURL, StoreOptions{})
+}
+
+func OpenWithOptions(ctx context.Context, databaseURL string, opts StoreOptions) (*Store, error) {
+	loadMode, err := normalizeLoadMode(opts.LoadMode)
+	if err != nil {
+		return nil, err
+	}
 	pool, err := pgxpool.New(ctx, databaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("open postgres pool: %w", err)
@@ -38,7 +60,7 @@ func Open(ctx context.Context, databaseURL string) (*Store, error) {
 		pool.Close()
 		return nil, fmt.Errorf("ping postgres: %w", err)
 	}
-	return &Store{pool: pool}, nil
+	return &Store{pool: pool, loadMode: loadMode}, nil
 }
 
 func (s *Store) Close() {
@@ -48,10 +70,49 @@ func (s *Store) Close() {
 }
 
 func (s *Store) LoadState(ctx context.Context) (app.PersistedState, bool, error) {
+	switch s.loadMode {
+	case LoadModeRelationalPreferred:
+		state, ok, err := s.loadRelationalState(ctx)
+		if err != nil || ok {
+			return state, ok, err
+		}
+		return s.loadSnapshotState(ctx)
+	case LoadModeRelationalOnly:
+		return s.loadRelationalState(ctx)
+	default:
+		state, ok, err := s.loadSnapshotState(ctx)
+		if err != nil || ok {
+			return state, ok, err
+		}
+		return s.loadRelationalState(ctx)
+	}
+}
+
+func ResolveLoadMode(raw string, production bool) (LoadMode, error) {
+	if strings.TrimSpace(raw) == "" && production {
+		return LoadModeRelationalPreferred, nil
+	}
+	return normalizeLoadMode(LoadMode(raw))
+}
+
+func normalizeLoadMode(mode LoadMode) (LoadMode, error) {
+	switch strings.ToLower(strings.TrimSpace(string(mode))) {
+	case "", "snapshot", "snapshot_preferred", "snapshot-preferred":
+		return LoadModeSnapshotPreferred, nil
+	case "relational", "relational_preferred", "relational-preferred":
+		return LoadModeRelationalPreferred, nil
+	case "relational_only", "relational-only":
+		return LoadModeRelationalOnly, nil
+	default:
+		return "", fmt.Errorf("unsupported postgres load mode %q", mode)
+	}
+}
+
+func (s *Store) loadSnapshotState(ctx context.Context) (app.PersistedState, bool, error) {
 	var body []byte
 	err := s.pool.QueryRow(ctx, `SELECT state FROM ledger_state WHERE id = 'default'`).Scan(&body)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return s.loadRelationalState(ctx)
+		return app.PersistedState{}, false, nil
 	}
 	if err != nil {
 		return app.PersistedState{}, false, fmt.Errorf("load ledger state: %w", err)

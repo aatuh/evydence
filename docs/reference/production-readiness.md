@@ -23,8 +23,11 @@ Known hardening work remains:
   batch, transparency checkpoint, evidence lifecycle, release candidate,
   VEX/risk decision, control, audit-chain, signing, bundle, policy,
   verification, package, report, retention, provider verification, signing
-  operation, and future-extension rows alongside the canonical snapshot, but the snapshot remains the
-  preferred runtime load source. If the snapshot row is absent, the store can
+  operation, and future-extension rows alongside the compatibility snapshot.
+  When `ENV=production` and `EVYDENCE_POSTGRES_LOAD_MODE` is unset, API and
+  worker startup prefer relational reconstruction before falling back to the
+  snapshot. Local development still defaults to snapshot-preferred loading. If
+  the snapshot row is absent, the store can
   rebuild identity, SSO session, customer portal token, release-ledger core,
   build provenance, source/deployment, incident, security evidence, SBOM diff,
   vulnerability workflow, contract diff, custom policy, waiver, approval, DSSE
@@ -117,7 +120,8 @@ implemented capabilities:
   transparency checkpoint, evidence lifecycle, release candidate, VEX/risk
   decision, control, audit-chain, signing, bundle, policy, verification,
   package, report, retention, provider verification, signing operation, and
-  future-extension rows are synchronized into relational tables. Missing-snapshot
+  future-extension rows are synchronized into relational tables. Production
+  startup defaults to relational-preferred loading, and missing-snapshot
   recovery can rebuild identity, SSO session, customer portal token,
   release-ledger core, build provenance, source/deployment, incident, security
   evidence, SBOM diff, vulnerability workflow, contract diff, custom policy,

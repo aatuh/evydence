@@ -44,7 +44,11 @@ func run() error {
 	if databaseURL != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		pgStore, err := postgres.Open(ctx, databaseURL)
+		loadMode, err := postgres.ResolveLoadMode(os.Getenv("EVYDENCE_POSTGRES_LOAD_MODE"), production)
+		if err != nil {
+			return err
+		}
+		pgStore, err := postgres.OpenWithOptions(ctx, databaseURL, postgres.StoreOptions{LoadMode: loadMode})
 		if err != nil {
 			return err
 		}
@@ -59,7 +63,7 @@ func run() error {
 			closeStore()
 			return fmt.Errorf("check migrations: %w", err)
 		}
-		objectStore, objectDescription, err := openObjectStore(ctx)
+		objectStore, _, err := openObjectStore(ctx)
 		if err != nil {
 			closeStore()
 			return err
@@ -67,7 +71,7 @@ func run() error {
 		cfg.Store = pgStore
 		cfg.Outbox = pgStore
 		cfg.ObjectStore = objectStore
-		log.Printf("evydence api using postgres state store and %s object store", objectDescription)
+		log.Print("evydence api using postgres state store and configured object store")
 	}
 	if closeStore != nil {
 		defer closeStore()
