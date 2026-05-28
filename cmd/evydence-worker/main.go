@@ -17,12 +17,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/getkin/kin-openapi/openapi3"
+
 	"github.com/aatuh/evydence/internal/adapters/objectstore/filesystem"
 	s3store "github.com/aatuh/evydence/internal/adapters/objectstore/s3"
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
-	"github.com/getkin/kin-openapi/openapi3"
 )
 
 const defaultMaxWorkerPayloadBytes = 20 << 20
