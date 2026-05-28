@@ -291,6 +291,27 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	if relational.CustomerPortalHashes["cpa_test"] != "portal-token-hash" || relational.CustomerPortalAccess["cpa_test"].FailedAccessCount != 1 {
 		t.Fatalf("relational portal access = %#v hash=%q", relational.CustomerPortalAccess["cpa_test"], relational.CustomerPortalHashes["cpa_test"])
 	}
+	if relational.RedactionProfiles["redact_test"].Name != "Default" || relational.CustomerPackages["pkg_test"].AccessCount != 3 {
+		t.Fatalf("relational package rows missing: redaction=%#v package=%#v", relational.RedactionProfiles["redact_test"], relational.CustomerPackages["pkg_test"])
+	}
+	if relational.HTMLReports["html_test"].Hash == "" || relational.ReportTemplates["tpl_test"].Template == "" || relational.RenderedReports["render_test"].Hash == "" {
+		t.Fatalf("relational report rows missing: html=%#v template=%#v rendered=%#v", relational.HTMLReports["html_test"], relational.ReportTemplates["tpl_test"], relational.RenderedReports["render_test"])
+	}
+	if relational.EvidenceBundles["eb_test"].ManifestHash == "" || relational.BundleImports["ebi_test"].ImportedCount != 1 {
+		t.Fatalf("relational evidence bundle rows missing: bundle=%#v import=%#v", relational.EvidenceBundles["eb_test"], relational.BundleImports["ebi_test"])
+	}
+	if relational.ObjectRetentionPolicies["orp_test"].Status != "verified" || len(relational.ObjectRetentionPolicies["orp_test"].VerificationChecks) != 1 {
+		t.Fatalf("relational object retention policy = %#v", relational.ObjectRetentionPolicies["orp_test"])
+	}
+	if relational.BackupManifests["bak_test"].ResourceCounts["evidence"] != 1 || relational.LegalHolds["hold_test"].ReleasedAt == nil || relational.RetentionOverrides["ret_test"].Owner != "security" {
+		t.Fatalf("relational retention rows missing: backup=%#v hold=%#v override=%#v", relational.BackupManifests["bak_test"], relational.LegalHolds["hold_test"], relational.RetentionOverrides["ret_test"])
+	}
+	if len(relational.QuestionnaireTemplates["qt_test"].Questions) != 1 || len(relational.QuestionnairePackages["qp_test"].Responses) != 1 {
+		t.Fatalf("relational questionnaire rows missing: template=%#v package=%#v", relational.QuestionnaireTemplates["qt_test"], relational.QuestionnairePackages["qp_test"])
+	}
+	if relational.PDFReports["pdf_test"].PayloadHash == "" || relational.AnomalyReports["anom_test"].Result != "review" {
+		t.Fatalf("relational generated report rows missing: pdf=%#v anomaly=%#v", relational.PDFReports["pdf_test"], relational.AnomalyReports["anom_test"])
+	}
 	job := app.OutboxJob{ID: "job_test_" + time.Now().Format("150405.000000000"), TenantID: "ten_test", Kind: "verify_subject", SubjectType: "audit_chain", SubjectID: "audit_chain", CreatedAt: time.Now().UTC()}
 	if err := store.Enqueue(ctx, job); err != nil {
 		t.Fatal(err)
