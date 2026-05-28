@@ -71,11 +71,27 @@ func TestEnterpriseIdentityRBACSSOAndAdminSnapshot(t *testing.T) {
 	if sessionActor.UserID != user.ID || !sessionActor.HasScope(ScopeEvidenceWrite) || sessionActor.HasScope(ScopeIdentityAdmin) {
 		t.Fatalf("session actor scopes = %#v", sessionActor)
 	}
-	if _, err := ledger.RevokeSSOSession(ctx, actor, session.ID); err != nil {
-		t.Fatalf("revoke session: %v", err)
+	if sessionActor.SessionID != session.ID {
+		t.Fatalf("session actor session id = %q, want %q", sessionActor.SessionID, session.ID)
+	}
+	if _, err := ledger.RevokeCurrentSSOSession(ctx, actor); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("api key current session revoke err=%v, want forbidden", err)
+	}
+	if _, err := ledger.RevokeCurrentSSOSession(ctx, sessionActor); err != nil {
+		t.Fatalf("revoke current session: %v", err)
 	}
 	if _, err := ledger.Authenticate(ctx, secret); !errors.Is(err, ErrUnauthorized) {
 		t.Fatalf("revoked session auth err=%v, want unauthorized", err)
+	}
+	session, secret, err = ledger.CreateSSOSession(ctx, actor, CreateSSOSessionInput{UserID: user.ID, ProviderID: provider.ID, ExpiresAt: fixedNow().Add(time.Hour)})
+	if err != nil {
+		t.Fatalf("second sso session: %v", err)
+	}
+	if _, err := ledger.RevokeSSOSession(ctx, actor, session.ID); err != nil {
+		t.Fatalf("admin revoke session: %v", err)
+	}
+	if _, err := ledger.Authenticate(ctx, secret); !errors.Is(err, ErrUnauthorized) {
+		t.Fatalf("admin-revoked session auth err=%v, want unauthorized", err)
 	}
 	snapshot, err := ledger.InstanceAdminSnapshot(ctx, actor)
 	if err != nil {

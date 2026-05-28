@@ -1,5 +1,5 @@
 {
-  "route_count": 162,
+  "route_count": 163,
   "routes": [
     {
       "idempotency_key_required": false,
@@ -2433,6 +2433,21 @@
       ],
       "success_statuses": [
         "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "logoutSSOSession",
+      "path": "/v1/sso/logout",
+      "request_schema": "#/components/schemas/EmptyObject",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SSOSessionEnvelope"
+      ],
+      "scopes": [],
+      "success_statuses": [
+        "200"
       ]
     },
     {

@@ -159,3 +159,10 @@ func (s *Server) revokeSSOSession(w http.ResponseWriter, r *http.Request) {
 		return http.StatusOK, session, err
 	})
 }
+
+func (s *Server) logoutSSOSession(w http.ResponseWriter, r *http.Request) {
+	s.create(w, r, func(actor domain.Actor, _ []byte) (int, any, error) {
+		session, err := s.ledger.RevokeCurrentSSOSession(r.Context(), actor)
+		return http.StatusOK, session, err
+	})
+}
