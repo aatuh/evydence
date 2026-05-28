@@ -120,6 +120,13 @@ func (s *Server) verifyPublicTransparencyLogEntry(w http.ResponseWriter, r *http
 	})
 }
 
+func (s *Server) fetchPublicTransparencyLogEntryProof(w http.ResponseWriter, r *http.Request) {
+	s.create(w, r, func(ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
+		entry, err := s.ledger.FetchAndVerifyPublicTransparencyLogEntry(ctx, actor, r.PathValue("id"))
+		return http.StatusOK, entry, err
+	})
+}
+
 func (s *Server) createMarketplaceCollector(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name         string `json:"name"`

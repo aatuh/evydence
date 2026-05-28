@@ -92,6 +92,44 @@ func TestFutureExtensionsAreEvidenceBackedAndTenantScoped(t *testing.T) {
 	_ = artifact
 }
 
+func TestFetchAndVerifyPublicTransparencyLogEntryUsesFetcher(t *testing.T) {
+	fetcher := &fakeTransparencyProofFetcher{}
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Transparency: fetcher})
+	ctx := context.Background()
+	actor, _, _ := setupReleaseRiskFixture(t, ledger)
+	batch, err := ledger.CreateMerkleBatch(ctx, actor, CreateMerkleBatchInput{})
+	if err != nil {
+		t.Fatalf("merkle batch: %v", err)
+	}
+	log, err := ledger.CreatePublicTransparencyLog(ctx, actor, CreatePublicTransparencyLogInput{Name: "public-test", Endpoint: "https://transparency.example.test", PublicKey: "pub"})
+	if err != nil {
+		t.Fatalf("public log: %v", err)
+	}
+	checkpoint, err := ledger.CreateTransparencyCheckpoint(ctx, actor, CreateTransparencyCheckpointInput{BatchID: batch.ID, Provider: "internal", ExternalID: "ts-1"})
+	if err != nil {
+		t.Fatalf("checkpoint: %v", err)
+	}
+	entry, err := ledger.PublishPublicTransparencyLogEntry(ctx, actor, PublishPublicTransparencyLogEntryInput{LogID: log.ID, CheckpointID: checkpoint.ID, ExternalID: "entry-1"})
+	if err != nil {
+		t.Fatalf("entry: %v", err)
+	}
+	fetcher.result = TransparencyProofResult{ExternalID: "entry-1", RootHash: entry.EntryHash, LeafIndex: 0, TreeSize: 1, InclusionProof: []string{}}
+	verified, err := ledger.FetchAndVerifyPublicTransparencyLogEntry(ctx, actor, entry.ID)
+	if err != nil {
+		t.Fatalf("fetch verify: %v", err)
+	}
+	if verified.State != "inclusion_verified" || !hasVerifyCheck(verified.VerificationChecks, "public_log_proof_source", "passed") {
+		t.Fatalf("verified = %#v", verified)
+	}
+	if fetcher.request.Endpoint != log.Endpoint || fetcher.request.ExternalID != entry.ExternalID || fetcher.request.EntryHash != entry.EntryHash {
+		t.Fatalf("fetch request = %#v", fetcher.request)
+	}
+	_, _, _, other := bootstrapEnterpriseTestTenant(t, ledger)
+	if _, err := ledger.FetchAndVerifyPublicTransparencyLogEntry(ctx, other, entry.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("cross tenant fetch err=%v, want not found", err)
+	}
+}
+
 func TestFutureOperationalExtensionsAndPartialTrustClosures(t *testing.T) {
 	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
@@ -257,6 +295,20 @@ func (f *fakeSigningExecutor) Sign(_ context.Context, request SigningRequest) (S
 		Algorithm: "external-aws_kms",
 		Checks:    []domain.VerifyCheck{{Name: "fake_executor", Result: "passed"}},
 	}, nil
+}
+
+type fakeTransparencyProofFetcher struct {
+	request TransparencyProofRequest
+	result  TransparencyProofResult
+	err     error
+}
+
+func (f *fakeTransparencyProofFetcher) FetchTransparencyProof(_ context.Context, request TransparencyProofRequest) (TransparencyProofResult, error) {
+	f.request = request
+	if f.err != nil {
+		return TransparencyProofResult{}, f.err
+	}
+	return f.result, nil
 }
 
 func TestSigningOperationCanExecuteConfiguredSignerWithoutPrivateKey(t *testing.T) {

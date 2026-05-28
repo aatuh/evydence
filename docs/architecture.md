@@ -34,7 +34,7 @@ Release readiness is deterministic and evidence-scoped. Open critical vulnerabil
 
 DSSE attestation signatures can be verified against configured Ed25519 trust roots when raw attestation bytes are available. Cosign-style artifact verification records digest binding, signature presence, and optional Rekor metadata without overstating full Sigstore trust-chain validation. Signing keys support revocation and valid-at-signing semantics for historical signatures.
 
-Merkle batches, signed checkpoints, optional transparency checkpoint/public transparency records with operator-supplied inclusion proof verification, backup manifests, object-retention policy records with verification hashes, legal holds, retention overrides, readiness, metrics, instance admin diagnostics, external signing gateway receipts, and admin audit queries provide operational integrity and review surfaces.
+Merkle batches, signed checkpoints, optional transparency checkpoint/public transparency records with operator-supplied or fetched inclusion proof verification, backup manifests, object-retention policy records with verification hashes, legal holds, retention overrides, readiness, metrics, instance admin diagnostics, external signing gateway receipts, and admin audit queries provide operational integrity and review surfaces.
 
 ## Reports And Customer-Facing Packages
 

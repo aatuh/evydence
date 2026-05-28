@@ -19,6 +19,7 @@ import (
 	s3store "github.com/aatuh/evydence/internal/adapters/objectstore/s3"
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/adapters/signing/httpgateway"
+	"github.com/aatuh/evydence/internal/adapters/transparency/httpfetcher"
 	"github.com/aatuh/evydence/internal/app"
 )
 
@@ -39,6 +40,10 @@ func run() error {
 	cfg.OIDC = oidcdiscovery.New(oidcdiscovery.Config{
 		AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_OIDC_DISCOVERY_ALLOW_INSECURE_LOCALHOST"), "true"),
 		Timeout:                   time.Duration(intEnv("EVYDENCE_OIDC_DISCOVERY_TIMEOUT_SECONDS", 10)) * time.Second,
+	})
+	cfg.Transparency = httpfetcher.New(httpfetcher.Config{
+		AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_TRANSPARENCY_FETCH_ALLOW_INSECURE_LOCALHOST"), "true"),
+		Timeout:                   time.Duration(intEnv("EVYDENCE_TRANSPARENCY_FETCH_TIMEOUT_SECONDS", 10)) * time.Second,
 	})
 	if signer, err := openSigningExecutor(); err != nil {
 		return err

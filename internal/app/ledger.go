@@ -69,20 +69,22 @@ type Config struct {
 	Retention    ObjectRetentionVerifier
 	Signer       SigningExecutor
 	OIDC         OIDCDiscoveryClient
+	Transparency TransparencyProofFetcher
 	Outbox       Outbox
 }
 
 type Ledger struct {
 	mu sync.Mutex
 
-	pepper    []byte
-	now       func() time.Time
-	store     Store
-	objects   ObjectStore
-	retention ObjectRetentionVerifier
-	signer    SigningExecutor
-	oidc      OIDCDiscoveryClient
-	outbox    Outbox
+	pepper             []byte
+	now                func() time.Time
+	store              Store
+	objects            ObjectStore
+	retention          ObjectRetentionVerifier
+	signer             SigningExecutor
+	oidc               OIDCDiscoveryClient
+	transparencyProofs TransparencyProofFetcher
+	outbox             Outbox
 
 	tenants               map[string]domain.Tenant
 	organizations         map[string]domain.Organization
@@ -206,6 +208,7 @@ func NewLedgerWithError(cfg Config) (*Ledger, error) {
 		retention:             retention,
 		signer:                cfg.Signer,
 		oidc:                  cfg.OIDC,
+		transparencyProofs:    cfg.Transparency,
 		outbox:                cfg.Outbox,
 		tenants:               map[string]domain.Tenant{},
 		organizations:         map[string]domain.Organization{},
