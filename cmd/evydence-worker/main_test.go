@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/getkin/kin-openapi/openapi3"
+
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
@@ -441,6 +443,86 @@ func TestWorkerHelpersValidatePayloadHashAndEnv(t *testing.T) {
 	t.Setenv("EVYDENCE_WORKER_TEST_INT", "0")
 	if got := intEnv("EVYDENCE_WORKER_TEST_INT", 10); got != 10 {
 		t.Fatalf("intEnv fallback = %d", got)
+	}
+}
+
+func TestReplayMergeHelpersCoverParserSideEffects(t *testing.T) {
+	sbom, changed := mergeReplayedSBOM(domain.SBOM{}, replayedSBOM{
+		SpecVersion:    "1.6",
+		ComponentCount: 1,
+		Components:     []domain.SBOMComponent{{Name: "api"}},
+	})
+	if !changed || sbom.SpecVersion != "1.6" || sbom.ComponentCount != 1 || len(sbom.Components) != 1 {
+		t.Fatalf("merged sbom = %#v changed=%v", sbom, changed)
+	}
+	if _, changed := mergeReplayedSBOM(sbom, replayedSBOM{SpecVersion: "1.6"}); changed {
+		t.Fatal("complete sbom should not be changed")
+	}
+
+	scan, changed := mergeReplayedVulnerabilityScan(domain.VulnerabilityScan{}, replayedVulnerabilityScan{
+		Scanner:   "grype",
+		TargetRef: "pkg:oci/api",
+		Summary:   map[string]int{"high": 1},
+		Findings:  []domain.VulnerabilityFinding{{ID: "finding_1", Severity: "high"}},
+	})
+	if !changed || scan.Scanner != "grype" || scan.TargetRef == "" || scan.Summary["high"] != 1 || len(scan.Findings) != 1 {
+		t.Fatalf("merged scan = %#v changed=%v", scan, changed)
+	}
+	scan.Summary["high"] = 2
+	if err := verifyReplayedVulnerabilityScan(replayedVulnerabilityScan{Scanner: "grype", TargetRef: "pkg:oci/api", Summary: map[string]int{"high": 1}}, scan); err == nil {
+		t.Fatal("expected vulnerability scan summary mismatch")
+	}
+
+	vex, changed := mergeReplayedVEX(domain.VEXDocument{}, replayedVEX{Author: "security@example.test", StatementCount: 1, StatusSummary: map[string]int{"fixed": 1}})
+	if !changed || vex.Author == "" || vex.StatementCount != 1 || vex.StatusSummary["fixed"] != 1 {
+		t.Fatalf("merged vex = %#v changed=%v", vex, changed)
+	}
+	if err := verifyReplayedVEX(replayedVEX{Author: "other", StatementCount: 1, StatusSummary: map[string]int{"fixed": 1}}, vex); err == nil {
+		t.Fatal("expected vex author mismatch")
+	}
+
+	contract, changed := mergeReplayedOpenAPIContract(domain.OpenAPIContract{}, replayedOpenAPIContract{
+		PathCount:  1,
+		Operations: []domain.OpenAPIOperation{{Path: "/v1/test", Method: "get"}},
+	})
+	if !changed || contract.PathCount != 1 || len(contract.Operations) != 1 {
+		t.Fatalf("merged contract = %#v changed=%v", contract, changed)
+	}
+	if err := verifyReplayedOpenAPIContract([]byte("raw"), replayedOpenAPIContract{PathCount: 2}, contract); err == nil {
+		t.Fatal("expected openapi path-count mismatch")
+	}
+
+	raw := dsseEnvelopeForTest(t, "sha256:"+strings.Repeat("a", 64))
+	attestation, changed := mergeReplayedAttestation(domain.BuildAttestation{}, replayedAttestation{
+		PayloadType:    "application/vnd.in-toto+json",
+		PredicateType:  "https://slsa.dev/provenance/v1",
+		SubjectDigests: []string{"sha256:" + strings.Repeat("a", 64)},
+		SignatureCount: 1,
+		BuilderID:      "github-actions",
+		BuildType:      "test",
+		MaterialsCount: 2,
+	}, raw)
+	if !changed || attestation.PayloadHash == "" || attestation.PayloadSize == 0 || attestation.PredicateType == "" || len(attestation.SubjectDigests) != 1 || attestation.SignatureCount != 1 || attestation.BuilderID == "" || attestation.BuildType == "" || attestation.MaterialsCount != 2 {
+		t.Fatalf("merged attestation = %#v changed=%v", attestation, changed)
+	}
+	if err := verifyReplayedAttestation(raw, replayedAttestation{PredicateType: "other", SubjectDigests: attestation.SubjectDigests}, attestation); err == nil {
+		t.Fatal("expected attestation predicate mismatch")
+	}
+
+	if operationForMethod(&openapi3.PathItem{Get: &openapi3.Operation{}}, "get") == nil || operationForMethod(&openapi3.PathItem{Trace: &openapi3.Operation{}}, "trace") == nil || operationForMethod(&openapi3.PathItem{}, "unknown") != nil {
+		t.Fatal("operationForMethod did not route methods as expected")
+	}
+	if cloned := cloneIntMap(map[string]int{"high": 1}); cloned["high"] != 1 {
+		t.Fatalf("cloneIntMap = %#v", cloned)
+	}
+	if cloneIntMap(nil) != nil {
+		t.Fatal("nil cloneIntMap should stay nil")
+	}
+	if got, ok := nestedString(map[string]any{"outer": map[string]any{"inner": "value"}}, "outer", "inner"); !ok || got != "value" {
+		t.Fatalf("nestedString = %q %v", got, ok)
+	}
+	if equalStringSets([]string{"b", "a"}, []string{"a", "b"}) != true || equalStringSets([]string{"a"}, []string{"b"}) != false {
+		t.Fatal("equalStringSets mismatch")
 	}
 }
 

@@ -90,7 +90,13 @@ func (s *Store) loadRelationalState(ctx context.Context) (app.PersistedState, bo
 	if err := s.loadRelationalIncidentSecurityGovernance(ctx, &state, &loaded); err != nil {
 		return app.PersistedState{}, false, err
 	}
+	if err := s.loadRelationalIntegrityProviderRows(ctx, &state, &loaded); err != nil {
+		return app.PersistedState{}, false, err
+	}
 	if err := s.loadRelationalPackageReportRetention(ctx, &state, &loaded); err != nil {
+		return app.PersistedState{}, false, err
+	}
+	if err := s.loadRelationalFutureExtensionRows(ctx, &state, &loaded); err != nil {
 		return app.PersistedState{}, false, err
 	}
 	if err := s.loadRelationalIdempotency(ctx, &state, &loaded); err != nil {
@@ -112,6 +118,7 @@ func relationalEmptyState() app.PersistedState {
 		APIKeys:                  map[string]domain.APIKey{},
 		APIKeyHashes:             map[string]string{},
 		Collectors:               map[string]domain.Collector{},
+		CollectorReleases:        map[string]domain.CollectorRelease{},
 		BuildRuns:                map[string]domain.BuildRun{},
 		BuildAttestations:        map[string]domain.BuildAttestation{},
 		EvidenceLifecycle:        map[string]domain.EvidenceLifecycleEvent{},
@@ -140,6 +147,10 @@ func relationalEmptyState() app.PersistedState {
 		Waivers:                  map[string]domain.Waiver{},
 		Approvals:                map[string]domain.ApprovalRecord{},
 		DSSETrustRoots:           map[string]domain.DSSETrustRoot{},
+		CosignVerifications:      map[string]domain.CosignVerification{},
+		SigningProviders:         map[string]domain.SigningProvider{},
+		MerkleBatches:            map[string]domain.MerkleBatch{},
+		TransparencyCheckpoints:  map[string]domain.TransparencyCheckpoint{},
 		CustomerPortalAccess:     map[string]domain.CustomerPortalAccess{},
 		CustomerPortalHashes:     map[string]string{},
 		RedactionProfiles:        map[string]domain.RedactionProfile{},
@@ -155,8 +166,18 @@ func relationalEmptyState() app.PersistedState {
 		RetentionOverrides:       map[string]domain.RetentionOverride{},
 		QuestionnaireTemplates:   map[string]domain.QuestionnaireTemplate{},
 		QuestionnairePackages:    map[string]domain.QuestionnairePackage{},
+		CommercialCollectors:     map[string]domain.CommercialCollectorDefinition{},
+		EvidenceSummaries:        map[string]domain.EvidenceSummary{},
+		QuestionnaireDrafts:      map[string]domain.QuestionnaireDraft{},
+		GraphSnapshots:           map[string]domain.EvidenceGraphSnapshot{},
+		SaaSProfiles:             map[string]domain.SaaSEditionProfile{},
+		PublicTransparencyLogs:   map[string]domain.PublicTransparencyLog{},
+		PublicTransparencyItems:  map[string]domain.PublicTransparencyLogEntry{},
+		MarketplaceCollectors:    map[string]domain.MarketplaceCollector{},
 		PDFReports:               map[string]domain.PDFReportPackage{},
 		AnomalyReports:           map[string]domain.AnomalyReport{},
+		ProviderVerifications:    map[string]domain.ProviderVerification{},
+		SigningOperations:        map[string]domain.SigningOperation{},
 		ControlFrameworks:        map[string]domain.ControlFramework{},
 		SecurityControls:         map[string]domain.SecurityControl{},
 		ControlEvidence:          map[string]domain.ControlEvidence{},
@@ -1715,6 +1736,109 @@ func (s *Store) loadRelationalWaiversApprovalsTrust(ctx context.Context, state *
 	return trustRows.Err()
 }
 
+func (s *Store) loadRelationalIntegrityProviderRows(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	collectorRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, collector_id, version, artifact_digest, signature_id, sbom_id, scan_id, pinned, verification_status, health_status, limitations, schema_version, created_at FROM collector_releases`)
+	if err != nil {
+		return fmt.Errorf("load relational collector releases: %w", err)
+	}
+	defer collectorRows.Close()
+	for collectorRows.Next() {
+		var release domain.CollectorRelease
+		var signatureID, sbomID, scanID sql.NullString
+		if err := collectorRows.Scan(&release.ID, &release.TenantID, &release.CollectorID, &release.Version, &release.ArtifactDigest, &signatureID, &sbomID, &scanID, &release.Pinned, &release.VerificationStatus, &release.HealthStatus, &release.Limitations, &release.SchemaVersion, &release.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational collector release: %w", err)
+		}
+		release.SignatureID = nullableSQLString(signatureID)
+		release.SBOMID = nullableSQLString(sbomID)
+		release.ScanID = nullableSQLString(scanID)
+		state.CollectorReleases[release.ID] = release
+		*loaded = true
+	}
+	if err := collectorRows.Err(); err != nil {
+		return err
+	}
+
+	cosignRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, artifact_id, container_image_id, artifact_signature_id, subject_digest, rekor_uuid, rekor_log_index, certificate_identity, certificate_issuer, result, checks, schema_version, created_at FROM cosign_verifications`)
+	if err != nil {
+		return fmt.Errorf("load relational cosign verifications: %w", err)
+	}
+	defer cosignRows.Close()
+	for cosignRows.Next() {
+		var verification domain.CosignVerification
+		var artifactID, imageID, rekorUUID, rekorLogIndex, certIdentity, certIssuer sql.NullString
+		var checks []byte
+		if err := cosignRows.Scan(&verification.ID, &verification.TenantID, &artifactID, &imageID, &verification.ArtifactSignatureID, &verification.SubjectDigest, &rekorUUID, &rekorLogIndex, &certIdentity, &certIssuer, &verification.Result, &checks, &verification.SchemaVersion, &verification.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational cosign verification: %w", err)
+		}
+		verification.ArtifactID = nullableSQLString(artifactID)
+		verification.ContainerImageID = nullableSQLString(imageID)
+		verification.RekorUUID = nullableSQLString(rekorUUID)
+		verification.RekorLogIndex = nullableSQLString(rekorLogIndex)
+		verification.CertificateIdentity = nullableSQLString(certIdentity)
+		verification.CertificateIssuer = nullableSQLString(certIssuer)
+		if err := decodeJSON(checks, &verification.Checks); err != nil {
+			return fmt.Errorf("decode relational cosign checks: %w", err)
+		}
+		state.CosignVerifications[verification.ID] = verification
+		*loaded = true
+	}
+	if err := cosignRows.Err(); err != nil {
+		return err
+	}
+
+	providerRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, name, type, status, key_ref, encrypted, schema_version, created_at FROM signing_providers`)
+	if err != nil {
+		return fmt.Errorf("load relational signing providers: %w", err)
+	}
+	defer providerRows.Close()
+	for providerRows.Next() {
+		var provider domain.SigningProvider
+		if err := providerRows.Scan(&provider.ID, &provider.TenantID, &provider.Name, &provider.Type, &provider.Status, &provider.KeyRef, &provider.Encrypted, &provider.SchemaVersion, &provider.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational signing provider: %w", err)
+		}
+		state.SigningProviders[provider.ID] = provider
+		*loaded = true
+	}
+	if err := providerRows.Err(); err != nil {
+		return err
+	}
+
+	batchRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, from_sequence, to_sequence, entry_count, leaf_hashes, root_hash, signature_refs, schema_version, created_at FROM merkle_batches`)
+	if err != nil {
+		return fmt.Errorf("load relational merkle batches: %w", err)
+	}
+	defer batchRows.Close()
+	for batchRows.Next() {
+		var batch domain.MerkleBatch
+		if err := batchRows.Scan(&batch.ID, &batch.TenantID, &batch.FromSequence, &batch.ToSequence, &batch.EntryCount, &batch.LeafHashes, &batch.RootHash, &batch.SignatureRefs, &batch.SchemaVersion, &batch.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational merkle batch: %w", err)
+		}
+		state.MerkleBatches[batch.ID] = batch
+		*loaded = true
+	}
+	if err := batchRows.Err(); err != nil {
+		return err
+	}
+
+	checkpointRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, batch_id, provider, external_url, external_id, timestamp_hash, state, schema_version, created_at FROM transparency_checkpoints`)
+	if err != nil {
+		return fmt.Errorf("load relational transparency checkpoints: %w", err)
+	}
+	defer checkpointRows.Close()
+	for checkpointRows.Next() {
+		var checkpoint domain.TransparencyCheckpoint
+		var externalURL, externalID sql.NullString
+		if err := checkpointRows.Scan(&checkpoint.ID, &checkpoint.TenantID, &checkpoint.BatchID, &checkpoint.Provider, &externalURL, &externalID, &checkpoint.TimestampHash, &checkpoint.State, &checkpoint.SchemaVersion, &checkpoint.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational transparency checkpoint: %w", err)
+		}
+		checkpoint.ExternalURL = nullableSQLString(externalURL)
+		checkpoint.ExternalID = nullableSQLString(externalID)
+		state.TransparencyCheckpoints[checkpoint.ID] = checkpoint
+		*loaded = true
+	}
+	return checkpointRows.Err()
+}
+
 func (s *Store) loadRelationalPackageReportRetention(ctx context.Context, state *app.PersistedState, loaded *bool) error {
 	if err := s.loadRelationalPackages(ctx, state, loaded); err != nil {
 		return err
@@ -2040,6 +2164,220 @@ func (s *Store) loadRelationalRetention(ctx context.Context, state *app.Persiste
 	return qpRows.Err()
 }
 
+func (s *Store) loadRelationalFutureExtensionRows(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	commercialRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, name, provider, version, manifest_hash, allowed_scopes, status, schema_version, created_at FROM commercial_collectors`)
+	if err != nil {
+		return fmt.Errorf("load relational commercial collectors: %w", err)
+	}
+	defer commercialRows.Close()
+	for commercialRows.Next() {
+		var collector domain.CommercialCollectorDefinition
+		if err := commercialRows.Scan(&collector.ID, &collector.TenantID, &collector.Name, &collector.Provider, &collector.Version, &collector.ManifestHash, &collector.AllowedScopes, &collector.Status, &collector.SchemaVersion, &collector.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational commercial collector: %w", err)
+		}
+		state.CommercialCollectors[collector.ID] = collector
+		*loaded = true
+	}
+	if err := commercialRows.Err(); err != nil {
+		return err
+	}
+
+	summaryRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, subject_type, subject_id, evidence_ids, summary, citations, assumptions, limitations, schema_version, created_at FROM evidence_summaries`)
+	if err != nil {
+		return fmt.Errorf("load relational evidence summaries: %w", err)
+	}
+	defer summaryRows.Close()
+	for summaryRows.Next() {
+		var summary domain.EvidenceSummary
+		var citations []byte
+		if err := summaryRows.Scan(&summary.ID, &summary.TenantID, &summary.SubjectType, &summary.SubjectID, &summary.EvidenceIDs, &summary.Summary, &citations, &summary.Assumptions, &summary.Limitations, &summary.SchemaVersion, &summary.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational evidence summary: %w", err)
+		}
+		if err := decodeJSON(citations, &summary.Citations); err != nil {
+			return fmt.Errorf("decode relational evidence summary citations: %w", err)
+		}
+		state.EvidenceSummaries[summary.ID] = summary
+		*loaded = true
+	}
+	if err := summaryRows.Err(); err != nil {
+		return err
+	}
+
+	draftRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, template_id, product_id, release_id, responses, manifest_hash, limitations, schema_version, created_at FROM questionnaire_drafts`)
+	if err != nil {
+		return fmt.Errorf("load relational questionnaire drafts: %w", err)
+	}
+	defer draftRows.Close()
+	for draftRows.Next() {
+		var draft domain.QuestionnaireDraft
+		var productID, releaseID sql.NullString
+		var responses []byte
+		if err := draftRows.Scan(&draft.ID, &draft.TenantID, &draft.TemplateID, &productID, &releaseID, &responses, &draft.ManifestHash, &draft.Limitations, &draft.SchemaVersion, &draft.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational questionnaire draft: %w", err)
+		}
+		draft.ProductID = nullableSQLString(productID)
+		draft.ReleaseID = nullableSQLString(releaseID)
+		if err := decodeJSON(responses, &draft.Responses); err != nil {
+			return fmt.Errorf("decode relational questionnaire draft responses: %w", err)
+		}
+		state.QuestionnaireDrafts[draft.ID] = draft
+		*loaded = true
+	}
+	if err := draftRows.Err(); err != nil {
+		return err
+	}
+
+	graphRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, product_id, release_id, nodes, edges, graph_hash, limitations, schema_version, created_at FROM evidence_graph_snapshots`)
+	if err != nil {
+		return fmt.Errorf("load relational graph snapshots: %w", err)
+	}
+	defer graphRows.Close()
+	for graphRows.Next() {
+		var graph domain.EvidenceGraphSnapshot
+		var productID, releaseID sql.NullString
+		var nodes, edges []byte
+		if err := graphRows.Scan(&graph.ID, &graph.TenantID, &productID, &releaseID, &nodes, &edges, &graph.GraphHash, &graph.Limitations, &graph.SchemaVersion, &graph.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational graph snapshot: %w", err)
+		}
+		graph.ProductID = nullableSQLString(productID)
+		graph.ReleaseID = nullableSQLString(releaseID)
+		if err := decodeJSON(nodes, &graph.Nodes); err != nil {
+			return fmt.Errorf("decode relational graph nodes: %w", err)
+		}
+		if err := decodeJSON(edges, &graph.Edges); err != nil {
+			return fmt.Errorf("decode relational graph edges: %w", err)
+		}
+		state.GraphSnapshots[graph.ID] = graph
+		*loaded = true
+	}
+	if err := graphRows.Err(); err != nil {
+		return err
+	}
+
+	saasRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, name, region, admin_tenant_id, isolation_model, status, config_hash, limitations, schema_version, created_at FROM saas_edition_profiles`)
+	if err != nil {
+		return fmt.Errorf("load relational saas profiles: %w", err)
+	}
+	defer saasRows.Close()
+	for saasRows.Next() {
+		var profile domain.SaaSEditionProfile
+		if err := saasRows.Scan(&profile.ID, &profile.TenantID, &profile.Name, &profile.Region, &profile.AdminTenantID, &profile.IsolationModel, &profile.Status, &profile.ConfigHash, &profile.Limitations, &profile.SchemaVersion, &profile.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational saas profile: %w", err)
+		}
+		state.SaaSProfiles[profile.ID] = profile
+		*loaded = true
+	}
+	if err := saasRows.Err(); err != nil {
+		return err
+	}
+
+	logRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, name, endpoint, public_key, state, schema_version, created_at FROM public_transparency_logs`)
+	if err != nil {
+		return fmt.Errorf("load relational public transparency logs: %w", err)
+	}
+	defer logRows.Close()
+	for logRows.Next() {
+		var log domain.PublicTransparencyLog
+		if err := logRows.Scan(&log.ID, &log.TenantID, &log.Name, &log.Endpoint, &log.PublicKey, &log.State, &log.SchemaVersion, &log.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational public transparency log: %w", err)
+		}
+		state.PublicTransparencyLogs[log.ID] = log
+		*loaded = true
+	}
+	if err := logRows.Err(); err != nil {
+		return err
+	}
+
+	entryRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, log_id, checkpoint_id, merkle_batch_id, external_id, entry_hash, inclusion_root_hash, inclusion_proof_hash, inclusion_verified_at, verification_checks, verification_limitations, state, schema_version, created_at FROM public_transparency_log_entries`)
+	if err != nil {
+		return fmt.Errorf("load relational public transparency entries: %w", err)
+	}
+	defer entryRows.Close()
+	for entryRows.Next() {
+		var entry domain.PublicTransparencyLogEntry
+		var rootHash, proofHash sql.NullString
+		var verifiedAt sql.NullTime
+		var checks []byte
+		if err := entryRows.Scan(&entry.ID, &entry.TenantID, &entry.LogID, &entry.CheckpointID, &entry.MerkleBatchID, &entry.ExternalID, &entry.EntryHash, &rootHash, &proofHash, &verifiedAt, &checks, &entry.VerificationLimitations, &entry.State, &entry.SchemaVersion, &entry.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational public transparency entry: %w", err)
+		}
+		entry.InclusionRootHash = nullableSQLString(rootHash)
+		entry.InclusionProofHash = nullableSQLString(proofHash)
+		entry.InclusionVerifiedAt = nullableSQLTime(verifiedAt)
+		if err := decodeJSON(checks, &entry.VerificationChecks); err != nil {
+			return fmt.Errorf("decode relational transparency checks: %w", err)
+		}
+		state.PublicTransparencyItems[entry.ID] = entry
+		*loaded = true
+	}
+	if err := entryRows.Err(); err != nil {
+		return err
+	}
+
+	marketRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, name, provider, version, publisher, manifest_hash, signature_id, sbom_id, scan_id, state, limitations, schema_version, created_at FROM marketplace_collectors`)
+	if err != nil {
+		return fmt.Errorf("load relational marketplace collectors: %w", err)
+	}
+	defer marketRows.Close()
+	for marketRows.Next() {
+		var collector domain.MarketplaceCollector
+		var signatureID, sbomID, scanID sql.NullString
+		if err := marketRows.Scan(&collector.ID, &collector.TenantID, &collector.Name, &collector.Provider, &collector.Version, &collector.Publisher, &collector.ManifestHash, &signatureID, &sbomID, &scanID, &collector.State, &collector.Limitations, &collector.SchemaVersion, &collector.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational marketplace collector: %w", err)
+		}
+		collector.SignatureID = nullableSQLString(signatureID)
+		collector.SBOMID = nullableSQLString(sbomID)
+		collector.ScanID = nullableSQLString(scanID)
+		state.MarketplaceCollectors[collector.ID] = collector
+		*loaded = true
+	}
+	if err := marketRows.Err(); err != nil {
+		return err
+	}
+
+	providerRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, provider_type, provider_id, subject, result, checks, limitations, schema_version, created_at FROM provider_verifications`)
+	if err != nil {
+		return fmt.Errorf("load relational provider verifications: %w", err)
+	}
+	defer providerRows.Close()
+	for providerRows.Next() {
+		var verification domain.ProviderVerification
+		var checks []byte
+		if err := providerRows.Scan(&verification.ID, &verification.TenantID, &verification.ProviderType, &verification.ProviderID, &verification.Subject, &verification.Result, &checks, &verification.Limitations, &verification.SchemaVersion, &verification.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational provider verification: %w", err)
+		}
+		if err := decodeJSON(checks, &verification.Checks); err != nil {
+			return fmt.Errorf("decode relational provider verification checks: %w", err)
+		}
+		state.ProviderVerifications[verification.ID] = verification
+		*loaded = true
+	}
+	if err := providerRows.Err(); err != nil {
+		return err
+	}
+
+	signingRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, provider_id, subject_type, subject_id, payload_hash, signature_ref, result, checks, schema_version, created_at FROM signing_operations`)
+	if err != nil {
+		return fmt.Errorf("load relational signing operations: %w", err)
+	}
+	defer signingRows.Close()
+	for signingRows.Next() {
+		var operation domain.SigningOperation
+		var signatureRef sql.NullString
+		var checks []byte
+		if err := signingRows.Scan(&operation.ID, &operation.TenantID, &operation.ProviderID, &operation.SubjectType, &operation.SubjectID, &operation.PayloadHash, &signatureRef, &operation.Result, &checks, &operation.SchemaVersion, &operation.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational signing operation: %w", err)
+		}
+		operation.SignatureRef = nullableSQLString(signatureRef)
+		if err := decodeJSON(checks, &operation.Checks); err != nil {
+			return fmt.Errorf("decode relational signing operation checks: %w", err)
+		}
+		state.SigningOperations[operation.ID] = operation
+		*loaded = true
+	}
+	return signingRows.Err()
+}
+
 func (s *Store) loadRelationalIdempotency(ctx context.Context, state *app.PersistedState, loaded *bool) error {
 	rows, err := s.pool.Query(ctx, `SELECT tenant_id, actor_key_id, method, path, idempotency_key, request_hash, status, response, created_at FROM idempotency_records`)
 	if err != nil {
@@ -2099,7 +2437,13 @@ func (s *Store) SaveState(ctx context.Context, state app.PersistedState) error {
 	if err := syncIncidentSecurityGovernanceRows(ctx, tx, state); err != nil {
 		return err
 	}
+	if err := syncIntegrityProviderRows(ctx, tx, state); err != nil {
+		return err
+	}
 	if err := syncPackageReportRetentionRows(ctx, tx, state); err != nil {
+		return err
+	}
+	if err := syncFutureExtensionRows(ctx, tx, state); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -3175,6 +3519,104 @@ func syncIncidentSecurityGovernanceRows(ctx context.Context, tx pgx.Tx, state ap
 	return nil
 }
 
+func syncIntegrityProviderRows(ctx context.Context, tx pgx.Tx, state app.PersistedState) error {
+	for _, release := range state.CollectorReleases {
+		if release.ID == "" || release.TenantID == "" || release.CollectorID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO collector_releases (
+				id, tenant_id, collector_id, version, artifact_digest,
+				signature_id, sbom_id, scan_id, pinned, verification_status,
+				health_status, limitations, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			ON CONFLICT (id) DO UPDATE SET
+				pinned = EXCLUDED.pinned,
+				verification_status = EXCLUDED.verification_status,
+				health_status = EXCLUDED.health_status,
+				limitations = EXCLUDED.limitations,
+				schema_version = EXCLUDED.schema_version
+		`, release.ID, release.TenantID, release.CollectorID, release.Version, release.ArtifactDigest,
+			nullableString(release.SignatureID), nullableString(release.SBOMID), nullableString(release.ScanID),
+			release.Pinned, release.VerificationStatus, release.HealthStatus, release.Limitations,
+			release.SchemaVersion, nonZeroTime(release.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert collector release row: %w", err)
+		}
+	}
+	for _, verification := range state.CosignVerifications {
+		if verification.ID == "" || verification.TenantID == "" || verification.ArtifactSignatureID == "" {
+			continue
+		}
+		checks, err := json.Marshal(verification.Checks)
+		if err != nil {
+			return fmt.Errorf("encode cosign checks: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO cosign_verifications (
+				id, tenant_id, artifact_id, container_image_id,
+				artifact_signature_id, subject_digest, rekor_uuid, rekor_log_index,
+				certificate_identity, certificate_issuer, result, checks,
+				schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			ON CONFLICT (id) DO UPDATE SET result = EXCLUDED.result, checks = EXCLUDED.checks, schema_version = EXCLUDED.schema_version
+		`, verification.ID, verification.TenantID, nullableString(verification.ArtifactID), nullableString(verification.ContainerImageID),
+			verification.ArtifactSignatureID, verification.SubjectDigest, nullableString(verification.RekorUUID),
+			nullableString(verification.RekorLogIndex), nullableString(verification.CertificateIdentity),
+			nullableString(verification.CertificateIssuer), verification.Result, checks, verification.SchemaVersion,
+			nonZeroTime(verification.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert cosign verification row: %w", err)
+		}
+	}
+	for _, provider := range state.SigningProviders {
+		if provider.ID == "" || provider.TenantID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO signing_providers (
+				id, tenant_id, name, type, status, key_ref, encrypted,
+				schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, key_ref = EXCLUDED.key_ref, encrypted = EXCLUDED.encrypted, schema_version = EXCLUDED.schema_version
+		`, provider.ID, provider.TenantID, provider.Name, provider.Type, provider.Status, provider.KeyRef, provider.Encrypted, provider.SchemaVersion, nonZeroTime(provider.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert signing provider row: %w", err)
+		}
+	}
+	for _, batch := range state.MerkleBatches {
+		if batch.ID == "" || batch.TenantID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO merkle_batches (
+				id, tenant_id, from_sequence, to_sequence, entry_count,
+				leaf_hashes, root_hash, signature_refs, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			ON CONFLICT (id) DO UPDATE SET signature_refs = EXCLUDED.signature_refs, schema_version = EXCLUDED.schema_version
+		`, batch.ID, batch.TenantID, batch.FromSequence, batch.ToSequence, batch.EntryCount, batch.LeafHashes, batch.RootHash, batch.SignatureRefs, batch.SchemaVersion, nonZeroTime(batch.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert merkle batch row: %w", err)
+		}
+	}
+	for _, checkpoint := range state.TransparencyCheckpoints {
+		if checkpoint.ID == "" || checkpoint.TenantID == "" || checkpoint.BatchID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO transparency_checkpoints (
+				id, tenant_id, batch_id, provider, external_url, external_id,
+				timestamp_hash, state, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			ON CONFLICT (id) DO UPDATE SET state = EXCLUDED.state, external_url = EXCLUDED.external_url, external_id = EXCLUDED.external_id, schema_version = EXCLUDED.schema_version
+		`, checkpoint.ID, checkpoint.TenantID, checkpoint.BatchID, checkpoint.Provider, nullableString(checkpoint.ExternalURL), nullableString(checkpoint.ExternalID), checkpoint.TimestampHash, checkpoint.State, checkpoint.SchemaVersion, nonZeroTime(checkpoint.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert transparency checkpoint row: %w", err)
+		}
+	}
+	return nil
+}
+
 func syncPackageReportRetentionRows(ctx context.Context, tx pgx.Tx, state app.PersistedState) error {
 	for _, profile := range state.RedactionProfiles {
 		if profile.ID == "" || profile.TenantID == "" {
@@ -3485,6 +3927,206 @@ func syncPackageReportRetentionRows(ctx context.Context, tx pgx.Tx, state app.Pe
 				schema_version = EXCLUDED.schema_version
 		`, report.ID, report.TenantID, report.SubjectType, report.SubjectID, report.Result, signals, report.Assumptions, report.Limitations, report.SchemaVersion, nonZeroTime(report.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert anomaly report row: %w", err)
+		}
+	}
+	return nil
+}
+
+func syncFutureExtensionRows(ctx context.Context, tx pgx.Tx, state app.PersistedState) error {
+	for _, collector := range state.CommercialCollectors {
+		if collector.ID == "" || collector.TenantID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO commercial_collectors (
+				id, tenant_id, name, provider, version, manifest_hash,
+				allowed_scopes, status, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			ON CONFLICT (id) DO UPDATE SET
+				allowed_scopes = EXCLUDED.allowed_scopes,
+				status = EXCLUDED.status,
+				schema_version = EXCLUDED.schema_version
+		`, collector.ID, collector.TenantID, collector.Name, collector.Provider, collector.Version, collector.ManifestHash, collector.AllowedScopes, collector.Status, collector.SchemaVersion, nonZeroTime(collector.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert commercial collector row: %w", err)
+		}
+	}
+	for _, summary := range state.EvidenceSummaries {
+		if summary.ID == "" || summary.TenantID == "" {
+			continue
+		}
+		citations, err := json.Marshal(summary.Citations)
+		if err != nil {
+			return fmt.Errorf("encode evidence summary citations: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO evidence_summaries (
+				id, tenant_id, subject_type, subject_id, evidence_ids, summary,
+				citations, assumptions, limitations, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			ON CONFLICT (id) DO UPDATE SET summary = EXCLUDED.summary, citations = EXCLUDED.citations, assumptions = EXCLUDED.assumptions, limitations = EXCLUDED.limitations, schema_version = EXCLUDED.schema_version
+		`, summary.ID, summary.TenantID, summary.SubjectType, summary.SubjectID, summary.EvidenceIDs, summary.Summary, citations, summary.Assumptions, summary.Limitations, summary.SchemaVersion, nonZeroTime(summary.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert evidence summary row: %w", err)
+		}
+	}
+	for _, draft := range state.QuestionnaireDrafts {
+		if draft.ID == "" || draft.TenantID == "" {
+			continue
+		}
+		responses, err := json.Marshal(draft.Responses)
+		if err != nil {
+			return fmt.Errorf("encode questionnaire draft responses: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO questionnaire_drafts (
+				id, tenant_id, template_id, product_id, release_id, responses,
+				manifest_hash, limitations, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			ON CONFLICT (id) DO UPDATE SET responses = EXCLUDED.responses, manifest_hash = EXCLUDED.manifest_hash, limitations = EXCLUDED.limitations, schema_version = EXCLUDED.schema_version
+		`, draft.ID, draft.TenantID, draft.TemplateID, nullableString(draft.ProductID), nullableString(draft.ReleaseID), responses, draft.ManifestHash, draft.Limitations, draft.SchemaVersion, nonZeroTime(draft.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert questionnaire draft row: %w", err)
+		}
+	}
+	for _, graph := range state.GraphSnapshots {
+		if graph.ID == "" || graph.TenantID == "" {
+			continue
+		}
+		nodes, err := json.Marshal(graph.Nodes)
+		if err != nil {
+			return fmt.Errorf("encode graph nodes: %w", err)
+		}
+		edges, err := json.Marshal(graph.Edges)
+		if err != nil {
+			return fmt.Errorf("encode graph edges: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO evidence_graph_snapshots (
+				id, tenant_id, product_id, release_id, nodes, edges,
+				graph_hash, limitations, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			ON CONFLICT (id) DO UPDATE SET nodes = EXCLUDED.nodes, edges = EXCLUDED.edges, graph_hash = EXCLUDED.graph_hash, limitations = EXCLUDED.limitations, schema_version = EXCLUDED.schema_version
+		`, graph.ID, graph.TenantID, nullableString(graph.ProductID), nullableString(graph.ReleaseID), nodes, edges, graph.GraphHash, graph.Limitations, graph.SchemaVersion, nonZeroTime(graph.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert graph snapshot row: %w", err)
+		}
+	}
+	for _, profile := range state.SaaSProfiles {
+		if profile.ID == "" || profile.TenantID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO saas_edition_profiles (
+				id, tenant_id, name, region, admin_tenant_id, isolation_model,
+				status, config_hash, limitations, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, config_hash = EXCLUDED.config_hash, limitations = EXCLUDED.limitations, schema_version = EXCLUDED.schema_version
+		`, profile.ID, profile.TenantID, profile.Name, profile.Region, profile.AdminTenantID, profile.IsolationModel, profile.Status, profile.ConfigHash, profile.Limitations, profile.SchemaVersion, nonZeroTime(profile.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert saas profile row: %w", err)
+		}
+	}
+	for _, log := range state.PublicTransparencyLogs {
+		if log.ID == "" || log.TenantID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO public_transparency_logs (
+				id, tenant_id, name, endpoint, public_key, state,
+				schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			ON CONFLICT (id) DO UPDATE SET state = EXCLUDED.state, schema_version = EXCLUDED.schema_version
+		`, log.ID, log.TenantID, log.Name, log.Endpoint, log.PublicKey, log.State, log.SchemaVersion, nonZeroTime(log.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert public transparency log row: %w", err)
+		}
+	}
+	for _, entry := range state.PublicTransparencyItems {
+		if entry.ID == "" || entry.TenantID == "" {
+			continue
+		}
+		checks, err := json.Marshal(entry.VerificationChecks)
+		if err != nil {
+			return fmt.Errorf("encode public transparency checks: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO public_transparency_log_entries (
+				id, tenant_id, log_id, checkpoint_id, merkle_batch_id,
+				external_id, entry_hash, inclusion_root_hash,
+				inclusion_proof_hash, inclusion_verified_at, verification_checks,
+				verification_limitations, state, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+			ON CONFLICT (id) DO UPDATE SET
+				inclusion_root_hash = EXCLUDED.inclusion_root_hash,
+				inclusion_proof_hash = EXCLUDED.inclusion_proof_hash,
+				inclusion_verified_at = EXCLUDED.inclusion_verified_at,
+				verification_checks = EXCLUDED.verification_checks,
+				verification_limitations = EXCLUDED.verification_limitations,
+				state = EXCLUDED.state,
+				schema_version = EXCLUDED.schema_version
+		`, entry.ID, entry.TenantID, entry.LogID, entry.CheckpointID, entry.MerkleBatchID, entry.ExternalID, entry.EntryHash,
+			nullableString(entry.InclusionRootHash), nullableString(entry.InclusionProofHash), nullableTime(entry.InclusionVerifiedAt),
+			checks, entry.VerificationLimitations, entry.State, entry.SchemaVersion, nonZeroTime(entry.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert public transparency entry row: %w", err)
+		}
+	}
+	for _, collector := range state.MarketplaceCollectors {
+		if collector.ID == "" || collector.TenantID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO marketplace_collectors (
+				id, tenant_id, name, provider, version, publisher,
+				manifest_hash, signature_id, sbom_id, scan_id, state,
+				limitations, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			ON CONFLICT (id) DO UPDATE SET state = EXCLUDED.state, limitations = EXCLUDED.limitations, schema_version = EXCLUDED.schema_version
+		`, collector.ID, collector.TenantID, collector.Name, collector.Provider, collector.Version, collector.Publisher, collector.ManifestHash,
+			nullableString(collector.SignatureID), nullableString(collector.SBOMID), nullableString(collector.ScanID), collector.State,
+			collector.Limitations, collector.SchemaVersion, nonZeroTime(collector.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert marketplace collector row: %w", err)
+		}
+	}
+	for _, verification := range state.ProviderVerifications {
+		if verification.ID == "" || verification.TenantID == "" {
+			continue
+		}
+		checks, err := json.Marshal(verification.Checks)
+		if err != nil {
+			return fmt.Errorf("encode provider verification checks: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO provider_verifications (
+				id, tenant_id, provider_type, provider_id, subject, result,
+				checks, limitations, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			ON CONFLICT (id) DO UPDATE SET result = EXCLUDED.result, checks = EXCLUDED.checks, limitations = EXCLUDED.limitations, schema_version = EXCLUDED.schema_version
+		`, verification.ID, verification.TenantID, verification.ProviderType, verification.ProviderID, verification.Subject, verification.Result, checks, verification.Limitations, verification.SchemaVersion, nonZeroTime(verification.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert provider verification row: %w", err)
+		}
+	}
+	for _, operation := range state.SigningOperations {
+		if operation.ID == "" || operation.TenantID == "" {
+			continue
+		}
+		checks, err := json.Marshal(operation.Checks)
+		if err != nil {
+			return fmt.Errorf("encode signing operation checks: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO signing_operations (
+				id, tenant_id, provider_id, subject_type, subject_id,
+				payload_hash, signature_ref, result, checks,
+				schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			ON CONFLICT (id) DO UPDATE SET signature_ref = EXCLUDED.signature_ref, result = EXCLUDED.result, checks = EXCLUDED.checks, schema_version = EXCLUDED.schema_version
+		`, operation.ID, operation.TenantID, operation.ProviderID, operation.SubjectType, operation.SubjectID, operation.PayloadHash, nullableString(operation.SignatureRef), operation.Result, checks, operation.SchemaVersion, nonZeroTime(operation.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert signing operation row: %w", err)
 		}
 	}
 	return nil
