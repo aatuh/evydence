@@ -189,6 +189,34 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 			t.Fatalf("%s relational rows = %d, want 1", check.name, rows)
 		}
 	}
+	if _, err := store.pool.Exec(ctx, `DELETE FROM ledger_state WHERE id = 'default'`); err != nil {
+		t.Fatal(err)
+	}
+	relational, ok, err := store.LoadState(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("expected relational state fallback after removing snapshot")
+	}
+	if relational.APIKeyHashes["key_test"] != "hmac-test-hash" {
+		t.Fatalf("relational api key hash = %q", relational.APIKeyHashes["key_test"])
+	}
+	if relational.Products["prod_test"].Slug != "product" || relational.Evidence["ev_test"].ReleaseID != "rel_test" || relational.SBOMs["sbom_test"].ComponentCount != 1 {
+		t.Fatalf("relational fallback missing core rows: product=%#v evidence=%#v sbom=%#v", relational.Products["prod_test"], relational.Evidence["ev_test"], relational.SBOMs["sbom_test"])
+	}
+	if relational.Contracts["contract_test"].PathCount != 1 || len(relational.Contracts["contract_test"].Operations) != 1 {
+		t.Fatalf("relational fallback contract = %#v", relational.Contracts["contract_test"])
+	}
+	if len(relational.Chain["ten_test"]) != 1 || relational.Bundles["bundle_test"].ManifestHash == "" || relational.Verifications["verify_test"].Result != "pass" {
+		t.Fatalf("relational fallback integrity rows missing: chain=%#v bundle=%#v verification=%#v", relational.Chain["ten_test"], relational.Bundles["bundle_test"], relational.Verifications["verify_test"])
+	}
+	if len(relational.SigningKeyPrivate["sigkey_test"]) == 0 {
+		t.Fatal("relational fallback missing local dev signing key bytes")
+	}
+	if len(relational.Idempotency) != 1 {
+		t.Fatalf("relational idempotency records = %d, want 1", len(relational.Idempotency))
+	}
 	job := app.OutboxJob{ID: "job_test_" + time.Now().Format("150405.000000000"), TenantID: "ten_test", Kind: "verify_subject", SubjectType: "audit_chain", SubjectID: "audit_chain", CreatedAt: time.Now().UTC()}
 	if err := store.Enqueue(ctx, job); err != nil {
 		t.Fatal(err)

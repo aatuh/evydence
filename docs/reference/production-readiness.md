@@ -18,7 +18,9 @@ Known hardening work remains:
   paths for all high-risk resource families. PostgreSQL now maintains
   relational identity, idempotency, release-ledger core, audit-chain, signing,
   bundle, policy, and verification rows alongside the canonical snapshot, but
-  the snapshot remains the runtime load source;
+  the snapshot remains the preferred runtime load source. If the snapshot row
+  is absent, the store can rebuild identity and release-ledger core state from
+  relational rows;
 - worker parser jobs re-read raw object-store payloads for key formats,
   verify digests, validate durable state, and persist missing parser-derived
   normalized fields. Upload paths still create initial accepted records, so
@@ -99,8 +101,9 @@ implemented capabilities:
   repositories for remaining report, package, portal, retention, and secondary
   resources. Identity, idempotency, release-ledger core, audit-chain, signing,
   bundle, policy, and verification rows are synchronized into relational
-  tables, but runtime loading still uses the canonical snapshot. Keep snapshots
-  only for export/import and upgrade compatibility.
+  tables, and missing-snapshot recovery can rebuild those families from
+  relational rows. Keep snapshots only for export/import and upgrade
+  compatibility after the remaining families have repository-backed writes.
 - Split the large application ledger aggregate into focused services or
   repositories once relational writes are in place, preserving tenant isolation
   and append-only behavior throughout.
