@@ -262,11 +262,19 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 	case "createReleaseBundle":
 		operation.Description = "Creates an immutable signed release bundle for a release."
 		operation.RequestBody = jsonRequest("Release bundle creation request.", "#/components/schemas/CreateReleaseBundleRequest")
-		operation.Responses[http.StatusCreated] = jsonResponse("Created release bundle envelope.", "#/components/schemas/DataEnvelope")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created release bundle envelope.", "#/components/schemas/ReleaseBundleEnvelope")
+	case "getReleaseBundle":
+		operation.Description = "Returns a tenant-scoped immutable release bundle by id."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Release bundle id."))
+		operation.Responses[http.StatusOK] = jsonResponse("Release bundle envelope.", "#/components/schemas/ReleaseBundleEnvelope")
+	case "getReleaseBundleManifest":
+		operation.Description = "Returns the deterministic release bundle manifest by bundle id."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Release bundle id."))
+		operation.Responses[http.StatusOK] = jsonResponse("Release bundle manifest envelope.", "#/components/schemas/ReleaseBundleManifestEnvelope")
 	case "verifyReleaseBundle":
 		operation.Description = "Verifies a tenant-scoped release bundle and returns a deterministic verification result."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Release bundle id."))
-		operation.Responses[http.StatusOK] = jsonResponse("Release bundle verification envelope.", "#/components/schemas/ReleaseBundleVerificationEnvelope")
+		operation.Responses[http.StatusOK] = jsonResponse("Release bundle verification envelope.", "#/components/schemas/VerificationResultEnvelope")
 	case "verifyAuditChain":
 		operation.Description = "Verifies the tenant audit chain continuity and returns deterministic verification checks."
 		operation.Responses[http.StatusOK] = jsonResponse("Audit chain verification envelope.", "#/components/schemas/VerificationResultEnvelope")
@@ -291,6 +299,14 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Description = "Returns a deterministic release-readiness report with gaps, assumptions, and limitations."
 		operation.Parameters = append(operation.Parameters, queryParam("release_id", "Release id.", "string"))
 		operation.Responses[http.StatusOK] = jsonResponse("Release readiness report envelope.", "#/components/schemas/ReadinessReportEnvelope")
+	case "missingEvidenceReport":
+		operation.Description = "Returns a deterministic missing-evidence report for a release with assumptions and limitations."
+		operation.Parameters = append(operation.Parameters, queryParam("release_id", "Release id.", "string"))
+		operation.Responses[http.StatusOK] = jsonResponse("Missing evidence report envelope.", "#/components/schemas/MissingEvidenceReportEnvelope")
+	case "evaluatePolicy":
+		operation.Description = "Evaluates built-in deterministic release policy checks for a release."
+		operation.RequestBody = jsonRequest("Policy evaluation request.", "#/components/schemas/EvaluatePolicyRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Policy evaluation envelope.", "#/components/schemas/PolicyEvaluationEnvelope")
 	case "craReadinessReport":
 		operation.Description = "Returns a CRA-oriented readiness report without legal compliance or certification conclusions."
 		operation.Parameters = append(operation.Parameters,
