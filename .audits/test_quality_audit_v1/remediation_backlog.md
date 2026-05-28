@@ -24,7 +24,7 @@ Implementation rules:
 - use Conventional Commits style for the commit message
 - update the ticket checkmark from `[ ]` to `[x]` only after checks pass
 
-### Ticket E1-T2 - Cover HTTP Route Gaps [ ]
+### Ticket E1-T2 - Cover HTTP Route Gaps [x]
 
 Description: Add route-level tests for future-extension handlers, read/list endpoints, key/admin endpoints, policy/missing-evidence endpoints, and source snapshot handlers.
 
