@@ -52,6 +52,9 @@ The gate requires:
 - `make coverage-check` passing at the configured threshold;
 - migration compatibility from every committed migration prefix to the current
   schema passing in temporary PostgreSQL schemas;
+- live PostgreSQL backup/restore rehearsal preserving ledger state, object
+  payload digests, backup-manifest verification, and release-bundle
+  verification after restore;
 - release artifact signing smoke test passing with local temporary keys;
 - generated release evidence summary available under `tmp/`.
 

@@ -34,7 +34,7 @@ These checks are enforced by API startup. See [Configuration](reference/configur
 - Audit-chain verification and release-bundle verification are run after restore.
 - `POST /v1/backup-manifests` is recorded after the database and object-store backups complete.
 
-The repository includes a local restore rehearsal that saves ledger state, copies object payloads, starts a fresh ledger from the restored state, verifies a backup manifest, checks payload digest availability, and verifies a release bundle after restore. Deployment-specific restore tests still need to exercise the target PostgreSQL, object store, secrets, signing provider, and backup tooling.
+The repository includes local and live-PostgreSQL restore rehearsals. They save ledger state, copy object payloads, start a fresh ledger from the restored state or schema, verify a backup manifest, check payload digest availability, and verify a release bundle after restore. Deployment-specific restore tests still need to exercise the target backup tooling, S3/MinIO bucket policy, secrets, signing provider, and operator recovery procedure.
 
 Backup manifests help compare recorded ledger state. They intentionally exclude raw payload bytes and private signing-key material, so they cannot replace matched database and object-store backups.
 
