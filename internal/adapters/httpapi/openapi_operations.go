@@ -486,6 +486,45 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Description = "Returns a tenant-scoped deployment event by id."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Deployment event id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Deployment event envelope.", "#/components/schemas/DeploymentEventEnvelope")
+	case "recordCollectorRelease":
+		operation.Description = "Records collector release supply-chain evidence for a tenant-scoped collector."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Collector id."))
+		operation.RequestBody = jsonRequest("Collector release record request.", "#/components/schemas/RecordCollectorReleaseRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created collector release envelope.", "#/components/schemas/CollectorReleaseEnvelope")
+	case "collectorHealthReport":
+		operation.Description = "Returns collector supply-chain health from recorded tenant evidence, assumptions, and limitations."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Collector id."))
+		operation.Responses[http.StatusOK] = jsonResponse("Collector health report envelope.", "#/components/schemas/CollectorHealthReportEnvelope")
+	case "createCommercialCollector":
+		operation.Description = "Creates tenant-scoped commercial collector metadata without installing external code."
+		operation.RequestBody = jsonRequest("Commercial collector definition request.", "#/components/schemas/CreateCommercialCollectorRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created commercial collector definition envelope.", "#/components/schemas/CommercialCollectorDefinitionEnvelope")
+	case "listCommercialCollectors":
+		operation.Description = "Lists tenant-scoped commercial collector definitions."
+		operation.Responses[http.StatusOK] = jsonResponse("Commercial collector definition list envelope.", "#/components/schemas/CommercialCollectorDefinitionListEnvelope")
+	case "createMarketplaceCollector":
+		operation.Description = "Creates tenant-scoped marketplace collector package metadata and evidence references."
+		operation.RequestBody = jsonRequest("Marketplace collector creation request.", "#/components/schemas/CreateMarketplaceCollectorRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created marketplace collector envelope.", "#/components/schemas/MarketplaceCollectorEnvelope")
+	case "listMarketplaceCollectors":
+		operation.Description = "Lists tenant-scoped marketplace collector package metadata."
+		operation.Responses[http.StatusOK] = jsonResponse("Marketplace collector list envelope.", "#/components/schemas/MarketplaceCollectorListEnvelope")
+	case "marketplaceCollectorHealth":
+		operation.Description = "Returns marketplace collector package health from recorded signature, SBOM, and scan evidence."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Marketplace collector id."))
+		operation.Responses[http.StatusOK] = jsonResponse("Marketplace collector health report envelope.", "#/components/schemas/MarketplaceCollectorHealthReportEnvelope")
+	case "listControlFrameworkTemplatePacks":
+		operation.Description = "Lists built-in control framework template packs available for explicit tenant installation."
+		operation.Responses[http.StatusOK] = jsonResponse("Control framework template pack list envelope.", "#/components/schemas/ControlFrameworkTemplatePackListEnvelope")
+	case "installControlFrameworkTemplatePack":
+		operation.Description = "Installs a named control framework template pack into the tenant as ordinary framework/control records."
+		operation.Parameters = append(operation.Parameters, pathParam("slug", "Control framework template pack slug."))
+		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
+		operation.Responses[http.StatusCreated] = jsonResponse("Installed control framework envelope.", "#/components/schemas/ControlFrameworkEnvelope")
+	case "registerContainerImage":
+		operation.Description = "Registers OCI/container image metadata and digest evidence linked to an optional artifact."
+		operation.RequestBody = jsonRequest("Container image registration request.", "#/components/schemas/RegisterContainerImageRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Registered container image envelope.", "#/components/schemas/ContainerImageEnvelope")
 	case "craReadinessReport":
 		operation.Description = "Returns a CRA-oriented readiness report without legal compliance or certification conclusions."
 		operation.Parameters = append(operation.Parameters,
