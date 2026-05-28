@@ -78,6 +78,9 @@ func (s *Store) loadRelationalState(ctx context.Context) (app.PersistedState, bo
 	if err := s.loadRelationalReleaseCore(ctx, &state, &loaded); err != nil {
 		return app.PersistedState{}, false, err
 	}
+	if err := s.loadRelationalPackageReportRetention(ctx, &state, &loaded); err != nil {
+		return app.PersistedState{}, false, err
+	}
 	if err := s.loadRelationalIdempotency(ctx, &state, &loaded); err != nil {
 		return app.PersistedState{}, false, err
 	}
@@ -86,27 +89,42 @@ func (s *Store) loadRelationalState(ctx context.Context) (app.PersistedState, bo
 
 func relationalEmptyState() app.PersistedState {
 	return app.PersistedState{
-		Tenants:              map[string]domain.Tenant{},
-		APIKeys:              map[string]domain.APIKey{},
-		APIKeyHashes:         map[string]string{},
-		CustomerPortalAccess: map[string]domain.CustomerPortalAccess{},
-		CustomerPortalHashes: map[string]string{},
-		Products:             map[string]domain.Product{},
-		Projects:             map[string]domain.Project{},
-		Releases:             map[string]domain.Release{},
-		Artifacts:            map[string]domain.Artifact{},
-		Evidence:             map[string]domain.EvidenceItem{},
-		SBOMs:                map[string]domain.SBOM{},
-		Scans:                map[string]domain.VulnerabilityScan{},
-		Contracts:            map[string]domain.OpenAPIContract{},
-		Policies:             map[string]domain.PolicyEvaluation{},
-		Bundles:              map[string]domain.ReleaseBundle{},
-		SigningKeys:          map[string]domain.SigningKey{},
-		SigningKeyPrivate:    map[string][]byte{},
-		Signatures:           map[string]domain.Signature{},
-		Verifications:        map[string]domain.VerificationResult{},
-		Chain:                map[string][]domain.AuditChainEntry{},
-		Idempotency:          map[string]app.IdempotencyRecord{},
+		Tenants:                 map[string]domain.Tenant{},
+		APIKeys:                 map[string]domain.APIKey{},
+		APIKeyHashes:            map[string]string{},
+		CustomerPortalAccess:    map[string]domain.CustomerPortalAccess{},
+		CustomerPortalHashes:    map[string]string{},
+		RedactionProfiles:       map[string]domain.RedactionProfile{},
+		CustomerPackages:        map[string]domain.CustomerSecurityPackage{},
+		HTMLReports:             map[string]domain.HTMLReportPackage{},
+		ReportTemplates:         map[string]domain.CustomReportTemplate{},
+		RenderedReports:         map[string]domain.RenderedCustomReport{},
+		EvidenceBundles:         map[string]domain.EvidenceBundle{},
+		BundleImports:           map[string]domain.EvidenceBundleImport{},
+		ObjectRetentionPolicies: map[string]domain.ObjectRetentionPolicy{},
+		BackupManifests:         map[string]domain.BackupManifest{},
+		LegalHolds:              map[string]domain.LegalHold{},
+		RetentionOverrides:      map[string]domain.RetentionOverride{},
+		QuestionnaireTemplates:  map[string]domain.QuestionnaireTemplate{},
+		QuestionnairePackages:   map[string]domain.QuestionnairePackage{},
+		PDFReports:              map[string]domain.PDFReportPackage{},
+		AnomalyReports:          map[string]domain.AnomalyReport{},
+		Products:                map[string]domain.Product{},
+		Projects:                map[string]domain.Project{},
+		Releases:                map[string]domain.Release{},
+		Artifacts:               map[string]domain.Artifact{},
+		Evidence:                map[string]domain.EvidenceItem{},
+		SBOMs:                   map[string]domain.SBOM{},
+		Scans:                   map[string]domain.VulnerabilityScan{},
+		Contracts:               map[string]domain.OpenAPIContract{},
+		Policies:                map[string]domain.PolicyEvaluation{},
+		Bundles:                 map[string]domain.ReleaseBundle{},
+		SigningKeys:             map[string]domain.SigningKey{},
+		SigningKeyPrivate:       map[string][]byte{},
+		Signatures:              map[string]domain.Signature{},
+		Verifications:           map[string]domain.VerificationResult{},
+		Chain:                   map[string][]domain.AuditChainEntry{},
+		Idempotency:             map[string]app.IdempotencyRecord{},
 	}
 }
 
@@ -608,6 +626,331 @@ func (s *Store) loadRelationalVerifications(ctx context.Context, state *app.Pers
 		*loaded = true
 	}
 	return rows.Err()
+}
+
+func (s *Store) loadRelationalPackageReportRetention(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	if err := s.loadRelationalPackages(ctx, state, loaded); err != nil {
+		return err
+	}
+	if err := s.loadRelationalReports(ctx, state, loaded); err != nil {
+		return err
+	}
+	if err := s.loadRelationalRetention(ctx, state, loaded); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Store) loadRelationalPackages(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	profileRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, name, description, allowed_types, excluded_fields, schema_version, created_at FROM redaction_profiles`)
+	if err != nil {
+		return fmt.Errorf("load relational redaction profiles: %w", err)
+	}
+	defer profileRows.Close()
+	for profileRows.Next() {
+		var profile domain.RedactionProfile
+		var description sql.NullString
+		if err := profileRows.Scan(&profile.ID, &profile.TenantID, &profile.Name, &description, &profile.AllowedTypes, &profile.ExcludedFields, &profile.SchemaVersion, &profile.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational redaction profile: %w", err)
+		}
+		profile.Description = nullableSQLString(description)
+		state.RedactionProfiles[profile.ID] = profile
+		*loaded = true
+	}
+	if err := profileRows.Err(); err != nil {
+		return err
+	}
+
+	packageRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, product_id, release_id, redaction_profile_id, title, state, manifest, manifest_hash, expires_at, access_count, schema_version, created_at FROM customer_security_packages`)
+	if err != nil {
+		return fmt.Errorf("load relational customer packages: %w", err)
+	}
+	defer packageRows.Close()
+	for packageRows.Next() {
+		var pkg domain.CustomerSecurityPackage
+		var releaseID sql.NullString
+		var manifest []byte
+		if err := packageRows.Scan(&pkg.ID, &pkg.TenantID, &pkg.ProductID, &releaseID, &pkg.RedactionProfileID, &pkg.Title, &pkg.State, &manifest, &pkg.ManifestHash, &pkg.ExpiresAt, &pkg.AccessCount, &pkg.SchemaVersion, &pkg.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational customer package: %w", err)
+		}
+		pkg.ReleaseID = nullableSQLString(releaseID)
+		if err := decodeJSON(manifest, &pkg.Manifest); err != nil {
+			return fmt.Errorf("decode relational customer package manifest: %w", err)
+		}
+		state.CustomerPackages[pkg.ID] = pkg
+		*loaded = true
+	}
+	if err := packageRows.Err(); err != nil {
+		return err
+	}
+
+	bundleRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, release_id, evidence_ids, manifest, manifest_hash, signature_refs, verification_text, schema_version, created_at FROM evidence_bundles`)
+	if err != nil {
+		return fmt.Errorf("load relational evidence bundles: %w", err)
+	}
+	defer bundleRows.Close()
+	for bundleRows.Next() {
+		var bundle domain.EvidenceBundle
+		var releaseID sql.NullString
+		var manifest []byte
+		if err := bundleRows.Scan(&bundle.ID, &bundle.TenantID, &releaseID, &bundle.EvidenceIDs, &manifest, &bundle.ManifestHash, &bundle.SignatureRefs, &bundle.VerificationText, &bundle.SchemaVersion, &bundle.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational evidence bundle: %w", err)
+		}
+		bundle.ReleaseID = nullableSQLString(releaseID)
+		if err := decodeJSON(manifest, &bundle.Manifest); err != nil {
+			return fmt.Errorf("decode relational evidence bundle manifest: %w", err)
+		}
+		state.EvidenceBundles[bundle.ID] = bundle
+		*loaded = true
+	}
+	if err := bundleRows.Err(); err != nil {
+		return err
+	}
+
+	importRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, bundle_hash, result, imported_count, schema_version, created_at FROM evidence_bundle_imports`)
+	if err != nil {
+		return fmt.Errorf("load relational evidence bundle imports: %w", err)
+	}
+	defer importRows.Close()
+	for importRows.Next() {
+		var imported domain.EvidenceBundleImport
+		if err := importRows.Scan(&imported.ID, &imported.TenantID, &imported.BundleHash, &imported.Result, &imported.ImportedCount, &imported.SchemaVersion, &imported.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational evidence bundle import: %w", err)
+		}
+		state.BundleImports[imported.ID] = imported
+		*loaded = true
+	}
+	return importRows.Err()
+}
+
+func (s *Store) loadRelationalReports(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	htmlRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, report_type, product_id, release_id, html, hash, schema_version, created_at FROM html_report_packages`)
+	if err != nil {
+		return fmt.Errorf("load relational html reports: %w", err)
+	}
+	defer htmlRows.Close()
+	for htmlRows.Next() {
+		var report domain.HTMLReportPackage
+		var releaseID sql.NullString
+		if err := htmlRows.Scan(&report.ID, &report.TenantID, &report.ReportType, &report.ProductID, &releaseID, &report.HTML, &report.Hash, &report.SchemaVersion, &report.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational html report: %w", err)
+		}
+		report.ReleaseID = nullableSQLString(releaseID)
+		state.HTMLReports[report.ID] = report
+		*loaded = true
+	}
+	if err := htmlRows.Err(); err != nil {
+		return err
+	}
+
+	templateRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, name, version, report_type, allowed_fields, template, schema_version, created_at FROM report_templates`)
+	if err != nil {
+		return fmt.Errorf("load relational report templates: %w", err)
+	}
+	defer templateRows.Close()
+	for templateRows.Next() {
+		var template domain.CustomReportTemplate
+		if err := templateRows.Scan(&template.ID, &template.TenantID, &template.Name, &template.Version, &template.ReportType, &template.AllowedFields, &template.Template, &template.SchemaVersion, &template.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational report template: %w", err)
+		}
+		state.ReportTemplates[template.ID] = template
+		*loaded = true
+	}
+	if err := templateRows.Err(); err != nil {
+		return err
+	}
+
+	renderRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, template_id, subject_type, subject_id, output, hash, schema_version, created_at FROM rendered_reports`)
+	if err != nil {
+		return fmt.Errorf("load relational rendered reports: %w", err)
+	}
+	defer renderRows.Close()
+	for renderRows.Next() {
+		var report domain.RenderedCustomReport
+		var output []byte
+		if err := renderRows.Scan(&report.ID, &report.TenantID, &report.TemplateID, &report.SubjectType, &report.SubjectID, &output, &report.Hash, &report.SchemaVersion, &report.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational rendered report: %w", err)
+		}
+		if err := decodeJSON(output, &report.Output); err != nil {
+			return fmt.Errorf("decode relational rendered report output: %w", err)
+		}
+		state.RenderedReports[report.ID] = report
+		*loaded = true
+	}
+	if err := renderRows.Err(); err != nil {
+		return err
+	}
+
+	pdfRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, report_type, product_id, release_id, title, payload_ref, payload_hash, payload_size, limitations, schema_version, created_at FROM pdf_report_packages`)
+	if err != nil {
+		return fmt.Errorf("load relational pdf reports: %w", err)
+	}
+	defer pdfRows.Close()
+	for pdfRows.Next() {
+		var report domain.PDFReportPackage
+		var productID, releaseID, payloadRef sql.NullString
+		if err := pdfRows.Scan(&report.ID, &report.TenantID, &report.ReportType, &productID, &releaseID, &report.Title, &payloadRef, &report.PayloadHash, &report.PayloadSize, &report.Limitations, &report.SchemaVersion, &report.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational pdf report: %w", err)
+		}
+		report.ProductID = nullableSQLString(productID)
+		report.ReleaseID = nullableSQLString(releaseID)
+		report.PayloadRef = nullableSQLString(payloadRef)
+		state.PDFReports[report.ID] = report
+		*loaded = true
+	}
+	if err := pdfRows.Err(); err != nil {
+		return err
+	}
+
+	anomalyRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, subject_type, subject_id, result, signals, assumptions, limitations, schema_version, created_at FROM anomaly_reports`)
+	if err != nil {
+		return fmt.Errorf("load relational anomaly reports: %w", err)
+	}
+	defer anomalyRows.Close()
+	for anomalyRows.Next() {
+		var report domain.AnomalyReport
+		var signals []byte
+		if err := anomalyRows.Scan(&report.ID, &report.TenantID, &report.SubjectType, &report.SubjectID, &report.Result, &signals, &report.Assumptions, &report.Limitations, &report.SchemaVersion, &report.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational anomaly report: %w", err)
+		}
+		if err := decodeJSON(signals, &report.Signals); err != nil {
+			return fmt.Errorf("decode relational anomaly report signals: %w", err)
+		}
+		state.AnomalyReports[report.ID] = report
+		*loaded = true
+	}
+	return anomalyRows.Err()
+}
+
+func (s *Store) loadRelationalRetention(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	policyRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, name, object_prefix, mode, retention_days, status, verified_at, verification_hash, verification_checks, verification_limitations, schema_version, created_at FROM object_retention_policies`)
+	if err != nil {
+		return fmt.Errorf("load relational object retention policies: %w", err)
+	}
+	defer policyRows.Close()
+	for policyRows.Next() {
+		var policy domain.ObjectRetentionPolicy
+		var verifiedAt sql.NullTime
+		var verificationHash sql.NullString
+		var checks []byte
+		if err := policyRows.Scan(&policy.ID, &policy.TenantID, &policy.Name, &policy.ObjectPrefix, &policy.Mode, &policy.RetentionDays, &policy.Status, &verifiedAt, &verificationHash, &checks, &policy.VerificationLimitations, &policy.SchemaVersion, &policy.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational object retention policy: %w", err)
+		}
+		policy.VerifiedAt = nullableSQLTime(verifiedAt)
+		policy.VerificationHash = nullableSQLString(verificationHash)
+		if err := decodeJSON(checks, &policy.VerificationChecks); err != nil {
+			return fmt.Errorf("decode relational object retention checks: %w", err)
+		}
+		state.ObjectRetentionPolicies[policy.ID] = policy
+		*loaded = true
+	}
+	if err := policyRows.Err(); err != nil {
+		return err
+	}
+
+	backupRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, state_hash, resource_counts, consistency_checks, limitations, schema_version, created_at FROM backup_manifests`)
+	if err != nil {
+		return fmt.Errorf("load relational backup manifests: %w", err)
+	}
+	defer backupRows.Close()
+	for backupRows.Next() {
+		var manifest domain.BackupManifest
+		var counts, checks []byte
+		if err := backupRows.Scan(&manifest.ID, &manifest.TenantID, &manifest.StateHash, &counts, &checks, &manifest.Limitations, &manifest.SchemaVersion, &manifest.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational backup manifest: %w", err)
+		}
+		if err := decodeJSON(counts, &manifest.ResourceCounts); err != nil {
+			return fmt.Errorf("decode relational backup manifest counts: %w", err)
+		}
+		if err := decodeJSON(checks, &manifest.ConsistencyChecks); err != nil {
+			return fmt.Errorf("decode relational backup manifest checks: %w", err)
+		}
+		state.BackupManifests[manifest.ID] = manifest
+		*loaded = true
+	}
+	if err := backupRows.Err(); err != nil {
+		return err
+	}
+
+	holdRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, scope_type, scope_id, reason, owner, released_at, schema_version, created_at FROM legal_holds`)
+	if err != nil {
+		return fmt.Errorf("load relational legal holds: %w", err)
+	}
+	defer holdRows.Close()
+	for holdRows.Next() {
+		var hold domain.LegalHold
+		var releasedAt sql.NullTime
+		if err := holdRows.Scan(&hold.ID, &hold.TenantID, &hold.ScopeType, &hold.ScopeID, &hold.Reason, &hold.Owner, &releasedAt, &hold.SchemaVersion, &hold.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational legal hold: %w", err)
+		}
+		hold.ReleasedAt = nullableSQLTime(releasedAt)
+		state.LegalHolds[hold.ID] = hold
+		*loaded = true
+	}
+	if err := holdRows.Err(); err != nil {
+		return err
+	}
+
+	overrideRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, scope_type, scope_id, retention_until, reason, owner, schema_version, created_at FROM retention_overrides`)
+	if err != nil {
+		return fmt.Errorf("load relational retention overrides: %w", err)
+	}
+	defer overrideRows.Close()
+	for overrideRows.Next() {
+		var override domain.RetentionOverride
+		if err := overrideRows.Scan(&override.ID, &override.TenantID, &override.ScopeType, &override.ScopeID, &override.RetentionUntil, &override.Reason, &override.Owner, &override.SchemaVersion, &override.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational retention override: %w", err)
+		}
+		state.RetentionOverrides[override.ID] = override
+		*loaded = true
+	}
+	if err := overrideRows.Err(); err != nil {
+		return err
+	}
+
+	questionRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, name, version, questions, schema_version, created_at FROM questionnaire_templates`)
+	if err != nil {
+		return fmt.Errorf("load relational questionnaire templates: %w", err)
+	}
+	defer questionRows.Close()
+	for questionRows.Next() {
+		var template domain.QuestionnaireTemplate
+		var questions []byte
+		if err := questionRows.Scan(&template.ID, &template.TenantID, &template.Name, &template.Version, &questions, &template.SchemaVersion, &template.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational questionnaire template: %w", err)
+		}
+		if err := decodeJSON(questions, &template.Questions); err != nil {
+			return fmt.Errorf("decode relational questionnaire questions: %w", err)
+		}
+		state.QuestionnaireTemplates[template.ID] = template
+		*loaded = true
+	}
+	if err := questionRows.Err(); err != nil {
+		return err
+	}
+
+	qpRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, template_id, package_id, product_id, release_id, responses, manifest_hash, schema_version, created_at FROM questionnaire_packages`)
+	if err != nil {
+		return fmt.Errorf("load relational questionnaire packages: %w", err)
+	}
+	defer qpRows.Close()
+	for qpRows.Next() {
+		var pkg domain.QuestionnairePackage
+		var packageID, productID, releaseID sql.NullString
+		var responses []byte
+		if err := qpRows.Scan(&pkg.ID, &pkg.TenantID, &pkg.TemplateID, &packageID, &productID, &releaseID, &responses, &pkg.ManifestHash, &pkg.SchemaVersion, &pkg.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational questionnaire package: %w", err)
+		}
+		pkg.PackageID = nullableSQLString(packageID)
+		pkg.ProductID = nullableSQLString(productID)
+		pkg.ReleaseID = nullableSQLString(releaseID)
+		if err := decodeJSON(responses, &pkg.Responses); err != nil {
+			return fmt.Errorf("decode relational questionnaire responses: %w", err)
+		}
+		state.QuestionnairePackages[pkg.ID] = pkg
+		*loaded = true
+	}
+	return qpRows.Err()
 }
 
 func (s *Store) loadRelationalIdempotency(ctx context.Context, state *app.PersistedState, loaded *bool) error {
