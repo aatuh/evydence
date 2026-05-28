@@ -19,9 +19,9 @@ Known hardening work remains:
 - worker parser jobs re-read raw object-store payloads for key formats and
   validate durable state, but parser side effects still need to move
   independently out of the request path;
-- OpenAPI schemas need endpoint-specific precision across the full public API.
-  The current generated matrix is the source of truth for precise versus broad
-  operations;
+- OpenAPI precision is enforced across the registered public API. The generated
+  matrix remains the source of truth for operation ids, scopes, idempotency,
+  parameters, and request/response schemas;
 - production KMS/HSM execution, full browser OIDC/SAML login flows, provider
   discovery/group sync, object-lock enforcement proof, and transparency
   inclusion proof verification remain provider- and deployment-dependent
@@ -77,8 +77,7 @@ Do not describe an Evydence build as broadly self-hosted production-ready until:
   prefix to the current schema;
 - the built-in local restore rehearsal passes and backup/restore have been
   tested for the target deployment profile;
-- OpenAPI and SDK drift checks pass, and route-contract gaps are accepted in
-  release notes or closed with endpoint-specific schemas;
+- OpenAPI, OpenAPI precision, route-contract, and SDK drift checks pass;
 - production hardening review is current;
 - unresolved limitations are documented in release notes.
 
@@ -98,8 +97,8 @@ implemented capabilities:
 - Move parser-owned side effects for SBOM, vulnerability scan, OpenAPI, VEX,
   and attestation payloads fully into worker processors while keeping upload
   responses backward compatible.
-- Continue reducing broad OpenAPI operations until production-critical and
-  customer/package-facing routes have endpoint-specific schemas.
+- Keep OpenAPI precision at zero broad operations as routes are added or
+  changed, and expand generated SDK coverage from the committed contract.
 - Add production signing-provider execution for a configured external provider
   profile without storing private key material in Evydence.
 - Complete live OIDC/SAML browser login callbacks, provider discovery, JWKS
