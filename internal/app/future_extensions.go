@@ -456,6 +456,73 @@ func (l *Ledger) ListMarketplaceCollectors(ctx context.Context, actor domain.Act
 	return out, nil
 }
 
+func (l *Ledger) MarketplaceCollectorHealth(ctx context.Context, actor domain.Actor, id string) (domain.MarketplaceCollectorHealthReport, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.MarketplaceCollectorHealthReport{}, err
+	}
+	if err := require(actor, ScopeCollectorRead); err != nil {
+		return domain.MarketplaceCollectorHealthReport{}, err
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	collector, ok := l.marketplaceCollectors[strings.TrimSpace(id)]
+	if !ok || collector.TenantID != actor.TenantID {
+		return domain.MarketplaceCollectorHealthReport{}, ErrNotFound
+	}
+	checks := []domain.VerifyCheck{{Name: "manifest_digest", Result: "passed", Detail: "collector package manifest digest is recorded"}}
+	result := "verified"
+	if collector.SignatureID == "" {
+		result = "incomplete"
+		checks = append(checks, domain.VerifyCheck{Name: "signature_evidence", Result: "failed", Detail: "collector package signature evidence is missing"})
+	} else if sig, ok := l.signatures[collector.SignatureID]; !ok || sig.TenantID != actor.TenantID {
+		result = "failed"
+		checks = append(checks, domain.VerifyCheck{Name: "signature_evidence", Result: "failed", Detail: "collector package signature evidence reference is invalid"})
+	} else {
+		checks = append(checks, domain.VerifyCheck{Name: "signature_evidence", Result: "passed"})
+	}
+	if collector.SBOMID == "" {
+		result = worseHealth(result, "incomplete")
+		checks = append(checks, domain.VerifyCheck{Name: "sbom_evidence", Result: "failed", Detail: "collector package SBOM evidence is missing"})
+	} else if sbom, ok := l.sboms[collector.SBOMID]; !ok || sbom.TenantID != actor.TenantID {
+		result = "failed"
+		checks = append(checks, domain.VerifyCheck{Name: "sbom_evidence", Result: "failed", Detail: "collector package SBOM evidence reference is invalid"})
+	} else {
+		checks = append(checks, domain.VerifyCheck{Name: "sbom_evidence", Result: "passed"})
+	}
+	if collector.ScanID == "" {
+		result = worseHealth(result, "incomplete")
+		checks = append(checks, domain.VerifyCheck{Name: "vulnerability_scan_evidence", Result: "failed", Detail: "collector package vulnerability scan evidence is missing"})
+	} else if scan, ok := l.scans[collector.ScanID]; !ok || scan.TenantID != actor.TenantID {
+		result = "failed"
+		checks = append(checks, domain.VerifyCheck{Name: "vulnerability_scan_evidence", Result: "failed", Detail: "collector package vulnerability scan evidence reference is invalid"})
+	} else {
+		checks = append(checks, domain.VerifyCheck{Name: "vulnerability_scan_evidence", Result: "passed"})
+	}
+	return domain.MarketplaceCollectorHealthReport{
+		ReportType:        "marketplace_collector_health",
+		CollectorID:       collector.ID,
+		Name:              collector.Name,
+		Provider:          collector.Provider,
+		Version:           collector.Version,
+		SupplyChainStatus: result,
+		Checks:            checks,
+		Collector:         collector,
+		Assumptions:       []string{"Health is based on evidence recorded in Evydence for this tenant."},
+		Limitations:       []string{"This report does not prove marketplace trust, package safety, or provider endorsement."},
+		GeneratedAt:       l.now(),
+	}, nil
+}
+
+func worseHealth(current, candidate string) string {
+	if current == "failed" || candidate == "failed" {
+		return "failed"
+	}
+	if current == "incomplete" || candidate == "incomplete" {
+		return "incomplete"
+	}
+	return "verified"
+}
+
 func (l *Ledger) CreatePDFReportPackage(ctx context.Context, actor domain.Actor, in CreatePDFReportPackageInput) (domain.PDFReportPackage, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.PDFReportPackage{}, err

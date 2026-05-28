@@ -936,6 +936,20 @@ type MarketplaceCollector struct {
 	CreatedAt     time.Time `json:"created_at"`
 }
 
+type MarketplaceCollectorHealthReport struct {
+	ReportType        string               `json:"report_type"`
+	CollectorID       string               `json:"collector_id"`
+	Name              string               `json:"name"`
+	Provider          string               `json:"provider"`
+	Version           string               `json:"version"`
+	SupplyChainStatus string               `json:"supply_chain_status"`
+	Checks            []VerifyCheck        `json:"checks"`
+	Collector         MarketplaceCollector `json:"collector"`
+	Assumptions       []string             `json:"assumptions"`
+	Limitations       []string             `json:"limitations"`
+	GeneratedAt       time.Time            `json:"generated_at"`
+}
+
 type PDFReportPackage struct {
 	ID            string    `json:"id"`
 	TenantID      string    `json:"tenant_id"`

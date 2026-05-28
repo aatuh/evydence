@@ -81,6 +81,7 @@ func (s *Server) collectorRoutes() []routeDef {
 		{http.MethodGet, "/v1/commercial-collectors", op("listCommercialCollectors", http.MethodGet, "/v1/commercial-collectors", "List commercial collector definitions", []string{app.ScopeCollectorRead}), http.HandlerFunc(s.listCommercialCollectors)},
 		{http.MethodPost, "/v1/marketplace-collectors", op("createMarketplaceCollector", http.MethodPost, "/v1/marketplace-collectors", "Create marketplace collector record", []string{app.ScopeCollectorAdmin}), http.HandlerFunc(s.createMarketplaceCollector)},
 		{http.MethodGet, "/v1/marketplace-collectors", op("listMarketplaceCollectors", http.MethodGet, "/v1/marketplace-collectors", "List marketplace collector records", []string{app.ScopeCollectorRead}), http.HandlerFunc(s.listMarketplaceCollectors)},
+		{http.MethodGet, "/v1/marketplace-collectors/{id}/health", op("marketplaceCollectorHealth", http.MethodGet, "/v1/marketplace-collectors/{id}/health", "Marketplace collector health report", []string{app.ScopeCollectorRead}), http.HandlerFunc(s.marketplaceCollectorHealth)},
 	}
 }
 

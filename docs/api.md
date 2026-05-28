@@ -303,6 +303,7 @@ Current SSO endpoints model admin-managed provider, identity-link, and session r
 | `GET` | `/v1/commercial-collectors` | List commercial collector definitions. |
 | `POST` | `/v1/marketplace-collectors` | Register marketplace collector package metadata. |
 | `GET` | `/v1/marketplace-collectors` | List marketplace collector package records. |
+| `GET` | `/v1/marketplace-collectors/{id}/health` | Review marketplace collector package evidence gaps. |
 | `POST` | `/v1/builds` | Record immutable build run. |
 | `GET` | `/v1/builds/{id}` | Read build run. |
 | `POST` | `/v1/builds/{id}/attestations` | Upload DSSE in-toto attestation JSON. |

@@ -130,6 +130,19 @@ func (s *Server) listMarketplaceCollectors(w http.ResponseWriter, r *http.Reques
 	writeData(w, http.StatusOK, collectors)
 }
 
+func (s *Server) marketplaceCollectorHealth(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	report, err := s.ledger.MarketplaceCollectorHealth(r.Context(), actor, r.PathValue("id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, report)
+}
+
 func (s *Server) createPDFReportPackage(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ReportType string `json:"report_type"`

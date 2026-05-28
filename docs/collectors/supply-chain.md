@@ -39,6 +39,14 @@ The health report can show whether:
 
 Health reports help operators see collector evidence gaps. They do not prove that a collector is free of vulnerabilities, provider-verified, or safe to run.
 
+Marketplace collector package records have a separate health report:
+
+```http
+GET /v1/marketplace-collectors/{id}/health
+```
+
+That report checks whether package signature, SBOM, and vulnerability scan evidence references are present and still point to tenant-owned evidence. It is a package evidence-gap report, not a marketplace trust or endorsement decision.
+
 ## Related Docs
 
 - [Integrate CI collectors](../how-to/integrate-ci.md)
