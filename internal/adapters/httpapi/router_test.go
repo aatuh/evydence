@@ -886,6 +886,10 @@ func TestFutureExtensionAndReadAdminHTTPGaps(t *testing.T) {
 	if !strings.Contains(getJSON(t, server, secret, "/v1/marketplace-collectors", http.StatusOK), dataField(t, marketplace, "id")) {
 		t.Fatalf("marketplace list missing collector")
 	}
+	marketplaceHealth := getJSON(t, server, secret, "/v1/marketplace-collectors/"+dataField(t, marketplace, "id")+"/health", http.StatusOK)
+	if !strings.Contains(marketplaceHealth, `"supply_chain_status":"incomplete"`) || strings.Contains(marketplaceHealth, secret) {
+		t.Fatalf("marketplace health response: %s", marketplaceHealth)
+	}
 
 	orgBody := postJSON(t, server, secret, "/v1/organizations", "future-org", map[string]any{"name": "Example", "slug": "future-example"}, http.StatusCreated)
 	userBody := postJSON(t, server, secret, "/v1/users", "future-user", map[string]any{"organization_id": dataField(t, orgBody, "id"), "email": "future@example.test", "display_name": "Future"}, http.StatusCreated)

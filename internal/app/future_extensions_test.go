@@ -180,6 +180,13 @@ func TestFutureOperationalExtensionsAndPartialTrustClosures(t *testing.T) {
 	if len(listed) != 1 || listed[0].ID != marketplace.ID {
 		t.Fatalf("marketplace list = %#v", listed)
 	}
+	health, err := ledger.MarketplaceCollectorHealth(ctx, actor, marketplace.ID)
+	if err != nil {
+		t.Fatalf("marketplace health: %v", err)
+	}
+	if health.SupplyChainStatus != "incomplete" || len(health.Checks) == 0 {
+		t.Fatalf("marketplace health = %#v", health)
+	}
 
 	policy, err := ledger.CreateObjectRetentionPolicy(ctx, actor, CreateObjectRetentionPolicyInput{Name: "objects", ObjectPrefix: "tenants/" + actor.TenantID + "/", Mode: "compliance", RetentionDays: 90})
 	if err != nil {
