@@ -56,6 +56,10 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 			"sess_test": {ID: "sess_test", TenantID: "ten_test", UserID: "user_test", ProviderID: "sso_test", Prefix: "sess", ExpiresAt: time.Now().UTC().Add(time.Hour), SchemaVersion: domain.SSOSessionSchemaVersion, CreatedAt: time.Now().UTC()},
 		},
 		SSOSessionHashes: map[string]string{"sess_test": "session-hash"},
+		CustomerPortalAccess: map[string]domain.CustomerPortalAccess{
+			"cpa_test": {ID: "cpa_test", TenantID: "ten_test", PackageID: "pkg_test", CustomerName: "Customer", Prefix: "evycp_test", ExpiresAt: time.Now().UTC().Add(time.Hour), AccessCount: 2, FailedAccessCount: 1, LastAccessedAt: ptrTime(time.Now().UTC()), LastFailedAt: ptrTime(time.Now().UTC()), SchemaVersion: domain.CustomerPortalAccessVersion, CreatedAt: time.Now().UTC()},
+		},
+		CustomerPortalHashes: map[string]string{"cpa_test": "portal-token-hash"},
 		Products: map[string]domain.Product{
 			"prod_test": {ID: "prod_test", TenantID: "ten_test", Name: "Product", Slug: "product", CreatedAt: time.Now().UTC()},
 		},
@@ -161,6 +165,13 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	if idemActor != "user:user_test" {
 		t.Fatalf("idempotency actor = %q", idemActor)
 	}
+	var portalHash string
+	if err := store.pool.QueryRow(ctx, `SELECT hash FROM customer_portal_access WHERE id = 'cpa_test' AND failed_access_count = 1 AND last_accessed_at IS NOT NULL`).Scan(&portalHash); err != nil {
+		t.Fatal(err)
+	}
+	if portalHash != "portal-token-hash" {
+		t.Fatalf("portal hash = %q", portalHash)
+	}
 	coreChecks := []struct {
 		name  string
 		query string
@@ -216,6 +227,9 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	}
 	if len(relational.Idempotency) != 1 {
 		t.Fatalf("relational idempotency records = %d, want 1", len(relational.Idempotency))
+	}
+	if relational.CustomerPortalHashes["cpa_test"] != "portal-token-hash" || relational.CustomerPortalAccess["cpa_test"].FailedAccessCount != 1 {
+		t.Fatalf("relational portal access = %#v hash=%q", relational.CustomerPortalAccess["cpa_test"], relational.CustomerPortalHashes["cpa_test"])
 	}
 	job := app.OutboxJob{ID: "job_test_" + time.Now().Format("150405.000000000"), TenantID: "ten_test", Kind: "verify_subject", SubjectType: "audit_chain", SubjectID: "audit_chain", CreatedAt: time.Now().UTC()}
 	if err := store.Enqueue(ctx, job); err != nil {
