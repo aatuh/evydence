@@ -147,6 +147,54 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"secret":  map[string]any{"type": "string", "description": "One-time SSO session bearer secret; not returned by list/read operations."},
 	}, "session", "secret"))
 	registry.RegisterSchema("SSOSessionCreateEnvelope", dataEnvelopeSchema("#/components/schemas/SSOSessionCreateResponse"))
+	registry.RegisterSchema("CreateAPIKeyRequest", objectSchema(map[string]any{
+		"name":       map[string]any{"type": "string"},
+		"scopes":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"expires_at": map[string]any{"type": "string", "format": "date-time"},
+	}, "name", "scopes"))
+	registry.RegisterSchema("APIKey", objectSchema(map[string]any{
+		"id":           map[string]any{"type": "string"},
+		"tenant_id":    map[string]any{"type": "string"},
+		"name":         map[string]any{"type": "string"},
+		"prefix":       map[string]any{"type": "string", "description": "Non-secret key prefix for lookup and audit displays."},
+		"scopes":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"created_at":   map[string]any{"type": "string", "format": "date-time"},
+		"expires_at":   map[string]any{"type": "string", "format": "date-time"},
+		"revoked_at":   map[string]any{"type": "string", "format": "date-time"},
+		"last_used_at": map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "name", "prefix", "scopes", "created_at"))
+	registry.RegisterSchema("APIKeyCreateResponse", objectSchema(map[string]any{
+		"api_key": map[string]any{"$ref": "#/components/schemas/APIKey"},
+		"secret":  map[string]any{"type": "string", "description": "One-time API key secret; stored only as a peppered HMAC hash."},
+	}, "api_key", "secret"))
+	registry.RegisterSchema("APIKeyCreateEnvelope", dataEnvelopeSchema("#/components/schemas/APIKeyCreateResponse"))
+	registry.RegisterSchema("APIKeyListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/APIKey"))
+	registry.RegisterSchema("CreateCollectorRequest", objectSchema(map[string]any{
+		"name":    map[string]any{"type": "string"},
+		"type":    map[string]any{"type": "string", "enum": []string{"github_actions", "gitlab_ci", "generic_ci", "import_bundle"}},
+		"version": map[string]any{"type": "string"},
+		"scopes":  map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+	}, "name", "type", "version"))
+	registry.RegisterSchema("Collector", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"name":           map[string]any{"type": "string"},
+		"type":           map[string]any{"type": "string"},
+		"version":        map[string]any{"type": "string"},
+		"api_key_id":     map[string]any{"type": "string"},
+		"status":         map[string]any{"type": "string"},
+		"allowed_scopes": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"last_seen_at":   map[string]any{"type": "string", "format": "date-time"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "name", "type", "version", "api_key_id", "status", "allowed_scopes", "schema_version", "created_at"))
+	registry.RegisterSchema("CollectorCreateResponse", objectSchema(map[string]any{
+		"collector": map[string]any{"$ref": "#/components/schemas/Collector"},
+		"api_key":   map[string]any{"$ref": "#/components/schemas/APIKey"},
+		"secret":    map[string]any{"type": "string", "description": "One-time collector API key secret; stored only as a peppered HMAC hash."},
+	}, "collector", "api_key", "secret"))
+	registry.RegisterSchema("CollectorCreateEnvelope", dataEnvelopeSchema("#/components/schemas/CollectorCreateResponse"))
+	registry.RegisterSchema("CollectorListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/Collector"))
 	registry.RegisterSchema("CreateProductRequest", objectSchema(map[string]any{
 		"name": map[string]any{"type": "string"},
 		"slug": map[string]any{"type": "string"},
