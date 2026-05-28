@@ -36,6 +36,32 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		}, "api_version"),
 	}, "data", "meta"))
 	registry.RegisterSchema("EmptyObject", objectSchema(map[string]any{}))
+	registry.RegisterSchema("HealthStatus", objectSchema(map[string]any{
+		"status": map[string]any{"type": "string", "enum": []string{"ok"}},
+	}, "status"))
+	registry.RegisterSchema("HealthStatusEnvelope", dataEnvelopeSchema("#/components/schemas/HealthStatus"))
+	registry.RegisterSchema("VersionInfo", objectSchema(map[string]any{
+		"version": map[string]any{"type": "string"},
+	}, "version"))
+	registry.RegisterSchema("VersionInfoEnvelope", dataEnvelopeSchema("#/components/schemas/VersionInfo"))
+	registry.RegisterSchema("MetricsSnapshot", objectSchema(map[string]any{
+		"tenant_id":                            map[string]any{"type": "string"},
+		"resource_counts":                      map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "integer"}},
+		"customer_portal_failed_access_count":  map[string]any{"type": "integer"},
+		"customer_portal_revoked_access_count": map[string]any{"type": "integer"},
+	}, "tenant_id", "resource_counts", "customer_portal_failed_access_count", "customer_portal_revoked_access_count"))
+	registry.RegisterSchema("MetricsSnapshotEnvelope", dataEnvelopeSchema("#/components/schemas/MetricsSnapshot"))
+	registry.RegisterSchema("OpenAPIDocument", map[string]any{
+		"type":                 "object",
+		"additionalProperties": true,
+		"properties": map[string]any{
+			"openapi":    map[string]any{"type": "string"},
+			"info":       map[string]any{"type": "object", "additionalProperties": true},
+			"paths":      map[string]any{"type": "object", "additionalProperties": true},
+			"components": map[string]any{"type": "object", "additionalProperties": true},
+		},
+		"required": []string{"openapi", "info", "paths"},
+	})
 	registry.RegisterSchema("InstanceAdminSnapshot", objectSchema(map[string]any{
 		"report_type":     map[string]any{"type": "string"},
 		"tenant_count":    map[string]any{"type": "integer"},
@@ -68,9 +94,30 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "provider_type", "provider_id", "subject"))
 	registry.RegisterSchema("VerifyCheck", objectSchema(map[string]any{
 		"name":   map[string]any{"type": "string"},
-		"result": map[string]any{"type": "string", "enum": []string{"passed", "failed", "warning"}},
+		"result": map[string]any{"type": "string", "enum": []string{"passed", "failed", "warning", "skipped"}},
 		"detail": map[string]any{"type": "string"},
 	}, "name", "result"))
+	registry.RegisterSchema("AuditChainEntry", objectSchema(map[string]any{
+		"id":                   map[string]any{"type": "string"},
+		"tenant_id":            map[string]any{"type": "string"},
+		"sequence":             map[string]any{"type": "integer", "format": "int64"},
+		"entry_type":           map[string]any{"type": "string"},
+		"subject_type":         map[string]any{"type": "string"},
+		"subject_id":           map[string]any{"type": "string"},
+		"actor_type":           map[string]any{"type": "string"},
+		"actor_id":             map[string]any{"type": "string"},
+		"occurred_at":          map[string]any{"type": "string", "format": "date-time"},
+		"request_id":           map[string]any{"type": "string"},
+		"idempotency_key":      map[string]any{"type": "string"},
+		"payload_hash":         map[string]any{"type": "string"},
+		"canonical_entry_hash": map[string]any{"type": "string", "pattern": "^sha256:"},
+		"previous_entry_hash":  map[string]any{"type": "string"},
+		"entry_hash":           map[string]any{"type": "string", "pattern": "^sha256:"},
+		"signature_ref":        map[string]any{"type": "string"},
+		"metadata":             map[string]any{"type": "object", "additionalProperties": true},
+		"schema_version":       map[string]any{"type": "string"},
+	}, "id", "tenant_id", "sequence", "entry_type", "subject_type", "subject_id", "actor_type", "actor_id", "occurred_at", "canonical_entry_hash", "previous_entry_hash", "entry_hash", "schema_version"))
+	registry.RegisterSchema("AuditChainEntryListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/AuditChainEntry"))
 	registry.RegisterSchema("ReadinessStatus", objectSchema(map[string]any{
 		"status": map[string]any{"type": "string"},
 		"checks": map[string]any{"type": "array", "items": objectSchema(map[string]any{

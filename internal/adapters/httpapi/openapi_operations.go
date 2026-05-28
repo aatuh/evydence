@@ -9,11 +9,36 @@ import (
 func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 	addProblemResponses(&operation)
 	switch operation.OperationID {
+	case "health":
+		operation.Description = "Returns low-detail liveness status without touching tenant evidence or secret material."
+		operation.Security = nil
+		operation.Scopes = nil
+		operation.Responses[http.StatusOK] = jsonResponse("Liveness status envelope.", "#/components/schemas/HealthStatusEnvelope")
 	case "ready":
 		operation.Description = "Returns low-detail process readiness without tenant evidence or secret material."
 		operation.Security = nil
 		operation.Scopes = nil
 		operation.Responses[http.StatusOK] = jsonResponse("Readiness status envelope.", "#/components/schemas/ReadinessStatusEnvelope")
+	case "version":
+		operation.Description = "Returns the API process version string."
+		operation.Security = nil
+		operation.Scopes = nil
+		operation.Responses[http.StatusOK] = jsonResponse("Version information envelope.", "#/components/schemas/VersionInfoEnvelope")
+	case "metrics":
+		operation.Description = "Returns safe tenant-scoped resource metrics for admin actors. A Prometheus text response is also available when requested with Accept: text/plain."
+		operation.Responses[http.StatusOK] = specs.Response{
+			Description:  "Tenant metrics envelope or Prometheus text metrics.",
+			ContentTypes: []string{"application/json", "text/plain"},
+			Content: map[string]specs.MediaType{
+				"application/json": {SchemaRef: "#/components/schemas/MetricsSnapshotEnvelope"},
+				"text/plain":       {Schema: map[string]any{"type": "string"}},
+			},
+		}
+	case "openapi":
+		operation.Description = "Returns the generated OpenAPI 3.1 document served by this process."
+		operation.Security = nil
+		operation.Scopes = nil
+		operation.Responses[http.StatusOK] = jsonResponse("OpenAPI document.", "#/components/schemas/OpenAPIDocument")
 	case "instanceAdminSnapshot":
 		operation.Description = "Returns instance-level diagnostic counts. Requires the explicit instance:admin scope; tenant admin and ordinary wildcard tenant keys are insufficient."
 		operation.Responses[http.StatusOK] = jsonResponse("Instance admin snapshot envelope.", "#/components/schemas/InstanceAdminSnapshotEnvelope")
@@ -213,6 +238,18 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Description = "Verifies a tenant-scoped release bundle and returns a deterministic verification result."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Release bundle id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Release bundle verification envelope.", "#/components/schemas/ReleaseBundleVerificationEnvelope")
+	case "verifyAuditChain":
+		operation.Description = "Verifies the tenant audit chain continuity and returns deterministic verification checks."
+		operation.Responses[http.StatusOK] = jsonResponse("Audit chain verification envelope.", "#/components/schemas/VerificationResultEnvelope")
+	case "listAuditLog":
+		operation.Description = "Lists tenant-scoped append-only audit-chain entries in reverse chronological order."
+		operation.Parameters = append(operation.Parameters,
+			queryParam("subject_type", "Filter by audited subject type.", "string"),
+			queryParam("subject_id", "Filter by audited subject id.", "string"),
+			queryParam("since", "Only include entries at or after this RFC3339 timestamp.", "string"),
+			queryParam("limit", "Maximum returned entries; defaults to 100 and caps at 500.", "integer"),
+		)
+		operation.Responses[http.StatusOK] = jsonResponse("Audit-chain entry list envelope.", "#/components/schemas/AuditChainEntryListEnvelope")
 	case "generateBackupManifest":
 		operation.Description = "Generates a tenant-scoped backup manifest after an operator backup completes. The manifest excludes raw payload bytes and private key material."
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
