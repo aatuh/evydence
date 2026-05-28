@@ -85,8 +85,331 @@ func (s *Store) SaveState(ctx context.Context, state app.PersistedState) error {
 	if err := syncIdentityAndIdempotency(ctx, tx, state); err != nil {
 		return err
 	}
+	if err := syncReleaseLedgerCore(ctx, tx, state); err != nil {
+		return err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit save ledger state transaction: %w", err)
+	}
+	return nil
+}
+
+func syncReleaseLedgerCore(ctx context.Context, tx pgx.Tx, state app.PersistedState) error {
+	for _, product := range state.Products {
+		if product.ID == "" || product.TenantID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO products (id, tenant_id, name, slug, created_at)
+			VALUES ($1, $2, $3, $4, $5)
+			ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, slug = EXCLUDED.slug
+		`, product.ID, product.TenantID, product.Name, product.Slug, nonZeroTime(product.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert product row: %w", err)
+		}
+	}
+	for _, project := range state.Projects {
+		if project.ID == "" || project.TenantID == "" || project.ProductID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO projects (id, tenant_id, product_id, name, created_at)
+			VALUES ($1, $2, $3, $4, $5)
+			ON CONFLICT (id) DO UPDATE SET product_id = EXCLUDED.product_id, name = EXCLUDED.name
+		`, project.ID, project.TenantID, project.ProductID, project.Name, nonZeroTime(project.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert project row: %w", err)
+		}
+	}
+	for _, release := range state.Releases {
+		if release.ID == "" || release.TenantID == "" || release.ProductID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO releases (id, tenant_id, product_id, version, state, frozen_at, approved_at, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			ON CONFLICT (id) DO UPDATE SET
+				state = EXCLUDED.state,
+				frozen_at = EXCLUDED.frozen_at,
+				approved_at = EXCLUDED.approved_at
+		`, release.ID, release.TenantID, release.ProductID, release.Version, release.State, nullableTime(release.FrozenAt), nullableTime(release.ApprovedAt), nonZeroTime(release.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert release row: %w", err)
+		}
+	}
+	for _, artifact := range state.Artifacts {
+		if artifact.ID == "" || artifact.TenantID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO artifacts (id, tenant_id, name, media_type, size, digest, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			ON CONFLICT (id) DO UPDATE SET
+				name = EXCLUDED.name,
+				media_type = EXCLUDED.media_type,
+				size = EXCLUDED.size,
+				digest = EXCLUDED.digest
+		`, artifact.ID, artifact.TenantID, artifact.Name, artifact.MediaType, artifact.Size, artifact.Digest, nonZeroTime(artifact.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert artifact row: %w", err)
+		}
+	}
+	for _, evidence := range state.Evidence {
+		if evidence.ID == "" || evidence.TenantID == "" {
+			continue
+		}
+		sourceIdentity, err := json.Marshal(evidence.SourceIdentity)
+		if err != nil {
+			return fmt.Errorf("encode evidence source identity: %w", err)
+		}
+		subjectRefs, err := json.Marshal(evidence.SubjectRefs)
+		if err != nil {
+			return fmt.Errorf("encode evidence subject refs: %w", err)
+		}
+		relatedRefs, err := json.Marshal(evidence.RelatedEvidenceRefs)
+		if err != nil {
+			return fmt.Errorf("encode evidence related refs: %w", err)
+		}
+		signatureRefs, err := json.Marshal(evidence.SignatureRefs)
+		if err != nil {
+			return fmt.Errorf("encode evidence signature refs: %w", err)
+		}
+		tags, err := json.Marshal(evidence.Tags)
+		if err != nil {
+			return fmt.Errorf("encode evidence tags: %w", err)
+		}
+		metadata, err := json.Marshal(evidence.Metadata)
+		if err != nil {
+			return fmt.Errorf("encode evidence metadata: %w", err)
+		}
+		warnings, err := json.Marshal(evidence.Warnings)
+		if err != nil {
+			return fmt.Errorf("encode evidence warnings: %w", err)
+		}
+		limitations, err := json.Marshal(evidence.Limitations)
+		if err != nil {
+			return fmt.Errorf("encode evidence limitations: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO evidence_items (
+				id, tenant_id, product_id, project_id, release_id, build_id, deployment_id,
+				type, subtype, title, source_system, source_identity, collector_id,
+				uploaded_by, observed_at, evidence_version, schema_version, payload_ref,
+				payload_hash, payload_media_type, payload_size, canonical_hash,
+				canonicalization, subject_refs, related_evidence_refs, supersedes,
+				superseded_by, trust_level, verification_status, signature_refs,
+				chain_entry_id, tags, metadata, warnings, limitations, created_at
+			)
+			VALUES (
+				$1, $2, $3, $4, $5, $6, $7,
+				$8, $9, $10, $11, $12, $13,
+				$14, $15, $16, $17, $18,
+				$19, $20, $21, $22,
+				$23, $24, $25, $26,
+				$27, $28, $29, $30,
+				$31, $32, $33, $34, $35, $36
+			)
+			ON CONFLICT (id) DO UPDATE SET
+				superseded_by = EXCLUDED.superseded_by,
+				verification_status = EXCLUDED.verification_status,
+				signature_refs = EXCLUDED.signature_refs,
+				chain_entry_id = EXCLUDED.chain_entry_id,
+				tags = EXCLUDED.tags,
+				metadata = EXCLUDED.metadata,
+				warnings = EXCLUDED.warnings,
+				limitations = EXCLUDED.limitations
+		`, evidence.ID, evidence.TenantID, nullableString(evidence.ProductID), nullableString(evidence.ProjectID), nullableString(evidence.ReleaseID), nullableString(evidence.BuildID), nullableString(evidence.DeploymentID),
+			evidence.Type, nullableString(evidence.Subtype), evidence.Title, evidence.SourceSystem, sourceIdentity, nullableString(evidence.CollectorID),
+			nullableString(evidence.UploadedBy), nonZeroTime(evidence.ObservedAt), nonZeroInt(evidence.EvidenceVersion, 1), evidence.SchemaVersion, nullableString(evidence.PayloadRef),
+			evidence.PayloadHash, nullableString(evidence.PayloadMediaType), nullableInt64(evidence.PayloadSize), evidence.CanonicalHash,
+			evidence.Canonicalization, subjectRefs, relatedRefs, nullableString(evidence.Supersedes),
+			nullableString(evidence.SupersededBy), evidence.TrustLevel, evidence.VerificationStatus, signatureRefs,
+			nullableString(evidence.ChainEntryID), tags, metadata, warnings, limitations, nonZeroTime(evidence.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert evidence item row: %w", err)
+		}
+	}
+	for _, tenantChain := range state.Chain {
+		for _, entry := range tenantChain {
+			if entry.ID == "" || entry.TenantID == "" {
+				continue
+			}
+			metadata, err := json.Marshal(entry.Metadata)
+			if err != nil {
+				return fmt.Errorf("encode audit chain metadata: %w", err)
+			}
+			if _, err := tx.Exec(ctx, `
+				INSERT INTO audit_chain_entries (
+					id, tenant_id, sequence, entry_type, subject_type, subject_id,
+					actor_type, actor_id, occurred_at, payload_hash,
+					canonical_entry_hash, previous_entry_hash, entry_hash,
+					signature_ref, metadata, schema_version
+				)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+				ON CONFLICT (id) DO NOTHING
+			`, entry.ID, entry.TenantID, entry.Sequence, entry.EntryType, entry.SubjectType, entry.SubjectID,
+				entry.ActorType, entry.ActorID, nonZeroTime(entry.OccurredAt), nullableString(entry.PayloadHash),
+				entry.CanonicalEntryHash, entry.PreviousEntryHash, entry.EntryHash,
+				nullableString(entry.SignatureRef), metadata, entry.SchemaVersion); err != nil {
+				return fmt.Errorf("insert audit chain row: %w", err)
+			}
+		}
+	}
+	for id, key := range state.SigningKeys {
+		if key.ID == "" || key.TenantID == "" {
+			continue
+		}
+		private := state.SigningKeyPrivate[id]
+		if len(private) == 0 {
+			private = key.Private
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO signing_keys (
+				id, tenant_id, kid, algorithm, status, public_key,
+				encrypted_private_key, created_at, revoked_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			ON CONFLICT (id) DO UPDATE SET
+				status = EXCLUDED.status,
+				public_key = EXCLUDED.public_key,
+				encrypted_private_key = EXCLUDED.encrypted_private_key,
+				revoked_at = EXCLUDED.revoked_at
+		`, key.ID, key.TenantID, key.KID, key.Algorithm, key.Status, key.PublicKey, nullableBytes(private), nonZeroTime(key.CreatedAt), nullableTime(key.RevokedAt)); err != nil {
+			return fmt.Errorf("upsert signing key row: %w", err)
+		}
+	}
+	for _, signature := range state.Signatures {
+		if signature.ID == "" || signature.TenantID == "" || signature.KeyID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO signatures (
+				id, tenant_id, subject_type, subject_id, key_id, algorithm, value, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			ON CONFLICT (id) DO NOTHING
+		`, signature.ID, signature.TenantID, signature.SubjectType, signature.SubjectID, signature.KeyID, signature.Algorithm, signature.Value, nonZeroTime(signature.CreatedAt)); err != nil {
+			return fmt.Errorf("insert signature row: %w", err)
+		}
+	}
+	for _, sbom := range state.SBOMs {
+		if sbom.ID == "" || sbom.TenantID == "" || sbom.EvidenceID == "" {
+			continue
+		}
+		components, err := json.Marshal(sbom.Components)
+		if err != nil {
+			return fmt.Errorf("encode sbom components: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO sboms (
+				id, tenant_id, evidence_id, release_id, artifact_id, format,
+				spec_version, component_count, components, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			ON CONFLICT (id) DO UPDATE SET components = EXCLUDED.components, component_count = EXCLUDED.component_count
+		`, sbom.ID, sbom.TenantID, sbom.EvidenceID, nullableString(sbom.ReleaseID), nullableString(sbom.ArtifactID), sbom.Format, sbom.SpecVersion, sbom.ComponentCount, components, nonZeroTime(sbom.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert sbom row: %w", err)
+		}
+	}
+	for _, scan := range state.Scans {
+		if scan.ID == "" || scan.TenantID == "" || scan.EvidenceID == "" {
+			continue
+		}
+		summary, err := json.Marshal(scan.Summary)
+		if err != nil {
+			return fmt.Errorf("encode vulnerability scan summary: %w", err)
+		}
+		findings, err := json.Marshal(scan.Findings)
+		if err != nil {
+			return fmt.Errorf("encode vulnerability scan findings: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO vulnerability_scans (
+				id, tenant_id, evidence_id, release_id, scanner, target_ref,
+				summary, findings, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			ON CONFLICT (id) DO UPDATE SET summary = EXCLUDED.summary, findings = EXCLUDED.findings
+		`, scan.ID, scan.TenantID, scan.EvidenceID, nullableString(scan.ReleaseID), scan.Scanner, scan.TargetRef, summary, findings, nonZeroTime(scan.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert vulnerability scan row: %w", err)
+		}
+	}
+	for _, contract := range state.Contracts {
+		if contract.ID == "" || contract.TenantID == "" || contract.ProductID == "" || contract.EvidenceID == "" {
+			continue
+		}
+		operations, err := json.Marshal(contract.Operations)
+		if err != nil {
+			return fmt.Errorf("encode openapi operations: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO openapi_contracts (
+				id, tenant_id, product_id, release_id, version, hash,
+				path_count, operations, evidence_id, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			ON CONFLICT (id) DO UPDATE SET path_count = EXCLUDED.path_count, operations = EXCLUDED.operations
+		`, contract.ID, contract.TenantID, contract.ProductID, nullableString(contract.ReleaseID), contract.Version, contract.Hash, contract.PathCount, operations, contract.EvidenceID, nonZeroTime(contract.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert openapi contract row: %w", err)
+		}
+	}
+	for _, policy := range state.Policies {
+		if policy.ID == "" || policy.TenantID == "" || policy.ReleaseID == "" {
+			continue
+		}
+		checks, err := json.Marshal(policy.Checks)
+		if err != nil {
+			return fmt.Errorf("encode policy checks: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO policy_evaluations (
+				id, tenant_id, release_id, result, policy_set, checks, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			ON CONFLICT (id) DO UPDATE SET result = EXCLUDED.result, checks = EXCLUDED.checks
+		`, policy.ID, policy.TenantID, policy.ReleaseID, policy.Result, policy.PolicySet, checks, nonZeroTime(policy.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert policy evaluation row: %w", err)
+		}
+	}
+	for _, bundle := range state.Bundles {
+		if bundle.ID == "" || bundle.TenantID == "" || bundle.ReleaseID == "" {
+			continue
+		}
+		manifest, err := json.Marshal(bundle.Manifest)
+		if err != nil {
+			return fmt.Errorf("encode release bundle manifest: %w", err)
+		}
+		signatureRefs, err := json.Marshal(bundle.SignatureRefs)
+		if err != nil {
+			return fmt.Errorf("encode release bundle signature refs: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO release_bundles (
+				id, tenant_id, release_id, state, manifest, manifest_hash,
+				signature_refs, created_at, published_at, revoked_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			ON CONFLICT (id) DO UPDATE SET
+				state = EXCLUDED.state,
+				signature_refs = EXCLUDED.signature_refs,
+				published_at = EXCLUDED.published_at,
+				revoked_at = EXCLUDED.revoked_at
+		`, bundle.ID, bundle.TenantID, bundle.ReleaseID, bundle.State, manifest, bundle.ManifestHash, signatureRefs, nonZeroTime(bundle.CreatedAt), nullableTime(bundle.PublishedAt), nullableTime(bundle.RevokedAt)); err != nil {
+			return fmt.Errorf("upsert release bundle row: %w", err)
+		}
+	}
+	for _, verification := range state.Verifications {
+		if verification.ID == "" || verification.TenantID == "" {
+			continue
+		}
+		checks, err := json.Marshal(verification.Checks)
+		if err != nil {
+			return fmt.Errorf("encode verification checks: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO verification_results (
+				id, tenant_id, subject_type, subject_id, result, checks, verified_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			ON CONFLICT (id) DO UPDATE SET result = EXCLUDED.result, checks = EXCLUDED.checks
+		`, verification.ID, verification.TenantID, verification.SubjectType, verification.SubjectID, verification.Result, checks, nonZeroTime(verification.VerifiedAt)); err != nil {
+			return fmt.Errorf("upsert verification result row: %w", err)
+		}
 	}
 	return nil
 }
@@ -587,6 +910,27 @@ func nullableTime(value *time.Time) any {
 		return nil
 	}
 	return value.UTC()
+}
+
+func nullableInt64(value int64) any {
+	if value == 0 {
+		return nil
+	}
+	return value
+}
+
+func nonZeroInt(value, fallback int) int {
+	if value == 0 {
+		return fallback
+	}
+	return value
+}
+
+func nullableBytes(value []byte) any {
+	if len(value) == 0 {
+		return nil
+	}
+	return value
 }
 
 func nonZeroTime(value time.Time) time.Time {

@@ -56,6 +56,62 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 			"sess_test": {ID: "sess_test", TenantID: "ten_test", UserID: "user_test", ProviderID: "sso_test", Prefix: "sess", ExpiresAt: time.Now().UTC().Add(time.Hour), SchemaVersion: domain.SSOSessionSchemaVersion, CreatedAt: time.Now().UTC()},
 		},
 		SSOSessionHashes: map[string]string{"sess_test": "session-hash"},
+		Products: map[string]domain.Product{
+			"prod_test": {ID: "prod_test", TenantID: "ten_test", Name: "Product", Slug: "product", CreatedAt: time.Now().UTC()},
+		},
+		Projects: map[string]domain.Project{
+			"proj_test": {ID: "proj_test", TenantID: "ten_test", ProductID: "prod_test", Name: "API", CreatedAt: time.Now().UTC()},
+		},
+		Releases: map[string]domain.Release{
+			"rel_test": {ID: "rel_test", TenantID: "ten_test", ProductID: "prod_test", Version: "1.0.0", State: "open", CreatedAt: time.Now().UTC()},
+		},
+		Artifacts: map[string]domain.Artifact{
+			"art_test": {ID: "art_test", TenantID: "ten_test", Name: "artifact.tar.gz", MediaType: "application/gzip", Size: 42, Digest: "sha256:" + strings.Repeat("a", 64), CreatedAt: time.Now().UTC()},
+		},
+		Evidence: map[string]domain.EvidenceItem{
+			"ev_test": {
+				ID: "ev_test", TenantID: "ten_test", ProductID: "prod_test", ProjectID: "proj_test", ReleaseID: "rel_test",
+				Type: "sbom", Subtype: "cyclonedx", Title: "SBOM", SourceSystem: "test", ObservedAt: time.Now().UTC(),
+				EvidenceVersion: 1, SchemaVersion: domain.EvidenceItemSchemaVersion, PayloadRef: "object://tenants/ten_test/payloads/sbom/" + strings.Repeat("b", 64),
+				PayloadHash: "sha256:" + strings.Repeat("b", 64), PayloadMediaType: "application/json", PayloadSize: 123,
+				CanonicalHash: "sha256:" + strings.Repeat("c", 64), Canonicalization: domain.CanonicalizationProfileVersion,
+				SubjectRefs: []domain.SubjectRef{{Type: "release", ID: "rel_test"}}, TrustLevel: "uploaded", VerificationStatus: "verified",
+				Tags: []string{"release"}, Metadata: map[string]any{"parser": "test"}, CreatedAt: time.Now().UTC(),
+			},
+		},
+		Chain: map[string][]domain.AuditChainEntry{
+			"ten_test": {{
+				ID: "chain_test", TenantID: "ten_test", Sequence: 1, EntryType: "evidence.created", SubjectType: "evidence_item", SubjectID: "ev_test",
+				ActorType: "user", ActorID: "user_test", OccurredAt: time.Now().UTC(), PayloadHash: "sha256:" + strings.Repeat("b", 64),
+				CanonicalEntryHash: "sha256:" + strings.Repeat("d", 64), PreviousEntryHash: "", EntryHash: "sha256:" + strings.Repeat("e", 64),
+				SchemaVersion: domain.AuditChainEntrySchemaVersion,
+			}},
+		},
+		SigningKeys: map[string]domain.SigningKey{
+			"sigkey_test": {ID: "sigkey_test", TenantID: "ten_test", KID: "kid-test", Algorithm: "Ed25519", Status: "active", PublicKey: "public", CreatedAt: time.Now().UTC()},
+		},
+		SigningKeyPrivate: map[string][]byte{"sigkey_test": []byte("dev-private-key")},
+		Signatures: map[string]domain.Signature{
+			"sig_test": {ID: "sig_test", TenantID: "ten_test", SubjectType: "release_bundle", SubjectID: "bundle_test", KeyID: "sigkey_test", Algorithm: "Ed25519", Value: "signature", CreatedAt: time.Now().UTC()},
+		},
+		SBOMs: map[string]domain.SBOM{
+			"sbom_test": {ID: "sbom_test", TenantID: "ten_test", EvidenceID: "ev_test", ReleaseID: "rel_test", ArtifactID: "art_test", Format: "cyclonedx", SpecVersion: "1.5", ComponentCount: 1, Components: []domain.SBOMComponent{{Name: "lib", Version: "1.0.0"}}, CreatedAt: time.Now().UTC()},
+		},
+		Scans: map[string]domain.VulnerabilityScan{
+			"scan_test": {ID: "scan_test", TenantID: "ten_test", EvidenceID: "ev_test", ReleaseID: "rel_test", Scanner: "scanner", TargetRef: "artifact.tar.gz", Summary: map[string]int{"critical": 0}, Findings: []domain.VulnerabilityFinding{{ID: "finding_test", Vulnerability: "CVE-0000-0001", Severity: "low", State: "open"}}, CreatedAt: time.Now().UTC()},
+		},
+		Contracts: map[string]domain.OpenAPIContract{
+			"contract_test": {ID: "contract_test", TenantID: "ten_test", ProductID: "prod_test", ReleaseID: "rel_test", Version: "1.0.0", Hash: "sha256:" + strings.Repeat("f", 64), PathCount: 1, Operations: []domain.OpenAPIOperation{{Path: "/v1/test", Method: "get", OperationID: "getTest"}}, EvidenceID: "ev_test", CreatedAt: time.Now().UTC()},
+		},
+		Policies: map[string]domain.PolicyEvaluation{
+			"policy_test": {ID: "policy_test", TenantID: "ten_test", ReleaseID: "rel_test", Result: "pass", PolicySet: domain.PolicySetVersion, Checks: []domain.PolicyCheck{{Name: "sbom", Result: "passed", Severity: "high", Explanation: "test"}}, CreatedAt: time.Now().UTC()},
+		},
+		Bundles: map[string]domain.ReleaseBundle{
+			"bundle_test": {ID: "bundle_test", TenantID: "ten_test", ReleaseID: "rel_test", State: "generated", Manifest: map[string]any{"release_id": "rel_test"}, ManifestHash: "sha256:" + strings.Repeat("1", 64), SignatureRefs: []string{"sig_test"}, CreatedAt: time.Now().UTC()},
+		},
+		Verifications: map[string]domain.VerificationResult{
+			"verify_test": {ID: "verify_test", TenantID: "ten_test", SubjectType: "release_bundle", SubjectID: "bundle_test", Result: "pass", Checks: []domain.VerifyCheck{{Name: "signature", Result: "passed"}}, VerifiedAt: time.Now().UTC()},
+		},
 		Idempotency: map[string]app.IdempotencyRecord{
 			app.NewIdempotencyRecordKey("ten_test", "user:user_test", "POST", "/v1/products", "idem"): {RequestHash: "sha256:request", Status: 201, Response: map[string]any{"ok": true}, CreatedAt: time.Now().UTC()},
 		},
@@ -104,6 +160,34 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	}
 	if idemActor != "user:user_test" {
 		t.Fatalf("idempotency actor = %q", idemActor)
+	}
+	coreChecks := []struct {
+		name  string
+		query string
+	}{
+		{name: "product", query: `SELECT count(*) FROM products WHERE tenant_id = 'ten_test' AND id = 'prod_test'`},
+		{name: "project", query: `SELECT count(*) FROM projects WHERE tenant_id = 'ten_test' AND product_id = 'prod_test'`},
+		{name: "release", query: `SELECT count(*) FROM releases WHERE tenant_id = 'ten_test' AND id = 'rel_test'`},
+		{name: "artifact", query: `SELECT count(*) FROM artifacts WHERE tenant_id = 'ten_test' AND digest LIKE 'sha256:%'`},
+		{name: "evidence", query: `SELECT count(*) FROM evidence_items WHERE tenant_id = 'ten_test' AND id = 'ev_test' AND evidence_version = 1 AND product_id = 'prod_test'`},
+		{name: "audit chain", query: `SELECT count(*) FROM audit_chain_entries WHERE tenant_id = 'ten_test' AND sequence = 1`},
+		{name: "signing key", query: `SELECT count(*) FROM signing_keys WHERE tenant_id = 'ten_test' AND id = 'sigkey_test' AND encrypted_private_key IS NOT NULL`},
+		{name: "signature", query: `SELECT count(*) FROM signatures WHERE tenant_id = 'ten_test' AND id = 'sig_test'`},
+		{name: "sbom", query: `SELECT count(*) FROM sboms WHERE tenant_id = 'ten_test' AND release_id = 'rel_test' AND component_count = 1`},
+		{name: "scan", query: `SELECT count(*) FROM vulnerability_scans WHERE tenant_id = 'ten_test' AND release_id = 'rel_test'`},
+		{name: "contract", query: `SELECT count(*) FROM openapi_contracts WHERE tenant_id = 'ten_test' AND id = 'contract_test' AND operations <> '[]'::jsonb`},
+		{name: "policy", query: `SELECT count(*) FROM policy_evaluations WHERE tenant_id = 'ten_test' AND id = 'policy_test'`},
+		{name: "bundle", query: `SELECT count(*) FROM release_bundles WHERE tenant_id = 'ten_test' AND id = 'bundle_test'`},
+		{name: "verification", query: `SELECT count(*) FROM verification_results WHERE tenant_id = 'ten_test' AND id = 'verify_test'`},
+	}
+	for _, check := range coreChecks {
+		var rows int
+		if err := store.pool.QueryRow(ctx, check.query).Scan(&rows); err != nil {
+			t.Fatalf("%s relational row query: %v", check.name, err)
+		}
+		if rows != 1 {
+			t.Fatalf("%s relational rows = %d, want 1", check.name, rows)
+		}
 	}
 	job := app.OutboxJob{ID: "job_test_" + time.Now().Format("150405.000000000"), TenantID: "ten_test", Kind: "verify_subject", SubjectType: "audit_chain", SubjectID: "audit_chain", CreatedAt: time.Now().UTC()}
 	if err := store.Enqueue(ctx, job); err != nil {
