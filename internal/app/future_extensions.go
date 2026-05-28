@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"crypto/ed25519"
@@ -8,6 +9,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"encoding/xml"
@@ -53,6 +55,14 @@ type PublishPublicTransparencyLogEntryInput struct {
 	LogID        string
 	CheckpointID string
 	ExternalID   string
+}
+
+type VerifyPublicTransparencyLogEntryInput struct {
+	LeafHash       string
+	RootHash       string
+	LeafIndex      int
+	TreeSize       int
+	InclusionProof []string
 }
 
 type CreateMarketplaceCollectorInput struct {
@@ -394,6 +404,162 @@ func (l *Ledger) PublishPublicTransparencyLogEntry(ctx context.Context, actor do
 		return domain.PublicTransparencyLogEntry{}, err
 	}
 	return entry, nil
+}
+
+func (l *Ledger) VerifyPublicTransparencyLogEntry(ctx context.Context, actor domain.Actor, id string, in VerifyPublicTransparencyLogEntryInput) (domain.PublicTransparencyLogEntry, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.PublicTransparencyLogEntry{}, err
+	}
+	if err := require(actor, ScopeKeysAdmin); err != nil {
+		return domain.PublicTransparencyLogEntry{}, err
+	}
+	id = strings.TrimSpace(id)
+	leafHash := strings.TrimSpace(in.LeafHash)
+	rootHash := strings.TrimSpace(in.RootHash)
+	if id == "" || rootHash == "" || in.TreeSize <= 0 || in.LeafIndex < 0 || in.LeafIndex >= in.TreeSize || len(in.InclusionProof) > 64 {
+		return domain.PublicTransparencyLogEntry{}, ErrValidation
+	}
+	for i := range in.InclusionProof {
+		in.InclusionProof[i] = strings.TrimSpace(in.InclusionProof[i])
+		if !validSHA256Digest(in.InclusionProof[i]) {
+			return domain.PublicTransparencyLogEntry{}, ErrValidation
+		}
+	}
+	if !validSHA256Digest(rootHash) {
+		return domain.PublicTransparencyLogEntry{}, ErrValidation
+	}
+
+	l.mu.Lock()
+	entry, ok := l.publicLogEntries[id]
+	if !ok || entry.TenantID != actor.TenantID {
+		l.mu.Unlock()
+		return domain.PublicTransparencyLogEntry{}, ErrNotFound
+	}
+	if leafHash == "" {
+		leafHash = entry.EntryHash
+	}
+	if !validSHA256Digest(leafHash) {
+		l.mu.Unlock()
+		return domain.PublicTransparencyLogEntry{}, ErrValidation
+	}
+	if _, ok := l.publicLogs[entry.LogID]; !ok {
+		l.mu.Unlock()
+		return domain.PublicTransparencyLogEntry{}, ErrNotFound
+	}
+	if _, ok := l.transparency[entry.CheckpointID]; !ok {
+		l.mu.Unlock()
+		return domain.PublicTransparencyLogEntry{}, ErrNotFound
+	}
+	l.mu.Unlock()
+
+	leafBound := leafHash == entry.EntryHash
+	proofOK := leafBound && verifyRFC6962StyleProof(leafHash, rootHash, in.LeafIndex, in.TreeSize, in.InclusionProof)
+	checks := []domain.VerifyCheck{
+		{Name: "public_log_leaf_binding", Result: checkResultString(leafBound), Detail: "The supplied leaf hash must match the published Evydence entry hash."},
+		{Name: "public_log_inclusion_proof", Result: checkResultString(proofOK), Detail: "The supplied proof must recompute the supplied public-log root hash."},
+	}
+	proofHash, err := canonicalAnyHash(struct {
+		EntryID        string   `json:"entry_id"`
+		LeafHash       string   `json:"leaf_hash"`
+		RootHash       string   `json:"root_hash"`
+		LeafIndex      int      `json:"leaf_index"`
+		TreeSize       int      `json:"tree_size"`
+		InclusionProof []string `json:"inclusion_proof"`
+	}{
+		EntryID:        entry.ID,
+		LeafHash:       leafHash,
+		RootHash:       rootHash,
+		LeafIndex:      in.LeafIndex,
+		TreeSize:       in.TreeSize,
+		InclusionProof: append([]string(nil), in.InclusionProof...),
+	})
+	if err != nil {
+		return domain.PublicTransparencyLogEntry{}, err
+	}
+	now := l.now()
+	entry.InclusionRootHash = rootHash
+	entry.InclusionProofHash = proofHash
+	entry.InclusionVerifiedAt = &now
+	entry.VerificationChecks = checks
+	entry.VerificationLimitations = []string{
+		"Evydence verifies the supplied RFC6962-style proof material locally; it does not fetch proof material or prove public-log availability.",
+		"Operators remain responsible for public-log trust, endpoint availability, and any provider-specific inclusion semantics.",
+	}
+	entry.State = "inclusion_verified"
+	if !proofOK {
+		entry.State = "inclusion_not_verified"
+	}
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.publicLogEntries[entry.ID] = entry
+	eventType := "public_transparency_log_entry.inclusion_verified"
+	if !proofOK {
+		eventType = "public_transparency_log_entry.inclusion_not_verified"
+	}
+	_, _ = l.appendChainLocked(actor.TenantID, eventType, "public_transparency_log_entry", entry.ID, actorType(actor), actorID(actor), proofHash, "")
+	if err := l.persistLocked(ctx); err != nil {
+		return domain.PublicTransparencyLogEntry{}, err
+	}
+	return entry, nil
+}
+
+func verifyRFC6962StyleProof(leafHash, rootHash string, leafIndex, treeSize int, proof []string) bool {
+	if treeSize == 1 {
+		return leafIndex == 0 && len(proof) == 0 && leafHash == rootHash
+	}
+	node, err := decodeSHA256Digest(leafHash)
+	if err != nil {
+		return false
+	}
+	index := leafIndex
+	for _, proofHash := range proof {
+		sibling, err := decodeSHA256Digest(proofHash)
+		if err != nil {
+			return false
+		}
+		if index%2 == 0 {
+			node = transparencyParentHash(node, sibling)
+		} else {
+			node = transparencyParentHash(sibling, node)
+		}
+		index /= 2
+	}
+	root, err := decodeSHA256Digest(rootHash)
+	if err != nil {
+		return false
+	}
+	return bytes.Equal(node, root)
+}
+
+func transparencyParentHash(left, right []byte) []byte {
+	h := sha256.New()
+	h.Write([]byte{0x01})
+	h.Write(left)
+	h.Write(right)
+	return h.Sum(nil)
+}
+
+func decodeSHA256Digest(value string) ([]byte, error) {
+	if !validSHA256Digest(value) {
+		return nil, ErrValidation
+	}
+	return hex.DecodeString(strings.TrimPrefix(value, "sha256:"))
+}
+
+func validSHA256Digest(value string) bool {
+	if !strings.HasPrefix(value, "sha256:") || len(value) != len("sha256:")+64 {
+		return false
+	}
+	_, err := hex.DecodeString(strings.TrimPrefix(value, "sha256:"))
+	return err == nil
+}
+
+func checkResultString(ok bool) string {
+	if ok {
+		return "passed"
+	}
+	return "failed"
 }
 
 func (l *Ledger) CreateMarketplaceCollector(ctx context.Context, actor domain.Actor, in CreateMarketplaceCollectorInput) (domain.MarketplaceCollector, error) {

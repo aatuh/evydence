@@ -1076,6 +1076,12 @@ func TestFutureExtensionAndReadAdminHTTPGaps(t *testing.T) {
 	if !strings.Contains(entry, `"entry_hash"`) {
 		t.Fatalf("public log entry missing hash: %s", entry)
 	}
+	entryID := dataField(t, entry, "id")
+	entryHash := dataField(t, entry, "entry_hash")
+	verifiedEntry := postJSON(t, server, secret, "/v1/public-transparency-log-entries/"+entryID+"/verify", "future-public-entry-verify", map[string]any{"root_hash": entryHash, "leaf_index": 0, "tree_size": 1, "inclusion_proof": []string{}}, http.StatusOK)
+	if !strings.Contains(verifiedEntry, `"state":"inclusion_verified"`) {
+		t.Fatalf("public log entry verification failed: %s", verifiedEntry)
+	}
 	marketplace := postJSON(t, server, secret, "/v1/marketplace-collectors", "future-marketplace", map[string]any{"name": "scanner", "provider": "scannerco", "version": "1.0.0", "publisher": "scannerco", "manifest_hash": digest}, http.StatusCreated)
 	if !strings.Contains(getJSON(t, server, secret, "/v1/marketplace-collectors", http.StatusOK), dataField(t, marketplace, "id")) {
 		t.Fatalf("marketplace list missing collector")

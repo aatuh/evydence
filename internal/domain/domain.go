@@ -911,16 +911,21 @@ type PublicTransparencyLog struct {
 }
 
 type PublicTransparencyLogEntry struct {
-	ID            string    `json:"id"`
-	TenantID      string    `json:"tenant_id"`
-	LogID         string    `json:"log_id"`
-	CheckpointID  string    `json:"checkpoint_id"`
-	MerkleBatchID string    `json:"merkle_batch_id"`
-	ExternalID    string    `json:"external_id"`
-	EntryHash     string    `json:"entry_hash"`
-	State         string    `json:"state"`
-	SchemaVersion string    `json:"schema_version"`
-	CreatedAt     time.Time `json:"created_at"`
+	ID                      string        `json:"id"`
+	TenantID                string        `json:"tenant_id"`
+	LogID                   string        `json:"log_id"`
+	CheckpointID            string        `json:"checkpoint_id"`
+	MerkleBatchID           string        `json:"merkle_batch_id"`
+	ExternalID              string        `json:"external_id"`
+	EntryHash               string        `json:"entry_hash"`
+	InclusionRootHash       string        `json:"inclusion_root_hash,omitempty"`
+	InclusionProofHash      string        `json:"inclusion_proof_hash,omitempty"`
+	InclusionVerifiedAt     *time.Time    `json:"inclusion_verified_at,omitempty"`
+	VerificationChecks      []VerifyCheck `json:"verification_checks,omitempty"`
+	VerificationLimitations []string      `json:"verification_limitations,omitempty"`
+	State                   string        `json:"state"`
+	SchemaVersion           string        `json:"schema_version"`
+	CreatedAt               time.Time     `json:"created_at"`
 }
 
 type MarketplaceCollector struct {

@@ -24,6 +24,7 @@ This operator index points to the canonical references for running Evydence. Kee
 - Use `GET /v1/admin/instance` only with an actor explicitly granted `instance:admin`. Tenant admin and ordinary wildcard tenant keys do not satisfy this instance-wide scope by themselves.
 - Use `POST /v1/backup-manifests` after database and object-store backups complete. The manifest intentionally excludes raw payload bytes and private signing-key material.
 - Use `POST /v1/merkle-batches` and `POST /v1/transparency-checkpoints` to record signed local checkpoints and optional external anchoring metadata.
+- Use `POST /v1/public-transparency-log-entries/{id}/verify` when an operator has public-log inclusion proof material. Evydence verifies the supplied RFC6962-style proof locally and records checks and limitations; it does not fetch proof material from the provider.
 
 ## Token And Trust Boundaries
 

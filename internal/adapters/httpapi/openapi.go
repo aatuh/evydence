@@ -1968,17 +1968,29 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"checkpoint_id": map[string]any{"type": "string"},
 		"external_id":   map[string]any{"type": "string"},
 	}, "log_id", "checkpoint_id", "external_id"))
+	registry.RegisterSchema("VerifyPublicTransparencyLogEntryRequest", objectSchema(map[string]any{
+		"leaf_hash":       map[string]any{"type": "string", "pattern": "^sha256:"},
+		"root_hash":       map[string]any{"type": "string", "pattern": "^sha256:"},
+		"leaf_index":      map[string]any{"type": "integer", "minimum": 0},
+		"tree_size":       map[string]any{"type": "integer", "minimum": 1},
+		"inclusion_proof": map[string]any{"type": "array", "items": map[string]any{"type": "string", "pattern": "^sha256:"}},
+	}, "root_hash", "leaf_index", "tree_size", "inclusion_proof"))
 	registry.RegisterSchema("PublicTransparencyLogEntry", objectSchema(map[string]any{
-		"id":              map[string]any{"type": "string"},
-		"tenant_id":       map[string]any{"type": "string"},
-		"log_id":          map[string]any{"type": "string"},
-		"checkpoint_id":   map[string]any{"type": "string"},
-		"merkle_batch_id": map[string]any{"type": "string"},
-		"external_id":     map[string]any{"type": "string"},
-		"entry_hash":      map[string]any{"type": "string", "pattern": "^sha256:"},
-		"state":           map[string]any{"type": "string"},
-		"schema_version":  map[string]any{"type": "string"},
-		"created_at":      map[string]any{"type": "string", "format": "date-time"},
+		"id":                       map[string]any{"type": "string"},
+		"tenant_id":                map[string]any{"type": "string"},
+		"log_id":                   map[string]any{"type": "string"},
+		"checkpoint_id":            map[string]any{"type": "string"},
+		"merkle_batch_id":          map[string]any{"type": "string"},
+		"external_id":              map[string]any{"type": "string"},
+		"entry_hash":               map[string]any{"type": "string", "pattern": "^sha256:"},
+		"inclusion_root_hash":      map[string]any{"type": "string", "pattern": "^sha256:"},
+		"inclusion_proof_hash":     map[string]any{"type": "string", "pattern": "^sha256:"},
+		"inclusion_verified_at":    map[string]any{"type": "string", "format": "date-time"},
+		"verification_checks":      map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/VerifyCheck"}},
+		"verification_limitations": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"state":                    map[string]any{"type": "string"},
+		"schema_version":           map[string]any{"type": "string"},
+		"created_at":               map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "log_id", "checkpoint_id", "merkle_batch_id", "external_id", "entry_hash", "state", "schema_version", "created_at"))
 	registry.RegisterSchema("PublicTransparencyLogEntryEnvelope", dataEnvelopeSchema("#/components/schemas/PublicTransparencyLogEntry"))
 	registry.RegisterSchema("CreateSaaSEditionProfileRequest", objectSchema(map[string]any{
