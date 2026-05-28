@@ -48,6 +48,19 @@ func TestResolveLoadMode(t *testing.T) {
 	}
 }
 
+func TestValidateProductionLoadModeRejectsSnapshotPreferred(t *testing.T) {
+	if err := ValidateProductionLoadMode(LoadModeRelationalPreferred); err != nil {
+		t.Fatalf("relational-preferred production mode: %v", err)
+	}
+	if err := ValidateProductionLoadMode(LoadModeRelationalOnly); err != nil {
+		t.Fatalf("relational-only production mode: %v", err)
+	}
+	err := ValidateProductionLoadMode(LoadModeSnapshotPreferred)
+	if err == nil || !strings.Contains(err.Error(), "EVYDENCE_POSTGRES_LOAD_MODE") {
+		t.Fatalf("snapshot-preferred production err=%v", err)
+	}
+}
+
 func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
 	if databaseURL == "" {
