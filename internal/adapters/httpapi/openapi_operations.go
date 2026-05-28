@@ -240,12 +240,21 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 			queryParam("purl", "Exact package URL filter.", "string"),
 			queryParam("limit", "Maximum returned component records.", "integer"),
 		)
-		operation.Responses[http.StatusOK] = jsonResponse("SBOM component result envelope.", "#/components/schemas/DataEnvelope")
+		operation.Responses[http.StatusOK] = jsonResponse("SBOM component result envelope.", "#/components/schemas/SBOMComponentRecordListEnvelope")
+	case "createIncident":
+		operation.Description = "Creates an append-only incident record linked to tenant-scoped product and optional release evidence."
+		operation.RequestBody = jsonRequest("Incident creation request.", "#/components/schemas/CreateIncidentRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created incident envelope.", "#/components/schemas/IncidentEnvelope")
+	case "recordIncidentTimeline":
+		operation.Description = "Appends an incident timeline event and optional evidence reference."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Incident id."))
+		operation.RequestBody = jsonRequest("Incident timeline event request.", "#/components/schemas/RecordIncidentTimelineRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created incident timeline event envelope.", "#/components/schemas/IncidentTimelineEventEnvelope")
 	case "createIncidentWebhookReceiver":
 		operation.Description = "Creates an incident-scoped webhook receiver with an Ed25519 public key. The matching private key stays with the external incident tool."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Incident id."))
-		operation.RequestBody = jsonRequest("Incident webhook receiver creation request.", "#/components/schemas/DataEnvelope")
-		operation.Responses[http.StatusCreated] = jsonResponse("Created incident webhook receiver envelope.", "#/components/schemas/DataEnvelope")
+		operation.RequestBody = jsonRequest("Incident webhook receiver creation request.", "#/components/schemas/CreateIncidentWebhookReceiverRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created incident webhook receiver envelope.", "#/components/schemas/IncidentWebhookReceiverEnvelope")
 	case "receiveIncidentWebhook":
 		operation.Description = "Public signed webhook endpoint for incident timeline events. It verifies Ed25519 signature, event id replay, and timestamp before parsing payload fields."
 		operation.Parameters = append(operation.Parameters,
@@ -254,11 +263,19 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 			headerParam("X-Evydence-Webhook-Timestamp", "RFC3339 timestamp included in the signed payload."),
 			headerParam("X-Evydence-Webhook-Signature", "ed25519=<base64 signature> over timestamp, event id, and raw body."),
 		)
-		operation.RequestBody = jsonRequest("Signed incident timeline event payload.", "#/components/schemas/DataEnvelope")
+		operation.RequestBody = jsonRequest("Signed incident timeline event payload.", "#/components/schemas/SignedIncidentWebhookPayload")
 		operation.Security = nil
 		operation.Scopes = nil
 		operation.Extensions = nil
-		operation.Responses[http.StatusCreated] = jsonResponse("Accepted webhook event and timeline event envelope.", "#/components/schemas/DataEnvelope")
+		operation.Responses[http.StatusCreated] = jsonResponse("Accepted webhook event and timeline event envelope.", "#/components/schemas/IncidentWebhookDeliveryEnvelope")
+	case "createRemediationTask":
+		operation.Description = "Creates an incident or release remediation task linked to optional evidence."
+		operation.RequestBody = jsonRequest("Remediation task creation request.", "#/components/schemas/CreateRemediationTaskRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created remediation task envelope.", "#/components/schemas/RemediationTaskEnvelope")
+	case "incidentReport":
+		operation.Description = "Returns a deterministic incident package report with timeline, remediation tasks, linked evidence, assumptions, and limitations."
+		operation.Parameters = append(operation.Parameters, queryParam("incident_id", "Incident id.", "string"))
+		operation.Responses[http.StatusOK] = jsonResponse("Incident package report envelope.", "#/components/schemas/IncidentReportEnvelope")
 	case "createReleaseBundle":
 		operation.Description = "Creates an immutable signed release bundle for a release."
 		operation.RequestBody = jsonRequest("Release bundle creation request.", "#/components/schemas/CreateReleaseBundleRequest")
@@ -278,6 +295,10 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 	case "verifyAuditChain":
 		operation.Description = "Verifies the tenant audit chain continuity and returns deterministic verification checks."
 		operation.Responses[http.StatusOK] = jsonResponse("Audit chain verification envelope.", "#/components/schemas/VerificationResultEnvelope")
+	case "verify":
+		operation.Description = "Verifies a supported tenant-scoped subject such as evidence, audit chain, release bundle, artifact signature, or related verification target."
+		operation.RequestBody = jsonRequest("Subject verification request.", "#/components/schemas/VerifySubjectRequest")
+		operation.Responses[http.StatusOK] = jsonResponse("Subject verification envelope.", "#/components/schemas/VerificationResultEnvelope")
 	case "listAuditLog":
 		operation.Description = "Lists tenant-scoped append-only audit-chain entries in reverse chronological order."
 		operation.Parameters = append(operation.Parameters,
@@ -348,6 +369,10 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Waiver id."))
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Approved waiver envelope.", "#/components/schemas/WaiverEnvelope")
+	case "createApproval":
+		operation.Description = "Creates an immutable approval record for a release, waiver, package, or review subject."
+		operation.RequestBody = jsonRequest("Approval creation request.", "#/components/schemas/CreateApprovalRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created approval envelope.", "#/components/schemas/ApprovalRecordEnvelope")
 	case "uploadOpenAPIContract":
 		operation.Description = "Uploads an OpenAPI 3.1 contract, stores raw bytes as evidence, and records normalized operation metadata."
 		operation.RequestBody = jsonRequest("OpenAPI contract upload request.", "#/components/schemas/UploadOpenAPIContractRequest")
@@ -525,6 +550,78 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Description = "Registers OCI/container image metadata and digest evidence linked to an optional artifact."
 		operation.RequestBody = jsonRequest("Container image registration request.", "#/components/schemas/RegisterContainerImageRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Registered container image envelope.", "#/components/schemas/ContainerImageEnvelope")
+	case "uploadSecurityScan", "uploadAPISecurityScan":
+		operation.Description = "Uploads SAST, DAST, secret, license, or API security scan metadata and raw JSON payload evidence without exposing raw payload bytes in responses."
+		operation.RequestBody = jsonRequest("Security scan upload request.", "#/components/schemas/UploadSecurityScanRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created security scan envelope.", "#/components/schemas/SecurityScanEnvelope")
+	case "uploadManualSecurityDocument":
+		operation.Description = "Uploads sensitive manual security evidence such as threat model, security review, or penetration-test report metadata and raw payload reference."
+		operation.RequestBody = jsonRequest("Manual security document upload request.", "#/components/schemas/UploadManualSecurityDocumentRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created manual security document envelope.", "#/components/schemas/ManualSecurityDocumentEnvelope")
+	case "uploadSPDXSBOM":
+		operation.Description = "Uploads an SPDX JSON SBOM payload, stores raw bytes as evidence, and records normalized SBOM metadata."
+		operation.RequestBody = jsonRequest("SPDX SBOM upload request.", "#/components/schemas/UploadSPDXSBOMRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created SBOM envelope.", "#/components/schemas/SBOMEnvelope")
+	case "createSBOMDiff":
+		operation.Description = "Creates a deterministic SBOM diff between two tenant-scoped SBOM records."
+		operation.RequestBody = jsonRequest("SBOM diff creation request.", "#/components/schemas/CreateSBOMDiffRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created SBOM diff envelope.", "#/components/schemas/SBOMDiffEnvelope")
+	case "vulnerabilityPostureReport":
+		operation.Description = "Returns a vulnerability posture report derived from stored scan, decision, VEX, exception, and workflow records."
+		operation.Parameters = append(operation.Parameters, queryParam("release_id", "Release id.", "string"))
+		operation.Responses[http.StatusOK] = jsonResponse("Vulnerability posture report envelope.", "#/components/schemas/VulnerabilityPostureReportEnvelope")
+	case "generateAnomalyReport":
+		operation.Description = "Creates a deterministic anomaly report over existing tenant evidence and metrics with assumptions and limitations."
+		operation.RequestBody = jsonRequest("Anomaly report creation request.", "#/components/schemas/CreateAnomalyReportRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created anomaly report envelope.", "#/components/schemas/AnomalyReportEnvelope")
+	case "createMerkleBatch":
+		operation.Description = "Creates a Merkle batch over tenant audit-chain entries for checkpoint export or transparency anchoring."
+		operation.RequestBody = jsonRequest("Merkle batch creation request.", "#/components/schemas/CreateMerkleBatchRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created Merkle batch envelope.", "#/components/schemas/MerkleBatchEnvelope")
+	case "verifyMerkleBatch":
+		operation.Description = "Verifies a tenant-scoped Merkle batch root and leaf set against stored audit-chain entries."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Merkle batch id."))
+		operation.Responses[http.StatusOK] = jsonResponse("Merkle batch verification envelope.", "#/components/schemas/VerificationResultEnvelope")
+	case "createTransparencyCheckpoint":
+		operation.Description = "Records an external transparency or timestamp checkpoint reference for a Merkle batch."
+		operation.RequestBody = jsonRequest("Transparency checkpoint creation request.", "#/components/schemas/CreateTransparencyCheckpointRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created transparency checkpoint envelope.", "#/components/schemas/TransparencyCheckpointEnvelope")
+	case "createPublicTransparencyLog":
+		operation.Description = "Creates tenant metadata for an optional public transparency log trust root."
+		operation.RequestBody = jsonRequest("Public transparency log creation request.", "#/components/schemas/CreatePublicTransparencyLogRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created public transparency log envelope.", "#/components/schemas/PublicTransparencyLogEnvelope")
+	case "publishPublicTransparencyLogEntry":
+		operation.Description = "Records publication metadata for a checkpoint submitted to a configured public transparency log."
+		operation.RequestBody = jsonRequest("Public transparency log entry publication request.", "#/components/schemas/PublishPublicTransparencyLogEntryRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created public transparency log entry envelope.", "#/components/schemas/PublicTransparencyLogEntryEnvelope")
+	case "createObjectRetentionPolicy":
+		operation.Description = "Creates an object retention policy record for storage immutability verification."
+		operation.RequestBody = jsonRequest("Object retention policy creation request.", "#/components/schemas/CreateObjectRetentionPolicyRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created object retention policy envelope.", "#/components/schemas/ObjectRetentionPolicyEnvelope")
+	case "verifyObjectRetentionPolicy":
+		operation.Description = "Records verification metadata for a tenant object retention policy."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Object retention policy id."))
+		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
+		operation.Responses[http.StatusOK] = jsonResponse("Verified object retention policy envelope.", "#/components/schemas/ObjectRetentionPolicyEnvelope")
+	case "createLegalHold":
+		operation.Description = "Creates an append-only legal-hold marker for a tenant-scoped retention subject."
+		operation.RequestBody = jsonRequest("Legal hold creation request.", "#/components/schemas/CreateLegalHoldRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created legal hold envelope.", "#/components/schemas/LegalHoldEnvelope")
+	case "createRetentionOverride":
+		operation.Description = "Creates an append-only retention override for a tenant-scoped retention subject."
+		operation.RequestBody = jsonRequest("Retention override creation request.", "#/components/schemas/CreateRetentionOverrideRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created retention override envelope.", "#/components/schemas/RetentionOverrideEnvelope")
+	case "retentionReport":
+		operation.Description = "Returns a retention report for tenant-scoped holds and overrides with storage verification limitations."
+		operation.Parameters = append(operation.Parameters,
+			queryParam("scope_type", "Optional retention scope type.", "string"),
+			queryParam("scope_id", "Optional retention scope id.", "string"),
+		)
+		operation.Responses[http.StatusOK] = jsonResponse("Retention report envelope.", "#/components/schemas/RetentionReportEnvelope")
+	case "createSaaSEditionProfile":
+		operation.Description = "Creates a SaaS edition profile record for future hosted deployment planning; it is not a production readiness claim."
+		operation.RequestBody = jsonRequest("SaaS edition profile creation request.", "#/components/schemas/CreateSaaSEditionProfileRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created SaaS edition profile envelope.", "#/components/schemas/SaaSEditionProfileEnvelope")
 	case "craReadinessReport":
 		operation.Description = "Returns a CRA-oriented readiness report without legal compliance or certification conclusions."
 		operation.Parameters = append(operation.Parameters,
