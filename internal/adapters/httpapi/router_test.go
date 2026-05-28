@@ -2,6 +2,8 @@ package httpapi
 
 import (
 	"bytes"
+	"crypto/ed25519"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
@@ -51,6 +53,7 @@ func TestRouteFamiliesRegisterCriticalPaths(t *testing.T) {
 		"accessCustomerPortalPackage":   "/v1/customer-portal/package",
 		"downloadCustomerPackage":       "/v1/customer-packages/{id}/download",
 		"downloadCustomerPortalPackage": "/v1/customer-portal/package/download",
+		"receiveIncidentWebhook":        "/v1/incident-webhooks/{receiver_id}",
 		"createLegalHold":               "/v1/legal-holds",
 		"verifyReleaseBundle":           "/v1/release-bundles/{id}/verify",
 	}
@@ -108,6 +111,11 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	assertMediaResponseType(t, portalDownload, "200", "application/zip")
 	if _, ok := portalDownload["security"]; ok {
 		t.Fatalf("public portal download should not advertise bearer security: %#v", portalDownload["security"])
+	}
+	incidentWebhook := operationMap(t, paths, "/v1/incident-webhooks/{receiver_id}", "post")
+	assertQueryParams(t, incidentWebhook, "receiver_id", "X-Evydence-Webhook-Event-ID", "X-Evydence-Webhook-Timestamp", "X-Evydence-Webhook-Signature")
+	if _, ok := incidentWebhook["security"]; ok {
+		t.Fatalf("public incident webhook should not advertise bearer security: %#v", incidentWebhook["security"])
 	}
 	createSession := operationMap(t, paths, "/v1/sso/sessions", "post")
 	assertRequestRef(t, createSession, "#/components/schemas/CreateSSOSessionRequest")
@@ -600,6 +608,15 @@ func TestRiskWorkflowHTTPFlow(t *testing.T) {
 	incidentBody := postJSON(t, server, secret, "/v1/incidents", "risk2-incident", map[string]any{"product_id": productID, "release_id": releaseID, "title": "API outage", "severity": "high"}, http.StatusCreated)
 	incidentID := dataField(t, incidentBody, "id")
 	postJSON(t, server, secret, "/v1/incidents/"+incidentID+"/timeline", "risk2-timeline", map[string]any{"event_type": "detected", "summary": "monitor alert"}, http.StatusCreated)
+	webhookPublic, webhookPrivate, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("webhook key: %v", err)
+	}
+	receiverBody := postJSON(t, server, secret, "/v1/incidents/"+incidentID+"/webhook-receivers", "risk2-webhook-receiver", map[string]any{"name": "pager", "provider": "incident_tool", "public_key": base64.RawStdEncoding.EncodeToString(webhookPublic)}, http.StatusCreated)
+	webhookBody := signedIncidentWebhook(t, server, dataField(t, receiverBody, "id"), webhookPrivate, "evt-http-1", []byte(`{"event_type":"mitigation_applied","summary":"patched service"}`), http.StatusCreated)
+	if !strings.Contains(webhookBody, `"event_type":"mitigation_applied"`) || strings.Contains(webhookBody, base64.RawStdEncoding.EncodeToString(webhookPrivate)) {
+		t.Fatalf("webhook response invalid: %s", webhookBody)
+	}
 	postJSON(t, server, secret, "/v1/remediation-tasks", "risk2-task", map[string]any{"incident_id": incidentID, "title": "patch", "owner": "security"}, http.StatusCreated)
 	incidentReport := getJSON(t, server, secret, "/v1/reports/incident-package?incident_id="+incidentID, http.StatusOK)
 	if !strings.Contains(incidentReport, `"report_type":"incident_package"`) {
@@ -954,6 +971,24 @@ func postRaw(t *testing.T, server *Server, secret, path, idem string, body []byt
 	server.Handler().ServeHTTP(rec, req)
 	if rec.Code != want {
 		t.Fatalf("POST %s status=%d want=%d body=%s", path, rec.Code, want, rec.Body.String())
+	}
+	return rec.Body.String()
+}
+
+func signedIncidentWebhook(t *testing.T, server *Server, receiverID string, private ed25519.PrivateKey, eventID string, body []byte, want int) string {
+	t.Helper()
+	timestamp := time.Now().UTC().Format(time.RFC3339)
+	message := append([]byte(timestamp+"\n"+eventID+"\n"), body...)
+	signature := ed25519.Sign(private, message)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/incident-webhooks/"+receiverID, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Evydence-Webhook-Event-ID", eventID)
+	req.Header.Set("X-Evydence-Webhook-Timestamp", timestamp)
+	req.Header.Set("X-Evydence-Webhook-Signature", "ed25519="+base64.RawStdEncoding.EncodeToString(signature))
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != want {
+		t.Fatalf("POST signed webhook status=%d want=%d body=%s", rec.Code, want, rec.Body.String())
 	}
 	return rec.Body.String()
 }

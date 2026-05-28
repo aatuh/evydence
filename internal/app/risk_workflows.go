@@ -3,6 +3,8 @@ package app
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"sort"
@@ -25,6 +27,21 @@ type RecordIncidentTimelineInput struct {
 	Summary    string
 	EvidenceID string
 	OccurredAt time.Time
+}
+
+type CreateIncidentWebhookReceiverInput struct {
+	IncidentID string
+	Name       string
+	Provider   string
+	PublicKey  string
+}
+
+type HandleIncidentWebhookInput struct {
+	ReceiverID string
+	EventID    string
+	Timestamp  time.Time
+	Signature  string
+	Body       []byte
 }
 
 type CreateRemediationTaskInput struct {
@@ -81,6 +98,8 @@ type CreateCustomPolicyInput struct {
 	Description string
 	Rules       []domain.PolicyRule
 }
+
+const incidentWebhookTimestampTolerance = 5 * time.Minute
 
 func (l *Ledger) CreateIncident(ctx context.Context, actor domain.Actor, in CreateIncidentInput) (domain.Incident, error) {
 	if err := ctx.Err(); err != nil {
@@ -174,6 +193,189 @@ func (l *Ledger) RecordIncidentTimelineEvent(ctx context.Context, actor domain.A
 		return domain.IncidentTimelineEvent{}, err
 	}
 	return event, nil
+}
+
+func (l *Ledger) CreateIncidentWebhookReceiver(ctx context.Context, actor domain.Actor, in CreateIncidentWebhookReceiverInput) (domain.IncidentWebhookReceiver, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.IncidentWebhookReceiver{}, err
+	}
+	if err := require(actor, ScopeIncidentWrite); err != nil {
+		return domain.IncidentWebhookReceiver{}, err
+	}
+	in.IncidentID = strings.TrimSpace(in.IncidentID)
+	in.Name = strings.TrimSpace(in.Name)
+	in.Provider = strings.TrimSpace(in.Provider)
+	in.PublicKey = strings.TrimSpace(in.PublicKey)
+	publicKey, err := decodeWebhookPublicKey(in.PublicKey)
+	if err != nil || in.IncidentID == "" || in.Name == "" || in.Provider == "" {
+		return domain.IncidentWebhookReceiver{}, ErrValidation
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	incident, ok := l.incidents[in.IncidentID]
+	if !ok || incident.TenantID != actor.TenantID {
+		return domain.IncidentWebhookReceiver{}, ErrNotFound
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeIncidentWrite, resourceRefs{ProductID: incident.ProductID, ReleaseID: incident.ReleaseID, IncidentID: incident.ID}); err != nil {
+		return domain.IncidentWebhookReceiver{}, err
+	}
+	receiver := domain.IncidentWebhookReceiver{
+		ID:            newID("iwr"),
+		TenantID:      actor.TenantID,
+		IncidentID:    incident.ID,
+		Name:          in.Name,
+		Provider:      in.Provider,
+		PublicKey:     base64.RawStdEncoding.EncodeToString(publicKey),
+		Status:        "active",
+		SchemaVersion: domain.IncidentWebhookReceiverVersion,
+		CreatedAt:     l.now(),
+	}
+	l.webhookReceivers[receiver.ID] = receiver
+	_, _ = l.appendChainLocked(actor.TenantID, "incident_webhook_receiver.created", "incident_webhook_receiver", receiver.ID, actorType(actor), actorID(actor), "", "")
+	if err := l.persistLocked(ctx); err != nil {
+		return domain.IncidentWebhookReceiver{}, err
+	}
+	return receiver, nil
+}
+
+func (l *Ledger) HandleIncidentWebhook(ctx context.Context, in HandleIncidentWebhookInput) (domain.IncidentWebhookEvent, domain.IncidentTimelineEvent, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.IncidentWebhookEvent{}, domain.IncidentTimelineEvent{}, err
+	}
+	in.ReceiverID = strings.TrimSpace(in.ReceiverID)
+	in.EventID = strings.TrimSpace(in.EventID)
+	in.Signature = strings.TrimSpace(in.Signature)
+	if in.ReceiverID == "" || in.EventID == "" || in.Timestamp.IsZero() || in.Signature == "" || len(in.Body) == 0 || len(in.Body) > 2<<20 {
+		return domain.IncidentWebhookEvent{}, domain.IncidentTimelineEvent{}, ErrValidation
+	}
+	now := l.now()
+	if in.Timestamp.Before(now.Add(-incidentWebhookTimestampTolerance)) || in.Timestamp.After(now.Add(incidentWebhookTimestampTolerance)) {
+		return domain.IncidentWebhookEvent{}, domain.IncidentTimelineEvent{}, ErrUnauthorized
+	}
+	payloadHash := hashBytes(in.Body)
+	signatureBytes, err := decodeWebhookSignature(in.Signature)
+	if err != nil {
+		return domain.IncidentWebhookEvent{}, domain.IncidentTimelineEvent{}, ErrUnauthorized
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	receiver, ok := l.webhookReceivers[in.ReceiverID]
+	if !ok || receiver.Status != "active" {
+		return domain.IncidentWebhookEvent{}, domain.IncidentTimelineEvent{}, ErrNotFound
+	}
+	publicKey, err := decodeWebhookPublicKey(receiver.PublicKey)
+	if err != nil {
+		return domain.IncidentWebhookEvent{}, domain.IncidentTimelineEvent{}, ErrUnauthorized
+	}
+	signedPayload := incidentWebhookSignedPayload(in.Timestamp, in.EventID, in.Body)
+	if !ed25519.Verify(ed25519.PublicKey(publicKey), signedPayload, signatureBytes) {
+		return domain.IncidentWebhookEvent{}, domain.IncidentTimelineEvent{}, ErrUnauthorized
+	}
+	for _, existing := range l.webhookEvents {
+		if existing.ReceiverID != receiver.ID || existing.EventID != in.EventID {
+			continue
+		}
+		if existing.PayloadHash != payloadHash {
+			return domain.IncidentWebhookEvent{}, domain.IncidentTimelineEvent{}, ErrConflict
+		}
+		timeline, ok := l.timeline[existing.TimelineEventID]
+		if !ok {
+			return domain.IncidentWebhookEvent{}, domain.IncidentTimelineEvent{}, ErrConflict
+		}
+		return existing, timeline, nil
+	}
+	incident, ok := l.incidents[receiver.IncidentID]
+	if !ok || incident.TenantID != receiver.TenantID {
+		return domain.IncidentWebhookEvent{}, domain.IncidentTimelineEvent{}, ErrNotFound
+	}
+	var payload struct {
+		EventType  string    `json:"event_type"`
+		Summary    string    `json:"summary"`
+		EvidenceID string    `json:"evidence_id"`
+		OccurredAt time.Time `json:"occurred_at"`
+	}
+	dec := json.NewDecoder(bytes.NewReader(in.Body))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&payload); err != nil {
+		return domain.IncidentWebhookEvent{}, domain.IncidentTimelineEvent{}, ErrValidation
+	}
+	payload.EventType = strings.TrimSpace(payload.EventType)
+	payload.Summary = strings.TrimSpace(payload.Summary)
+	payload.EvidenceID = strings.TrimSpace(payload.EvidenceID)
+	if payload.EventType == "" || payload.Summary == "" {
+		return domain.IncidentWebhookEvent{}, domain.IncidentTimelineEvent{}, ErrValidation
+	}
+	if payload.OccurredAt.IsZero() {
+		payload.OccurredAt = now
+	}
+	if payload.EvidenceID != "" {
+		item, ok := l.evidence[payload.EvidenceID]
+		if !ok || item.TenantID != receiver.TenantID || (item.ReleaseID != "" && item.ReleaseID != incident.ReleaseID) {
+			return domain.IncidentWebhookEvent{}, domain.IncidentTimelineEvent{}, ErrNotFound
+		}
+	}
+	timeline := domain.IncidentTimelineEvent{
+		ID:            newID("it"),
+		TenantID:      receiver.TenantID,
+		IncidentID:    incident.ID,
+		EventType:     payload.EventType,
+		Summary:       payload.Summary,
+		EvidenceID:    payload.EvidenceID,
+		OccurredAt:    payload.OccurredAt.UTC(),
+		SchemaVersion: domain.IncidentTimelineSchemaVersion,
+		CreatedAt:     now,
+	}
+	record := domain.IncidentWebhookEvent{
+		ID:              newID("iwe"),
+		TenantID:        receiver.TenantID,
+		ReceiverID:      receiver.ID,
+		IncidentID:      incident.ID,
+		Provider:        receiver.Provider,
+		EventID:         in.EventID,
+		PayloadHash:     payloadHash,
+		SignatureHash:   hashBytes(signatureBytes),
+		TimelineEventID: timeline.ID,
+		Result:          "accepted",
+		SchemaVersion:   domain.IncidentWebhookEventVersion,
+		CreatedAt:       now,
+	}
+	l.timeline[timeline.ID] = timeline
+	l.webhookEvents[record.ID] = record
+	_, _ = l.appendChainLocked(receiver.TenantID, "incident.webhook_timeline_recorded", "incident", incident.ID, "webhook", receiver.ID, payloadHash, "")
+	if err := l.persistLocked(ctx); err != nil {
+		return domain.IncidentWebhookEvent{}, domain.IncidentTimelineEvent{}, err
+	}
+	return record, timeline, nil
+}
+
+func incidentWebhookSignedPayload(timestamp time.Time, eventID string, body []byte) []byte {
+	prefix := timestamp.UTC().Format(time.RFC3339) + "\n" + strings.TrimSpace(eventID) + "\n"
+	return append([]byte(prefix), body...)
+}
+
+func decodeWebhookPublicKey(value string) ([]byte, error) {
+	key, err := decodeBase64Value(strings.TrimSpace(value))
+	if err != nil || len(key) != ed25519.PublicKeySize {
+		return nil, ErrValidation
+	}
+	return key, nil
+}
+
+func decodeWebhookSignature(value string) ([]byte, error) {
+	value = strings.TrimSpace(value)
+	value = strings.TrimPrefix(value, "ed25519=")
+	signature, err := decodeBase64Value(value)
+	if err != nil || len(signature) != ed25519.SignatureSize {
+		return nil, ErrUnauthorized
+	}
+	return signature, nil
+}
+
+func decodeBase64Value(value string) ([]byte, error) {
+	if decoded, err := base64.RawStdEncoding.DecodeString(value); err == nil {
+		return decoded, nil
+	}
+	return base64.StdEncoding.DecodeString(value)
 }
 
 func (l *Ledger) CreateRemediationTask(ctx context.Context, actor domain.Actor, in CreateRemediationTaskInput) (domain.RemediationTask, error) {

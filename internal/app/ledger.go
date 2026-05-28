@@ -107,6 +107,8 @@ type Ledger struct {
 	deployments           map[string]domain.DeploymentEvent
 	incidents             map[string]domain.Incident
 	timeline              map[string]domain.IncidentTimelineEvent
+	webhookReceivers      map[string]domain.IncidentWebhookReceiver
+	webhookEvents         map[string]domain.IncidentWebhookEvent
 	tasks                 map[string]domain.RemediationTask
 	securityScans         map[string]domain.SecurityScan
 	manualDocs            map[string]domain.ManualSecurityDocument
@@ -219,6 +221,8 @@ func NewLedgerWithError(cfg Config) (*Ledger, error) {
 		deployments:           map[string]domain.DeploymentEvent{},
 		incidents:             map[string]domain.Incident{},
 		timeline:              map[string]domain.IncidentTimelineEvent{},
+		webhookReceivers:      map[string]domain.IncidentWebhookReceiver{},
+		webhookEvents:         map[string]domain.IncidentWebhookEvent{},
 		tasks:                 map[string]domain.RemediationTask{},
 		securityScans:         map[string]domain.SecurityScan{},
 		manualDocs:            map[string]domain.ManualSecurityDocument{},

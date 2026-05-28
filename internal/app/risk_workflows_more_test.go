@@ -2,6 +2,9 @@ package app
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"strings"
 	"testing"
@@ -64,6 +67,53 @@ func TestRiskWorkflowEvidenceFormatsAndReports(t *testing.T) {
 	}
 	if apiScan.Category != "api_security" || apiScan.Summary["unknown"] != 1 {
 		t.Fatalf("api scan = %#v", apiScan)
+	}
+	_, webhookPrivate, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("webhook key: %v", err)
+	}
+	incidentReceiver, err := ledger.CreateIncidentWebhookReceiver(ctx, actor, CreateIncidentWebhookReceiverInput{
+		IncidentID: incident.ID,
+		Name:       "pager",
+		Provider:   "incident_tool",
+		PublicKey:  base64.RawStdEncoding.EncodeToString(webhookPrivate.Public().(ed25519.PublicKey)),
+	})
+	if err != nil {
+		t.Fatalf("incident webhook receiver: %v", err)
+	}
+	webhookBody := []byte(`{"event_type":"mitigation_applied","summary":"patched service"}`)
+	webhookSignature := ed25519.Sign(webhookPrivate, incidentWebhookSignedPayload(fixedNow(), "evt-1", webhookBody))
+	webhookRecord, webhookTimeline, err := ledger.HandleIncidentWebhook(ctx, HandleIncidentWebhookInput{
+		ReceiverID: incidentReceiver.ID,
+		EventID:    "evt-1",
+		Timestamp:  fixedNow(),
+		Signature:  "ed25519=" + base64.RawStdEncoding.EncodeToString(webhookSignature),
+		Body:       webhookBody,
+	})
+	if err != nil {
+		t.Fatalf("incident webhook: %v", err)
+	}
+	if webhookRecord.Result != "accepted" || webhookRecord.TimelineEventID != webhookTimeline.ID || webhookTimeline.EventType != "mitigation_applied" {
+		t.Fatalf("webhook record=%#v timeline=%#v", webhookRecord, webhookTimeline)
+	}
+	duplicateRecord, duplicateTimeline, err := ledger.HandleIncidentWebhook(ctx, HandleIncidentWebhookInput{
+		ReceiverID: incidentReceiver.ID,
+		EventID:    "evt-1",
+		Timestamp:  fixedNow(),
+		Signature:  "ed25519=" + base64.RawStdEncoding.EncodeToString(webhookSignature),
+		Body:       webhookBody,
+	})
+	if err != nil {
+		t.Fatalf("duplicate incident webhook: %v", err)
+	}
+	if duplicateRecord.ID != webhookRecord.ID || duplicateTimeline.ID != webhookTimeline.ID {
+		t.Fatalf("duplicate webhook not idempotent: %#v %#v", duplicateRecord, duplicateTimeline)
+	}
+	if _, _, err := ledger.HandleIncidentWebhook(ctx, HandleIncidentWebhookInput{ReceiverID: incidentReceiver.ID, EventID: "evt-2", Timestamp: fixedNow(), Signature: "ed25519=bad", Body: webhookBody}); !errors.Is(err, ErrUnauthorized) {
+		t.Fatalf("bad webhook signature err=%v, want unauthorized", err)
+	}
+	if _, _, err := ledger.HandleIncidentWebhook(ctx, HandleIncidentWebhookInput{ReceiverID: incidentReceiver.ID, EventID: "evt-3", Timestamp: fixedNow().Add(-10 * time.Minute), Signature: "ed25519=" + base64.RawStdEncoding.EncodeToString(webhookSignature), Body: webhookBody}); !errors.Is(err, ErrUnauthorized) {
+		t.Fatalf("stale webhook err=%v, want unauthorized", err)
 	}
 	if _, err := ledger.UploadManualSecurityDocument(ctx, actor, UploadManualSecurityDocumentInput{ProductID: release.ProductID, ReleaseID: release.ID, DocumentType: "threat_model", Title: "Threat Model", Sensitivity: "restricted", Raw: []byte("model"), MediaType: "text/plain"}); err != nil {
 		t.Fatalf("manual doc: %v", err)
