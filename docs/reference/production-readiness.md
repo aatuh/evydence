@@ -19,15 +19,19 @@ Known hardening work remains:
   relational identity, idempotency, customer portal token, release-ledger core,
   build provenance, source/deployment, incident, security evidence, SBOM diff,
   vulnerability workflow, contract diff, custom policy, waiver, approval, DSSE
-  trust-root, evidence lifecycle, release candidate, VEX/risk decision,
-  control, audit-chain, signing, bundle, policy, verification, package, report,
-  and retention rows alongside the canonical snapshot, but the snapshot remains the
+  trust-root, collector release, Cosign verification, signing provider, Merkle
+  batch, transparency checkpoint, evidence lifecycle, release candidate,
+  VEX/risk decision, control, audit-chain, signing, bundle, policy,
+  verification, package, report, retention, provider verification, signing
+  operation, and future-extension rows alongside the canonical snapshot, but the snapshot remains the
   preferred runtime load source. If the snapshot row is absent, the store can
   rebuild identity, SSO session, customer portal token, release-ledger core,
   build provenance, source/deployment, incident, security evidence, SBOM diff,
   vulnerability workflow, contract diff, custom policy, waiver, approval, DSSE
-  trust-root, evidence lifecycle, release candidate, VEX/risk decision, control,
-  package, report, and retention state from relational rows;
+  trust-root, collector release, Cosign verification, signing provider, Merkle
+  batch, transparency checkpoint, evidence lifecycle, release candidate,
+  VEX/risk decision, control, package, report, retention, provider verification,
+  signing operation, and future-extension state from relational rows;
 - worker parser jobs re-read raw object-store payloads for key formats,
   verify digests, validate durable state, and persist missing parser-derived
   normalized fields. Upload paths still create initial accepted records, so
@@ -109,14 +113,18 @@ implemented capabilities:
   customer portal token, release-ledger core, build provenance,
   source/deployment, incident, security evidence, SBOM diff, vulnerability
   workflow, contract diff, custom policy, waiver, approval, DSSE trust-root,
-  evidence lifecycle, release candidate, VEX/risk decision, control,
-  audit-chain, signing, bundle, policy, verification, package, report, and
-  retention rows are synchronized into relational tables. Missing-snapshot
+  collector release, Cosign verification, signing provider, Merkle batch,
+  transparency checkpoint, evidence lifecycle, release candidate, VEX/risk
+  decision, control, audit-chain, signing, bundle, policy, verification,
+  package, report, retention, provider verification, signing operation, and
+  future-extension rows are synchronized into relational tables. Missing-snapshot
   recovery can rebuild identity, SSO session, customer portal token,
   release-ledger core, build provenance, source/deployment, incident, security
   evidence, SBOM diff, vulnerability workflow, contract diff, custom policy,
-  waiver, approval, DSSE trust-root, evidence lifecycle, release candidate,
-  VEX/risk decision, control, package, report, and retention families from
+  waiver, approval, DSSE trust-root, collector release, Cosign verification,
+  signing provider, Merkle batch, transparency checkpoint, evidence lifecycle,
+  release candidate, VEX/risk decision, control, package, report, retention,
+  provider verification, signing operation, and future-extension families from
   relational rows.
   Keep snapshots only for export/import and upgrade compatibility after the
   remaining families have repository-backed reads and writes.

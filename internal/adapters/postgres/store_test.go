@@ -49,6 +49,9 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 		Collectors: map[string]domain.Collector{
 			"collector_test": {ID: "collector_test", TenantID: "ten_test", Name: "github", Type: "github_actions", Version: "1.0.0", APIKeyID: "key_test", Status: "active", AllowedScopes: []string{"build:write"}, LastSeenAt: ptrTime(time.Now().UTC()), SchemaVersion: domain.CollectorSchemaVersion, CreatedAt: time.Now().UTC()},
 		},
+		CollectorReleases: map[string]domain.CollectorRelease{
+			"collector_release_test": {ID: "collector_release_test", TenantID: "ten_test", CollectorID: "collector_test", Version: "1.0.0", ArtifactDigest: "sha256:" + strings.Repeat("a", 64), SignatureID: "artsig_test", SBOMID: "sbom_test", ScanID: "scan_test", Pinned: true, VerificationStatus: "verified", HealthStatus: "healthy", Limitations: []string{"test"}, SchemaVersion: domain.CollectorReleaseSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
 		SSOProviders: map[string]domain.SSOProvider{
 			"sso_test": {ID: "sso_test", TenantID: "ten_test", Name: "OIDC", Type: "oidc", Issuer: "https://idp.example.test", ClientID: "client", Status: "active", JWKS: map[string]any{"keys": []any{map[string]any{"kty": "OKP", "kid": "kid-1", "crv": "Ed25519", "x": "abc"}}}, SchemaVersion: domain.SSOProviderSchemaVersion, CreatedAt: time.Now().UTC(), TrustMaterialUpdatedAt: ptrTime(time.Now().UTC())},
 		},
@@ -170,6 +173,18 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 		DSSETrustRoots: map[string]domain.DSSETrustRoot{
 			"dsse_root_test": {ID: "dsse_root_test", TenantID: "ten_test", Name: "root", KeyID: "key-1", Algorithm: "Ed25519", PublicKey: "pub", Status: "active", SchemaVersion: domain.DSSETrustRootSchemaVersion, CreatedAt: time.Now().UTC()},
 		},
+		CosignVerifications: map[string]domain.CosignVerification{
+			"cosign_test": {ID: "cosign_test", TenantID: "ten_test", ArtifactID: "art_test", ContainerImageID: "image_test", ArtifactSignatureID: "artsig_test", SubjectDigest: "sha256:" + strings.Repeat("a", 64), RekorUUID: "rekor", RekorLogIndex: "1", CertificateIdentity: "repo", CertificateIssuer: "issuer", Result: "pass", Checks: []domain.VerifyCheck{{Name: "digest", Result: "passed"}}, SchemaVersion: domain.CosignVerificationSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		SigningProviders: map[string]domain.SigningProvider{
+			"sign_provider_test": {ID: "sign_provider_test", TenantID: "ten_test", Name: "kms", Type: "aws_kms", Status: "active", KeyRef: "arn:aws:kms:test", Encrypted: true, SchemaVersion: domain.SigningProviderSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		MerkleBatches: map[string]domain.MerkleBatch{
+			"merkle_test": {ID: "merkle_test", TenantID: "ten_test", FromSequence: 1, ToSequence: 1, EntryCount: 1, LeafHashes: []string{"sha256:" + strings.Repeat("e", 64)}, RootHash: "sha256:" + strings.Repeat("f", 64), SignatureRefs: []string{"sig_test"}, SchemaVersion: domain.MerkleBatchSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		TransparencyCheckpoints: map[string]domain.TransparencyCheckpoint{
+			"transparency_test": {ID: "transparency_test", TenantID: "ten_test", BatchID: "merkle_test", Provider: "internal", ExternalURL: "https://transparency.example.test", ExternalID: "ts-1", TimestampHash: "sha256:" + strings.Repeat("0", 64), State: "recorded", SchemaVersion: domain.TransparencyCheckpointVersion, CreatedAt: time.Now().UTC()},
+		},
 		Chain: map[string][]domain.AuditChainEntry{
 			"ten_test": {{
 				ID: "chain_test", TenantID: "ten_test", Sequence: 1, EntryType: "evidence.created", SubjectType: "evidence_item", SubjectID: "ev_test",
@@ -260,11 +275,41 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 		QuestionnairePackages: map[string]domain.QuestionnairePackage{
 			"qp_test": {ID: "qp_test", TenantID: "ten_test", TemplateID: "qt_test", PackageID: "pkg_test", ProductID: "prod_test", ReleaseID: "rel_test", Responses: []domain.QuestionnaireResponse{{QuestionID: "q1", Answer: "See evidence", EvidenceIDs: []string{"ev_test"}}}, ManifestHash: "sha256:" + strings.Repeat("8", 64), SchemaVersion: domain.QuestionnairePackageVersion, CreatedAt: time.Now().UTC()},
 		},
+		CommercialCollectors: map[string]domain.CommercialCollectorDefinition{
+			"commercial_collector_test": {ID: "commercial_collector_test", TenantID: "ten_test", Name: "scanner", Provider: "scannerco", Version: "1.0.0", ManifestHash: "sha256:" + strings.Repeat("a", 64), AllowedScopes: []string{"evidence:write"}, Status: "active", SchemaVersion: domain.CommercialCollectorVersion, CreatedAt: time.Now().UTC()},
+		},
+		EvidenceSummaries: map[string]domain.EvidenceSummary{
+			"summary_test": {ID: "summary_test", TenantID: "ten_test", SubjectType: "release", SubjectID: "rel_test", EvidenceIDs: []string{"ev_test"}, Summary: "Evidence summary.", Citations: []domain.EvidenceCitation{{EvidenceID: "ev_test", Type: "sbom", Title: "SBOM", CanonicalHash: "sha256:" + strings.Repeat("c", 64)}}, Assumptions: []string{"stored evidence only"}, Limitations: []string{"not a compliance conclusion"}, SchemaVersion: domain.EvidenceSummaryVersion, CreatedAt: time.Now().UTC()},
+		},
+		QuestionnaireDrafts: map[string]domain.QuestionnaireDraft{
+			"draft_test": {ID: "draft_test", TenantID: "ten_test", TemplateID: "qt_test", ProductID: "prod_test", ReleaseID: "rel_test", Responses: []domain.QuestionnaireResponse{{QuestionID: "q1", Answer: "Draft", EvidenceIDs: []string{"ev_test"}}}, ManifestHash: "sha256:" + strings.Repeat("b", 64), Limitations: []string{"draft"}, SchemaVersion: domain.QuestionnaireDraftVersion, CreatedAt: time.Now().UTC()},
+		},
+		GraphSnapshots: map[string]domain.EvidenceGraphSnapshot{
+			"graph_test": {ID: "graph_test", TenantID: "ten_test", ProductID: "prod_test", ReleaseID: "rel_test", Nodes: []domain.GraphNode{{ID: "ev_test", Type: "evidence", Label: "SBOM"}}, Edges: []domain.GraphEdge{{From: "rel_test", To: "ev_test", Relationship: "has_evidence"}}, GraphHash: "sha256:" + strings.Repeat("c", 64), Limitations: []string{"snapshot"}, SchemaVersion: domain.EvidenceGraphSnapshotVersion, CreatedAt: time.Now().UTC()},
+		},
+		SaaSProfiles: map[string]domain.SaaSEditionProfile{
+			"saas_test": {ID: "saas_test", TenantID: "ten_test", Name: "hosted", Region: "eu", AdminTenantID: "ten_test", IsolationModel: "shared-control-plane", Status: "draft", ConfigHash: "sha256:" + strings.Repeat("d", 64), Limitations: []string{"not production"}, SchemaVersion: domain.SaaSEditionProfileVersion, CreatedAt: time.Now().UTC()},
+		},
+		PublicTransparencyLogs: map[string]domain.PublicTransparencyLog{
+			"public_log_test": {ID: "public_log_test", TenantID: "ten_test", Name: "log", Endpoint: "https://log.example.test", PublicKey: "pub", State: "active", SchemaVersion: domain.PublicTransparencyLogVersion, CreatedAt: time.Now().UTC()},
+		},
+		PublicTransparencyItems: map[string]domain.PublicTransparencyLogEntry{
+			"public_entry_test": {ID: "public_entry_test", TenantID: "ten_test", LogID: "public_log_test", CheckpointID: "transparency_test", MerkleBatchID: "merkle_test", ExternalID: "entry-1", EntryHash: "sha256:" + strings.Repeat("e", 64), InclusionRootHash: "sha256:" + strings.Repeat("f", 64), InclusionProofHash: "sha256:" + strings.Repeat("1", 64), InclusionVerifiedAt: ptrTime(time.Now().UTC()), VerificationChecks: []domain.VerifyCheck{{Name: "inclusion", Result: "passed"}}, VerificationLimitations: []string{"operator proof"}, State: "verified", SchemaVersion: domain.PublicTransparencyEntryVersion, CreatedAt: time.Now().UTC()},
+		},
+		MarketplaceCollectors: map[string]domain.MarketplaceCollector{
+			"market_collector_test": {ID: "market_collector_test", TenantID: "ten_test", Name: "scanner", Provider: "scannerco", Version: "1.0.0", Publisher: "scannerco", ManifestHash: "sha256:" + strings.Repeat("a", 64), SignatureID: "artsig_test", SBOMID: "sbom_test", ScanID: "scan_test", State: "published", Limitations: []string{"external distribution"}, SchemaVersion: domain.MarketplaceCollectorVersion, CreatedAt: time.Now().UTC()},
+		},
 		PDFReports: map[string]domain.PDFReportPackage{
 			"pdf_test": {ID: "pdf_test", TenantID: "ten_test", ReportType: "cra_readiness", ProductID: "prod_test", ReleaseID: "rel_test", Title: "PDF", PayloadRef: "object://tenants/ten_test/reports/pdf", PayloadHash: "sha256:" + strings.Repeat("9", 64), PayloadSize: 10, Limitations: []string{"test"}, SchemaVersion: domain.PDFReportPackageVersion, CreatedAt: time.Now().UTC()},
 		},
 		AnomalyReports: map[string]domain.AnomalyReport{
 			"anom_test": {ID: "anom_test", TenantID: "ten_test", SubjectType: "release", SubjectID: "rel_test", Result: "review", Signals: []domain.AnomalySignal{{Name: "gap", Severity: "medium", Detail: "test"}}, Assumptions: []string{"heuristic"}, Limitations: []string{"not ML"}, SchemaVersion: domain.AnomalyReportVersion, CreatedAt: time.Now().UTC()},
+		},
+		ProviderVerifications: map[string]domain.ProviderVerification{
+			"provider_verification_test": {ID: "provider_verification_test", TenantID: "ten_test", ProviderType: "oidc", ProviderID: "sso_test", Subject: "sub", Result: "verified", Checks: []domain.VerifyCheck{{Name: "subject", Result: "passed"}}, Limitations: []string{"static trust material"}, SchemaVersion: domain.ProviderVerificationVersion, CreatedAt: time.Now().UTC()},
+		},
+		SigningOperations: map[string]domain.SigningOperation{
+			"signing_operation_test": {ID: "signing_operation_test", TenantID: "ten_test", ProviderID: "sign_provider_test", SubjectType: "release", SubjectID: "rel_test", PayloadHash: "sha256:" + strings.Repeat("2", 64), SignatureRef: "sig_test", Result: "signed", Checks: []domain.VerifyCheck{{Name: "provider", Result: "passed"}}, SchemaVersion: domain.SigningOperationVersion, CreatedAt: time.Now().UTC()},
 		},
 		Idempotency: map[string]app.IdempotencyRecord{
 			app.NewIdempotencyRecordKey("ten_test", "user:user_test", "POST", "/v1/products", "idem"): {RequestHash: "sha256:request", Status: 201, Response: map[string]any{"ok": true}, CreatedAt: time.Now().UTC()},
@@ -331,6 +376,7 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 		{name: "release", query: `SELECT count(*) FROM releases WHERE tenant_id = 'ten_test' AND id = 'rel_test'`},
 		{name: "artifact", query: `SELECT count(*) FROM artifacts WHERE tenant_id = 'ten_test' AND digest LIKE 'sha256:%'`},
 		{name: "collector", query: `SELECT count(*) FROM collectors WHERE tenant_id = 'ten_test' AND id = 'collector_test' AND allowed_scopes <> '[]'::jsonb`},
+		{name: "collector release", query: `SELECT count(*) FROM collector_releases WHERE tenant_id = 'ten_test' AND id = 'collector_release_test' AND pinned = true`},
 		{name: "build run", query: `SELECT count(*) FROM build_runs WHERE tenant_id = 'ten_test' AND id = 'build_test' AND outputs <> '[]'::jsonb`},
 		{name: "build attestation", query: `SELECT count(*) FROM build_attestations WHERE tenant_id = 'ten_test' AND id = 'att_test' AND subject_digests <> '[]'::jsonb`},
 		{name: "evidence", query: `SELECT count(*) FROM evidence_items WHERE tenant_id = 'ten_test' AND id = 'ev_test' AND evidence_version = 1 AND product_id = 'prod_test'`},
@@ -360,6 +406,10 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 		{name: "waiver", query: `SELECT count(*) FROM waivers WHERE tenant_id = 'ten_test' AND id = 'waiver_test' AND approved = true`},
 		{name: "approval", query: `SELECT count(*) FROM approval_records WHERE tenant_id = 'ten_test' AND id = 'approval_test' AND evidence_id = 'ev_test'`},
 		{name: "dsse trust root", query: `SELECT count(*) FROM dsse_trust_roots WHERE tenant_id = 'ten_test' AND id = 'dsse_root_test' AND status = 'active'`},
+		{name: "cosign verification", query: `SELECT count(*) FROM cosign_verifications WHERE tenant_id = 'ten_test' AND id = 'cosign_test' AND checks <> '[]'::jsonb`},
+		{name: "signing provider", query: `SELECT count(*) FROM signing_providers WHERE tenant_id = 'ten_test' AND id = 'sign_provider_test' AND encrypted = true`},
+		{name: "merkle batch", query: `SELECT count(*) FROM merkle_batches WHERE tenant_id = 'ten_test' AND id = 'merkle_test' AND signature_refs = ARRAY['sig_test']`},
+		{name: "transparency checkpoint", query: `SELECT count(*) FROM transparency_checkpoints WHERE tenant_id = 'ten_test' AND id = 'transparency_test' AND external_id = 'ts-1'`},
 		{name: "audit chain", query: `SELECT count(*) FROM audit_chain_entries WHERE tenant_id = 'ten_test' AND sequence = 1`},
 		{name: "signing key", query: `SELECT count(*) FROM signing_keys WHERE tenant_id = 'ten_test' AND id = 'sigkey_test' AND encrypted_private_key IS NOT NULL`},
 		{name: "signature", query: `SELECT count(*) FROM signatures WHERE tenant_id = 'ten_test' AND id = 'sig_test'`},
@@ -388,8 +438,18 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 		{name: "retention override", query: `SELECT count(*) FROM retention_overrides WHERE tenant_id = 'ten_test' AND id = 'ret_test'`},
 		{name: "questionnaire template", query: `SELECT count(*) FROM questionnaire_templates WHERE tenant_id = 'ten_test' AND id = 'qt_test'`},
 		{name: "questionnaire package", query: `SELECT count(*) FROM questionnaire_packages WHERE tenant_id = 'ten_test' AND id = 'qp_test'`},
+		{name: "commercial collector", query: `SELECT count(*) FROM commercial_collectors WHERE tenant_id = 'ten_test' AND id = 'commercial_collector_test' AND allowed_scopes = ARRAY['evidence:write']`},
+		{name: "evidence summary", query: `SELECT count(*) FROM evidence_summaries WHERE tenant_id = 'ten_test' AND id = 'summary_test' AND citations <> '[]'::jsonb`},
+		{name: "questionnaire draft", query: `SELECT count(*) FROM questionnaire_drafts WHERE tenant_id = 'ten_test' AND id = 'draft_test' AND responses <> '[]'::jsonb`},
+		{name: "graph snapshot", query: `SELECT count(*) FROM evidence_graph_snapshots WHERE tenant_id = 'ten_test' AND id = 'graph_test' AND nodes <> '[]'::jsonb`},
+		{name: "saas profile", query: `SELECT count(*) FROM saas_edition_profiles WHERE tenant_id = 'ten_test' AND id = 'saas_test' AND status = 'draft'`},
+		{name: "public transparency log", query: `SELECT count(*) FROM public_transparency_logs WHERE tenant_id = 'ten_test' AND id = 'public_log_test' AND state = 'active'`},
+		{name: "public transparency entry", query: `SELECT count(*) FROM public_transparency_log_entries WHERE tenant_id = 'ten_test' AND id = 'public_entry_test' AND inclusion_verified_at IS NOT NULL AND verification_checks <> '[]'::jsonb`},
+		{name: "marketplace collector", query: `SELECT count(*) FROM marketplace_collectors WHERE tenant_id = 'ten_test' AND id = 'market_collector_test' AND state = 'published'`},
 		{name: "pdf report", query: `SELECT count(*) FROM pdf_report_packages WHERE tenant_id = 'ten_test' AND id = 'pdf_test'`},
 		{name: "anomaly report", query: `SELECT count(*) FROM anomaly_reports WHERE tenant_id = 'ten_test' AND id = 'anom_test'`},
+		{name: "provider verification", query: `SELECT count(*) FROM provider_verifications WHERE tenant_id = 'ten_test' AND id = 'provider_verification_test' AND checks <> '[]'::jsonb`},
+		{name: "signing operation", query: `SELECT count(*) FROM signing_operations WHERE tenant_id = 'ten_test' AND id = 'signing_operation_test' AND signature_ref = 'sig_test'`},
 	}
 	for _, check := range coreChecks {
 		var rows int
@@ -424,6 +484,9 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	}
 	if relational.Collectors["collector_test"].APIKeyID != "key_test" || relational.BuildRuns["build_test"].Status != "passed" || len(relational.BuildAttestations["att_test"].SubjectDigests) != 1 {
 		t.Fatalf("relational build rows missing: collector=%#v build=%#v attestation=%#v", relational.Collectors["collector_test"], relational.BuildRuns["build_test"], relational.BuildAttestations["att_test"])
+	}
+	if !relational.CollectorReleases["collector_release_test"].Pinned || relational.CollectorReleases["collector_release_test"].HealthStatus != "healthy" {
+		t.Fatalf("relational collector release missing: release=%#v", relational.CollectorReleases["collector_release_test"])
 	}
 	if relational.EvidenceLifecycle["life_test"].Details["field"] != "metadata" || len(relational.ReleaseCandidates["rc_test"].BuildIDs) != 1 {
 		t.Fatalf("relational lifecycle/candidate rows missing: lifecycle=%#v candidate=%#v", relational.EvidenceLifecycle["life_test"], relational.ReleaseCandidates["rc_test"])
@@ -460,6 +523,12 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	}
 	if !relational.Waivers["waiver_test"].Approved || relational.Approvals["approval_test"].EvidenceID != "ev_test" || relational.DSSETrustRoots["dsse_root_test"].Status != "active" {
 		t.Fatalf("relational governance/trust rows missing: waiver=%#v approval=%#v trust=%#v", relational.Waivers["waiver_test"], relational.Approvals["approval_test"], relational.DSSETrustRoots["dsse_root_test"])
+	}
+	if len(relational.CosignVerifications["cosign_test"].Checks) != 1 || !relational.SigningProviders["sign_provider_test"].Encrypted {
+		t.Fatalf("relational signing provider rows missing: cosign=%#v provider=%#v", relational.CosignVerifications["cosign_test"], relational.SigningProviders["sign_provider_test"])
+	}
+	if relational.MerkleBatches["merkle_test"].RootHash == "" || relational.TransparencyCheckpoints["transparency_test"].ExternalID != "ts-1" {
+		t.Fatalf("relational integrity checkpoint rows missing: batch=%#v checkpoint=%#v", relational.MerkleBatches["merkle_test"], relational.TransparencyCheckpoints["transparency_test"])
 	}
 	if relational.Products["prod_test"].Slug != "product" || relational.Evidence["ev_test"].ReleaseID != "rel_test" || relational.SBOMs["sbom_test"].ComponentCount != 1 {
 		t.Fatalf("relational fallback missing core rows: product=%#v evidence=%#v sbom=%#v", relational.Products["prod_test"], relational.Evidence["ev_test"], relational.SBOMs["sbom_test"])
@@ -502,6 +571,24 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	}
 	if len(relational.QuestionnaireTemplates["qt_test"].Questions) != 1 || len(relational.QuestionnairePackages["qp_test"].Responses) != 1 {
 		t.Fatalf("relational questionnaire rows missing: template=%#v package=%#v", relational.QuestionnaireTemplates["qt_test"], relational.QuestionnairePackages["qp_test"])
+	}
+	if relational.CommercialCollectors["commercial_collector_test"].Status != "active" || len(relational.EvidenceSummaries["summary_test"].Citations) != 1 {
+		t.Fatalf("relational commercial/summary rows missing: collector=%#v summary=%#v", relational.CommercialCollectors["commercial_collector_test"], relational.EvidenceSummaries["summary_test"])
+	}
+	if len(relational.QuestionnaireDrafts["draft_test"].Responses) != 1 || len(relational.GraphSnapshots["graph_test"].Nodes) != 1 {
+		t.Fatalf("relational draft/graph rows missing: draft=%#v graph=%#v", relational.QuestionnaireDrafts["draft_test"], relational.GraphSnapshots["graph_test"])
+	}
+	if relational.SaaSProfiles["saas_test"].Status != "draft" || relational.PublicTransparencyLogs["public_log_test"].State != "active" {
+		t.Fatalf("relational saas/public log rows missing: saas=%#v log=%#v", relational.SaaSProfiles["saas_test"], relational.PublicTransparencyLogs["public_log_test"])
+	}
+	if relational.PublicTransparencyItems["public_entry_test"].InclusionVerifiedAt == nil || len(relational.PublicTransparencyItems["public_entry_test"].VerificationChecks) != 1 {
+		t.Fatalf("relational public transparency entry missing: entry=%#v", relational.PublicTransparencyItems["public_entry_test"])
+	}
+	if relational.MarketplaceCollectors["market_collector_test"].State != "published" || relational.ProviderVerifications["provider_verification_test"].Result != "verified" {
+		t.Fatalf("relational marketplace/provider rows missing: market=%#v provider=%#v", relational.MarketplaceCollectors["market_collector_test"], relational.ProviderVerifications["provider_verification_test"])
+	}
+	if relational.SigningOperations["signing_operation_test"].SignatureRef != "sig_test" || len(relational.SigningOperations["signing_operation_test"].Checks) != 1 {
+		t.Fatalf("relational signing operation missing: operation=%#v", relational.SigningOperations["signing_operation_test"])
 	}
 	if relational.PDFReports["pdf_test"].PayloadHash == "" || relational.AnomalyReports["anom_test"].Result != "review" {
 		t.Fatalf("relational generated report rows missing: pdf=%#v anomaly=%#v", relational.PDFReports["pdf_test"], relational.AnomalyReports["anom_test"])
