@@ -329,6 +329,85 @@ func TestUploadOpenAPIContractCanDeferParserSideEffectsToWorker(t *testing.T) {
 	}
 }
 
+func TestUploadBuildAttestationCanDeferParserSideEffectsToWorker(t *testing.T) {
+	outbox := &recordingOutbox{}
+	store := NewMemoryStore()
+	objects := newTestObjectStore()
+	ledger := NewLedger(Config{
+		APIKeyPepper:                 "test-pepper",
+		Now:                          fixedNow,
+		Store:                        store,
+		ObjectStore:                  objects,
+		Outbox:                       outbox,
+		WorkerOwnedParserSideEffects: true,
+	})
+	ctx := context.Background()
+	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
+	project, err := ledger.CreateProject(ctx, actor, release.ProductID, "api")
+	if err != nil {
+		t.Fatalf("project: %v", err)
+	}
+	_, _, secret, err := ledger.CreateCollector(ctx, actor, CreateCollectorInput{Name: "gha", Type: "github_actions", Version: "1.0.0"})
+	if err != nil {
+		t.Fatalf("collector: %v", err)
+	}
+	collectorActor, err := ledger.Authenticate(ctx, secret)
+	if err != nil {
+		t.Fatalf("auth collector: %v", err)
+	}
+	build, err := ledger.CreateBuildRun(ctx, collectorActor, CreateBuildRunInput{
+		ProjectID:   project.ID,
+		ReleaseID:   release.ID,
+		Provider:    "github_actions",
+		CommitSHA:   "0123456789abcdef0123456789abcdef01234567",
+		Repository:  "aatuh/evydence",
+		WorkflowRef: "aatuh/evydence/.github/workflows/release.yml@refs/heads/main",
+		RunID:       "123456789",
+		RunAttempt:  1,
+		Status:      "passed",
+		StartedAt:   fixedNow(),
+		Outputs:     []domain.BuildOutput{{ArtifactID: artifact.ID, Digest: artifact.Digest}},
+	})
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	attestation, err := ledger.UploadBuildAttestation(ctx, collectorActor, build.ID, dsseForDigest(t, artifact.Digest))
+	if err != nil {
+		t.Fatalf("attestation: %v", err)
+	}
+	if attestation.PredicateType == "" || len(attestation.SubjectDigests) != 1 || attestation.SignatureCount != 1 || attestation.VerificationStatus != "structurally_valid" {
+		t.Fatalf("upload response should keep parsed attestation fields: %#v", attestation)
+	}
+
+	state, ok, err := store.LoadState(ctx)
+	if err != nil || !ok {
+		t.Fatalf("load state ok=%v err=%v", ok, err)
+	}
+	persisted := state.BuildAttestations[attestation.ID]
+	if persisted.TenantID != actor.TenantID || persisted.PayloadHash == "" || persisted.PayloadSize == 0 || persisted.VerificationStatus != "accepted" {
+		t.Fatalf("persisted attestation should keep accepted metadata: %#v", persisted)
+	}
+	if persisted.PredicateType != "" || len(persisted.SubjectDigests) != 0 || persisted.SignatureCount != 0 {
+		t.Fatalf("persisted attestation should wait for worker parser side effects: %#v", persisted)
+	}
+	if len(outbox.jobs) != 1 {
+		t.Fatalf("outbox jobs = %d, want 1", len(outbox.jobs))
+	}
+	job := outbox.jobs[0]
+	if job.Kind != "verify_attestation" || job.Payload["payload_ref"] == "" || job.Payload["payload_hash"] == "" || job.Payload["parser_version"] != ParserVersionDSSEInTotoJSON {
+		t.Fatalf("outbox job missing replay metadata: %#v", job)
+	}
+	payloadRef, ok := job.Payload["payload_ref"].(string)
+	payloadKey := strings.TrimPrefix(payloadRef, "object://")
+	if !ok || !strings.HasPrefix(payloadKey, "tenants/"+actor.TenantID+"/") {
+		t.Fatalf("payload ref %q is not tenant-prefixed", job.Payload["payload_ref"])
+	}
+	if _, err := objects.Get(ctx, payloadKey); err != nil {
+		t.Fatalf("stored payload missing: %v", err)
+	}
+}
+
 func TestIdempotencyReplayAndConflict(t *testing.T) {
 	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()

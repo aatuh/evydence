@@ -443,8 +443,21 @@ func (l *Ledger) UploadBuildAttestation(ctx context.Context, actor domain.Actor,
 		SchemaVersion:      domain.BuildAttestationSchemaVersion,
 		CreatedAt:          l.now(),
 	}
-	l.attestations[attestation.ID] = attestation
-	_, _ = l.appendChainLocked(actor.TenantID, "build_attestation.created", "build_attestation", attestation.ID, actorType(actor), actorID(actor), payloadHash, "")
+	persistedAttestation := attestation
+	chainAction := "build_attestation.created"
+	if l.workerOwnedParsers {
+		persistedAttestation.PayloadType = ""
+		persistedAttestation.PredicateType = ""
+		persistedAttestation.SubjectDigests = nil
+		persistedAttestation.BuilderID = ""
+		persistedAttestation.BuildType = ""
+		persistedAttestation.MaterialsCount = 0
+		persistedAttestation.SignatureCount = 0
+		persistedAttestation.VerificationStatus = "accepted"
+		chainAction = "build_attestation.accepted"
+	}
+	l.attestations[attestation.ID] = persistedAttestation
+	_, _ = l.appendChainLocked(actor.TenantID, chainAction, "build_attestation", attestation.ID, actorType(actor), actorID(actor), payloadHash, "")
 	if err := l.enqueue(ctx, actor.TenantID, "verify_attestation", "build_attestation", attestation.ID, map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionDSSEInTotoJSON}); err != nil {
 		return domain.BuildAttestation{}, err
 	}
