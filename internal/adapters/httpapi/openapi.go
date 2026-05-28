@@ -494,6 +494,69 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"created_at":     map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "name", "key_id", "algorithm", "public_key", "status", "schema_version", "created_at"))
 	registry.RegisterSchema("DSSETrustRootEnvelope", dataEnvelopeSchema("#/components/schemas/DSSETrustRoot"))
+	registry.RegisterSchema("CreateReleaseCandidateRequest", objectSchema(map[string]any{
+		"release_id":   map[string]any{"type": "string"},
+		"name":         map[string]any{"type": "string"},
+		"build_ids":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"artifact_ids": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"sbom_ids":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"scan_ids":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"vex_ids":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"contract_ids": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"bundle_ids":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+	}, "release_id", "name"))
+	registry.RegisterSchema("ReleaseCandidateTransitionRequest", objectSchema(map[string]any{
+		"reason": map[string]any{"type": "string"},
+	}))
+	registry.RegisterSchema("ReleaseCandidate", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"release_id":     map[string]any{"type": "string"},
+		"name":           map[string]any{"type": "string"},
+		"state":          map[string]any{"type": "string"},
+		"build_ids":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"artifact_ids":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"sbom_ids":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"scan_ids":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"vex_ids":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"contract_ids":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"bundle_ids":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"snapshot_hash":  map[string]any{"type": "string", "pattern": "^sha256:"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+		"promoted_at":    map[string]any{"type": "string", "format": "date-time"},
+		"rejected_at":    map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "release_id", "name", "state", "snapshot_hash", "schema_version", "created_at"))
+	registry.RegisterSchema("ReleaseCandidateEnvelope", dataEnvelopeSchema("#/components/schemas/ReleaseCandidate"))
+	registry.RegisterSchema("ReleaseCandidateListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/ReleaseCandidate"))
+	registry.RegisterSchema("SupersedeEvidenceRequest", objectSchema(map[string]any{
+		"replacement_evidence_id": map[string]any{"type": "string"},
+		"reason":                  map[string]any{"type": "string"},
+	}, "replacement_evidence_id", "reason"))
+	registry.RegisterSchema("LinkEvidenceRequest", objectSchema(map[string]any{
+		"target_type": map[string]any{"type": "string"},
+		"target_id":   map[string]any{"type": "string"},
+	}, "target_type", "target_id"))
+	registry.RegisterSchema("RecordEvidenceLifecycleEventRequest", objectSchema(map[string]any{
+		"action":         map[string]any{"type": "string"},
+		"reason":         map[string]any{"type": "string"},
+		"details":        map[string]any{"type": "object", "additionalProperties": true},
+		"replacement_id": map[string]any{"type": "string"},
+	}, "action", "reason"))
+	registry.RegisterSchema("EvidenceLifecycleEvent", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"evidence_id":    map[string]any{"type": "string"},
+		"action":         map[string]any{"type": "string"},
+		"reason":         map[string]any{"type": "string"},
+		"details":        map[string]any{"type": "object", "additionalProperties": true},
+		"replacement_id": map[string]any{"type": "string"},
+		"actor_id":       map[string]any{"type": "string"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "evidence_id", "action", "reason", "actor_id", "schema_version", "created_at"))
+	registry.RegisterSchema("EvidenceLifecycleEventEnvelope", dataEnvelopeSchema("#/components/schemas/EvidenceLifecycleEvent"))
+	registry.RegisterSchema("EvidenceLifecycleEventListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/EvidenceLifecycleEvent"))
 	registry.RegisterSchema("ReadinessReport", objectSchema(map[string]any{
 		"report_type":      map[string]any{"type": "string"},
 		"template_version": map[string]any{"type": "string"},
