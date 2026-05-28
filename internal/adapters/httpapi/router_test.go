@@ -353,6 +353,13 @@ func TestIntegrityRuntimeHTTPFlow(t *testing.T) {
 	if !strings.Contains(metrics, `"resource_counts"`) {
 		t.Fatalf("metrics response: %s", metrics)
 	}
+	metricsText := getRawWithAccept(t, server, secret, "/v1/metrics", "text/plain", http.StatusOK)
+	if contentType := metricsText.Header().Get("Content-Type"); !strings.Contains(contentType, "text/plain") {
+		t.Fatalf("metrics content type = %q", contentType)
+	}
+	if body := metricsText.Body.String(); !strings.Contains(body, "evydence_resource_count{resource=\"evidence\"}") || strings.Contains(body, secret) {
+		t.Fatalf("unsafe or incomplete text metrics: %s", body)
+	}
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/v1/ready", nil)
 	server.Handler().ServeHTTP(rec, req)
@@ -1111,6 +1118,19 @@ func getRaw(t *testing.T, server *Server, secret, path string, want int) *httpte
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, path, nil)
 	req.Header.Set("Authorization", "Bearer "+secret)
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != want {
+		t.Fatalf("GET %s status=%d want=%d body=%s", path, rec.Code, want, rec.Body.String())
+	}
+	return rec
+}
+
+func getRawWithAccept(t *testing.T, server *Server, secret, path, accept string, want int) *httptest.ResponseRecorder {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	req.Header.Set("Authorization", "Bearer "+secret)
+	req.Header.Set("Accept", accept)
 	server.Handler().ServeHTTP(rec, req)
 	if rec.Code != want {
 		t.Fatalf("GET %s status=%d want=%d body=%s", path, rec.Code, want, rec.Body.String())

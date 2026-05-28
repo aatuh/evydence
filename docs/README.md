@@ -21,6 +21,7 @@ This documentation is organized by reader task. Implementation claims should be 
 
 - [Configuration](reference/configuration.md): canonical environment variables and the roles of `.env.example`, `.api.env.example`, and `.test.env.example`.
 - [OpenAPI contract](reference/openapi.md): generation, drift checks, and review tips for `openapi.yaml`.
+- [Observability](reference/observability.md): readiness, admin metrics, Prometheus rules, and dashboard starter assets.
 - [Worker outbox contract](reference/worker-outbox.md): durable job kinds, idempotency, and safe logging rules.
 - [Release validation](reference/release-validation.md): canonical `make release-check` behavior and summary evidence.
 - [SDK workflow](sdk/README.md): current Go, TypeScript, and Python wrapper usage and limitations.
