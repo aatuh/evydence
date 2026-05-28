@@ -43,11 +43,15 @@ func run() error {
 			return err
 		}
 		closeStore = pgStore.Close
+		migrationsDir := envDefault("EVYDENCE_MIGRATIONS_DIR", "migrations")
 		if !strings.EqualFold(os.Getenv("EVYDENCE_SKIP_MIGRATIONS"), "true") {
-			if _, err := pgStore.ApplyMigrations(ctx, envDefault("EVYDENCE_MIGRATIONS_DIR", "migrations")); err != nil {
+			if _, err := pgStore.ApplyMigrations(ctx, migrationsDir); err != nil {
 				closeStore()
 				return fmt.Errorf("apply migrations: %w", err)
 			}
+		} else if err := pgStore.RequireNoPendingMigrations(ctx, migrationsDir); err != nil {
+			closeStore()
+			return fmt.Errorf("check migrations: %w", err)
 		}
 		objectStore, objectDescription, err := openObjectStore(ctx)
 		if err != nil {

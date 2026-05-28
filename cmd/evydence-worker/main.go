@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -45,14 +46,18 @@ func run() error {
 		return err
 	}
 	defer store.Close()
+	migrationsDir := envDefault("EVYDENCE_MIGRATIONS_DIR", "migrations")
+	migrateCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	if !strings.EqualFold(os.Getenv("EVYDENCE_SKIP_MIGRATIONS"), "true") {
-		migrateCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		if _, err := store.ApplyMigrations(migrateCtx, envDefault("EVYDENCE_MIGRATIONS_DIR", "migrations")); err != nil {
+		if _, err := store.ApplyMigrations(migrateCtx, migrationsDir); err != nil {
 			cancel()
 			return err
 		}
+	} else if err := store.RequireNoPendingMigrations(migrateCtx, migrationsDir); err != nil {
 		cancel()
+		return fmt.Errorf("check migrations: %w", err)
 	}
+	cancel()
 	objectStore, objectDescription, err := openObjectStore(ctx)
 	if err != nil {
 		return err
