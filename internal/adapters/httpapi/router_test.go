@@ -45,12 +45,14 @@ func TestRouteFamiliesRegisterCriticalPaths(t *testing.T) {
 		}
 	}
 	want := map[string]string{
-		"instanceAdminSnapshot":       "/v1/admin/instance",
-		"createSSOSession":            "/v1/sso/sessions",
-		"createCustomerPortalAccess":  "/v1/customer-portal/access",
-		"accessCustomerPortalPackage": "/v1/customer-portal/package",
-		"createLegalHold":             "/v1/legal-holds",
-		"verifyReleaseBundle":         "/v1/release-bundles/{id}/verify",
+		"instanceAdminSnapshot":         "/v1/admin/instance",
+		"createSSOSession":              "/v1/sso/sessions",
+		"createCustomerPortalAccess":    "/v1/customer-portal/access",
+		"accessCustomerPortalPackage":   "/v1/customer-portal/package",
+		"downloadCustomerPackage":       "/v1/customer-packages/{id}/download",
+		"downloadCustomerPortalPackage": "/v1/customer-portal/package/download",
+		"createLegalHold":               "/v1/legal-holds",
+		"verifyReleaseBundle":           "/v1/release-bundles/{id}/verify",
 	}
 	got := map[string]string{}
 	for _, route := range server.routeDefinitions() {
@@ -98,6 +100,14 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	assertRequestRef(t, portalPackage, "#/components/schemas/CustomerPortalPackageRequest")
 	if _, ok := portalPackage["security"]; ok {
 		t.Fatalf("public portal token exchange should not advertise bearer security: %#v", portalPackage["security"])
+	}
+	downloadPackage := operationMap(t, paths, "/v1/customer-packages/{id}/download", "get")
+	assertMediaResponseType(t, downloadPackage, "200", "application/zip")
+	portalDownload := operationMap(t, paths, "/v1/customer-portal/package/download", "post")
+	assertRequestRef(t, portalDownload, "#/components/schemas/CustomerPortalPackageRequest")
+	assertMediaResponseType(t, portalDownload, "200", "application/zip")
+	if _, ok := portalDownload["security"]; ok {
+		t.Fatalf("public portal download should not advertise bearer security: %#v", portalDownload["security"])
 	}
 	createSession := operationMap(t, paths, "/v1/sso/sessions", "post")
 	assertRequestRef(t, createSession, "#/components/schemas/CreateSSOSessionRequest")
@@ -660,6 +670,10 @@ func TestGovernancePackageAndBundleHTTPFlow(t *testing.T) {
 	packageBody := postJSON(t, server, secret, "/v1/customer-packages", "gov-package", map[string]any{"product_id": productID, "release_id": releaseID, "redaction_profile_id": profileID, "title": "Customer package", "expires_at": time.Now().UTC().Add(time.Hour).Format(time.RFC3339)}, http.StatusCreated)
 	packageID := dataField(t, packageBody, "id")
 	getJSON(t, server, secret, "/v1/customer-packages/"+packageID, http.StatusOK)
+	archiveRec := getRaw(t, server, secret, "/v1/customer-packages/"+packageID+"/download", http.StatusOK)
+	if archiveRec.Header().Get("Content-Type") != "application/zip" || !bytes.HasPrefix(archiveRec.Body.Bytes(), []byte("PK")) || archiveRec.Header().Get("X-Evydence-Archive-Hash") == "" {
+		t.Fatalf("customer package archive response invalid headers=%v len=%d", archiveRec.Header(), archiveRec.Body.Len())
+	}
 	packageReport := getJSON(t, server, secret, "/v1/reports/security-review-package?package_id="+packageID, http.StatusOK)
 	if !strings.Contains(packageReport, `"report_type":"security_review_package"`) {
 		t.Fatalf("security review report missing type: %s", packageReport)
@@ -710,6 +724,10 @@ func TestEnterprisePortalRetentionAndCommercialCollectorHTTPFlow(t *testing.T) {
 	portalBody := postJSONNoAuth(t, server, "/v1/customer-portal/package", map[string]any{"token": portalSecret}, http.StatusOK)
 	if !strings.Contains(portalBody, packageID) || strings.Contains(portalBody, portalSecret) {
 		t.Fatalf("portal package response invalid: %s", portalBody)
+	}
+	portalArchive := postJSONNoAuthRaw(t, server, "/v1/customer-portal/package/download", map[string]any{"token": portalSecret}, http.StatusOK)
+	if portalArchive.Header().Get("Content-Type") != "application/zip" || !bytes.HasPrefix(portalArchive.Body.Bytes(), []byte("PK")) || bytes.Contains(portalArchive.Body.Bytes(), []byte(portalSecret)) {
+		t.Fatalf("portal archive response invalid headers=%v len=%d", portalArchive.Header(), portalArchive.Body.Len())
 	}
 	postJSON(t, server, sessionSecret, "/v1/legal-holds", "ent-hold", map[string]any{"scope_type": "release", "scope_id": releaseID, "reason": "extended review", "owner": "legal"}, http.StatusCreated)
 	postJSON(t, server, sessionSecret, "/v1/retention-overrides", "ent-retention", map[string]any{"scope_type": "evidence", "scope_id": evidenceID, "retention_until": time.Now().UTC().Add(24 * time.Hour).Format(time.RFC3339), "reason": "review", "owner": "security"}, http.StatusCreated)
@@ -952,6 +970,22 @@ func postJSONNoAuth(t *testing.T, server *Server, path string, payload any, want
 	return rec.Body.String()
 }
 
+func postJSONNoAuthRaw(t *testing.T, server *Server, path string, payload any, want int) *httptest.ResponseRecorder {
+	t.Helper()
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != want {
+		t.Fatalf("POST %s status=%d want=%d body=%s", path, rec.Code, want, rec.Body.String())
+	}
+	return rec
+}
+
 func dataField(t *testing.T, body, field string) string {
 	t.Helper()
 	var decoded struct {
@@ -1033,6 +1067,18 @@ func getJSON(t *testing.T, server *Server, secret, path string, want int) string
 	return rec.Body.String()
 }
 
+func getRaw(t *testing.T, server *Server, secret, path string, want int) *httptest.ResponseRecorder {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	req.Header.Set("Authorization", "Bearer "+secret)
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != want {
+		t.Fatalf("GET %s status=%d want=%d body=%s", path, rec.Code, want, rec.Body.String())
+	}
+	return rec
+}
+
 func asStringAnyMap(t *testing.T, value any) map[string]any {
 	t.Helper()
 	out, ok := value.(map[string]any)
@@ -1087,6 +1133,16 @@ func assertMediaResponseRef(t *testing.T, operation map[string]any, status, medi
 	schema := asStringAnyMap(t, media["schema"])
 	if got := asString(t, schema["$ref"]); got != wantRef {
 		t.Fatalf("response schema ref = %q, want %q", got, wantRef)
+	}
+}
+
+func assertMediaResponseType(t *testing.T, operation map[string]any, status, mediaType string) {
+	t.Helper()
+	responses := asStringAnyMap(t, operation["responses"])
+	response := asStringAnyMap(t, responses[status])
+	content := asStringAnyMap(t, response["content"])
+	if _, ok := content[mediaType]; !ok {
+		t.Fatalf("response %s missing media type %s: %#v", status, mediaType, content)
 	}
 }
 

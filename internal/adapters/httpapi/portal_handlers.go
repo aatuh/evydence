@@ -44,6 +44,27 @@ func (s *Server) accessCustomerPortalPackage(w http.ResponseWriter, r *http.Requ
 	writeData(w, http.StatusOK, pkg)
 }
 
+func (s *Server) downloadCustomerPortalPackage(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Token string `json:"token"`
+	}
+	body, err := readBody(r)
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	if err := decodeJSON(body, &req); err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	archive, err := s.ledger.ExportCustomerPortalPackageArchive(r.Context(), req.Token)
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeArchive(w, archive)
+}
+
 func (s *Server) createQuestionnaireTemplate(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name      string                         `json:"name"`

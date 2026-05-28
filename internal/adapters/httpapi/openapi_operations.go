@@ -45,12 +45,22 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Description = "Creates token-based customer portal access for a customer package and returns the token once."
 		operation.RequestBody = jsonRequest("Customer portal access creation request.", "#/components/schemas/CreateCustomerPortalAccessRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created portal access and one-time token envelope.", "#/components/schemas/CustomerPortalAccessCreateEnvelope")
+	case "downloadCustomerPackage":
+		operation.Description = "Downloads a scoped customer security package ZIP. The archive contains redacted manifest metadata and verification guidance, not raw tenant evidence payload bytes."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Customer package id."))
+		operation.Responses[http.StatusOK] = binaryResponse("Customer security package ZIP archive.")
 	case "accessCustomerPortalPackage":
 		operation.Description = "Public token exchange endpoint for a scoped customer package. It intentionally uses no bearer authentication and accepts only the issued portal token in the JSON body."
 		operation.RequestBody = jsonRequest("Customer portal token request.", "#/components/schemas/CustomerPortalPackageRequest")
 		operation.Security = nil
 		operation.Scopes = nil
 		operation.Responses[http.StatusOK] = jsonResponse("Scoped customer package envelope.", "#/components/schemas/DataEnvelope")
+	case "downloadCustomerPortalPackage":
+		operation.Description = "Public token exchange endpoint for downloading a scoped customer package ZIP. It intentionally uses no bearer authentication and accepts only the issued portal token in the JSON body."
+		operation.RequestBody = jsonRequest("Customer portal token request.", "#/components/schemas/CustomerPortalPackageRequest")
+		operation.Security = nil
+		operation.Scopes = nil
+		operation.Responses[http.StatusOK] = binaryResponse("Customer security package ZIP archive.")
 	}
 	return operation
 }
@@ -88,6 +98,16 @@ func problemResponse(description string) specs.Response {
 		ContentTypes: []string{"application/problem+json"},
 		Content: map[string]specs.MediaType{
 			"application/problem+json": {SchemaRef: "#/components/schemas/Problem"},
+		},
+	}
+}
+
+func binaryResponse(description string) specs.Response {
+	return specs.Response{
+		Description:  description,
+		ContentTypes: []string{"application/zip"},
+		Content: map[string]specs.MediaType{
+			"application/zip": {Schema: map[string]any{"type": "string", "format": "binary"}},
 		},
 	}
 }

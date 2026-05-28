@@ -1,6 +1,8 @@
 package app
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"encoding/base64"
@@ -46,6 +48,15 @@ type CreateCustomerPackageInput struct {
 	RedactionProfileID string
 	Title              string
 	ExpiresAt          time.Time
+}
+
+type CustomerPackageArchive struct {
+	PackageID string
+	Filename  string
+	MediaType string
+	Bytes     []byte
+	Hash      string
+	Size      int64
 }
 
 type CreateReportTemplateInput struct {
@@ -294,6 +305,22 @@ func (l *Ledger) AccessCustomerSecurityPackage(ctx context.Context, actor domain
 	return pkg, nil
 }
 
+func (l *Ledger) ExportCustomerSecurityPackageArchive(ctx context.Context, actor domain.Actor, id string) (CustomerPackageArchive, error) {
+	pkg, err := l.AccessCustomerSecurityPackage(ctx, actor, id)
+	if err != nil {
+		return CustomerPackageArchive{}, err
+	}
+	return customerPackageArchive(pkg)
+}
+
+func (l *Ledger) ExportCustomerPortalPackageArchive(ctx context.Context, token string) (CustomerPackageArchive, error) {
+	pkg, err := l.AccessCustomerPortalPackage(ctx, token)
+	if err != nil {
+		return CustomerPackageArchive{}, err
+	}
+	return customerPackageArchive(pkg)
+}
+
 func (l *Ledger) SecurityReviewPackageReport(ctx context.Context, actor domain.Actor, packageID string) (domain.SecurityReviewPackageReport, error) {
 	pkg, err := l.AccessCustomerSecurityPackage(ctx, actor, packageID)
 	if err != nil {
@@ -311,6 +338,80 @@ func (l *Ledger) SecurityReviewPackageReport(ctx context.Context, actor domain.A
 		}
 	}
 	return domain.SecurityReviewPackageReport{ReportType: "security_review_package", TemplateVersion: "security-review-package.v1.0.0", PackageID: pkg.ID, ProductID: pkg.ProductID, ReleaseID: pkg.ReleaseID, EvidenceIDs: ids, Assumptions: []string{"Report includes only package-scoped evidence metadata."}, Limitations: []string{"This report supports customer review but is not a compliance, legal, or secure-release conclusion."}, GeneratedAt: l.now()}, nil
+}
+
+func customerPackageArchive(pkg domain.CustomerSecurityPackage) (CustomerPackageArchive, error) {
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	metadata := map[string]any{
+		"id":                   pkg.ID,
+		"product_id":           pkg.ProductID,
+		"release_id":           pkg.ReleaseID,
+		"redaction_profile_id": pkg.RedactionProfileID,
+		"title":                pkg.Title,
+		"state":                pkg.State,
+		"manifest_hash":        pkg.ManifestHash,
+		"expires_at":           pkg.ExpiresAt.UTC().Format(time.RFC3339),
+		"schema_version":       pkg.SchemaVersion,
+		"created_at":           pkg.CreatedAt.UTC().Format(time.RFC3339),
+	}
+	verification := map[string]any{
+		"package_id":        pkg.ID,
+		"manifest_hash":     pkg.ManifestHash,
+		"manifest_file":     "manifest.json",
+		"metadata_file":     "package.json",
+		"hash_algorithm":    "sha256",
+		"verification_note": "Verify the package manifest hash against the Evydence API or a signed bundle before relying on contents.",
+		"limitations": []string{
+			"Archive contents are scoped and redacted.",
+			"Raw tenant evidence payload bytes are not included.",
+			"This package supports technical evidence review and does not prove legal compliance, certification, or release security status.",
+		},
+	}
+	readme := "Evydence customer security package\n\n" +
+		"This ZIP contains a scoped package manifest, package metadata, and verification guidance.\n" +
+		"It intentionally excludes raw tenant evidence payload bytes and bearer tokens.\n" +
+		"Use the manifest hash with Evydence verification records or signed bundles before relying on package contents.\n"
+	for _, entry := range []struct {
+		name string
+		body any
+	}{
+		{name: "manifest.json", body: pkg.Manifest},
+		{name: "package.json", body: metadata},
+		{name: "verification.json", body: verification},
+	} {
+		body, err := json.MarshalIndent(entry.body, "", "  ")
+		if err != nil {
+			_ = zw.Close()
+			return CustomerPackageArchive{}, err
+		}
+		body = append(body, '\n')
+		if err := addZIPFile(zw, entry.name, body); err != nil {
+			_ = zw.Close()
+			return CustomerPackageArchive{}, err
+		}
+	}
+	if err := addZIPFile(zw, "README.txt", []byte(readme)); err != nil {
+		_ = zw.Close()
+		return CustomerPackageArchive{}, err
+	}
+	if err := zw.Close(); err != nil {
+		return CustomerPackageArchive{}, err
+	}
+	body := buf.Bytes()
+	return CustomerPackageArchive{PackageID: pkg.ID, Filename: "evydence-customer-package-" + pkg.ID + ".zip", MediaType: "application/zip", Bytes: body, Hash: hashBytes(body), Size: int64(len(body))}, nil
+}
+
+func addZIPFile(zw *zip.Writer, name string, body []byte) error {
+	header := &zip.FileHeader{Name: name, Method: zip.Deflate}
+	header.SetMode(0o644)
+	header.Modified = time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)
+	writer, err := zw.CreateHeader(header)
+	if err != nil {
+		return err
+	}
+	_, err = writer.Write(body)
+	return err
 }
 
 func (l *Ledger) CRAReadinessHTMLPackage(ctx context.Context, actor domain.Actor, productID, releaseID string) (domain.HTMLReportPackage, error) {
