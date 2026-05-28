@@ -24,10 +24,9 @@ Check precision regression:
 make openapi-precision-check
 ```
 
-`make openapi-precision-check` enforces the current floor for endpoint-specific
-contracts and the current ceiling for broad contracts. Raise
-`EVYDENCE_OPENAPI_MIN_PRECISE` and lower `EVYDENCE_OPENAPI_MAX_BROAD` as more
-routes receive concrete request and response schemas.
+`make openapi-precision-check` enforces endpoint-specific contracts for all
+registered public routes and fails if any operation falls back to a broad
+request or response shape.
 
 `make docs-check` compares the paths in `openapi.yaml` with the endpoint catalog in [API reference](../api.md). Add every generated path to that catalog, or the docs check fails.
 
@@ -56,8 +55,8 @@ GET /v1/openapi.json
 ## Current Limitations
 
 - `openapi.yaml` is generated in a compact JSON-compatible representation.
-- Critical routes such as evidence creation, evidence search, release bundle verification, SSO session creation, customer portal token exchange, and instance diagnostics have more precise request/response schemas.
-- Some broad resource families still use generic data envelopes while the human examples live in [API reference](../api.md) and HTTP tests.
+- Registered public routes have endpoint-specific request and response schemas.
+- New routes must update operation metadata, component schemas, `openapi.yaml`, and the generated [API contract matrix](api-contract-matrix.md).
 - Do not hand-edit `openapi.yaml`; update route metadata or the generator, then run `make openapi-check`.
 
 Route registration and OpenAPI generation use the same HTTP adapter registry so tests can catch missing routes or stale operation metadata.
