@@ -20,7 +20,8 @@ Known hardening work remains:
   parser side effects independently of the request path;
 - OpenAPI schemas need endpoint-specific precision across the full public API;
 - default coverage must reach the production threshold;
-- GitHub CI must enforce live PostgreSQL and release evidence checks.
+- GitHub CI enforces live PostgreSQL release checks; the 80 percent production
+  coverage threshold remains hardening work.
 
 ## Production Profiles
 
