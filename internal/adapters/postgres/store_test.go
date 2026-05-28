@@ -14,6 +14,40 @@ import (
 	"github.com/aatuh/evydence/internal/domain"
 )
 
+func TestResolveLoadMode(t *testing.T) {
+	tests := []struct {
+		name       string
+		raw        string
+		production bool
+		want       LoadMode
+		wantErr    bool
+	}{
+		{name: "local default", want: LoadModeSnapshotPreferred},
+		{name: "production default", production: true, want: LoadModeRelationalPreferred},
+		{name: "snapshot alias", raw: "snapshot", production: true, want: LoadModeSnapshotPreferred},
+		{name: "relational alias", raw: "relational", want: LoadModeRelationalPreferred},
+		{name: "relational only", raw: "relational-only", want: LoadModeRelationalOnly},
+		{name: "invalid", raw: "unsafe", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ResolveLoadMode(tt.raw, tt.production)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("ResolveLoadMode: %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("mode = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
 	if databaseURL == "" {
@@ -324,6 +358,25 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	}
 	if !ok || got.Tenants["ten_test"].ID != "ten_test" {
 		t.Fatalf("unexpected loaded state: ok=%v state=%#v", ok, got.Tenants)
+	}
+	if _, err := store.pool.Exec(ctx, `UPDATE products SET name = $1 WHERE tenant_id = 'ten_test' AND id = 'prod_test'`, "Relational Product"); err != nil {
+		t.Fatal(err)
+	}
+	store.loadMode = LoadModeRelationalPreferred
+	relationalPreferred, ok, err := store.LoadState(ctx)
+	if err != nil || !ok {
+		t.Fatalf("load relational-preferred state ok=%v err=%v", ok, err)
+	}
+	if relationalPreferred.Products["prod_test"].Name != "Relational Product" {
+		t.Fatalf("relational-preferred product name = %q", relationalPreferred.Products["prod_test"].Name)
+	}
+	store.loadMode = LoadModeSnapshotPreferred
+	snapshotPreferred, ok, err := store.LoadState(ctx)
+	if err != nil || !ok {
+		t.Fatalf("load snapshot-preferred state ok=%v err=%v", ok, err)
+	}
+	if snapshotPreferred.Products["prod_test"].Name != "Product" {
+		t.Fatalf("snapshot-preferred product name = %q", snapshotPreferred.Products["prod_test"].Name)
 	}
 	var indexed int
 	if err := store.pool.QueryRow(ctx, `SELECT count(*) FROM resource_index WHERE tenant_id = 'ten_test' AND resource_type = 'tenant'`).Scan(&indexed); err != nil {

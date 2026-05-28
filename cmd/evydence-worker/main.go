@@ -36,12 +36,17 @@ func main() {
 }
 
 func run() error {
+	production := strings.EqualFold(os.Getenv("ENV"), "production")
 	databaseURL := strings.TrimSpace(os.Getenv("EVYDENCE_DATABASE_URL"))
 	if databaseURL == "" {
 		return errors.New("worker requires EVYDENCE_DATABASE_URL")
 	}
 	ctx := context.Background()
-	store, err := postgres.Open(ctx, databaseURL)
+	loadMode, err := postgres.ResolveLoadMode(os.Getenv("EVYDENCE_POSTGRES_LOAD_MODE"), production)
+	if err != nil {
+		return err
+	}
+	store, err := postgres.OpenWithOptions(ctx, databaseURL, postgres.StoreOptions{LoadMode: loadMode})
 	if err != nil {
 		return err
 	}
@@ -58,13 +63,13 @@ func run() error {
 		return fmt.Errorf("check migrations: %w", err)
 	}
 	cancel()
-	objectStore, objectDescription, err := openObjectStore(ctx)
+	objectStore, _, err := openObjectStore(ctx)
 	if err != nil {
 		return err
 	}
 	pollInterval := durationEnv("EVYDENCE_WORKER_POLL_INTERVAL", time.Second)
 	batchSize := intEnv("EVYDENCE_WORKER_BATCH_SIZE", 10)
-	log.Printf("evydence worker started with postgres outbox, %s object store, polling interval %s", objectDescription, pollInterval)
+	log.Printf("evydence worker started with postgres outbox, configured object store, polling interval %s", pollInterval)
 	for {
 		if err := ctx.Err(); err != nil {
 			return err

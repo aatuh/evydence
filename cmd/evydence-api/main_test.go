@@ -3,6 +3,8 @@ package main
 import (
 	"strings"
 	"testing"
+
+	"github.com/aatuh/evydence/internal/adapters/postgres"
 )
 
 func TestValidateRuntimeConfigRejectsProductionBootstrapSecretPrinting(t *testing.T) {
@@ -41,6 +43,24 @@ func TestValidateRuntimeConfigRejectsProductionDefaults(t *testing.T) {
 				t.Fatalf("err=%v, want %q", err, tt.wantSubstr)
 			}
 		})
+	}
+}
+
+func TestPostgresLoadModeDefaultsToRelationalPreferredInProduction(t *testing.T) {
+	mode, err := postgres.ResolveLoadMode("", true)
+	if err != nil {
+		t.Fatalf("resolve production load mode: %v", err)
+	}
+	if mode != postgres.LoadModeRelationalPreferred {
+		t.Fatalf("production load mode = %q, want %q", mode, postgres.LoadModeRelationalPreferred)
+	}
+
+	mode, err = postgres.ResolveLoadMode("", false)
+	if err != nil {
+		t.Fatalf("resolve local load mode: %v", err)
+	}
+	if mode != postgres.LoadModeSnapshotPreferred {
+		t.Fatalf("local load mode = %q, want %q", mode, postgres.LoadModeSnapshotPreferred)
 	}
 }
 
