@@ -172,7 +172,7 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	assertResponseRef(t, verifyProvider, "201", "#/components/schemas/ProviderVerificationEnvelope")
 	verifyBundle := operationMap(t, paths, "/v1/release-bundles/{id}/verify", "get")
 	assertQueryParams(t, verifyBundle, "id")
-	assertResponseRef(t, verifyBundle, "200", "#/components/schemas/ReleaseBundleVerificationEnvelope")
+	assertResponseRef(t, verifyBundle, "200", "#/components/schemas/VerificationResultEnvelope")
 	instanceAdmin := operationMap(t, paths, "/v1/admin/instance", "get")
 	if !strings.Contains(asString(t, instanceAdmin["description"]), "instance:admin") {
 		t.Fatalf("instance admin description should document exact scope: %#v", instanceAdmin["description"])

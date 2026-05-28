@@ -147,6 +147,26 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"verified_at":  map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "subject_type", "subject_id", "result", "checks", "verified_at"))
 	registry.RegisterSchema("VerificationResultEnvelope", dataEnvelopeSchema("#/components/schemas/VerificationResult"))
+	registry.RegisterSchema("PolicyCheck", objectSchema(map[string]any{
+		"name":        map[string]any{"type": "string"},
+		"result":      map[string]any{"type": "string", "enum": []string{"passed", "failed", "warning", "skipped"}},
+		"severity":    map[string]any{"type": "string"},
+		"missing":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"explanation": map[string]any{"type": "string"},
+	}, "name", "result", "severity", "explanation"))
+	registry.RegisterSchema("PolicyEvaluation", objectSchema(map[string]any{
+		"id":         map[string]any{"type": "string"},
+		"tenant_id":  map[string]any{"type": "string"},
+		"release_id": map[string]any{"type": "string"},
+		"result":     map[string]any{"type": "string", "enum": []string{"passed", "failed"}},
+		"policy_set": map[string]any{"type": "string"},
+		"checks":     map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/PolicyCheck"}},
+		"created_at": map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "release_id", "result", "policy_set", "checks", "created_at"))
+	registry.RegisterSchema("PolicyEvaluationEnvelope", dataEnvelopeSchema("#/components/schemas/PolicyEvaluation"))
+	registry.RegisterSchema("EvaluatePolicyRequest", objectSchema(map[string]any{
+		"release_id": map[string]any{"type": "string"},
+	}, "release_id"))
 	registry.RegisterSchema("ReadinessReport", objectSchema(map[string]any{
 		"report_type":      map[string]any{"type": "string"},
 		"template_version": map[string]any{"type": "string"},
@@ -160,6 +180,16 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"generated_at":     map[string]any{"type": "string", "format": "date-time"},
 	}, "report_type", "template_version", "result", "assumptions", "limitations", "generated_at"))
 	registry.RegisterSchema("ReadinessReportEnvelope", dataEnvelopeSchema("#/components/schemas/ReadinessReport"))
+	registry.RegisterSchema("MissingEvidenceReport", objectSchema(map[string]any{
+		"report_type":      map[string]any{"type": "string"},
+		"template_version": map[string]any{"type": "string"},
+		"release_id":       map[string]any{"type": "string"},
+		"result":           map[string]any{"type": "string", "enum": []string{"passed", "failed"}},
+		"missing":          map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"assumptions":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"limitations":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+	}, "report_type", "template_version", "release_id", "result", "missing", "assumptions", "limitations"))
+	registry.RegisterSchema("MissingEvidenceReportEnvelope", dataEnvelopeSchema("#/components/schemas/MissingEvidenceReport"))
 	registry.RegisterSchema("SSOProvider", objectSchema(map[string]any{
 		"id":                        map[string]any{"type": "string"},
 		"tenant_id":                 map[string]any{"type": "string"},
@@ -739,6 +769,30 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	registry.RegisterSchema("CreateReleaseBundleRequest", objectSchema(map[string]any{
 		"release_id": map[string]any{"type": "string"},
 	}, "release_id"))
+	registry.RegisterSchema("ReleaseBundleManifest", objectSchema(map[string]any{
+		"manifest_version": map[string]any{"type": "string"},
+		"bundle_id":        map[string]any{"type": "string"},
+		"tenant_id":        map[string]any{"type": "string"},
+		"release":          map[string]any{"type": "object", "additionalProperties": true},
+		"evidence_ids":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"chain_checkpoint": map[string]any{"type": "object", "additionalProperties": true},
+		"generated_at":     map[string]any{"type": "string", "format": "date-time"},
+		"generator":        map[string]any{"type": "object", "additionalProperties": true},
+	}, "manifest_version", "bundle_id", "tenant_id", "release", "evidence_ids", "chain_checkpoint", "generated_at", "generator"))
+	registry.RegisterSchema("ReleaseBundleManifestEnvelope", dataEnvelopeSchema("#/components/schemas/ReleaseBundleManifest"))
+	registry.RegisterSchema("ReleaseBundle", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"release_id":     map[string]any{"type": "string"},
+		"state":          map[string]any{"type": "string"},
+		"manifest":       map[string]any{"$ref": "#/components/schemas/ReleaseBundleManifest"},
+		"manifest_hash":  map[string]any{"type": "string", "pattern": "^sha256:"},
+		"signature_refs": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+		"published_at":   map[string]any{"type": "string", "format": "date-time"},
+		"revoked_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "release_id", "state", "manifest", "manifest_hash", "signature_refs", "created_at"))
+	registry.RegisterSchema("ReleaseBundleEnvelope", dataEnvelopeSchema("#/components/schemas/ReleaseBundle"))
 	registry.RegisterSchema("ReleaseBundleVerification", objectSchema(map[string]any{
 		"result":       map[string]any{"type": "string", "enum": []string{"passed", "failed"}},
 		"subject_type": map[string]any{"type": "string"},
