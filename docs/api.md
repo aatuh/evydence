@@ -264,6 +264,8 @@ Current SSO endpoints model admin-managed provider, identity-link, and session r
 | `POST` | `/v1/evidence` | Create immutable evidence metadata. |
 | `GET` | `/v1/evidence` | List evidence by release/type. |
 | `GET` | `/v1/evidence/search` | Search by product, project, release, build, deployment, type, subtype, source, collector, verification status, subject, tag, created time, and limit. |
+| `POST` | `/v1/evidence-summaries` | Create evidence-cited technical summary with assumptions and limitations. |
+| `POST` | `/v1/evidence-graph-snapshots` | Persist product/release evidence adjacency snapshot. |
 | `GET` | `/v1/evidence/{id}` | Read evidence. |
 | `POST` | `/v1/evidence/{id}/supersede` | Supersede without mutating original. |
 | `POST` | `/v1/evidence/{id}/link` | Link evidence to another subject. |
@@ -280,6 +282,7 @@ Current SSO endpoints model admin-managed provider, identity-link, and session r
 | `GET` | `/v1/reports/vulnerability-posture` | Summarize findings for a release. |
 | `GET` | `/v1/reports/release-readiness` | Deterministic readiness report. |
 | `GET` | `/v1/reports/missing-evidence` | Missing evidence report for review. |
+| `POST` | `/v1/reports/anomaly` | Generate deterministic evidence anomaly signals. |
 | `POST` | `/v1/release-candidates` | Create release candidate. |
 | `GET` | `/v1/release-candidates` | List release candidates. |
 | `GET` | `/v1/release-candidates/{id}` | Read release candidate. |
@@ -297,6 +300,8 @@ Current SSO endpoints model admin-managed provider, identity-link, and session r
 | `GET` | `/v1/collectors/{id}/health` | Collector health report. |
 | `POST` | `/v1/commercial-collectors` | Create commercial collector definition. |
 | `GET` | `/v1/commercial-collectors` | List commercial collector definitions. |
+| `POST` | `/v1/marketplace-collectors` | Register marketplace collector package metadata. |
+| `GET` | `/v1/marketplace-collectors` | List marketplace collector package records. |
 | `POST` | `/v1/builds` | Record immutable build run. |
 | `GET` | `/v1/builds/{id}` | Read build run. |
 | `POST` | `/v1/builds/{id}/attestations` | Upload DSSE in-toto attestation JSON. |
@@ -345,8 +350,10 @@ Source snapshots capture submitted provider metadata. They do not call provider 
 | `POST` | `/v1/customer-portal/package` | Exchange package token for scoped manifest. |
 | `POST` | `/v1/questionnaire-templates` | Create questionnaire template. |
 | `POST` | `/v1/questionnaire-packages` | Generate evidence-backed responses. |
+| `POST` | `/v1/questionnaire-drafts` | Create evidence-backed draft answers for review. |
 | `GET` | `/v1/reports/security-review-package` | Redaction-aware package report. |
 | `GET` | `/v1/reports/cra-readiness-html` | HTML CRA-readiness review content. |
+| `POST` | `/v1/reports/pdf` | Create reproducible PDF report package metadata and payload hash. |
 | `GET` | `/v1/reports/incident-package` | Incident package report. |
 | `POST` | `/v1/report-templates` | Create allowed-field template. |
 | `POST` | `/v1/report-templates/{id}/render` | Render deterministic JSON report. |
@@ -370,12 +377,17 @@ Source snapshots capture submitted provider metadata. They do not call provider 
 | `POST` | `/v1/signing-keys/rotate` | Rotate signing key. |
 | `POST` | `/v1/signing-keys/{id}/revoke` | Revoke key for new signatures. |
 | `POST` | `/v1/signing-providers` | Record external signing-provider metadata. |
+| `POST` | `/v1/signing-operations` | Record external signing-provider operation receipt and signature ref. |
+| `POST` | `/v1/provider-verifications` | Verify stored provider identity metadata; no live provider assertion is implied. |
+| `POST` | `/v1/saas/profiles` | Create explicit-instance-admin SaaS edition profile record. |
 | `POST` | `/v1/artifact-signatures` | Create artifact signature metadata. |
 | `GET` | `/v1/artifact-signatures/{id}` | Read artifact signature. |
 | `POST` | `/v1/artifact-signatures/{id}/verify-cosign` | Verify cosign-style artifact signature. |
 | `POST` | `/v1/merkle-batches` | Create signed checkpoint batch. |
 | `GET` | `/v1/merkle-batches/{id}/verify` | Verify batch. |
 | `POST` | `/v1/transparency-checkpoints` | Record external anchoring metadata. |
+| `POST` | `/v1/public-transparency-logs` | Record optional public transparency log configuration. |
+| `POST` | `/v1/public-transparency-log-entries` | Record published public transparency log entry metadata. |
 | `POST` | `/v1/object-retention-policies` | Record retention policy intent. |
 | `POST` | `/v1/object-retention-policies/{id}/verify` | Record verification transition. |
 | `POST` | `/v1/legal-holds` | Record legal hold. |

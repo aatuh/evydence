@@ -65,6 +65,17 @@ const (
 	QuestionnaireTemplateVersion    = "questionnaire-template.v1.0.0"
 	QuestionnairePackageVersion     = "questionnaire-package.v1.0.0"
 	CommercialCollectorVersion      = "commercial-collector.v1.0.0"
+	EvidenceSummaryVersion          = "evidence-summary.v1.0.0"
+	QuestionnaireDraftVersion       = "questionnaire-draft.v1.0.0"
+	EvidenceGraphSnapshotVersion    = "evidence-graph-snapshot.v1.0.0"
+	SaaSEditionProfileVersion       = "saas-edition-profile.v1.0.0"
+	PublicTransparencyLogVersion    = "public-transparency-log.v1.0.0"
+	PublicTransparencyEntryVersion  = "public-transparency-entry.v1.0.0"
+	MarketplaceCollectorVersion     = "marketplace-collector.v1.0.0"
+	PDFReportPackageVersion         = "pdf-report-package.v1.0.0"
+	AnomalyReportVersion            = "anomaly-report.v1.0.0"
+	ProviderVerificationVersion     = "provider-verification.v1.0.0"
+	SigningOperationVersion         = "signing-operation.v1.0.0"
 )
 
 type Actor struct {
@@ -675,16 +686,17 @@ type TransparencyCheckpoint struct {
 }
 
 type ObjectRetentionPolicy struct {
-	ID            string     `json:"id"`
-	TenantID      string     `json:"tenant_id"`
-	Name          string     `json:"name"`
-	ObjectPrefix  string     `json:"object_prefix"`
-	Mode          string     `json:"mode"`
-	RetentionDays int        `json:"retention_days"`
-	Status        string     `json:"status"`
-	VerifiedAt    *time.Time `json:"verified_at,omitempty"`
-	SchemaVersion string     `json:"schema_version"`
-	CreatedAt     time.Time  `json:"created_at"`
+	ID               string     `json:"id"`
+	TenantID         string     `json:"tenant_id"`
+	Name             string     `json:"name"`
+	ObjectPrefix     string     `json:"object_prefix"`
+	Mode             string     `json:"mode"`
+	RetentionDays    int        `json:"retention_days"`
+	Status           string     `json:"status"`
+	VerifiedAt       *time.Time `json:"verified_at,omitempty"`
+	VerificationHash string     `json:"verification_hash,omitempty"`
+	SchemaVersion    string     `json:"schema_version"`
+	CreatedAt        time.Time  `json:"created_at"`
 }
 
 type BackupManifest struct {
@@ -806,6 +818,181 @@ type CommercialCollectorDefinition struct {
 	Status        string    `json:"status"`
 	SchemaVersion string    `json:"schema_version"`
 	CreatedAt     time.Time `json:"created_at"`
+}
+
+type EvidenceCitation struct {
+	EvidenceID    string `json:"evidence_id"`
+	Type          string `json:"type"`
+	Title         string `json:"title"`
+	CanonicalHash string `json:"canonical_hash"`
+}
+
+type EvidenceSummary struct {
+	ID            string             `json:"id"`
+	TenantID      string             `json:"tenant_id"`
+	SubjectType   string             `json:"subject_type"`
+	SubjectID     string             `json:"subject_id"`
+	EvidenceIDs   []string           `json:"evidence_ids"`
+	Summary       string             `json:"summary"`
+	Citations     []EvidenceCitation `json:"citations"`
+	Assumptions   []string           `json:"assumptions"`
+	Limitations   []string           `json:"limitations"`
+	SchemaVersion string             `json:"schema_version"`
+	CreatedAt     time.Time          `json:"created_at"`
+}
+
+type QuestionnaireDraft struct {
+	ID            string                  `json:"id"`
+	TenantID      string                  `json:"tenant_id"`
+	TemplateID    string                  `json:"template_id"`
+	ProductID     string                  `json:"product_id,omitempty"`
+	ReleaseID     string                  `json:"release_id,omitempty"`
+	Responses     []QuestionnaireResponse `json:"responses"`
+	ManifestHash  string                  `json:"manifest_hash"`
+	Limitations   []string                `json:"limitations"`
+	SchemaVersion string                  `json:"schema_version"`
+	CreatedAt     time.Time               `json:"created_at"`
+}
+
+type GraphNode struct {
+	ID    string `json:"id"`
+	Type  string `json:"type"`
+	Label string `json:"label"`
+}
+
+type GraphEdge struct {
+	From         string `json:"from"`
+	To           string `json:"to"`
+	Relationship string `json:"relationship"`
+}
+
+type EvidenceGraphSnapshot struct {
+	ID            string      `json:"id"`
+	TenantID      string      `json:"tenant_id"`
+	ProductID     string      `json:"product_id,omitempty"`
+	ReleaseID     string      `json:"release_id,omitempty"`
+	Nodes         []GraphNode `json:"nodes"`
+	Edges         []GraphEdge `json:"edges"`
+	GraphHash     string      `json:"graph_hash"`
+	Limitations   []string    `json:"limitations"`
+	SchemaVersion string      `json:"schema_version"`
+	CreatedAt     time.Time   `json:"created_at"`
+}
+
+type SaaSEditionProfile struct {
+	ID             string    `json:"id"`
+	TenantID       string    `json:"tenant_id"`
+	Name           string    `json:"name"`
+	Region         string    `json:"region"`
+	AdminTenantID  string    `json:"admin_tenant_id"`
+	IsolationModel string    `json:"isolation_model"`
+	Status         string    `json:"status"`
+	ConfigHash     string    `json:"config_hash"`
+	Limitations    []string  `json:"limitations"`
+	SchemaVersion  string    `json:"schema_version"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+type PublicTransparencyLog struct {
+	ID            string    `json:"id"`
+	TenantID      string    `json:"tenant_id"`
+	Name          string    `json:"name"`
+	Endpoint      string    `json:"endpoint"`
+	PublicKey     string    `json:"public_key"`
+	State         string    `json:"state"`
+	SchemaVersion string    `json:"schema_version"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type PublicTransparencyLogEntry struct {
+	ID            string    `json:"id"`
+	TenantID      string    `json:"tenant_id"`
+	LogID         string    `json:"log_id"`
+	CheckpointID  string    `json:"checkpoint_id"`
+	MerkleBatchID string    `json:"merkle_batch_id"`
+	ExternalID    string    `json:"external_id"`
+	EntryHash     string    `json:"entry_hash"`
+	State         string    `json:"state"`
+	SchemaVersion string    `json:"schema_version"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type MarketplaceCollector struct {
+	ID            string    `json:"id"`
+	TenantID      string    `json:"tenant_id"`
+	Name          string    `json:"name"`
+	Provider      string    `json:"provider"`
+	Version       string    `json:"version"`
+	Publisher     string    `json:"publisher"`
+	ManifestHash  string    `json:"manifest_hash"`
+	SignatureID   string    `json:"signature_id,omitempty"`
+	SBOMID        string    `json:"sbom_id,omitempty"`
+	ScanID        string    `json:"scan_id,omitempty"`
+	State         string    `json:"state"`
+	Limitations   []string  `json:"limitations,omitempty"`
+	SchemaVersion string    `json:"schema_version"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type PDFReportPackage struct {
+	ID            string    `json:"id"`
+	TenantID      string    `json:"tenant_id"`
+	ReportType    string    `json:"report_type"`
+	ProductID     string    `json:"product_id,omitempty"`
+	ReleaseID     string    `json:"release_id,omitempty"`
+	Title         string    `json:"title"`
+	PayloadRef    string    `json:"payload_ref,omitempty"`
+	PayloadHash   string    `json:"payload_hash"`
+	PayloadSize   int64     `json:"payload_size"`
+	Limitations   []string  `json:"limitations"`
+	SchemaVersion string    `json:"schema_version"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type AnomalySignal struct {
+	Name     string `json:"name"`
+	Severity string `json:"severity"`
+	Detail   string `json:"detail"`
+}
+
+type AnomalyReport struct {
+	ID            string          `json:"id"`
+	TenantID      string          `json:"tenant_id"`
+	SubjectType   string          `json:"subject_type"`
+	SubjectID     string          `json:"subject_id"`
+	Result        string          `json:"result"`
+	Signals       []AnomalySignal `json:"signals,omitempty"`
+	Assumptions   []string        `json:"assumptions"`
+	Limitations   []string        `json:"limitations"`
+	SchemaVersion string          `json:"schema_version"`
+	CreatedAt     time.Time       `json:"created_at"`
+}
+
+type ProviderVerification struct {
+	ID            string        `json:"id"`
+	TenantID      string        `json:"tenant_id"`
+	ProviderType  string        `json:"provider_type"`
+	ProviderID    string        `json:"provider_id"`
+	Subject       string        `json:"subject"`
+	Result        string        `json:"result"`
+	Checks        []VerifyCheck `json:"checks"`
+	Limitations   []string      `json:"limitations"`
+	SchemaVersion string        `json:"schema_version"`
+	CreatedAt     time.Time     `json:"created_at"`
+}
+
+type SigningOperation struct {
+	ID            string        `json:"id"`
+	TenantID      string        `json:"tenant_id"`
+	ProviderID    string        `json:"provider_id"`
+	SubjectType   string        `json:"subject_type"`
+	SubjectID     string        `json:"subject_id"`
+	PayloadHash   string        `json:"payload_hash"`
+	SignatureRef  string        `json:"signature_ref,omitempty"`
+	Result        string        `json:"result"`
+	Checks        []VerifyCheck `json:"checks"`
+	SchemaVersion string        `json:"schema_version"`
+	CreatedAt     time.Time     `json:"created_at"`
 }
 
 type SBOM struct {

@@ -89,6 +89,17 @@ func (l *Ledger) snapshotLocked() PersistedState {
 		QuestionnaireTemplates:  l.questionTemplates,
 		QuestionnairePackages:   l.questionPackages,
 		CommercialCollectors:    l.commercialCollectors,
+		EvidenceSummaries:       l.evidenceSummaries,
+		QuestionnaireDrafts:     l.questionDrafts,
+		GraphSnapshots:          l.graphSnapshots,
+		SaaSProfiles:            l.saasProfiles,
+		PublicTransparencyLogs:  l.publicLogs,
+		PublicTransparencyItems: l.publicLogEntries,
+		MarketplaceCollectors:   l.marketplaceCollectors,
+		PDFReports:              l.pdfReports,
+		AnomalyReports:          l.anomalyReports,
+		ProviderVerifications:   l.providerVerifications,
+		SigningOperations:       l.signingOperations,
 		ControlFrameworks:       l.frameworks,
 		SecurityControls:        l.controls,
 		ControlEvidence:         l.controlLinks,
@@ -232,6 +243,17 @@ func (l *Ledger) applyState(state PersistedState) {
 	l.questionTemplates = state.QuestionnaireTemplates
 	l.questionPackages = state.QuestionnairePackages
 	l.commercialCollectors = state.CommercialCollectors
+	l.evidenceSummaries = state.EvidenceSummaries
+	l.questionDrafts = state.QuestionnaireDrafts
+	l.graphSnapshots = state.GraphSnapshots
+	l.saasProfiles = state.SaaSProfiles
+	l.publicLogs = state.PublicTransparencyLogs
+	l.publicLogEntries = state.PublicTransparencyItems
+	l.marketplaceCollectors = state.MarketplaceCollectors
+	l.pdfReports = state.PDFReports
+	l.anomalyReports = state.AnomalyReports
+	l.providerVerifications = state.ProviderVerifications
+	l.signingOperations = state.SigningOperations
 	l.frameworks = state.ControlFrameworks
 	l.controls = state.SecurityControls
 	l.controlLinks = state.ControlEvidence
@@ -497,6 +519,39 @@ func normalizeState(state PersistedState) PersistedState {
 	}
 	if state.CommercialCollectors == nil {
 		state.CommercialCollectors = map[string]domain.CommercialCollectorDefinition{}
+	}
+	if state.EvidenceSummaries == nil {
+		state.EvidenceSummaries = map[string]domain.EvidenceSummary{}
+	}
+	if state.QuestionnaireDrafts == nil {
+		state.QuestionnaireDrafts = map[string]domain.QuestionnaireDraft{}
+	}
+	if state.GraphSnapshots == nil {
+		state.GraphSnapshots = map[string]domain.EvidenceGraphSnapshot{}
+	}
+	if state.SaaSProfiles == nil {
+		state.SaaSProfiles = map[string]domain.SaaSEditionProfile{}
+	}
+	if state.PublicTransparencyLogs == nil {
+		state.PublicTransparencyLogs = map[string]domain.PublicTransparencyLog{}
+	}
+	if state.PublicTransparencyItems == nil {
+		state.PublicTransparencyItems = map[string]domain.PublicTransparencyLogEntry{}
+	}
+	if state.MarketplaceCollectors == nil {
+		state.MarketplaceCollectors = map[string]domain.MarketplaceCollector{}
+	}
+	if state.PDFReports == nil {
+		state.PDFReports = map[string]domain.PDFReportPackage{}
+	}
+	if state.AnomalyReports == nil {
+		state.AnomalyReports = map[string]domain.AnomalyReport{}
+	}
+	if state.ProviderVerifications == nil {
+		state.ProviderVerifications = map[string]domain.ProviderVerification{}
+	}
+	if state.SigningOperations == nil {
+		state.SigningOperations = map[string]domain.SigningOperation{}
 	}
 	if state.ControlFrameworks == nil {
 		state.ControlFrameworks = map[string]domain.ControlFramework{}

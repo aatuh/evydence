@@ -85,6 +85,17 @@ type PersistedState struct {
 	QuestionnaireTemplates  map[string]domain.QuestionnaireTemplate         `json:"questionnaire_templates"`
 	QuestionnairePackages   map[string]domain.QuestionnairePackage          `json:"questionnaire_packages"`
 	CommercialCollectors    map[string]domain.CommercialCollectorDefinition `json:"commercial_collectors"`
+	EvidenceSummaries       map[string]domain.EvidenceSummary               `json:"evidence_summaries"`
+	QuestionnaireDrafts     map[string]domain.QuestionnaireDraft            `json:"questionnaire_drafts"`
+	GraphSnapshots          map[string]domain.EvidenceGraphSnapshot         `json:"graph_snapshots"`
+	SaaSProfiles            map[string]domain.SaaSEditionProfile            `json:"saas_profiles"`
+	PublicTransparencyLogs  map[string]domain.PublicTransparencyLog         `json:"public_transparency_logs"`
+	PublicTransparencyItems map[string]domain.PublicTransparencyLogEntry    `json:"public_transparency_items"`
+	MarketplaceCollectors   map[string]domain.MarketplaceCollector          `json:"marketplace_collectors"`
+	PDFReports              map[string]domain.PDFReportPackage              `json:"pdf_reports"`
+	AnomalyReports          map[string]domain.AnomalyReport                 `json:"anomaly_reports"`
+	ProviderVerifications   map[string]domain.ProviderVerification          `json:"provider_verifications"`
+	SigningOperations       map[string]domain.SigningOperation              `json:"signing_operations"`
 	ControlFrameworks       map[string]domain.ControlFramework              `json:"control_frameworks"`
 	SecurityControls        map[string]domain.SecurityControl               `json:"security_controls"`
 	ControlEvidence         map[string]domain.ControlEvidence               `json:"control_evidence"`

@@ -79,6 +79,8 @@ func (s *Server) collectorRoutes() []routeDef {
 		{http.MethodGet, "/v1/collectors/{id}/health", op("collectorHealthReport", http.MethodGet, "/v1/collectors/{id}/health", "Collector health report", []string{app.ScopeCollectorRead}), http.HandlerFunc(s.collectorHealthReport)},
 		{http.MethodPost, "/v1/commercial-collectors", op("createCommercialCollector", http.MethodPost, "/v1/commercial-collectors", "Create commercial collector definition", []string{app.ScopeCollectorAdmin}), http.HandlerFunc(s.createCommercialCollector)},
 		{http.MethodGet, "/v1/commercial-collectors", op("listCommercialCollectors", http.MethodGet, "/v1/commercial-collectors", "List commercial collector definitions", []string{app.ScopeCollectorRead}), http.HandlerFunc(s.listCommercialCollectors)},
+		{http.MethodPost, "/v1/marketplace-collectors", op("createMarketplaceCollector", http.MethodPost, "/v1/marketplace-collectors", "Create marketplace collector record", []string{app.ScopeCollectorAdmin}), http.HandlerFunc(s.createMarketplaceCollector)},
+		{http.MethodGet, "/v1/marketplace-collectors", op("listMarketplaceCollectors", http.MethodGet, "/v1/marketplace-collectors", "List marketplace collector records", []string{app.ScopeCollectorRead}), http.HandlerFunc(s.listMarketplaceCollectors)},
 	}
 }
 
@@ -165,8 +167,10 @@ func (s *Server) packagePortalRoutes() []routeDef {
 		{http.MethodPost, "/v1/customer-portal/package", op("accessCustomerPortalPackage", http.MethodPost, "/v1/customer-portal/package", "Access customer portal package", nil), http.HandlerFunc(s.accessCustomerPortalPackage)},
 		{http.MethodPost, "/v1/questionnaire-templates", op("createQuestionnaireTemplate", http.MethodPost, "/v1/questionnaire-templates", "Create questionnaire template", []string{app.ScopePackageWrite}), http.HandlerFunc(s.createQuestionnaireTemplate)},
 		{http.MethodPost, "/v1/questionnaire-packages", op("createQuestionnairePackage", http.MethodPost, "/v1/questionnaire-packages", "Create questionnaire package", []string{app.ScopePackageWrite}), http.HandlerFunc(s.createQuestionnairePackage)},
+		{http.MethodPost, "/v1/questionnaire-drafts", op("createQuestionnaireDraft", http.MethodPost, "/v1/questionnaire-drafts", "Create evidence-backed questionnaire draft", []string{app.ScopePackageRead}), http.HandlerFunc(s.createQuestionnaireDraft)},
 		{http.MethodGet, "/v1/reports/security-review-package", op("securityReviewPackageReport", http.MethodGet, "/v1/reports/security-review-package", "Security review package report", []string{app.ScopePackageRead}), http.HandlerFunc(s.securityReviewPackageReport)},
 		{http.MethodGet, "/v1/reports/cra-readiness-html", op("craReadinessHTMLPackage", http.MethodGet, "/v1/reports/cra-readiness-html", "CRA readiness HTML package", []string{app.ScopeReportRead}), http.HandlerFunc(s.craReadinessHTMLPackage)},
+		{http.MethodPost, "/v1/reports/pdf", op("createPDFReportPackage", http.MethodPost, "/v1/reports/pdf", "Create reproducible PDF report package", []string{app.ScopeReportRead}), http.HandlerFunc(s.createPDFReportPackage)},
 		{http.MethodPost, "/v1/report-templates", op("createReportTemplate", http.MethodPost, "/v1/report-templates", "Create report template", []string{app.ScopeReportRead}), http.HandlerFunc(s.createReportTemplate)},
 		{http.MethodPost, "/v1/report-templates/{id}/render", op("renderReportTemplate", http.MethodPost, "/v1/report-templates/{id}/render", "Render report template", []string{app.ScopeReportRead}), http.HandlerFunc(s.renderReportTemplate)},
 	}
@@ -181,6 +185,8 @@ func (s *Server) evidenceRiskPolicyRoutes() []routeDef {
 		{http.MethodPost, "/v1/evidence", op("createEvidence", http.MethodPost, "/v1/evidence", "Create evidence", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.createEvidence)},
 		{http.MethodGet, "/v1/evidence", op("listEvidence", http.MethodGet, "/v1/evidence", "List evidence", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.listEvidence)},
 		{http.MethodGet, "/v1/evidence/search", op("searchEvidence", http.MethodGet, "/v1/evidence/search", "Search evidence", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.searchEvidence)},
+		{http.MethodPost, "/v1/evidence-summaries", op("createEvidenceSummary", http.MethodPost, "/v1/evidence-summaries", "Create evidence-backed summary", []string{app.ScopeReportRead}), http.HandlerFunc(s.createEvidenceSummary)},
+		{http.MethodPost, "/v1/evidence-graph-snapshots", op("createGraphSnapshot", http.MethodPost, "/v1/evidence-graph-snapshots", "Create evidence graph snapshot", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.createGraphSnapshot)},
 		{http.MethodGet, "/v1/evidence/{id}", op("getEvidence", http.MethodGet, "/v1/evidence/{id}", "Get evidence", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.getEvidence)},
 		{http.MethodPost, "/v1/evidence/{id}/supersede", op("supersedeEvidence", http.MethodPost, "/v1/evidence/{id}/supersede", "Supersede evidence", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.supersedeEvidence)},
 		{http.MethodPost, "/v1/evidence/{id}/link", op("linkEvidence", http.MethodPost, "/v1/evidence/{id}/link", "Link evidence", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.linkEvidence)},
@@ -207,6 +213,7 @@ func (s *Server) evidenceRiskPolicyRoutes() []routeDef {
 		{http.MethodPost, "/v1/exceptions/{id}/approve", op("approveException", http.MethodPost, "/v1/exceptions/{id}/approve", "Approve exception", []string{app.ScopeReleaseWrite}), http.HandlerFunc(s.approveException)},
 		{http.MethodGet, "/v1/reports/missing-evidence", op("missingEvidenceReport", http.MethodGet, "/v1/reports/missing-evidence", "Missing evidence report", []string{app.ScopeVerifyRead}), http.HandlerFunc(s.missingEvidenceReport)},
 		{http.MethodGet, "/v1/reports/release-readiness", op("releaseReadinessReport", http.MethodGet, "/v1/reports/release-readiness", "Release readiness report", []string{app.ScopeVerifyRead}), http.HandlerFunc(s.releaseReadinessReport)},
+		{http.MethodPost, "/v1/reports/anomaly", op("generateAnomalyReport", http.MethodPost, "/v1/reports/anomaly", "Generate deterministic anomaly report", []string{app.ScopeReportRead}), http.HandlerFunc(s.generateAnomalyReport)},
 	}
 }
 
@@ -221,6 +228,8 @@ func (s *Server) integrityOpsRoutes() []routeDef {
 		{http.MethodPost, "/v1/merkle-batches", op("createMerkleBatch", http.MethodPost, "/v1/merkle-batches", "Create Merkle checkpoint batch", []string{app.ScopeKeysAdmin}), http.HandlerFunc(s.createMerkleBatch)},
 		{http.MethodGet, "/v1/merkle-batches/{id}/verify", op("verifyMerkleBatch", http.MethodGet, "/v1/merkle-batches/{id}/verify", "Verify Merkle checkpoint batch", []string{app.ScopeVerifyRead}), http.HandlerFunc(s.verifyMerkleBatch)},
 		{http.MethodPost, "/v1/transparency-checkpoints", op("createTransparencyCheckpoint", http.MethodPost, "/v1/transparency-checkpoints", "Record external transparency checkpoint", []string{app.ScopeKeysAdmin}), http.HandlerFunc(s.createTransparencyCheckpoint)},
+		{http.MethodPost, "/v1/public-transparency-logs", op("createPublicTransparencyLog", http.MethodPost, "/v1/public-transparency-logs", "Create public transparency log record", []string{app.ScopeKeysAdmin}), http.HandlerFunc(s.createPublicTransparencyLog)},
+		{http.MethodPost, "/v1/public-transparency-log-entries", op("publishPublicTransparencyLogEntry", http.MethodPost, "/v1/public-transparency-log-entries", "Publish public transparency log entry record", []string{app.ScopeKeysAdmin}), http.HandlerFunc(s.publishPublicTransparencyLogEntry)},
 		{http.MethodPost, "/v1/object-retention-policies", op("createObjectRetentionPolicy", http.MethodPost, "/v1/object-retention-policies", "Create object retention policy record", []string{app.ScopeAdmin}), http.HandlerFunc(s.createObjectRetentionPolicy)},
 		{http.MethodPost, "/v1/object-retention-policies/{id}/verify", op("verifyObjectRetentionPolicy", http.MethodPost, "/v1/object-retention-policies/{id}/verify", "Verify object retention policy record", []string{app.ScopeVerifyRead}), http.HandlerFunc(s.verifyObjectRetentionPolicy)},
 		{http.MethodPost, "/v1/legal-holds", op("createLegalHold", http.MethodPost, "/v1/legal-holds", "Create legal hold", []string{app.ScopeAdmin}), http.HandlerFunc(s.createLegalHold)},
@@ -237,6 +246,9 @@ func (s *Server) keyAndAdminRoutes() []routeDef {
 		{http.MethodPost, "/v1/signing-keys/rotate", op("rotateSigningKey", http.MethodPost, "/v1/signing-keys/rotate", "Rotate signing key", []string{app.ScopeKeysAdmin}), http.HandlerFunc(s.rotateSigningKey)},
 		{http.MethodPost, "/v1/signing-keys/{id}/revoke", op("revokeSigningKey", http.MethodPost, "/v1/signing-keys/{id}/revoke", "Revoke signing key", []string{app.ScopeKeysAdmin}), http.HandlerFunc(s.revokeSigningKey)},
 		{http.MethodPost, "/v1/signing-providers", op("createSigningProvider", http.MethodPost, "/v1/signing-providers", "Create signing provider record", []string{app.ScopeKeysAdmin}), http.HandlerFunc(s.createSigningProvider)},
+		{http.MethodPost, "/v1/signing-operations", op("createSigningOperation", http.MethodPost, "/v1/signing-operations", "Create signing provider operation receipt", []string{app.ScopeKeysAdmin}), http.HandlerFunc(s.createSigningOperation)},
+		{http.MethodPost, "/v1/provider-verifications", op("verifyProviderIdentity", http.MethodPost, "/v1/provider-verifications", "Verify stored provider identity metadata", []string{app.ScopeIdentityAdmin}), http.HandlerFunc(s.verifyProviderIdentity)},
+		{http.MethodPost, "/v1/saas/profiles", op("createSaaSEditionProfile", http.MethodPost, "/v1/saas/profiles", "Create SaaS edition profile", []string{app.ScopeInstanceAdmin}), http.HandlerFunc(s.createSaaSEditionProfile)},
 		{http.MethodPost, "/v1/verify", op("verify", http.MethodPost, "/v1/verify", "Verify subject", []string{app.ScopeVerifyRead}), http.HandlerFunc(s.verifySubject)},
 		{http.MethodPost, "/v1/api-keys", op("createAPIKey", http.MethodPost, "/v1/api-keys", "Create API key", []string{app.ScopeAdmin}), http.HandlerFunc(s.createAPIKey)},
 		{http.MethodGet, "/v1/api-keys", op("listAPIKeys", http.MethodGet, "/v1/api-keys", "List API keys", []string{app.ScopeAdmin}), http.HandlerFunc(s.listAPIKeys)},
