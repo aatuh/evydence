@@ -47,19 +47,21 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"expires_at":  map[string]any{"type": "string", "format": "date-time"},
 	}, "user_id", "provider_id", "expires_at"))
 	registry.RegisterSchema("CreateSSOProviderRequest", objectSchema(map[string]any{
-		"name":         map[string]any{"type": "string"},
-		"type":         map[string]any{"type": "string", "enum": []string{"oidc", "saml"}},
-		"issuer":       map[string]any{"type": "string"},
-		"client_id":    map[string]any{"type": "string"},
-		"groups_claim": map[string]any{"type": "string"},
-		"role_mapping": map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "string"}},
-		"jwks":         map[string]any{"type": "object", "description": "Optional static JWKS public-key material for local OIDC ID-token verification. Private keys and provider secrets must not be supplied."},
+		"name":                      map[string]any{"type": "string"},
+		"type":                      map[string]any{"type": "string", "enum": []string{"oidc", "saml"}},
+		"issuer":                    map[string]any{"type": "string"},
+		"client_id":                 map[string]any{"type": "string"},
+		"groups_claim":              map[string]any{"type": "string"},
+		"role_mapping":              map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "string"}},
+		"jwks":                      map[string]any{"type": "object", "description": "Optional static JWKS public-key material for local OIDC ID-token verification. Private keys and provider secrets must not be supplied."},
+		"saml_signing_certificates": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Optional PEM-encoded SAML assertion signing certificates. Private keys and provider secrets must not be supplied."},
 	}, "name", "type", "issuer", "client_id"))
 	registry.RegisterSchema("VerifyProviderIdentityRequest", objectSchema(map[string]any{
-		"provider_type": map[string]any{"type": "string", "enum": []string{"oidc", "saml"}},
-		"provider_id":   map[string]any{"type": "string"},
-		"subject":       map[string]any{"type": "string"},
-		"id_token":      map[string]any{"type": "string", "description": "Optional OIDC ID token verified locally against the provider's configured static JWKS."},
+		"provider_type":  map[string]any{"type": "string", "enum": []string{"oidc", "saml"}},
+		"provider_id":    map[string]any{"type": "string"},
+		"subject":        map[string]any{"type": "string"},
+		"id_token":       map[string]any{"type": "string", "description": "Optional OIDC ID token verified locally against the provider's configured static JWKS."},
+		"saml_assertion": map[string]any{"type": "string", "description": "Optional SAML assertion verified locally against configured SAML signing certificates."},
 	}, "provider_type", "provider_id", "subject"))
 	registry.RegisterSchema("VerifyCheck", objectSchema(map[string]any{
 		"name":   map[string]any{"type": "string"},
@@ -67,18 +69,19 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"detail": map[string]any{"type": "string"},
 	}, "name", "result"))
 	registry.RegisterSchema("SSOProvider", objectSchema(map[string]any{
-		"id":             map[string]any{"type": "string"},
-		"tenant_id":      map[string]any{"type": "string"},
-		"name":           map[string]any{"type": "string"},
-		"type":           map[string]any{"type": "string", "enum": []string{"oidc", "saml"}},
-		"issuer":         map[string]any{"type": "string"},
-		"client_id":      map[string]any{"type": "string"},
-		"groups_claim":   map[string]any{"type": "string"},
-		"role_mapping":   map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "string"}},
-		"jwks":           map[string]any{"type": "object", "description": "Configured public JWKS material, when supplied."},
-		"status":         map[string]any{"type": "string"},
-		"schema_version": map[string]any{"type": "string"},
-		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+		"id":                        map[string]any{"type": "string"},
+		"tenant_id":                 map[string]any{"type": "string"},
+		"name":                      map[string]any{"type": "string"},
+		"type":                      map[string]any{"type": "string", "enum": []string{"oidc", "saml"}},
+		"issuer":                    map[string]any{"type": "string"},
+		"client_id":                 map[string]any{"type": "string"},
+		"groups_claim":              map[string]any{"type": "string"},
+		"role_mapping":              map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "string"}},
+		"jwks":                      map[string]any{"type": "object", "description": "Configured public JWKS material, when supplied."},
+		"saml_signing_certificates": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Configured SAML assertion signing certificates, when supplied."},
+		"status":                    map[string]any{"type": "string"},
+		"schema_version":            map[string]any{"type": "string"},
+		"created_at":                map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "name", "type", "issuer", "client_id", "status", "schema_version", "created_at"))
 	registry.RegisterSchema("SSOProviderEnvelope", dataEnvelopeSchema("#/components/schemas/SSOProvider"))
 	registry.RegisterSchema("ProviderVerification", objectSchema(map[string]any{

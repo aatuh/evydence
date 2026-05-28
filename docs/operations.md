@@ -28,7 +28,7 @@ This operator index points to the canonical references for running Evydence. Kee
 
 - API keys, collector keys, SSO session tokens, and customer portal access tokens are bearer secrets. Do not place them in logs, documentation, long-lived build output, or customer packages.
 - Customer portal access tokens are returned once by `POST /v1/customer-portal/access`, expire, and are stored as hashes. Deployments should still use reverse-proxy or API-gateway throttling for the unauthenticated portal endpoint.
-- Human SSO session records are admin-managed. Current endpoints do not implement production OIDC/SAML login callbacks, token/assertion verification, group synchronization, or browser session handling.
+- Human SSO session records are admin-managed. Current endpoints can verify supplied OIDC tokens and SAML assertions against tenant-configured local trust material, but they do not implement production browser login callbacks, live provider discovery/API validation, group synchronization, or browser session handling.
 - Object-retention APIs record and verify retention intent for tenant-prefixed object paths. Enforcing WORM or object-lock settings remains the responsibility of the configured object store and deployment policy.
 
 Evydence operations support evidence organization, review, and tamper-evident records. Operational checks do not replace external audit review, secret management, backup testing, or provider verification.

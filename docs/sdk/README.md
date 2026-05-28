@@ -51,7 +51,7 @@ return nil
 
 The helper rejects paths that do not start with `/v1/` and blank idempotency keys. Non-2xx responses return an error containing the HTTP status code; callers that need Problem Details bodies should use a generated or custom client.
 
-The Go wrapper also exposes `CreateSSOProvider` and `VerifyProviderIdentity` helpers. `VerifyProviderIdentity` can carry an OIDC `id_token`; SDK errors intentionally include only the HTTP status code and not the response body.
+The Go wrapper also exposes `CreateSSOProvider` and `VerifyProviderIdentity` helpers. `VerifyProviderIdentity` can carry an OIDC `id_token` or SAML `saml_assertion`; SDK errors intentionally include only the HTTP status code and not the response body.
 
 ## TypeScript
 

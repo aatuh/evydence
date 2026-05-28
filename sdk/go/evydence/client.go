@@ -17,20 +17,22 @@ type Client struct {
 }
 
 type CreateSSOProviderRequest struct {
-	Name        string            `json:"name"`
-	Type        string            `json:"type"`
-	Issuer      string            `json:"issuer"`
-	ClientID    string            `json:"client_id"`
-	GroupsClaim string            `json:"groups_claim,omitempty"`
-	RoleMapping map[string]string `json:"role_mapping,omitempty"`
-	JWKS        map[string]any    `json:"jwks,omitempty"`
+	Name                    string            `json:"name"`
+	Type                    string            `json:"type"`
+	Issuer                  string            `json:"issuer"`
+	ClientID                string            `json:"client_id"`
+	GroupsClaim             string            `json:"groups_claim,omitempty"`
+	RoleMapping             map[string]string `json:"role_mapping,omitempty"`
+	JWKS                    map[string]any    `json:"jwks,omitempty"`
+	SAMLSigningCertificates []string          `json:"saml_signing_certificates,omitempty"`
 }
 
 type VerifyProviderIdentityRequest struct {
-	ProviderType string `json:"provider_type"`
-	ProviderID   string `json:"provider_id"`
-	Subject      string `json:"subject"`
-	IDToken      string `json:"id_token,omitempty"`
+	ProviderType  string `json:"provider_type"`
+	ProviderID    string `json:"provider_id"`
+	Subject       string `json:"subject"`
+	IDToken       string `json:"id_token,omitempty"`
+	SAMLAssertion string `json:"saml_assertion,omitempty"`
 }
 
 func (c Client) Post(ctx context.Context, path, idempotencyKey string, payload any, out any) error {

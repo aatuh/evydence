@@ -2,7 +2,10 @@ package app
 
 import (
 	"context"
+	"crypto/rsa"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"strings"
 	"time"
 
@@ -29,13 +32,14 @@ type CreateRoleBindingInput struct {
 }
 
 type CreateSSOProviderInput struct {
-	Name        string
-	Type        string
-	Issuer      string
-	ClientID    string
-	GroupsClaim string
-	RoleMapping map[string]string
-	JWKS        map[string]any
+	Name                    string
+	Type                    string
+	Issuer                  string
+	ClientID                string
+	GroupsClaim             string
+	RoleMapping             map[string]string
+	JWKS                    map[string]any
+	SAMLSigningCertificates []string
 }
 
 type LinkSSOIdentityInput struct {
@@ -246,7 +250,11 @@ func (l *Ledger) CreateSSOProvider(ctx context.Context, actor domain.Actor, in C
 	if err != nil {
 		return domain.SSOProvider{}, ErrValidation
 	}
-	provider := domain.SSOProvider{ID: newID("sso"), TenantID: actor.TenantID, Name: in.Name, Type: in.Type, Issuer: in.Issuer, ClientID: in.ClientID, GroupsClaim: strings.TrimSpace(in.GroupsClaim), RoleMapping: cloneStringMap(in.RoleMapping), JWKS: jwks, Status: "active", SchemaVersion: domain.SSOProviderSchemaVersion, CreatedAt: l.now()}
+	samlCerts, err := normalizeSAMLSigningCertificates(in.SAMLSigningCertificates)
+	if err != nil {
+		return domain.SSOProvider{}, ErrValidation
+	}
+	provider := domain.SSOProvider{ID: newID("sso"), TenantID: actor.TenantID, Name: in.Name, Type: in.Type, Issuer: in.Issuer, ClientID: in.ClientID, GroupsClaim: strings.TrimSpace(in.GroupsClaim), RoleMapping: cloneStringMap(in.RoleMapping), JWKS: jwks, SAMLSigningCertificates: samlCerts, Status: "active", SchemaVersion: domain.SSOProviderSchemaVersion, CreatedAt: l.now()}
 	l.ssoProviders[provider.ID] = provider
 	_, _ = l.appendChainLocked(actor.TenantID, "sso_provider.created", "sso_provider", provider.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {
@@ -1127,6 +1135,35 @@ func normalizeJWKS(jwks map[string]any) (map[string]any, error) {
 		}
 	}
 	return normalized, nil
+}
+
+func normalizeSAMLSigningCertificates(certs []string) ([]string, error) {
+	if len(certs) == 0 {
+		return nil, nil
+	}
+	if len(certs) > 5 {
+		return nil, ErrValidation
+	}
+	out := make([]string, 0, len(certs))
+	for _, raw := range certs {
+		value := strings.TrimSpace(raw)
+		if value == "" || len(value) > 16*1024 {
+			return nil, ErrValidation
+		}
+		block, _ := pem.Decode([]byte(value))
+		if block == nil || block.Type != "CERTIFICATE" {
+			return nil, ErrValidation
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, ErrValidation
+		}
+		if _, ok := cert.PublicKey.(*rsa.PublicKey); !ok {
+			return nil, ErrValidation
+		}
+		out = append(out, string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw})))
+	}
+	return out, nil
 }
 
 func validRetentionScope(value string) bool {

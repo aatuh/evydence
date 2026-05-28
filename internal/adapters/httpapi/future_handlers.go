@@ -192,16 +192,17 @@ func (s *Server) createSigningOperation(w http.ResponseWriter, r *http.Request) 
 
 func (s *Server) verifyProviderIdentity(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		ProviderType string `json:"provider_type"`
-		ProviderID   string `json:"provider_id"`
-		Subject      string `json:"subject"`
-		IDToken      string `json:"id_token"`
+		ProviderType  string `json:"provider_type"`
+		ProviderID    string `json:"provider_id"`
+		Subject       string `json:"subject"`
+		IDToken       string `json:"id_token"`
+		SAMLAssertion string `json:"saml_assertion"`
 	}
 	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		record, err := s.ledger.VerifyProviderIdentity(r.Context(), actor, app.VerifyProviderIdentityInput{ProviderType: req.ProviderType, ProviderID: req.ProviderID, Subject: req.Subject, IDToken: req.IDToken})
+		record, err := s.ledger.VerifyProviderIdentity(r.Context(), actor, app.VerifyProviderIdentityInput{ProviderType: req.ProviderType, ProviderID: req.ProviderID, Subject: req.Subject, IDToken: req.IDToken, SAMLAssertion: req.SAMLAssertion})
 		return http.StatusCreated, record, err
 	})
 }

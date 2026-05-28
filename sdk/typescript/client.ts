@@ -12,6 +12,7 @@ export type CreateSSOProviderRequest = {
   groups_claim?: string;
   role_mapping?: Record<string, string>;
   jwks?: Record<string, unknown>;
+  saml_signing_certificates?: string[];
 };
 
 export type VerifyProviderIdentityRequest = {
@@ -19,6 +20,7 @@ export type VerifyProviderIdentityRequest = {
   provider_id: string;
   subject: string;
   id_token?: string;
+  saml_assertion?: string;
 };
 
 export class EvydenceClient {
