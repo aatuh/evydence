@@ -6,7 +6,7 @@ It does not make legal compliance conclusions, grant certification, prove SBOM c
 
 ## Current Implementation
 
-This repository contains a Go release-ledger MVP scaffold under module `github.com/aatuh/evydence`.
+This repository contains a Go implementation under module `github.com/aatuh/evydence`. The current status is self-hosted production hardening: useful for evaluation, pilots, and controlled internal production after operator review, with a stricter production gate tracking the remaining work.
 
 ### API And Contracts
 
@@ -86,6 +86,7 @@ For a runnable first evidence flow, use [Getting started](docs/tutorials/getting
 ## Validation
 
 The canonical release validation reference is [docs/reference/release-validation.md](docs/reference/release-validation.md).
+The self-hosted production-readiness profile is [docs/reference/production-readiness.md](docs/reference/production-readiness.md).
 
 Common local checks:
 
@@ -105,3 +106,5 @@ make postgres-integration-test
 ```
 
 `make finalize` runs the project-owned formatting, unit, OpenAPI, docs, deployment, and SDK gates. `make release-check` extends that with lint, gosec, govulncheck, race tests, and live PostgreSQL gates when `EVYDENCE_TEST_DATABASE_URL` is configured.
+
+`make production-check` is stricter: it requires `EVYDENCE_TEST_DATABASE_URL`, enforces the configured coverage threshold, and runs a release artifact signing smoke test. It is expected to fail until the repository satisfies the production-readiness exit criteria.

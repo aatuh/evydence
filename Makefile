@@ -7,7 +7,7 @@ GOLANGCI_LINT_VERSION ?= v2.11.4
 GOSEC_VERSION ?= v2.25.0
 GOVULNCHECK_VERSION ?= v1.2.0
 
-.PHONY: help tools fmt lint vuln gosec test test-race coverage openapi-check meta-check docs-check deploy-check sdk-check fast-check finalize release-acceptance release-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
+.PHONY: help tools fmt lint vuln gosec test test-race coverage coverage-check openapi-check meta-check docs-check deploy-check sdk-check fast-check finalize release-acceptance release-check production-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -38,6 +38,9 @@ test-race: ## Run race tests
 coverage: ## Run tests with coverage
 	@$(GO) test ./... -coverprofile=coverage.out
 	@$(GO) tool cover -func=coverage.out
+
+coverage-check: ## Enforce the production coverage threshold
+	@scripts/coverage_check.sh
 
 openapi.yaml: ## Generate committed OpenAPI source
 	@$(GO) run ./cmd/openapi > openapi.yaml
@@ -88,6 +91,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@test -f docs/reference/configuration.md
 	@test -f docs/reference/openapi.md
 	@test -f docs/reference/observability.md
+	@test -f docs/reference/production-readiness.md
 	@test -f docs/reference/worker-outbox.md
 	@test -f docs/reference/release-validation.md
 	@test -f docs/explanation/trust-model.md
@@ -110,6 +114,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 		"reference/configuration.md" \
 		"reference/openapi.md" \
 		"reference/observability.md" \
+		"reference/production-readiness.md" \
 		"reference/worker-outbox.md" \
 		"reference/release-validation.md" \
 		"collectors/source-snapshots.md" \
@@ -198,6 +203,9 @@ release-check: ## Release validation with security, race, and configured live in
 			echo "postgres_integration=skipped EVYDENCE_TEST_DATABASE_URL unset"; \
 		fi; \
 	} | tee tmp/release-check-summary.txt
+
+production-check: ## Strict self-hosted production readiness gate; requires live PostgreSQL and coverage threshold
+	@scripts/production_check.sh
 
 release-check-local-postgres: ## Start Compose Postgres, load .test.env or .test.env.example, and run release-check
 	@docker compose up -d postgres

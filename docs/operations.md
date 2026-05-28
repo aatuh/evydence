@@ -10,6 +10,7 @@ This operator index points to the canonical references for running Evydence. Kee
 | Configure environment variables | [Configuration](reference/configuration.md) | Runtime variables are set from local untracked files or deployment secrets. |
 | Wire observability | [Observability](reference/observability.md) | Readiness, admin metrics, Prometheus rules, and dashboard starter assets are reviewed for the deployment. |
 | Run release validation | [Release validation](reference/release-validation.md) | `tmp/release-check-summary.txt` records pass and explicit skip lines. |
+| Check production readiness | [Production readiness](reference/production-readiness.md) | Live PostgreSQL, coverage, release validation, and signed release artifact smoke checks pass before production positioning. |
 | Operate outbox workers | [Worker outbox contract](reference/worker-outbox.md) | Workers claim persisted jobs and fail safely on missing state, hash mismatch, or unsupported jobs. |
 | Integrate CI evidence | [Integrate CI collectors](how-to/integrate-ci.md) | CI jobs upload build, attestation, source snapshot, or collector evidence with scoped secrets. |
 | Deploy on Kubernetes | [Kubernetes deployment](kubernetes.md) | API and worker deploy with external PostgreSQL, object storage, and external signing mode. |
