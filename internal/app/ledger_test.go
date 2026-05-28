@@ -712,6 +712,90 @@ func TestOpenVEXIngestionCreatesDecisionAndRejectsMalformedInput(t *testing.T) {
 	}
 }
 
+func TestUploadVEXCanDeferDocumentParserSideEffectsToWorker(t *testing.T) {
+	outbox := &recordingOutbox{}
+	store := NewMemoryStore()
+	objects := newTestObjectStore()
+	ledger := NewLedger(Config{
+		APIKeyPepper:                 "test-pepper",
+		Now:                          fixedNow,
+		Store:                        store,
+		ObjectStore:                  objects,
+		Outbox:                       outbox,
+		WorkerOwnedParserSideEffects: true,
+	})
+	ctx := context.Background()
+	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
+	scan, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{
+		"scanner":"grype",
+		"target_ref":"pkg:oci/payments-api",
+		"release_id":"`+release.ID+`",
+		"findings":[{"vulnerability":"CVE-2026-0002","component":"pkg:apk/openssl@3.1.0","severity":"critical","state":"open"}]
+	}`))
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	ledger.mu.Lock()
+	ledger.scans[scan.ID] = scan
+	ledger.mu.Unlock()
+	outbox.jobs = nil
+
+	vex, err := ledger.UploadVEX(ctx, actor, release.ID, artifact.ID, []byte(`{
+		"@context":"https://openvex.dev/ns/v0.2.0",
+		"@id":"https://example.test/vex/worker",
+		"author":"security@example.test",
+		"timestamp":"2026-05-27T12:00:00Z",
+		"version":1,
+		"statements":[{
+			"vulnerability":{"name":"CVE-2026-0002"},
+			"products":[{"@id":"pkg:apk/openssl@3.1.0"}],
+			"status":"fixed",
+			"justification":"fixed in release candidate",
+			"impact_statement":"patched before release",
+			"action_statement":"ship fixed artifact"
+		}]
+	}`))
+	if err != nil {
+		t.Fatalf("vex: %v", err)
+	}
+	if vex.Author != "security@example.test" || vex.StatementCount != 1 || vex.StatusSummary["fixed"] != 1 {
+		t.Fatalf("upload response should keep parsed VEX fields: %#v", vex)
+	}
+
+	state, ok, err := store.LoadState(ctx)
+	if err != nil || !ok {
+		t.Fatalf("load state ok=%v err=%v", ok, err)
+	}
+	persisted := state.VEXDocuments[vex.ID]
+	if persisted.Author != "" || persisted.StatementCount != 0 || persisted.StatusSummary != nil {
+		t.Fatalf("persisted vex document should wait for worker parser side effects: %#v", persisted)
+	}
+	decisionFound := false
+	for _, decision := range state.Decisions {
+		if decision.FindingID == scan.Findings[0].ID && decision.VEXDocumentID == vex.ID && decision.Status == decisionStatusFixed {
+			decisionFound = true
+		}
+	}
+	if !decisionFound {
+		t.Fatal("request path should still create OpenVEX-derived vulnerability decisions")
+	}
+	if len(outbox.jobs) != 1 {
+		t.Fatalf("outbox jobs = %d, want 1", len(outbox.jobs))
+	}
+	job := outbox.jobs[0]
+	if job.Kind != "parse_vex" || job.Payload["payload_ref"] == "" || job.Payload["payload_hash"] == "" || job.Payload["parser_version"] != ParserVersionOpenVEXJSON {
+		t.Fatalf("outbox job missing replay metadata: %#v", job)
+	}
+	payloadRef, ok := job.Payload["payload_ref"].(string)
+	payloadKey := strings.TrimPrefix(payloadRef, "object://")
+	if !ok || !strings.HasPrefix(payloadKey, "tenants/"+actor.TenantID+"/") {
+		t.Fatalf("payload ref %q is not tenant-prefixed", job.Payload["payload_ref"])
+	}
+	if _, err := objects.Get(ctx, payloadKey); err != nil {
+		t.Fatalf("stored payload missing: %v", err)
+	}
+}
+
 func TestExceptionApprovalControlsReadinessAndTenantScope(t *testing.T) {
 	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
