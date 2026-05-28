@@ -43,6 +43,34 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 	case "listCollectors":
 		operation.Description = "Lists tenant-scoped collector metadata without API key hashes or one-time secrets."
 		operation.Responses[http.StatusOK] = jsonResponse("Collector list envelope.", "#/components/schemas/CollectorListEnvelope")
+	case "createControlFramework":
+		operation.Description = "Creates a tenant-scoped versioned control framework."
+		operation.RequestBody = jsonRequest("Control framework creation request.", "#/components/schemas/CreateControlFrameworkRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created control framework envelope.", "#/components/schemas/ControlFrameworkEnvelope")
+	case "listControlFrameworks":
+		operation.Description = "Lists tenant-scoped control frameworks."
+		operation.Responses[http.StatusOK] = jsonResponse("Control framework list envelope.", "#/components/schemas/ControlFrameworkListEnvelope")
+	case "createSecurityControl":
+		operation.Description = "Creates a framework-owned security control with deterministic evidence requirements."
+		operation.RequestBody = jsonRequest("Security control creation request.", "#/components/schemas/CreateSecurityControlRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created security control envelope.", "#/components/schemas/SecurityControlEnvelope")
+	case "getSecurityControl":
+		operation.Description = "Returns a tenant-scoped security control by id."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Security control id."))
+		operation.Responses[http.StatusOK] = jsonResponse("Security control envelope.", "#/components/schemas/SecurityControlEnvelope")
+	case "linkControlEvidence":
+		operation.Description = "Creates an append-only link between a security control and tenant-scoped evidence or related release resource."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Security control id."))
+		operation.RequestBody = jsonRequest("Control evidence link request.", "#/components/schemas/LinkControlEvidenceRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created control evidence link envelope.", "#/components/schemas/ControlEvidenceEnvelope")
+	case "listControlEvidence":
+		operation.Description = "Lists tenant-scoped control evidence links with optional control, product, and release filters."
+		operation.Parameters = append(operation.Parameters,
+			queryParam("control_id", "Filter by security control id.", "string"),
+			queryParam("product_id", "Filter by product id.", "string"),
+			queryParam("release_id", "Filter by release id.", "string"),
+		)
+		operation.Responses[http.StatusOK] = jsonResponse("Control evidence list envelope.", "#/components/schemas/ControlEvidenceListEnvelope")
 	case "createProduct":
 		operation.Description = "Creates a tenant-scoped product. Product slugs must be unique per tenant."
 		operation.RequestBody = jsonRequest("Product creation request.", "#/components/schemas/CreateProductRequest")
