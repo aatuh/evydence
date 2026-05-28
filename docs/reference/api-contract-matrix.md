@@ -3,7 +3,7 @@
 This generated reference inventories Evydence `/v1` route contract precision from `openapi.yaml`.
 It is a planning aid for production contract hardening; `broad` means the route still uses a shared envelope, unspecified body, or generic schema where an endpoint-specific contract should be considered.
 
-Generated from 160 operations: 48 precise, 112 broad.
+Generated from 160 operations: 54 precise, 106 broad.
 
 | Method | Path | Operation | Auth | Scopes | Idempotency | Params | Request | 2xx Response | Precision |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -16,8 +16,8 @@ Generated from 160 operations: 48 precise, 112 broad.
 | GET | /v1/artifact-signatures/{id} | getArtifactSignature | Bearer | evidence:read | - | - | - | 200:unspecified | broad |
 | POST | /v1/artifact-signatures/{id}/verify-cosign | verifyCosignSignature | Bearer | verify:read | required | - | - | 200:unspecified | broad |
 | POST | /v1/artifacts | registerArtifact | Bearer | evidence:write | required | - | application/json:RegisterArtifactRequest | 201:application/json:ArtifactEnvelope | precise |
-| GET | /v1/audit-chain/verify | verifyAuditChain | Bearer | verify:read | - | - | - | 200:unspecified | broad |
-| GET | /v1/audit-log | listAuditLog | Bearer | admin | - | - | - | 200:unspecified | broad |
+| GET | /v1/audit-chain/verify | verifyAuditChain | Bearer | verify:read | - | - | - | 200:application/json:VerificationResultEnvelope | precise |
+| GET | /v1/audit-log | listAuditLog | Bearer | admin | - | query:limit, query:since, query:subject_id, query:subject_type | - | 200:application/json:AuditChainEntryListEnvelope | precise |
 | POST | /v1/backup-manifests | generateBackupManifest | Bearer | admin | required | - | application/json:EmptyObject | 201:application/json:BackupManifestEnvelope | precise |
 | GET | /v1/backup-manifests/{id}/verify | verifyBackupManifest | Bearer | verify:read | - | path:id | - | 200:application/json:VerificationResultEnvelope | precise |
 | POST | /v1/build-attestations/{id}/verify-signature | verifyBuildAttestationSignature | Bearer | verify:read | required | - | - | 200:unspecified | broad |
@@ -70,7 +70,7 @@ Generated from 160 operations: 48 precise, 112 broad.
 | GET | /v1/exceptions | listExceptions | Bearer | verify:read | - | - | - | 200:unspecified | broad |
 | POST | /v1/exceptions | createException | Bearer | release:write | required | - | - | 201:unspecified | broad |
 | POST | /v1/exceptions/{id}/approve | approveException | Bearer | release:write | required | - | - | 200:unspecified | broad |
-| GET | /v1/health | health | public | - | - | - | - | 200:unspecified | broad |
+| GET | /v1/health | health | public | - | - | - | - | 200:application/json:HealthStatusEnvelope | precise |
 | POST | /v1/incident-webhooks/{receiver_id} | receiveIncidentWebhook | public | - | not required | header:X-Evydence-Webhook-Event-ID, header:X-Evydence-Webhook-Signature, header:X-Evydence-Webhook-Timestamp, path:receiver_id | application/json:DataEnvelope | 201:application/json:DataEnvelope | broad |
 | POST | /v1/incidents | createIncident | Bearer | incident:write | required | - | - | 201:unspecified | broad |
 | POST | /v1/incidents/{id}/timeline | recordIncidentTimeline | Bearer | incident:write | required | - | - | 201:unspecified | broad |
@@ -81,13 +81,13 @@ Generated from 160 operations: 48 precise, 112 broad.
 | GET | /v1/marketplace-collectors/{id}/health | marketplaceCollectorHealth | Bearer | collector:read | - | - | - | 200:unspecified | broad |
 | POST | /v1/merkle-batches | createMerkleBatch | Bearer | keys:admin | required | - | - | 201:unspecified | broad |
 | GET | /v1/merkle-batches/{id}/verify | verifyMerkleBatch | Bearer | verify:read | - | - | - | 200:unspecified | broad |
-| GET | /v1/metrics | metrics | Bearer | admin | - | - | - | 200:unspecified | broad |
+| GET | /v1/metrics | metrics | Bearer | admin | - | - | - | 200:application/json:MetricsSnapshotEnvelope,text/plain:string | precise |
 | POST | /v1/object-retention-policies | createObjectRetentionPolicy | Bearer | admin | required | - | - | 201:unspecified | broad |
 | POST | /v1/object-retention-policies/{id}/verify | verifyObjectRetentionPolicy | Bearer | verify:read | required | - | - | 200:unspecified | broad |
 | POST | /v1/openapi-contracts | uploadOpenAPIContract | Bearer | evidence:write | required | - | - | 201:unspecified | broad |
 | GET | /v1/openapi-contracts/{id} | getOpenAPIContract | Bearer | evidence:read | - | - | - | 200:unspecified | broad |
 | POST | /v1/openapi-diffs | createOpenAPIDiff | Bearer | evidence:read | required | - | - | 201:unspecified | broad |
-| GET | /v1/openapi.json | openapi | public | - | - | - | - | 200:unspecified | broad |
+| GET | /v1/openapi.json | openapi | public | - | - | - | - | 200:application/json:OpenAPIDocument | precise |
 | POST | /v1/organizations | createOrganization | Bearer | identity:admin | required | - | - | 201:unspecified | broad |
 | POST | /v1/policies/evaluate | evaluatePolicy | Bearer | verify:read | required | - | - | 201:unspecified | broad |
 | GET | /v1/products | listProducts | Bearer | product:read | - | - | - | 200:application/json:ProductListEnvelope | precise |
@@ -157,7 +157,7 @@ Generated from 160 operations: 48 precise, 112 broad.
 | POST | /v1/users | createUser | Bearer | identity:admin | required | - | - | 201:unspecified | broad |
 | POST | /v1/users/{id}/deactivate | deactivateUser | Bearer | identity:admin | required | - | - | 200:unspecified | broad |
 | POST | /v1/verify | verify | Bearer | verify:read | required | - | - | 200:unspecified | broad |
-| GET | /v1/version | version | public | - | - | - | - | 200:unspecified | broad |
+| GET | /v1/version | version | public | - | - | - | - | 200:application/json:VersionInfoEnvelope | precise |
 | POST | /v1/vex | uploadVEX | Bearer | evidence:write | required | - | application/json:EvidenceUploadRequest | 201:application/json:VEXDocumentEnvelope | precise |
 | POST | /v1/vex/cyclonedx | uploadCycloneDXVEX | Bearer | evidence:write | required | - | application/json:EvidenceUploadRequest | 201:application/json:VEXDocumentEnvelope | precise |
 | GET | /v1/vex/{id} | getVEX | Bearer | evidence:read | - | path:id | - | 200:application/json:VEXDocumentEnvelope | precise |
