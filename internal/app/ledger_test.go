@@ -128,6 +128,79 @@ func TestIdempotencyReplayAndConflict(t *testing.T) {
 	}
 }
 
+func TestIdempotencyIsScopedByHumanSessionActor(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	admin, err := ledger.Authenticate(ctx, secret)
+	if err != nil {
+		t.Fatalf("auth admin: %v", err)
+	}
+	org, err := ledger.CreateOrganization(ctx, admin, CreateOrganizationInput{Name: "Org", Slug: "org"})
+	if err != nil {
+		t.Fatalf("org: %v", err)
+	}
+	provider, err := ledger.CreateSSOProvider(ctx, admin, CreateSSOProviderInput{Name: "OIDC", Type: "oidc", Issuer: "https://idp.example.test", ClientID: "client"})
+	if err != nil {
+		t.Fatalf("provider: %v", err)
+	}
+	userA, err := ledger.CreateUser(ctx, admin, CreateUserInput{OrganizationID: org.ID, Email: "a@example.test", DisplayName: "A"})
+	if err != nil {
+		t.Fatalf("user a: %v", err)
+	}
+	userB, err := ledger.CreateUser(ctx, admin, CreateUserInput{OrganizationID: org.ID, Email: "b@example.test", DisplayName: "B"})
+	if err != nil {
+		t.Fatalf("user b: %v", err)
+	}
+	for _, user := range []domain.HumanUser{userA, userB} {
+		if _, err := ledger.CreateRoleBinding(ctx, admin, CreateRoleBindingInput{SubjectType: "user", SubjectID: user.ID, Role: "security_engineer"}); err != nil {
+			t.Fatalf("role binding: %v", err)
+		}
+	}
+	_, secretA, err := ledger.CreateSSOSession(ctx, admin, CreateSSOSessionInput{UserID: userA.ID, ProviderID: provider.ID, ExpiresAt: fixedNow().Add(time.Hour)})
+	if err != nil {
+		t.Fatalf("session a: %v", err)
+	}
+	_, secretB, err := ledger.CreateSSOSession(ctx, admin, CreateSSOSessionInput{UserID: userB.ID, ProviderID: provider.ID, ExpiresAt: fixedNow().Add(time.Hour)})
+	if err != nil {
+		t.Fatalf("session b: %v", err)
+	}
+	actorA, err := ledger.Authenticate(ctx, secretA)
+	if err != nil {
+		t.Fatalf("auth a: %v", err)
+	}
+	actorB, err := ledger.Authenticate(ctx, secretB)
+	if err != nil {
+		t.Fatalf("auth b: %v", err)
+	}
+	if _, _, err := ledger.WithIdempotency(ctx, actorA, "POST", "/v1/products", "shared", []byte(`{"name":"A"}`), func() (int, any, error) {
+		return 201, map[string]any{"actor": "a"}, nil
+	}); err != nil {
+		t.Fatalf("idempotency a: %v", err)
+	}
+	for key := range ledger.idempotency {
+		if strings.ContainsRune(key, '\x00') {
+			t.Fatalf("idempotency key contains postgres-unsafe NUL: %q", key)
+		}
+		if parsed, ok := ParseIdempotencyRecordKey(key); !ok || parsed.ActorID == "" {
+			t.Fatalf("idempotency key did not parse: %q parsed=%#v ok=%v", key, parsed, ok)
+		}
+	}
+	status, response, err := ledger.WithIdempotency(ctx, actorB, "POST", "/v1/products", "shared", []byte(`{"name":"B"}`), func() (int, any, error) {
+		return 201, map[string]any{"actor": "b"}, nil
+	})
+	if err != nil {
+		t.Fatalf("idempotency b should not conflict with actor a: %v", err)
+	}
+	got, _ := response.(map[string]any)
+	if status != 201 || got["actor"] != "b" {
+		t.Fatalf("unexpected actor b response status=%d response=%#v", status, response)
+	}
+}
+
 func TestEvidenceCanonicalHashAndAuditChainVerification(t *testing.T) {
 	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()

@@ -82,8 +82,221 @@ func (s *Store) SaveState(ctx context.Context, state app.PersistedState) error {
 	if err := syncResourceIndex(ctx, tx, state); err != nil {
 		return err
 	}
+	if err := syncIdentityAndIdempotency(ctx, tx, state); err != nil {
+		return err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit save ledger state transaction: %w", err)
+	}
+	return nil
+}
+
+func syncIdentityAndIdempotency(ctx context.Context, tx pgx.Tx, state app.PersistedState) error {
+	for _, tenant := range state.Tenants {
+		if tenant.ID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO tenants (id, name, created_at)
+			VALUES ($1, $2, $3)
+			ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
+		`, tenant.ID, tenant.Name, nonZeroTime(tenant.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert tenant row: %w", err)
+		}
+	}
+	for id, key := range state.APIKeys {
+		if key.ID == "" || key.TenantID == "" {
+			continue
+		}
+		hash := state.APIKeyHashes[id]
+		if hash == "" {
+			hash = key.Hash
+		}
+		scopes, err := json.Marshal(key.Scopes)
+		if err != nil {
+			return fmt.Errorf("encode api key scopes: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO api_keys (
+				id, tenant_id, name, prefix, hash, scopes, expires_at,
+				revoked_at, last_used_at, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			ON CONFLICT (id) DO UPDATE SET
+				name = EXCLUDED.name,
+				prefix = EXCLUDED.prefix,
+				hash = EXCLUDED.hash,
+				scopes = EXCLUDED.scopes,
+				expires_at = EXCLUDED.expires_at,
+				revoked_at = EXCLUDED.revoked_at,
+				last_used_at = EXCLUDED.last_used_at
+		`, key.ID, key.TenantID, key.Name, key.Prefix, hash, scopes, nullableTime(key.ExpiresAt), nullableTime(key.RevokedAt), nullableTime(key.LastUsedAt), nonZeroTime(key.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert api key row: %w", err)
+		}
+	}
+	for _, org := range state.Organizations {
+		if org.ID == "" || org.TenantID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO organizations (id, tenant_id, name, slug, status, schema_version, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			ON CONFLICT (id) DO UPDATE SET
+				name = EXCLUDED.name,
+				slug = EXCLUDED.slug,
+				status = EXCLUDED.status,
+				schema_version = EXCLUDED.schema_version
+		`, org.ID, org.TenantID, org.Name, org.Slug, org.Status, org.SchemaVersion, nonZeroTime(org.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert organization row: %w", err)
+		}
+	}
+	for _, user := range state.Users {
+		if user.ID == "" || user.TenantID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO human_users (
+				id, tenant_id, organization_id, email, display_name, status,
+				deactivated_at, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			ON CONFLICT (id) DO UPDATE SET
+				organization_id = EXCLUDED.organization_id,
+				email = EXCLUDED.email,
+				display_name = EXCLUDED.display_name,
+				status = EXCLUDED.status,
+				deactivated_at = EXCLUDED.deactivated_at,
+				schema_version = EXCLUDED.schema_version
+		`, user.ID, user.TenantID, nullableString(user.OrganizationID), user.Email, user.DisplayName, user.Status, nullableTime(user.DeactivatedAt), user.SchemaVersion, nonZeroTime(user.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert human user row: %w", err)
+		}
+	}
+	for _, binding := range state.RoleBindings {
+		if binding.ID == "" || binding.TenantID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO role_bindings (
+				id, tenant_id, subject_type, subject_id, role, resource_type,
+				resource_id, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			ON CONFLICT (id) DO UPDATE SET
+				subject_type = EXCLUDED.subject_type,
+				subject_id = EXCLUDED.subject_id,
+				role = EXCLUDED.role,
+				resource_type = EXCLUDED.resource_type,
+				resource_id = EXCLUDED.resource_id,
+				schema_version = EXCLUDED.schema_version
+		`, binding.ID, binding.TenantID, binding.SubjectType, binding.SubjectID, binding.Role, nullableString(binding.ResourceType), nullableString(binding.ResourceID), binding.SchemaVersion, nonZeroTime(binding.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert role binding row: %w", err)
+		}
+	}
+	for _, provider := range state.SSOProviders {
+		if provider.ID == "" || provider.TenantID == "" {
+			continue
+		}
+		roleMapping, err := json.Marshal(provider.RoleMapping)
+		if err != nil {
+			return fmt.Errorf("encode sso role mapping: %w", err)
+		}
+		jwks, err := json.Marshal(provider.JWKS)
+		if err != nil {
+			return fmt.Errorf("encode sso jwks: %w", err)
+		}
+		samlCerts, err := json.Marshal(provider.SAMLSigningCertificates)
+		if err != nil {
+			return fmt.Errorf("encode sso signing certificates: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO sso_providers (
+				id, tenant_id, name, type, issuer, client_id, groups_claim,
+				role_mapping, status, schema_version, created_at, jwks,
+				saml_signing_certificates, trust_material_updated_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			ON CONFLICT (id) DO UPDATE SET
+				name = EXCLUDED.name,
+				type = EXCLUDED.type,
+				issuer = EXCLUDED.issuer,
+				client_id = EXCLUDED.client_id,
+				groups_claim = EXCLUDED.groups_claim,
+				role_mapping = EXCLUDED.role_mapping,
+				status = EXCLUDED.status,
+				schema_version = EXCLUDED.schema_version,
+				jwks = EXCLUDED.jwks,
+				saml_signing_certificates = EXCLUDED.saml_signing_certificates,
+				trust_material_updated_at = EXCLUDED.trust_material_updated_at
+		`, provider.ID, provider.TenantID, provider.Name, provider.Type, provider.Issuer, provider.ClientID, nullableString(provider.GroupsClaim), roleMapping, provider.Status, provider.SchemaVersion, nonZeroTime(provider.CreatedAt), jwks, samlCerts, nullableTime(provider.TrustMaterialUpdatedAt)); err != nil {
+			return fmt.Errorf("upsert sso provider row: %w", err)
+		}
+	}
+	for _, link := range state.IdentityLinks {
+		if link.ID == "" || link.TenantID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO user_identity_links (
+				id, tenant_id, user_id, provider_id, subject, email, verified,
+				schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			ON CONFLICT (id) DO UPDATE SET
+				user_id = EXCLUDED.user_id,
+				provider_id = EXCLUDED.provider_id,
+				subject = EXCLUDED.subject,
+				email = EXCLUDED.email,
+				verified = EXCLUDED.verified,
+				schema_version = EXCLUDED.schema_version
+		`, link.ID, link.TenantID, link.UserID, link.ProviderID, link.Subject, link.Email, link.Verified, link.SchemaVersion, nonZeroTime(link.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert user identity link row: %w", err)
+		}
+	}
+	for id, session := range state.SSOSessions {
+		if session.ID == "" || session.TenantID == "" {
+			continue
+		}
+		hash := state.SSOSessionHashes[id]
+		if hash == "" {
+			hash = session.Hash
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO sso_sessions (
+				id, tenant_id, user_id, provider_id, prefix, hash, expires_at,
+				revoked_at, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			ON CONFLICT (id) DO UPDATE SET
+				prefix = EXCLUDED.prefix,
+				hash = EXCLUDED.hash,
+				expires_at = EXCLUDED.expires_at,
+				revoked_at = EXCLUDED.revoked_at,
+				schema_version = EXCLUDED.schema_version
+		`, session.ID, session.TenantID, session.UserID, session.ProviderID, session.Prefix, hash, session.ExpiresAt, nullableTime(session.RevokedAt), session.SchemaVersion, nonZeroTime(session.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert sso session row: %w", err)
+		}
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM idempotency_records`); err != nil {
+		return fmt.Errorf("clear idempotency records: %w", err)
+	}
+	for key, record := range state.Idempotency {
+		parts, ok := app.ParseIdempotencyRecordKey(key)
+		if !ok {
+			continue
+		}
+		response, err := json.Marshal(record.Response)
+		if err != nil {
+			return fmt.Errorf("encode idempotency response: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO idempotency_records (
+				tenant_id, actor_key_id, method, path, idempotency_key,
+				request_hash, status, response, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		`, parts.TenantID, parts.ActorID, parts.Method, parts.Path, parts.IdempotencyKey, record.RequestHash, record.Status, response, nonZeroTime(record.CreatedAt)); err != nil {
+			return fmt.Errorf("insert idempotency record row: %w", err)
+		}
 	}
 	return nil
 }
@@ -367,6 +580,20 @@ func nullableString(value string) any {
 		return nil
 	}
 	return value
+}
+
+func nullableTime(value *time.Time) any {
+	if value == nil || value.IsZero() {
+		return nil
+	}
+	return value.UTC()
+}
+
+func nonZeroTime(value time.Time) time.Time {
+	if value.IsZero() {
+		return time.Now().UTC()
+	}
+	return value.UTC()
 }
 
 func (s *Store) Enqueue(ctx context.Context, job app.OutboxJob) error {

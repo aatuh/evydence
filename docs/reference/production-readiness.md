@@ -15,7 +15,9 @@ with live PostgreSQL and release evidence enabled.
 Known hardening work remains:
 
 - canonical production persistence still needs hand-tuned relational repository
-  paths for all high-risk resource families;
+  paths for all high-risk resource families. PostgreSQL now maintains
+  relational identity and idempotency rows alongside the canonical snapshot,
+  but the snapshot remains the runtime load source;
 - worker parser jobs re-read raw object-store payloads for key formats and
   validate durable state, but parser side effects still need to move
   independently out of the request path;
@@ -92,9 +94,10 @@ These items are tracked separately from the feature-completeness checklist in
 implemented capabilities:
 
 - Replace canonical snapshot writes with dependency-ordered relational
-  repositories for identity, idempotency, evidence, audit-chain entries,
-  bundles, reports, packages, and secondary resources. Keep snapshots only for
-  export/import and upgrade compatibility.
+  repositories for evidence, audit-chain entries, bundles, reports, packages,
+  and secondary resources. Identity and idempotency rows are synchronized into
+  relational tables, but runtime loading still uses the canonical snapshot.
+  Keep snapshots only for export/import and upgrade compatibility.
 - Split the large application ledger aggregate into focused services or
   repositories once relational writes are in place, preserving tenant isolation
   and append-only behavior throughout.

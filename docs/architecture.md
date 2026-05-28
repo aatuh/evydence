@@ -10,7 +10,7 @@ Evydence follows a ports-and-adapters shape:
 - `internal/adapters/objectstore/s3` stores the same tenant-prefixed object keys in S3/MinIO-compatible buckets.
 - `cmd/*` contains process entry points.
 
-Core logic does not depend on HTTP routers, SQL drivers, object storage SDKs, queues, KMS providers, provider clients, or UI frameworks. PostgreSQL persistence currently stores a versioned ledger snapshot and rebuilds tenant-scoped relational projection rows plus forward-compatible per-resource tables for implemented release, evidence, source, deployment, and control resources. Moving canonical production writes to dependency-ordered relational repositories is tracked as production hardening, not as a completed production maturity claim.
+Core logic does not depend on HTTP routers, SQL drivers, object storage SDKs, queues, KMS providers, provider clients, or UI frameworks. PostgreSQL persistence currently stores a versioned ledger snapshot and rebuilds tenant-scoped relational projection rows plus forward-compatible per-resource tables for implemented release, evidence, source, deployment, and control resources. Identity and idempotency records are also synchronized into relational rows with non-secret hashes and tenant-scoped constraints. Moving all canonical production writes to dependency-ordered relational repositories is tracked as production hardening, not as a completed production maturity claim.
 
 ## Tenant And Auth Boundaries
 

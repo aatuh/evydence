@@ -33,6 +33,32 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 		Tenants: map[string]domain.Tenant{
 			"ten_test": {ID: "ten_test", Name: "Test", CreatedAt: time.Now().UTC()},
 		},
+		Organizations: map[string]domain.Organization{
+			"org_test": {ID: "org_test", TenantID: "ten_test", Name: "Org", Slug: "org", Status: "active", SchemaVersion: domain.OrganizationSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		Users: map[string]domain.HumanUser{
+			"user_test": {ID: "user_test", TenantID: "ten_test", OrganizationID: "org_test", Email: "user@example.test", DisplayName: "User", Status: "active", SchemaVersion: domain.HumanUserSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		RoleBindings: map[string]domain.RoleBinding{
+			"rb_test": {ID: "rb_test", TenantID: "ten_test", SubjectType: "user", SubjectID: "user_test", Role: "security_engineer", SchemaVersion: domain.RoleBindingSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		APIKeys: map[string]domain.APIKey{
+			"key_test": {ID: "key_test", TenantID: "ten_test", Name: "api", Prefix: "evy_test", Scopes: []string{"evidence:write"}, CreatedAt: time.Now().UTC()},
+		},
+		APIKeyHashes: map[string]string{"key_test": "hmac-test-hash"},
+		SSOProviders: map[string]domain.SSOProvider{
+			"sso_test": {ID: "sso_test", TenantID: "ten_test", Name: "OIDC", Type: "oidc", Issuer: "https://idp.example.test", ClientID: "client", Status: "active", JWKS: map[string]any{"keys": []any{map[string]any{"kty": "OKP", "kid": "kid-1", "crv": "Ed25519", "x": "abc"}}}, SchemaVersion: domain.SSOProviderSchemaVersion, CreatedAt: time.Now().UTC(), TrustMaterialUpdatedAt: ptrTime(time.Now().UTC())},
+		},
+		IdentityLinks: map[string]domain.UserIdentityLink{
+			"link_test": {ID: "link_test", TenantID: "ten_test", UserID: "user_test", ProviderID: "sso_test", Subject: "sub", Email: "user@example.test", Verified: true, SchemaVersion: "user-identity-link.v1.0.0", CreatedAt: time.Now().UTC()},
+		},
+		SSOSessions: map[string]domain.SSOSession{
+			"sess_test": {ID: "sess_test", TenantID: "ten_test", UserID: "user_test", ProviderID: "sso_test", Prefix: "sess", ExpiresAt: time.Now().UTC().Add(time.Hour), SchemaVersion: domain.SSOSessionSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		SSOSessionHashes: map[string]string{"sess_test": "session-hash"},
+		Idempotency: map[string]app.IdempotencyRecord{
+			app.NewIdempotencyRecordKey("ten_test", "user:user_test", "POST", "/v1/products", "idem"): {RequestHash: "sha256:request", Status: 201, Response: map[string]any{"ok": true}, CreatedAt: time.Now().UTC()},
+		},
 	}
 	if err := store.SaveState(ctx, state); err != nil {
 		t.Fatal(err)
@@ -50,6 +76,34 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	}
 	if indexed != 1 {
 		t.Fatalf("resource index rows = %d, want 1", indexed)
+	}
+	var apiKeyHash string
+	if err := store.pool.QueryRow(ctx, `SELECT hash FROM api_keys WHERE id = 'key_test' AND tenant_id = 'ten_test'`).Scan(&apiKeyHash); err != nil {
+		t.Fatal(err)
+	}
+	if apiKeyHash != "hmac-test-hash" {
+		t.Fatalf("api key hash = %q", apiKeyHash)
+	}
+	var userRows int
+	if err := store.pool.QueryRow(ctx, `SELECT count(*) FROM human_users WHERE tenant_id = 'ten_test' AND email = 'user@example.test'`).Scan(&userRows); err != nil {
+		t.Fatal(err)
+	}
+	if userRows != 1 {
+		t.Fatalf("human user rows = %d, want 1", userRows)
+	}
+	var ssoTrustRows int
+	if err := store.pool.QueryRow(ctx, `SELECT count(*) FROM sso_providers WHERE id = 'sso_test' AND trust_material_updated_at IS NOT NULL AND jwks <> '{}'::jsonb`).Scan(&ssoTrustRows); err != nil {
+		t.Fatal(err)
+	}
+	if ssoTrustRows != 1 {
+		t.Fatalf("sso trust rows = %d, want 1", ssoTrustRows)
+	}
+	var idemActor string
+	if err := store.pool.QueryRow(ctx, `SELECT actor_key_id FROM idempotency_records WHERE tenant_id = 'ten_test' AND idempotency_key = 'idem'`).Scan(&idemActor); err != nil {
+		t.Fatal(err)
+	}
+	if idemActor != "user:user_test" {
+		t.Fatalf("idempotency actor = %q", idemActor)
 	}
 	job := app.OutboxJob{ID: "job_test_" + time.Now().Format("150405.000000000"), TenantID: "ten_test", Kind: "verify_subject", SubjectType: "audit_chain", SubjectID: "audit_chain", CreatedAt: time.Now().UTC()}
 	if err := store.Enqueue(ctx, job); err != nil {
@@ -88,6 +142,10 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	if _, err := store.Now(ctx); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func ptrTime(t time.Time) *time.Time {
+	return &t
 }
 
 func TestPendingMigrationVersionsWithPostgres(t *testing.T) {

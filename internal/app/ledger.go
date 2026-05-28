@@ -1659,7 +1659,7 @@ func (l *Ledger) WithIdempotency(ctx context.Context, actor domain.Actor, method
 		return 0, nil, ErrValidation
 	}
 	requestHash := hashBytes(append([]byte(method+"\n"+path+"\n"), body...))
-	storeKey := actor.TenantID + "\x00" + actor.KeyID + "\x00" + method + "\x00" + path + "\x00" + key
+	storeKey := NewIdempotencyRecordKey(actor.TenantID, idempotencyActorID(actor), method, path, key)
 	l.mu.Lock()
 	record, ok := l.idempotency[storeKey]
 	l.mu.Unlock()
@@ -1681,6 +1681,61 @@ func (l *Ledger) WithIdempotency(ctx context.Context, actor domain.Actor, method
 	}
 	l.mu.Unlock()
 	return status, response, nil
+}
+
+func idempotencyActorID(actor domain.Actor) string {
+	switch {
+	case strings.TrimSpace(actor.KeyID) != "":
+		return "api_key:" + strings.TrimSpace(actor.KeyID)
+	case strings.TrimSpace(actor.UserID) != "":
+		return "user:" + strings.TrimSpace(actor.UserID)
+	case strings.TrimSpace(actor.CollectorID) != "":
+		return "collector:" + strings.TrimSpace(actor.CollectorID)
+	default:
+		return "anonymous"
+	}
+}
+
+func NewIdempotencyRecordKey(tenantID, actorID, method, path, key string) string {
+	parts := []string{tenantID, actorID, method, path, key}
+	encoded := make([]string, 0, len(parts))
+	for _, part := range parts {
+		encoded = append(encoded, base64.RawURLEncoding.EncodeToString([]byte(part)))
+	}
+	return "v2:" + strings.Join(encoded, ".")
+}
+
+func ParseIdempotencyRecordKey(value string) (IdempotencyRecordKey, bool) {
+	value = strings.TrimSpace(value)
+	if strings.HasPrefix(value, "v2:") {
+		parts := strings.Split(strings.TrimPrefix(value, "v2:"), ".")
+		if len(parts) != 5 {
+			return IdempotencyRecordKey{}, false
+		}
+		decoded := make([]string, 0, len(parts))
+		for _, part := range parts {
+			raw, err := base64.RawURLEncoding.DecodeString(part)
+			if err != nil {
+				return IdempotencyRecordKey{}, false
+			}
+			decoded = append(decoded, string(raw))
+		}
+		return idempotencyRecordKeyFromParts(decoded)
+	}
+	return idempotencyRecordKeyFromParts(strings.Split(value, "\x00"))
+}
+
+func idempotencyRecordKeyFromParts(parts []string) (IdempotencyRecordKey, bool) {
+	if len(parts) != 5 || parts[0] == "" || parts[1] == "" || parts[4] == "" {
+		return IdempotencyRecordKey{}, false
+	}
+	return IdempotencyRecordKey{
+		TenantID:       parts[0],
+		ActorID:        parts[1],
+		Method:         parts[2],
+		Path:           parts[3],
+		IdempotencyKey: parts[4],
+	}, true
 }
 
 func (l *Ledger) createAPIKeyLocked(tenantID, name string, scopes []string, expiresAt *time.Time) (domain.APIKey, string, error) {
