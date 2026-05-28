@@ -273,6 +273,15 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	if relational.APIKeyHashes["key_test"] != "hmac-test-hash" {
 		t.Fatalf("relational api key hash = %q", relational.APIKeyHashes["key_test"])
 	}
+	if relational.Organizations["org_test"].Slug != "org" || relational.Users["user_test"].OrganizationID != "org_test" || relational.RoleBindings["rb_test"].Role != "security_engineer" {
+		t.Fatalf("relational identity rows missing: org=%#v user=%#v role=%#v", relational.Organizations["org_test"], relational.Users["user_test"], relational.RoleBindings["rb_test"])
+	}
+	if relational.SSOProviders["sso_test"].TrustMaterialUpdatedAt == nil || len(relational.SSOProviders["sso_test"].JWKS) == 0 || !relational.IdentityLinks["link_test"].Verified {
+		t.Fatalf("relational sso rows missing: provider=%#v link=%#v", relational.SSOProviders["sso_test"], relational.IdentityLinks["link_test"])
+	}
+	if relational.SSOSessionHashes["sess_test"] != "session-hash" || relational.SSOSessions["sess_test"].Prefix != "sess" {
+		t.Fatalf("relational sso session = %#v hash=%q", relational.SSOSessions["sess_test"], relational.SSOSessionHashes["sess_test"])
+	}
 	if relational.Products["prod_test"].Slug != "product" || relational.Evidence["ev_test"].ReleaseID != "rel_test" || relational.SBOMs["sbom_test"].ComponentCount != 1 {
 		t.Fatalf("relational fallback missing core rows: product=%#v evidence=%#v sbom=%#v", relational.Products["prod_test"], relational.Evidence["ev_test"], relational.SBOMs["sbom_test"])
 	}
