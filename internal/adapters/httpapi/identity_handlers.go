@@ -107,6 +107,20 @@ func (s *Server) createSSOProvider(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) updateSSOProviderTrustMaterial(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		JWKS                    map[string]any `json:"jwks"`
+		SAMLSigningCertificates []string       `json:"saml_signing_certificates"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		provider, err := s.ledger.UpdateSSOProviderTrustMaterial(r.Context(), actor, r.PathValue("id"), app.UpdateSSOProviderTrustMaterialInput{JWKS: req.JWKS, SAMLSigningCertificates: req.SAMLSigningCertificates})
+		return http.StatusOK, provider, err
+	})
+}
+
 func (s *Server) linkSSOIdentity(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		UserID     string `json:"user_id"`

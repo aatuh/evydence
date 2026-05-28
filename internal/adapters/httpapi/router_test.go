@@ -84,7 +84,7 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	if _, ok := problemProps["request_id"]; !ok {
 		t.Fatalf("Problem schema missing request_id: %#v", problemProps)
 	}
-	for _, schemaName := range []string{"ReadinessStatusEnvelope", "BackupManifestEnvelope", "VerificationResultEnvelope", "ReadinessReportEnvelope", "CreateProductRequest", "ProductEnvelope", "ProductListEnvelope", "CreateProjectRequest", "ProjectEnvelope", "CreateReleaseRequest", "ReleaseEnvelope", "RegisterArtifactRequest", "ArtifactEnvelope", "CreateBuildRequest", "BuildRunEnvelope", "EvidenceUploadRequest", "SBOMEnvelope", "VEXDocumentEnvelope", "UploadVulnerabilityScanRequest", "VulnerabilityScanEnvelope", "CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOProviderRequest", "SSOProviderEnvelope", "VerifyProviderIdentityRequest", "ProviderVerificationEnvelope", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalPackageRequest", "DataEnvelope"} {
+	for _, schemaName := range []string{"ReadinessStatusEnvelope", "BackupManifestEnvelope", "VerificationResultEnvelope", "ReadinessReportEnvelope", "CreateProductRequest", "ProductEnvelope", "ProductListEnvelope", "CreateProjectRequest", "ProjectEnvelope", "CreateReleaseRequest", "ReleaseEnvelope", "RegisterArtifactRequest", "ArtifactEnvelope", "CreateBuildRequest", "BuildRunEnvelope", "EvidenceUploadRequest", "SBOMEnvelope", "VEXDocumentEnvelope", "UploadVulnerabilityScanRequest", "VulnerabilityScanEnvelope", "CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOProviderRequest", "UpdateSSOProviderTrustMaterialRequest", "SSOProviderEnvelope", "VerifyProviderIdentityRequest", "ProviderVerificationEnvelope", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalPackageRequest", "DataEnvelope"} {
 		if _, ok := schemas[schemaName]; !ok {
 			t.Fatalf("schema %s missing from OpenAPI components", schemaName)
 		}
@@ -167,6 +167,9 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	createProvider := operationMap(t, paths, "/v1/sso/providers", "post")
 	assertRequestRef(t, createProvider, "#/components/schemas/CreateSSOProviderRequest")
 	assertResponseRef(t, createProvider, "201", "#/components/schemas/SSOProviderEnvelope")
+	updateProviderTrust := operationMap(t, paths, "/v1/sso/providers/{id}/trust-material", "post")
+	assertRequestRef(t, updateProviderTrust, "#/components/schemas/UpdateSSOProviderTrustMaterialRequest")
+	assertResponseRef(t, updateProviderTrust, "200", "#/components/schemas/SSOProviderEnvelope")
 	verifyProvider := operationMap(t, paths, "/v1/provider-verifications", "post")
 	assertRequestRef(t, verifyProvider, "#/components/schemas/VerifyProviderIdentityRequest")
 	assertResponseRef(t, verifyProvider, "201", "#/components/schemas/ProviderVerificationEnvelope")
@@ -1105,8 +1108,12 @@ func TestFutureExtensionAndReadAdminHTTPGaps(t *testing.T) {
 		t.Fatalf("oidc keygen: %v", err)
 	}
 	jwks := map[string]any{"keys": []any{map[string]any{"kty": "OKP", "crv": "Ed25519", "kid": "kid-1", "alg": "EdDSA", "x": base64.RawURLEncoding.EncodeToString(pub)}}}
-	signedProvider := postJSON(t, server, secret, "/v1/sso/providers", "future-sso-jwks", map[string]any{"name": "Signed OIDC", "type": "oidc", "issuer": "https://signed-idp.example.test", "client_id": "signed-client", "jwks": jwks}, http.StatusCreated)
+	signedProvider := postJSON(t, server, secret, "/v1/sso/providers", "future-sso-jwks", map[string]any{"name": "Signed OIDC", "type": "oidc", "issuer": "https://signed-idp.example.test", "client_id": "signed-client"}, http.StatusCreated)
 	signedProviderID := dataField(t, signedProvider, "id")
+	updatedProvider := postJSON(t, server, secret, "/v1/sso/providers/"+signedProviderID+"/trust-material", "future-sso-jwks-update", map[string]any{"jwks": jwks}, http.StatusOK)
+	if !strings.Contains(updatedProvider, `"trust_material_updated_at"`) {
+		t.Fatalf("updated provider missing trust material timestamp: %s", updatedProvider)
+	}
 	postJSON(t, server, secret, "/v1/sso/identity-links", "future-signed-link", map[string]any{"user_id": dataField(t, userBody, "id"), "provider_id": signedProviderID, "subject": "signed-sub", "email": "future@example.test", "verified": true}, http.StatusCreated)
 	idToken := signedRouterIDToken(t, priv, "kid-1", map[string]any{"iss": "https://signed-idp.example.test", "aud": "signed-client", "sub": "signed-sub", "email": "future@example.test", "email_verified": true, "exp": time.Now().UTC().Add(time.Hour).Unix()})
 	signedVerification := postJSON(t, server, secret, "/v1/provider-verifications", "future-provider-token-verification", map[string]any{"provider_type": "oidc", "provider_id": signedProviderID, "subject": "signed-sub", "id_token": idToken}, http.StatusCreated)

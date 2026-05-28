@@ -85,6 +85,10 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"jwks":                      map[string]any{"type": "object", "description": "Optional static JWKS public-key material for local OIDC ID-token verification. Private keys and provider secrets must not be supplied."},
 		"saml_signing_certificates": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Optional PEM-encoded SAML assertion signing certificates. Private keys and provider secrets must not be supplied."},
 	}, "name", "type", "issuer", "client_id"))
+	registry.RegisterSchema("UpdateSSOProviderTrustMaterialRequest", objectSchema(map[string]any{
+		"jwks":                      map[string]any{"type": "object", "description": "OIDC public JWKS material. Private keys and provider secrets must not be supplied."},
+		"saml_signing_certificates": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "PEM-encoded SAML assertion signing certificates. Private keys and provider secrets must not be supplied."},
+	}))
 	registry.RegisterSchema("VerifyProviderIdentityRequest", objectSchema(map[string]any{
 		"provider_type":  map[string]any{"type": "string", "enum": []string{"oidc", "saml"}},
 		"provider_id":    map[string]any{"type": "string"},
@@ -1213,6 +1217,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"role_mapping":              map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "string"}},
 		"jwks":                      map[string]any{"type": "object", "description": "Configured public JWKS material, when supplied."},
 		"saml_signing_certificates": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Configured SAML assertion signing certificates, when supplied."},
+		"trust_material_updated_at": map[string]any{"type": "string", "format": "date-time"},
 		"status":                    map[string]any{"type": "string"},
 		"schema_version":            map[string]any{"type": "string"},
 		"created_at":                map[string]any{"type": "string", "format": "date-time"},

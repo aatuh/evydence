@@ -42,6 +42,11 @@ type CreateSSOProviderInput struct {
 	SAMLSigningCertificates []string
 }
 
+type UpdateSSOProviderTrustMaterialInput struct {
+	JWKS                    map[string]any
+	SAMLSigningCertificates []string
+}
+
 type LinkSSOIdentityInput struct {
 	UserID     string
 	ProviderID string
@@ -257,6 +262,71 @@ func (l *Ledger) CreateSSOProvider(ctx context.Context, actor domain.Actor, in C
 	provider := domain.SSOProvider{ID: newID("sso"), TenantID: actor.TenantID, Name: in.Name, Type: in.Type, Issuer: in.Issuer, ClientID: in.ClientID, GroupsClaim: strings.TrimSpace(in.GroupsClaim), RoleMapping: cloneStringMap(in.RoleMapping), JWKS: jwks, SAMLSigningCertificates: samlCerts, Status: "active", SchemaVersion: domain.SSOProviderSchemaVersion, CreatedAt: l.now()}
 	l.ssoProviders[provider.ID] = provider
 	_, _ = l.appendChainLocked(actor.TenantID, "sso_provider.created", "sso_provider", provider.ID, actorType(actor), actorID(actor), "", "")
+	if err := l.persistLocked(ctx); err != nil {
+		return domain.SSOProvider{}, err
+	}
+	return provider, nil
+}
+
+func (l *Ledger) UpdateSSOProviderTrustMaterial(ctx context.Context, actor domain.Actor, id string, in UpdateSSOProviderTrustMaterialInput) (domain.SSOProvider, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.SSOProvider{}, err
+	}
+	if err := require(actor, ScopeIdentityAdmin); err != nil {
+		return domain.SSOProvider{}, err
+	}
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return domain.SSOProvider{}, ErrValidation
+	}
+	jwks, err := normalizeJWKS(in.JWKS)
+	if err != nil {
+		return domain.SSOProvider{}, ErrValidation
+	}
+	samlCerts, err := normalizeSAMLSigningCertificates(in.SAMLSigningCertificates)
+	if err != nil {
+		return domain.SSOProvider{}, ErrValidation
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	provider, ok := l.ssoProviders[id]
+	if !ok || provider.TenantID != actor.TenantID {
+		return domain.SSOProvider{}, ErrNotFound
+	}
+	switch provider.Type {
+	case "oidc":
+		if len(jwks) == 0 || len(samlCerts) != 0 {
+			return domain.SSOProvider{}, ErrValidation
+		}
+		provider.JWKS = jwks
+		provider.SAMLSigningCertificates = nil
+	case "saml":
+		if len(samlCerts) == 0 || len(jwks) != 0 {
+			return domain.SSOProvider{}, ErrValidation
+		}
+		provider.SAMLSigningCertificates = samlCerts
+		provider.JWKS = nil
+	default:
+		return domain.SSOProvider{}, ErrValidation
+	}
+	now := l.now()
+	provider.TrustMaterialUpdatedAt = &now
+	materialHash, err := canonicalAnyHash(struct {
+		ProviderID              string         `json:"provider_id"`
+		JWKS                    map[string]any `json:"jwks,omitempty"`
+		SAMLSigningCertificates []string       `json:"saml_signing_certificates,omitempty"`
+		UpdatedAt               string         `json:"updated_at"`
+	}{
+		ProviderID:              provider.ID,
+		JWKS:                    provider.JWKS,
+		SAMLSigningCertificates: provider.SAMLSigningCertificates,
+		UpdatedAt:               now.Format(time.RFC3339Nano),
+	})
+	if err != nil {
+		return domain.SSOProvider{}, err
+	}
+	l.ssoProviders[provider.ID] = provider
+	_, _ = l.appendChainLocked(actor.TenantID, "sso_provider.trust_material_updated", "sso_provider", provider.ID, actorType(actor), actorID(actor), materialHash, "")
 	if err := l.persistLocked(ctx); err != nil {
 		return domain.SSOProvider{}, err
 	}

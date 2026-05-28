@@ -75,6 +75,11 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Description = "Records tenant SSO provider metadata. Optional static JWKS public keys and SAML signing certificates can be supplied for local token/assertion verification without live provider calls."
 		operation.RequestBody = jsonRequest("SSO provider creation request.", "#/components/schemas/CreateSSOProviderRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created SSO provider envelope.", "#/components/schemas/SSOProviderEnvelope")
+	case "updateSSOProviderTrustMaterial":
+		operation.Description = "Rotates tenant SSO provider public trust material for local OIDC ID-token or SAML assertion verification without storing provider secrets."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "SSO provider id."))
+		operation.RequestBody = jsonRequest("SSO provider trust material update request.", "#/components/schemas/UpdateSSOProviderTrustMaterialRequest")
+		operation.Responses[http.StatusOK] = jsonResponse("Updated SSO provider envelope.", "#/components/schemas/SSOProviderEnvelope")
 	case "verifyProviderIdentity":
 		operation.Description = "Verifies stored provider identity metadata and, when supplied, locally verifies OIDC ID-token or SAML assertion issuer, audience, subject, time bounds, and signature against configured tenant trust material."
 		operation.RequestBody = jsonRequest("Provider identity verification request.", "#/components/schemas/VerifyProviderIdentityRequest")

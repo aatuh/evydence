@@ -107,7 +107,9 @@ implemented capabilities:
   signing gateway executor covers deployments that put KMS/HSM custody behind a
   tenant-controlled signing service and do not send raw payload bytes.
 - Complete live OIDC/SAML browser login callbacks, provider discovery, JWKS
-  refresh, logout, and optional group mapping where those profiles are enabled.
+  fetching, logout, and optional group mapping where those profiles are
+  enabled. Manual JWKS and SAML signing-certificate rotation is implemented
+  through the SSO provider trust-material endpoint.
 - Extend object-lock/WORM verification beyond current S3/MinIO bucket-level
   checks where deployments require object-level legal hold proofs or provider
   policy evidence, and add live provider fetching for public transparency proofs
