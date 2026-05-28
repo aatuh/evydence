@@ -37,11 +37,13 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "data", "meta"))
 	registry.RegisterSchema("EmptyObject", objectSchema(map[string]any{}))
 	registry.RegisterSchema("InstanceAdminSnapshot", objectSchema(map[string]any{
+		"report_type":     map[string]any{"type": "string"},
 		"tenant_count":    map[string]any{"type": "integer"},
-		"user_count":      map[string]any{"type": "integer"},
-		"api_key_count":   map[string]any{"type": "integer"},
 		"resource_counts": map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "integer"}},
-	}, "tenant_count", "resource_counts"))
+		"limitations":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"generated_at":    map[string]any{"type": "string", "format": "date-time"},
+	}, "report_type", "tenant_count", "resource_counts", "limitations", "generated_at"))
+	registry.RegisterSchema("InstanceAdminSnapshotEnvelope", dataEnvelopeSchema("#/components/schemas/InstanceAdminSnapshot"))
 	registry.RegisterSchema("CreateSSOSessionRequest", objectSchema(map[string]any{
 		"user_id":     map[string]any{"type": "string"},
 		"provider_id": map[string]any{"type": "string"},
@@ -237,6 +239,119 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"created_at":     map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "project_id", "release_id", "provider", "commit_sha", "status", "schema_version", "created_at"))
 	registry.RegisterSchema("BuildRunEnvelope", dataEnvelopeSchema("#/components/schemas/BuildRun"))
+	registry.RegisterSchema("SourceSnapshotRepositoryInput", objectSchema(map[string]any{
+		"full_name":      map[string]any{"type": "string"},
+		"clone_url":      map[string]any{"type": "string"},
+		"default_branch": map[string]any{"type": "string"},
+	}, "full_name"))
+	registry.RegisterSchema("SourceSnapshotCommitInput", objectSchema(map[string]any{
+		"sha":          map[string]any{"type": "string"},
+		"author":       map[string]any{"type": "string"},
+		"message":      map[string]any{"type": "string", "description": "Commit message supplied by the collector; Evydence stores a message hash."},
+		"committed_at": map[string]any{"type": "string", "format": "date-time"},
+	}, "sha", "committed_at"))
+	registry.RegisterSchema("SourceSnapshotBranchInput", objectSchema(map[string]any{
+		"name":            map[string]any{"type": "string"},
+		"protected":       map[string]any{"type": "boolean"},
+		"protection_hash": map[string]any{"type": "string"},
+	}, "name"))
+	registry.RegisterSchema("SourceSnapshotPullRequestInput", objectSchema(map[string]any{
+		"provider_id":     map[string]any{"type": "string"},
+		"title":           map[string]any{"type": "string"},
+		"state":           map[string]any{"type": "string"},
+		"source_branch":   map[string]any{"type": "string"},
+		"target_branch":   map[string]any{"type": "string"},
+		"review_decision": map[string]any{"type": "string"},
+	}, "provider_id", "state"))
+	registry.RegisterSchema("SourceSnapshotRequest", objectSchema(map[string]any{
+		"project_id":   map[string]any{"type": "string"},
+		"repository":   map[string]any{"$ref": "#/components/schemas/SourceSnapshotRepositoryInput"},
+		"commit":       map[string]any{"$ref": "#/components/schemas/SourceSnapshotCommitInput"},
+		"branch":       map[string]any{"$ref": "#/components/schemas/SourceSnapshotBranchInput"},
+		"pull_request": map[string]any{"$ref": "#/components/schemas/SourceSnapshotPullRequestInput"},
+	}, "repository"))
+	registry.RegisterSchema("SourceRepository", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"project_id":     map[string]any{"type": "string"},
+		"provider":       map[string]any{"type": "string"},
+		"full_name":      map[string]any{"type": "string"},
+		"clone_url":      map[string]any{"type": "string"},
+		"default_branch": map[string]any{"type": "string"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "provider", "full_name", "schema_version", "created_at"))
+	registry.RegisterSchema("SourceCommit", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"repository_id":  map[string]any{"type": "string"},
+		"sha":            map[string]any{"type": "string"},
+		"author":         map[string]any{"type": "string"},
+		"message_hash":   map[string]any{"type": "string"},
+		"committed_at":   map[string]any{"type": "string", "format": "date-time"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "repository_id", "sha", "schema_version", "created_at"))
+	registry.RegisterSchema("SourceBranch", objectSchema(map[string]any{
+		"id":              map[string]any{"type": "string"},
+		"tenant_id":       map[string]any{"type": "string"},
+		"repository_id":   map[string]any{"type": "string"},
+		"name":            map[string]any{"type": "string"},
+		"head_commit_id":  map[string]any{"type": "string"},
+		"protected":       map[string]any{"type": "boolean"},
+		"protection_hash": map[string]any{"type": "string"},
+		"schema_version":  map[string]any{"type": "string"},
+		"created_at":      map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "repository_id", "name", "protected", "schema_version", "created_at"))
+	registry.RegisterSchema("PullRequest", objectSchema(map[string]any{
+		"id":              map[string]any{"type": "string"},
+		"tenant_id":       map[string]any{"type": "string"},
+		"repository_id":   map[string]any{"type": "string"},
+		"provider":        map[string]any{"type": "string"},
+		"provider_id":     map[string]any{"type": "string"},
+		"title":           map[string]any{"type": "string"},
+		"state":           map[string]any{"type": "string"},
+		"source_branch":   map[string]any{"type": "string"},
+		"target_branch":   map[string]any{"type": "string"},
+		"head_commit_id":  map[string]any{"type": "string"},
+		"review_decision": map[string]any{"type": "string"},
+		"schema_version":  map[string]any{"type": "string"},
+		"created_at":      map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "repository_id", "provider", "provider_id", "state", "schema_version", "created_at"))
+	registry.RegisterSchema("SourceSnapshotResult", objectSchema(map[string]any{
+		"repository":   map[string]any{"$ref": "#/components/schemas/SourceRepository"},
+		"commit":       map[string]any{"$ref": "#/components/schemas/SourceCommit"},
+		"branch":       map[string]any{"$ref": "#/components/schemas/SourceBranch"},
+		"pull_request": map[string]any{"$ref": "#/components/schemas/PullRequest"},
+	}, "repository"))
+	registry.RegisterSchema("SourceSnapshotEnvelope", dataEnvelopeSchema("#/components/schemas/SourceSnapshotResult"))
+	registry.RegisterSchema("CreateGraphSnapshotRequest", objectSchema(map[string]any{
+		"product_id": map[string]any{"type": "string"},
+		"release_id": map[string]any{"type": "string"},
+	}))
+	registry.RegisterSchema("EvidenceGraphNode", objectSchema(map[string]any{
+		"id":    map[string]any{"type": "string"},
+		"type":  map[string]any{"type": "string"},
+		"label": map[string]any{"type": "string"},
+	}, "id", "type", "label"))
+	registry.RegisterSchema("EvidenceGraphEdge", objectSchema(map[string]any{
+		"from":         map[string]any{"type": "string"},
+		"to":           map[string]any{"type": "string"},
+		"relationship": map[string]any{"type": "string"},
+	}, "from", "to", "relationship"))
+	registry.RegisterSchema("EvidenceGraphSnapshot", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"product_id":     map[string]any{"type": "string"},
+		"release_id":     map[string]any{"type": "string"},
+		"nodes":          map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/EvidenceGraphNode"}},
+		"edges":          map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/EvidenceGraphEdge"}},
+		"graph_hash":     map[string]any{"type": "string", "pattern": "^sha256:"},
+		"limitations":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "nodes", "edges", "graph_hash", "limitations", "schema_version", "created_at"))
+	registry.RegisterSchema("EvidenceGraphSnapshotEnvelope", dataEnvelopeSchema("#/components/schemas/EvidenceGraphSnapshot"))
 	registry.RegisterSchema("EvidenceUploadRequest", objectSchema(map[string]any{
 		"release_id":  map[string]any{"type": "string"},
 		"artifact_id": map[string]any{"type": "string"},
