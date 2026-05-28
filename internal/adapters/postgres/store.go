@@ -72,6 +72,9 @@ func (s *Store) loadRelationalState(ctx context.Context) (app.PersistedState, bo
 	if err := s.loadRelationalAPIKeys(ctx, &state, &loaded); err != nil {
 		return app.PersistedState{}, false, err
 	}
+	if err := s.loadRelationalCustomerPortalAccess(ctx, &state, &loaded); err != nil {
+		return app.PersistedState{}, false, err
+	}
 	if err := s.loadRelationalReleaseCore(ctx, &state, &loaded); err != nil {
 		return app.PersistedState{}, false, err
 	}
@@ -83,25 +86,27 @@ func (s *Store) loadRelationalState(ctx context.Context) (app.PersistedState, bo
 
 func relationalEmptyState() app.PersistedState {
 	return app.PersistedState{
-		Tenants:           map[string]domain.Tenant{},
-		APIKeys:           map[string]domain.APIKey{},
-		APIKeyHashes:      map[string]string{},
-		Products:          map[string]domain.Product{},
-		Projects:          map[string]domain.Project{},
-		Releases:          map[string]domain.Release{},
-		Artifacts:         map[string]domain.Artifact{},
-		Evidence:          map[string]domain.EvidenceItem{},
-		SBOMs:             map[string]domain.SBOM{},
-		Scans:             map[string]domain.VulnerabilityScan{},
-		Contracts:         map[string]domain.OpenAPIContract{},
-		Policies:          map[string]domain.PolicyEvaluation{},
-		Bundles:           map[string]domain.ReleaseBundle{},
-		SigningKeys:       map[string]domain.SigningKey{},
-		SigningKeyPrivate: map[string][]byte{},
-		Signatures:        map[string]domain.Signature{},
-		Verifications:     map[string]domain.VerificationResult{},
-		Chain:             map[string][]domain.AuditChainEntry{},
-		Idempotency:       map[string]app.IdempotencyRecord{},
+		Tenants:              map[string]domain.Tenant{},
+		APIKeys:              map[string]domain.APIKey{},
+		APIKeyHashes:         map[string]string{},
+		CustomerPortalAccess: map[string]domain.CustomerPortalAccess{},
+		CustomerPortalHashes: map[string]string{},
+		Products:             map[string]domain.Product{},
+		Projects:             map[string]domain.Project{},
+		Releases:             map[string]domain.Release{},
+		Artifacts:            map[string]domain.Artifact{},
+		Evidence:             map[string]domain.EvidenceItem{},
+		SBOMs:                map[string]domain.SBOM{},
+		Scans:                map[string]domain.VulnerabilityScan{},
+		Contracts:            map[string]domain.OpenAPIContract{},
+		Policies:             map[string]domain.PolicyEvaluation{},
+		Bundles:              map[string]domain.ReleaseBundle{},
+		SigningKeys:          map[string]domain.SigningKey{},
+		SigningKeyPrivate:    map[string][]byte{},
+		Signatures:           map[string]domain.Signature{},
+		Verifications:        map[string]domain.VerificationResult{},
+		Chain:                map[string][]domain.AuditChainEntry{},
+		Idempotency:          map[string]app.IdempotencyRecord{},
 	}
 }
 
@@ -148,6 +153,38 @@ func (s *Store) loadRelationalAPIKeys(ctx context.Context, state *app.PersistedS
 		key.LastUsedAt = nullableSQLTime(lastUsedAt)
 		state.APIKeys[key.ID] = key
 		state.APIKeyHashes[key.ID] = hash
+		*loaded = true
+	}
+	return rows.Err()
+}
+
+func (s *Store) loadRelationalCustomerPortalAccess(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, tenant_id, package_id, customer_name, prefix, hash,
+		       expires_at, revoked_at, access_count, failed_access_count,
+		       last_accessed_at, last_failed_at, schema_version, created_at
+		FROM customer_portal_access
+	`)
+	if err != nil {
+		return fmt.Errorf("load relational customer portal access: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var access domain.CustomerPortalAccess
+		var hash string
+		var revokedAt, lastAccessedAt, lastFailedAt sql.NullTime
+		if err := rows.Scan(
+			&access.ID, &access.TenantID, &access.PackageID, &access.CustomerName, &access.Prefix, &hash,
+			&access.ExpiresAt, &revokedAt, &access.AccessCount, &access.FailedAccessCount,
+			&lastAccessedAt, &lastFailedAt, &access.SchemaVersion, &access.CreatedAt,
+		); err != nil {
+			return fmt.Errorf("scan relational customer portal access: %w", err)
+		}
+		access.RevokedAt = nullableSQLTime(revokedAt)
+		access.LastAccessedAt = nullableSQLTime(lastAccessedAt)
+		access.LastFailedAt = nullableSQLTime(lastFailedAt)
+		state.CustomerPortalAccess[access.ID] = access
+		state.CustomerPortalHashes[access.ID] = hash
 		*loaded = true
 	}
 	return rows.Err()
@@ -1132,6 +1169,36 @@ func syncIdentityAndIdempotency(ctx context.Context, tx pgx.Tx, state app.Persis
 				schema_version = EXCLUDED.schema_version
 		`, session.ID, session.TenantID, session.UserID, session.ProviderID, session.Prefix, hash, session.ExpiresAt, nullableTime(session.RevokedAt), session.SchemaVersion, nonZeroTime(session.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert sso session row: %w", err)
+		}
+	}
+	for id, access := range state.CustomerPortalAccess {
+		if access.ID == "" || access.TenantID == "" {
+			continue
+		}
+		hash := state.CustomerPortalHashes[id]
+		if hash == "" {
+			hash = access.Hash
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO customer_portal_access (
+				id, tenant_id, package_id, customer_name, prefix, hash,
+				expires_at, revoked_at, access_count, failed_access_count,
+				last_accessed_at, last_failed_at, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			ON CONFLICT (id) DO UPDATE SET
+				customer_name = EXCLUDED.customer_name,
+				prefix = EXCLUDED.prefix,
+				hash = EXCLUDED.hash,
+				expires_at = EXCLUDED.expires_at,
+				revoked_at = EXCLUDED.revoked_at,
+				access_count = EXCLUDED.access_count,
+				failed_access_count = EXCLUDED.failed_access_count,
+				last_accessed_at = EXCLUDED.last_accessed_at,
+				last_failed_at = EXCLUDED.last_failed_at,
+				schema_version = EXCLUDED.schema_version
+		`, access.ID, access.TenantID, access.PackageID, access.CustomerName, access.Prefix, hash, access.ExpiresAt, nullableTime(access.RevokedAt), access.AccessCount, access.FailedAccessCount, nullableTime(access.LastAccessedAt), nullableTime(access.LastFailedAt), access.SchemaVersion, nonZeroTime(access.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert customer portal access row: %w", err)
 		}
 	}
 	if _, err := tx.Exec(ctx, `DELETE FROM idempotency_records`); err != nil {
