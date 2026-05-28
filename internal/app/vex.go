@@ -156,21 +156,30 @@ func (l *Ledger) UploadVEX(ctx context.Context, actor domain.Actor, releaseID, a
 	}
 	l.vexDocuments[vex.ID] = persistedVEX
 	createdDecisions := 0
-	for _, statement := range doc.Statements {
-		for _, matched := range l.findMatchingFindingsLocked(actor.TenantID, releaseID, statement) {
-			decision := l.createDecisionLocked(actor.TenantID, matched.scan, matched.finding, CreateVulnerabilityDecisionInput{
-				Status:          statement.Status,
-				Justification:   statement.Justification,
-				ImpactStatement: statement.ImpactStatement,
-				ActionStatement: statement.ActionStatement,
-			}, "vex", actor.KeyID, item.ID, vex.ID)
-			l.decisions[decision.ID] = decision
-			_, _ = l.appendChainLocked(actor.TenantID, "vulnerability_decision.created", "vulnerability_finding", matched.finding.ID, "api_key", actor.KeyID, payloadHash, "")
-			createdDecisions++
+	if !l.workerOwnedParsers {
+		for _, statement := range doc.Statements {
+			for _, matched := range l.findMatchingFindingsLocked(actor.TenantID, releaseID, statement) {
+				decision := l.createDecisionLocked(actor.TenantID, matched.scan, matched.finding, CreateVulnerabilityDecisionInput{
+					Status:          statement.Status,
+					Justification:   statement.Justification,
+					ImpactStatement: statement.ImpactStatement,
+					ActionStatement: statement.ActionStatement,
+				}, "vex", actorID(actor), item.ID, vex.ID)
+				l.decisions[decision.ID] = decision
+				_, _ = l.appendChainLocked(actor.TenantID, "vulnerability_decision.created", "vulnerability_finding", matched.finding.ID, actorType(actor), actorID(actor), payloadHash, "")
+				createdDecisions++
+			}
 		}
 	}
-	_, _ = l.appendChainLocked(actor.TenantID, chainAction, "vex_document", vex.ID, "api_key", actor.KeyID, payloadHash, "")
-	if err := l.enqueue(ctx, actor.TenantID, "parse_vex", "vex_document", vex.ID, map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionOpenVEXJSON, "decisions_created": createdDecisions}); err != nil {
+	_, _ = l.appendChainLocked(actor.TenantID, chainAction, "vex_document", vex.ID, actorType(actor), actorID(actor), payloadHash, "")
+	jobPayload := map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionOpenVEXJSON, "decisions_created": createdDecisions}
+	if l.workerOwnedParsers {
+		jobPayload["worker_create_decisions"] = true
+		jobPayload["actor_type"] = actorType(actor)
+		jobPayload["actor_id"] = actorID(actor)
+		jobPayload["evidence_id"] = item.ID
+	}
+	if err := l.enqueue(ctx, actor.TenantID, "parse_vex", "vex_document", vex.ID, jobPayload); err != nil {
 		return domain.VEXDocument{}, err
 	}
 	if err := l.persistLocked(ctx); err != nil {

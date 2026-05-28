@@ -32,7 +32,7 @@ This repository contains a Go implementation under module `github.com/aatuh/evyd
 - PostgreSQL-backed durable ledger state, tenant-scoped relational projections, migrations, and persisted outbox jobs when `EVYDENCE_DATABASE_URL` is set.
 - Filesystem or S3/MinIO-compatible object storage for raw upload payload bytes under tenant-prefixed paths.
 - Polling `cmd/evydence-worker` process that claims persisted outbox jobs with PostgreSQL row locking and records retry or terminal status.
-- Optional worker-owned parser document side effects through `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`; OpenVEX-derived vulnerability decisions still run in the request path so readiness decisions stay deterministic before workers finish.
+- Optional worker-owned parser side effects through `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`, including OpenVEX-derived vulnerability decisions created idempotently by the `parse_vex` worker.
 
 ### Tooling, Deployment, And Examples
 
