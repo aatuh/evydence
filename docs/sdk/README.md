@@ -4,7 +4,7 @@ This is a reference for the lightweight SDK wrappers committed in this repositor
 
 ## Current Scope
 
-The wrappers provide authenticated JSON `POST` helpers with explicit idempotency keys:
+The wrappers provide authenticated JSON `POST` helpers with explicit idempotency keys and small typed convenience helpers for the SSO/OIDC identity-provider routes:
 
 - Go: `sdk/go/evydence`
 - TypeScript: `sdk/typescript/client.ts`
@@ -51,6 +51,8 @@ return nil
 
 The helper rejects paths that do not start with `/v1/` and blank idempotency keys. Non-2xx responses return an error containing the HTTP status code; callers that need Problem Details bodies should use a generated or custom client.
 
+The Go wrapper also exposes `CreateSSOProvider` and `VerifyProviderIdentity` helpers. `VerifyProviderIdentity` can carry an OIDC `id_token`; SDK errors intentionally include only the HTTP status code and not the response body.
+
 ## TypeScript
 
 Import the source wrapper directly from the checkout or from your application-owned package copy. The wrapper uses `fetch`; Node.js 18+ provides it globally, and older runtimes should pass `fetchImpl`.
@@ -71,6 +73,8 @@ const response = await client.post<{ data: { id: string } }>(
 ```
 
 The helper validates `/v1/` paths and idempotency keys. Non-2xx responses throw an error with the HTTP status code.
+
+The TypeScript wrapper also exposes `createSSOProvider` and `verifyProviderIdentity` helpers over the same routes.
 
 ## Python
 
@@ -94,6 +98,8 @@ response = client.post(
 ```
 
 The helper validates `/v1/` paths and idempotency keys. HTTP errors raise `RuntimeError` with the status code.
+
+The Python wrapper also exposes `create_sso_provider` and `verify_provider_identity` helpers over the same routes.
 
 ## Idempotency Guidance
 

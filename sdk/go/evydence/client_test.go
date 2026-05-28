@@ -84,3 +84,70 @@ func TestPostReturnsSafeStatusError(t *testing.T) {
 		t.Fatalf("unsafe or unexpected error: %v", err)
 	}
 }
+
+func TestCreateSSOProviderUsesTypedRoute(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/v1/sso/providers" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		if got := r.Header.Get("Idempotency-Key"); got != "sso-provider-1" {
+			t.Fatalf("idempotency header = %q", got)
+		}
+		var body CreateSSOProviderRequest
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		if body.Name != "Okta" || body.Type != "oidc" || body.Issuer != "https://idp.example.test" || body.ClientID != "client" {
+			t.Fatalf("body = %#v", body)
+		}
+		_, _ = w.Write([]byte(`{"data":{"id":"sso_1","name":"Okta"}}`))
+	}))
+	defer server.Close()
+
+	var out map[string]any
+	err := Client{BaseURL: server.URL, APIKey: "secret", HTTP: server.Client()}.
+		CreateSSOProvider(context.Background(), "sso-provider-1", CreateSSOProviderRequest{
+			Name:     "Okta",
+			Type:     "oidc",
+			Issuer:   "https://idp.example.test",
+			ClientID: "client",
+		}, &out)
+	if err != nil {
+		t.Fatalf("create sso provider: %v", err)
+	}
+	if out["data"] == nil {
+		t.Fatalf("out = %#v", out)
+	}
+}
+
+func TestVerifyProviderIdentityUsesTypedRouteAndSafeErrors(t *testing.T) {
+	const secretToken = "header.payload.signature"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/v1/provider-verifications" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		var body VerifyProviderIdentityRequest
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		if body.ProviderID != "sso_1" || body.ProviderType != "oidc" || body.Subject != "sub-1" || body.IDToken != secretToken {
+			t.Fatalf("body = %#v", body)
+		}
+		http.Error(w, secretToken, http.StatusUnprocessableEntity)
+	}))
+	defer server.Close()
+
+	err := Client{BaseURL: server.URL, APIKey: "secret", HTTP: server.Client()}.
+		VerifyProviderIdentity(context.Background(), "verify-1", VerifyProviderIdentityRequest{
+			ProviderType: "oidc",
+			ProviderID:   "sso_1",
+			Subject:      "sub-1",
+			IDToken:      secretToken,
+		}, nil)
+	if err == nil {
+		t.Fatal("expected verification error")
+	}
+	if !strings.Contains(err.Error(), "status 422") || strings.Contains(err.Error(), secretToken) {
+		t.Fatalf("unsafe or unexpected error: %v", err)
+	}
+}
