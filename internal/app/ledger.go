@@ -1040,6 +1040,18 @@ func (l *Ledger) UploadVulnerabilityScan(ctx context.Context, actor domain.Actor
 		return domain.VulnerabilityScan{}, err
 	}
 	l.mu.Unlock()
+	scanID := newID("scan")
+	summary := map[string]int{}
+	findings := make([]domain.VulnerabilityFinding, 0, len(doc.Findings))
+	for i, finding := range doc.Findings {
+		if finding.Vulnerability == "" || finding.Severity == "" {
+			return domain.VulnerabilityScan{}, ErrValidation
+		}
+		severity := strings.ToLower(finding.Severity)
+		summary[severity]++
+		state := nonEmpty(finding.State, "open")
+		findings = append(findings, domain.VulnerabilityFinding{ID: fmt.Sprintf("%s:finding:%d", scanID, i+1), Vulnerability: finding.Vulnerability, Component: finding.Component, Severity: severity, State: state})
+	}
 	payloadHash := hashBytes(raw)
 	payloadRef, err := l.storePayload(ctx, actor.TenantID, "vulnerability-scan", "application/json", payloadHash, raw)
 	if err != nil {
@@ -1061,22 +1073,20 @@ func (l *Ledger) UploadVulnerabilityScan(ctx context.Context, actor domain.Actor
 	if err != nil {
 		return domain.VulnerabilityScan{}, err
 	}
-	summary := map[string]int{}
-	findings := make([]domain.VulnerabilityFinding, 0, len(doc.Findings))
-	for _, finding := range doc.Findings {
-		if finding.Vulnerability == "" || finding.Severity == "" {
-			return domain.VulnerabilityScan{}, ErrValidation
-		}
-		severity := strings.ToLower(finding.Severity)
-		summary[severity]++
-		state := nonEmpty(finding.State, "open")
-		findings = append(findings, domain.VulnerabilityFinding{ID: newID("vf"), Vulnerability: finding.Vulnerability, Component: finding.Component, Severity: severity, State: state})
-	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	scan := domain.VulnerabilityScan{ID: newID("scan"), TenantID: actor.TenantID, EvidenceID: item.ID, ReleaseID: doc.ReleaseID, Scanner: doc.Scanner, TargetRef: doc.TargetRef, Summary: summary, Findings: findings, CreatedAt: l.now()}
-	l.scans[scan.ID] = scan
-	_, _ = l.appendChainLocked(actor.TenantID, "vulnerability_scan.parsed", "vulnerability_scan", scan.ID, "api_key", actor.KeyID, payloadHash, "")
+	scan := domain.VulnerabilityScan{ID: scanID, TenantID: actor.TenantID, EvidenceID: item.ID, ReleaseID: doc.ReleaseID, Scanner: doc.Scanner, TargetRef: doc.TargetRef, Summary: summary, Findings: findings, CreatedAt: l.now()}
+	persistedScan := scan
+	chainAction := "vulnerability_scan.parsed"
+	if l.workerOwnedParsers {
+		persistedScan.Scanner = ""
+		persistedScan.TargetRef = ""
+		persistedScan.Summary = nil
+		persistedScan.Findings = nil
+		chainAction = "vulnerability_scan.accepted"
+	}
+	l.scans[scan.ID] = persistedScan
+	_, _ = l.appendChainLocked(actor.TenantID, chainAction, "vulnerability_scan", scan.ID, "api_key", actor.KeyID, payloadHash, "")
 	if err := l.enqueue(ctx, actor.TenantID, "parse_vulnerability_scan", "vulnerability_scan", scan.ID, map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionGenericVulnerabilityJSON}); err != nil {
 		return domain.VulnerabilityScan{}, err
 	}
