@@ -78,14 +78,15 @@ If either line is skipped, the release evidence should state that durable-store 
 ## CI Usage
 
 The checked-in GitHub Actions workflow provides a disposable PostgreSQL service,
-sets `EVYDENCE_TEST_DATABASE_URL`, runs `make release-check`, runs
-`make coverage`, and preserves `tmp/release-check-summary.txt` plus
-`coverage.out` as build artifacts. The database must not contain production
-evidence, customer package tokens, signing-key material, or other real secrets.
+sets `EVYDENCE_TEST_DATABASE_URL`, and runs `make production-check`. That gate
+runs the live PostgreSQL release check, coverage threshold enforcement, lint,
+gosec, govulncheck, race tests, OpenAPI/docs/deployment/SDK checks, and a
+release manifest signing smoke test.
 
-The workflow is release-evidence CI, not the final production-readiness gate.
-`make production-check` remains the strict local/CI gate once coverage and the
-remaining production-hardening tickets are complete.
+The workflow preserves `tmp/release-check-summary.txt`, `coverage.out`, and the
+production-check release manifest/signature smoke artifacts as build artifacts.
+The database must not contain production evidence, customer package tokens,
+signing-key material, or other real secrets.
 
 ## Signed Release Artifact Workflow
 

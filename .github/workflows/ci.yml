@@ -12,8 +12,8 @@ permissions:
   contents: read
 
 jobs:
-  release-check:
-    name: Release Check
+  production-check:
+    name: Production Check
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -45,11 +45,8 @@ jobs:
       - name: Install QA tools
         run: make tools
 
-      - name: Run release check with live PostgreSQL
-        run: make release-check
-
-      - name: Generate coverage report
-        run: make coverage
+      - name: Run production check with live PostgreSQL
+        run: make production-check
 
       - name: Upload release evidence artifacts
         if: always()
@@ -59,4 +56,6 @@ jobs:
           path: |
             coverage.out
             tmp/release-check-summary.txt
+            tmp/production-check/evydence-release-manifest.json
+            tmp/production-check/evydence-release-manifest.sig.json
           if-no-files-found: ignore
