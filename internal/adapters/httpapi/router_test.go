@@ -84,7 +84,7 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	if _, ok := problemProps["request_id"]; !ok {
 		t.Fatalf("Problem schema missing request_id: %#v", problemProps)
 	}
-	for _, schemaName := range []string{"CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalPackageRequest", "DataEnvelope"} {
+	for _, schemaName := range []string{"CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOProviderRequest", "VerifyProviderIdentityRequest", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalPackageRequest", "DataEnvelope"} {
 		if _, ok := schemas[schemaName]; !ok {
 			t.Fatalf("schema %s missing from OpenAPI components", schemaName)
 		}
@@ -900,6 +900,19 @@ func TestFutureExtensionAndReadAdminHTTPGaps(t *testing.T) {
 	if !strings.Contains(providerVerification, `"result":"passed"`) {
 		t.Fatalf("provider verification failed: %s", providerVerification)
 	}
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("oidc keygen: %v", err)
+	}
+	jwks := map[string]any{"keys": []any{map[string]any{"kty": "OKP", "crv": "Ed25519", "kid": "kid-1", "alg": "EdDSA", "x": base64.RawURLEncoding.EncodeToString(pub)}}}
+	signedProvider := postJSON(t, server, secret, "/v1/sso/providers", "future-sso-jwks", map[string]any{"name": "Signed OIDC", "type": "oidc", "issuer": "https://signed-idp.example.test", "client_id": "signed-client", "jwks": jwks}, http.StatusCreated)
+	signedProviderID := dataField(t, signedProvider, "id")
+	postJSON(t, server, secret, "/v1/sso/identity-links", "future-signed-link", map[string]any{"user_id": dataField(t, userBody, "id"), "provider_id": signedProviderID, "subject": "signed-sub", "email": "future@example.test", "verified": true}, http.StatusCreated)
+	idToken := signedRouterIDToken(t, priv, "kid-1", map[string]any{"iss": "https://signed-idp.example.test", "aud": "signed-client", "sub": "signed-sub", "email": "future@example.test", "email_verified": true, "exp": time.Now().UTC().Add(time.Hour).Unix()})
+	signedVerification := postJSON(t, server, secret, "/v1/provider-verifications", "future-provider-token-verification", map[string]any{"provider_type": "oidc", "provider_id": signedProviderID, "subject": "signed-sub", "id_token": idToken}, http.StatusCreated)
+	if !strings.Contains(signedVerification, `"id_token_signature"`) || strings.Contains(signedVerification, idToken) {
+		t.Fatalf("signed provider verification response: %s", signedVerification)
+	}
 }
 
 func TestSourceSnapshotAndSystemHTTPGaps(t *testing.T) {
@@ -1297,4 +1310,18 @@ func dsseHTTP(t *testing.T, digest string) []byte {
 		t.Fatalf("marshal envelope: %v", err)
 	}
 	return body
+}
+
+func signedRouterIDToken(t *testing.T, private ed25519.PrivateKey, kid string, claims map[string]any) string {
+	t.Helper()
+	headerBody, err := json.Marshal(map[string]any{"alg": "EdDSA", "kid": kid, "typ": "JWT"})
+	if err != nil {
+		t.Fatalf("marshal jwt header: %v", err)
+	}
+	claimsBody, err := json.Marshal(claims)
+	if err != nil {
+		t.Fatalf("marshal jwt claims: %v", err)
+	}
+	unsigned := base64.RawURLEncoding.EncodeToString(headerBody) + "." + base64.RawURLEncoding.EncodeToString(claimsBody)
+	return unsigned + "." + base64.RawURLEncoding.EncodeToString(ed25519.Sign(private, []byte(unsigned)))
 }

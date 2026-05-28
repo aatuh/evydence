@@ -155,6 +155,7 @@ type SSOProvider struct {
 	ClientID      string            `json:"client_id"`
 	GroupsClaim   string            `json:"groups_claim,omitempty"`
 	RoleMapping   map[string]string `json:"role_mapping,omitempty"`
+	JWKS          map[string]any    `json:"jwks,omitempty"`
 	Status        string            `json:"status"`
 	SchemaVersion string            `json:"schema_version"`
 	CreatedAt     time.Time         `json:"created_at"`

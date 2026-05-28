@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -34,6 +35,7 @@ type CreateSSOProviderInput struct {
 	ClientID    string
 	GroupsClaim string
 	RoleMapping map[string]string
+	JWKS        map[string]any
 }
 
 type LinkSSOIdentityInput struct {
@@ -240,7 +242,11 @@ func (l *Ledger) CreateSSOProvider(ctx context.Context, actor domain.Actor, in C
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	provider := domain.SSOProvider{ID: newID("sso"), TenantID: actor.TenantID, Name: in.Name, Type: in.Type, Issuer: in.Issuer, ClientID: in.ClientID, GroupsClaim: strings.TrimSpace(in.GroupsClaim), RoleMapping: cloneStringMap(in.RoleMapping), Status: "active", SchemaVersion: domain.SSOProviderSchemaVersion, CreatedAt: l.now()}
+	jwks, err := normalizeJWKS(in.JWKS)
+	if err != nil {
+		return domain.SSOProvider{}, ErrValidation
+	}
+	provider := domain.SSOProvider{ID: newID("sso"), TenantID: actor.TenantID, Name: in.Name, Type: in.Type, Issuer: in.Issuer, ClientID: in.ClientID, GroupsClaim: strings.TrimSpace(in.GroupsClaim), RoleMapping: cloneStringMap(in.RoleMapping), JWKS: jwks, Status: "active", SchemaVersion: domain.SSOProviderSchemaVersion, CreatedAt: l.now()}
 	l.ssoProviders[provider.ID] = provider
 	_, _ = l.appendChainLocked(actor.TenantID, "sso_provider.created", "sso_provider", provider.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {
@@ -1075,6 +1081,46 @@ func scopesForRole(role string) []string {
 
 func validSSOType(value string) bool {
 	return value == "oidc" || value == "saml"
+}
+
+func normalizeJWKS(jwks map[string]any) (map[string]any, error) {
+	if len(jwks) == 0 {
+		return nil, nil
+	}
+	body, err := json.Marshal(jwks)
+	if err != nil || len(body) > 64*1024 {
+		return nil, ErrValidation
+	}
+	var normalized map[string]any
+	if err := json.Unmarshal(body, &normalized); err != nil {
+		return nil, err
+	}
+	keys, ok := normalized["keys"].([]any)
+	if !ok || len(keys) == 0 || len(keys) > 10 {
+		return nil, ErrValidation
+	}
+	for _, raw := range keys {
+		key, ok := raw.(map[string]any)
+		if !ok {
+			return nil, ErrValidation
+		}
+		kty, _ := key["kty"].(string)
+		kid, _ := key["kid"].(string)
+		if strings.TrimSpace(kid) == "" {
+			return nil, ErrValidation
+		}
+		switch kty {
+		case "OKP":
+			crv, _ := key["crv"].(string)
+			x, _ := key["x"].(string)
+			if crv != "Ed25519" || strings.TrimSpace(x) == "" {
+				return nil, ErrValidation
+			}
+		default:
+			return nil, ErrValidation
+		}
+	}
+	return normalized, nil
 }
 
 func validRetentionScope(value string) bool {

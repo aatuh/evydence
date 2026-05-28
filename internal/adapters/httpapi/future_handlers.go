@@ -195,12 +195,13 @@ func (s *Server) verifyProviderIdentity(w http.ResponseWriter, r *http.Request) 
 		ProviderType string `json:"provider_type"`
 		ProviderID   string `json:"provider_id"`
 		Subject      string `json:"subject"`
+		IDToken      string `json:"id_token"`
 	}
 	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		record, err := s.ledger.VerifyProviderIdentity(r.Context(), actor, app.VerifyProviderIdentityInput{ProviderType: req.ProviderType, ProviderID: req.ProviderID, Subject: req.Subject})
+		record, err := s.ledger.VerifyProviderIdentity(r.Context(), actor, app.VerifyProviderIdentityInput{ProviderType: req.ProviderType, ProviderID: req.ProviderID, Subject: req.Subject, IDToken: req.IDToken})
 		return http.StatusCreated, record, err
 	})
 }

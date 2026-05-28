@@ -2,7 +2,12 @@ package app
 
 import (
 	"context"
+	"crypto/ed25519"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
 	"strings"
+	"time"
 
 	"github.com/aatuh/evydence/internal/domain"
 )
@@ -78,6 +83,7 @@ type VerifyProviderIdentityInput struct {
 	ProviderType string
 	ProviderID   string
 	Subject      string
+	IDToken      string
 }
 
 func (l *Ledger) CreateEvidenceSummary(ctx context.Context, actor domain.Actor, in CreateEvidenceSummaryInput) (domain.EvidenceSummary, error) {
@@ -523,6 +529,129 @@ func worseHealth(current, candidate string) string {
 	return "verified"
 }
 
+type oidcJWTHeader struct {
+	Alg string `json:"alg"`
+	KID string `json:"kid"`
+	Typ string `json:"typ"`
+}
+
+type oidcJWTClaims struct {
+	Issuer        string `json:"iss"`
+	Audience      any    `json:"aud"`
+	Subject       string `json:"sub"`
+	Email         string `json:"email"`
+	EmailVerified bool   `json:"email_verified"`
+	ExpiresAt     int64  `json:"exp"`
+	NotBefore     int64  `json:"nbf,omitempty"`
+	IssuedAt      int64  `json:"iat,omitempty"`
+}
+
+func verifyOIDCIDToken(provider domain.SSOProvider, expectedSubject, token string, now time.Time) ([]domain.VerifyCheck, error) {
+	checks := []domain.VerifyCheck{}
+	if len(token) > 16*1024 {
+		return []domain.VerifyCheck{{Name: "id_token_size", Result: "failed"}}, ErrVerificationFailed
+	}
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return []domain.VerifyCheck{{Name: "id_token_shape", Result: "failed"}}, ErrVerificationFailed
+	}
+	headerBody, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return []domain.VerifyCheck{{Name: "id_token_header", Result: "failed"}}, ErrVerificationFailed
+	}
+	var header oidcJWTHeader
+	if err := json.Unmarshal(headerBody, &header); err != nil {
+		return []domain.VerifyCheck{{Name: "id_token_header", Result: "failed"}}, ErrVerificationFailed
+	}
+	if header.Alg != "EdDSA" || strings.TrimSpace(header.KID) == "" {
+		return []domain.VerifyCheck{{Name: "id_token_algorithm", Result: "failed"}}, ErrVerificationFailed
+	}
+	key, err := oidcJWKEd25519Key(provider.JWKS, header.KID)
+	if err != nil {
+		return []domain.VerifyCheck{{Name: "id_token_key", Result: "failed"}}, ErrVerificationFailed
+	}
+	signature, err := base64.RawURLEncoding.DecodeString(parts[2])
+	if err != nil || len(signature) != ed25519.SignatureSize {
+		return []domain.VerifyCheck{{Name: "id_token_signature", Result: "failed"}}, ErrVerificationFailed
+	}
+	unsigned := parts[0] + "." + parts[1]
+	if !ed25519.Verify(key, []byte(unsigned), signature) {
+		return []domain.VerifyCheck{{Name: "id_token_signature", Result: "failed"}}, ErrVerificationFailed
+	}
+	checks = append(checks, domain.VerifyCheck{Name: "id_token_signature", Result: "passed"})
+	claimsBody, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return checksWithFailure(checks, "id_token_claims"), ErrVerificationFailed
+	}
+	var claims oidcJWTClaims
+	if err := json.Unmarshal(claimsBody, &claims); err != nil {
+		return checksWithFailure(checks, "id_token_claims"), ErrVerificationFailed
+	}
+	if claims.Issuer != provider.Issuer {
+		return checksWithFailure(checks, "issuer"), ErrVerificationFailed
+	}
+	checks = append(checks, domain.VerifyCheck{Name: "issuer", Result: "passed"})
+	if !audienceContains(claims.Audience, provider.ClientID) {
+		return checksWithFailure(checks, "audience"), ErrVerificationFailed
+	}
+	checks = append(checks, domain.VerifyCheck{Name: "audience", Result: "passed"})
+	if claims.Subject == "" || claims.Subject != expectedSubject {
+		return checksWithFailure(checks, "subject"), ErrVerificationFailed
+	}
+	checks = append(checks, domain.VerifyCheck{Name: "subject", Result: "passed"})
+	if claims.ExpiresAt == 0 || !time.Unix(claims.ExpiresAt, 0).After(now) {
+		return checksWithFailure(checks, "expiry"), ErrVerificationFailed
+	}
+	if claims.NotBefore != 0 && time.Unix(claims.NotBefore, 0).After(now.Add(time.Minute)) {
+		return checksWithFailure(checks, "not_before"), ErrVerificationFailed
+	}
+	checks = append(checks, domain.VerifyCheck{Name: "token_time", Result: "passed"})
+	if claims.Email != "" && !claims.EmailVerified {
+		return checksWithFailure(checks, "email_verified"), ErrVerificationFailed
+	}
+	if claims.Email != "" {
+		checks = append(checks, domain.VerifyCheck{Name: "email_verified", Result: "passed"})
+	}
+	return checks, nil
+}
+
+func oidcJWKEd25519Key(jwks map[string]any, kid string) (ed25519.PublicKey, error) {
+	keys, ok := jwks["keys"].([]any)
+	if !ok {
+		return nil, errors.New("jwks missing keys")
+	}
+	for _, raw := range keys {
+		key, ok := raw.(map[string]any)
+		if !ok || key["kid"] != kid || key["kty"] != "OKP" || key["crv"] != "Ed25519" {
+			continue
+		}
+		x, _ := key["x"].(string)
+		pub, err := base64.RawURLEncoding.DecodeString(x)
+		if err == nil && len(pub) == ed25519.PublicKeySize {
+			return ed25519.PublicKey(pub), nil
+		}
+	}
+	return nil, errors.New("matching jwk not found")
+}
+
+func checksWithFailure(checks []domain.VerifyCheck, name string) []domain.VerifyCheck {
+	return append(checks, domain.VerifyCheck{Name: name, Result: "failed"})
+}
+
+func audienceContains(audience any, expected string) bool {
+	switch got := audience.(type) {
+	case string:
+		return got == expected
+	case []any:
+		for _, item := range got {
+			if value, ok := item.(string); ok && value == expected {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (l *Ledger) CreatePDFReportPackage(ctx context.Context, actor domain.Actor, in CreatePDFReportPackageInput) (domain.PDFReportPackage, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.PDFReportPackage{}, err
@@ -658,6 +787,7 @@ func (l *Ledger) VerifyProviderIdentity(ctx context.Context, actor domain.Actor,
 		return domain.ProviderVerification{}, err
 	}
 	providerType, providerID, subject := strings.TrimSpace(in.ProviderType), strings.TrimSpace(in.ProviderID), strings.TrimSpace(in.Subject)
+	idToken := strings.TrimSpace(in.IDToken)
 	if providerType == "" || providerID == "" || subject == "" {
 		return domain.ProviderVerification{}, ErrValidation
 	}
@@ -670,6 +800,13 @@ func (l *Ledger) VerifyProviderIdentity(ctx context.Context, actor domain.Actor,
 		provider, ok := l.ssoProviders[providerID]
 		if !ok || provider.TenantID != actor.TenantID || provider.Type != providerType {
 			return domain.ProviderVerification{}, ErrNotFound
+		}
+		if idToken != "" {
+			tokenChecks, err := verifyOIDCIDToken(provider, subject, idToken, l.now())
+			checks = append(checks, tokenChecks...)
+			if err != nil {
+				result = "failed"
+			}
 		}
 		found := false
 		for _, link := range l.identityLinks {
@@ -687,7 +824,11 @@ func (l *Ledger) VerifyProviderIdentity(ctx context.Context, actor domain.Actor,
 	default:
 		return domain.ProviderVerification{}, ErrValidation
 	}
-	record := domain.ProviderVerification{ID: newID("pvr"), TenantID: actor.TenantID, ProviderType: providerType, ProviderID: providerID, Subject: subject, Result: result, Checks: checks, Limitations: []string{"Verification is limited to stored provider/link metadata; live provider token verification is outside this record."}, SchemaVersion: domain.ProviderVerificationVersion, CreatedAt: l.now()}
+	limitations := []string{"Verification uses stored provider metadata and configured local JWKS material; no live provider API or discovery call is made."}
+	if idToken == "" {
+		limitations = []string{"Verification is limited to stored provider/link metadata because no provider token was supplied."}
+	}
+	record := domain.ProviderVerification{ID: newID("pvr"), TenantID: actor.TenantID, ProviderType: providerType, ProviderID: providerID, Subject: subject, Result: result, Checks: checks, Limitations: limitations, SchemaVersion: domain.ProviderVerificationVersion, CreatedAt: l.now()}
 	l.providerVerifications[record.ID] = record
 	_, _ = l.appendChainLocked(actor.TenantID, "provider_identity.verified", "provider_identity", record.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {

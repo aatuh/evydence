@@ -2,6 +2,10 @@ package app
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -75,6 +79,65 @@ func TestEnterpriseIdentityRBACSSOAndAdminSnapshot(t *testing.T) {
 	}
 	if _, err := ledger.DeactivateUser(ctx, actor, user.ID); err != nil {
 		t.Fatalf("deactivate user: %v", err)
+	}
+}
+
+func TestOIDCProviderIdentityVerificationUsesStaticJWKS(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	actor, err := ledger.Authenticate(ctx, secret)
+	if err != nil {
+		t.Fatalf("auth: %v", err)
+	}
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("keygen: %v", err)
+	}
+	jwks := map[string]any{"keys": []any{map[string]any{"kty": "OKP", "crv": "Ed25519", "kid": "kid-1", "alg": "EdDSA", "x": base64.RawURLEncoding.EncodeToString(pub)}}}
+	provider, err := ledger.CreateSSOProvider(ctx, actor, CreateSSOProviderInput{Name: "OIDC", Type: "oidc", Issuer: "https://idp.example.test", ClientID: "client", JWKS: jwks})
+	if err != nil {
+		t.Fatalf("sso provider: %v", err)
+	}
+	org, err := ledger.CreateOrganization(ctx, actor, CreateOrganizationInput{Name: "Example", Slug: "example-oidc"})
+	if err != nil {
+		t.Fatalf("org: %v", err)
+	}
+	user, err := ledger.CreateUser(ctx, actor, CreateUserInput{OrganizationID: org.ID, Email: "oidc@example.test", DisplayName: "OIDC User"})
+	if err != nil {
+		t.Fatalf("user: %v", err)
+	}
+	if _, err := ledger.LinkSSOIdentity(ctx, actor, LinkSSOIdentityInput{UserID: user.ID, ProviderID: provider.ID, Subject: "sub-1", Email: user.Email, Verified: true}); err != nil {
+		t.Fatalf("identity link: %v", err)
+	}
+	idToken := signedTestIDToken(t, priv, "kid-1", map[string]any{
+		"iss":            "https://idp.example.test",
+		"aud":            "client",
+		"sub":            "sub-1",
+		"email":          user.Email,
+		"email_verified": true,
+		"exp":            fixedNow().Add(time.Hour).Unix(),
+		"nbf":            fixedNow().Add(-time.Minute).Unix(),
+	})
+	verification, err := ledger.VerifyProviderIdentity(ctx, actor, VerifyProviderIdentityInput{ProviderType: "oidc", ProviderID: provider.ID, Subject: "sub-1", IDToken: idToken})
+	if err != nil {
+		t.Fatalf("provider verification: %v", err)
+	}
+	if verification.Result != "passed" || len(verification.Checks) < 5 {
+		t.Fatalf("verification = %#v", verification)
+	}
+	badAudience := signedTestIDToken(t, priv, "kid-1", map[string]any{
+		"iss": "https://idp.example.test", "aud": "other-client", "sub": "sub-1", "email": user.Email, "email_verified": true, "exp": fixedNow().Add(time.Hour).Unix(),
+	})
+	failed, err := ledger.VerifyProviderIdentity(ctx, actor, VerifyProviderIdentityInput{ProviderType: "oidc", ProviderID: provider.ID, Subject: "sub-1", IDToken: badAudience})
+	if !errors.Is(err, ErrVerificationFailed) || failed.Result != "failed" {
+		t.Fatalf("bad audience verification = %#v err=%v", failed, err)
+	}
+	if strings.Contains(failed.Checks[0].Detail, badAudience) {
+		t.Fatalf("verification leaked token in check detail: %#v", failed)
 	}
 }
 
@@ -735,4 +798,20 @@ func TestHumanSSOSessionResourceScopeCoversWorkflowFamilies(t *testing.T) {
 	if len(deployments) != 1 || deployments[0].ID != depA.ID {
 		t.Fatalf("scoped deployments=%#v want only %s", deployments, depA.ID)
 	}
+}
+
+func signedTestIDToken(t *testing.T, private ed25519.PrivateKey, kid string, claims map[string]any) string {
+	t.Helper()
+	header := map[string]any{"alg": "EdDSA", "kid": kid, "typ": "JWT"}
+	headerBody, err := json.Marshal(header)
+	if err != nil {
+		t.Fatalf("marshal header: %v", err)
+	}
+	claimsBody, err := json.Marshal(claims)
+	if err != nil {
+		t.Fatalf("marshal claims: %v", err)
+	}
+	unsigned := base64.RawURLEncoding.EncodeToString(headerBody) + "." + base64.RawURLEncoding.EncodeToString(claimsBody)
+	signature := ed25519.Sign(private, []byte(unsigned))
+	return unsigned + "." + base64.RawURLEncoding.EncodeToString(signature)
 }

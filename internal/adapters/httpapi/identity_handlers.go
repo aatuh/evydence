@@ -95,12 +95,13 @@ func (s *Server) createSSOProvider(w http.ResponseWriter, r *http.Request) {
 		ClientID    string            `json:"client_id"`
 		GroupsClaim string            `json:"groups_claim"`
 		RoleMapping map[string]string `json:"role_mapping"`
+		JWKS        map[string]any    `json:"jwks"`
 	}
 	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		provider, err := s.ledger.CreateSSOProvider(r.Context(), actor, app.CreateSSOProviderInput{Name: req.Name, Type: req.Type, Issuer: req.Issuer, ClientID: req.ClientID, GroupsClaim: req.GroupsClaim, RoleMapping: req.RoleMapping})
+		provider, err := s.ledger.CreateSSOProvider(r.Context(), actor, app.CreateSSOProviderInput{Name: req.Name, Type: req.Type, Issuer: req.Issuer, ClientID: req.ClientID, GroupsClaim: req.GroupsClaim, RoleMapping: req.RoleMapping, JWKS: req.JWKS})
 		return http.StatusCreated, provider, err
 	})
 }
