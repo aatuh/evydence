@@ -690,17 +690,19 @@ type TransparencyCheckpoint struct {
 }
 
 type ObjectRetentionPolicy struct {
-	ID               string     `json:"id"`
-	TenantID         string     `json:"tenant_id"`
-	Name             string     `json:"name"`
-	ObjectPrefix     string     `json:"object_prefix"`
-	Mode             string     `json:"mode"`
-	RetentionDays    int        `json:"retention_days"`
-	Status           string     `json:"status"`
-	VerifiedAt       *time.Time `json:"verified_at,omitempty"`
-	VerificationHash string     `json:"verification_hash,omitempty"`
-	SchemaVersion    string     `json:"schema_version"`
-	CreatedAt        time.Time  `json:"created_at"`
+	ID                      string        `json:"id"`
+	TenantID                string        `json:"tenant_id"`
+	Name                    string        `json:"name"`
+	ObjectPrefix            string        `json:"object_prefix"`
+	Mode                    string        `json:"mode"`
+	RetentionDays           int           `json:"retention_days"`
+	Status                  string        `json:"status"`
+	VerifiedAt              *time.Time    `json:"verified_at,omitempty"`
+	VerificationHash        string        `json:"verification_hash,omitempty"`
+	VerificationChecks      []VerifyCheck `json:"verification_checks,omitempty"`
+	VerificationLimitations []string      `json:"verification_limitations,omitempty"`
+	SchemaVersion           string        `json:"schema_version"`
+	CreatedAt               time.Time     `json:"created_at"`
 }
 
 type BackupManifest struct {

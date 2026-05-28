@@ -62,6 +62,15 @@ When `ENV=production`, the API refuses to start unless:
 
 These checks reduce unsafe runtime defaults. They do not replace secret management, network controls, backup validation, or external signing operations.
 
+## S3/MinIO Object-Retention Verification
+
+When `EVYDENCE_OBJECT_STORE=s3` or `minio`, object-retention policy verification
+uses the same S3/MinIO client to check bucket versioning and default
+object-lock settings. The resulting policy record includes verification checks
+and limitations. The check is bucket-level: operators still need to review
+bucket creation mode, IAM policy, lifecycle rules, backups, and any
+deployment-specific WORM requirements.
+
 ## External Signing Gateway
 
 When `EVYDENCE_SIGNING_EXECUTOR_URL` is set, signing operations can omit

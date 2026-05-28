@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/minio/minio-go/v7"
+
 	"github.com/aatuh/evydence/internal/app"
 )
 
@@ -47,5 +49,58 @@ func TestMetadataValueUsesFirstNonEmptyKey(t *testing.T) {
 	}
 	if got := metadataValue(metadata, "missing"); got != "" {
 		t.Fatalf("missing metadata = %q", got)
+	}
+}
+
+func TestEvaluateObjectRetentionRequiresVersioningLockAndTenantPrefix(t *testing.T) {
+	mode := minio.Compliance
+	validity := uint(90)
+	unit := minio.Days
+	result := evaluateObjectRetention(app.ObjectRetentionRequest{
+		TenantID:      "ten_1",
+		ObjectPrefix:  "tenants/ten_1/raw/",
+		Mode:          "compliance",
+		RetentionDays: 30,
+	}, true, &mode, &validity, &unit)
+	if !result.Enforced {
+		t.Fatalf("expected enforced retention: %#v", result)
+	}
+	if len(result.Checks) != 4 || result.Checks[0].Result != "passed" {
+		t.Fatalf("checks = %#v", result.Checks)
+	}
+	if len(result.Limitations) == 0 {
+		t.Fatal("expected limitations")
+	}
+}
+
+func TestEvaluateObjectRetentionReportsMissingProviderControls(t *testing.T) {
+	mode := minio.Governance
+	validity := uint(1)
+	unit := minio.Days
+	result := evaluateObjectRetention(app.ObjectRetentionRequest{
+		TenantID:      "ten_1",
+		ObjectPrefix:  "tenants/other/raw/",
+		Mode:          "compliance",
+		RetentionDays: 30,
+	}, false, &mode, &validity, &unit)
+	if result.Enforced {
+		t.Fatalf("unexpected enforced retention: %#v", result)
+	}
+	failed := 0
+	for _, check := range result.Checks {
+		if check.Result == "failed" {
+			failed++
+		}
+	}
+	if failed != 4 {
+		t.Fatalf("failed checks = %d, checks = %#v", failed, result.Checks)
+	}
+}
+
+func TestRetentionDaysConvertsYears(t *testing.T) {
+	validity := uint(2)
+	unit := minio.Years
+	if got := retentionDays(&validity, &unit); got != uint(730) {
+		t.Fatalf("retention days = %d", got)
 	}
 }

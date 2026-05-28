@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/aatuh/evydence/internal/domain"
 )
 
 func TestCosignMerkleTransparencyAndKeyRevocationFlow(t *testing.T) {
@@ -82,6 +84,9 @@ func TestRuntimeRetentionBackupReadinessMetricsAndAudit(t *testing.T) {
 	if verifiedPolicy.Status != "verified" || verifiedPolicy.VerifiedAt == nil {
 		t.Fatalf("verified policy = %#v", verifiedPolicy)
 	}
+	if len(verifiedPolicy.VerificationChecks) == 0 || len(verifiedPolicy.VerificationLimitations) == 0 {
+		t.Fatalf("expected local retention verification limitations: %#v", verifiedPolicy)
+	}
 	manifest, err := ledger.GenerateBackupManifest(ctx, actor)
 	if err != nil {
 		t.Fatalf("backup manifest: %v", err)
@@ -118,6 +123,88 @@ func TestRuntimeRetentionBackupReadinessMetricsAndAudit(t *testing.T) {
 	if _, err := ledger.VerifyObjectRetentionPolicy(ctx, other, policy.ID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("cross-tenant retention verify err = %v, want not found", err)
 	}
+}
+
+func TestObjectRetentionVerifierRecordsProviderChecks(t *testing.T) {
+	verifier := &fakeObjectRetentionVerifier{result: ObjectRetentionResult{
+		Provider: "s3",
+		Enforced: true,
+		Checks: []domain.VerifyCheck{
+			{Name: "s3_bucket_versioning", Result: "passed"},
+			{Name: "s3_object_lock_mode", Result: "passed"},
+		},
+		Limitations: []string{"Bucket-level settings checked only."},
+	}}
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Retention: verifier})
+	ctx := context.Background()
+	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	actor, err := ledger.Authenticate(ctx, secret)
+	if err != nil {
+		t.Fatalf("auth: %v", err)
+	}
+	policy, err := ledger.CreateObjectRetentionPolicy(ctx, actor, CreateObjectRetentionPolicyInput{Name: "objects", Mode: "compliance", RetentionDays: 90})
+	if err != nil {
+		t.Fatalf("create policy: %v", err)
+	}
+	verified, err := ledger.VerifyObjectRetentionPolicy(ctx, actor, policy.ID)
+	if err != nil {
+		t.Fatalf("verify policy: %v", err)
+	}
+	if verified.Status != "verified" || verified.VerificationHash == "" {
+		t.Fatalf("verified policy = %#v", verified)
+	}
+	if len(verifier.requests) != 1 || verifier.requests[0].ObjectPrefix != "tenants/"+actor.TenantID+"/" {
+		t.Fatalf("verifier requests = %#v", verifier.requests)
+	}
+	if len(verified.VerificationChecks) != 2 || verified.VerificationChecks[0].Name != "s3_bucket_versioning" {
+		t.Fatalf("checks = %#v", verified.VerificationChecks)
+	}
+}
+
+func TestObjectRetentionVerifierMarksProviderFailure(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Retention: &fakeObjectRetentionVerifier{result: ObjectRetentionResult{
+		Provider:    "s3",
+		Enforced:    false,
+		Checks:      []domain.VerifyCheck{{Name: "s3_object_lock_retention", Result: "failed"}},
+		Limitations: []string{"Bucket default retention is shorter than requested."},
+	}}})
+	ctx := context.Background()
+	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	actor, err := ledger.Authenticate(ctx, secret)
+	if err != nil {
+		t.Fatalf("auth: %v", err)
+	}
+	policy, err := ledger.CreateObjectRetentionPolicy(ctx, actor, CreateObjectRetentionPolicyInput{Name: "objects", Mode: "governance", RetentionDays: 365})
+	if err != nil {
+		t.Fatalf("create policy: %v", err)
+	}
+	verified, err := ledger.VerifyObjectRetentionPolicy(ctx, actor, policy.ID)
+	if err != nil {
+		t.Fatalf("verify policy: %v", err)
+	}
+	if verified.Status != "not_enforced" || verified.VerificationChecks[0].Result != "failed" {
+		t.Fatalf("verified policy = %#v", verified)
+	}
+}
+
+type fakeObjectRetentionVerifier struct {
+	result   ObjectRetentionResult
+	err      error
+	requests []ObjectRetentionRequest
+}
+
+func (f *fakeObjectRetentionVerifier) VerifyObjectRetention(_ context.Context, req ObjectRetentionRequest) (ObjectRetentionResult, error) {
+	f.requests = append(f.requests, req)
+	if f.err != nil {
+		return ObjectRetentionResult{}, f.err
+	}
+	return f.result, nil
 }
 
 func TestBackupRestoreRehearsalPreservesLedgerAndObjectPayloads(t *testing.T) {

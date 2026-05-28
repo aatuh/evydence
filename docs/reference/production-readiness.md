@@ -108,8 +108,9 @@ implemented capabilities:
   tenant-controlled signing service and do not send raw payload bytes.
 - Complete live OIDC/SAML browser login callbacks, provider discovery, JWKS
   refresh, logout, and optional group mapping where those profiles are enabled.
-- Add provider-backed object-lock/WORM verification and optional transparency
-  inclusion proof verification for deployments that require those controls.
+- Extend object-lock/WORM verification beyond current S3/MinIO bucket-level
+  checks where deployments require object-level legal hold proofs, provider
+  policy evidence, or optional transparency inclusion proof verification.
 - Run final product, codebase, security, documentation, and test audits before
   changing release status beyond controlled self-hosted production candidate.
 
