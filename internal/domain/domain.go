@@ -157,6 +157,7 @@ type SSOProvider struct {
 	RoleMapping             map[string]string `json:"role_mapping,omitempty"`
 	JWKS                    map[string]any    `json:"jwks,omitempty"`
 	SAMLSigningCertificates []string          `json:"saml_signing_certificates,omitempty"`
+	TrustMaterialUpdatedAt  *time.Time        `json:"trust_material_updated_at,omitempty"`
 	Status                  string            `json:"status"`
 	SchemaVersion           string            `json:"schema_version"`
 	CreatedAt               time.Time         `json:"created_at"`

@@ -164,9 +164,16 @@ func TestOIDCProviderIdentityVerificationSupportsRS256JWKS(t *testing.T) {
 		"n":   base64.RawURLEncoding.EncodeToString(privateKey.N.Bytes()),
 		"e":   base64.RawURLEncoding.EncodeToString(bigEndianExponent(privateKey.E)),
 	}}}
-	provider, err := ledger.CreateSSOProvider(ctx, actor, CreateSSOProviderInput{Name: "OIDC RSA", Type: "oidc", Issuer: "https://rsa-idp.example.test", ClientID: "rsa-client", JWKS: jwks})
+	provider, err := ledger.CreateSSOProvider(ctx, actor, CreateSSOProviderInput{Name: "OIDC RSA", Type: "oidc", Issuer: "https://rsa-idp.example.test", ClientID: "rsa-client"})
 	if err != nil {
 		t.Fatalf("sso provider: %v", err)
+	}
+	provider, err = ledger.UpdateSSOProviderTrustMaterial(ctx, actor, provider.ID, UpdateSSOProviderTrustMaterialInput{JWKS: jwks})
+	if err != nil {
+		t.Fatalf("update sso trust material: %v", err)
+	}
+	if provider.TrustMaterialUpdatedAt == nil || len(provider.JWKS) == 0 {
+		t.Fatalf("provider trust material = %#v", provider)
 	}
 	org, err := ledger.CreateOrganization(ctx, actor, CreateOrganizationInput{Name: "RSA Example", Slug: "rsa-example"})
 	if err != nil {

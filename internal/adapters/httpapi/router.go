@@ -2301,6 +2301,7 @@ func defaultSuccessStatus(operationID, method string) int {
 	switch operationID {
 	case "deactivateUser",
 		"revokeSSOSession",
+		"updateSSOProviderTrustMaterial",
 		"freezeRelease",
 		"approveRelease",
 		"promoteReleaseCandidate",
