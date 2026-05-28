@@ -46,6 +46,21 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"provider_id": map[string]any{"type": "string"},
 		"expires_at":  map[string]any{"type": "string", "format": "date-time"},
 	}, "user_id", "provider_id", "expires_at"))
+	registry.RegisterSchema("CreateSSOProviderRequest", objectSchema(map[string]any{
+		"name":         map[string]any{"type": "string"},
+		"type":         map[string]any{"type": "string", "enum": []string{"oidc", "saml"}},
+		"issuer":       map[string]any{"type": "string"},
+		"client_id":    map[string]any{"type": "string"},
+		"groups_claim": map[string]any{"type": "string"},
+		"role_mapping": map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "string"}},
+		"jwks":         map[string]any{"type": "object", "description": "Optional static JWKS public-key material for local OIDC ID-token verification. Private keys and provider secrets must not be supplied."},
+	}, "name", "type", "issuer", "client_id"))
+	registry.RegisterSchema("VerifyProviderIdentityRequest", objectSchema(map[string]any{
+		"provider_type": map[string]any{"type": "string", "enum": []string{"oidc", "saml"}},
+		"provider_id":   map[string]any{"type": "string"},
+		"subject":       map[string]any{"type": "string"},
+		"id_token":      map[string]any{"type": "string", "description": "Optional OIDC ID token verified locally against the provider's configured static JWKS."},
+	}, "provider_type", "provider_id", "subject"))
 	registry.RegisterSchema("SSOSessionCreateResponse", objectSchema(map[string]any{
 		"session": map[string]any{"type": "object"},
 		"secret":  map[string]any{"type": "string", "description": "One-time SSO session bearer secret; not returned by list/read operations."},

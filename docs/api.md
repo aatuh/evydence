@@ -247,7 +247,7 @@ Important scope boundaries:
 | `POST` | `/v1/api-keys` | Create one-time API key secret. |
 | `GET` | `/v1/api-keys` | List keys without secret hashes. |
 
-Current SSO endpoints model admin-managed provider, identity-link, and session records. Live OIDC discovery, JWKS validation, SAML assertion verification, browser redirects, provider login callbacks, and group synchronization are not implemented in this slice.
+Current SSO endpoints model admin-managed provider, identity-link, and session records. OIDC provider records can include static JWKS public-key material, and `POST /v1/provider-verifications` can verify a supplied ID token locally for issuer, audience, subject, expiry, and Ed25519 signature. Live OIDC discovery, live provider API calls, SAML assertion verification, browser redirects, provider login callbacks, and group synchronization are not implemented in this slice.
 
 ### Products, Releases, Evidence, And Risk
 
@@ -384,7 +384,7 @@ Source snapshots capture submitted provider metadata. They do not call provider 
 | `POST` | `/v1/signing-keys/{id}/revoke` | Revoke key for new signatures. |
 | `POST` | `/v1/signing-providers` | Record external signing-provider metadata. |
 | `POST` | `/v1/signing-operations` | Record external signing-provider operation receipt and signature ref. |
-| `POST` | `/v1/provider-verifications` | Verify stored provider identity metadata; no live provider assertion is implied. |
+| `POST` | `/v1/provider-verifications` | Verify stored provider identity metadata and optional local OIDC ID-token signature/claims. |
 | `POST` | `/v1/saas/profiles` | Create explicit-instance-admin SaaS edition profile record. |
 | `POST` | `/v1/artifact-signatures` | Create artifact signature metadata. |
 | `GET` | `/v1/artifact-signatures/{id}` | Read artifact signature. |

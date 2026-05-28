@@ -46,7 +46,7 @@ Evidence summaries, questionnaire drafts, graph snapshots, PDF packages, and ano
 
 ## Provider And Deployment Boundaries
 
-GitHub OIDC subject metadata can be captured, and stored OIDC/SAML identity links can be verified against tenant metadata. Live provider token/API verification remains a trust boundary outside those records. Collector supply-chain records track pinned collector versions with signature, SBOM, and scan evidence where available; commercial and marketplace collector definitions add extension metadata without granting provider trust.
+GitHub OIDC subject metadata can be captured, and stored OIDC/SAML identity links can be verified against tenant metadata. OIDC provider records can include static JWKS public-key material for local ID-token signature and claim verification without live provider calls. Live provider API verification, discovery, and group synchronization remain trust boundaries outside those records. Collector supply-chain records track pinned collector versions with signature, SBOM, and scan evidence where available; commercial and marketplace collector definitions add extension metadata without granting provider trust.
 
 Air-gapped import-bundle workflows preserve the same tenant-scoped import path after controlled transfer. Object-retention policy APIs record and verify retention intent for tenant-prefixed object paths, but WORM/object-lock enforcement remains the responsibility of the configured object store and deployment policy.
 
