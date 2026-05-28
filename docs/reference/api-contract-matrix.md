@@ -3,7 +3,7 @@
 This generated reference inventories Evydence `/v1` route contract precision from `openapi.yaml`.
 It is a planning aid for production contract hardening; `broad` means the route still uses a shared envelope, unspecified body, or generic schema where an endpoint-specific contract should be considered.
 
-Generated from 160 operations: 75 precise, 85 broad.
+Generated from 160 operations: 83 precise, 77 broad.
 
 | Method | Path | Operation | Auth | Scopes | Idempotency | Params | Request | 2xx Response | Precision |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -84,9 +84,9 @@ Generated from 160 operations: 75 precise, 85 broad.
 | GET | /v1/metrics | metrics | Bearer | admin | - | - | - | 200:application/json:MetricsSnapshotEnvelope,text/plain:string | precise |
 | POST | /v1/object-retention-policies | createObjectRetentionPolicy | Bearer | admin | required | - | - | 201:unspecified | broad |
 | POST | /v1/object-retention-policies/{id}/verify | verifyObjectRetentionPolicy | Bearer | verify:read | required | - | - | 200:unspecified | broad |
-| POST | /v1/openapi-contracts | uploadOpenAPIContract | Bearer | evidence:write | required | - | - | 201:unspecified | broad |
-| GET | /v1/openapi-contracts/{id} | getOpenAPIContract | Bearer | evidence:read | - | - | - | 200:unspecified | broad |
-| POST | /v1/openapi-diffs | createOpenAPIDiff | Bearer | evidence:read | required | - | - | 201:unspecified | broad |
+| POST | /v1/openapi-contracts | uploadOpenAPIContract | Bearer | evidence:write | required | - | application/json:UploadOpenAPIContractRequest | 201:application/json:OpenAPIContractEnvelope | precise |
+| GET | /v1/openapi-contracts/{id} | getOpenAPIContract | Bearer | evidence:read | - | path:id | - | 200:application/json:OpenAPIContractEnvelope | precise |
+| POST | /v1/openapi-diffs | createOpenAPIDiff | Bearer | evidence:read | required | - | application/json:CreateOpenAPIDiffRequest | 201:application/json:ContractDiffEnvelope | precise |
 | GET | /v1/openapi.json | openapi | public | - | - | - | - | 200:application/json:OpenAPIDocument | precise |
 | POST | /v1/organizations | createOrganization | Bearer | identity:admin | required | - | application/json:CreateOrganizationRequest | 201:application/json:OrganizationEnvelope | precise |
 | POST | /v1/policies/evaluate | evaluatePolicy | Bearer | verify:read | required | - | application/json:EvaluatePolicyRequest | 201:application/json:PolicyEvaluationEnvelope | precise |
@@ -139,11 +139,11 @@ Generated from 160 operations: 75 precise, 85 broad.
 | GET | /v1/sboms/{id} | getSBOM | Bearer | evidence:read | - | path:id | - | 200:application/json:SBOMEnvelope | precise |
 | POST | /v1/security-documents | uploadManualSecurityDocument | Bearer | security:write | required | - | - | 201:unspecified | broad |
 | POST | /v1/security-scans | uploadSecurityScan | Bearer | security:write | required | - | - | 201:unspecified | broad |
-| GET | /v1/signing-keys | listSigningKeys | Bearer | verify:read | - | - | - | 200:unspecified | broad |
-| POST | /v1/signing-keys/rotate | rotateSigningKey | Bearer | keys:admin | required | - | - | 201:unspecified | broad |
-| POST | /v1/signing-keys/{id}/revoke | revokeSigningKey | Bearer | keys:admin | required | - | - | 200:unspecified | broad |
-| POST | /v1/signing-operations | createSigningOperation | Bearer | keys:admin | required | - | - | 201:unspecified | broad |
-| POST | /v1/signing-providers | createSigningProvider | Bearer | keys:admin | required | - | - | 201:unspecified | broad |
+| GET | /v1/signing-keys | listSigningKeys | Bearer | verify:read | - | - | - | 200:application/json:SigningKeyListEnvelope | precise |
+| POST | /v1/signing-keys/rotate | rotateSigningKey | Bearer | keys:admin | required | - | application/json:SigningKeyTransitionRequest | 201:application/json:SigningKeyEnvelope | precise |
+| POST | /v1/signing-keys/{id}/revoke | revokeSigningKey | Bearer | keys:admin | required | path:id | application/json:SigningKeyTransitionRequest | 200:application/json:SigningKeyEnvelope | precise |
+| POST | /v1/signing-operations | createSigningOperation | Bearer | keys:admin | required | - | application/json:CreateSigningOperationRequest | 201:application/json:SigningOperationEnvelope | precise |
+| POST | /v1/signing-providers | createSigningProvider | Bearer | keys:admin | required | - | application/json:CreateSigningProviderRequest | 201:application/json:SigningProviderEnvelope | precise |
 | POST | /v1/source/branches | upsertSourceBranch | Bearer | source:write | required | - | - | 201:unspecified | broad |
 | POST | /v1/source/commits | recordSourceCommit | Bearer | source:write | required | - | - | 201:unspecified | broad |
 | POST | /v1/source/pull-requests | recordPullRequest | Bearer | source:write | required | - | - | 201:unspecified | broad |
