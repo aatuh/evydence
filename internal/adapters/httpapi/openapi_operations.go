@@ -44,6 +44,24 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 			queryParam("limit", "Maximum returned component records.", "integer"),
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("SBOM component result envelope.", "#/components/schemas/DataEnvelope")
+	case "createIncidentWebhookReceiver":
+		operation.Description = "Creates an incident-scoped webhook receiver with an Ed25519 public key. The matching private key stays with the external incident tool."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Incident id."))
+		operation.RequestBody = jsonRequest("Incident webhook receiver creation request.", "#/components/schemas/DataEnvelope")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created incident webhook receiver envelope.", "#/components/schemas/DataEnvelope")
+	case "receiveIncidentWebhook":
+		operation.Description = "Public signed webhook endpoint for incident timeline events. It verifies Ed25519 signature, event id replay, and timestamp before parsing payload fields."
+		operation.Parameters = append(operation.Parameters,
+			pathParam("receiver_id", "Incident webhook receiver id."),
+			headerParam("X-Evydence-Webhook-Event-ID", "Provider event id used for replay detection."),
+			headerParam("X-Evydence-Webhook-Timestamp", "RFC3339 timestamp included in the signed payload."),
+			headerParam("X-Evydence-Webhook-Signature", "ed25519=<base64 signature> over timestamp, event id, and raw body."),
+		)
+		operation.RequestBody = jsonRequest("Signed incident timeline event payload.", "#/components/schemas/DataEnvelope")
+		operation.Security = nil
+		operation.Scopes = nil
+		operation.Extensions = nil
+		operation.Responses[http.StatusCreated] = jsonResponse("Accepted webhook event and timeline event envelope.", "#/components/schemas/DataEnvelope")
 	case "createReleaseBundle":
 		operation.Description = "Creates an immutable signed release bundle for a release."
 		operation.RequestBody = jsonRequest("Release bundle creation request.", "#/components/schemas/CreateReleaseBundleRequest")
@@ -134,4 +152,8 @@ func queryParam(name, description, typ string) specs.Parameter {
 
 func pathParam(name, description string) specs.Parameter {
 	return specs.Parameter{Name: name, In: "path", Description: description, Required: true, Schema: map[string]any{"type": "string"}}
+}
+
+func headerParam(name, description string) specs.Parameter {
+	return specs.Parameter{Name: name, In: "header", Description: description, Required: true, Schema: map[string]any{"type": "string"}}
 }

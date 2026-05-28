@@ -817,6 +817,46 @@ func (s *Server) recordIncidentTimeline(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
+func (s *Server) createIncidentWebhookReceiver(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name      string `json:"name"`
+		Provider  string `json:"provider"`
+		PublicKey string `json:"public_key"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		receiver, err := s.ledger.CreateIncidentWebhookReceiver(r.Context(), actor, app.CreateIncidentWebhookReceiverInput{IncidentID: r.PathValue("id"), Name: req.Name, Provider: req.Provider, PublicKey: req.PublicKey})
+		return http.StatusCreated, receiver, err
+	})
+}
+
+func (s *Server) receiveIncidentWebhook(w http.ResponseWriter, r *http.Request) {
+	body, err := readBody(r)
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	timestamp, err := time.Parse(time.RFC3339, strings.TrimSpace(r.Header.Get("X-Evydence-Webhook-Timestamp")))
+	if err != nil {
+		writeProblem(w, r, app.ErrValidation)
+		return
+	}
+	record, event, err := s.ledger.HandleIncidentWebhook(r.Context(), app.HandleIncidentWebhookInput{
+		ReceiverID: r.PathValue("receiver_id"),
+		EventID:    r.Header.Get("X-Evydence-Webhook-Event-ID"),
+		Timestamp:  timestamp,
+		Signature:  r.Header.Get("X-Evydence-Webhook-Signature"),
+		Body:       body,
+	})
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusCreated, map[string]any{"webhook_event": record, "timeline_event": event})
+}
+
 func (s *Server) createRemediationTask(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		IncidentID string     `json:"incident_id"`

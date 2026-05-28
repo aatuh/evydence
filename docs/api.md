@@ -362,6 +362,8 @@ Source snapshots capture submitted provider metadata. They do not call provider 
 | `POST` | `/v1/report-templates/{id}/render` | Render deterministic JSON report. |
 | `POST` | `/v1/incidents` | Create incident. |
 | `POST` | `/v1/incidents/{id}/timeline` | Append incident timeline event. |
+| `POST` | `/v1/incidents/{id}/webhook-receivers` | Create incident-scoped Ed25519 webhook receiver. |
+| `POST` | `/v1/incident-webhooks/{receiver_id}` | Receive signed incident timeline webhook without bearer authentication. |
 
 ### Integrity, Verification, And Operations
 

@@ -31,6 +31,8 @@ const (
 	DeploymentEventSchemaVersion    = "deployment-event.v1.0.0"
 	IncidentSchemaVersion           = "incident.v1.0.0"
 	IncidentTimelineSchemaVersion   = "incident-timeline-event.v1.0.0"
+	IncidentWebhookReceiverVersion  = "incident-webhook-receiver.v1.0.0"
+	IncidentWebhookEventVersion     = "incident-webhook-event.v1.0.0"
 	RemediationTaskSchemaVersion    = "remediation-task.v1.0.0"
 	SecurityScanSchemaVersion       = "security-scan.v1.0.0"
 	ManualSecurityDocSchemaVersion  = "manual-security-document.v1.0.0"
@@ -1239,6 +1241,33 @@ type IncidentTimelineEvent struct {
 	OccurredAt    time.Time `json:"occurred_at"`
 	SchemaVersion string    `json:"schema_version"`
 	CreatedAt     time.Time `json:"created_at"`
+}
+
+type IncidentWebhookReceiver struct {
+	ID            string    `json:"id"`
+	TenantID      string    `json:"tenant_id"`
+	IncidentID    string    `json:"incident_id"`
+	Name          string    `json:"name"`
+	Provider      string    `json:"provider"`
+	PublicKey     string    `json:"public_key"`
+	Status        string    `json:"status"`
+	SchemaVersion string    `json:"schema_version"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type IncidentWebhookEvent struct {
+	ID              string    `json:"id"`
+	TenantID        string    `json:"tenant_id"`
+	ReceiverID      string    `json:"receiver_id"`
+	IncidentID      string    `json:"incident_id"`
+	Provider        string    `json:"provider"`
+	EventID         string    `json:"event_id"`
+	PayloadHash     string    `json:"payload_hash"`
+	SignatureHash   string    `json:"signature_hash"`
+	TimelineEventID string    `json:"timeline_event_id,omitempty"`
+	Result          string    `json:"result"`
+	SchemaVersion   string    `json:"schema_version"`
+	CreatedAt       time.Time `json:"created_at"`
 }
 
 type RemediationTask struct {
