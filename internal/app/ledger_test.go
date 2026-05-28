@@ -136,6 +136,73 @@ func TestUploadSBOMEnqueuesParserVersion(t *testing.T) {
 	}
 }
 
+func TestUploadSBOMCanDeferParserSideEffectsToWorker(t *testing.T) {
+	outbox := &recordingOutbox{}
+	store := NewMemoryStore()
+	objects := newTestObjectStore()
+	ledger := NewLedger(Config{
+		APIKeyPepper:                 "test-pepper",
+		Now:                          fixedNow,
+		Store:                        store,
+		ObjectStore:                  objects,
+		Outbox:                       outbox,
+		WorkerOwnedParserSideEffects: true,
+	})
+	ctx := context.Background()
+	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	actor, err := ledger.Authenticate(ctx, secret)
+	if err != nil {
+		t.Fatalf("auth: %v", err)
+	}
+	product, err := ledger.CreateProduct(ctx, actor, "Payments API", "payments-worker-parser")
+	if err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	release, err := ledger.CreateRelease(ctx, actor, product.ID, "1.0.0")
+	if err != nil {
+		t.Fatalf("create release: %v", err)
+	}
+	artifact, err := ledger.RegisterArtifact(ctx, actor, "api.tar.gz", "application/gzip", sampleDigest("api"), 42)
+	if err != nil {
+		t.Fatalf("artifact: %v", err)
+	}
+
+	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api","purl":"pkg:oci/api"}]}`))
+	if err != nil {
+		t.Fatalf("upload sbom: %v", err)
+	}
+	if sbom.SpecVersion != "1.6" || sbom.ComponentCount != 1 || len(sbom.Components) != 1 {
+		t.Fatalf("upload response should keep parsed fields: %#v", sbom)
+	}
+
+	state, ok, err := store.LoadState(ctx)
+	if err != nil || !ok {
+		t.Fatalf("load state ok=%v err=%v", ok, err)
+	}
+	persisted := state.SBOMs[sbom.ID]
+	if persisted.SpecVersion != "" || persisted.ComponentCount != 0 || len(persisted.Components) != 0 {
+		t.Fatalf("persisted sbom should wait for worker parser side effects: %#v", persisted)
+	}
+	if len(outbox.jobs) != 1 {
+		t.Fatalf("outbox jobs = %d, want 1", len(outbox.jobs))
+	}
+	job := outbox.jobs[0]
+	if job.Kind != "parse_sbom" || job.Payload["payload_ref"] == "" || job.Payload["payload_hash"] == "" {
+		t.Fatalf("outbox job missing replay metadata: %#v", job)
+	}
+	payloadRef, ok := job.Payload["payload_ref"].(string)
+	payloadKey := strings.TrimPrefix(payloadRef, "object://")
+	if !ok || !strings.HasPrefix(payloadKey, "tenants/"+actor.TenantID+"/") {
+		t.Fatalf("payload ref %q is not tenant-prefixed", job.Payload["payload_ref"])
+	}
+	if _, err := objects.Get(ctx, payloadKey); err != nil {
+		t.Fatalf("stored payload missing: %v", err)
+	}
+}
+
 func TestIdempotencyReplayAndConflict(t *testing.T) {
 	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()

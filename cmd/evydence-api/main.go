@@ -37,6 +37,7 @@ func run() error {
 		return err
 	}
 	cfg := app.Config{APIKeyPepper: pepper}
+	cfg.WorkerOwnedParserSideEffects = boolEnv("EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS")
 	cfg.OIDC = oidcdiscovery.New(oidcdiscovery.Config{
 		AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_OIDC_DISCOVERY_ALLOW_INSECURE_LOCALHOST"), "true"),
 		Timeout:                   time.Duration(intEnv("EVYDENCE_OIDC_DISCOVERY_TIMEOUT_SECONDS", 10)) * time.Second,
@@ -179,6 +180,10 @@ func intEnv(name string, fallback int) int {
 		return fallback
 	}
 	return parsed
+}
+
+func boolEnv(name string) bool {
+	return strings.EqualFold(strings.TrimSpace(os.Getenv(name)), "true")
 }
 
 func openObjectStore(ctx context.Context) (app.ObjectStore, string, error) {

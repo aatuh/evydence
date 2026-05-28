@@ -71,6 +71,9 @@ type Config struct {
 	OIDC         OIDCDiscoveryClient
 	Transparency TransparencyProofFetcher
 	Outbox       Outbox
+	// WorkerOwnedParserSideEffects stores accepted parser records first and
+	// lets outbox workers populate parser-derived fields from raw payloads.
+	WorkerOwnedParserSideEffects bool
 }
 
 type Ledger struct {
@@ -85,6 +88,7 @@ type Ledger struct {
 	oidc               OIDCDiscoveryClient
 	transparencyProofs TransparencyProofFetcher
 	outbox             Outbox
+	workerOwnedParsers bool
 
 	tenants               map[string]domain.Tenant
 	organizations         map[string]domain.Organization
@@ -210,6 +214,7 @@ func NewLedgerWithError(cfg Config) (*Ledger, error) {
 		oidc:                  cfg.OIDC,
 		transparencyProofs:    cfg.Transparency,
 		outbox:                cfg.Outbox,
+		workerOwnedParsers:    cfg.WorkerOwnedParserSideEffects,
 		tenants:               map[string]domain.Tenant{},
 		organizations:         map[string]domain.Organization{},
 		users:                 map[string]domain.HumanUser{},
@@ -976,8 +981,16 @@ func (l *Ledger) UploadSBOM(ctx context.Context, actor domain.Actor, releaseID, 
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	sbom := domain.SBOM{ID: newID("sbom"), TenantID: actor.TenantID, EvidenceID: item.ID, ReleaseID: releaseID, ArtifactID: artifactID, Format: "cyclonedx", SpecVersion: doc.SpecVersion, ComponentCount: len(components), Components: components, CreatedAt: l.now()}
-	l.sboms[sbom.ID] = sbom
-	_, _ = l.appendChainLocked(actor.TenantID, "sbom.parsed", "sbom", sbom.ID, "api_key", actor.KeyID, payloadHash, "")
+	persistedSBOM := sbom
+	chainAction := "sbom.parsed"
+	if l.workerOwnedParsers {
+		persistedSBOM.SpecVersion = ""
+		persistedSBOM.ComponentCount = 0
+		persistedSBOM.Components = nil
+		chainAction = "sbom.accepted"
+	}
+	l.sboms[sbom.ID] = persistedSBOM
+	_, _ = l.appendChainLocked(actor.TenantID, chainAction, "sbom", sbom.ID, "api_key", actor.KeyID, payloadHash, "")
 	if err := l.enqueue(ctx, actor.TenantID, "parse_sbom", "sbom", sbom.ID, map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionCycloneDXJSON}); err != nil {
 		return domain.SBOM{}, err
 	}

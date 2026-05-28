@@ -32,6 +32,7 @@ This repository contains a Go implementation under module `github.com/aatuh/evyd
 - PostgreSQL-backed durable ledger state, tenant-scoped relational projections, migrations, and persisted outbox jobs when `EVYDENCE_DATABASE_URL` is set.
 - Filesystem or S3/MinIO-compatible object storage for raw upload payload bytes under tenant-prefixed paths.
 - Polling `cmd/evydence-worker` process that claims persisted outbox jobs with PostgreSQL row locking and records retry or terminal status.
+- Optional worker-owned CycloneDX SBOM parser side effects through `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`; other parser-backed upload families still create initial normalized records before worker replay validates or backfills them.
 
 ### Tooling, Deployment, And Examples
 
@@ -107,4 +108,4 @@ make postgres-integration-test
 
 `make finalize` runs the project-owned formatting, unit, OpenAPI, docs, deployment, and SDK gates. `make release-check` extends that with lint, gosec, govulncheck, race tests, and live PostgreSQL gates when `EVYDENCE_TEST_DATABASE_URL` is configured.
 
-`make production-check` is stricter: it requires `EVYDENCE_TEST_DATABASE_URL`, enforces the configured coverage threshold, and runs a release artifact signing smoke test. Passing the gate is required production-readiness evidence, but it does not by itself close the remaining repository-split, worker side-effect, direct KMS/HSM SDK, provider API/group validation, object-lock enforcement, and exit-review work. Production API and worker processes default to relational-only PostgreSQL loads and skip compatibility snapshot writes; the compatibility snapshot remains for migration, recovery, and local workflows.
+`make production-check` is stricter: it requires `EVYDENCE_TEST_DATABASE_URL`, enforces the configured coverage threshold, and runs a release artifact signing smoke test. Passing the gate is required production-readiness evidence, but it does not by itself close the remaining repository-split, remaining worker side-effect, direct KMS/HSM SDK, provider API/group validation, object-lock enforcement, and exit-review work. Production API and worker processes default to relational-only PostgreSQL loads and skip compatibility snapshot writes; the compatibility snapshot remains for migration, recovery, and local workflows.
