@@ -10,7 +10,15 @@ Run the default release gate from the repository root:
 make release-check
 ```
 
-The target runs formatting, unit tests, OpenAPI drift checks, docs/deployment/SDK checks, linting, gosec, govulncheck, race tests, and the live PostgreSQL targets. When `EVYDENCE_TEST_DATABASE_URL` is unset, live PostgreSQL checks are explicitly skipped and the summary records that limitation.
+The target runs formatting, unit tests, OpenAPI drift checks, docs/deployment/SDK checks, release acceptance, linting, gosec, govulncheck, race tests, and the live PostgreSQL targets. When `EVYDENCE_TEST_DATABASE_URL` is unset, live PostgreSQL checks are explicitly skipped and the summary records that limitation.
+
+For the deterministic metadata-only release evidence gate, run:
+
+```sh
+make release-acceptance
+```
+
+That target runs the fast local checks, verifies the root license, governance, support, trademark, release-evidence, changelog, and Docker build-context metadata, and rejects prohibited product claims in the documented surfaces.
 
 The target writes:
 

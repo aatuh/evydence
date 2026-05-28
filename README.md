@@ -42,8 +42,27 @@ This repository contains a Go release-ledger MVP scaffold under module `github.c
 - Lightweight Go, TypeScript, and Python SDK wrappers.
 - GitHub Actions and GitLab CI workflow examples.
 - Documentation portal under `docs/`.
+- AGPL license, commercial licensing, governance, contribution, security,
+  support, trademark, release-evidence, and changelog metadata.
 
 Implemented-but-partial areas are documented explicitly: signing-provider operation receipts do not replace production KMS/HSM adapters, local OIDC/SAML verification does not replace live provider discovery/API validation or browser login callbacks, and public transparency records do not prove external log inclusion without the configured operator workflow.
+
+## License, Security, Support, And Governance
+
+Evydence is licensed under `AGPL-3.0-only`; see [LICENSE](LICENSE).
+Commercial license exceptions and paid support are described in
+[COMMERCIAL.md](COMMERCIAL.md). Project governance, contribution expectations,
+security reporting, support paths, trademark guidance, release-evidence
+expectations, and release notes are documented in [GOVERNANCE.md](GOVERNANCE.md),
+[CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md),
+[SUPPORT.md](SUPPORT.md), [TRADEMARKS.md](TRADEMARKS.md),
+[RELEASE_EVIDENCE.md](RELEASE_EVIDENCE.md), and [CHANGELOG.md](CHANGELOG.md).
+
+These files preserve the same product boundary as the rest of the repository:
+Evydence supports compliance readiness and technical evidence organization, but
+does not make legal compliance conclusions, grant certification, prove SBOM
+completeness, treat scanner output as authoritative, or guarantee release
+security.
 
 ## Local API
 

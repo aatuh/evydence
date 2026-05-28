@@ -7,7 +7,7 @@ GOLANGCI_LINT_VERSION ?= v2.11.4
 GOSEC_VERSION ?= v2.25.0
 GOVULNCHECK_VERSION ?= v1.2.0
 
-.PHONY: help tools fmt lint vuln gosec test test-race coverage openapi-check docs-check deploy-check sdk-check fast-check finalize release-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
+.PHONY: help tools fmt lint vuln gosec test test-race coverage openapi-check meta-check docs-check deploy-check sdk-check fast-check finalize release-acceptance release-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -47,7 +47,32 @@ openapi-check: openapi.yaml ## Validate OpenAPI generation and route contract te
 	@$(GO) run ./cmd/openapi > /tmp/evydence-openapi.yaml
 	@cmp -s openapi.yaml /tmp/evydence-openapi.yaml
 
-docs-check: ## Validate canonical docs exist and avoid forbidden product claims
+meta-check: ## Validate root legal, governance, support, and release-evidence metadata
+	@test -f LICENSE
+	@test -f COMMERCIAL.md
+	@test -f GOVERNANCE.md
+	@test -f CONTRIBUTING.md
+	@test -f SECURITY.md
+	@test -f SUPPORT.md
+	@test -f TRADEMARKS.md
+	@test -f RELEASE_EVIDENCE.md
+	@test -f CHANGELOG.md
+	@test -f .dockerignore
+	@test -x scripts/release_acceptance.sh
+	@grep -F 'GNU AFFERO GENERAL PUBLIC LICENSE' LICENSE >/dev/null
+	@grep -F 'AGPL-3.0-only' COMMERCIAL.md >/dev/null
+	@grep -F 'Commercial license exceptions' COMMERCIAL.md >/dev/null
+	@grep -F 'contributor license agreement' CONTRIBUTING.md >/dev/null
+	@grep -F 'raw evidence payloads' SECURITY.md >/dev/null
+	@grep -F 'release evidence artifacts' SUPPORT.md >/dev/null
+	@grep -F 'Evydence fork' TRADEMARKS.md >/dev/null
+	@grep -F 'Release evidence is not a certification' RELEASE_EVIDENCE.md >/dev/null
+	@grep -F '.refs' .dockerignore >/dev/null
+	@grep -F 'release-evidence' .dockerignore >/dev/null
+	@grep -F 'backups' .dockerignore >/dev/null
+	@grep -F '*.pem' .dockerignore >/dev/null
+
+docs-check: meta-check ## Validate canonical docs exist and avoid forbidden product claims
 	@test -f README.md
 	@test -f docs/README.md
 	@test -f docs/architecture.md
@@ -144,8 +169,12 @@ finalize: ## Thorough validity check
 	@$(MAKE) deploy-check
 	@$(MAKE) sdk-check
 
+release-acceptance: ## Run deterministic release metadata acceptance checks
+	@scripts/release_acceptance.sh
+
 release-check: ## Release validation with security, race, and configured live integration gates
 	@$(MAKE) finalize
+	@$(MAKE) release-acceptance
 	@$(MAKE) lint
 	@$(MAKE) gosec
 	@$(MAKE) vuln

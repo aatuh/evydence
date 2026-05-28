@@ -161,8 +161,8 @@ func TestOIDCProviderIdentityVerificationSupportsRS256JWKS(t *testing.T) {
 		"kty": "RSA",
 		"kid": "rsa-1",
 		"alg": "RS256",
-		"n":   base64.RawURLEncoding.EncodeToString(privateKey.PublicKey.N.Bytes()),
-		"e":   base64.RawURLEncoding.EncodeToString(bigEndianExponent(privateKey.PublicKey.E)),
+		"n":   base64.RawURLEncoding.EncodeToString(privateKey.N.Bytes()),
+		"e":   base64.RawURLEncoding.EncodeToString(bigEndianExponent(privateKey.E)),
 	}}}
 	provider, err := ledger.CreateSSOProvider(ctx, actor, CreateSSOProviderInput{Name: "OIDC RSA", Type: "oidc", Issuer: "https://rsa-idp.example.test", ClientID: "rsa-client", JWKS: jwks})
 	if err != nil {
