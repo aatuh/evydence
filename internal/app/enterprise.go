@@ -333,6 +333,83 @@ func (l *Ledger) UpdateSSOProviderTrustMaterial(ctx context.Context, actor domai
 	return provider, nil
 }
 
+func (l *Ledger) RefreshSSOProviderOIDCTrustMaterial(ctx context.Context, actor domain.Actor, id string) (domain.SSOProvider, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.SSOProvider{}, err
+	}
+	if err := require(actor, ScopeIdentityAdmin); err != nil {
+		return domain.SSOProvider{}, err
+	}
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return domain.SSOProvider{}, ErrValidation
+	}
+	discovery := l.oidc
+	if discovery == nil {
+		return domain.SSOProvider{}, ErrValidation
+	}
+	l.mu.Lock()
+	provider, ok := l.ssoProviders[id]
+	if !ok || provider.TenantID != actor.TenantID {
+		l.mu.Unlock()
+		return domain.SSOProvider{}, ErrNotFound
+	}
+	if provider.Type != "oidc" {
+		l.mu.Unlock()
+		return domain.SSOProvider{}, ErrValidation
+	}
+	l.mu.Unlock()
+
+	result, err := discovery.FetchOIDCTrustMaterial(ctx, OIDCDiscoveryRequest{TenantID: actor.TenantID, ProviderID: provider.ID, Issuer: provider.Issuer})
+	if err != nil {
+		return domain.SSOProvider{}, ErrVerificationFailed
+	}
+	if strings.TrimRight(strings.TrimSpace(result.Issuer), "/") != strings.TrimRight(provider.Issuer, "/") {
+		return domain.SSOProvider{}, ErrVerificationFailed
+	}
+	jwks, err := normalizeJWKS(result.JWKS)
+	if err != nil {
+		return domain.SSOProvider{}, ErrVerificationFailed
+	}
+	if len(jwks) == 0 {
+		return domain.SSOProvider{}, ErrVerificationFailed
+	}
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	current, ok := l.ssoProviders[id]
+	if !ok || current.TenantID != actor.TenantID {
+		return domain.SSOProvider{}, ErrNotFound
+	}
+	if current.Type != "oidc" || current.Issuer != provider.Issuer {
+		return domain.SSOProvider{}, ErrVerificationFailed
+	}
+	now := l.now()
+	current.JWKS = jwks
+	current.SAMLSigningCertificates = nil
+	current.TrustMaterialUpdatedAt = &now
+	materialHash, err := canonicalAnyHash(struct {
+		ProviderID string         `json:"provider_id"`
+		Issuer     string         `json:"issuer"`
+		JWKS       map[string]any `json:"jwks"`
+		UpdatedAt  string         `json:"updated_at"`
+	}{
+		ProviderID: current.ID,
+		Issuer:     current.Issuer,
+		JWKS:       current.JWKS,
+		UpdatedAt:  now.Format(time.RFC3339Nano),
+	})
+	if err != nil {
+		return domain.SSOProvider{}, err
+	}
+	l.ssoProviders[current.ID] = current
+	_, _ = l.appendChainLocked(actor.TenantID, "sso_provider.oidc_trust_material_refreshed", "sso_provider", current.ID, actorType(actor), actorID(actor), materialHash, "")
+	if err := l.persistLocked(ctx); err != nil {
+		return domain.SSOProvider{}, err
+	}
+	return current, nil
+}
+
 func (l *Ledger) LinkSSOIdentity(ctx context.Context, actor domain.Actor, in LinkSSOIdentityInput) (domain.UserIdentityLink, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.UserIdentityLink{}, err

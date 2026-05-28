@@ -84,6 +84,11 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "SSO provider id."))
 		operation.RequestBody = jsonRequest("SSO provider trust material update request.", "#/components/schemas/UpdateSSOProviderTrustMaterialRequest")
 		operation.Responses[http.StatusOK] = jsonResponse("Updated SSO provider envelope.", "#/components/schemas/SSOProviderEnvelope")
+	case "refreshSSOProviderOIDCTrustMaterial":
+		operation.Description = "Fetches the OIDC discovery document and public JWKS for the tenant provider issuer, then stores refreshed public trust material. This does not authenticate users, store provider secrets, or synchronize groups."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "SSO provider id."))
+		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
+		operation.Responses[http.StatusOK] = jsonResponse("Refreshed SSO provider envelope.", "#/components/schemas/SSOProviderEnvelope")
 	case "verifyProviderIdentity":
 		operation.Description = "Verifies stored provider identity metadata and, when supplied, locally verifies OIDC ID-token or SAML assertion issuer, audience, subject, time bounds, and signature against configured tenant trust material."
 		operation.RequestBody = jsonRequest("Provider identity verification request.", "#/components/schemas/VerifyProviderIdentityRequest")

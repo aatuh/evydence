@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/adapters/httpapi"
+	"github.com/aatuh/evydence/internal/adapters/identity/oidcdiscovery"
 	"github.com/aatuh/evydence/internal/adapters/objectstore/filesystem"
 	s3store "github.com/aatuh/evydence/internal/adapters/objectstore/s3"
 	"github.com/aatuh/evydence/internal/adapters/postgres"
@@ -35,6 +36,10 @@ func run() error {
 		return err
 	}
 	cfg := app.Config{APIKeyPepper: pepper}
+	cfg.OIDC = oidcdiscovery.New(oidcdiscovery.Config{
+		AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_OIDC_DISCOVERY_ALLOW_INSECURE_LOCALHOST"), "true"),
+		Timeout:                   time.Duration(intEnv("EVYDENCE_OIDC_DISCOVERY_TIMEOUT_SECONDS", 10)) * time.Second,
+	})
 	if signer, err := openSigningExecutor(); err != nil {
 		return err
 	} else {

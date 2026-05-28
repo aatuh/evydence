@@ -278,6 +278,54 @@ func TestOIDCProviderIdentityVerificationUsesStaticJWKS(t *testing.T) {
 	}
 }
 
+func TestOIDCProviderDiscoveryRefreshesTenantTrustMaterial(t *testing.T) {
+	pub, _, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("keygen: %v", err)
+	}
+	jwks := map[string]any{"keys": []any{map[string]any{"kty": "OKP", "crv": "Ed25519", "kid": "kid-refresh", "x": base64.RawURLEncoding.EncodeToString(pub)}}}
+	discovery := &fakeOIDCDiscovery{result: OIDCDiscoveryResult{Issuer: "https://idp.example.test", JWKS: jwks}}
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, OIDC: discovery})
+	ctx := context.Background()
+	_, _, _, actor := bootstrapEnterpriseTestTenant(t, ledger)
+	provider, err := ledger.CreateSSOProvider(ctx, actor, CreateSSOProviderInput{Name: "OIDC", Type: "oidc", Issuer: "https://idp.example.test", ClientID: "client"})
+	if err != nil {
+		t.Fatalf("provider: %v", err)
+	}
+	refreshed, err := ledger.RefreshSSOProviderOIDCTrustMaterial(ctx, actor, provider.ID)
+	if err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+	if refreshed.TrustMaterialUpdatedAt == nil || len(refreshed.JWKS) == 0 || len(refreshed.SAMLSigningCertificates) != 0 {
+		t.Fatalf("refreshed provider = %#v", refreshed)
+	}
+	if discovery.request.TenantID != actor.TenantID || discovery.request.ProviderID != provider.ID || discovery.request.Issuer != provider.Issuer {
+		t.Fatalf("discovery request = %#v", discovery.request)
+	}
+	_, _, _, other := bootstrapEnterpriseTestTenant(t, ledger)
+	if _, err := ledger.RefreshSSOProviderOIDCTrustMaterial(ctx, other, provider.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("cross tenant refresh err=%v, want not found", err)
+	}
+}
+
+func TestOIDCProviderDiscoveryRefreshRejectsMismatchedIssuer(t *testing.T) {
+	pub, _, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("keygen: %v", err)
+	}
+	jwks := map[string]any{"keys": []any{map[string]any{"kty": "OKP", "crv": "Ed25519", "kid": "kid", "x": base64.RawURLEncoding.EncodeToString(pub)}}}
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, OIDC: &fakeOIDCDiscovery{result: OIDCDiscoveryResult{Issuer: "https://other-idp.example.test", JWKS: jwks}}})
+	ctx := context.Background()
+	_, _, _, actor := bootstrapEnterpriseTestTenant(t, ledger)
+	provider, err := ledger.CreateSSOProvider(ctx, actor, CreateSSOProviderInput{Name: "OIDC", Type: "oidc", Issuer: "https://idp.example.test", ClientID: "client"})
+	if err != nil {
+		t.Fatalf("provider: %v", err)
+	}
+	if _, err := ledger.RefreshSSOProviderOIDCTrustMaterial(ctx, actor, provider.ID); !errors.Is(err, ErrVerificationFailed) {
+		t.Fatalf("refresh err=%v, want verification failed", err)
+	}
+}
+
 func TestInstanceAdminRequiresExplicitScope(t *testing.T) {
 	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
@@ -1018,6 +1066,33 @@ func hasVerifyCheck(checks []domain.VerifyCheck, name, result string) bool {
 		}
 	}
 	return false
+}
+
+type fakeOIDCDiscovery struct {
+	request OIDCDiscoveryRequest
+	result  OIDCDiscoveryResult
+	err     error
+}
+
+func (f *fakeOIDCDiscovery) FetchOIDCTrustMaterial(_ context.Context, req OIDCDiscoveryRequest) (OIDCDiscoveryResult, error) {
+	f.request = req
+	if f.err != nil {
+		return OIDCDiscoveryResult{}, f.err
+	}
+	return f.result, nil
+}
+
+func bootstrapEnterpriseTestTenant(t *testing.T, ledger *Ledger) (domain.Tenant, domain.APIKey, string, domain.Actor) {
+	t.Helper()
+	tenant, key, secret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	actor, err := ledger.Authenticate(t.Context(), secret)
+	if err != nil {
+		t.Fatalf("auth: %v", err)
+	}
+	return tenant, key, secret, actor
 }
 
 func bigEndianExponent(value int) []byte {

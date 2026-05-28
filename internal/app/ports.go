@@ -25,6 +25,10 @@ type SigningExecutor interface {
 	Sign(context.Context, SigningRequest) (SigningResult, error)
 }
 
+type OIDCDiscoveryClient interface {
+	FetchOIDCTrustMaterial(context.Context, OIDCDiscoveryRequest) (OIDCDiscoveryResult, error)
+}
+
 type Outbox interface {
 	Enqueue(context.Context, OutboxJob) error
 }
@@ -44,6 +48,19 @@ type SigningResult struct {
 	KeyID     string
 	Algorithm string
 	Checks    []domain.VerifyCheck
+}
+
+type OIDCDiscoveryRequest struct {
+	TenantID   string
+	ProviderID string
+	Issuer     string
+}
+
+type OIDCDiscoveryResult struct {
+	Issuer      string
+	JWKS        map[string]any
+	Checks      []domain.VerifyCheck
+	Limitations []string
 }
 
 type ObjectRetentionRequest struct {

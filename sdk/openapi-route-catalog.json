@@ -1,5 +1,5 @@
 {
-  "route_count": 163,
+  "route_count": 164,
   "routes": [
     {
       "idempotency_key_required": false,
@@ -2465,6 +2465,23 @@
       ],
       "success_statuses": [
         "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "refreshSSOProviderOIDCTrustMaterial",
+      "path": "/v1/sso/providers/{id}/discover-oidc",
+      "request_schema": "#/components/schemas/EmptyObject",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SSOProviderEnvelope"
+      ],
+      "scopes": [
+        "identity:admin"
+      ],
+      "success_statuses": [
+        "200"
       ]
     },
     {
