@@ -348,6 +348,38 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Waiver id."))
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Approved waiver envelope.", "#/components/schemas/WaiverEnvelope")
+	case "uploadOpenAPIContract":
+		operation.Description = "Uploads an OpenAPI 3.1 contract, stores raw bytes as evidence, and records normalized operation metadata."
+		operation.RequestBody = jsonRequest("OpenAPI contract upload request.", "#/components/schemas/UploadOpenAPIContractRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created OpenAPI contract envelope.", "#/components/schemas/OpenAPIContractEnvelope")
+	case "getOpenAPIContract":
+		operation.Description = "Returns a tenant-scoped OpenAPI contract metadata record by id."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "OpenAPI contract id."))
+		operation.Responses[http.StatusOK] = jsonResponse("OpenAPI contract envelope.", "#/components/schemas/OpenAPIContractEnvelope")
+	case "createOpenAPIDiff":
+		operation.Description = "Creates a deterministic OpenAPI contract diff for release contract checks."
+		operation.RequestBody = jsonRequest("OpenAPI contract diff request.", "#/components/schemas/CreateOpenAPIDiffRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created OpenAPI contract diff envelope.", "#/components/schemas/ContractDiffEnvelope")
+	case "listSigningKeys":
+		operation.Description = "Lists tenant signing public-key metadata without private key material."
+		operation.Responses[http.StatusOK] = jsonResponse("Signing key list envelope.", "#/components/schemas/SigningKeyListEnvelope")
+	case "rotateSigningKey":
+		operation.Description = "Rotates the active tenant signing key and returns public-key metadata only."
+		operation.RequestBody = jsonRequest("Signing key rotation request.", "#/components/schemas/SigningKeyTransitionRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Rotated signing key envelope.", "#/components/schemas/SigningKeyEnvelope")
+	case "revokeSigningKey":
+		operation.Description = "Revokes a tenant signing key as an audited lifecycle transition."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Signing key id."))
+		operation.RequestBody = jsonRequest("Signing key revocation request.", "#/components/schemas/SigningKeyTransitionRequest")
+		operation.Responses[http.StatusOK] = jsonResponse("Revoked signing key envelope.", "#/components/schemas/SigningKeyEnvelope")
+	case "createSigningProvider":
+		operation.Description = "Creates signing provider metadata for external signing operations. Production private key material must not be supplied."
+		operation.RequestBody = jsonRequest("Signing provider creation request.", "#/components/schemas/CreateSigningProviderRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created signing provider envelope.", "#/components/schemas/SigningProviderEnvelope")
+	case "createSigningOperation":
+		operation.Description = "Records an external signing operation receipt and checks payload/signature metadata without logging secrets."
+		operation.RequestBody = jsonRequest("Signing operation creation request.", "#/components/schemas/CreateSigningOperationRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created signing operation envelope.", "#/components/schemas/SigningOperationEnvelope")
 	case "craReadinessReport":
 		operation.Description = "Returns a CRA-oriented readiness report without legal compliance or certification conclusions."
 		operation.Parameters = append(operation.Parameters,

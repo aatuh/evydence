@@ -301,6 +301,107 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"created_at":     map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "scope_type", "scope_id", "owner", "risk", "reason", "expires_at", "approved", "schema_version", "created_at"))
 	registry.RegisterSchema("WaiverEnvelope", dataEnvelopeSchema("#/components/schemas/Waiver"))
+	registry.RegisterSchema("UploadOpenAPIContractRequest", objectSchema(map[string]any{
+		"product_id": map[string]any{"type": "string"},
+		"release_id": map[string]any{"type": "string"},
+		"version":    map[string]any{"type": "string"},
+		"spec":       map[string]any{"type": "object", "additionalProperties": true},
+	}, "product_id", "release_id", "version", "spec"))
+	registry.RegisterSchema("OpenAPIOperationRecord", objectSchema(map[string]any{
+		"path":                    map[string]any{"type": "string"},
+		"method":                  map[string]any{"type": "string"},
+		"operation_id":            map[string]any{"type": "string"},
+		"deprecated":              map[string]any{"type": "boolean"},
+		"request_body_required":   map[string]any{"type": "boolean"},
+		"required_request_fields": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"response_statuses":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+	}, "path", "method"))
+	registry.RegisterSchema("OpenAPIContract", objectSchema(map[string]any{
+		"id":          map[string]any{"type": "string"},
+		"tenant_id":   map[string]any{"type": "string"},
+		"product_id":  map[string]any{"type": "string"},
+		"release_id":  map[string]any{"type": "string"},
+		"version":     map[string]any{"type": "string"},
+		"hash":        map[string]any{"type": "string", "pattern": "^sha256:"},
+		"path_count":  map[string]any{"type": "integer"},
+		"operations":  map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/OpenAPIOperationRecord"}},
+		"evidence_id": map[string]any{"type": "string"},
+		"created_at":  map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "product_id", "version", "hash", "path_count", "evidence_id", "created_at"))
+	registry.RegisterSchema("OpenAPIContractEnvelope", dataEnvelopeSchema("#/components/schemas/OpenAPIContract"))
+	registry.RegisterSchema("CreateOpenAPIDiffRequest", objectSchema(map[string]any{
+		"base_contract_id":   map[string]any{"type": "string"},
+		"target_contract_id": map[string]any{"type": "string"},
+		"release_id":         map[string]any{"type": "string"},
+	}, "base_contract_id", "target_contract_id", "release_id"))
+	registry.RegisterSchema("ContractDiff", objectSchema(map[string]any{
+		"id":                   map[string]any{"type": "string"},
+		"tenant_id":            map[string]any{"type": "string"},
+		"base_contract_id":     map[string]any{"type": "string"},
+		"target_contract_id":   map[string]any{"type": "string"},
+		"product_id":           map[string]any{"type": "string"},
+		"release_id":           map[string]any{"type": "string"},
+		"result":               map[string]any{"type": "string"},
+		"breaking_changes":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"non_breaking_changes": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"schema_version":       map[string]any{"type": "string"},
+		"created_at":           map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "base_contract_id", "target_contract_id", "product_id", "result", "schema_version", "created_at"))
+	registry.RegisterSchema("ContractDiffEnvelope", dataEnvelopeSchema("#/components/schemas/ContractDiff"))
+	registry.RegisterSchema("SigningKey", objectSchema(map[string]any{
+		"id":         map[string]any{"type": "string"},
+		"tenant_id":  map[string]any{"type": "string"},
+		"kid":        map[string]any{"type": "string"},
+		"algorithm":  map[string]any{"type": "string"},
+		"status":     map[string]any{"type": "string"},
+		"public_key": map[string]any{"type": "string"},
+		"created_at": map[string]any{"type": "string", "format": "date-time"},
+		"revoked_at": map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "kid", "algorithm", "status", "public_key", "created_at"))
+	registry.RegisterSchema("SigningKeyEnvelope", dataEnvelopeSchema("#/components/schemas/SigningKey"))
+	registry.RegisterSchema("SigningKeyListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/SigningKey"))
+	registry.RegisterSchema("SigningKeyTransitionRequest", objectSchema(map[string]any{
+		"reason": map[string]any{"type": "string"},
+	}))
+	registry.RegisterSchema("CreateSigningProviderRequest", objectSchema(map[string]any{
+		"name":      map[string]any{"type": "string"},
+		"type":      map[string]any{"type": "string"},
+		"key_ref":   map[string]any{"type": "string"},
+		"encrypted": map[string]any{"type": "boolean"},
+	}, "name", "type", "key_ref"))
+	registry.RegisterSchema("SigningProvider", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"name":           map[string]any{"type": "string"},
+		"type":           map[string]any{"type": "string"},
+		"status":         map[string]any{"type": "string"},
+		"key_ref":        map[string]any{"type": "string"},
+		"encrypted":      map[string]any{"type": "boolean"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "name", "type", "status", "key_ref", "encrypted", "schema_version", "created_at"))
+	registry.RegisterSchema("SigningProviderEnvelope", dataEnvelopeSchema("#/components/schemas/SigningProvider"))
+	registry.RegisterSchema("CreateSigningOperationRequest", objectSchema(map[string]any{
+		"provider_id":        map[string]any{"type": "string"},
+		"subject_type":       map[string]any{"type": "string"},
+		"subject_id":         map[string]any{"type": "string"},
+		"payload_hash":       map[string]any{"type": "string", "pattern": "^sha256:"},
+		"external_signature": map[string]any{"type": "string"},
+	}, "provider_id", "subject_type", "subject_id", "payload_hash"))
+	registry.RegisterSchema("SigningOperation", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"provider_id":    map[string]any{"type": "string"},
+		"subject_type":   map[string]any{"type": "string"},
+		"subject_id":     map[string]any{"type": "string"},
+		"payload_hash":   map[string]any{"type": "string", "pattern": "^sha256:"},
+		"signature_ref":  map[string]any{"type": "string"},
+		"result":         map[string]any{"type": "string"},
+		"checks":         map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/VerifyCheck"}},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "provider_id", "subject_type", "subject_id", "payload_hash", "result", "checks", "schema_version", "created_at"))
+	registry.RegisterSchema("SigningOperationEnvelope", dataEnvelopeSchema("#/components/schemas/SigningOperation"))
 	registry.RegisterSchema("ReadinessReport", objectSchema(map[string]any{
 		"report_type":      map[string]any{"type": "string"},
 		"template_version": map[string]any{"type": "string"},
