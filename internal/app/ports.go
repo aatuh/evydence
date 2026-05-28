@@ -29,6 +29,10 @@ type OIDCDiscoveryClient interface {
 	FetchOIDCTrustMaterial(context.Context, OIDCDiscoveryRequest) (OIDCDiscoveryResult, error)
 }
 
+type TransparencyProofFetcher interface {
+	FetchTransparencyProof(context.Context, TransparencyProofRequest) (TransparencyProofResult, error)
+}
+
 type Outbox interface {
 	Enqueue(context.Context, OutboxJob) error
 }
@@ -61,6 +65,26 @@ type OIDCDiscoveryResult struct {
 	JWKS        map[string]any
 	Checks      []domain.VerifyCheck
 	Limitations []string
+}
+
+type TransparencyProofRequest struct {
+	TenantID   string
+	LogID      string
+	EntryID    string
+	Endpoint   string
+	ExternalID string
+	EntryHash  string
+}
+
+type TransparencyProofResult struct {
+	ExternalID     string
+	LeafHash       string
+	RootHash       string
+	LeafIndex      int
+	TreeSize       int
+	InclusionProof []string
+	Checks         []domain.VerifyCheck
+	Limitations    []string
 }
 
 type ObjectRetentionRequest struct {

@@ -3,7 +3,7 @@
 This generated reference inventories Evydence `/v1` route contract precision from `openapi.yaml`.
 It is a planning aid for production contract hardening; `broad` means the route still uses a shared envelope, unspecified body, or generic schema where an endpoint-specific contract should be considered.
 
-Generated from 164 operations: 164 precise, 0 broad.
+Generated from 165 operations: 165 precise, 0 broad.
 
 | Method | Path | Operation | Auth | Scopes | Idempotency | Params | Request | 2xx Response | Precision |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -95,6 +95,7 @@ Generated from 164 operations: 164 precise, 0 broad.
 | POST | /v1/projects | createProject | Bearer | project:write | required | - | application/json:CreateProjectRequest | 201:application/json:ProjectEnvelope | precise |
 | POST | /v1/provider-verifications | verifyProviderIdentity | Bearer | identity:admin | required | - | application/json:VerifyProviderIdentityRequest | 201:application/json:ProviderVerificationEnvelope | precise |
 | POST | /v1/public-transparency-log-entries | publishPublicTransparencyLogEntry | Bearer | keys:admin | required | - | application/json:PublishPublicTransparencyLogEntryRequest | 201:application/json:PublicTransparencyLogEntryEnvelope | precise |
+| POST | /v1/public-transparency-log-entries/{id}/fetch-proof | fetchPublicTransparencyLogEntryProof | Bearer | keys:admin | required | path:id | application/json:EmptyObject | 200:application/json:PublicTransparencyLogEntryEnvelope | precise |
 | POST | /v1/public-transparency-log-entries/{id}/verify | verifyPublicTransparencyLogEntry | Bearer | keys:admin | required | path:id | application/json:VerifyPublicTransparencyLogEntryRequest | 200:application/json:PublicTransparencyLogEntryEnvelope | precise |
 | POST | /v1/public-transparency-logs | createPublicTransparencyLog | Bearer | keys:admin | required | - | application/json:CreatePublicTransparencyLogRequest | 201:application/json:PublicTransparencyLogEnvelope | precise |
 | POST | /v1/questionnaire-drafts | createQuestionnaireDraft | Bearer | package:read | required | - | application/json:CreateQuestionnaireDraftRequest | 201:application/json:QuestionnaireDraftEnvelope | precise |

@@ -45,7 +45,7 @@ This repository contains a Go implementation under module `github.com/aatuh/evyd
 - AGPL license, commercial licensing, governance, contribution, security,
   support, trademark, release-evidence, and changelog metadata.
 
-Implemented-but-partial areas are documented explicitly: signing-provider operation receipts do not replace direct production KMS/HSM SDK adapters, OIDC discovery refreshes public JWKS trust material but does not replace full browser login callbacks or provider API validation, and public transparency records verify operator-supplied inclusion proof material without fetching live provider proofs.
+Implemented-but-partial areas are documented explicitly: signing-provider operation receipts do not replace direct production KMS/HSM SDK adapters, OIDC discovery refreshes public JWKS trust material but does not replace full browser login callbacks or provider API validation, and public transparency records can verify operator-supplied or fetched inclusion proof material without replacing provider-specific trust review.
 
 ## License, Security, Support, And Governance
 

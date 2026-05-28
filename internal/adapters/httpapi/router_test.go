@@ -177,6 +177,9 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	verifyProvider := operationMap(t, paths, "/v1/provider-verifications", "post")
 	assertRequestRef(t, verifyProvider, "#/components/schemas/VerifyProviderIdentityRequest")
 	assertResponseRef(t, verifyProvider, "201", "#/components/schemas/ProviderVerificationEnvelope")
+	fetchTransparencyProof := operationMap(t, paths, "/v1/public-transparency-log-entries/{id}/fetch-proof", "post")
+	assertRequestRef(t, fetchTransparencyProof, "#/components/schemas/EmptyObject")
+	assertResponseRef(t, fetchTransparencyProof, "200", "#/components/schemas/PublicTransparencyLogEntryEnvelope")
 	verifyBundle := operationMap(t, paths, "/v1/release-bundles/{id}/verify", "get")
 	assertQueryParams(t, verifyBundle, "id")
 	assertResponseRef(t, verifyBundle, "200", "#/components/schemas/VerificationResultEnvelope")
@@ -212,6 +215,33 @@ func TestSSOProviderOIDCDiscoveryRefreshRoute(t *testing.T) {
 	}
 	if discovery.request.ProviderID != providerID || discovery.request.Issuer != "https://idp.example.test" {
 		t.Fatalf("discovery request = %#v", discovery.request)
+	}
+}
+
+func TestPublicTransparencyProofFetchRoute(t *testing.T) {
+	fetcher := &fakeTransparencyProofHTTP{}
+	ledger := app.NewLedger(app.Config{APIKeyPepper: "test", Transparency: fetcher})
+	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	server, err := NewServer(ledger)
+	if err != nil {
+		t.Fatalf("server: %v", err)
+	}
+	logBody := postJSON(t, server, secret, "/v1/public-transparency-logs", "fetch-log", map[string]any{"name": "public", "endpoint": "https://transparency.example.test", "public_key": "pub"}, http.StatusCreated)
+	batchBody := postJSON(t, server, secret, "/v1/merkle-batches", "fetch-batch", map[string]any{}, http.StatusCreated)
+	checkpointBody := postJSON(t, server, secret, "/v1/transparency-checkpoints", "fetch-checkpoint", map[string]any{"batch_id": dataField(t, batchBody, "id"), "provider": "internal", "external_id": "ts"}, http.StatusCreated)
+	entryBody := postJSON(t, server, secret, "/v1/public-transparency-log-entries", "fetch-entry", map[string]any{"log_id": dataField(t, logBody, "id"), "checkpoint_id": dataField(t, checkpointBody, "id"), "external_id": "entry"}, http.StatusCreated)
+	entryID := dataField(t, entryBody, "id")
+	entryHash := dataField(t, entryBody, "entry_hash")
+	fetcher.result = app.TransparencyProofResult{ExternalID: "entry", RootHash: entryHash, LeafIndex: 0, TreeSize: 1, InclusionProof: []string{}}
+	fetched := postJSON(t, server, secret, "/v1/public-transparency-log-entries/"+entryID+"/fetch-proof", "fetch-proof", map[string]any{}, http.StatusOK)
+	if !strings.Contains(fetched, `"state":"inclusion_verified"`) || !strings.Contains(fetched, `"public_log_proof_source"`) {
+		t.Fatalf("fetched transparency proof response: %s", fetched)
+	}
+	if fetcher.request.ExternalID != "entry" || fetcher.request.EntryHash != entryHash {
+		t.Fatalf("fetch request = %#v", fetcher.request)
 	}
 }
 
@@ -1221,6 +1251,20 @@ func (f *fakeOIDCDiscoveryHTTP) FetchOIDCTrustMaterial(_ context.Context, req ap
 	f.request = req
 	if f.err != nil {
 		return app.OIDCDiscoveryResult{}, f.err
+	}
+	return f.result, nil
+}
+
+type fakeTransparencyProofHTTP struct {
+	request app.TransparencyProofRequest
+	result  app.TransparencyProofResult
+	err     error
+}
+
+func (f *fakeTransparencyProofHTTP) FetchTransparencyProof(_ context.Context, req app.TransparencyProofRequest) (app.TransparencyProofResult, error) {
+	f.request = req
+	if f.err != nil {
+		return app.TransparencyProofResult{}, f.err
 	}
 	return f.result, nil
 }

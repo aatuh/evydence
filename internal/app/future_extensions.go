@@ -63,6 +63,7 @@ type VerifyPublicTransparencyLogEntryInput struct {
 	LeafIndex      int
 	TreeSize       int
 	InclusionProof []string
+	Source         string
 }
 
 type CreateMarketplaceCollectorInput struct {
@@ -458,6 +459,10 @@ func (l *Ledger) VerifyPublicTransparencyLogEntry(ctx context.Context, actor dom
 		{Name: "public_log_leaf_binding", Result: checkResultString(leafBound), Detail: "The supplied leaf hash must match the published Evydence entry hash."},
 		{Name: "public_log_inclusion_proof", Result: checkResultString(proofOK), Detail: "The supplied proof must recompute the supplied public-log root hash."},
 	}
+	source := strings.TrimSpace(in.Source)
+	if source == "fetched" {
+		checks = append(checks, domain.VerifyCheck{Name: "public_log_proof_source", Result: "passed", Detail: "Inclusion proof material was fetched through the configured transparency proof fetcher."})
+	}
 	proofHash, err := canonicalAnyHash(struct {
 		EntryID        string   `json:"entry_id"`
 		LeafHash       string   `json:"leaf_hash"`
@@ -465,6 +470,7 @@ func (l *Ledger) VerifyPublicTransparencyLogEntry(ctx context.Context, actor dom
 		LeafIndex      int      `json:"leaf_index"`
 		TreeSize       int      `json:"tree_size"`
 		InclusionProof []string `json:"inclusion_proof"`
+		Source         string   `json:"source,omitempty"`
 	}{
 		EntryID:        entry.ID,
 		LeafHash:       leafHash,
@@ -472,6 +478,7 @@ func (l *Ledger) VerifyPublicTransparencyLogEntry(ctx context.Context, actor dom
 		LeafIndex:      in.LeafIndex,
 		TreeSize:       in.TreeSize,
 		InclusionProof: append([]string(nil), in.InclusionProof...),
+		Source:         source,
 	})
 	if err != nil {
 		return domain.PublicTransparencyLogEntry{}, err
@@ -482,8 +489,11 @@ func (l *Ledger) VerifyPublicTransparencyLogEntry(ctx context.Context, actor dom
 	entry.InclusionVerifiedAt = &now
 	entry.VerificationChecks = checks
 	entry.VerificationLimitations = []string{
-		"Evydence verifies the supplied RFC6962-style proof material locally; it does not fetch proof material or prove public-log availability.",
+		"Evydence verifies RFC6962-style proof material locally; the material may be supplied by an operator or fetched through a configured transparency proof fetcher.",
 		"Operators remain responsible for public-log trust, endpoint availability, and any provider-specific inclusion semantics.",
+	}
+	if source == "fetched" {
+		entry.VerificationLimitations = append(entry.VerificationLimitations, "Fetched proof material is trusted only as input to local verification; provider identity and availability remain deployment responsibilities.")
 	}
 	entry.State = "inclusion_verified"
 	if !proofOK {
@@ -502,6 +512,61 @@ func (l *Ledger) VerifyPublicTransparencyLogEntry(ctx context.Context, actor dom
 		return domain.PublicTransparencyLogEntry{}, err
 	}
 	return entry, nil
+}
+
+func (l *Ledger) FetchAndVerifyPublicTransparencyLogEntry(ctx context.Context, actor domain.Actor, id string) (domain.PublicTransparencyLogEntry, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.PublicTransparencyLogEntry{}, err
+	}
+	if err := require(actor, ScopeKeysAdmin); err != nil {
+		return domain.PublicTransparencyLogEntry{}, err
+	}
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return domain.PublicTransparencyLogEntry{}, ErrValidation
+	}
+	fetcher := l.transparencyProofs
+	if fetcher == nil {
+		return domain.PublicTransparencyLogEntry{}, ErrValidation
+	}
+	l.mu.Lock()
+	entry, ok := l.publicLogEntries[id]
+	if !ok || entry.TenantID != actor.TenantID {
+		l.mu.Unlock()
+		return domain.PublicTransparencyLogEntry{}, ErrNotFound
+	}
+	logRecord, ok := l.publicLogs[entry.LogID]
+	if !ok || logRecord.TenantID != actor.TenantID {
+		l.mu.Unlock()
+		return domain.PublicTransparencyLogEntry{}, ErrNotFound
+	}
+	l.mu.Unlock()
+
+	proof, err := fetcher.FetchTransparencyProof(ctx, TransparencyProofRequest{
+		TenantID:   actor.TenantID,
+		LogID:      logRecord.ID,
+		EntryID:    entry.ID,
+		Endpoint:   logRecord.Endpoint,
+		ExternalID: entry.ExternalID,
+		EntryHash:  entry.EntryHash,
+	})
+	if err != nil {
+		return domain.PublicTransparencyLogEntry{}, ErrVerificationFailed
+	}
+	if proof.ExternalID != "" && proof.ExternalID != entry.ExternalID {
+		return domain.PublicTransparencyLogEntry{}, ErrVerificationFailed
+	}
+	if strings.TrimSpace(proof.LeafHash) == "" {
+		proof.LeafHash = entry.EntryHash
+	}
+	return l.VerifyPublicTransparencyLogEntry(ctx, actor, entry.ID, VerifyPublicTransparencyLogEntryInput{
+		LeafHash:       proof.LeafHash,
+		RootHash:       proof.RootHash,
+		LeafIndex:      proof.LeafIndex,
+		TreeSize:       proof.TreeSize,
+		InclusionProof: proof.InclusionProof,
+		Source:         "fetched",
+	})
 }
 
 func verifyRFC6962StyleProof(leafHash, rootHash string, leafIndex, treeSize int, proof []string) bool {

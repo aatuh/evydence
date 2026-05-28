@@ -1,5 +1,5 @@
 {
-  "route_count": 164,
+  "route_count": 165,
   "routes": [
     {
       "idempotency_key_required": false,
@@ -1483,6 +1483,23 @@
       ],
       "success_statuses": [
         "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "fetchPublicTransparencyLogEntryProof",
+      "path": "/v1/public-transparency-log-entries/{id}/fetch-proof",
+      "request_schema": "#/components/schemas/EmptyObject",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/PublicTransparencyLogEntryEnvelope"
+      ],
+      "scopes": [
+        "keys:admin"
+      ],
+      "success_statuses": [
+        "200"
       ]
     },
     {
