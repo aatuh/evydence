@@ -19,10 +19,14 @@ Known hardening work remains:
 - worker parser jobs re-read raw object-store payloads for key formats and
   validate durable state, but parser side effects still need to move
   independently out of the request path;
-- OpenAPI schemas need endpoint-specific precision across the full public API;
-- GitHub CI enforces live PostgreSQL release checks and the default 80 percent
-  production coverage threshold, but the broader production exit review remains
-  incomplete.
+- OpenAPI schemas need endpoint-specific precision across the full public API.
+  The current generated matrix is the source of truth for precise versus broad
+  operations;
+- production KMS/HSM execution, full browser OIDC/SAML login flows, provider
+  discovery/group sync, object-lock enforcement proof, and transparency
+  inclusion proof verification remain provider- and deployment-dependent
+  hardening areas;
+- the broader production exit review remains incomplete.
 
 ## Production Profiles
 
@@ -46,6 +50,8 @@ The gate requires:
 - `EVYDENCE_TEST_DATABASE_URL` set to a disposable PostgreSQL database;
 - `make release-check` passing without skipped live PostgreSQL checks;
 - `make coverage-check` passing at the configured threshold;
+- migration compatibility from every committed migration prefix to the current
+  schema passing in temporary PostgreSQL schemas;
 - release artifact signing smoke test passing with local temporary keys;
 - generated release evidence summary available under `tmp/`.
 
@@ -67,11 +73,41 @@ Do not describe an Evydence build as broadly self-hosted production-ready until:
 - `make production-check` passes in CI with live PostgreSQL;
 - coverage is at or above the configured threshold;
 - release artifacts have signed manifests and published checksums;
+- committed migrations have passed compatibility checks from every migration
+  prefix to the current schema;
 - the built-in local restore rehearsal passes and backup/restore have been
   tested for the target deployment profile;
-- OpenAPI and SDK drift checks pass;
+- OpenAPI and SDK drift checks pass, and route-contract gaps are accepted in
+  release notes or closed with endpoint-specific schemas;
 - production hardening review is current;
 - unresolved limitations are documented in release notes.
+
+## Remaining Production Maturity Backlog
+
+These items are tracked separately from the feature-completeness checklist in
+`.implementation_increments.md` because they are hardening work on already
+implemented capabilities:
+
+- Replace canonical snapshot writes with dependency-ordered relational
+  repositories for identity, idempotency, evidence, audit-chain entries,
+  bundles, reports, packages, and secondary resources. Keep snapshots only for
+  export/import and upgrade compatibility.
+- Split the large application ledger aggregate into focused services or
+  repositories once relational writes are in place, preserving tenant isolation
+  and append-only behavior throughout.
+- Move parser-owned side effects for SBOM, vulnerability scan, OpenAPI, VEX,
+  and attestation payloads fully into worker processors while keeping upload
+  responses backward compatible.
+- Continue reducing broad OpenAPI operations until production-critical and
+  customer/package-facing routes have endpoint-specific schemas.
+- Add production signing-provider execution for a configured external provider
+  profile without storing private key material in Evydence.
+- Complete live OIDC/SAML browser login callbacks, provider discovery, JWKS
+  refresh, logout, and optional group mapping where those profiles are enabled.
+- Add provider-backed object-lock/WORM verification and optional transparency
+  inclusion proof verification for deployments that require those controls.
+- Run final product, codebase, security, documentation, and test audits before
+  changing release status beyond controlled self-hosted production candidate.
 
 Operators remain responsible for secret management, TLS, network policy,
 database and object-store durability, backups, restore rehearsals, monitoring,
