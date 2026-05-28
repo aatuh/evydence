@@ -394,7 +394,7 @@ func (l *Ledger) Authenticate(ctx context.Context, secret string) (domain.Actor,
 		if !ok || user.TenantID != session.TenantID || user.Status != "active" {
 			return domain.Actor{}, ErrUnauthorized
 		}
-		grants := l.resourceGrantsForUserLocked(user.ID)
+		grants := append(l.resourceGrantsForUserLocked(user.ID), l.resourceGrantsForSSOSessionLocked(session)...)
 		scopes := scopesFromResourceGrants(grants)
 		if len(scopes) == 0 {
 			return domain.Actor{}, ErrForbidden

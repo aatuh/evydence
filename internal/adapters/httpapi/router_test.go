@@ -239,7 +239,7 @@ func TestSSOCredentialExchangeRouteSetsSessionCookie(t *testing.T) {
 		t.Fatalf("auth: %v", err)
 	}
 	jwks := map[string]any{"keys": []any{map[string]any{"kty": "OKP", "crv": "Ed25519", "kid": "kid-login", "x": base64.RawURLEncoding.EncodeToString(pub)}}}
-	provider, err := ledger.CreateSSOProvider(t.Context(), admin, app.CreateSSOProviderInput{Name: "OIDC", Type: "oidc", Issuer: "https://idp.example.test", ClientID: "client", JWKS: jwks})
+	provider, err := ledger.CreateSSOProvider(t.Context(), admin, app.CreateSSOProviderInput{Name: "OIDC", Type: "oidc", Issuer: "https://idp.example.test", ClientID: "client", GroupsClaim: "groups", RoleMapping: map[string]string{"security": "security_engineer"}, JWKS: jwks})
 	if err != nil {
 		t.Fatalf("provider: %v", err)
 	}
@@ -254,14 +254,11 @@ func TestSSOCredentialExchangeRouteSetsSessionCookie(t *testing.T) {
 	if _, err := ledger.LinkSSOIdentity(t.Context(), admin, app.LinkSSOIdentityInput{UserID: user.ID, ProviderID: provider.ID, Subject: "sub-1", Email: user.Email, Verified: true}); err != nil {
 		t.Fatalf("link: %v", err)
 	}
-	if _, err := ledger.CreateRoleBinding(t.Context(), admin, app.CreateRoleBindingInput{SubjectType: "user", SubjectID: user.ID, Role: "security_engineer"}); err != nil {
-		t.Fatalf("role binding: %v", err)
-	}
 	server, err := NewServer(ledger)
 	if err != nil {
 		t.Fatalf("server: %v", err)
 	}
-	idToken := signedRouterIDToken(t, priv, "kid-login", map[string]any{"iss": provider.Issuer, "aud": provider.ClientID, "sub": "sub-1", "email": user.Email, "email_verified": true, "exp": time.Now().Add(time.Hour).Unix()})
+	idToken := signedRouterIDToken(t, priv, "kid-login", map[string]any{"iss": provider.Issuer, "aud": provider.ClientID, "sub": "sub-1", "email": user.Email, "email_verified": true, "groups": []string{"security"}, "exp": time.Now().Add(time.Hour).Unix()})
 	body, err := json.Marshal(map[string]any{"provider_id": provider.ID, "subject": "sub-1", "id_token": idToken})
 	if err != nil {
 		t.Fatalf("marshal body: %v", err)

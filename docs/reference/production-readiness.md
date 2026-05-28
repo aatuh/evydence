@@ -48,9 +48,11 @@ Known hardening work remains:
   broad object-lock enforcement proof remain provider- and deployment-dependent
   hardening areas. SSO credential exchange can issue bearer sessions and
   HttpOnly cookies after local OIDC/SAML verification against configured trust
-  material, and public transparency proof material can be fetched from a
-  configured endpoint and verified locally, but provider-specific trust
-  semantics and availability remain deployment responsibilities;
+  material, OIDC group claim values can map to session-scoped roles without
+  creating permanent role bindings, and public transparency proof material can
+  be fetched from a configured endpoint and verified locally, but
+  provider-specific trust semantics and availability remain deployment
+  responsibilities;
 - the broader production exit review remains incomplete.
 
 ## Production Profiles
@@ -153,8 +155,8 @@ implemented capabilities:
   trust-material updates, manual JWKS and SAML signing-certificate rotation is
   implemented through the SSO provider trust-material endpoint, SSO credential
   exchange can issue bearer sessions plus HttpOnly cookies after local token or
-  assertion verification, and API-first session logout can revoke the current
-  SSO bearer session.
+  assertion verification, OIDC group claim values can map to session-scoped
+  roles, and API-first session logout can revoke the current SSO bearer session.
 - Extend object-lock/WORM verification beyond the current S3/MinIO bucket-level
   checks plus optional sample-object retention checks where deployments require
   broader object-level legal hold proofs or provider policy evidence.

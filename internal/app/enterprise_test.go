@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"crypto/ed25519"
@@ -287,7 +288,7 @@ func TestExchangeSSOCredentialIssuesSessionFromVerifiedOIDCToken(t *testing.T) {
 		t.Fatalf("keygen: %v", err)
 	}
 	jwks := map[string]any{"keys": []any{map[string]any{"kty": "OKP", "crv": "Ed25519", "kid": "kid-login", "alg": "EdDSA", "x": base64.RawURLEncoding.EncodeToString(pub)}}}
-	provider, err := ledger.CreateSSOProvider(ctx, actor, CreateSSOProviderInput{Name: "OIDC Login", Type: "oidc", Issuer: "https://login-idp.example.test", ClientID: "login-client", JWKS: jwks})
+	provider, err := ledger.CreateSSOProvider(ctx, actor, CreateSSOProviderInput{Name: "OIDC Login", Type: "oidc", Issuer: "https://login-idp.example.test", ClientID: "login-client", GroupsClaim: "groups", RoleMapping: map[string]string{"security": "security_engineer"}, JWKS: jwks})
 	if err != nil {
 		t.Fatalf("sso provider: %v", err)
 	}
@@ -302,22 +303,20 @@ func TestExchangeSSOCredentialIssuesSessionFromVerifiedOIDCToken(t *testing.T) {
 	if _, err := ledger.LinkSSOIdentity(ctx, actor, LinkSSOIdentityInput{UserID: user.ID, ProviderID: provider.ID, Subject: "login-sub", Email: user.Email, Verified: true}); err != nil {
 		t.Fatalf("identity link: %v", err)
 	}
-	if _, err := ledger.CreateRoleBinding(ctx, actor, CreateRoleBindingInput{SubjectType: "user", SubjectID: user.ID, Role: "security_engineer"}); err != nil {
-		t.Fatalf("role binding: %v", err)
-	}
 	idToken := signedTestIDToken(t, priv, "kid-login", map[string]any{
 		"iss":            provider.Issuer,
 		"aud":            provider.ClientID,
 		"sub":            "login-sub",
 		"email":          user.Email,
 		"email_verified": true,
+		"groups":         []string{"security"},
 		"exp":            fixedNow().Add(time.Hour).Unix(),
 	})
 	verification, session, secret, err := ledger.ExchangeSSOCredential(ctx, ExchangeSSOCredentialInput{ProviderID: provider.ID, Subject: "login-sub", IDToken: idToken})
 	if err != nil {
 		t.Fatalf("exchange credential: %v", err)
 	}
-	if verification.Result != "passed" || session.UserID != user.ID || session.ProviderID != provider.ID || secret == "" || session.Hash != "" {
+	if verification.Result != "passed" || session.UserID != user.ID || session.ProviderID != provider.ID || secret == "" || session.Hash != "" || len(session.Groups) != 1 || session.Groups[0] != "security" {
 		t.Fatalf("exchange result verification=%#v session=%#v secret=%q", verification, session, secret)
 	}
 	sessionActor, err := ledger.Authenticate(ctx, secret)
@@ -335,6 +334,65 @@ func TestExchangeSSOCredentialIssuesSessionFromVerifiedOIDCToken(t *testing.T) {
 		if strings.Contains(check.Detail, idToken) {
 			t.Fatalf("exchange leaked token in check detail: %#v", bad)
 		}
+	}
+}
+
+func TestExchangeSSOCredentialRejectsSessionWithoutAuthorizationGrant(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	_, _, _, actor := bootstrapEnterpriseTestTenant(t, ledger)
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("keygen: %v", err)
+	}
+	jwks := map[string]any{"keys": []any{map[string]any{"kty": "OKP", "crv": "Ed25519", "kid": "kid-no-grant", "alg": "EdDSA", "x": base64.RawURLEncoding.EncodeToString(pub)}}}
+	provider, err := ledger.CreateSSOProvider(ctx, actor, CreateSSOProviderInput{Name: "OIDC Login", Type: "oidc", Issuer: "https://login-idp.example.test", ClientID: "login-client", GroupsClaim: "groups", RoleMapping: map[string]string{"security": "security_engineer"}, JWKS: jwks})
+	if err != nil {
+		t.Fatalf("sso provider: %v", err)
+	}
+	org, err := ledger.CreateOrganization(ctx, actor, CreateOrganizationInput{Name: "Login Example", Slug: "login-example-no-grant"})
+	if err != nil {
+		t.Fatalf("org: %v", err)
+	}
+	user, err := ledger.CreateUser(ctx, actor, CreateUserInput{OrganizationID: org.ID, Email: "nogrant@example.test", DisplayName: "No Grant User"})
+	if err != nil {
+		t.Fatalf("user: %v", err)
+	}
+	if _, err := ledger.LinkSSOIdentity(ctx, actor, LinkSSOIdentityInput{UserID: user.ID, ProviderID: provider.ID, Subject: "login-sub", Email: user.Email, Verified: true}); err != nil {
+		t.Fatalf("identity link: %v", err)
+	}
+	idToken := signedTestIDToken(t, priv, "kid-no-grant", map[string]any{
+		"iss":            provider.Issuer,
+		"aud":            provider.ClientID,
+		"sub":            "login-sub",
+		"email":          user.Email,
+		"email_verified": true,
+		"groups":         []string{"unmapped"},
+		"exp":            fixedNow().Add(time.Hour).Unix(),
+	})
+	verification, session, secret, err := ledger.ExchangeSSOCredential(ctx, ExchangeSSOCredentialInput{ProviderID: provider.ID, Subject: "login-sub", IDToken: idToken})
+	if !errors.Is(err, ErrForbidden) || verification.Result != "failed" || session.ID != "" || secret != "" {
+		t.Fatalf("exchange without grant verification=%#v session=%#v secret=%q err=%v", verification, session, secret, err)
+	}
+	if !hasVerifyCheck(verification.Checks, "authorization_grant", "failed") {
+		t.Fatalf("verification missing authorization_grant failure: %#v", verification)
+	}
+}
+
+func TestOIDCGroupClaimHelpersNormalizeSupportedClaimShapes(t *testing.T) {
+	token := signedTestIDToken(t, ed25519.NewKeyFromSeed(bytes.Repeat([]byte{1}, ed25519.SeedSize)), "kid", map[string]any{
+		"groups": []string{"security", "release", "security", " "},
+	})
+	provider := domain.SSOProvider{Type: "oidc", GroupsClaim: "groups"}
+	groups := oidcGroupsFromVerifiedToken(provider, token)
+	if strings.Join(groups, ",") != "release,security" {
+		t.Fatalf("groups = %#v", groups)
+	}
+	if got := stringClaimValues("security"); len(got) != 1 || got[0] != "security" {
+		t.Fatalf("string claim values = %#v", got)
+	}
+	if grants := resourceGrantsForProviderGroups(domain.SSOProvider{GroupsClaim: "groups", RoleMapping: map[string]string{"security": "security_engineer", "bad": "not-a-role"}}, []string{"bad", "security"}); len(grants) != 1 || grants[0].Role != "security_engineer" {
+		t.Fatalf("mapped grants = %#v", grants)
 	}
 }
 

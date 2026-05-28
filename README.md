@@ -45,7 +45,7 @@ This repository contains a Go implementation under module `github.com/aatuh/evyd
 - AGPL license, commercial licensing, governance, contribution, security,
   support, trademark, release-evidence, and changelog metadata.
 
-Implemented-but-partial areas are documented explicitly: signing-provider operation receipts do not replace direct production KMS/HSM SDK adapters, SSO credential exchange uses configured local OIDC/SAML trust material but does not replace live provider API validation or group synchronization, and public transparency records can verify operator-supplied or fetched inclusion proof material without replacing provider-specific trust review.
+Implemented-but-partial areas are documented explicitly: signing-provider operation receipts do not replace direct production KMS/HSM SDK adapters, SSO credential exchange uses configured local OIDC/SAML trust material and session-scoped OIDC group-role mappings but does not replace live provider API validation or external group synchronization, and public transparency records can verify operator-supplied or fetched inclusion proof material without replacing provider-specific trust review.
 
 ## License, Security, Support, And Governance
 

@@ -1321,6 +1321,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"user_id":        map[string]any{"type": "string"},
 		"provider_id":    map[string]any{"type": "string"},
 		"prefix":         map[string]any{"type": "string", "description": "Non-secret session token prefix for audit displays."},
+		"groups":         map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Provider group claim values captured for session-scoped role mapping."},
 		"expires_at":     map[string]any{"type": "string", "format": "date-time"},
 		"revoked_at":     map[string]any{"type": "string", "format": "date-time"},
 		"schema_version": map[string]any{"type": "string"},

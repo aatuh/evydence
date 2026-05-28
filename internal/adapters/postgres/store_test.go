@@ -161,7 +161,7 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 			"link_test": {ID: "link_test", TenantID: "ten_test", UserID: "user_test", ProviderID: "sso_test", Subject: "sub", Email: "user@example.test", Verified: true, SchemaVersion: "user-identity-link.v1.0.0", CreatedAt: time.Now().UTC()},
 		},
 		SSOSessions: map[string]domain.SSOSession{
-			"sess_test": {ID: "sess_test", TenantID: "ten_test", UserID: "user_test", ProviderID: "sso_test", Prefix: "sess", ExpiresAt: time.Now().UTC().Add(time.Hour), SchemaVersion: domain.SSOSessionSchemaVersion, CreatedAt: time.Now().UTC()},
+			"sess_test": {ID: "sess_test", TenantID: "ten_test", UserID: "user_test", ProviderID: "sso_test", Prefix: "sess", Groups: []string{"security"}, ExpiresAt: time.Now().UTC().Add(time.Hour), SchemaVersion: domain.SSOSessionSchemaVersion, CreatedAt: time.Now().UTC()},
 		},
 		SSOSessionHashes: map[string]string{"sess_test": "session-hash"},
 		CustomerPortalAccess: map[string]domain.CustomerPortalAccess{
@@ -600,7 +600,7 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	if relational.SSOProviders["sso_test"].TrustMaterialUpdatedAt == nil || len(relational.SSOProviders["sso_test"].JWKS) == 0 || !relational.IdentityLinks["link_test"].Verified {
 		t.Fatalf("relational sso rows missing: provider=%#v link=%#v", relational.SSOProviders["sso_test"], relational.IdentityLinks["link_test"])
 	}
-	if relational.SSOSessionHashes["sess_test"] != "session-hash" || relational.SSOSessions["sess_test"].Prefix != "sess" {
+	if relational.SSOSessionHashes["sess_test"] != "session-hash" || relational.SSOSessions["sess_test"].Prefix != "sess" || len(relational.SSOSessions["sess_test"].Groups) != 1 || relational.SSOSessions["sess_test"].Groups[0] != "security" {
 		t.Fatalf("relational sso session = %#v hash=%q", relational.SSOSessions["sess_test"], relational.SSOSessionHashes["sess_test"])
 	}
 	if relational.Collectors["collector_test"].APIKeyID != "key_test" || relational.BuildRuns["build_test"].Status != "passed" || len(relational.BuildAttestations["att_test"].SubjectDigests) != 1 {

@@ -428,7 +428,7 @@ func (s *Store) loadRelationalIdentityLinks(ctx context.Context, state *app.Pers
 }
 
 func (s *Store) loadRelationalSSOSessions(ctx context.Context, state *app.PersistedState, loaded *bool) error {
-	rows, err := s.pool.Query(ctx, `SELECT id, tenant_id, user_id, provider_id, prefix, hash, expires_at, revoked_at, schema_version, created_at FROM sso_sessions`)
+	rows, err := s.pool.Query(ctx, `SELECT id, tenant_id, user_id, provider_id, prefix, hash, COALESCE(groups, '[]'::jsonb), expires_at, revoked_at, schema_version, created_at FROM sso_sessions`)
 	if err != nil {
 		return fmt.Errorf("load relational sso sessions: %w", err)
 	}
@@ -436,9 +436,15 @@ func (s *Store) loadRelationalSSOSessions(ctx context.Context, state *app.Persis
 	for rows.Next() {
 		var session domain.SSOSession
 		var hash string
+		var groups []byte
 		var revokedAt sql.NullTime
-		if err := rows.Scan(&session.ID, &session.TenantID, &session.UserID, &session.ProviderID, &session.Prefix, &hash, &session.ExpiresAt, &revokedAt, &session.SchemaVersion, &session.CreatedAt); err != nil {
+		if err := rows.Scan(&session.ID, &session.TenantID, &session.UserID, &session.ProviderID, &session.Prefix, &hash, &groups, &session.ExpiresAt, &revokedAt, &session.SchemaVersion, &session.CreatedAt); err != nil {
 			return fmt.Errorf("scan relational sso session: %w", err)
+		}
+		if len(groups) > 0 {
+			if err := json.Unmarshal(groups, &session.Groups); err != nil {
+				return fmt.Errorf("decode relational sso session groups: %w", err)
+			}
 		}
 		session.RevokedAt = nullableSQLTime(revokedAt)
 		state.SSOSessions[session.ID] = session
@@ -4374,19 +4380,24 @@ func syncIdentityAndIdempotency(ctx context.Context, tx pgx.Tx, state app.Persis
 		if hash == "" {
 			hash = session.Hash
 		}
+		groups, err := json.Marshal(session.Groups)
+		if err != nil {
+			return fmt.Errorf("encode sso session groups: %w", err)
+		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO sso_sessions (
-				id, tenant_id, user_id, provider_id, prefix, hash, expires_at,
+				id, tenant_id, user_id, provider_id, prefix, hash, groups, expires_at,
 				revoked_at, schema_version, created_at
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11)
 			ON CONFLICT (id) DO UPDATE SET
 				prefix = EXCLUDED.prefix,
 				hash = EXCLUDED.hash,
+				groups = EXCLUDED.groups,
 				expires_at = EXCLUDED.expires_at,
 				revoked_at = EXCLUDED.revoked_at,
 				schema_version = EXCLUDED.schema_version
-		`, session.ID, session.TenantID, session.UserID, session.ProviderID, session.Prefix, hash, session.ExpiresAt, nullableTime(session.RevokedAt), session.SchemaVersion, nonZeroTime(session.CreatedAt)); err != nil {
+		`, session.ID, session.TenantID, session.UserID, session.ProviderID, session.Prefix, hash, string(groups), session.ExpiresAt, nullableTime(session.RevokedAt), session.SchemaVersion, nonZeroTime(session.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert sso session row: %w", err)
 		}
 	}
