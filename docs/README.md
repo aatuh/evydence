@@ -20,6 +20,7 @@ This documentation is organized by reader task. Implementation claims should be 
 ## Reference
 
 - [Configuration](reference/configuration.md): canonical environment variables and the roles of `.env.example`, `.api.env.example`, and `.test.env.example`.
+- [API contract matrix](reference/api-contract-matrix.md): generated route-by-route contract precision inventory for production hardening.
 - [OpenAPI contract](reference/openapi.md): generation, drift checks, and review tips for `openapi.yaml`.
 - [Observability](reference/observability.md): readiness, admin metrics, Prometheus rules, and dashboard starter assets.
 - [Production readiness](reference/production-readiness.md): self-hosted production profiles, production gates, and exit criteria.

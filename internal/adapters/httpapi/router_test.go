@@ -487,6 +487,7 @@ func TestCollectorBuildAttestationHTTPFlow(t *testing.T) {
 	if attestationReplay != attestationBody {
 		t.Fatalf("attestation idempotency replay changed response\nfirst=%s\nsecond=%s", attestationBody, attestationReplay)
 	}
+	postJSON(t, server, secret, "/v1/build-attestations/"+dataField(t, attestationBody, "id")+"/verify-signature", "prov-attestation-verify", map[string]any{}, http.StatusBadRequest)
 	postRaw(t, server, collectorSecret, "/v1/builds/"+buildID+"/attestations", "prov-bad-attestation", []byte(`{"payloadType":"application/vnd.in-toto+json","payload":"@@@","signatures":[{"sig":"abc"}]}`), http.StatusBadRequest)
 }
 
@@ -536,6 +537,10 @@ func TestControlsAndReportsHTTPFlow(t *testing.T) {
 	replayed := postJSON(t, server, secret, "/v1/control-frameworks", "ctrl-framework", map[string]any{"name": "CRA readiness", "slug": "evydence-cra-readiness", "version": "2026.05"}, http.StatusCreated)
 	if replayed != frameworkBody {
 		t.Fatalf("framework idempotency replay changed response\nfirst=%s\nsecond=%s", frameworkBody, replayed)
+	}
+	frameworks := getJSON(t, server, secret, "/v1/control-frameworks", http.StatusOK)
+	if !strings.Contains(frameworks, frameworkID) {
+		t.Fatalf("framework list missing id %s: %s", frameworkID, frameworks)
 	}
 	postJSON(t, server, secret, "/v1/control-frameworks", "ctrl-framework-conflict", map[string]any{"name": "Changed", "slug": "evydence-cra-readiness", "version": "2026.05"}, http.StatusConflict)
 	controlBody := postJSON(t, server, secret, "/v1/controls", "ctrl-control", map[string]any{
@@ -613,8 +618,11 @@ func TestEvidenceLifecycleSourceDeploymentHTTPFlow(t *testing.T) {
 	}
 	rcBody := postJSON(t, server, secret, "/v1/release-candidates", "inc-rc", map[string]any{"release_id": releaseID, "name": "rc.1", "artifact_ids": []string{artifactID}}, http.StatusCreated)
 	rcID := dataField(t, rcBody, "id")
+	getJSON(t, server, secret, "/v1/release-candidates/"+rcID, http.StatusOK)
 	getJSON(t, server, secret, "/v1/release-candidates?release_id="+releaseID, http.StatusOK)
 	postJSON(t, server, secret, "/v1/release-candidates/"+rcID+"/promote", "inc-rc-promote", map[string]any{"reason": "accepted"}, http.StatusOK)
+	rejectedRCBody := postJSON(t, server, secret, "/v1/release-candidates", "inc-rc-reject", map[string]any{"release_id": releaseID, "name": "rc.reject", "artifact_ids": []string{artifactID}}, http.StatusCreated)
+	postJSON(t, server, secret, "/v1/release-candidates/"+dataField(t, rejectedRCBody, "id")+"/reject", "inc-rc-reject-transition", map[string]any{"reason": "superseded"}, http.StatusOK)
 	postJSON(t, server, secret, "/v1/container-images", "inc-image", map[string]any{"artifact_id": artifactID, "repository": "ghcr.io/example/api", "tag": "3.0.0", "digest": digest, "platform": "linux/amd64"}, http.StatusCreated)
 	sigBody := postJSON(t, server, secret, "/v1/artifact-signatures", "inc-sig", map[string]any{"artifact_id": artifactID, "algorithm": "cosign", "key_id": "test", "signature": "c2ln", "payload": map[string]any{"sig": "c2ln"}}, http.StatusCreated)
 	sigID := dataField(t, sigBody, "id")
@@ -630,6 +638,10 @@ func TestEvidenceLifecycleSourceDeploymentHTTPFlow(t *testing.T) {
 
 	envBody := postJSON(t, server, secret, "/v1/environments", "inc-env", map[string]any{"product_id": productID, "name": "production", "kind": "production"}, http.StatusCreated)
 	envID := dataField(t, envBody, "id")
+	envs := getJSON(t, server, secret, "/v1/environments?product_id="+productID, http.StatusOK)
+	if !strings.Contains(envs, envID) {
+		t.Fatalf("environment list missing id %s: %s", envID, envs)
+	}
 	deploymentBody := postJSON(t, server, secret, "/v1/deployments", "inc-deploy", map[string]any{"environment_id": envID, "release_id": releaseID, "artifact_ids": []string{artifactID}, "status": "succeeded", "started_at": "2026-05-28T12:00:00Z"}, http.StatusCreated)
 	deploymentID := dataField(t, deploymentBody, "id")
 	getJSON(t, server, secret, "/v1/deployments/"+deploymentID, http.StatusOK)
@@ -812,6 +824,7 @@ func TestEnterprisePortalRetentionAndCommercialCollectorHTTPFlow(t *testing.T) {
 	sessionID := dataFieldFromNestedObject(t, sessionBody, "session", "id")
 	postJSON(t, server, secret, "/v1/sso/sessions/"+sessionID+"/revoke", "ent-session-revoke", map[string]any{}, http.StatusOK)
 	getJSON(t, server, sessionSecret, "/v1/admin/instance", http.StatusUnauthorized)
+	postJSON(t, server, secret, "/v1/users/"+userID+"/deactivate", "ent-user-deactivate", map[string]any{}, http.StatusOK)
 }
 
 func TestFutureExtensionAndReadAdminHTTPGaps(t *testing.T) {
