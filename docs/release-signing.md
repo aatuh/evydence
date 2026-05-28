@@ -30,3 +30,12 @@ Sign and verify:
 ```
 
 Production release signing should use controlled key custody and publish the manifest, signature, public key, and image digest references together. Verification proves that the manifest and listed artifact bytes match the signature; it does not prove that a deployment is secure.
+
+For Evydence evidence exports, use the same CLI for offline ledger checks:
+
+```sh
+./dist/evydence verify-evidence-bundle evidence-bundle.json
+./dist/evydence verify-audit-chain audit-chain.json
+```
+
+Evidence-bundle verification checks the canonical manifest hash and, when the export includes `signature_refs`, `signatures`, and `signing_keys`, verifies an included Ed25519 signature over the manifest hash. Audit-chain verification checks local hash continuity for the exported chain. Neither command makes legal compliance, external transparency, or secure-release claims.

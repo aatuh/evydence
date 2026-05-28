@@ -12,6 +12,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestCleanOperatorPathRejectsNUL(t *testing.T) {
@@ -115,6 +116,81 @@ func TestVerifyEvidenceBundle(t *testing.T) {
 	}
 	if err := verifyEvidenceBundle(path); err != nil {
 		t.Fatalf("verify bundle: %v", err)
+	}
+}
+
+func TestVerifyEvidenceBundleChecksIncludedSignature(t *testing.T) {
+	manifest := map[string]any{"bundle_version": "evidence-bundle.v1.0.0", "evidence_ids": []any{"ev_1"}}
+	canonical, err := json.Marshal(manifest)
+	if err != nil {
+		t.Fatalf("marshal manifest: %v", err)
+	}
+	sum := sha256.Sum256(canonical)
+	manifestHash := "sha256:" + hex.EncodeToString(sum[:])
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("keygen: %v", err)
+	}
+	bundleBody, err := json.Marshal(map[string]any{
+		"manifest":       manifest,
+		"manifest_hash":  manifestHash,
+		"signature_refs": []string{"sig_1"},
+		"signatures": []map[string]any{{
+			"id":        "sig_1",
+			"key_id":    "sk_1",
+			"algorithm": "Ed25519",
+			"value":     base64.RawStdEncoding.EncodeToString(ed25519.Sign(priv, []byte(manifestHash))),
+		}},
+		"signing_keys": []map[string]any{{
+			"id":         "sk_1",
+			"algorithm":  "Ed25519",
+			"status":     "active",
+			"public_key": base64.RawStdEncoding.EncodeToString(pub),
+		}},
+	})
+	if err != nil {
+		t.Fatalf("marshal bundle: %v", err)
+	}
+	path := t.TempDir() + "/bundle.json"
+	if err := os.WriteFile(path, bundleBody, 0o600); err != nil {
+		t.Fatalf("write bundle: %v", err)
+	}
+	if err := verifyEvidenceBundle(path); err != nil {
+		t.Fatalf("verify signed bundle: %v", err)
+	}
+	tampered := strings.Replace(string(bundleBody), "sig_1", "sig_2", 1)
+	if err := os.WriteFile(path, []byte(tampered), 0o600); err != nil {
+		t.Fatalf("write tampered bundle: %v", err)
+	}
+	if err := verifyEvidenceBundle(path); err == nil || !strings.Contains(err.Error(), "signature verification failed") {
+		t.Fatalf("tampered signature refs err=%v", err)
+	}
+}
+
+func TestVerifyAuditChainDetectsHashTampering(t *testing.T) {
+	first := testAuditEntry(t, "", 1)
+	second := testAuditEntry(t, first["entry_hash"].(string), 2)
+	path := t.TempDir() + "/chain.json"
+	body, err := json.Marshal(map[string]any{"entries": []map[string]any{first, second}})
+	if err != nil {
+		t.Fatalf("marshal chain: %v", err)
+	}
+	if err := os.WriteFile(path, body, 0o600); err != nil {
+		t.Fatalf("write chain: %v", err)
+	}
+	if err := verifyAuditChain(path); err != nil {
+		t.Fatalf("verify chain: %v", err)
+	}
+	second["previous_entry_hash"] = "sha256:" + strings.Repeat("0", 64)
+	body, err = json.Marshal([]map[string]any{first, second})
+	if err != nil {
+		t.Fatalf("marshal tampered chain: %v", err)
+	}
+	if err := os.WriteFile(path, body, 0o600); err != nil {
+		t.Fatalf("write tampered chain: %v", err)
+	}
+	if err := verifyAuditChain(path); err == nil || !strings.Contains(err.Error(), "previous hash") {
+		t.Fatalf("tampered chain err=%v", err)
 	}
 }
 
@@ -337,6 +413,18 @@ func TestRunCoversHashBundleAndReleaseCommands(t *testing.T) {
 	if err := run([]string{"verify-evidence-bundle", bundlePath}); err != nil {
 		t.Fatalf("run verify evidence bundle: %v", err)
 	}
+	chainPath := dir + "/chain.json"
+	entry := testAuditEntry(t, "", 1)
+	chainBody, err := json.Marshal([]map[string]any{entry})
+	if err != nil {
+		t.Fatalf("marshal chain: %v", err)
+	}
+	if err := os.WriteFile(chainPath, chainBody, 0o600); err != nil {
+		t.Fatalf("write chain: %v", err)
+	}
+	if err := run([]string{"verify-audit-chain", chainPath}); err != nil {
+		t.Fatalf("run verify audit chain: %v", err)
+	}
 }
 
 func TestRunUploadCommandsAndGitHubUsageBranches(t *testing.T) {
@@ -352,4 +440,54 @@ func TestRunUploadCommandsAndGitHubUsageBranches(t *testing.T) {
 	if err := run([]string{"release", "unknown"}); err == nil || !strings.Contains(err.Error(), "usage") {
 		t.Fatalf("release usage err=%v", err)
 	}
+}
+
+func testAuditEntry(t *testing.T, previous string, sequence int64) map[string]any {
+	t.Helper()
+	entry := map[string]any{
+		"tenant_id":            "ten_1",
+		"sequence":             sequence,
+		"entry_type":           "evidence.created",
+		"subject_type":         "evidence",
+		"subject_id":           "ev_1",
+		"actor_type":           "api_key",
+		"actor_id":             "key_1",
+		"occurred_at":          "2026-05-28T12:00:00Z",
+		"payload_hash":         "sha256:" + strings.Repeat("a", 64),
+		"previous_entry_hash":  previous,
+		"signature_ref":        "",
+		"schema_version":       "audit-chain-entry.v1.0.0",
+		"id":                   "ace_1",
+		"canonical_entry_hash": "",
+		"entry_hash":           "",
+	}
+	canonical, err := auditEntryCanonicalHash(offlineAuditChainEntry{
+		TenantID:          entry["tenant_id"].(string),
+		Sequence:          sequence,
+		EntryType:         entry["entry_type"].(string),
+		SubjectType:       entry["subject_type"].(string),
+		SubjectID:         entry["subject_id"].(string),
+		ActorType:         entry["actor_type"].(string),
+		ActorID:           entry["actor_id"].(string),
+		OccurredAt:        mustParseTime(t, entry["occurred_at"].(string)),
+		PayloadHash:       entry["payload_hash"].(string),
+		PreviousEntryHash: previous,
+		SignatureRef:      entry["signature_ref"].(string),
+		SchemaVersion:     entry["schema_version"].(string),
+	})
+	if err != nil {
+		t.Fatalf("canonical audit hash: %v", err)
+	}
+	entry["canonical_entry_hash"] = canonical
+	entry["entry_hash"] = hashString(previous + "\n" + canonical)
+	return entry
+}
+
+func mustParseTime(t *testing.T, value string) time.Time {
+	t.Helper()
+	parsed, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		t.Fatalf("parse time: %v", err)
+	}
+	return parsed
 }
