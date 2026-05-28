@@ -84,6 +84,9 @@ func (s *Store) loadRelationalState(ctx context.Context) (app.PersistedState, bo
 	if err := s.loadRelationalRiskBuildControls(ctx, &state, &loaded); err != nil {
 		return app.PersistedState{}, false, err
 	}
+	if err := s.loadRelationalSourceDeploymentLifecycle(ctx, &state, &loaded); err != nil {
+		return app.PersistedState{}, false, err
+	}
 	if err := s.loadRelationalPackageReportRetention(ctx, &state, &loaded); err != nil {
 		return app.PersistedState{}, false, err
 	}
@@ -108,6 +111,16 @@ func relationalEmptyState() app.PersistedState {
 		Collectors:              map[string]domain.Collector{},
 		BuildRuns:               map[string]domain.BuildRun{},
 		BuildAttestations:       map[string]domain.BuildAttestation{},
+		EvidenceLifecycle:       map[string]domain.EvidenceLifecycleEvent{},
+		ReleaseCandidates:       map[string]domain.ReleaseCandidate{},
+		ContainerImages:         map[string]domain.ContainerImage{},
+		ArtifactSignatures:      map[string]domain.ArtifactSignature{},
+		Repositories:            map[string]domain.SourceRepository{},
+		Commits:                 map[string]domain.SourceCommit{},
+		Branches:                map[string]domain.SourceBranch{},
+		PullRequests:            map[string]domain.PullRequest{},
+		Environments:            map[string]domain.DeploymentEnvironment{},
+		Deployments:             map[string]domain.DeploymentEvent{},
 		CustomerPortalAccess:    map[string]domain.CustomerPortalAccess{},
 		CustomerPortalHashes:    map[string]string{},
 		RedactionProfiles:       map[string]domain.RedactionProfile{},
@@ -1087,6 +1100,241 @@ func (s *Store) loadRelationalControls(ctx context.Context, state *app.Persisted
 	return evidenceRows.Err()
 }
 
+func (s *Store) loadRelationalSourceDeploymentLifecycle(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	if err := s.loadRelationalLifecycleAndCandidates(ctx, state, loaded); err != nil {
+		return err
+	}
+	if err := s.loadRelationalContainerAndSignatures(ctx, state, loaded); err != nil {
+		return err
+	}
+	if err := s.loadRelationalSource(ctx, state, loaded); err != nil {
+		return err
+	}
+	if err := s.loadRelationalDeployments(ctx, state, loaded); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Store) loadRelationalLifecycleAndCandidates(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	lifecycleRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, evidence_id, action, reason, details, replacement_id, actor_id, schema_version, created_at FROM evidence_lifecycle_events`)
+	if err != nil {
+		return fmt.Errorf("load relational evidence lifecycle: %w", err)
+	}
+	defer lifecycleRows.Close()
+	for lifecycleRows.Next() {
+		var event domain.EvidenceLifecycleEvent
+		var details []byte
+		var replacementID sql.NullString
+		if err := lifecycleRows.Scan(&event.ID, &event.TenantID, &event.EvidenceID, &event.Action, &event.Reason, &details, &replacementID, &event.ActorID, &event.SchemaVersion, &event.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational evidence lifecycle: %w", err)
+		}
+		event.ReplacementID = nullableSQLString(replacementID)
+		if err := decodeJSON(details, &event.Details); err != nil {
+			return fmt.Errorf("decode relational evidence lifecycle details: %w", err)
+		}
+		state.EvidenceLifecycle[event.ID] = event
+		*loaded = true
+	}
+	if err := lifecycleRows.Err(); err != nil {
+		return err
+	}
+
+	candidateRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, release_id, name, state, snapshot_hash, document, schema_version, created_at, promoted_at, rejected_at FROM release_candidates`)
+	if err != nil {
+		return fmt.Errorf("load relational release candidates: %w", err)
+	}
+	defer candidateRows.Close()
+	for candidateRows.Next() {
+		var candidate domain.ReleaseCandidate
+		var document []byte
+		var promotedAt, rejectedAt sql.NullTime
+		if err := candidateRows.Scan(&candidate.ID, &candidate.TenantID, &candidate.ReleaseID, &candidate.Name, &candidate.State, &candidate.SnapshotHash, &document, &candidate.SchemaVersion, &candidate.CreatedAt, &promotedAt, &rejectedAt); err != nil {
+			return fmt.Errorf("scan relational release candidate: %w", err)
+		}
+		var embedded domain.ReleaseCandidate
+		if err := decodeJSON(document, &embedded); err != nil {
+			return fmt.Errorf("decode relational release candidate document: %w", err)
+		}
+		candidate.BuildIDs = embedded.BuildIDs
+		candidate.ArtifactIDs = embedded.ArtifactIDs
+		candidate.SBOMIDs = embedded.SBOMIDs
+		candidate.ScanIDs = embedded.ScanIDs
+		candidate.VEXIDs = embedded.VEXIDs
+		candidate.ContractIDs = embedded.ContractIDs
+		candidate.BundleIDs = embedded.BundleIDs
+		candidate.PromotedAt = nullableSQLTime(promotedAt)
+		candidate.RejectedAt = nullableSQLTime(rejectedAt)
+		state.ReleaseCandidates[candidate.ID] = candidate
+		*loaded = true
+	}
+	return candidateRows.Err()
+}
+
+func (s *Store) loadRelationalContainerAndSignatures(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	imageRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, artifact_id, repository, tag, digest, platform, schema_version, created_at FROM container_images`)
+	if err != nil {
+		return fmt.Errorf("load relational container images: %w", err)
+	}
+	defer imageRows.Close()
+	for imageRows.Next() {
+		var image domain.ContainerImage
+		var artifactID, tag, platform sql.NullString
+		if err := imageRows.Scan(&image.ID, &image.TenantID, &artifactID, &image.Repository, &tag, &image.Digest, &platform, &image.SchemaVersion, &image.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational container image: %w", err)
+		}
+		image.ArtifactID = nullableSQLString(artifactID)
+		image.Tag = nullableSQLString(tag)
+		image.Platform = nullableSQLString(platform)
+		state.ContainerImages[image.ID] = image
+		*loaded = true
+	}
+	if err := imageRows.Err(); err != nil {
+		return err
+	}
+
+	signatureRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, artifact_id, subject_digest, algorithm, key_id, signature, payload_ref, payload_hash, verification_status, schema_version, created_at FROM artifact_signatures`)
+	if err != nil {
+		return fmt.Errorf("load relational artifact signatures: %w", err)
+	}
+	defer signatureRows.Close()
+	for signatureRows.Next() {
+		var signature domain.ArtifactSignature
+		var keyID, payloadRef, payloadHash sql.NullString
+		if err := signatureRows.Scan(&signature.ID, &signature.TenantID, &signature.ArtifactID, &signature.SubjectDigest, &signature.Algorithm, &keyID, &signature.Signature, &payloadRef, &payloadHash, &signature.VerificationStatus, &signature.SchemaVersion, &signature.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational artifact signature: %w", err)
+		}
+		signature.KeyID = nullableSQLString(keyID)
+		signature.PayloadRef = nullableSQLString(payloadRef)
+		signature.PayloadHash = nullableSQLString(payloadHash)
+		state.ArtifactSignatures[signature.ID] = signature
+		*loaded = true
+	}
+	return signatureRows.Err()
+}
+
+func (s *Store) loadRelationalSource(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	repositoryRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, project_id, provider, full_name, clone_url, default_branch, schema_version, created_at FROM source_repositories`)
+	if err != nil {
+		return fmt.Errorf("load relational source repositories: %w", err)
+	}
+	defer repositoryRows.Close()
+	for repositoryRows.Next() {
+		var repository domain.SourceRepository
+		var projectID, cloneURL, defaultBranch sql.NullString
+		if err := repositoryRows.Scan(&repository.ID, &repository.TenantID, &projectID, &repository.Provider, &repository.FullName, &cloneURL, &defaultBranch, &repository.SchemaVersion, &repository.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational source repository: %w", err)
+		}
+		repository.ProjectID = nullableSQLString(projectID)
+		repository.CloneURL = nullableSQLString(cloneURL)
+		repository.DefaultBranch = nullableSQLString(defaultBranch)
+		state.Repositories[repository.ID] = repository
+		*loaded = true
+	}
+	if err := repositoryRows.Err(); err != nil {
+		return err
+	}
+
+	commitRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, repository_id, sha, author, message_hash, committed_at, schema_version, created_at FROM source_commits`)
+	if err != nil {
+		return fmt.Errorf("load relational source commits: %w", err)
+	}
+	defer commitRows.Close()
+	for commitRows.Next() {
+		var commit domain.SourceCommit
+		var author, messageHash sql.NullString
+		if err := commitRows.Scan(&commit.ID, &commit.TenantID, &commit.RepositoryID, &commit.SHA, &author, &messageHash, &commit.CommittedAt, &commit.SchemaVersion, &commit.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational source commit: %w", err)
+		}
+		commit.Author = nullableSQLString(author)
+		commit.MessageHash = nullableSQLString(messageHash)
+		state.Commits[commit.ID] = commit
+		*loaded = true
+	}
+	if err := commitRows.Err(); err != nil {
+		return err
+	}
+
+	branchRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, repository_id, name, head_commit_id, protected, protection_hash, schema_version, created_at FROM source_branches`)
+	if err != nil {
+		return fmt.Errorf("load relational source branches: %w", err)
+	}
+	defer branchRows.Close()
+	for branchRows.Next() {
+		var branch domain.SourceBranch
+		var headCommitID, protectionHash sql.NullString
+		if err := branchRows.Scan(&branch.ID, &branch.TenantID, &branch.RepositoryID, &branch.Name, &headCommitID, &branch.Protected, &protectionHash, &branch.SchemaVersion, &branch.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational source branch: %w", err)
+		}
+		branch.HeadCommitID = nullableSQLString(headCommitID)
+		branch.ProtectionHash = nullableSQLString(protectionHash)
+		state.Branches[branch.ID] = branch
+		*loaded = true
+	}
+	if err := branchRows.Err(); err != nil {
+		return err
+	}
+
+	prRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, repository_id, provider, provider_id, title, state, source_branch, target_branch, head_commit_id, review_decision, schema_version, created_at FROM pull_requests`)
+	if err != nil {
+		return fmt.Errorf("load relational pull requests: %w", err)
+	}
+	defer prRows.Close()
+	for prRows.Next() {
+		var pr domain.PullRequest
+		var sourceBranch, targetBranch, headCommitID, reviewDecision sql.NullString
+		if err := prRows.Scan(&pr.ID, &pr.TenantID, &pr.RepositoryID, &pr.Provider, &pr.ProviderID, &pr.Title, &pr.State, &sourceBranch, &targetBranch, &headCommitID, &reviewDecision, &pr.SchemaVersion, &pr.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational pull request: %w", err)
+		}
+		pr.SourceBranch = nullableSQLString(sourceBranch)
+		pr.TargetBranch = nullableSQLString(targetBranch)
+		pr.HeadCommitID = nullableSQLString(headCommitID)
+		pr.ReviewDecision = nullableSQLString(reviewDecision)
+		state.PullRequests[pr.ID] = pr
+		*loaded = true
+	}
+	return prRows.Err()
+}
+
+func (s *Store) loadRelationalDeployments(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	environmentRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, product_id, name, kind, schema_version, created_at FROM deployment_environments`)
+	if err != nil {
+		return fmt.Errorf("load relational deployment environments: %w", err)
+	}
+	defer environmentRows.Close()
+	for environmentRows.Next() {
+		var environment domain.DeploymentEnvironment
+		if err := environmentRows.Scan(&environment.ID, &environment.TenantID, &environment.ProductID, &environment.Name, &environment.Kind, &environment.SchemaVersion, &environment.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational deployment environment: %w", err)
+		}
+		state.Environments[environment.ID] = environment
+		*loaded = true
+	}
+	if err := environmentRows.Err(); err != nil {
+		return err
+	}
+
+	deploymentRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, environment_id, release_id, artifact_ids, status, started_at, finished_at, rollback_of, evidence_id, schema_version, created_at FROM deployment_events`)
+	if err != nil {
+		return fmt.Errorf("load relational deployment events: %w", err)
+	}
+	defer deploymentRows.Close()
+	for deploymentRows.Next() {
+		var deployment domain.DeploymentEvent
+		var finishedAt sql.NullTime
+		var rollbackOf, evidenceID sql.NullString
+		if err := deploymentRows.Scan(&deployment.ID, &deployment.TenantID, &deployment.EnvironmentID, &deployment.ReleaseID, &deployment.ArtifactIDs, &deployment.Status, &deployment.StartedAt, &finishedAt, &rollbackOf, &evidenceID, &deployment.SchemaVersion, &deployment.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational deployment event: %w", err)
+		}
+		deployment.FinishedAt = nullableSQLTime(finishedAt)
+		deployment.RollbackOf = nullableSQLString(rollbackOf)
+		deployment.EvidenceID = nullableSQLString(evidenceID)
+		state.Deployments[deployment.ID] = deployment
+		*loaded = true
+	}
+	return deploymentRows.Err()
+}
+
 func (s *Store) loadRelationalPackageReportRetention(ctx context.Context, state *app.PersistedState, loaded *bool) error {
 	if err := s.loadRelationalPackages(ctx, state, loaded); err != nil {
 		return err
@@ -1463,6 +1711,9 @@ func (s *Store) SaveState(ctx context.Context, state app.PersistedState) error {
 		return err
 	}
 	if err := syncRiskBuildControlRows(ctx, tx, state); err != nil {
+		return err
+	}
+	if err := syncSourceDeploymentLifecycleRows(ctx, tx, state); err != nil {
 		return err
 	}
 	if err := syncPackageReportRetentionRows(ctx, tx, state); err != nil {
@@ -2045,6 +2296,201 @@ func syncRiskBuildControlRows(ctx context.Context, tx pgx.Tx, state app.Persiste
 			evidence.SubjectID, nullableString(evidence.ProductID), nullableString(evidence.ReleaseID), evidence.Confidence, nullableString(evidence.Notes),
 			evidence.SchemaVersion, nonZeroTime(evidence.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert control evidence row: %w", err)
+		}
+	}
+	return nil
+}
+
+func syncSourceDeploymentLifecycleRows(ctx context.Context, tx pgx.Tx, state app.PersistedState) error {
+	for _, event := range state.EvidenceLifecycle {
+		if event.ID == "" || event.TenantID == "" || event.EvidenceID == "" {
+			continue
+		}
+		details, err := json.Marshal(event.Details)
+		if err != nil {
+			return fmt.Errorf("encode evidence lifecycle details: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO evidence_lifecycle_events (
+				id, tenant_id, evidence_id, action, reason, details,
+				replacement_id, actor_id, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			ON CONFLICT (id) DO NOTHING
+		`, event.ID, event.TenantID, event.EvidenceID, event.Action, event.Reason, details,
+			nullableString(event.ReplacementID), event.ActorID, event.SchemaVersion, nonZeroTime(event.CreatedAt)); err != nil {
+			return fmt.Errorf("insert evidence lifecycle row: %w", err)
+		}
+	}
+	for _, candidate := range state.ReleaseCandidates {
+		if candidate.ID == "" || candidate.TenantID == "" || candidate.ReleaseID == "" {
+			continue
+		}
+		document, err := json.Marshal(candidate)
+		if err != nil {
+			return fmt.Errorf("encode release candidate document: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO release_candidates (
+				id, tenant_id, release_id, name, state, snapshot_hash,
+				document, schema_version, created_at, promoted_at, rejected_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			ON CONFLICT (id) DO UPDATE SET
+				state = EXCLUDED.state,
+				document = EXCLUDED.document,
+				promoted_at = EXCLUDED.promoted_at,
+				rejected_at = EXCLUDED.rejected_at
+		`, candidate.ID, candidate.TenantID, candidate.ReleaseID, candidate.Name, candidate.State, candidate.SnapshotHash,
+			document, candidate.SchemaVersion, nonZeroTime(candidate.CreatedAt), nullableTime(candidate.PromotedAt), nullableTime(candidate.RejectedAt)); err != nil {
+			return fmt.Errorf("upsert release candidate row: %w", err)
+		}
+	}
+	for _, image := range state.ContainerImages {
+		if image.ID == "" || image.TenantID == "" || image.Repository == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO container_images (
+				id, tenant_id, artifact_id, repository, tag, digest,
+				platform, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			ON CONFLICT (id) DO UPDATE SET
+				tag = EXCLUDED.tag,
+				platform = EXCLUDED.platform
+		`, image.ID, image.TenantID, nullableString(image.ArtifactID), image.Repository, nullableString(image.Tag), image.Digest,
+			nullableString(image.Platform), image.SchemaVersion, nonZeroTime(image.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert container image row: %w", err)
+		}
+	}
+	for _, signature := range state.ArtifactSignatures {
+		if signature.ID == "" || signature.TenantID == "" || signature.ArtifactID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO artifact_signatures (
+				id, tenant_id, artifact_id, subject_digest, algorithm, key_id,
+				signature, payload_ref, payload_hash, verification_status,
+				schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			ON CONFLICT (id) DO UPDATE SET
+				payload_ref = EXCLUDED.payload_ref,
+				payload_hash = EXCLUDED.payload_hash,
+				verification_status = EXCLUDED.verification_status
+		`, signature.ID, signature.TenantID, signature.ArtifactID, signature.SubjectDigest, signature.Algorithm, nullableString(signature.KeyID),
+			signature.Signature, nullableString(signature.PayloadRef), nullableString(signature.PayloadHash), signature.VerificationStatus,
+			signature.SchemaVersion, nonZeroTime(signature.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert artifact signature row: %w", err)
+		}
+	}
+	for _, repository := range state.Repositories {
+		if repository.ID == "" || repository.TenantID == "" || repository.FullName == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO source_repositories (
+				id, tenant_id, project_id, provider, full_name, clone_url,
+				default_branch, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			ON CONFLICT (id) DO UPDATE SET
+				clone_url = EXCLUDED.clone_url,
+				default_branch = EXCLUDED.default_branch
+		`, repository.ID, repository.TenantID, nullableString(repository.ProjectID), repository.Provider, repository.FullName, nullableString(repository.CloneURL),
+			nullableString(repository.DefaultBranch), repository.SchemaVersion, nonZeroTime(repository.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert source repository row: %w", err)
+		}
+	}
+	for _, commit := range state.Commits {
+		if commit.ID == "" || commit.TenantID == "" || commit.RepositoryID == "" || commit.SHA == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO source_commits (
+				id, tenant_id, repository_id, sha, author, message_hash,
+				committed_at, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			ON CONFLICT (id) DO UPDATE SET message_hash = EXCLUDED.message_hash
+		`, commit.ID, commit.TenantID, commit.RepositoryID, commit.SHA, nullableString(commit.Author), nullableString(commit.MessageHash),
+			nonZeroTime(commit.CommittedAt), commit.SchemaVersion, nonZeroTime(commit.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert source commit row: %w", err)
+		}
+	}
+	for _, branch := range state.Branches {
+		if branch.ID == "" || branch.TenantID == "" || branch.RepositoryID == "" || branch.Name == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO source_branches (
+				id, tenant_id, repository_id, name, head_commit_id, protected,
+				protection_hash, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			ON CONFLICT (id) DO UPDATE SET
+				head_commit_id = EXCLUDED.head_commit_id,
+				protected = EXCLUDED.protected,
+				protection_hash = EXCLUDED.protection_hash
+		`, branch.ID, branch.TenantID, branch.RepositoryID, branch.Name, nullableString(branch.HeadCommitID), branch.Protected,
+			nullableString(branch.ProtectionHash), branch.SchemaVersion, nonZeroTime(branch.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert source branch row: %w", err)
+		}
+	}
+	for _, pr := range state.PullRequests {
+		if pr.ID == "" || pr.TenantID == "" || pr.RepositoryID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO pull_requests (
+				id, tenant_id, repository_id, provider, provider_id, title,
+				state, source_branch, target_branch, head_commit_id,
+				review_decision, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+			ON CONFLICT (id) DO UPDATE SET
+				state = EXCLUDED.state,
+				head_commit_id = EXCLUDED.head_commit_id,
+				review_decision = EXCLUDED.review_decision
+		`, pr.ID, pr.TenantID, pr.RepositoryID, pr.Provider, pr.ProviderID, pr.Title,
+			pr.State, nullableString(pr.SourceBranch), nullableString(pr.TargetBranch), nullableString(pr.HeadCommitID),
+			nullableString(pr.ReviewDecision), pr.SchemaVersion, nonZeroTime(pr.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert pull request row: %w", err)
+		}
+	}
+	for _, environment := range state.Environments {
+		if environment.ID == "" || environment.TenantID == "" || environment.ProductID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO deployment_environments (
+				id, tenant_id, product_id, name, kind, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			ON CONFLICT (id) DO UPDATE SET kind = EXCLUDED.kind
+		`, environment.ID, environment.TenantID, environment.ProductID, environment.Name, environment.Kind, environment.SchemaVersion, nonZeroTime(environment.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert deployment environment row: %w", err)
+		}
+	}
+	for _, deployment := range state.Deployments {
+		if deployment.ID == "" || deployment.TenantID == "" || deployment.EnvironmentID == "" || deployment.ReleaseID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO deployment_events (
+				id, tenant_id, environment_id, release_id, artifact_ids,
+				status, started_at, finished_at, rollback_of, evidence_id,
+				schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			ON CONFLICT (id) DO UPDATE SET
+				status = EXCLUDED.status,
+				finished_at = EXCLUDED.finished_at
+		`, deployment.ID, deployment.TenantID, deployment.EnvironmentID, deployment.ReleaseID, deployment.ArtifactIDs,
+			deployment.Status, nonZeroTime(deployment.StartedAt), nullableTime(deployment.FinishedAt), nullableString(deployment.RollbackOf), nullableString(deployment.EvidenceID),
+			deployment.SchemaVersion, nonZeroTime(deployment.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert deployment event row: %w", err)
 		}
 	}
 	return nil

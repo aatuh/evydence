@@ -92,6 +92,36 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 				Tags: []string{"release"}, Metadata: map[string]any{"parser": "test"}, CreatedAt: time.Now().UTC(),
 			},
 		},
+		EvidenceLifecycle: map[string]domain.EvidenceLifecycleEvent{
+			"life_test": {ID: "life_test", TenantID: "ten_test", EvidenceID: "ev_test", Action: "amended", Reason: "test", Details: map[string]any{"field": "metadata"}, ActorID: "user_test", SchemaVersion: domain.EvidenceLifecycleSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		ReleaseCandidates: map[string]domain.ReleaseCandidate{
+			"rc_test": {ID: "rc_test", TenantID: "ten_test", ReleaseID: "rel_test", Name: "rc1", State: "open", BuildIDs: []string{"build_test"}, ArtifactIDs: []string{"art_test"}, SBOMIDs: []string{"sbom_test"}, ScanIDs: []string{"scan_test"}, VEXIDs: []string{"vex_test"}, ContractIDs: []string{"contract_test"}, BundleIDs: []string{"bundle_test"}, SnapshotHash: "sha256:" + strings.Repeat("0", 64), SchemaVersion: domain.ReleaseCandidateSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		ContainerImages: map[string]domain.ContainerImage{
+			"image_test": {ID: "image_test", TenantID: "ten_test", ArtifactID: "art_test", Repository: "registry.example.test/product", Tag: "1.0.0", Digest: "sha256:" + strings.Repeat("a", 64), Platform: "linux/amd64", SchemaVersion: domain.ContainerImageSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		ArtifactSignatures: map[string]domain.ArtifactSignature{
+			"artsig_test": {ID: "artsig_test", TenantID: "ten_test", ArtifactID: "art_test", SubjectDigest: "sha256:" + strings.Repeat("a", 64), Algorithm: "cosign", KeyID: "sigkey_test", Signature: "signature", PayloadRef: "object://tenants/ten_test/signatures/art", PayloadHash: "sha256:" + strings.Repeat("a", 64), VerificationStatus: "verified", SchemaVersion: domain.ArtifactSignatureSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		Repositories: map[string]domain.SourceRepository{
+			"repo_test": {ID: "repo_test", TenantID: "ten_test", ProjectID: "proj_test", Provider: "github", FullName: "org/repo", CloneURL: "https://github.com/org/repo.git", DefaultBranch: "main", SchemaVersion: domain.SourceRepositorySchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		Commits: map[string]domain.SourceCommit{
+			"commit_test": {ID: "commit_test", TenantID: "ten_test", RepositoryID: "repo_test", SHA: strings.Repeat("1", 40), Author: "tester", MessageHash: "sha256:" + strings.Repeat("2", 64), CommittedAt: time.Now().UTC(), SchemaVersion: domain.SourceCommitSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		Branches: map[string]domain.SourceBranch{
+			"branch_test": {ID: "branch_test", TenantID: "ten_test", RepositoryID: "repo_test", Name: "main", HeadCommitID: "commit_test", Protected: true, ProtectionHash: "sha256:" + strings.Repeat("3", 64), SchemaVersion: domain.SourceBranchSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		PullRequests: map[string]domain.PullRequest{
+			"pr_test": {ID: "pr_test", TenantID: "ten_test", RepositoryID: "repo_test", Provider: "github", ProviderID: "42", Title: "Change", State: "merged", SourceBranch: "feature", TargetBranch: "main", HeadCommitID: "commit_test", ReviewDecision: "approved", SchemaVersion: domain.PullRequestSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		Environments: map[string]domain.DeploymentEnvironment{
+			"env_test": {ID: "env_test", TenantID: "ten_test", ProductID: "prod_test", Name: "production", Kind: "production", SchemaVersion: domain.DeploymentEnvironmentVersion, CreatedAt: time.Now().UTC()},
+		},
+		Deployments: map[string]domain.DeploymentEvent{
+			"deploy_test": {ID: "deploy_test", TenantID: "ten_test", EnvironmentID: "env_test", ReleaseID: "rel_test", ArtifactIDs: []string{"art_test"}, Status: "succeeded", StartedAt: time.Now().UTC(), FinishedAt: ptrTime(time.Now().UTC()), EvidenceID: "ev_test", SchemaVersion: domain.DeploymentEventSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
 		Chain: map[string][]domain.AuditChainEntry{
 			"ten_test": {{
 				ID: "chain_test", TenantID: "ten_test", Sequence: 1, EntryType: "evidence.created", SubjectType: "evidence_item", SubjectID: "ev_test",
@@ -256,6 +286,16 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 		{name: "build run", query: `SELECT count(*) FROM build_runs WHERE tenant_id = 'ten_test' AND id = 'build_test' AND outputs <> '[]'::jsonb`},
 		{name: "build attestation", query: `SELECT count(*) FROM build_attestations WHERE tenant_id = 'ten_test' AND id = 'att_test' AND subject_digests <> '[]'::jsonb`},
 		{name: "evidence", query: `SELECT count(*) FROM evidence_items WHERE tenant_id = 'ten_test' AND id = 'ev_test' AND evidence_version = 1 AND product_id = 'prod_test'`},
+		{name: "evidence lifecycle", query: `SELECT count(*) FROM evidence_lifecycle_events WHERE tenant_id = 'ten_test' AND id = 'life_test' AND details <> '{}'::jsonb`},
+		{name: "release candidate", query: `SELECT count(*) FROM release_candidates WHERE tenant_id = 'ten_test' AND id = 'rc_test' AND document <> '{}'::jsonb`},
+		{name: "container image", query: `SELECT count(*) FROM container_images WHERE tenant_id = 'ten_test' AND id = 'image_test'`},
+		{name: "artifact signature", query: `SELECT count(*) FROM artifact_signatures WHERE tenant_id = 'ten_test' AND id = 'artsig_test'`},
+		{name: "source repository", query: `SELECT count(*) FROM source_repositories WHERE tenant_id = 'ten_test' AND id = 'repo_test'`},
+		{name: "source commit", query: `SELECT count(*) FROM source_commits WHERE tenant_id = 'ten_test' AND id = 'commit_test'`},
+		{name: "source branch", query: `SELECT count(*) FROM source_branches WHERE tenant_id = 'ten_test' AND id = 'branch_test' AND protected = true`},
+		{name: "pull request", query: `SELECT count(*) FROM pull_requests WHERE tenant_id = 'ten_test' AND id = 'pr_test' AND review_decision = 'approved'`},
+		{name: "deployment environment", query: `SELECT count(*) FROM deployment_environments WHERE tenant_id = 'ten_test' AND id = 'env_test'`},
+		{name: "deployment event", query: `SELECT count(*) FROM deployment_events WHERE tenant_id = 'ten_test' AND id = 'deploy_test' AND artifact_ids = ARRAY['art_test']`},
 		{name: "audit chain", query: `SELECT count(*) FROM audit_chain_entries WHERE tenant_id = 'ten_test' AND sequence = 1`},
 		{name: "signing key", query: `SELECT count(*) FROM signing_keys WHERE tenant_id = 'ten_test' AND id = 'sigkey_test' AND encrypted_private_key IS NOT NULL`},
 		{name: "signature", query: `SELECT count(*) FROM signatures WHERE tenant_id = 'ten_test' AND id = 'sig_test'`},
@@ -320,6 +360,18 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	}
 	if relational.Collectors["collector_test"].APIKeyID != "key_test" || relational.BuildRuns["build_test"].Status != "passed" || len(relational.BuildAttestations["att_test"].SubjectDigests) != 1 {
 		t.Fatalf("relational build rows missing: collector=%#v build=%#v attestation=%#v", relational.Collectors["collector_test"], relational.BuildRuns["build_test"], relational.BuildAttestations["att_test"])
+	}
+	if relational.EvidenceLifecycle["life_test"].Details["field"] != "metadata" || len(relational.ReleaseCandidates["rc_test"].BuildIDs) != 1 {
+		t.Fatalf("relational lifecycle/candidate rows missing: lifecycle=%#v candidate=%#v", relational.EvidenceLifecycle["life_test"], relational.ReleaseCandidates["rc_test"])
+	}
+	if relational.ContainerImages["image_test"].Repository == "" || relational.ArtifactSignatures["artsig_test"].VerificationStatus != "verified" {
+		t.Fatalf("relational artifact image rows missing: image=%#v signature=%#v", relational.ContainerImages["image_test"], relational.ArtifactSignatures["artsig_test"])
+	}
+	if relational.Repositories["repo_test"].FullName != "org/repo" || relational.Commits["commit_test"].SHA == "" || !relational.Branches["branch_test"].Protected || relational.PullRequests["pr_test"].ReviewDecision != "approved" {
+		t.Fatalf("relational source rows missing: repo=%#v commit=%#v branch=%#v pr=%#v", relational.Repositories["repo_test"], relational.Commits["commit_test"], relational.Branches["branch_test"], relational.PullRequests["pr_test"])
+	}
+	if relational.Environments["env_test"].Name != "production" || relational.Deployments["deploy_test"].Status != "succeeded" {
+		t.Fatalf("relational deployment rows missing: env=%#v deployment=%#v", relational.Environments["env_test"], relational.Deployments["deploy_test"])
 	}
 	if relational.Products["prod_test"].Slug != "product" || relational.Evidence["ev_test"].ReleaseID != "rel_test" || relational.SBOMs["sbom_test"].ComponentCount != 1 {
 		t.Fatalf("relational fallback missing core rows: product=%#v evidence=%#v sbom=%#v", relational.Products["prod_test"], relational.Evidence["ev_test"], relational.SBOMs["sbom_test"])
