@@ -42,10 +42,35 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 	case "instanceAdminSnapshot":
 		operation.Description = "Returns instance-level diagnostic counts. Requires the explicit instance:admin scope; tenant admin and ordinary wildcard tenant keys are insufficient."
 		operation.Responses[http.StatusOK] = jsonResponse("Instance admin snapshot envelope.", "#/components/schemas/InstanceAdminSnapshotEnvelope")
+	case "createOrganization":
+		operation.Description = "Creates a tenant-scoped organization record for human identity grouping."
+		operation.RequestBody = jsonRequest("Organization creation request.", "#/components/schemas/CreateOrganizationRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created organization envelope.", "#/components/schemas/OrganizationEnvelope")
+	case "createUser":
+		operation.Description = "Creates a tenant-scoped human user metadata record. Authentication is still controlled by API keys or configured SSO/session flows."
+		operation.RequestBody = jsonRequest("Human user creation request.", "#/components/schemas/CreateUserRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created human user envelope.", "#/components/schemas/HumanUserEnvelope")
+	case "deactivateUser":
+		operation.Description = "Deactivates a tenant-scoped human user as an audited lifecycle transition."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Human user id."))
+		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
+		operation.Responses[http.StatusOK] = jsonResponse("Deactivated human user envelope.", "#/components/schemas/HumanUserEnvelope")
+	case "createRoleBinding":
+		operation.Description = "Creates a tenant-scoped role binding for a user or collector subject."
+		operation.RequestBody = jsonRequest("Role binding creation request.", "#/components/schemas/CreateRoleBindingRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created role binding envelope.", "#/components/schemas/RoleBindingEnvelope")
+	case "listRoleBindings":
+		operation.Description = "Lists tenant-scoped role bindings visible to the identity administrator."
+		operation.Responses[http.StatusOK] = jsonResponse("Role binding list envelope.", "#/components/schemas/RoleBindingListEnvelope")
 	case "createSSOSession":
 		operation.Description = "Creates an admin-managed human SSO session record and returns a one-time bearer secret."
 		operation.RequestBody = jsonRequest("SSO session creation request.", "#/components/schemas/CreateSSOSessionRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created SSO session and one-time secret envelope.", "#/components/schemas/SSOSessionCreateEnvelope")
+	case "revokeSSOSession":
+		operation.Description = "Revokes a tenant-scoped SSO session as an audited lifecycle transition."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "SSO session id."))
+		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
+		operation.Responses[http.StatusOK] = jsonResponse("Revoked SSO session envelope.", "#/components/schemas/SSOSessionEnvelope")
 	case "createSSOProvider":
 		operation.Description = "Records tenant SSO provider metadata. Optional static JWKS public keys and SAML signing certificates can be supplied for local token/assertion verification without live provider calls."
 		operation.RequestBody = jsonRequest("SSO provider creation request.", "#/components/schemas/CreateSSOProviderRequest")
@@ -54,6 +79,10 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Description = "Verifies stored provider identity metadata and, when supplied, locally verifies OIDC ID-token or SAML assertion issuer, audience, subject, time bounds, and signature against configured tenant trust material."
 		operation.RequestBody = jsonRequest("Provider identity verification request.", "#/components/schemas/VerifyProviderIdentityRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Provider verification envelope.", "#/components/schemas/ProviderVerificationEnvelope")
+	case "linkSSOIdentity":
+		operation.Description = "Links a verified provider subject to a tenant-scoped human user."
+		operation.RequestBody = jsonRequest("SSO identity link request.", "#/components/schemas/LinkSSOIdentityRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created SSO identity link envelope.", "#/components/schemas/UserIdentityLinkEnvelope")
 	case "createAPIKey":
 		operation.Description = "Creates a tenant-scoped API key and returns the secret exactly once. Stored records expose only non-secret key metadata."
 		operation.RequestBody = jsonRequest("API key creation request.", "#/components/schemas/CreateAPIKeyRequest")

@@ -3,7 +3,7 @@
 This generated reference inventories Evydence `/v1` route contract precision from `openapi.yaml`.
 It is a planning aid for production contract hardening; `broad` means the route still uses a shared envelope, unspecified body, or generic schema where an endpoint-specific contract should be considered.
 
-Generated from 160 operations: 54 precise, 106 broad.
+Generated from 160 operations: 61 precise, 99 broad.
 
 | Method | Path | Operation | Auth | Scopes | Idempotency | Params | Request | 2xx Response | Precision |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -88,7 +88,7 @@ Generated from 160 operations: 54 precise, 106 broad.
 | GET | /v1/openapi-contracts/{id} | getOpenAPIContract | Bearer | evidence:read | - | - | - | 200:unspecified | broad |
 | POST | /v1/openapi-diffs | createOpenAPIDiff | Bearer | evidence:read | required | - | - | 201:unspecified | broad |
 | GET | /v1/openapi.json | openapi | public | - | - | - | - | 200:application/json:OpenAPIDocument | precise |
-| POST | /v1/organizations | createOrganization | Bearer | identity:admin | required | - | - | 201:unspecified | broad |
+| POST | /v1/organizations | createOrganization | Bearer | identity:admin | required | - | application/json:CreateOrganizationRequest | 201:application/json:OrganizationEnvelope | precise |
 | POST | /v1/policies/evaluate | evaluatePolicy | Bearer | verify:read | required | - | - | 201:unspecified | broad |
 | GET | /v1/products | listProducts | Bearer | product:read | - | - | - | 200:application/json:ProductListEnvelope | precise |
 | POST | /v1/products | createProduct | Bearer | product:write | required | - | application/json:CreateProductRequest | 201:application/json:ProductEnvelope | precise |
@@ -129,8 +129,8 @@ Generated from 160 operations: 54 precise, 106 broad.
 | GET | /v1/reports/security-review-package | securityReviewPackageReport | Bearer | package:read | - | - | - | 200:unspecified | broad |
 | GET | /v1/reports/vulnerability-posture | vulnerabilityPostureReport | Bearer | security:read | - | - | - | 200:unspecified | broad |
 | POST | /v1/retention-overrides | createRetentionOverride | Bearer | admin | required | - | - | 201:unspecified | broad |
-| GET | /v1/role-bindings | listRoleBindings | Bearer | identity:admin | - | - | - | 200:unspecified | broad |
-| POST | /v1/role-bindings | createRoleBinding | Bearer | identity:admin | required | - | - | 201:unspecified | broad |
+| GET | /v1/role-bindings | listRoleBindings | Bearer | identity:admin | - | - | - | 200:application/json:RoleBindingListEnvelope | precise |
+| POST | /v1/role-bindings | createRoleBinding | Bearer | identity:admin | required | - | application/json:CreateRoleBindingRequest | 201:application/json:RoleBindingEnvelope | precise |
 | POST | /v1/saas/profiles | createSaaSEditionProfile | Bearer | instance:admin | required | - | - | 201:unspecified | broad |
 | GET | /v1/sbom-components | listSBOMComponents | Bearer | evidence:read | - | query:artifact_id, query:limit, query:purl, query:query, query:release_id, query:sbom_id | - | 200:application/json:DataEnvelope | broad |
 | POST | /v1/sbom-diffs | createSBOMDiff | Bearer | evidence:read | required | - | - | 201:unspecified | broad |
@@ -149,13 +149,13 @@ Generated from 160 operations: 54 precise, 106 broad.
 | POST | /v1/source/pull-requests | recordPullRequest | Bearer | source:write | required | - | - | 201:unspecified | broad |
 | GET | /v1/source/repositories | listSourceRepositories | Bearer | source:read | - | - | - | 200:unspecified | broad |
 | POST | /v1/source/repositories | createSourceRepository | Bearer | source:write | required | - | - | 201:unspecified | broad |
-| POST | /v1/sso/identity-links | linkSSOIdentity | Bearer | identity:admin | required | - | - | 201:unspecified | broad |
+| POST | /v1/sso/identity-links | linkSSOIdentity | Bearer | identity:admin | required | - | application/json:LinkSSOIdentityRequest | 201:application/json:UserIdentityLinkEnvelope | precise |
 | POST | /v1/sso/providers | createSSOProvider | Bearer | identity:admin | required | - | application/json:CreateSSOProviderRequest | 201:application/json:SSOProviderEnvelope | precise |
 | POST | /v1/sso/sessions | createSSOSession | Bearer | identity:admin | required | - | application/json:CreateSSOSessionRequest | 201:application/json:SSOSessionCreateEnvelope | precise |
-| POST | /v1/sso/sessions/{id}/revoke | revokeSSOSession | Bearer | identity:admin | required | - | - | 200:unspecified | broad |
+| POST | /v1/sso/sessions/{id}/revoke | revokeSSOSession | Bearer | identity:admin | required | path:id | application/json:EmptyObject | 200:application/json:SSOSessionEnvelope | precise |
 | POST | /v1/transparency-checkpoints | createTransparencyCheckpoint | Bearer | keys:admin | required | - | - | 201:unspecified | broad |
-| POST | /v1/users | createUser | Bearer | identity:admin | required | - | - | 201:unspecified | broad |
-| POST | /v1/users/{id}/deactivate | deactivateUser | Bearer | identity:admin | required | - | - | 200:unspecified | broad |
+| POST | /v1/users | createUser | Bearer | identity:admin | required | - | application/json:CreateUserRequest | 201:application/json:HumanUserEnvelope | precise |
+| POST | /v1/users/{id}/deactivate | deactivateUser | Bearer | identity:admin | required | path:id | application/json:EmptyObject | 200:application/json:HumanUserEnvelope | precise |
 | POST | /v1/verify | verify | Bearer | verify:read | required | - | - | 200:unspecified | broad |
 | GET | /v1/version | version | public | - | - | - | - | 200:application/json:VersionInfoEnvelope | precise |
 | POST | /v1/vex | uploadVEX | Bearer | evidence:write | required | - | application/json:EvidenceUploadRequest | 201:application/json:VEXDocumentEnvelope | precise |
