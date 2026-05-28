@@ -17,8 +17,9 @@ import (
 )
 
 type Store struct {
-	pool     *pgxpool.Pool
-	loadMode LoadMode
+	pool                  *pgxpool.Pool
+	loadMode              LoadMode
+	disableSnapshotWrites bool
 }
 
 type LoadMode string
@@ -30,7 +31,8 @@ const (
 )
 
 type StoreOptions struct {
-	LoadMode LoadMode
+	LoadMode              LoadMode
+	DisableSnapshotWrites bool
 }
 
 type ClaimedJob struct {
@@ -60,7 +62,7 @@ func OpenWithOptions(ctx context.Context, databaseURL string, opts StoreOptions)
 		pool.Close()
 		return nil, fmt.Errorf("ping postgres: %w", err)
 	}
-	return &Store{pool: pool, loadMode: loadMode}, nil
+	return &Store{pool: pool, loadMode: loadMode, disableSnapshotWrites: opts.DisableSnapshotWrites}, nil
 }
 
 func (s *Store) Close() {
@@ -2470,22 +2472,24 @@ func (s *Store) loadRelationalIdempotency(ctx context.Context, state *app.Persis
 }
 
 func (s *Store) SaveState(ctx context.Context, state app.PersistedState) error {
-	body, err := json.Marshal(state)
-	if err != nil {
-		return fmt.Errorf("encode ledger state: %w", err)
-	}
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("begin save ledger state transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	_, err = tx.Exec(ctx, `
-		INSERT INTO ledger_state (id, state, updated_at)
-		VALUES ('default', $1, now())
-		ON CONFLICT (id) DO UPDATE SET state = EXCLUDED.state, updated_at = EXCLUDED.updated_at
-	`, body)
-	if err != nil {
-		return fmt.Errorf("save ledger state: %w", err)
+	if !s.disableSnapshotWrites {
+		body, err := json.Marshal(state)
+		if err != nil {
+			return fmt.Errorf("encode ledger state: %w", err)
+		}
+		_, err = tx.Exec(ctx, `
+			INSERT INTO ledger_state (id, state, updated_at)
+			VALUES ('default', $1, now())
+			ON CONFLICT (id) DO UPDATE SET state = EXCLUDED.state, updated_at = EXCLUDED.updated_at
+		`, body)
+		if err != nil {
+			return fmt.Errorf("save ledger state: %w", err)
+		}
 	}
 	if err := syncResourceIndex(ctx, tx, state); err != nil {
 		return err
