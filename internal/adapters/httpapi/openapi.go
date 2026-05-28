@@ -406,22 +406,84 @@ func registerCriticalSchemas(registry *specs.Registry) {
 			"state":         map[string]any{"type": "string"},
 		}, "vulnerability", "severity")},
 	}, "scanner", "target_ref", "release_id", "findings"))
-	registry.RegisterSchema("CreateEvidenceRequest", objectSchema(map[string]any{
-		"product_id":   map[string]any{"type": "string"},
-		"project_id":   map[string]any{"type": "string"},
-		"release_id":   map[string]any{"type": "string"},
-		"artifact_id":  map[string]any{"type": "string"},
+	registry.RegisterSchema("SubjectRef", objectSchema(map[string]any{
+		"type":   map[string]any{"type": "string"},
+		"id":     map[string]any{"type": "string"},
+		"digest": map[string]any{"type": "string"},
+	}, "type"))
+	registry.RegisterSchema("EvidenceRef", objectSchema(map[string]any{
 		"type":         map[string]any{"type": "string"},
-		"subtype":      map[string]any{"type": "string"},
-		"title":        map[string]any{"type": "string"},
-		"payload_hash": map[string]any{"type": "string", "pattern": "^sha256:"},
-		"payload":      map[string]any{},
-		"tags":         map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-		"source":       map[string]any{"type": "string"},
-		"subject_refs": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-	}, "type", "title"))
+		"id":           map[string]any{"type": "string"},
+		"relationship": map[string]any{"type": "string"},
+	}, "type", "id"))
+	registry.RegisterSchema("EvidenceNotice", objectSchema(map[string]any{
+		"code":    map[string]any{"type": "string"},
+		"message": map[string]any{"type": "string"},
+	}, "code", "message"))
+	registry.RegisterSchema("CreateEvidenceRequest", objectSchema(map[string]any{
+		"product_id":         map[string]any{"type": "string"},
+		"project_id":         map[string]any{"type": "string"},
+		"release_id":         map[string]any{"type": "string"},
+		"build_id":           map[string]any{"type": "string"},
+		"deployment_id":      map[string]any{"type": "string"},
+		"type":               map[string]any{"type": "string"},
+		"subtype":            map[string]any{"type": "string"},
+		"title":              map[string]any{"type": "string"},
+		"source_system":      map[string]any{"type": "string"},
+		"source_identity":    map[string]any{"type": "object", "additionalProperties": true},
+		"collector_id":       map[string]any{"type": "string"},
+		"observed_at":        map[string]any{"type": "string", "format": "date-time"},
+		"payload_ref":        map[string]any{"type": "string"},
+		"payload_hash":       map[string]any{"type": "string", "pattern": "^sha256:"},
+		"payload_media_type": map[string]any{"type": "string"},
+		"payload_size":       map[string]any{"type": "integer", "minimum": 0},
+		"subject_refs":       map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/SubjectRef"}},
+		"metadata":           map[string]any{"type": "object", "additionalProperties": true},
+		"tags":               map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"limitations":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+	}, "type", "title", "payload_hash"))
+	registry.RegisterSchema("EvidenceItem", objectSchema(map[string]any{
+		"id":                    map[string]any{"type": "string"},
+		"tenant_id":             map[string]any{"type": "string"},
+		"product_id":            map[string]any{"type": "string"},
+		"project_id":            map[string]any{"type": "string"},
+		"release_id":            map[string]any{"type": "string"},
+		"build_id":              map[string]any{"type": "string"},
+		"deployment_id":         map[string]any{"type": "string"},
+		"type":                  map[string]any{"type": "string"},
+		"subtype":               map[string]any{"type": "string"},
+		"title":                 map[string]any{"type": "string"},
+		"source_system":         map[string]any{"type": "string"},
+		"source_identity":       map[string]any{"type": "object", "additionalProperties": true},
+		"collector_id":          map[string]any{"type": "string"},
+		"uploaded_by":           map[string]any{"type": "string"},
+		"observed_at":           map[string]any{"type": "string", "format": "date-time"},
+		"evidence_version":      map[string]any{"type": "integer"},
+		"schema_version":        map[string]any{"type": "string"},
+		"payload_ref":           map[string]any{"type": "string"},
+		"payload_hash":          map[string]any{"type": "string", "pattern": "^sha256:"},
+		"payload_media_type":    map[string]any{"type": "string"},
+		"payload_size":          map[string]any{"type": "integer"},
+		"canonical_hash":        map[string]any{"type": "string", "pattern": "^sha256:"},
+		"canonicalization":      map[string]any{"type": "string"},
+		"subject_refs":          map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/SubjectRef"}},
+		"related_evidence_refs": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/EvidenceRef"}},
+		"supersedes":            map[string]any{"type": "string"},
+		"superseded_by":         map[string]any{"type": "string"},
+		"trust_level":           map[string]any{"type": "string"},
+		"verification_status":   map[string]any{"type": "string"},
+		"signature_refs":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"chain_entry_id":        map[string]any{"type": "string"},
+		"tags":                  map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"metadata":              map[string]any{"type": "object", "additionalProperties": true},
+		"warnings":              map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/EvidenceNotice"}},
+		"limitations":           map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"created_at":            map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "type", "title", "source_system", "observed_at", "evidence_version", "schema_version", "payload_hash", "canonical_hash", "canonicalization", "trust_level", "verification_status", "chain_entry_id", "created_at"))
+	registry.RegisterSchema("EvidenceItemEnvelope", dataEnvelopeSchema("#/components/schemas/EvidenceItem"))
+	registry.RegisterSchema("EvidenceItemListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/EvidenceItem"))
 	registry.RegisterSchema("EvidenceSearchResponse", objectSchema(map[string]any{
-		"items":       map[string]any{"type": "array", "items": map[string]any{"type": "object"}},
+		"items":       map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/EvidenceItem"}},
 		"next_cursor": map[string]any{"type": "string"},
 	}, "items"))
 	registry.RegisterSchema("EvidenceSearchEnvelope", dataEnvelopeSchema("#/components/schemas/EvidenceSearchResponse"))

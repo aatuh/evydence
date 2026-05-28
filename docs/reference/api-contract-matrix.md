@@ -3,7 +3,7 @@
 This generated reference inventories Evydence `/v1` route contract precision from `openapi.yaml`.
 It is a planning aid for production contract hardening; `broad` means the route still uses a shared envelope, unspecified body, or generic schema where an endpoint-specific contract should be considered.
 
-Generated from 160 operations: 35 precise, 125 broad.
+Generated from 160 operations: 38 precise, 122 broad.
 
 | Method | Path | Operation | Auth | Scopes | Idempotency | Params | Request | 2xx Response | Precision |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -55,14 +55,14 @@ Generated from 160 operations: 35 precise, 125 broad.
 | POST | /v1/dsse-trust-roots | createDSSETrustRoot | Bearer | keys:admin | required | - | - | 201:unspecified | broad |
 | GET | /v1/environments | listDeploymentEnvironments | Bearer | deployment:read | - | - | - | 200:unspecified | broad |
 | POST | /v1/environments | createDeploymentEnvironment | Bearer | deployment:write | required | - | - | 201:unspecified | broad |
-| GET | /v1/evidence | listEvidence | Bearer | evidence:read | - | - | - | 200:unspecified | broad |
-| POST | /v1/evidence | createEvidence | Bearer | evidence:write | required | - | application/json:CreateEvidenceRequest | 201:application/json:DataEnvelope | broad |
+| GET | /v1/evidence | listEvidence | Bearer | evidence:read | - | query:release_id, query:type | - | 200:application/json:EvidenceItemListEnvelope | precise |
+| POST | /v1/evidence | createEvidence | Bearer | evidence:write | required | - | application/json:CreateEvidenceRequest | 201:application/json:EvidenceItemEnvelope | precise |
 | POST | /v1/evidence-bundles | exportEvidenceBundle | Bearer | bundle:read | required | - | - | 201:unspecified | broad |
 | POST | /v1/evidence-bundles/import | importEvidenceBundle | Bearer | bundle:write | required | - | - | 201:unspecified | broad |
 | POST | /v1/evidence-graph-snapshots | createGraphSnapshot | Bearer | evidence:read | required | - | application/json:CreateGraphSnapshotRequest | 201:application/json:EvidenceGraphSnapshotEnvelope | precise |
 | POST | /v1/evidence-summaries | createEvidenceSummary | Bearer | report:read | required | - | - | 201:unspecified | broad |
 | GET | /v1/evidence/search | searchEvidence | Bearer | evidence:read | - | query:cursor, query:limit, query:product_id, query:project_id, query:release_id, query:source, query:tag, query:type | - | 200:application/json:EvidenceSearchEnvelope | precise |
-| GET | /v1/evidence/{id} | getEvidence | Bearer | evidence:read | - | - | - | 200:unspecified | broad |
+| GET | /v1/evidence/{id} | getEvidence | Bearer | evidence:read | - | path:id | - | 200:application/json:EvidenceItemEnvelope | precise |
 | GET | /v1/evidence/{id}/lifecycle-events | listEvidenceLifecycleEvents | Bearer | evidence:read | - | - | - | 200:unspecified | broad |
 | POST | /v1/evidence/{id}/lifecycle-events | recordEvidenceLifecycleEvent | Bearer | evidence:write | required | - | - | 201:unspecified | broad |
 | POST | /v1/evidence/{id}/link | linkEvidence | Bearer | evidence:write | required | - | - | 201:unspecified | broad |
