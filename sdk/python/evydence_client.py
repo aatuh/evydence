@@ -31,3 +31,17 @@ class EvydenceClient:
                 return json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             raise RuntimeError(f"Evydence request failed with status {exc.code}") from exc
+
+    def create_sso_provider(
+        self,
+        idempotency_key: str,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        return self.post("/v1/sso/providers", idempotency_key, payload)
+
+    def verify_provider_identity(
+        self,
+        idempotency_key: str,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        return self.post("/v1/provider-verifications", idempotency_key, payload)
