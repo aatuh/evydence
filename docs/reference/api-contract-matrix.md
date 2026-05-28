@@ -3,13 +3,13 @@
 This generated reference inventories Evydence `/v1` route contract precision from `openapi.yaml`.
 It is a planning aid for production contract hardening; `broad` means the route still uses a shared envelope, unspecified body, or generic schema where an endpoint-specific contract should be considered.
 
-Generated from 160 operations: 38 precise, 122 broad.
+Generated from 160 operations: 42 precise, 118 broad.
 
 | Method | Path | Operation | Auth | Scopes | Idempotency | Params | Request | 2xx Response | Precision |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | GET | /v1/admin/instance | instanceAdminSnapshot | Bearer | instance:admin | - | - | - | 200:application/json:InstanceAdminSnapshotEnvelope | precise |
-| GET | /v1/api-keys | listAPIKeys | Bearer | admin | - | - | - | 200:unspecified | broad |
-| POST | /v1/api-keys | createAPIKey | Bearer | admin | required | - | - | 201:unspecified | broad |
+| GET | /v1/api-keys | listAPIKeys | Bearer | admin | - | - | - | 200:application/json:APIKeyListEnvelope | precise |
+| POST | /v1/api-keys | createAPIKey | Bearer | admin | required | - | application/json:CreateAPIKeyRequest | 201:application/json:APIKeyCreateEnvelope | precise |
 | POST | /v1/api-security-scans | uploadAPISecurityScan | Bearer | security:write | required | - | - | 201:unspecified | broad |
 | POST | /v1/approvals | createApproval | Bearer | release:write | required | - | - | 201:unspecified | broad |
 | POST | /v1/artifact-signatures | createArtifactSignature | Bearer | evidence:write | required | - | - | 201:unspecified | broad |
@@ -24,8 +24,8 @@ Generated from 160 operations: 38 precise, 122 broad.
 | POST | /v1/builds | createBuild | Bearer | build:write | required | - | application/json:CreateBuildRequest | 201:application/json:BuildRunEnvelope | precise |
 | GET | /v1/builds/{id} | getBuild | Bearer | build:read | - | path:id | - | 200:application/json:BuildRunEnvelope | precise |
 | POST | /v1/builds/{id}/attestations | uploadBuildAttestation | Bearer | build:write | required | - | - | 201:unspecified | broad |
-| GET | /v1/collectors | listCollectors | Bearer | collector:read | - | - | - | 200:unspecified | broad |
-| POST | /v1/collectors | createCollector | Bearer | collector:admin | required | - | - | 201:unspecified | broad |
+| GET | /v1/collectors | listCollectors | Bearer | collector:read | - | - | - | 200:application/json:CollectorListEnvelope | precise |
+| POST | /v1/collectors | createCollector | Bearer | collector:admin | required | - | application/json:CreateCollectorRequest | 201:application/json:CollectorCreateEnvelope | precise |
 | POST | /v1/collectors/github/source-snapshots | uploadGitHubSourceSnapshot | Bearer | source:write | required | - | application/json:SourceSnapshotRequest | 201:application/json:SourceSnapshotEnvelope | precise |
 | POST | /v1/collectors/gitlab/source-snapshots | uploadGitLabSourceSnapshot | Bearer | source:write | required | - | application/json:SourceSnapshotRequest | 201:application/json:SourceSnapshotEnvelope | precise |
 | GET | /v1/collectors/{id}/health | collectorHealthReport | Bearer | collector:read | - | - | - | 200:unspecified | broad |

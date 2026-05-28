@@ -29,6 +29,20 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Description = "Verifies stored provider identity metadata and, when supplied, locally verifies OIDC ID-token or SAML assertion issuer, audience, subject, time bounds, and signature against configured tenant trust material."
 		operation.RequestBody = jsonRequest("Provider identity verification request.", "#/components/schemas/VerifyProviderIdentityRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Provider verification envelope.", "#/components/schemas/ProviderVerificationEnvelope")
+	case "createAPIKey":
+		operation.Description = "Creates a tenant-scoped API key and returns the secret exactly once. Stored records expose only non-secret key metadata."
+		operation.RequestBody = jsonRequest("API key creation request.", "#/components/schemas/CreateAPIKeyRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created API key and one-time secret envelope.", "#/components/schemas/APIKeyCreateEnvelope")
+	case "listAPIKeys":
+		operation.Description = "Lists tenant-scoped API key metadata without key hashes or one-time secrets."
+		operation.Responses[http.StatusOK] = jsonResponse("API key list envelope.", "#/components/schemas/APIKeyListEnvelope")
+	case "createCollector":
+		operation.Description = "Creates a tenant-scoped collector identity, binds a scoped API key, and returns the collector key secret exactly once."
+		operation.RequestBody = jsonRequest("Collector creation request.", "#/components/schemas/CreateCollectorRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created collector and one-time key secret envelope.", "#/components/schemas/CollectorCreateEnvelope")
+	case "listCollectors":
+		operation.Description = "Lists tenant-scoped collector metadata without API key hashes or one-time secrets."
+		operation.Responses[http.StatusOK] = jsonResponse("Collector list envelope.", "#/components/schemas/CollectorListEnvelope")
 	case "createProduct":
 		operation.Description = "Creates a tenant-scoped product. Product slugs must be unique per tenant."
 		operation.RequestBody = jsonRequest("Product creation request.", "#/components/schemas/CreateProductRequest")
