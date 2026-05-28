@@ -3,7 +3,7 @@
 This generated reference inventories Evydence `/v1` route contract precision from `openapi.yaml`.
 It is a planning aid for production contract hardening; `broad` means the route still uses a shared envelope, unspecified body, or generic schema where an endpoint-specific contract should be considered.
 
-Generated from 160 operations: 98 precise, 62 broad.
+Generated from 160 operations: 108 precise, 52 broad.
 
 | Method | Path | Operation | Auth | Scopes | Idempotency | Params | Request | 2xx Response | Precision |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -49,12 +49,12 @@ Generated from 160 operations: 98 precise, 62 broad.
 | POST | /v1/customer-portal/access | createCustomerPortalAccess | Bearer | package:write | required | - | application/json:CreateCustomerPortalAccessRequest | 201:application/json:CustomerPortalAccessCreateEnvelope | precise |
 | POST | /v1/customer-portal/package | accessCustomerPortalPackage | public | - | not required | - | application/json:CustomerPortalPackageRequest | 200:application/json:DataEnvelope | broad |
 | POST | /v1/customer-portal/package/download | downloadCustomerPortalPackage | public | - | not required | - | application/json:CustomerPortalPackageRequest | 200:application/zip:string/binary | precise |
-| GET | /v1/deployments | listDeployments | Bearer | deployment:read | - | - | - | 200:unspecified | broad |
-| POST | /v1/deployments | recordDeployment | Bearer | deployment:write | required | - | - | 201:unspecified | broad |
-| GET | /v1/deployments/{id} | getDeployment | Bearer | deployment:read | - | - | - | 200:unspecified | broad |
+| GET | /v1/deployments | listDeployments | Bearer | deployment:read | - | query:environment_id, query:release_id | - | 200:application/json:DeploymentEventListEnvelope | precise |
+| POST | /v1/deployments | recordDeployment | Bearer | deployment:write | required | - | application/json:RecordDeploymentRequest | 201:application/json:DeploymentEventEnvelope | precise |
+| GET | /v1/deployments/{id} | getDeployment | Bearer | deployment:read | - | path:id | - | 200:application/json:DeploymentEventEnvelope | precise |
 | POST | /v1/dsse-trust-roots | createDSSETrustRoot | Bearer | keys:admin | required | - | application/json:CreateDSSETrustRootRequest | 201:application/json:DSSETrustRootEnvelope | precise |
-| GET | /v1/environments | listDeploymentEnvironments | Bearer | deployment:read | - | - | - | 200:unspecified | broad |
-| POST | /v1/environments | createDeploymentEnvironment | Bearer | deployment:write | required | - | - | 201:unspecified | broad |
+| GET | /v1/environments | listDeploymentEnvironments | Bearer | deployment:read | - | query:product_id | - | 200:application/json:DeploymentEnvironmentListEnvelope | precise |
+| POST | /v1/environments | createDeploymentEnvironment | Bearer | deployment:write | required | - | application/json:CreateDeploymentEnvironmentRequest | 201:application/json:DeploymentEnvironmentEnvelope | precise |
 | GET | /v1/evidence | listEvidence | Bearer | evidence:read | - | query:release_id, query:type | - | 200:application/json:EvidenceItemListEnvelope | precise |
 | POST | /v1/evidence | createEvidence | Bearer | evidence:write | required | - | application/json:CreateEvidenceRequest | 201:application/json:EvidenceItemEnvelope | precise |
 | POST | /v1/evidence-bundles | exportEvidenceBundle | Bearer | bundle:read | required | - | - | 201:unspecified | broad |
@@ -144,11 +144,11 @@ Generated from 160 operations: 98 precise, 62 broad.
 | POST | /v1/signing-keys/{id}/revoke | revokeSigningKey | Bearer | keys:admin | required | path:id | application/json:SigningKeyTransitionRequest | 200:application/json:SigningKeyEnvelope | precise |
 | POST | /v1/signing-operations | createSigningOperation | Bearer | keys:admin | required | - | application/json:CreateSigningOperationRequest | 201:application/json:SigningOperationEnvelope | precise |
 | POST | /v1/signing-providers | createSigningProvider | Bearer | keys:admin | required | - | application/json:CreateSigningProviderRequest | 201:application/json:SigningProviderEnvelope | precise |
-| POST | /v1/source/branches | upsertSourceBranch | Bearer | source:write | required | - | - | 201:unspecified | broad |
-| POST | /v1/source/commits | recordSourceCommit | Bearer | source:write | required | - | - | 201:unspecified | broad |
-| POST | /v1/source/pull-requests | recordPullRequest | Bearer | source:write | required | - | - | 201:unspecified | broad |
-| GET | /v1/source/repositories | listSourceRepositories | Bearer | source:read | - | - | - | 200:unspecified | broad |
-| POST | /v1/source/repositories | createSourceRepository | Bearer | source:write | required | - | - | 201:unspecified | broad |
+| POST | /v1/source/branches | upsertSourceBranch | Bearer | source:write | required | - | application/json:UpsertSourceBranchRequest | 201:application/json:SourceBranchEnvelope | precise |
+| POST | /v1/source/commits | recordSourceCommit | Bearer | source:write | required | - | application/json:RecordSourceCommitRequest | 201:application/json:SourceCommitEnvelope | precise |
+| POST | /v1/source/pull-requests | recordPullRequest | Bearer | source:write | required | - | application/json:RecordPullRequestRequest | 201:application/json:PullRequestEnvelope | precise |
+| GET | /v1/source/repositories | listSourceRepositories | Bearer | source:read | - | query:project_id | - | 200:application/json:SourceRepositoryListEnvelope | precise |
+| POST | /v1/source/repositories | createSourceRepository | Bearer | source:write | required | - | application/json:CreateSourceRepositoryRequest | 201:application/json:SourceRepositoryEnvelope | precise |
 | POST | /v1/sso/identity-links | linkSSOIdentity | Bearer | identity:admin | required | - | application/json:LinkSSOIdentityRequest | 201:application/json:UserIdentityLinkEnvelope | precise |
 | POST | /v1/sso/providers | createSSOProvider | Bearer | identity:admin | required | - | application/json:CreateSSOProviderRequest | 201:application/json:SSOProviderEnvelope | precise |
 | POST | /v1/sso/sessions | createSSOSession | Bearer | identity:admin | required | - | application/json:CreateSSOSessionRequest | 201:application/json:SSOSessionCreateEnvelope | precise |

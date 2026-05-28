@@ -557,6 +557,132 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "id", "tenant_id", "evidence_id", "action", "reason", "actor_id", "schema_version", "created_at"))
 	registry.RegisterSchema("EvidenceLifecycleEventEnvelope", dataEnvelopeSchema("#/components/schemas/EvidenceLifecycleEvent"))
 	registry.RegisterSchema("EvidenceLifecycleEventListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/EvidenceLifecycleEvent"))
+	registry.RegisterSchema("CreateSourceRepositoryRequest", objectSchema(map[string]any{
+		"project_id":     map[string]any{"type": "string"},
+		"provider":       map[string]any{"type": "string"},
+		"full_name":      map[string]any{"type": "string"},
+		"clone_url":      map[string]any{"type": "string"},
+		"default_branch": map[string]any{"type": "string"},
+	}, "provider", "full_name"))
+	registry.RegisterSchema("SourceRepository", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"project_id":     map[string]any{"type": "string"},
+		"provider":       map[string]any{"type": "string"},
+		"full_name":      map[string]any{"type": "string"},
+		"clone_url":      map[string]any{"type": "string"},
+		"default_branch": map[string]any{"type": "string"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "provider", "full_name", "schema_version", "created_at"))
+	registry.RegisterSchema("SourceRepositoryEnvelope", dataEnvelopeSchema("#/components/schemas/SourceRepository"))
+	registry.RegisterSchema("SourceRepositoryListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/SourceRepository"))
+	registry.RegisterSchema("RecordSourceCommitRequest", objectSchema(map[string]any{
+		"repository_id": map[string]any{"type": "string"},
+		"sha":           map[string]any{"type": "string"},
+		"author":        map[string]any{"type": "string"},
+		"message":       map[string]any{"type": "string", "description": "Commit message is hashed before storage."},
+		"committed_at":  map[string]any{"type": "string", "format": "date-time"},
+	}, "repository_id", "sha", "committed_at"))
+	registry.RegisterSchema("SourceCommit", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"repository_id":  map[string]any{"type": "string"},
+		"sha":            map[string]any{"type": "string"},
+		"author":         map[string]any{"type": "string"},
+		"message_hash":   map[string]any{"type": "string", "pattern": "^sha256:"},
+		"committed_at":   map[string]any{"type": "string", "format": "date-time"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "repository_id", "sha", "committed_at", "schema_version", "created_at"))
+	registry.RegisterSchema("SourceCommitEnvelope", dataEnvelopeSchema("#/components/schemas/SourceCommit"))
+	registry.RegisterSchema("UpsertSourceBranchRequest", objectSchema(map[string]any{
+		"repository_id":   map[string]any{"type": "string"},
+		"name":            map[string]any{"type": "string"},
+		"head_commit_id":  map[string]any{"type": "string"},
+		"protected":       map[string]any{"type": "boolean"},
+		"protection_hash": map[string]any{"type": "string"},
+	}, "repository_id", "name"))
+	registry.RegisterSchema("SourceBranch", objectSchema(map[string]any{
+		"id":              map[string]any{"type": "string"},
+		"tenant_id":       map[string]any{"type": "string"},
+		"repository_id":   map[string]any{"type": "string"},
+		"name":            map[string]any{"type": "string"},
+		"head_commit_id":  map[string]any{"type": "string"},
+		"protected":       map[string]any{"type": "boolean"},
+		"protection_hash": map[string]any{"type": "string"},
+		"schema_version":  map[string]any{"type": "string"},
+		"created_at":      map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "repository_id", "name", "protected", "schema_version", "created_at"))
+	registry.RegisterSchema("SourceBranchEnvelope", dataEnvelopeSchema("#/components/schemas/SourceBranch"))
+	registry.RegisterSchema("RecordPullRequestRequest", objectSchema(map[string]any{
+		"repository_id":   map[string]any{"type": "string"},
+		"provider":        map[string]any{"type": "string"},
+		"provider_id":     map[string]any{"type": "string"},
+		"title":           map[string]any{"type": "string"},
+		"state":           map[string]any{"type": "string"},
+		"source_branch":   map[string]any{"type": "string"},
+		"target_branch":   map[string]any{"type": "string"},
+		"head_commit_id":  map[string]any{"type": "string"},
+		"review_decision": map[string]any{"type": "string"},
+	}, "repository_id", "provider", "provider_id", "title", "state"))
+	registry.RegisterSchema("PullRequest", objectSchema(map[string]any{
+		"id":              map[string]any{"type": "string"},
+		"tenant_id":       map[string]any{"type": "string"},
+		"repository_id":   map[string]any{"type": "string"},
+		"provider":        map[string]any{"type": "string"},
+		"provider_id":     map[string]any{"type": "string"},
+		"title":           map[string]any{"type": "string"},
+		"state":           map[string]any{"type": "string"},
+		"source_branch":   map[string]any{"type": "string"},
+		"target_branch":   map[string]any{"type": "string"},
+		"head_commit_id":  map[string]any{"type": "string"},
+		"review_decision": map[string]any{"type": "string"},
+		"schema_version":  map[string]any{"type": "string"},
+		"created_at":      map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "repository_id", "provider", "provider_id", "title", "state", "schema_version", "created_at"))
+	registry.RegisterSchema("PullRequestEnvelope", dataEnvelopeSchema("#/components/schemas/PullRequest"))
+	registry.RegisterSchema("CreateDeploymentEnvironmentRequest", objectSchema(map[string]any{
+		"product_id": map[string]any{"type": "string"},
+		"name":       map[string]any{"type": "string"},
+		"kind":       map[string]any{"type": "string"},
+	}, "product_id", "name", "kind"))
+	registry.RegisterSchema("DeploymentEnvironment", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"product_id":     map[string]any{"type": "string"},
+		"name":           map[string]any{"type": "string"},
+		"kind":           map[string]any{"type": "string"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "product_id", "name", "kind", "schema_version", "created_at"))
+	registry.RegisterSchema("DeploymentEnvironmentEnvelope", dataEnvelopeSchema("#/components/schemas/DeploymentEnvironment"))
+	registry.RegisterSchema("DeploymentEnvironmentListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/DeploymentEnvironment"))
+	registry.RegisterSchema("RecordDeploymentRequest", objectSchema(map[string]any{
+		"environment_id": map[string]any{"type": "string"},
+		"release_id":     map[string]any{"type": "string"},
+		"artifact_ids":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"status":         map[string]any{"type": "string"},
+		"started_at":     map[string]any{"type": "string", "format": "date-time"},
+		"finished_at":    map[string]any{"type": "string", "format": "date-time"},
+		"rollback_of":    map[string]any{"type": "string"},
+	}, "environment_id", "release_id", "status", "started_at"))
+	registry.RegisterSchema("DeploymentEvent", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"environment_id": map[string]any{"type": "string"},
+		"release_id":     map[string]any{"type": "string"},
+		"artifact_ids":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"status":         map[string]any{"type": "string"},
+		"started_at":     map[string]any{"type": "string", "format": "date-time"},
+		"finished_at":    map[string]any{"type": "string", "format": "date-time"},
+		"rollback_of":    map[string]any{"type": "string"},
+		"evidence_id":    map[string]any{"type": "string"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "environment_id", "release_id", "status", "started_at", "schema_version", "created_at"))
+	registry.RegisterSchema("DeploymentEventEnvelope", dataEnvelopeSchema("#/components/schemas/DeploymentEvent"))
+	registry.RegisterSchema("DeploymentEventListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/DeploymentEvent"))
 	registry.RegisterSchema("ReadinessReport", objectSchema(map[string]any{
 		"report_type":      map[string]any{"type": "string"},
 		"template_version": map[string]any{"type": "string"},

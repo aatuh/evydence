@@ -42,8 +42,8 @@ def main() -> int:
             else:
                 broad += 1
 
-    min_precise = int_env("EVYDENCE_OPENAPI_MIN_PRECISE", 98)
-    max_broad = int_env("EVYDENCE_OPENAPI_MAX_BROAD", 62)
+    min_precise = int_env("EVYDENCE_OPENAPI_MIN_PRECISE", 108)
+    max_broad = int_env("EVYDENCE_OPENAPI_MAX_BROAD", 52)
     if precise < min_precise:
         print(
             f"openapi-precision-check: precise operations {precise} below required {min_precise}",
