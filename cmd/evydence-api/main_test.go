@@ -46,13 +46,13 @@ func TestValidateRuntimeConfigRejectsProductionDefaults(t *testing.T) {
 	}
 }
 
-func TestPostgresLoadModeDefaultsToRelationalPreferredInProduction(t *testing.T) {
+func TestPostgresLoadModeDefaultsToRelationalOnlyInProduction(t *testing.T) {
 	mode, err := postgres.ResolveLoadMode("", true)
 	if err != nil {
 		t.Fatalf("resolve production load mode: %v", err)
 	}
-	if mode != postgres.LoadModeRelationalPreferred {
-		t.Fatalf("production load mode = %q, want %q", mode, postgres.LoadModeRelationalPreferred)
+	if mode != postgres.LoadModeRelationalOnly {
+		t.Fatalf("production load mode = %q, want %q", mode, postgres.LoadModeRelationalOnly)
 	}
 
 	mode, err = postgres.ResolveLoadMode("", false)
@@ -63,8 +63,8 @@ func TestPostgresLoadModeDefaultsToRelationalPreferredInProduction(t *testing.T)
 		t.Fatalf("local load mode = %q, want %q", mode, postgres.LoadModeSnapshotPreferred)
 	}
 
-	if err := postgres.ValidateProductionLoadMode(postgres.LoadModeSnapshotPreferred); err == nil || !strings.Contains(err.Error(), "EVYDENCE_POSTGRES_LOAD_MODE") {
-		t.Fatalf("snapshot-preferred production validation err=%v", err)
+	if err := postgres.ValidateProductionLoadMode(postgres.LoadModeRelationalPreferred); err == nil || !strings.Contains(err.Error(), "EVYDENCE_POSTGRES_LOAD_MODE") {
+		t.Fatalf("relational-preferred production validation err=%v", err)
 	}
 }
 
