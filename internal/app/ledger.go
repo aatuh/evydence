@@ -1054,6 +1054,7 @@ func (l *Ledger) UploadOpenAPIContract(ctx context.Context, actor domain.Actor, 
 	if err := doc.Validate(ctx); err != nil {
 		return domain.OpenAPIContract{}, ErrValidation
 	}
+	operations := extractOpenAPIOperations(doc)
 	l.mu.Lock()
 	if err := l.ensureScopeLocked(actor.TenantID, strings.TrimSpace(productID), "", strings.TrimSpace(releaseID)); err != nil {
 		l.mu.Unlock()
@@ -1088,7 +1089,7 @@ func (l *Ledger) UploadOpenAPIContract(ctx context.Context, actor domain.Actor, 
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	contract := domain.OpenAPIContract{ID: newID("oas"), TenantID: actor.TenantID, ProductID: productID, ReleaseID: releaseID, Version: version, Hash: payloadHash, PathCount: len(doc.Paths.Map()), EvidenceID: item.ID, CreatedAt: l.now()}
+	contract := domain.OpenAPIContract{ID: newID("oas"), TenantID: actor.TenantID, ProductID: productID, ReleaseID: releaseID, Version: version, Hash: payloadHash, PathCount: len(doc.Paths.Map()), Operations: operations, EvidenceID: item.ID, CreatedAt: l.now()}
 	l.contracts[contract.ID] = contract
 	_, _ = l.appendChainLocked(actor.TenantID, "openapi_contract.parsed", "openapi_contract", contract.ID, "api_key", actor.KeyID, contract.Hash, "")
 	if err := l.enqueue(ctx, actor.TenantID, "parse_openapi_contract", "openapi_contract", contract.ID, map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash}); err != nil {
@@ -1098,6 +1099,99 @@ func (l *Ledger) UploadOpenAPIContract(ctx context.Context, actor domain.Actor, 
 		return domain.OpenAPIContract{}, err
 	}
 	return contract, nil
+}
+
+func extractOpenAPIOperations(doc *openapi3.T) []domain.OpenAPIOperation {
+	if doc == nil || doc.Paths == nil {
+		return nil
+	}
+	paths := doc.Paths.Map()
+	pathNames := make([]string, 0, len(paths))
+	for path := range paths {
+		pathNames = append(pathNames, path)
+	}
+	sort.Strings(pathNames)
+	out := make([]domain.OpenAPIOperation, 0)
+	for _, path := range pathNames {
+		item := paths[path]
+		for _, methodOperation := range openAPIMethodOperations(item) {
+			operation := methodOperation.operation
+			if operation == nil {
+				continue
+			}
+			out = append(out, domain.OpenAPIOperation{
+				Path:                  path,
+				Method:                strings.ToUpper(methodOperation.method),
+				OperationID:           operation.OperationID,
+				Deprecated:            operation.Deprecated,
+				RequestBodyRequired:   openAPIRequestBodyRequired(operation),
+				RequiredRequestFields: openAPIRequiredRequestFields(operation),
+				ResponseStatuses:      openAPIResponseStatuses(operation),
+			})
+		}
+	}
+	return out
+}
+
+type openAPIMethodOperation struct {
+	method    string
+	operation *openapi3.Operation
+}
+
+func openAPIMethodOperations(item *openapi3.PathItem) []openAPIMethodOperation {
+	if item == nil {
+		return nil
+	}
+	return []openAPIMethodOperation{
+		{method: "connect", operation: item.Connect},
+		{method: "delete", operation: item.Delete},
+		{method: "get", operation: item.Get},
+		{method: "head", operation: item.Head},
+		{method: "options", operation: item.Options},
+		{method: "patch", operation: item.Patch},
+		{method: "post", operation: item.Post},
+		{method: "put", operation: item.Put},
+		{method: "trace", operation: item.Trace},
+	}
+}
+
+func openAPIRequestBodyRequired(operation *openapi3.Operation) bool {
+	return operation != nil && operation.RequestBody != nil && operation.RequestBody.Value != nil && operation.RequestBody.Value.Required
+}
+
+func openAPIRequiredRequestFields(operation *openapi3.Operation) []string {
+	if operation == nil || operation.RequestBody == nil || operation.RequestBody.Value == nil {
+		return nil
+	}
+	fields := map[string]struct{}{}
+	for _, media := range operation.RequestBody.Value.Content {
+		if media == nil || media.Schema == nil || media.Schema.Value == nil {
+			continue
+		}
+		for _, field := range media.Schema.Value.Required {
+			if strings.TrimSpace(field) != "" {
+				fields[strings.TrimSpace(field)] = struct{}{}
+			}
+		}
+	}
+	out := make([]string, 0, len(fields))
+	for field := range fields {
+		out = append(out, field)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func openAPIResponseStatuses(operation *openapi3.Operation) []string {
+	if operation == nil || operation.Responses == nil {
+		return nil
+	}
+	statuses := make([]string, 0, len(operation.Responses.Map()))
+	for status := range operation.Responses.Map() {
+		statuses = append(statuses, status)
+	}
+	sort.Strings(statuses)
+	return statuses
 }
 
 func (l *Ledger) EvaluateRelease(ctx context.Context, actor domain.Actor, releaseID string) (domain.PolicyEvaluation, error) {
