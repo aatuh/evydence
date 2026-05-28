@@ -24,6 +24,71 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Description = "Verifies stored provider identity metadata and, when supplied, locally verifies OIDC ID-token or SAML assertion issuer, audience, subject, time bounds, and signature against configured tenant trust material."
 		operation.RequestBody = jsonRequest("Provider identity verification request.", "#/components/schemas/VerifyProviderIdentityRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Provider verification envelope.", "#/components/schemas/ProviderVerificationEnvelope")
+	case "createProduct":
+		operation.Description = "Creates a tenant-scoped product. Product slugs must be unique per tenant."
+		operation.RequestBody = jsonRequest("Product creation request.", "#/components/schemas/CreateProductRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created product envelope.", "#/components/schemas/ProductEnvelope")
+	case "listProducts":
+		operation.Description = "Lists tenant-scoped products visible to the authenticated actor."
+		operation.Responses[http.StatusOK] = jsonResponse("Product list envelope.", "#/components/schemas/ProductListEnvelope")
+	case "createProject":
+		operation.Description = "Creates a tenant-scoped project under a product."
+		operation.RequestBody = jsonRequest("Project creation request.", "#/components/schemas/CreateProjectRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created project envelope.", "#/components/schemas/ProjectEnvelope")
+	case "createRelease":
+		operation.Description = "Creates an append-only release record under a product and optional project."
+		operation.RequestBody = jsonRequest("Release creation request.", "#/components/schemas/CreateReleaseRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created release envelope.", "#/components/schemas/ReleaseEnvelope")
+	case "getRelease":
+		operation.Description = "Returns a tenant-scoped release by id."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Release id."))
+		operation.Responses[http.StatusOK] = jsonResponse("Release envelope.", "#/components/schemas/ReleaseEnvelope")
+	case "freezeRelease":
+		operation.Description = "Freezes a release as an append-only transition."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Release id."))
+		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
+		operation.Responses[http.StatusOK] = jsonResponse("Frozen release envelope.", "#/components/schemas/ReleaseEnvelope")
+	case "approveRelease":
+		operation.Description = "Approves a release as an append-only transition."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Release id."))
+		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
+		operation.Responses[http.StatusOK] = jsonResponse("Approved release envelope.", "#/components/schemas/ReleaseEnvelope")
+	case "registerArtifact":
+		operation.Description = "Registers an artifact digest for release evidence and later build/attestation matching."
+		operation.RequestBody = jsonRequest("Artifact registration request.", "#/components/schemas/RegisterArtifactRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Registered artifact envelope.", "#/components/schemas/ArtifactEnvelope")
+	case "createBuild":
+		operation.Description = "Records an immutable CI build run. Collector identity is derived from the authenticated key when present."
+		operation.RequestBody = jsonRequest("Build run creation request.", "#/components/schemas/CreateBuildRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created build run envelope.", "#/components/schemas/BuildRunEnvelope")
+	case "getBuild":
+		operation.Description = "Returns a tenant-scoped build run by id."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Build run id."))
+		operation.Responses[http.StatusOK] = jsonResponse("Build run envelope.", "#/components/schemas/BuildRunEnvelope")
+	case "uploadSBOM":
+		operation.Description = "Uploads a CycloneDX SBOM payload, stores raw bytes in object storage, and records normalized SBOM metadata."
+		operation.RequestBody = jsonRequest("CycloneDX SBOM upload request.", "#/components/schemas/EvidenceUploadRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created SBOM envelope.", "#/components/schemas/SBOMEnvelope")
+	case "getSBOM":
+		operation.Description = "Returns a tenant-scoped SBOM metadata record by id."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "SBOM id."))
+		operation.Responses[http.StatusOK] = jsonResponse("SBOM envelope.", "#/components/schemas/SBOMEnvelope")
+	case "uploadVEX", "uploadCycloneDXVEX":
+		operation.Description = "Uploads VEX payload bytes, stores raw evidence in object storage, and records normalized VEX metadata and decisions where applicable."
+		operation.RequestBody = jsonRequest("VEX upload request.", "#/components/schemas/EvidenceUploadRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created VEX document envelope.", "#/components/schemas/VEXDocumentEnvelope")
+	case "getVEX":
+		operation.Description = "Returns a tenant-scoped VEX document metadata record by id."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "VEX document id."))
+		operation.Responses[http.StatusOK] = jsonResponse("VEX document envelope.", "#/components/schemas/VEXDocumentEnvelope")
+	case "uploadVulnerabilityScan":
+		operation.Description = "Uploads a generic vulnerability scan JSON payload and records normalized findings."
+		operation.RequestBody = jsonRequest("Vulnerability scan upload payload.", "#/components/schemas/UploadVulnerabilityScanRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created vulnerability scan envelope.", "#/components/schemas/VulnerabilityScanEnvelope")
+	case "getVulnerabilityScan":
+		operation.Description = "Returns a tenant-scoped vulnerability scan by id."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Vulnerability scan id."))
+		operation.Responses[http.StatusOK] = jsonResponse("Vulnerability scan envelope.", "#/components/schemas/VulnerabilityScanEnvelope")
 	case "createEvidence":
 		operation.Description = "Creates immutable evidence metadata and optional raw payload evidence. Evidence core fields are append-only after creation."
 		operation.RequestBody = jsonRequest("Evidence creation request.", "#/components/schemas/CreateEvidenceRequest")
