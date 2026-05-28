@@ -3,8 +3,11 @@ package postgres
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
@@ -83,5 +86,57 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	}
 	if _, err := store.Now(ctx); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestPendingMigrationVersionsWithPostgres(t *testing.T) {
+	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("EVYDENCE_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	baseStore, err := Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer baseStore.Close()
+	schema := "evydence_pending_migrations_" + strings.ReplaceAll(time.Now().Format("150405.000000000"), ".", "_")
+	quotedSchema := pgx.Identifier{schema}.Sanitize()
+	if _, err := baseStore.pool.Exec(ctx, "CREATE SCHEMA "+quotedSchema); err != nil {
+		t.Fatal(err)
+	}
+	defer func(cleanupCtx context.Context) {
+		_, _ = baseStore.pool.Exec(cleanupCtx, "DROP SCHEMA "+quotedSchema+" CASCADE")
+	}(context.WithoutCancel(ctx))
+
+	store, err := Open(ctx, databaseURLWithSearchPath(t, databaseURL, schema))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	pending, err := store.PendingMigrationVersions(ctx, "../../../migrations")
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := migrationFileNames(t, "../../../migrations")
+	if len(pending) != len(names) {
+		t.Fatalf("pending migrations = %d, want %d", len(pending), len(names))
+	}
+	if err := store.RequireNoPendingMigrations(ctx, "../../../migrations"); err == nil {
+		t.Fatal("expected pending migrations to fail closed")
+	}
+	if _, err := store.ApplyMigrations(ctx, "../../../migrations"); err != nil {
+		t.Fatal(err)
+	}
+	pending, err = store.PendingMigrationVersions(ctx, "../../../migrations")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pending) != 0 {
+		t.Fatalf("pending after apply = %#v", pending)
+	}
+	if err := store.RequireNoPendingMigrations(ctx, "../../../migrations"); err != nil {
+		t.Fatalf("require no pending after apply: %v", err)
 	}
 }
