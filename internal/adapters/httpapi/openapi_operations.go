@@ -402,7 +402,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Signing provider creation request.", "#/components/schemas/CreateSigningProviderRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created signing provider envelope.", "#/components/schemas/SigningProviderEnvelope")
 	case "createSigningOperation":
-		operation.Description = "Records an external signing operation receipt and checks payload/signature metadata without logging secrets."
+		operation.Description = "Records an external signing operation receipt and checks payload/signature metadata without logging secrets. When the API is configured with a signing executor, external_signature may be omitted and the executor signs the payload hash."
 		operation.RequestBody = jsonRequest("Signing operation creation request.", "#/components/schemas/CreateSigningOperationRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created signing operation envelope.", "#/components/schemas/SigningOperationEnvelope")
 	case "createArtifactSignature":

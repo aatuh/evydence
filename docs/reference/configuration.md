@@ -45,6 +45,10 @@ The example secrets are placeholders. Replace them before using shared or produc
 | `EVYDENCE_WORKER_BATCH_SIZE` | No | `10` | Maximum outbox jobs claimed per polling cycle. |
 | `EVYDENCE_WORKER_MAX_PAYLOAD_BYTES` | No | `20971520` | Maximum raw object payload size replayed by a worker job. |
 | `EVYDENCE_SIGNING_KEY_MODE` | Production yes | `external` for production | Production rejects local plaintext signing-key mode. |
+| `EVYDENCE_SIGNING_EXECUTOR_URL` | No | unset | Optional HTTPS signing gateway used by `POST /v1/signing-operations` when `external_signature` is omitted. The API sends subject metadata and `payload_hash`, not raw payload bytes. |
+| `EVYDENCE_SIGNING_EXECUTOR_TOKEN` | Signing gateway | unset | Optional bearer token for the signing gateway. Store outside source control and logs. |
+| `EVYDENCE_SIGNING_EXECUTOR_TIMEOUT_SECONDS` | No | `10` | Timeout for signing gateway requests. |
+| `EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST` | Local only | `false` | Allows `http://localhost` or loopback signing gateway endpoints for local development and tests. Do not use for production. |
 | `EVYDENCE_TEST_DATABASE_URL` | Live tests | `.test.env.example` value | Used by `make live-postgres-check`, `make postgres-integration-test`, and `make release-check`. |
 
 ## Production Rejection Checks
@@ -57,6 +61,15 @@ When `ENV=production`, the API refuses to start unless:
 - `EVYDENCE_PRINT_BOOTSTRAP_SECRET` is not `true`.
 
 These checks reduce unsafe runtime defaults. They do not replace secret management, network controls, backup validation, or external signing operations.
+
+## External Signing Gateway
+
+When `EVYDENCE_SIGNING_EXECUTOR_URL` is set, signing operations can omit
+`external_signature`. Evydence sends a JSON request containing tenant id,
+provider id/type, key reference, subject type/id, and `payload_hash`. The
+gateway returns a signature, optional provider key id, and optional algorithm.
+Evydence records the signature receipt and verification checks; it does not
+store production private key material or send raw evidence payload bytes.
 
 ## Related Commands
 

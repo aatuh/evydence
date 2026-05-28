@@ -22,7 +22,8 @@ Known hardening work remains:
 - OpenAPI precision is enforced across the registered public API. The generated
   matrix remains the source of truth for operation ids, scopes, idempotency,
   parameters, and request/response schemas;
-- production KMS/HSM execution, full browser OIDC/SAML login flows, provider
+- production signing can use the HTTPS signing gateway executor, but direct
+  cloud KMS/HSM SDK adapters, full browser OIDC/SAML login flows, provider
   discovery/group sync, object-lock enforcement proof, and transparency
   inclusion proof verification remain provider- and deployment-dependent
   hardening areas;
@@ -102,8 +103,9 @@ implemented capabilities:
   responses backward compatible.
 - Keep OpenAPI precision at zero broad operations as routes are added or
   changed, and expand generated SDK coverage from the committed contract.
-- Add production signing-provider execution for a configured external provider
-  profile without storing private key material in Evydence.
+- Add direct cloud KMS/HSM SDK adapters where required. The current HTTPS
+  signing gateway executor covers deployments that put KMS/HSM custody behind a
+  tenant-controlled signing service and do not send raw payload bytes.
 - Complete live OIDC/SAML browser login callbacks, provider discovery, JWKS
   refresh, logout, and optional group mapping where those profiles are enabled.
 - Add provider-backed object-lock/WORM verification and optional transparency

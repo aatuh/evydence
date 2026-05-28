@@ -218,3 +218,54 @@ func TestFutureOperationalExtensionsAndPartialTrustClosures(t *testing.T) {
 		t.Fatalf("non-instance saas profile err=%v, want forbidden", err)
 	}
 }
+
+type fakeSigningExecutor struct {
+	request SigningRequest
+}
+
+func (f *fakeSigningExecutor) Sign(_ context.Context, request SigningRequest) (SigningResult, error) {
+	f.request = request
+	return SigningResult{
+		Signature: "sig_from_executor",
+		KeyID:     "kms-key-1",
+		Algorithm: "external-aws_kms",
+		Checks:    []domain.VerifyCheck{{Name: "fake_executor", Result: "passed"}},
+	}, nil
+}
+
+func TestSigningOperationCanExecuteConfiguredSignerWithoutPrivateKey(t *testing.T) {
+	signer := &fakeSigningExecutor{}
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Signer: signer})
+	ctx := context.Background()
+	actor, release, _ := setupReleaseRiskFixture(t, ledger)
+	provider, err := ledger.CreateSigningProvider(ctx, actor, CreateSigningProviderInput{Name: "kms", Type: "aws_kms", KeyRef: "arn:aws:kms:example", Encrypted: true})
+	if err != nil {
+		t.Fatalf("provider: %v", err)
+	}
+	op, err := ledger.CreateSigningOperation(ctx, actor, CreateSigningOperationInput{ProviderID: provider.ID, SubjectType: "release", SubjectID: release.ID, PayloadHash: sampleDigest("payload")})
+	if err != nil {
+		t.Fatalf("signing operation: %v", err)
+	}
+	if op.Result != "passed" || op.SignatureRef == "" {
+		t.Fatalf("operation = %#v", op)
+	}
+	if signer.request.ProviderID != provider.ID || signer.request.KeyRef != provider.KeyRef || signer.request.PayloadHash != sampleDigest("payload") {
+		t.Fatalf("executor request = %#v", signer.request)
+	}
+	if !hasVerifyCheck(op.Checks, "signing_executor_invoked", "passed") || !hasVerifyCheck(op.Checks, "fake_executor", "passed") {
+		t.Fatalf("operation checks = %#v", op.Checks)
+	}
+}
+
+func TestSigningOperationRequiresSignatureWhenNoExecutorConfigured(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	actor, release, _ := setupReleaseRiskFixture(t, ledger)
+	provider, err := ledger.CreateSigningProvider(ctx, actor, CreateSigningProviderInput{Name: "kms", Type: "aws_kms", KeyRef: "arn:aws:kms:example", Encrypted: true})
+	if err != nil {
+		t.Fatalf("provider: %v", err)
+	}
+	if _, err := ledger.CreateSigningOperation(ctx, actor, CreateSigningOperationInput{ProviderID: provider.ID, SubjectType: "release", SubjectID: release.ID, PayloadHash: sampleDigest("payload")}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("err=%v, want validation", err)
+	}
+}

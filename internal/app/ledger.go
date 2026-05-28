@@ -66,6 +66,7 @@ type Config struct {
 	Now          func() time.Time
 	Store        Store
 	ObjectStore  ObjectStore
+	Signer       SigningExecutor
 	Outbox       Outbox
 }
 
@@ -76,6 +77,7 @@ type Ledger struct {
 	now     func() time.Time
 	store   Store
 	objects ObjectStore
+	signer  SigningExecutor
 	outbox  Outbox
 
 	tenants               map[string]domain.Tenant
@@ -191,6 +193,7 @@ func NewLedgerWithError(cfg Config) (*Ledger, error) {
 		now:                   now,
 		store:                 cfg.Store,
 		objects:               cfg.ObjectStore,
+		signer:                cfg.Signer,
 		outbox:                cfg.Outbox,
 		tenants:               map[string]domain.Tenant{},
 		organizations:         map[string]domain.Organization{},
