@@ -81,6 +81,9 @@ func (s *Store) loadRelationalState(ctx context.Context) (app.PersistedState, bo
 	if err := s.loadRelationalReleaseCore(ctx, &state, &loaded); err != nil {
 		return app.PersistedState{}, false, err
 	}
+	if err := s.loadRelationalRiskBuildControls(ctx, &state, &loaded); err != nil {
+		return app.PersistedState{}, false, err
+	}
 	if err := s.loadRelationalPackageReportRetention(ctx, &state, &loaded); err != nil {
 		return app.PersistedState{}, false, err
 	}
@@ -102,6 +105,9 @@ func relationalEmptyState() app.PersistedState {
 		SSOSessionHashes:        map[string]string{},
 		APIKeys:                 map[string]domain.APIKey{},
 		APIKeyHashes:            map[string]string{},
+		Collectors:              map[string]domain.Collector{},
+		BuildRuns:               map[string]domain.BuildRun{},
+		BuildAttestations:       map[string]domain.BuildAttestation{},
 		CustomerPortalAccess:    map[string]domain.CustomerPortalAccess{},
 		CustomerPortalHashes:    map[string]string{},
 		RedactionProfiles:       map[string]domain.RedactionProfile{},
@@ -119,6 +125,9 @@ func relationalEmptyState() app.PersistedState {
 		QuestionnairePackages:   map[string]domain.QuestionnairePackage{},
 		PDFReports:              map[string]domain.PDFReportPackage{},
 		AnomalyReports:          map[string]domain.AnomalyReport{},
+		ControlFrameworks:       map[string]domain.ControlFramework{},
+		SecurityControls:        map[string]domain.SecurityControl{},
+		ControlEvidence:         map[string]domain.ControlEvidence{},
 		Products:                map[string]domain.Product{},
 		Projects:                map[string]domain.Project{},
 		Releases:                map[string]domain.Release{},
@@ -126,8 +135,11 @@ func relationalEmptyState() app.PersistedState {
 		Evidence:                map[string]domain.EvidenceItem{},
 		SBOMs:                   map[string]domain.SBOM{},
 		Scans:                   map[string]domain.VulnerabilityScan{},
+		VEXDocuments:            map[string]domain.VEXDocument{},
+		Decisions:               map[string]domain.VulnerabilityDecision{},
 		Contracts:               map[string]domain.OpenAPIContract{},
 		Policies:                map[string]domain.PolicyEvaluation{},
+		Exceptions:              map[string]domain.Exception{},
 		Bundles:                 map[string]domain.ReleaseBundle{},
 		SigningKeys:             map[string]domain.SigningKey{},
 		SigningKeyPrivate:       map[string][]byte{},
@@ -796,6 +808,285 @@ func (s *Store) loadRelationalVerifications(ctx context.Context, state *app.Pers
 	return rows.Err()
 }
 
+func (s *Store) loadRelationalRiskBuildControls(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	if err := s.loadRelationalCollectorsAndBuilds(ctx, state, loaded); err != nil {
+		return err
+	}
+	if err := s.loadRelationalRiskDecisions(ctx, state, loaded); err != nil {
+		return err
+	}
+	if err := s.loadRelationalControls(ctx, state, loaded); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Store) loadRelationalCollectorsAndBuilds(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	collectorRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, name, type, version, api_key_id, status, allowed_scopes, last_seen_at, schema_version, created_at FROM collectors`)
+	if err != nil {
+		return fmt.Errorf("load relational collectors: %w", err)
+	}
+	defer collectorRows.Close()
+	for collectorRows.Next() {
+		var collector domain.Collector
+		var allowedScopes []byte
+		var lastSeenAt sql.NullTime
+		if err := collectorRows.Scan(&collector.ID, &collector.TenantID, &collector.Name, &collector.Type, &collector.Version, &collector.APIKeyID, &collector.Status, &allowedScopes, &lastSeenAt, &collector.SchemaVersion, &collector.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational collector: %w", err)
+		}
+		if err := decodeJSON(allowedScopes, &collector.AllowedScopes); err != nil {
+			return fmt.Errorf("decode relational collector scopes: %w", err)
+		}
+		collector.LastSeenAt = nullableSQLTime(lastSeenAt)
+		state.Collectors[collector.ID] = collector
+		*loaded = true
+	}
+	if err := collectorRows.Err(); err != nil {
+		return err
+	}
+
+	buildRows, err := s.pool.Query(ctx, `
+		SELECT id, tenant_id, project_id, release_id, collector_id, provider,
+		       commit_sha, repository, workflow_ref, run_id, run_attempt,
+		       job_id, actor, ref, oidc_subject, status, started_at,
+		       finished_at, parameters_hash, environment_hash, source_identity,
+		       outputs, schema_version, created_at
+		FROM build_runs
+	`)
+	if err != nil {
+		return fmt.Errorf("load relational build runs: %w", err)
+	}
+	defer buildRows.Close()
+	for buildRows.Next() {
+		var build domain.BuildRun
+		var collectorID, repository, workflowRef, runID, jobID, actor, ref, oidcSubject, parametersHash, environmentHash sql.NullString
+		var runAttempt sql.NullInt32
+		var finishedAt sql.NullTime
+		var sourceIdentity, outputs []byte
+		if err := buildRows.Scan(
+			&build.ID, &build.TenantID, &build.ProjectID, &build.ReleaseID, &collectorID, &build.Provider,
+			&build.CommitSHA, &repository, &workflowRef, &runID, &runAttempt,
+			&jobID, &actor, &ref, &oidcSubject, &build.Status, &build.StartedAt,
+			&finishedAt, &parametersHash, &environmentHash, &sourceIdentity,
+			&outputs, &build.SchemaVersion, &build.CreatedAt,
+		); err != nil {
+			return fmt.Errorf("scan relational build run: %w", err)
+		}
+		build.CollectorID = nullableSQLString(collectorID)
+		build.Repository = nullableSQLString(repository)
+		build.WorkflowRef = nullableSQLString(workflowRef)
+		build.RunID = nullableSQLString(runID)
+		if runAttempt.Valid {
+			build.RunAttempt = int(runAttempt.Int32)
+		}
+		build.JobID = nullableSQLString(jobID)
+		build.Actor = nullableSQLString(actor)
+		build.Ref = nullableSQLString(ref)
+		build.OIDCSubject = nullableSQLString(oidcSubject)
+		build.FinishedAt = nullableSQLTime(finishedAt)
+		build.ParametersHash = nullableSQLString(parametersHash)
+		build.EnvironmentHash = nullableSQLString(environmentHash)
+		if err := decodeJSON(sourceIdentity, &build.SourceIdentity); err != nil {
+			return fmt.Errorf("decode relational build source identity: %w", err)
+		}
+		if err := decodeJSON(outputs, &build.Outputs); err != nil {
+			return fmt.Errorf("decode relational build outputs: %w", err)
+		}
+		state.BuildRuns[build.ID] = build
+		*loaded = true
+	}
+	if err := buildRows.Err(); err != nil {
+		return err
+	}
+
+	attestationRows, err := s.pool.Query(ctx, `
+		SELECT id, tenant_id, build_id, evidence_id, payload_ref, payload_hash,
+		       payload_size, payload_type, predicate_type, subject_digests,
+		       builder_id, build_type, materials_count, signature_count,
+		       verification_status, schema_version, created_at
+		FROM build_attestations
+	`)
+	if err != nil {
+		return fmt.Errorf("load relational build attestations: %w", err)
+	}
+	defer attestationRows.Close()
+	for attestationRows.Next() {
+		var attestation domain.BuildAttestation
+		var payloadRef, builderID, buildType sql.NullString
+		var subjectDigests []byte
+		if err := attestationRows.Scan(
+			&attestation.ID, &attestation.TenantID, &attestation.BuildID, &attestation.EvidenceID, &payloadRef, &attestation.PayloadHash,
+			&attestation.PayloadSize, &attestation.PayloadType, &attestation.PredicateType, &subjectDigests,
+			&builderID, &buildType, &attestation.MaterialsCount, &attestation.SignatureCount,
+			&attestation.VerificationStatus, &attestation.SchemaVersion, &attestation.CreatedAt,
+		); err != nil {
+			return fmt.Errorf("scan relational build attestation: %w", err)
+		}
+		attestation.PayloadRef = nullableSQLString(payloadRef)
+		attestation.BuilderID = nullableSQLString(builderID)
+		attestation.BuildType = nullableSQLString(buildType)
+		if err := decodeJSON(subjectDigests, &attestation.SubjectDigests); err != nil {
+			return fmt.Errorf("decode relational attestation subject digests: %w", err)
+		}
+		state.BuildAttestations[attestation.ID] = attestation
+		*loaded = true
+	}
+	return attestationRows.Err()
+}
+
+func (s *Store) loadRelationalRiskDecisions(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	vexRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, evidence_id, release_id, artifact_id, format, author, version, statement_count, status_summary, schema_version, created_at FROM vex_documents`)
+	if err != nil {
+		return fmt.Errorf("load relational vex documents: %w", err)
+	}
+	defer vexRows.Close()
+	for vexRows.Next() {
+		var document domain.VEXDocument
+		var releaseID, artifactID, version sql.NullString
+		var statusSummary []byte
+		if err := vexRows.Scan(&document.ID, &document.TenantID, &document.EvidenceID, &releaseID, &artifactID, &document.Format, &document.Author, &version, &document.StatementCount, &statusSummary, &document.SchemaVersion, &document.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational vex document: %w", err)
+		}
+		document.ReleaseID = nullableSQLString(releaseID)
+		document.ArtifactID = nullableSQLString(artifactID)
+		document.Version = nullableSQLString(version)
+		if err := decodeJSON(statusSummary, &document.StatusSummary); err != nil {
+			return fmt.Errorf("decode relational vex summary: %w", err)
+		}
+		state.VEXDocuments[document.ID] = document
+		*loaded = true
+	}
+	if err := vexRows.Err(); err != nil {
+		return err
+	}
+
+	decisionRows, err := s.pool.Query(ctx, `
+		SELECT id, tenant_id, finding_id, scan_id, release_id, vulnerability,
+		       component, status, justification, impact_statement, action_statement,
+		       source, evidence_id, vex_document_id, supersedes, superseded_by,
+		       approved_by, schema_version, created_at
+		FROM vulnerability_decisions
+	`)
+	if err != nil {
+		return fmt.Errorf("load relational vulnerability decisions: %w", err)
+	}
+	defer decisionRows.Close()
+	for decisionRows.Next() {
+		var decision domain.VulnerabilityDecision
+		var releaseID, component, impactStatement, actionStatement, evidenceID, vexDocumentID, supersedes, supersededBy, approvedBy sql.NullString
+		if err := decisionRows.Scan(
+			&decision.ID, &decision.TenantID, &decision.FindingID, &decision.ScanID, &releaseID, &decision.Vulnerability,
+			&component, &decision.Status, &decision.Justification, &impactStatement, &actionStatement,
+			&decision.Source, &evidenceID, &vexDocumentID, &supersedes, &supersededBy,
+			&approvedBy, &decision.SchemaVersion, &decision.CreatedAt,
+		); err != nil {
+			return fmt.Errorf("scan relational vulnerability decision: %w", err)
+		}
+		decision.ReleaseID = nullableSQLString(releaseID)
+		decision.Component = nullableSQLString(component)
+		decision.ImpactStatement = nullableSQLString(impactStatement)
+		decision.ActionStatement = nullableSQLString(actionStatement)
+		decision.EvidenceID = nullableSQLString(evidenceID)
+		decision.VEXDocumentID = nullableSQLString(vexDocumentID)
+		decision.Supersedes = nullableSQLString(supersedes)
+		decision.SupersededBy = nullableSQLString(supersededBy)
+		decision.ApprovedBy = nullableSQLString(approvedBy)
+		state.Decisions[decision.ID] = decision
+		*loaded = true
+	}
+	if err := decisionRows.Err(); err != nil {
+		return err
+	}
+
+	exceptionRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, release_id, finding_id, control_id, reason, owner, expires_at, approved, approved_by, approved_at, created_at FROM exceptions`)
+	if err != nil {
+		return fmt.Errorf("load relational exceptions: %w", err)
+	}
+	defer exceptionRows.Close()
+	for exceptionRows.Next() {
+		var exception domain.Exception
+		var findingID, controlID, approvedBy sql.NullString
+		var approvedAt sql.NullTime
+		if err := exceptionRows.Scan(&exception.ID, &exception.TenantID, &exception.ReleaseID, &findingID, &controlID, &exception.Reason, &exception.Owner, &exception.ExpiresAt, &exception.Approved, &approvedBy, &approvedAt, &exception.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational exception: %w", err)
+		}
+		exception.FindingID = nullableSQLString(findingID)
+		exception.ControlID = nullableSQLString(controlID)
+		exception.ApprovedBy = nullableSQLString(approvedBy)
+		exception.ApprovedAt = nullableSQLTime(approvedAt)
+		state.Exceptions[exception.ID] = exception
+		*loaded = true
+	}
+	return exceptionRows.Err()
+}
+
+func (s *Store) loadRelationalControls(ctx context.Context, state *app.PersistedState, loaded *bool) error {
+	frameworkRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, name, slug, version, description, status, schema_version, created_at FROM control_frameworks`)
+	if err != nil {
+		return fmt.Errorf("load relational control frameworks: %w", err)
+	}
+	defer frameworkRows.Close()
+	for frameworkRows.Next() {
+		var framework domain.ControlFramework
+		var description sql.NullString
+		if err := frameworkRows.Scan(&framework.ID, &framework.TenantID, &framework.Name, &framework.Slug, &framework.Version, &description, &framework.Status, &framework.SchemaVersion, &framework.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational control framework: %w", err)
+		}
+		framework.Description = nullableSQLString(description)
+		state.ControlFrameworks[framework.ID] = framework
+		*loaded = true
+	}
+	if err := frameworkRows.Err(); err != nil {
+		return err
+	}
+
+	controlRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, framework_id, code, title, objective, evidence_requirements, applicability, limitations, schema_version, created_at FROM security_controls`)
+	if err != nil {
+		return fmt.Errorf("load relational security controls: %w", err)
+	}
+	defer controlRows.Close()
+	for controlRows.Next() {
+		var control domain.SecurityControl
+		var requirements, applicability, limitations []byte
+		if err := controlRows.Scan(&control.ID, &control.TenantID, &control.FrameworkID, &control.Code, &control.Title, &control.Objective, &requirements, &applicability, &limitations, &control.SchemaVersion, &control.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational security control: %w", err)
+		}
+		if err := decodeJSON(requirements, &control.EvidenceRequirements); err != nil {
+			return fmt.Errorf("decode relational control requirements: %w", err)
+		}
+		if err := decodeJSON(applicability, &control.Applicability); err != nil {
+			return fmt.Errorf("decode relational control applicability: %w", err)
+		}
+		if err := decodeJSON(limitations, &control.Limitations); err != nil {
+			return fmt.Errorf("decode relational control limitations: %w", err)
+		}
+		state.SecurityControls[control.ID] = control
+		*loaded = true
+	}
+	if err := controlRows.Err(); err != nil {
+		return err
+	}
+
+	evidenceRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, control_id, evidence_type, subject_type, subject_id, product_id, release_id, confidence, notes, schema_version, created_at FROM control_evidence`)
+	if err != nil {
+		return fmt.Errorf("load relational control evidence: %w", err)
+	}
+	defer evidenceRows.Close()
+	for evidenceRows.Next() {
+		var evidence domain.ControlEvidence
+		var productID, releaseID, notes sql.NullString
+		if err := evidenceRows.Scan(&evidence.ID, &evidence.TenantID, &evidence.ControlID, &evidence.EvidenceType, &evidence.SubjectType, &evidence.SubjectID, &productID, &releaseID, &evidence.Confidence, &notes, &evidence.SchemaVersion, &evidence.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational control evidence: %w", err)
+		}
+		evidence.ProductID = nullableSQLString(productID)
+		evidence.ReleaseID = nullableSQLString(releaseID)
+		evidence.Notes = nullableSQLString(notes)
+		state.ControlEvidence[evidence.ID] = evidence
+		*loaded = true
+	}
+	return evidenceRows.Err()
+}
+
 func (s *Store) loadRelationalPackageReportRetention(ctx context.Context, state *app.PersistedState, loaded *bool) error {
 	if err := s.loadRelationalPackages(ctx, state, loaded); err != nil {
 		return err
@@ -1171,6 +1462,9 @@ func (s *Store) SaveState(ctx context.Context, state app.PersistedState) error {
 	if err := syncReleaseLedgerCore(ctx, tx, state); err != nil {
 		return err
 	}
+	if err := syncRiskBuildControlRows(ctx, tx, state); err != nil {
+		return err
+	}
 	if err := syncPackageReportRetentionRows(ctx, tx, state); err != nil {
 		return err
 	}
@@ -1495,6 +1789,262 @@ func syncReleaseLedgerCore(ctx context.Context, tx pgx.Tx, state app.PersistedSt
 			ON CONFLICT (id) DO UPDATE SET result = EXCLUDED.result, checks = EXCLUDED.checks
 		`, verification.ID, verification.TenantID, verification.SubjectType, verification.SubjectID, verification.Result, checks, nonZeroTime(verification.VerifiedAt)); err != nil {
 			return fmt.Errorf("upsert verification result row: %w", err)
+		}
+	}
+	return nil
+}
+
+func syncRiskBuildControlRows(ctx context.Context, tx pgx.Tx, state app.PersistedState) error {
+	for _, collector := range state.Collectors {
+		if collector.ID == "" || collector.TenantID == "" || collector.APIKeyID == "" {
+			continue
+		}
+		allowedScopes, err := json.Marshal(collector.AllowedScopes)
+		if err != nil {
+			return fmt.Errorf("encode collector scopes: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO collectors (
+				id, tenant_id, name, type, version, api_key_id, status,
+				allowed_scopes, last_seen_at, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			ON CONFLICT (id) DO UPDATE SET
+				name = EXCLUDED.name,
+				version = EXCLUDED.version,
+				api_key_id = EXCLUDED.api_key_id,
+				status = EXCLUDED.status,
+				allowed_scopes = EXCLUDED.allowed_scopes,
+				last_seen_at = EXCLUDED.last_seen_at,
+				schema_version = EXCLUDED.schema_version
+		`, collector.ID, collector.TenantID, collector.Name, collector.Type, collector.Version, collector.APIKeyID, collector.Status, allowedScopes, nullableTime(collector.LastSeenAt), collector.SchemaVersion, nonZeroTime(collector.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert collector row: %w", err)
+		}
+	}
+	for _, build := range state.BuildRuns {
+		if build.ID == "" || build.TenantID == "" || build.ProjectID == "" || build.ReleaseID == "" {
+			continue
+		}
+		sourceIdentity, err := json.Marshal(build.SourceIdentity)
+		if err != nil {
+			return fmt.Errorf("encode build source identity: %w", err)
+		}
+		outputs, err := json.Marshal(build.Outputs)
+		if err != nil {
+			return fmt.Errorf("encode build outputs: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO build_runs (
+				id, tenant_id, project_id, release_id, collector_id, provider,
+				commit_sha, repository, workflow_ref, run_id, run_attempt,
+				job_id, actor, ref, oidc_subject, status, started_at,
+				finished_at, parameters_hash, environment_hash, source_identity,
+				outputs, schema_version, created_at
+			)
+			VALUES (
+				$1, $2, $3, $4, $5, $6,
+				$7, $8, $9, $10, $11,
+				$12, $13, $14, $15, $16, $17,
+				$18, $19, $20, $21,
+				$22, $23, $24
+			)
+			ON CONFLICT (id) DO UPDATE SET
+				status = EXCLUDED.status,
+				finished_at = EXCLUDED.finished_at,
+				parameters_hash = EXCLUDED.parameters_hash,
+				environment_hash = EXCLUDED.environment_hash,
+				source_identity = EXCLUDED.source_identity,
+				outputs = EXCLUDED.outputs
+		`, build.ID, build.TenantID, build.ProjectID, build.ReleaseID, nullableString(build.CollectorID), build.Provider,
+			build.CommitSHA, nullableString(build.Repository), nullableString(build.WorkflowRef), nullableString(build.RunID), nullableInt(build.RunAttempt),
+			nullableString(build.JobID), nullableString(build.Actor), nullableString(build.Ref), nullableString(build.OIDCSubject), build.Status, nonZeroTime(build.StartedAt),
+			nullableTime(build.FinishedAt), nullableString(build.ParametersHash), nullableString(build.EnvironmentHash), sourceIdentity,
+			outputs, build.SchemaVersion, nonZeroTime(build.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert build run row: %w", err)
+		}
+	}
+	for _, attestation := range state.BuildAttestations {
+		if attestation.ID == "" || attestation.TenantID == "" || attestation.BuildID == "" || attestation.EvidenceID == "" {
+			continue
+		}
+		subjectDigests, err := json.Marshal(attestation.SubjectDigests)
+		if err != nil {
+			return fmt.Errorf("encode attestation subject digests: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO build_attestations (
+				id, tenant_id, build_id, evidence_id, payload_ref, payload_hash,
+				payload_size, payload_type, predicate_type, subject_digests,
+				builder_id, build_type, materials_count, signature_count,
+				verification_status, schema_version, created_at
+			)
+			VALUES (
+				$1, $2, $3, $4, $5, $6,
+				$7, $8, $9, $10,
+				$11, $12, $13, $14,
+				$15, $16, $17
+			)
+			ON CONFLICT (id) DO UPDATE SET
+				payload_ref = EXCLUDED.payload_ref,
+				payload_hash = EXCLUDED.payload_hash,
+				payload_size = EXCLUDED.payload_size,
+				predicate_type = EXCLUDED.predicate_type,
+				subject_digests = EXCLUDED.subject_digests,
+				builder_id = EXCLUDED.builder_id,
+				build_type = EXCLUDED.build_type,
+				materials_count = EXCLUDED.materials_count,
+				signature_count = EXCLUDED.signature_count,
+				verification_status = EXCLUDED.verification_status
+		`, attestation.ID, attestation.TenantID, attestation.BuildID, attestation.EvidenceID, nullableString(attestation.PayloadRef), attestation.PayloadHash,
+			attestation.PayloadSize, attestation.PayloadType, attestation.PredicateType, subjectDigests,
+			nullableString(attestation.BuilderID), nullableString(attestation.BuildType), attestation.MaterialsCount, attestation.SignatureCount,
+			attestation.VerificationStatus, attestation.SchemaVersion, nonZeroTime(attestation.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert build attestation row: %w", err)
+		}
+	}
+	for _, document := range state.VEXDocuments {
+		if document.ID == "" || document.TenantID == "" || document.EvidenceID == "" {
+			continue
+		}
+		statusSummary, err := json.Marshal(document.StatusSummary)
+		if err != nil {
+			return fmt.Errorf("encode vex status summary: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO vex_documents (
+				id, tenant_id, evidence_id, release_id, artifact_id, format,
+				author, version, statement_count, status_summary,
+				schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			ON CONFLICT (id) DO UPDATE SET
+				statement_count = EXCLUDED.statement_count,
+				status_summary = EXCLUDED.status_summary
+		`, document.ID, document.TenantID, document.EvidenceID, nullableString(document.ReleaseID), nullableString(document.ArtifactID), document.Format,
+			document.Author, nullableString(document.Version), document.StatementCount, statusSummary,
+			document.SchemaVersion, nonZeroTime(document.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert vex document row: %w", err)
+		}
+	}
+	for _, decision := range state.Decisions {
+		if decision.ID == "" || decision.TenantID == "" || decision.FindingID == "" || decision.ScanID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO vulnerability_decisions (
+				id, tenant_id, finding_id, scan_id, release_id, vulnerability,
+				component, status, justification, impact_statement, action_statement,
+				source, evidence_id, vex_document_id, supersedes, superseded_by,
+				approved_by, schema_version, created_at
+			)
+			VALUES (
+				$1, $2, $3, $4, $5, $6,
+				$7, $8, $9, $10, $11,
+				$12, $13, $14, $15, $16,
+				$17, $18, $19
+			)
+			ON CONFLICT (id) DO UPDATE SET
+				superseded_by = EXCLUDED.superseded_by,
+				approved_by = EXCLUDED.approved_by
+		`, decision.ID, decision.TenantID, decision.FindingID, decision.ScanID, nullableString(decision.ReleaseID), decision.Vulnerability,
+			nullableString(decision.Component), decision.Status, decision.Justification, nullableString(decision.ImpactStatement), nullableString(decision.ActionStatement),
+			decision.Source, nullableString(decision.EvidenceID), nullableString(decision.VEXDocumentID), nullableString(decision.Supersedes), nullableString(decision.SupersededBy),
+			nullableString(decision.ApprovedBy), decision.SchemaVersion, nonZeroTime(decision.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert vulnerability decision row: %w", err)
+		}
+	}
+	for _, exception := range state.Exceptions {
+		if exception.ID == "" || exception.TenantID == "" || exception.ReleaseID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO exceptions (
+				id, tenant_id, release_id, finding_id, control_id, reason,
+				owner, expires_at, approved, approved_by, approved_at, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			ON CONFLICT (id) DO UPDATE SET
+				approved = EXCLUDED.approved,
+				approved_by = EXCLUDED.approved_by,
+				approved_at = EXCLUDED.approved_at
+		`, exception.ID, exception.TenantID, exception.ReleaseID, nullableString(exception.FindingID), nullableString(exception.ControlID), exception.Reason,
+			exception.Owner, exception.ExpiresAt, exception.Approved, nullableString(exception.ApprovedBy), nullableTime(exception.ApprovedAt), nonZeroTime(exception.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert exception row: %w", err)
+		}
+	}
+	for _, framework := range state.ControlFrameworks {
+		if framework.ID == "" || framework.TenantID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO control_frameworks (
+				id, tenant_id, name, slug, version, description,
+				status, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			ON CONFLICT (id) DO UPDATE SET
+				description = EXCLUDED.description,
+				status = EXCLUDED.status,
+				schema_version = EXCLUDED.schema_version
+		`, framework.ID, framework.TenantID, framework.Name, framework.Slug, framework.Version, nullableString(framework.Description),
+			framework.Status, framework.SchemaVersion, nonZeroTime(framework.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert control framework row: %w", err)
+		}
+	}
+	for _, control := range state.SecurityControls {
+		if control.ID == "" || control.TenantID == "" || control.FrameworkID == "" {
+			continue
+		}
+		requirements, err := json.Marshal(control.EvidenceRequirements)
+		if err != nil {
+			return fmt.Errorf("encode control requirements: %w", err)
+		}
+		applicability, err := json.Marshal(control.Applicability)
+		if err != nil {
+			return fmt.Errorf("encode control applicability: %w", err)
+		}
+		limitations, err := json.Marshal(control.Limitations)
+		if err != nil {
+			return fmt.Errorf("encode control limitations: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO security_controls (
+				id, tenant_id, framework_id, code, title, objective,
+				evidence_requirements, applicability, limitations,
+				schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			ON CONFLICT (id) DO UPDATE SET
+				title = EXCLUDED.title,
+				objective = EXCLUDED.objective,
+				evidence_requirements = EXCLUDED.evidence_requirements,
+				applicability = EXCLUDED.applicability,
+				limitations = EXCLUDED.limitations,
+				schema_version = EXCLUDED.schema_version
+		`, control.ID, control.TenantID, control.FrameworkID, control.Code, control.Title, control.Objective,
+			requirements, applicability, limitations, control.SchemaVersion, nonZeroTime(control.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert security control row: %w", err)
+		}
+	}
+	for _, evidence := range state.ControlEvidence {
+		if evidence.ID == "" || evidence.TenantID == "" || evidence.ControlID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO control_evidence (
+				id, tenant_id, control_id, evidence_type, subject_type,
+				subject_id, product_id, release_id, confidence, notes,
+				schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			ON CONFLICT (id) DO UPDATE SET
+				confidence = EXCLUDED.confidence,
+				notes = EXCLUDED.notes,
+				schema_version = EXCLUDED.schema_version
+		`, evidence.ID, evidence.TenantID, evidence.ControlID, evidence.EvidenceType, evidence.SubjectType,
+			evidence.SubjectID, nullableString(evidence.ProductID), nullableString(evidence.ReleaseID), evidence.Confidence, nullableString(evidence.Notes),
+			evidence.SchemaVersion, nonZeroTime(evidence.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert control evidence row: %w", err)
 		}
 	}
 	return nil
@@ -2366,6 +2916,13 @@ func nullableTime(value *time.Time) any {
 }
 
 func nullableInt64(value int64) any {
+	if value == 0 {
+		return nil
+	}
+	return value
+}
+
+func nullableInt(value int) any {
 	if value == 0 {
 		return nil
 	}

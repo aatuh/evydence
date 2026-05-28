@@ -46,6 +46,9 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 			"key_test": {ID: "key_test", TenantID: "ten_test", Name: "api", Prefix: "evy_test", Scopes: []string{"evidence:write"}, CreatedAt: time.Now().UTC()},
 		},
 		APIKeyHashes: map[string]string{"key_test": "hmac-test-hash"},
+		Collectors: map[string]domain.Collector{
+			"collector_test": {ID: "collector_test", TenantID: "ten_test", Name: "github", Type: "github_actions", Version: "1.0.0", APIKeyID: "key_test", Status: "active", AllowedScopes: []string{"build:write"}, LastSeenAt: ptrTime(time.Now().UTC()), SchemaVersion: domain.CollectorSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
 		SSOProviders: map[string]domain.SSOProvider{
 			"sso_test": {ID: "sso_test", TenantID: "ten_test", Name: "OIDC", Type: "oidc", Issuer: "https://idp.example.test", ClientID: "client", Status: "active", JWKS: map[string]any{"keys": []any{map[string]any{"kty": "OKP", "kid": "kid-1", "crv": "Ed25519", "x": "abc"}}}, SchemaVersion: domain.SSOProviderSchemaVersion, CreatedAt: time.Now().UTC(), TrustMaterialUpdatedAt: ptrTime(time.Now().UTC())},
 		},
@@ -71,6 +74,12 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 		},
 		Artifacts: map[string]domain.Artifact{
 			"art_test": {ID: "art_test", TenantID: "ten_test", Name: "artifact.tar.gz", MediaType: "application/gzip", Size: 42, Digest: "sha256:" + strings.Repeat("a", 64), CreatedAt: time.Now().UTC()},
+		},
+		BuildRuns: map[string]domain.BuildRun{
+			"build_test": {ID: "build_test", TenantID: "ten_test", ProjectID: "proj_test", ReleaseID: "rel_test", CollectorID: "collector_test", Provider: "github_actions", CommitSHA: strings.Repeat("1", 40), Repository: "org/repo", WorkflowRef: "org/repo/.github/workflows/ci.yml@refs/heads/main", RunID: "123", RunAttempt: 1, Status: "passed", StartedAt: time.Now().UTC(), FinishedAt: ptrTime(time.Now().UTC()), SourceIdentity: map[string]any{"provider": "github_actions"}, Outputs: []domain.BuildOutput{{ArtifactID: "art_test", Digest: "sha256:" + strings.Repeat("a", 64)}}, SchemaVersion: domain.BuildRunSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		BuildAttestations: map[string]domain.BuildAttestation{
+			"att_test": {ID: "att_test", TenantID: "ten_test", BuildID: "build_test", EvidenceID: "ev_test", PayloadRef: "object://tenants/ten_test/payloads/attestation/" + strings.Repeat("a", 64), PayloadHash: "sha256:" + strings.Repeat("a", 64), PayloadSize: 100, PayloadType: "application/vnd.dsse.envelope.v1+json", PredicateType: "https://slsa.dev/provenance/v1", SubjectDigests: []string{"sha256:" + strings.Repeat("a", 64)}, BuilderID: "builder", BuildType: "github_actions", MaterialsCount: 1, SignatureCount: 1, VerificationStatus: "structurally_valid", SchemaVersion: domain.BuildAttestationSchemaVersion, CreatedAt: time.Now().UTC()},
 		},
 		Evidence: map[string]domain.EvidenceItem{
 			"ev_test": {
@@ -104,6 +113,12 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 		Scans: map[string]domain.VulnerabilityScan{
 			"scan_test": {ID: "scan_test", TenantID: "ten_test", EvidenceID: "ev_test", ReleaseID: "rel_test", Scanner: "scanner", TargetRef: "artifact.tar.gz", Summary: map[string]int{"critical": 0}, Findings: []domain.VulnerabilityFinding{{ID: "finding_test", Vulnerability: "CVE-0000-0001", Severity: "low", State: "open"}}, CreatedAt: time.Now().UTC()},
 		},
+		VEXDocuments: map[string]domain.VEXDocument{
+			"vex_test": {ID: "vex_test", TenantID: "ten_test", EvidenceID: "ev_test", ReleaseID: "rel_test", ArtifactID: "art_test", Format: "openvex", Author: "tester", Version: "1", StatementCount: 1, StatusSummary: map[string]int{"not_affected": 1}, SchemaVersion: domain.VEXDocumentSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		Decisions: map[string]domain.VulnerabilityDecision{
+			"decision_test": {ID: "decision_test", TenantID: "ten_test", FindingID: "finding_test", ScanID: "scan_test", ReleaseID: "rel_test", Vulnerability: "CVE-0000-0001", Component: "lib", Status: "not_affected", Justification: "not_present", Source: "manual", EvidenceID: "ev_test", VEXDocumentID: "vex_test", SchemaVersion: domain.VulnerabilityDecisionVersion, CreatedAt: time.Now().UTC()},
+		},
 		Contracts: map[string]domain.OpenAPIContract{
 			"contract_test": {ID: "contract_test", TenantID: "ten_test", ProductID: "prod_test", ReleaseID: "rel_test", Version: "1.0.0", Hash: "sha256:" + strings.Repeat("f", 64), PathCount: 1, Operations: []domain.OpenAPIOperation{{Path: "/v1/test", Method: "get", OperationID: "getTest"}}, EvidenceID: "ev_test", CreatedAt: time.Now().UTC()},
 		},
@@ -115,6 +130,18 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 		},
 		Verifications: map[string]domain.VerificationResult{
 			"verify_test": {ID: "verify_test", TenantID: "ten_test", SubjectType: "release_bundle", SubjectID: "bundle_test", Result: "pass", Checks: []domain.VerifyCheck{{Name: "signature", Result: "passed"}}, VerifiedAt: time.Now().UTC()},
+		},
+		Exceptions: map[string]domain.Exception{
+			"exception_test": {ID: "exception_test", TenantID: "ten_test", ReleaseID: "rel_test", FindingID: "finding_test", Reason: "accepted for test", Owner: "security", ExpiresAt: time.Now().UTC().Add(24 * time.Hour), Approved: true, ApprovedBy: "user_test", ApprovedAt: ptrTime(time.Now().UTC()), CreatedAt: time.Now().UTC()},
+		},
+		ControlFrameworks: map[string]domain.ControlFramework{
+			"framework_test": {ID: "framework_test", TenantID: "ten_test", Name: "Framework", Slug: "framework", Version: "1", Description: "test", Status: "active", SchemaVersion: domain.ControlFrameworkSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		SecurityControls: map[string]domain.SecurityControl{
+			"control_test": {ID: "control_test", TenantID: "ten_test", FrameworkID: "framework_test", Code: "EVY-1", Title: "Evidence", Objective: "Collect evidence", EvidenceRequirements: []domain.ControlEvidenceRequirement{{Type: "sbom", Required: true}}, Applicability: []string{"release"}, Limitations: []string{"test"}, SchemaVersion: domain.SecurityControlSchemaVersion, CreatedAt: time.Now().UTC()},
+		},
+		ControlEvidence: map[string]domain.ControlEvidence{
+			"control_evidence_test": {ID: "control_evidence_test", TenantID: "ten_test", ControlID: "control_test", EvidenceType: "sbom", SubjectType: "evidence", SubjectID: "ev_test", ProductID: "prod_test", ReleaseID: "rel_test", Confidence: "high", Notes: "linked", SchemaVersion: domain.ControlEvidenceSchemaVersion, CreatedAt: time.Now().UTC()},
 		},
 		RedactionProfiles: map[string]domain.RedactionProfile{
 			"redact_test": {ID: "redact_test", TenantID: "ten_test", Name: "Default", Description: "profile", AllowedTypes: []string{"sbom"}, ExcludedFields: []string{"metadata.secret"}, SchemaVersion: domain.RedactionProfileSchemaVersion, CreatedAt: time.Now().UTC()},
@@ -225,16 +252,25 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 		{name: "project", query: `SELECT count(*) FROM projects WHERE tenant_id = 'ten_test' AND product_id = 'prod_test'`},
 		{name: "release", query: `SELECT count(*) FROM releases WHERE tenant_id = 'ten_test' AND id = 'rel_test'`},
 		{name: "artifact", query: `SELECT count(*) FROM artifacts WHERE tenant_id = 'ten_test' AND digest LIKE 'sha256:%'`},
+		{name: "collector", query: `SELECT count(*) FROM collectors WHERE tenant_id = 'ten_test' AND id = 'collector_test' AND allowed_scopes <> '[]'::jsonb`},
+		{name: "build run", query: `SELECT count(*) FROM build_runs WHERE tenant_id = 'ten_test' AND id = 'build_test' AND outputs <> '[]'::jsonb`},
+		{name: "build attestation", query: `SELECT count(*) FROM build_attestations WHERE tenant_id = 'ten_test' AND id = 'att_test' AND subject_digests <> '[]'::jsonb`},
 		{name: "evidence", query: `SELECT count(*) FROM evidence_items WHERE tenant_id = 'ten_test' AND id = 'ev_test' AND evidence_version = 1 AND product_id = 'prod_test'`},
 		{name: "audit chain", query: `SELECT count(*) FROM audit_chain_entries WHERE tenant_id = 'ten_test' AND sequence = 1`},
 		{name: "signing key", query: `SELECT count(*) FROM signing_keys WHERE tenant_id = 'ten_test' AND id = 'sigkey_test' AND encrypted_private_key IS NOT NULL`},
 		{name: "signature", query: `SELECT count(*) FROM signatures WHERE tenant_id = 'ten_test' AND id = 'sig_test'`},
 		{name: "sbom", query: `SELECT count(*) FROM sboms WHERE tenant_id = 'ten_test' AND release_id = 'rel_test' AND component_count = 1`},
 		{name: "scan", query: `SELECT count(*) FROM vulnerability_scans WHERE tenant_id = 'ten_test' AND release_id = 'rel_test'`},
+		{name: "vex", query: `SELECT count(*) FROM vex_documents WHERE tenant_id = 'ten_test' AND id = 'vex_test' AND statement_count = 1`},
+		{name: "decision", query: `SELECT count(*) FROM vulnerability_decisions WHERE tenant_id = 'ten_test' AND id = 'decision_test' AND status = 'not_affected'`},
+		{name: "exception", query: `SELECT count(*) FROM exceptions WHERE tenant_id = 'ten_test' AND id = 'exception_test' AND approved = true`},
 		{name: "contract", query: `SELECT count(*) FROM openapi_contracts WHERE tenant_id = 'ten_test' AND id = 'contract_test' AND operations <> '[]'::jsonb`},
 		{name: "policy", query: `SELECT count(*) FROM policy_evaluations WHERE tenant_id = 'ten_test' AND id = 'policy_test'`},
 		{name: "bundle", query: `SELECT count(*) FROM release_bundles WHERE tenant_id = 'ten_test' AND id = 'bundle_test'`},
 		{name: "verification", query: `SELECT count(*) FROM verification_results WHERE tenant_id = 'ten_test' AND id = 'verify_test'`},
+		{name: "control framework", query: `SELECT count(*) FROM control_frameworks WHERE tenant_id = 'ten_test' AND id = 'framework_test'`},
+		{name: "security control", query: `SELECT count(*) FROM security_controls WHERE tenant_id = 'ten_test' AND id = 'control_test' AND evidence_requirements <> '[]'::jsonb`},
+		{name: "control evidence", query: `SELECT count(*) FROM control_evidence WHERE tenant_id = 'ten_test' AND id = 'control_evidence_test'`},
 		{name: "redaction profile", query: `SELECT count(*) FROM redaction_profiles WHERE tenant_id = 'ten_test' AND id = 'redact_test' AND allowed_types = ARRAY['sbom']`},
 		{name: "customer package", query: `SELECT count(*) FROM customer_security_packages WHERE tenant_id = 'ten_test' AND id = 'pkg_test' AND access_count = 3`},
 		{name: "html report", query: `SELECT count(*) FROM html_report_packages WHERE tenant_id = 'ten_test' AND id = 'html_test'`},
@@ -282,8 +318,17 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	if relational.SSOSessionHashes["sess_test"] != "session-hash" || relational.SSOSessions["sess_test"].Prefix != "sess" {
 		t.Fatalf("relational sso session = %#v hash=%q", relational.SSOSessions["sess_test"], relational.SSOSessionHashes["sess_test"])
 	}
+	if relational.Collectors["collector_test"].APIKeyID != "key_test" || relational.BuildRuns["build_test"].Status != "passed" || len(relational.BuildAttestations["att_test"].SubjectDigests) != 1 {
+		t.Fatalf("relational build rows missing: collector=%#v build=%#v attestation=%#v", relational.Collectors["collector_test"], relational.BuildRuns["build_test"], relational.BuildAttestations["att_test"])
+	}
 	if relational.Products["prod_test"].Slug != "product" || relational.Evidence["ev_test"].ReleaseID != "rel_test" || relational.SBOMs["sbom_test"].ComponentCount != 1 {
 		t.Fatalf("relational fallback missing core rows: product=%#v evidence=%#v sbom=%#v", relational.Products["prod_test"], relational.Evidence["ev_test"], relational.SBOMs["sbom_test"])
+	}
+	if relational.VEXDocuments["vex_test"].StatusSummary["not_affected"] != 1 || relational.Decisions["decision_test"].Status != "not_affected" || !relational.Exceptions["exception_test"].Approved {
+		t.Fatalf("relational risk rows missing: vex=%#v decision=%#v exception=%#v", relational.VEXDocuments["vex_test"], relational.Decisions["decision_test"], relational.Exceptions["exception_test"])
+	}
+	if relational.ControlFrameworks["framework_test"].Slug != "framework" || len(relational.SecurityControls["control_test"].EvidenceRequirements) != 1 || relational.ControlEvidence["control_evidence_test"].Confidence != "high" {
+		t.Fatalf("relational control rows missing: framework=%#v control=%#v evidence=%#v", relational.ControlFrameworks["framework_test"], relational.SecurityControls["control_test"], relational.ControlEvidence["control_evidence_test"])
 	}
 	if relational.Contracts["contract_test"].PathCount != 1 || len(relational.Contracts["contract_test"].Operations) != 1 {
 		t.Fatalf("relational fallback contract = %#v", relational.Contracts["contract_test"])

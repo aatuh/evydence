@@ -17,11 +17,13 @@ Known hardening work remains:
 - canonical production persistence still needs hand-tuned relational repository
   paths for all high-risk resource families. PostgreSQL now maintains
   relational identity, idempotency, customer portal token, release-ledger core,
-  audit-chain, signing, bundle, policy, verification, package, report, and
-  retention rows alongside the canonical snapshot, but the snapshot remains the
+  build provenance, VEX/risk decision, control, audit-chain, signing, bundle,
+  policy, verification, package, report, and retention rows alongside the
+  canonical snapshot, but the snapshot remains the
   preferred runtime load source. If the snapshot row is absent, the store can
   rebuild identity, SSO session, customer portal token, release-ledger core,
-  package, report, and retention state from relational rows;
+  build provenance, VEX/risk decision, control, package, report, and retention
+  state from relational rows;
 - worker parser jobs re-read raw object-store payloads for key formats,
   verify digests, validate durable state, and persist missing parser-derived
   normalized fields. Upload paths still create initial accepted records, so
@@ -100,11 +102,12 @@ implemented capabilities:
 
 - Replace canonical snapshot writes with dependency-ordered relational
   repositories for remaining secondary resources. Identity, idempotency,
-  customer portal token, release-ledger core, audit-chain, signing, bundle,
-  policy, verification, package, report, and retention rows are synchronized
-  into relational tables. Missing-snapshot recovery can rebuild identity,
-  SSO session, customer portal token, release-ledger core, package, report,
-  and retention families from relational rows.
+  customer portal token, release-ledger core, build provenance, VEX/risk
+  decision, control, audit-chain, signing, bundle, policy, verification,
+  package, report, and retention rows are synchronized into relational tables.
+  Missing-snapshot recovery can rebuild identity, SSO session, customer portal
+  token, release-ledger core, build provenance, VEX/risk decision, control,
+  package, report, and retention families from relational rows.
   Keep snapshots only for export/import and upgrade compatibility after the
   remaining families have repository-backed reads and writes.
 - Split the large application ledger aggregate into focused services or
