@@ -135,6 +135,34 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	}
 }
 
+func TestOpenAPIDoesNotAdvertiseImpossibleSuccessStatusCodes(t *testing.T) {
+	server, _ := testServer(t)
+	docBytes, err := server.OpenAPI()
+	if err != nil {
+		t.Fatalf("OpenAPI: %v", err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(docBytes, &doc); err != nil {
+		t.Fatalf("decode OpenAPI: %v", err)
+	}
+	for path, rawPath := range asStringAnyMap(t, doc["paths"]) {
+		for method, rawOperation := range asStringAnyMap(t, rawPath) {
+			operation := asStringAnyMap(t, rawOperation)
+			responses := asStringAnyMap(t, operation["responses"])
+			if method == "get" {
+				if _, ok := responses["201"]; ok {
+					t.Fatalf("GET %s advertises 201 response", path)
+				}
+			}
+			if _, has200 := responses["200"]; method == "post" && has200 {
+				if _, has201 := responses["201"]; has201 {
+					t.Fatalf("POST %s advertises both 200 and 201 success responses", path)
+				}
+			}
+		}
+	}
+}
+
 func TestCreateProductRequiresAuthAndIdempotency(t *testing.T) {
 	server, secret := testServer(t)
 	rec := httptest.NewRecorder()
