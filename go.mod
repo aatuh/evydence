@@ -1,6 +1,6 @@
 module github.com/aatuh/evydence
 
-go 1.25.7
+go 1.25.10
 
 require (
 	github.com/aatuh/api-toolkit/v3 v3.1.2
