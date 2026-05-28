@@ -189,8 +189,90 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"created_at":     map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "provider_type", "provider_id", "subject", "result", "checks", "limitations", "schema_version", "created_at"))
 	registry.RegisterSchema("ProviderVerificationEnvelope", dataEnvelopeSchema("#/components/schemas/ProviderVerification"))
+	registry.RegisterSchema("CreateOrganizationRequest", objectSchema(map[string]any{
+		"name": map[string]any{"type": "string"},
+		"slug": map[string]any{"type": "string"},
+	}, "name", "slug"))
+	registry.RegisterSchema("Organization", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"name":           map[string]any{"type": "string"},
+		"slug":           map[string]any{"type": "string"},
+		"status":         map[string]any{"type": "string"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "name", "slug", "status", "schema_version", "created_at"))
+	registry.RegisterSchema("OrganizationEnvelope", dataEnvelopeSchema("#/components/schemas/Organization"))
+	registry.RegisterSchema("CreateUserRequest", objectSchema(map[string]any{
+		"organization_id": map[string]any{"type": "string"},
+		"email":           map[string]any{"type": "string", "format": "email"},
+		"display_name":    map[string]any{"type": "string"},
+	}, "email", "display_name"))
+	registry.RegisterSchema("HumanUser", objectSchema(map[string]any{
+		"id":              map[string]any{"type": "string"},
+		"tenant_id":       map[string]any{"type": "string"},
+		"organization_id": map[string]any{"type": "string"},
+		"email":           map[string]any{"type": "string", "format": "email"},
+		"display_name":    map[string]any{"type": "string"},
+		"status":          map[string]any{"type": "string"},
+		"deactivated_at":  map[string]any{"type": "string", "format": "date-time"},
+		"schema_version":  map[string]any{"type": "string"},
+		"created_at":      map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "email", "display_name", "status", "schema_version", "created_at"))
+	registry.RegisterSchema("HumanUserEnvelope", dataEnvelopeSchema("#/components/schemas/HumanUser"))
+	registry.RegisterSchema("CreateRoleBindingRequest", objectSchema(map[string]any{
+		"subject_type":  map[string]any{"type": "string", "enum": []string{"user", "collector"}},
+		"subject_id":    map[string]any{"type": "string"},
+		"role":          map[string]any{"type": "string"},
+		"resource_type": map[string]any{"type": "string"},
+		"resource_id":   map[string]any{"type": "string"},
+	}, "subject_type", "subject_id", "role"))
+	registry.RegisterSchema("RoleBinding", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"subject_type":   map[string]any{"type": "string"},
+		"subject_id":     map[string]any{"type": "string"},
+		"role":           map[string]any{"type": "string"},
+		"resource_type":  map[string]any{"type": "string"},
+		"resource_id":    map[string]any{"type": "string"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "subject_type", "subject_id", "role", "schema_version", "created_at"))
+	registry.RegisterSchema("RoleBindingEnvelope", dataEnvelopeSchema("#/components/schemas/RoleBinding"))
+	registry.RegisterSchema("RoleBindingListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/RoleBinding"))
+	registry.RegisterSchema("LinkSSOIdentityRequest", objectSchema(map[string]any{
+		"user_id":     map[string]any{"type": "string"},
+		"provider_id": map[string]any{"type": "string"},
+		"subject":     map[string]any{"type": "string"},
+		"email":       map[string]any{"type": "string", "format": "email"},
+		"verified":    map[string]any{"type": "boolean"},
+	}, "user_id", "provider_id", "subject", "email", "verified"))
+	registry.RegisterSchema("UserIdentityLink", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"user_id":        map[string]any{"type": "string"},
+		"provider_id":    map[string]any{"type": "string"},
+		"subject":        map[string]any{"type": "string"},
+		"email":          map[string]any{"type": "string", "format": "email"},
+		"verified":       map[string]any{"type": "boolean"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "user_id", "provider_id", "subject", "email", "verified", "schema_version", "created_at"))
+	registry.RegisterSchema("UserIdentityLinkEnvelope", dataEnvelopeSchema("#/components/schemas/UserIdentityLink"))
+	registry.RegisterSchema("SSOSession", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"user_id":        map[string]any{"type": "string"},
+		"provider_id":    map[string]any{"type": "string"},
+		"prefix":         map[string]any{"type": "string", "description": "Non-secret session token prefix for audit displays."},
+		"expires_at":     map[string]any{"type": "string", "format": "date-time"},
+		"revoked_at":     map[string]any{"type": "string", "format": "date-time"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "user_id", "provider_id", "prefix", "expires_at", "schema_version", "created_at"))
+	registry.RegisterSchema("SSOSessionEnvelope", dataEnvelopeSchema("#/components/schemas/SSOSession"))
 	registry.RegisterSchema("SSOSessionCreateResponse", objectSchema(map[string]any{
-		"session": map[string]any{"type": "object"},
+		"session": map[string]any{"$ref": "#/components/schemas/SSOSession"},
 		"secret":  map[string]any{"type": "string", "description": "One-time SSO session bearer secret; not returned by list/read operations."},
 	}, "session", "secret"))
 	registry.RegisterSchema("SSOSessionCreateEnvelope", dataEnvelopeSchema("#/components/schemas/SSOSessionCreateResponse"))
