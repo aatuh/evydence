@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"strings"
 	"testing"
@@ -133,6 +134,28 @@ func TestFutureOperationalExtensionsAndPartialTrustClosures(t *testing.T) {
 	if entry.MerkleBatchID != batch.ID || entry.EntryHash == "" {
 		t.Fatalf("public log entry = %#v", entry)
 	}
+	leaf, err := decodeSHA256Digest(entry.EntryHash)
+	if err != nil {
+		t.Fatalf("decode entry hash: %v", err)
+	}
+	siblingHash := sampleDigest("public-log-sibling")
+	sibling, err := decodeSHA256Digest(siblingHash)
+	if err != nil {
+		t.Fatalf("decode sibling hash: %v", err)
+	}
+	rootHash := "sha256:" + hex.EncodeToString(transparencyParentHash(leaf, sibling))
+	verifiedEntry, err := ledger.VerifyPublicTransparencyLogEntry(ctx, actor, entry.ID, VerifyPublicTransparencyLogEntryInput{
+		RootHash:       rootHash,
+		LeafIndex:      0,
+		TreeSize:       2,
+		InclusionProof: []string{siblingHash},
+	})
+	if err != nil {
+		t.Fatalf("verify public log entry: %v", err)
+	}
+	if verifiedEntry.State != "inclusion_verified" || verifiedEntry.InclusionProofHash == "" || len(verifiedEntry.VerificationChecks) != 2 {
+		t.Fatalf("verified public log entry = %#v", verifiedEntry)
+	}
 
 	provider, err := ledger.CreateSigningProvider(ctx, actor, CreateSigningProviderInput{Name: "kms", Type: "aws_kms", KeyRef: "arn:aws:kms:example", Encrypted: true})
 	if err != nil {
@@ -210,6 +233,9 @@ func TestFutureOperationalExtensionsAndPartialTrustClosures(t *testing.T) {
 	}
 	if _, err := ledger.PublishPublicTransparencyLogEntry(ctx, other, PublishPublicTransparencyLogEntryInput{LogID: log.ID, CheckpointID: checkpoint.ID, ExternalID: "bad"}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("cross tenant transparency err=%v, want not found", err)
+	}
+	if _, err := ledger.VerifyPublicTransparencyLogEntry(ctx, other, entry.ID, VerifyPublicTransparencyLogEntryInput{RootHash: rootHash, LeafIndex: 0, TreeSize: 2, InclusionProof: []string{siblingHash}}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("cross tenant transparency verification err=%v, want not found", err)
 	}
 	if _, err := ledger.CreateSigningOperation(ctx, other, CreateSigningOperationInput{ProviderID: provider.ID, SubjectType: "release", SubjectID: release.ID, PayloadHash: sampleDigest("payload"), ExternalSignature: "sig"}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("cross tenant signing operation err=%v, want not found", err)

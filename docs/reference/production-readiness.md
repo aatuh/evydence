@@ -24,8 +24,8 @@ Known hardening work remains:
   parameters, and request/response schemas;
 - production signing can use the HTTPS signing gateway executor, but direct
   cloud KMS/HSM SDK adapters, full browser OIDC/SAML login flows, provider
-  discovery/group sync, object-lock enforcement proof, and transparency
-  inclusion proof verification remain provider- and deployment-dependent
+  discovery/group sync, object-lock enforcement proof, and live
+  transparency-proof fetching remain provider- and deployment-dependent
   hardening areas;
 - the broader production exit review remains incomplete.
 
@@ -109,8 +109,9 @@ implemented capabilities:
 - Complete live OIDC/SAML browser login callbacks, provider discovery, JWKS
   refresh, logout, and optional group mapping where those profiles are enabled.
 - Extend object-lock/WORM verification beyond current S3/MinIO bucket-level
-  checks where deployments require object-level legal hold proofs, provider
-  policy evidence, or optional transparency inclusion proof verification.
+  checks where deployments require object-level legal hold proofs or provider
+  policy evidence, and add live provider fetching for public transparency proofs
+  where deployments require it.
 - Run final product, codebase, security, documentation, and test audits before
   changing release status beyond controlled self-hosted production candidate.
 

@@ -394,6 +394,7 @@ Source snapshots capture submitted provider metadata. They do not call provider 
 | `POST` | `/v1/transparency-checkpoints` | Record external anchoring metadata. |
 | `POST` | `/v1/public-transparency-logs` | Record optional public transparency log configuration. |
 | `POST` | `/v1/public-transparency-log-entries` | Record published public transparency log entry metadata. |
+| `POST` | `/v1/public-transparency-log-entries/{id}/verify` | Verify operator-supplied RFC6962-style public transparency inclusion proof material. |
 | `POST` | `/v1/object-retention-policies` | Record retention policy intent. |
 | `POST` | `/v1/object-retention-policies/{id}/verify` | Record verification transition. |
 | `POST` | `/v1/legal-holds` | Record legal hold. |

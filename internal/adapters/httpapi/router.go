@@ -2312,6 +2312,7 @@ func defaultSuccessStatus(operationID, method string) int {
 		"downloadCustomerPortalPackage",
 		"approveException",
 		"verifyObjectRetentionPolicy",
+		"verifyPublicTransparencyLogEntry",
 		"revokeSigningKey",
 		"verify":
 		return http.StatusOK

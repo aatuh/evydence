@@ -594,6 +594,11 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Description = "Records publication metadata for a checkpoint submitted to a configured public transparency log."
 		operation.RequestBody = jsonRequest("Public transparency log entry publication request.", "#/components/schemas/PublishPublicTransparencyLogEntryRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created public transparency log entry envelope.", "#/components/schemas/PublicTransparencyLogEntryEnvelope")
+	case "verifyPublicTransparencyLogEntry":
+		operation.Description = "Verifies operator-supplied RFC6962-style public transparency inclusion proof material for a published entry."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Public transparency log entry id."))
+		operation.RequestBody = jsonRequest("Public transparency log inclusion proof verification request.", "#/components/schemas/VerifyPublicTransparencyLogEntryRequest")
+		operation.Responses[http.StatusOK] = jsonResponse("Verified public transparency log entry envelope.", "#/components/schemas/PublicTransparencyLogEntryEnvelope")
 	case "createObjectRetentionPolicy":
 		operation.Description = "Creates an object retention policy record for storage immutability verification."
 		operation.RequestBody = jsonRequest("Object retention policy creation request.", "#/components/schemas/CreateObjectRetentionPolicyRequest")

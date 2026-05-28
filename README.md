@@ -45,7 +45,7 @@ This repository contains a Go implementation under module `github.com/aatuh/evyd
 - AGPL license, commercial licensing, governance, contribution, security,
   support, trademark, release-evidence, and changelog metadata.
 
-Implemented-but-partial areas are documented explicitly: signing-provider operation receipts do not replace production KMS/HSM adapters, local OIDC/SAML verification does not replace live provider discovery/API validation or browser login callbacks, and public transparency records do not prove external log inclusion without the configured operator workflow.
+Implemented-but-partial areas are documented explicitly: signing-provider operation receipts do not replace production KMS/HSM adapters, local OIDC/SAML verification does not replace live provider discovery/API validation or browser login callbacks, and public transparency records require operator-supplied inclusion proof material before Evydence can verify local inclusion receipts.
 
 ## License, Security, Support, And Governance
 
@@ -107,4 +107,4 @@ make postgres-integration-test
 
 `make finalize` runs the project-owned formatting, unit, OpenAPI, docs, deployment, and SDK gates. `make release-check` extends that with lint, gosec, govulncheck, race tests, and live PostgreSQL gates when `EVYDENCE_TEST_DATABASE_URL` is configured.
 
-`make production-check` is stricter: it requires `EVYDENCE_TEST_DATABASE_URL`, enforces the configured coverage threshold, and runs a release artifact signing smoke test. Passing the gate is required production-readiness evidence, but it does not by itself close the remaining relational persistence, worker side-effect, SDK, backup/restore, KMS/HSM, SSO, object-lock, transparency, and exit-review work.
+`make production-check` is stricter: it requires `EVYDENCE_TEST_DATABASE_URL`, enforces the configured coverage threshold, and runs a release artifact signing smoke test. Passing the gate is required production-readiness evidence, but it does not by itself close the remaining relational persistence, worker side-effect, SDK, backup/restore, KMS/HSM, SSO, live provider-fetching, object-lock, and exit-review work.

@@ -97,6 +97,29 @@ func (s *Server) publishPublicTransparencyLogEntry(w http.ResponseWriter, r *htt
 	})
 }
 
+func (s *Server) verifyPublicTransparencyLogEntry(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		LeafHash       string   `json:"leaf_hash"`
+		RootHash       string   `json:"root_hash"`
+		LeafIndex      int      `json:"leaf_index"`
+		TreeSize       int      `json:"tree_size"`
+		InclusionProof []string `json:"inclusion_proof"`
+	}
+	s.create(w, r, func(actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &req); err != nil {
+			return 0, nil, err
+		}
+		entry, err := s.ledger.VerifyPublicTransparencyLogEntry(r.Context(), actor, r.PathValue("id"), app.VerifyPublicTransparencyLogEntryInput{
+			LeafHash:       req.LeafHash,
+			RootHash:       req.RootHash,
+			LeafIndex:      req.LeafIndex,
+			TreeSize:       req.TreeSize,
+			InclusionProof: req.InclusionProof,
+		})
+		return http.StatusOK, entry, err
+	})
+}
+
 func (s *Server) createMarketplaceCollector(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name         string `json:"name"`
