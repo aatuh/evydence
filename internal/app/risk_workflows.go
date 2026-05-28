@@ -768,12 +768,18 @@ func (l *Ledger) CreateContractDiff(ctx context.Context, actor domain.Actor, in 
 	breaking, nonBreaking := []string{}, []string{}
 	if base.Hash != target.Hash {
 		result = "changed"
-		if target.PathCount < base.PathCount {
-			result = "breaking"
-			breaking = append(breaking, "target contract has fewer paths than base contract")
+		breaking, nonBreaking = diffOpenAPIOperations(base, target)
+		if len(base.Operations) == 0 || len(target.Operations) == 0 {
+			breaking, nonBreaking = []string{}, []string{}
+			if target.PathCount < base.PathCount {
+				breaking = append(breaking, "target contract has fewer paths than base contract")
+			}
+			if target.PathCount > base.PathCount {
+				nonBreaking = append(nonBreaking, "target contract has additional paths")
+			}
 		}
-		if target.PathCount > base.PathCount {
-			nonBreaking = append(nonBreaking, "target contract has additional paths")
+		if len(breaking) > 0 {
+			result = "breaking"
 		}
 	}
 	diff := domain.ContractDiff{ID: newID("cdiff"), TenantID: actor.TenantID, BaseContractID: base.ID, TargetContractID: target.ID, ProductID: base.ProductID, ReleaseID: strings.TrimSpace(in.ReleaseID), Result: result, BreakingChanges: breaking, NonBreakingChanges: nonBreaking, SchemaVersion: domain.ContractDiffSchemaVersion, CreatedAt: l.now()}
@@ -783,6 +789,85 @@ func (l *Ledger) CreateContractDiff(ctx context.Context, actor domain.Actor, in 
 		return domain.ContractDiff{}, err
 	}
 	return diff, nil
+}
+
+func diffOpenAPIOperations(base, target domain.OpenAPIContract) ([]string, []string) {
+	baseOps := indexOpenAPIOperations(base.Operations)
+	targetOps := indexOpenAPIOperations(target.Operations)
+	breaking, nonBreaking := []string{}, []string{}
+	for key, baseOp := range baseOps {
+		targetOp, ok := targetOps[key]
+		label := openAPIOperationLabel(baseOp)
+		if !ok {
+			breaking = append(breaking, "operation removed: "+label)
+			continue
+		}
+		if !baseOp.RequestBodyRequired && targetOp.RequestBodyRequired {
+			breaking = append(breaking, "request body became required: "+label)
+		}
+		addedRequired := missingStrings(baseOp.RequiredRequestFields, targetOp.RequiredRequestFields)
+		if len(addedRequired) > 0 {
+			breaking = append(breaking, "required request fields added for "+label+": "+strings.Join(addedRequired, ","))
+		}
+		removedStatuses := missingStrings(targetOp.ResponseStatuses, baseOp.ResponseStatuses)
+		if len(removedStatuses) > 0 {
+			breaking = append(breaking, "response statuses removed for "+label+": "+strings.Join(removedStatuses, ","))
+		}
+		addedStatuses := missingStrings(baseOp.ResponseStatuses, targetOp.ResponseStatuses)
+		if len(addedStatuses) > 0 {
+			nonBreaking = append(nonBreaking, "response statuses added for "+label+": "+strings.Join(addedStatuses, ","))
+		}
+		if !baseOp.Deprecated && targetOp.Deprecated {
+			nonBreaking = append(nonBreaking, "operation deprecated: "+label)
+		}
+	}
+	for key, targetOp := range targetOps {
+		if _, ok := baseOps[key]; !ok {
+			nonBreaking = append(nonBreaking, "operation added: "+openAPIOperationLabel(targetOp))
+		}
+	}
+	sort.Strings(breaking)
+	sort.Strings(nonBreaking)
+	return breaking, nonBreaking
+}
+
+func indexOpenAPIOperations(ops []domain.OpenAPIOperation) map[string]domain.OpenAPIOperation {
+	out := make(map[string]domain.OpenAPIOperation, len(ops))
+	for _, op := range ops {
+		if strings.TrimSpace(op.Path) == "" || strings.TrimSpace(op.Method) == "" {
+			continue
+		}
+		op.Method = strings.ToUpper(strings.TrimSpace(op.Method))
+		op.Path = strings.TrimSpace(op.Path)
+		out[op.Method+" "+op.Path] = op
+	}
+	return out
+}
+
+func openAPIOperationLabel(op domain.OpenAPIOperation) string {
+	return strings.ToUpper(strings.TrimSpace(op.Method)) + " " + strings.TrimSpace(op.Path)
+}
+
+func missingStrings(have, want []string) []string {
+	present := map[string]struct{}{}
+	for _, value := range have {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			present[value] = struct{}{}
+		}
+	}
+	missing := []string{}
+	for _, value := range want {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := present[value]; !ok {
+			missing = append(missing, value)
+		}
+	}
+	sort.Strings(missing)
+	return missing
 }
 
 func (l *Ledger) CreateCustomPolicy(ctx context.Context, actor domain.Actor, in CreateCustomPolicyInput) (domain.CustomPolicy, error) {

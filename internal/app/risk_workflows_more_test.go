@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -115,6 +116,29 @@ func TestRiskWorkflowEvidenceFormatsAndReports(t *testing.T) {
 	}
 	if contractDiff.Result != "breaking" || len(contractDiff.BreakingChanges) != 1 {
 		t.Fatalf("contract diff = %#v", contractDiff)
+	}
+	baseRichContract, err := ledger.UploadOpenAPIContract(ctx, actor, release.ProductID, release.ID, "rich-base", []byte(`{"openapi":"3.1.0","info":{"title":"API","version":"1"},"paths":{"/v1/items":{"post":{"requestBody":{"required":false,"content":{"application/json":{"schema":{"type":"object","required":["id"],"properties":{"id":{"type":"string"}}}}}},"responses":{"200":{"description":"ok"},"201":{"description":"created"}}}}}}`))
+	if err != nil {
+		t.Fatalf("rich base contract: %v", err)
+	}
+	targetRichContract, err := ledger.UploadOpenAPIContract(ctx, actor, release.ProductID, release.ID, "rich-target", []byte(`{"openapi":"3.1.0","info":{"title":"API","version":"2"},"paths":{"/v1/items":{"post":{"requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","required":["id","name"],"properties":{"id":{"type":"string"},"name":{"type":"string"}}}}}},"responses":{"200":{"description":"ok"}}}},"/v1/items/{id}":{"get":{"parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string"}}],"responses":{"200":{"description":"ok"}}}}}}`))
+	if err != nil {
+		t.Fatalf("rich target contract: %v", err)
+	}
+	if len(baseRichContract.Operations) != 1 || len(targetRichContract.Operations) != 2 {
+		t.Fatalf("operation summaries not captured: base=%#v target=%#v", baseRichContract.Operations, targetRichContract.Operations)
+	}
+	richDiff, err := ledger.CreateContractDiff(ctx, actor, CreateContractDiffInput{BaseContractID: baseRichContract.ID, TargetContractID: targetRichContract.ID, ReleaseID: release.ID})
+	if err != nil {
+		t.Fatalf("rich contract diff: %v", err)
+	}
+	breakingText := strings.Join(richDiff.BreakingChanges, "\n")
+	nonBreakingText := strings.Join(richDiff.NonBreakingChanges, "\n")
+	if richDiff.Result != "breaking" || !strings.Contains(breakingText, "request body became required: POST /v1/items") || !strings.Contains(breakingText, "required request fields added for POST /v1/items: name") || !strings.Contains(breakingText, "response statuses removed for POST /v1/items: 201") {
+		t.Fatalf("rich breaking diff = %#v", richDiff)
+	}
+	if !strings.Contains(nonBreakingText, "operation added: GET /v1/items/{id}") {
+		t.Fatalf("rich non-breaking diff = %#v", richDiff)
 	}
 
 	policy, err := ledger.CreateCustomPolicy(ctx, actor, CreateCustomPolicyInput{Name: "release gates", Version: "1", Rules: []domain.PolicyRule{

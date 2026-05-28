@@ -1072,15 +1072,26 @@ type VulnerabilityDecision struct {
 }
 
 type OpenAPIContract struct {
-	ID         string    `json:"id"`
-	TenantID   string    `json:"tenant_id"`
-	ProductID  string    `json:"product_id"`
-	ReleaseID  string    `json:"release_id,omitempty"`
-	Version    string    `json:"version"`
-	Hash       string    `json:"hash"`
-	PathCount  int       `json:"path_count"`
-	EvidenceID string    `json:"evidence_id"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID         string             `json:"id"`
+	TenantID   string             `json:"tenant_id"`
+	ProductID  string             `json:"product_id"`
+	ReleaseID  string             `json:"release_id,omitempty"`
+	Version    string             `json:"version"`
+	Hash       string             `json:"hash"`
+	PathCount  int                `json:"path_count"`
+	Operations []OpenAPIOperation `json:"operations,omitempty"`
+	EvidenceID string             `json:"evidence_id"`
+	CreatedAt  time.Time          `json:"created_at"`
+}
+
+type OpenAPIOperation struct {
+	Path                  string   `json:"path"`
+	Method                string   `json:"method"`
+	OperationID           string   `json:"operation_id,omitempty"`
+	Deprecated            bool     `json:"deprecated,omitempty"`
+	RequestBodyRequired   bool     `json:"request_body_required,omitempty"`
+	RequiredRequestFields []string `json:"required_request_fields,omitempty"`
+	ResponseStatuses      []string `json:"response_statuses,omitempty"`
 }
 
 type PolicyEvaluation struct {
