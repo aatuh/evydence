@@ -147,6 +147,109 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"verified_at":  map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "subject_type", "subject_id", "result", "checks", "verified_at"))
 	registry.RegisterSchema("VerificationResultEnvelope", dataEnvelopeSchema("#/components/schemas/VerificationResult"))
+	registry.RegisterSchema("CreateMerkleBatchRequest", objectSchema(map[string]any{
+		"from_sequence": map[string]any{"type": "integer", "format": "int64"},
+		"to_sequence":   map[string]any{"type": "integer", "format": "int64"},
+	}))
+	registry.RegisterSchema("MerkleBatch", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"from_sequence":  map[string]any{"type": "integer", "format": "int64"},
+		"to_sequence":    map[string]any{"type": "integer", "format": "int64"},
+		"entry_count":    map[string]any{"type": "integer"},
+		"leaf_hashes":    map[string]any{"type": "array", "items": map[string]any{"type": "string", "pattern": "^sha256:"}},
+		"root_hash":      map[string]any{"type": "string", "pattern": "^sha256:"},
+		"signature_refs": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "from_sequence", "to_sequence", "entry_count", "leaf_hashes", "root_hash", "schema_version", "created_at"))
+	registry.RegisterSchema("MerkleBatchEnvelope", dataEnvelopeSchema("#/components/schemas/MerkleBatch"))
+	registry.RegisterSchema("CreateTransparencyCheckpointRequest", objectSchema(map[string]any{
+		"batch_id":     map[string]any{"type": "string"},
+		"provider":     map[string]any{"type": "string"},
+		"external_url": map[string]any{"type": "string"},
+		"external_id":  map[string]any{"type": "string"},
+	}, "batch_id", "provider"))
+	registry.RegisterSchema("TransparencyCheckpoint", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"batch_id":       map[string]any{"type": "string"},
+		"provider":       map[string]any{"type": "string"},
+		"external_url":   map[string]any{"type": "string"},
+		"external_id":    map[string]any{"type": "string"},
+		"timestamp_hash": map[string]any{"type": "string", "pattern": "^sha256:"},
+		"state":          map[string]any{"type": "string"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "batch_id", "provider", "timestamp_hash", "state", "schema_version", "created_at"))
+	registry.RegisterSchema("TransparencyCheckpointEnvelope", dataEnvelopeSchema("#/components/schemas/TransparencyCheckpoint"))
+	registry.RegisterSchema("CreateObjectRetentionPolicyRequest", objectSchema(map[string]any{
+		"name":           map[string]any{"type": "string"},
+		"object_prefix":  map[string]any{"type": "string"},
+		"mode":           map[string]any{"type": "string", "enum": []string{"governance", "compliance"}},
+		"retention_days": map[string]any{"type": "integer", "minimum": 1},
+	}, "name", "mode", "retention_days"))
+	registry.RegisterSchema("ObjectRetentionPolicy", objectSchema(map[string]any{
+		"id":                map[string]any{"type": "string"},
+		"tenant_id":         map[string]any{"type": "string"},
+		"name":              map[string]any{"type": "string"},
+		"object_prefix":     map[string]any{"type": "string"},
+		"mode":              map[string]any{"type": "string"},
+		"retention_days":    map[string]any{"type": "integer"},
+		"status":            map[string]any{"type": "string"},
+		"verified_at":       map[string]any{"type": "string", "format": "date-time"},
+		"verification_hash": map[string]any{"type": "string", "pattern": "^sha256:"},
+		"schema_version":    map[string]any{"type": "string"},
+		"created_at":        map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "name", "object_prefix", "mode", "retention_days", "status", "schema_version", "created_at"))
+	registry.RegisterSchema("ObjectRetentionPolicyEnvelope", dataEnvelopeSchema("#/components/schemas/ObjectRetentionPolicy"))
+	registry.RegisterSchema("CreateLegalHoldRequest", objectSchema(map[string]any{
+		"scope_type": map[string]any{"type": "string"},
+		"scope_id":   map[string]any{"type": "string"},
+		"reason":     map[string]any{"type": "string"},
+		"owner":      map[string]any{"type": "string"},
+	}, "scope_type", "scope_id", "reason", "owner"))
+	registry.RegisterSchema("LegalHold", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"scope_type":     map[string]any{"type": "string"},
+		"scope_id":       map[string]any{"type": "string"},
+		"reason":         map[string]any{"type": "string"},
+		"owner":          map[string]any{"type": "string"},
+		"released_at":    map[string]any{"type": "string", "format": "date-time"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "scope_type", "scope_id", "reason", "owner", "schema_version", "created_at"))
+	registry.RegisterSchema("LegalHoldEnvelope", dataEnvelopeSchema("#/components/schemas/LegalHold"))
+	registry.RegisterSchema("CreateRetentionOverrideRequest", objectSchema(map[string]any{
+		"scope_type":      map[string]any{"type": "string"},
+		"scope_id":        map[string]any{"type": "string"},
+		"retention_until": map[string]any{"type": "string", "format": "date-time"},
+		"reason":          map[string]any{"type": "string"},
+		"owner":           map[string]any{"type": "string"},
+	}, "scope_type", "scope_id", "retention_until", "reason", "owner"))
+	registry.RegisterSchema("RetentionOverride", objectSchema(map[string]any{
+		"id":              map[string]any{"type": "string"},
+		"tenant_id":       map[string]any{"type": "string"},
+		"scope_type":      map[string]any{"type": "string"},
+		"scope_id":        map[string]any{"type": "string"},
+		"retention_until": map[string]any{"type": "string", "format": "date-time"},
+		"reason":          map[string]any{"type": "string"},
+		"owner":           map[string]any{"type": "string"},
+		"schema_version":  map[string]any{"type": "string"},
+		"created_at":      map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "scope_type", "scope_id", "retention_until", "reason", "owner", "schema_version", "created_at"))
+	registry.RegisterSchema("RetentionOverrideEnvelope", dataEnvelopeSchema("#/components/schemas/RetentionOverride"))
+	registry.RegisterSchema("RetentionReport", objectSchema(map[string]any{
+		"report_type":         map[string]any{"type": "string"},
+		"scope_type":          map[string]any{"type": "string"},
+		"scope_id":            map[string]any{"type": "string"},
+		"legal_holds":         map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/LegalHold"}},
+		"retention_overrides": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/RetentionOverride"}},
+		"limitations":         map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"generated_at":        map[string]any{"type": "string", "format": "date-time"},
+	}, "report_type", "legal_holds", "retention_overrides", "limitations", "generated_at"))
+	registry.RegisterSchema("RetentionReportEnvelope", dataEnvelopeSchema("#/components/schemas/RetentionReport"))
 	registry.RegisterSchema("PolicyCheck", objectSchema(map[string]any{
 		"name":        map[string]any{"type": "string"},
 		"result":      map[string]any{"type": "string", "enum": []string{"passed", "failed", "warning", "skipped"}},
@@ -301,6 +404,26 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"created_at":     map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "scope_type", "scope_id", "owner", "risk", "reason", "expires_at", "approved", "schema_version", "created_at"))
 	registry.RegisterSchema("WaiverEnvelope", dataEnvelopeSchema("#/components/schemas/Waiver"))
+	registry.RegisterSchema("CreateApprovalRequest", objectSchema(map[string]any{
+		"subject_type": map[string]any{"type": "string"},
+		"subject_id":   map[string]any{"type": "string"},
+		"decision":     map[string]any{"type": "string", "enum": []string{"approved", "rejected", "accepted"}},
+		"reason":       map[string]any{"type": "string"},
+		"evidence_id":  map[string]any{"type": "string"},
+	}, "subject_type", "subject_id", "decision", "reason"))
+	registry.RegisterSchema("ApprovalRecord", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"subject_type":   map[string]any{"type": "string"},
+		"subject_id":     map[string]any{"type": "string"},
+		"decision":       map[string]any{"type": "string"},
+		"reason":         map[string]any{"type": "string"},
+		"approver_id":    map[string]any{"type": "string"},
+		"evidence_id":    map[string]any{"type": "string"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "subject_type", "subject_id", "decision", "reason", "approver_id", "schema_version", "created_at"))
+	registry.RegisterSchema("ApprovalRecordEnvelope", dataEnvelopeSchema("#/components/schemas/ApprovalRecord"))
 	registry.RegisterSchema("UploadOpenAPIContractRequest", objectSchema(map[string]any{
 		"product_id": map[string]any{"type": "string"},
 		"release_id": map[string]any{"type": "string"},
@@ -1533,6 +1656,52 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"created_at":      map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "evidence_id", "release_id", "format", "component_count", "created_at"))
 	registry.RegisterSchema("SBOMEnvelope", dataEnvelopeSchema("#/components/schemas/SBOM"))
+	registry.RegisterSchema("SBOMComponent", objectSchema(map[string]any{
+		"name":    map[string]any{"type": "string"},
+		"version": map[string]any{"type": "string"},
+		"purl":    map[string]any{"type": "string"},
+		"hashes":  map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "string"}},
+	}, "name"))
+	registry.RegisterSchema("SBOMComponentRecord", objectSchema(map[string]any{
+		"sbom_id":     map[string]any{"type": "string"},
+		"release_id":  map[string]any{"type": "string"},
+		"artifact_id": map[string]any{"type": "string"},
+		"component":   map[string]any{"$ref": "#/components/schemas/SBOMComponent"},
+	}, "sbom_id", "component"))
+	registry.RegisterSchema("SBOMComponentRecordListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/SBOMComponentRecord"))
+	registry.RegisterSchema("UploadSPDXSBOMRequest", objectSchema(map[string]any{
+		"release_id":  map[string]any{"type": "string"},
+		"artifact_id": map[string]any{"type": "string"},
+		"payload":     map[string]any{"type": "object", "additionalProperties": true},
+	}, "release_id", "payload"))
+	registry.RegisterSchema("CreateSBOMDiffRequest", objectSchema(map[string]any{
+		"base_sbom_id":   map[string]any{"type": "string"},
+		"target_sbom_id": map[string]any{"type": "string"},
+		"release_id":     map[string]any{"type": "string"},
+	}, "base_sbom_id", "target_sbom_id"))
+	registry.RegisterSchema("DependencyChange", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"sbom_diff_id":   map[string]any{"type": "string"},
+		"change_type":    map[string]any{"type": "string", "enum": []string{"added", "removed", "changed"}},
+		"component":      map[string]any{"$ref": "#/components/schemas/SBOMComponent"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "sbom_diff_id", "change_type", "component", "schema_version", "created_at"))
+	registry.RegisterSchema("SBOMDiff", objectSchema(map[string]any{
+		"id":                 map[string]any{"type": "string"},
+		"tenant_id":          map[string]any{"type": "string"},
+		"base_sbom_id":       map[string]any{"type": "string"},
+		"target_sbom_id":     map[string]any{"type": "string"},
+		"release_id":         map[string]any{"type": "string"},
+		"added_components":   map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/SBOMComponent"}},
+		"removed_components": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/SBOMComponent"}},
+		"unchanged_count":    map[string]any{"type": "integer"},
+		"dependency_changes": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/DependencyChange"}},
+		"schema_version":     map[string]any{"type": "string"},
+		"created_at":         map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "base_sbom_id", "target_sbom_id", "unchanged_count", "schema_version", "created_at"))
+	registry.RegisterSchema("SBOMDiffEnvelope", dataEnvelopeSchema("#/components/schemas/SBOMDiff"))
 	registry.RegisterSchema("VEXDocument", objectSchema(map[string]any{
 		"id":              map[string]any{"type": "string"},
 		"tenant_id":       map[string]any{"type": "string"},
@@ -1569,6 +1738,268 @@ func registerCriticalSchemas(registry *specs.Registry) {
 			"state":         map[string]any{"type": "string"},
 		}, "vulnerability", "severity")},
 	}, "scanner", "target_ref", "release_id", "findings"))
+	registry.RegisterSchema("CreateIncidentRequest", objectSchema(map[string]any{
+		"product_id": map[string]any{"type": "string"},
+		"release_id": map[string]any{"type": "string"},
+		"title":      map[string]any{"type": "string"},
+		"severity":   map[string]any{"type": "string", "enum": []string{"low", "medium", "high", "critical"}},
+		"opened_at":  map[string]any{"type": "string", "format": "date-time"},
+	}, "product_id", "title", "severity"))
+	registry.RegisterSchema("Incident", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"product_id":     map[string]any{"type": "string"},
+		"release_id":     map[string]any{"type": "string"},
+		"title":          map[string]any{"type": "string"},
+		"severity":       map[string]any{"type": "string"},
+		"status":         map[string]any{"type": "string"},
+		"opened_at":      map[string]any{"type": "string", "format": "date-time"},
+		"closed_at":      map[string]any{"type": "string", "format": "date-time"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "product_id", "title", "severity", "status", "opened_at", "schema_version", "created_at"))
+	registry.RegisterSchema("IncidentEnvelope", dataEnvelopeSchema("#/components/schemas/Incident"))
+	registry.RegisterSchema("RecordIncidentTimelineRequest", objectSchema(map[string]any{
+		"event_type":  map[string]any{"type": "string"},
+		"summary":     map[string]any{"type": "string"},
+		"evidence_id": map[string]any{"type": "string"},
+		"occurred_at": map[string]any{"type": "string", "format": "date-time"},
+	}, "event_type", "summary"))
+	registry.RegisterSchema("IncidentTimelineEvent", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"incident_id":    map[string]any{"type": "string"},
+		"event_type":     map[string]any{"type": "string"},
+		"summary":        map[string]any{"type": "string"},
+		"evidence_id":    map[string]any{"type": "string"},
+		"occurred_at":    map[string]any{"type": "string", "format": "date-time"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "incident_id", "event_type", "summary", "occurred_at", "schema_version", "created_at"))
+	registry.RegisterSchema("IncidentTimelineEventEnvelope", dataEnvelopeSchema("#/components/schemas/IncidentTimelineEvent"))
+	registry.RegisterSchema("CreateIncidentWebhookReceiverRequest", objectSchema(map[string]any{
+		"name":       map[string]any{"type": "string"},
+		"provider":   map[string]any{"type": "string"},
+		"public_key": map[string]any{"type": "string", "description": "Ed25519 public key used to verify signed incident webhook events."},
+	}, "name", "provider", "public_key"))
+	registry.RegisterSchema("IncidentWebhookReceiver", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"incident_id":    map[string]any{"type": "string"},
+		"name":           map[string]any{"type": "string"},
+		"provider":       map[string]any{"type": "string"},
+		"public_key":     map[string]any{"type": "string"},
+		"status":         map[string]any{"type": "string"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "incident_id", "name", "provider", "public_key", "status", "schema_version", "created_at"))
+	registry.RegisterSchema("IncidentWebhookReceiverEnvelope", dataEnvelopeSchema("#/components/schemas/IncidentWebhookReceiver"))
+	registry.RegisterSchema("SignedIncidentWebhookPayload", objectSchema(map[string]any{
+		"event_type":  map[string]any{"type": "string"},
+		"summary":     map[string]any{"type": "string"},
+		"evidence_id": map[string]any{"type": "string"},
+		"occurred_at": map[string]any{"type": "string", "format": "date-time"},
+	}, "event_type", "summary"))
+	registry.RegisterSchema("IncidentWebhookEvent", objectSchema(map[string]any{
+		"id":                map[string]any{"type": "string"},
+		"tenant_id":         map[string]any{"type": "string"},
+		"receiver_id":       map[string]any{"type": "string"},
+		"incident_id":       map[string]any{"type": "string"},
+		"provider":          map[string]any{"type": "string"},
+		"event_id":          map[string]any{"type": "string"},
+		"payload_hash":      map[string]any{"type": "string", "pattern": "^sha256:"},
+		"signature_hash":    map[string]any{"type": "string", "pattern": "^sha256:"},
+		"timeline_event_id": map[string]any{"type": "string"},
+		"result":            map[string]any{"type": "string"},
+		"schema_version":    map[string]any{"type": "string"},
+		"created_at":        map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "receiver_id", "incident_id", "provider", "event_id", "payload_hash", "signature_hash", "result", "schema_version", "created_at"))
+	registry.RegisterSchema("IncidentWebhookDelivery", objectSchema(map[string]any{
+		"webhook_event":  map[string]any{"$ref": "#/components/schemas/IncidentWebhookEvent"},
+		"timeline_event": map[string]any{"$ref": "#/components/schemas/IncidentTimelineEvent"},
+	}, "webhook_event", "timeline_event"))
+	registry.RegisterSchema("IncidentWebhookDeliveryEnvelope", dataEnvelopeSchema("#/components/schemas/IncidentWebhookDelivery"))
+	registry.RegisterSchema("CreateRemediationTaskRequest", objectSchema(map[string]any{
+		"incident_id": map[string]any{"type": "string"},
+		"release_id":  map[string]any{"type": "string"},
+		"title":       map[string]any{"type": "string"},
+		"owner":       map[string]any{"type": "string"},
+		"due_at":      map[string]any{"type": "string", "format": "date-time"},
+		"evidence_id": map[string]any{"type": "string"},
+	}, "title", "owner"))
+	registry.RegisterSchema("RemediationTask", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"incident_id":    map[string]any{"type": "string"},
+		"release_id":     map[string]any{"type": "string"},
+		"title":          map[string]any{"type": "string"},
+		"owner":          map[string]any{"type": "string"},
+		"status":         map[string]any{"type": "string"},
+		"due_at":         map[string]any{"type": "string", "format": "date-time"},
+		"evidence_id":    map[string]any{"type": "string"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "title", "owner", "status", "schema_version", "created_at"))
+	registry.RegisterSchema("RemediationTaskEnvelope", dataEnvelopeSchema("#/components/schemas/RemediationTask"))
+	registry.RegisterSchema("IncidentReport", objectSchema(map[string]any{
+		"report_type":      map[string]any{"type": "string"},
+		"template_version": map[string]any{"type": "string"},
+		"incident_id":      map[string]any{"type": "string"},
+		"result":           map[string]any{"type": "string"},
+		"timeline":         map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/IncidentTimelineEvent"}},
+		"tasks":            map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/RemediationTask"}},
+		"linked_evidence":  map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"assumptions":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"limitations":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"generated_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "report_type", "template_version", "incident_id", "result", "timeline", "tasks", "assumptions", "limitations", "generated_at"))
+	registry.RegisterSchema("IncidentReportEnvelope", dataEnvelopeSchema("#/components/schemas/IncidentReport"))
+	registry.RegisterSchema("UploadSecurityScanRequest", objectSchema(map[string]any{
+		"product_id":  map[string]any{"type": "string"},
+		"release_id":  map[string]any{"type": "string"},
+		"artifact_id": map[string]any{"type": "string"},
+		"category":    map[string]any{"type": "string", "enum": []string{"sast", "dast", "secret", "license", "api_security"}},
+		"format":      map[string]any{"type": "string"},
+		"scanner":     map[string]any{"type": "string"},
+		"target_ref":  map[string]any{"type": "string"},
+		"payload":     map[string]any{"type": "object", "additionalProperties": true},
+	}, "category", "format", "scanner", "target_ref", "payload"))
+	registry.RegisterSchema("SecurityScan", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"product_id":     map[string]any{"type": "string"},
+		"release_id":     map[string]any{"type": "string"},
+		"artifact_id":    map[string]any{"type": "string"},
+		"category":       map[string]any{"type": "string"},
+		"format":         map[string]any{"type": "string"},
+		"scanner":        map[string]any{"type": "string"},
+		"target_ref":     map[string]any{"type": "string"},
+		"evidence_id":    map[string]any{"type": "string"},
+		"payload_ref":    map[string]any{"type": "string"},
+		"payload_hash":   map[string]any{"type": "string", "pattern": "^sha256:"},
+		"finding_count":  map[string]any{"type": "integer"},
+		"summary":        map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "integer"}},
+		"redacted":       map[string]any{"type": "boolean"},
+		"quarantined":    map[string]any{"type": "boolean"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "category", "format", "scanner", "target_ref", "evidence_id", "payload_hash", "finding_count", "redacted", "quarantined", "schema_version", "created_at"))
+	registry.RegisterSchema("SecurityScanEnvelope", dataEnvelopeSchema("#/components/schemas/SecurityScan"))
+	registry.RegisterSchema("UploadManualSecurityDocumentRequest", objectSchema(map[string]any{
+		"product_id":    map[string]any{"type": "string"},
+		"release_id":    map[string]any{"type": "string"},
+		"document_type": map[string]any{"type": "string", "enum": []string{"threat_model", "security_review", "pentest_report"}},
+		"title":         map[string]any{"type": "string"},
+		"sensitivity":   map[string]any{"type": "string", "enum": []string{"internal", "restricted", "confidential"}},
+		"payload":       map[string]any{"type": "string", "description": "Document payload or text supplied for object storage; responses expose only payload hash/ref metadata."},
+		"media_type":    map[string]any{"type": "string"},
+	}, "document_type", "title", "sensitivity", "payload"))
+	registry.RegisterSchema("ManualSecurityDocument", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"product_id":     map[string]any{"type": "string"},
+		"release_id":     map[string]any{"type": "string"},
+		"document_type":  map[string]any{"type": "string"},
+		"title":          map[string]any{"type": "string"},
+		"sensitivity":    map[string]any{"type": "string"},
+		"evidence_id":    map[string]any{"type": "string"},
+		"payload_ref":    map[string]any{"type": "string"},
+		"payload_hash":   map[string]any{"type": "string", "pattern": "^sha256:"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "document_type", "title", "sensitivity", "evidence_id", "payload_hash", "schema_version", "created_at"))
+	registry.RegisterSchema("ManualSecurityDocumentEnvelope", dataEnvelopeSchema("#/components/schemas/ManualSecurityDocument"))
+	registry.RegisterSchema("VulnerabilityPostureReport", objectSchema(map[string]any{
+		"report_type":      map[string]any{"type": "string"},
+		"template_version": map[string]any{"type": "string"},
+		"release_id":       map[string]any{"type": "string"},
+		"summary":          map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "integer"}},
+		"open_critical":    map[string]any{"type": "integer"},
+		"assumptions":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"limitations":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"generated_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "report_type", "template_version", "summary", "open_critical", "assumptions", "limitations", "generated_at"))
+	registry.RegisterSchema("VulnerabilityPostureReportEnvelope", dataEnvelopeSchema("#/components/schemas/VulnerabilityPostureReport"))
+	registry.RegisterSchema("CreateAnomalyReportRequest", objectSchema(map[string]any{
+		"subject_type": map[string]any{"type": "string"},
+		"subject_id":   map[string]any{"type": "string"},
+	}, "subject_type", "subject_id"))
+	registry.RegisterSchema("AnomalySignal", objectSchema(map[string]any{
+		"name":     map[string]any{"type": "string"},
+		"severity": map[string]any{"type": "string"},
+		"detail":   map[string]any{"type": "string"},
+	}, "name", "severity", "detail"))
+	registry.RegisterSchema("AnomalyReport", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"subject_type":   map[string]any{"type": "string"},
+		"subject_id":     map[string]any{"type": "string"},
+		"result":         map[string]any{"type": "string"},
+		"signals":        map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/AnomalySignal"}},
+		"assumptions":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"limitations":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "subject_type", "subject_id", "result", "assumptions", "limitations", "schema_version", "created_at"))
+	registry.RegisterSchema("AnomalyReportEnvelope", dataEnvelopeSchema("#/components/schemas/AnomalyReport"))
+	registry.RegisterSchema("CreatePublicTransparencyLogRequest", objectSchema(map[string]any{
+		"name":       map[string]any{"type": "string"},
+		"endpoint":   map[string]any{"type": "string"},
+		"public_key": map[string]any{"type": "string"},
+	}, "name", "endpoint", "public_key"))
+	registry.RegisterSchema("PublicTransparencyLog", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"name":           map[string]any{"type": "string"},
+		"endpoint":       map[string]any{"type": "string"},
+		"public_key":     map[string]any{"type": "string"},
+		"state":          map[string]any{"type": "string"},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "name", "endpoint", "public_key", "state", "schema_version", "created_at"))
+	registry.RegisterSchema("PublicTransparencyLogEnvelope", dataEnvelopeSchema("#/components/schemas/PublicTransparencyLog"))
+	registry.RegisterSchema("PublishPublicTransparencyLogEntryRequest", objectSchema(map[string]any{
+		"log_id":        map[string]any{"type": "string"},
+		"checkpoint_id": map[string]any{"type": "string"},
+		"external_id":   map[string]any{"type": "string"},
+	}, "log_id", "checkpoint_id", "external_id"))
+	registry.RegisterSchema("PublicTransparencyLogEntry", objectSchema(map[string]any{
+		"id":              map[string]any{"type": "string"},
+		"tenant_id":       map[string]any{"type": "string"},
+		"log_id":          map[string]any{"type": "string"},
+		"checkpoint_id":   map[string]any{"type": "string"},
+		"merkle_batch_id": map[string]any{"type": "string"},
+		"external_id":     map[string]any{"type": "string"},
+		"entry_hash":      map[string]any{"type": "string", "pattern": "^sha256:"},
+		"state":           map[string]any{"type": "string"},
+		"schema_version":  map[string]any{"type": "string"},
+		"created_at":      map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "log_id", "checkpoint_id", "merkle_batch_id", "external_id", "entry_hash", "state", "schema_version", "created_at"))
+	registry.RegisterSchema("PublicTransparencyLogEntryEnvelope", dataEnvelopeSchema("#/components/schemas/PublicTransparencyLogEntry"))
+	registry.RegisterSchema("CreateSaaSEditionProfileRequest", objectSchema(map[string]any{
+		"name":            map[string]any{"type": "string"},
+		"region":          map[string]any{"type": "string"},
+		"admin_tenant_id": map[string]any{"type": "string"},
+		"isolation_model": map[string]any{"type": "string"},
+	}, "name", "region", "admin_tenant_id", "isolation_model"))
+	registry.RegisterSchema("SaaSEditionProfile", objectSchema(map[string]any{
+		"id":              map[string]any{"type": "string"},
+		"tenant_id":       map[string]any{"type": "string"},
+		"name":            map[string]any{"type": "string"},
+		"region":          map[string]any{"type": "string"},
+		"admin_tenant_id": map[string]any{"type": "string"},
+		"isolation_model": map[string]any{"type": "string"},
+		"status":          map[string]any{"type": "string"},
+		"config_hash":     map[string]any{"type": "string", "pattern": "^sha256:"},
+		"limitations":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"schema_version":  map[string]any{"type": "string"},
+		"created_at":      map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "name", "region", "admin_tenant_id", "isolation_model", "status", "config_hash", "limitations", "schema_version", "created_at"))
+	registry.RegisterSchema("SaaSEditionProfileEnvelope", dataEnvelopeSchema("#/components/schemas/SaaSEditionProfile"))
+	registry.RegisterSchema("VerifySubjectRequest", objectSchema(map[string]any{
+		"subject_type": map[string]any{"type": "string"},
+		"subject_id":   map[string]any{"type": "string"},
+	}, "subject_type"))
 	registry.RegisterSchema("SubjectRef", objectSchema(map[string]any{
 		"type":   map[string]any{"type": "string"},
 		"id":     map[string]any{"type": "string"},

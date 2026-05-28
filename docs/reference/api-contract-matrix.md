@@ -3,15 +3,15 @@
 This generated reference inventories Evydence `/v1` route contract precision from `openapi.yaml`.
 It is a planning aid for production contract hardening; `broad` means the route still uses a shared envelope, unspecified body, or generic schema where an endpoint-specific contract should be considered.
 
-Generated from 160 operations: 133 precise, 27 broad.
+Generated from 160 operations: 160 precise, 0 broad.
 
 | Method | Path | Operation | Auth | Scopes | Idempotency | Params | Request | 2xx Response | Precision |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | GET | /v1/admin/instance | instanceAdminSnapshot | Bearer | instance:admin | - | - | - | 200:application/json:InstanceAdminSnapshotEnvelope | precise |
 | GET | /v1/api-keys | listAPIKeys | Bearer | admin | - | - | - | 200:application/json:APIKeyListEnvelope | precise |
 | POST | /v1/api-keys | createAPIKey | Bearer | admin | required | - | application/json:CreateAPIKeyRequest | 201:application/json:APIKeyCreateEnvelope | precise |
-| POST | /v1/api-security-scans | uploadAPISecurityScan | Bearer | security:write | required | - | - | 201:unspecified | broad |
-| POST | /v1/approvals | createApproval | Bearer | release:write | required | - | - | 201:unspecified | broad |
+| POST | /v1/api-security-scans | uploadAPISecurityScan | Bearer | security:write | required | - | application/json:UploadSecurityScanRequest | 201:application/json:SecurityScanEnvelope | precise |
+| POST | /v1/approvals | createApproval | Bearer | release:write | required | - | application/json:CreateApprovalRequest | 201:application/json:ApprovalRecordEnvelope | precise |
 | POST | /v1/artifact-signatures | createArtifactSignature | Bearer | evidence:write | required | - | application/json:CreateArtifactSignatureRequest | 201:application/json:ArtifactSignatureEnvelope | precise |
 | GET | /v1/artifact-signatures/{id} | getArtifactSignature | Bearer | evidence:read | - | path:id | - | 200:application/json:ArtifactSignatureEnvelope | precise |
 | POST | /v1/artifact-signatures/{id}/verify-cosign | verifyCosignSignature | Bearer | verify:read | required | path:id | application/json:VerifyCosignSignatureRequest | 200:application/json:CosignVerificationEnvelope | precise |
@@ -71,19 +71,19 @@ Generated from 160 operations: 133 precise, 27 broad.
 | POST | /v1/exceptions | createException | Bearer | release:write | required | - | application/json:CreateExceptionRequest | 201:application/json:ExceptionEnvelope | precise |
 | POST | /v1/exceptions/{id}/approve | approveException | Bearer | release:write | required | path:id | application/json:EmptyObject | 200:application/json:ExceptionEnvelope | precise |
 | GET | /v1/health | health | public | - | - | - | - | 200:application/json:HealthStatusEnvelope | precise |
-| POST | /v1/incident-webhooks/{receiver_id} | receiveIncidentWebhook | public | - | not required | header:X-Evydence-Webhook-Event-ID, header:X-Evydence-Webhook-Signature, header:X-Evydence-Webhook-Timestamp, path:receiver_id | application/json:DataEnvelope | 201:application/json:DataEnvelope | broad |
-| POST | /v1/incidents | createIncident | Bearer | incident:write | required | - | - | 201:unspecified | broad |
-| POST | /v1/incidents/{id}/timeline | recordIncidentTimeline | Bearer | incident:write | required | - | - | 201:unspecified | broad |
-| POST | /v1/incidents/{id}/webhook-receivers | createIncidentWebhookReceiver | Bearer | incident:write | required | path:id | application/json:DataEnvelope | 201:application/json:DataEnvelope | broad |
-| POST | /v1/legal-holds | createLegalHold | Bearer | admin | required | - | - | 201:unspecified | broad |
+| POST | /v1/incident-webhooks/{receiver_id} | receiveIncidentWebhook | public | - | not required | header:X-Evydence-Webhook-Event-ID, header:X-Evydence-Webhook-Signature, header:X-Evydence-Webhook-Timestamp, path:receiver_id | application/json:SignedIncidentWebhookPayload | 201:application/json:IncidentWebhookDeliveryEnvelope | precise |
+| POST | /v1/incidents | createIncident | Bearer | incident:write | required | - | application/json:CreateIncidentRequest | 201:application/json:IncidentEnvelope | precise |
+| POST | /v1/incidents/{id}/timeline | recordIncidentTimeline | Bearer | incident:write | required | path:id | application/json:RecordIncidentTimelineRequest | 201:application/json:IncidentTimelineEventEnvelope | precise |
+| POST | /v1/incidents/{id}/webhook-receivers | createIncidentWebhookReceiver | Bearer | incident:write | required | path:id | application/json:CreateIncidentWebhookReceiverRequest | 201:application/json:IncidentWebhookReceiverEnvelope | precise |
+| POST | /v1/legal-holds | createLegalHold | Bearer | admin | required | - | application/json:CreateLegalHoldRequest | 201:application/json:LegalHoldEnvelope | precise |
 | GET | /v1/marketplace-collectors | listMarketplaceCollectors | Bearer | collector:read | - | - | - | 200:application/json:MarketplaceCollectorListEnvelope | precise |
 | POST | /v1/marketplace-collectors | createMarketplaceCollector | Bearer | collector:admin | required | - | application/json:CreateMarketplaceCollectorRequest | 201:application/json:MarketplaceCollectorEnvelope | precise |
 | GET | /v1/marketplace-collectors/{id}/health | marketplaceCollectorHealth | Bearer | collector:read | - | path:id | - | 200:application/json:MarketplaceCollectorHealthReportEnvelope | precise |
-| POST | /v1/merkle-batches | createMerkleBatch | Bearer | keys:admin | required | - | - | 201:unspecified | broad |
-| GET | /v1/merkle-batches/{id}/verify | verifyMerkleBatch | Bearer | verify:read | - | - | - | 200:unspecified | broad |
+| POST | /v1/merkle-batches | createMerkleBatch | Bearer | keys:admin | required | - | application/json:CreateMerkleBatchRequest | 201:application/json:MerkleBatchEnvelope | precise |
+| GET | /v1/merkle-batches/{id}/verify | verifyMerkleBatch | Bearer | verify:read | - | path:id | - | 200:application/json:VerificationResultEnvelope | precise |
 | GET | /v1/metrics | metrics | Bearer | admin | - | - | - | 200:application/json:MetricsSnapshotEnvelope,text/plain:string | precise |
-| POST | /v1/object-retention-policies | createObjectRetentionPolicy | Bearer | admin | required | - | - | 201:unspecified | broad |
-| POST | /v1/object-retention-policies/{id}/verify | verifyObjectRetentionPolicy | Bearer | verify:read | required | - | - | 200:unspecified | broad |
+| POST | /v1/object-retention-policies | createObjectRetentionPolicy | Bearer | admin | required | - | application/json:CreateObjectRetentionPolicyRequest | 201:application/json:ObjectRetentionPolicyEnvelope | precise |
+| POST | /v1/object-retention-policies/{id}/verify | verifyObjectRetentionPolicy | Bearer | verify:read | required | path:id | application/json:EmptyObject | 200:application/json:ObjectRetentionPolicyEnvelope | precise |
 | POST | /v1/openapi-contracts | uploadOpenAPIContract | Bearer | evidence:write | required | - | application/json:UploadOpenAPIContractRequest | 201:application/json:OpenAPIContractEnvelope | precise |
 | GET | /v1/openapi-contracts/{id} | getOpenAPIContract | Bearer | evidence:read | - | path:id | - | 200:application/json:OpenAPIContractEnvelope | precise |
 | POST | /v1/openapi-diffs | createOpenAPIDiff | Bearer | evidence:read | required | - | application/json:CreateOpenAPIDiffRequest | 201:application/json:ContractDiffEnvelope | precise |
@@ -94,8 +94,8 @@ Generated from 160 operations: 133 precise, 27 broad.
 | POST | /v1/products | createProduct | Bearer | product:write | required | - | application/json:CreateProductRequest | 201:application/json:ProductEnvelope | precise |
 | POST | /v1/projects | createProject | Bearer | project:write | required | - | application/json:CreateProjectRequest | 201:application/json:ProjectEnvelope | precise |
 | POST | /v1/provider-verifications | verifyProviderIdentity | Bearer | identity:admin | required | - | application/json:VerifyProviderIdentityRequest | 201:application/json:ProviderVerificationEnvelope | precise |
-| POST | /v1/public-transparency-log-entries | publishPublicTransparencyLogEntry | Bearer | keys:admin | required | - | - | 201:unspecified | broad |
-| POST | /v1/public-transparency-logs | createPublicTransparencyLog | Bearer | keys:admin | required | - | - | 201:unspecified | broad |
+| POST | /v1/public-transparency-log-entries | publishPublicTransparencyLogEntry | Bearer | keys:admin | required | - | application/json:PublishPublicTransparencyLogEntryRequest | 201:application/json:PublicTransparencyLogEntryEnvelope | precise |
+| POST | /v1/public-transparency-logs | createPublicTransparencyLog | Bearer | keys:admin | required | - | application/json:CreatePublicTransparencyLogRequest | 201:application/json:PublicTransparencyLogEnvelope | precise |
 | POST | /v1/questionnaire-drafts | createQuestionnaireDraft | Bearer | package:read | required | - | application/json:CreateQuestionnaireDraftRequest | 201:application/json:QuestionnaireDraftEnvelope | precise |
 | POST | /v1/questionnaire-packages | createQuestionnairePackage | Bearer | package:write | required | - | application/json:CreateQuestionnairePackageRequest | 201:application/json:QuestionnairePackageEnvelope | precise |
 | POST | /v1/questionnaire-templates | createQuestionnaireTemplate | Bearer | package:write | required | - | application/json:CreateQuestionnaireTemplateRequest | 201:application/json:QuestionnaireTemplateEnvelope | precise |
@@ -114,31 +114,31 @@ Generated from 160 operations: 133 precise, 27 broad.
 | GET | /v1/releases/{id} | getRelease | Bearer | release:read | - | path:id | - | 200:application/json:ReleaseEnvelope | precise |
 | POST | /v1/releases/{id}/approve | approveRelease | Bearer | release:write | required | path:id | application/json:EmptyObject | 200:application/json:ReleaseEnvelope | precise |
 | POST | /v1/releases/{id}/freeze | freezeRelease | Bearer | release:write | required | path:id | application/json:EmptyObject | 200:application/json:ReleaseEnvelope | precise |
-| POST | /v1/remediation-tasks | createRemediationTask | Bearer | incident:write | required | - | - | 201:unspecified | broad |
+| POST | /v1/remediation-tasks | createRemediationTask | Bearer | incident:write | required | - | application/json:CreateRemediationTaskRequest | 201:application/json:RemediationTaskEnvelope | precise |
 | POST | /v1/report-templates | createReportTemplate | Bearer | report:read | required | - | application/json:CreateReportTemplateRequest | 201:application/json:CustomReportTemplateEnvelope | precise |
 | POST | /v1/report-templates/{id}/render | renderReportTemplate | Bearer | report:read | required | path:id | application/json:RenderReportTemplateRequest | 201:application/json:RenderedCustomReportEnvelope | precise |
-| POST | /v1/reports/anomaly | generateAnomalyReport | Bearer | report:read | required | - | - | 201:unspecified | broad |
+| POST | /v1/reports/anomaly | generateAnomalyReport | Bearer | report:read | required | - | application/json:CreateAnomalyReportRequest | 201:application/json:AnomalyReportEnvelope | precise |
 | GET | /v1/reports/control-coverage | controlCoverageReport | Bearer | report:read | - | query:framework_id, query:product_id, query:release_id | - | 200:application/json:ReadinessReportEnvelope | precise |
 | GET | /v1/reports/cra-readiness | craReadinessReport | Bearer | report:read | - | query:product_id, query:release_id | - | 200:application/json:ReadinessReportEnvelope | precise |
 | GET | /v1/reports/cra-readiness-html | craReadinessHTMLPackage | Bearer | report:read | - | query:product_id, query:release_id | - | 200:application/json:HTMLReportPackageEnvelope | precise |
-| GET | /v1/reports/incident-package | incidentReport | Bearer | incident:read | - | - | - | 200:unspecified | broad |
+| GET | /v1/reports/incident-package | incidentReport | Bearer | incident:read | - | query:incident_id | - | 200:application/json:IncidentReportEnvelope | precise |
 | GET | /v1/reports/missing-evidence | missingEvidenceReport | Bearer | verify:read | - | query:release_id | - | 200:application/json:MissingEvidenceReportEnvelope | precise |
 | POST | /v1/reports/pdf | createPDFReportPackage | Bearer | report:read | required | - | application/json:CreatePDFReportPackageRequest | 201:application/json:PDFReportPackageEnvelope | precise |
 | GET | /v1/reports/release-readiness | releaseReadinessReport | Bearer | verify:read | - | query:release_id | - | 200:application/json:ReadinessReportEnvelope | precise |
-| GET | /v1/reports/retention | retentionReport | Bearer | admin | - | - | - | 200:unspecified | broad |
+| GET | /v1/reports/retention | retentionReport | Bearer | admin | - | query:scope_id, query:scope_type | - | 200:application/json:RetentionReportEnvelope | precise |
 | GET | /v1/reports/security-review-package | securityReviewPackageReport | Bearer | package:read | - | query:package_id | - | 200:application/json:SecurityReviewPackageReportEnvelope | precise |
-| GET | /v1/reports/vulnerability-posture | vulnerabilityPostureReport | Bearer | security:read | - | - | - | 200:unspecified | broad |
-| POST | /v1/retention-overrides | createRetentionOverride | Bearer | admin | required | - | - | 201:unspecified | broad |
+| GET | /v1/reports/vulnerability-posture | vulnerabilityPostureReport | Bearer | security:read | - | query:release_id | - | 200:application/json:VulnerabilityPostureReportEnvelope | precise |
+| POST | /v1/retention-overrides | createRetentionOverride | Bearer | admin | required | - | application/json:CreateRetentionOverrideRequest | 201:application/json:RetentionOverrideEnvelope | precise |
 | GET | /v1/role-bindings | listRoleBindings | Bearer | identity:admin | - | - | - | 200:application/json:RoleBindingListEnvelope | precise |
 | POST | /v1/role-bindings | createRoleBinding | Bearer | identity:admin | required | - | application/json:CreateRoleBindingRequest | 201:application/json:RoleBindingEnvelope | precise |
-| POST | /v1/saas/profiles | createSaaSEditionProfile | Bearer | instance:admin | required | - | - | 201:unspecified | broad |
-| GET | /v1/sbom-components | listSBOMComponents | Bearer | evidence:read | - | query:artifact_id, query:limit, query:purl, query:query, query:release_id, query:sbom_id | - | 200:application/json:DataEnvelope | broad |
-| POST | /v1/sbom-diffs | createSBOMDiff | Bearer | evidence:read | required | - | - | 201:unspecified | broad |
+| POST | /v1/saas/profiles | createSaaSEditionProfile | Bearer | instance:admin | required | - | application/json:CreateSaaSEditionProfileRequest | 201:application/json:SaaSEditionProfileEnvelope | precise |
+| GET | /v1/sbom-components | listSBOMComponents | Bearer | evidence:read | - | query:artifact_id, query:limit, query:purl, query:query, query:release_id, query:sbom_id | - | 200:application/json:SBOMComponentRecordListEnvelope | precise |
+| POST | /v1/sbom-diffs | createSBOMDiff | Bearer | evidence:read | required | - | application/json:CreateSBOMDiffRequest | 201:application/json:SBOMDiffEnvelope | precise |
 | POST | /v1/sboms | uploadSBOM | Bearer | evidence:write | required | - | application/json:EvidenceUploadRequest | 201:application/json:SBOMEnvelope | precise |
-| POST | /v1/sboms/spdx | uploadSPDXSBOM | Bearer | evidence:write | required | - | - | 201:unspecified | broad |
+| POST | /v1/sboms/spdx | uploadSPDXSBOM | Bearer | evidence:write | required | - | application/json:UploadSPDXSBOMRequest | 201:application/json:SBOMEnvelope | precise |
 | GET | /v1/sboms/{id} | getSBOM | Bearer | evidence:read | - | path:id | - | 200:application/json:SBOMEnvelope | precise |
-| POST | /v1/security-documents | uploadManualSecurityDocument | Bearer | security:write | required | - | - | 201:unspecified | broad |
-| POST | /v1/security-scans | uploadSecurityScan | Bearer | security:write | required | - | - | 201:unspecified | broad |
+| POST | /v1/security-documents | uploadManualSecurityDocument | Bearer | security:write | required | - | application/json:UploadManualSecurityDocumentRequest | 201:application/json:ManualSecurityDocumentEnvelope | precise |
+| POST | /v1/security-scans | uploadSecurityScan | Bearer | security:write | required | - | application/json:UploadSecurityScanRequest | 201:application/json:SecurityScanEnvelope | precise |
 | GET | /v1/signing-keys | listSigningKeys | Bearer | verify:read | - | - | - | 200:application/json:SigningKeyListEnvelope | precise |
 | POST | /v1/signing-keys/rotate | rotateSigningKey | Bearer | keys:admin | required | - | application/json:SigningKeyTransitionRequest | 201:application/json:SigningKeyEnvelope | precise |
 | POST | /v1/signing-keys/{id}/revoke | revokeSigningKey | Bearer | keys:admin | required | path:id | application/json:SigningKeyTransitionRequest | 200:application/json:SigningKeyEnvelope | precise |
@@ -153,10 +153,10 @@ Generated from 160 operations: 133 precise, 27 broad.
 | POST | /v1/sso/providers | createSSOProvider | Bearer | identity:admin | required | - | application/json:CreateSSOProviderRequest | 201:application/json:SSOProviderEnvelope | precise |
 | POST | /v1/sso/sessions | createSSOSession | Bearer | identity:admin | required | - | application/json:CreateSSOSessionRequest | 201:application/json:SSOSessionCreateEnvelope | precise |
 | POST | /v1/sso/sessions/{id}/revoke | revokeSSOSession | Bearer | identity:admin | required | path:id | application/json:EmptyObject | 200:application/json:SSOSessionEnvelope | precise |
-| POST | /v1/transparency-checkpoints | createTransparencyCheckpoint | Bearer | keys:admin | required | - | - | 201:unspecified | broad |
+| POST | /v1/transparency-checkpoints | createTransparencyCheckpoint | Bearer | keys:admin | required | - | application/json:CreateTransparencyCheckpointRequest | 201:application/json:TransparencyCheckpointEnvelope | precise |
 | POST | /v1/users | createUser | Bearer | identity:admin | required | - | application/json:CreateUserRequest | 201:application/json:HumanUserEnvelope | precise |
 | POST | /v1/users/{id}/deactivate | deactivateUser | Bearer | identity:admin | required | path:id | application/json:EmptyObject | 200:application/json:HumanUserEnvelope | precise |
-| POST | /v1/verify | verify | Bearer | verify:read | required | - | - | 200:unspecified | broad |
+| POST | /v1/verify | verify | Bearer | verify:read | required | - | application/json:VerifySubjectRequest | 200:application/json:VerificationResultEnvelope | precise |
 | GET | /v1/version | version | public | - | - | - | - | 200:application/json:VersionInfoEnvelope | precise |
 | POST | /v1/vex | uploadVEX | Bearer | evidence:write | required | - | application/json:EvidenceUploadRequest | 201:application/json:VEXDocumentEnvelope | precise |
 | POST | /v1/vex/cyclonedx | uploadCycloneDXVEX | Bearer | evidence:write | required | - | application/json:EvidenceUploadRequest | 201:application/json:VEXDocumentEnvelope | precise |
