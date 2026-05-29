@@ -351,7 +351,7 @@ func (l *Ledger) BootstrapTenant(ctx context.Context, name, keyName string, scop
 		return domain.Tenant{}, domain.APIKey{}, "", err
 	}
 	_, _ = l.appendChainLocked(tenant.ID, "tenant.created", "tenant", tenant.ID, "system", "bootstrap", "", "")
-	if err := l.persistLocked(ctx); err != nil {
+	if err := l.persistCriticalLocked(ctx, l.criticalMutationLocked()); err != nil {
 		return domain.Tenant{}, domain.APIKey{}, "", err
 	}
 	return tenant, key, secret, nil
@@ -388,7 +388,7 @@ func (l *Ledger) Authenticate(ctx context.Context, secret string) (domain.Actor,
 				break
 			}
 		}
-		_ = l.persistLocked(ctx)
+		_ = l.persistCriticalLocked(ctx, l.criticalMutationLocked())
 		return domain.Actor{TenantID: key.TenantID, KeyID: key.ID, Name: key.Name, Scopes: append([]string(nil), key.Scopes...), CollectorID: collectorID}, nil
 	}
 	for id, session := range l.ssoSessions {
@@ -405,7 +405,7 @@ func (l *Ledger) Authenticate(ctx context.Context, secret string) (domain.Actor,
 			return domain.Actor{}, ErrForbidden
 		}
 		l.ssoSessions[id] = session
-		_ = l.persistLocked(ctx)
+		_ = l.persistCriticalLocked(ctx, l.criticalMutationLocked())
 		return domain.Actor{TenantID: user.TenantID, UserID: user.ID, SessionID: session.ID, Name: user.Email, Scopes: scopes, ResourceGrants: grants}, nil
 	}
 	return domain.Actor{}, ErrUnauthorized
@@ -431,7 +431,7 @@ func (l *Ledger) CreateAPIKey(ctx context.Context, actor domain.Actor, name stri
 		return domain.APIKey{}, "", err
 	}
 	_, _ = l.appendChainLocked(actor.TenantID, "api_key.created", "api_key", key.ID, "api_key", actor.KeyID, "", "")
-	if err := l.persistLocked(ctx); err != nil {
+	if err := l.persistCriticalLocked(ctx, l.criticalMutationLocked()); err != nil {
 		return domain.APIKey{}, "", err
 	}
 	return key, secret, nil
@@ -1359,10 +1359,15 @@ func (l *Ledger) CreateReleaseBundle(ctx context.Context, actor domain.Actor, re
 	bundle := domain.ReleaseBundle{ID: bundleID, TenantID: actor.TenantID, ReleaseID: release.ID, State: "generated", Manifest: manifest, ManifestHash: manifestHash, SignatureRefs: []string{sig.ID}, CreatedAt: l.now()}
 	l.bundles[bundle.ID] = bundle
 	_, _ = l.appendChainLocked(actor.TenantID, "bundle.generated", "release_bundle", bundle.ID, "api_key", actor.KeyID, manifestHash, sig.ID)
-	if err := l.enqueue(ctx, actor.TenantID, "sign_bundle", "release_bundle", bundle.ID, map[string]any{"manifest_hash": manifestHash}); err != nil {
-		return domain.ReleaseBundle{}, err
+	job := l.newOutboxJob(actor.TenantID, "sign_bundle", "release_bundle", bundle.ID, map[string]any{"manifest_hash": manifestHash})
+	mutation := l.criticalMutationLocked()
+	mutation.OutboxJobs = append(mutation.OutboxJobs, job)
+	if _, ok := l.store.(CriticalMutationStore); !ok {
+		if err := l.enqueueJob(ctx, job); err != nil {
+			return domain.ReleaseBundle{}, err
+		}
 	}
-	if err := l.persistLocked(ctx); err != nil {
+	if err := l.persistCriticalLocked(ctx, mutation); err != nil {
 		return domain.ReleaseBundle{}, err
 	}
 	return bundle, nil
@@ -1613,10 +1618,15 @@ func (l *Ledger) VerifySubject(ctx context.Context, actor domain.Actor, subjectT
 	}
 	vr := domain.VerificationResult{ID: newID("vr"), TenantID: actor.TenantID, SubjectType: subjectType, SubjectID: subjectID, Result: result, Checks: checks, VerifiedAt: l.now()}
 	l.verifications[vr.ID] = vr
-	if err := l.enqueue(ctx, actor.TenantID, "verify_subject", subjectType, subjectID, map[string]any{"result_id": vr.ID}); err != nil {
-		return domain.VerificationResult{}, err
+	job := l.newOutboxJob(actor.TenantID, "verify_subject", subjectType, subjectID, map[string]any{"result_id": vr.ID})
+	mutation := l.criticalMutationLocked()
+	mutation.OutboxJobs = append(mutation.OutboxJobs, job)
+	if _, ok := l.store.(CriticalMutationStore); !ok {
+		if err := l.enqueueJob(ctx, job); err != nil {
+			return domain.VerificationResult{}, err
+		}
 	}
-	if err := l.persistLocked(ctx); err != nil {
+	if err := l.persistCriticalLocked(ctx, mutation); err != nil {
 		return domain.VerificationResult{}, err
 	}
 	if result != "passed" {
@@ -1711,7 +1721,7 @@ func (l *Ledger) WithIdempotency(ctx context.Context, actor domain.Actor, method
 	}
 	l.mu.Lock()
 	l.idempotency[storeKey] = IdempotencyRecord{RequestHash: requestHash, Status: status, Response: response, CreatedAt: l.now()}
-	if err := l.persistLocked(ctx); err != nil {
+	if err := l.persistCriticalLocked(ctx, l.criticalMutationLocked()); err != nil {
 		l.mu.Unlock()
 		return 0, nil, err
 	}

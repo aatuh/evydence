@@ -229,7 +229,7 @@ func (l *Ledger) CreateVulnerabilityDecision(ctx context.Context, actor domain.A
 	decision := l.createDecisionLocked(actor.TenantID, scan, finding, in, "api", actor.KeyID, "", "")
 	l.decisions[decision.ID] = decision
 	_, _ = l.appendChainLocked(actor.TenantID, "vulnerability_decision.created", "vulnerability_finding", finding.ID, "api_key", actor.KeyID, "", "")
-	if err := l.persistLocked(ctx); err != nil {
+	if err := l.persistCriticalLocked(ctx, l.criticalMutationLocked()); err != nil {
 		return domain.VulnerabilityDecision{}, err
 	}
 	return decision, nil

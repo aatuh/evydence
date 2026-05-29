@@ -475,7 +475,7 @@ func (l *Ledger) CreateSSOSession(ctx context.Context, actor domain.Actor, in Cr
 	session := domain.SSOSession{ID: newID("sess"), TenantID: actor.TenantID, UserID: user.ID, ProviderID: provider.ID, Prefix: secretPrefix(secret), ExpiresAt: in.ExpiresAt.UTC(), SchemaVersion: domain.SSOSessionSchemaVersion, CreatedAt: l.now(), Hash: l.hashSecret(secret)}
 	l.ssoSessions[session.ID] = session
 	_, _ = l.appendChainLocked(actor.TenantID, "sso_session.created", "human_user", user.ID, actorType(actor), actorID(actor), "", "")
-	if err := l.persistLocked(ctx); err != nil {
+	if err := l.persistCriticalLocked(ctx, l.criticalMutationLocked()); err != nil {
 		return domain.SSOSession{}, "", err
 	}
 	session.Hash = ""
@@ -593,7 +593,7 @@ func (l *Ledger) ExchangeSSOCredential(ctx context.Context, in ExchangeSSOCreden
 	session := domain.SSOSession{ID: newID("sess"), TenantID: provider.TenantID, UserID: user.ID, ProviderID: provider.ID, Prefix: secretPrefix(secret), Groups: groups, ExpiresAt: expiresAt, SchemaVersion: domain.SSOSessionSchemaVersion, CreatedAt: now, Hash: l.hashSecret(secret)}
 	l.ssoSessions[session.ID] = session
 	_, _ = l.appendChainLocked(provider.TenantID, "sso_session.created", "human_user", user.ID, "sso_provider", provider.ID, "", "")
-	if err := l.persistLocked(ctx); err != nil {
+	if err := l.persistCriticalLocked(ctx, l.criticalMutationLocked()); err != nil {
 		return domain.ProviderVerification{}, domain.SSOSession{}, "", err
 	}
 	session.Hash = ""
@@ -620,7 +620,7 @@ func (l *Ledger) RevokeSSOSession(ctx context.Context, actor domain.Actor, id st
 	session.RevokedAt = &now
 	l.ssoSessions[session.ID] = session
 	_, _ = l.appendChainLocked(actor.TenantID, "sso_session.revoked", "sso_session", session.ID, actorType(actor), actorID(actor), "", "")
-	if err := l.persistLocked(ctx); err != nil {
+	if err := l.persistCriticalLocked(ctx, l.criticalMutationLocked()); err != nil {
 		return domain.SSOSession{}, err
 	}
 	session.Hash = ""
@@ -647,7 +647,7 @@ func (l *Ledger) RevokeCurrentSSOSession(ctx context.Context, actor domain.Actor
 	session.RevokedAt = &now
 	l.ssoSessions[session.ID] = session
 	_, _ = l.appendChainLocked(actor.TenantID, "sso_session.revoked", "sso_session", session.ID, actorType(actor), actorID(actor), "", "")
-	if err := l.persistLocked(ctx); err != nil {
+	if err := l.persistCriticalLocked(ctx, l.criticalMutationLocked()); err != nil {
 		return domain.SSOSession{}, err
 	}
 	session.Hash = ""
@@ -761,7 +761,7 @@ func (l *Ledger) CreateCustomerPortalAccess(ctx context.Context, actor domain.Ac
 	access := domain.CustomerPortalAccess{ID: newID("cpa"), TenantID: actor.TenantID, PackageID: pkg.ID, CustomerName: in.CustomerName, Prefix: secretPrefix(secret), ExpiresAt: in.ExpiresAt.UTC(), SchemaVersion: domain.CustomerPortalAccessVersion, CreatedAt: l.now(), Hash: l.hashSecret(secret)}
 	l.portalAccess[access.ID] = access
 	_, _ = l.appendChainLocked(actor.TenantID, "customer_portal_access.created", "customer_security_package", pkg.ID, actorType(actor), actorID(actor), "", "")
-	if err := l.persistLocked(ctx); err != nil {
+	if err := l.persistCriticalLocked(ctx, l.criticalMutationLocked()); err != nil {
 		return domain.CustomerPortalAccess{}, "", err
 	}
 	access.Hash = ""
@@ -794,7 +794,7 @@ func (l *Ledger) AccessCustomerPortalPackage(ctx context.Context, token string) 
 				if access.RevokedAt != nil && access.FailedAccessCount == customerPortalFailedAccessLimit {
 					_, _ = l.appendChainLocked(access.TenantID, "customer_portal_access.revoked_after_failed_access", "customer_portal_access", access.ID, "customer_portal", "unverified", "", "")
 				}
-				_ = l.persistLocked(ctx)
+				_ = l.persistCriticalLocked(ctx, l.criticalMutationLocked())
 			}
 			continue
 		}
@@ -807,7 +807,7 @@ func (l *Ledger) AccessCustomerPortalPackage(ctx context.Context, token string) 
 		access.LastAccessedAt = &now
 		l.portalAccess[id] = access
 		_, _ = l.appendChainLocked(access.TenantID, "customer_portal_package.accessed", "customer_security_package", pkg.ID, "customer_portal", access.ID, pkg.ManifestHash, "")
-		if err := l.persistLocked(ctx); err != nil {
+		if err := l.persistCriticalLocked(ctx, l.criticalMutationLocked()); err != nil {
 			return domain.CustomerSecurityPackage{}, err
 		}
 		return pkg, nil

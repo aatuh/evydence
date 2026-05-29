@@ -12,6 +12,10 @@ type Store interface {
 	SaveState(context.Context, PersistedState) error
 }
 
+type CriticalMutationStore interface {
+	ApplyCriticalMutation(context.Context, CriticalMutation) error
+}
+
 type ObjectStore interface {
 	Put(context.Context, Object) error
 	Get(context.Context, string) (Object, error)
@@ -277,6 +281,27 @@ type OutboxJob struct {
 	SubjectID   string         `json:"subject_id"`
 	Payload     map[string]any `json:"payload,omitempty"`
 	CreatedAt   time.Time      `json:"created_at"`
+}
+
+type CriticalMutation struct {
+	Tenants                []domain.Tenant
+	APIKeys                []domain.APIKey
+	APIKeyHashes           map[string]string
+	Collectors             []domain.Collector
+	SSOSessions            []domain.SSOSession
+	SSOSessionHashes       map[string]string
+	CustomerPortalAccess   []domain.CustomerPortalAccess
+	CustomerPortalHashes   map[string]string
+	Idempotency            map[string]IdempotencyRecord
+	SigningKeys            []domain.SigningKey
+	SigningKeyPrivate      map[string][]byte
+	Signatures             []domain.Signature
+	ReleaseBundles         []domain.ReleaseBundle
+	VerificationResults    []domain.VerificationResult
+	ProviderVerifications  []domain.ProviderVerification
+	VulnerabilityDecisions []domain.VulnerabilityDecision
+	AuditChainEntries      []domain.AuditChainEntry
+	OutboxJobs             []OutboxJob
 }
 
 type nopOutbox struct{}
