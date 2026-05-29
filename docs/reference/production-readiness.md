@@ -17,7 +17,7 @@ controls.
 Known hardening work remains:
 
 - canonical production persistence still needs hand-tuned relational repository
-  paths for all high-risk resource families. PostgreSQL now maintains
+  paths for all resource families. PostgreSQL now maintains
   relational identity, idempotency, customer portal token, release-ledger core,
   build provenance, source/deployment, incident, security evidence, SBOM diff,
   vulnerability workflow, contract diff, custom policy, waiver, approval, DSSE
@@ -30,7 +30,13 @@ Known hardening work remains:
   worker startup load from relational reconstruction only. Production refuses
   snapshot fallback modes and disables compatibility snapshot writes; local
   development still defaults to snapshot-preferred loading and snapshot writes.
-  If the snapshot row is absent, the store can rebuild identity, SSO session,
+  Critical runtime mutations for tenants, API-key hashes, SSO-session hashes,
+  customer-portal token hashes, idempotency records, audit-chain entries,
+  signing keys, signatures, release bundles, verification results, provider
+  verification receipts, vulnerability decisions, and outbox jobs now use
+  focused PostgreSQL transactions when that store is configured. Non-migrated
+  resource families still use broader aggregate persistence. If the snapshot
+  row is absent, the store can rebuild identity, SSO session,
   customer portal token, release-ledger core,
   build provenance, source/deployment, incident, security evidence, SBOM diff,
   vulnerability workflow, contract diff, custom policy, waiver, approval, DSSE
@@ -74,10 +80,12 @@ Known hardening work remains:
 
 The current self-hosted production profile supports one API writer replica.
 This is intentional while the application still uses a large in-process ledger
-aggregate plus `LoadState` / `SaveState` persistence boundaries. Do not scale
-API writer replicas above one for production use until focused relational
-repository writes or another reviewed concurrency-control design is implemented
-and documented.
+aggregate and some resource families still use aggregate persistence. Focused
+critical mutations reduce the riskiest `SaveState` dependence, but they are
+not a full multi-writer concurrency design. Do not scale API writer replicas
+above one for production use until focused relational repository writes cover
+all write families or another reviewed concurrency-control design is
+implemented and documented.
 
 Worker replicas may be scaled because persisted outbox jobs are claimed with
 PostgreSQL row locking. Scaling workers increases parser/signing/report
@@ -144,7 +152,12 @@ implemented capabilities:
 
 - Continue replacing aggregate `SaveState` synchronization with
   dependency-ordered relational repositories for focused resource families.
-  Identity, idempotency, customer portal token, release-ledger core, build provenance,
+  Focused transaction-backed writes now cover tenants, API-key hashes,
+  SSO-session hashes, customer-portal token hashes, idempotency records,
+  audit-chain entries, signing keys, signatures, release bundles, verification
+  results, provider verification receipts, vulnerability decisions, and outbox
+  jobs. Relational row synchronization also covers identity, idempotency,
+  customer portal token, release-ledger core, build provenance,
   source/deployment, incident, security evidence, SBOM diff, vulnerability
   workflow, contract diff, custom policy, waiver, approval, DSSE trust-root,
   collector release, Cosign verification, signing provider, Merkle batch,

@@ -73,6 +73,14 @@ preserve existing workflows. Use `relational_preferred` only for controlled
 non-production migration or recovery checks that intentionally fall back to the
 snapshot.
 
+When PostgreSQL is configured, critical runtime mutations use focused
+transaction-backed writes for tenants, API-key hashes, SSO-session hashes,
+customer-portal token hashes, idempotency records, audit-chain entries,
+signing keys, signatures, release bundles, verification results, provider
+verification receipts, vulnerability decisions, and outbox jobs. Remaining
+resource families still depend on the broader ledger persistence path until
+later repository decomposition work.
+
 ## S3/MinIO Object-Retention Verification
 
 When `EVYDENCE_OBJECT_STORE=s3` or `minio`, object-retention policy verification
