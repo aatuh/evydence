@@ -43,6 +43,25 @@ upgrade to the current schema in a temporary PostgreSQL schema, and runs a
 release artifact signing smoke test. See [Production readiness](production-readiness.md)
 for the supported profiles and exit criteria.
 
+## Release Candidate Checklist
+
+Before tagging `v0.1.0-rc.1`, `v0.9.0-rc.1`, or another controlled
+self-hosted release candidate, follow
+[Release candidate checklist](release-candidate.md). The minimum evidence set
+is:
+
+- passing `make production-check` with live PostgreSQL;
+- `tmp/release-check-summary.txt` from the same run;
+- coverage output and threshold result;
+- OpenAPI checksum and migration checksums;
+- signed release artifact manifest, manifest signature, and artifact checksums;
+- release notes that state supported profile, assumptions, limitations,
+  upgrade notes, and unresolved hardening work.
+
+Do not use release-candidate evidence as legal compliance proof, certification,
+complete vulnerability coverage, complete SBOM proof, secure-release proof, or
+auditor/regulator acceptance.
+
 ## Configured Live PostgreSQL Profile
 
 For the scripted local profile, run:

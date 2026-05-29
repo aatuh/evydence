@@ -6,7 +6,7 @@ It does not make legal compliance conclusions, grant certification, prove SBOM c
 
 ## Current Implementation
 
-This repository contains a Go implementation under module `github.com/aatuh/evydence`. The current status is self-hosted production hardening: useful for evaluation, pilots, and controlled internal production after operator review, with a stricter production gate tracking the remaining work.
+This repository contains a Go implementation under module `github.com/aatuh/evydence`. The current status is controlled self-hosted production candidate hardening: useful for evaluation, pilots, and controlled internal production after operator review, with a stricter production gate and release-candidate checklist tracking the remaining work before any broader production claim.
 
 ### API And Contracts
 
@@ -88,6 +88,7 @@ For a runnable first evidence flow, use [Getting started](docs/tutorials/getting
 
 The canonical release validation reference is [docs/reference/release-validation.md](docs/reference/release-validation.md).
 The self-hosted production-readiness profile is [docs/reference/production-readiness.md](docs/reference/production-readiness.md).
+The release-candidate checklist is [docs/reference/release-candidate.md](docs/reference/release-candidate.md).
 
 Common local checks:
 
@@ -108,4 +109,4 @@ make postgres-integration-test
 
 `make finalize` runs the project-owned formatting, unit, OpenAPI, docs, deployment, and SDK gates. `make release-check` extends that with lint, gosec, govulncheck, race tests, and live PostgreSQL gates when `EVYDENCE_TEST_DATABASE_URL` is configured.
 
-`make production-check` is stricter: it requires `EVYDENCE_TEST_DATABASE_URL`, enforces the configured coverage threshold, and runs a release artifact signing smoke test. Passing the gate is required production-readiness evidence, but it does not by itself close the remaining repository-split, remaining worker side-effect, direct KMS/HSM SDK, provider API/group validation, object-lock enforcement, and exit-review work. Production API and worker processes default to relational-only PostgreSQL loads and skip compatibility snapshot writes; the compatibility snapshot remains for migration, recovery, and local workflows.
+`make production-check` is stricter: it requires `EVYDENCE_TEST_DATABASE_URL`, enforces the configured coverage threshold, and runs a release artifact signing smoke test. Passing the gate is required release-candidate evidence, but it does not by itself close the remaining focused repository-write, direct KMS/HSM SDK, provider API/group validation, object-lock enforcement, HA, and exit-review work. Production API and worker processes default to relational-only PostgreSQL loads and skip compatibility snapshot writes; the compatibility snapshot remains for migration, recovery, and local workflows. Current self-hosted production guidance uses a single API writer replica and allows worker replicas to scale through PostgreSQL outbox row locking.

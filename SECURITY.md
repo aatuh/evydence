@@ -8,11 +8,14 @@ object storage, reports, exports, and release evidence.
 
 ## Reporting A Vulnerability
 
-If you believe you found a vulnerability, contact Aatu Harju through LinkedIn:
+If you believe you found a vulnerability, use the private security intake
+channel listed for the current release when available. Until a dedicated
+security mailbox or advisory portal is published, contact Aatu Harju through
+LinkedIn to request a private reporting channel:
 
 <https://www.linkedin.com/in/aatu-harju>
 
-Use the initial message to request a private reporting channel. Do not include
+Use the initial message only to request a private reporting channel. Do not include
 API keys, collector secrets, bearer tokens, session tokens, portal tokens,
 private keys, provider credentials, database URLs, raw evidence payloads,
 customer data, exploit payloads against third-party systems, or other sensitive
@@ -32,11 +35,22 @@ Once a private channel is established, include:
   CI collectors are involved,
 - suggested fix if known.
 
-## Supported Scope
+## Supported Versions And Scope
 
 Security support focuses on the current `master` branch and current release
-tags. Older releases are best effort unless a commercial support agreement says
-otherwise.
+candidate or release tags. Older releases are best effort unless a commercial
+support agreement says otherwise. Reports should identify the affected commit,
+tag, image digest, Helm chart version, or deployment profile so triage can
+reproduce the issue without production data.
+
+## Advisory And Disclosure Expectations
+
+Evydence handles tenant-scoped evidence, credentials, signing metadata, object
+payload references, and customer-package boundaries. Security fixes should be
+coordinated privately until maintainers have a reasonable opportunity to
+triage, patch, publish release evidence, and document upgrade guidance. Public
+advisories should avoid raw exploit payloads, customer evidence, secrets, or
+instructions that increase exposure before users can update.
 
 Out of scope:
 
@@ -48,12 +62,6 @@ Out of scope:
   reproduction or responsible provider disclosure,
 - requests for legal compliance, certification, complete SBOM, scanner
   authority, secure-release, regulator-acceptance, or auditor-acceptance claims.
-
-## Disclosure
-
-Please allow time for triage and remediation before public disclosure. Public
-fixes should avoid exposing exploit details before affected users have a
-reasonable update path.
 
 Do not post secrets, raw evidence payloads, private keys, provider credentials,
 session tokens, bearer tokens, database URLs, customer data, or unredacted

@@ -28,6 +28,13 @@ requires live PostgreSQL through `EVYDENCE_TEST_DATABASE_URL`, enforces the
 coverage threshold, and runs a local release artifact signing smoke test. A
 failure means the build has not yet met the self-hosted production profile.
 
+Release-candidate tagging is documented in
+[`docs/reference/release-candidate.md`](docs/reference/release-candidate.md).
+The required evidence set is a passing production-check summary, coverage
+summary, OpenAPI checksum, migration checksum, signed artifact manifest,
+checksums for published artifacts, and release notes with assumptions,
+limitations, and unresolved hardening work.
+
 Commercial release evidence packages may include signed release manifests,
 image digests, SBOMs, vulnerability scan outputs, OpenAPI checksums, migration
 checks, acceptance evidence, support notes, deployment hardening notes, and

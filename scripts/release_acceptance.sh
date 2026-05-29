@@ -45,6 +45,7 @@ for file in \
   .dockerignore \
   README.md \
   docs/README.md \
+  docs/reference/release-candidate.md \
   docs/reference/release-validation.md; do
   require_file "$file"
 done
@@ -59,12 +60,19 @@ require_text CONTRIBUTING.md "contributor license agreement"
 require_text CONTRIBUTING.md "EVYDENCE_TEST_DATABASE_URL"
 require_text SECURITY.md "raw evidence payloads"
 require_text SECURITY.md "tenant isolation"
+require_text SECURITY.md "private security intake"
+require_text SECURITY.md "Supported Versions And Scope"
 require_text SUPPORT.md "sanitized logs"
 require_text SUPPORT.md "release evidence artifacts"
 require_text TRADEMARKS.md "Evydence fork"
 require_text RELEASE_EVIDENCE.md "Release evidence is not a certification"
 require_text RELEASE_EVIDENCE.md "make release-check"
+require_text RELEASE_EVIDENCE.md "release-candidate"
 require_text CHANGELOG.md "Unreleased"
+require_text docs/reference/release-candidate.md "Controlled self-hosted production candidate"
+require_text docs/reference/release-candidate.md "Use one API writer replica"
+require_text docs/reference/release-candidate.md "OpenAPI checksum"
+require_text docs/reference/release-candidate.md "migration checksum"
 
 for pattern in \
   ".refs" \
