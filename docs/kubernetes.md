@@ -1,12 +1,12 @@
 # Kubernetes Deployment
 
-This is a how-to guide for self-hosted Kubernetes deployments.
+This is a how-to guide for controlled self-hosted Kubernetes deployments.
 
 The Helm chart lives at `deploy/helm/evydence`. It deploys the API, worker, service, optional ingress, readiness and liveness probes, and configuration for external PostgreSQL, S3/MinIO object storage, and external signing mode.
 
 ## Prerequisites
 
-- A published Evydence image.
+- A published Evydence image with an explicit immutable tag or digest.
 - External PostgreSQL and S3/MinIO-compatible object storage.
 - A pre-created object-store bucket.
 - A Kubernetes secret containing at least `EVYDENCE_DATABASE_URL` and `EVYDENCE_API_KEY_PEPPER`.
@@ -29,7 +29,7 @@ Store real values in your secret manager or sealed-secret process. Do not commit
 ```sh
 helm upgrade --install evydence ./deploy/helm/evydence \
   --set image.repository=registry.example.com/evydence \
-  --set image.tag=v0.1.0 \
+  --set image.tag=v0.1.0-rc.1 \
   --set env.s3Endpoint=s3.example.com \
   --set env.s3Bucket=evydence
 ```
@@ -39,6 +39,12 @@ Relevant chart values are defined in `deploy/helm/evydence/values.yaml`:
 | Value | Purpose |
 |-------|---------|
 | `image.repository`, `image.tag` | API and worker image. |
+| `api.replicas` | API writer replicas. Keep `1` for the current production profile. |
+| `worker.replicas` | Worker replicas. May be scaled with PostgreSQL outbox locking. |
+| `api.resources`, `worker.resources` | Resource requests and limits. |
+| `podSecurityContext`, `containerSecurityContext` | Non-root and least-privilege pod/container defaults. |
+| `worker.probes.*` | Worker exec probes using `evydence-worker healthcheck`. |
+| `networkPolicy.enabled` | Optional starter NetworkPolicy for API ingress. |
 | `existingSecret` | Secret containing runtime sensitive variables. |
 | `env.databaseURLSecretKey` | Secret key for `EVYDENCE_DATABASE_URL`. |
 | `env.apiKeyPepperSecretKey` | Secret key for `EVYDENCE_API_KEY_PEPPER`. |
@@ -77,4 +83,4 @@ Rollback does not roll back PostgreSQL data or object-store payloads. Keep datab
 
 ## Production Notes
 
-Production deployments should use external PostgreSQL, S3/MinIO-compatible object storage, TLS ingress, backup automation, network access controls, and external signing. See [Production hardening review](production-hardening.md) and [Configuration](reference/configuration.md).
+Production deployments should use external PostgreSQL, S3/MinIO-compatible object storage, TLS ingress, backup automation, network access controls, and external signing. Current production guidance uses a single API writer replica; worker replicas can scale independently through PostgreSQL outbox row locking. See [Production hardening review](production-hardening.md), [Production readiness](reference/production-readiness.md), and [Configuration](reference/configuration.md).

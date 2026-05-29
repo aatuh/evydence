@@ -96,6 +96,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@test -f docs/reference/openapi.md
 	@test -f docs/reference/observability.md
 	@test -f docs/reference/production-readiness.md
+	@test -f docs/reference/release-candidate.md
 	@test -f docs/reference/worker-outbox.md
 	@test -f docs/reference/release-validation.md
 	@test -f docs/explanation/trust-model.md
@@ -121,6 +122,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 		"reference/openapi.md" \
 		"reference/observability.md" \
 		"reference/production-readiness.md" \
+		"reference/release-candidate.md" \
 		"reference/worker-outbox.md" \
 		"reference/release-validation.md" \
 		"collectors/source-snapshots.md" \
@@ -156,6 +158,9 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@grep -F 'EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'evydence-release-manifest.sig.json' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'gh release create' .github/workflows/release-artifacts.yml >/dev/null
+	@grep -F 'Controlled self-hosted production candidate' docs/reference/release-candidate.md >/dev/null
+	@grep -F 'Use one API writer replica' docs/reference/release-candidate.md >/dev/null
+	@grep -F 'private security intake' SECURITY.md >/dev/null
 	@! grep -R -i "automatically compliant\|certified secure\|legally sufficient\|SBOM is complete\|all vulnerabilities detected\|scanner findings are authoritative\|regulator-ready without review" README.md docs
 
 deploy-check: ## Validate deployment and air-gap skeletons exist
@@ -163,9 +168,19 @@ deploy-check: ## Validate deployment and air-gap skeletons exist
 	@test -f deploy/helm/evydence/values.yaml
 	@test -f deploy/helm/evydence/templates/deployment-api.yaml
 	@test -f deploy/helm/evydence/templates/deployment-worker.yaml
+	@test -f deploy/helm/evydence/templates/networkpolicy.yaml
 	@test -f deploy/airgap/manifest.yaml
 	@test -f deploy/observability/prometheus-rules.yaml
 	@test -f deploy/observability/grafana-dashboard.json
+	@grep -F 'tag: ""' deploy/helm/evydence/values.yaml >/dev/null
+	@grep -F 'replicas: 1' deploy/helm/evydence/values.yaml >/dev/null
+	@grep -F 'runAsNonRoot: true' deploy/helm/evydence/values.yaml >/dev/null
+	@grep -F 'allowPrivilegeEscalation: false' deploy/helm/evydence/values.yaml >/dev/null
+	@grep -F 'required "image.tag is required' deploy/helm/evydence/templates/deployment-api.yaml >/dev/null
+	@grep -F 'required "image.tag is required' deploy/helm/evydence/templates/deployment-worker.yaml >/dev/null
+	@grep -F 'evydence-worker' deploy/helm/evydence/templates/deployment-worker.yaml >/dev/null
+	@grep -F 'healthcheck' deploy/helm/evydence/values.yaml >/dev/null
+	@grep -F 'single API writer replica' docs/kubernetes.md >/dev/null
 
 sdk-check: ## Validate SDK helper and generated route-catalog coverage against OpenAPI
 	@test -f sdk/go/evydence/client.go

@@ -38,12 +38,24 @@ var expectedParserVersions = map[string]string{
 }
 
 func main() {
-	if err := run(); err != nil {
+	if err := runWithArgs(os.Args[1:]); err != nil {
 		log.Fatal(err)
 	}
 }
 
 func run() error {
+	return runWithArgs(nil)
+}
+
+func runWithArgs(args []string) error {
+	if len(args) > 0 {
+		switch args[0] {
+		case "healthcheck", "--healthcheck":
+			return nil
+		default:
+			return fmt.Errorf("unsupported worker command %q", args[0])
+		}
+	}
 	production := strings.EqualFold(os.Getenv("ENV"), "production")
 	databaseURL := strings.TrimSpace(os.Getenv("EVYDENCE_DATABASE_URL"))
 	if databaseURL == "" {
