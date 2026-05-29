@@ -7,10 +7,12 @@ release security.
 
 ## Current Status
 
-Evydence is in self-hosted production hardening. It is suitable for evaluation,
-pilots, and controlled internal production after operator review. Broad
-self-hosted production use requires the production gate in this file to pass
-with live PostgreSQL and release evidence enabled.
+Evydence is in controlled self-hosted production candidate hardening. It is
+suitable for evaluation, pilots, and controlled internal production after
+operator review. Broad production for most uses, regulated production, and
+hosted SaaS production remain out of scope until the production gate,
+release-candidate checklist, and exit review pass with the required deployment
+controls.
 
 Known hardening work remains:
 
@@ -68,6 +70,19 @@ Known hardening work remains:
 | Air-gapped production | Requires transfer controls | All small-production controls plus signed offline artifacts, import/export verification, local registry or package mirror, offline docs, and explicit backup/restore procedure. |
 | Hosted SaaS production | Out of scope for this profile | Requires separate hosted tenancy, SLO, abuse, billing, privacy, support, and cloud operations controls before any SaaS production claim. |
 
+## HA And Concurrency Contract
+
+The current self-hosted production profile supports one API writer replica.
+This is intentional while the application still uses a large in-process ledger
+aggregate plus `LoadState` / `SaveState` persistence boundaries. Do not scale
+API writer replicas above one for production use until focused relational
+repository writes or another reviewed concurrency-control design is implemented
+and documented.
+
+Worker replicas may be scaled because persisted outbox jobs are claimed with
+PostgreSQL row locking. Scaling workers increases parser/signing/report
+throughput; it does not make API writes multi-writer safe.
+
 ## Machine Gate
 
 Run the production gate from the repository root:
@@ -88,6 +103,11 @@ The gate requires:
   verification after restore;
 - release artifact signing smoke test passing with local temporary keys;
 - generated release evidence summary available under `tmp/`.
+
+Release-candidate tagging additionally requires the evidence set in
+[Release candidate checklist](release-candidate.md), including OpenAPI and
+migration checksums, signed artifact manifests, artifact checksums, and release
+notes with limitations.
 
 The default coverage threshold is 80 percent:
 
@@ -112,6 +132,7 @@ Do not describe an Evydence build as broadly self-hosted production-ready until:
 - the built-in local restore rehearsal passes and backup/restore have been
   tested for the target deployment profile;
 - OpenAPI, OpenAPI precision, route-contract, and SDK drift checks pass;
+- the HA story for the target profile is documented and reviewed;
 - production hardening review is current;
 - unresolved limitations are documented in release notes.
 

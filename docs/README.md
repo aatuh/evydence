@@ -24,6 +24,7 @@ This documentation is organized by reader task. Implementation claims should be 
 - [OpenAPI contract](reference/openapi.md): generation, drift checks, and review tips for `openapi.yaml`.
 - [Observability](reference/observability.md): readiness, admin metrics, Prometheus rules, and dashboard starter assets.
 - [Production readiness](reference/production-readiness.md): self-hosted production profiles, production gates, and exit criteria.
+- [Release candidate checklist](reference/release-candidate.md): required evidence before tagging a controlled self-hosted release candidate.
 - [Worker outbox contract](reference/worker-outbox.md): durable job kinds, idempotency, and safe logging rules.
 - [Release validation](reference/release-validation.md): canonical `make release-check` behavior and summary evidence.
 - [SDK workflow](sdk/README.md): current Go, TypeScript, and Python wrapper usage and limitations.

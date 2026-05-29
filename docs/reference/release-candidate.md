@@ -1,0 +1,62 @@
+# Release Candidate Checklist
+
+This reference defines the minimum evidence for a controlled self-hosted
+Evydence release candidate such as `v0.1.0-rc.1` or `v0.9.0-rc.1`.
+
+Release-candidate evidence supports reproducible engineering and operator
+review. It is not a certification, legal compliance conclusion, complete SBOM
+claim, authoritative vulnerability result, secure-release guarantee, regulator
+acceptance, or auditor acceptance.
+
+## Required Evidence
+
+Before creating a release-candidate tag, collect:
+
+- passing `make production-check` output with live PostgreSQL configured;
+- `tmp/release-check-summary.txt` from the same run;
+- `coverage.out` and the total coverage summary;
+- `openapi.yaml` plus an OpenAPI checksum;
+- migration checksum output for the directory or per-file migration checksums;
+- signed release artifact manifest and manifest signature;
+- checksums for every published binary, container image digest, chart package,
+  and release archive;
+- release notes with supported profile, upgrade notes, assumptions,
+  limitations, and unresolved hardening work.
+
+## Required Commands
+
+Run from a clean checkout with a disposable PostgreSQL database:
+
+```sh
+make production-check
+sha256sum openapi.yaml > tmp/openapi.sha256
+find migrations -type f -print0 | sort -z | xargs -0 sha256sum > tmp/migrations.sha256
+```
+
+Build release artifacts through the release-artifacts workflow or an equivalent
+local process that records the same manifest, checksums, and signature files.
+Do not tag from a run where live PostgreSQL checks, migration compatibility,
+coverage threshold enforcement, OpenAPI checks, docs checks, deployment checks,
+SDK checks, lint, gosec, govulncheck, or race tests were skipped.
+
+## Supported Profile Statement
+
+Release notes must use this status unless the production exit review has
+explicitly changed it:
+
+> Controlled self-hosted production candidate for evaluation, pilots, and
+> controlled internal production after operator review.
+
+The notes must also state that broad production for most uses, regulated
+production, and hosted SaaS production require additional review and controls.
+
+## Deployment Constraints
+
+- Use one API writer replica for the current production profile.
+- Worker replicas may be scaled when PostgreSQL outbox locking is enabled.
+- Use external PostgreSQL, external object storage, TLS ingress, non-default
+  API-key pepper, externalized secrets, backup and restore rehearsal,
+  monitoring, and documented incident response.
+- Keep focused relational repository writes, HA/multi-writer operation, direct
+  KMS/HSM SDK adapters, live provider validation, and broader object-lock proof
+  listed as unresolved hardening work until they are implemented and verified.
