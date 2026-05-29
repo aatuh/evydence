@@ -23,6 +23,10 @@ Release-candidate tagging requires the production gate and checklist in
 - Production-readiness profile, production gate, and coverage-threshold gate.
 - Release-candidate checklist requiring production-check evidence, checksums,
   signed artifact manifests, release notes, and documented limitations.
+- Focused PostgreSQL critical mutations for tenants, credential hashes,
+  idempotency records, audit-chain entries, release bundles, signatures,
+  verification results, provider verification receipts, vulnerability
+  decisions, and outbox jobs.
 
 ### Known Limits
 
@@ -30,6 +34,6 @@ Release-candidate tagging requires the production gate and checklist in
 - Operators remain responsible for production PostgreSQL, object storage,
   network policy, TLS, backups, monitoring, external signing, and incident
   response.
-- Focused relational write paths, HA/multi-writer operation, direct KMS/HSM SDK
+- Full repository decomposition, HA/multi-writer operation, direct KMS/HSM SDK
   adapters, live provider validation, broader object-lock proof, and final exit
   review remain production-hardening work after the release-candidate gate.

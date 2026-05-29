@@ -57,6 +57,6 @@ production, and hosted SaaS production require additional review and controls.
 - Use external PostgreSQL, external object storage, TLS ingress, non-default
   API-key pepper, externalized secrets, backup and restore rehearsal,
   monitoring, and documented incident response.
-- Keep focused relational repository writes, HA/multi-writer operation, direct
-  KMS/HSM SDK adapters, live provider validation, and broader object-lock proof
-  listed as unresolved hardening work until they are implemented and verified.
+- Keep full repository decomposition, HA/multi-writer operation, direct KMS/HSM
+  SDK adapters, live provider validation, and broader object-lock proof listed
+  as unresolved hardening work until they are implemented and verified.
