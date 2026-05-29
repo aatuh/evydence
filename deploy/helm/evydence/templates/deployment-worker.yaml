@@ -1,3 +1,4 @@
+{{- $imageTag := required "image.tag is required for Evydence release installs" .Values.image.tag -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -14,10 +15,14 @@ spec:
         app.kubernetes.io/name: {{ include "evydence.name" . }}
         app.kubernetes.io/component: worker
     spec:
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
         - name: worker
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ .Values.image.repository }}:{{ $imageTag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           command: ["evydence-worker"]
           envFrom:
             - configMapRef:
@@ -33,5 +38,15 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.existingSecret }}
                   key: {{ .Values.env.apiKeyPepperSecretKey }}
+          {{- if .Values.worker.probes.enabled }}
+          readinessProbe:
+            exec:
+              command:
+                {{- toYaml .Values.worker.probes.readinessCommand | nindent 16 }}
+          livenessProbe:
+            exec:
+              command:
+                {{- toYaml .Values.worker.probes.livenessCommand | nindent 16 }}
+          {{- end }}
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            {{- toYaml .Values.worker.resources | nindent 12 }}

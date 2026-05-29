@@ -1,15 +1,40 @@
 image:
   repository: ghcr.io/aatuh/evydence
-  tag: dev
+  # Release installs must set an explicit immutable tag or digest-style tag.
+  # Local demos may override this with a local development tag.
+  tag: ""
   pullPolicy: IfNotPresent
 
 api:
+  # Keep API replicas at 1 for the current production profile. API writes are
+  # single-writer until focused relational write paths or optimistic
+  # concurrency controls are implemented and documented.
   replicas: 1
   addr: ":8080"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
 
 worker:
   replicas: 1
   pollInterval: 1s
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+  probes:
+    enabled: true
+    readinessCommand:
+      - evydence-worker
+      - healthcheck
+    livenessCommand:
+      - evydence-worker
+      - healthcheck
 
 env:
   production: true
@@ -34,4 +59,17 @@ ingress:
   host: evydence.example.com
   tlsSecretName: ""
 
-resources: {}
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false
+
+networkPolicy:
+  enabled: false

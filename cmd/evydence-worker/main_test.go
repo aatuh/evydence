@@ -602,6 +602,15 @@ func TestReplayMergeHelpersCoverParserSideEffects(t *testing.T) {
 }
 
 func TestRunRequiresDatabaseURLAndWrapsOpenFailure(t *testing.T) {
+	if err := runWithArgs([]string{"healthcheck"}); err != nil {
+		t.Fatalf("healthcheck: %v", err)
+	}
+	if err := runWithArgs([]string{"--healthcheck"}); err != nil {
+		t.Fatalf("--healthcheck: %v", err)
+	}
+	if err := runWithArgs([]string{"unexpected"}); err == nil || !strings.Contains(err.Error(), "unsupported worker command") {
+		t.Fatalf("unexpected command err=%v", err)
+	}
 	t.Setenv("EVYDENCE_DATABASE_URL", "")
 	err := run()
 	if err == nil || !strings.Contains(err.Error(), "EVYDENCE_DATABASE_URL") {
