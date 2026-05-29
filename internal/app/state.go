@@ -283,6 +283,83 @@ func (l *Ledger) persistLocked(ctx context.Context) error {
 	return l.store.SaveState(ctx, l.snapshotLocked())
 }
 
+func (l *Ledger) persistCriticalLocked(ctx context.Context, mutation CriticalMutation) error {
+	if l.store == nil {
+		return nil
+	}
+	focused, ok := l.store.(CriticalMutationStore)
+	if !ok {
+		return l.persistLocked(ctx)
+	}
+	return focused.ApplyCriticalMutation(ctx, mutation)
+}
+
+func (l *Ledger) criticalMutationLocked() CriticalMutation {
+	return criticalMutationFromState(l.snapshotLocked())
+}
+
+func criticalMutationFromState(state PersistedState) CriticalMutation {
+	mutation := CriticalMutation{
+		APIKeyHashes:         map[string]string{},
+		SSOSessionHashes:     map[string]string{},
+		CustomerPortalHashes: map[string]string{},
+		Idempotency:          map[string]IdempotencyRecord{},
+		SigningKeyPrivate:    map[string][]byte{},
+	}
+	for _, tenant := range state.Tenants {
+		mutation.Tenants = append(mutation.Tenants, tenant)
+	}
+	for id, key := range state.APIKeys {
+		mutation.APIKeys = append(mutation.APIKeys, key)
+		if hash := state.APIKeyHashes[id]; hash != "" {
+			mutation.APIKeyHashes[id] = hash
+		}
+	}
+	for _, collector := range state.Collectors {
+		mutation.Collectors = append(mutation.Collectors, collector)
+	}
+	for id, session := range state.SSOSessions {
+		mutation.SSOSessions = append(mutation.SSOSessions, session)
+		if hash := state.SSOSessionHashes[id]; hash != "" {
+			mutation.SSOSessionHashes[id] = hash
+		}
+	}
+	for id, access := range state.CustomerPortalAccess {
+		mutation.CustomerPortalAccess = append(mutation.CustomerPortalAccess, access)
+		if hash := state.CustomerPortalHashes[id]; hash != "" {
+			mutation.CustomerPortalHashes[id] = hash
+		}
+	}
+	for key, record := range state.Idempotency {
+		mutation.Idempotency[key] = record
+	}
+	for id, key := range state.SigningKeys {
+		mutation.SigningKeys = append(mutation.SigningKeys, key)
+		if private := state.SigningKeyPrivate[id]; len(private) > 0 {
+			mutation.SigningKeyPrivate[id] = append([]byte(nil), private...)
+		}
+	}
+	for _, signature := range state.Signatures {
+		mutation.Signatures = append(mutation.Signatures, signature)
+	}
+	for _, bundle := range state.Bundles {
+		mutation.ReleaseBundles = append(mutation.ReleaseBundles, bundle)
+	}
+	for _, verification := range state.Verifications {
+		mutation.VerificationResults = append(mutation.VerificationResults, verification)
+	}
+	for _, verification := range state.ProviderVerifications {
+		mutation.ProviderVerifications = append(mutation.ProviderVerifications, verification)
+	}
+	for _, decision := range state.Decisions {
+		mutation.VulnerabilityDecisions = append(mutation.VulnerabilityDecisions, decision)
+	}
+	for _, entries := range state.Chain {
+		mutation.AuditChainEntries = append(mutation.AuditChainEntries, entries...)
+	}
+	return mutation
+}
+
 func (l *Ledger) storePayload(ctx context.Context, tenantID, kind, mediaType, digest string, raw []byte) (string, error) {
 	if l.objects == nil {
 		return "", nil
@@ -307,10 +384,11 @@ func (l *Ledger) storePayload(ctx context.Context, tenantID, kind, mediaType, di
 }
 
 func (l *Ledger) enqueue(ctx context.Context, tenantID, kind, subjectType, subjectID string, payload map[string]any) error {
-	if l.outbox == nil {
-		return nil
-	}
-	job := OutboxJob{
+	return l.enqueueJob(ctx, l.newOutboxJob(tenantID, kind, subjectType, subjectID, payload))
+}
+
+func (l *Ledger) newOutboxJob(tenantID, kind, subjectType, subjectID string, payload map[string]any) OutboxJob {
+	return OutboxJob{
 		ID:          newID("job"),
 		TenantID:    tenantID,
 		Kind:        kind,
@@ -318,6 +396,12 @@ func (l *Ledger) enqueue(ctx context.Context, tenantID, kind, subjectType, subje
 		SubjectID:   subjectID,
 		Payload:     cloneMap(payload),
 		CreatedAt:   l.now(),
+	}
+}
+
+func (l *Ledger) enqueueJob(ctx context.Context, job OutboxJob) error {
+	if l.outbox == nil {
+		return nil
 	}
 	return l.outbox.Enqueue(ctx, job)
 }
