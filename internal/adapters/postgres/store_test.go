@@ -757,6 +757,231 @@ func ptrTime(t time.Time) *time.Time {
 	return &t
 }
 
+func TestApplyCriticalMutationWithPostgres(t *testing.T) {
+	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("EVYDENCE_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	admin, err := Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close()
+	schema := "evydence_critical_mutation_" + strings.ReplaceAll(time.Now().Format("150405.000000000"), ".", "_")
+	quotedSchema := pgx.Identifier{schema}.Sanitize()
+	if _, err := admin.pool.Exec(ctx, "CREATE SCHEMA "+quotedSchema); err != nil {
+		t.Fatal(err)
+	}
+	defer func(cleanupCtx context.Context) {
+		_, _ = admin.pool.Exec(cleanupCtx, "DROP SCHEMA "+quotedSchema+" CASCADE")
+	}(context.WithoutCancel(ctx))
+
+	store, err := OpenWithOptions(ctx, databaseURLWithSearchPath(t, databaseURL, schema), StoreOptions{LoadMode: LoadModeRelationalOnly, DisableSnapshotWrites: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if _, err := store.ApplyMigrations(ctx, "../../../migrations"); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC()
+	mutation := app.CriticalMutation{
+		Tenants: []domain.Tenant{{ID: "ten_focus", Name: "Focused", CreatedAt: now}},
+		APIKeys: []domain.APIKey{{
+			ID: "key_focus", TenantID: "ten_focus", Name: "api", Prefix: "evy_focus",
+			Scopes: []string{"*"}, LastUsedAt: ptrTime(now), CreatedAt: now,
+		}},
+		APIKeyHashes: map[string]string{"key_focus": "api-key-hmac-hash"},
+		SSOSessions: []domain.SSOSession{{
+			ID: "sess_focus", TenantID: "ten_focus", UserID: "user_focus", ProviderID: "sso_focus",
+			Prefix: "sess_focus", Groups: []string{"security"}, ExpiresAt: now.Add(time.Hour),
+			SchemaVersion: domain.SSOSessionSchemaVersion, CreatedAt: now,
+		}},
+		SSOSessionHashes: map[string]string{"sess_focus": "sso-session-hash"},
+		CustomerPortalAccess: []domain.CustomerPortalAccess{{
+			ID: "cpa_focus", TenantID: "ten_focus", PackageID: "pkg_focus", CustomerName: "Customer",
+			Prefix: "evycp_focus", ExpiresAt: now.Add(time.Hour), AccessCount: 2, FailedAccessCount: 1,
+			LastAccessedAt: ptrTime(now), LastFailedAt: ptrTime(now), SchemaVersion: domain.CustomerPortalAccessVersion,
+			CreatedAt: now,
+		}},
+		CustomerPortalHashes: map[string]string{"cpa_focus": "portal-token-hash"},
+		Idempotency: map[string]app.IdempotencyRecord{
+			app.NewIdempotencyRecordKey("ten_focus", "key_focus", "POST", "/v1/release-bundles", "idem-a"): {
+				RequestHash: "sha256:request-a", Status: 201, Response: map[string]any{"id": "bundle_focus"}, CreatedAt: now,
+			},
+		},
+		SigningKeys: []domain.SigningKey{{
+			ID: "sigkey_focus", TenantID: "ten_focus", KID: "kid-focus", Algorithm: "Ed25519",
+			Status: "active", PublicKey: "public-key", CreatedAt: now,
+		}},
+		SigningKeyPrivate: map[string][]byte{"sigkey_focus": []byte("encrypted-dev-key")},
+		Signatures: []domain.Signature{{
+			ID: "sig_focus", TenantID: "ten_focus", SubjectType: "release_bundle", SubjectID: "bundle_focus",
+			KeyID: "sigkey_focus", Algorithm: "Ed25519", Value: "signature", CreatedAt: now,
+		}},
+		ReleaseBundles: []domain.ReleaseBundle{{
+			ID: "bundle_focus", TenantID: "ten_focus", ReleaseID: "rel_focus", State: "generated",
+			Manifest: map[string]any{"release_id": "rel_focus"}, ManifestHash: "sha256:" + strings.Repeat("a", 64),
+			SignatureRefs: []string{"sig_focus"}, CreatedAt: now,
+		}},
+		VerificationResults: []domain.VerificationResult{{
+			ID: "verify_focus", TenantID: "ten_focus", SubjectType: "release_bundle", SubjectID: "bundle_focus",
+			Result: "passed", Checks: []domain.VerifyCheck{{Name: "signature", Result: "passed"}}, VerifiedAt: now,
+		}},
+		VulnerabilityDecisions: []domain.VulnerabilityDecision{{
+			ID: "decision_focus", TenantID: "ten_focus", FindingID: "finding_focus", ScanID: "scan_focus",
+			ReleaseID: "rel_focus", Vulnerability: "CVE-2099-0001", Component: "pkg:generic/api",
+			Status: "not_affected", Justification: "component_not_present", Source: "manual",
+			SchemaVersion: domain.VulnerabilityDecisionVersion, CreatedAt: now,
+		}},
+		AuditChainEntries: []domain.AuditChainEntry{{
+			ID: "chain_focus", TenantID: "ten_focus", Sequence: 1, EntryType: "release_bundle.created",
+			SubjectType: "release_bundle", SubjectID: "bundle_focus", ActorType: "api_key", ActorID: "key_focus",
+			OccurredAt: now, CanonicalEntryHash: "sha256:" + strings.Repeat("b", 64),
+			PreviousEntryHash: "", EntryHash: "sha256:" + strings.Repeat("c", 64),
+			Metadata: map[string]any{"focused": true}, SchemaVersion: domain.AuditChainEntrySchemaVersion,
+		}},
+		OutboxJobs: []app.OutboxJob{{
+			ID: "job_focus", TenantID: "ten_focus", Kind: "sign_bundle",
+			SubjectType: "release_bundle", SubjectID: "bundle_focus", Payload: map[string]any{"bundle_id": "bundle_focus"},
+			CreatedAt: now,
+		}},
+	}
+	if err := store.ApplyCriticalMutation(ctx, mutation); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.ApplyCriticalMutation(ctx, mutation); err != nil {
+		t.Fatalf("retry focused mutation: %v", err)
+	}
+	if err := store.ApplyCriticalMutation(ctx, app.CriticalMutation{
+		Idempotency: map[string]app.IdempotencyRecord{
+			app.NewIdempotencyRecordKey("ten_focus", "key_focus", "POST", "/v1/release-bundles", "idem-b"): {
+				RequestHash: "sha256:request-b", Status: 201, Response: map[string]any{"id": "bundle_other"}, CreatedAt: now,
+			},
+		},
+	}); err != nil {
+		t.Fatalf("second idempotency mutation: %v", err)
+	}
+
+	var snapshotRows int
+	if err := store.pool.QueryRow(ctx, `SELECT count(*) FROM ledger_state`).Scan(&snapshotRows); err != nil {
+		t.Fatal(err)
+	}
+	if snapshotRows != 0 {
+		t.Fatalf("ledger_state rows = %d, want 0", snapshotRows)
+	}
+	checks := []struct {
+		name  string
+		query string
+	}{
+		{name: "tenant", query: `SELECT count(*) FROM tenants WHERE id = 'ten_focus'`},
+		{name: "api key hash", query: `SELECT count(*) FROM api_keys WHERE id = 'key_focus' AND hash = 'api-key-hmac-hash' AND last_used_at IS NOT NULL`},
+		{name: "sso session hash", query: `SELECT count(*) FROM sso_sessions WHERE id = 'sess_focus' AND hash = 'sso-session-hash' AND groups = '["security"]'::jsonb`},
+		{name: "portal hash", query: `SELECT count(*) FROM customer_portal_access WHERE id = 'cpa_focus' AND hash = 'portal-token-hash' AND failed_access_count = 1`},
+		{name: "audit chain", query: `SELECT count(*) FROM audit_chain_entries WHERE tenant_id = 'ten_focus' AND sequence = 1`},
+		{name: "signing key private", query: `SELECT count(*) FROM signing_keys WHERE id = 'sigkey_focus' AND encrypted_private_key IS NOT NULL`},
+		{name: "signature", query: `SELECT count(*) FROM signatures WHERE id = 'sig_focus' AND key_id = 'sigkey_focus'`},
+		{name: "bundle", query: `SELECT count(*) FROM release_bundles WHERE id = 'bundle_focus' AND signature_refs = '["sig_focus"]'::jsonb`},
+		{name: "verification", query: `SELECT count(*) FROM verification_results WHERE id = 'verify_focus' AND result = 'passed'`},
+		{name: "decision", query: `SELECT count(*) FROM vulnerability_decisions WHERE id = 'decision_focus' AND status = 'not_affected'`},
+		{name: "outbox", query: `SELECT count(*) FROM outbox_jobs WHERE id = 'job_focus' AND status = 'queued'`},
+		{name: "resource index", query: `SELECT count(*) FROM resource_index WHERE tenant_id = 'ten_focus' AND resource_type = 'release_bundle' AND resource_id = 'bundle_focus'`},
+	}
+	for _, check := range checks {
+		var rows int
+		if err := store.pool.QueryRow(ctx, check.query).Scan(&rows); err != nil {
+			t.Fatalf("%s query: %v", check.name, err)
+		}
+		if rows != 1 {
+			t.Fatalf("%s rows = %d, want 1", check.name, rows)
+		}
+	}
+	var idempotencyRows int
+	if err := store.pool.QueryRow(ctx, `SELECT count(*) FROM idempotency_records WHERE tenant_id = 'ten_focus'`).Scan(&idempotencyRows); err != nil {
+		t.Fatal(err)
+	}
+	if idempotencyRows != 2 {
+		t.Fatalf("idempotency rows = %d, want 2", idempotencyRows)
+	}
+	var outboxRows int
+	if err := store.pool.QueryRow(ctx, `SELECT count(*) FROM outbox_jobs WHERE id = 'job_focus'`).Scan(&outboxRows); err != nil {
+		t.Fatal(err)
+	}
+	if outboxRows != 1 {
+		t.Fatalf("outbox retry rows = %d, want 1", outboxRows)
+	}
+
+	loaded, ok, err := store.LoadState(ctx)
+	if err != nil || !ok {
+		t.Fatalf("relational load ok=%v err=%v", ok, err)
+	}
+	if loaded.APIKeyHashes["key_focus"] != "api-key-hmac-hash" || loaded.APIKeys["key_focus"].Hash != "" {
+		t.Fatalf("loaded api key hash=%q exposed=%q", loaded.APIKeyHashes["key_focus"], loaded.APIKeys["key_focus"].Hash)
+	}
+	if loaded.SSOSessionHashes["sess_focus"] != "sso-session-hash" || loaded.SSOSessions["sess_focus"].Hash != "" {
+		t.Fatalf("loaded sso session hash=%q exposed=%q", loaded.SSOSessionHashes["sess_focus"], loaded.SSOSessions["sess_focus"].Hash)
+	}
+	if loaded.CustomerPortalHashes["cpa_focus"] != "portal-token-hash" || loaded.CustomerPortalAccess["cpa_focus"].Hash != "" {
+		t.Fatalf("loaded portal hash=%q exposed=%q", loaded.CustomerPortalHashes["cpa_focus"], loaded.CustomerPortalAccess["cpa_focus"].Hash)
+	}
+	if loaded.Bundles["bundle_focus"].ManifestHash == "" || loaded.Decisions["decision_focus"].Status != "not_affected" || len(loaded.Chain["ten_focus"]) != 1 {
+		t.Fatalf("loaded critical resources missing: bundle=%#v decision=%#v chain=%#v", loaded.Bundles["bundle_focus"], loaded.Decisions["decision_focus"], loaded.Chain["ten_focus"])
+	}
+}
+
+func TestApplyCriticalMutationRollsBackTransaction(t *testing.T) {
+	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("EVYDENCE_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	admin, err := Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close()
+	schema := "evydence_critical_rollback_" + strings.ReplaceAll(time.Now().Format("150405.000000000"), ".", "_")
+	quotedSchema := pgx.Identifier{schema}.Sanitize()
+	if _, err := admin.pool.Exec(ctx, "CREATE SCHEMA "+quotedSchema); err != nil {
+		t.Fatal(err)
+	}
+	defer func(cleanupCtx context.Context) {
+		_, _ = admin.pool.Exec(cleanupCtx, "DROP SCHEMA "+quotedSchema+" CASCADE")
+	}(context.WithoutCancel(ctx))
+
+	store, err := OpenWithOptions(ctx, databaseURLWithSearchPath(t, databaseURL, schema), StoreOptions{LoadMode: LoadModeRelationalOnly, DisableSnapshotWrites: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if _, err := store.ApplyMigrations(ctx, "../../../migrations"); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	err = store.ApplyCriticalMutation(ctx, app.CriticalMutation{
+		Tenants: []domain.Tenant{{ID: "ten_rollback", Name: "Rollback", CreatedAt: now}},
+		Signatures: []domain.Signature{{
+			ID: "sig_rollback", TenantID: "ten_rollback", SubjectType: "release_bundle",
+			SubjectID: "bundle_rollback", KeyID: "missing_key", Algorithm: "Ed25519",
+			Value: "signature", CreatedAt: now,
+		}},
+	})
+	if err == nil {
+		t.Fatal("expected missing signing key to fail critical mutation")
+	}
+	var tenantRows int
+	if queryErr := store.pool.QueryRow(ctx, `SELECT count(*) FROM tenants WHERE id = 'ten_rollback'`).Scan(&tenantRows); queryErr != nil {
+		t.Fatal(queryErr)
+	}
+	if tenantRows != 0 {
+		t.Fatalf("rollback tenant rows = %d, want 0", tenantRows)
+	}
+}
+
 func TestPendingMigrationVersionsWithPostgres(t *testing.T) {
 	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
 	if databaseURL == "" {

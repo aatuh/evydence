@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/aatuh/evydence/internal/app"
@@ -2530,6 +2531,95 @@ func (s *Store) SaveState(ctx context.Context, state app.PersistedState) error {
 	return nil
 }
 
+func (s *Store) ApplyCriticalMutation(ctx context.Context, mutation app.CriticalMutation) error {
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("begin critical mutation transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	state := criticalMutationState(mutation)
+	if err := syncCriticalIdentityAndIdempotency(ctx, tx, mutation); err != nil {
+		return err
+	}
+	if err := syncRiskBuildControlRows(ctx, tx, state); err != nil {
+		return err
+	}
+	if err := syncReleaseLedgerCore(ctx, tx, state); err != nil {
+		return err
+	}
+	if err := syncPackageReportRetentionRows(ctx, tx, state); err != nil {
+		return err
+	}
+	for _, job := range mutation.OutboxJobs {
+		if err := insertOutboxJobTx(ctx, tx, job); err != nil {
+			return err
+		}
+	}
+	if err := syncCriticalResourceIndex(ctx, tx, state); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit critical mutation transaction: %w", err)
+	}
+	return nil
+}
+
+func criticalMutationState(mutation app.CriticalMutation) app.PersistedState {
+	state := relationalEmptyState()
+	for _, tenant := range mutation.Tenants {
+		state.Tenants[tenant.ID] = tenant
+	}
+	for _, key := range mutation.APIKeys {
+		state.APIKeys[key.ID] = key
+	}
+	for id, hash := range mutation.APIKeyHashes {
+		state.APIKeyHashes[id] = hash
+	}
+	for _, collector := range mutation.Collectors {
+		state.Collectors[collector.ID] = collector
+	}
+	for _, session := range mutation.SSOSessions {
+		state.SSOSessions[session.ID] = session
+	}
+	for id, hash := range mutation.SSOSessionHashes {
+		state.SSOSessionHashes[id] = hash
+	}
+	for _, access := range mutation.CustomerPortalAccess {
+		state.CustomerPortalAccess[access.ID] = access
+	}
+	for id, hash := range mutation.CustomerPortalHashes {
+		state.CustomerPortalHashes[id] = hash
+	}
+	for key, record := range mutation.Idempotency {
+		state.Idempotency[key] = record
+	}
+	for _, key := range mutation.SigningKeys {
+		state.SigningKeys[key.ID] = key
+	}
+	for id, private := range mutation.SigningKeyPrivate {
+		state.SigningKeyPrivate[id] = append([]byte(nil), private...)
+	}
+	for _, signature := range mutation.Signatures {
+		state.Signatures[signature.ID] = signature
+	}
+	for _, bundle := range mutation.ReleaseBundles {
+		state.Bundles[bundle.ID] = bundle
+	}
+	for _, verification := range mutation.VerificationResults {
+		state.Verifications[verification.ID] = verification
+	}
+	for _, verification := range mutation.ProviderVerifications {
+		state.ProviderVerifications[verification.ID] = verification
+	}
+	for _, decision := range mutation.VulnerabilityDecisions {
+		state.Decisions[decision.ID] = decision
+	}
+	for _, entry := range mutation.AuditChainEntries {
+		state.Chain[entry.TenantID] = append(state.Chain[entry.TenantID], entry)
+	}
+	return state
+}
+
 func syncReleaseLedgerCore(ctx context.Context, tx pgx.Tx, state app.PersistedState) error {
 	for _, product := range state.Products {
 		if product.ID == "" || product.TenantID == "" {
@@ -4456,6 +4546,134 @@ func syncIdentityAndIdempotency(ctx context.Context, tx pgx.Tx, state app.Persis
 	return nil
 }
 
+func syncCriticalIdentityAndIdempotency(ctx context.Context, tx pgx.Tx, mutation app.CriticalMutation) error {
+	for _, tenant := range mutation.Tenants {
+		if tenant.ID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO tenants (id, name, created_at)
+			VALUES ($1, $2, $3)
+			ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
+		`, tenant.ID, tenant.Name, nonZeroTime(tenant.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert critical tenant row: %w", err)
+		}
+	}
+	for _, key := range mutation.APIKeys {
+		if key.ID == "" || key.TenantID == "" {
+			continue
+		}
+		hash := mutation.APIKeyHashes[key.ID]
+		if hash == "" {
+			hash = key.Hash
+		}
+		scopes, err := json.Marshal(key.Scopes)
+		if err != nil {
+			return fmt.Errorf("encode critical api key scopes: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO api_keys (
+				id, tenant_id, name, prefix, hash, scopes, expires_at,
+				revoked_at, last_used_at, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			ON CONFLICT (id) DO UPDATE SET
+				name = EXCLUDED.name,
+				prefix = EXCLUDED.prefix,
+				hash = EXCLUDED.hash,
+				scopes = EXCLUDED.scopes,
+				expires_at = EXCLUDED.expires_at,
+				revoked_at = EXCLUDED.revoked_at,
+				last_used_at = EXCLUDED.last_used_at
+		`, key.ID, key.TenantID, key.Name, key.Prefix, hash, scopes, nullableTime(key.ExpiresAt), nullableTime(key.RevokedAt), nullableTime(key.LastUsedAt), nonZeroTime(key.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert critical api key row: %w", err)
+		}
+	}
+	for _, session := range mutation.SSOSessions {
+		if session.ID == "" || session.TenantID == "" {
+			continue
+		}
+		hash := mutation.SSOSessionHashes[session.ID]
+		if hash == "" {
+			hash = session.Hash
+		}
+		groups, err := json.Marshal(session.Groups)
+		if err != nil {
+			return fmt.Errorf("encode critical sso session groups: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO sso_sessions (
+				id, tenant_id, user_id, provider_id, prefix, hash, groups, expires_at,
+				revoked_at, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11)
+			ON CONFLICT (id) DO UPDATE SET
+				prefix = EXCLUDED.prefix,
+				hash = EXCLUDED.hash,
+				groups = EXCLUDED.groups,
+				expires_at = EXCLUDED.expires_at,
+				revoked_at = EXCLUDED.revoked_at,
+				schema_version = EXCLUDED.schema_version
+		`, session.ID, session.TenantID, session.UserID, session.ProviderID, session.Prefix, hash, string(groups), session.ExpiresAt, nullableTime(session.RevokedAt), session.SchemaVersion, nonZeroTime(session.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert critical sso session row: %w", err)
+		}
+	}
+	for _, access := range mutation.CustomerPortalAccess {
+		if access.ID == "" || access.TenantID == "" {
+			continue
+		}
+		hash := mutation.CustomerPortalHashes[access.ID]
+		if hash == "" {
+			hash = access.Hash
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO customer_portal_access (
+				id, tenant_id, package_id, customer_name, prefix, hash,
+				expires_at, revoked_at, access_count, failed_access_count,
+				last_accessed_at, last_failed_at, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			ON CONFLICT (id) DO UPDATE SET
+				customer_name = EXCLUDED.customer_name,
+				prefix = EXCLUDED.prefix,
+				hash = EXCLUDED.hash,
+				expires_at = EXCLUDED.expires_at,
+				revoked_at = EXCLUDED.revoked_at,
+				access_count = EXCLUDED.access_count,
+				failed_access_count = EXCLUDED.failed_access_count,
+				last_accessed_at = EXCLUDED.last_accessed_at,
+				last_failed_at = EXCLUDED.last_failed_at,
+				schema_version = EXCLUDED.schema_version
+		`, access.ID, access.TenantID, access.PackageID, access.CustomerName, access.Prefix, hash, access.ExpiresAt, nullableTime(access.RevokedAt), access.AccessCount, access.FailedAccessCount, nullableTime(access.LastAccessedAt), nullableTime(access.LastFailedAt), access.SchemaVersion, nonZeroTime(access.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert critical customer portal access row: %w", err)
+		}
+	}
+	for key, record := range mutation.Idempotency {
+		parts, ok := app.ParseIdempotencyRecordKey(key)
+		if !ok {
+			continue
+		}
+		response, err := json.Marshal(record.Response)
+		if err != nil {
+			return fmt.Errorf("encode critical idempotency response: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO idempotency_records (
+				tenant_id, actor_key_id, method, path, idempotency_key,
+				request_hash, status, response, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			ON CONFLICT (tenant_id, actor_key_id, method, path, idempotency_key)
+			DO UPDATE SET request_hash = EXCLUDED.request_hash,
+			              status = EXCLUDED.status,
+			              response = EXCLUDED.response
+		`, parts.TenantID, parts.ActorID, parts.Method, parts.Path, parts.IdempotencyKey, record.RequestHash, record.Status, response, nonZeroTime(record.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert critical idempotency record row: %w", err)
+		}
+	}
+	return nil
+}
+
 type resourceProjection struct {
 	TenantID     string
 	ResourceType string
@@ -4492,6 +4710,33 @@ func syncResourceIndex(ctx context.Context, tx pgx.Tx, state app.PersistedState)
 			              updated_at = EXCLUDED.updated_at
 		`, projection.TenantID, projection.ResourceType, projection.ResourceID, nullableString(projection.ProductID), nullableString(projection.ProjectID), nullableString(projection.ReleaseID), projection.CreatedAt); err != nil {
 			return fmt.Errorf("upsert resource index: %w", err)
+		}
+	}
+	return nil
+}
+
+func syncCriticalResourceIndex(ctx context.Context, tx pgx.Tx, state app.PersistedState) error {
+	for _, projection := range resourceProjections(state) {
+		if projection.TenantID == "" || projection.ResourceID == "" || projection.ResourceType == "" {
+			continue
+		}
+		if projection.CreatedAt.IsZero() {
+			projection.CreatedAt = time.Now().UTC()
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO resource_index (
+				tenant_id, resource_type, resource_id, product_id, project_id,
+				release_id, created_at, updated_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, now())
+			ON CONFLICT (tenant_id, resource_type, resource_id)
+			DO UPDATE SET product_id = EXCLUDED.product_id,
+			              project_id = EXCLUDED.project_id,
+			              release_id = EXCLUDED.release_id,
+			              created_at = EXCLUDED.created_at,
+			              updated_at = EXCLUDED.updated_at
+		`, projection.TenantID, projection.ResourceType, projection.ResourceID, nullableString(projection.ProductID), nullableString(projection.ProjectID), nullableString(projection.ReleaseID), projection.CreatedAt); err != nil {
+			return fmt.Errorf("upsert critical resource index: %w", err)
 		}
 	}
 	return nil
@@ -4802,11 +5047,19 @@ func nonZeroTime(value time.Time) time.Time {
 }
 
 func (s *Store) Enqueue(ctx context.Context, job app.OutboxJob) error {
+	return insertOutboxJob(ctx, s.pool, job)
+}
+
+type outboxExecutor interface {
+	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+}
+
+func insertOutboxJob(ctx context.Context, exec outboxExecutor, job app.OutboxJob) error {
 	payload, err := json.Marshal(job.Payload)
 	if err != nil {
 		return fmt.Errorf("encode outbox payload: %w", err)
 	}
-	_, err = s.pool.Exec(ctx, `
+	_, err = exec.Exec(ctx, `
 		INSERT INTO outbox_jobs (
 			id, tenant_id, kind, subject_type, subject_id, payload, status,
 			attempts, max_attempts, run_after, created_at, updated_at
@@ -4818,6 +5071,10 @@ func (s *Store) Enqueue(ctx context.Context, job app.OutboxJob) error {
 		return fmt.Errorf("enqueue outbox job: %w", err)
 	}
 	return nil
+}
+
+func insertOutboxJobTx(ctx context.Context, tx pgx.Tx, job app.OutboxJob) error {
+	return insertOutboxJob(ctx, tx, job)
 }
 
 func (s *Store) ClaimJobs(ctx context.Context, limit int) ([]ClaimedJob, error) {
