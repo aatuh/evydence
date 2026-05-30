@@ -51,14 +51,14 @@ go run ./cmd/evydence release verify \
   --manifest "$distdir/evydence-release-manifest.json" \
   --signature "$distdir/evydence-release-manifest.sig.json" >/dev/null
 
-grep -F "Controlled self-hosted production candidate" "$distdir/release-notes.md" >/dev/null
-grep -F "not legal compliance proof" "$distdir/release-notes.md" >/dev/null
-grep -F "not a certification" "$distdir/release-notes.md" >/dev/null
-grep -F "not a secure-release guarantee" "$distdir/release-notes.md" >/dev/null
-grep -F "complete SBOM proof" "$distdir/release-notes.md" >/dev/null
-grep -F "authoritative vulnerability coverage" "$distdir/release-notes.md" >/dev/null
-grep -F "single API writer replica" "$distdir/release-notes.md" >/dev/null
-grep -F "full repository decomposition" "$distdir/release-notes.md" >/dev/null
+grep -Fi "Controlled self-hosted production candidate" "$distdir/release-notes.md" >/dev/null
+grep -Fi "not legal compliance proof" "$distdir/release-notes.md" >/dev/null
+grep -Fi "not a certification" "$distdir/release-notes.md" >/dev/null
+grep -Fi "not a secure-release guarantee" "$distdir/release-notes.md" >/dev/null
+grep -Fi "complete SBOM proof" "$distdir/release-notes.md" >/dev/null
+grep -Fi "authoritative vulnerability coverage" "$distdir/release-notes.md" >/dev/null
+grep -Fi "single API writer replica" "$distdir/release-notes.md" >/dev/null
+grep -Fi "full repository decomposition" "$distdir/release-notes.md" >/dev/null
 
 if grep -R -i "automatically compliant\|certified secure\|legally sufficient\|SBOM is complete\|all vulnerabilities detected\|scanner findings are authoritative\|regulator-ready without review" "$distdir/release-notes.md" >/dev/null; then
   echo "release notes contain a prohibited product claim" >&2
