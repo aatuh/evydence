@@ -11,7 +11,7 @@ acceptance.
 ## Supported Profile
 
 - Self-hosted API, worker, PostgreSQL, and object storage deployment.
-- One API writer replica for the current production profile.
+- Use a single API writer replica for the current production profile.
 - Worker replicas may scale through PostgreSQL outbox row locking.
 - External TLS, secret management, backup automation, monitoring, and incident
   response remain operator responsibilities.
