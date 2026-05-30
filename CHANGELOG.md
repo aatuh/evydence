@@ -23,6 +23,9 @@ Release-candidate tagging requires the production gate and checklist in
 - Production-readiness profile, production gate, and coverage-threshold gate.
 - Release-candidate checklist requiring production-check evidence, checksums,
   signed artifact manifests, release notes, and documented limitations.
+- Release-candidate package gate for `v0.1.0-rc.1` artifacts, checksums,
+  OpenAPI and migration checksums, checked release notes, signed release
+  manifest, and manifest signature.
 - Focused PostgreSQL critical mutations for tenants, credential hashes,
   idempotency records, audit-chain entries, release bundles, signatures,
   verification results, provider verification receipts, vulnerability

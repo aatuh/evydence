@@ -28,16 +28,23 @@ Before creating a release-candidate tag, collect:
 Run from a clean checkout with a disposable PostgreSQL database:
 
 ```sh
-make production-check
-sha256sum openapi.yaml > tmp/openapi.sha256
-find migrations -type f -print0 | sort -z | xargs -0 sha256sum > tmp/migrations.sha256
+set -a; . ./.test.env; set +a
+export EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64="$(cat evydence-release-private.key)"
+make release-candidate-check TAG=v0.1.0-rc.1
 ```
 
-Build release artifacts through the release-artifacts workflow or an equivalent
-local process that records the same manifest, checksums, and signature files.
+The target runs `scripts/release_candidate_package.sh`, which requires a clean
+worktree, a release-candidate tag such as `v0.1.0-rc.1`, no existing local tag
+unless the CI tag workflow explicitly allows it, live PostgreSQL through
+`EVYDENCE_TEST_DATABASE_URL`, and release signing material. It runs
+`make production-check`, builds the release archive matrix, writes checksums,
+signs the release manifest, verifies the manifest signature, and validates the
+release-note language.
+
 Do not tag from a run where live PostgreSQL checks, migration compatibility,
 coverage threshold enforcement, OpenAPI checks, docs checks, deployment checks,
-SDK checks, lint, gosec, govulncheck, or race tests were skipped.
+SDK checks, lint, gosec, govulncheck, race tests, artifact checksums, or
+manifest signature verification were skipped.
 
 ## Supported Profile Statement
 
