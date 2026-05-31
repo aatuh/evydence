@@ -53,6 +53,7 @@ This documentation is organized by reader task. Implementation claims should be 
 - [License](../LICENSE): `AGPL-3.0-only` public license text.
 - [Commercial licensing](../COMMERCIAL.md): commercial license exceptions, self-hosted support, release evidence packages, deployment review, and custom integration support.
 - [Design partner pilot](commercial/design-partner-pilot.md): narrow paid pilot shape for one self-hosted release evidence workflow.
+- [Product landing copy](commercial/product-landing-copy.md): conservative reusable positioning for README, website, outreach, or pilot materials.
 - [Security policy](../SECURITY.md): vulnerability reporting guidance for tenant isolation, evidence integrity, credentials, collectors, object storage, signing, reports, exports, and raw evidence payloads.
 - [Support](../SUPPORT.md): community support expectations, commercial support boundaries, and sanitized bug-report requirements.
 - [Governance](../GOVERNANCE.md): maintainer-led decision process, contribution acceptance, release evidence expectations, and conservative product-language policy.

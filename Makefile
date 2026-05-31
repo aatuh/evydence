@@ -232,6 +232,10 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@test -f docs/commercial/design-partner-pilot.md
 	@grep -F 'AGPL-3.0-only' docs/commercial/design-partner-pilot.md >/dev/null
 	@grep -F 'Non-Deliverables' docs/commercial/design-partner-pilot.md >/dev/null
+	@test -f docs/commercial/product-landing-copy.md
+	@grep -F 'One-Sentence Pitch' docs/commercial/product-landing-copy.md >/dev/null
+	@grep -F 'Why Self-Hosted' docs/commercial/product-landing-copy.md >/dev/null
+	@grep -F 'Pilot CTA' docs/commercial/product-landing-copy.md >/dev/null
 	@grep -F 'release upload-evidence' docs/how-to/integrate-ci.md >/dev/null
 	@grep -F -- '--dry-run' docs/how-to/integrate-ci.md >/dev/null
 	@grep -F 'upload validate-manifest' docs/how-to/integrate-ci.md >/dev/null
