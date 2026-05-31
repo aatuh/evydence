@@ -532,12 +532,19 @@ func TestCustomerPortalRetentionQuestionnairesAndCommercialCollectors(t *testing
 	if err != nil {
 		t.Fatalf("customer package: %v", err)
 	}
-	access, token, err := ledger.CreateCustomerPortalAccess(ctx, actor, CreateCustomerPortalAccessInput{PackageID: pkg.ID, CustomerName: "ACME", RequireNDA: true, Watermark: "ACME confidential review copy", ExpiresAt: fixedNow().Add(time.Hour)})
+	access, token, err := ledger.CreateCustomerPortalAccess(ctx, actor, CreateCustomerPortalAccessInput{PackageID: pkg.ID, CustomerName: "ACME", ReviewerName: "Alice Reviewer", ReviewerEmail: "ALICE.REVIEWER@EXAMPLE.TEST", RequireNDA: true, Watermark: "ACME confidential review copy", ExpiresAt: fixedNow().Add(time.Hour)})
 	if err != nil {
 		t.Fatalf("portal access: %v", err)
 	}
-	if token == "" || access.Hash != "" || !access.RequireNDA || access.Watermark == "" {
+	if token == "" || access.Hash != "" || !access.RequireNDA || access.Watermark == "" || access.ReviewerName != "Alice Reviewer" || access.ReviewerEmail != "alice.reviewer@example.test" {
 		t.Fatalf("portal token/hash leakage access=%#v token=%q", access, token)
+	}
+	listedAccess, err := ledger.ListCustomerPortalAccess(ctx, actor, pkg.ID)
+	if err != nil || len(listedAccess) != 1 || listedAccess[0].ID != access.ID || listedAccess[0].Hash != "" || listedAccess[0].ReviewerEmail != "alice.reviewer@example.test" {
+		t.Fatalf("portal access list=%#v err=%v", listedAccess, err)
+	}
+	if _, _, err := ledger.CreateCustomerPortalAccess(ctx, actor, CreateCustomerPortalAccessInput{PackageID: pkg.ID, CustomerName: "ACME", ReviewerEmail: "not an email", ExpiresAt: fixedNow().Add(time.Hour)}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("invalid reviewer email err=%v, want validation", err)
 	}
 	if _, err := ledger.AccessCustomerPortalPackage(ctx, token); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("NDA-gated portal package without acceptance err=%v, want forbidden", err)
@@ -604,6 +611,16 @@ func TestCustomerPortalRetentionQuestionnairesAndCommercialCollectors(t *testing
 	if got := metrics["customer_portal_failed_access_count"]; got != 1 {
 		t.Fatalf("portal failed access metric = %#v, want 1", got)
 	}
+	revokedAccess, err := ledger.RevokeCustomerPortalAccess(ctx, actor, access.ID)
+	if err != nil {
+		t.Fatalf("revoke portal access: %v", err)
+	}
+	if revokedAccess.RevokedAt == nil || revokedAccess.Hash != "" {
+		t.Fatalf("revoked portal access leaked hash or missed timestamp: %#v", revokedAccess)
+	}
+	if _, err := ledger.AccessCustomerPortalPackage(ctx, token); !errors.Is(err, ErrUnauthorized) {
+		t.Fatalf("revoked reviewer token err=%v, want unauthorized", err)
+	}
 	if _, err := ledger.CreateLegalHold(ctx, actor, CreateLegalHoldInput{ScopeType: "release", ScopeID: release.ID, Reason: "customer dispute", Owner: "legal"}); err != nil {
 		t.Fatalf("legal hold: %v", err)
 	}
@@ -653,6 +670,12 @@ func TestCustomerPortalRetentionQuestionnairesAndCommercialCollectors(t *testing
 	}
 	if _, _, err := ledger.CreateCustomerPortalAccess(ctx, other, CreateCustomerPortalAccessInput{PackageID: pkg.ID, CustomerName: "bad", ExpiresAt: fixedNow().Add(time.Hour)}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("cross tenant portal err=%v, want not found", err)
+	}
+	if _, err := ledger.ListCustomerPortalAccess(ctx, other, pkg.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("cross tenant portal list err=%v, want not found", err)
+	}
+	if _, err := ledger.RevokeCustomerPortalAccess(ctx, other, access.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("cross tenant portal revoke err=%v, want not found", err)
 	}
 	if _, err := ledger.CreateQuestionnaireAnswerLibraryEntry(ctx, other, CreateQuestionnaireAnswerLibraryEntryInput{QuestionID: "q1", ProductID: release.ProductID, ReleaseID: release.ID, Answer: "bad"}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("cross tenant answer library err=%v, want not found", err)

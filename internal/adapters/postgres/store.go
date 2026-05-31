@@ -510,7 +510,7 @@ func (s *Store) loadRelationalAPIKeys(ctx context.Context, state *app.PersistedS
 
 func (s *Store) loadRelationalCustomerPortalAccess(ctx context.Context, state *app.PersistedState, loaded *bool) error {
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, tenant_id, package_id, customer_name, prefix, hash,
+		SELECT id, tenant_id, package_id, customer_name, reviewer_name, reviewer_email, prefix, hash,
 		       expires_at, revoked_at, access_count, failed_access_count,
 		       last_accessed_at, last_failed_at, require_nda, nda_accepted_at,
 		       nda_accepted_by, watermark, schema_version, created_at
@@ -524,14 +524,16 @@ func (s *Store) loadRelationalCustomerPortalAccess(ctx context.Context, state *a
 		var access domain.CustomerPortalAccess
 		var hash string
 		var revokedAt, lastAccessedAt, lastFailedAt, ndaAcceptedAt sql.NullTime
-		var ndaAcceptedBy, watermark sql.NullString
+		var reviewerName, reviewerEmail, ndaAcceptedBy, watermark sql.NullString
 		if err := rows.Scan(
-			&access.ID, &access.TenantID, &access.PackageID, &access.CustomerName, &access.Prefix, &hash,
+			&access.ID, &access.TenantID, &access.PackageID, &access.CustomerName, &reviewerName, &reviewerEmail, &access.Prefix, &hash,
 			&access.ExpiresAt, &revokedAt, &access.AccessCount, &access.FailedAccessCount,
 			&lastAccessedAt, &lastFailedAt, &access.RequireNDA, &ndaAcceptedAt, &ndaAcceptedBy, &watermark, &access.SchemaVersion, &access.CreatedAt,
 		); err != nil {
 			return fmt.Errorf("scan relational customer portal access: %w", err)
 		}
+		access.ReviewerName = nullableSQLString(reviewerName)
+		access.ReviewerEmail = nullableSQLString(reviewerEmail)
 		access.RevokedAt = nullableSQLTime(revokedAt)
 		access.LastAccessedAt = nullableSQLTime(lastAccessedAt)
 		access.LastFailedAt = nullableSQLTime(lastFailedAt)
@@ -4747,14 +4749,16 @@ func syncIdentityAndIdempotency(ctx context.Context, tx pgx.Tx, state app.Persis
 		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO customer_portal_access (
-				id, tenant_id, package_id, customer_name, prefix, hash,
+				id, tenant_id, package_id, customer_name, reviewer_name, reviewer_email, prefix, hash,
 				expires_at, revoked_at, access_count, failed_access_count,
 				last_accessed_at, last_failed_at, require_nda, nda_accepted_at,
 				nda_accepted_by, watermark, schema_version, created_at
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 			ON CONFLICT (id) DO UPDATE SET
 				customer_name = EXCLUDED.customer_name,
+				reviewer_name = EXCLUDED.reviewer_name,
+				reviewer_email = EXCLUDED.reviewer_email,
 				prefix = EXCLUDED.prefix,
 				hash = EXCLUDED.hash,
 				expires_at = EXCLUDED.expires_at,
@@ -4768,7 +4772,7 @@ func syncIdentityAndIdempotency(ctx context.Context, tx pgx.Tx, state app.Persis
 				nda_accepted_by = EXCLUDED.nda_accepted_by,
 				watermark = EXCLUDED.watermark,
 				schema_version = EXCLUDED.schema_version
-		`, access.ID, access.TenantID, access.PackageID, access.CustomerName, access.Prefix, hash, access.ExpiresAt, nullableTime(access.RevokedAt), access.AccessCount, access.FailedAccessCount, nullableTime(access.LastAccessedAt), nullableTime(access.LastFailedAt), access.RequireNDA, nullableTime(access.NDAAcceptedAt), nullableString(access.NDAAcceptedBy), nullableString(access.Watermark), access.SchemaVersion, nonZeroTime(access.CreatedAt)); err != nil {
+		`, access.ID, access.TenantID, access.PackageID, access.CustomerName, nullableString(access.ReviewerName), nullableString(access.ReviewerEmail), access.Prefix, hash, access.ExpiresAt, nullableTime(access.RevokedAt), access.AccessCount, access.FailedAccessCount, nullableTime(access.LastAccessedAt), nullableTime(access.LastFailedAt), access.RequireNDA, nullableTime(access.NDAAcceptedAt), nullableString(access.NDAAcceptedBy), nullableString(access.Watermark), access.SchemaVersion, nonZeroTime(access.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert customer portal access row: %w", err)
 		}
 	}
@@ -4879,14 +4883,16 @@ func syncCriticalIdentityAndIdempotency(ctx context.Context, tx pgx.Tx, mutation
 		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO customer_portal_access (
-				id, tenant_id, package_id, customer_name, prefix, hash,
+				id, tenant_id, package_id, customer_name, reviewer_name, reviewer_email, prefix, hash,
 				expires_at, revoked_at, access_count, failed_access_count,
 				last_accessed_at, last_failed_at, require_nda, nda_accepted_at,
 				nda_accepted_by, watermark, schema_version, created_at
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 			ON CONFLICT (id) DO UPDATE SET
 				customer_name = EXCLUDED.customer_name,
+				reviewer_name = EXCLUDED.reviewer_name,
+				reviewer_email = EXCLUDED.reviewer_email,
 				prefix = EXCLUDED.prefix,
 				hash = EXCLUDED.hash,
 				expires_at = EXCLUDED.expires_at,
@@ -4900,7 +4906,7 @@ func syncCriticalIdentityAndIdempotency(ctx context.Context, tx pgx.Tx, mutation
 				nda_accepted_by = EXCLUDED.nda_accepted_by,
 				watermark = EXCLUDED.watermark,
 				schema_version = EXCLUDED.schema_version
-		`, access.ID, access.TenantID, access.PackageID, access.CustomerName, access.Prefix, hash, access.ExpiresAt, nullableTime(access.RevokedAt), access.AccessCount, access.FailedAccessCount, nullableTime(access.LastAccessedAt), nullableTime(access.LastFailedAt), access.RequireNDA, nullableTime(access.NDAAcceptedAt), nullableString(access.NDAAcceptedBy), nullableString(access.Watermark), access.SchemaVersion, nonZeroTime(access.CreatedAt)); err != nil {
+		`, access.ID, access.TenantID, access.PackageID, access.CustomerName, nullableString(access.ReviewerName), nullableString(access.ReviewerEmail), access.Prefix, hash, access.ExpiresAt, nullableTime(access.RevokedAt), access.AccessCount, access.FailedAccessCount, nullableTime(access.LastAccessedAt), nullableTime(access.LastFailedAt), access.RequireNDA, nullableTime(access.NDAAcceptedAt), nullableString(access.NDAAcceptedBy), nullableString(access.Watermark), access.SchemaVersion, nonZeroTime(access.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert critical customer portal access row: %w", err)
 		}
 	}

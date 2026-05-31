@@ -796,9 +796,18 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Customer package id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Customer security package envelope.", "#/components/schemas/CustomerSecurityPackageEnvelope")
 	case "createCustomerPortalAccess":
-		operation.Description = "Creates token-based customer portal access for a customer package and returns the token once."
+		operation.Description = "Creates a named, expiring external reviewer access record for a customer package and returns the portal token once."
 		operation.RequestBody = jsonRequest("Customer portal access creation request.", "#/components/schemas/CreateCustomerPortalAccessRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created portal access and one-time token envelope.", "#/components/schemas/CustomerPortalAccessCreateEnvelope")
+	case "listCustomerPortalAccess":
+		operation.Description = "Lists tenant-scoped external reviewer access records without token hashes or token secrets."
+		operation.Parameters = append(operation.Parameters, queryParam("package_id", "Optional customer package id filter.", "string"))
+		operation.Responses[http.StatusOK] = jsonResponse("Customer portal access list envelope.", "#/components/schemas/CustomerPortalAccessListEnvelope")
+	case "revokeCustomerPortalAccess":
+		operation.Description = "Revokes a tenant-scoped external reviewer access record; revocation is append-only and the original token cannot be used afterwards."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Customer portal access id."))
+		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
+		operation.Responses[http.StatusOK] = jsonResponse("Revoked customer portal access envelope.", "#/components/schemas/CustomerPortalAccessEnvelope")
 	case "downloadCustomerPackage":
 		operation.Description = "Downloads a scoped customer security package ZIP. The archive contains redacted manifest metadata and verification guidance, not raw tenant evidence payload bytes."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Customer package id."))

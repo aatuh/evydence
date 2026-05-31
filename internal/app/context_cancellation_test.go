@@ -292,6 +292,8 @@ func TestLedgerOperationsHonorCanceledContextBeforeWork(t *testing.T) {
 			_, _, err := ledger.CreateCustomerPortalAccess(ctx, actor, CreateCustomerPortalAccessInput{PackageID: "pkg", CustomerName: "ACME", ExpiresAt: fixedNow().AddDate(0, 0, 1)})
 			return err
 		}},
+		{"ListCustomerPortalAccess", func() error { _, err := ledger.ListCustomerPortalAccess(ctx, actor, "pkg"); return err }},
+		{"RevokeCustomerPortalAccess", func() error { _, err := ledger.RevokeCustomerPortalAccess(ctx, actor, "access"); return err }},
 		{"AccessCustomerPortalPackage", func() error { _, err := ledger.AccessCustomerPortalPackage(ctx, "token"); return err }},
 		{"AccessCustomerPortalPackageWithAcceptance", func() error {
 			_, err := ledger.AccessCustomerPortalPackageWithAcceptance(ctx, "token", CustomerPortalAcceptanceInput{NDAAccepted: true, NDAAcceptedBy: "reviewer"})
@@ -639,6 +641,8 @@ func TestLedgerOperationsRejectActorsWithoutRequiredScopesBeforeResourceWork(t *
 			_, _, err := ledger.CreateCustomerPortalAccess(ctx, actor, CreateCustomerPortalAccessInput{PackageID: "pkg", CustomerName: "ACME", ExpiresAt: fixedNow().AddDate(0, 0, 1)})
 			return err
 		}},
+		{"ListCustomerPortalAccess", func() error { _, err := ledger.ListCustomerPortalAccess(ctx, actor, "pkg"); return err }},
+		{"RevokeCustomerPortalAccess", func() error { _, err := ledger.RevokeCustomerPortalAccess(ctx, actor, "access"); return err }},
 		{"CreateQuestionnaireTemplate", func() error {
 			_, err := ledger.CreateQuestionnaireTemplate(ctx, actor, CreateQuestionnaireTemplateInput{Name: "template", Version: "1"})
 			return err

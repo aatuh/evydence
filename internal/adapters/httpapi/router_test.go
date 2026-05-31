@@ -94,7 +94,7 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	if _, ok := redactionRequestProps["preset"]; !ok {
 		t.Fatalf("redaction profile request schema missing preset: %#v", redactionRequestProps)
 	}
-	for _, schemaName := range []string{"ReadinessStatusEnvelope", "BackupManifestEnvelope", "VerificationResultEnvelope", "ReadinessReportEnvelope", "CRAVulnerabilityHandlingReportEnvelope", "SecurityUpdateEvidenceReportEnvelope", "SigningCustodyReviewReportEnvelope", "CreateProductRequest", "ProductEnvelope", "ProductListEnvelope", "CreateProjectRequest", "ProjectEnvelope", "CreateReleaseRequest", "ReleaseEnvelope", "ReleaseEvidenceFlowEnvelope", "ReleaseSecuritySummaryEnvelope", "RegisterArtifactRequest", "ArtifactEnvelope", "CreateBuildRequest", "BuildRunEnvelope", "EvidenceUploadRequest", "SBOMEnvelope", "VEXDocumentEnvelope", "VEXImportReportEnvelope", "UploadVulnerabilityScanRequest", "VulnerabilityScanEnvelope", "VulnerabilityDecisionListEnvelope", "VulnerabilityDecisionSummaryReportEnvelope", "CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOProviderRequest", "UpdateSSOProviderTrustMaterialRequest", "SSOProviderEnvelope", "VerifyProviderIdentityRequest", "ProviderVerificationEnvelope", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "ExchangeSSOCredentialRequest", "SSOCredentialExchangeEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalPackageRequest", "QuestionnaireAnswerLibraryEntryEnvelope", "QuestionnaireAnswerLibraryEntryListEnvelope", "DataEnvelope"} {
+	for _, schemaName := range []string{"ReadinessStatusEnvelope", "BackupManifestEnvelope", "VerificationResultEnvelope", "ReadinessReportEnvelope", "CRAVulnerabilityHandlingReportEnvelope", "SecurityUpdateEvidenceReportEnvelope", "SigningCustodyReviewReportEnvelope", "CreateProductRequest", "ProductEnvelope", "ProductListEnvelope", "CreateProjectRequest", "ProjectEnvelope", "CreateReleaseRequest", "ReleaseEnvelope", "ReleaseEvidenceFlowEnvelope", "ReleaseSecuritySummaryEnvelope", "RegisterArtifactRequest", "ArtifactEnvelope", "CreateBuildRequest", "BuildRunEnvelope", "EvidenceUploadRequest", "SBOMEnvelope", "VEXDocumentEnvelope", "VEXImportReportEnvelope", "UploadVulnerabilityScanRequest", "VulnerabilityScanEnvelope", "VulnerabilityDecisionListEnvelope", "VulnerabilityDecisionSummaryReportEnvelope", "CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOProviderRequest", "UpdateSSOProviderTrustMaterialRequest", "SSOProviderEnvelope", "VerifyProviderIdentityRequest", "ProviderVerificationEnvelope", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "ExchangeSSOCredentialRequest", "SSOCredentialExchangeEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalAccessEnvelope", "CustomerPortalAccessListEnvelope", "CustomerPortalPackageRequest", "QuestionnaireAnswerLibraryEntryEnvelope", "QuestionnaireAnswerLibraryEntryListEnvelope", "DataEnvelope"} {
 		if _, ok := schemas[schemaName]; !ok {
 			t.Fatalf("schema %s missing from OpenAPI components", schemaName)
 		}
@@ -182,6 +182,12 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	createPortalAccess := operationMap(t, paths, "/v1/customer-portal/access", "post")
 	assertRequestRef(t, createPortalAccess, "#/components/schemas/CreateCustomerPortalAccessRequest")
 	assertResponseRef(t, createPortalAccess, "201", "#/components/schemas/CustomerPortalAccessCreateEnvelope")
+	listPortalAccess := operationMap(t, paths, "/v1/customer-portal/access", "get")
+	assertQueryParams(t, listPortalAccess, "package_id")
+	assertResponseRef(t, listPortalAccess, "200", "#/components/schemas/CustomerPortalAccessListEnvelope")
+	revokePortalAccess := operationMap(t, paths, "/v1/customer-portal/access/{id}/revoke", "post")
+	assertRequestRef(t, revokePortalAccess, "#/components/schemas/EmptyObject")
+	assertResponseRef(t, revokePortalAccess, "200", "#/components/schemas/CustomerPortalAccessEnvelope")
 	portalPackage := operationMap(t, paths, "/v1/customer-portal/package", "post")
 	assertRequestRef(t, portalPackage, "#/components/schemas/CustomerPortalPackageRequest")
 	if _, ok := portalPackage["security"]; ok {
@@ -495,6 +501,7 @@ func TestAuthenticatedReadRoutesRejectMissingBearerToken(t *testing.T) {
 		"/v1/control-framework-template-packs",
 		"/v1/control-frameworks",
 		"/v1/controls/control_missing",
+		"/v1/customer-portal/access",
 		"/v1/customer-packages/package_missing",
 		"/v1/customer-packages/package_missing/download",
 		"/v1/deployments",
@@ -1262,8 +1269,16 @@ func TestEnterprisePortalRetentionAndCommercialCollectorHTTPFlow(t *testing.T) {
 	profileID := dataField(t, profileBody, "id")
 	packageBody := postJSON(t, server, sessionSecret, "/v1/customer-packages", "ent-package", map[string]any{"product_id": productID, "release_id": releaseID, "redaction_profile_id": profileID, "title": "Customer package", "expires_at": time.Now().UTC().Add(time.Hour).Format(time.RFC3339)}, http.StatusCreated)
 	packageID := dataField(t, packageBody, "id")
-	accessBody := postJSON(t, server, sessionSecret, "/v1/customer-portal/access", "ent-access", map[string]any{"package_id": packageID, "customer_name": "ACME", "require_nda": true, "watermark": "ACME confidential review copy", "expires_at": time.Now().UTC().Add(time.Hour).Format(time.RFC3339)}, http.StatusCreated)
+	accessBody := postJSON(t, server, sessionSecret, "/v1/customer-portal/access", "ent-access", map[string]any{"package_id": packageID, "customer_name": "ACME", "reviewer_name": "Alice Reviewer", "reviewer_email": "alice.reviewer@example.test", "require_nda": true, "watermark": "ACME confidential review copy", "expires_at": time.Now().UTC().Add(time.Hour).Format(time.RFC3339)}, http.StatusCreated)
+	accessID := dataFieldFromNestedObject(t, accessBody, "access", "id")
 	portalSecret := nestedDataField(t, accessBody, "secret")
+	if !strings.Contains(accessBody, `"reviewer_email":"alice.reviewer@example.test"`) || strings.Contains(accessBody, "hash") {
+		t.Fatalf("portal access response missing reviewer metadata or exposed hash: %s", accessBody)
+	}
+	listedAccess := getJSON(t, server, sessionSecret, "/v1/customer-portal/access?package_id="+packageID, http.StatusOK)
+	if !strings.Contains(listedAccess, accessID) || !strings.Contains(listedAccess, `"reviewer_name":"Alice Reviewer"`) || strings.Contains(listedAccess, portalSecret) {
+		t.Fatalf("portal access list invalid: %s", listedAccess)
+	}
 	postJSONNoAuth(t, server, "/v1/customer-portal/package", map[string]any{"token": portalSecret}, http.StatusForbidden)
 	portalBody := postJSONNoAuth(t, server, "/v1/customer-portal/package", map[string]any{"token": portalSecret, "nda_accepted": true, "nda_accepted_by": "reviewer@example.test"}, http.StatusOK)
 	if !strings.Contains(portalBody, packageID) || !strings.Contains(portalBody, "ACME confidential review copy") || strings.Contains(portalBody, portalSecret) {
@@ -1273,6 +1288,11 @@ func TestEnterprisePortalRetentionAndCommercialCollectorHTTPFlow(t *testing.T) {
 	if portalArchive.Header().Get("Content-Type") != "application/zip" || !bytes.HasPrefix(portalArchive.Body.Bytes(), []byte("PK")) || bytes.Contains(portalArchive.Body.Bytes(), []byte(portalSecret)) || !bytes.Contains(portalArchive.Body.Bytes(), []byte("WATERMARK.txt")) {
 		t.Fatalf("portal archive response invalid headers=%v len=%d", portalArchive.Header(), portalArchive.Body.Len())
 	}
+	revokedAccess := postJSON(t, server, sessionSecret, "/v1/customer-portal/access/"+accessID+"/revoke", "ent-access-revoke", map[string]any{}, http.StatusOK)
+	if !strings.Contains(revokedAccess, `"revoked_at"`) || strings.Contains(revokedAccess, portalSecret) {
+		t.Fatalf("portal revoke response invalid: %s", revokedAccess)
+	}
+	postJSONNoAuth(t, server, "/v1/customer-portal/package", map[string]any{"token": portalSecret}, http.StatusUnauthorized)
 	postJSON(t, server, sessionSecret, "/v1/legal-holds", "ent-hold", map[string]any{"scope_type": "release", "scope_id": releaseID, "reason": "extended review", "owner": "legal"}, http.StatusCreated)
 	postJSON(t, server, sessionSecret, "/v1/retention-overrides", "ent-retention", map[string]any{"scope_type": "evidence", "scope_id": evidenceID, "retention_until": time.Now().UTC().Add(24 * time.Hour).Format(time.RFC3339), "reason": "review", "owner": "security"}, http.StatusCreated)
 	retention := getJSON(t, server, sessionSecret, "/v1/reports/retention?scope_type=release&scope_id="+releaseID, http.StatusOK)

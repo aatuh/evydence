@@ -108,6 +108,12 @@ change the canonical package manifest hash. The HTML report is generated from
 package-scoped data only and excludes raw evidence payload bytes, object-store
 references, token material, private keys, and internal decision notes.
 
+Server-backed portal access records can be named for an external reviewer with
+optional reviewer name and email labels. Those labels support access review,
+watermarking, and audit triage only; the portal token remains the credential and
+is returned once, stored only as a hash, and omitted from package manifests,
+archives, logs, and list responses.
+
 ## Redaction Leakage Guard
 
 Customer package generation is tested with canary values for API key secrets,

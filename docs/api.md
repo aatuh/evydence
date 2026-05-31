@@ -430,7 +430,9 @@ Source snapshots capture submitted provider metadata. They do not call provider 
 | `POST` | `/v1/customer-packages` | Create scoped customer package manifest. |
 | `GET` | `/v1/customer-packages/{id}` | Read package manifest and record access. |
 | `GET` | `/v1/customer-packages/{id}/download` | Download scoped ZIP package with manifest metadata and verification guidance. |
-| `POST` | `/v1/customer-portal/access` | Create one-time package access token. |
+| `POST` | `/v1/customer-portal/access` | Create named external reviewer access with one-time package token. |
+| `GET` | `/v1/customer-portal/access` | List external reviewer access records without token hashes or secrets. |
+| `POST` | `/v1/customer-portal/access/{id}/revoke` | Revoke an external reviewer access record. |
 | `POST` | `/v1/customer-portal/package` | Exchange package token for scoped manifest. |
 | `POST` | `/v1/customer-portal/package/download` | Exchange package token for scoped ZIP package download. |
 | `POST` | `/v1/questionnaire-templates` | Create questionnaire template. |

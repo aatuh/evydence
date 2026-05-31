@@ -10,18 +10,40 @@ import (
 
 func (s *Server) createCustomerPortalAccess(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		PackageID    string    `json:"package_id"`
-		CustomerName string    `json:"customer_name"`
-		RequireNDA   bool      `json:"require_nda"`
-		Watermark    string    `json:"watermark"`
-		ExpiresAt    time.Time `json:"expires_at"`
+		PackageID     string    `json:"package_id"`
+		CustomerName  string    `json:"customer_name"`
+		ReviewerName  string    `json:"reviewer_name"`
+		ReviewerEmail string    `json:"reviewer_email"`
+		RequireNDA    bool      `json:"require_nda"`
+		Watermark     string    `json:"watermark"`
+		ExpiresAt     time.Time `json:"expires_at"`
 	}
 	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		access, secret, err := s.ledger.CreateCustomerPortalAccess(ctx, actor, app.CreateCustomerPortalAccessInput{PackageID: req.PackageID, CustomerName: req.CustomerName, RequireNDA: req.RequireNDA, Watermark: req.Watermark, ExpiresAt: req.ExpiresAt})
+		access, secret, err := s.ledger.CreateCustomerPortalAccess(ctx, actor, app.CreateCustomerPortalAccessInput{PackageID: req.PackageID, CustomerName: req.CustomerName, ReviewerName: req.ReviewerName, ReviewerEmail: req.ReviewerEmail, RequireNDA: req.RequireNDA, Watermark: req.Watermark, ExpiresAt: req.ExpiresAt})
 		return http.StatusCreated, map[string]any{"access": access, "secret": secret}, err
+	})
+}
+
+func (s *Server) listCustomerPortalAccess(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	access, err := s.ledger.ListCustomerPortalAccess(r.Context(), actor, r.URL.Query().Get("package_id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, access)
+}
+
+func (s *Server) revokeCustomerPortalAccess(w http.ResponseWriter, r *http.Request) {
+	s.create(w, r, func(ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
+		access, err := s.ledger.RevokeCustomerPortalAccess(ctx, actor, r.PathValue("id"))
+		return http.StatusOK, access, err
 	})
 }
 

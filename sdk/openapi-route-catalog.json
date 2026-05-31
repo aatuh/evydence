@@ -1,5 +1,5 @@
 {
-  "route_count": 176,
+  "route_count": 178,
   "routes": [
     {
       "idempotency_key_required": false,
@@ -664,6 +664,23 @@
       ]
     },
     {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "listCustomerPortalAccess",
+      "path": "/v1/customer-portal/access",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/CustomerPortalAccessListEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "package:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
       "idempotency_key_required": true,
       "method": "POST",
       "operation_id": "createCustomerPortalAccess",
@@ -678,6 +695,23 @@
       ],
       "success_statuses": [
         "201"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "revokeCustomerPortalAccess",
+      "path": "/v1/customer-portal/access/{id}/revoke",
+      "request_schema": "#/components/schemas/EmptyObject",
+      "response_schemas": [
+        "#/components/schemas/CustomerPortalAccessEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "package:write"
+      ],
+      "success_statuses": [
+        "200"
       ]
     },
     {
