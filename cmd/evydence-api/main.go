@@ -18,6 +18,7 @@ import (
 	"github.com/aatuh/evydence/internal/adapters/objectstore/filesystem"
 	s3store "github.com/aatuh/evydence/internal/adapters/objectstore/s3"
 	"github.com/aatuh/evydence/internal/adapters/postgres"
+	"github.com/aatuh/evydence/internal/adapters/signing/awskms"
 	"github.com/aatuh/evydence/internal/adapters/signing/httpgateway"
 	"github.com/aatuh/evydence/internal/adapters/transparency/httpfetcher"
 	"github.com/aatuh/evydence/internal/app"
@@ -128,6 +129,24 @@ func run() error {
 }
 
 func openSigningExecutor() (app.SigningExecutor, error) {
+	mode := strings.ToLower(strings.TrimSpace(os.Getenv("EVYDENCE_SIGNING_KEY_MODE")))
+	if mode == "aws_kms" || mode == "aws-kms" {
+		region := strings.TrimSpace(os.Getenv("EVYDENCE_AWS_REGION"))
+		if region == "" {
+			region = strings.TrimSpace(os.Getenv("AWS_REGION"))
+		}
+		executor, err := awskms.New(context.Background(), awskms.Config{
+			Region:           region,
+			KeyID:            os.Getenv("EVYDENCE_AWS_KMS_KEY_ID"),
+			Endpoint:         os.Getenv("EVYDENCE_AWS_KMS_ENDPOINT"),
+			SigningAlgorithm: os.Getenv("EVYDENCE_AWS_KMS_SIGNING_ALGORITHM"),
+			Timeout:          time.Duration(intEnv("EVYDENCE_AWS_KMS_TIMEOUT_SECONDS", 10)) * time.Second,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("configure AWS KMS signing executor: %w", err)
+		}
+		return executor, nil
+	}
 	endpoint := strings.TrimSpace(os.Getenv("EVYDENCE_SIGNING_EXECUTOR_URL"))
 	if endpoint == "" {
 		return nil, nil
@@ -154,8 +173,9 @@ func validateRuntimeConfig(production bool, databaseURL, pepper, signingKeyMode 
 	if strings.TrimSpace(pepper) == "" || strings.TrimSpace(pepper) == "local-dev-pepper-change-me" {
 		return errors.New("production requires a non-default EVYDENCE_API_KEY_PEPPER")
 	}
-	if strings.TrimSpace(signingKeyMode) != "external" {
-		return errors.New("production requires EVYDENCE_SIGNING_KEY_MODE=external; plaintext local signing keys are dev-only")
+	normalizedMode := strings.ToLower(strings.TrimSpace(signingKeyMode))
+	if normalizedMode != "external" && normalizedMode != "aws-kms" && normalizedMode != "aws_kms" {
+		return errors.New("production requires EVYDENCE_SIGNING_KEY_MODE=external or aws-kms; plaintext local signing keys are dev-only")
 	}
 	if printBootstrapSecret {
 		return errors.New("production refuses EVYDENCE_PRINT_BOOTSTRAP_SECRET=true")

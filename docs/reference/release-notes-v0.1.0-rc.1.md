@@ -32,7 +32,8 @@ acceptance.
 - Use S3/MinIO-compatible object storage or the documented filesystem mode for
   local evaluation only.
 - Set `ENV=production`, a non-default `EVYDENCE_API_KEY_PEPPER`, and
-  `EVYDENCE_SIGNING_KEY_MODE=external` for production-profile startup.
+  `EVYDENCE_SIGNING_KEY_MODE=external` or `EVYDENCE_SIGNING_KEY_MODE=aws-kms`
+  for production-profile startup.
 - Apply all committed migrations before starting API or worker processes.
 - For Kubernetes, set an explicit image tag or digest and keep API replicas at
   `1` until HA/multi-writer support is reviewed.
@@ -43,7 +44,8 @@ acceptance.
   PostgreSQL writes cover the highest-risk runtime mutations, but not every
   resource family.
 - HA/multi-writer API operation is not supported in this profile.
-- Direct cloud KMS/HSM SDK adapters are not included.
+- The AWS KMS signing executor is included; non-AWS cloud KMS/HSM SDK adapters
+  are not included.
 - Live GitHub/GitLab provider API validation and external group
   synchronization remain deployment-dependent.
 - Broader WORM/object-lock proof beyond configured S3/MinIO checks remains

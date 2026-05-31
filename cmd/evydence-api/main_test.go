@@ -46,6 +46,12 @@ func TestValidateRuntimeConfigRejectsProductionDefaults(t *testing.T) {
 	}
 }
 
+func TestValidateRuntimeConfigAllowsProductionAWSKMSMode(t *testing.T) {
+	if err := validateRuntimeConfig(true, "postgres://example", "not-default", "aws-kms", false); err != nil {
+		t.Fatalf("aws-kms production mode should be accepted: %v", err)
+	}
+}
+
 func TestPostgresLoadModeDefaultsToRelationalOnlyInProduction(t *testing.T) {
 	mode, err := postgres.ResolveLoadMode("", true)
 	if err != nil {
@@ -136,5 +142,13 @@ func TestOpenSigningExecutorRequiresHTTPSUnlessLocalOverride(t *testing.T) {
 	}
 	if signer == nil {
 		t.Fatal("expected signer")
+	}
+}
+
+func TestOpenSigningExecutorRejectsIncompleteAWSKMSConfig(t *testing.T) {
+	t.Setenv("EVYDENCE_SIGNING_KEY_MODE", "aws-kms")
+	t.Setenv("EVYDENCE_AWS_REGION", "eu-north-1")
+	if _, err := openSigningExecutor(); err == nil {
+		t.Fatal("expected missing AWS KMS key id to be rejected")
 	}
 }

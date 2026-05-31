@@ -34,7 +34,7 @@ Release readiness is deterministic and evidence-scoped. Open critical vulnerabil
 
 DSSE attestation signatures can be verified against configured Ed25519 trust roots when raw attestation bytes are available. Cosign-style artifact verification records digest binding, signature presence, and optional Rekor metadata without overstating full Sigstore trust-chain validation. Signing keys support revocation and valid-at-signing semantics for historical signatures.
 
-Merkle batches, signed checkpoints, optional transparency checkpoint/public transparency records with operator-supplied or fetched inclusion proof verification, backup manifests, object-retention policy records with verification hashes, legal holds, retention overrides, readiness, metrics, instance admin diagnostics, external signing gateway receipts, and admin audit queries provide operational integrity and review surfaces.
+Merkle batches, signed checkpoints, optional transparency checkpoint/public transparency records with operator-supplied or fetched inclusion proof verification, backup manifests, object-retention policy records with verification hashes, legal holds, retention overrides, readiness, metrics, instance admin diagnostics, external signing gateway/AWS KMS signing receipts, and admin audit queries provide operational integrity and review surfaces.
 
 ## Reports And Customer-Facing Packages
 
@@ -52,6 +52,6 @@ Air-gapped import-bundle workflows preserve the same tenant-scoped import path a
 
 ## Limitations
 
-The in-process store remains available only when `EVYDENCE_DATABASE_URL` is unset. S3/MinIO runtime object storage is available through the object-store port. Signing-provider operation receipts, an optional HTTPS signing gateway executor, OIDC discovery refresh, SSO credential exchange with session-scoped OIDC group-role mapping, public-transparency proof fetching, and optional worker-owned parser side effects are implemented, but direct cloud KMS/HSM SDK adapters, live Sigstore verification, live provider API validation, and external group synchronization remain deployment hardening work. Hand-tuned per-resource repository implementations remain production-readiness work. `ENV=production` rejects the in-process store, default API-key pepper, local plaintext signing-key mode, and bootstrap secret printing.
+The in-process store remains available only when `EVYDENCE_DATABASE_URL` is unset. S3/MinIO runtime object storage is available through the object-store port. Signing-provider operation receipts, an optional HTTPS signing gateway executor, an AWS KMS signing executor, OIDC discovery refresh, SSO credential exchange with session-scoped OIDC group-role mapping, public-transparency proof fetching, and optional worker-owned parser side effects are implemented, but non-AWS cloud KMS/HSM SDK adapters, live Sigstore verification, live provider API validation, and external group synchronization remain deployment hardening work. Hand-tuned per-resource repository implementations remain production-readiness work. `ENV=production` rejects the in-process store, default API-key pepper, local plaintext signing-key mode, and bootstrap secret printing.
 
 Evydence does not prove provider truth, scanner authority, runtime security, legal compliance, or release security by itself.
