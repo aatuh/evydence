@@ -84,6 +84,15 @@ The HTML report is generated from package-scoped data only and excludes raw
 evidence payload bytes, object-store references, token material, private keys,
 and internal decision notes.
 
+## Redaction Leakage Guard
+
+Customer package generation is tested with canary values for API key secrets,
+internal decision notes, raw scanner payload bytes, internal URLs, object-store
+paths, signing private material, tenant secrets, and internal-only evidence
+fields. Runtime package archives and the checked sample fixture must not contain
+those canaries, raw payload references, object-store URLs, source identity
+metadata, uploader identifiers, or canonical evidence hashes.
+
 ## Offline Verification
 
 The CLI verifies a package manifest without contacting the API:
