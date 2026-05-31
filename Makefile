@@ -300,8 +300,10 @@ demo-check: ## Validate checked end-to-end evidence demo fixtures
 	@test -f examples/end-to-end-release-evidence/release-evidence-manifest.json
 	@test -f examples/end-to-end-release-evidence/sample-readiness-report.json
 	@test -f examples/end-to-end-release-evidence/sample-customer-package-manifest.json
+	@test -f examples/end-to-end-release-evidence/sample-customer-package.zip
 	@test -f examples/end-to-end-release-evidence/sample-audit-chain-verification.json
 	@python3 -c 'import json, pathlib; [json.loads(path.read_text()) for path in pathlib.Path("examples/end-to-end-release-evidence").glob("*.json")]'
+	@$(GO) run ./cmd/evydence package verify --archive examples/end-to-end-release-evidence/sample-customer-package.zip --expected-package-id csp_example --expected-product-id prod_example --expected-release-id rel_example >/dev/null
 	@grep -F '/v1/reports/release-readiness' examples/end-to-end-release-evidence/run-local-demo.sh >/dev/null
 	@grep -F '/v1/audit-chain/verify' examples/end-to-end-release-evidence/run-local-demo.sh >/dev/null
 	@grep -F '/v1/customer-packages' examples/end-to-end-release-evidence/run-local-demo.sh >/dev/null

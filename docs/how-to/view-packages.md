@@ -19,6 +19,10 @@ go run ./cmd/evydence package verify \
   --manifest examples/end-to-end-release-evidence/sample-customer-package-manifest.json
 ```
 
+The same fixture is available as
+`examples/end-to-end-release-evidence/sample-customer-package.zip` for archive
+verification workflows.
+
 ![Static package viewer preview](../assets/package-viewer-preview.svg)
 
 Use it for:

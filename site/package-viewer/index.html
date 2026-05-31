@@ -347,7 +347,14 @@
         { id: "sbom_example", evidence_id: "ev_sbom", format: "cyclonedx", spec_version: "1.6", component_count: 42 }
       ],
       vulnerability_scans: [
-        { id: "scan_example", scanner: "example-scanner", target_ref: "pkg:oci/payments-api", finding_count: 1, summary: { critical: 0, high: 1 } }
+        {
+          id: "scan_example",
+          scanner: "example-scanner",
+          target_ref: "pkg:oci/payments-api",
+          finding_count: 1,
+          summary: { critical: 0, high: 1 },
+          findings: [{ id: "finding_example", vulnerability: "CVE-2026-0002", component: "pkg:apk/openssl@3.1.0", severity: "high", state: "fixed_by_decision" }]
+        }
       ],
       vex_documents: [
         { id: "vex_example", format: "openvex", author: "security@example.test", statement_count: 1, status_summary: { fixed: 1 } }
@@ -557,6 +564,7 @@
       const decisions = safeArray(data.vulnerability_decisions);
       const vexDocs = safeArray(data.vex_documents);
       const scans = safeArray(data.vulnerability_scans);
+      const findings = safeArray(data.vulnerability_findings).concat(scans.flatMap((scan) => safeArray(scan.findings)));
       sectionHead(nodes.risk, "Vulnerability / VEX Decisions", String(decisions.length) + " active decisions");
       const split = document.createElement("div");
       split.className = "split";
@@ -578,6 +586,15 @@
       ], vexDocs, "No VEX document metadata is present.");
       split.append(scanNode, vexNode);
       nodes.risk.append(split);
+      appendText(nodes.risk, "h3", "", "Vulnerability findings");
+      table(nodes.risk, [
+        { label: "Finding", value: (row) => row.id || row.vulnerability },
+        { label: "Vulnerability", value: "vulnerability" },
+        { label: "Component", value: "component" },
+        { label: "Severity", value: "severity", badge: true },
+        { label: "State", value: "state", badge: true }
+      ], findings, "No customer-visible finding summaries are present.");
+      appendText(nodes.risk, "h3", "", "Active decisions");
       table(nodes.risk, [
         { label: "Vulnerability", value: "vulnerability" },
         { label: "Component", value: "component" },

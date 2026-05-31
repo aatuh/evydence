@@ -36,6 +36,8 @@ you use source-checkout commands for local development.
   limitations.
 - `sample-customer-package-manifest.json`: representative customer package
   manifest without raw tenant payload bytes.
+- `sample-customer-package.zip`: downloadable fixture with `manifest.json`,
+  `package.json`, `verification.json`, and `README.txt`.
 - `sample-audit-chain-verification.json`: representative audit-chain
   verification result.
 
@@ -98,6 +100,16 @@ output directory. To verify the package manifest offline, run:
 ```sh
 go run ./cmd/evydence package verify \
   --manifest tmp/end-to-end-release-evidence/customer-package.json
+```
+
+To inspect the checked sample without running the API, open
+`sample-customer-package-manifest.json` in the viewer or verify the downloadable
+fixture:
+
+```sh
+go run ./cmd/evydence package verify \
+  --archive examples/end-to-end-release-evidence/sample-customer-package.zip \
+  --expected-package-id csp_example
 ```
 
 To verify the release bundle through the API, read the bundle id from

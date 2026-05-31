@@ -62,7 +62,9 @@ defaults instead of explicit operator scope.
 
 The local package viewer at `site/package-viewer/index.html` loads v2 manifests
 directly from disk. A non-sensitive sample is available at
-`examples/end-to-end-release-evidence/sample-customer-package-manifest.json`.
+`examples/end-to-end-release-evidence/sample-customer-package-manifest.json`;
+the matching archive fixture is
+`examples/end-to-end-release-evidence/sample-customer-package.zip`.
 
 ## Offline Verification
 
