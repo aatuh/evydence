@@ -30,6 +30,10 @@ Release-candidate tagging requires the production gate and checklist in
   idempotency records, audit-chain entries, release bundles, signatures,
   verification results, provider verification receipts, vulnerability
   decisions, and outbox jobs.
+- Focused PostgreSQL release-ledger mutations for products, projects, releases,
+  artifacts, evidence items, evidence lifecycle events, SBOMs, vulnerability
+  scans, OpenAPI contracts, VEX documents, audit-chain entries, and parser
+  outbox jobs.
 
 ### Known Limits
 
