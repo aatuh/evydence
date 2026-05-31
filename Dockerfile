@@ -8,7 +8,7 @@ RUN go build -o /out/evydence-migrate ./cmd/evydence-migrate
 RUN go build -o /out/evydence-worker ./cmd/evydence-worker
 RUN go build -o /out/evydence ./cmd/evydence
 
-FROM alpine:3.22@sha256:310c62b5e7ca5b08167e4384c68db0fd2905dd9c7493756d356e893909057601
+FROM alpine:3.23@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11
 RUN addgroup -S evydence && adduser -S -G evydence evydence
 USER evydence
 WORKDIR /app
