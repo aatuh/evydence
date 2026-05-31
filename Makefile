@@ -7,7 +7,7 @@ GOLANGCI_LINT_VERSION ?= v2.11.4
 GOSEC_VERSION ?= v2.25.0
 GOVULNCHECK_VERSION ?= v1.2.0
 
-TAG ?= v0.1.0-rc.1
+TAG ?=
 
 .PHONY: help tools fmt lint vuln gosec test test-race coverage coverage-check openapi-check openapi-precision-check meta-check docs-check deploy-check sdk-check fast-check finalize release-acceptance release-check production-check release-candidate-check migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
@@ -101,6 +101,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@test -f docs/reference/observability.md
 	@test -f docs/reference/production-readiness.md
 	@test -f docs/reference/release-candidate.md
+	@test -f docs/reference/release-notes-template.md
 	@test -f docs/reference/release-notes-v0.1.0-rc.1.md
 	@test -f docs/reference/worker-outbox.md
 	@test -f docs/reference/release-validation.md
@@ -128,6 +129,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 		"reference/observability.md" \
 		"reference/production-readiness.md" \
 		"reference/release-candidate.md" \
+		"reference/release-notes-template.md" \
 		"reference/release-notes-v0.1.0-rc.1.md" \
 		"reference/worker-outbox.md" \
 		"reference/release-validation.md" \
@@ -166,6 +168,8 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@grep -F 'evydence-release-manifest.sig.json' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'gh release create' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'Controlled self-hosted production candidate' docs/reference/release-candidate.md >/dev/null
+	@grep -F 'Controlled self-hosted production candidate' docs/reference/release-notes-template.md >/dev/null
+	@grep -F 'not legal compliance proof' docs/reference/release-notes-template.md >/dev/null
 	@grep -F 'Controlled self-hosted production candidate' docs/reference/release-notes-v0.1.0-rc.1.md >/dev/null
 	@grep -F 'not legal compliance proof' docs/reference/release-notes-v0.1.0-rc.1.md >/dev/null
 	@grep -F 'Use one API writer replica' docs/reference/release-candidate.md >/dev/null
@@ -248,7 +252,7 @@ release-check: ## Release validation with security, race, and configured live in
 production-check: ## Strict self-hosted production readiness gate; requires live PostgreSQL and coverage threshold
 	@scripts/production_check.sh
 
-release-candidate-check: ## Build and validate a signed release-candidate package with TAG=v0.1.0-rc.1 by default
+release-candidate-check: ## Build and validate a signed release-candidate package with explicit TAG=vX.Y.Z-rc.N
 	@scripts/release_candidate_package.sh "$(TAG)"
 
 migration-compatibility-check: ## Verify every committed migration prefix upgrades to current schema

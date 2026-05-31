@@ -30,7 +30,7 @@ Run from a clean checkout with a disposable PostgreSQL database:
 ```sh
 set -a; . ./.test.env; set +a
 export EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64="$(cat evydence-release-private.key)"
-make release-candidate-check TAG=v0.1.0-rc.1
+make release-candidate-check TAG=<vX.Y.Z-rc.N>
 ```
 
 The target runs `scripts/release_candidate_package.sh`, which requires a clean

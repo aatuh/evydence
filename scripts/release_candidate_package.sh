@@ -89,8 +89,12 @@ done
 cp openapi.yaml "$distdir/openapi.yaml"
 cp coverage.out "$distdir/coverage.out"
 cp tmp/release-check-summary.txt "$distdir/release-check-summary.txt"
-cp docs/reference/release-notes-v0.1.0-rc.1.md "$distdir/release-notes.md"
-sed -i.bak "s/v0.1.0-rc.1/${tag}/g" "$distdir/release-notes.md"
+notes_source="docs/reference/release-notes-${tag}.md"
+if [[ ! -f "$notes_source" ]]; then
+  notes_source="docs/reference/release-notes-template.md"
+fi
+cp "$notes_source" "$distdir/release-notes.md"
+sed -i.bak "s/{{TAG}}/${tag}/g; s/v0.1.0-rc.1/${tag}/g" "$distdir/release-notes.md"
 rm -f "$distdir/release-notes.md.bak"
 
 (cd "$distdir" && sha256sum openapi.yaml > openapi.sha256)

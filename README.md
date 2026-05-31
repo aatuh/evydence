@@ -6,7 +6,7 @@ It does not make legal compliance conclusions, grant certification, prove SBOM c
 
 ## Current Implementation
 
-This repository contains a Go implementation under module `github.com/aatuh/evydence`. The current status is controlled self-hosted production candidate hardening: useful for evaluation, pilots, and controlled internal production after operator review, with a stricter production gate and release-candidate checklist tracking the remaining work before any broader production claim.
+This repository contains a Go implementation under module `github.com/aatuh/evydence`. The current status is controlled self-hosted production candidate: useful for evaluation, pilots, and controlled internal production after operator review, with a stricter production gate and release-candidate checklist tracking the remaining work before any broader production claim. A local signed `v0.1.0-rc.2` evidence package has been generated from this checkout; public release publication remains a separate operator action.
 
 ### API And Contracts
 

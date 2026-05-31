@@ -67,10 +67,10 @@ The local packaging gate is:
 ```sh
 set -a; . ./.test.env; set +a
 export EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64="$(cat evydence-release-private.key)"
-make release-candidate-check TAG=v0.1.0-rc.1
+make release-candidate-check TAG=<vX.Y.Z-rc.N>
 ```
 
-`scripts/release_candidate_package.sh` creates `dist/v0.1.0-rc.1/` with the
+`scripts/release_candidate_package.sh` creates `dist/<tag>/` with the
 release archives, `SHA256SUMS`, `openapi.sha256`, `migrations.sha256`,
 `coverage.out`, `release-check-summary.txt`, checked release notes, signed
 release manifest, and manifest signature. It refuses dirty worktrees, invalid

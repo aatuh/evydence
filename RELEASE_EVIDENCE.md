@@ -28,7 +28,7 @@ requires live PostgreSQL through `EVYDENCE_TEST_DATABASE_URL`, enforces the
 coverage threshold, and runs a local release artifact signing smoke test. A
 failure means the build has not yet met the self-hosted production profile.
 
-`make release-candidate-check TAG=v0.1.0-rc.1` is the controlled release
+`make release-candidate-check TAG=<vX.Y.Z-rc.N>` is the controlled release
 candidate packaging gate. It requires a clean worktree, live PostgreSQL, and
 release signing material, then writes release archives, checksums, OpenAPI and
 migration checksums, coverage output, release-check summary, checked release
