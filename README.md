@@ -1,12 +1,75 @@
 # Evydence
 
-Evydence is a self-hosted, API-first evidence ledger for software release evidence. It supports compliance readiness by organizing and verifying technical evidence, producing tamper-evident records, and showing gaps, assumptions, exceptions, and limitations.
+[![CI](https://github.com/aatuh/evydence/actions/workflows/ci.yml/badge.svg)](https://github.com/aatuh/evydence/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://github.com/aatuh/evydence/actions/workflows/scorecard.yml/badge.svg)](https://github.com/aatuh/evydence/actions/workflows/scorecard.yml)
+[![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue.svg)](LICENSE)
+![Go Version](https://img.shields.io/badge/go-1.25+-00ADD8.svg)
+![OpenAPI](https://img.shields.io/badge/OpenAPI-166%20precise%20operations-brightgreen.svg)
+![Coverage Gate](https://img.shields.io/badge/coverage%20gate-80%25+-brightgreen.svg)
 
-It does not make legal compliance conclusions, grant certification, prove SBOM completeness, treat scanner findings as authoritative, or guarantee release security.
+Evydence is a self-hosted release evidence ledger that helps software teams
+collect, verify, and share tamper-evident technical evidence for each release.
+
+It is for security, platform, AppSec, and compliance-readiness teams at B2B
+software companies that need customer-reviewable release evidence without
+handing all release trust data to a SaaS GRC platform.
+
+Before shipping a release, Evydence can collect SBOMs, vulnerability scans, VEX
+decisions, build/source/deployment evidence, controls, exceptions, release
+bundles, and customer-safe packages, then show readiness gaps, assumptions, and
+limitations.
+
+It does not make legal compliance conclusions, grant certification, prove SBOM
+completeness, treat scanner findings as authoritative, or guarantee release
+security.
+
+## Current Limitations
+
+- Current status is a controlled self-hosted production candidate for
+  evaluation, pilots, and controlled internal production after operator review.
+- Production API deployments use one API writer replica; workers may scale
+  through PostgreSQL outbox locking.
+- Public release publication, branch protection, private vulnerability
+  reporting settings, and public CI status are GitHub/operator controls, not
+  guarantees made by repository files alone.
+- Native PKCS#11/HSM module handling, broad WORM/object-lock proof, direct
+  provider-specific management API clients, external group synchronization,
+  regulated production, and hosted SaaS production remain outside the current
+  supported profile unless a deployment review closes those gaps.
 
 ## Current Implementation
 
-This repository contains a Go implementation under module `github.com/aatuh/evydence`. The current status is controlled self-hosted production candidate: useful for evaluation, pilots, and controlled internal production after operator review, with a stricter production gate and release-candidate checklist tracking the remaining work before any broader production claim. A local signed `v0.1.0-rc.2` evidence package has been generated from this checkout; public release publication remains a separate operator action.
+This repository contains a Go implementation under module
+`github.com/aatuh/evydence`. A local signed `v0.1.0-rc.3` evidence package has
+been generated from this checkout; public release publication remains a
+separate operator action.
+
+## Fastest Proof Path
+
+For a first local API flow, follow [Getting started](docs/tutorials/getting-started.md).
+For durable local evaluation, run the production-like Compose rehearsal in
+[Install and operate](docs/how-to/install-and-operate.md).
+
+The end-to-end evidence flow to evaluate first is:
+
+1. Create a product, release, and artifact.
+2. Upload SBOM and vulnerability scan evidence.
+3. Record a VEX decision or exception for an intentionally blocking finding.
+4. Generate a release bundle and readiness report.
+5. Export a customer-safe package or evidence bundle for review.
+
+## Why Evydence Instead Of Existing Tools?
+
+- Dependency-Track and vulnerability-management tools are strong for SBOM and
+  finding workflows; Evydence focuses on release-level evidence, decisions,
+  bundles, audit chains, controls, customer packages, and review limitations.
+- Vanta, Drata, and similar SaaS GRC tools are broad compliance platforms;
+  Evydence is a self-hosted technical evidence ledger and does not claim legal
+  compliance or certification.
+- Building this in-house with object storage, scripts, spreadsheets, and ad hoc
+  Postgres tables is possible; Evydence provides a versioned API, OpenAPI
+  contract, tenant scoping, idempotency, audit chains, release evidence, and
+  checked non-claim language from the start.
 
 ### API And Contracts
 
@@ -38,13 +101,15 @@ This repository contains a Go implementation under module `github.com/aatuh/evyd
 
 - `cmd/evydence` helper for hashing, manifest verification, GitHub Actions build provenance upload, release artifact manifest signing/verification, bulk upload manifests, and air-gapped evidence bundle import.
 - Docker Compose dependencies for PostgreSQL and MinIO.
+- Production-like Docker Compose rehearsal with API, worker, migrations,
+  PostgreSQL, and MinIO.
 - Kubernetes Helm chart under `deploy/helm/evydence`.
 - Air-gapped package manifest under `deploy/airgap/manifest.yaml`.
 - Lightweight Go, TypeScript, and Python SDK wrappers.
 - GitHub Actions and GitLab CI workflow examples.
 - Documentation portal under `docs/`.
 - AGPL license, commercial licensing, governance, contribution, security,
-  support, trademark, release-evidence, and changelog metadata.
+  support, code of conduct, trademark, release-evidence, and changelog metadata.
 
 Implemented-but-partial areas are documented explicitly: signing-provider operation receipts can use an HTTPS signing gateway, built-in AWS KMS, GCP Cloud KMS, or Azure Key Vault executors, and `pkcs11-hsm` remains gateway-backed because native HSM modules are deployment-specific; deployment-specific custody review remains operator work. SSO credential exchange uses configured local OIDC/SAML trust material and session-scoped OIDC group-role mappings, and provider verification can optionally call OIDC UserInfo or an operator-controlled provider validation gateway when a caller supplies an access token, but the gateway receives only non-secret metadata and this does not replace direct provider-specific management API clients or external group synchronization. Public transparency records can verify operator-supplied proof material, fetch from configured endpoints, or use an operator-controlled transparency proof gateway without replacing provider-specific trust review.
 

@@ -26,6 +26,32 @@ Stop them with:
 make compose-down
 ```
 
+## Run The Production-Like Local Stack
+
+For a fuller local rehearsal, use `compose.production-like.yml`. It starts
+PostgreSQL, MinIO, bucket initialization, migrations, one API writer, and one
+worker. It is still a local evaluation stack: replace every secret, use TLS at
+the edge, back up PostgreSQL and object storage together, and keep production
+API writer replicas at one for the current supported profile.
+
+```sh
+export POSTGRES_PASSWORD='replace-with-long-random-password'
+export MINIO_ROOT_PASSWORD='replace-with-long-random-password'
+export EVYDENCE_API_KEY_PEPPER='replace-with-long-random-pepper'
+docker compose -f compose.production-like.yml up --build
+```
+
+Expected result:
+
+- migrations complete before the API and worker start;
+- MinIO bucket `evydence` is created when absent;
+- the API listens on `http://localhost:8080`;
+- `/v1/ready` returns `200` after startup.
+
+This stack intentionally sets `EVYDENCE_PRINT_BOOTSTRAP_SECRET=false`. Create
+or rotate production credentials through controlled operator procedures rather
+than printing bootstrap secrets in shared logs.
+
 ## Run With PostgreSQL
 
 ```sh

@@ -99,12 +99,15 @@ rm -f "$distdir/release-notes.md.bak"
 
 (cd "$distdir" && sha256sum openapi.yaml > openapi.sha256)
 (cd "$repo_root" && find migrations -type f -print | LC_ALL=C sort | xargs sha256sum > "$distdir/migrations.sha256")
+python3 scripts/release_evidence_metadata.py "$tag" "$distdir"
 
 (cd "$distdir" && sha256sum \
   evydence_${tag}_*.tar.gz \
   evydence_${tag}_*.zip \
   openapi.yaml \
   openapi.sha256 \
+  evydence-release-sbom.cdx.json \
+  evydence-release-provenance.json \
   coverage.out \
   release-check-summary.txt \
   migrations.sha256 \
@@ -124,6 +127,8 @@ cli="${signing_dir}/evydence_${tag}_linux_amd64/evydence"
   "$distdir"/evydence_${tag}_*.zip \
   "$distdir/openapi.yaml" \
   "$distdir/openapi.sha256" \
+  "$distdir/evydence-release-sbom.cdx.json" \
+  "$distdir/evydence-release-provenance.json" \
   "$distdir/coverage.out" \
   "$distdir/release-check-summary.txt" \
   "$distdir/migrations.sha256" \

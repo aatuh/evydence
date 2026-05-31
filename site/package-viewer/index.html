@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Evydence Package Viewer</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.4;
+    }
+    body {
+      margin: 0;
+      background: #f6f7f9;
+      color: #171923;
+    }
+    main {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 32px;
+    }
+    .muted {
+      color: #5b6370;
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      margin: 24px 0;
+      padding: 16px;
+      border: 1px solid #d7dce2;
+      border-radius: 8px;
+      background: #ffffff;
+    }
+    input[type="file"] {
+      max-width: 100%;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 12px;
+      margin: 20px 0;
+    }
+    .panel {
+      border: 1px solid #d7dce2;
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 16px;
+    }
+    .label {
+      margin: 0 0 4px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0;
+      color: #697386;
+    }
+    .value {
+      margin: 0;
+      overflow-wrap: anywhere;
+      font-weight: 600;
+    }
+    pre {
+      overflow: auto;
+      max-height: 520px;
+      padding: 16px;
+      border: 1px solid #d7dce2;
+      border-radius: 8px;
+      background: #101418;
+      color: #f7fafc;
+    }
+    .warning {
+      border-left: 4px solid #b45309;
+    }
+    @media (prefers-color-scheme: dark) {
+      body {
+        background: #101418;
+        color: #f7fafc;
+      }
+      .toolbar,
+      .panel {
+        border-color: #303846;
+        background: #171d26;
+      }
+      .muted,
+      .label {
+        color: #a7b0bd;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Evydence Package Viewer</h1>
+    <p class="muted">
+      Open a customer package, release-readiness report, evidence bundle, or
+      package manifest JSON file locally. This viewer never uploads data.
+    </p>
+
+    <section class="toolbar">
+      <input id="file" type="file" accept="application/json,.json">
+      <span id="status" class="muted">No file loaded.</span>
+    </section>
+
+    <section class="panel warning">
+      <p class="label">Boundary</p>
+      <p class="value">
+        Viewer output supports technical evidence review only. It is not legal
+        compliance proof, certification, complete SBOM proof, an authoritative
+        vulnerability result, or a secure-release guarantee.
+      </p>
+    </section>
+
+    <section id="summary" class="grid" aria-live="polite"></section>
+    <pre id="json">{}</pre>
+  </main>
+
+  <script>
+    const fileInput = document.getElementById("file");
+    const statusNode = document.getElementById("status");
+    const summaryNode = document.getElementById("summary");
+    const jsonNode = document.getElementById("json");
+
+    const pick = (obj, paths) => {
+      for (const path of paths) {
+        const value = path.split(".").reduce((current, key) => {
+          if (current && Object.prototype.hasOwnProperty.call(current, key)) {
+            return current[key];
+          }
+          return undefined;
+        }, obj);
+        if (value !== undefined && value !== null && value !== "") {
+          return value;
+        }
+      }
+      return "";
+    };
+
+    const addPanel = (label, value) => {
+      const panel = document.createElement("section");
+      panel.className = "panel";
+      const labelNode = document.createElement("p");
+      labelNode.className = "label";
+      labelNode.textContent = label;
+      const valueNode = document.createElement("p");
+      valueNode.className = "value";
+      valueNode.textContent = String(value || "not present");
+      panel.append(labelNode, valueNode);
+      summaryNode.append(panel);
+    };
+
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) {
+        return;
+      }
+      try {
+        const parsed = JSON.parse(await file.text());
+        const data = parsed.data || parsed.manifest || parsed;
+        summaryNode.textContent = "";
+        addPanel("File", file.name);
+        addPanel("Subject", pick(data, ["title", "id", "release_id", "subject_id", "manifest_hash"]));
+        addPanel("Result", pick(data, ["result", "status", "state"]));
+        addPanel("Release", pick(data, ["release_id", "release.id", "subject.release_id"]));
+        addPanel("Generated", pick(data, ["generated_at", "created_at", "checked_at"]));
+        addPanel("Limitations", Array.isArray(data.limitations) ? data.limitations.length : "not present");
+        jsonNode.textContent = JSON.stringify(parsed, null, 2);
+        statusNode.textContent = "Loaded locally.";
+      } catch (error) {
+        statusNode.textContent = "Could not parse JSON.";
+        summaryNode.textContent = "";
+        jsonNode.textContent = String(error);
+      }
+    });
+  </script>
+</body>
+</html>

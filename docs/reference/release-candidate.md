@@ -17,6 +17,7 @@ Before creating a release-candidate tag, collect:
 - `coverage.out` and the total coverage summary;
 - `openapi.yaml` plus an OpenAPI checksum;
 - migration checksum output for the directory or per-file migration checksums;
+- release SBOM metadata and release provenance metadata;
 - signed release artifact manifest and manifest signature;
 - checksums for every published binary, container image digest, chart package,
   and release archive;
@@ -38,8 +39,8 @@ worktree, a release-candidate tag such as `v0.1.0-rc.1`, no existing local tag
 unless the CI tag workflow explicitly allows it, live PostgreSQL through
 `EVYDENCE_TEST_DATABASE_URL`, and release signing material. It runs
 `make production-check`, builds the release archive matrix, writes checksums,
-signs the release manifest, verifies the manifest signature, and validates the
-release-note language.
+generates release SBOM and provenance metadata, signs the release manifest,
+verifies the manifest signature, and validates the release-note language.
 
 Do not tag from a run where live PostgreSQL checks, migration compatibility,
 coverage threshold enforcement, OpenAPI checks, docs checks, deployment checks,

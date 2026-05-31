@@ -8,18 +8,22 @@ object storage, reports, exports, and release evidence.
 
 ## Reporting A Vulnerability
 
-If you believe you found a vulnerability, use the private security intake
-channel listed for the current release when available. Until a dedicated
-security mailbox or advisory portal is published, contact Aatu Harju through
-LinkedIn to request a private reporting channel:
+If you believe you found a vulnerability, use GitHub private vulnerability
+reporting for this repository when the "Report a vulnerability" button is
+available on GitHub. If the button is unavailable for your account or region,
+use the private security intake channel listed for the current release notes or
+request a private channel from the maintainer without including vulnerability
+details in the first contact.
 
-<https://www.linkedin.com/in/aatu-harju>
+The repository file cannot itself prove that GitHub private vulnerability
+reporting or a dedicated mailbox is enabled; that is an operator setting that
+must be verified on the public repository before relying on it.
 
-Use the initial message only to request a private reporting channel. Do not include
-API keys, collector secrets, bearer tokens, session tokens, portal tokens,
-private keys, provider credentials, database URLs, raw evidence payloads,
-customer data, exploit payloads against third-party systems, or other sensitive
-material in the first message.
+Do not include API keys, collector secrets, bearer tokens, session tokens,
+portal tokens, private keys, provider credentials, database URLs, raw evidence
+payloads, customer data, exploit payloads against third-party systems, or other
+sensitive material in public issues, pull requests, screenshots, logs, or first
+contact messages.
 
 ## What To Include
 

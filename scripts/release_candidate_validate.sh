@@ -24,6 +24,8 @@ required=(
   "SHA256SUMS"
   "openapi.yaml"
   "openapi.sha256"
+  "evydence-release-sbom.cdx.json"
+  "evydence-release-provenance.json"
   "migrations.sha256"
   "coverage.out"
   "release-check-summary.txt"
@@ -59,6 +61,8 @@ grep -Fi "complete SBOM proof" "$distdir/release-notes.md" >/dev/null
 grep -Fi "authoritative vulnerability coverage" "$distdir/release-notes.md" >/dev/null
 grep -Fi "single API writer replica" "$distdir/release-notes.md" >/dev/null
 grep -Fi "full repository decomposition" "$distdir/release-notes.md" >/dev/null
+grep -Fi "complete SBOM proof" "$distdir/evydence-release-sbom.cdx.json" >/dev/null
+grep -Fi "not a SLSA level claim" "$distdir/evydence-release-provenance.json" >/dev/null
 
 if grep -R -i "automatically compliant\|certified secure\|legally sufficient\|SBOM is complete\|all vulnerabilities detected\|scanner findings are authoritative\|regulator-ready without review" "$distdir/release-notes.md" >/dev/null; then
   echo "release notes contain a prohibited product claim" >&2

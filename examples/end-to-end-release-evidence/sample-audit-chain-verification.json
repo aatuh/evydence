@@ -1,0 +1,19 @@
+{
+  "data": {
+    "id": "ver_example_audit_chain",
+    "subject_type": "audit_chain",
+    "subject_id": "tenant-example",
+    "result": "passed",
+    "checked_at": "2026-05-31T09:00:00Z",
+    "checks": [
+      {
+        "name": "audit_chain_hash_continuity",
+        "result": "passed",
+        "detail": "Every entry links to the previous hash for the tenant range."
+      }
+    ],
+    "limitations": [
+      "Example output for documentation; verify a real tenant chain in the target deployment."
+    ]
+  }
+}

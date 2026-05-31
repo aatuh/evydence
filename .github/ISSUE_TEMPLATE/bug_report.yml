@@ -1,0 +1,69 @@
+name: Bug report
+description: Report a reproducible Evydence defect without sharing secrets or raw evidence.
+title: "bug: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include API keys, bearer tokens, session tokens, private keys,
+        provider credentials, database URLs, raw evidence payloads, customer
+        data, or unredacted customer package contents. Use the private security
+        intake in SECURITY.md for suspected vulnerabilities.
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: Commit SHA, tag, image digest, or chart version.
+      placeholder: 842fb053f303b2a78eb3118be6a4536715571215
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - API
+        - CLI
+        - Worker/outbox
+        - PostgreSQL/migrations
+        - Object storage
+        - Signing/verification
+        - Reports/packages
+        - Deployment/Helm/Docker
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+      description: Sanitize logs and redact sensitive values.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      description: Include exact commands, API paths, or configuration names when safe.
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Checks already run
+      placeholder: make test, make docs-check, make production-check
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety confirmation
+      options:
+        - label: I have not included secrets, raw evidence payloads, private keys, bearer tokens, provider credentials, database URLs, or customer data.
+          required: true

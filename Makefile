@@ -63,18 +63,28 @@ meta-check: ## Validate root legal, governance, support, and release-evidence me
 	@test -f SECURITY.md
 	@test -f SUPPORT.md
 	@test -f TRADEMARKS.md
+	@test -f CODE_OF_CONDUCT.md
 	@test -f RELEASE_EVIDENCE.md
 	@test -f CHANGELOG.md
 	@test -f .dockerignore
+	@test -f .github/dependabot.yml
+	@test -f .github/workflows/scorecard.yml
+	@test -f .github/ISSUE_TEMPLATE/bug_report.yml
+	@test -f .github/ISSUE_TEMPLATE/feature_request.yml
+	@test -f .github/ISSUE_TEMPLATE/docs.yml
+	@test -f .github/ISSUE_TEMPLATE/production_support.yml
 	@test -x scripts/release_acceptance.sh
 	@test -x scripts/release_candidate_package.sh
 	@test -x scripts/release_candidate_validate.sh
+	@test -x scripts/release_evidence_metadata.py
 	@grep -F 'GNU AFFERO GENERAL PUBLIC LICENSE' LICENSE >/dev/null
 	@grep -F 'AGPL-3.0-only' COMMERCIAL.md >/dev/null
 	@grep -F 'Commercial license exceptions' COMMERCIAL.md >/dev/null
 	@grep -F 'contributor license agreement' CONTRIBUTING.md >/dev/null
 	@grep -F 'raw evidence payloads' SECURITY.md >/dev/null
 	@grep -F 'release evidence artifacts' SUPPORT.md >/dev/null
+	@grep -F 'Security vulnerability' .github/ISSUE_TEMPLATE/config.yml >/dev/null
+	@grep -F 'OpenSSF Scorecard' .github/workflows/scorecard.yml >/dev/null
 	@grep -F 'Evydence fork' TRADEMARKS.md >/dev/null
 	@grep -F 'Release evidence is not a certification' RELEASE_EVIDENCE.md >/dev/null
 	@grep -F '.refs' .dockerignore >/dev/null
@@ -177,6 +187,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@! grep -R -i "automatically compliant\|certified secure\|legally sufficient\|SBOM is complete\|all vulnerabilities detected\|scanner findings are authoritative\|regulator-ready without review" README.md docs
 
 deploy-check: ## Validate deployment and air-gap skeletons exist
+	@test -f compose.production-like.yml
 	@test -f deploy/helm/evydence/Chart.yaml
 	@test -f deploy/helm/evydence/values.yaml
 	@test -f deploy/helm/evydence/templates/deployment-api.yaml
@@ -197,6 +208,11 @@ deploy-check: ## Validate deployment and air-gap skeletons exist
 	@grep -F 'evydence-worker' deploy/helm/evydence/templates/deployment-worker.yaml >/dev/null
 	@grep -F 'healthcheck' deploy/helm/evydence/values.yaml >/dev/null
 	@grep -F 'single API writer replica' docs/kubernetes.md >/dev/null
+	@grep -F 'EVYDENCE_API_WRITER_MODE: single' compose.production-like.yml >/dev/null
+	@grep -F 'EVYDENCE_PRINT_BOOTSTRAP_SECRET: "false"' compose.production-like.yml >/dev/null
+	@grep -F 'evydence-migrate ./cmd/evydence-migrate' Dockerfile >/dev/null
+	@grep -F 'entrypoint: ["evydence-migrate"]' compose.production-like.yml >/dev/null
+	@grep -F 'entrypoint: ["evydence-worker"]' compose.production-like.yml >/dev/null
 
 sdk-check: ## Validate SDK helper and generated route-catalog coverage against OpenAPI
 	@test -f sdk/go/evydence/client.go

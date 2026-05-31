@@ -23,6 +23,10 @@ acceptance.
 - `coverage.out` and threshold evidence.
 - `openapi.yaml` and `openapi.sha256`.
 - `migrations.sha256`.
+- `evydence-release-sbom.cdx.json` generated from Go module metadata; this is
+  release evidence, not complete SBOM proof.
+- `evydence-release-provenance.json` with release-candidate packaging inputs;
+  this is not a SLSA level claim.
 - `SHA256SUMS` for release archives and evidence files.
 - Signed release artifact manifest and manifest signature.
 

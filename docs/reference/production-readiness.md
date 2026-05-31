@@ -156,9 +156,12 @@ Do not describe an Evydence build as broadly self-hosted production-ready until:
   prefix to the current schema;
 - the built-in local restore rehearsal passes and backup/restore have been
   tested for the target deployment profile;
+- the backup/restore, upgrade, incident-response, and capacity runbooks have
+  been reviewed against the target deployment;
 - OpenAPI, OpenAPI precision, route-contract, and SDK drift checks pass;
 - the HA story for the target profile is documented and reviewed;
 - production hardening review is current;
+- production exit review is current;
 - unresolved limitations are documented in release notes.
 
 ## Remaining Production Maturity Backlog

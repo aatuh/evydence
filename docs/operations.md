@@ -7,15 +7,23 @@ This operator index points to the canonical references for running Evydence. Kee
 | Task | Canonical Doc | Expected Outcome |
 |------|---------------|------------------|
 | Choose local or durable runtime mode | [Install and operate](how-to/install-and-operate.md) | API and worker run with either in-process state or PostgreSQL-backed state. |
+| Rehearse production-like Compose | [Install and operate](how-to/install-and-operate.md) | API, worker, migrations, PostgreSQL, and MinIO start together with one API writer. |
 | Configure environment variables | [Configuration](reference/configuration.md) | Runtime variables are set from local untracked files or deployment secrets. |
 | Wire observability | [Observability](reference/observability.md) | Readiness, admin metrics, Prometheus rules, and dashboard starter assets are reviewed for the deployment. |
 | Run release validation | [Release validation](reference/release-validation.md) | `tmp/release-check-summary.txt` records pass and explicit skip lines. |
 | Check production readiness | [Production readiness](reference/production-readiness.md) | Live PostgreSQL, coverage, release validation, and signed release artifact smoke checks pass before production positioning. |
 | Operate outbox workers | [Worker outbox contract](reference/worker-outbox.md) | Workers claim persisted jobs and fail safely on missing state, hash mismatch, or unsupported jobs. |
 | Integrate CI evidence | [Integrate CI collectors](how-to/integrate-ci.md) | CI jobs upload build, attestation, source snapshot, or collector evidence with scoped secrets. |
+| View packages locally | [View packages locally](how-to/view-packages.md) | Customer package and readiness JSON can be inspected without uploading data. |
 | Deploy on Kubernetes | [Kubernetes deployment](kubernetes.md) | API and worker deploy with external PostgreSQL, object storage, and external signing mode. |
 | Build an offline package | [Air-gapped installation](air-gapped.md) | Package manifests and signatures are verified before import. |
 | Review production hardening | [Production hardening review](production-hardening.md) | Unsafe defaults, backup gaps, diagnostics exposure, and customer package handling are reviewed. |
+| Rehearse backup and restore | [Backup and restore runbook](runbooks/backup-restore.md) | Database/object-store pairing and post-restore verification are recorded. |
+| Upgrade a deployment | [Upgrade runbook](runbooks/upgrade.md) | Release artifacts, migrations, and post-upgrade verification are checked. |
+| Respond to incidents | [Incident response runbook](runbooks/incident-response.md) | Secrets, tenant data, signing, provider, and package boundaries are handled without public leakage. |
+| Review capacity and failure modes | [Capacity and failure modes](reference/capacity-and-failures.md) | Single-writer API limits, worker scaling, object-store failures, and retry behavior are understood. |
+| Review benchmark evidence | [Benchmark results](reference/benchmark-results.md) | Local evidence-ingestion benchmark scope and limitations are clear. |
+| Review release status | [Production exit review](reference/production-exit-review.md) | The controlled self-hosted candidate status and unresolved blockers are explicit. |
 
 ## Integrity Operations
 

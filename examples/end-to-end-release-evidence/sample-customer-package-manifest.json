@@ -1,0 +1,23 @@
+{
+  "data": {
+    "id": "pkg_example",
+    "release_id": "rel_example",
+    "scope": "customer_review",
+    "expires_at": "2026-06-30T00:00:00Z",
+    "manifest_hash": "sha256:example",
+    "included_subjects": [
+      "release_bundle",
+      "readiness_report",
+      "sbom_summary",
+      "vulnerability_decisions"
+    ],
+    "redactions": [
+      "raw evidence payload bytes are excluded",
+      "secrets and private keys are excluded"
+    ],
+    "limitations": [
+      "Customer package supports technical evidence review only.",
+      "It is not legal compliance proof, certification, or a secure-release guarantee."
+    ]
+  }
+}
