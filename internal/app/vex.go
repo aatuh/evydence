@@ -656,6 +656,7 @@ func (s releaseEvidenceService) ReleaseReadinessReport(ctx context.Context, acto
 		TemplateVersion:    domain.ReleaseReadinessTemplateVersion,
 		ReleaseID:          eval.ReleaseID,
 		Result:             eval.Result,
+		PolicySet:          eval.PolicySet,
 		Summary:            releaseReadinessSummary(eval, len(blocking), len(gaps), len(failedPolicies)),
 		Checks:             eval.Checks,
 		Sections:           sections,
@@ -723,14 +724,19 @@ func (l *Ledger) releaseReadinessSectionsLocked(tenantID, releaseID string, eval
 	hasPackage := l.hasActiveCustomerPackageLocked(tenantID, releaseID)
 	sections := []domain.ReadinessSection{
 		readinessSection("release_evidence", "Release Evidence", []domain.ReadinessQuestion{
+			readinessQuestionForCheck(checks["release_has_artifact"], "release_has_artifact", "Is a release artifact linked?", "Artifact evidence is linked to the release.", "Release artifact evidence is missing."),
 			readinessQuestionForCheck(checks["release_requires_artifact_digest"], "artifact_digest", "Are artifact digests present?", "Artifact digest evidence is linked to the release.", "Release artifact digest evidence is missing."),
 			readinessQuestionForCheck(checks["release_requires_sbom"], "sbom", "Is there an SBOM for this release?", "SBOM evidence is recorded for this release.", "SBOM evidence is missing for this release."),
 			readinessQuestionForCheck(checks["release_requires_vulnerability_scan"], "vulnerability_scan", "Is there a vulnerability scan?", "Vulnerability scan evidence is recorded for this release.", "Vulnerability scan evidence is missing for this release."),
 		}),
 		readinessSection("risk_decisions", "Vulnerability Decisions", []domain.ReadinessQuestion{
 			readinessQuestionForCheck(checks["critical_exploitable_blocks_release"], "critical_findings_triaged", "Are open critical findings triaged?", "No unhandled open critical findings are recorded.", "One or more open critical findings require a valid decision, remediation, or approved unexpired exception."),
+			readinessQuestionForCheck(checks["high_findings_require_triage"], "high_findings_triaged", "Are open high findings triaged?", "No unhandled open high findings are recorded.", "One or more open high findings require a valid decision, remediation, or approved unexpired exception."),
 			readinessDecisionQuestion(decisionCount, len(blocking)),
+			readinessQuestionForCheck(checks["customer_visible_decisions_require_statements"], "customer_visible_decision_statements", "Do customer-visible decisions have review-safe statements?", "Customer-visible decisions have required impact statements.", "One or more customer-visible decisions is missing an impact statement."),
+			readinessQuestionForCheck(checks["not_affected_decisions_require_justification"], "not_affected_justifications", "Do not_affected decisions include justifications?", "not_affected decisions include recorded justifications.", "One or more not_affected decisions is missing a justification."),
 			readinessExceptionQuestion(accepted),
+			readinessQuestionForCheck(checks["exceptions_require_owner_reason_expiry_and_approval"], "exception_completeness", "Are exceptions complete?", "Release exceptions have required owner, reason, expiry, and approval metadata.", "One or more exceptions is incomplete."),
 		}),
 		readinessSection("provenance", "Build Provenance And Bundle", []domain.ReadinessQuestion{
 			readinessQuestionForCheck(checks["release_requires_passed_build"], "passed_build", "Is passed build provenance attached?", "A passed build is linked to a release artifact digest.", "No passed build with output digest linked to the release was found."),
@@ -739,6 +745,7 @@ func (l *Ledger) releaseReadinessSectionsLocked(tenantID, releaseID string, eval
 		}),
 		readinessSection("customer_review", "Customer Package Review", []domain.ReadinessQuestion{
 			readinessCustomerPackageQuestion(hasPackage),
+			readinessQuestionForCheck(checks["package_redaction_profile_valid"], "package_redaction_profile_valid", "Is the customer package redaction profile valid?", "Recorded package redaction profiles are explicit and exclude sensitive fields, or no package exists yet.", "One or more packages has an expired or incomplete redaction profile."),
 		}),
 		readinessSection("gaps_and_limitations", "Gaps And Limitations", []domain.ReadinessQuestion{
 			readinessGapQuestion(missingEvidence, failedPolicies),
@@ -854,6 +861,88 @@ func (l *Ledger) hasActiveCustomerPackageLocked(tenantID, releaseID string) bool
 		}
 	}
 	return false
+}
+
+func (l *Ledger) checkCustomerVisibleDecisionsHaveStatementsLocked(tenantID, releaseID string) domain.PolicyCheck {
+	missing := []string{}
+	for _, decision := range l.decisions {
+		if decision.TenantID != tenantID || decision.ReleaseID != releaseID || decision.SupersededBy != "" || !decision.CustomerVisible {
+			continue
+		}
+		if strings.TrimSpace(decision.ImpactStatement) == "" {
+			missing = append(missing, decision.ID)
+		}
+	}
+	if len(missing) > 0 {
+		sort.Strings(missing)
+		return domain.PolicyCheck{Name: "customer_visible_decisions_require_statements", Result: "failed", Severity: "high", Missing: missing, Explanation: "customer-visible decisions require an impact statement suitable for package summaries", Remediation: "Create a superseding customer-visible decision with a clear impact statement and no internal-only notes in customer-facing fields."}
+	}
+	return domain.PolicyCheck{Name: "customer_visible_decisions_require_statements", Result: "passed", Severity: "high", Explanation: "customer-visible decisions have required impact statements"}
+}
+
+func (l *Ledger) checkNotAffectedDecisionsHaveJustificationLocked(tenantID, releaseID string) domain.PolicyCheck {
+	missing := []string{}
+	for _, decision := range l.decisions {
+		if decision.TenantID != tenantID || decision.ReleaseID != releaseID || decision.SupersededBy != "" || decision.Status != decisionStatusNotAffected {
+			continue
+		}
+		if strings.TrimSpace(decision.Justification) == "" {
+			missing = append(missing, decision.ID)
+		}
+	}
+	if len(missing) > 0 {
+		sort.Strings(missing)
+		return domain.PolicyCheck{Name: "not_affected_decisions_require_justification", Result: "failed", Severity: "high", Missing: missing, Explanation: "not_affected decisions require a recorded justification", Remediation: "Create a superseding not_affected decision with a specific technical justification."}
+	}
+	return domain.PolicyCheck{Name: "not_affected_decisions_require_justification", Result: "passed", Severity: "high", Explanation: "not_affected decisions have recorded justifications"}
+}
+
+func (l *Ledger) checkExceptionsCompleteLocked(tenantID, releaseID string) domain.PolicyCheck {
+	missing := []string{}
+	for _, exception := range l.exceptions {
+		if exception.TenantID != tenantID || exception.ReleaseID != releaseID {
+			continue
+		}
+		if strings.TrimSpace(exception.Owner) == "" || strings.TrimSpace(exception.Reason) == "" || exception.ExpiresAt.IsZero() || (exception.Approved && (strings.TrimSpace(exception.ApprovedBy) == "" || exception.ApprovedAt == nil)) {
+			missing = append(missing, exception.ID)
+		}
+	}
+	if len(missing) > 0 {
+		sort.Strings(missing)
+		return domain.PolicyCheck{Name: "exceptions_require_owner_reason_expiry_and_approval", Result: "failed", Severity: "high", Missing: missing, Explanation: "exceptions must include owner, reason, expiry, and approval metadata when approved", Remediation: "Create a complete exception with owner, reason, future expiry, and an audited approval transition."}
+	}
+	return domain.PolicyCheck{Name: "exceptions_require_owner_reason_expiry_and_approval", Result: "passed", Severity: "high", Explanation: "release exceptions have required completeness fields"}
+}
+
+func (l *Ledger) checkPackageRedactionProfilesValidLocked(tenantID, releaseID string) domain.PolicyCheck {
+	missing := []string{}
+	sawPackage := false
+	for _, pkg := range l.customerPackages {
+		if pkg.TenantID != tenantID || pkg.ReleaseID != releaseID {
+			continue
+		}
+		sawPackage = true
+		profile, ok := l.redactions[pkg.RedactionProfileID]
+		if !ok || profile.TenantID != tenantID || len(profile.AllowedTypes) == 0 || !redactionProfileExcludesPackageSensitiveFields(profile) || !pkg.ExpiresAt.After(l.now()) {
+			missing = append(missing, pkg.ID)
+		}
+	}
+	if len(missing) > 0 {
+		sort.Strings(missing)
+		return domain.PolicyCheck{Name: "package_redaction_profile_valid", Result: "failed", Severity: "high", Missing: missing, Explanation: "one or more customer packages has an expired package or redaction profile that does not explicitly exclude sensitive fields", Remediation: "Create a new package with the customer_safe or security_review preset, or configure explicit allowed types and sensitive-field exclusions."}
+	}
+	if !sawPackage {
+		return domain.PolicyCheck{Name: "package_redaction_profile_valid", Result: "passed", Severity: "medium", Explanation: "no customer package is recorded for this release; redaction profile validation applies when a package exists"}
+	}
+	return domain.PolicyCheck{Name: "package_redaction_profile_valid", Result: "passed", Severity: "high", Explanation: "customer package redaction profiles are explicit and exclude sensitive fields"}
+}
+
+func redactionProfileExcludesPackageSensitiveFields(profile domain.RedactionProfile) bool {
+	required := map[string]struct{}{"payload_ref": {}, "object_key": {}, "private_key": {}, "token": {}, "secret": {}, "internal_notes": {}}
+	for _, field := range profile.ExcludedFields {
+		delete(required, strings.ToLower(strings.TrimSpace(field)))
+	}
+	return len(required) == 0
 }
 
 func parseOpenVEX(raw []byte) (openVEXDocument, error) {
@@ -1153,13 +1242,21 @@ func (l *Ledger) findingHandledLocked(tenantID string, scan domain.Vulnerability
 }
 
 func (l *Ledger) unhandledCriticalFindingsLocked(tenantID, releaseID string) []domain.BlockingFinding {
+	return l.unhandledFindingsBySeverityLocked(tenantID, releaseID, "critical")
+}
+
+func (l *Ledger) unhandledFindingsBySeverityLocked(tenantID, releaseID string, severities ...string) []domain.BlockingFinding {
+	allowed := map[string]struct{}{}
+	for _, severity := range severities {
+		allowed[strings.ToLower(strings.TrimSpace(severity))] = struct{}{}
+	}
 	blocking := []domain.BlockingFinding{}
 	for _, scan := range l.scans {
 		if scan.TenantID != tenantID || scan.ReleaseID != releaseID {
 			continue
 		}
 		for _, finding := range scan.Findings {
-			if strings.ToLower(finding.Severity) != "critical" || strings.ToLower(nonEmpty(finding.State, "open")) != "open" {
+			if _, ok := allowed[strings.ToLower(finding.Severity)]; !ok || strings.ToLower(nonEmpty(finding.State, "open")) != "open" {
 				continue
 			}
 			if l.findingHandledLocked(tenantID, scan, finding) {
@@ -1202,7 +1299,7 @@ func (l *Ledger) checkReleaseHasArtifactDigestLocked(tenantID, releaseID string)
 			}
 		}
 	}
-	return domain.PolicyCheck{Name: "release_requires_artifact_digest", Result: "failed", Severity: "high", Missing: []string{"artifact_digest"}, Explanation: "release artifact digest evidence is missing"}
+	return domain.PolicyCheck{Name: "release_requires_artifact_digest", Result: "failed", Severity: "high", Missing: []string{"artifact_digest"}, Explanation: "release artifact digest evidence is missing", Remediation: "Register an artifact digest and link it to release evidence."}
 }
 
 func (l *Ledger) checkReleaseHasSignedBundleLocked(tenantID, releaseID string) domain.PolicyCheck {
@@ -1214,5 +1311,5 @@ func (l *Ledger) checkReleaseHasSignedBundleLocked(tenantID, releaseID string) d
 			return domain.PolicyCheck{Name: "release_requires_signed_bundle", Result: "passed", Severity: "high", Explanation: "signed release bundle exists"}
 		}
 	}
-	return domain.PolicyCheck{Name: "release_requires_signed_bundle", Result: "failed", Severity: "high", Missing: []string{"signed_release_bundle"}, Explanation: "signed release bundle is missing"}
+	return domain.PolicyCheck{Name: "release_requires_signed_bundle", Result: "failed", Severity: "high", Missing: []string{"signed_release_bundle"}, Explanation: "signed release bundle is missing", Remediation: "Generate a release bundle after required evidence is recorded."}
 }

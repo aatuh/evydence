@@ -4,6 +4,7 @@
     "template_version": "release-readiness.v1.0.0",
     "release_id": "rel_example",
     "result": "failed",
+    "policy_set": "policy-set.v1.0.0",
     "summary": {
       "headline": "Recorded release evidence has readiness blockers or missing inputs.",
       "result": "failed",
@@ -24,7 +25,8 @@
         "missing": [
           "vulnerability_decision"
         ],
-        "explanation": "open critical finding requires remediation, a valid VEX decision, or an approved unexpired exception"
+        "explanation": "open critical finding requires remediation, a valid VEX decision, or an approved unexpired exception",
+        "remediation": "Record a fixed or not_affected vulnerability decision, upload VEX evidence, remediate the finding, or approve an unexpired scoped exception."
       }
     ],
     "sections": [

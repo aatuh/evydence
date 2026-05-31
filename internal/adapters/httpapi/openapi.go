@@ -277,6 +277,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"severity":    map[string]any{"type": "string"},
 		"missing":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 		"explanation": map[string]any{"type": "string"},
+		"remediation": map[string]any{"type": "string"},
 	}, "name", "result", "severity", "explanation"))
 	registry.RegisterSchema("PolicyEvaluation", objectSchema(map[string]any{
 		"id":         map[string]any{"type": "string"},
@@ -1238,6 +1239,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"product_id":       map[string]any{"type": "string"},
 		"release_id":       map[string]any{"type": "string"},
 		"result":           map[string]any{"type": "string"},
+		"policy_set":       map[string]any{"type": "string"},
 		"summary": map[string]any{"type": "object", "additionalProperties": false, "properties": map[string]any{
 			"headline":      map[string]any{"type": "string"},
 			"result":        map[string]any{"type": "string"},

@@ -255,6 +255,14 @@ question sections, missing evidence, failed policy checks, blockers, gaps,
 assumptions, non-claims, and limitations; it is not a legal compliance or
 release-security conclusion.
 
+The default `policy-set.v1.0.0` release checks require release-linked artifact
+and digest evidence, SBOM evidence, vulnerability-scan evidence, handled open
+critical/high findings, review-safe customer-visible decisions, justifications
+for `not_affected` decisions, complete exception metadata, passed build
+provenance, build-attestation subject coverage, a signed release bundle, and
+valid redaction profiles for generated customer packages. Failed checks include
+`remediation` text with the next evidence action to take.
+
 ## Authentication And Scopes
 
 API keys and collector keys are tenant-scoped bearer secrets. Human SSO session actors derive scopes from role bindings and enforce resource constraints where those resources are part of the request.

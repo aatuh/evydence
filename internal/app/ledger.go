@@ -1173,6 +1173,7 @@ func (l *Ledger) EvaluateRelease(ctx context.Context, actor domain.Actor, releas
 		return domain.PolicyEvaluation{}, err
 	}
 	checks := []domain.PolicyCheck{
+		l.checkReleaseHasArtifactLocked(actor.TenantID, release.ID),
 		l.checkReleaseHasEvidenceLocked(actor.TenantID, release.ID, "sbom", "release_requires_sbom", "high"),
 		l.checkReleaseHasEvidenceLocked(actor.TenantID, release.ID, "vulnerability_scan", "release_requires_vulnerability_scan", "high"),
 		l.checkReleaseHasArtifactDigestLocked(actor.TenantID, release.ID),
@@ -1180,6 +1181,11 @@ func (l *Ledger) EvaluateRelease(ctx context.Context, actor domain.Actor, releas
 		l.checkReleaseHasPassedBuildLocked(actor.TenantID, release.ID),
 		l.checkReleaseHasBuildAttestationLocked(actor.TenantID, release.ID),
 		l.checkNoOpenCriticalLocked(actor.TenantID, release.ID),
+		l.checkNoOpenHighLocked(actor.TenantID, release.ID),
+		l.checkCustomerVisibleDecisionsHaveStatementsLocked(actor.TenantID, release.ID),
+		l.checkNotAffectedDecisionsHaveJustificationLocked(actor.TenantID, release.ID),
+		l.checkExceptionsCompleteLocked(actor.TenantID, release.ID),
+		l.checkPackageRedactionProfilesValidLocked(actor.TenantID, release.ID),
 	}
 	result := "passed"
 	for _, check := range checks {
@@ -1869,19 +1875,41 @@ func (l *Ledger) verifySignatureLocked(tenantID string, signatureRefs []string, 
 	return false
 }
 
+func (l *Ledger) checkReleaseHasArtifactLocked(tenantID, releaseID string) domain.PolicyCheck {
+	for _, item := range l.evidence {
+		if item.TenantID != tenantID || item.ReleaseID != releaseID {
+			continue
+		}
+		for _, ref := range item.SubjectRefs {
+			if ref.Type == "artifact" && ref.ID != "" {
+				return domain.PolicyCheck{Name: "release_has_artifact", Result: "passed", Severity: "high", Explanation: "artifact evidence is linked to the release"}
+			}
+		}
+	}
+	return domain.PolicyCheck{Name: "release_has_artifact", Result: "failed", Severity: "high", Missing: []string{"artifact"}, Explanation: "release artifact evidence is missing", Remediation: "Register an artifact digest and link it to release evidence such as SBOM, scan, build output, or artifact digest evidence."}
+}
+
 func (l *Ledger) checkReleaseHasEvidenceLocked(tenantID, releaseID, typ, name, severity string) domain.PolicyCheck {
 	for _, item := range l.evidence {
 		if item.TenantID == tenantID && item.ReleaseID == releaseID && item.Type == typ {
 			return domain.PolicyCheck{Name: name, Result: "passed", Severity: severity, Explanation: typ + " evidence exists"}
 		}
 	}
-	return domain.PolicyCheck{Name: name, Result: "failed", Severity: severity, Missing: []string{typ}, Explanation: typ + " evidence is missing"}
+	return domain.PolicyCheck{Name: name, Result: "failed", Severity: severity, Missing: []string{typ}, Explanation: typ + " evidence is missing", Remediation: "Upload " + typ + " evidence for this release."}
 }
 
 func (l *Ledger) checkNoOpenCriticalLocked(tenantID, releaseID string) domain.PolicyCheck {
 	blocking := l.unhandledCriticalFindingsLocked(tenantID, releaseID)
 	if len(blocking) > 0 {
-		return domain.PolicyCheck{Name: "critical_exploitable_blocks_release", Result: "failed", Severity: "critical", Missing: []string{"vulnerability_decision"}, Explanation: "open critical finding requires remediation, a valid VEX decision, or an approved unexpired exception"}
+		return domain.PolicyCheck{Name: "critical_exploitable_blocks_release", Result: "failed", Severity: "critical", Missing: []string{"vulnerability_decision"}, Explanation: "open critical finding requires remediation, a valid VEX decision, or an approved unexpired exception", Remediation: "Record a fixed or not_affected vulnerability decision, upload VEX evidence, remediate the finding, or approve an unexpired scoped exception."}
 	}
 	return domain.PolicyCheck{Name: "critical_exploitable_blocks_release", Result: "passed", Severity: "critical", Explanation: "no open critical findings recorded"}
+}
+
+func (l *Ledger) checkNoOpenHighLocked(tenantID, releaseID string) domain.PolicyCheck {
+	blocking := l.unhandledFindingsBySeverityLocked(tenantID, releaseID, "high")
+	if len(blocking) > 0 {
+		return domain.PolicyCheck{Name: "high_findings_require_triage", Result: "failed", Severity: "high", Missing: []string{"vulnerability_decision"}, Explanation: "open high finding requires a valid decision, remediation, or an approved unexpired exception", Remediation: "Record a fixed or not_affected vulnerability decision, upload VEX evidence, remediate the finding, or approve an unexpired scoped exception."}
+	}
+	return domain.PolicyCheck{Name: "high_findings_require_triage", Result: "passed", Severity: "high", Explanation: "no unhandled open high findings recorded"}
 }

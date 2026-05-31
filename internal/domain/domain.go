@@ -1209,6 +1209,7 @@ type PolicyCheck struct {
 	Severity    string   `json:"severity"`
 	Missing     []string `json:"missing,omitempty"`
 	Explanation string   `json:"explanation"`
+	Remediation string   `json:"remediation,omitempty"`
 }
 
 type Exception struct {
@@ -1260,6 +1261,7 @@ type ReleaseReadinessReport struct {
 	TemplateVersion    string             `json:"template_version"`
 	ReleaseID          string             `json:"release_id"`
 	Result             string             `json:"result"`
+	PolicySet          string             `json:"policy_set,omitempty"`
 	Summary            ReadinessSummary   `json:"summary,omitempty"`
 	Checks             []PolicyCheck      `json:"checks"`
 	Sections           []ReadinessSection `json:"sections,omitempty"`
