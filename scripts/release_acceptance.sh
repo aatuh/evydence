@@ -47,6 +47,7 @@ for file in \
   .github/ISSUE_TEMPLATE.md \
   .github/pull_request_template.md \
   .github/workflows/codeql.yml \
+  .github/workflows/container-image.yml \
   README.md \
   docs/README.md \
   docs/reference/release-candidate.md \
@@ -75,14 +76,18 @@ require_text .github/pull_request_template.md "tenant isolation"
 require_text .github/pull_request_template.md "Sensitive Data Check"
 require_text CODEOWNERS "internal/app/"
 require_text CODEOWNERS "docs/reference/release-evidence-index.md"
-require_text .github/workflows/codeql.yml "github/codeql-action/analyze@fee9466b8957867761f2d78f922ab084e3e2dd17"
+require_text .github/workflows/codeql.yml "github/codeql-action/analyze@03e4368ac7daa2bd82b3e85262f3bf87ee112f57"
 require_text .github/workflows/codeql.yml "security-and-quality"
-require_text .github/workflows/ci.yml "actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd"
+require_text .github/workflows/ci.yml "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
 require_text .github/workflows/release-artifacts.yml "contents: read"
-require_text .github/workflows/scorecard.yml "ossf/scorecard-action@62b2cac7ed8198b15735ed49ab1e5cf35480ba46"
+require_text .github/workflows/container-image.yml "ghcr.io/\${{ github.repository }}"
+require_text .github/workflows/container-image.yml "cosign sign --yes"
+require_text .github/workflows/container-image.yml "cosign verify"
+require_text .github/workflows/container-image.yml "evydence-container-image-manifest.json"
+require_text .github/workflows/scorecard.yml "ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a"
 require_text .github/workflows/scorecard.yml "publish_results: true"
 require_text .github/workflows/scorecard-sarif.yml "publish_results: false"
-require_text .github/workflows/scorecard-sarif.yml "github/codeql-action/upload-sarif@fee9466b8957867761f2d78f922ab084e3e2dd17"
+require_text .github/workflows/scorecard-sarif.yml "github/codeql-action/upload-sarif@03e4368ac7daa2bd82b3e85262f3bf87ee112f57"
 require_text SUPPORT.md "sanitized logs"
 require_text SUPPORT.md "release evidence artifacts"
 require_text TRADEMARKS.md "Evydence fork"
@@ -101,6 +106,7 @@ require_text docs/reference/release-evidence-index.md "evydence-release-provenan
 require_text docs/reference/release-evidence-index.md "not legal compliance proof"
 require_text docs/reference/maintainer-review-policy.md "CODEOWNERS"
 require_text docs/reference/maintainer-review-policy.md "tenant-scoped resources cannot cross tenant boundaries"
+require_text docs/reference/maintainer-review-policy.md "OpenSSF Scorecard and Scorecard SARIF remain"
 require_text docs/reference/roadmap.md "one API writer replica"
 require_text docs/reference/roadmap.md "Release candidates"
 

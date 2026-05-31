@@ -32,6 +32,8 @@ under `dist/<tag>/` after `make production-check` passes.
 | `evydence-release-provenance.json` | `scripts/release_evidence_metadata.py` | Record build/release provenance metadata and limitations; this does not prove provider trust by itself. |
 | `evydence-release-provenance.intoto.jsonl` | `scripts/release_evidence_metadata.py` | Scorecard-compatible in-toto statement with the same Evydence release provenance limitations. This is not a SLSA level claim. |
 | `release-notes.md` | Tag-specific release notes or `docs/reference/release-notes-template.md` | State supported profile, upgrade notes, assumptions, limitations, and unresolved hardening work. |
+| `ghcr.io/aatuh/evydence:<tag>` | `.github/workflows/container-image.yml` | Optional project-owned image publication path for a release tag. Verify by digest and cosign workflow identity; do not deploy by mutable tag alone. |
+| `evydence-container-image-manifest.json` | `.github/workflows/container-image.yml` | Records the image digest, source commit, cosign verification file, assumptions, and limitations for the image workflow run. |
 
 ## Current Public Release Candidate
 
@@ -73,13 +75,27 @@ Use the platform-specific `evydence` binary from the release archive whenever
 possible so the verifier matches the released toolchain. If you verify from a
 source checkout instead, record that limitation in the release notes.
 
+To verify the already-published public release from a clean temporary directory,
+run:
+
+```sh
+make public-release-verify TAG=v0.1.0-rc.4
+```
+
+The helper downloads the release assets with `gh`, checks the public checksums,
+validates the in-toto statement shape, extracts the released Linux amd64 CLI,
+and verifies the signed manifest with that released binary.
+
 ## Publication Status
 
 The first public release candidate is published. GitHub Releases are now the
 operator evaluation source for release-candidate binaries and release evidence.
 Source checkout remains the development path.
 
-The current release line does not publish a project-owned container image.
-Operators who need Kubernetes or air-gapped image workflows must build, sign,
-and publish an image into their own registry from the release archive or source
-checkout, then record the image digest with their deployment evidence.
+Project-owned container images are published separately from the release archive
+workflow through `.github/workflows/container-image.yml` as
+`ghcr.io/aatuh/evydence:<tag>`. Treat an image as release evidence only when the
+workflow has produced an immutable digest and
+`evydence-container-image-manifest.json` for that tag. Operators who mirror or
+rebuild images for Kubernetes or air-gapped workflows must record the resulting
+digest with their deployment evidence.

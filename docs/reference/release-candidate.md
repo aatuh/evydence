@@ -70,10 +70,13 @@ completed release-artifacts workflow run, uploaded release archives, checksums,
 signed manifest files, release notes, and any configured repository or registry
 trust settings.
 
-The current release line publishes release archives and release evidence only.
-No project-owned public container image is part of `v0.1.0-rc.4`; operators
-must build and publish images into their own registry when using Helm or
-air-gapped deployment flows.
+Release archives and release evidence are published by the Release Artifacts
+workflow. Project-owned container images are published by the separate Container
+Image workflow to `ghcr.io/aatuh/evydence:<tag>` when that workflow is run for a
+release tag. Operators should pin the resulting digest, verify the cosign
+evidence, and record that image digest with deployment evidence. If no image
+workflow evidence exists for a tag, operators must build and publish images into
+their own registry for Helm or air-gapped deployment flows.
 
 ## Deployment Constraints
 

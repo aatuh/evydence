@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="560" viewBox="0 0 960 560" role="img" aria-labelledby="title desc">
+  <title id="title">Evydence package viewer preview</title>
+  <desc id="desc">Static preview of a customer package manifest, readiness result, linked evidence, assumptions, and limitations.</desc>
+  <rect width="960" height="560" fill="#f7f8fb"/>
+  <rect x="36" y="34" width="888" height="492" rx="10" fill="#ffffff" stroke="#d7dce5"/>
+  <rect x="36" y="34" width="888" height="64" rx="10" fill="#172033"/>
+  <text x="64" y="74" font-family="Inter, Arial, sans-serif" font-size="24" fill="#ffffff">Evydence Package Viewer</text>
+  <text x="740" y="72" font-family="Inter, Arial, sans-serif" font-size="14" fill="#cdd6e6">local file only</text>
+
+  <rect x="64" y="126" width="242" height="160" rx="8" fill="#eef6ff" stroke="#bfd7f3"/>
+  <text x="84" y="156" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="700" fill="#13253b">Readiness</text>
+  <text x="84" y="190" font-family="Inter, Arial, sans-serif" font-size="36" font-weight="700" fill="#b42318">blocked</text>
+  <text x="84" y="224" font-family="Inter, Arial, sans-serif" font-size="14" fill="#39475d">critical finding requires</text>
+  <text x="84" y="246" font-family="Inter, Arial, sans-serif" font-size="14" fill="#39475d">VEX decision or exception</text>
+
+  <rect x="334" y="126" width="262" height="160" rx="8" fill="#f3fff4" stroke="#bfdfc2"/>
+  <text x="354" y="156" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="700" fill="#14351c">Evidence Linked</text>
+  <text x="354" y="192" font-family="Inter, Arial, sans-serif" font-size="14" fill="#294534">SBOM: CycloneDX JSON</text>
+  <text x="354" y="218" font-family="Inter, Arial, sans-serif" font-size="14" fill="#294534">Scan: generic vulnerability JSON</text>
+  <text x="354" y="244" font-family="Inter, Arial, sans-serif" font-size="14" fill="#294534">Bundle: signed release manifest</text>
+
+  <rect x="624" y="126" width="252" height="160" rx="8" fill="#fff8eb" stroke="#ead4a8"/>
+  <text x="644" y="156" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="700" fill="#452e13">Limitations</text>
+  <text x="644" y="192" font-family="Inter, Arial, sans-serif" font-size="14" fill="#5a472d">not legal compliance proof</text>
+  <text x="644" y="218" font-family="Inter, Arial, sans-serif" font-size="14" fill="#5a472d">not complete SBOM proof</text>
+  <text x="644" y="244" font-family="Inter, Arial, sans-serif" font-size="14" fill="#5a472d">not a secure-release guarantee</text>
+
+  <rect x="64" y="322" width="812" height="146" rx="8" fill="#fbfcff" stroke="#d7dce5"/>
+  <text x="84" y="354" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="700" fill="#172033">Customer Package Manifest</text>
+  <text x="84" y="388" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#2d3748">package_id: pkg_sample_customer_review</text>
+  <text x="84" y="414" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#2d3748">release: rel_payments_api_2026_05</text>
+  <text x="84" y="440" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#2d3748">included: readiness report, bundle manifest, evidence summary</text>
+</svg>

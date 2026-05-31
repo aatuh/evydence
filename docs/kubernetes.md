@@ -7,10 +7,11 @@ The Helm chart lives at `deploy/helm/evydence`. It deploys the API, worker, serv
 ## Prerequisites
 
 - An Evydence image with an explicit immutable tag or digest in a registry the
-  cluster can pull from. The `v0.1.0-rc.4` public release publishes release
-  archives and release evidence, but no project-owned public container image;
-  operators must build, sign, and publish their own image for Helm installs in
-  this release line.
+  cluster can pull from. Project-owned release-candidate images are published
+  through the maintainer Container Image workflow as
+  `ghcr.io/aatuh/evydence:<tag>` when that workflow has run for the tag.
+  Operators should pin the digest and verify cosign evidence, or build, sign,
+  and publish their own image through a controlled registry.
 - External PostgreSQL and S3/MinIO-compatible object storage.
 - A pre-created object-store bucket.
 - A Kubernetes secret containing at least `EVYDENCE_DATABASE_URL` and `EVYDENCE_API_KEY_PEPPER`.

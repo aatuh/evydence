@@ -1,0 +1,141 @@
+name: Container Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to build, such as v0.1.0-rc.4"
+        required: true
+        default: "v0.1.0-rc.4"
+      image_tag:
+        description: "OCI tag to publish"
+        required: true
+        default: "v0.1.0-rc.4"
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  publish-image:
+    name: Publish Container Image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.inputs.ref }}
+          persist-credentials: false
+
+      - name: Validate image inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          ref="${{ github.event.inputs.ref }}"
+          tag="${{ github.event.inputs.image_tag }}"
+          if [[ ! "$ref" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+            echo "ref contains unsupported characters" >&2
+            exit 2
+          fi
+          if [[ ! "$tag" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+            echo "image_tag contains unsupported characters" >&2
+            exit 2
+          fi
+
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.1.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Log in to GitHub Container Registry
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build and push image
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${{ github.repository }}:${{ github.event.inputs.image_tag }}"
+          commit="$(git rev-parse HEAD)"
+          created="$(git show -s --format=%cI HEAD)"
+          docker buildx create --use --name evydence-builder || docker buildx use evydence-builder
+          docker buildx build \
+            --platform linux/amd64 \
+            --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+            --label "org.opencontainers.image.revision=${commit}" \
+            --label "org.opencontainers.image.created=${created}" \
+            --label "org.opencontainers.image.version=${{ github.event.inputs.image_tag }}" \
+            --provenance=true \
+            --sbom=true \
+            --tag "$image" \
+            --push \
+            .
+          digest="$(docker buildx imagetools inspect "$image" --format '{{json .Manifest.Digest}}' | tr -d '"')"
+          mkdir -p tmp/container-image
+          cat > tmp/container-image/image.env <<EOF
+          IMAGE=$image
+          DIGEST=$digest
+          COMMIT=$commit
+          CREATED=$created
+          EOF
+
+      - name: Install cosign
+        shell: bash
+        run: |
+          set -euo pipefail
+          go install github.com/sigstore/cosign/v2/cmd/cosign@v2.6.1
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Sign image
+        shell: bash
+        run: |
+          set -euo pipefail
+          . tmp/container-image/image.env
+          cosign sign --yes "${IMAGE}@${DIGEST}"
+          cosign verify \
+            --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/container-image.yml@.*" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "${IMAGE}@${DIGEST}" > tmp/container-image/cosign-verify.json
+
+      - name: Write image manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          . tmp/container-image/image.env
+          set +a
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = {
+              "schema": "evydence-container-image.v1",
+              "image": os.environ["IMAGE"],
+              "digest": os.environ["DIGEST"],
+              "source_ref": os.environ.get("GITHUB_REF", ""),
+              "source_commit": os.environ["COMMIT"],
+              "created": os.environ["CREATED"],
+              "signature": {
+                  "type": "cosign-keyless",
+                  "issuer": "https://token.actions.githubusercontent.com",
+                  "verification_file": "cosign-verify.json",
+              },
+              "limitations": [
+                  "Image signing proves this workflow signed the referenced image digest; it is not legal compliance proof, certification, complete SBOM proof, authoritative vulnerability coverage, or a secure-release guarantee.",
+                  "Operators remain responsible for registry access policy, deployment admission controls, runtime configuration, backups, monitoring, and incident response.",
+              ],
+          }
+          Path("tmp/container-image/evydence-container-image-manifest.json").write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          PY
+
+      - name: Upload image evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: evydence-container-image-evidence-${{ github.event.inputs.image_tag }}
+          path: tmp/container-image/
+          if-no-files-found: error

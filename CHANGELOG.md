@@ -9,9 +9,52 @@ results, no secure-release guarantee, and no regulator or auditor acceptance.
 
 ## Unreleased
 
-No public release notes have been added after local release-candidate evidence
-for `v0.1.0-rc.3`. Public GitHub release publication remains an operator
-action.
+### Added
+
+- Public release verification helper for downloading `v0.1.0-rc.4` from
+  GitHub Releases into a clean temporary directory, checking release checksums,
+  validating in-toto provenance metadata shape, and verifying the signed
+  release manifest with the released Linux amd64 CLI.
+- Repository-owned restore rehearsal target for app-layer and live PostgreSQL
+  backup/restore mechanics.
+- Static package-viewer preview asset for public docs.
+
+### Changed
+
+- Dependency maintenance updates for pinned GitHub Actions, the Docker build
+  and runtime base images, and `kin-openapi`.
+
+## v0.1.0-rc.4 - 2026-05-31
+
+Release status: controlled self-hosted production candidate. This prerelease is
+suitable for evaluation, pilots, and controlled internal production after
+operator review. Broad self-hosted production readiness, regulated production,
+and hosted SaaS production remain out of scope for this status.
+
+### Added
+
+- Public GitHub prerelease at
+  <https://github.com/aatuh/evydence/releases/tag/v0.1.0-rc.4>.
+- Release archives for Linux, macOS, and Windows.
+- `SHA256SUMS`, `openapi.sha256`, and `migrations.sha256`.
+- Release coverage output and production-check summary.
+- Release SBOM metadata and Evydence release provenance metadata.
+- Scorecard-compatible in-toto provenance metadata.
+- Signed release manifest plus `.sig.json` verifier input and `.sig` release
+  asset alias.
+- Release notes attached to the public prerelease.
+
+### Known Limits
+
+- Public release archives and release evidence are published, but no
+  container image should be treated as deployable release evidence unless the
+  maintainer image workflow has produced an immutable digest and cosign evidence
+  for the tag.
+- Operators remain responsible for PostgreSQL, object storage, TLS, external
+  signing or KMS/HSM custody, WORM/object-lock policy where required, backups,
+  restore rehearsals, monitoring, provider validation, and incident response.
+- Multi-writer API HA remains outside the supported production profile; use one
+  API writer replica and scale workers through PostgreSQL outbox locking.
 
 ## v0.1.0-rc.3 - 2026-05-31
 

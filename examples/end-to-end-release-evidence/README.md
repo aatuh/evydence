@@ -13,6 +13,19 @@ The files in this directory are non-sensitive fixtures. They are not legal
 compliance proof, certification, complete SBOM proof, authoritative
 vulnerability results, or a secure-release guarantee.
 
+## Start With Release Verification
+
+Before running a local API flow, verify the current public release-candidate
+assets from a clean temporary directory:
+
+```sh
+make public-release-verify TAG=v0.1.0-rc.4
+```
+
+This proves the downloaded public archives, OpenAPI checksum, migration
+checksum, in-toto provenance statement shape, and signed release manifest before
+you use source-checkout commands for local development.
+
 ## Files
 
 - `release-evidence-manifest.json`: example CLI bulk-upload manifest.

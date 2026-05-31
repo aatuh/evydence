@@ -29,9 +29,9 @@ security.
   evaluation, pilots, and controlled internal production after operator review.
 - Production API deployments use one API writer replica; workers may scale
   through PostgreSQL outbox locking.
-- The current public release candidate publishes signed release archives and
-  release evidence, but no project-published container image is part of this
-  release line yet.
+- Container publication uses the maintainer-run GHCR workflow and must be
+  verified by immutable digest and cosign evidence; Helm installs should not use
+  floating image tags.
 - Native PKCS#11/HSM module handling, broad WORM/object-lock proof, direct
   provider-specific management API clients, external group synchronization,
   regulated production, and hosted SaaS production remain outside the current
@@ -50,6 +50,11 @@ Use GitHub Releases and the checked release evidence artifacts as the operator
 install source for the release-candidate line. Source checkout remains the
 development path.
 
+Container images for the release-candidate line are published, when the
+maintainer image workflow has run for the tag, as
+`ghcr.io/aatuh/evydence:<tag>`. Treat the digest and cosign evidence as the
+operator trust input, not the mutable tag alone.
+
 ## Fastest Proof Path
 
 For a first local API flow, follow [Getting started](docs/tutorials/getting-started.md).
@@ -67,6 +72,13 @@ Release-candidate artifacts and their verification commands are indexed in
 the public `v0.1.0-rc.4` release if you want to evaluate release verification
 before running the API.
 
+To verify the public release assets from a clean temporary directory on Linux
+amd64, run:
+
+```sh
+make public-release-verify TAG=v0.1.0-rc.4
+```
+
 The end-to-end evidence flow to evaluate first is:
 
 1. Create a product, release, and artifact.
@@ -74,6 +86,10 @@ The end-to-end evidence flow to evaluate first is:
 3. Record a VEX decision or exception for an intentionally blocking finding.
 4. Generate a release bundle and readiness report.
 5. Export a customer-safe package or evidence bundle for review.
+
+For a visual preview of the customer-package review surface, see the
+[package viewer guide](docs/how-to/view-packages.md). The preview uses
+non-sensitive sample data and does not upload files.
 
 ## Why Evydence Instead Of Existing Tools?
 

@@ -2,7 +2,7 @@ schema_version: evydence-airgap-package.v1.0.0
 images:
   - name: evydence
     repository: ghcr.io/aatuh/evydence
-    tag: operator-built-v0.1.0-rc.4
+    tag: v0.1.0-rc.4
     required: true
 bundled_paths:
   - migrations/
@@ -13,4 +13,4 @@ verification:
   checksums: SHA256SUMS
   signature: SHA256SUMS.sig.json
 limitations:
-  - The v0.1.0-rc.4 public release publishes release archives and release evidence, but no project-owned public container image. Operators must build, sign, and transfer actual images and archives through their controlled process.
+  - Project-owned release-candidate images are published through the maintainer Container Image workflow when run for the tag. Operators must verify and pin the image digest, or build, sign, and transfer actual images and archives through their controlled process.

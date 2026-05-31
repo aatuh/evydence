@@ -38,6 +38,26 @@ backups by themselves.
 8. Record restore start/end time, data cut timestamp, object-store source,
    database backup source, failed checks, and limitations.
 
+## Repository Rehearsal Evidence
+
+The repository-owned rehearsal checks exercise the same restore invariants with
+non-sensitive local data:
+
+```sh
+make restore-rehearsal-check
+```
+
+Expected result: the app-layer rehearsal verifies restored ledger state,
+tenant credentials, object payload digest availability, backup-manifest
+verification, SBOM metadata, and release-bundle verification. When
+`EVYDENCE_TEST_DATABASE_URL` is set, the PostgreSQL rehearsal restores into a
+clean schema and repeats the same database/object-store checks. When the
+variable is unset, the PostgreSQL test reports an explicit skip.
+
+This command is repository proof for restore mechanics. It does not replace an
+operator rehearsal against the target PostgreSQL backup tool, object-store
+bucket, KMS/HSM configuration, network policy, or incident process.
+
 ## Failure Handling
 
 - Missing object payloads: treat affected evidence, package, or report
