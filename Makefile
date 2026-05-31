@@ -135,6 +135,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@test -f docs/reference/configuration.md
 	@test -f docs/reference/api-contract-matrix.md
 	@test -f docs/reference/openapi.md
+	@test -f docs/reference/vulnerability-decisions.md
 	@test -f docs/reference/observability.md
 	@test -f docs/reference/capacity-and-failures.md
 	@test -f docs/reference/benchmark-results.md
@@ -172,6 +173,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 		"reference/configuration.md" \
 		"reference/api-contract-matrix.md" \
 		"reference/openapi.md" \
+		"reference/vulnerability-decisions.md" \
 		"reference/observability.md" \
 		"reference/capacity-and-failures.md" \
 		"reference/benchmark-results.md" \

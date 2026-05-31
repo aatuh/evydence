@@ -1100,8 +1100,11 @@ type VulnerabilityDecision struct {
 	Justification   string    `json:"justification"`
 	ImpactStatement string    `json:"impact_statement,omitempty"`
 	ActionStatement string    `json:"action_statement,omitempty"`
+	CustomerVisible bool      `json:"customer_visible"`
+	InternalNotes   string    `json:"internal_notes,omitempty"`
 	Source          string    `json:"source"`
 	EvidenceID      string    `json:"evidence_id,omitempty"`
+	EvidenceIDs     []string  `json:"evidence_ids,omitempty"`
 	VEXDocumentID   string    `json:"vex_document_id,omitempty"`
 	Supersedes      string    `json:"supersedes,omitempty"`
 	SupersededBy    string    `json:"superseded_by,omitempty"`

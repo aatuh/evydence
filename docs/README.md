@@ -27,6 +27,7 @@ This documentation is organized by reader task. Implementation claims should be 
 - [Documentation source of truth](reference/source-of-truth.md): canonical source map to keep commands, status, and limitations from drifting.
 - [API contract matrix](reference/api-contract-matrix.md): generated route-by-route contract precision inventory for production hardening.
 - [OpenAPI contract](reference/openapi.md): generation, drift checks, and review tips for `openapi.yaml`.
+- [Vulnerability decisions](reference/vulnerability-decisions.md): current VEX/decision model, buyer-facing gaps, and planned API changes.
 - [Observability](reference/observability.md): readiness, admin metrics, Prometheus rules, and dashboard starter assets.
 - [Capacity and failure modes](reference/capacity-and-failures.md): supported concurrency profile, sizing inputs, and failure behavior.
 - [Benchmark results](reference/benchmark-results.md): current local benchmark command and interpretation.

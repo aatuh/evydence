@@ -814,13 +814,20 @@ func applyReplayedVEXDecisions(state *app.PersistedState, job postgres.ClaimedJo
 					Justification:   statement.Justification,
 					ImpactStatement: statement.ImpactStatement,
 					ActionStatement: statement.ActionStatement,
+					CustomerVisible: strings.TrimSpace(statement.ImpactStatement) != "",
 					Source:          "vex",
 					EvidenceID:      evidenceID,
+					EvidenceIDs:     workerDecisionEvidenceIDs(evidenceID),
 					VEXDocumentID:   vex.ID,
 					Supersedes:      supersedes,
 					ApprovedBy:      actorID,
 					SchemaVersion:   domain.VulnerabilityDecisionVersion,
 					CreatedAt:       now,
+				}
+				if supersedes != "" {
+					if _, err := app.AppendPersistedChainEntry(state, now, job.TenantID, "vulnerability_decision.superseded", "vulnerability_decision", supersedes, actorType, actorID, payloadHash, ""); err != nil {
+						return created, errors.New("append replayed vex decision supersession audit entry")
+					}
 				}
 				if _, err := app.AppendPersistedChainEntry(state, now, job.TenantID, "vulnerability_decision.created", "vulnerability_finding", finding.ID, actorType, actorID, payloadHash, ""); err != nil {
 					return created, errors.New("append replayed vex decision audit entry")
@@ -847,6 +854,14 @@ func replayedVEXDecisionID(vexID, findingID, status string) string {
 		sum = sum[:32]
 	}
 	return "vd_" + sum
+}
+
+func workerDecisionEvidenceIDs(evidenceID string) []string {
+	evidenceID = strings.TrimSpace(evidenceID)
+	if evidenceID == "" {
+		return nil
+	}
+	return []string{evidenceID}
 }
 
 func verifyReplayedAttestation(raw []byte, parsed replayedAttestation, attestation domain.BuildAttestation) error {

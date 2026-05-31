@@ -163,11 +163,23 @@ POST /v1/vulnerability-findings/{id}/decisions
 ```json
 {
   "status": "not_affected",
-  "justification": "vulnerable code path is not present"
+  "justification": "vulnerable code path is not present",
+  "impact_statement": "This release is not affected because the vulnerable runtime code is not included.",
+  "action_statement": "No customer action is required for this finding.",
+  "customer_visible": true,
+  "internal_notes": "tenant-internal triage note",
+  "evidence_ids": ["ev_supporting_review"]
 }
 ```
 
-Supported decision statuses are `affected`, `not_affected`, `fixed`, and `under_investigation`.
+Supported decision statuses are `affected`, `not_affected`, `fixed`, and
+`under_investigation`. Customer-visible decisions require
+`impact_statement`; `internal_notes` are tenant-internal and must not be copied
+into customer-safe package summaries. A later decision for the same finding
+supersedes the previous active decision and records audit-chain entries for the
+supersession and replacement. `evidence_ids` may reference tenant-scoped
+supporting evidence from the same release; foreign-tenant or wrong-release
+evidence links are rejected.
 
 ### 4. Readiness And Bundle Retrieval
 

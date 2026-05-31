@@ -296,6 +296,9 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"justification":    map[string]any{"type": "string"},
 		"impact_statement": map[string]any{"type": "string"},
 		"action_statement": map[string]any{"type": "string"},
+		"customer_visible": map[string]any{"type": "boolean"},
+		"internal_notes":   map[string]any{"type": "string", "description": "Tenant-internal notes; excluded from customer-safe package summaries."},
+		"evidence_ids":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 	}, "status", "justification"))
 	registry.RegisterSchema("VulnerabilityDecision", objectSchema(map[string]any{
 		"id":               map[string]any{"type": "string"},
@@ -309,8 +312,11 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"justification":    map[string]any{"type": "string"},
 		"impact_statement": map[string]any{"type": "string"},
 		"action_statement": map[string]any{"type": "string"},
+		"customer_visible": map[string]any{"type": "boolean"},
+		"internal_notes":   map[string]any{"type": "string", "description": "Tenant-internal notes; do not include in customer-safe exports."},
 		"source":           map[string]any{"type": "string"},
 		"evidence_id":      map[string]any{"type": "string"},
+		"evidence_ids":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 		"vex_document_id":  map[string]any{"type": "string"},
 		"supersedes":       map[string]any{"type": "string"},
 		"superseded_by":    map[string]any{"type": "string"},

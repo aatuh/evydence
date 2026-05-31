@@ -266,6 +266,9 @@ func (s packageReportService) CreateCustomerSecurityPackage(ctx context.Context,
 		"evidence_ids":         evidenceIDs,
 		"limitations":          []string{"Package contents are scoped and redacted; raw evidence payload bytes are not included in this manifest."},
 	}
+	if decisions := l.packageDecisionSummariesLocked(actor.TenantID, in.ReleaseID, profile); len(decisions) > 0 {
+		manifest["vulnerability_decisions"] = decisions
+	}
 	hash, err := canonicalAnyHash(manifest)
 	if err != nil {
 		return domain.CustomerSecurityPackage{}, err
@@ -746,6 +749,70 @@ func (l *Ledger) packageEvidenceIDsLocked(tenantID, productID, releaseID string,
 	}
 	sort.Strings(ids)
 	return ids
+}
+
+func (l *Ledger) packageDecisionSummariesLocked(tenantID, releaseID string, profile domain.RedactionProfile) []map[string]any {
+	if !profileAllowsPackageType(profile, "vulnerability_decision") {
+		return nil
+	}
+	excluded := profileExcludedFields(profile)
+	summaries := []map[string]any{}
+	for _, decision := range l.decisions {
+		if decision.TenantID != tenantID || decision.ReleaseID != releaseID || decision.SupersededBy != "" || !decision.CustomerVisible {
+			continue
+		}
+		summary := map[string]any{
+			"id":               decision.ID,
+			"finding_id":       decision.FindingID,
+			"scan_id":          decision.ScanID,
+			"release_id":       decision.ReleaseID,
+			"vulnerability":    decision.Vulnerability,
+			"component":        decision.Component,
+			"status":           decision.Status,
+			"impact_statement": decision.ImpactStatement,
+			"source":           decision.Source,
+			"created_at":       decision.CreatedAt.UTC().Format(time.RFC3339),
+		}
+		if decision.ActionStatement != "" && !excluded["action_statement"] {
+			summary["action_statement"] = decision.ActionStatement
+		}
+		if decision.Justification != "" && !excluded["justification"] {
+			summary["justification"] = decision.Justification
+		}
+		if decision.EvidenceID != "" && !excluded["evidence_id"] {
+			summary["evidence_id"] = decision.EvidenceID
+		}
+		if decision.VEXDocumentID != "" && !excluded["vex_document_id"] {
+			summary["vex_document_id"] = decision.VEXDocumentID
+		}
+		if len(decision.EvidenceIDs) > 0 && !excluded["evidence_ids"] {
+			summary["evidence_ids"] = append([]string(nil), decision.EvidenceIDs...)
+		}
+		summaries = append(summaries, summary)
+	}
+	sort.Slice(summaries, func(i, j int) bool {
+		left := summaries[i]["vulnerability"].(string) + "\x00" + summaries[i]["id"].(string)
+		right := summaries[j]["vulnerability"].(string) + "\x00" + summaries[j]["id"].(string)
+		return left < right
+	})
+	return summaries
+}
+
+func profileAllowsPackageType(profile domain.RedactionProfile, typ string) bool {
+	for _, allowed := range profile.AllowedTypes {
+		if strings.TrimSpace(allowed) == typ {
+			return true
+		}
+	}
+	return false
+}
+
+func profileExcludedFields(profile domain.RedactionProfile) map[string]bool {
+	excluded := map[string]bool{}
+	for _, field := range profile.ExcludedFields {
+		excluded[strings.TrimSpace(field)] = true
+	}
+	return excluded
 }
 
 func builtinTemplatePacks() []domain.ControlFrameworkTemplatePack {
