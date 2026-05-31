@@ -3,7 +3,7 @@
 This generated reference inventories Evydence `/v1` route contract precision from `openapi.yaml`.
 It is a planning aid for production contract hardening; `broad` means the route still uses a shared envelope, unspecified body, or generic schema where an endpoint-specific contract should be considered.
 
-Generated from 171 operations: 171 precise, 0 broad.
+Generated from 173 operations: 173 precise, 0 broad.
 
 | Method | Path | Operation | Auth | Scopes | Idempotency | Params | Request | 2xx Response | Precision |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -125,12 +125,14 @@ Generated from 171 operations: 171 precise, 0 broad.
 | GET | /v1/reports/control-coverage | controlCoverageReport | Bearer | report:read | - | query:framework_id, query:product_id, query:release_id | - | 200:application/json:ReadinessReportEnvelope | precise |
 | GET | /v1/reports/cra-readiness | craReadinessReport | Bearer | report:read | - | query:product_id, query:release_id | - | 200:application/json:ReadinessReportEnvelope | precise |
 | GET | /v1/reports/cra-readiness-html | craReadinessHTMLPackage | Bearer | report:read | - | query:product_id, query:release_id | - | 200:application/json:HTMLReportPackageEnvelope | precise |
+| GET | /v1/reports/cra-vulnerability-handling | craVulnerabilityHandlingReport | Bearer | report:read | - | query:product_id, query:release_id | - | 200:application/json:CRAVulnerabilityHandlingReportEnvelope | precise |
 | GET | /v1/reports/incident-package | incidentReport | Bearer | incident:read | - | query:incident_id | - | 200:application/json:IncidentReportEnvelope | precise |
 | GET | /v1/reports/missing-evidence | missingEvidenceReport | Bearer | verify:read | - | query:release_id | - | 200:application/json:MissingEvidenceReportEnvelope | precise |
 | POST | /v1/reports/pdf | createPDFReportPackage | Bearer | report:read | required | - | application/json:CreatePDFReportPackageRequest | 201:application/json:PDFReportPackageEnvelope | precise |
 | GET | /v1/reports/release-readiness | releaseReadinessReport | Bearer | verify:read | - | query:release_id | - | 200:application/json:ReadinessReportEnvelope | precise |
 | GET | /v1/reports/retention | retentionReport | Bearer | admin | - | query:scope_id, query:scope_type | - | 200:application/json:RetentionReportEnvelope | precise |
 | GET | /v1/reports/security-review-package | securityReviewPackageReport | Bearer | package:read | - | query:package_id | - | 200:application/json:SecurityReviewPackageReportEnvelope | precise |
+| GET | /v1/reports/security-update-evidence | securityUpdateEvidenceReport | Bearer | report:read | - | query:product_id, query:release_id | - | 200:application/json:SecurityUpdateEvidenceReportEnvelope | precise |
 | GET | /v1/reports/vulnerability-decision-summary | vulnerabilityDecisionSummaryReport | Bearer | report:read | - | query:release_id | - | 200:application/json:VulnerabilityDecisionSummaryReportEnvelope | precise |
 | GET | /v1/reports/vulnerability-posture | vulnerabilityPostureReport | Bearer | security:read | - | query:release_id | - | 200:application/json:VulnerabilityPostureReportEnvelope | precise |
 | POST | /v1/retention-overrides | createRetentionOverride | Bearer | admin | required | - | application/json:CreateRetentionOverrideRequest | 201:application/json:RetentionOverrideEnvelope | precise |

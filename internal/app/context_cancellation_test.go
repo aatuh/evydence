@@ -149,6 +149,14 @@ func TestLedgerOperationsHonorCanceledContextBeforeWork(t *testing.T) {
 			_, err := ledger.CRAReadinessReport(ctx, actor, CRAReadinessReportInput{ProductID: "prod", ReleaseID: "rel"})
 			return err
 		}},
+		{"CRAVulnerabilityHandlingReport", func() error {
+			_, err := ledger.CRAVulnerabilityHandlingReport(ctx, actor, "prod", "rel")
+			return err
+		}},
+		{"SecurityUpdateEvidenceReport", func() error {
+			_, err := ledger.SecurityUpdateEvidenceReport(ctx, actor, "prod", "rel")
+			return err
+		}},
 		{"CreateCollector", func() error {
 			_, _, _, err := ledger.CreateCollector(ctx, actor, CreateCollectorInput{Name: "collector", Type: "github_actions", Version: "1"})
 			return err
@@ -512,6 +520,14 @@ func TestLedgerOperationsRejectActorsWithoutRequiredScopesBeforeResourceWork(t *
 		}},
 		{"CRAReadinessReport", func() error {
 			_, err := ledger.CRAReadinessReport(ctx, actor, CRAReadinessReportInput{ProductID: "prod", ReleaseID: "rel"})
+			return err
+		}},
+		{"CRAVulnerabilityHandlingReport", func() error {
+			_, err := ledger.CRAVulnerabilityHandlingReport(ctx, actor, "prod", "rel")
+			return err
+		}},
+		{"SecurityUpdateEvidenceReport", func() error {
+			_, err := ledger.SecurityUpdateEvidenceReport(ctx, actor, "prod", "rel")
 			return err
 		}},
 		{"CreateCollector", func() error {

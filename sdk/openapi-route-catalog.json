@@ -1,5 +1,5 @@
 {
-  "route_count": 171,
+  "route_count": 173,
   "routes": [
     {
       "idempotency_key_required": false,
@@ -1996,6 +1996,23 @@
     {
       "idempotency_key_required": false,
       "method": "GET",
+      "operation_id": "craVulnerabilityHandlingReport",
+      "path": "/v1/reports/cra-vulnerability-handling",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/CRAVulnerabilityHandlingReportEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "report:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
       "operation_id": "incidentReport",
       "path": "/v1/reports/incident-package",
       "request_schema": "",
@@ -2090,6 +2107,23 @@
       ],
       "scopes": [
         "package:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "securityUpdateEvidenceReport",
+      "path": "/v1/reports/security-update-evidence",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SecurityUpdateEvidenceReportEnvelope"
+      ],
+      "scopes": [
+        "report:read"
       ],
       "success_statuses": [
         "200"

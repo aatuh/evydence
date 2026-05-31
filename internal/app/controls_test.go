@@ -96,6 +96,92 @@ func TestControlFrameworkControlEvidenceAndCoverageFlow(t *testing.T) {
 	}
 }
 
+func TestCRATemplateReportsForVulnerabilityHandlingAndSecurityUpdates(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	actor, release, _ := setupReleaseRiskFixture(t, ledger)
+	scan, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{
+		"scanner":"grype",
+		"target_ref":"pkg:oci/payments-api",
+		"release_id":"`+release.ID+`",
+		"findings":[{"vulnerability":"CVE-2026-2020","component":"pkg:apk/openssl@3.1.0","severity":"critical","state":"open"}]
+	}`))
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	decision, err := ledger.CreateVulnerabilityDecision(ctx, actor, scan.Findings[0].ID, CreateVulnerabilityDecisionInput{
+		Status:          decisionStatusFixed,
+		Justification:   "patched in the release build",
+		ImpactStatement: "The release contains the patched component version.",
+		ActionStatement: "Customers should deploy this release when they next update.",
+		CustomerVisible: true,
+		InternalNotes:   "private triage details must not appear in CRA reports",
+	})
+	if err != nil {
+		t.Fatalf("decision: %v", err)
+	}
+	exception, err := ledger.CreateException(ctx, actor, CreateExceptionInput{ReleaseID: release.ID, FindingID: scan.Findings[0].ID, Reason: "temporary customer rollout window", Owner: "security", ExpiresAt: fixedNow().Add(48 * time.Hour)})
+	if err != nil {
+		t.Fatalf("exception: %v", err)
+	}
+	if _, err := ledger.ApproveException(ctx, actor, exception.ID); err != nil {
+		t.Fatalf("approve exception: %v", err)
+	}
+	supportingEvidence, err := ledger.CreateEvidence(ctx, actor, CreateEvidenceInput{ProductID: release.ProductID, ReleaseID: release.ID, Type: "security_review", Title: "Security update review", PayloadHash: sampleDigest("security-update")})
+	if err != nil {
+		t.Fatalf("supporting evidence: %v", err)
+	}
+	incident, err := ledger.CreateIncident(ctx, actor, CreateIncidentInput{ProductID: release.ProductID, ReleaseID: release.ID, Title: "Security update coordination", Severity: "medium", OpenedAt: fixedNow()})
+	if err != nil {
+		t.Fatalf("incident: %v", err)
+	}
+	task, err := ledger.CreateRemediationTask(ctx, actor, CreateRemediationTaskInput{IncidentID: incident.ID, ReleaseID: release.ID, Title: "Publish security update note", Owner: "security", EvidenceID: supportingEvidence.ID})
+	if err != nil {
+		t.Fatalf("remediation task: %v", err)
+	}
+
+	handling, err := ledger.CRAVulnerabilityHandlingReport(ctx, actor, release.ProductID, release.ID)
+	if err != nil {
+		t.Fatalf("CRA vulnerability handling report: %v", err)
+	}
+	if handling.ReportType != "cra_vulnerability_handling" || handling.Summary["findings_total"] != 1 || handling.Summary["decisions_total"] != 1 || handling.Summary["approved_exceptions_total"] != 1 {
+		t.Fatalf("unexpected vulnerability handling report: %#v", handling)
+	}
+	if len(handling.Decisions) != 1 || handling.Decisions[0].ID != decision.ID || len(handling.AcceptedExceptions) != 1 {
+		t.Fatalf("handling decisions/exceptions = %#v", handling)
+	}
+	if !stringSliceContains(handling.EvidenceIDs, scan.EvidenceID) {
+		t.Fatalf("handling evidence ids missing scan evidence %s: %#v", scan.EvidenceID, handling.EvidenceIDs)
+	}
+	updateReport, err := ledger.SecurityUpdateEvidenceReport(ctx, actor, release.ProductID, release.ID)
+	if err != nil {
+		t.Fatalf("security update evidence report: %v", err)
+	}
+	if updateReport.ReportType != "security_update_evidence" || updateReport.Summary["incidents_total"] != 1 || updateReport.Summary["remediation_tasks_total"] != 1 || updateReport.Summary["fixed_decisions_total"] != 1 {
+		t.Fatalf("unexpected security update report: %#v", updateReport)
+	}
+	if len(updateReport.Incidents) != 1 || updateReport.Incidents[0].ID != incident.ID || len(updateReport.RemediationTasks) != 1 || updateReport.RemediationTasks[0].ID != task.ID {
+		t.Fatalf("security update incident/task details = %#v", updateReport)
+	}
+	if !stringSliceContains(updateReport.EvidenceIDs, supportingEvidence.ID) || !stringSliceContains(updateReport.EvidenceIDs, scan.EvidenceID) {
+		t.Fatalf("security update evidence ids missing expected ids: %#v", updateReport.EvidenceIDs)
+	}
+	reportText := strings.ToLower(strings.Join(append(append(handling.Assumptions, handling.Limitations...), append(updateReport.Assumptions, updateReport.Limitations...)...), " "))
+	for _, forbidden := range []string{"private triage details", "legally sufficient", "certified secure", "automatically compliant"} {
+		if strings.Contains(reportText, forbidden) {
+			t.Fatalf("CRA report text leaked forbidden phrase %q: handling=%#v update=%#v", forbidden, handling, updateReport)
+		}
+	}
+
+	actorB, _, _ := setupReleaseRiskFixture(t, ledger)
+	if _, err := ledger.CRAVulnerabilityHandlingReport(ctx, actorB, release.ProductID, release.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("cross-tenant CRA vulnerability handling err=%v, want not found", err)
+	}
+	if _, err := ledger.SecurityUpdateEvidenceReport(ctx, actorB, release.ProductID, release.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("cross-tenant security update err=%v, want not found", err)
+	}
+}
+
 func TestControlValidationScopeAndWaivedCoverage(t *testing.T) {
 	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()

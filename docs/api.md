@@ -418,6 +418,8 @@ Source snapshots capture submitted provider metadata. They do not call provider 
 | `GET` | `/v1/control-evidence` | List links. |
 | `GET` | `/v1/reports/control-coverage` | Deterministic control coverage. |
 | `GET` | `/v1/reports/cra-readiness` | Technical evidence readiness report with limitations. |
+| `GET` | `/v1/reports/cra-vulnerability-handling` | CRA-oriented vulnerability handling evidence report with limitations. |
+| `GET` | `/v1/reports/security-update-evidence` | Release-scoped security update evidence report with limitations. |
 | `POST` | `/v1/exceptions` | Create exception. |
 | `POST` | `/v1/exceptions/{id}/approve` | Approve exception. |
 | `GET` | `/v1/exceptions` | List exceptions. |

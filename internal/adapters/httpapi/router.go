@@ -1796,6 +1796,32 @@ func (s *Server) craReadinessReport(w http.ResponseWriter, r *http.Request) {
 	writeData(w, http.StatusOK, report)
 }
 
+func (s *Server) craVulnerabilityHandlingReport(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	report, err := s.ledger.CRAVulnerabilityHandlingReport(r.Context(), actor, r.URL.Query().Get("product_id"), r.URL.Query().Get("release_id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, report)
+}
+
+func (s *Server) securityUpdateEvidenceReport(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	report, err := s.ledger.SecurityUpdateEvidenceReport(r.Context(), actor, r.URL.Query().Get("product_id"), r.URL.Query().Get("release_id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, report)
+}
+
 func (s *Server) createReleaseBundle(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ReleaseID string `json:"release_id"`

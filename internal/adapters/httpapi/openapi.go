@@ -2113,6 +2113,35 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"generated_at":     map[string]any{"type": "string", "format": "date-time"},
 	}, "report_type", "template_version", "summary", "open_critical", "assumptions", "limitations", "generated_at"))
 	registry.RegisterSchema("VulnerabilityPostureReportEnvelope", dataEnvelopeSchema("#/components/schemas/VulnerabilityPostureReport"))
+	registry.RegisterSchema("CRAVulnerabilityHandlingReport", objectSchema(map[string]any{
+		"report_type":         map[string]any{"type": "string"},
+		"template_version":    map[string]any{"type": "string"},
+		"product_id":          map[string]any{"type": "string"},
+		"release_id":          map[string]any{"type": "string"},
+		"summary":             map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "integer"}},
+		"decisions":           map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/VulnerabilityDecisionCustomerSummary"}},
+		"accepted_exceptions": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/Exception"}},
+		"evidence_ids":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"assumptions":         map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"limitations":         map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"generated_at":        map[string]any{"type": "string", "format": "date-time"},
+	}, "report_type", "template_version", "product_id", "release_id", "summary", "assumptions", "limitations", "generated_at"))
+	registry.RegisterSchema("CRAVulnerabilityHandlingReportEnvelope", dataEnvelopeSchema("#/components/schemas/CRAVulnerabilityHandlingReport"))
+	registry.RegisterSchema("SecurityUpdateEvidenceReport", objectSchema(map[string]any{
+		"report_type":       map[string]any{"type": "string"},
+		"template_version":  map[string]any{"type": "string"},
+		"product_id":        map[string]any{"type": "string"},
+		"release_id":        map[string]any{"type": "string"},
+		"summary":           map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "integer"}},
+		"fixed_decisions":   map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/VulnerabilityDecisionCustomerSummary"}},
+		"incidents":         map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/Incident"}},
+		"remediation_tasks": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/RemediationTask"}},
+		"evidence_ids":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"assumptions":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"limitations":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"generated_at":      map[string]any{"type": "string", "format": "date-time"},
+	}, "report_type", "template_version", "product_id", "release_id", "summary", "assumptions", "limitations", "generated_at"))
+	registry.RegisterSchema("SecurityUpdateEvidenceReportEnvelope", dataEnvelopeSchema("#/components/schemas/SecurityUpdateEvidenceReport"))
 	registry.RegisterSchema("CreateAnomalyReportRequest", objectSchema(map[string]any{
 		"subject_type": map[string]any{"type": "string"},
 		"subject_id":   map[string]any{"type": "string"},

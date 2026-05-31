@@ -94,7 +94,7 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	if _, ok := redactionRequestProps["preset"]; !ok {
 		t.Fatalf("redaction profile request schema missing preset: %#v", redactionRequestProps)
 	}
-	for _, schemaName := range []string{"ReadinessStatusEnvelope", "BackupManifestEnvelope", "VerificationResultEnvelope", "ReadinessReportEnvelope", "CreateProductRequest", "ProductEnvelope", "ProductListEnvelope", "CreateProjectRequest", "ProjectEnvelope", "CreateReleaseRequest", "ReleaseEnvelope", "ReleaseEvidenceFlowEnvelope", "ReleaseSecuritySummaryEnvelope", "RegisterArtifactRequest", "ArtifactEnvelope", "CreateBuildRequest", "BuildRunEnvelope", "EvidenceUploadRequest", "SBOMEnvelope", "VEXDocumentEnvelope", "VEXImportReportEnvelope", "UploadVulnerabilityScanRequest", "VulnerabilityScanEnvelope", "VulnerabilityDecisionListEnvelope", "VulnerabilityDecisionSummaryReportEnvelope", "CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOProviderRequest", "UpdateSSOProviderTrustMaterialRequest", "SSOProviderEnvelope", "VerifyProviderIdentityRequest", "ProviderVerificationEnvelope", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "ExchangeSSOCredentialRequest", "SSOCredentialExchangeEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalPackageRequest", "DataEnvelope"} {
+	for _, schemaName := range []string{"ReadinessStatusEnvelope", "BackupManifestEnvelope", "VerificationResultEnvelope", "ReadinessReportEnvelope", "CRAVulnerabilityHandlingReportEnvelope", "SecurityUpdateEvidenceReportEnvelope", "CreateProductRequest", "ProductEnvelope", "ProductListEnvelope", "CreateProjectRequest", "ProjectEnvelope", "CreateReleaseRequest", "ReleaseEnvelope", "ReleaseEvidenceFlowEnvelope", "ReleaseSecuritySummaryEnvelope", "RegisterArtifactRequest", "ArtifactEnvelope", "CreateBuildRequest", "BuildRunEnvelope", "EvidenceUploadRequest", "SBOMEnvelope", "VEXDocumentEnvelope", "VEXImportReportEnvelope", "UploadVulnerabilityScanRequest", "VulnerabilityScanEnvelope", "VulnerabilityDecisionListEnvelope", "VulnerabilityDecisionSummaryReportEnvelope", "CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOProviderRequest", "UpdateSSOProviderTrustMaterialRequest", "SSOProviderEnvelope", "VerifyProviderIdentityRequest", "ProviderVerificationEnvelope", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "ExchangeSSOCredentialRequest", "SSOCredentialExchangeEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalPackageRequest", "DataEnvelope"} {
 		if _, ok := schemas[schemaName]; !ok {
 			t.Fatalf("schema %s missing from OpenAPI components", schemaName)
 		}
@@ -115,6 +115,12 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	craReadiness := operationMap(t, paths, "/v1/reports/cra-readiness", "get")
 	assertQueryParams(t, craReadiness, "product_id", "release_id")
 	assertResponseRef(t, craReadiness, "200", "#/components/schemas/ReadinessReportEnvelope")
+	craVulnerabilityHandling := operationMap(t, paths, "/v1/reports/cra-vulnerability-handling", "get")
+	assertQueryParams(t, craVulnerabilityHandling, "product_id", "release_id")
+	assertResponseRef(t, craVulnerabilityHandling, "200", "#/components/schemas/CRAVulnerabilityHandlingReportEnvelope")
+	securityUpdateEvidence := operationMap(t, paths, "/v1/reports/security-update-evidence", "get")
+	assertQueryParams(t, securityUpdateEvidence, "product_id", "release_id")
+	assertResponseRef(t, securityUpdateEvidence, "200", "#/components/schemas/SecurityUpdateEvidenceReportEnvelope")
 	createProduct := operationMap(t, paths, "/v1/products", "post")
 	assertRequestRef(t, createProduct, "#/components/schemas/CreateProductRequest")
 	assertResponseRef(t, createProduct, "201", "#/components/schemas/ProductEnvelope")
@@ -504,10 +510,12 @@ func TestAuthenticatedReadRoutesRejectMissingBearerToken(t *testing.T) {
 		"/v1/reports/control-coverage",
 		"/v1/reports/cra-readiness",
 		"/v1/reports/cra-readiness-html",
+		"/v1/reports/cra-vulnerability-handling",
 		"/v1/reports/incident-package",
 		"/v1/reports/missing-evidence",
 		"/v1/reports/retention",
 		"/v1/reports/security-review-package",
+		"/v1/reports/security-update-evidence",
 		"/v1/reports/vulnerability-posture",
 		"/v1/role-bindings",
 		"/v1/sboms/sbom_missing",
@@ -1023,6 +1031,14 @@ func TestControlsAndReportsHTTPFlow(t *testing.T) {
 	cra := getJSON(t, server, secret, "/v1/reports/cra-readiness?product_id="+productID+"&release_id="+releaseID, http.StatusOK)
 	if strings.Contains(strings.ToLower(cra), "automatically compliant") || strings.Contains(strings.ToLower(cra), "certified secure") {
 		t.Fatalf("CRA report contains forbidden claim: %s", cra)
+	}
+	handling := getJSON(t, server, secret, "/v1/reports/cra-vulnerability-handling?product_id="+productID+"&release_id="+releaseID, http.StatusOK)
+	if !strings.Contains(handling, `"report_type":"cra_vulnerability_handling"`) || strings.Contains(strings.ToLower(handling), "certified secure") {
+		t.Fatalf("CRA vulnerability handling report response: %s", handling)
+	}
+	update := getJSON(t, server, secret, "/v1/reports/security-update-evidence?product_id="+productID+"&release_id="+releaseID, http.StatusOK)
+	if !strings.Contains(update, `"report_type":"security_update_evidence"`) || strings.Contains(strings.ToLower(update), "automatically compliant") {
+		t.Fatalf("security update evidence report response: %s", update)
 	}
 }
 

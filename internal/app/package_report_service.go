@@ -26,6 +26,14 @@ func (l *Ledger) CRAReadinessReport(ctx context.Context, actor domain.Actor, in 
 	return l.packageReportService().CRAReadinessReport(ctx, actor, in)
 }
 
+func (l *Ledger) CRAVulnerabilityHandlingReport(ctx context.Context, actor domain.Actor, productID, releaseID string) (domain.CRAVulnerabilityHandlingReport, error) {
+	return l.packageReportService().CRAVulnerabilityHandlingReport(ctx, actor, productID, releaseID)
+}
+
+func (l *Ledger) SecurityUpdateEvidenceReport(ctx context.Context, actor domain.Actor, productID, releaseID string) (domain.SecurityUpdateEvidenceReport, error) {
+	return l.packageReportService().SecurityUpdateEvidenceReport(ctx, actor, productID, releaseID)
+}
+
 func (l *Ledger) IncidentReport(ctx context.Context, actor domain.Actor, incidentID string) (domain.IncidentReport, error) {
 	return l.packageReportService().IncidentReport(ctx, actor, incidentID)
 }
