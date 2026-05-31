@@ -46,7 +46,7 @@ func TestManualDecisionCanLinkImportedVEXAndExportCustomerPackage(t *testing.T) 
 		t.Fatalf("manual linked decision = %#v", decision)
 	}
 
-	profile, err := ledger.CreateRedactionProfile(ctx, actor, CreateRedactionProfileInput{Name: "linked VEX decisions", AllowedTypes: []string{"vulnerability_decision"}})
+	profile, err := ledger.CreateRedactionProfile(ctx, actor, CreateRedactionProfileInput{Name: "linked VEX decisions", AllowedTypes: []string{"vulnerability_decision", "vex"}})
 	if err != nil {
 		t.Fatalf("redaction profile: %v", err)
 	}
@@ -70,6 +70,17 @@ func TestManualDecisionCanLinkImportedVEXAndExportCustomerPackage(t *testing.T) 
 	}
 	if strings.Contains(text, "internal reviewer note") {
 		t.Fatalf("package manifest leaked internal notes: %s", body)
+	}
+	archive, err := ledger.ExportCustomerSecurityPackageArchive(ctx, actor, pkg.ID)
+	if err != nil {
+		t.Fatalf("export archive: %v", err)
+	}
+	htmlReport := packageArchiveFiles(t, archive.Bytes)["report.html"]
+	if !strings.Contains(htmlReport, decision.ImpactStatement) || !strings.Contains(htmlReport, vex.ID) {
+		t.Fatalf("HTML report missing VEX/decision content: %s", htmlReport)
+	}
+	if strings.Contains(htmlReport, "internal reviewer note") || strings.Contains(htmlReport, "payload_ref") || strings.Contains(htmlReport, "<script") {
+		t.Fatalf("HTML report leaked unsafe content: %s", htmlReport)
 	}
 }
 
