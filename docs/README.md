@@ -1,6 +1,6 @@
 # Evydence Documentation
 
-This documentation is organized by reader task. Implementation claims should be backed by committed code, `openapi.yaml`, tests, deployment files, or Makefile targets. `.initial_design.md` remains design intent.
+This documentation is organized by reader task. Implementation claims should be backed by committed code, `openapi.yaml`, tests, deployment files, Makefile targets, and the canonical references listed in [Documentation source of truth](reference/source-of-truth.md).
 
 ## Start Here
 

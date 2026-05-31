@@ -22,8 +22,8 @@ project under terms compatible with this model.
 
 Before opening a change:
 
-1. Read `AGENTS.md`, `.initial_design.md`, `README.md`, `openapi.yaml`, and the
-   relevant docs under `docs/`.
+1. Read `AGENTS.md`, `README.md`, `openapi.yaml`,
+   `docs/reference/source-of-truth.md`, and the relevant docs under `docs/`.
 2. Keep OpenAPI, tests, migrations, docs, SDK artifacts, examples, deployment
    files, and release evidence aligned when behavior changes.
 3. Preserve tenant isolation, append-only evidence behavior, idempotency,

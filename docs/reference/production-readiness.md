@@ -173,9 +173,8 @@ Do not describe an Evydence build as broadly self-hosted production-ready until:
 
 ## Remaining Production Maturity Backlog
 
-These items are tracked separately from the feature-completeness checklist in
-`.implementation_increments.md` because they are hardening work on already
-implemented capabilities:
+These items are tracked here and in [Roadmap and release cadence](roadmap.md)
+because they are hardening work on already implemented capabilities:
 
 - Continue splitting the large application ledger into focused services while
   preserving the dependency-ordered relational persistence paths now in place.
