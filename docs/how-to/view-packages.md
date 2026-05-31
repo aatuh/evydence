@@ -11,6 +11,8 @@ running the API, load
 `examples/end-to-end-release-evidence/sample-customer-package-manifest.json` or
 press **Load bundled demo** in the viewer.
 
+![Static package viewer preview](../assets/package-viewer-preview.svg)
+
 Use it for:
 
 - checking a release-readiness report before sending a customer package;

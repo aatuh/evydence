@@ -80,3 +80,11 @@ Repository CI and SAST workflows should keep third-party Actions pinned by
 commit SHA and service/container images pinned by digest. If an Action or image
 pin is updated, reviewers should verify the upstream tag or digest source and
 record the reason in the pull request or release evidence.
+
+Branch protection requires the live `Production Check` and `CodeQL Analyze`
+checks because they run on pushes and pull requests and directly gate runtime
+correctness and security analysis. OpenSSF Scorecard and Scorecard SARIF remain
+scheduled/manual advisory checks for the current release-candidate line. Do not
+make them required branch-protection checks unless their workflows also run on
+the same pull request events without introducing circular or non-deterministic
+merge blocking.

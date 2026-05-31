@@ -9,7 +9,7 @@ GOVULNCHECK_VERSION ?= v1.2.0
 
 TAG ?=
 
-.PHONY: help tools fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check meta-check docs-check deploy-check sdk-check demo-check black-box-demo-check benchmark-check package-viewer-check fast-check finalize release-acceptance release-check production-check release-candidate-check migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
+.PHONY: help tools fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check meta-check docs-check deploy-check sdk-check demo-check black-box-demo-check benchmark-check package-viewer-check restore-rehearsal-check fast-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -73,6 +73,7 @@ meta-check: ## Validate root legal, governance, support, and release-evidence me
 	@test -f .dockerignore
 	@test -f .github/dependabot.yml
 	@test -f .github/workflows/scorecard.yml
+	@test -f .github/workflows/container-image.yml
 	@test -f .github/workflows/codeql.yml
 	@test -f .github/ISSUE_TEMPLATE.md
 	@test -f .github/ISSUE_TEMPLATE/bug_report.yml
@@ -96,15 +97,20 @@ meta-check: ## Validate root legal, governance, support, and release-evidence me
 	@grep -F 'internal/app/' CODEOWNERS >/dev/null
 	@grep -F 'docs/reference/release-evidence-index.md' CODEOWNERS >/dev/null
 	@grep -F 'OpenSSF Scorecard' .github/workflows/scorecard.yml >/dev/null
-	@grep -F 'ossf/scorecard-action@62b2cac7ed8198b15735ed49ab1e5cf35480ba46' .github/workflows/scorecard.yml >/dev/null
+	@grep -F 'ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a' .github/workflows/scorecard.yml >/dev/null
 	@grep -F 'OpenSSF Scorecard SARIF' .github/workflows/scorecard-sarif.yml >/dev/null
-	@grep -F 'ossf/scorecard-action@62b2cac7ed8198b15735ed49ab1e5cf35480ba46' .github/workflows/scorecard-sarif.yml >/dev/null
-	@grep -F 'github/codeql-action/upload-sarif@fee9466b8957867761f2d78f922ab084e3e2dd17' .github/workflows/scorecard-sarif.yml >/dev/null
-	@grep -F 'github/codeql-action/analyze@fee9466b8957867761f2d78f922ab084e3e2dd17' .github/workflows/codeql.yml >/dev/null
-	@grep -F 'actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd' .github/workflows/ci.yml >/dev/null
+	@grep -F 'ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a' .github/workflows/scorecard-sarif.yml >/dev/null
+	@grep -F 'github/codeql-action/upload-sarif@03e4368ac7daa2bd82b3e85262f3bf87ee112f57' .github/workflows/scorecard-sarif.yml >/dev/null
+	@grep -F 'github/codeql-action/analyze@03e4368ac7daa2bd82b3e85262f3bf87ee112f57' .github/workflows/codeql.yml >/dev/null
+	@grep -F 'actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd' .github/workflows/ci.yml >/dev/null
 	@grep -F 'actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c' .github/workflows/ci.yml >/dev/null
 	@grep -F 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' .github/workflows/ci.yml >/dev/null
 	@grep -F 'postgres:16-alpine@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229' .github/workflows/ci.yml >/dev/null
+	@grep -F 'ghcr.io/$${{ github.repository }}' .github/workflows/container-image.yml >/dev/null
+	@grep -F 'cosign sign --yes' .github/workflows/container-image.yml >/dev/null
+	@grep -F 'cosign verify' .github/workflows/container-image.yml >/dev/null
+	@grep -F -- '--provenance=true' .github/workflows/container-image.yml >/dev/null
+	@grep -F -- '--sbom=true' .github/workflows/container-image.yml >/dev/null
 	@grep -F 'Evydence fork' TRADEMARKS.md >/dev/null
 	@grep -F 'Release evidence is not a certification' RELEASE_EVIDENCE.md >/dev/null
 	@grep -F '.refs' .dockerignore >/dev/null
@@ -149,6 +155,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@test -f docs/github-actions/upload-build/action.yml
 	@test -f docs/gitlab/evydence-release-evidence.gitlab-ci.yml
 	@test -f .github/workflows/release-artifacts.yml
+	@test -f .github/workflows/container-image.yml
 	@test -f .github/workflows/codeql.yml
 	@test -f docs/sdk/README.md
 	@for path in \
@@ -201,6 +208,15 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@grep -F './dist/evydence release manifest' docs/air-gapped.md >/dev/null
 	@grep -F './evydence release verify' docs/air-gapped.md >/dev/null
 	@grep -F './evydence import-bundle upload' docs/air-gapped.md >/dev/null
+	@test -x scripts/public_release_verify.sh
+	@grep -F 'make public-release-verify TAG=v0.1.0-rc.4' README.md >/dev/null
+	@grep -F 'make public-release-verify TAG=v0.1.0-rc.4' docs/how-to/install-and-operate.md >/dev/null
+	@grep -F 'make public-release-verify TAG=v0.1.0-rc.4' docs/reference/release-evidence-index.md >/dev/null
+	@grep -F 'make public-release-verify TAG=v0.1.0-rc.4' examples/end-to-end-release-evidence/README.md >/dev/null
+	@test -f docs/assets/package-viewer-preview.svg
+	@grep -F 'package-viewer-preview.svg' docs/how-to/view-packages.md >/dev/null
+	@grep -F 'v0.1.0-rc.4 - 2026-05-31' CHANGELOG.md >/dev/null
+	@grep -F 'make restore-rehearsal-check' docs/runbooks/backup-restore.md >/dev/null
 	@grep -F 'dist/evydence github-actions upload-build' docs/github-actions/release-evidence-workflow.yml >/dev/null
 	@grep -F 'go run ./cmd/evydence "$${args[@]}"' docs/github-actions/upload-build/action.yml >/dev/null
 	@grep -F 'cat > evydence-upload-manifest.json' docs/gitlab/evydence-release-evidence.gitlab-ci.yml >/dev/null
@@ -214,7 +230,14 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@grep -F 'evydence-release-manifest.sig alias' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'gh release create' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'contents: read' .github/workflows/release-artifacts.yml >/dev/null
-	@grep -F 'github/codeql-action/init@fee9466b8957867761f2d78f922ab084e3e2dd17' .github/workflows/codeql.yml >/dev/null
+	@grep -F 'Container Image' .github/workflows/container-image.yml >/dev/null
+	@grep -F 'evydence-container-image-manifest.json' .github/workflows/container-image.yml >/dev/null
+	@grep -F 'cosign-keyless' .github/workflows/container-image.yml >/dev/null
+	@grep -F 'ghcr.io/aatuh/evydence' README.md >/dev/null
+	@grep -F 'ghcr.io/aatuh/evydence' docs/reference/release-evidence-index.md >/dev/null
+	@grep -F 'ghcr.io/aatuh/evydence' docs/kubernetes.md >/dev/null
+	@grep -F 'ghcr.io/aatuh/evydence' deploy/airgap/manifest.yaml >/dev/null
+	@grep -F 'github/codeql-action/init@03e4368ac7daa2bd82b3e85262f3bf87ee112f57' .github/workflows/codeql.yml >/dev/null
 	@grep -F 'security-and-quality' .github/workflows/codeql.yml >/dev/null
 	@grep -F 'Controlled self-hosted production candidate' docs/reference/release-candidate.md >/dev/null
 	@grep -F 'Release evidence index' docs/reference/release-candidate.md >/dev/null
@@ -222,6 +245,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@grep -F 'evydence-release-manifest.sig' docs/reference/release-evidence-index.md >/dev/null
 	@grep -F 'evydence-release-provenance.intoto.jsonl' docs/reference/release-evidence-index.md >/dev/null
 	@grep -F 'CODEOWNERS' docs/reference/maintainer-review-policy.md >/dev/null
+	@grep -F 'OpenSSF Scorecard and Scorecard SARIF remain' docs/reference/maintainer-review-policy.md >/dev/null
 	@grep -F 'one API writer replica' docs/reference/roadmap.md >/dev/null
 	@grep -F 'Controlled self-hosted production candidate' docs/reference/release-notes-template.md >/dev/null
 	@grep -F 'not legal compliance proof' docs/reference/release-notes-template.md >/dev/null
@@ -295,6 +319,10 @@ package-viewer-check: ## Validate local package viewer and walkthrough
 	@! grep -F 'innerHTML' site/package-viewer/index.html >/dev/null
 	@grep -F 'examples/end-to-end-release-evidence/sample-customer-package-manifest.json' docs/how-to/view-packages.md >/dev/null
 
+restore-rehearsal-check: ## Run repository-owned backup/restore rehearsal tests
+	@$(GO) test ./internal/app -run TestBackupRestoreRehearsalPreservesLedgerAndObjectPayloads -count=1
+	@$(GO) test ./internal/adapters/postgres -run TestPostgresBackupRestoreRehearsalPreservesLedgerAndObjects -count=1
+
 fast-check: ## Run non-mutating fast validation
 	@$(MAKE) test
 	@$(MAKE) fuzz-smoke
@@ -352,6 +380,9 @@ production-check: ## Strict self-hosted production readiness gate; requires live
 
 release-candidate-check: ## Build and validate a signed release-candidate package with explicit TAG=vX.Y.Z-rc.N
 	@scripts/release_candidate_package.sh "$(TAG)"
+
+public-release-verify: ## Download and verify public release assets with TAG=vX.Y.Z-rc.N
+	@scripts/public_release_verify.sh "$(TAG)"
 
 migration-compatibility-check: ## Verify every committed migration prefix upgrades to current schema
 	@$(GO) test ./internal/adapters/postgres -run TestMigrationCompatibilityFromEveryCommittedState -count=1

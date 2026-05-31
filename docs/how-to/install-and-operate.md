@@ -41,6 +41,18 @@ verification prints `release manifest verified`, and the extracted directory
 contains `evydence`, `evydence-api`, `evydence-worker`, and
 `evydence-migrate`.
 
+For the same verification from a clean temporary directory, use the checked
+helper:
+
+```sh
+make public-release-verify TAG=v0.1.0-rc.4
+```
+
+Expected result: the helper downloads the public GitHub Release assets,
+verifies `SHA256SUMS`, `openapi.sha256`, `migrations.sha256`, validates the
+in-toto provenance statement shape, extracts the Linux amd64 CLI from the
+downloaded archive, and prints `public release verified`.
+
 To run a release-binary local demo instead of `go run`, use the extracted
 `evydence-api` and `evydence-worker` binaries with the same environment
 variables shown below. The in-process tutorial is still local-only; for durable

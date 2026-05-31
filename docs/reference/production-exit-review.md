@@ -35,9 +35,11 @@ SaaS-ready, legally compliant, certified, or secure-release-guaranteed.
 
 ## Remaining Exit Blockers
 
-- Public container images are not published for `v0.1.0-rc.4`; operators who
-  use Helm or air-gapped workflows must build, sign, publish, and record their
-  own image digests.
+- Project-owned container images count as release evidence only after the
+  maintainer Container Image workflow has run for the tag and produced digest
+  plus cosign evidence. Operators who mirror or rebuild images for Helm or
+  air-gapped workflows must record their own image digest and verification
+  evidence.
 - Native PKCS#11/HSM module custody requires operator hardware, drivers, and
   provider-specific validation.
 - Broad WORM/object-lock proof requires object-store policy, IAM, lifecycle,
