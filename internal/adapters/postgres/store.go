@@ -129,8 +129,9 @@ func (s *Store) AcquireAPIWriterLease(ctx context.Context) (func(), error) {
 		return nil, errors.New("another Evydence API writer is already active")
 	}
 	releaseConn = false
+	releaseCtx := context.WithoutCancel(ctx)
 	return func() {
-		_, _ = conn.Exec(context.Background(), `SELECT pg_advisory_unlock($1)`, apiWriterLeaseKey)
+		_, _ = conn.Exec(releaseCtx, `SELECT pg_advisory_unlock($1)`, apiWriterLeaseKey)
 		conn.Release()
 	}, nil
 }
