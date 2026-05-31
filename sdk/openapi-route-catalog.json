@@ -1,5 +1,5 @@
 {
-  "route_count": 166,
+  "route_count": 168,
   "routes": [
     {
       "idempotency_key_required": false,
@@ -2064,6 +2064,23 @@
     {
       "idempotency_key_required": false,
       "method": "GET",
+      "operation_id": "vulnerabilityDecisionSummaryReport",
+      "path": "/v1/reports/vulnerability-decision-summary",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/VulnerabilityDecisionSummaryReportEnvelope"
+      ],
+      "scopes": [
+        "report:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
       "operation_id": "vulnerabilityPostureReport",
       "path": "/v1/reports/vulnerability-posture",
       "request_schema": "",
@@ -2693,6 +2710,23 @@
       "response_schemas": [
         "#/components/schemas/Problem",
         "#/components/schemas/VEXDocumentEnvelope"
+      ],
+      "scopes": [
+        "evidence:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "listVulnerabilityDecisions",
+      "path": "/v1/vulnerability-decisions",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/VulnerabilityDecisionListEnvelope"
       ],
       "scopes": [
         "evidence:read"
