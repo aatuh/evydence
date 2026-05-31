@@ -77,6 +77,8 @@ func canonicalAnyHash(v any) (string, error) {
 }
 
 func hashBytes(body []byte) string {
+	// codeql[go/weak-sensitive-data-hashing] SHA-256 is required here for
+	// content-addressed evidence digests, not password or bearer-token storage.
 	sum := sha256.Sum256(body)
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
