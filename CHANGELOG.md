@@ -38,6 +38,9 @@ Release-candidate tagging requires the production gate and checklist in
   persistence calls without writing the compatibility `ledger_state` snapshot.
 - AWS KMS signing executor for signing provider operations over stored
   SHA-256 payload hashes without sending raw evidence payload bytes.
+- Optional OIDC UserInfo live provider validation for
+  `POST /v1/provider-verifications` using a supplied access token that is not
+  persisted.
 
 ### Known Limits
 
@@ -46,5 +49,6 @@ Release-candidate tagging requires the production gate and checklist in
   network policy, TLS, backups, monitoring, external signing, and incident
   response.
 - Service decomposition, HA/multi-writer operation, non-AWS KMS/HSM SDK
-  adapters, live provider validation, broader object-lock proof, and final exit
-  review remain production-hardening work after the release-candidate gate.
+  adapters, provider-specific management API/group synchronization, broader
+  object-lock proof, and final exit review remain production-hardening work
+  after the release-candidate gate.

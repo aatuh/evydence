@@ -69,6 +69,7 @@ type Config struct {
 	Retention    ObjectRetentionVerifier
 	Signer       SigningExecutor
 	OIDC         OIDCDiscoveryClient
+	ProviderAPI  ProviderIdentityValidator
 	Transparency TransparencyProofFetcher
 	Outbox       Outbox
 	// WorkerOwnedParserSideEffects stores accepted parser records first and
@@ -86,6 +87,7 @@ type Ledger struct {
 	retention          ObjectRetentionVerifier
 	signer             SigningExecutor
 	oidc               OIDCDiscoveryClient
+	providerAPI        ProviderIdentityValidator
 	transparencyProofs TransparencyProofFetcher
 	outbox             Outbox
 	workerOwnedParsers bool
@@ -212,6 +214,7 @@ func NewLedgerWithError(cfg Config) (*Ledger, error) {
 		retention:             retention,
 		signer:                cfg.Signer,
 		oidc:                  cfg.OIDC,
+		providerAPI:           cfg.ProviderAPI,
 		transparencyProofs:    cfg.Transparency,
 		outbox:                cfg.Outbox,
 		workerOwnedParsers:    cfg.WorkerOwnedParserSideEffects,

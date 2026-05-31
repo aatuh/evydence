@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -297,6 +298,20 @@ func (f *fakeSigningExecutor) Sign(_ context.Context, request SigningRequest) (S
 	}, nil
 }
 
+type fakeProviderIdentityValidator struct {
+	request ProviderIdentityValidationRequest
+	result  ProviderIdentityValidationResult
+	err     error
+}
+
+func (f *fakeProviderIdentityValidator) ValidateProviderIdentity(_ context.Context, request ProviderIdentityValidationRequest) (ProviderIdentityValidationResult, error) {
+	f.request = request
+	if f.err != nil {
+		return f.result, f.err
+	}
+	return f.result, nil
+}
+
 type fakeTransparencyProofFetcher struct {
 	request TransparencyProofRequest
 	result  TransparencyProofResult
@@ -332,6 +347,51 @@ func TestSigningOperationCanExecuteConfiguredSignerWithoutPrivateKey(t *testing.
 	}
 	if !hasVerifyCheck(op.Checks, "signing_executor_invoked", "passed") || !hasVerifyCheck(op.Checks, "fake_executor", "passed") {
 		t.Fatalf("operation checks = %#v", op.Checks)
+	}
+}
+
+func TestProviderVerificationCanUseLiveOIDCUserInfoWithoutPersistingToken(t *testing.T) {
+	validator := &fakeProviderIdentityValidator{result: ProviderIdentityValidationResult{
+		Checks:      []domain.VerifyCheck{{Name: "oidc_userinfo_subject", Result: "passed"}},
+		Groups:      []string{"security"},
+		Limitations: []string{"live provider API validation was used"},
+	}}
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, ProviderAPI: validator})
+	ctx := context.Background()
+	actor, _, _ := setupReleaseRiskFixture(t, ledger)
+	provider, err := ledger.CreateSSOProvider(ctx, actor, CreateSSOProviderInput{Name: "OIDC", Type: "oidc", Issuer: "https://idp.example.test", ClientID: "client", GroupsClaim: "groups", RoleMapping: map[string]string{"security": "security_engineer"}})
+	if err != nil {
+		t.Fatalf("provider: %v", err)
+	}
+	user, err := ledger.CreateUser(ctx, actor, CreateUserInput{Email: "user@example.test", DisplayName: "User"})
+	if err != nil {
+		t.Fatalf("user: %v", err)
+	}
+	if _, err := ledger.LinkSSOIdentity(ctx, actor, LinkSSOIdentityInput{UserID: user.ID, ProviderID: provider.ID, Subject: "sub-1", Email: user.Email, Verified: true}); err != nil {
+		t.Fatalf("identity link: %v", err)
+	}
+	verification, err := ledger.VerifyProviderIdentity(ctx, actor, VerifyProviderIdentityInput{ProviderType: "oidc", ProviderID: provider.ID, Subject: "sub-1", AccessToken: "access-token-secret"})
+	if err != nil {
+		t.Fatalf("provider verification: %v", err)
+	}
+	if validator.request.AccessToken != "access-token-secret" || validator.request.Subject != "sub-1" {
+		t.Fatalf("validator request = %#v", validator.request)
+	}
+	if verification.Result != "passed" || len(verification.Checks) < 3 {
+		t.Fatalf("verification = %#v", verification)
+	}
+	for _, check := range verification.Checks {
+		if strings.Contains(check.Detail, "access-token-secret") {
+			t.Fatalf("check leaked access token: %#v", check)
+		}
+	}
+	ledger.mu.Lock()
+	state := ledger.snapshotLocked()
+	ledger.mu.Unlock()
+	stored := state.ProviderVerifications[verification.ID]
+	encoded, _ := json.Marshal(stored)
+	if strings.Contains(string(encoded), "access-token-secret") {
+		t.Fatalf("stored provider verification leaked access token: %s", encoded)
 	}
 }
 

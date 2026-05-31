@@ -227,12 +227,13 @@ func (s *Server) verifyProviderIdentity(w http.ResponseWriter, r *http.Request) 
 		Subject       string `json:"subject"`
 		IDToken       string `json:"id_token"`
 		SAMLAssertion string `json:"saml_assertion"`
+		AccessToken   string `json:"access_token"`
 	}
 	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		record, err := s.ledger.VerifyProviderIdentity(ctx, actor, app.VerifyProviderIdentityInput{ProviderType: req.ProviderType, ProviderID: req.ProviderID, Subject: req.Subject, IDToken: req.IDToken, SAMLAssertion: req.SAMLAssertion})
+		record, err := s.ledger.VerifyProviderIdentity(ctx, actor, app.VerifyProviderIdentityInput{ProviderType: req.ProviderType, ProviderID: req.ProviderID, Subject: req.Subject, IDToken: req.IDToken, SAMLAssertion: req.SAMLAssertion, AccessToken: req.AccessToken})
 		return http.StatusCreated, record, err
 	})
 }

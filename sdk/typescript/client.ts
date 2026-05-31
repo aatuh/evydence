@@ -57,6 +57,7 @@ export type VerifyProviderIdentityRequest = {
   subject: string;
   id_token?: string;
   saml_assertion?: string;
+  access_token?: string;
 };
 
 export class EvydenceClient {

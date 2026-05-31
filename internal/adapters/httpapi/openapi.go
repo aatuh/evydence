@@ -102,6 +102,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"subject":        map[string]any{"type": "string"},
 		"id_token":       map[string]any{"type": "string", "description": "Optional OIDC ID token verified locally against the provider's configured static JWKS."},
 		"saml_assertion": map[string]any{"type": "string", "description": "Optional SAML assertion verified locally against configured SAML signing certificates."},
+		"access_token":   map[string]any{"type": "string", "description": "Optional OIDC access token used only for live UserInfo validation. It is not persisted and must not be supplied for SAML providers."},
 	}, "provider_type", "provider_id", "subject"))
 	registry.RegisterSchema("VerifyCheck", objectSchema(map[string]any{
 		"name":   map[string]any{"type": "string"},

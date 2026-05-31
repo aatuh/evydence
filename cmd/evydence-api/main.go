@@ -15,6 +15,7 @@ import (
 
 	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/adapters/identity/oidcdiscovery"
+	"github.com/aatuh/evydence/internal/adapters/identity/oidcuserinfo"
 	"github.com/aatuh/evydence/internal/adapters/objectstore/filesystem"
 	s3store "github.com/aatuh/evydence/internal/adapters/objectstore/s3"
 	"github.com/aatuh/evydence/internal/adapters/postgres"
@@ -42,6 +43,10 @@ func run() error {
 	cfg.OIDC = oidcdiscovery.New(oidcdiscovery.Config{
 		AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_OIDC_DISCOVERY_ALLOW_INSECURE_LOCALHOST"), "true"),
 		Timeout:                   time.Duration(intEnv("EVYDENCE_OIDC_DISCOVERY_TIMEOUT_SECONDS", 10)) * time.Second,
+	})
+	cfg.ProviderAPI = oidcuserinfo.New(oidcuserinfo.Config{
+		AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_OIDC_USERINFO_ALLOW_INSECURE_LOCALHOST"), "true"),
+		Timeout:                   time.Duration(intEnv("EVYDENCE_OIDC_USERINFO_TIMEOUT_SECONDS", 10)) * time.Second,
 	})
 	cfg.Transparency = httpfetcher.New(httpfetcher.Config{
 		AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_TRANSPARENCY_FETCH_ALLOW_INSECURE_LOCALHOST"), "true"),

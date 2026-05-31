@@ -70,6 +70,7 @@ type VerifyProviderIdentityRequest struct {
 	Subject       string `json:"subject"`
 	IDToken       string `json:"id_token,omitempty"`
 	SAMLAssertion string `json:"saml_assertion,omitempty"`
+	AccessToken   string `json:"access_token,omitempty"`
 }
 
 func (c Client) Post(ctx context.Context, path, idempotencyKey string, payload any, out any) error {

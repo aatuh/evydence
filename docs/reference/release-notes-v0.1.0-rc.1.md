@@ -46,7 +46,8 @@ acceptance.
 - HA/multi-writer API operation is not supported in this profile.
 - The AWS KMS signing executor is included; non-AWS cloud KMS/HSM SDK adapters
   are not included.
-- Live GitHub/GitLab provider API validation and external group
+- OIDC UserInfo validation is available when a caller supplies an access token;
+  provider-specific management API validation and external group
   synchronization remain deployment-dependent.
 - Broader WORM/object-lock proof beyond configured S3/MinIO checks remains
   deployment-dependent.
