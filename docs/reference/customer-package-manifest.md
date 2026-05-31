@@ -18,6 +18,7 @@ vulnerability result, or a secure-release guarantee.
 | `evidence_ids` | Included evidence metadata identifiers after redaction profile filtering. |
 | `artifact_digests` | Artifact IDs, names, media types, sizes, and digests linked to the release. |
 | `readiness_summary` | Deterministic readiness checks, gaps, and limitations. |
+| `customer_safe_gaps` | Optional customer-visible gap records filtered through the package redaction profile. |
 | `verification_material` | Hash algorithm, canonicalization profile, release bundle hashes, and audit-chain summary. |
 | `limitations`, `non_claims` | Required package limitations and conservative product-language boundaries. |
 
@@ -42,6 +43,15 @@ object-store payload references, bearer tokens, private keys, API key hashes,
 SSO/session token hashes, and tenant-internal vulnerability decision notes.
 Customer-visible vulnerability decisions require `impact_statement`; internal
 notes are not copied into `vulnerability_decisions`.
+
+## Customer-Safe Gaps
+
+`customer_safe_gaps` contains factual missing-evidence records only when the
+missing evidence type is allowed by the package redaction profile. For example,
+an SBOM gap can appear in a `customer_safe` package because `sbom` is included,
+while build-attestation or internal provenance gaps are omitted unless the
+profile explicitly includes `build` or `build_attestation`. Internal-only gaps
+remain outside the package manifest.
 
 ## Presets
 

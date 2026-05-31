@@ -642,6 +642,13 @@
       const gaps = safeArray(summary.gaps);
       appendText(nodes.readiness, "h3", "", "Gaps");
       tagList(nodes.readiness, gaps);
+      appendText(nodes.readiness, "h3", "", "Customer-safe gaps");
+      table(nodes.readiness, [
+        { label: "Evidence", value: "evidence_type" },
+        { label: "Severity", value: "severity", badge: true },
+        { label: "Summary", value: "summary" },
+        { label: "Remediation", value: "remediation" }
+      ], data.customer_safe_gaps, "No customer-safe package gaps are present.");
     };
 
     const renderContents = (data) => {
