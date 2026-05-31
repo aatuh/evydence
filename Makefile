@@ -70,6 +70,7 @@ meta-check: ## Validate root legal, governance, support, and release-evidence me
 	@test -f .dockerignore
 	@test -f .github/dependabot.yml
 	@test -f .github/workflows/scorecard.yml
+	@test -f .github/workflows/codeql.yml
 	@test -f .github/ISSUE_TEMPLATE.md
 	@test -f .github/ISSUE_TEMPLATE/bug_report.yml
 	@test -f .github/ISSUE_TEMPLATE/feature_request.yml
@@ -92,6 +93,11 @@ meta-check: ## Validate root legal, governance, support, and release-evidence me
 	@grep -F 'internal/app/' CODEOWNERS >/dev/null
 	@grep -F 'docs/reference/release-evidence-index.md' CODEOWNERS >/dev/null
 	@grep -F 'OpenSSF Scorecard' .github/workflows/scorecard.yml >/dev/null
+	@grep -F 'github/codeql-action/analyze@fee9466b8957867761f2d78f922ab084e3e2dd17' .github/workflows/codeql.yml >/dev/null
+	@grep -F 'actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd' .github/workflows/ci.yml >/dev/null
+	@grep -F 'actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c' .github/workflows/ci.yml >/dev/null
+	@grep -F 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' .github/workflows/ci.yml >/dev/null
+	@grep -F 'postgres:16-alpine@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229' .github/workflows/ci.yml >/dev/null
 	@grep -F 'Evydence fork' TRADEMARKS.md >/dev/null
 	@grep -F 'Release evidence is not a certification' RELEASE_EVIDENCE.md >/dev/null
 	@grep -F '.refs' .dockerignore >/dev/null
@@ -136,6 +142,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@test -f docs/github-actions/upload-build/action.yml
 	@test -f docs/gitlab/evydence-release-evidence.gitlab-ci.yml
 	@test -f .github/workflows/release-artifacts.yml
+	@test -f .github/workflows/codeql.yml
 	@test -f docs/sdk/README.md
 	@for path in \
 		"tutorials/getting-started.md" \
@@ -198,6 +205,9 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@grep -F 'scripts/release_candidate_package.sh' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'evydence-release-manifest.sig.json' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'gh release create' .github/workflows/release-artifacts.yml >/dev/null
+	@grep -F 'contents: read' .github/workflows/release-artifacts.yml >/dev/null
+	@grep -F 'github/codeql-action/init@fee9466b8957867761f2d78f922ab084e3e2dd17' .github/workflows/codeql.yml >/dev/null
+	@grep -F 'security-and-quality' .github/workflows/codeql.yml >/dev/null
 	@grep -F 'Controlled self-hosted production candidate' docs/reference/release-candidate.md >/dev/null
 	@grep -F 'Release evidence index' docs/reference/release-candidate.md >/dev/null
 	@grep -F 'evydence-release-manifest.sig.json' docs/reference/release-evidence-index.md >/dev/null

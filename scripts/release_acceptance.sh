@@ -46,6 +46,7 @@ for file in \
   .dockerignore \
   .github/ISSUE_TEMPLATE.md \
   .github/pull_request_template.md \
+  .github/workflows/codeql.yml \
   README.md \
   docs/README.md \
   docs/reference/release-candidate.md \
@@ -74,6 +75,11 @@ require_text .github/pull_request_template.md "tenant isolation"
 require_text .github/pull_request_template.md "Sensitive Data Check"
 require_text CODEOWNERS "internal/app/"
 require_text CODEOWNERS "docs/reference/release-evidence-index.md"
+require_text .github/workflows/codeql.yml "github/codeql-action/analyze@fee9466b8957867761f2d78f922ab084e3e2dd17"
+require_text .github/workflows/codeql.yml "security-and-quality"
+require_text .github/workflows/ci.yml "actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd"
+require_text .github/workflows/release-artifacts.yml "contents: read"
+require_text .github/workflows/scorecard.yml "ossf/scorecard-action@ff5dd8929f96a8a4dc67d13f32b8c75057829621"
 require_text SUPPORT.md "sanitized logs"
 require_text SUPPORT.md "release evidence artifacts"
 require_text TRADEMARKS.md "Evydence fork"
