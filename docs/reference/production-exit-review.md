@@ -12,7 +12,7 @@ SaaS-ready, legally compliant, certified, or secure-release-guaranteed.
 
 ## Repo-Verified Strengths
 
-- API contract has 166 precise `/v1` operations and zero broad operations.
+- API contract has 170 precise `/v1` operations and zero broad operations.
 - `make production-check` is available and requires live PostgreSQL, coverage,
   migration compatibility, release validation, race tests, security scans, and
   release-signing smoke checks.

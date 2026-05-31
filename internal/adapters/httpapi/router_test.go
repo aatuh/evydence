@@ -94,7 +94,7 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	if _, ok := redactionRequestProps["preset"]; !ok {
 		t.Fatalf("redaction profile request schema missing preset: %#v", redactionRequestProps)
 	}
-	for _, schemaName := range []string{"ReadinessStatusEnvelope", "BackupManifestEnvelope", "VerificationResultEnvelope", "ReadinessReportEnvelope", "CreateProductRequest", "ProductEnvelope", "ProductListEnvelope", "CreateProjectRequest", "ProjectEnvelope", "CreateReleaseRequest", "ReleaseEnvelope", "RegisterArtifactRequest", "ArtifactEnvelope", "CreateBuildRequest", "BuildRunEnvelope", "EvidenceUploadRequest", "SBOMEnvelope", "VEXDocumentEnvelope", "VEXImportReportEnvelope", "UploadVulnerabilityScanRequest", "VulnerabilityScanEnvelope", "VulnerabilityDecisionListEnvelope", "VulnerabilityDecisionSummaryReportEnvelope", "CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOProviderRequest", "UpdateSSOProviderTrustMaterialRequest", "SSOProviderEnvelope", "VerifyProviderIdentityRequest", "ProviderVerificationEnvelope", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "ExchangeSSOCredentialRequest", "SSOCredentialExchangeEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalPackageRequest", "DataEnvelope"} {
+	for _, schemaName := range []string{"ReadinessStatusEnvelope", "BackupManifestEnvelope", "VerificationResultEnvelope", "ReadinessReportEnvelope", "CreateProductRequest", "ProductEnvelope", "ProductListEnvelope", "CreateProjectRequest", "ProjectEnvelope", "CreateReleaseRequest", "ReleaseEnvelope", "ReleaseEvidenceFlowEnvelope", "RegisterArtifactRequest", "ArtifactEnvelope", "CreateBuildRequest", "BuildRunEnvelope", "EvidenceUploadRequest", "SBOMEnvelope", "VEXDocumentEnvelope", "VEXImportReportEnvelope", "UploadVulnerabilityScanRequest", "VulnerabilityScanEnvelope", "VulnerabilityDecisionListEnvelope", "VulnerabilityDecisionSummaryReportEnvelope", "CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOProviderRequest", "UpdateSSOProviderTrustMaterialRequest", "SSOProviderEnvelope", "VerifyProviderIdentityRequest", "ProviderVerificationEnvelope", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "ExchangeSSOCredentialRequest", "SSOCredentialExchangeEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalPackageRequest", "DataEnvelope"} {
 		if _, ok := schemas[schemaName]; !ok {
 			t.Fatalf("schema %s missing from OpenAPI components", schemaName)
 		}
@@ -127,6 +127,8 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	assertResponseRef(t, createRelease, "201", "#/components/schemas/ReleaseEnvelope")
 	getRelease := operationMap(t, paths, "/v1/releases/{id}", "get")
 	assertResponseRef(t, getRelease, "200", "#/components/schemas/ReleaseEnvelope")
+	startFlow := operationMap(t, paths, "/v1/releases/{id}/evidence-flow/start", "post")
+	assertResponseRef(t, startFlow, "200", "#/components/schemas/ReleaseEvidenceFlowEnvelope")
 	freezeRelease := operationMap(t, paths, "/v1/releases/{id}/freeze", "post")
 	assertRequestRef(t, freezeRelease, "#/components/schemas/EmptyObject")
 	assertResponseRef(t, freezeRelease, "200", "#/components/schemas/ReleaseEnvelope")
@@ -609,6 +611,37 @@ func TestReleaseBundleVerifyFlow(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), `"result":"passed"`) {
 		t.Fatalf("verify did not pass: %s", rec.Body.String())
+	}
+}
+
+func TestReleaseEvidenceFlowStartHTTPFlow(t *testing.T) {
+	server, secret := testServer(t)
+	productBody := postJSON(t, server, secret, "/v1/products", "flow-prod", map[string]any{"name": "Flow Product", "slug": "flow-product"}, http.StatusCreated)
+	productID := dataField(t, productBody, "id")
+	releaseBody := postJSON(t, server, secret, "/v1/releases", "flow-rel", map[string]any{"product_id": productID, "version": "1.0.0"}, http.StatusCreated)
+	releaseID := dataField(t, releaseBody, "id")
+	artifactDigest := "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb"
+	artifactBody := postJSON(t, server, secret, "/v1/artifacts", "flow-artifact", map[string]any{"name": "api.tar.gz", "media_type": "application/gzip", "digest": artifactDigest, "size": 42}, http.StatusCreated)
+	artifactID := dataField(t, artifactBody, "id")
+	postJSON(t, server, secret, "/v1/sboms", "flow-sbom", map[string]any{
+		"release_id":  releaseID,
+		"artifact_id": artifactID,
+		"payload": map[string]any{
+			"bomFormat": "CycloneDX", "specVersion": "1.6",
+			"components": []map[string]any{{"name": "api", "purl": "pkg:github/acme/api@abc"}},
+		},
+	}, http.StatusCreated)
+	postJSON(t, server, secret, "/v1/vulnerability-scans", "flow-scan", map[string]any{"scanner": "generic", "target_ref": "pkg:github/acme/api@abc", "release_id": releaseID, "findings": []map[string]any{}}, http.StatusCreated)
+	addHTTPBuildProvenance(t, server, secret, productID, releaseID, artifactID, artifactDigest)
+	postJSON(t, server, secret, "/v1/release-bundles", "flow-bundle", map[string]any{"release_id": releaseID}, http.StatusCreated)
+	flow := postJSON(t, server, secret, "/v1/releases/"+releaseID+"/evidence-flow/start", "flow-start", map[string]any{}, http.StatusOK)
+	for _, expected := range []string{`"schema_version":"release-evidence-flow.v1.0.0"`, `"status":"ready_for_review"`, `"artifact_refs":1`, `"sboms":1`, `"vulnerability_scans":1`, `"release_bundles":1`, `"path":"/v1/sboms"`} {
+		if !strings.Contains(flow, expected) {
+			t.Fatalf("flow response missing %s: %s", expected, flow)
+		}
+	}
+	if strings.Contains(flow, "certified secure") || strings.Contains(flow, "legally compliant") {
+		t.Fatalf("flow response uses prohibited claim wording: %s", flow)
 	}
 }
 

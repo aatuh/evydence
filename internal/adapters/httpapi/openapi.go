@@ -1575,6 +1575,30 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"approved_at":    map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "product_id", "version", "status", "schema_version", "created_at"))
 	registry.RegisterSchema("ReleaseEnvelope", dataEnvelopeSchema("#/components/schemas/Release"))
+	registry.RegisterSchema("ReleaseEvidenceFlowStep", objectSchema(map[string]any{
+		"id":                   map[string]any{"type": "string"},
+		"title":                map[string]any{"type": "string"},
+		"status":               map[string]any{"type": "string", "enum": []string{"present", "missing", "optional"}},
+		"required":             map[string]any{"type": "boolean"},
+		"method":               map[string]any{"type": "string"},
+		"path":                 map[string]any{"type": "string"},
+		"required_scopes":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"idempotency_required": map[string]any{"type": "boolean"},
+		"description":          map[string]any{"type": "string"},
+		"next_reference":       map[string]any{"type": "string"},
+	}, "id", "title", "status", "required", "method", "path", "required_scopes", "idempotency_required", "description"))
+	registry.RegisterSchema("ReleaseEvidenceFlow", objectSchema(map[string]any{
+		"release_id":     map[string]any{"type": "string"},
+		"product_id":     map[string]any{"type": "string"},
+		"status":         map[string]any{"type": "string", "enum": []string{"needs_evidence", "ready_for_review"}},
+		"counts":         map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "integer"}},
+		"steps":          map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/ReleaseEvidenceFlowStep"}},
+		"assumptions":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"limitations":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"schema_version": map[string]any{"type": "string"},
+		"generated_at":   map[string]any{"type": "string", "format": "date-time"},
+	}, "release_id", "product_id", "status", "counts", "steps", "assumptions", "limitations", "schema_version", "generated_at"))
+	registry.RegisterSchema("ReleaseEvidenceFlowEnvelope", dataEnvelopeSchema("#/components/schemas/ReleaseEvidenceFlow"))
 	registry.RegisterSchema("RegisterArtifactRequest", objectSchema(map[string]any{
 		"release_id":  map[string]any{"type": "string"},
 		"name":        map[string]any{"type": "string"},
