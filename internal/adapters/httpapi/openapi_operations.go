@@ -620,7 +620,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Public transparency log inclusion proof verification request.", "#/components/schemas/VerifyPublicTransparencyLogEntryRequest")
 		operation.Responses[http.StatusOK] = jsonResponse("Verified public transparency log entry envelope.", "#/components/schemas/PublicTransparencyLogEntryEnvelope")
 	case "fetchPublicTransparencyLogEntryProof":
-		operation.Description = "Fetches public transparency inclusion proof material from the configured log endpoint and verifies it locally. Endpoint trust and provider semantics remain deployment responsibilities."
+		operation.Description = "Fetches public transparency inclusion proof material from the configured log endpoint or transparency proof gateway and verifies it locally. Endpoint trust and provider semantics remain deployment responsibilities."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Public transparency log entry id."))
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Fetched and verified public transparency log entry envelope.", "#/components/schemas/PublicTransparencyLogEntryEnvelope")

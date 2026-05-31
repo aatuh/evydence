@@ -21,8 +21,9 @@ import (
 	s3store "github.com/aatuh/evydence/internal/adapters/objectstore/s3"
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/adapters/signing/awskms"
-	"github.com/aatuh/evydence/internal/adapters/signing/httpgateway"
+	signinggateway "github.com/aatuh/evydence/internal/adapters/signing/httpgateway"
 	"github.com/aatuh/evydence/internal/adapters/transparency/httpfetcher"
+	transparencygateway "github.com/aatuh/evydence/internal/adapters/transparency/httpgateway"
 	"github.com/aatuh/evydence/internal/app"
 )
 
@@ -60,10 +61,11 @@ func run() error {
 		return err
 	}
 	cfg.ProviderAPI = providerValidator
-	cfg.Transparency = httpfetcher.New(httpfetcher.Config{
-		AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_TRANSPARENCY_FETCH_ALLOW_INSECURE_LOCALHOST"), "true"),
-		Timeout:                   time.Duration(intEnv("EVYDENCE_TRANSPARENCY_FETCH_TIMEOUT_SECONDS", 10)) * time.Second,
-	})
+	transparencyFetcher, err := openTransparencyProofFetcher()
+	if err != nil {
+		return err
+	}
+	cfg.Transparency = transparencyFetcher
 	if signer, err := openSigningExecutor(); err != nil {
 		return err
 	} else {
@@ -182,7 +184,7 @@ func openSigningExecutor() (app.SigningExecutor, error) {
 	if endpoint == "" {
 		return nil, nil
 	}
-	executor, err := httpgateway.New(httpgateway.Config{
+	executor, err := signinggateway.New(signinggateway.Config{
 		Endpoint:                  endpoint,
 		BearerToken:               os.Getenv("EVYDENCE_SIGNING_EXECUTOR_TOKEN"),
 		AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST"), "true"),
@@ -192,6 +194,26 @@ func openSigningExecutor() (app.SigningExecutor, error) {
 		return nil, fmt.Errorf("configure signing executor: %w", err)
 	}
 	return executor, nil
+}
+
+func openTransparencyProofFetcher() (app.TransparencyProofFetcher, error) {
+	endpoint := strings.TrimSpace(os.Getenv("EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_URL"))
+	if endpoint != "" {
+		fetcher, err := transparencygateway.New(transparencygateway.Config{
+			Endpoint:                  endpoint,
+			BearerToken:               os.Getenv("EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_TOKEN"),
+			AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_ALLOW_INSECURE_LOCALHOST"), "true"),
+			Timeout:                   time.Duration(intEnv("EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_TIMEOUT_SECONDS", 10)) * time.Second,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("configure transparency proof gateway: %w", err)
+		}
+		return fetcher, nil
+	}
+	return httpfetcher.New(httpfetcher.Config{
+		AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_TRANSPARENCY_FETCH_ALLOW_INSECURE_LOCALHOST"), "true"),
+		Timeout:                   time.Duration(intEnv("EVYDENCE_TRANSPARENCY_FETCH_TIMEOUT_SECONDS", 10)) * time.Second,
+	}), nil
 }
 
 func openProviderIdentityValidator() (app.ProviderIdentityValidator, error) {
