@@ -1,13 +1,16 @@
 # End-To-End Release Evidence Example
 
-This example shows the product path Evydence should make easy to evaluate:
+This example shows the VEX-first product path Evydence should make easy to
+evaluate:
 
-1. CI builds an artifact and computes a digest.
-2. CI uploads build provenance, SBOM, and vulnerability scan evidence.
-3. Security records a VEX decision or approved exception for a blocking
-   finding.
-4. Evydence creates a release bundle and readiness report.
-5. Evydence exports customer-safe review evidence.
+1. Create a product, release, and artifact.
+2. Upload SBOM evidence for the artifact.
+3. Upload vulnerability scan evidence for the release.
+4. Record a VEX-style decision or approved exception for a blocking finding.
+5. Generate a release-readiness report.
+6. Create a signed release bundle and customer-safe package or evidence bundle.
+7. View the package locally and verify the bundle, package manifest, and audit
+   chain.
 
 The files in this directory are non-sensitive fixtures. They are not legal
 compliance proof, certification, complete SBOM proof, authoritative
@@ -72,3 +75,35 @@ The script creates a product, release, artifact, SBOM, vulnerability scan,
 vulnerability decision, release bundle, redaction profile, customer package,
 readiness report, and audit-chain verification output. It expects a local API
 that already has a tenant and scoped API key.
+
+## Inspect The Result
+
+The generated files under `tmp/end-to-end-release-evidence/` map the buyer
+question to concrete Evydence records:
+
+- `sbom.json`: which SBOM was used for the release answer.
+- `vulnerability-scan.json`: which scanner result raised the finding.
+- `vulnerability-decision.json`: why the finding is treated as not affected in
+  this demo.
+- `release-readiness.json`: the readiness result, gaps, assumptions, and
+  limitations.
+- `release-bundle.json`: the signed release bundle metadata.
+- `customer-package.json`: the customer-safe package manifest.
+- `audit-chain-verification.json`: audit-chain continuity verification.
+
+To visually inspect the customer-safe output, open
+`site/package-viewer/index.html` and load `customer-package.json` from the demo
+output directory. To verify the release bundle through the API, read the bundle
+id from `release-bundle.json` and call:
+
+```sh
+bundle_id="$(jq -r '.data.id' tmp/end-to-end-release-evidence/release-bundle.json)"
+curl -fsS \
+  -H "Authorization: Bearer $EVYDENCE_API_KEY" \
+  "$EVYDENCE_URL/v1/release-bundles/${bundle_id}/verify"
+```
+
+Expected result: the API returns verification checks for the tenant-scoped
+bundle. The demo output remains review evidence with explicit limitations; it
+is not legal compliance proof, certification, complete SBOM proof, an
+authoritative scanner result, or a secure-release guarantee.
