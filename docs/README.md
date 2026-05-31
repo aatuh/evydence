@@ -17,6 +17,7 @@ This documentation is organized by reader task. Implementation claims should be 
 - [Release signing](release-signing.md): create and verify local release artifact manifests.
 - [View packages locally](how-to/view-packages.md): inspect package, readiness, and evidence-bundle JSON without uploading it.
 - [Production hardening review](production-hardening.md): review production configuration, backups, ingress, diagnostics, and customer package controls.
+- [Pilot deployment checklist](how-to/pilot-deployment-checklist.md): copy-paste checklist for the narrow design-partner pilot profile.
 - [Backup and restore runbook](runbooks/backup-restore.md): rehearse paired database/object-store restore and verification.
 - [Upgrade runbook](runbooks/upgrade.md): verify release artifacts, migrations, and post-upgrade checks.
 - [Incident response runbook](runbooks/incident-response.md): handle operator incidents without leaking secrets or raw evidence.

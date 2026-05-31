@@ -15,6 +15,7 @@ product-boundary language across the docs.
 | Release-candidate evidence | `docs/reference/release-candidate.md` | Canonical release-candidate artifact checklist. |
 | Release evidence artifact map | `docs/reference/release-evidence-index.md` | Maps each release artifact to generation and verification commands. |
 | Production profiles and exit criteria | `docs/reference/production-readiness.md` and `docs/reference/production-exit-review.md` | Do not broaden status elsewhere without updating these. |
+| Design-partner pilot checklist | `docs/how-to/pilot-deployment-checklist.md` | Narrow copy-paste checklist for one controlled self-hosted pilot profile. |
 | Maintainer review ownership | `CODEOWNERS` and `docs/reference/maintainer-review-policy.md` | Branch protection or repository rules must enforce this before it is a merge gate. |
 | Roadmap and cadence | `docs/reference/roadmap.md` | Public roadmap, supported release line, and cadence expectations. |
 | Backup/restore | `docs/runbooks/backup-restore.md` | Operator rehearsal steps and evidence to keep. |

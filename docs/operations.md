@@ -17,6 +17,7 @@ This operator index points to the canonical references for running Evydence. Kee
 | View packages locally | [View packages locally](how-to/view-packages.md) | Customer package and readiness JSON can be inspected without uploading data. |
 | Deploy on Kubernetes | [Kubernetes deployment](kubernetes.md) | API and worker deploy with external PostgreSQL, object storage, and external signing mode. |
 | Build an offline package | [Air-gapped installation](air-gapped.md) | Package manifests and signatures are verified before import. |
+| Prepare a design-partner pilot | [Pilot deployment checklist](how-to/pilot-deployment-checklist.md) | One narrow pilot profile is reviewed for environment, database, object storage, access, signing, TLS, backups, migrations, redaction, and support. |
 | Review production hardening | [Production hardening review](production-hardening.md) | Unsafe defaults, backup gaps, diagnostics exposure, and customer package handling are reviewed. |
 | Rehearse backup and restore | [Backup and restore runbook](runbooks/backup-restore.md) | Database/object-store pairing and post-restore verification are recorded. |
 | Upgrade a deployment | [Upgrade runbook](runbooks/upgrade.md) | Release artifacts, migrations, and post-upgrade verification are checked. |
