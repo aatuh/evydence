@@ -2,6 +2,12 @@
 
 This tutorial runs Evydence with in-process state and records a small release evidence flow. It is for local development only; data is lost when the process exits.
 
+Until a public release candidate is published, run this tutorial from a source
+checkout. After a public release exists, prefer the release archive and
+checksums from GitHub Releases, then use this tutorial only as a local
+development path. The release artifact map is in
+[Release evidence index](../reference/release-evidence-index.md).
+
 ## Prerequisites
 
 - Go with the version declared by `go.mod`.

@@ -92,11 +92,12 @@ Known hardening work remains:
 ## HA And Concurrency Contract
 
 The current self-hosted production profile supports one API writer replica.
-This is intentional while the application still uses a large in-process ledger
-aggregate and some resource families still use aggregate persistence. Focused
-critical mutations reduce the riskiest `SaveState` dependence, but they are
-not a full multi-writer concurrency design. When `ENV=production`, API startup
-rejects unsupported `EVYDENCE_API_WRITER_MODE` values and rejects
+This is the supported stance for the current release line, not an accidental
+default. The application still uses a large in-process ledger aggregate and
+some resource families still use aggregate persistence. Focused critical and
+release-ledger mutations reduce the riskiest `SaveState` dependence, but they
+are not a full multi-writer concurrency design. When `ENV=production`, API
+startup rejects unsupported `EVYDENCE_API_WRITER_MODE` values and rejects
 `EVYDENCE_API_WRITER_REPLICAS` values above `1`. When PostgreSQL is configured,
 startup also takes a PostgreSQL advisory writer lease and fails if another API
 writer already holds it. Do not scale API writer replicas above one for
@@ -107,6 +108,9 @@ documented.
 Worker replicas may be scaled because persisted outbox jobs are claimed with
 PostgreSQL row locking. Scaling workers increases parser/signing/report
 throughput; it does not make API writes multi-writer safe.
+
+The roadmap records the future decision point for multi-writer API HA; see
+[Roadmap and release cadence](roadmap.md).
 
 ## Machine Gate
 

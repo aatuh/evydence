@@ -33,8 +33,11 @@ This documentation is organized by reader task. Implementation claims should be 
 - [Production readiness](reference/production-readiness.md): self-hosted production profiles, production gates, and exit criteria.
 - [Production exit review](reference/production-exit-review.md): current release-positioning decision and unresolved blockers.
 - [Release candidate checklist](reference/release-candidate.md): required evidence before tagging a controlled self-hosted release candidate.
+- [Release evidence index](reference/release-evidence-index.md): release artifact map, generation commands, and verification commands.
 - [Release notes template](reference/release-notes-template.md): checked wording used by release-candidate packaging when a tag-specific note file is absent.
 - [Release notes v0.1.0-rc.1](reference/release-notes-v0.1.0-rc.1.md): checked release-note wording for the first controlled self-hosted release candidate.
+- [Maintainer review policy](reference/maintainer-review-policy.md): CODEOWNERS-backed review expectations for high-risk paths.
+- [Roadmap and release cadence](reference/roadmap.md): current release-line focus, external trust controls, and cadence expectations.
 - [Worker outbox contract](reference/worker-outbox.md): durable job kinds, idempotency, and safe logging rules.
 - [Release validation](reference/release-validation.md): canonical `make release-check` behavior and summary evidence.
 - [SDK workflow](sdk/README.md): current Go, TypeScript, and Python wrapper usage and limitations.
@@ -53,6 +56,7 @@ This documentation is organized by reader task. Implementation claims should be 
 - [Trademarks](../TRADEMARKS.md): conservative use of the Evydence name and modified-build naming rules.
 - [Release evidence](../RELEASE_EVIDENCE.md): release evidence routing, local acceptance checks, and limits of release validation.
 - [Changelog](../CHANGELOG.md): unreleased and future public-release notes.
+- [CODEOWNERS](../CODEOWNERS): expected maintainer ownership for high-trust code, release, deployment, and claim surfaces.
 
 ## Workflow Examples
 

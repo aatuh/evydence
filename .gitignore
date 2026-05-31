@@ -6,6 +6,7 @@
 !.env.example
 !.api.env.example
 !.test.env.example
+!.production_readiness*.md
 
 coverage.out
 bin/
