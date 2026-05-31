@@ -9,12 +9,16 @@ results, no secure-release guarantee, and no regulator or auditor acceptance.
 
 ## Unreleased
 
-Release status: controlled self-hosted production candidate hardening. Current
-builds are suitable for evaluation, pilots, and controlled internal production
-after operator review. Broad self-hosted production readiness, regulated
-production, and hosted SaaS production remain out of scope for this status.
-Release-candidate tagging requires the production gate and checklist in
-`docs/reference/release-candidate.md`.
+No public release notes have been added after `v0.1.0-rc.2`.
+
+## v0.1.0-rc.2 - 2026-05-31
+
+Release status: controlled self-hosted production candidate. This build is
+suitable for evaluation, pilots, and controlled internal production after
+operator review. Broad self-hosted production readiness, regulated production,
+and hosted SaaS production remain out of scope for this status. The local
+release-candidate package for this tag was generated with
+`make release-candidate-check TAG=v0.1.0-rc.2`.
 
 ### Added
 
@@ -23,9 +27,11 @@ Release-candidate tagging requires the production gate and checklist in
 - Production-readiness profile, production gate, and coverage-threshold gate.
 - Release-candidate checklist requiring production-check evidence, checksums,
   signed artifact manifests, release notes, and documented limitations.
-- Release-candidate package gate for `v0.1.0-rc.1` artifacts, checksums,
+- Release-candidate package gate for controlled release-candidate artifacts, checksums,
   OpenAPI and migration checksums, checked release notes, signed release
   manifest, and manifest signature.
+- Local `v0.1.0-rc.2` annotated release-candidate tag and signed evidence
+  package generated under ignored `dist/v0.1.0-rc.2/`.
 - Focused PostgreSQL critical mutations for tenants, credential hashes,
   idempotency records, audit-chain entries, release bundles, signatures,
   verification results, provider verification receipts, vulnerability
