@@ -9,7 +9,7 @@ GOVULNCHECK_VERSION ?= v1.2.0
 
 TAG ?=
 
-.PHONY: help tools fmt lint vuln gosec test test-race coverage coverage-check openapi-check openapi-precision-check meta-check docs-check deploy-check sdk-check demo-check black-box-demo-check benchmark-check package-viewer-check fast-check finalize release-acceptance release-check production-check release-candidate-check migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
+.PHONY: help tools fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check meta-check docs-check deploy-check sdk-check demo-check black-box-demo-check benchmark-check package-viewer-check fast-check finalize release-acceptance release-check production-check release-candidate-check migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -33,6 +33,9 @@ gosec: ## Run gosec when installed
 
 test: ## Run unit tests
 	@$(GO) test ./...
+
+fuzz-smoke: ## Run Go fuzz target seed corpora without a fuzzing campaign
+	@$(GO) test ./internal/app -run '^Fuzz'
 
 test-race: ## Run race tests
 	@$(GO) test ./... -race -count=1
@@ -291,6 +294,7 @@ package-viewer-check: ## Validate local package viewer and walkthrough
 
 fast-check: ## Run non-mutating fast validation
 	@$(MAKE) test
+	@$(MAKE) fuzz-smoke
 	@$(MAKE) openapi-check
 	@$(MAKE) openapi-precision-check
 	@$(MAKE) docs-check
