@@ -101,6 +101,8 @@ func (s *Server) controlRoutes() []routeDef {
 		{http.MethodGet, "/v1/control-evidence", op("listControlEvidence", http.MethodGet, "/v1/control-evidence", "List control evidence", []string{app.ScopeControlsRead}), http.HandlerFunc(s.listControlEvidence)},
 		{http.MethodGet, "/v1/reports/control-coverage", op("controlCoverageReport", http.MethodGet, "/v1/reports/control-coverage", "Control coverage report", []string{app.ScopeReportRead}), http.HandlerFunc(s.controlCoverageReport)},
 		{http.MethodGet, "/v1/reports/cra-readiness", op("craReadinessReport", http.MethodGet, "/v1/reports/cra-readiness", "CRA readiness report", []string{app.ScopeReportRead}), http.HandlerFunc(s.craReadinessReport)},
+		{http.MethodGet, "/v1/reports/cra-vulnerability-handling", op("craVulnerabilityHandlingReport", http.MethodGet, "/v1/reports/cra-vulnerability-handling", "CRA vulnerability handling report", []string{app.ScopeReportRead}), http.HandlerFunc(s.craVulnerabilityHandlingReport)},
+		{http.MethodGet, "/v1/reports/security-update-evidence", op("securityUpdateEvidenceReport", http.MethodGet, "/v1/reports/security-update-evidence", "Security update evidence report", []string{app.ScopeReportRead}), http.HandlerFunc(s.securityUpdateEvidenceReport)},
 	}
 }
 

@@ -752,6 +752,20 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 			queryParam("release_id", "Release id.", "string"),
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("CRA readiness report envelope.", "#/components/schemas/ReadinessReportEnvelope")
+	case "craVulnerabilityHandlingReport":
+		operation.Description = "Returns a CRA-oriented vulnerability handling evidence report without legal compliance, certification, scanner-authority, or release-security conclusions."
+		operation.Parameters = append(operation.Parameters,
+			queryParam("product_id", "Product id.", "string"),
+			queryParam("release_id", "Release id.", "string"),
+		)
+		operation.Responses[http.StatusOK] = jsonResponse("CRA vulnerability handling report envelope.", "#/components/schemas/CRAVulnerabilityHandlingReportEnvelope")
+	case "securityUpdateEvidenceReport":
+		operation.Description = "Returns a security update evidence report for release-scoped fixed decisions, incidents, remediation tasks, and linked evidence without legal or security conclusions."
+		operation.Parameters = append(operation.Parameters,
+			queryParam("product_id", "Product id.", "string"),
+			queryParam("release_id", "Release id.", "string"),
+		)
+		operation.Responses[http.StatusOK] = jsonResponse("Security update evidence report envelope.", "#/components/schemas/SecurityUpdateEvidenceReportEnvelope")
 	case "controlCoverageReport":
 		operation.Description = "Returns deterministic control coverage with linked evidence, missing evidence, assumptions, and limitations."
 		operation.Parameters = append(operation.Parameters,

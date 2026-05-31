@@ -674,6 +674,35 @@ type CRAReadinessReport struct {
 	GeneratedAt        time.Time             `json:"generated_at"`
 }
 
+type CRAVulnerabilityHandlingReport struct {
+	ReportType         string                                 `json:"report_type"`
+	TemplateVersion    string                                 `json:"template_version"`
+	ProductID          string                                 `json:"product_id"`
+	ReleaseID          string                                 `json:"release_id"`
+	Summary            map[string]int                         `json:"summary"`
+	Decisions          []VulnerabilityDecisionCustomerSummary `json:"decisions,omitempty"`
+	AcceptedExceptions []Exception                            `json:"accepted_exceptions,omitempty"`
+	EvidenceIDs        []string                               `json:"evidence_ids,omitempty"`
+	Assumptions        []string                               `json:"assumptions"`
+	Limitations        []string                               `json:"limitations"`
+	GeneratedAt        time.Time                              `json:"generated_at"`
+}
+
+type SecurityUpdateEvidenceReport struct {
+	ReportType       string                                 `json:"report_type"`
+	TemplateVersion  string                                 `json:"template_version"`
+	ProductID        string                                 `json:"product_id"`
+	ReleaseID        string                                 `json:"release_id"`
+	Summary          map[string]int                         `json:"summary"`
+	FixedDecisions   []VulnerabilityDecisionCustomerSummary `json:"fixed_decisions,omitempty"`
+	Incidents        []Incident                             `json:"incidents,omitempty"`
+	RemediationTasks []RemediationTask                      `json:"remediation_tasks,omitempty"`
+	EvidenceIDs      []string                               `json:"evidence_ids,omitempty"`
+	Assumptions      []string                               `json:"assumptions"`
+	Limitations      []string                               `json:"limitations"`
+	GeneratedAt      time.Time                              `json:"generated_at"`
+}
+
 type AuditChainEntry struct {
 	ID                 string         `json:"id"`
 	TenantID           string         `json:"tenant_id"`
