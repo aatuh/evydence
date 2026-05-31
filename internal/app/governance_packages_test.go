@@ -287,6 +287,43 @@ func TestRedactionProfilePresetsAreExplicitAndSafe(t *testing.T) {
 	}
 }
 
+func TestCustomerPackageGapsRespectRedactionProfile(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	actor, release, _ := setupReleaseRiskFixture(t, ledger)
+	customerSafe, err := ledger.CreateRedactionProfile(ctx, actor, CreateRedactionProfileInput{Preset: "customer_safe"})
+	if err != nil {
+		t.Fatalf("customer-safe profile: %v", err)
+	}
+	pkg, err := ledger.CreateCustomerSecurityPackage(ctx, actor, CreateCustomerPackageInput{ProductID: release.ProductID, ReleaseID: release.ID, RedactionProfileID: customerSafe.ID, Title: "Gap package", ExpiresAt: fixedNow().Add(time.Hour)})
+	if err != nil {
+		t.Fatalf("customer-safe package: %v", err)
+	}
+	body, err := json.Marshal(pkg.Manifest)
+	if err != nil {
+		t.Fatalf("marshal package: %v", err)
+	}
+	text := string(body)
+	if !strings.Contains(text, `"customer_safe_gaps"`) || !strings.Contains(text, `"evidence_type":"sbom"`) || !strings.Contains(text, `"customer_visible":true`) {
+		t.Fatalf("customer-safe gaps missing: %s", text)
+	}
+	internalOnly, err := ledger.CreateRedactionProfile(ctx, actor, CreateRedactionProfileInput{Name: "decision-only", AllowedTypes: []string{"vulnerability_decision"}})
+	if err != nil {
+		t.Fatalf("decision-only profile: %v", err)
+	}
+	internalPkg, err := ledger.CreateCustomerSecurityPackage(ctx, actor, CreateCustomerPackageInput{ProductID: release.ProductID, ReleaseID: release.ID, RedactionProfileID: internalOnly.ID, Title: "Decision-only package", ExpiresAt: fixedNow().Add(time.Hour)})
+	if err != nil {
+		t.Fatalf("decision-only package: %v", err)
+	}
+	body, err = json.Marshal(internalPkg.Manifest)
+	if err != nil {
+		t.Fatalf("marshal decision-only package: %v", err)
+	}
+	if strings.Contains(string(body), `"customer_safe_gaps"`) || strings.Contains(string(body), `"evidence_type":"sbom"`) {
+		t.Fatalf("internal-only profile leaked excluded gaps: %s", body)
+	}
+}
+
 func packageArchiveFiles(t *testing.T, body []byte) map[string]string {
 	t.Helper()
 	reader, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))

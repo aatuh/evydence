@@ -429,6 +429,9 @@ func (l *Ledger) customerPackageManifestLocked(packageID string, generatedAt tim
 			"It is not legal compliance proof, certification, complete SBOM proof, an authoritative vulnerability result, regulator acceptance, or a secure-release guarantee.",
 		},
 	}
+	if customerSafeGaps := packageCustomerSafeGaps(checks, profile); len(customerSafeGaps) > 0 {
+		manifest["customer_safe_gaps"] = customerSafeGaps
+	}
 	if profileAllowsPackageType(profile, "sbom") {
 		manifest["sboms"] = l.packageSBOMMetadataLocked(tenantID, releaseID)
 	}
@@ -845,6 +848,7 @@ func packageReadinessSummary(result string, checks []domain.PolicyCheck, gaps []
 			"severity":    check.Severity,
 			"missing":     append([]string(nil), check.Missing...),
 			"explanation": check.Explanation,
+			"remediation": check.Remediation,
 		})
 	}
 	return map[string]any{
@@ -855,6 +859,60 @@ func packageReadinessSummary(result string, checks []domain.PolicyCheck, gaps []
 			"Readiness is derived from recorded package-scope evidence only.",
 			"Readiness output is not a compliance, certification, or secure-release conclusion.",
 		},
+	}
+}
+
+func packageCustomerSafeGaps(checks []domain.PolicyCheck, profile domain.RedactionProfile) []map[string]any {
+	out := []map[string]any{}
+	for _, check := range checks {
+		if check.Result == "passed" {
+			continue
+		}
+		for _, missing := range check.Missing {
+			if !packageGapVisibleForProfile(missing, profile) {
+				continue
+			}
+			out = append(out, map[string]any{
+				"id":               "gap_" + check.Name + "_" + missing,
+				"category":         "missing_evidence",
+				"evidence_type":    missing,
+				"source_check":     check.Name,
+				"severity":         check.Severity,
+				"summary":          check.Explanation,
+				"remediation":      check.Remediation,
+				"customer_visible": true,
+				"limitations": []string{
+					"Gap is based only on evidence metadata included by this package redaction profile.",
+				},
+			})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		left, _ := out[i]["id"].(string)
+		right, _ := out[j]["id"].(string)
+		return left < right
+	})
+	return out
+}
+
+func packageGapVisibleForProfile(missing string, profile domain.RedactionProfile) bool {
+	switch strings.TrimSpace(missing) {
+	case "artifact", "artifact_digest":
+		return profileAllowsPackageType(profile, "artifact")
+	case "sbom":
+		return profileAllowsPackageType(profile, "sbom")
+	case "vulnerability_scan":
+		return profileAllowsPackageType(profile, "vulnerability_scan")
+	case "vulnerability_decision":
+		return profileAllowsPackageType(profile, "vulnerability_decision")
+	case "signed_release_bundle":
+		return profileAllowsPackageType(profile, "release_bundle")
+	case "passed_build":
+		return profileAllowsPackageType(profile, "build")
+	case "build_attestation":
+		return profileAllowsPackageType(profile, "build_attestation")
+	default:
+		return false
 	}
 }
 
