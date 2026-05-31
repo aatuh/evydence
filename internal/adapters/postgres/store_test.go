@@ -116,6 +116,67 @@ func TestStoreCanDisableSnapshotWritesAndLoadRelationalState(t *testing.T) {
 	}
 }
 
+func TestStoreSaveRelationalStateSkipsLedgerSnapshot(t *testing.T) {
+	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("EVYDENCE_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	admin, err := Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close()
+	schema := "evydence_relational_state_" + strings.ReplaceAll(strings.ToLower(time.Now().Format("20060102150405.000000000")), ".", "_")
+	quotedSchema := pgx.Identifier{schema}.Sanitize()
+	if _, err := admin.pool.Exec(ctx, "CREATE SCHEMA "+quotedSchema); err != nil {
+		t.Fatal(err)
+	}
+	defer func(cleanupCtx context.Context) {
+		_, _ = admin.pool.Exec(cleanupCtx, "DROP SCHEMA "+quotedSchema+" CASCADE")
+	}(context.WithoutCancel(ctx))
+
+	store, err := OpenWithOptions(ctx, databaseURLWithSearchPath(t, databaseURL, schema), StoreOptions{LoadMode: LoadModeRelationalPreferred})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if _, err := store.ApplyMigrations(ctx, "../../../migrations"); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	state := app.PersistedState{
+		Tenants: map[string]domain.Tenant{
+			"ten_relational_state": {ID: "ten_relational_state", Name: "Relational State", CreatedAt: now},
+		},
+		ControlFrameworks: map[string]domain.ControlFramework{
+			"fw_relational_state": {
+				ID: "fw_relational_state", TenantID: "ten_relational_state", Name: "Framework",
+				Slug: "framework", Version: "1.0.0", Status: "active",
+				SchemaVersion: domain.ControlFrameworkSchemaVersion, CreatedAt: now,
+			},
+		},
+	}
+	if err := store.SaveRelationalState(ctx, state); err != nil {
+		t.Fatal(err)
+	}
+	var snapshotRows int
+	if err := store.pool.QueryRow(ctx, `SELECT count(*) FROM ledger_state`).Scan(&snapshotRows); err != nil {
+		t.Fatal(err)
+	}
+	if snapshotRows != 0 {
+		t.Fatalf("ledger_state rows = %d, want 0", snapshotRows)
+	}
+	loaded, ok, err := store.LoadState(ctx)
+	if err != nil || !ok {
+		t.Fatalf("load relational state ok=%v err=%v", ok, err)
+	}
+	if loaded.ControlFrameworks["fw_relational_state"].Slug != "framework" {
+		t.Fatalf("loaded frameworks = %#v", loaded.ControlFrameworks)
+	}
+}
+
 func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
 	if databaseURL == "" {

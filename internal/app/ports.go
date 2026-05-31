@@ -20,6 +20,10 @@ type ReleaseLedgerMutationStore interface {
 	ApplyReleaseLedgerMutation(context.Context, ReleaseLedgerMutation) error
 }
 
+type RelationalStateStore interface {
+	SaveRelationalState(context.Context, PersistedState) error
+}
+
 type ObjectStore interface {
 	Put(context.Context, Object) error
 	Get(context.Context, string) (Object, error)

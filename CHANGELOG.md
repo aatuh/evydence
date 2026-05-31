@@ -34,6 +34,8 @@ Release-candidate tagging requires the production gate and checklist in
   artifacts, evidence items, evidence lifecycle events, SBOMs, vulnerability
   scans, OpenAPI contracts, VEX documents, audit-chain entries, and parser
   outbox jobs.
+- Relational PostgreSQL state synchronization for remaining aggregate
+  persistence calls without writing the compatibility `ledger_state` snapshot.
 
 ### Known Limits
 
@@ -41,6 +43,6 @@ Release-candidate tagging requires the production gate and checklist in
 - Operators remain responsible for production PostgreSQL, object storage,
   network policy, TLS, backups, monitoring, external signing, and incident
   response.
-- Full repository decomposition, HA/multi-writer operation, direct KMS/HSM SDK
+- Service decomposition, HA/multi-writer operation, direct KMS/HSM SDK
   adapters, live provider validation, broader object-lock proof, and final exit
   review remain production-hardening work after the release-candidate gate.
