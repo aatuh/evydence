@@ -139,6 +139,7 @@ cli="${signing_dir}/evydence_${tag}_linux_amd64/evydence"
   --private-key "$signing_key" \
   --out "$distdir/evydence-release-manifest.sig.json"
 rm -f "$signing_key"
+cp "$distdir/evydence-release-manifest.sig.json" "$distdir/evydence-release-manifest.sig"
 "$cli" release verify \
   --manifest "$distdir/evydence-release-manifest.json" \
   --signature "$distdir/evydence-release-manifest.sig.json"

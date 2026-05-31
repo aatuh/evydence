@@ -211,6 +211,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@grep -F 'EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'scripts/release_candidate_package.sh' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'evydence-release-manifest.sig.json' .github/workflows/release-artifacts.yml >/dev/null
+	@grep -F 'evydence-release-manifest.sig alias' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'gh release create' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'contents: read' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'github/codeql-action/init@fee9466b8957867761f2d78f922ab084e3e2dd17' .github/workflows/codeql.yml >/dev/null
@@ -218,6 +219,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@grep -F 'Controlled self-hosted production candidate' docs/reference/release-candidate.md >/dev/null
 	@grep -F 'Release evidence index' docs/reference/release-candidate.md >/dev/null
 	@grep -F 'evydence-release-manifest.sig.json' docs/reference/release-evidence-index.md >/dev/null
+	@grep -F 'evydence-release-manifest.sig' docs/reference/release-evidence-index.md >/dev/null
 	@grep -F 'CODEOWNERS' docs/reference/maintainer-review-policy.md >/dev/null
 	@grep -F 'one API writer replica' docs/reference/roadmap.md >/dev/null
 	@grep -F 'Controlled self-hosted production candidate' docs/reference/release-notes-template.md >/dev/null
