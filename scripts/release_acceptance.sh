@@ -79,7 +79,7 @@ require_text .github/workflows/codeql.yml "github/codeql-action/analyze@fee9466b
 require_text .github/workflows/codeql.yml "security-and-quality"
 require_text .github/workflows/ci.yml "actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd"
 require_text .github/workflows/release-artifacts.yml "contents: read"
-require_text .github/workflows/scorecard.yml "ossf/scorecard-action@ff5dd8929f96a8a4dc67d13f32b8c75057829621"
+require_text .github/workflows/scorecard.yml "ossf/scorecard-action@62b2cac7ed8198b15735ed49ab1e5cf35480ba46"
 require_text SUPPORT.md "sanitized logs"
 require_text SUPPORT.md "release evidence artifacts"
 require_text TRADEMARKS.md "Evydence fork"
