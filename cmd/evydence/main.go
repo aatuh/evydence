@@ -1,6 +1,7 @@
 package main
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
 	"crypto/ed25519"
@@ -58,6 +59,11 @@ func run(args []string) error {
 			return usage()
 		}
 		return verifyAuditChain(args[1])
+	case "package":
+		if len(args) < 2 || args[1] != "verify" {
+			return usage()
+		}
+		return verifyCustomerPackage(args[2:])
 	case "github-actions":
 		if len(args) < 2 || args[1] != "upload-build" {
 			return usage()
@@ -95,7 +101,7 @@ func run(args []string) error {
 }
 
 func usage() error {
-	return errors.New("usage: evydence hash <file> | evydence verify-manifest <manifest.json> --hash sha256:<hex> | evydence verify-evidence-bundle <bundle.json> | evydence verify-audit-chain <chain.json> | evydence github-actions upload-build ... | evydence import-bundle upload ... | evydence upload manifest ... | evydence release manifest|sign|verify|keygen")
+	return errors.New("usage: evydence hash <file> | evydence verify-manifest <manifest.json> --hash sha256:<hex> | evydence verify-evidence-bundle <bundle.json> | evydence verify-audit-chain <chain.json> | evydence package verify ... | evydence github-actions upload-build ... | evydence import-bundle upload ... | evydence upload manifest ... | evydence release manifest|sign|verify|keygen")
 }
 
 func hashFile(path string) (string, error) {
@@ -150,49 +156,15 @@ func verifyManifest(path, expected string) error {
 }
 
 func verifyEvidenceBundle(path string) error {
-	cleaned, err := cleanOperatorPath(path)
+	bundle, err := readEvidenceBundle(path)
 	if err != nil {
 		return err
 	}
-	// #nosec G304,G703 -- this CLI command intentionally reads a local operator-specified bundle file.
-	body, err := os.ReadFile(cleaned)
+	verified, err := verifyEvidenceBundleStruct(bundle)
 	if err != nil {
 		return err
 	}
-	var bundle struct {
-		Manifest      map[string]any      `json:"manifest"`
-		ManifestHash  string              `json:"manifest_hash"`
-		SignatureRefs []string            `json:"signature_refs"`
-		Signatures    []offlineSignature  `json:"signatures"`
-		SigningKeys   []offlineSigningKey `json:"signing_keys"`
-	}
-	if err := json.Unmarshal(body, &bundle); err != nil {
-		return errors.New("evidence bundle is not JSON")
-	}
-	if len(bundle.Manifest) == 0 || strings.TrimSpace(bundle.ManifestHash) == "" {
-		return errors.New("evidence bundle missing manifest or manifest_hash")
-	}
-	canonical, err := json.Marshal(bundle.Manifest)
-	if err != nil {
-		return err
-	}
-	var normalized any
-	if err := json.Unmarshal(canonical, &normalized); err != nil {
-		return err
-	}
-	canonical, err = json.Marshal(normalized)
-	if err != nil {
-		return err
-	}
-	sum := sha256.Sum256(canonical)
-	got := "sha256:" + hex.EncodeToString(sum[:])
-	if got != bundle.ManifestHash {
-		return fmt.Errorf("evidence bundle hash mismatch: got %s want %s", got, bundle.ManifestHash)
-	}
-	if err := verifyOfflineSignatures(bundle.ManifestHash, bundle.SignatureRefs, bundle.Signatures, bundle.SigningKeys); err != nil {
-		return err
-	}
-	if len(bundle.Signatures) > 0 || len(bundle.SigningKeys) > 0 {
+	if verified.Signed {
 		fmt.Println("evidence bundle manifest and signature verified")
 		return nil
 	}
@@ -206,6 +178,20 @@ type offlineSignature struct {
 	Algorithm string    `json:"algorithm"`
 	Value     string    `json:"value"`
 	CreatedAt time.Time `json:"created_at,omitempty"`
+}
+
+type offlineEvidenceBundle struct {
+	Manifest      map[string]any      `json:"manifest"`
+	ManifestHash  string              `json:"manifest_hash"`
+	SignatureRefs []string            `json:"signature_refs"`
+	Signatures    []offlineSignature  `json:"signatures"`
+	SigningKeys   []offlineSigningKey `json:"signing_keys"`
+}
+
+type offlineEvidenceBundleVerification struct {
+	ManifestHash  string
+	Signed        bool
+	SigningKeyIDs []string
 }
 
 type offlineSigningKey struct {
@@ -354,6 +340,502 @@ func verifyOfflineSignatures(payloadHash string, refs []string, signatures []off
 		}
 	}
 	return errors.New("offline signature verification failed")
+}
+
+func readEvidenceBundle(path string) (offlineEvidenceBundle, error) {
+	body, err := readFileStrict(path)
+	if err != nil {
+		return offlineEvidenceBundle{}, err
+	}
+	var bundle offlineEvidenceBundle
+	if err := json.Unmarshal(body, &bundle); err != nil {
+		return offlineEvidenceBundle{}, errors.New("evidence bundle is not JSON")
+	}
+	return bundle, nil
+}
+
+func verifyEvidenceBundleStruct(bundle offlineEvidenceBundle) (offlineEvidenceBundleVerification, error) {
+	if len(bundle.Manifest) == 0 || strings.TrimSpace(bundle.ManifestHash) == "" {
+		return offlineEvidenceBundleVerification{}, errors.New("evidence bundle missing manifest or manifest_hash")
+	}
+	canonical, err := json.Marshal(bundle.Manifest)
+	if err != nil {
+		return offlineEvidenceBundleVerification{}, err
+	}
+	var normalized any
+	if err := json.Unmarshal(canonical, &normalized); err != nil {
+		return offlineEvidenceBundleVerification{}, err
+	}
+	canonical, err = json.Marshal(normalized)
+	if err != nil {
+		return offlineEvidenceBundleVerification{}, err
+	}
+	sum := sha256.Sum256(canonical)
+	got := "sha256:" + hex.EncodeToString(sum[:])
+	if got != bundle.ManifestHash {
+		return offlineEvidenceBundleVerification{}, fmt.Errorf("evidence bundle hash mismatch: got %s want %s", got, bundle.ManifestHash)
+	}
+	keyIDs := evidenceBundleSigningKeyIDs(bundle)
+	if err := verifyOfflineSignatures(bundle.ManifestHash, bundle.SignatureRefs, bundle.Signatures, bundle.SigningKeys); err != nil {
+		return offlineEvidenceBundleVerification{}, err
+	}
+	return offlineEvidenceBundleVerification{ManifestHash: bundle.ManifestHash, Signed: len(bundle.Signatures) > 0 || len(bundle.SigningKeys) > 0, SigningKeyIDs: keyIDs}, nil
+}
+
+func evidenceBundleSigningKeyIDs(bundle offlineEvidenceBundle) []string {
+	byID := map[string]offlineSignature{}
+	for _, signature := range bundle.Signatures {
+		if strings.TrimSpace(signature.ID) != "" {
+			byID[signature.ID] = signature
+		}
+	}
+	seen := map[string]bool{}
+	keyIDs := []string{}
+	for _, ref := range bundle.SignatureRefs {
+		signature, ok := byID[strings.TrimSpace(ref)]
+		if !ok || strings.TrimSpace(signature.KeyID) == "" || seen[signature.KeyID] {
+			continue
+		}
+		seen[signature.KeyID] = true
+		keyIDs = append(keyIDs, signature.KeyID)
+	}
+	return keyIDs
+}
+
+const (
+	customerPackageSchemaVersion = "customer-security-package.v2.0.0"
+	maxCustomerPackageFileBytes  = int64(10 << 20)
+)
+
+type customerPackageVerifyResult struct {
+	ManifestHash        string
+	PackageID           string
+	TenantID            string
+	ProductID           string
+	ReleaseID           string
+	EvidenceIDs         []string
+	ReleaseBundleHashes []string
+}
+
+type customerPackageArchiveFiles struct {
+	Manifest     []byte
+	Metadata     map[string]any
+	Verification map[string]any
+}
+
+func verifyCustomerPackage(args []string) error {
+	fs := flag.NewFlagSet("package verify", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	manifestPath := fs.String("manifest", "", "customer package manifest JSON path")
+	archivePath := fs.String("archive", "", "customer package ZIP path")
+	bundlePath := fs.String("bundle", "", "evidence bundle JSON path")
+	expectedHash := fs.String("hash", "", "expected canonical manifest hash sha256:<hex>")
+	expectedTenantID := fs.String("expected-tenant-id", "", "expected tenant id")
+	expectedProductID := fs.String("expected-product-id", "", "expected product id")
+	expectedReleaseID := fs.String("expected-release-id", "", "expected release id")
+	expectedPackageID := fs.String("expected-package-id", "", "expected package id")
+	expectedSigningKeyID := fs.String("expected-signing-key-id", "", "expected evidence-bundle signing key id")
+	if err := fs.Parse(args); err != nil {
+		return usage()
+	}
+	if fs.NArg() != 0 || (strings.TrimSpace(*manifestPath) == "" && strings.TrimSpace(*archivePath) == "") {
+		return usage()
+	}
+
+	var archive customerPackageArchiveFiles
+	var manifestBody []byte
+	if strings.TrimSpace(*archivePath) != "" {
+		var err error
+		archive, err = readCustomerPackageArchive(*archivePath)
+		if err != nil {
+			return err
+		}
+		manifestBody = archive.Manifest
+	}
+	if strings.TrimSpace(*manifestPath) != "" {
+		body, err := readFileStrict(*manifestPath)
+		if err != nil {
+			return err
+		}
+		if len(manifestBody) > 0 {
+			archiveHash, err := canonicalJSONBytesHash(manifestBody)
+			if err != nil {
+				return err
+			}
+			fileHash, err := canonicalJSONBytesHash(body)
+			if err != nil {
+				return err
+			}
+			if archiveHash != fileHash {
+				return errors.New("manifest file and archive manifest do not match")
+			}
+		}
+		manifestBody = body
+	}
+
+	result, err := verifyCustomerPackageManifestBytes(manifestBody)
+	if err != nil {
+		return err
+	}
+	if expected := strings.TrimSpace(*expectedHash); expected != "" && result.ManifestHash != expected {
+		return fmt.Errorf("customer package manifest hash mismatch: got %s want %s", result.ManifestHash, expected)
+	}
+	if err := verifyExpectedValue("tenant id", result.TenantID, *expectedTenantID); err != nil {
+		return err
+	}
+	if err := verifyExpectedValue("product id", result.ProductID, *expectedProductID); err != nil {
+		return err
+	}
+	if err := verifyExpectedValue("release id", result.ReleaseID, *expectedReleaseID); err != nil {
+		return err
+	}
+	if err := verifyExpectedValue("package id", result.PackageID, *expectedPackageID); err != nil {
+		return err
+	}
+	if len(archive.Manifest) > 0 {
+		if err := verifyCustomerPackageArchiveMetadata(archive, result); err != nil {
+			return err
+		}
+	}
+	bundleStatus := "not supplied"
+	if strings.TrimSpace(*bundlePath) != "" {
+		bundle, err := readEvidenceBundle(*bundlePath)
+		if err != nil {
+			return err
+		}
+		verified, err := verifyEvidenceBundleStruct(bundle)
+		if err != nil {
+			return err
+		}
+		if expected := strings.TrimSpace(*expectedSigningKeyID); expected != "" && !stringInSlice(verified.SigningKeyIDs, expected) {
+			return fmt.Errorf("expected signing key id %s was not used by evidence bundle signatures", expected)
+		}
+		if err := verifyCustomerPackageEvidenceCoverage(result.EvidenceIDs, bundle.Manifest); err != nil {
+			return err
+		}
+		bundleStatus = "verified"
+		if verified.Signed {
+			bundleStatus = "verified with signature"
+		}
+	}
+	fmt.Printf("customer package verified\npackage_id: %s\nproduct_id: %s\nrelease_id: %s\nmanifest_hash: %s\nevidence_bundle: %s\n", result.PackageID, result.ProductID, result.ReleaseID, result.ManifestHash, bundleStatus)
+	return nil
+}
+
+func verifyCustomerPackageManifestBytes(body []byte) (customerPackageVerifyResult, error) {
+	if len(bytes.TrimSpace(body)) == 0 {
+		return customerPackageVerifyResult{}, errors.New("customer package manifest is empty")
+	}
+	var raw any
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return customerPackageVerifyResult{}, errors.New("customer package manifest is not valid JSON")
+	}
+	if err := rejectCustomerPackageSensitiveKeys(raw); err != nil {
+		return customerPackageVerifyResult{}, err
+	}
+	hash, err := canonicalJSONBytesHash(body)
+	if err != nil {
+		return customerPackageVerifyResult{}, err
+	}
+	var manifest struct {
+		SchemaVersion    string              `json:"schema_version"`
+		PackageVersion   string              `json:"package_version"`
+		PackageID        string              `json:"package_id"`
+		ID               string              `json:"id"`
+		Title            string              `json:"title"`
+		GeneratedAt      string              `json:"generated_at"`
+		Tenant           struct{ ID string } `json:"tenant"`
+		ProductID        string              `json:"product_id"`
+		Product          struct{ ID string } `json:"product"`
+		ReleaseID        string              `json:"release_id"`
+		Release          struct{ ID string } `json:"release"`
+		RedactionProfile struct {
+			ID            string   `json:"id"`
+			Name          string   `json:"name"`
+			AllowedTypes  []string `json:"allowed_types"`
+			SchemaVersion string   `json:"schema_version"`
+		} `json:"redaction_profile"`
+		EvidenceIDs     []string `json:"evidence_ids"`
+		ArtifactDigests []struct {
+			ID     string `json:"id"`
+			Digest string `json:"digest"`
+		} `json:"artifact_digests"`
+		ReadinessSummary     map[string]any `json:"readiness_summary"`
+		VerificationMaterial struct {
+			HashAlgorithm  string `json:"hash_algorithm"`
+			ReleaseBundles []struct {
+				ManifestHash string `json:"manifest_hash"`
+			} `json:"release_bundles"`
+		} `json:"verification_material"`
+		Limitations []string `json:"limitations"`
+		NonClaims   []string `json:"non_claims"`
+	}
+	if err := json.Unmarshal(body, &manifest); err != nil {
+		return customerPackageVerifyResult{}, errors.New("customer package manifest structure is invalid")
+	}
+	if strings.TrimSpace(manifest.SchemaVersion) != customerPackageSchemaVersion || strings.TrimSpace(manifest.PackageVersion) != customerPackageSchemaVersion {
+		return customerPackageVerifyResult{}, errors.New("customer package manifest schema_version is unsupported")
+	}
+	packageID := strings.TrimSpace(manifest.PackageID)
+	if packageID == "" {
+		packageID = strings.TrimSpace(manifest.ID)
+	}
+	if packageID == "" || strings.TrimSpace(manifest.ID) == "" || packageID != strings.TrimSpace(manifest.ID) {
+		return customerPackageVerifyResult{}, errors.New("customer package manifest id/package_id mismatch")
+	}
+	if strings.TrimSpace(manifest.Title) == "" || strings.TrimSpace(manifest.Tenant.ID) == "" || strings.TrimSpace(manifest.ProductID) == "" || strings.TrimSpace(manifest.Product.ID) == "" {
+		return customerPackageVerifyResult{}, errors.New("customer package manifest missing required identity fields")
+	}
+	if strings.TrimSpace(manifest.ProductID) != strings.TrimSpace(manifest.Product.ID) {
+		return customerPackageVerifyResult{}, errors.New("customer package manifest product id mismatch")
+	}
+	if strings.TrimSpace(manifest.ReleaseID) != "" && strings.TrimSpace(manifest.Release.ID) != "" && strings.TrimSpace(manifest.ReleaseID) != strings.TrimSpace(manifest.Release.ID) {
+		return customerPackageVerifyResult{}, errors.New("customer package manifest release id mismatch")
+	}
+	if _, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(manifest.GeneratedAt)); err != nil {
+		return customerPackageVerifyResult{}, errors.New("customer package manifest generated_at must be RFC3339")
+	}
+	if strings.TrimSpace(manifest.RedactionProfile.ID) == "" || strings.TrimSpace(manifest.RedactionProfile.Name) == "" || len(manifest.RedactionProfile.AllowedTypes) == 0 || strings.TrimSpace(manifest.RedactionProfile.SchemaVersion) == "" {
+		return customerPackageVerifyResult{}, errors.New("customer package manifest missing redaction profile details")
+	}
+	if len(manifest.ReadinessSummary) == 0 || len(manifest.Limitations) == 0 || len(manifest.NonClaims) == 0 {
+		return customerPackageVerifyResult{}, errors.New("customer package manifest missing readiness, limitations, or non-claims")
+	}
+	if algorithm := strings.TrimSpace(manifest.VerificationMaterial.HashAlgorithm); algorithm != "" && algorithm != "sha256" {
+		return customerPackageVerifyResult{}, errors.New("customer package manifest uses unsupported hash algorithm")
+	}
+	for _, artifact := range manifest.ArtifactDigests {
+		if strings.TrimSpace(artifact.ID) == "" || !validSHA256Digest(artifact.Digest) {
+			return customerPackageVerifyResult{}, errors.New("customer package manifest has invalid artifact digest")
+		}
+	}
+	releaseBundleHashes := []string{}
+	for _, bundle := range manifest.VerificationMaterial.ReleaseBundles {
+		if strings.TrimSpace(bundle.ManifestHash) != "" {
+			releaseBundleHashes = append(releaseBundleHashes, strings.TrimSpace(bundle.ManifestHash))
+		}
+	}
+	return customerPackageVerifyResult{
+		ManifestHash:        hash,
+		PackageID:           packageID,
+		TenantID:            strings.TrimSpace(manifest.Tenant.ID),
+		ProductID:           strings.TrimSpace(manifest.ProductID),
+		ReleaseID:           strings.TrimSpace(manifest.ReleaseID),
+		EvidenceIDs:         trimStringSlice(manifest.EvidenceIDs),
+		ReleaseBundleHashes: releaseBundleHashes,
+	}, nil
+}
+
+func readCustomerPackageArchive(path string) (customerPackageArchiveFiles, error) {
+	cleaned, err := cleanOperatorPath(path)
+	if err != nil {
+		return customerPackageArchiveFiles{}, err
+	}
+	// #nosec G304 -- this CLI intentionally reads a local operator-specified ZIP archive and never extracts entries to disk.
+	reader, err := zip.OpenReader(cleaned)
+	if err != nil {
+		return customerPackageArchiveFiles{}, err
+	}
+	defer func() {
+		_ = reader.Close()
+	}()
+	files := customerPackageArchiveFiles{}
+	for _, file := range reader.File {
+		switch file.Name {
+		case "manifest.json":
+			files.Manifest, err = readZIPFileLimited(file)
+		case "package.json":
+			var body []byte
+			body, err = readZIPFileLimited(file)
+			if err == nil {
+				err = json.Unmarshal(body, &files.Metadata)
+			}
+		case "verification.json":
+			var body []byte
+			body, err = readZIPFileLimited(file)
+			if err == nil {
+				err = json.Unmarshal(body, &files.Verification)
+			}
+		}
+		if err != nil {
+			return customerPackageArchiveFiles{}, err
+		}
+	}
+	if len(files.Manifest) == 0 || len(files.Metadata) == 0 || len(files.Verification) == 0 {
+		return customerPackageArchiveFiles{}, errors.New("customer package archive missing manifest.json, package.json, or verification.json")
+	}
+	return files, nil
+}
+
+func readZIPFileLimited(file *zip.File) ([]byte, error) {
+	if file.UncompressedSize64 > uint64(maxCustomerPackageFileBytes) {
+		return nil, fmt.Errorf("customer package archive entry %s is too large", file.Name)
+	}
+	rc, err := file.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = rc.Close()
+	}()
+	body, err := io.ReadAll(io.LimitReader(rc, maxCustomerPackageFileBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(body)) > maxCustomerPackageFileBytes {
+		return nil, fmt.Errorf("customer package archive entry %s is too large", file.Name)
+	}
+	return body, nil
+}
+
+func verifyCustomerPackageArchiveMetadata(archive customerPackageArchiveFiles, result customerPackageVerifyResult) error {
+	for name, document := range map[string]map[string]any{"package.json": archive.Metadata, "verification.json": archive.Verification} {
+		if got := stringMapField(document, "manifest_hash"); got != result.ManifestHash {
+			return fmt.Errorf("%s manifest_hash mismatch", name)
+		}
+		if got := stringMapField(document, "package_id"); got != "" && got != result.PackageID {
+			return fmt.Errorf("%s package_id mismatch", name)
+		}
+		if name == "package.json" {
+			if got := stringMapField(document, "id"); got != "" && got != result.PackageID {
+				return fmt.Errorf("%s id mismatch", name)
+			}
+		}
+	}
+	return nil
+}
+
+func verifyCustomerPackageEvidenceCoverage(packageEvidenceIDs []string, bundleManifest map[string]any) error {
+	if len(packageEvidenceIDs) == 0 {
+		return nil
+	}
+	bundleIDs := stringSliceFromAny(bundleManifest["evidence_ids"])
+	if len(bundleIDs) == 0 {
+		return nil
+	}
+	for _, id := range packageEvidenceIDs {
+		if !stringInSlice(bundleIDs, id) {
+			return fmt.Errorf("evidence bundle does not include package evidence id %s", id)
+		}
+	}
+	return nil
+}
+
+func canonicalJSONBytesHash(body []byte) (string, error) {
+	var normalized any
+	if err := json.Unmarshal(body, &normalized); err != nil {
+		return "", errors.New("manifest is not valid JSON")
+	}
+	canonical, err := json.Marshal(normalized)
+	if err != nil {
+		return "", err
+	}
+	return hashBytes(canonical), nil
+}
+
+func validSHA256Digest(value string) bool {
+	value = strings.TrimSpace(value)
+	if !strings.HasPrefix(value, "sha256:") || len(value) != len("sha256:")+64 {
+		return false
+	}
+	_, err := hex.DecodeString(strings.TrimPrefix(value, "sha256:"))
+	return err == nil
+}
+
+func verifyExpectedValue(label, got, expected string) error {
+	expected = strings.TrimSpace(expected)
+	if expected == "" {
+		return nil
+	}
+	if strings.TrimSpace(got) != expected {
+		return fmt.Errorf("customer package %s mismatch: got %s want %s", label, got, expected)
+	}
+	return nil
+}
+
+func rejectCustomerPackageSensitiveKeys(value any) error {
+	return rejectCustomerPackageSensitiveKeysAt(value, "")
+}
+
+func rejectCustomerPackageSensitiveKeysAt(value any, path string) error {
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, child := range typed {
+			lower := strings.ToLower(strings.TrimSpace(key))
+			if prohibitedCustomerPackageManifestKey(lower) {
+				if path == "" {
+					return fmt.Errorf("customer package manifest contains prohibited field %s", key)
+				}
+				return fmt.Errorf("customer package manifest contains prohibited field %s.%s", path, key)
+			}
+			childPath := key
+			if path != "" {
+				childPath = path + "." + key
+			}
+			if err := rejectCustomerPackageSensitiveKeysAt(child, childPath); err != nil {
+				return err
+			}
+		}
+	case []any:
+		for _, child := range typed {
+			if err := rejectCustomerPackageSensitiveKeysAt(child, path); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func prohibitedCustomerPackageManifestKey(key string) bool {
+	switch key {
+	case "payload", "payload_bytes", "payload_ref", "object_key", "private_key", "token", "secret", "api_key_hash", "session_token_hash", "internal_notes":
+		return true
+	default:
+		return false
+	}
+}
+
+func stringMapField(values map[string]any, key string) string {
+	if values == nil {
+		return ""
+	}
+	value, _ := values[key].(string)
+	return strings.TrimSpace(value)
+}
+
+func stringSliceFromAny(value any) []string {
+	raw, ok := value.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(raw))
+	for _, item := range raw {
+		text, ok := item.(string)
+		if ok && strings.TrimSpace(text) != "" {
+			out = append(out, strings.TrimSpace(text))
+		}
+	}
+	return out
+}
+
+func trimStringSlice(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			out = append(out, value)
+		}
+	}
+	return out
+}
+
+func stringInSlice(values []string, expected string) bool {
+	for _, value := range values {
+		if value == expected {
+			return true
+		}
+	}
+	return false
 }
 
 func cleanOperatorPath(path string) (string, error) {

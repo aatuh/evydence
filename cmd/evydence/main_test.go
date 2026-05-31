@@ -1,6 +1,7 @@
 package main
 
 import (
+	"archive/zip"
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
@@ -164,6 +165,71 @@ func TestVerifyEvidenceBundleChecksIncludedSignature(t *testing.T) {
 	}
 	if err := verifyEvidenceBundle(path); err == nil || !strings.Contains(err.Error(), "signature verification failed") {
 		t.Fatalf("tampered signature refs err=%v", err)
+	}
+}
+
+func TestVerifyCustomerPackageManifestArchiveAndBundle(t *testing.T) {
+	manifest := testCustomerPackageManifest()
+	body, err := json.Marshal(manifest)
+	if err != nil {
+		t.Fatalf("marshal manifest: %v", err)
+	}
+	hash, err := canonicalJSONBytesHash(body)
+	if err != nil {
+		t.Fatalf("manifest hash: %v", err)
+	}
+	dir := t.TempDir()
+	manifestPath := dir + "/manifest.json"
+	if err := os.WriteFile(manifestPath, body, 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	archivePath := writeTestCustomerPackageArchive(t, dir+"/package.zip", body, hash, "csp_1")
+	bundlePath := writeSignedEvidenceBundle(t, dir+"/evidence-bundle.json", []any{"ev_1"}, "sk_1")
+	if err := verifyCustomerPackage([]string{
+		"--manifest", manifestPath,
+		"--archive", archivePath,
+		"--bundle", bundlePath,
+		"--hash", hash,
+		"--expected-tenant-id", "ten_1",
+		"--expected-product-id", "prod_1",
+		"--expected-release-id", "rel_1",
+		"--expected-package-id", "csp_1",
+		"--expected-signing-key-id", "sk_1",
+	}); err != nil {
+		t.Fatalf("verify customer package: %v", err)
+	}
+
+	badArchivePath := writeTestCustomerPackageArchive(t, dir+"/package-bad.zip", body, "sha256:"+strings.Repeat("0", 64), "csp_1")
+	if err := verifyCustomerPackage([]string{"--archive", badArchivePath}); err == nil || !strings.Contains(err.Error(), "manifest_hash mismatch") {
+		t.Fatalf("bad archive err=%v", err)
+	}
+}
+
+func TestVerifyCustomerPackageRejectsSensitiveFieldsAndMismatches(t *testing.T) {
+	manifest := testCustomerPackageManifest()
+	manifest["payload_ref"] = "objects/ten_1/raw-secret.json"
+	body, err := json.Marshal(manifest)
+	if err != nil {
+		t.Fatalf("marshal manifest: %v", err)
+	}
+	path := t.TempDir() + "/manifest.json"
+	if err := os.WriteFile(path, body, 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	if err := verifyCustomerPackage([]string{"--manifest", path}); err == nil || !strings.Contains(err.Error(), "prohibited field payload_ref") {
+		t.Fatalf("sensitive field err=%v", err)
+	}
+
+	delete(manifest, "payload_ref")
+	body, err = json.Marshal(manifest)
+	if err != nil {
+		t.Fatalf("marshal safe manifest: %v", err)
+	}
+	if err := os.WriteFile(path, body, 0o600); err != nil {
+		t.Fatalf("write safe manifest: %v", err)
+	}
+	if err := verifyCustomerPackage([]string{"--manifest", path, "--expected-tenant-id", "ten_other"}); err == nil || !strings.Contains(err.Error(), "tenant id mismatch") {
+		t.Fatalf("tenant mismatch err=%v", err)
 	}
 }
 
@@ -417,6 +483,17 @@ func TestRunCoversHashBundleAndReleaseCommands(t *testing.T) {
 	if err := run([]string{"verify-evidence-bundle", bundlePath}); err != nil {
 		t.Fatalf("run verify evidence bundle: %v", err)
 	}
+	customerManifestBody, err := json.Marshal(testCustomerPackageManifest())
+	if err != nil {
+		t.Fatalf("marshal customer package manifest: %v", err)
+	}
+	customerManifest := dir + "/customer-package.json"
+	if err := os.WriteFile(customerManifest, customerManifestBody, 0o600); err != nil {
+		t.Fatalf("write customer package manifest: %v", err)
+	}
+	if err := run([]string{"package", "verify", "--manifest", customerManifest}); err != nil {
+		t.Fatalf("run package verify: %v", err)
+	}
 	chainPath := dir + "/chain.json"
 	entry := testAuditEntry(t, "", 1)
 	chainBody, err := json.Marshal([]map[string]any{entry})
@@ -494,4 +571,106 @@ func mustParseTime(t *testing.T, value string) time.Time {
 		t.Fatalf("parse time: %v", err)
 	}
 	return parsed
+}
+
+func testCustomerPackageManifest() map[string]any {
+	return map[string]any{
+		"schema_version":        "customer-security-package.v2.0.0",
+		"package_version":       "customer-security-package.v2.0.0",
+		"package_id":            "csp_1",
+		"id":                    "csp_1",
+		"title":                 "Customer package",
+		"generated_at":          "2026-05-28T12:00:00Z",
+		"tenant":                map[string]any{"id": "ten_1", "name": "Tenant"},
+		"product":               map[string]any{"id": "prod_1", "name": "Payments API"},
+		"product_id":            "prod_1",
+		"release":               map[string]any{"id": "rel_1", "product_id": "prod_1", "version": "1.0.0", "state": "approved", "created_at": "2026-05-28T12:00:00Z"},
+		"release_id":            "rel_1",
+		"redaction_profile_id":  "rp_1",
+		"redaction_profile":     map[string]any{"id": "rp_1", "name": "customer_safe", "allowed_types": []any{"artifact", "release_bundle"}, "excluded_fields": []any{"payload_ref"}, "schema_version": "redaction-profile.v1.0.0"},
+		"evidence_ids":          []any{"ev_1"},
+		"artifact_digests":      []any{map[string]any{"id": "art_1", "name": "artifact.tar.gz", "media_type": "application/gzip", "size": 123, "digest": "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb", "created_at": "2026-05-28T12:00:00Z"}},
+		"readiness_summary":     map[string]any{"result": "passed", "checks": []any{}, "gaps": []any{}, "limitations": []any{"Readiness is derived from package-scoped evidence only."}},
+		"verification_material": map[string]any{"hash_algorithm": "sha256", "canonicalization": "canonicalization-profile.v1.0.0", "manifest_hash_field": "manifest_hash", "release_bundles": []any{map[string]any{"id": "rb_1", "manifest_hash": "sha256:" + strings.Repeat("b", 64), "signature_refs": []any{"sig_1"}}}},
+		"limitations":           []any{"Package contents are scoped by product, release, redaction profile, and package expiry."},
+		"non_claims":            []any{"This package supports technical evidence review and compliance readiness only."},
+	}
+}
+
+func writeTestCustomerPackageArchive(t *testing.T, path string, manifest []byte, manifestHash, packageID string) string {
+	t.Helper()
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("create archive: %v", err)
+	}
+	zw := zip.NewWriter(file)
+	for _, entry := range []struct {
+		name string
+		body []byte
+	}{
+		{name: "manifest.json", body: manifest},
+		{name: "package.json", body: mustMarshalJSON(t, map[string]any{"id": packageID, "manifest_hash": manifestHash})},
+		{name: "verification.json", body: mustMarshalJSON(t, map[string]any{"package_id": packageID, "manifest_hash": manifestHash, "manifest_file": "manifest.json"})},
+	} {
+		writer, err := zw.Create(entry.name)
+		if err != nil {
+			t.Fatalf("create archive entry: %v", err)
+		}
+		if _, err := writer.Write(entry.body); err != nil {
+			t.Fatalf("write archive entry: %v", err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("close archive writer: %v", err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatalf("close archive: %v", err)
+	}
+	return path
+}
+
+func writeSignedEvidenceBundle(t *testing.T, path string, evidenceIDs []any, keyID string) string {
+	t.Helper()
+	manifest := map[string]any{"bundle_version": "evidence-bundle.v1.0.0", "evidence_ids": evidenceIDs}
+	canonical, err := json.Marshal(manifest)
+	if err != nil {
+		t.Fatalf("marshal bundle manifest: %v", err)
+	}
+	sum := sha256.Sum256(canonical)
+	manifestHash := "sha256:" + hex.EncodeToString(sum[:])
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("generate bundle key: %v", err)
+	}
+	body := mustMarshalJSON(t, map[string]any{
+		"manifest":       manifest,
+		"manifest_hash":  manifestHash,
+		"signature_refs": []any{"sig_1"},
+		"signatures": []any{map[string]any{
+			"id":         "sig_1",
+			"key_id":     keyID,
+			"algorithm":  "Ed25519",
+			"value":      base64.RawStdEncoding.EncodeToString(ed25519.Sign(priv, []byte(manifestHash))),
+			"created_at": "2026-05-28T12:00:00Z",
+		}},
+		"signing_keys": []any{map[string]any{
+			"id":         keyID,
+			"algorithm":  "Ed25519",
+			"status":     "active",
+			"public_key": base64.RawStdEncoding.EncodeToString(pub),
+		}},
+	})
+	if err := os.WriteFile(path, body, 0o600); err != nil {
+		t.Fatalf("write evidence bundle: %v", err)
+	}
+	return path
+}
+
+func mustMarshalJSON(t *testing.T, value any) []byte {
+	t.Helper()
+	body, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("marshal JSON: %v", err)
+	}
+	return body
 }

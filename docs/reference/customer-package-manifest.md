@@ -63,3 +63,36 @@ defaults instead of explicit operator scope.
 The local package viewer at `site/package-viewer/index.html` loads v2 manifests
 directly from disk. A non-sensitive sample is available at
 `examples/end-to-end-release-evidence/sample-customer-package-manifest.json`.
+
+## Offline Verification
+
+The CLI verifies a package manifest without contacting the API:
+
+```sh
+go run ./cmd/evydence package verify \
+  --manifest examples/end-to-end-release-evidence/sample-customer-package-manifest.json \
+  --expected-product-id prod_example \
+  --expected-release-id rel_example
+```
+
+For exported ZIP packages, verify archive metadata and the manifest hash:
+
+```sh
+go run ./cmd/evydence package verify \
+  --archive evydence-customer-package-csp_123.zip \
+  --hash sha256:<canonical-manifest-hash>
+```
+
+When an evidence bundle is supplied, the verifier also checks the bundle
+manifest hash, included signatures, and package evidence-id coverage:
+
+```sh
+go run ./cmd/evydence package verify \
+  --manifest package-manifest.json \
+  --bundle evidence-bundle.json \
+  --expected-signing-key-id sk_123
+```
+
+Verification proves the local files match their recorded hashes and available
+signatures. It does not prove legal compliance, certification, complete SBOM
+coverage, vulnerability scanner authority, or release security status.
