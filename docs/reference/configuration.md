@@ -145,10 +145,11 @@ of whether the selected key custody profile satisfies their deployment needs.
 
 When `EVYDENCE_PROVIDER_VALIDATION_GATEWAY_URL` is set, provider identity
 verification can call an operator-controlled HTTPS gateway with tenant id,
-provider id/type, issuer, subject, group-claim name, and a supplied access
-token when the request includes one. The gateway returns non-secret checks,
-groups, and limitations. Evydence stores the checks and normalized groups, not
-the supplied token or raw provider response.
+provider id/type, issuer, subject, group-claim name, and whether the caller
+supplied an access token. Evydence does not forward that access token to the
+gateway. The gateway returns non-secret checks, groups, and limitations.
+Evydence stores the checks and normalized groups, not the supplied token or raw
+provider response.
 
 This gateway is an integration point for GitHub, GitLab, IdP, directory, or
 other provider-specific validation logic that depends on deployment-owned

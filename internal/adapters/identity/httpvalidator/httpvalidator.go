@@ -42,7 +42,6 @@ type validationRequest struct {
 	Issuer             string `json:"issuer,omitempty"`
 	Subject            string `json:"subject"`
 	GroupsClaim        string `json:"groups_claim,omitempty"`
-	AccessToken        string `json:"access_token,omitempty"`
 	AccessTokenPresent bool   `json:"access_token_present"`
 }
 
@@ -95,7 +94,6 @@ func (v *Validator) ValidateProviderIdentity(ctx context.Context, req app.Provid
 		Issuer:             strings.TrimSpace(req.Issuer),
 		Subject:            subject,
 		GroupsClaim:        strings.TrimSpace(req.GroupsClaim),
-		AccessToken:        accessToken,
 		AccessTokenPresent: accessToken != "",
 	})
 	if err != nil {
