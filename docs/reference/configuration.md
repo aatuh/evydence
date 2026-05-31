@@ -54,7 +54,7 @@ The example secrets are placeholders. Replace them before using shared or produc
 | `EVYDENCE_PROVIDER_VALIDATION_GATEWAY_TOKEN` | Gateway | unset | Optional bearer token for the provider validation gateway. Store outside source control and logs. |
 | `EVYDENCE_PROVIDER_VALIDATION_GATEWAY_TIMEOUT_SECONDS` | No | `10` | Timeout for provider validation gateway requests. |
 | `EVYDENCE_PROVIDER_VALIDATION_GATEWAY_ALLOW_INSECURE_LOCALHOST` | Local only | `false` | Allows an HTTP localhost gateway for tests. Do not use for production. |
-| `EVYDENCE_SIGNING_KEY_MODE` | Production yes | `external`, `aws-kms`, `gcp-kms`, `azure-key-vault`, or `pkcs11-hsm` for production | Production rejects local plaintext signing-key mode. `aws-kms` uses the built-in AWS KMS executor. `gcp-kms`, `azure-key-vault`, and `pkcs11-hsm` are explicit HTTPS signing-gateway profiles and require `EVYDENCE_SIGNING_EXECUTOR_URL`. |
+| `EVYDENCE_SIGNING_KEY_MODE` | Production yes | `external`, `aws-kms`, `gcp-kms`, `azure-key-vault`, or `pkcs11-hsm` for production | Production rejects local plaintext signing-key mode. `aws-kms`, `gcp-kms`, and `azure-key-vault` can use built-in provider executors. `pkcs11-hsm` remains an HTTPS signing-gateway profile. |
 | `EVYDENCE_SIGNING_EXECUTOR_URL` | No | unset | Optional HTTPS signing gateway used by `POST /v1/signing-operations` when `external_signature` is omitted. The API sends subject metadata and `payload_hash`, not raw payload bytes. |
 | `EVYDENCE_SIGNING_EXECUTOR_TOKEN` | Signing gateway | unset | Optional bearer token for the signing gateway. Store outside source control and logs. |
 | `EVYDENCE_SIGNING_EXECUTOR_TIMEOUT_SECONDS` | No | `10` | Timeout for signing gateway requests. |
@@ -64,6 +64,17 @@ The example secrets are placeholders. Replace them before using shared or produc
 | `EVYDENCE_AWS_KMS_ENDPOINT` | No | unset | Optional AWS KMS-compatible endpoint for tests or controlled private endpoints. |
 | `EVYDENCE_AWS_KMS_SIGNING_ALGORITHM` | No | `ECDSA_SHA_256` | Supported values are `ECDSA_SHA_256`, `RSASSA_PSS_SHA_256`, and `RSASSA_PKCS1_V1_5_SHA_256` because Evydence signs stored SHA-256 payload hashes. |
 | `EVYDENCE_AWS_KMS_TIMEOUT_SECONDS` | No | `10` | Timeout for AWS KMS signing requests. |
+| `EVYDENCE_GCP_KMS_ACCESS_TOKEN` | GCP KMS mode | unset | Bearer token used by the direct GCP Cloud KMS executor. Store outside source control and logs. If unset, `gcp-kms` requires `EVYDENCE_SIGNING_EXECUTOR_URL`. |
+| `EVYDENCE_GCP_KMS_KEY_NAME` | GCP KMS mode | unset | Default GCP Cloud KMS key version resource name. A signing provider `key_ref` can override it. |
+| `EVYDENCE_GCP_KMS_ENDPOINT` | No | `https://cloudkms.googleapis.com` | Optional GCP KMS endpoint for tests or controlled private endpoints. |
+| `EVYDENCE_GCP_KMS_TIMEOUT_SECONDS` | No | `10` | Timeout for GCP KMS signing requests. |
+| `EVYDENCE_AZURE_KEY_VAULT_URL` | Azure Key Vault mode | unset | HTTPS Key Vault URL used by the direct Azure Key Vault executor. |
+| `EVYDENCE_AZURE_KEY_VAULT_ACCESS_TOKEN` | Azure Key Vault mode | unset | Bearer token used by the direct Azure Key Vault executor. Store outside source control and logs. If unset, `azure-key-vault` requires `EVYDENCE_SIGNING_EXECUTOR_URL`. |
+| `EVYDENCE_AZURE_KEY_VAULT_KEY_NAME` | Azure Key Vault mode | unset | Default Key Vault key name. A signing provider `key_ref` URL can override it. |
+| `EVYDENCE_AZURE_KEY_VAULT_KEY_VERSION` | Azure Key Vault mode | unset | Default Key Vault key version. A signing provider `key_ref` URL can override it. |
+| `EVYDENCE_AZURE_KEY_VAULT_ALGORITHM` | No | `ES256` | Azure Key Vault signing algorithm used for the SHA-256 digest. |
+| `EVYDENCE_AZURE_KEY_VAULT_API_VERSION` | No | `7.4` | Azure Key Vault API version. |
+| `EVYDENCE_AZURE_KEY_VAULT_TIMEOUT_SECONDS` | No | `10` | Timeout for Azure Key Vault signing requests. |
 | `EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_URL` | No | unset | Optional HTTPS operator-controlled gateway for transparency inclusion proof fetch/verification material. When unset, Evydence fetches from the configured public log endpoint. |
 | `EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_TOKEN` | Gateway | unset | Optional bearer token for the transparency proof gateway. Store outside source control and logs. |
 | `EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_TIMEOUT_SECONDS` | No | `10` | Timeout for transparency proof gateway requests. |
@@ -77,8 +88,9 @@ When `ENV=production`, the API refuses to start unless:
 - `EVYDENCE_DATABASE_URL` is set.
 - `EVYDENCE_API_KEY_PEPPER` is non-empty and not the local default.
 - `EVYDENCE_SIGNING_KEY_MODE` is `external`, `aws-kms`, `gcp-kms`,
-  `azure-key-vault`, or `pkcs11-hsm`. The non-AWS provider modes require
-  `EVYDENCE_SIGNING_EXECUTOR_URL`.
+  `azure-key-vault`, or `pkcs11-hsm`. `pkcs11-hsm` requires
+  `EVYDENCE_SIGNING_EXECUTOR_URL`; `gcp-kms` and `azure-key-vault` require
+  either their direct provider credentials or `EVYDENCE_SIGNING_EXECUTOR_URL`.
 - `EVYDENCE_PRINT_BOOTSTRAP_SECRET` is not `true`.
 - `EVYDENCE_POSTGRES_LOAD_MODE`, when set, is `relational_only`.
 - `EVYDENCE_API_WRITER_MODE`, when set, is `single` or `single-writer`.
@@ -128,11 +140,13 @@ gateway returns a signature, optional provider key id, and optional algorithm.
 Evydence records the signature receipt and verification checks; it does not
 store production private key material or send raw evidence payload bytes.
 
-`EVYDENCE_SIGNING_KEY_MODE=gcp-kms`, `azure-key-vault`, or `pkcs11-hsm` makes
-that gateway requirement explicit for deployments that keep non-AWS KMS/HSM
-custody behind a tenant-controlled signing service. These modes are not direct
-cloud-provider SDK adapters; operators remain responsible for provider
-credentials, IAM, key lifecycle, gateway operation, and custody review.
+`EVYDENCE_SIGNING_KEY_MODE=gcp-kms` and `azure-key-vault` can use direct
+provider executors when their access-token and key configuration variables are
+set. If direct credentials are absent, they fall back to requiring the HTTPS
+signing gateway. `pkcs11-hsm` always uses the HTTPS signing gateway because
+native HSM modules and slots are deployment-specific. Operators remain
+responsible for provider credentials, IAM, key lifecycle, gateway operation
+where used, and custody review.
 
 When `EVYDENCE_SIGNING_KEY_MODE=aws-kms`, Evydence uses the AWS KMS `Sign`
 operation against `EVYDENCE_AWS_KMS_KEY_ID`. The executor signs the decoded
@@ -140,6 +154,18 @@ SHA-256 digest with KMS `MessageType=DIGEST`; it does not send raw evidence
 payload bytes to AWS KMS. Operators remain responsible for AWS IAM policy,
 key lifecycle, CloudTrail review, regional availability, and external review
 of whether the selected key custody profile satisfies their deployment needs.
+
+When `EVYDENCE_SIGNING_KEY_MODE=gcp-kms`, Evydence can call GCP Cloud KMS
+`asymmetricSign` with a configured bearer token and key-version resource name.
+The executor sends a SHA-256 digest, not raw evidence payload bytes. Operators
+remain responsible for GCP IAM, token issuance, audit logs, key lifecycle, and
+regional availability.
+
+When `EVYDENCE_SIGNING_KEY_MODE=azure-key-vault`, Evydence can call Azure Key
+Vault `sign` with a configured bearer token, key name, key version, and
+algorithm. The executor sends a SHA-256 digest encoded for Key Vault, not raw
+evidence payload bytes. Operators remain responsible for Azure identity, Key
+Vault access policy/RBAC, audit logs, key lifecycle, and regional availability.
 
 ## Provider Validation Gateway
 

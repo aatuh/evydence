@@ -9,8 +9,8 @@ Before labeling a deployment production, verify:
 - `ENV=production` is set.
 - `EVYDENCE_DATABASE_URL` points to external PostgreSQL.
 - `EVYDENCE_API_KEY_PEPPER` is a non-default random value.
-- `EVYDENCE_SIGNING_KEY_MODE=external`, `aws-kms`, or a gateway-backed
-  provider profile such as `gcp-kms`, `azure-key-vault`, or `pkcs11-hsm` is set.
+- `EVYDENCE_SIGNING_KEY_MODE=external`, `aws-kms`, `gcp-kms`,
+  `azure-key-vault`, or gateway-backed `pkcs11-hsm` is set.
 - `EVYDENCE_PRINT_BOOTSTRAP_SECRET` is unset or false.
 - Only one API writer replica is deployed; production API startup also enforces
   this with a PostgreSQL advisory writer lease.
@@ -32,7 +32,7 @@ These checks are enforced by API startup. See [Configuration](reference/configur
 - Customer portal access tokens are short-lived, scoped to one package, and handled as bearer secrets.
 - Generated customer packages use explicit redaction profiles and expiry.
 - Collector releases are pinned and have signature, SBOM, and vulnerability scan evidence when available.
-- Signing operations use either a tenant-controlled HTTPS signing gateway, an explicit gateway-backed provider profile, or the AWS KMS executor; raw evidence payload bytes are not sent to any signing executor by Evydence.
+- Signing operations use either a tenant-controlled HTTPS signing gateway, AWS KMS, GCP Cloud KMS, Azure Key Vault, or gateway-backed PKCS#11/HSM profile; raw evidence payload bytes are not sent to any signing executor by Evydence.
 
 ## Backup And Restore Checklist
 

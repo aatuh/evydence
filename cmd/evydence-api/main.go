@@ -21,6 +21,8 @@ import (
 	s3store "github.com/aatuh/evydence/internal/adapters/objectstore/s3"
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/adapters/signing/awskms"
+	"github.com/aatuh/evydence/internal/adapters/signing/azurekeyvault"
+	"github.com/aatuh/evydence/internal/adapters/signing/gcpkms"
 	signinggateway "github.com/aatuh/evydence/internal/adapters/signing/httpgateway"
 	"github.com/aatuh/evydence/internal/adapters/transparency/httpfetcher"
 	transparencygateway "github.com/aatuh/evydence/internal/adapters/transparency/httpgateway"
@@ -177,9 +179,36 @@ func openSigningExecutor() (app.SigningExecutor, error) {
 		}
 		return executor, nil
 	}
+	if mode == "gcp_kms" && strings.TrimSpace(os.Getenv("EVYDENCE_GCP_KMS_ACCESS_TOKEN")) != "" {
+		executor, err := gcpkms.New(gcpkms.Config{
+			Endpoint:    os.Getenv("EVYDENCE_GCP_KMS_ENDPOINT"),
+			AccessToken: os.Getenv("EVYDENCE_GCP_KMS_ACCESS_TOKEN"),
+			KeyName:     os.Getenv("EVYDENCE_GCP_KMS_KEY_NAME"),
+			Timeout:     time.Duration(intEnv("EVYDENCE_GCP_KMS_TIMEOUT_SECONDS", 10)) * time.Second,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("configure GCP KMS signing executor: %w", err)
+		}
+		return executor, nil
+	}
+	if mode == "azure_key_vault" && strings.TrimSpace(os.Getenv("EVYDENCE_AZURE_KEY_VAULT_ACCESS_TOKEN")) != "" {
+		executor, err := azurekeyvault.New(azurekeyvault.Config{
+			VaultURL:    os.Getenv("EVYDENCE_AZURE_KEY_VAULT_URL"),
+			AccessToken: os.Getenv("EVYDENCE_AZURE_KEY_VAULT_ACCESS_TOKEN"),
+			KeyName:     os.Getenv("EVYDENCE_AZURE_KEY_VAULT_KEY_NAME"),
+			KeyVersion:  os.Getenv("EVYDENCE_AZURE_KEY_VAULT_KEY_VERSION"),
+			Algorithm:   os.Getenv("EVYDENCE_AZURE_KEY_VAULT_ALGORITHM"),
+			APIVersion:  os.Getenv("EVYDENCE_AZURE_KEY_VAULT_API_VERSION"),
+			Timeout:     time.Duration(intEnv("EVYDENCE_AZURE_KEY_VAULT_TIMEOUT_SECONDS", 10)) * time.Second,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("configure Azure Key Vault signing executor: %w", err)
+		}
+		return executor, nil
+	}
 	endpoint := strings.TrimSpace(os.Getenv("EVYDENCE_SIGNING_EXECUTOR_URL"))
 	if endpoint == "" && signingModeRequiresGateway(mode) {
-		return nil, fmt.Errorf("EVYDENCE_SIGNING_KEY_MODE=%s requires EVYDENCE_SIGNING_EXECUTOR_URL because no direct SDK executor is configured", mode)
+		return nil, fmt.Errorf("EVYDENCE_SIGNING_KEY_MODE=%s requires direct provider credentials or EVYDENCE_SIGNING_EXECUTOR_URL", mode)
 	}
 	if endpoint == "" {
 		return nil, nil
@@ -250,7 +279,7 @@ func validateRuntimeConfig(production bool, databaseURL, pepper, signingKeyMode,
 	if !productionSigningKeyMode(normalizedMode) {
 		return errors.New("production requires EVYDENCE_SIGNING_KEY_MODE=external, aws-kms, gcp-kms, azure-key-vault, or pkcs11-hsm; plaintext local signing keys are dev-only")
 	}
-	if signingModeRequiresGateway(normalizedMode) && strings.TrimSpace(signingExecutorURL) == "" {
+	if normalizedMode == "pkcs11_hsm" && strings.TrimSpace(signingExecutorURL) == "" {
 		return fmt.Errorf("production EVYDENCE_SIGNING_KEY_MODE=%s requires EVYDENCE_SIGNING_EXECUTOR_URL", normalizedMode)
 	}
 	if printBootstrapSecret {
