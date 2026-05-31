@@ -108,6 +108,112 @@ func TestWaiverApprovalAndCustomerPackageFlow(t *testing.T) {
 	}
 }
 
+func TestCustomerPackageV2ManifestSchemaAndSensitiveFieldExclusion(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
+	if _, err := ledger.CreateOrganization(ctx, actor, CreateOrganizationInput{Name: "Example Org", Slug: "example-org"}); err != nil {
+		t.Fatalf("organization: %v", err)
+	}
+	project, err := ledger.CreateProject(ctx, actor, release.ProductID, "api")
+	if err != nil {
+		t.Fatalf("project: %v", err)
+	}
+	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"}]}`)); err != nil {
+		t.Fatalf("sbom: %v", err)
+	}
+	scan := uploadVEXMappingScan(t, ctx, ledger, actor, release.ID, "CVE-2026-0700", "pkg:apk/openssl@3.1.0")
+	vex, err := ledger.UploadVEX(ctx, actor, release.ID, artifact.ID, openVEXFixture(t, []map[string]any{
+		openVEXStatementFixture("CVE-2026-0700", []map[string]any{{"@id": "pkg:apk/openssl@3.1.0"}}, decisionStatusFixed, "fixed_in_release"),
+	}))
+	if err != nil {
+		t.Fatalf("vex: %v", err)
+	}
+	decision, err := ledger.CreateVulnerabilityDecision(ctx, actor, scan.Findings[0].ID, CreateVulnerabilityDecisionInput{
+		Status:          decisionStatusNotAffected,
+		Justification:   "manual customer-safe fallback",
+		ImpactStatement: "This release is not affected based on linked release evidence.",
+		ActionStatement: "No customer action is required for this finding.",
+		CustomerVisible: true,
+		InternalNotes:   "private manual triage note",
+		VEXDocumentID:   vex.ID,
+	})
+	if err != nil {
+		t.Fatalf("decision: %v", err)
+	}
+	exception, err := ledger.CreateException(ctx, actor, CreateExceptionInput{ReleaseID: release.ID, FindingID: scan.Findings[0].ID, Reason: "temporary review exception", Owner: "security", ExpiresAt: fixedNow().Add(24 * time.Hour)})
+	if err != nil {
+		t.Fatalf("exception: %v", err)
+	}
+	if _, err := ledger.ApproveException(ctx, actor, exception.ID); err != nil {
+		t.Fatalf("approve exception: %v", err)
+	}
+	waiver, err := ledger.CreateWaiver(ctx, actor, CreateWaiverInput{ScopeType: "release", ScopeID: release.ID, Owner: "security", Risk: "accepted temporarily", Reason: "customer-visible package waiver", ExpiresAt: fixedNow().Add(24 * time.Hour)})
+	if err != nil {
+		t.Fatalf("waiver: %v", err)
+	}
+	if _, err := ledger.ApproveWaiver(ctx, actor, waiver.ID); err != nil {
+		t.Fatalf("approve waiver: %v", err)
+	}
+	if _, err := ledger.CreateApprovalRecord(ctx, actor, CreateApprovalInput{SubjectType: "release", SubjectID: release.ID, Decision: "approved", Reason: "release reviewed for package"}); err != nil {
+		t.Fatalf("approval: %v", err)
+	}
+	build, err := ledger.CreateBuildRun(ctx, actor, CreateBuildRunInput{ProjectID: project.ID, ReleaseID: release.ID, Provider: "generic_ci", CommitSHA: "0123456789abcdef0123456789abcdef01234567", Status: "passed", StartedAt: fixedNow(), Outputs: []domain.BuildOutput{{ArtifactID: artifact.ID, Digest: artifact.Digest}}})
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	if _, err := ledger.UploadBuildAttestation(ctx, actor, build.ID, dsseForDigest(t, artifact.Digest)); err != nil {
+		t.Fatalf("attestation: %v", err)
+	}
+	bundle, err := ledger.CreateReleaseBundle(ctx, actor, release.ID)
+	if err != nil {
+		t.Fatalf("bundle: %v", err)
+	}
+	profile, err := ledger.CreateRedactionProfile(ctx, actor, CreateRedactionProfileInput{
+		Name: "customer v2",
+		AllowedTypes: []string{
+			"artifact", "sbom", "vulnerability_scan", "vex", "vulnerability_decision", "approval", "exception", "waiver", "build", "build_attestation", "release_bundle",
+		},
+	})
+	if err != nil {
+		t.Fatalf("redaction profile: %v", err)
+	}
+	pkg, err := ledger.CreateCustomerSecurityPackage(ctx, actor, CreateCustomerPackageInput{ProductID: release.ProductID, ReleaseID: release.ID, RedactionProfileID: profile.ID, Title: "Customer v2 package", ExpiresAt: fixedNow().Add(time.Hour)})
+	if err != nil {
+		t.Fatalf("package: %v", err)
+	}
+	manifest := pkg.Manifest
+	if manifest["schema_version"] != domain.CustomerPackageSchemaVersion || manifest["package_version"] != domain.CustomerPackageSchemaVersion || manifest["package_id"] != pkg.ID {
+		t.Fatalf("manifest version/id fields = %#v", manifest)
+	}
+	for _, key := range []string{"tenant", "organization", "product", "release", "artifact_digests", "sboms", "vulnerability_scans", "vex_documents", "vulnerability_decisions", "approvals", "exceptions", "waivers", "provenance", "readiness_summary", "verification_material", "redaction_profile", "limitations", "non_claims"} {
+		if _, ok := manifest[key]; !ok {
+			t.Fatalf("manifest missing %s: %#v", key, manifest)
+		}
+	}
+	textBytes, err := json.Marshal(manifest)
+	if err != nil {
+		t.Fatalf("marshal manifest: %v", err)
+	}
+	text := string(textBytes)
+	for _, want := range []string{artifact.Digest, "cyclonedx", "grype", vex.ID, decision.ImpactStatement, bundle.ManifestHash, "audit_chain"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("manifest missing %q: %s", want, text)
+		}
+	}
+	for _, forbidden := range []string{"private manual triage note", "payload_ref", "object://", "api_key_secret", "evy_", "private_key", "session_hash"} {
+		if strings.Contains(strings.ToLower(text), strings.ToLower(forbidden)) {
+			t.Fatalf("manifest leaked %q: %s", forbidden, text)
+		}
+	}
+	if !strings.Contains(text, "not legal compliance proof") || strings.Contains(text, "certified secure") {
+		t.Fatalf("manifest non-claims missing or unsafe: %s", text)
+	}
+	if _, err := customerPackageArchive(pkg); err != nil {
+		t.Fatalf("package viewer/archive should load v2 manifest JSON: %v", err)
+	}
+}
+
 func packageArchiveFiles(t *testing.T, body []byte) map[string]string {
 	t.Helper()
 	reader, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))

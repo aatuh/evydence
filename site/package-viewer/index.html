@@ -139,27 +139,33 @@
     const jsonNode = document.getElementById("json");
 
     const bundledDemo = {
-      data: {
-        id: "pkg_example",
-        release_id: "rel_example",
-        scope: "customer_review",
-        expires_at: "2026-06-30T00:00:00Z",
-        manifest_hash: "sha256:example",
-        included_subjects: [
-          "release_bundle",
-          "readiness_report",
-          "sbom_summary",
-          "vulnerability_decisions"
-        ],
-        redactions: [
-          "raw evidence payload bytes are excluded",
-          "secrets and private keys are excluded"
-        ],
-        limitations: [
-          "Customer package supports technical evidence review only.",
-          "It is not legal compliance proof, certification, or a secure-release guarantee."
-        ]
-      }
+      schema_version: "customer-security-package.v2.0.0",
+      package_id: "csp_example",
+      title: "Example customer review package",
+      release_id: "rel_example",
+      generated_at: "2026-05-27T12:00:00Z",
+      readiness_summary: {
+        result: "passed",
+        checks: [{ name: "release_requires_sbom", result: "passed", severity: "high" }]
+      },
+      artifact_digests: [
+        { id: "art_example", name: "payments-api.tar.gz", digest: "sha256:example" }
+      ],
+      vulnerability_decisions: [
+        {
+          id: "vd_example",
+          vulnerability: "CVE-2026-0002",
+          status: "fixed",
+          impact_statement: "The finding is fixed in this release artifact."
+        }
+      ],
+      limitations: [
+        "Customer package supports technical evidence review only.",
+        "It is not legal compliance proof, certification, or a secure-release guarantee."
+      ],
+      non_claims: [
+        "This package is not legal compliance proof, certification, complete SBOM proof, an authoritative vulnerability result, or a secure-release guarantee."
+      ]
     };
 
     const pick = (obj, paths) => {
@@ -194,8 +200,8 @@
       const data = parsed.data || parsed.manifest || parsed;
       summaryNode.textContent = "";
       addPanel("File", fileName);
-      addPanel("Subject", pick(data, ["title", "id", "release_id", "subject_id", "manifest_hash"]));
-      addPanel("Result", pick(data, ["result", "status", "state"]));
+      addPanel("Subject", pick(data, ["title", "package_id", "id", "release_id", "subject_id", "manifest_hash"]));
+      addPanel("Result", pick(data, ["result", "readiness_summary.result", "status", "state"]));
       addPanel("Release", pick(data, ["release_id", "release.id", "subject.release_id"]));
       addPanel("Generated", pick(data, ["generated_at", "created_at", "checked_at"]));
       addPanel("Limitations", Array.isArray(data.limitations) ? data.limitations.length : "not present");
