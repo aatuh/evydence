@@ -20,11 +20,21 @@ const (
 	decisionStatusUnderInvestigation = "under_investigation"
 )
 
+var decisionStatusTransitions = map[string]map[string]struct{}{
+	decisionStatusAffected:           decisionStatusSet(decisionStatusAffected, decisionStatusNotAffected, decisionStatusFixed, decisionStatusUnderInvestigation),
+	decisionStatusNotAffected:        decisionStatusSet(decisionStatusAffected, decisionStatusNotAffected, decisionStatusFixed, decisionStatusUnderInvestigation),
+	decisionStatusFixed:              decisionStatusSet(decisionStatusAffected, decisionStatusNotAffected, decisionStatusFixed, decisionStatusUnderInvestigation),
+	decisionStatusUnderInvestigation: decisionStatusSet(decisionStatusAffected, decisionStatusNotAffected, decisionStatusFixed, decisionStatusUnderInvestigation),
+}
+
 type CreateVulnerabilityDecisionInput struct {
 	Status          string
 	Justification   string
 	ImpactStatement string
 	ActionStatement string
+	CustomerVisible bool
+	InternalNotes   string
+	EvidenceIDs     []string
 }
 
 type CreateExceptionInput struct {
@@ -165,9 +175,10 @@ func (s releaseEvidenceService) UploadVEX(ctx context.Context, actor domain.Acto
 					Justification:   statement.Justification,
 					ImpactStatement: statement.ImpactStatement,
 					ActionStatement: statement.ActionStatement,
+					CustomerVisible: strings.TrimSpace(statement.ImpactStatement) != "",
 				}, "vex", actorID(actor), item.ID, vex.ID)
 				l.decisions[decision.ID] = decision
-				_, _ = l.appendChainLocked(actor.TenantID, "vulnerability_decision.created", "vulnerability_finding", matched.finding.ID, actorType(actor), actorID(actor), payloadHash, "")
+				l.appendDecisionLifecycleAuditLocked(actor.TenantID, decision, matched.finding.ID, actorType(actor), actorID(actor), payloadHash)
 				createdDecisions++
 			}
 		}
@@ -218,6 +229,12 @@ func (s releaseEvidenceService) CreateVulnerabilityDecision(ctx context.Context,
 	if !validDecisionStatus(in.Status) || strings.TrimSpace(in.Justification) == "" {
 		return domain.VulnerabilityDecision{}, ErrValidation
 	}
+	if in.CustomerVisible && strings.TrimSpace(in.ImpactStatement) == "" {
+		return domain.VulnerabilityDecision{}, ErrValidation
+	}
+	if len(strings.TrimSpace(in.InternalNotes)) > 8192 {
+		return domain.VulnerabilityDecision{}, ErrValidation
+	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	scan, finding, ok := l.findFindingLocked(actor.TenantID, strings.TrimSpace(findingID))
@@ -227,9 +244,17 @@ func (s releaseEvidenceService) CreateVulnerabilityDecision(ctx context.Context,
 	if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, resourceRefs{ReleaseID: scan.ReleaseID}); err != nil {
 		return domain.VulnerabilityDecision{}, err
 	}
+	if latest, ok := l.latestDecisionForFindingLocked(actor.TenantID, finding.ID); ok && !validDecisionTransition(latest.Status, strings.TrimSpace(in.Status)) {
+		return domain.VulnerabilityDecision{}, ErrValidation
+	}
+	evidenceIDs, err := l.validateDecisionEvidenceLinksLocked(actor.TenantID, scan.ReleaseID, in.EvidenceIDs)
+	if err != nil {
+		return domain.VulnerabilityDecision{}, err
+	}
+	in.EvidenceIDs = evidenceIDs
 	decision := l.createDecisionLocked(actor.TenantID, scan, finding, in, "api", actor.KeyID, "", "")
 	l.decisions[decision.ID] = decision
-	_, _ = l.appendChainLocked(actor.TenantID, "vulnerability_decision.created", "vulnerability_finding", finding.ID, "api_key", actor.KeyID, "", "")
+	l.appendDecisionLifecycleAuditLocked(actor.TenantID, decision, finding.ID, "api_key", actor.KeyID, "")
 	if err := l.persistCriticalLocked(ctx, l.criticalMutationLocked()); err != nil {
 		return domain.VulnerabilityDecision{}, err
 	}
@@ -425,6 +450,27 @@ func validDecisionStatus(status string) bool {
 	}
 }
 
+func validDecisionTransition(from, to string) bool {
+	to = strings.TrimSpace(to)
+	if strings.TrimSpace(from) == "" {
+		return validDecisionStatus(to)
+	}
+	allowed, ok := decisionStatusTransitions[strings.TrimSpace(from)]
+	if !ok {
+		return false
+	}
+	_, ok = allowed[to]
+	return ok
+}
+
+func decisionStatusSet(statuses ...string) map[string]struct{} {
+	set := map[string]struct{}{}
+	for _, status := range statuses {
+		set[status] = struct{}{}
+	}
+	return set
+}
+
 func versionString(version any) string {
 	switch v := version.(type) {
 	case string:
@@ -500,8 +546,11 @@ func (l *Ledger) createDecisionLocked(tenantID string, scan domain.Vulnerability
 		Justification:   strings.TrimSpace(in.Justification),
 		ImpactStatement: strings.TrimSpace(in.ImpactStatement),
 		ActionStatement: strings.TrimSpace(in.ActionStatement),
+		CustomerVisible: in.CustomerVisible,
+		InternalNotes:   strings.TrimSpace(in.InternalNotes),
 		Source:          source,
 		EvidenceID:      evidenceID,
+		EvidenceIDs:     decisionEvidenceIDs(evidenceID, in.EvidenceIDs),
 		VEXDocumentID:   vexID,
 		Supersedes:      supersedes,
 		ApprovedBy:      actorID,
@@ -509,6 +558,64 @@ func (l *Ledger) createDecisionLocked(tenantID string, scan domain.Vulnerability
 		CreatedAt:       l.now(),
 	}
 	return decision
+}
+
+func (l *Ledger) validateDecisionEvidenceLinksLocked(tenantID, releaseID string, evidenceIDs []string) ([]string, error) {
+	ids := sortedUniqueNonEmptyStrings(evidenceIDs)
+	if len(evidenceIDs) != len(ids) {
+		// Empty values are malformed; duplicate non-empty values are normalized below.
+		nonEmpty := 0
+		for _, id := range evidenceIDs {
+			if strings.TrimSpace(id) != "" {
+				nonEmpty++
+			}
+		}
+		if nonEmpty != len(evidenceIDs) {
+			return nil, ErrValidation
+		}
+	}
+	for _, id := range ids {
+		item, ok := l.evidence[id]
+		if !ok || item.TenantID != tenantID {
+			return nil, ErrNotFound
+		}
+		if item.ReleaseID != "" && releaseID != "" && item.ReleaseID != releaseID {
+			return nil, ErrNotFound
+		}
+	}
+	return ids, nil
+}
+
+func decisionEvidenceIDs(primary string, extra []string) []string {
+	ids := append([]string(nil), extra...)
+	if strings.TrimSpace(primary) != "" {
+		ids = append(ids, strings.TrimSpace(primary))
+	}
+	return sortedUniqueNonEmptyStrings(ids)
+}
+
+func sortedUniqueNonEmptyStrings(in []string) []string {
+	set := map[string]struct{}{}
+	for _, value := range in {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		set[value] = struct{}{}
+	}
+	out := make([]string, 0, len(set))
+	for value := range set {
+		out = append(out, value)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func (l *Ledger) appendDecisionLifecycleAuditLocked(tenantID string, decision domain.VulnerabilityDecision, findingID, actorTypeValue, actorIDValue, payloadHash string) {
+	if decision.Supersedes != "" {
+		_, _ = l.appendChainLocked(tenantID, "vulnerability_decision.superseded", "vulnerability_decision", decision.Supersedes, actorTypeValue, actorIDValue, payloadHash, "")
+	}
+	_, _ = l.appendChainLocked(tenantID, "vulnerability_decision.created", "vulnerability_finding", findingID, actorTypeValue, actorIDValue, payloadHash, "")
 }
 
 func (l *Ledger) findFindingLocked(tenantID, findingID string) (domain.VulnerabilityScan, domain.VulnerabilityFinding, bool) {

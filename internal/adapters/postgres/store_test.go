@@ -928,7 +928,8 @@ func TestApplyCriticalMutationWithPostgres(t *testing.T) {
 		VulnerabilityDecisions: []domain.VulnerabilityDecision{{
 			ID: "decision_focus", TenantID: "ten_focus", FindingID: "finding_focus", ScanID: "scan_focus",
 			ReleaseID: "rel_focus", Vulnerability: "CVE-2099-0001", Component: "pkg:generic/api",
-			Status: "not_affected", Justification: "component_not_present", Source: "manual",
+			Status: "not_affected", Justification: "component_not_present", ImpactStatement: "not shipped",
+			CustomerVisible: true, InternalNotes: "private triage", EvidenceIDs: []string{"ev_support"}, Source: "manual",
 			SchemaVersion: domain.VulnerabilityDecisionVersion, CreatedAt: now,
 		}},
 		AuditChainEntries: []domain.AuditChainEntry{{
@@ -980,7 +981,7 @@ func TestApplyCriticalMutationWithPostgres(t *testing.T) {
 		{name: "signature", query: `SELECT count(*) FROM signatures WHERE id = 'sig_focus' AND key_id = 'sigkey_focus'`},
 		{name: "bundle", query: `SELECT count(*) FROM release_bundles WHERE id = 'bundle_focus' AND signature_refs = '["sig_focus"]'::jsonb`},
 		{name: "verification", query: `SELECT count(*) FROM verification_results WHERE id = 'verify_focus' AND result = 'passed'`},
-		{name: "decision", query: `SELECT count(*) FROM vulnerability_decisions WHERE id = 'decision_focus' AND status = 'not_affected'`},
+		{name: "decision", query: `SELECT count(*) FROM vulnerability_decisions WHERE id = 'decision_focus' AND status = 'not_affected' AND customer_visible = true AND internal_notes = 'private triage' AND evidence_ids = ARRAY['ev_support']::text[]`},
 		{name: "outbox", query: `SELECT count(*) FROM outbox_jobs WHERE id = 'job_focus' AND status = 'queued'`},
 		{name: "resource index", query: `SELECT count(*) FROM resource_index WHERE tenant_id = 'ten_focus' AND resource_type = 'release_bundle' AND resource_id = 'bundle_focus'`},
 	}

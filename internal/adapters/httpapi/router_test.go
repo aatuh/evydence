@@ -614,6 +614,11 @@ func TestReleaseRiskDecisionHTTPFlow(t *testing.T) {
 		"findings": []map[string]any{{"vulnerability": "CVE-2026-0099", "component": "pkg:apk/openssl@3.1.0", "severity": "critical", "state": "open"}},
 	}, http.StatusCreated)
 	findingID := firstFindingID(t, scanBody)
+	evidenceBody := postJSON(t, server, secret, "/v1/evidence", "risk-supporting-evidence", map[string]any{
+		"product_id": productID, "release_id": releaseID, "type": "security_review", "title": "Runtime review",
+		"payload_hash": "sha256:44575cf5b2853284ce5d55751bc9e87d165bd64d5ef12c55fa291e9d40afae86",
+	}, http.StatusCreated)
+	evidenceID := dataField(t, evidenceBody, "id")
 	postJSON(t, server, secret, "/v1/release-bundles", "risk-bundle", map[string]any{"release_id": releaseID}, http.StatusCreated)
 	addHTTPBuildProvenance(t, server, secret, productID, releaseID, artifactID, "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb")
 
@@ -621,8 +626,13 @@ func TestReleaseRiskDecisionHTTPFlow(t *testing.T) {
 	if !strings.Contains(report, `"result":"failed"`) || !strings.Contains(report, `"blocking_findings"`) {
 		t.Fatalf("expected failed readiness report with blocking findings: %s", report)
 	}
-	decisionBody := postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "risk-decision", map[string]any{"status": "not_affected", "justification": "vulnerable code is not present"}, http.StatusCreated)
-	replayed := postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "risk-decision", map[string]any{"status": "not_affected", "justification": "vulnerable code is not present"}, http.StatusCreated)
+	postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "risk-decision-bad", map[string]any{"status": "not_affected", "justification": "vulnerable code is not present", "customer_visible": true}, http.StatusBadRequest)
+	decisionPayload := map[string]any{"status": "not_affected", "justification": "vulnerable code is not present", "impact_statement": "The vulnerable code path is not present in this release.", "customer_visible": true, "internal_notes": "private note", "evidence_ids": []string{evidenceID}}
+	decisionBody := postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "risk-decision", decisionPayload, http.StatusCreated)
+	if !strings.Contains(decisionBody, `"customer_visible":true`) || !strings.Contains(decisionBody, `"internal_notes":"private note"`) || !strings.Contains(decisionBody, evidenceID) {
+		t.Fatalf("decision response missing customer visibility/internal note fields: %s", decisionBody)
+	}
+	replayed := postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "risk-decision", decisionPayload, http.StatusCreated)
 	if replayed != decisionBody {
 		t.Fatalf("decision idempotency replay changed response\nfirst=%s\nsecond=%s", decisionBody, replayed)
 	}

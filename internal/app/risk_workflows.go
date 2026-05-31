@@ -877,8 +877,15 @@ func (l *Ledger) UploadCycloneDXVEX(ctx context.Context, actor domain.Actor, rel
 				if finding.Vulnerability != vuln.ID {
 					continue
 				}
-				decision := domain.VulnerabilityDecision{ID: newID("vd"), TenantID: actor.TenantID, FindingID: finding.ID, ScanID: scan.ID, ReleaseID: releaseID, Vulnerability: finding.Vulnerability, Component: finding.Component, Status: status, Justification: nonEmpty(vuln.Analysis.Justification, "cyclonedx_vex"), ImpactStatement: vuln.Analysis.Detail, ActionStatement: strings.Join(vuln.Analysis.Response, ","), Source: "cyclonedx_vex", EvidenceID: item.ID, VEXDocumentID: vex.ID, SchemaVersion: domain.VulnerabilityDecisionVersion, CreatedAt: l.now()}
+				decision := l.createDecisionLocked(actor.TenantID, scan, finding, CreateVulnerabilityDecisionInput{
+					Status:          status,
+					Justification:   nonEmpty(vuln.Analysis.Justification, "cyclonedx_vex"),
+					ImpactStatement: vuln.Analysis.Detail,
+					ActionStatement: strings.Join(vuln.Analysis.Response, ","),
+					CustomerVisible: strings.TrimSpace(vuln.Analysis.Detail) != "",
+				}, "cyclonedx_vex", actor.KeyID, item.ID, vex.ID)
 				l.decisions[decision.ID] = decision
+				l.appendDecisionLifecycleAuditLocked(actor.TenantID, decision, finding.ID, "api_key", actor.KeyID, payloadHash)
 			}
 		}
 	}
