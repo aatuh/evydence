@@ -223,6 +223,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@test -f docs/assets/package-viewer-preview.svg
 	@grep -F 'package-viewer-preview.svg' docs/how-to/view-packages.md >/dev/null
 	@grep -F 'report.html' docs/reference/customer-package-manifest.md docs/how-to/view-packages.md >/dev/null
+	@grep -F 'Redaction Leakage Guard' docs/reference/customer-package-manifest.md >/dev/null
 	@grep -F 'v0.1.0-rc.4 - 2026-05-31' CHANGELOG.md >/dev/null
 	@grep -F 'make restore-rehearsal-check' docs/runbooks/backup-restore.md >/dev/null
 	@test -f docs/how-to/pilot-deployment-checklist.md
