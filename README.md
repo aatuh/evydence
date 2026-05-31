@@ -85,9 +85,11 @@ For durable local evaluation, run the production-like Compose rehearsal in
 For the release-evidence path to inspect first, use the
 [end-to-end release evidence example](examples/end-to-end-release-evidence/README.md).
 For concrete JSON outputs to inspect without running a full stack, open the
-sample readiness report, customer-package manifest, and audit-chain
-verification fixtures in that example or load the bundled package in the
-[local package viewer](docs/how-to/view-packages.md).
+sample readiness report,
+[customer-package manifest](examples/end-to-end-release-evidence/sample-customer-package-manifest.json),
+[downloadable customer package](examples/end-to-end-release-evidence/sample-customer-package.zip),
+and audit-chain verification fixtures in that example or load the bundled
+package in the [local package viewer](docs/how-to/view-packages.md).
 
 Release-candidate artifacts and their verification commands are indexed in
 [Release evidence index](docs/reference/release-evidence-index.md). Start with

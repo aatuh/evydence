@@ -94,6 +94,15 @@
         "high": 1
       },
       "finding_count": 1,
+      "findings": [
+        {
+          "id": "finding_example",
+          "vulnerability": "CVE-2026-0002",
+          "component": "pkg:apk/openssl@3.1.0",
+          "severity": "high",
+          "state": "fixed_by_decision"
+        }
+      ],
       "created_at": "2026-05-27T12:00:00Z"
     }
   ],
