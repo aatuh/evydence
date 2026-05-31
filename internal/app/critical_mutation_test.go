@@ -391,3 +391,90 @@ func (s *focusedFallbackStore) SaveState(context.Context, PersistedState) error 
 	s.saveCalls++
 	return nil
 }
+
+type fullRelationalStoreSpy struct {
+	saveCalls       int
+	relationalCalls int
+	criticalCalls   int
+	releaseCalls    int
+	states          []PersistedState
+}
+
+func (s *fullRelationalStoreSpy) LoadState(context.Context) (PersistedState, bool, error) {
+	return PersistedState{}, false, nil
+}
+
+func (s *fullRelationalStoreSpy) SaveState(context.Context, PersistedState) error {
+	s.saveCalls++
+	return nil
+}
+
+func (s *fullRelationalStoreSpy) SaveRelationalState(_ context.Context, state PersistedState) error {
+	s.relationalCalls++
+	s.states = append(s.states, state)
+	return nil
+}
+
+func (s *fullRelationalStoreSpy) ApplyCriticalMutation(context.Context, CriticalMutation) error {
+	s.criticalCalls++
+	return nil
+}
+
+func (s *fullRelationalStoreSpy) ApplyReleaseLedgerMutation(context.Context, ReleaseLedgerMutation) error {
+	s.releaseCalls++
+	return nil
+}
+
+func (s *fullRelationalStoreSpy) reset() {
+	s.saveCalls = 0
+	s.relationalCalls = 0
+	s.criticalCalls = 0
+	s.releaseCalls = 0
+	s.states = nil
+}
+
+func TestRelationalStateStoreAvoidsAggregateSaveForRemainingFamilies(t *testing.T) {
+	ctx := context.Background()
+	store := &fullRelationalStoreSpy{}
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
+	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	actor, err := ledger.Authenticate(ctx, secret)
+	if err != nil {
+		t.Fatalf("authenticate: %v", err)
+	}
+
+	store.reset()
+	framework, err := ledger.CreateControlFramework(ctx, actor, CreateControlFrameworkInput{Name: "CRA Readiness", Slug: "cra-readiness", Version: "1.0.0"})
+	if err != nil {
+		t.Fatalf("create control framework: %v", err)
+	}
+	if store.saveCalls != 0 || store.relationalCalls != 1 || store.criticalCalls != 0 || store.releaseCalls != 0 {
+		t.Fatalf("framework persistence save=%d relational=%d critical=%d release=%d", store.saveCalls, store.relationalCalls, store.criticalCalls, store.releaseCalls)
+	}
+	if got := store.states[0].ControlFrameworks[framework.ID]; got.ID != framework.ID || got.TenantID != actor.TenantID {
+		t.Fatalf("relational state missed framework: %#v", got)
+	}
+
+	product, err := ledger.CreateProduct(ctx, actor, "Payments", "payments-relational-state")
+	if err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	release, err := ledger.CreateRelease(ctx, actor, product.ID, "1.0.0")
+	if err != nil {
+		t.Fatalf("create release: %v", err)
+	}
+	store.reset()
+	incident, err := ledger.CreateIncident(ctx, actor, CreateIncidentInput{ProductID: product.ID, ReleaseID: release.ID, Title: "Incident", Severity: "high"})
+	if err != nil {
+		t.Fatalf("create incident: %v", err)
+	}
+	if store.saveCalls != 0 || store.relationalCalls != 1 {
+		t.Fatalf("incident persistence save=%d relational=%d", store.saveCalls, store.relationalCalls)
+	}
+	if got := store.states[0].Incidents[incident.ID]; got.ID != incident.ID || got.TenantID != actor.TenantID {
+		t.Fatalf("relational state missed incident: %#v", got)
+	}
+}

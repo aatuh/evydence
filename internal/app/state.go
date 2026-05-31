@@ -280,7 +280,11 @@ func (l *Ledger) persistLocked(ctx context.Context) error {
 	if l.store == nil {
 		return nil
 	}
-	return l.store.SaveState(ctx, l.snapshotLocked())
+	state := l.snapshotLocked()
+	if relational, ok := l.store.(RelationalStateStore); ok {
+		return relational.SaveRelationalState(ctx, state)
+	}
+	return l.store.SaveState(ctx, state)
 }
 
 func (l *Ledger) persistCriticalLocked(ctx context.Context, mutation CriticalMutation) error {

@@ -2479,12 +2479,20 @@ func (s *Store) loadRelationalIdempotency(ctx context.Context, state *app.Persis
 }
 
 func (s *Store) SaveState(ctx context.Context, state app.PersistedState) error {
+	return s.saveState(ctx, state, !s.disableSnapshotWrites)
+}
+
+func (s *Store) SaveRelationalState(ctx context.Context, state app.PersistedState) error {
+	return s.saveState(ctx, state, false)
+}
+
+func (s *Store) saveState(ctx context.Context, state app.PersistedState, writeSnapshot bool) error {
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("begin save ledger state transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	if !s.disableSnapshotWrites {
+	if writeSnapshot {
 		body, err := json.Marshal(state)
 		if err != nil {
 			return fmt.Errorf("encode ledger state: %w", err)

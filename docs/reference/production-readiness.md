@@ -39,8 +39,10 @@ Known hardening work remains:
   evidence items, evidence lifecycle events, SBOMs, vulnerability scans,
   OpenAPI contracts, VEX documents, audit-chain entries, and parser outbox jobs
   also use focused PostgreSQL transactions when that store is configured.
-  Non-migrated resource families still use broader aggregate persistence. If
-  the snapshot row is absent, the store can rebuild identity, SSO session,
+  Remaining aggregate persistence calls now use PostgreSQL relational
+  synchronization without writing the compatibility snapshot when that store is
+  configured. If the snapshot row is absent, the store can rebuild identity,
+  SSO session,
   customer portal token, release-ledger core,
   build provenance, source/deployment, incident, security evidence, SBOM diff,
   vulnerability workflow, contract diff, custom policy, waiver, approval, DSSE
@@ -154,8 +156,8 @@ These items are tracked separately from the feature-completeness checklist in
 `.implementation_increments.md` because they are hardening work on already
 implemented capabilities:
 
-- Continue replacing aggregate `SaveState` synchronization with
-  dependency-ordered relational repositories for focused resource families.
+- Continue splitting the large application ledger into focused services while
+  preserving the dependency-ordered relational persistence paths now in place.
   Focused transaction-backed writes now cover tenants, API-key hashes,
   SSO-session hashes, customer-portal token hashes, idempotency records,
   audit-chain entries, signing keys, signatures, release bundles, verification
@@ -183,9 +185,9 @@ implemented capabilities:
   provider verification, signing operation, and future-extension families from
   relational rows. Snapshots remain for local compatibility, export/import, and
   non-production migration checks.
-- Split the large application ledger aggregate into focused services or
-  repositories once relational writes are in place, preserving tenant isolation
-  and append-only behavior throughout.
+- Split the large application ledger aggregate into focused services once the
+  next service-boundary review is complete, preserving tenant isolation and
+  append-only behavior throughout.
 - Keep worker-owned parser side effects covered as parser formats evolve.
   CycloneDX SBOM, generic vulnerability scan, OpenAPI contract, DSSE
   build-attestation, OpenVEX document metadata, and OpenVEX-derived
