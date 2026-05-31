@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -85,7 +86,7 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	if _, ok := problemProps["request_id"]; !ok {
 		t.Fatalf("Problem schema missing request_id: %#v", problemProps)
 	}
-	for _, schemaName := range []string{"ReadinessStatusEnvelope", "BackupManifestEnvelope", "VerificationResultEnvelope", "ReadinessReportEnvelope", "CreateProductRequest", "ProductEnvelope", "ProductListEnvelope", "CreateProjectRequest", "ProjectEnvelope", "CreateReleaseRequest", "ReleaseEnvelope", "RegisterArtifactRequest", "ArtifactEnvelope", "CreateBuildRequest", "BuildRunEnvelope", "EvidenceUploadRequest", "SBOMEnvelope", "VEXDocumentEnvelope", "UploadVulnerabilityScanRequest", "VulnerabilityScanEnvelope", "CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOProviderRequest", "UpdateSSOProviderTrustMaterialRequest", "SSOProviderEnvelope", "VerifyProviderIdentityRequest", "ProviderVerificationEnvelope", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "ExchangeSSOCredentialRequest", "SSOCredentialExchangeEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalPackageRequest", "DataEnvelope"} {
+	for _, schemaName := range []string{"ReadinessStatusEnvelope", "BackupManifestEnvelope", "VerificationResultEnvelope", "ReadinessReportEnvelope", "CreateProductRequest", "ProductEnvelope", "ProductListEnvelope", "CreateProjectRequest", "ProjectEnvelope", "CreateReleaseRequest", "ReleaseEnvelope", "RegisterArtifactRequest", "ArtifactEnvelope", "CreateBuildRequest", "BuildRunEnvelope", "EvidenceUploadRequest", "SBOMEnvelope", "VEXDocumentEnvelope", "UploadVulnerabilityScanRequest", "VulnerabilityScanEnvelope", "VulnerabilityDecisionListEnvelope", "CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOProviderRequest", "UpdateSSOProviderTrustMaterialRequest", "SSOProviderEnvelope", "VerifyProviderIdentityRequest", "ProviderVerificationEnvelope", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "ExchangeSSOCredentialRequest", "SSOCredentialExchangeEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalPackageRequest", "DataEnvelope"} {
 		if _, ok := schemas[schemaName]; !ok {
 			t.Fatalf("schema %s missing from OpenAPI components", schemaName)
 		}
@@ -133,6 +134,9 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	uploadVulnerabilityScan := operationMap(t, paths, "/v1/vulnerability-scans", "post")
 	assertRequestRef(t, uploadVulnerabilityScan, "#/components/schemas/UploadVulnerabilityScanRequest")
 	assertResponseRef(t, uploadVulnerabilityScan, "201", "#/components/schemas/VulnerabilityScanEnvelope")
+	listVulnerabilityDecisions := operationMap(t, paths, "/v1/vulnerability-decisions", "get")
+	assertQueryParams(t, listVulnerabilityDecisions, "product_id", "release_id", "vulnerability", "component", "status", "active")
+	assertResponseRef(t, listVulnerabilityDecisions, "200", "#/components/schemas/VulnerabilityDecisionListEnvelope")
 	uploadVEX := operationMap(t, paths, "/v1/vex", "post")
 	assertRequestRef(t, uploadVEX, "#/components/schemas/EvidenceUploadRequest")
 	assertResponseRef(t, uploadVEX, "201", "#/components/schemas/VEXDocumentEnvelope")
@@ -636,6 +640,13 @@ func TestReleaseRiskDecisionHTTPFlow(t *testing.T) {
 	if replayed != decisionBody {
 		t.Fatalf("decision idempotency replay changed response\nfirst=%s\nsecond=%s", decisionBody, replayed)
 	}
+	historyPath := "/v1/vulnerability-decisions?release_id=" + releaseID + "&product_id=" + productID + "&vulnerability=CVE-2026-0099&component=" + url.QueryEscape("pkg:apk/openssl@3.1.0") + "&status=not_affected&active=true"
+	history := getJSON(t, server, secret, historyPath, http.StatusOK)
+	if !strings.Contains(history, `"vulnerability":"CVE-2026-0099"`) || !strings.Contains(history, `"customer_visible":true`) {
+		t.Fatalf("decision history response missing decision fields: %s", history)
+	}
+	getJSON(t, server, secret, "/v1/vulnerability-decisions?active=maybe", http.StatusBadRequest)
+	getJSON(t, server, secret, "/v1/vulnerability-decisions?status=not_a_status", http.StatusBadRequest)
 	report = getJSON(t, server, secret, "/v1/reports/release-readiness?release_id="+releaseID, http.StatusOK)
 	if !strings.Contains(report, `"result":"passed"`) {
 		t.Fatalf("expected passed readiness report after decision: %s", report)

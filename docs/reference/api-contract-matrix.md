@@ -3,7 +3,7 @@
 This generated reference inventories Evydence `/v1` route contract precision from `openapi.yaml`.
 It is a planning aid for production contract hardening; `broad` means the route still uses a shared envelope, unspecified body, or generic schema where an endpoint-specific contract should be considered.
 
-Generated from 166 operations: 166 precise, 0 broad.
+Generated from 167 operations: 167 precise, 0 broad.
 
 | Method | Path | Operation | Auth | Scopes | Idempotency | Params | Request | 2xx Response | Precision |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -167,6 +167,7 @@ Generated from 166 operations: 166 precise, 0 broad.
 | POST | /v1/vex | uploadVEX | Bearer | evidence:write | required | - | application/json:EvidenceUploadRequest | 201:application/json:VEXDocumentEnvelope | precise |
 | POST | /v1/vex/cyclonedx | uploadCycloneDXVEX | Bearer | evidence:write | required | - | application/json:EvidenceUploadRequest | 201:application/json:VEXDocumentEnvelope | precise |
 | GET | /v1/vex/{id} | getVEX | Bearer | evidence:read | - | path:id | - | 200:application/json:VEXDocumentEnvelope | precise |
+| GET | /v1/vulnerability-decisions | listVulnerabilityDecisions | Bearer | evidence:read | - | query:active, query:component, query:product_id, query:release_id, query:status, query:vulnerability | - | 200:application/json:VulnerabilityDecisionListEnvelope | precise |
 | POST | /v1/vulnerability-findings/{id}/decisions | createVulnerabilityDecision | Bearer | evidence:write | required | path:id | application/json:CreateVulnerabilityDecisionRequest | 201:application/json:VulnerabilityDecisionEnvelope | precise |
 | POST | /v1/vulnerability-findings/{id}/workflow | recordVulnerabilityWorkflow | Bearer | security:write | required | path:id | application/json:RecordVulnerabilityWorkflowRequest | 201:application/json:VulnerabilityWorkflowRecordEnvelope | precise |
 | POST | /v1/vulnerability-scans | uploadVulnerabilityScan | Bearer | evidence:write | required | - | application/json:UploadVulnerabilityScanRequest | 201:application/json:VulnerabilityScanEnvelope | precise |

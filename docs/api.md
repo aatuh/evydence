@@ -181,6 +181,17 @@ supersession and replacement. `evidence_ids` may reference tenant-scoped
 supporting evidence from the same release; foreign-tenant or wrong-release
 evidence links are rejected.
 
+Decision history:
+
+```http
+GET /v1/vulnerability-decisions?release_id=rel_...&vulnerability=CVE-2026-0099&active=true
+```
+
+The history endpoint supports `product_id`, `release_id`, `vulnerability`,
+`component`, `status`, and `active` filters. It returns append-only decision
+records, including timestamps and supersession fields. It is tenant-scoped and
+requires `evidence:read`.
+
 ### 4. Readiness And Bundle Retrieval
 
 Create a release bundle:
@@ -295,6 +306,7 @@ Current SSO endpoints model admin-managed provider, identity-link, trust-materia
 | `POST` | `/v1/vulnerability-scans` | Upload normalized vulnerability scan. |
 | `GET` | `/v1/vulnerability-scans/{id}` | Read vulnerability scan metadata. |
 | `POST` | `/v1/vulnerability-findings/{id}/decisions` | Superseding decision record. |
+| `GET` | `/v1/vulnerability-decisions` | List decision history by product, release, vulnerability, component, status, and active state. |
 | `POST` | `/v1/vulnerability-findings/{id}/workflow` | Append workflow event. |
 | `GET` | `/v1/reports/vulnerability-posture` | Summarize findings for a release. |
 | `GET` | `/v1/reports/release-readiness` | Deterministic readiness report. |

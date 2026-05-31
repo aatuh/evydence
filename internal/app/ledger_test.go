@@ -817,6 +817,85 @@ func TestVulnerabilityDecisionLifecycleSupersedesAndPackagesOnlyActive(t *testin
 	}
 }
 
+func TestListVulnerabilityDecisionsFiltersHistoryAndTenantScope(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	actor, release, _ := setupReleaseRiskFixture(t, ledger)
+	scan, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{
+		"scanner":"grype",
+		"target_ref":"pkg:oci/payments-api",
+		"release_id":"`+release.ID+`",
+		"findings":[{"vulnerability":"CVE-2026-0103","component":"pkg:apk/openssl@3.1.0","severity":"critical","state":"open"}]
+	}`))
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	first, err := ledger.CreateVulnerabilityDecision(ctx, actor, scan.Findings[0].ID, CreateVulnerabilityDecisionInput{
+		Status:          decisionStatusUnderInvestigation,
+		Justification:   "review started",
+		ImpactStatement: "The finding is under investigation.",
+		CustomerVisible: true,
+	})
+	if err != nil {
+		t.Fatalf("first decision: %v", err)
+	}
+	second, err := ledger.CreateVulnerabilityDecision(ctx, actor, scan.Findings[0].ID, CreateVulnerabilityDecisionInput{
+		Status:          decisionStatusFixed,
+		Justification:   "fixed in release artifact",
+		ImpactStatement: "The finding is fixed in this release artifact.",
+		CustomerVisible: true,
+	})
+	if err != nil {
+		t.Fatalf("second decision: %v", err)
+	}
+	history, err := ledger.ListVulnerabilityDecisions(ctx, actor, ListVulnerabilityDecisionsInput{
+		ProductID:     release.ProductID,
+		ReleaseID:     release.ID,
+		Vulnerability: "CVE-2026-0103",
+		Component:     "pkg:apk/openssl@3.1.0",
+	})
+	if err != nil {
+		t.Fatalf("list history: %v", err)
+	}
+	if len(history) != 2 {
+		t.Fatalf("history length=%d want 2 history=%#v", len(history), history)
+	}
+	active := true
+	activeOnly, err := ledger.ListVulnerabilityDecisions(ctx, actor, ListVulnerabilityDecisionsInput{ReleaseID: release.ID, Active: &active})
+	if err != nil {
+		t.Fatalf("list active: %v", err)
+	}
+	if len(activeOnly) != 1 || activeOnly[0].ID != second.ID || activeOnly[0].Supersedes != first.ID {
+		t.Fatalf("active decisions=%#v, want second decision superseding first", activeOnly)
+	}
+	active = false
+	superseded, err := ledger.ListVulnerabilityDecisions(ctx, actor, ListVulnerabilityDecisionsInput{ReleaseID: release.ID, Status: decisionStatusUnderInvestigation, Active: &active})
+	if err != nil {
+		t.Fatalf("list superseded: %v", err)
+	}
+	if len(superseded) != 1 || superseded[0].ID != first.ID || superseded[0].SupersededBy != second.ID {
+		t.Fatalf("superseded decisions=%#v, want first decision superseded by second", superseded)
+	}
+	if _, err := ledger.ListVulnerabilityDecisions(ctx, actor, ListVulnerabilityDecisionsInput{Status: "not_a_status"}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("invalid status err=%v, want validation", err)
+	}
+	_, _, secretB, err := ledger.BootstrapTenant(ctx, "Tenant B", "admin-b", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap tenant B: %v", err)
+	}
+	actorB, err := ledger.Authenticate(ctx, secretB)
+	if err != nil {
+		t.Fatalf("authenticate tenant B: %v", err)
+	}
+	foreignHistory, err := ledger.ListVulnerabilityDecisions(ctx, actorB, ListVulnerabilityDecisionsInput{})
+	if err != nil {
+		t.Fatalf("foreign list: %v", err)
+	}
+	if len(foreignHistory) != 0 {
+		t.Fatalf("foreign tenant saw decisions: %#v", foreignHistory)
+	}
+}
+
 func TestVulnerabilityDecisionEvidenceLinksAreTenantAndReleaseScoped(t *testing.T) {
 	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()

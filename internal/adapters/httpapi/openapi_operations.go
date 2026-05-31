@@ -353,6 +353,17 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Vulnerability finding id."))
 		operation.RequestBody = jsonRequest("Vulnerability decision creation request.", "#/components/schemas/CreateVulnerabilityDecisionRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created vulnerability decision envelope.", "#/components/schemas/VulnerabilityDecisionEnvelope")
+	case "listVulnerabilityDecisions":
+		operation.Description = "Lists append-only vulnerability decisions over time with tenant-scoped product, release, vulnerability, component, status, and active filters."
+		operation.Parameters = append(operation.Parameters,
+			queryParam("product_id", "Filter by product id.", "string"),
+			queryParam("release_id", "Filter by release id.", "string"),
+			queryParam("vulnerability", "Filter by vulnerability identifier.", "string"),
+			queryParam("component", "Filter by affected component.", "string"),
+			queryParam("status", "Filter by decision status.", "string"),
+			queryParam("active", "When true returns active decisions; when false returns superseded decisions.", "boolean"),
+		)
+		operation.Responses[http.StatusOK] = jsonResponse("Vulnerability decision list envelope.", "#/components/schemas/VulnerabilityDecisionListEnvelope")
 	case "recordVulnerabilityWorkflow":
 		operation.Description = "Records an append-only vulnerability workflow event for a tenant-scoped finding."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Vulnerability finding id."))

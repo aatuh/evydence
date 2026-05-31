@@ -325,6 +325,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"created_at":       map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "finding_id", "scan_id", "vulnerability", "status", "justification", "source", "schema_version", "created_at"))
 	registry.RegisterSchema("VulnerabilityDecisionEnvelope", dataEnvelopeSchema("#/components/schemas/VulnerabilityDecision"))
+	registry.RegisterSchema("VulnerabilityDecisionListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/VulnerabilityDecision"))
 	registry.RegisterSchema("RecordVulnerabilityWorkflowRequest", objectSchema(map[string]any{
 		"action": map[string]any{"type": "string"},
 		"reason": map[string]any{"type": "string"},
