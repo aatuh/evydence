@@ -39,7 +39,9 @@ make production-check
 That gate is stricter than `make release-check`: it requires
 `EVYDENCE_TEST_DATABASE_URL`, rejects skipped live PostgreSQL checks, enforces
 the configured coverage threshold, verifies every committed migration prefix can
-upgrade to the current schema in a temporary PostgreSQL schema, and runs a
+upgrade to the current schema in a temporary PostgreSQL schema, runs the checked
+release-evidence benchmark, starts an API and worker against a disposable
+PostgreSQL schema for a black-box demo/restart persistence check, and runs a
 release artifact signing smoke test. See [Production readiness](production-readiness.md)
 for the supported profiles and exit criteria.
 

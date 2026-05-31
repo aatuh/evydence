@@ -10,6 +10,15 @@ as capacity planning without target-environment tests.
 go test ./internal/app -bench BenchmarkReleaseEvidenceIngestion -benchtime=100x -run '^$'
 ```
 
+The project-owned gate is:
+
+```sh
+make benchmark-check
+```
+
+`make production-check` runs this gate before release-candidate packaging
+evidence is accepted.
+
 ## Current Interpretation
 
 The benchmark exercises in-process release evidence creation through the app
@@ -39,7 +48,7 @@ goos: linux
 goarch: amd64
 pkg: github.com/aatuh/evydence/internal/app
 cpu: AMD Ryzen 7 3700X 8-Core Processor
-BenchmarkReleaseEvidenceIngestion-16    	     100	   1474947 ns/op	  517162 B/op	    2544 allocs/op
+BenchmarkReleaseEvidenceIngestion-16    	     100	   1426426 ns/op	  499913 B/op	    2543 allocs/op
 ```
 
 Interpretation: this is a narrow app-layer benchmark for regression tracking.

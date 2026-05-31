@@ -14,6 +14,8 @@ printf '%s\n' "Running Evydence production readiness checks"
 make release-check
 make coverage-check
 make migration-compatibility-check
+make benchmark-check
+make black-box-demo-check
 
 workdir="tmp/production-check"
 rm -rf "$workdir"

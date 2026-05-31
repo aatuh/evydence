@@ -9,7 +9,7 @@ GOVULNCHECK_VERSION ?= v1.2.0
 
 TAG ?=
 
-.PHONY: help tools fmt lint vuln gosec test test-race coverage coverage-check openapi-check openapi-precision-check meta-check docs-check deploy-check sdk-check demo-check fast-check finalize release-acceptance release-check production-check release-candidate-check migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
+.PHONY: help tools fmt lint vuln gosec test test-race coverage coverage-check openapi-check openapi-precision-check meta-check docs-check deploy-check sdk-check demo-check black-box-demo-check benchmark-check package-viewer-check fast-check finalize release-acceptance release-check production-check release-candidate-check migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -109,11 +109,15 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@test -f docs/tutorials/getting-started.md
 	@test -f docs/how-to/integrate-ci.md
 	@test -f docs/how-to/install-and-operate.md
+	@test -f docs/how-to/view-packages.md
 	@test -f docs/reference/configuration.md
 	@test -f docs/reference/api-contract-matrix.md
 	@test -f docs/reference/openapi.md
 	@test -f docs/reference/observability.md
+	@test -f docs/reference/capacity-and-failures.md
+	@test -f docs/reference/benchmark-results.md
 	@test -f docs/reference/production-readiness.md
+	@test -f docs/reference/production-exit-review.md
 	@test -f docs/reference/release-candidate.md
 	@test -f docs/reference/release-notes-template.md
 	@test -f docs/reference/release-notes-v0.1.0-rc.1.md
@@ -130,6 +134,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@for path in \
 		"tutorials/getting-started.md" \
 		"how-to/install-and-operate.md" \
+		"how-to/view-packages.md" \
 		"how-to/integrate-ci.md" \
 		"api.md" \
 		"operations.md" \
@@ -141,7 +146,10 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 		"reference/api-contract-matrix.md" \
 		"reference/openapi.md" \
 		"reference/observability.md" \
+		"reference/capacity-and-failures.md" \
+		"reference/benchmark-results.md" \
 		"reference/production-readiness.md" \
+		"reference/production-exit-review.md" \
 		"reference/release-candidate.md" \
 		"reference/release-notes-template.md" \
 		"reference/release-notes-v0.1.0-rc.1.md" \
@@ -238,6 +246,22 @@ demo-check: ## Validate checked end-to-end evidence demo fixtures
 	@grep -F '/v1/customer-packages' examples/end-to-end-release-evidence/run-local-demo.sh >/dev/null
 	@grep -F 'not legal' examples/end-to-end-release-evidence/README.md >/dev/null
 
+black-box-demo-check: ## Run live PostgreSQL black-box API/worker demo; requires EVYDENCE_TEST_DATABASE_URL
+	@scripts/black_box_demo_check.sh
+
+benchmark-check: ## Run the checked app-layer release evidence benchmark
+	@$(GO) test ./internal/app -bench BenchmarkReleaseEvidenceIngestion -benchtime=100x -run '^$$' -benchmem
+	@grep -F 'BenchmarkReleaseEvidenceIngestion' docs/reference/benchmark-results.md >/dev/null
+	@grep -F 'API writer replicas: `1`' docs/reference/capacity-and-failures.md >/dev/null
+
+package-viewer-check: ## Validate local package viewer and walkthrough
+	@test -f site/package-viewer/index.html
+	@test -f docs/how-to/view-packages.md
+	@grep -F 'Load bundled demo' site/package-viewer/index.html >/dev/null
+	@grep -F 'textContent' site/package-viewer/index.html >/dev/null
+	@! grep -F 'innerHTML' site/package-viewer/index.html >/dev/null
+	@grep -F 'examples/end-to-end-release-evidence/sample-customer-package-manifest.json' docs/how-to/view-packages.md >/dev/null
+
 fast-check: ## Run non-mutating fast validation
 	@$(MAKE) test
 	@$(MAKE) openapi-check
@@ -246,6 +270,7 @@ fast-check: ## Run non-mutating fast validation
 	@$(MAKE) deploy-check
 	@$(MAKE) sdk-check
 	@$(MAKE) demo-check
+	@$(MAKE) package-viewer-check
 
 finalize: ## Thorough validity check
 	@$(MAKE) fmt
@@ -256,6 +281,7 @@ finalize: ## Thorough validity check
 	@$(MAKE) deploy-check
 	@$(MAKE) sdk-check
 	@$(MAKE) demo-check
+	@$(MAKE) package-viewer-check
 
 release-acceptance: ## Run deterministic release metadata acceptance checks
 	@scripts/release_acceptance.sh
