@@ -91,6 +91,8 @@ jobs:
       - name: Upload release evidence and create release bundle
         run: |
           set -euo pipefail
+          dist/evydence upload validate-manifest \
+            --manifest .evydence/upload-manifest.json
           dist/evydence upload manifest \
             --url "$EVYDENCE_API_URL" \
             --api-key "$EVYDENCE_API_KEY" \

@@ -149,6 +149,8 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@test -f docs/reference/roadmap.md
 	@test -f docs/reference/worker-outbox.md
 	@test -f docs/reference/release-validation.md
+	@test -f docs/reference/upload-manifest.md
+	@test -f schemas/upload-manifest.v1.schema.json
 	@test -f docs/explanation/trust-model.md
 	@test -f docs/collectors/source-snapshots.md
 	@test -f docs/collectors/supply-chain.md
@@ -188,6 +190,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 		"reference/roadmap.md" \
 		"reference/worker-outbox.md" \
 		"reference/release-validation.md" \
+		"reference/upload-manifest.md" \
 		"collectors/source-snapshots.md" \
 		"collectors/supply-chain.md" \
 		"github-actions/quickstart-release-evidence.yml" \
@@ -223,13 +226,17 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@grep -F 'make restore-rehearsal-check' docs/runbooks/backup-restore.md >/dev/null
 	@grep -F 'release upload-evidence' docs/how-to/integrate-ci.md >/dev/null
 	@grep -F -- '--dry-run' docs/how-to/integrate-ci.md >/dev/null
+	@grep -F 'upload validate-manifest' docs/how-to/integrate-ci.md >/dev/null
+	@grep -F 'evydence-upload-manifest.v1.0.0' docs/reference/upload-manifest.md schemas/upload-manifest.v1.schema.json >/dev/null
 	@grep -F 'dist/evydence github-actions upload-build' docs/github-actions/quickstart-release-evidence.yml >/dev/null
+	@grep -F 'upload validate-manifest' docs/github-actions/quickstart-release-evidence.yml >/dev/null
 	@grep -F 'scripts/github_release_evidence_manifest.py' docs/github-actions/quickstart-release-evidence.yml >/dev/null
 	@grep -F '/v1/reports/release-readiness' docs/github-actions/quickstart-release-evidence.yml >/dev/null
 	@grep -F 'dist/evydence github-actions upload-build' docs/github-actions/release-evidence-workflow.yml >/dev/null
 	@grep -F 'go run ./cmd/evydence "$${args[@]}"' docs/github-actions/upload-build/action.yml >/dev/null
 	@grep -F 'cat > evydence-upload-manifest.json' docs/gitlab/evydence-release-evidence.gitlab-ci.yml >/dev/null
 	@grep -F 'artifact.digest' docs/gitlab/evydence-release-evidence.gitlab-ci.yml >/dev/null
+	@grep -F 'upload validate-manifest' docs/gitlab/evydence-release-evidence.gitlab-ci.yml >/dev/null
 	@grep -F -- '--manifest evydence-upload-manifest.json' docs/gitlab/evydence-release-evidence.gitlab-ci.yml >/dev/null
 	@grep -F 'make production-check' .github/workflows/ci.yml >/dev/null
 	@grep -F 'make production-check' .github/workflows/release-artifacts.yml >/dev/null

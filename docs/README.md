@@ -42,6 +42,7 @@ This documentation is organized by reader task. Implementation claims should be 
 - [Roadmap and release cadence](reference/roadmap.md): current release-line focus, external trust controls, and cadence expectations.
 - [Worker outbox contract](reference/worker-outbox.md): durable job kinds, idempotency, and safe logging rules.
 - [Release validation](reference/release-validation.md): canonical `make release-check` behavior and summary evidence.
+- [Upload manifest](reference/upload-manifest.md): schema, validation command, supported evidence request kinds, and safe payload-file handling.
 - [SDK workflow](sdk/README.md): current Go, TypeScript, and Python wrapper usage and limitations.
 - [Collector supply chain](collectors/supply-chain.md): collector release evidence and health checks.
 - [Source snapshot collectors](collectors/source-snapshots.md): GitHub and GitLab source metadata upload examples.

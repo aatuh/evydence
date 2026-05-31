@@ -55,6 +55,7 @@ evydence:evidence:
         ]
       }
       EOF
+    - go run ./cmd/evydence upload validate-manifest --manifest evydence-upload-manifest.json
     - go run ./cmd/evydence upload manifest --url "$EVYDENCE_API_URL" --api-key "$EVYDENCE_API_KEY" --manifest evydence-upload-manifest.json
   rules:
     - if: $EVYDENCE_API_URL && $EVYDENCE_API_KEY

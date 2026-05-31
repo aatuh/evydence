@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evydence.local/schemas/upload-manifest.v1.schema.json",
+  "title": "Evydence Upload Manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "evydence-upload-manifest.v1.0.0"
+    },
+    "requests": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/$defs/request"
+      }
+    }
+  },
+  "required": ["requests"],
+  "$defs": {
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "artifact",
+            "sbom",
+            "scan",
+            "vulnerability_scan",
+            "vex",
+            "provenance",
+            "build",
+            "build_attestation",
+            "approval",
+            "package_export",
+            "customer_package",
+            "release_bundle",
+            "evidence"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^/v1/"
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "payload": {
+          "type": "object"
+        },
+        "payload_file": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["path", "idempotency_key"],
+      "oneOf": [
+        {
+          "required": ["payload"],
+          "not": {
+            "required": ["payload_file"]
+          }
+        },
+        {
+          "required": ["payload_file"],
+          "not": {
+            "required": ["payload"]
+          }
+        }
+      ]
+    }
+  }
+}

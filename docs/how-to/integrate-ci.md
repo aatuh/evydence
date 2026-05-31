@@ -111,6 +111,16 @@ print planned requests without requiring an API URL or key. The `--scan` file is
 Evydence generic vulnerability scan JSON with `findings`; use the full
 scanner-oriented workflow when you need Grype or Trivy normalization.
 
+For bulk uploads, validate the manifest before upload:
+
+```sh
+go run ./cmd/evydence upload validate-manifest \
+  --manifest .evydence/upload-manifest.json
+```
+
+The manifest schema and supported request kinds are documented in
+[Upload manifest](../reference/upload-manifest.md).
+
 The full workflow also shows a scanner handoff path:
 
 - produce CycloneDX JSON with `syft`;

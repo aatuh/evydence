@@ -82,6 +82,8 @@ jobs:
           EVYDENCE_API_URL: ${{ secrets.EVYDENCE_API_URL }}
           EVYDENCE_API_KEY: ${{ secrets.EVYDENCE_API_KEY }}
         run: |
+          dist/evydence upload validate-manifest \
+            --manifest .evydence/upload-manifest.json
           dist/evydence upload manifest \
             --url "$EVYDENCE_API_URL" \
             --api-key "$EVYDENCE_API_KEY" \

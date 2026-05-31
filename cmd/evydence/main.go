@@ -75,10 +75,17 @@ func run(args []string) error {
 		}
 		return uploadEvidenceBundleImport(context.Background(), http.DefaultClient, args[2:])
 	case "upload":
-		if len(args) < 2 || args[1] != "manifest" {
+		if len(args) < 2 {
 			return usage()
 		}
-		return uploadManifestRequests(context.Background(), http.DefaultClient, args[2:])
+		switch args[1] {
+		case "manifest":
+			return uploadManifestRequests(context.Background(), http.DefaultClient, args[2:])
+		case "validate-manifest":
+			return validateUploadManifestCommand(args[2:])
+		default:
+			return usage()
+		}
 	case "release":
 		if len(args) < 2 {
 			return usage()
@@ -103,7 +110,7 @@ func run(args []string) error {
 }
 
 func usage() error {
-	return errors.New("usage: evydence hash <file> | evydence verify-manifest <manifest.json> --hash sha256:<hex> | evydence verify-evidence-bundle <bundle.json> | evydence verify-audit-chain <chain.json> | evydence package verify ... | evydence github-actions upload-build ... | evydence import-bundle upload ... | evydence upload manifest ... | evydence release upload-evidence|manifest|sign|verify|keygen")
+	return errors.New("usage: evydence hash <file> | evydence verify-manifest <manifest.json> --hash sha256:<hex> | evydence verify-evidence-bundle <bundle.json> | evydence verify-audit-chain <chain.json> | evydence package verify ... | evydence github-actions upload-build ... | evydence import-bundle upload ... | evydence upload manifest|validate-manifest ... | evydence release upload-evidence|manifest|sign|verify|keygen")
 }
 
 func hashFile(path string) (string, error) {
@@ -1014,52 +1021,16 @@ func uploadManifestRequests(ctx context.Context, client *http.Client, args []str
 	if strings.TrimSpace(*apiURL) == "" || strings.TrimSpace(*apiKey) == "" || strings.TrimSpace(*manifestPath) == "" {
 		return usage()
 	}
-	cleaned, err := cleanOperatorPath(*manifestPath)
+	manifest, err := readAndValidateUploadManifest(*manifestPath)
 	if err != nil {
 		return err
 	}
-	// #nosec G304,G703 -- this CLI command intentionally reads a local operator-specified upload manifest.
-	body, err := os.ReadFile(cleaned)
-	if err != nil {
-		return err
-	}
-	var manifest struct {
-		Requests []struct {
-			Path           string          `json:"path"`
-			IdempotencyKey string          `json:"idempotency_key"`
-			Payload        json.RawMessage `json:"payload"`
-			PayloadFile    string          `json:"payload_file"`
-		} `json:"requests"`
-	}
-	if err := json.Unmarshal(body, &manifest); err != nil {
-		return errors.New("upload manifest is not valid JSON")
-	}
-	if len(manifest.Requests) == 0 || len(manifest.Requests) > 100 {
-		return errors.New("upload manifest must contain 1-100 requests")
-	}
-	baseDir := filepath.Dir(cleaned)
-	for i, req := range manifest.Requests {
-		path := strings.TrimSpace(req.Path)
-		idem := strings.TrimSpace(req.IdempotencyKey)
-		if !strings.HasPrefix(path, "/v1/") || idem == "" {
-			return fmt.Errorf("upload request %d missing /v1 path or idempotency key", i)
+	for _, req := range manifest.Requests {
+		payload, err := req.PayloadBytes()
+		if err != nil {
+			return err
 		}
-		payload := req.Payload
-		if strings.TrimSpace(req.PayloadFile) != "" {
-			payloadPath, err := cleanOperatorPath(filepath.Join(baseDir, req.PayloadFile))
-			if err != nil {
-				return err
-			}
-			// #nosec G304,G703 -- payload files are local operator-selected files referenced by the manifest.
-			payload, err = os.ReadFile(payloadPath)
-			if err != nil {
-				return err
-			}
-		}
-		if len(bytes.TrimSpace(payload)) == 0 {
-			return fmt.Errorf("upload request %d has empty payload", i)
-		}
-		response, err := postRawEvydence(ctx, client, *apiURL, *apiKey, path, idem, payload)
+		response, err := postRawEvydence(ctx, client, *apiURL, *apiKey, req.Path, req.IdempotencyKey, payload)
 		if err != nil {
 			return err
 		}
@@ -1067,9 +1038,178 @@ func uploadManifestRequests(ctx context.Context, client *http.Client, args []str
 		if err != nil {
 			return err
 		}
-		fmt.Println("uploaded " + path + ": " + id)
+		fmt.Println("uploaded " + req.Path + ": " + id)
 	}
 	return nil
+}
+
+func validateUploadManifestCommand(args []string) error {
+	fs := flag.NewFlagSet("upload validate-manifest", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	manifestPath := fs.String("manifest", "", "upload manifest JSON path")
+	if err := fs.Parse(args); err != nil {
+		return usage()
+	}
+	if strings.TrimSpace(*manifestPath) == "" || fs.NArg() != 0 {
+		return usage()
+	}
+	manifest, err := readAndValidateUploadManifest(*manifestPath)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("upload manifest valid: %d requests\n", len(manifest.Requests))
+	return nil
+}
+
+const uploadManifestSchemaVersion = "evydence-upload-manifest.v1.0.0"
+
+type uploadManifestFile struct {
+	SchemaVersion string                  `json:"schema_version"`
+	Requests      []uploadManifestRequest `json:"requests"`
+}
+
+type uploadManifestRequest struct {
+	Kind           string          `json:"kind"`
+	Path           string          `json:"path"`
+	IdempotencyKey string          `json:"idempotency_key"`
+	Payload        json.RawMessage `json:"payload"`
+	PayloadFile    string          `json:"payload_file"`
+	payloadPath    string
+}
+
+func readAndValidateUploadManifest(path string) (uploadManifestFile, error) {
+	cleaned, err := cleanOperatorPath(path)
+	if err != nil {
+		return uploadManifestFile{}, err
+	}
+	// #nosec G304,G703 -- this CLI command intentionally reads a local operator-specified upload manifest.
+	body, err := os.ReadFile(cleaned)
+	if err != nil {
+		return uploadManifestFile{}, err
+	}
+	var manifest uploadManifestFile
+	dec := json.NewDecoder(bytes.NewReader(body))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&manifest); err != nil {
+		return uploadManifestFile{}, errors.New("upload manifest is not valid JSON or contains unknown fields")
+	}
+	if err := dec.Decode(&struct{}{}); err != io.EOF {
+		return uploadManifestFile{}, errors.New("upload manifest must contain one JSON document")
+	}
+	if manifest.SchemaVersion != "" && manifest.SchemaVersion != uploadManifestSchemaVersion {
+		return uploadManifestFile{}, fmt.Errorf("upload manifest schema_version must be %s", uploadManifestSchemaVersion)
+	}
+	if len(manifest.Requests) == 0 || len(manifest.Requests) > 100 {
+		return uploadManifestFile{}, errors.New("upload manifest must contain 1-100 requests")
+	}
+	baseDir := filepath.Dir(cleaned)
+	for i := range manifest.Requests {
+		if err := manifest.Requests[i].Validate(i, baseDir); err != nil {
+			return uploadManifestFile{}, err
+		}
+	}
+	return manifest, nil
+}
+
+func (r *uploadManifestRequest) Validate(index int, baseDir string) error {
+	r.Kind = strings.TrimSpace(r.Kind)
+	r.Path = strings.TrimSpace(r.Path)
+	r.IdempotencyKey = strings.TrimSpace(r.IdempotencyKey)
+	r.PayloadFile = strings.TrimSpace(r.PayloadFile)
+	if !strings.HasPrefix(r.Path, "/v1/") || r.IdempotencyKey == "" {
+		return fmt.Errorf("upload request %d missing /v1 path or idempotency key", index)
+	}
+	if r.Kind != "" && !uploadManifestKindAllowsPath(r.Kind, r.Path) {
+		return fmt.Errorf("upload request %d kind %q does not allow path %q", index, r.Kind, r.Path)
+	}
+	hasInlinePayload := len(bytes.TrimSpace(r.Payload)) > 0
+	hasPayloadFile := r.PayloadFile != ""
+	if hasInlinePayload == hasPayloadFile {
+		return fmt.Errorf("upload request %d must set exactly one of payload or payload_file", index)
+	}
+	if hasInlinePayload && !json.Valid(r.Payload) {
+		return fmt.Errorf("upload request %d payload is not valid JSON", index)
+	}
+	if hasPayloadFile {
+		payloadPath, err := cleanManifestPayloadPath(baseDir, r.PayloadFile)
+		if err != nil {
+			return fmt.Errorf("upload request %d: %w", index, err)
+		}
+		r.payloadPath = payloadPath
+		// #nosec G304,G703 -- payload files are local operator-selected files constrained to the manifest directory.
+		payload, err := os.ReadFile(payloadPath)
+		if err != nil {
+			return fmt.Errorf("upload request %d payload_file cannot be read", index)
+		}
+		if len(bytes.TrimSpace(payload)) == 0 || !json.Valid(payload) {
+			return fmt.Errorf("upload request %d payload_file is not valid JSON", index)
+		}
+	}
+	return nil
+}
+
+func (r uploadManifestRequest) PayloadBytes() ([]byte, error) {
+	if r.payloadPath == "" {
+		return r.Payload, nil
+	}
+	// #nosec G304,G703 -- payload files were already validated and constrained to the manifest directory.
+	return os.ReadFile(r.payloadPath)
+}
+
+func cleanManifestPayloadPath(baseDir, rel string) (string, error) {
+	rel = strings.TrimSpace(rel)
+	if rel == "" {
+		return "", errors.New("payload_file is required")
+	}
+	if strings.Contains(rel, "\x00") {
+		return "", errors.New("payload_file contains a NUL byte")
+	}
+	if filepath.IsAbs(rel) {
+		return "", errors.New("payload_file must be relative to the manifest directory")
+	}
+	cleanRel := filepath.Clean(rel)
+	if cleanRel == "." || cleanRel == ".." || strings.HasPrefix(cleanRel, ".."+string(filepath.Separator)) {
+		return "", errors.New("payload_file must stay inside the manifest directory")
+	}
+	baseEval, err := filepath.EvalSymlinks(baseDir)
+	if err != nil {
+		return "", errors.New("manifest directory cannot be resolved")
+	}
+	full := filepath.Join(baseEval, cleanRel)
+	fullEval, err := filepath.EvalSymlinks(full)
+	if err != nil {
+		return "", errors.New("payload_file cannot be resolved")
+	}
+	relative, err := filepath.Rel(baseEval, fullEval)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return "", errors.New("payload_file must stay inside the manifest directory")
+	}
+	return fullEval, nil
+}
+
+func uploadManifestKindAllowsPath(kind, path string) bool {
+	switch strings.TrimSpace(kind) {
+	case "artifact":
+		return path == "/v1/artifacts"
+	case "sbom":
+		return path == "/v1/sboms" || path == "/v1/sboms/spdx"
+	case "scan", "vulnerability_scan":
+		return path == "/v1/vulnerability-scans"
+	case "vex":
+		return path == "/v1/vex" || path == "/v1/vex/cyclonedx"
+	case "provenance", "build", "build_attestation":
+		return path == "/v1/builds" || strings.HasPrefix(path, "/v1/builds/")
+	case "approval":
+		return path == "/v1/approvals" || strings.HasPrefix(path, "/v1/releases/")
+	case "package_export", "customer_package":
+		return path == "/v1/customer-packages"
+	case "release_bundle":
+		return path == "/v1/release-bundles"
+	case "evidence":
+		return path == "/v1/evidence"
+	default:
+		return false
+	}
 }
 
 type releaseUploadConfig struct {
