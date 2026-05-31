@@ -1,32 +1,131 @@
 {
   "data": {
+    "report_type": "release_readiness",
+    "template_version": "release-readiness.v1.0.0",
     "release_id": "rel_example",
     "result": "failed",
+    "summary": {
+      "headline": "Recorded release evidence has readiness blockers or missing inputs.",
+      "result": "failed",
+      "human_summary": "The report found 1 failed policy check, 1 missing evidence input, and 1 blocking finding in the recorded release evidence.",
+      "policy_set": "policy-set.v1.0.0"
+    },
     "checks": [
       {
-        "name": "sbom_present",
+        "name": "release_requires_sbom",
         "result": "passed",
-        "detail": "At least one SBOM is linked to the release."
+        "severity": "high",
+        "explanation": "sbom evidence exists"
       },
       {
-        "name": "critical_findings_handled",
+        "name": "critical_exploitable_blocks_release",
         "result": "failed",
-        "detail": "One critical finding remains open without a valid decision or approved unexpired exception."
+        "severity": "critical",
+        "missing": [
+          "vulnerability_decision"
+        ],
+        "explanation": "open critical finding requires remediation, a valid VEX decision, or an approved unexpired exception"
+      }
+    ],
+    "sections": [
+      {
+        "id": "release_evidence",
+        "title": "Release Evidence",
+        "status": "passed",
+        "summary": "Recorded evidence satisfies this section.",
+        "questions": [
+          {
+            "id": "sbom",
+            "question": "Is there an SBOM for this release?",
+            "answer": "SBOM evidence is recorded for this release.",
+            "status": "passed",
+            "checks": [
+              "release_requires_sbom"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "risk_decisions",
+        "title": "Vulnerability Decisions",
+        "status": "missing",
+        "summary": "One or more reviewer questions is missing evidence.",
+        "questions": [
+          {
+            "id": "critical_findings_triaged",
+            "question": "Are open critical findings triaged?",
+            "answer": "One or more open critical findings require a valid decision, remediation, or approved unexpired exception.",
+            "status": "missing_evidence",
+            "checks": [
+              "critical_exploitable_blocks_release"
+            ],
+            "missing_evidence": [
+              "vulnerability_decision"
+            ],
+            "failed_policies": [
+              "critical_exploitable_blocks_release"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "gaps_and_limitations",
+        "title": "Gaps And Limitations",
+        "status": "failed",
+        "summary": "One or more reviewer questions failed a policy check.",
+        "questions": [
+          {
+            "id": "remaining_gaps",
+            "question": "What gaps remain?",
+            "answer": "The report lists missing evidence and failed policy checks that should be reviewed.",
+            "status": "failed_policy",
+            "missing_evidence": [
+              "vulnerability_decision"
+            ],
+            "failed_policies": [
+              "critical_exploitable_blocks_release"
+            ]
+          }
+        ]
       }
     ],
     "blocking_findings": [
       {
-        "id": "finding_example",
+        "finding_id": "finding_example",
+        "scan_id": "scan_example",
+        "release_id": "rel_example",
         "vulnerability": "CVE-2026-0099",
+        "component": "pkg:apk/openssl@3.1.0",
         "severity": "critical",
         "state": "open"
       }
     ],
+    "gaps": [
+      "vulnerability_decision"
+    ],
+    "missing_evidence": [
+      "vulnerability_decision"
+    ],
+    "failed_policies": [
+      "critical_exploitable_blocks_release"
+    ],
+    "known_limitations": [
+      "Readiness is based only on evidence, decisions, exceptions, bundles, and build records stored in this Evydence instance.",
+      "SBOM presence does not prove component inventory completeness.",
+      "Scanner output is submitted evidence and is not treated as authoritative vulnerability truth."
+    ],
+    "non_claims": [
+      "This report supports technical evidence review and compliance readiness only.",
+      "It is not legal compliance proof, certification, complete SBOM proof, an authoritative vulnerability result, regulator acceptance, or a secure-release guarantee."
+    ],
     "assumptions": [
-      "Scanner output is treated as submitted evidence, not authoritative vulnerability truth."
+      "This report supports compliance readiness and technical evidence review; it is not a legal compliance conclusion."
     ],
     "limitations": [
-      "Example report; run against real release evidence before relying on it."
-    ]
+      "Readiness is based only on evidence, decisions, exceptions, bundles, and build records stored in this Evydence instance.",
+      "SBOM presence does not prove component inventory completeness.",
+      "Scanner output is submitted evidence and is not treated as authoritative vulnerability truth."
+    ],
+    "generated_at": "2026-05-27T12:00:00Z"
   }
 }

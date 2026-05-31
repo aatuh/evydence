@@ -189,7 +189,11 @@ curl -sS "$EVYDENCE_URL/v1/reports/release-readiness?release_id=$RELEASE_ID" \
   | jq .
 ```
 
-Expected status is `200`. In this minimal flow, `data.result` is expected to be `failed` because the release is missing some readiness inputs and has an unhandled open critical finding. The report should include checks, gaps, assumptions, limitations, and blocking findings.
+Expected status is `200`. In this minimal flow, `data.result` is expected to be
+`failed` because the release is missing some readiness inputs and has an
+unhandled open critical finding. The report should include checks, reviewer
+question sections, missing evidence, failed policy checks, gaps, assumptions,
+limitations, non-claims, and blocking findings.
 
 Record a decision for the tutorial finding:
 

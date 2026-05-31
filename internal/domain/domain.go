@@ -1256,18 +1256,51 @@ type VerifyCheck struct {
 }
 
 type ReleaseReadinessReport struct {
-	ReportType         string            `json:"report_type"`
-	TemplateVersion    string            `json:"template_version"`
-	ReleaseID          string            `json:"release_id"`
-	Result             string            `json:"result"`
-	Checks             []PolicyCheck     `json:"checks"`
-	BlockingFindings   []BlockingFinding `json:"blocking_findings,omitempty"`
-	AcceptedExceptions []Exception       `json:"accepted_exceptions,omitempty"`
-	Gaps               []string          `json:"gaps,omitempty"`
-	Assumptions        []string          `json:"assumptions"`
-	Limitations        []string          `json:"limitations"`
-	Metadata           map[string]any    `json:"metadata,omitempty"`
-	GeneratedAt        time.Time         `json:"generated_at"`
+	ReportType         string             `json:"report_type"`
+	TemplateVersion    string             `json:"template_version"`
+	ReleaseID          string             `json:"release_id"`
+	Result             string             `json:"result"`
+	Summary            ReadinessSummary   `json:"summary,omitempty"`
+	Checks             []PolicyCheck      `json:"checks"`
+	Sections           []ReadinessSection `json:"sections,omitempty"`
+	BlockingFindings   []BlockingFinding  `json:"blocking_findings,omitempty"`
+	AcceptedExceptions []Exception        `json:"accepted_exceptions,omitempty"`
+	Gaps               []string           `json:"gaps,omitempty"`
+	MissingEvidence    []string           `json:"missing_evidence,omitempty"`
+	FailedPolicies     []string           `json:"failed_policies,omitempty"`
+	KnownLimitations   []string           `json:"known_limitations,omitempty"`
+	NonClaims          []string           `json:"non_claims,omitempty"`
+	Assumptions        []string           `json:"assumptions"`
+	Limitations        []string           `json:"limitations"`
+	Metadata           map[string]any     `json:"metadata,omitempty"`
+	GeneratedAt        time.Time          `json:"generated_at"`
+}
+
+type ReadinessSummary struct {
+	Headline     string `json:"headline"`
+	Result       string `json:"result"`
+	HumanSummary string `json:"human_summary"`
+	PolicySet    string `json:"policy_set,omitempty"`
+}
+
+type ReadinessSection struct {
+	ID        string              `json:"id"`
+	Title     string              `json:"title"`
+	Status    string              `json:"status"`
+	Summary   string              `json:"summary"`
+	Questions []ReadinessQuestion `json:"questions"`
+}
+
+type ReadinessQuestion struct {
+	ID               string   `json:"id"`
+	Question         string   `json:"question"`
+	Answer           string   `json:"answer"`
+	Status           string   `json:"status"`
+	Evidence         []string `json:"evidence,omitempty"`
+	Checks           []string `json:"checks,omitempty"`
+	MissingEvidence  []string `json:"missing_evidence,omitempty"`
+	FailedPolicies   []string `json:"failed_policies,omitempty"`
+	KnownLimitations []string `json:"known_limitations,omitempty"`
 }
 
 type BlockingFinding struct {
