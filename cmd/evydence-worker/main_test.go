@@ -44,6 +44,28 @@ func (f *fakeStateStore) SaveState(_ context.Context, state app.PersistedState) 
 	return nil
 }
 
+type fakeReleaseLedgerMutationStore struct {
+	state     app.PersistedState
+	mutation  app.ReleaseLedgerMutation
+	saveCalls int
+	ok        bool
+	err       error
+}
+
+func (f *fakeReleaseLedgerMutationStore) LoadState(context.Context) (app.PersistedState, bool, error) {
+	return f.state, f.ok, f.err
+}
+
+func (f *fakeReleaseLedgerMutationStore) ApplyReleaseLedgerMutation(_ context.Context, mutation app.ReleaseLedgerMutation) error {
+	f.mutation = mutation
+	return nil
+}
+
+func (f *fakeReleaseLedgerMutationStore) SaveState(context.Context, app.PersistedState) error {
+	f.saveCalls++
+	return nil
+}
+
 type fakeObjectGetter struct {
 	object  app.Object
 	err     error
@@ -99,6 +121,34 @@ func TestProcessJobWithObjectsPersistsParserDerivedFields(t *testing.T) {
 	updated := store.saved.SBOMs["sbom_test"]
 	if updated.SpecVersion != "1.6" || updated.ComponentCount != 1 || len(updated.Components) != 1 || updated.Components[0].Name != "api" {
 		t.Fatalf("saved sbom = %#v", updated)
+	}
+}
+
+func TestProcessJobWithObjectsUsesFocusedReleaseLedgerMutationForParserSideEffects(t *testing.T) {
+	body := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api","version":"1.0.0"}]}`)
+	hash := digestBytes(body)
+	job := postgres.ClaimedJob{
+		TenantID:  "ten_test",
+		Kind:      "parse_sbom",
+		SubjectID: "sbom_test",
+		Payload:   map[string]any{"payload_ref": "object://tenants/ten_test/payloads/sbom.json", "payload_hash": hash},
+	}
+	store := &fakeReleaseLedgerMutationStore{
+		ok: true,
+		state: app.PersistedState{SBOMs: map[string]domain.SBOM{
+			"sbom_test": {ID: "sbom_test", TenantID: "ten_test"},
+		}},
+	}
+	object := app.Object{Key: "tenants/ten_test/payloads/sbom.json", TenantID: "ten_test", Digest: hash, Bytes: body}
+	if err := processJobWithObjects(context.Background(), store, fakeObjectGetter{object: object}, job); err != nil {
+		t.Fatalf("process object-backed job: %v", err)
+	}
+	if store.saveCalls != 0 || len(store.mutation.SBOMs) != 1 {
+		t.Fatalf("focused parser persistence save=%d mutation=%#v", store.saveCalls, store.mutation)
+	}
+	updated := store.mutation.SBOMs[0]
+	if updated.SpecVersion != "1.6" || updated.ComponentCount != 1 || len(updated.Components) != 1 {
+		t.Fatalf("focused sbom mutation = %#v", updated)
 	}
 }
 

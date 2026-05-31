@@ -213,7 +213,7 @@ func (l *Ledger) RecordEvidenceLifecycleEvent(ctx context.Context, actor domain.
 	}
 	l.lifecycle[event.ID] = event
 	_, _ = l.appendChainLocked(actor.TenantID, "evidence."+event.Action, "evidence_item", item.ID, actorType(actor), actorID(actor), item.PayloadHash, "")
-	if err := l.persistLocked(ctx); err != nil {
+	if err := l.persistReleaseLedgerLocked(ctx, l.releaseLedgerMutationLocked()); err != nil {
 		return domain.EvidenceLifecycleEvent{}, err
 	}
 	return event, nil

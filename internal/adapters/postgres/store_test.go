@@ -932,6 +932,241 @@ func TestApplyCriticalMutationWithPostgres(t *testing.T) {
 	}
 }
 
+func TestApplyReleaseLedgerMutationWithPostgres(t *testing.T) {
+	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("EVYDENCE_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	admin, err := Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close()
+	schema := "evydence_release_mutation_" + strings.ReplaceAll(time.Now().Format("150405.000000000"), ".", "_")
+	quotedSchema := pgx.Identifier{schema}.Sanitize()
+	if _, err := admin.pool.Exec(ctx, "CREATE SCHEMA "+quotedSchema); err != nil {
+		t.Fatal(err)
+	}
+	defer func(cleanupCtx context.Context) {
+		_, _ = admin.pool.Exec(cleanupCtx, "DROP SCHEMA "+quotedSchema+" CASCADE")
+	}(context.WithoutCancel(ctx))
+
+	store, err := OpenWithOptions(ctx, databaseURLWithSearchPath(t, databaseURL, schema), StoreOptions{LoadMode: LoadModeRelationalOnly, DisableSnapshotWrites: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if _, err := store.ApplyMigrations(ctx, "../../../migrations"); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC()
+	if err := store.ApplyCriticalMutation(ctx, app.CriticalMutation{
+		Tenants: []domain.Tenant{{ID: "ten_release_focus", Name: "Release Focus", CreatedAt: now}},
+	}); err != nil {
+		t.Fatalf("seed tenant: %v", err)
+	}
+	hash := "sha256:" + strings.Repeat("a", 64)
+	chainHash := "sha256:" + strings.Repeat("b", 64)
+	mutation := app.ReleaseLedgerMutation{
+		Products: []domain.Product{{
+			ID: "prod_focus", TenantID: "ten_release_focus", Name: "Payments", Slug: "payments", CreatedAt: now,
+		}},
+		Projects: []domain.Project{{
+			ID: "proj_focus", TenantID: "ten_release_focus", ProductID: "prod_focus", Name: "API", CreatedAt: now,
+		}},
+		Releases: []domain.Release{{
+			ID: "rel_focus", TenantID: "ten_release_focus", ProductID: "prod_focus", Version: "1.0.0", State: "approved",
+			FrozenAt: ptrTime(now), ApprovedAt: ptrTime(now), CreatedAt: now,
+		}},
+		Artifacts: []domain.Artifact{{
+			ID: "art_focus", TenantID: "ten_release_focus", Name: "api.tar.gz", MediaType: "application/gzip", Size: 42,
+			Digest: hash, CreatedAt: now,
+		}},
+		Evidence: []domain.EvidenceItem{{
+			ID: "ev_focus", TenantID: "ten_release_focus", ProductID: "prod_focus", ProjectID: "proj_focus", ReleaseID: "rel_focus",
+			Type: "sbom", Subtype: "cyclonedx", Title: "SBOM", SourceSystem: "api", ObservedAt: now,
+			EvidenceVersion: 1, SchemaVersion: domain.EvidenceItemSchemaVersion, PayloadHash: hash, CanonicalHash: hash,
+			Canonicalization: domain.CanonicalizationProfileVersion, TrustLevel: "L2", VerificationStatus: "pending",
+			SubjectRefs: []domain.SubjectRef{{Type: "artifact", ID: "art_focus"}}, CreatedAt: now,
+		}},
+		EvidenceLifecycle: []domain.EvidenceLifecycleEvent{{
+			ID: "elc_focus", TenantID: "ten_release_focus", EvidenceID: "ev_focus", Action: "amendment",
+			Reason: "correct metadata", ActorID: "key_focus", SchemaVersion: domain.EvidenceLifecycleSchemaVersion, CreatedAt: now,
+		}},
+		SBOMs: []domain.SBOM{{
+			ID: "sbom_focus", TenantID: "ten_release_focus", EvidenceID: "ev_focus", ReleaseID: "rel_focus", ArtifactID: "art_focus",
+			Format: "cyclonedx", SpecVersion: "1.5", ComponentCount: 1,
+			Components: []domain.SBOMComponent{{Name: "lib", Version: "1.0.0"}}, CreatedAt: now,
+		}},
+		Scans: []domain.VulnerabilityScan{{
+			ID: "scan_focus", TenantID: "ten_release_focus", EvidenceID: "ev_focus", ReleaseID: "rel_focus",
+			Scanner: "generic", TargetRef: "api", Summary: map[string]int{"critical": 1},
+			Findings:  []domain.VulnerabilityFinding{{ID: "finding_focus", Vulnerability: "CVE-2099-0001", Component: "lib", Severity: "critical", State: "open"}},
+			CreatedAt: now,
+		}},
+		Contracts: []domain.OpenAPIContract{{
+			ID: "oas_focus", TenantID: "ten_release_focus", ProductID: "prod_focus", ReleaseID: "rel_focus",
+			Version: "1.0.0", Hash: hash, PathCount: 1, Operations: []domain.OpenAPIOperation{{Method: "GET", Path: "/health", OperationID: "health"}},
+			EvidenceID: "ev_focus", CreatedAt: now,
+		}},
+		VEXDocuments: []domain.VEXDocument{{
+			ID: "vex_focus", TenantID: "ten_release_focus", EvidenceID: "ev_focus", ReleaseID: "rel_focus", ArtifactID: "art_focus",
+			Format: "openvex", Author: "security", Version: "1", StatementCount: 1,
+			StatusSummary: map[string]int{"not_affected": 1}, SchemaVersion: domain.VEXDocumentSchemaVersion, CreatedAt: now,
+		}},
+		VulnerabilityDecisions: []domain.VulnerabilityDecision{{
+			ID: "decision_release_focus", TenantID: "ten_release_focus", FindingID: "finding_focus", ScanID: "scan_focus",
+			ReleaseID: "rel_focus", Vulnerability: "CVE-2099-0001", Component: "lib", Status: "not_affected",
+			Justification: "component_not_present", Source: "vex", EvidenceID: "ev_focus", VEXDocumentID: "vex_focus",
+			SchemaVersion: domain.VulnerabilityDecisionVersion, CreatedAt: now,
+		}},
+		AuditChainEntries: []domain.AuditChainEntry{{
+			ID: "chain_release_focus", TenantID: "ten_release_focus", Sequence: 1, EntryType: "evidence.created",
+			SubjectType: "evidence_item", SubjectID: "ev_focus", ActorType: "api_key", ActorID: "key_focus",
+			OccurredAt: now, PayloadHash: hash, CanonicalEntryHash: chainHash, EntryHash: chainHash,
+			SchemaVersion: domain.AuditChainEntrySchemaVersion,
+		}},
+		OutboxJobs: []app.OutboxJob{{
+			ID: "job_release_focus", TenantID: "ten_release_focus", Kind: "parse_sbom",
+			SubjectType: "sbom", SubjectID: "sbom_focus", Payload: map[string]any{"payload_hash": hash}, CreatedAt: now,
+		}},
+	}
+	if err := store.ApplyReleaseLedgerMutation(ctx, mutation); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.ApplyReleaseLedgerMutation(ctx, mutation); err != nil {
+		t.Fatalf("retry release ledger mutation: %v", err)
+	}
+
+	var snapshotRows int
+	if err := store.pool.QueryRow(ctx, `SELECT count(*) FROM ledger_state`).Scan(&snapshotRows); err != nil {
+		t.Fatal(err)
+	}
+	if snapshotRows != 0 {
+		t.Fatalf("ledger_state rows = %d, want 0", snapshotRows)
+	}
+	checks := []struct {
+		name  string
+		query string
+	}{
+		{name: "product", query: `SELECT count(*) FROM products WHERE id = 'prod_focus' AND slug = 'payments'`},
+		{name: "project", query: `SELECT count(*) FROM projects WHERE id = 'proj_focus' AND product_id = 'prod_focus'`},
+		{name: "release", query: `SELECT count(*) FROM releases WHERE id = 'rel_focus' AND state = 'approved'`},
+		{name: "artifact", query: `SELECT count(*) FROM artifacts WHERE id = 'art_focus' AND digest = '` + hash + `'`},
+		{name: "evidence", query: `SELECT count(*) FROM evidence_items WHERE id = 'ev_focus' AND product_id = 'prod_focus'`},
+		{name: "lifecycle", query: `SELECT count(*) FROM evidence_lifecycle_events WHERE id = 'elc_focus' AND action = 'amendment'`},
+		{name: "sbom", query: `SELECT count(*) FROM sboms WHERE id = 'sbom_focus' AND component_count = 1`},
+		{name: "scan", query: `SELECT count(*) FROM vulnerability_scans WHERE id = 'scan_focus' AND release_id = 'rel_focus'`},
+		{name: "contract", query: `SELECT count(*) FROM openapi_contracts WHERE id = 'oas_focus' AND path_count = 1`},
+		{name: "vex", query: `SELECT count(*) FROM vex_documents WHERE id = 'vex_focus' AND statement_count = 1`},
+		{name: "decision", query: `SELECT count(*) FROM vulnerability_decisions WHERE id = 'decision_release_focus' AND status = 'not_affected'`},
+		{name: "audit chain", query: `SELECT count(*) FROM audit_chain_entries WHERE id = 'chain_release_focus'`},
+		{name: "outbox", query: `SELECT count(*) FROM outbox_jobs WHERE id = 'job_release_focus' AND status = 'queued'`},
+		{name: "resource index", query: `SELECT count(*) FROM resource_index WHERE tenant_id = 'ten_release_focus' AND resource_type = 'evidence_item' AND resource_id = 'ev_focus'`},
+	}
+	for _, check := range checks {
+		var rows int
+		if err := store.pool.QueryRow(ctx, check.query).Scan(&rows); err != nil {
+			t.Fatalf("%s query: %v", check.name, err)
+		}
+		if rows != 1 {
+			t.Fatalf("%s rows = %d, want 1", check.name, rows)
+		}
+	}
+	var outboxRows int
+	if err := store.pool.QueryRow(ctx, `SELECT count(*) FROM outbox_jobs WHERE id = 'job_release_focus'`).Scan(&outboxRows); err != nil {
+		t.Fatal(err)
+	}
+	if outboxRows != 1 {
+		t.Fatalf("outbox retry rows = %d, want 1", outboxRows)
+	}
+	loaded, ok, err := store.LoadState(ctx)
+	if err != nil || !ok {
+		t.Fatalf("relational load ok=%v err=%v", ok, err)
+	}
+	if loaded.Products["prod_focus"].Slug != "payments" || loaded.Evidence["ev_focus"].CanonicalHash == "" || len(loaded.EvidenceLifecycle) != 1 {
+		t.Fatalf("loaded release ledger core missing: product=%#v evidence=%#v lifecycle=%#v", loaded.Products["prod_focus"], loaded.Evidence["ev_focus"], loaded.EvidenceLifecycle)
+	}
+	if loaded.SBOMs["sbom_focus"].ComponentCount != 1 || loaded.Scans["scan_focus"].ReleaseID != "rel_focus" || loaded.Contracts["oas_focus"].PathCount != 1 || loaded.VEXDocuments["vex_focus"].StatementCount != 1 {
+		t.Fatalf("loaded parser metadata missing: sbom=%#v scan=%#v contract=%#v vex=%#v", loaded.SBOMs["sbom_focus"], loaded.Scans["scan_focus"], loaded.Contracts["oas_focus"], loaded.VEXDocuments["vex_focus"])
+	}
+	if loaded.Decisions["decision_release_focus"].Status != "not_affected" || len(loaded.Chain["ten_release_focus"]) != 1 {
+		t.Fatalf("loaded decision/chain missing: decision=%#v chain=%#v", loaded.Decisions["decision_release_focus"], loaded.Chain["ten_release_focus"])
+	}
+}
+
+func TestApplyReleaseLedgerMutationRollsBackTransaction(t *testing.T) {
+	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("EVYDENCE_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	admin, err := Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close()
+	schema := "evydence_release_rollback_" + strings.ReplaceAll(time.Now().Format("150405.000000000"), ".", "_")
+	quotedSchema := pgx.Identifier{schema}.Sanitize()
+	if _, err := admin.pool.Exec(ctx, "CREATE SCHEMA "+quotedSchema); err != nil {
+		t.Fatal(err)
+	}
+	defer func(cleanupCtx context.Context) {
+		_, _ = admin.pool.Exec(cleanupCtx, "DROP SCHEMA "+quotedSchema+" CASCADE")
+	}(context.WithoutCancel(ctx))
+
+	store, err := OpenWithOptions(ctx, databaseURLWithSearchPath(t, databaseURL, schema), StoreOptions{LoadMode: LoadModeRelationalOnly, DisableSnapshotWrites: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if _, err := store.ApplyMigrations(ctx, "../../../migrations"); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	if err := store.ApplyCriticalMutation(ctx, app.CriticalMutation{
+		Tenants: []domain.Tenant{{ID: "ten_release_rollback", Name: "Rollback", CreatedAt: now}},
+	}); err != nil {
+		t.Fatalf("seed tenant: %v", err)
+	}
+	err = store.ApplyReleaseLedgerMutation(ctx, app.ReleaseLedgerMutation{
+		Products: []domain.Product{{
+			ID: "prod_release_rollback", TenantID: "ten_release_rollback", Name: "Rollback", Slug: "rollback", CreatedAt: now,
+		}},
+		Projects: []domain.Project{{
+			ID: "proj_release_rollback", TenantID: "ten_release_rollback", ProductID: "missing_product", Name: "Broken", CreatedAt: now,
+		}},
+		OutboxJobs: []app.OutboxJob{{
+			ID: "job_release_rollback", TenantID: "ten_release_rollback", Kind: "parse_sbom",
+			SubjectType: "sbom", SubjectID: "sbom_missing", CreatedAt: now,
+		}},
+	})
+	if err == nil {
+		t.Fatal("expected missing product to fail release ledger mutation")
+	}
+	checks := []struct {
+		name  string
+		query string
+	}{
+		{name: "product", query: `SELECT count(*) FROM products WHERE id = 'prod_release_rollback'`},
+		{name: "project", query: `SELECT count(*) FROM projects WHERE id = 'proj_release_rollback'`},
+		{name: "outbox", query: `SELECT count(*) FROM outbox_jobs WHERE id = 'job_release_rollback'`},
+	}
+	for _, check := range checks {
+		var rows int
+		if queryErr := store.pool.QueryRow(ctx, check.query).Scan(&rows); queryErr != nil {
+			t.Fatalf("%s query: %v", check.name, queryErr)
+		}
+		if rows != 0 {
+			t.Fatalf("%s rows after rollback = %d, want 0", check.name, rows)
+		}
+	}
+}
+
 func TestApplyCriticalMutationRollsBackTransaction(t *testing.T) {
 	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
 	if databaseURL == "" {
