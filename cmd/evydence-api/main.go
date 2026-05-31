@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/adapters/httpapi"
+	"github.com/aatuh/evydence/internal/adapters/identity/httpvalidator"
 	"github.com/aatuh/evydence/internal/adapters/identity/oidcdiscovery"
 	"github.com/aatuh/evydence/internal/adapters/identity/oidcuserinfo"
 	"github.com/aatuh/evydence/internal/adapters/objectstore/filesystem"
@@ -54,10 +55,11 @@ func run() error {
 		AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_OIDC_DISCOVERY_ALLOW_INSECURE_LOCALHOST"), "true"),
 		Timeout:                   time.Duration(intEnv("EVYDENCE_OIDC_DISCOVERY_TIMEOUT_SECONDS", 10)) * time.Second,
 	})
-	cfg.ProviderAPI = oidcuserinfo.New(oidcuserinfo.Config{
-		AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_OIDC_USERINFO_ALLOW_INSECURE_LOCALHOST"), "true"),
-		Timeout:                   time.Duration(intEnv("EVYDENCE_OIDC_USERINFO_TIMEOUT_SECONDS", 10)) * time.Second,
-	})
+	providerValidator, err := openProviderIdentityValidator()
+	if err != nil {
+		return err
+	}
+	cfg.ProviderAPI = providerValidator
 	cfg.Transparency = httpfetcher.New(httpfetcher.Config{
 		AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_TRANSPARENCY_FETCH_ALLOW_INSECURE_LOCALHOST"), "true"),
 		Timeout:                   time.Duration(intEnv("EVYDENCE_TRANSPARENCY_FETCH_TIMEOUT_SECONDS", 10)) * time.Second,
@@ -190,6 +192,26 @@ func openSigningExecutor() (app.SigningExecutor, error) {
 		return nil, fmt.Errorf("configure signing executor: %w", err)
 	}
 	return executor, nil
+}
+
+func openProviderIdentityValidator() (app.ProviderIdentityValidator, error) {
+	endpoint := strings.TrimSpace(os.Getenv("EVYDENCE_PROVIDER_VALIDATION_GATEWAY_URL"))
+	if endpoint != "" {
+		validator, err := httpvalidator.New(httpvalidator.Config{
+			Endpoint:                  endpoint,
+			BearerToken:               os.Getenv("EVYDENCE_PROVIDER_VALIDATION_GATEWAY_TOKEN"),
+			AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_PROVIDER_VALIDATION_GATEWAY_ALLOW_INSECURE_LOCALHOST"), "true"),
+			Timeout:                   time.Duration(intEnv("EVYDENCE_PROVIDER_VALIDATION_GATEWAY_TIMEOUT_SECONDS", 10)) * time.Second,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("configure provider validation gateway: %w", err)
+		}
+		return validator, nil
+	}
+	return oidcuserinfo.New(oidcuserinfo.Config{
+		AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_OIDC_USERINFO_ALLOW_INSECURE_LOCALHOST"), "true"),
+		Timeout:                   time.Duration(intEnv("EVYDENCE_OIDC_USERINFO_TIMEOUT_SECONDS", 10)) * time.Second,
+	}), nil
 }
 
 func validateRuntimeConfig(production bool, databaseURL, pepper, signingKeyMode, signingExecutorURL string, printBootstrapSecret bool) error {

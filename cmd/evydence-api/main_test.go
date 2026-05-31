@@ -233,3 +233,22 @@ func TestOpenSigningExecutorRejectsIncompleteAWSKMSConfig(t *testing.T) {
 		t.Fatal("expected missing AWS KMS key id to be rejected")
 	}
 }
+
+func TestOpenProviderIdentityValidatorUsesGatewayWhenConfigured(t *testing.T) {
+	t.Setenv("EVYDENCE_PROVIDER_VALIDATION_GATEWAY_URL", "http://127.0.0.1/provider")
+	t.Setenv("EVYDENCE_PROVIDER_VALIDATION_GATEWAY_ALLOW_INSECURE_LOCALHOST", "true")
+	validator, err := openProviderIdentityValidator()
+	if err != nil {
+		t.Fatalf("provider validation gateway should be accepted: %v", err)
+	}
+	if validator == nil {
+		t.Fatal("expected provider validator")
+	}
+}
+
+func TestOpenProviderIdentityValidatorRequiresHTTPSForRemoteGateway(t *testing.T) {
+	t.Setenv("EVYDENCE_PROVIDER_VALIDATION_GATEWAY_URL", "http://provider.example.test/validate")
+	if _, err := openProviderIdentityValidator(); err == nil || !strings.Contains(err.Error(), "https") {
+		t.Fatalf("remote http provider validator err=%v, want https rejection", err)
+	}
+}

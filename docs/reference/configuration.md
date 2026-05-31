@@ -50,6 +50,10 @@ The example secrets are placeholders. Replace them before using shared or produc
 | `EVYDENCE_WORKER_MAX_PAYLOAD_BYTES` | No | `20971520` | Maximum raw object payload size replayed by a worker job. |
 | `EVYDENCE_OIDC_USERINFO_TIMEOUT_SECONDS` | No | `10` | Timeout for optional live OIDC UserInfo validation when `POST /v1/provider-verifications` includes `access_token`. |
 | `EVYDENCE_OIDC_USERINFO_ALLOW_INSECURE_LOCALHOST` | Local only | `false` | Allows HTTP OIDC issuer/UserInfo endpoints only for localhost tests. Do not use for production. |
+| `EVYDENCE_PROVIDER_VALIDATION_GATEWAY_URL` | No | unset | Optional HTTPS operator-controlled provider validation gateway. When set, provider verification uses this gateway instead of direct OIDC UserInfo calls. |
+| `EVYDENCE_PROVIDER_VALIDATION_GATEWAY_TOKEN` | Gateway | unset | Optional bearer token for the provider validation gateway. Store outside source control and logs. |
+| `EVYDENCE_PROVIDER_VALIDATION_GATEWAY_TIMEOUT_SECONDS` | No | `10` | Timeout for provider validation gateway requests. |
+| `EVYDENCE_PROVIDER_VALIDATION_GATEWAY_ALLOW_INSECURE_LOCALHOST` | Local only | `false` | Allows an HTTP localhost gateway for tests. Do not use for production. |
 | `EVYDENCE_SIGNING_KEY_MODE` | Production yes | `external`, `aws-kms`, `gcp-kms`, `azure-key-vault`, or `pkcs11-hsm` for production | Production rejects local plaintext signing-key mode. `aws-kms` uses the built-in AWS KMS executor. `gcp-kms`, `azure-key-vault`, and `pkcs11-hsm` are explicit HTTPS signing-gateway profiles and require `EVYDENCE_SIGNING_EXECUTOR_URL`. |
 | `EVYDENCE_SIGNING_EXECUTOR_URL` | No | unset | Optional HTTPS signing gateway used by `POST /v1/signing-operations` when `external_signature` is omitted. The API sends subject metadata and `payload_hash`, not raw payload bytes. |
 | `EVYDENCE_SIGNING_EXECUTOR_TOKEN` | Signing gateway | unset | Optional bearer token for the signing gateway. Store outside source control and logs. |
@@ -132,6 +136,21 @@ SHA-256 digest with KMS `MessageType=DIGEST`; it does not send raw evidence
 payload bytes to AWS KMS. Operators remain responsible for AWS IAM policy,
 key lifecycle, CloudTrail review, regional availability, and external review
 of whether the selected key custody profile satisfies their deployment needs.
+
+## Provider Validation Gateway
+
+When `EVYDENCE_PROVIDER_VALIDATION_GATEWAY_URL` is set, provider identity
+verification can call an operator-controlled HTTPS gateway with tenant id,
+provider id/type, issuer, subject, group-claim name, and a supplied access
+token when the request includes one. The gateway returns non-secret checks,
+groups, and limitations. Evydence stores the checks and normalized groups, not
+the supplied token or raw provider response.
+
+This gateway is an integration point for GitHub, GitLab, IdP, directory, or
+other provider-specific validation logic that depends on deployment-owned
+credentials and policies. It does not make external group synchronization
+automatic, does not create permanent role bindings, and does not prove provider
+truth beyond the gateway response and recorded limitations.
 
 ## Related Commands
 
