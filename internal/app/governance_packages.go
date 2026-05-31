@@ -203,7 +203,8 @@ func (l *Ledger) CreateApprovalRecord(ctx context.Context, actor domain.Actor, i
 	return approval, nil
 }
 
-func (l *Ledger) CreateRedactionProfile(ctx context.Context, actor domain.Actor, in CreateRedactionProfileInput) (domain.RedactionProfile, error) {
+func (s packageReportService) CreateRedactionProfile(ctx context.Context, actor domain.Actor, in CreateRedactionProfileInput) (domain.RedactionProfile, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.RedactionProfile{}, err
 	}
@@ -230,7 +231,8 @@ func (l *Ledger) CreateRedactionProfile(ctx context.Context, actor domain.Actor,
 	return profile, nil
 }
 
-func (l *Ledger) CreateCustomerSecurityPackage(ctx context.Context, actor domain.Actor, in CreateCustomerPackageInput) (domain.CustomerSecurityPackage, error) {
+func (s packageReportService) CreateCustomerSecurityPackage(ctx context.Context, actor domain.Actor, in CreateCustomerPackageInput) (domain.CustomerSecurityPackage, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.CustomerSecurityPackage{}, err
 	}
@@ -277,7 +279,8 @@ func (l *Ledger) CreateCustomerSecurityPackage(ctx context.Context, actor domain
 	return pkg, nil
 }
 
-func (l *Ledger) AccessCustomerSecurityPackage(ctx context.Context, actor domain.Actor, id string) (domain.CustomerSecurityPackage, error) {
+func (s packageReportService) AccessCustomerSecurityPackage(ctx context.Context, actor domain.Actor, id string) (domain.CustomerSecurityPackage, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.CustomerSecurityPackage{}, err
 	}
@@ -305,7 +308,8 @@ func (l *Ledger) AccessCustomerSecurityPackage(ctx context.Context, actor domain
 	return pkg, nil
 }
 
-func (l *Ledger) ExportCustomerSecurityPackageArchive(ctx context.Context, actor domain.Actor, id string) (CustomerPackageArchive, error) {
+func (s packageReportService) ExportCustomerSecurityPackageArchive(ctx context.Context, actor domain.Actor, id string) (CustomerPackageArchive, error) {
+	l := s.ledger
 	pkg, err := l.AccessCustomerSecurityPackage(ctx, actor, id)
 	if err != nil {
 		return CustomerPackageArchive{}, err
@@ -313,7 +317,8 @@ func (l *Ledger) ExportCustomerSecurityPackageArchive(ctx context.Context, actor
 	return customerPackageArchive(pkg)
 }
 
-func (l *Ledger) ExportCustomerPortalPackageArchive(ctx context.Context, token string) (CustomerPackageArchive, error) {
+func (s packageReportService) ExportCustomerPortalPackageArchive(ctx context.Context, token string) (CustomerPackageArchive, error) {
+	l := s.ledger
 	pkg, err := l.AccessCustomerPortalPackage(ctx, token)
 	if err != nil {
 		return CustomerPackageArchive{}, err
@@ -321,7 +326,8 @@ func (l *Ledger) ExportCustomerPortalPackageArchive(ctx context.Context, token s
 	return customerPackageArchive(pkg)
 }
 
-func (l *Ledger) SecurityReviewPackageReport(ctx context.Context, actor domain.Actor, packageID string) (domain.SecurityReviewPackageReport, error) {
+func (s packageReportService) SecurityReviewPackageReport(ctx context.Context, actor domain.Actor, packageID string) (domain.SecurityReviewPackageReport, error) {
+	l := s.ledger
 	pkg, err := l.AccessCustomerSecurityPackage(ctx, actor, packageID)
 	if err != nil {
 		return domain.SecurityReviewPackageReport{}, err
@@ -414,7 +420,8 @@ func addZIPFile(zw *zip.Writer, name string, body []byte) error {
 	return err
 }
 
-func (l *Ledger) CRAReadinessHTMLPackage(ctx context.Context, actor domain.Actor, productID, releaseID string) (domain.HTMLReportPackage, error) {
+func (s packageReportService) CRAReadinessHTMLPackage(ctx context.Context, actor domain.Actor, productID, releaseID string) (domain.HTMLReportPackage, error) {
+	l := s.ledger
 	report, err := l.CRAReadinessReport(ctx, actor, CRAReadinessReportInput{ProductID: productID, ReleaseID: releaseID})
 	if err != nil {
 		return domain.HTMLReportPackage{}, err
@@ -483,7 +490,8 @@ func (l *Ledger) InstallControlFrameworkTemplatePack(ctx context.Context, actor 
 	return framework, nil
 }
 
-func (l *Ledger) CreateCustomReportTemplate(ctx context.Context, actor domain.Actor, in CreateReportTemplateInput) (domain.CustomReportTemplate, error) {
+func (s packageReportService) CreateCustomReportTemplate(ctx context.Context, actor domain.Actor, in CreateReportTemplateInput) (domain.CustomReportTemplate, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.CustomReportTemplate{}, err
 	}
@@ -505,7 +513,8 @@ func (l *Ledger) CreateCustomReportTemplate(ctx context.Context, actor domain.Ac
 	return tpl, nil
 }
 
-func (l *Ledger) RenderCustomReport(ctx context.Context, actor domain.Actor, in RenderReportInput) (domain.RenderedCustomReport, error) {
+func (s packageReportService) RenderCustomReport(ctx context.Context, actor domain.Actor, in RenderReportInput) (domain.RenderedCustomReport, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.RenderedCustomReport{}, err
 	}
@@ -538,7 +547,8 @@ func (l *Ledger) RenderCustomReport(ctx context.Context, actor domain.Actor, in 
 	return rendered, nil
 }
 
-func (l *Ledger) ExportEvidenceBundle(ctx context.Context, actor domain.Actor, releaseID string, evidenceIDs []string) (domain.EvidenceBundle, error) {
+func (s packageReportService) ExportEvidenceBundle(ctx context.Context, actor domain.Actor, releaseID string, evidenceIDs []string) (domain.EvidenceBundle, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.EvidenceBundle{}, err
 	}
@@ -600,7 +610,8 @@ func (l *Ledger) ExportEvidenceBundle(ctx context.Context, actor domain.Actor, r
 	return bundle, nil
 }
 
-func (l *Ledger) ImportEvidenceBundle(ctx context.Context, actor domain.Actor, bundle domain.EvidenceBundle) (domain.EvidenceBundleImport, error) {
+func (s packageReportService) ImportEvidenceBundle(ctx context.Context, actor domain.Actor, bundle domain.EvidenceBundle) (domain.EvidenceBundleImport, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.EvidenceBundleImport{}, err
 	}

@@ -64,9 +64,22 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 
 func functionBody(t *testing.T, fileBody, name string) string {
 	t.Helper()
-	marker := "func (l *Ledger) " + name
-	start := strings.Index(fileBody, marker)
-	if start < 0 {
+	markers := []string{
+		"func (l *Ledger) " + name,
+		"func (s identityService) " + name,
+		"func (s releaseEvidenceService) " + name,
+		"func (s packageReportService) " + name,
+	}
+	start := -1
+	marker := ""
+	for _, candidate := range markers {
+		if idx := strings.Index(fileBody, candidate); idx >= 0 {
+			start = idx
+			marker = candidate
+			break
+		}
+	}
+	if marker == "" {
 		t.Fatalf("missing function %s", name)
 	}
 	rest := fileBody[start+len(marker):]

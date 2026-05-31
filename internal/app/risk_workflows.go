@@ -440,7 +440,8 @@ func (l *Ledger) CreateRemediationTask(ctx context.Context, actor domain.Actor, 
 	return task, nil
 }
 
-func (l *Ledger) IncidentReport(ctx context.Context, actor domain.Actor, incidentID string) (domain.IncidentReport, error) {
+func (s packageReportService) IncidentReport(ctx context.Context, actor domain.Actor, incidentID string) (domain.IncidentReport, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.IncidentReport{}, err
 	}
@@ -918,7 +919,8 @@ func (l *Ledger) RecordVulnerabilityWorkflow(ctx context.Context, actor domain.A
 	return record, nil
 }
 
-func (l *Ledger) VulnerabilityPostureReport(ctx context.Context, actor domain.Actor, releaseID string) (domain.VulnerabilityPostureReport, error) {
+func (s packageReportService) VulnerabilityPostureReport(ctx context.Context, actor domain.Actor, releaseID string) (domain.VulnerabilityPostureReport, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.VulnerabilityPostureReport{}, err
 	}
