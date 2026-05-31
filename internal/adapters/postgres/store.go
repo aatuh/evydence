@@ -3289,7 +3289,7 @@ func syncRiskBuildControlRows(ctx context.Context, tx pgx.Tx, state app.Persiste
 				updated_at = EXCLUDED.updated_at
 		`, report.ID, report.TenantID, report.VEXDocumentID, report.EvidenceID, nullableString(report.ReleaseID), nullableString(report.ArtifactID),
 			report.ParserVersion, report.Status, report.StatementCount, report.DecisionsCreated,
-			report.DecisionsSuperseded, report.UnsupportedFields, warnings, invalidStatements,
+			report.DecisionsSuperseded, textArray(report.UnsupportedFields), warnings, invalidStatements,
 			mappingFailures, report.SchemaVersion, nonZeroTime(report.CreatedAt), nonZeroTime(report.UpdatedAt)); err != nil {
 			return fmt.Errorf("upsert vex import report row: %w", err)
 		}
@@ -3322,7 +3322,7 @@ func syncRiskBuildControlRows(ctx context.Context, tx pgx.Tx, state app.Persiste
 				END
 		`, decision.ID, decision.TenantID, decision.FindingID, decision.ScanID, nullableString(decision.ReleaseID), decision.Vulnerability,
 			nullableString(decision.Component), decision.Status, decision.Justification, nullableString(decision.ImpactStatement), nullableString(decision.ActionStatement),
-			decision.CustomerVisible, nullableString(decision.InternalNotes), decision.Source, nullableString(decision.EvidenceID), decision.EvidenceIDs, nullableString(decision.VEXDocumentID), nullableString(decision.Supersedes), nullableString(decision.SupersededBy),
+			decision.CustomerVisible, nullableString(decision.InternalNotes), decision.Source, nullableString(decision.EvidenceID), textArray(decision.EvidenceIDs), nullableString(decision.VEXDocumentID), nullableString(decision.Supersedes), nullableString(decision.SupersededBy),
 			nullableString(decision.ApprovedBy), decision.SchemaVersion, nonZeroTime(decision.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert vulnerability decision row: %w", err)
 		}
@@ -3935,7 +3935,7 @@ func syncIntegrityProviderRows(ctx context.Context, tx pgx.Tx, state app.Persist
 				schema_version = EXCLUDED.schema_version
 		`, release.ID, release.TenantID, release.CollectorID, release.Version, release.ArtifactDigest,
 			nullableString(release.SignatureID), nullableString(release.SBOMID), nullableString(release.ScanID),
-			release.Pinned, release.VerificationStatus, release.HealthStatus, release.Limitations,
+			release.Pinned, release.VerificationStatus, release.HealthStatus, textArray(release.Limitations),
 			release.SchemaVersion, nonZeroTime(release.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert collector release row: %w", err)
 		}
@@ -3991,7 +3991,7 @@ func syncIntegrityProviderRows(ctx context.Context, tx pgx.Tx, state app.Persist
 			)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 			ON CONFLICT (id) DO UPDATE SET signature_refs = EXCLUDED.signature_refs, schema_version = EXCLUDED.schema_version
-		`, batch.ID, batch.TenantID, batch.FromSequence, batch.ToSequence, batch.EntryCount, batch.LeafHashes, batch.RootHash, batch.SignatureRefs, batch.SchemaVersion, nonZeroTime(batch.CreatedAt)); err != nil {
+		`, batch.ID, batch.TenantID, batch.FromSequence, batch.ToSequence, batch.EntryCount, textArray(batch.LeafHashes), batch.RootHash, textArray(batch.SignatureRefs), batch.SchemaVersion, nonZeroTime(batch.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert merkle batch row: %w", err)
 		}
 	}
@@ -4030,7 +4030,7 @@ func syncPackageReportRetentionRows(ctx context.Context, tx pgx.Tx, state app.Pe
 				allowed_types = EXCLUDED.allowed_types,
 				excluded_fields = EXCLUDED.excluded_fields,
 				schema_version = EXCLUDED.schema_version
-		`, profile.ID, profile.TenantID, profile.Name, nullableString(profile.Description), profile.AllowedTypes, profile.ExcludedFields, profile.SchemaVersion, nonZeroTime(profile.CreatedAt)); err != nil {
+		`, profile.ID, profile.TenantID, profile.Name, nullableString(profile.Description), textArray(profile.AllowedTypes), textArray(profile.ExcludedFields), profile.SchemaVersion, nonZeroTime(profile.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert redaction profile row: %w", err)
 		}
 	}
@@ -4090,7 +4090,7 @@ func syncPackageReportRetentionRows(ctx context.Context, tx pgx.Tx, state app.Pe
 				allowed_fields = EXCLUDED.allowed_fields,
 				template = EXCLUDED.template,
 				schema_version = EXCLUDED.schema_version
-		`, template.ID, template.TenantID, template.Name, template.Version, template.ReportType, template.AllowedFields, template.Template, template.SchemaVersion, nonZeroTime(template.CreatedAt)); err != nil {
+		`, template.ID, template.TenantID, template.Name, template.Version, template.ReportType, textArray(template.AllowedFields), template.Template, template.SchemaVersion, nonZeroTime(template.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert report template row: %w", err)
 		}
 	}
@@ -4133,7 +4133,7 @@ func syncPackageReportRetentionRows(ctx context.Context, tx pgx.Tx, state app.Pe
 				signature_refs = EXCLUDED.signature_refs,
 				verification_text = EXCLUDED.verification_text,
 				schema_version = EXCLUDED.schema_version
-		`, bundle.ID, bundle.TenantID, nullableString(bundle.ReleaseID), bundle.EvidenceIDs, manifest, bundle.ManifestHash, bundle.SignatureRefs, bundle.VerificationText, bundle.SchemaVersion, nonZeroTime(bundle.CreatedAt)); err != nil {
+		`, bundle.ID, bundle.TenantID, nullableString(bundle.ReleaseID), textArray(bundle.EvidenceIDs), manifest, bundle.ManifestHash, textArray(bundle.SignatureRefs), bundle.VerificationText, bundle.SchemaVersion, nonZeroTime(bundle.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert evidence bundle row: %w", err)
 		}
 	}
@@ -4176,7 +4176,7 @@ func syncPackageReportRetentionRows(ctx context.Context, tx pgx.Tx, state app.Pe
 				verification_checks = EXCLUDED.verification_checks,
 				verification_limitations = EXCLUDED.verification_limitations,
 				schema_version = EXCLUDED.schema_version
-		`, policy.ID, policy.TenantID, policy.Name, policy.ObjectPrefix, policy.ObjectKey, policy.RequireLegalHold, policy.Mode, policy.RetentionDays, policy.Status, nullableTime(policy.VerifiedAt), nullableString(policy.VerificationHash), checks, policy.VerificationLimitations, policy.SchemaVersion, nonZeroTime(policy.CreatedAt)); err != nil {
+		`, policy.ID, policy.TenantID, policy.Name, policy.ObjectPrefix, policy.ObjectKey, policy.RequireLegalHold, policy.Mode, policy.RetentionDays, policy.Status, nullableTime(policy.VerifiedAt), nullableString(policy.VerificationHash), checks, textArray(policy.VerificationLimitations), policy.SchemaVersion, nonZeroTime(policy.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert object retention policy row: %w", err)
 		}
 	}
@@ -4203,7 +4203,7 @@ func syncPackageReportRetentionRows(ctx context.Context, tx pgx.Tx, state app.Pe
 				consistency_checks = EXCLUDED.consistency_checks,
 				limitations = EXCLUDED.limitations,
 				schema_version = EXCLUDED.schema_version
-		`, manifest.ID, manifest.TenantID, manifest.StateHash, counts, checks, manifest.Limitations, manifest.SchemaVersion, nonZeroTime(manifest.CreatedAt)); err != nil {
+		`, manifest.ID, manifest.TenantID, manifest.StateHash, counts, checks, textArray(manifest.Limitations), manifest.SchemaVersion, nonZeroTime(manifest.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert backup manifest row: %w", err)
 		}
 	}
@@ -4297,7 +4297,7 @@ func syncPackageReportRetentionRows(ctx context.Context, tx pgx.Tx, state app.Pe
 				evidence_ids = EXCLUDED.evidence_ids,
 				limitations = EXCLUDED.limitations,
 				schema_version = EXCLUDED.schema_version
-		`, entry.ID, entry.TenantID, nullableString(entry.QuestionID), nullableString(entry.EvidenceType), nullableString(entry.ControlID), nullableString(entry.ProductID), nullableString(entry.ReleaseID), entry.Answer, entry.EvidenceIDs, entry.Limitations, entry.SchemaVersion, nonZeroTime(entry.CreatedAt)); err != nil {
+		`, entry.ID, entry.TenantID, nullableString(entry.QuestionID), nullableString(entry.EvidenceType), nullableString(entry.ControlID), nullableString(entry.ProductID), nullableString(entry.ReleaseID), entry.Answer, textArray(entry.EvidenceIDs), textArray(entry.Limitations), entry.SchemaVersion, nonZeroTime(entry.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert questionnaire answer library row: %w", err)
 		}
 	}
@@ -4318,7 +4318,7 @@ func syncPackageReportRetentionRows(ctx context.Context, tx pgx.Tx, state app.Pe
 				payload_size = EXCLUDED.payload_size,
 				limitations = EXCLUDED.limitations,
 				schema_version = EXCLUDED.schema_version
-		`, report.ID, report.TenantID, report.ReportType, nullableString(report.ProductID), nullableString(report.ReleaseID), report.Title, nullableString(report.PayloadRef), report.PayloadHash, report.PayloadSize, report.Limitations, report.SchemaVersion, nonZeroTime(report.CreatedAt)); err != nil {
+		`, report.ID, report.TenantID, report.ReportType, nullableString(report.ProductID), nullableString(report.ReleaseID), report.Title, nullableString(report.PayloadRef), report.PayloadHash, report.PayloadSize, textArray(report.Limitations), report.SchemaVersion, nonZeroTime(report.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert pdf report row: %w", err)
 		}
 	}
@@ -4342,7 +4342,7 @@ func syncPackageReportRetentionRows(ctx context.Context, tx pgx.Tx, state app.Pe
 				assumptions = EXCLUDED.assumptions,
 				limitations = EXCLUDED.limitations,
 				schema_version = EXCLUDED.schema_version
-		`, report.ID, report.TenantID, report.SubjectType, report.SubjectID, report.Result, signals, report.Assumptions, report.Limitations, report.SchemaVersion, nonZeroTime(report.CreatedAt)); err != nil {
+		`, report.ID, report.TenantID, report.SubjectType, report.SubjectID, report.Result, signals, textArray(report.Assumptions), textArray(report.Limitations), report.SchemaVersion, nonZeroTime(report.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert anomaly report row: %w", err)
 		}
 	}
@@ -4364,7 +4364,7 @@ func syncFutureExtensionRows(ctx context.Context, tx pgx.Tx, state app.Persisted
 				allowed_scopes = EXCLUDED.allowed_scopes,
 				status = EXCLUDED.status,
 				schema_version = EXCLUDED.schema_version
-		`, collector.ID, collector.TenantID, collector.Name, collector.Provider, collector.Version, collector.ManifestHash, collector.AllowedScopes, collector.Status, collector.SchemaVersion, nonZeroTime(collector.CreatedAt)); err != nil {
+		`, collector.ID, collector.TenantID, collector.Name, collector.Provider, collector.Version, collector.ManifestHash, textArray(collector.AllowedScopes), collector.Status, collector.SchemaVersion, nonZeroTime(collector.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert commercial collector row: %w", err)
 		}
 	}
@@ -4383,7 +4383,7 @@ func syncFutureExtensionRows(ctx context.Context, tx pgx.Tx, state app.Persisted
 			)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 			ON CONFLICT (id) DO UPDATE SET summary = EXCLUDED.summary, citations = EXCLUDED.citations, assumptions = EXCLUDED.assumptions, limitations = EXCLUDED.limitations, schema_version = EXCLUDED.schema_version
-		`, summary.ID, summary.TenantID, summary.SubjectType, summary.SubjectID, summary.EvidenceIDs, summary.Summary, citations, summary.Assumptions, summary.Limitations, summary.SchemaVersion, nonZeroTime(summary.CreatedAt)); err != nil {
+		`, summary.ID, summary.TenantID, summary.SubjectType, summary.SubjectID, textArray(summary.EvidenceIDs), summary.Summary, citations, textArray(summary.Assumptions), textArray(summary.Limitations), summary.SchemaVersion, nonZeroTime(summary.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert evidence summary row: %w", err)
 		}
 	}
@@ -4402,7 +4402,7 @@ func syncFutureExtensionRows(ctx context.Context, tx pgx.Tx, state app.Persisted
 			)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 			ON CONFLICT (id) DO UPDATE SET responses = EXCLUDED.responses, manifest_hash = EXCLUDED.manifest_hash, limitations = EXCLUDED.limitations, schema_version = EXCLUDED.schema_version
-		`, draft.ID, draft.TenantID, draft.TemplateID, nullableString(draft.ProductID), nullableString(draft.ReleaseID), responses, draft.ManifestHash, draft.Limitations, draft.SchemaVersion, nonZeroTime(draft.CreatedAt)); err != nil {
+		`, draft.ID, draft.TenantID, draft.TemplateID, nullableString(draft.ProductID), nullableString(draft.ReleaseID), responses, draft.ManifestHash, textArray(draft.Limitations), draft.SchemaVersion, nonZeroTime(draft.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert questionnaire draft row: %w", err)
 		}
 	}
@@ -4425,7 +4425,7 @@ func syncFutureExtensionRows(ctx context.Context, tx pgx.Tx, state app.Persisted
 			)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 			ON CONFLICT (id) DO UPDATE SET nodes = EXCLUDED.nodes, edges = EXCLUDED.edges, graph_hash = EXCLUDED.graph_hash, limitations = EXCLUDED.limitations, schema_version = EXCLUDED.schema_version
-		`, graph.ID, graph.TenantID, nullableString(graph.ProductID), nullableString(graph.ReleaseID), nodes, edges, graph.GraphHash, graph.Limitations, graph.SchemaVersion, nonZeroTime(graph.CreatedAt)); err != nil {
+		`, graph.ID, graph.TenantID, nullableString(graph.ProductID), nullableString(graph.ReleaseID), nodes, edges, graph.GraphHash, textArray(graph.Limitations), graph.SchemaVersion, nonZeroTime(graph.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert graph snapshot row: %w", err)
 		}
 	}
@@ -4440,7 +4440,7 @@ func syncFutureExtensionRows(ctx context.Context, tx pgx.Tx, state app.Persisted
 			)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 			ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, config_hash = EXCLUDED.config_hash, limitations = EXCLUDED.limitations, schema_version = EXCLUDED.schema_version
-		`, profile.ID, profile.TenantID, profile.Name, profile.Region, profile.AdminTenantID, profile.IsolationModel, profile.Status, profile.ConfigHash, profile.Limitations, profile.SchemaVersion, nonZeroTime(profile.CreatedAt)); err != nil {
+		`, profile.ID, profile.TenantID, profile.Name, profile.Region, profile.AdminTenantID, profile.IsolationModel, profile.Status, profile.ConfigHash, textArray(profile.Limitations), profile.SchemaVersion, nonZeroTime(profile.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert saas profile row: %w", err)
 		}
 	}
@@ -4485,7 +4485,7 @@ func syncFutureExtensionRows(ctx context.Context, tx pgx.Tx, state app.Persisted
 				schema_version = EXCLUDED.schema_version
 		`, entry.ID, entry.TenantID, entry.LogID, entry.CheckpointID, entry.MerkleBatchID, entry.ExternalID, entry.EntryHash,
 			nullableString(entry.InclusionRootHash), nullableString(entry.InclusionProofHash), nullableTime(entry.InclusionVerifiedAt),
-			checks, entry.VerificationLimitations, entry.State, entry.SchemaVersion, nonZeroTime(entry.CreatedAt)); err != nil {
+			checks, textArray(entry.VerificationLimitations), entry.State, entry.SchemaVersion, nonZeroTime(entry.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert public transparency entry row: %w", err)
 		}
 	}
@@ -4503,7 +4503,7 @@ func syncFutureExtensionRows(ctx context.Context, tx pgx.Tx, state app.Persisted
 			ON CONFLICT (id) DO UPDATE SET state = EXCLUDED.state, limitations = EXCLUDED.limitations, schema_version = EXCLUDED.schema_version
 		`, collector.ID, collector.TenantID, collector.Name, collector.Provider, collector.Version, collector.Publisher, collector.ManifestHash,
 			nullableString(collector.SignatureID), nullableString(collector.SBOMID), nullableString(collector.ScanID), collector.State,
-			collector.Limitations, collector.SchemaVersion, nonZeroTime(collector.CreatedAt)); err != nil {
+			textArray(collector.Limitations), collector.SchemaVersion, nonZeroTime(collector.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert marketplace collector row: %w", err)
 		}
 	}
@@ -4522,7 +4522,7 @@ func syncFutureExtensionRows(ctx context.Context, tx pgx.Tx, state app.Persisted
 			)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 			ON CONFLICT (id) DO UPDATE SET result = EXCLUDED.result, checks = EXCLUDED.checks, limitations = EXCLUDED.limitations, schema_version = EXCLUDED.schema_version
-		`, verification.ID, verification.TenantID, verification.ProviderType, verification.ProviderID, verification.Subject, verification.Result, checks, verification.Limitations, verification.SchemaVersion, nonZeroTime(verification.CreatedAt)); err != nil {
+		`, verification.ID, verification.TenantID, verification.ProviderType, verification.ProviderID, verification.Subject, verification.Result, checks, textArray(verification.Limitations), verification.SchemaVersion, nonZeroTime(verification.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert provider verification row: %w", err)
 		}
 	}

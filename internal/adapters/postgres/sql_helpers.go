@@ -70,6 +70,13 @@ func nullableBytes(value []byte) any {
 	return value
 }
 
+func textArray(value []string) []string {
+	if value == nil {
+		return []string{}
+	}
+	return value
+}
+
 func nonZeroTime(value time.Time) time.Time {
 	if value.IsZero() {
 		return time.Now().UTC()
