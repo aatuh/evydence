@@ -7,6 +7,7 @@ const (
 	AuditChainEntrySchemaVersion    = "audit-chain-entry.v1.0.0"
 	ReleaseBundleSchemaVersion      = "release-bundle.v1.0.0"
 	ReleaseEvidenceFlowVersion      = "release-evidence-flow.v1.0.0"
+	ReleaseSecuritySummaryVersion   = "release-security-summary.v1.0.0"
 	CanonicalizationProfileVersion  = "canonicalization-profile.v1.0.0"
 	PolicySetVersion                = "policy-set.v1.0.0"
 	VEXDocumentSchemaVersion        = "vex-document.v1.0.0"
@@ -300,6 +301,59 @@ type ReleaseEvidenceFlowStep struct {
 	IdempotencyRequired bool     `json:"idempotency_required"`
 	Description         string   `json:"description"`
 	NextReference       string   `json:"next_reference,omitempty"`
+}
+
+type ReleaseSecuritySummary struct {
+	Product                  ReleaseSecurityProductSummary    `json:"product"`
+	Release                  ReleaseSecurityReleaseSummary    `json:"release"`
+	ArtifactCount            int                              `json:"artifact_count"`
+	SBOMStatus               string                           `json:"sbom_status"`
+	VulnerabilityScanStatus  string                           `json:"vulnerability_scan_status"`
+	OpenFindingsBySeverity   map[string]int                   `json:"open_findings_by_severity"`
+	DecisionsByStatus        map[string]int                   `json:"decisions_by_status"`
+	MissingRequiredDecisions []ReleaseSecurityMissingDecision `json:"missing_required_decisions,omitempty"`
+	ApprovalSummary          ReleaseSecurityApprovalSummary   `json:"approval_summary"`
+	ExceptionSummary         ReleaseSecurityExceptionSummary  `json:"exception_summary"`
+	ReadinessStatus          string                           `json:"readiness_status"`
+	PackageStatus            string                           `json:"package_status"`
+	Counts                   map[string]int                   `json:"counts"`
+	Assumptions              []string                         `json:"assumptions"`
+	Limitations              []string                         `json:"limitations"`
+	SchemaVersion            string                           `json:"schema_version"`
+	GeneratedAt              time.Time                        `json:"generated_at"`
+}
+
+type ReleaseSecurityProductSummary struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Slug string `json:"slug"`
+}
+
+type ReleaseSecurityReleaseSummary struct {
+	ID      string `json:"id"`
+	Version string `json:"version"`
+	State   string `json:"state"`
+}
+
+type ReleaseSecurityMissingDecision struct {
+	FindingID     string `json:"finding_id"`
+	ScanID        string `json:"scan_id"`
+	Vulnerability string `json:"vulnerability"`
+	Component     string `json:"component,omitempty"`
+	Severity      string `json:"severity"`
+	State         string `json:"state"`
+}
+
+type ReleaseSecurityApprovalSummary struct {
+	Total    int `json:"total"`
+	Approved int `json:"approved"`
+}
+
+type ReleaseSecurityExceptionSummary struct {
+	Total             int `json:"total"`
+	ApprovedUnexpired int `json:"approved_unexpired"`
+	Unapproved        int `json:"unapproved"`
+	Expired           int `json:"expired"`
 }
 
 type Artifact struct {

@@ -1,0 +1,56 @@
+{
+  "data": {
+    "product": {
+      "id": "prod_example",
+      "name": "Demo Payments API",
+      "slug": "demo-payments-api"
+    },
+    "release": {
+      "id": "rel_example",
+      "version": "1.0.0",
+      "state": "draft"
+    },
+    "artifact_count": 1,
+    "sbom_status": "present",
+    "vulnerability_scan_status": "present",
+    "open_findings_by_severity": {
+      "critical": 1
+    },
+    "decisions_by_status": {
+      "not_affected": 1
+    },
+    "approval_summary": {
+      "total": 0,
+      "approved": 0
+    },
+    "exception_summary": {
+      "total": 0,
+      "approved_unexpired": 0,
+      "unapproved": 0,
+      "expired": 0
+    },
+    "readiness_status": "passed",
+    "package_status": "generated",
+    "counts": {
+      "artifact_refs": 1,
+      "build_attestations": 1,
+      "customer_packages": 1,
+      "passed_builds": 1,
+      "release_bundles": 1,
+      "sboms": 1,
+      "vex_documents": 0,
+      "vulnerability_decisions": 1,
+      "vulnerability_scans": 1
+    },
+    "assumptions": [
+      "Summary values are derived only from evidence, decisions, exceptions, approvals, bundles, packages, and build records in this Evydence tenant.",
+      "Open finding counts reflect uploaded scanner evidence and recorded decisions or exceptions; scanner results are not treated as complete or authoritative coverage."
+    ],
+    "limitations": [
+      "This summary supports technical review and compliance readiness, not legal compliance conclusions, certification, or release security guarantees.",
+      "Raw SBOM, scanner, VEX, build, and package payload bytes are intentionally excluded from the summary."
+    ],
+    "schema_version": "release-security-summary.v1.0.0",
+    "generated_at": "2026-05-27T12:00:00Z"
+  }
+}

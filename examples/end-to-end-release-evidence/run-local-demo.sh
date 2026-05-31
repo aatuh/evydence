@@ -59,6 +59,9 @@ printf '%s\n' "$package" > "$outdir/customer-package.json"
 readiness="$(api GET "/v1/reports/release-readiness?release_id=${release_id}" "" "")"
 printf '%s\n' "$readiness" > "$outdir/release-readiness.json"
 
+security_summary="$(api GET "/v1/releases/${release_id}/security-summary" "" "")"
+printf '%s\n' "$security_summary" > "$outdir/release-security-summary.json"
+
 audit="$(api GET /v1/audit-chain/verify "" "")"
 printf '%s\n' "$audit" > "$outdir/audit-chain-verification.json"
 

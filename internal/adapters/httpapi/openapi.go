@@ -1599,6 +1599,54 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"generated_at":   map[string]any{"type": "string", "format": "date-time"},
 	}, "release_id", "product_id", "status", "counts", "steps", "assumptions", "limitations", "schema_version", "generated_at"))
 	registry.RegisterSchema("ReleaseEvidenceFlowEnvelope", dataEnvelopeSchema("#/components/schemas/ReleaseEvidenceFlow"))
+	registry.RegisterSchema("ReleaseSecurityProductSummary", objectSchema(map[string]any{
+		"id":   map[string]any{"type": "string"},
+		"name": map[string]any{"type": "string"},
+		"slug": map[string]any{"type": "string"},
+	}, "id", "name", "slug"))
+	registry.RegisterSchema("ReleaseSecurityReleaseSummary", objectSchema(map[string]any{
+		"id":      map[string]any{"type": "string"},
+		"version": map[string]any{"type": "string"},
+		"state":   map[string]any{"type": "string"},
+	}, "id", "version", "state"))
+	registry.RegisterSchema("ReleaseSecurityMissingDecision", objectSchema(map[string]any{
+		"finding_id":    map[string]any{"type": "string"},
+		"scan_id":       map[string]any{"type": "string"},
+		"vulnerability": map[string]any{"type": "string"},
+		"component":     map[string]any{"type": "string"},
+		"severity":      map[string]any{"type": "string"},
+		"state":         map[string]any{"type": "string"},
+	}, "finding_id", "scan_id", "vulnerability", "severity", "state"))
+	registry.RegisterSchema("ReleaseSecurityApprovalSummary", objectSchema(map[string]any{
+		"total":    map[string]any{"type": "integer"},
+		"approved": map[string]any{"type": "integer"},
+	}, "total", "approved"))
+	registry.RegisterSchema("ReleaseSecurityExceptionSummary", objectSchema(map[string]any{
+		"total":              map[string]any{"type": "integer"},
+		"approved_unexpired": map[string]any{"type": "integer"},
+		"unapproved":         map[string]any{"type": "integer"},
+		"expired":            map[string]any{"type": "integer"},
+	}, "total", "approved_unexpired", "unapproved", "expired"))
+	registry.RegisterSchema("ReleaseSecuritySummary", objectSchema(map[string]any{
+		"product":                    map[string]any{"$ref": "#/components/schemas/ReleaseSecurityProductSummary"},
+		"release":                    map[string]any{"$ref": "#/components/schemas/ReleaseSecurityReleaseSummary"},
+		"artifact_count":             map[string]any{"type": "integer"},
+		"sbom_status":                map[string]any{"type": "string", "enum": []string{"present", "missing"}},
+		"vulnerability_scan_status":  map[string]any{"type": "string", "enum": []string{"present", "missing"}},
+		"open_findings_by_severity":  map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "integer"}},
+		"decisions_by_status":        map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "integer"}},
+		"missing_required_decisions": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/ReleaseSecurityMissingDecision"}},
+		"approval_summary":           map[string]any{"$ref": "#/components/schemas/ReleaseSecurityApprovalSummary"},
+		"exception_summary":          map[string]any{"$ref": "#/components/schemas/ReleaseSecurityExceptionSummary"},
+		"readiness_status":           map[string]any{"type": "string", "enum": []string{"passed", "failed"}},
+		"package_status":             map[string]any{"type": "string", "enum": []string{"generated", "not_generated"}},
+		"counts":                     map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "integer"}},
+		"assumptions":                map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"limitations":                map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"schema_version":             map[string]any{"type": "string"},
+		"generated_at":               map[string]any{"type": "string", "format": "date-time"},
+	}, "product", "release", "artifact_count", "sbom_status", "vulnerability_scan_status", "open_findings_by_severity", "decisions_by_status", "approval_summary", "exception_summary", "readiness_status", "package_status", "counts", "assumptions", "limitations", "schema_version", "generated_at"))
+	registry.RegisterSchema("ReleaseSecuritySummaryEnvelope", dataEnvelopeSchema("#/components/schemas/ReleaseSecuritySummary"))
 	registry.RegisterSchema("RegisterArtifactRequest", objectSchema(map[string]any{
 		"release_id":  map[string]any{"type": "string"},
 		"name":        map[string]any{"type": "string"},
