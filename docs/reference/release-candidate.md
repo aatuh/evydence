@@ -64,7 +64,7 @@ production, and hosted SaaS production require additional review and controls.
 - Use external PostgreSQL, external object storage, TLS ingress, non-default
   API-key pepper, externalized secrets, backup and restore rehearsal,
   monitoring, and documented incident response.
-- Keep service decomposition, HA/multi-writer operation, non-AWS KMS/HSM SDK
-  adapters, provider-specific management API/group synchronization, and broader
+- Keep service decomposition, HA/multi-writer operation, native PKCS#11/HSM
+  modules, provider-specific management API/group synchronization, and broader
   object-lock proof beyond configured bucket/sample-object checks listed as
   unresolved hardening work until they are implemented and verified.

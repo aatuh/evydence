@@ -62,14 +62,20 @@ func TestValidateRuntimeConfigAllowsGatewayBackedKMSModesWithExecutor(t *testing
 	}
 }
 
-func TestValidateRuntimeConfigRejectsGatewayBackedKMSModesWithoutExecutor(t *testing.T) {
-	for _, mode := range []string{"gcp-kms", "azure-key-vault", "pkcs11-hsm"} {
+func TestValidateRuntimeConfigAllowsDirectCloudKMSModesWithoutGateway(t *testing.T) {
+	for _, mode := range []string{"gcp-kms", "azure-key-vault"} {
 		t.Run(mode, func(t *testing.T) {
-			err := validateRuntimeConfig(true, "postgres://example", "not-default", mode, "", false)
-			if err == nil || !strings.Contains(err.Error(), "EVYDENCE_SIGNING_EXECUTOR_URL") {
-				t.Fatalf("%s missing gateway err=%v", mode, err)
+			if err := validateRuntimeConfig(true, "postgres://example", "not-default", mode, "", false); err != nil {
+				t.Fatalf("%s direct mode should pass runtime config validation: %v", mode, err)
 			}
 		})
+	}
+}
+
+func TestValidateRuntimeConfigRejectsPKCS11ModeWithoutGateway(t *testing.T) {
+	err := validateRuntimeConfig(true, "postgres://example", "not-default", "pkcs11-hsm", "", false)
+	if err == nil || !strings.Contains(err.Error(), "EVYDENCE_SIGNING_EXECUTOR_URL") {
+		t.Fatalf("pkcs11 missing gateway err=%v", err)
 	}
 }
 
@@ -220,9 +226,37 @@ func TestOpenSigningExecutorUsesGatewayForNonAWSKMSModes(t *testing.T) {
 }
 
 func TestOpenSigningExecutorRequiresGatewayForNonAWSKMSModes(t *testing.T) {
-	t.Setenv("EVYDENCE_SIGNING_KEY_MODE", "azure-key-vault")
+	t.Setenv("EVYDENCE_SIGNING_KEY_MODE", "pkcs11-hsm")
 	if _, err := openSigningExecutor(); err == nil || !strings.Contains(err.Error(), "EVYDENCE_SIGNING_EXECUTOR_URL") {
 		t.Fatalf("missing gateway err=%v", err)
+	}
+}
+
+func TestOpenSigningExecutorConfiguresDirectGCPKMS(t *testing.T) {
+	t.Setenv("EVYDENCE_SIGNING_KEY_MODE", "gcp-kms")
+	t.Setenv("EVYDENCE_GCP_KMS_ENDPOINT", "https://kms.example.test")
+	t.Setenv("EVYDENCE_GCP_KMS_ACCESS_TOKEN", "access-token")
+	signer, err := openSigningExecutor()
+	if err != nil {
+		t.Fatalf("gcp-kms direct signer should be accepted: %v", err)
+	}
+	if signer == nil {
+		t.Fatal("expected signer")
+	}
+}
+
+func TestOpenSigningExecutorConfiguresDirectAzureKeyVault(t *testing.T) {
+	t.Setenv("EVYDENCE_SIGNING_KEY_MODE", "azure-key-vault")
+	t.Setenv("EVYDENCE_AZURE_KEY_VAULT_URL", "https://vault.example.test")
+	t.Setenv("EVYDENCE_AZURE_KEY_VAULT_ACCESS_TOKEN", "access-token")
+	t.Setenv("EVYDENCE_AZURE_KEY_VAULT_KEY_NAME", "evydence")
+	t.Setenv("EVYDENCE_AZURE_KEY_VAULT_KEY_VERSION", "v1")
+	signer, err := openSigningExecutor()
+	if err != nil {
+		t.Fatalf("azure-key-vault direct signer should be accepted: %v", err)
+	}
+	if signer == nil {
+		t.Fatal("expected signer")
 	}
 }
 

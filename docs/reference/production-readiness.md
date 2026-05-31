@@ -61,11 +61,11 @@ Known hardening work remains:
 - OpenAPI precision is enforced across the registered public API. The generated
   matrix remains the source of truth for operation ids, scopes, idempotency,
   parameters, and request/response schemas;
-- production signing can use the HTTPS signing gateway executor, explicit
-  gateway-backed `gcp-kms`, `azure-key-vault`, and `pkcs11-hsm` modes, or the
-  built-in AWS KMS signing executor, but direct non-AWS cloud KMS/HSM SDK adapters,
-  direct provider-specific management API clients/group synchronization, and
-  broad object-lock enforcement proof beyond bucket plus sample-object
+- production signing can use the HTTPS signing gateway executor, built-in AWS
+  KMS, GCP Cloud KMS, Azure Key Vault signing executors, or gateway-backed
+  `pkcs11-hsm`, but native PKCS#11/HSM module custody, direct
+  provider-specific management API clients/group synchronization, and broad
+  object-lock enforcement proof beyond bucket plus sample-object
   retention/legal-hold checks remain provider- and deployment-dependent
   hardening areas. SSO credential exchange can issue bearer sessions and
   HttpOnly cookies after local OIDC/SAML verification against configured trust
@@ -208,12 +208,11 @@ implemented capabilities:
   PostgreSQL store supports them.
 - Keep OpenAPI precision at zero broad operations as routes are added or
   changed, and expand generated SDK coverage from the committed contract.
-- Add direct cloud KMS/HSM SDK adapters where required beyond AWS KMS. The
-  current HTTPS signing gateway executor and explicit `gcp-kms`,
-  `azure-key-vault`, and `pkcs11-hsm` gateway-backed modes cover deployments
-  that put KMS/HSM custody behind a tenant-controlled signing service and do
-  not send raw payload bytes; the AWS KMS executor signs stored SHA-256 payload
-  hashes with KMS `MessageType=DIGEST`.
+- Add native PKCS#11/HSM module support where required by the deployment
+  profile. The current HTTPS signing gateway executor covers deployments that
+  put HSM custody behind a tenant-controlled signing service and do not send raw
+  payload bytes. AWS KMS, GCP Cloud KMS, and Azure Key Vault direct executors
+  sign stored SHA-256 payload hashes through their provider APIs.
 - Complete direct provider-specific management API clients and external group
   synchronization where those profiles are enabled. OIDC discovery/JWKS refresh
   is implemented for public trust-material updates, manual JWKS and SAML
