@@ -732,6 +732,81 @@ func TestCustomerVisibleDecisionRequiresImpactAndRedactsInternalNotes(t *testing
 	}
 }
 
+func TestVulnerabilityDecisionSummaryReportRedactsInternalAndOnlyIncludesActiveVisible(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	actor, release, _ := setupReleaseRiskFixture(t, ledger)
+	supporting, err := ledger.CreateEvidence(ctx, actor, CreateEvidenceInput{
+		ProductID: release.ProductID, ReleaseID: release.ID, Type: "security_review", Title: "Runtime review", PayloadHash: sampleDigest("summary-support"),
+	})
+	if err != nil {
+		t.Fatalf("supporting evidence: %v", err)
+	}
+	scan, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{
+		"scanner":"grype",
+		"target_ref":"pkg:oci/payments-api",
+		"release_id":"`+release.ID+`",
+		"findings":[
+			{"vulnerability":"CVE-2026-0104","component":"pkg:apk/openssl@3.1.0","severity":"critical","state":"open"},
+			{"vulnerability":"CVE-2026-0105","component":"pkg:apk/zlib@1.2.13","severity":"critical","state":"open"}
+		]
+	}`))
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	first, err := ledger.CreateVulnerabilityDecision(ctx, actor, scan.Findings[0].ID, CreateVulnerabilityDecisionInput{
+		Status:          decisionStatusUnderInvestigation,
+		Justification:   "review started",
+		ImpactStatement: "Initial customer impact statement.",
+		CustomerVisible: true,
+		InternalNotes:   "old private note",
+	})
+	if err != nil {
+		t.Fatalf("first decision: %v", err)
+	}
+	second, err := ledger.CreateVulnerabilityDecision(ctx, actor, scan.Findings[0].ID, CreateVulnerabilityDecisionInput{
+		Status:          decisionStatusNotAffected,
+		Justification:   "runtime path not present",
+		ImpactStatement: "This release is not affected because the vulnerable runtime path is not included.",
+		ActionStatement: "No customer action is required for this finding.",
+		CustomerVisible: true,
+		InternalNotes:   "replacement private note",
+		EvidenceIDs:     []string{supporting.ID},
+	})
+	if err != nil {
+		t.Fatalf("second decision: %v", err)
+	}
+	if _, err := ledger.CreateVulnerabilityDecision(ctx, actor, scan.Findings[1].ID, CreateVulnerabilityDecisionInput{
+		Status:        decisionStatusFixed,
+		Justification: "fixed but not customer-visible yet",
+		InternalNotes: "hidden private note",
+	}); err != nil {
+		t.Fatalf("hidden decision: %v", err)
+	}
+	report, err := ledger.VulnerabilityDecisionSummaryReport(ctx, actor, release.ID)
+	if err != nil {
+		t.Fatalf("summary: %v", err)
+	}
+	if report.ProductID != release.ProductID || report.ReleaseID != release.ID || len(report.Decisions) != 1 {
+		t.Fatalf("summary scope/decision count mismatch: %#v", report)
+	}
+	got := report.Decisions[0]
+	if got.ID != second.ID || got.ImpactStatement != second.ImpactStatement || len(got.EvidenceIDs) != 1 || got.EvidenceIDs[0] != supporting.ID {
+		t.Fatalf("summary decision=%#v, want active customer-visible decision", got)
+	}
+	body, err := json.Marshal(report)
+	if err != nil {
+		t.Fatalf("marshal summary: %v", err)
+	}
+	text := string(body)
+	if strings.Contains(text, first.ImpactStatement) || strings.Contains(text, "private note") || strings.Contains(text, "hidden private note") {
+		t.Fatalf("summary leaked superseded or internal decision data: %s", body)
+	}
+	if !strings.Contains(text, "not certification") || !strings.Contains(text, second.ImpactStatement) {
+		t.Fatalf("summary missing limitations or active impact statement: %s", body)
+	}
+}
+
 func TestVulnerabilityDecisionLifecycleSupersedesAndPackagesOnlyActive(t *testing.T) {
 	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
