@@ -162,7 +162,7 @@ non-sensitive sample data and does not upload files.
 
 ### Tooling, Deployment, And Examples
 
-- `cmd/evydence` helper for hashing, manifest verification, GitHub Actions build provenance upload, release artifact manifest signing/verification, bulk upload manifests, and air-gapped evidence bundle import.
+- `cmd/evydence` helper for hashing, one-shot release evidence upload, manifest verification, GitHub Actions build provenance upload, release artifact manifest signing/verification, bulk upload manifests, and air-gapped evidence bundle import.
 - Docker Compose dependencies for PostgreSQL and MinIO.
 - Production-like Docker Compose rehearsal with API, worker, migrations,
   PostgreSQL, and MinIO.
