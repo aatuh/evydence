@@ -24,6 +24,7 @@ product-boundary language across the docs.
 | Capacity and failure modes | `docs/reference/capacity-and-failures.md` and `docs/reference/benchmark-results.md` | Benchmark results are narrow and local. |
 | Security reporting | `SECURITY.md` | Repository settings for private reporting must be verified on GitHub. |
 | Support expectations | `SUPPORT.md` | Public support boundaries and sanitized-report rules. |
+| Commercial pilot positioning | `docs/commercial/design-partner-pilot.md` and `COMMERCIAL.md` | Pilot docs must not imply legal compliance, certification, scanner authority, SBOM completeness, or secure releases. |
 
 ## Repetition Policy
 
