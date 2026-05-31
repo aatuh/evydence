@@ -161,10 +161,11 @@ permissions inside the workflow, used to produce
 `evydence-release-manifest.sig` alias, and then removed. The uploaded artifact
 set includes binaries, checksums, `openapi.yaml`, `openapi.sha256`, migration
 checksums, `coverage.out`, `release-check-summary.txt`, checked release notes,
-the release manifest, and the manifest signature. Tag pushes create or update a
-draft GitHub release. Maintainers publish it as a prerelease only after the
-workflow artifact and release assets are verified. Manual runs can upload only
-the workflow artifact unless `upload_draft_release` is enabled.
+release SBOM/provenance metadata, the Scorecard-compatible in-toto provenance
+statement, the release manifest, and the manifest signature. Tag pushes create
+or update a draft GitHub release. Maintainers publish it as a prerelease only
+after the workflow artifact and release assets are verified. Manual runs can
+upload only the workflow artifact unless `upload_draft_release` is enabled.
 
 The canonical artifact map is
 [Release evidence index](release-evidence-index.md). Keep that page aligned

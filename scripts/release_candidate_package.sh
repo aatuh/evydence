@@ -108,6 +108,7 @@ python3 scripts/release_evidence_metadata.py "$tag" "$distdir"
   openapi.sha256 \
   evydence-release-sbom.cdx.json \
   evydence-release-provenance.json \
+  evydence-release-provenance.intoto.jsonl \
   coverage.out \
   release-check-summary.txt \
   migrations.sha256 \
@@ -129,6 +130,7 @@ cli="${signing_dir}/evydence_${tag}_linux_amd64/evydence"
   "$distdir/openapi.sha256" \
   "$distdir/evydence-release-sbom.cdx.json" \
   "$distdir/evydence-release-provenance.json" \
+  "$distdir/evydence-release-provenance.intoto.jsonl" \
   "$distdir/coverage.out" \
   "$distdir/release-check-summary.txt" \
   "$distdir/migrations.sha256" \

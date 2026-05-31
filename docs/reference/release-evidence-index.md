@@ -30,6 +30,7 @@ under `dist/<tag>/` after `make production-check` passes.
 | `evydence-release-manifest.sig` | Copied from `evydence-release-manifest.sig.json` by the package script | Scorecard-compatible alias for the signed manifest metadata. Use the `.sig.json` file with the Evydence CLI verifier. |
 | `evydence-release-sbom.cdx.json` | `scripts/release_evidence_metadata.py` | Record release SBOM metadata and limitations; this does not prove SBOM completeness. |
 | `evydence-release-provenance.json` | `scripts/release_evidence_metadata.py` | Record build/release provenance metadata and limitations; this does not prove provider trust by itself. |
+| `evydence-release-provenance.intoto.jsonl` | `scripts/release_evidence_metadata.py` | Scorecard-compatible in-toto statement with the same Evydence release provenance limitations. This is not a SLSA level claim. |
 | `release-notes.md` | Tag-specific release notes or `docs/reference/release-notes-template.md` | State supported profile, upgrade notes, assumptions, limitations, and unresolved hardening work. |
 
 ## Current Public Release Candidate
@@ -48,7 +49,8 @@ and CodeQL run
 The public prerelease includes release archives for Linux, macOS, and Windows;
 `SHA256SUMS`; `openapi.yaml`; `openapi.sha256`; `migrations.sha256`;
 `coverage.out`; `release-check-summary.txt`; `evydence-release-sbom.cdx.json`;
-`evydence-release-provenance.json`; `release-notes.md`;
+`evydence-release-provenance.json`;
+`evydence-release-provenance.intoto.jsonl`; `release-notes.md`;
 `evydence-release-manifest.json`; `evydence-release-manifest.sig.json`; and
 `evydence-release-manifest.sig`.
 

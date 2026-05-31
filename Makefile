@@ -220,6 +220,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@grep -F 'Release evidence index' docs/reference/release-candidate.md >/dev/null
 	@grep -F 'evydence-release-manifest.sig.json' docs/reference/release-evidence-index.md >/dev/null
 	@grep -F 'evydence-release-manifest.sig' docs/reference/release-evidence-index.md >/dev/null
+	@grep -F 'evydence-release-provenance.intoto.jsonl' docs/reference/release-evidence-index.md >/dev/null
 	@grep -F 'CODEOWNERS' docs/reference/maintainer-review-policy.md >/dev/null
 	@grep -F 'one API writer replica' docs/reference/roadmap.md >/dev/null
 	@grep -F 'Controlled self-hosted production candidate' docs/reference/release-notes-template.md >/dev/null
