@@ -125,6 +125,51 @@ func TestCustomerPackageV2ManifestSchemaAndSensitiveFieldExclusion(t *testing.T)
 	if err != nil {
 		t.Fatalf("project: %v", err)
 	}
+	openAPIRawCanary := "RAW-OPENAPI-PAYLOAD-CANARY-EVY-201"
+	baseContract, err := ledger.UploadOpenAPIContract(ctx, actor, release.ProductID, release.ID, "v1", []byte(`{
+		"openapi":"3.1.0",
+		"info":{"title":"Payments API","version":"1","description":"`+openAPIRawCanary+`"},
+		"paths":{"/v1/payments":{"get":{"operationId":"listPayments","responses":{"200":{"description":"ok"}}}}}
+	}`))
+	if err != nil {
+		t.Fatalf("base OpenAPI contract: %v", err)
+	}
+	targetContract, err := ledger.UploadOpenAPIContract(ctx, actor, release.ProductID, release.ID, "v2", []byte(`{
+		"openapi":"3.1.0",
+		"info":{"title":"Payments API","version":"2"},
+		"paths":{}
+	}`))
+	if err != nil {
+		t.Fatalf("target OpenAPI contract: %v", err)
+	}
+	contractDiff, err := ledger.CreateContractDiff(ctx, actor, CreateContractDiffInput{BaseContractID: baseContract.ID, TargetContractID: targetContract.ID, ReleaseID: release.ID})
+	if err != nil {
+		t.Fatalf("contract diff: %v", err)
+	}
+	_, _, foreignSecret, err := ledger.BootstrapTenant(ctx, "Foreign Tenant", "foreign", []string{"*"})
+	if err != nil {
+		t.Fatalf("foreign bootstrap: %v", err)
+	}
+	foreignActor, err := ledger.Authenticate(ctx, foreignSecret)
+	if err != nil {
+		t.Fatalf("foreign auth: %v", err)
+	}
+	foreignProduct, err := ledger.CreateProduct(ctx, foreignActor, "Foreign API", "foreign-api")
+	if err != nil {
+		t.Fatalf("foreign product: %v", err)
+	}
+	foreignRelease, err := ledger.CreateRelease(ctx, foreignActor, foreignProduct.ID, "9.9.9")
+	if err != nil {
+		t.Fatalf("foreign release: %v", err)
+	}
+	foreignContract, err := ledger.UploadOpenAPIContract(ctx, foreignActor, foreignProduct.ID, foreignRelease.ID, "foreign", []byte(`{
+		"openapi":"3.1.0",
+		"info":{"title":"Foreign API","version":"1"},
+		"paths":{"/foreign-only":{"get":{"responses":{"200":{"description":"ok"}}}}}
+	}`))
+	if err != nil {
+		t.Fatalf("foreign OpenAPI contract: %v", err)
+	}
 	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"}]}`)); err != nil {
 		t.Fatalf("sbom: %v", err)
 	}
@@ -178,7 +223,7 @@ func TestCustomerPackageV2ManifestSchemaAndSensitiveFieldExclusion(t *testing.T)
 	profile, err := ledger.CreateRedactionProfile(ctx, actor, CreateRedactionProfileInput{
 		Name: "customer v2",
 		AllowedTypes: []string{
-			"artifact", "sbom", "vulnerability_scan", "vex", "vulnerability_decision", "approval", "exception", "waiver", "build", "build_attestation", "release_bundle",
+			"artifact", "sbom", "vulnerability_scan", "vex", "vulnerability_decision", "approval", "exception", "waiver", "build", "build_attestation", "openapi_contract", "release_bundle",
 		},
 	})
 	if err != nil {
@@ -192,22 +237,34 @@ func TestCustomerPackageV2ManifestSchemaAndSensitiveFieldExclusion(t *testing.T)
 	if manifest["schema_version"] != domain.CustomerPackageSchemaVersion || manifest["package_version"] != domain.CustomerPackageSchemaVersion || manifest["package_id"] != pkg.ID {
 		t.Fatalf("manifest version/id fields = %#v", manifest)
 	}
-	for _, key := range []string{"tenant", "organization", "product", "release", "artifact_digests", "sboms", "vulnerability_scans", "vex_documents", "vulnerability_decisions", "approvals", "exceptions", "waivers", "provenance", "readiness_summary", "verification_material", "redaction_profile", "limitations", "non_claims"} {
+	for _, key := range []string{"tenant", "organization", "product", "release", "artifact_digests", "sboms", "vulnerability_scans", "vex_documents", "vulnerability_decisions", "approvals", "exceptions", "waivers", "provenance", "api_contracts", "readiness_summary", "verification_material", "redaction_profile", "limitations", "non_claims"} {
 		if _, ok := manifest[key]; !ok {
 			t.Fatalf("manifest missing %s: %#v", key, manifest)
 		}
+	}
+	apiContracts, ok := manifest["api_contracts"].(map[string]any)
+	if !ok {
+		t.Fatalf("api_contracts section has unexpected shape: %#v", manifest["api_contracts"])
+	}
+	contracts, ok := apiContracts["openapi_contracts"].([]map[string]any)
+	if !ok || len(contracts) != 2 {
+		t.Fatalf("openapi contract summaries = %#v, want two scoped contracts", apiContracts["openapi_contracts"])
+	}
+	diffs, ok := apiContracts["contract_diffs"].([]map[string]any)
+	if !ok || len(diffs) != 1 || diffs[0]["id"] != contractDiff.ID || diffs[0]["result"] != "breaking" {
+		t.Fatalf("contract diff summaries = %#v, want scoped breaking diff", apiContracts["contract_diffs"])
 	}
 	textBytes, err := json.Marshal(manifest)
 	if err != nil {
 		t.Fatalf("marshal manifest: %v", err)
 	}
 	text := string(textBytes)
-	for _, want := range []string{artifact.Digest, "cyclonedx", "grype", vex.ID, decision.ImpactStatement, bundle.ManifestHash, "audit_chain"} {
+	for _, want := range []string{artifact.Digest, "cyclonedx", "grype", vex.ID, decision.ImpactStatement, bundle.ManifestHash, "audit_chain", baseContract.Hash, targetContract.Hash, "GET /v1/payments", "target contract has fewer paths than base contract"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("manifest missing %q: %s", want, text)
 		}
 	}
-	for _, forbidden := range []string{"private manual triage note", "payload_ref", "object://", "api_key_secret", "evy_", "private_key", "session_hash"} {
+	for _, forbidden := range []string{"private manual triage note", openAPIRawCanary, foreignContract.ID, "foreign-only", "payload_ref", "object://", "api_key_secret", "evy_", "private_key", "session_hash"} {
 		if strings.Contains(strings.ToLower(text), strings.ToLower(forbidden)) {
 			t.Fatalf("manifest leaked %q: %s", forbidden, text)
 		}

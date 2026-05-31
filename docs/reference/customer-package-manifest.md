@@ -31,10 +31,22 @@ matching release-scoped records exist:
 - `vulnerability_scans`: scanner metadata, target reference, summary counts, and finding count.
 - `vex_documents`: VEX metadata, statement counts, status summary, and evidence ID.
 - `vulnerability_decisions`: active customer-visible decision summaries only.
+- `api_contracts`: OpenAPI contract metadata, normalized operation summaries,
+  deterministic contract diff results, and API-contract limitations.
 - `approvals`: release or product approval records.
 - `exceptions`: approved, unexpired release exceptions.
 - `waivers`: approved, unexpired product or release waivers.
 - `provenance`: build runs and build attestation metadata.
+
+The `api_contracts` section contains `openapi_contracts` and `contract_diffs`.
+OpenAPI contract entries include IDs, evidence IDs, product/release scope,
+version, SHA-256 hash, path and operation counts, and normalized operation
+labels, methods, paths, operation IDs, required-request indicators, required
+request fields, and response statuses. Contract diff entries include the base
+and target contract IDs, result, breaking and non-breaking change summaries,
+schema version, and timestamp. The section deliberately omits raw OpenAPI
+document bytes, object-store references, and private/internal document
+extensions.
 
 ## Exclusions
 
@@ -78,11 +90,11 @@ the matching archive fixture is
 
 Runtime ZIP exports also include `report.html`, a self-contained static HTML
 rendering of the redacted manifest. It shows release summary, VEX and
-vulnerability-decision tables, readiness checks, verification material,
-limitations, and non-claims without requiring a server or loading remote assets.
-The HTML report is generated from package-scoped data only and excludes raw
-evidence payload bytes, object-store references, token material, private keys,
-and internal decision notes.
+vulnerability-decision tables, API contract evidence when included, readiness
+checks, verification material, limitations, and non-claims without requiring a
+server or loading remote assets. The HTML report is generated from
+package-scoped data only and excludes raw evidence payload bytes, object-store
+references, token material, private keys, and internal decision notes.
 
 ## Redaction Leakage Guard
 
