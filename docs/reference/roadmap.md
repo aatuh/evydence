@@ -23,6 +23,9 @@ is not part of the current supported profile.
   vulnerability reporting;
 - keep the first evaluation path tied to release artifacts, the end-to-end
   release evidence example, the package viewer, and the release evidence index;
+- keep the demo surface static/offline for now: the package viewer and generated
+  `report.html` exports are the supported reviewer view, and a server-backed
+  internal dashboard remains deferred until a pilot proves it is necessary;
 - continue reducing large service surfaces while preserving tenant isolation,
   append-only evidence behavior, and safe error handling.
 
