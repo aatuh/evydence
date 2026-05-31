@@ -15,6 +15,9 @@ results, no secure-release guarantee, and no regulator or auditor acceptance.
   GitHub Releases into a clean temporary directory, checking release checksums,
   validating in-toto provenance metadata shape, and verifying the signed
   release manifest with the released Linux amd64 CLI.
+- Container image workflow evidence for
+  `ghcr.io/aatuh/evydence:v0.1.0-rc.4@sha256:de5627ec300cb603c3f1dc21029bffc096d43399114888cd5c194e00f1285603`,
+  including release-attached image manifest and cosign verification output.
 - Repository-owned restore rehearsal target for app-layer and live PostgreSQL
   backup/restore mechanics.
 - Static package-viewer preview asset for public docs.
