@@ -23,6 +23,9 @@ These checks are enforced by API startup. See [Configuration](reference/configur
 - Edge rate limiting is configured at the reverse proxy or ingress. The optional `EVYDENCE_RATE_LIMIT_REQUESTS_PER_MINUTE` in-process limiter is a local safety net and keys by TCP remote address only.
 - `/v1/metrics`, `/v1/audit-log`, and `/v1/admin/instance` are protected by server-side scopes and are not public.
 - API keys and collector keys are scoped, rotated, and stored outside source control.
+- OIDC UserInfo validation, when used, sends only the supplied access token to
+  the configured provider endpoint and stores verification checks, not bearer
+  token values.
 - Customer portal access tokens are short-lived, scoped to one package, and handled as bearer secrets.
 - Generated customer packages use explicit redaction profiles and expiry.
 - Collector releases are pinned and have signature, SBOM, and vulnerability scan evidence when available.

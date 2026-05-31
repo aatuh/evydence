@@ -62,14 +62,16 @@ Known hardening work remains:
   matrix remains the source of truth for operation ids, scopes, idempotency,
   parameters, and request/response schemas;
 - production signing can use the HTTPS signing gateway executor or the built-in
-  AWS KMS signing executor, but non-AWS cloud KMS/HSM SDK adapters, live
-  provider API validation/group sync, and broad object-lock enforcement proof
-  remain provider- and deployment-dependent hardening areas. SSO credential
-  exchange can issue bearer sessions and HttpOnly cookies after local OIDC/SAML
-  verification against configured trust material, OIDC group claim values can
-  map to session-scoped roles without creating permanent role bindings, and
-  public transparency proof material can be fetched from a configured endpoint
-  and verified locally, but provider-specific trust semantics and availability
+  AWS KMS signing executor, but non-AWS cloud KMS/HSM SDK adapters,
+  provider-specific management API validation/group synchronization, and broad
+  object-lock enforcement proof remain provider- and deployment-dependent
+  hardening areas. SSO credential exchange can issue bearer sessions and
+  HttpOnly cookies after local OIDC/SAML verification against configured trust
+  material, OIDC group claim values can map to session-scoped roles without
+  creating permanent role bindings, provider verification can optionally call a
+  discovered OIDC UserInfo endpoint with a supplied access token, and public
+  transparency proof material can be fetched from a configured endpoint and
+  verified locally, but provider-specific trust semantics and availability
   remain deployment responsibilities;
 - the broader production exit review remains incomplete.
 
@@ -202,13 +204,16 @@ implemented capabilities:
   custody behind a tenant-controlled signing service and do not send raw
   payload bytes; the AWS KMS executor signs stored SHA-256 payload hashes with
   KMS `MessageType=DIGEST`.
-- Complete live provider API validation and optional group mapping where those
-  profiles are enabled. OIDC discovery/JWKS refresh is implemented for public
-  trust-material updates, manual JWKS and SAML signing-certificate rotation is
-  implemented through the SSO provider trust-material endpoint, SSO credential
-  exchange can issue bearer sessions plus HttpOnly cookies after local token or
-  assertion verification, OIDC group claim values can map to session-scoped
-  roles, and API-first session logout can revoke the current SSO bearer session.
+- Complete provider-specific management API validation and external group
+  synchronization where those profiles are enabled. OIDC discovery/JWKS refresh
+  is implemented for public trust-material updates, manual JWKS and SAML
+  signing-certificate rotation is implemented through the SSO provider
+  trust-material endpoint, provider verification can optionally call OIDC
+  UserInfo with a supplied access token and record group-claim checks without
+  storing the token, SSO credential exchange can issue bearer sessions plus
+  HttpOnly cookies after local token or assertion verification, OIDC group
+  claim values can map to session-scoped roles, and API-first session logout
+  can revoke the current SSO bearer session.
 - Extend object-lock/WORM verification beyond the current S3/MinIO bucket-level
   checks plus optional sample-object retention checks where deployments require
   broader object-level legal hold proofs or provider policy evidence.

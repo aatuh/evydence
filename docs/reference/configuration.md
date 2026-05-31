@@ -46,6 +46,8 @@ The example secrets are placeholders. Replace them before using shared or produc
 | `EVYDENCE_WORKER_POLL_INTERVAL` | No | `1s` | Worker outbox polling interval. |
 | `EVYDENCE_WORKER_BATCH_SIZE` | No | `10` | Maximum outbox jobs claimed per polling cycle. |
 | `EVYDENCE_WORKER_MAX_PAYLOAD_BYTES` | No | `20971520` | Maximum raw object payload size replayed by a worker job. |
+| `EVYDENCE_OIDC_USERINFO_TIMEOUT_SECONDS` | No | `10` | Timeout for optional live OIDC UserInfo validation when `POST /v1/provider-verifications` includes `access_token`. |
+| `EVYDENCE_OIDC_USERINFO_ALLOW_INSECURE_LOCALHOST` | Local only | `false` | Allows HTTP OIDC issuer/UserInfo endpoints only for localhost tests. Do not use for production. |
 | `EVYDENCE_SIGNING_KEY_MODE` | Production yes | `external` or `aws-kms` for production | Production rejects local plaintext signing-key mode. `external` uses the optional HTTPS signing gateway; `aws-kms` uses the built-in AWS KMS executor. |
 | `EVYDENCE_SIGNING_EXECUTOR_URL` | No | unset | Optional HTTPS signing gateway used by `POST /v1/signing-operations` when `external_signature` is omitted. The API sends subject metadata and `payload_hash`, not raw payload bytes. |
 | `EVYDENCE_SIGNING_EXECUTOR_TOKEN` | Signing gateway | unset | Optional bearer token for the signing gateway. Store outside source control and logs. |

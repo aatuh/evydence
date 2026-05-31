@@ -41,6 +41,10 @@ type OIDCDiscoveryClient interface {
 	FetchOIDCTrustMaterial(context.Context, OIDCDiscoveryRequest) (OIDCDiscoveryResult, error)
 }
 
+type ProviderIdentityValidator interface {
+	ValidateProviderIdentity(context.Context, ProviderIdentityValidationRequest) (ProviderIdentityValidationResult, error)
+}
+
 type TransparencyProofFetcher interface {
 	FetchTransparencyProof(context.Context, TransparencyProofRequest) (TransparencyProofResult, error)
 }
@@ -76,6 +80,22 @@ type OIDCDiscoveryResult struct {
 	Issuer      string
 	JWKS        map[string]any
 	Checks      []domain.VerifyCheck
+	Limitations []string
+}
+
+type ProviderIdentityValidationRequest struct {
+	TenantID     string
+	ProviderID   string
+	ProviderType string
+	Issuer       string
+	Subject      string
+	GroupsClaim  string
+	AccessToken  string
+}
+
+type ProviderIdentityValidationResult struct {
+	Checks      []domain.VerifyCheck
+	Groups      []string
 	Limitations []string
 }
 

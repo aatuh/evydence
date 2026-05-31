@@ -14,6 +14,7 @@ import (
 	"encoding/pem"
 	"encoding/xml"
 	"errors"
+	"fmt"
 	"math/big"
 	"strings"
 	"time"
@@ -103,6 +104,7 @@ type VerifyProviderIdentityInput struct {
 	Subject       string
 	IDToken       string
 	SAMLAssertion string
+	AccessToken   string
 }
 
 func (l *Ledger) CreateEvidenceSummary(ctx context.Context, actor domain.Actor, in CreateEvidenceSummaryInput) (domain.EvidenceSummary, error) {
@@ -1233,57 +1235,99 @@ func (l *Ledger) VerifyProviderIdentity(ctx context.Context, actor domain.Actor,
 	providerType, providerID, subject := strings.TrimSpace(in.ProviderType), strings.TrimSpace(in.ProviderID), strings.TrimSpace(in.Subject)
 	idToken := strings.TrimSpace(in.IDToken)
 	samlAssertion := strings.TrimSpace(in.SAMLAssertion)
+	accessToken := strings.TrimSpace(in.AccessToken)
 	if providerType == "" || providerID == "" || subject == "" {
 		return domain.ProviderVerification{}, ErrValidation
 	}
-	if (providerType == "oidc" && samlAssertion != "") || (providerType == "saml" && idToken != "") {
+	if len(accessToken) > 16*1024 {
+		return domain.ProviderVerification{}, ErrValidation
+	}
+	if (providerType == "oidc" && samlAssertion != "") || (providerType == "saml" && (idToken != "" || accessToken != "")) {
 		return domain.ProviderVerification{}, ErrValidation
 	}
 	l.mu.Lock()
-	defer l.mu.Unlock()
-	checks := []domain.VerifyCheck{}
-	result := "passed"
+	var provider domain.SSOProvider
+	var providerFound bool
+	var verifiedLinkFound bool
 	switch providerType {
 	case "oidc", "saml":
-		provider, ok := l.ssoProviders[providerID]
-		if !ok || provider.TenantID != actor.TenantID || provider.Type != providerType {
+		provider, providerFound = l.ssoProviders[providerID]
+		if !providerFound || provider.TenantID != actor.TenantID || provider.Type != providerType {
+			l.mu.Unlock()
 			return domain.ProviderVerification{}, ErrNotFound
 		}
-		if idToken != "" {
-			tokenChecks, err := verifyOIDCIDToken(provider, subject, idToken, l.now())
-			checks = append(checks, tokenChecks...)
-			if err != nil {
-				result = "failed"
-			}
-		}
-		if samlAssertion != "" {
-			assertionChecks, err := verifySAMLAssertion(provider, subject, samlAssertion, l.now())
-			checks = append(checks, assertionChecks...)
-			if err != nil {
-				result = "failed"
-			}
-		}
-		found := false
 		for _, link := range l.identityLinks {
 			if link.TenantID == actor.TenantID && link.ProviderID == provider.ID && link.Subject == subject && link.Verified {
-				found = true
+				verifiedLinkFound = true
 				break
 			}
 		}
-		if found {
-			checks = append(checks, domain.VerifyCheck{Name: "verified_identity_link", Result: "passed"})
-		} else {
-			result = "failed"
-			checks = append(checks, domain.VerifyCheck{Name: "verified_identity_link", Result: "failed"})
-		}
 	default:
+		l.mu.Unlock()
 		return domain.ProviderVerification{}, ErrValidation
+	}
+	l.mu.Unlock()
+
+	checks := []domain.VerifyCheck{}
+	result := "passed"
+	now := l.now()
+	if idToken != "" {
+		tokenChecks, err := verifyOIDCIDToken(provider, subject, idToken, now)
+		checks = append(checks, tokenChecks...)
+		if err != nil {
+			result = "failed"
+		}
+	}
+	if samlAssertion != "" {
+		assertionChecks, err := verifySAMLAssertion(provider, subject, samlAssertion, now)
+		checks = append(checks, assertionChecks...)
+		if err != nil {
+			result = "failed"
+		}
 	}
 	limitations := []string{"Verification uses stored provider metadata and configured local token/assertion trust roots; no live provider API or discovery call is made."}
 	if idToken == "" && samlAssertion == "" {
 		limitations = []string{"Verification is limited to stored provider/link metadata because no provider token was supplied."}
 	}
+	if accessToken != "" {
+		if l.providerAPI == nil {
+			result = "failed"
+			checks = append(checks, domain.VerifyCheck{Name: "live_provider_api_configured", Result: "failed"})
+			limitations = []string{"A provider access token was supplied, but no live provider API validator is configured."}
+		} else {
+			validation, err := l.providerAPI.ValidateProviderIdentity(ctx, ProviderIdentityValidationRequest{
+				TenantID:     actor.TenantID,
+				ProviderID:   provider.ID,
+				ProviderType: provider.Type,
+				Issuer:       provider.Issuer,
+				Subject:      subject,
+				GroupsClaim:  provider.GroupsClaim,
+				AccessToken:  accessToken,
+			})
+			checks = append(checks, validation.Checks...)
+			if len(validation.Groups) > 0 && len(resourceGrantsForProviderGroups(provider, validation.Groups)) > 0 {
+				checks = append(checks, domain.VerifyCheck{Name: "mapped_provider_api_groups", Result: "passed", Detail: fmt.Sprintf("%d provider API group role mapping(s) can be applied to sessions", len(resourceGrantsForProviderGroups(provider, validation.Groups)))})
+			}
+			if len(validation.Limitations) > 0 {
+				limitations = validation.Limitations
+			} else {
+				limitations = []string{"Live provider API validation used a supplied OIDC access token; no access token is stored in Evydence records."}
+			}
+			if err != nil {
+				result = "failed"
+			}
+		}
+	}
+	if verifiedLinkFound {
+		checks = append(checks, domain.VerifyCheck{Name: "verified_identity_link", Result: "passed"})
+	} else {
+		result = "failed"
+		checks = append(checks, domain.VerifyCheck{Name: "verified_identity_link", Result: "failed"})
+	}
+
 	record := domain.ProviderVerification{ID: newID("pvr"), TenantID: actor.TenantID, ProviderType: providerType, ProviderID: providerID, Subject: subject, Result: result, Checks: checks, Limitations: limitations, SchemaVersion: domain.ProviderVerificationVersion, CreatedAt: l.now()}
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	l.providerVerifications[record.ID] = record
 	_, _ = l.appendChainLocked(actor.TenantID, "provider_identity.verified", "provider_identity", record.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {
