@@ -250,7 +250,10 @@ Representative response shape:
 }
 ```
 
-Readiness is deterministic and evidence-scoped. It reports checks, blockers, gaps, assumptions, and limitations; it is not a legal compliance or release-security conclusion.
+Readiness is deterministic and evidence-scoped. It reports checks, reviewer
+question sections, missing evidence, failed policy checks, blockers, gaps,
+assumptions, non-claims, and limitations; it is not a legal compliance or
+release-security conclusion.
 
 ## Authentication And Scopes
 

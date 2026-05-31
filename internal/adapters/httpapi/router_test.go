@@ -642,7 +642,7 @@ func TestReleaseRiskDecisionHTTPFlow(t *testing.T) {
 	addHTTPBuildProvenance(t, server, secret, productID, releaseID, artifactID, "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb")
 
 	report := getJSON(t, server, secret, "/v1/reports/release-readiness?release_id="+releaseID, http.StatusOK)
-	if !strings.Contains(report, `"result":"failed"`) || !strings.Contains(report, `"blocking_findings"`) {
+	if !strings.Contains(report, `"result":"failed"`) || !strings.Contains(report, `"blocking_findings"`) || !strings.Contains(report, `"sections"`) || !strings.Contains(report, `"missing_evidence"`) {
 		t.Fatalf("expected failed readiness report with blocking findings: %s", report)
 	}
 	postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "risk-decision-bad", map[string]any{"status": "not_affected", "justification": "vulnerable code is not present", "customer_visible": true}, http.StatusBadRequest)

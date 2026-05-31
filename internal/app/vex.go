@@ -646,20 +646,214 @@ func (s releaseEvidenceService) ReleaseReadinessReport(ctx context.Context, acto
 	for _, check := range eval.Checks {
 		gaps = append(gaps, check.Missing...)
 	}
-	sort.Strings(gaps)
+	gaps = sortedUniqueNonEmptyStrings(gaps)
+	failedPolicies := failedPolicyNames(eval.Checks)
+	knownLimitations := releaseReadinessKnownLimitations()
+	nonClaims := releaseReadinessNonClaims()
+	sections := l.releaseReadinessSectionsLocked(actor.TenantID, eval.ReleaseID, eval, blocking, accepted, gaps, failedPolicies, knownLimitations)
 	return domain.ReleaseReadinessReport{
 		ReportType:         "release_readiness",
 		TemplateVersion:    domain.ReleaseReadinessTemplateVersion,
 		ReleaseID:          eval.ReleaseID,
 		Result:             eval.Result,
+		Summary:            releaseReadinessSummary(eval, len(blocking), len(gaps), len(failedPolicies)),
 		Checks:             eval.Checks,
+		Sections:           sections,
 		BlockingFindings:   blocking,
 		AcceptedExceptions: accepted,
 		Gaps:               gaps,
-		Assumptions:        []string{"This report supports compliance readiness and is not a legal compliance conclusion."},
-		Limitations:        []string{"Readiness is based only on evidence, decisions, exceptions, and bundles recorded in this Evydence instance."},
+		MissingEvidence:    gaps,
+		FailedPolicies:     failedPolicies,
+		KnownLimitations:   knownLimitations,
+		NonClaims:          nonClaims,
+		Assumptions:        []string{"This report supports compliance readiness and technical evidence review; it is not a legal compliance conclusion."},
+		Limitations:        knownLimitations,
 		GeneratedAt:        l.now(),
 	}, nil
+}
+
+func releaseReadinessSummary(eval domain.PolicyEvaluation, blockingCount, missingCount, failedCount int) domain.ReadinessSummary {
+	if eval.Result == "passed" {
+		return domain.ReadinessSummary{
+			Headline:     "Recorded release evidence satisfies the current built-in readiness checks.",
+			Result:       eval.Result,
+			HumanSummary: "The report found no blocking policy failures in the recorded release evidence. Review the limitations and non-claims before sharing externally.",
+			PolicySet:    eval.PolicySet,
+		}
+	}
+	return domain.ReadinessSummary{
+		Headline:     "Recorded release evidence has readiness blockers or missing inputs.",
+		Result:       eval.Result,
+		HumanSummary: fmt.Sprintf("The report found %d failed policy checks, %d missing evidence inputs, and %d blocking findings in the recorded release evidence.", failedCount, missingCount, blockingCount),
+		PolicySet:    eval.PolicySet,
+	}
+}
+
+func releaseReadinessKnownLimitations() []string {
+	return []string{
+		"Readiness is based only on evidence, decisions, exceptions, bundles, and build records stored in this Evydence instance.",
+		"SBOM presence does not prove component inventory completeness.",
+		"Scanner output is submitted evidence and is not treated as authoritative vulnerability truth.",
+		"Build provenance and attestations are evaluated from recorded metadata and configured trust material only.",
+		"Customer package shareability depends on the generated package redaction profile, expiry, and operator review.",
+	}
+}
+
+func releaseReadinessNonClaims() []string {
+	return []string{
+		"This report supports technical evidence review and compliance readiness only.",
+		"It is not legal compliance proof, certification, complete SBOM proof, an authoritative vulnerability result, regulator acceptance, or a secure-release guarantee.",
+	}
+}
+
+func failedPolicyNames(checks []domain.PolicyCheck) []string {
+	out := []string{}
+	for _, check := range checks {
+		if check.Result == "failed" {
+			out = append(out, check.Name)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+func (l *Ledger) releaseReadinessSectionsLocked(tenantID, releaseID string, eval domain.PolicyEvaluation, blocking []domain.BlockingFinding, accepted []domain.Exception, missingEvidence, failedPolicies, knownLimitations []string) []domain.ReadinessSection {
+	checks := readinessChecksByName(eval.Checks)
+	decisionCount := l.activeDecisionCountForReleaseLocked(tenantID, releaseID)
+	hasPackage := l.hasActiveCustomerPackageLocked(tenantID, releaseID)
+	sections := []domain.ReadinessSection{
+		readinessSection("release_evidence", "Release Evidence", []domain.ReadinessQuestion{
+			readinessQuestionForCheck(checks["release_requires_artifact_digest"], "artifact_digest", "Are artifact digests present?", "Artifact digest evidence is linked to the release.", "Release artifact digest evidence is missing."),
+			readinessQuestionForCheck(checks["release_requires_sbom"], "sbom", "Is there an SBOM for this release?", "SBOM evidence is recorded for this release.", "SBOM evidence is missing for this release."),
+			readinessQuestionForCheck(checks["release_requires_vulnerability_scan"], "vulnerability_scan", "Is there a vulnerability scan?", "Vulnerability scan evidence is recorded for this release.", "Vulnerability scan evidence is missing for this release."),
+		}),
+		readinessSection("risk_decisions", "Vulnerability Decisions", []domain.ReadinessQuestion{
+			readinessQuestionForCheck(checks["critical_exploitable_blocks_release"], "critical_findings_triaged", "Are open critical findings triaged?", "No unhandled open critical findings are recorded.", "One or more open critical findings require a valid decision, remediation, or approved unexpired exception."),
+			readinessDecisionQuestion(decisionCount, len(blocking)),
+			readinessExceptionQuestion(accepted),
+		}),
+		readinessSection("provenance", "Build Provenance And Bundle", []domain.ReadinessQuestion{
+			readinessQuestionForCheck(checks["release_requires_passed_build"], "passed_build", "Is passed build provenance attached?", "A passed build is linked to a release artifact digest.", "No passed build with output digest linked to the release was found."),
+			readinessQuestionForCheck(checks["release_requires_build_attestation"], "build_attestation", "Is there a build attestation for a release artifact?", "A build attestation subject matches a release artifact digest.", "No build attestation subject matches a release artifact digest."),
+			readinessQuestionForCheck(checks["release_requires_signed_bundle"], "signed_bundle", "Is there a signed release bundle?", "A signed release bundle exists for this release.", "A signed release bundle is missing for this release."),
+		}),
+		readinessSection("customer_review", "Customer Package Review", []domain.ReadinessQuestion{
+			readinessCustomerPackageQuestion(hasPackage),
+		}),
+		readinessSection("gaps_and_limitations", "Gaps And Limitations", []domain.ReadinessQuestion{
+			readinessGapQuestion(missingEvidence, failedPolicies),
+			{ID: "known_limitations", Question: "What limitations apply?", Answer: "Read the known_limitations and non_claims fields before using this report.", Status: "limited", KnownLimitations: append([]string(nil), knownLimitations...)},
+		}),
+	}
+	return sections
+}
+
+func readinessChecksByName(checks []domain.PolicyCheck) map[string]domain.PolicyCheck {
+	out := map[string]domain.PolicyCheck{}
+	for _, check := range checks {
+		out[check.Name] = check
+	}
+	return out
+}
+
+func readinessSection(id, title string, questions []domain.ReadinessQuestion) domain.ReadinessSection {
+	status := "passed"
+	for _, question := range questions {
+		switch question.Status {
+		case "failed_policy":
+			status = "failed"
+		case "missing_evidence":
+			if status != "failed" {
+				status = "missing"
+			}
+		case "limited":
+			if status == "passed" {
+				status = "limited"
+			}
+		}
+	}
+	return domain.ReadinessSection{ID: id, Title: title, Status: status, Summary: readinessSectionSummary(status), Questions: questions}
+}
+
+func readinessSectionSummary(status string) string {
+	switch status {
+	case "failed":
+		return "One or more reviewer questions failed a policy check."
+	case "missing":
+		return "One or more reviewer questions is missing evidence."
+	case "limited":
+		return "This section has recorded limitations or non-blocking missing context."
+	default:
+		return "Recorded evidence satisfies this section."
+	}
+}
+
+func readinessQuestionForCheck(check domain.PolicyCheck, id, question, passedAnswer, failedAnswer string) domain.ReadinessQuestion {
+	if check.Name == "" {
+		return domain.ReadinessQuestion{ID: id, Question: question, Answer: "No policy check was recorded for this question.", Status: "limited", KnownLimitations: []string{"Policy coverage for this question is not configured."}}
+	}
+	if check.Result == "passed" {
+		return domain.ReadinessQuestion{ID: id, Question: question, Answer: passedAnswer, Status: "passed", Checks: []string{check.Name}}
+	}
+	status := "failed_policy"
+	if len(check.Missing) > 0 {
+		status = "missing_evidence"
+	}
+	return domain.ReadinessQuestion{ID: id, Question: question, Answer: failedAnswer, Status: status, Checks: []string{check.Name}, MissingEvidence: append([]string(nil), check.Missing...), FailedPolicies: []string{check.Name}}
+}
+
+func readinessDecisionQuestion(decisionCount, blockingCount int) domain.ReadinessQuestion {
+	if blockingCount > 0 {
+		return domain.ReadinessQuestion{ID: "vex_decisions_for_blockers", Question: "Are VEX or vulnerability decisions present for blocking findings?", Answer: fmt.Sprintf("%d blocking finding(s) still need a valid decision, remediation, or approved exception.", blockingCount), Status: "failed_policy", MissingEvidence: []string{"vulnerability_decision"}, FailedPolicies: []string{"critical_exploitable_blocks_release"}}
+	}
+	if decisionCount > 0 {
+		return domain.ReadinessQuestion{ID: "vex_decisions_for_blockers", Question: "Are VEX or vulnerability decisions present for blocking findings?", Answer: fmt.Sprintf("%d active vulnerability decision(s) are recorded for this release.", decisionCount), Status: "passed", Evidence: []string{"vulnerability_decision"}}
+	}
+	return domain.ReadinessQuestion{ID: "vex_decisions_for_blockers", Question: "Are VEX or vulnerability decisions present for blocking findings?", Answer: "No active vulnerability decisions are recorded; no blocking findings currently require one.", Status: "limited", KnownLimitations: []string{"Decision evidence is only expected when findings require triage or customer-visible explanation."}}
+}
+
+func readinessExceptionQuestion(accepted []domain.Exception) domain.ReadinessQuestion {
+	if len(accepted) > 0 {
+		return domain.ReadinessQuestion{ID: "approved_exceptions", Question: "Are exceptions approved and unexpired?", Answer: fmt.Sprintf("%d approved unexpired exception(s) are accepted for this release.", len(accepted)), Status: "passed", Evidence: []string{"exception"}}
+	}
+	return domain.ReadinessQuestion{ID: "approved_exceptions", Question: "Are exceptions approved and unexpired?", Answer: "No approved unexpired release exceptions are used by this report.", Status: "limited", KnownLimitations: []string{"No exception is needed when policy checks pass without an accepted exception."}}
+}
+
+func readinessCustomerPackageQuestion(hasPackage bool) domain.ReadinessQuestion {
+	if hasPackage {
+		return domain.ReadinessQuestion{ID: "customer_package_safe_to_share", Question: "Is a customer package available for review?", Answer: "A non-expired customer package is recorded for this release; review its redaction profile before sharing.", Status: "passed", Evidence: []string{"customer_package"}}
+	}
+	return domain.ReadinessQuestion{ID: "customer_package_safe_to_share", Question: "Is a customer package available for review?", Answer: "No customer package was evaluated by this release readiness report.", Status: "limited", KnownLimitations: []string{"Package shareability is evaluated when a scoped customer package is generated."}}
+}
+
+func readinessGapQuestion(missingEvidence, failedPolicies []string) domain.ReadinessQuestion {
+	if len(missingEvidence) == 0 && len(failedPolicies) == 0 {
+		return domain.ReadinessQuestion{ID: "remaining_gaps", Question: "What gaps remain?", Answer: "No blocking readiness gaps are recorded by the current policy checks.", Status: "passed"}
+	}
+	status := "failed_policy"
+	if len(failedPolicies) == 0 {
+		status = "missing_evidence"
+	}
+	return domain.ReadinessQuestion{ID: "remaining_gaps", Question: "What gaps remain?", Answer: "The report lists missing evidence and failed policy checks that should be reviewed.", Status: status, MissingEvidence: append([]string(nil), missingEvidence...), FailedPolicies: append([]string(nil), failedPolicies...)}
+}
+
+func (l *Ledger) activeDecisionCountForReleaseLocked(tenantID, releaseID string) int {
+	count := 0
+	for _, decision := range l.decisions {
+		if decision.TenantID == tenantID && decision.ReleaseID == releaseID && decision.SupersededBy == "" {
+			count++
+		}
+	}
+	return count
+}
+
+func (l *Ledger) hasActiveCustomerPackageLocked(tenantID, releaseID string) bool {
+	for _, pkg := range l.customerPackages {
+		if pkg.TenantID == tenantID && pkg.ReleaseID == releaseID && pkg.State == "generated" && pkg.ExpiresAt.After(l.now()) {
+			return true
+		}
+	}
+	return false
 }
 
 func parseOpenVEX(raw []byte) (openVEXDocument, error) {

@@ -659,6 +659,17 @@ func TestReleaseReadinessRequiresHandledCriticalFinding(t *testing.T) {
 	if report.Result != "failed" || len(report.BlockingFindings) != 1 {
 		t.Fatalf("expected blocking critical finding, got %#v", report)
 	}
+	if report.Summary.Headline == "" || len(report.Sections) < 5 || !hasMissing(report.MissingEvidence, "vulnerability_decision") || !hasMissing(report.FailedPolicies, "critical_exploitable_blocks_release") || len(report.KnownLimitations) == 0 || len(report.NonClaims) == 0 {
+		t.Fatalf("readiness v2 fields missing: %#v", report)
+	}
+	criticalQuestion := readinessQuestionByID(t, report, "critical_findings_triaged")
+	if criticalQuestion.Status != "missing_evidence" || !hasMissing(criticalQuestion.MissingEvidence, "vulnerability_decision") {
+		t.Fatalf("critical readiness question = %#v", criticalQuestion)
+	}
+	packageQuestion := readinessQuestionByID(t, report, "customer_package_safe_to_share")
+	if packageQuestion.Status != "limited" {
+		t.Fatalf("customer package question = %#v", packageQuestion)
+	}
 	if _, err := ledger.CreateVulnerabilityDecision(ctx, actor, scan.Findings[0].ID, CreateVulnerabilityDecisionInput{Status: decisionStatusNotAffected, Justification: "vulnerable code is not present"}); err != nil {
 		t.Fatalf("decision: %v", err)
 	}
@@ -668,6 +679,10 @@ func TestReleaseReadinessRequiresHandledCriticalFinding(t *testing.T) {
 	}
 	if report.Result != "passed" || len(report.BlockingFindings) != 0 {
 		t.Fatalf("expected readiness pass after decision, got %#v", report)
+	}
+	decisionQuestion := readinessQuestionByID(t, report, "vex_decisions_for_blockers")
+	if decisionQuestion.Status != "passed" || !hasMissing(decisionQuestion.Evidence, "vulnerability_decision") {
+		t.Fatalf("decision readiness question = %#v", decisionQuestion)
 	}
 }
 
@@ -1495,6 +1510,19 @@ func hasMissing(items []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func readinessQuestionByID(t *testing.T, report domain.ReleaseReadinessReport, id string) domain.ReadinessQuestion {
+	t.Helper()
+	for _, section := range report.Sections {
+		for _, question := range section.Questions {
+			if question.ID == id {
+				return question
+			}
+		}
+	}
+	t.Fatalf("readiness question %s not found in %#v", id, report.Sections)
+	return domain.ReadinessQuestion{}
 }
 
 func addBuildProvenance(t *testing.T, ledger *Ledger, actor domain.Actor, release domain.Release, artifact domain.Artifact) {
