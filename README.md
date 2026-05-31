@@ -7,21 +7,41 @@
 ![OpenAPI](https://img.shields.io/badge/OpenAPI-166%20precise%20operations-brightgreen.svg)
 ![Coverage Gate](https://img.shields.io/badge/coverage%20gate-80%25+-brightgreen.svg)
 
-Evydence is a self-hosted release evidence ledger that helps software teams
-collect, verify, and share tamper-evident technical evidence for each release.
+Evydence is a self-hosted, API-first release evidence ledger for product
+security, AppSec, platform, release engineering, and compliance-readiness teams
+that need to answer customer CVE, SBOM, provenance, and release-review
+questions with signed, customer-safe release evidence bundles.
 
-It is for security, platform, AppSec, and compliance-readiness teams at B2B
-software companies that need customer-reviewable release evidence without
-handing all release trust data to a SaaS GRC platform.
+The concrete buyer question is: "This CVE appears in your SBOM for this
+release. Are you affected, why or why not, who approved that decision, and what
+evidence can we verify?" Evydence records the SBOM, vulnerability scan, VEX or
+manual decision, build provenance, artifact digest, exceptions, release bundle,
+and customer package that support the answer.
 
-Before shipping a release, Evydence can collect SBOMs, vulnerability scans, VEX
-decisions, build/source/deployment evidence, controls, exceptions, release
-bundles, and customer-safe packages, then show readiness gaps, assumptions, and
-limitations.
+Before Evydence, teams often stitch together scanner exports, CI logs, Slack
+approvals, spreadsheets, object-storage folders, and one-off customer answers.
+After Evydence, the same release has tenant-scoped API records, append-only
+decisions, tamper-evident audit entries, signed bundles, reproducible reports,
+and scoped packages that state gaps, assumptions, exceptions, and limitations.
 
 It does not make legal compliance conclusions, grant certification, prove SBOM
 completeness, treat scanner findings as authoritative, or guarantee release
 security.
+
+## What Question Does Evydence Answer?
+
+Evydence is designed to make release-risk answers traceable to concrete
+objects instead of unsupported prose:
+
+| Customer or internal review question | Evydence object that carries the answer |
+| --- | --- |
+| Are we affected by `CVE-X` in release `Y`? | Vulnerability finding plus VEX/manual decision, exception, or remediation record linked to the release. |
+| Which SBOM was used for this answer? | SBOM record linked to the release and artifact, with raw payload hash and object reference. |
+| Which scanner result raised the finding? | Vulnerability scan and normalized finding record with scanner metadata. |
+| Who approved or recorded the decision? | Append-only vulnerability decision, exception, approval, and audit-chain entries with actor context. |
+| What evidence supports "not affected" or "fixed"? | VEX impact/action statements, linked evidence, artifact digest, build provenance, and verification receipts. |
+| What can be safely shared with a customer? | Redaction profile, customer package, evidence bundle, and package manifest with limitations. |
+| How can the customer verify the package? | Signed release bundle, package manifest hash, OpenAPI-backed API records, audit-chain verification, and offline verifier paths. |
 
 ## Current Limitations
 
@@ -81,13 +101,15 @@ amd64, run:
 make public-release-verify TAG=v0.1.0-rc.4
 ```
 
-The end-to-end evidence flow to evaluate first is:
+The VEX-first evidence flow to evaluate first is:
 
 1. Create a product, release, and artifact.
-2. Upload SBOM and vulnerability scan evidence.
-3. Record a VEX decision or exception for an intentionally blocking finding.
-4. Generate a release bundle and readiness report.
-5. Export a customer-safe package or evidence bundle for review.
+2. Upload SBOM evidence for the artifact.
+3. Upload vulnerability scan evidence for the release.
+4. Record a VEX decision or approved exception for an intentionally blocking finding.
+5. Generate a release-readiness report.
+6. Create a signed release bundle and customer-safe package or evidence bundle.
+7. View the package locally and verify the bundle, package manifest, and audit chain.
 
 For a visual preview of the customer-package review surface, see the
 [package viewer guide](docs/how-to/view-packages.md). The preview uses
