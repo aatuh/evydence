@@ -218,6 +218,7 @@ type PersistedState struct {
 	SBOMs                    map[string]domain.SBOM                          `json:"sboms"`
 	Scans                    map[string]domain.VulnerabilityScan             `json:"scans"`
 	VEXDocuments             map[string]domain.VEXDocument                   `json:"vex_documents"`
+	VEXImportReports         map[string]domain.VEXImportReport               `json:"vex_import_reports"`
 	Decisions                map[string]domain.VulnerabilityDecision         `json:"vulnerability_decisions"`
 	Contracts                map[string]domain.OpenAPIContract               `json:"contracts"`
 	Policies                 map[string]domain.PolicyEvaluation              `json:"policies"`
@@ -344,6 +345,7 @@ type ReleaseLedgerMutation struct {
 	Scans                  []domain.VulnerabilityScan
 	Contracts              []domain.OpenAPIContract
 	VEXDocuments           []domain.VEXDocument
+	VEXImportReports       []domain.VEXImportReport
 	VulnerabilityDecisions []domain.VulnerabilityDecision
 	AuditChainEntries      []domain.AuditChainEntry
 	OutboxJobs             []OutboxJob

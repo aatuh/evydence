@@ -86,7 +86,7 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	if _, ok := problemProps["request_id"]; !ok {
 		t.Fatalf("Problem schema missing request_id: %#v", problemProps)
 	}
-	for _, schemaName := range []string{"ReadinessStatusEnvelope", "BackupManifestEnvelope", "VerificationResultEnvelope", "ReadinessReportEnvelope", "CreateProductRequest", "ProductEnvelope", "ProductListEnvelope", "CreateProjectRequest", "ProjectEnvelope", "CreateReleaseRequest", "ReleaseEnvelope", "RegisterArtifactRequest", "ArtifactEnvelope", "CreateBuildRequest", "BuildRunEnvelope", "EvidenceUploadRequest", "SBOMEnvelope", "VEXDocumentEnvelope", "UploadVulnerabilityScanRequest", "VulnerabilityScanEnvelope", "VulnerabilityDecisionListEnvelope", "VulnerabilityDecisionSummaryReportEnvelope", "CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOProviderRequest", "UpdateSSOProviderTrustMaterialRequest", "SSOProviderEnvelope", "VerifyProviderIdentityRequest", "ProviderVerificationEnvelope", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "ExchangeSSOCredentialRequest", "SSOCredentialExchangeEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalPackageRequest", "DataEnvelope"} {
+	for _, schemaName := range []string{"ReadinessStatusEnvelope", "BackupManifestEnvelope", "VerificationResultEnvelope", "ReadinessReportEnvelope", "CreateProductRequest", "ProductEnvelope", "ProductListEnvelope", "CreateProjectRequest", "ProjectEnvelope", "CreateReleaseRequest", "ReleaseEnvelope", "RegisterArtifactRequest", "ArtifactEnvelope", "CreateBuildRequest", "BuildRunEnvelope", "EvidenceUploadRequest", "SBOMEnvelope", "VEXDocumentEnvelope", "VEXImportReportEnvelope", "UploadVulnerabilityScanRequest", "VulnerabilityScanEnvelope", "VulnerabilityDecisionListEnvelope", "VulnerabilityDecisionSummaryReportEnvelope", "CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOProviderRequest", "UpdateSSOProviderTrustMaterialRequest", "SSOProviderEnvelope", "VerifyProviderIdentityRequest", "ProviderVerificationEnvelope", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "ExchangeSSOCredentialRequest", "SSOCredentialExchangeEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalPackageRequest", "DataEnvelope"} {
 		if _, ok := schemas[schemaName]; !ok {
 			t.Fatalf("schema %s missing from OpenAPI components", schemaName)
 		}
@@ -143,6 +143,9 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	uploadVEX := operationMap(t, paths, "/v1/vex", "post")
 	assertRequestRef(t, uploadVEX, "#/components/schemas/EvidenceUploadRequest")
 	assertResponseRef(t, uploadVEX, "201", "#/components/schemas/VEXDocumentEnvelope")
+	getVEXImportReport := operationMap(t, paths, "/v1/vex/{id}/import-report", "get")
+	assertQueryParams(t, getVEXImportReport, "id")
+	assertResponseRef(t, getVEXImportReport, "200", "#/components/schemas/VEXImportReportEnvelope")
 	createEvidence := operationMap(t, paths, "/v1/evidence", "post")
 	assertRequestRef(t, createEvidence, "#/components/schemas/CreateEvidenceRequest")
 	assertProblemResponseRef(t, createEvidence, "400")
@@ -752,6 +755,10 @@ func TestVEXAndExceptionHTTPValidation(t *testing.T) {
 	}, http.StatusCreated)
 	vexID := dataField(t, vexBody, "id")
 	getJSON(t, server, secret, "/v1/vex/"+vexID, http.StatusOK)
+	importReport := getJSON(t, server, secret, "/v1/vex/"+vexID+"/import-report", http.StatusOK)
+	if !strings.Contains(importReport, `"status":"parsed"`) || !strings.Contains(importReport, `"decisions_created":1`) || strings.Contains(importReport, "payload_ref") {
+		t.Fatalf("unsafe or incomplete VEX import report: %s", importReport)
+	}
 	postJSON(t, server, secret, "/v1/vex", "vex-bad", map[string]any{"release_id": releaseID, "payload": map[string]any{"author": "a", "timestamp": "2026-05-27T12:00:00Z", "statements": []any{}, "extra": true}}, http.StatusBadRequest)
 
 	exceptionBody := postJSON(t, server, secret, "/v1/exceptions", "exception-create", map[string]any{"release_id": releaseID, "reason": "temporary acceptance", "owner": "security", "expires_at": time.Now().UTC().Add(time.Hour).Format(time.RFC3339)}, http.StatusCreated)

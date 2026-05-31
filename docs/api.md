@@ -192,6 +192,16 @@ The history endpoint supports `product_id`, `release_id`, `vulnerability`,
 records, including timestamps and supersession fields. It is tenant-scoped and
 requires `evidence:read`.
 
+VEX import parser report:
+
+```http
+GET /v1/vex/{id}/import-report
+```
+
+The import report records parser version, statement counts, decision counts,
+supersession counts, warnings, invalid statement issues, and mapping failures.
+It does not include raw VEX payload bytes or object-store payload references.
+
 Customer-safe decision summary:
 
 ```http
@@ -454,6 +464,7 @@ Source snapshots capture submitted provider metadata. They do not call provider 
 | `POST` | `/v1/vex` | Upload OpenVEX. |
 | `POST` | `/v1/vex/cyclonedx` | Upload CycloneDX VEX. |
 | `GET` | `/v1/vex/{id}` | Read VEX metadata. |
+| `GET` | `/v1/vex/{id}/import-report` | Read VEX parser report with safe counts, warnings, and mapping failures. |
 | `POST` | `/v1/openapi-contracts` | Upload OpenAPI contract. |
 | `GET` | `/v1/openapi-contracts/{id}` | Read contract metadata. |
 | `POST` | `/v1/openapi-diffs` | Compare stored contracts. |

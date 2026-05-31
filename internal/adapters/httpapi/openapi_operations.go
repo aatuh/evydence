@@ -210,6 +210,10 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Description = "Returns a tenant-scoped VEX document metadata record by id."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "VEX document id."))
 		operation.Responses[http.StatusOK] = jsonResponse("VEX document envelope.", "#/components/schemas/VEXDocumentEnvelope")
+	case "getVEXImportReport":
+		operation.Description = "Returns the persisted parser report for a tenant-scoped VEX import, including counts, warnings, and mapping failures without raw payload bytes."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "VEX document id."))
+		operation.Responses[http.StatusOK] = jsonResponse("VEX import report envelope.", "#/components/schemas/VEXImportReportEnvelope")
 	case "uploadVulnerabilityScan":
 		operation.Description = "Uploads a generic vulnerability scan JSON payload and records normalized findings."
 		operation.RequestBody = jsonRequest("Vulnerability scan upload payload.", "#/components/schemas/UploadVulnerabilityScanRequest")

@@ -260,11 +260,14 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 				stateChanged = true
 			}
 			if payloadBool(job, "worker_create_decisions") {
-				created, err := applyReplayedVEXDecisions(&snapshot, job, vex, parsed, replayed.Digest)
+				created, superseded, mappingFailures, err := applyReplayedVEXDecisions(&snapshot, job, vex, parsed, replayed.Digest)
 				if err != nil {
 					return err
 				}
 				if created > 0 {
+					stateChanged = true
+				}
+				if updateVEXImportReport(&snapshot, job, vex, parsed, created, superseded, mappingFailures) {
 					stateChanged = true
 				}
 			}
@@ -759,7 +762,7 @@ func replayedVEXProductIDs(products []map[string]any) map[string]struct{} {
 	return out
 }
 
-func applyReplayedVEXDecisions(state *app.PersistedState, job postgres.ClaimedJob, vex domain.VEXDocument, parsed replayedVEX, payloadHash string) (int, error) {
+func applyReplayedVEXDecisions(state *app.PersistedState, job postgres.ClaimedJob, vex domain.VEXDocument, parsed replayedVEX, payloadHash string) (int, int, []domain.VEXImportIssue, error) {
 	if state.Decisions == nil {
 		state.Decisions = map[string]domain.VulnerabilityDecision{}
 	}
@@ -768,6 +771,8 @@ func applyReplayedVEXDecisions(state *app.PersistedState, job postgres.ClaimedJo
 	evidenceID := payloadString(job, "evidence_id")
 	now := time.Now().UTC()
 	created := 0
+	superseded := 0
+	mappingFailures := []domain.VEXImportIssue{}
 	scanIDs := make([]string, 0, len(state.Scans))
 	for id, scan := range state.Scans {
 		if scan.TenantID == job.TenantID && scan.ReleaseID == vex.ReleaseID {
@@ -775,7 +780,8 @@ func applyReplayedVEXDecisions(state *app.PersistedState, job postgres.ClaimedJo
 		}
 	}
 	sort.Strings(scanIDs)
-	for _, statement := range parsed.Statements {
+	for index, statement := range parsed.Statements {
+		statementMatched := false
 		for _, scanID := range scanIDs {
 			scan := state.Scans[scanID]
 			for _, finding := range scan.Findings {
@@ -787,6 +793,7 @@ func applyReplayedVEXDecisions(state *app.PersistedState, job postgres.ClaimedJo
 						continue
 					}
 				}
+				statementMatched = true
 				if replayedVEXDecisionExists(state.Decisions, job.TenantID, vex.ID, finding.ID) {
 					continue
 				}
@@ -825,18 +832,26 @@ func applyReplayedVEXDecisions(state *app.PersistedState, job postgres.ClaimedJo
 					CreatedAt:       now,
 				}
 				if supersedes != "" {
+					superseded++
 					if _, err := app.AppendPersistedChainEntry(state, now, job.TenantID, "vulnerability_decision.superseded", "vulnerability_decision", supersedes, actorType, actorID, payloadHash, ""); err != nil {
-						return created, errors.New("append replayed vex decision supersession audit entry")
+						return created, superseded, mappingFailures, errors.New("append replayed vex decision supersession audit entry")
 					}
 				}
 				if _, err := app.AppendPersistedChainEntry(state, now, job.TenantID, "vulnerability_decision.created", "vulnerability_finding", finding.ID, actorType, actorID, payloadHash, ""); err != nil {
-					return created, errors.New("append replayed vex decision audit entry")
+					return created, superseded, mappingFailures, errors.New("append replayed vex decision audit entry")
 				}
 				created++
 			}
 		}
+		if !statementMatched {
+			mappingFailures = append(mappingFailures, domain.VEXImportIssue{
+				StatementIndex: index + 1,
+				Code:           "finding_not_found",
+				Detail:         "No matching vulnerability scan finding was found for this VEX statement.",
+			})
+		}
 	}
-	return created, nil
+	return created, superseded, mappingFailures, nil
 }
 
 func replayedVEXDecisionExists(decisions map[string]domain.VulnerabilityDecision, tenantID, vexID, findingID string) bool {
@@ -846,6 +861,72 @@ func replayedVEXDecisionExists(decisions map[string]domain.VulnerabilityDecision
 		}
 	}
 	return false
+}
+
+func updateVEXImportReport(state *app.PersistedState, job postgres.ClaimedJob, vex domain.VEXDocument, parsed replayedVEX, created, superseded int, mappingFailures []domain.VEXImportIssue) bool {
+	reportID := payloadString(job, "import_report_id")
+	if reportID == "" {
+		for id, report := range state.VEXImportReports {
+			if report.TenantID == job.TenantID && report.VEXDocumentID == vex.ID {
+				reportID = id
+				break
+			}
+		}
+	}
+	if reportID == "" {
+		return false
+	}
+	if state.VEXImportReports == nil {
+		state.VEXImportReports = map[string]domain.VEXImportReport{}
+	}
+	report, ok := state.VEXImportReports[reportID]
+	if !ok || report.TenantID != job.TenantID || report.VEXDocumentID != vex.ID {
+		return false
+	}
+	updated := report
+	changed := false
+	if updated.Status != "parsed" {
+		updated.Status = "parsed"
+		changed = true
+	}
+	if updated.StatementCount != parsed.StatementCount {
+		updated.StatementCount = parsed.StatementCount
+		changed = true
+	}
+	if created > updated.DecisionsCreated {
+		updated.DecisionsCreated = created
+		changed = true
+	}
+	if superseded > updated.DecisionsSuperseded {
+		updated.DecisionsSuperseded = superseded
+		changed = true
+	}
+	if !vexImportIssuesEqual(updated.MappingFailures, mappingFailures) {
+		updated.MappingFailures = append([]domain.VEXImportIssue(nil), mappingFailures...)
+		changed = true
+	}
+	if updated.SchemaVersion == "" {
+		updated.SchemaVersion = domain.VEXImportReportSchemaVersion
+		changed = true
+	}
+	if !changed {
+		return false
+	}
+	updated.UpdatedAt = time.Now().UTC()
+	state.VEXImportReports[reportID] = updated
+	return true
+}
+
+func vexImportIssuesEqual(a, b []domain.VEXImportIssue) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func replayedVEXDecisionID(vexID, findingID, status string) string {

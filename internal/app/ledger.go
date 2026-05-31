@@ -171,6 +171,7 @@ type Ledger struct {
 	sboms                 map[string]domain.SBOM
 	scans                 map[string]domain.VulnerabilityScan
 	vexDocuments          map[string]domain.VEXDocument
+	vexImportReports      map[string]domain.VEXImportReport
 	decisions             map[string]domain.VulnerabilityDecision
 	contracts             map[string]domain.OpenAPIContract
 	policies              map[string]domain.PolicyEvaluation
@@ -297,6 +298,7 @@ func NewLedgerWithError(cfg Config) (*Ledger, error) {
 		sboms:                 map[string]domain.SBOM{},
 		scans:                 map[string]domain.VulnerabilityScan{},
 		vexDocuments:          map[string]domain.VEXDocument{},
+		vexImportReports:      map[string]domain.VEXImportReport{},
 		decisions:             map[string]domain.VulnerabilityDecision{},
 		contracts:             map[string]domain.OpenAPIContract{},
 		policies:              map[string]domain.PolicyEvaluation{},

@@ -176,9 +176,15 @@ func (s releaseEvidenceService) UploadVEX(ctx context.Context, actor domain.Acto
 	}
 	l.vexDocuments[vex.ID] = persistedVEX
 	createdDecisions := 0
+	supersededDecisions := 0
+	mappingFailures := []domain.VEXImportIssue{}
 	if !l.workerOwnedParsers {
-		for _, statement := range doc.Statements {
-			for _, matched := range l.findMatchingFindingsLocked(actor.TenantID, releaseID, statement) {
+		for index, statement := range doc.Statements {
+			matches := l.findMatchingFindingsLocked(actor.TenantID, releaseID, statement)
+			if len(matches) == 0 {
+				mappingFailures = append(mappingFailures, vexImportIssue(index+1, "finding_not_found", "No matching vulnerability scan finding was found for this VEX statement."))
+			}
+			for _, matched := range matches {
 				decision := l.createDecisionLocked(actor.TenantID, matched.scan, matched.finding, CreateVulnerabilityDecisionInput{
 					Status:          statement.Status,
 					Justification:   statement.Justification,
@@ -187,13 +193,46 @@ func (s releaseEvidenceService) UploadVEX(ctx context.Context, actor domain.Acto
 					CustomerVisible: strings.TrimSpace(statement.ImpactStatement) != "",
 				}, "vex", actorID(actor), item.ID, vex.ID)
 				l.decisions[decision.ID] = decision
+				if decision.Supersedes != "" {
+					supersededDecisions++
+				}
 				l.appendDecisionLifecycleAuditLocked(actor.TenantID, decision, matched.finding.ID, actorType(actor), actorID(actor), payloadHash)
 				createdDecisions++
 			}
 		}
+	} else {
+		for index, statement := range doc.Statements {
+			if len(l.findMatchingFindingsLocked(actor.TenantID, releaseID, statement)) == 0 {
+				mappingFailures = append(mappingFailures, vexImportIssue(index+1, "finding_not_found", "No matching vulnerability scan finding was found for this VEX statement at upload time."))
+			}
+		}
 	}
+	warnings := []string{}
+	if l.workerOwnedParsers {
+		warnings = append(warnings, "Worker-owned parser side effects are enabled; decisions are created asynchronously after payload replay.")
+	}
+	report := domain.VEXImportReport{
+		ID:                  newID("vexrep"),
+		TenantID:            actor.TenantID,
+		VEXDocumentID:       vex.ID,
+		EvidenceID:          item.ID,
+		ReleaseID:           releaseID,
+		ArtifactID:          artifactID,
+		ParserVersion:       ParserVersionOpenVEXJSON,
+		Status:              ternary(l.workerOwnedParsers, "accepted", "parsed"),
+		StatementCount:      len(doc.Statements),
+		DecisionsCreated:    createdDecisions,
+		DecisionsSuperseded: supersededDecisions,
+		UnsupportedFields:   []string{},
+		Warnings:            warnings,
+		MappingFailures:     mappingFailures,
+		SchemaVersion:       domain.VEXImportReportSchemaVersion,
+		CreatedAt:           l.now(),
+		UpdatedAt:           l.now(),
+	}
+	l.vexImportReports[report.ID] = report
 	_, _ = l.appendChainLocked(actor.TenantID, chainAction, "vex_document", vex.ID, actorType(actor), actorID(actor), payloadHash, "")
-	jobPayload := map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionOpenVEXJSON, "decisions_created": createdDecisions}
+	jobPayload := map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionOpenVEXJSON, "decisions_created": createdDecisions, "import_report_id": report.ID}
 	if l.workerOwnedParsers {
 		jobPayload["worker_create_decisions"] = true
 		jobPayload["actor_type"] = actorType(actor)
@@ -205,6 +244,31 @@ func (s releaseEvidenceService) UploadVEX(ctx context.Context, actor domain.Acto
 		return domain.VEXDocument{}, err
 	}
 	return vex, nil
+}
+
+func (s releaseEvidenceService) GetVEXImportReport(ctx context.Context, actor domain.Actor, vexID string) (domain.VEXImportReport, error) {
+	l := s.ledger
+	if err := ctx.Err(); err != nil {
+		return domain.VEXImportReport{}, err
+	}
+	if err := require(actor, ScopeEvidenceRead); err != nil {
+		return domain.VEXImportReport{}, err
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	vex, ok := l.vexDocuments[strings.TrimSpace(vexID)]
+	if !ok || vex.TenantID != actor.TenantID {
+		return domain.VEXImportReport{}, ErrNotFound
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeEvidenceRead, resourceRefs{ReleaseID: vex.ReleaseID}); err != nil {
+		return domain.VEXImportReport{}, err
+	}
+	for _, report := range l.vexImportReports {
+		if report.TenantID == actor.TenantID && report.VEXDocumentID == vex.ID {
+			return report, nil
+		}
+	}
+	return domain.VEXImportReport{}, ErrNotFound
 }
 
 func (s releaseEvidenceService) GetVEXDocument(ctx context.Context, actor domain.Actor, id string) (domain.VEXDocument, error) {
@@ -761,6 +825,10 @@ func decisionEvidenceIDs(primary string, extra []string) []string {
 		ids = append(ids, strings.TrimSpace(primary))
 	}
 	return sortedUniqueNonEmptyStrings(ids)
+}
+
+func vexImportIssue(statementIndex int, code, detail string) domain.VEXImportIssue {
+	return domain.VEXImportIssue{StatementIndex: statementIndex, Code: code, Detail: detail}
 }
 
 func sortedUniqueNonEmptyStrings(in []string) []string {

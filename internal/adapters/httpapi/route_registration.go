@@ -207,6 +207,7 @@ func (s *Server) evidenceRiskPolicyRoutes() []routeDef {
 		{http.MethodPost, "/v1/vex", op("uploadVEX", http.MethodPost, "/v1/vex", "Upload OpenVEX document", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.uploadVEX)},
 		{http.MethodPost, "/v1/vex/cyclonedx", op("uploadCycloneDXVEX", http.MethodPost, "/v1/vex/cyclonedx", "Upload CycloneDX VEX document", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.uploadCycloneDXVEX)},
 		{http.MethodGet, "/v1/vex/{id}", op("getVEX", http.MethodGet, "/v1/vex/{id}", "Get VEX document", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.getVEX)},
+		{http.MethodGet, "/v1/vex/{id}/import-report", op("getVEXImportReport", http.MethodGet, "/v1/vex/{id}/import-report", "Get VEX import report", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.getVEXImportReport)},
 		{http.MethodPost, "/v1/vulnerability-scans", op("uploadVulnerabilityScan", http.MethodPost, "/v1/vulnerability-scans", "Upload vulnerability scan", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.uploadVulnerabilityScan)},
 		{http.MethodGet, "/v1/vulnerability-scans/{id}", op("getVulnerabilityScan", http.MethodGet, "/v1/vulnerability-scans/{id}", "Get vulnerability scan", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.getVulnerabilityScan)},
 		{http.MethodPost, "/v1/vulnerability-findings/{id}/decisions", op("createVulnerabilityDecision", http.MethodPost, "/v1/vulnerability-findings/{id}/decisions", "Create vulnerability decision", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.createVulnerabilityDecision)},

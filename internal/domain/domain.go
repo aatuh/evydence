@@ -9,6 +9,7 @@ const (
 	CanonicalizationProfileVersion  = "canonicalization-profile.v1.0.0"
 	PolicySetVersion                = "policy-set.v1.0.0"
 	VEXDocumentSchemaVersion        = "vex-document.v1.0.0"
+	VEXImportReportSchemaVersion    = "vex-import-report.v1.0.0"
 	VulnerabilityDecisionVersion    = "vulnerability-decision.v1.0.0"
 	ReleaseReadinessTemplateVersion = "release-readiness.v1.0.0"
 	CollectorSchemaVersion          = "collector.v1.0.0"
@@ -1086,6 +1087,33 @@ type VEXDocument struct {
 	StatusSummary  map[string]int `json:"status_summary"`
 	SchemaVersion  string         `json:"schema_version"`
 	CreatedAt      time.Time      `json:"created_at"`
+}
+
+type VEXImportIssue struct {
+	StatementIndex int    `json:"statement_index,omitempty"`
+	Code           string `json:"code"`
+	Detail         string `json:"detail"`
+}
+
+type VEXImportReport struct {
+	ID                  string           `json:"id"`
+	TenantID            string           `json:"tenant_id"`
+	VEXDocumentID       string           `json:"vex_document_id"`
+	EvidenceID          string           `json:"evidence_id"`
+	ReleaseID           string           `json:"release_id,omitempty"`
+	ArtifactID          string           `json:"artifact_id,omitempty"`
+	ParserVersion       string           `json:"parser_version"`
+	Status              string           `json:"status"`
+	StatementCount      int              `json:"statement_count"`
+	DecisionsCreated    int              `json:"decisions_created"`
+	DecisionsSuperseded int              `json:"decisions_superseded"`
+	UnsupportedFields   []string         `json:"unsupported_fields,omitempty"`
+	Warnings            []string         `json:"warnings,omitempty"`
+	InvalidStatements   []VEXImportIssue `json:"invalid_statements,omitempty"`
+	MappingFailures     []VEXImportIssue `json:"mapping_failures,omitempty"`
+	SchemaVersion       string           `json:"schema_version"`
+	CreatedAt           time.Time        `json:"created_at"`
+	UpdatedAt           time.Time        `json:"updated_at"`
 }
 
 type VulnerabilityDecision struct {

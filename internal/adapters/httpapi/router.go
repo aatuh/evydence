@@ -1432,6 +1432,19 @@ func (s *Server) getVEX(w http.ResponseWriter, r *http.Request) {
 	writeData(w, http.StatusOK, vex)
 }
 
+func (s *Server) getVEXImportReport(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	report, err := s.ledger.GetVEXImportReport(r.Context(), actor, r.PathValue("id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, report)
+}
+
 func (s *Server) uploadCycloneDXVEX(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ReleaseID  string          `json:"release_id"`

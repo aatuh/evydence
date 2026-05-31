@@ -102,6 +102,10 @@ func (l *Ledger) GetVEXDocument(ctx context.Context, actor domain.Actor, id stri
 	return l.releaseEvidenceService().GetVEXDocument(ctx, actor, id)
 }
 
+func (l *Ledger) GetVEXImportReport(ctx context.Context, actor domain.Actor, vexID string) (domain.VEXImportReport, error) {
+	return l.releaseEvidenceService().GetVEXImportReport(ctx, actor, vexID)
+}
+
 func (l *Ledger) CreateVulnerabilityDecision(ctx context.Context, actor domain.Actor, findingID string, in CreateVulnerabilityDecisionInput) (domain.VulnerabilityDecision, error) {
 	return l.releaseEvidenceService().CreateVulnerabilityDecision(ctx, actor, findingID, in)
 }

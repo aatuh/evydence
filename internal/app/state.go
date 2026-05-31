@@ -108,6 +108,7 @@ func (l *Ledger) snapshotLocked() PersistedState {
 		SBOMs:                    l.sboms,
 		Scans:                    l.scans,
 		VEXDocuments:             l.vexDocuments,
+		VEXImportReports:         l.vexImportReports,
 		Decisions:                l.decisions,
 		Contracts:                l.contracts,
 		Policies:                 l.policies,
@@ -264,6 +265,7 @@ func (l *Ledger) applyState(state PersistedState) {
 	l.sboms = state.SBOMs
 	l.scans = state.Scans
 	l.vexDocuments = state.VEXDocuments
+	l.vexImportReports = state.VEXImportReports
 	l.decisions = state.Decisions
 	l.contracts = state.Contracts
 	l.policies = state.Policies
@@ -363,6 +365,9 @@ func releaseLedgerMutationFromState(state PersistedState) ReleaseLedgerMutation 
 	}
 	for _, vex := range state.VEXDocuments {
 		mutation.VEXDocuments = append(mutation.VEXDocuments, vex)
+	}
+	for _, report := range state.VEXImportReports {
+		mutation.VEXImportReports = append(mutation.VEXImportReports, report)
 	}
 	for _, decision := range state.Decisions {
 		mutation.VulnerabilityDecisions = append(mutation.VulnerabilityDecisions, decision)
@@ -739,6 +744,9 @@ func normalizeState(state PersistedState) PersistedState {
 	}
 	if state.VEXDocuments == nil {
 		state.VEXDocuments = map[string]domain.VEXDocument{}
+	}
+	if state.VEXImportReports == nil {
+		state.VEXImportReports = map[string]domain.VEXImportReport{}
 	}
 	if state.Decisions == nil {
 		state.Decisions = map[string]domain.VulnerabilityDecision{}
