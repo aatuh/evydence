@@ -54,6 +54,8 @@ Container images for the release-candidate line are published, when the
 maintainer image workflow has run for the tag, as
 `ghcr.io/aatuh/evydence:<tag>`. Treat the digest and cosign evidence as the
 operator trust input, not the mutable tag alone.
+For `v0.1.0-rc.4`, the published image is
+`ghcr.io/aatuh/evydence:v0.1.0-rc.4@sha256:de5627ec300cb603c3f1dc21029bffc096d43399114888cd5c194e00f1285603`.
 
 ## Fastest Proof Path
 

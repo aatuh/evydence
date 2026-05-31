@@ -54,7 +54,16 @@ The public prerelease includes release archives for Linux, macOS, and Windows;
 `evydence-release-provenance.json`;
 `evydence-release-provenance.intoto.jsonl`; `release-notes.md`;
 `evydence-release-manifest.json`; `evydence-release-manifest.sig.json`; and
-`evydence-release-manifest.sig`.
+`evydence-release-manifest.sig`. The release assets also include
+`evydence-container-image-manifest.json` and
+`evydence-container-image-cosign-verify.json` for the separately published
+container image.
+
+The current project-owned container image is
+`ghcr.io/aatuh/evydence:v0.1.0-rc.4@sha256:de5627ec300cb603c3f1dc21029bffc096d43399114888cd5c194e00f1285603`.
+It was produced by the Container Image workflow run
+[`26721113041`](https://github.com/aatuh/evydence/actions/runs/26721113041)
+from release source commit `944c4c6694535f6fc23a2b272e58347217321672`.
 
 ## Local Verification
 
@@ -85,6 +94,23 @@ make public-release-verify TAG=v0.1.0-rc.4
 The helper downloads the release assets with `gh`, checks the public checksums,
 validates the in-toto statement shape, extracts the released Linux amd64 CLI,
 and verifies the signed manifest with that released binary.
+
+To verify the public container image digest and workflow identity, run:
+
+```sh
+docker buildx imagetools inspect ghcr.io/aatuh/evydence:v0.1.0-rc.4 \
+  --format '{{json .Manifest.Digest}}'
+cosign verify \
+  --certificate-identity-regexp 'https://github.com/aatuh/evydence/.github/workflows/container-image.yml@.*' \
+  --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+  ghcr.io/aatuh/evydence@sha256:de5627ec300cb603c3f1dc21029bffc096d43399114888cd5c194e00f1285603
+```
+
+Expected digest:
+`sha256:de5627ec300cb603c3f1dc21029bffc096d43399114888cd5c194e00f1285603`.
+The cosign verification proves the configured workflow identity signed the
+image digest; it is not legal compliance proof, certification, complete SBOM
+proof, authoritative vulnerability coverage, or a secure-release guarantee.
 
 ## Publication Status
 

@@ -237,6 +237,8 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@grep -F 'ghcr.io/aatuh/evydence' docs/reference/release-evidence-index.md >/dev/null
 	@grep -F 'ghcr.io/aatuh/evydence' docs/kubernetes.md >/dev/null
 	@grep -F 'ghcr.io/aatuh/evydence' deploy/airgap/manifest.yaml >/dev/null
+	@grep -F 'sha256:de5627ec300cb603c3f1dc21029bffc096d43399114888cd5c194e00f1285603' docs/reference/release-evidence-index.md docs/kubernetes.md deploy/airgap/manifest.yaml >/dev/null
+	@grep -F 'cosign verify' docs/reference/release-evidence-index.md >/dev/null
 	@grep -F 'github/codeql-action/init@03e4368ac7daa2bd82b3e85262f3bf87ee112f57' .github/workflows/codeql.yml >/dev/null
 	@grep -F 'security-and-quality' .github/workflows/codeql.yml >/dev/null
 	@grep -F 'Controlled self-hosted production candidate' docs/reference/release-candidate.md >/dev/null

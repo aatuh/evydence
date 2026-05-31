@@ -3,6 +3,7 @@ images:
   - name: evydence
     repository: ghcr.io/aatuh/evydence
     tag: v0.1.0-rc.4
+    digest: sha256:de5627ec300cb603c3f1dc21029bffc096d43399114888cd5c194e00f1285603
     required: true
 bundled_paths:
   - migrations/
