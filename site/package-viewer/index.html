@@ -41,6 +41,16 @@
     input[type="file"] {
       max-width: 100%;
     }
+    button {
+      cursor: pointer;
+      border: 1px solid #2b6cb0;
+      border-radius: 6px;
+      background: #2b6cb0;
+      color: #ffffff;
+      padding: 8px 12px;
+      font: inherit;
+      font-weight: 600;
+    }
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -104,6 +114,7 @@
 
     <section class="toolbar">
       <input id="file" type="file" accept="application/json,.json">
+      <button id="demo" type="button">Load bundled demo</button>
       <span id="status" class="muted">No file loaded.</span>
     </section>
 
@@ -122,9 +133,34 @@
 
   <script>
     const fileInput = document.getElementById("file");
+    const demoButton = document.getElementById("demo");
     const statusNode = document.getElementById("status");
     const summaryNode = document.getElementById("summary");
     const jsonNode = document.getElementById("json");
+
+    const bundledDemo = {
+      data: {
+        id: "pkg_example",
+        release_id: "rel_example",
+        scope: "customer_review",
+        expires_at: "2026-06-30T00:00:00Z",
+        manifest_hash: "sha256:example",
+        included_subjects: [
+          "release_bundle",
+          "readiness_report",
+          "sbom_summary",
+          "vulnerability_decisions"
+        ],
+        redactions: [
+          "raw evidence payload bytes are excluded",
+          "secrets and private keys are excluded"
+        ],
+        limitations: [
+          "Customer package supports technical evidence review only.",
+          "It is not legal compliance proof, certification, or a secure-release guarantee."
+        ]
+      }
+    };
 
     const pick = (obj, paths) => {
       for (const path of paths) {
@@ -154,28 +190,35 @@
       summaryNode.append(panel);
     };
 
+    const renderPackage = (parsed, fileName) => {
+      const data = parsed.data || parsed.manifest || parsed;
+      summaryNode.textContent = "";
+      addPanel("File", fileName);
+      addPanel("Subject", pick(data, ["title", "id", "release_id", "subject_id", "manifest_hash"]));
+      addPanel("Result", pick(data, ["result", "status", "state"]));
+      addPanel("Release", pick(data, ["release_id", "release.id", "subject.release_id"]));
+      addPanel("Generated", pick(data, ["generated_at", "created_at", "checked_at"]));
+      addPanel("Limitations", Array.isArray(data.limitations) ? data.limitations.length : "not present");
+      jsonNode.textContent = JSON.stringify(parsed, null, 2);
+      statusNode.textContent = "Loaded locally.";
+    };
+
     fileInput.addEventListener("change", async () => {
       const file = fileInput.files && fileInput.files[0];
       if (!file) {
         return;
       }
       try {
-        const parsed = JSON.parse(await file.text());
-        const data = parsed.data || parsed.manifest || parsed;
-        summaryNode.textContent = "";
-        addPanel("File", file.name);
-        addPanel("Subject", pick(data, ["title", "id", "release_id", "subject_id", "manifest_hash"]));
-        addPanel("Result", pick(data, ["result", "status", "state"]));
-        addPanel("Release", pick(data, ["release_id", "release.id", "subject.release_id"]));
-        addPanel("Generated", pick(data, ["generated_at", "created_at", "checked_at"]));
-        addPanel("Limitations", Array.isArray(data.limitations) ? data.limitations.length : "not present");
-        jsonNode.textContent = JSON.stringify(parsed, null, 2);
-        statusNode.textContent = "Loaded locally.";
+        renderPackage(JSON.parse(await file.text()), file.name);
       } catch (error) {
         statusNode.textContent = "Could not parse JSON.";
         summaryNode.textContent = "";
         jsonNode.textContent = String(error);
       }
+    });
+
+    demoButton.addEventListener("click", () => {
+      renderPackage(bundledDemo, "bundled-demo-customer-package.json");
     });
   </script>
 </body>

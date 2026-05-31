@@ -6,7 +6,10 @@ release-evidence review.
 
 Open the file in a browser, then select a JSON package, readiness report,
 evidence bundle, or package manifest from disk. The viewer runs entirely in the
-browser and does not upload data.
+browser and does not upload data. To inspect a non-sensitive fixture without
+running the API, load
+`examples/end-to-end-release-evidence/sample-customer-package-manifest.json` or
+press **Load bundled demo** in the viewer.
 
 Use it for:
 

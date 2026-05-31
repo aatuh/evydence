@@ -150,6 +150,9 @@ self-hosted production readiness evidence.
 Do not describe an Evydence build as broadly self-hosted production-ready until:
 
 - `make production-check` passes in CI with live PostgreSQL;
+- `make black-box-demo-check` passes against a disposable PostgreSQL schema,
+  exercising API, worker, restart persistence, readiness, package, and
+  audit-chain verification paths;
 - coverage is at or above the configured threshold;
 - release artifacts have signed manifests and published checksums;
 - committed migrations have passed compatibility checks from every migration
