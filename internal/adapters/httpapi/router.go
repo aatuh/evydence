@@ -1494,6 +1494,36 @@ func (s *Server) createVulnerabilityDecision(w http.ResponseWriter, r *http.Requ
 	})
 }
 
+func (s *Server) listVulnerabilityDecisions(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	query := r.URL.Query()
+	var active *bool
+	if value := strings.TrimSpace(query.Get("active")); value != "" {
+		parsed, err := strconv.ParseBool(value)
+		if err != nil {
+			writeProblem(w, r, app.ErrValidation)
+			return
+		}
+		active = &parsed
+	}
+	decisions, err := s.ledger.ListVulnerabilityDecisions(r.Context(), actor, app.ListVulnerabilityDecisionsInput{
+		ProductID:     query.Get("product_id"),
+		ReleaseID:     query.Get("release_id"),
+		Vulnerability: query.Get("vulnerability"),
+		Component:     query.Get("component"),
+		Status:        query.Get("status"),
+		Active:        active,
+	})
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, decisions)
+}
+
 func (s *Server) recordVulnerabilityWorkflow(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Action string `json:"action"`

@@ -37,6 +37,15 @@ type CreateVulnerabilityDecisionInput struct {
 	EvidenceIDs     []string
 }
 
+type ListVulnerabilityDecisionsInput struct {
+	ProductID     string
+	ReleaseID     string
+	Vulnerability string
+	Component     string
+	Status        string
+	Active        *bool
+}
+
 type CreateExceptionInput struct {
 	ReleaseID string
 	FindingID string
@@ -259,6 +268,94 @@ func (s releaseEvidenceService) CreateVulnerabilityDecision(ctx context.Context,
 		return domain.VulnerabilityDecision{}, err
 	}
 	return decision, nil
+}
+
+func (s releaseEvidenceService) ListVulnerabilityDecisions(ctx context.Context, actor domain.Actor, in ListVulnerabilityDecisionsInput) ([]domain.VulnerabilityDecision, error) {
+	l := s.ledger
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := require(actor, ScopeEvidenceRead); err != nil {
+		return nil, err
+	}
+	in.ProductID = strings.TrimSpace(in.ProductID)
+	in.ReleaseID = strings.TrimSpace(in.ReleaseID)
+	in.Vulnerability = strings.TrimSpace(in.Vulnerability)
+	in.Component = strings.TrimSpace(in.Component)
+	in.Status = strings.TrimSpace(in.Status)
+	if in.Status != "" && !validDecisionStatus(in.Status) {
+		return nil, ErrValidation
+	}
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	filterProductID := in.ProductID
+	if filterProductID != "" {
+		product, ok := l.products[filterProductID]
+		if !ok || product.TenantID != actor.TenantID {
+			return nil, ErrNotFound
+		}
+		if err := l.authorizeResourceLocked(actor, ScopeEvidenceRead, resourceRefs{ProductID: product.ID}); err != nil {
+			return nil, err
+		}
+	}
+	if in.ReleaseID != "" {
+		release, ok := l.releases[in.ReleaseID]
+		if !ok || release.TenantID != actor.TenantID {
+			return nil, ErrNotFound
+		}
+		if filterProductID != "" && release.ProductID != filterProductID {
+			return nil, ErrNotFound
+		}
+		filterProductID = release.ProductID
+		if err := l.authorizeResourceLocked(actor, ScopeEvidenceRead, resourceRefs{ProductID: release.ProductID, ReleaseID: release.ID}); err != nil {
+			return nil, err
+		}
+	}
+
+	out := []domain.VulnerabilityDecision{}
+	for _, decision := range l.decisions {
+		if decision.TenantID != actor.TenantID {
+			continue
+		}
+		if in.ReleaseID != "" && decision.ReleaseID != in.ReleaseID {
+			continue
+		}
+		releaseProductID := ""
+		if decision.ReleaseID != "" {
+			release, ok := l.releases[decision.ReleaseID]
+			if !ok || release.TenantID != actor.TenantID {
+				continue
+			}
+			releaseProductID = release.ProductID
+		}
+		if filterProductID != "" && releaseProductID != filterProductID {
+			continue
+		}
+		if in.Vulnerability != "" && decision.Vulnerability != in.Vulnerability {
+			continue
+		}
+		if in.Component != "" && decision.Component != in.Component {
+			continue
+		}
+		if in.Status != "" && decision.Status != in.Status {
+			continue
+		}
+		if in.Active != nil && (*in.Active) != (decision.SupersededBy == "") {
+			continue
+		}
+		if !l.resourceAllowedLocked(actor, ScopeEvidenceRead, resourceRefs{ProductID: releaseProductID, ReleaseID: decision.ReleaseID}) {
+			continue
+		}
+		out = append(out, decision)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].CreatedAt.Equal(out[j].CreatedAt) {
+			return out[i].ID < out[j].ID
+		}
+		return out[i].CreatedAt.Before(out[j].CreatedAt)
+	})
+	return out, nil
 }
 
 func (s releaseEvidenceService) CreateException(ctx context.Context, actor domain.Actor, in CreateExceptionInput) (domain.Exception, error) {
