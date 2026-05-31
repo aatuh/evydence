@@ -997,9 +997,10 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	registry.RegisterSchema("CreateRedactionProfileRequest", objectSchema(map[string]any{
 		"name":            map[string]any{"type": "string"},
 		"description":     map[string]any{"type": "string"},
+		"preset":          map[string]any{"type": "string", "enum": []string{"customer_safe", "security_review"}, "description": "Optional standard profile preset. When set, allowed_types and excluded_fields are server-defined and must be omitted."},
 		"allowed_types":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 		"excluded_fields": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-	}, "name"))
+	}))
 	registry.RegisterSchema("RedactionProfile", objectSchema(map[string]any{
 		"id":              map[string]any{"type": "string"},
 		"tenant_id":       map[string]any{"type": "string"},

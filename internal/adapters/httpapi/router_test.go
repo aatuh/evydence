@@ -90,6 +90,10 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	if _, ok := decisionRequestProps["vex_document_id"]; !ok {
 		t.Fatalf("manual decision request schema missing vex_document_id: %#v", decisionRequestProps)
 	}
+	redactionRequestProps := asStringAnyMap(t, asStringAnyMap(t, schemas["CreateRedactionProfileRequest"])["properties"])
+	if _, ok := redactionRequestProps["preset"]; !ok {
+		t.Fatalf("redaction profile request schema missing preset: %#v", redactionRequestProps)
+	}
 	for _, schemaName := range []string{"ReadinessStatusEnvelope", "BackupManifestEnvelope", "VerificationResultEnvelope", "ReadinessReportEnvelope", "CreateProductRequest", "ProductEnvelope", "ProductListEnvelope", "CreateProjectRequest", "ProjectEnvelope", "CreateReleaseRequest", "ReleaseEnvelope", "RegisterArtifactRequest", "ArtifactEnvelope", "CreateBuildRequest", "BuildRunEnvelope", "EvidenceUploadRequest", "SBOMEnvelope", "VEXDocumentEnvelope", "VEXImportReportEnvelope", "UploadVulnerabilityScanRequest", "VulnerabilityScanEnvelope", "VulnerabilityDecisionListEnvelope", "VulnerabilityDecisionSummaryReportEnvelope", "CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOProviderRequest", "UpdateSSOProviderTrustMaterialRequest", "SSOProviderEnvelope", "VerifyProviderIdentityRequest", "ProviderVerificationEnvelope", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "ExchangeSSOCredentialRequest", "SSOCredentialExchangeEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalPackageRequest", "DataEnvelope"} {
 		if _, ok := schemas[schemaName]; !ok {
 			t.Fatalf("schema %s missing from OpenAPI components", schemaName)
@@ -1084,6 +1088,11 @@ func TestGovernancePackageAndBundleHTTPFlow(t *testing.T) {
 
 	profileBody := postJSON(t, server, secret, "/v1/redaction-profiles", "gov-profile", map[string]any{"name": "customer", "allowed_types": []string{"security_review"}, "excluded_fields": []string{"payload_ref"}}, http.StatusCreated)
 	profileID := dataField(t, profileBody, "id")
+	presetProfile := postJSON(t, server, secret, "/v1/redaction-profiles", "gov-profile-preset", map[string]any{"preset": "security_review"}, http.StatusCreated)
+	if !strings.Contains(presetProfile, `"name":"security_review"`) || !strings.Contains(presetProfile, "build_attestation") {
+		t.Fatalf("preset redaction profile response incomplete: %s", presetProfile)
+	}
+	postJSON(t, server, secret, "/v1/redaction-profiles", "gov-profile-preset-override", map[string]any{"preset": "customer_safe", "allowed_types": []string{"build"}}, http.StatusBadRequest)
 	packageBody := postJSON(t, server, secret, "/v1/customer-packages", "gov-package", map[string]any{"product_id": productID, "release_id": releaseID, "redaction_profile_id": profileID, "title": "Customer package", "expires_at": time.Now().UTC().Add(time.Hour).Format(time.RFC3339)}, http.StatusCreated)
 	packageID := dataField(t, packageBody, "id")
 	getJSON(t, server, secret, "/v1/customer-packages/"+packageID, http.StatusOK)

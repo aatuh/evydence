@@ -43,6 +43,21 @@ SSO/session token hashes, and tenant-internal vulnerability decision notes.
 Customer-visible vulnerability decisions require `impact_statement`; internal
 notes are not copied into `vulnerability_decisions`.
 
+## Presets
+
+`POST /v1/redaction-profiles` accepts either an explicit `allowed_types` list or
+a server-defined `preset`. Presets reject caller-supplied `allowed_types` or
+`excluded_fields` overrides so the package policy remains predictable.
+
+| Preset | Intended use | Default shape |
+| --- | --- | --- |
+| `customer_safe` | Customer release-evidence review. | Includes artifact, SBOM, vulnerability scan, VEX, active customer-visible decisions, release bundle, approval, exception, and waiver summaries. Excludes build provenance, internal URLs, raw payloads, token/key material, and internal notes. |
+| `security_review` | Broader technical security review. | Includes the customer-safe families plus build provenance, build attestations, security-scan/manual-review categories, and API/security-review records where present. Still excludes raw payloads, object-store references, secrets, token material, and private keys. |
+
+Custom profiles must supply at least one `allowed_types` entry. An empty custom
+profile is rejected because it would make package contents depend on implicit
+defaults instead of explicit operator scope.
+
 ## Viewer Compatibility
 
 The local package viewer at `site/package-viewer/index.html` loads v2 manifests

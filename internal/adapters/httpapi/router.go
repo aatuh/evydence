@@ -1009,6 +1009,7 @@ func (s *Server) createRedactionProfile(w http.ResponseWriter, r *http.Request) 
 	var req struct {
 		Name           string   `json:"name"`
 		Description    string   `json:"description"`
+		Preset         string   `json:"preset"`
 		AllowedTypes   []string `json:"allowed_types"`
 		ExcludedFields []string `json:"excluded_fields"`
 	}
@@ -1016,7 +1017,7 @@ func (s *Server) createRedactionProfile(w http.ResponseWriter, r *http.Request) 
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		profile, err := s.ledger.CreateRedactionProfile(ctx, actor, app.CreateRedactionProfileInput{Name: req.Name, Description: req.Description, AllowedTypes: req.AllowedTypes, ExcludedFields: req.ExcludedFields})
+		profile, err := s.ledger.CreateRedactionProfile(ctx, actor, app.CreateRedactionProfileInput{Name: req.Name, Description: req.Description, Preset: req.Preset, AllowedTypes: req.AllowedTypes, ExcludedFields: req.ExcludedFields})
 		return http.StatusCreated, profile, err
 	})
 }

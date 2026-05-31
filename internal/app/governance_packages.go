@@ -38,6 +38,7 @@ type CreateApprovalInput struct {
 type CreateRedactionProfileInput struct {
 	Name           string
 	Description    string
+	Preset         string
 	AllowedTypes   []string
 	ExcludedFields []string
 }
@@ -78,6 +79,105 @@ type CreateDSSETrustRootInput struct {
 	KeyID     string
 	Algorithm string
 	PublicKey string
+}
+
+type redactionProfilePreset struct {
+	Name           string
+	Description    string
+	AllowedTypes   []string
+	ExcludedFields []string
+}
+
+var redactionProfilePresets = map[string]redactionProfilePreset{
+	"customer_safe": {
+		Name:        "customer_safe",
+		Description: "Customer-safe package profile for release evidence summaries without raw payloads, secrets, internal notes, or internal-only provenance fields.",
+		AllowedTypes: []string{
+			"artifact",
+			"sbom",
+			"vulnerability_scan",
+			"vex",
+			"vulnerability_decision",
+			"release_bundle",
+			"approval",
+			"exception",
+			"waiver",
+		},
+		ExcludedFields: []string{
+			"action_internal_url",
+			"environment_hash",
+			"internal_notes",
+			"internal_url",
+			"object_key",
+			"oidc_subject",
+			"parameters_hash",
+			"payload",
+			"payload_bytes",
+			"payload_ref",
+			"private_key",
+			"repository",
+			"secret",
+			"source_identity",
+			"token",
+			"workflow_ref",
+		},
+	},
+	"security_review": {
+		Name:        "security_review",
+		Description: "Security-review package profile for broader technical evidence review while still excluding raw payloads, secrets, token material, and private keys.",
+		AllowedTypes: []string{
+			"api_security",
+			"approval",
+			"artifact",
+			"build",
+			"build_attestation",
+			"dast",
+			"exception",
+			"license_scan",
+			"manual_security_document",
+			"openapi_contract",
+			"pen_test_report",
+			"release_bundle",
+			"sast",
+			"sbom",
+			"secret_scan",
+			"security_review",
+			"threat_model",
+			"vex",
+			"vulnerability_decision",
+			"vulnerability_scan",
+			"waiver",
+		},
+		ExcludedFields: []string{
+			"internal_notes",
+			"object_key",
+			"payload",
+			"payload_bytes",
+			"payload_ref",
+			"private_key",
+			"secret",
+			"token",
+		},
+	},
+}
+
+func applyRedactionProfilePreset(in CreateRedactionProfileInput) (CreateRedactionProfileInput, error) {
+	presetName := strings.TrimSpace(in.Preset)
+	if presetName == "" {
+		return in, nil
+	}
+	preset, ok := redactionProfilePresets[presetName]
+	if !ok {
+		return CreateRedactionProfileInput{}, ErrValidation
+	}
+	if len(in.AllowedTypes) > 0 || len(in.ExcludedFields) > 0 {
+		return CreateRedactionProfileInput{}, ErrValidation
+	}
+	in.Name = preset.Name
+	in.Description = preset.Description
+	in.AllowedTypes = append([]string(nil), preset.AllowedTypes...)
+	in.ExcludedFields = append([]string(nil), preset.ExcludedFields...)
+	return in, nil
 }
 
 func (l *Ledger) CreateWaiver(ctx context.Context, actor domain.Actor, in CreateWaiverInput) (domain.Waiver, error) {
@@ -211,8 +311,16 @@ func (s packageReportService) CreateRedactionProfile(ctx context.Context, actor 
 	if err := require(actor, ScopePackageWrite); err != nil {
 		return domain.RedactionProfile{}, err
 	}
+	var err error
+	in, err = applyRedactionProfilePreset(in)
+	if err != nil {
+		return domain.RedactionProfile{}, err
+	}
 	in.Name = strings.TrimSpace(in.Name)
 	if in.Name == "" {
+		return domain.RedactionProfile{}, ErrValidation
+	}
+	if len(in.AllowedTypes) == 0 {
 		return domain.RedactionProfile{}, ErrValidation
 	}
 	for _, typ := range in.AllowedTypes {

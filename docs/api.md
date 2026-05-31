@@ -424,7 +424,9 @@ Customer package manifests use the documented
 schema. They include scoped release metadata, evidence summaries, redaction
 profile details, readiness checks, verification material, limitations, and
 non-claims while excluding raw payload bytes, object-store references, secrets,
-token hashes, and internal decision notes.
+token hashes, and internal decision notes. Redaction profiles can be created
+from explicit `allowed_types` or the `customer_safe` / `security_review`
+presets; preset policy fields cannot be overridden in the create request.
 
 ### Integrity, Verification, And Operations
 
