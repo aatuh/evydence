@@ -252,3 +252,22 @@ func TestOpenProviderIdentityValidatorRequiresHTTPSForRemoteGateway(t *testing.T
 		t.Fatalf("remote http provider validator err=%v, want https rejection", err)
 	}
 }
+
+func TestOpenTransparencyProofFetcherUsesGatewayWhenConfigured(t *testing.T) {
+	t.Setenv("EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_URL", "http://127.0.0.1/proof")
+	t.Setenv("EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_ALLOW_INSECURE_LOCALHOST", "true")
+	fetcher, err := openTransparencyProofFetcher()
+	if err != nil {
+		t.Fatalf("transparency proof gateway should be accepted: %v", err)
+	}
+	if fetcher == nil {
+		t.Fatal("expected transparency proof fetcher")
+	}
+}
+
+func TestOpenTransparencyProofFetcherRequiresHTTPSForRemoteGateway(t *testing.T) {
+	t.Setenv("EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_URL", "http://transparency.example.test/proof")
+	if _, err := openTransparencyProofFetcher(); err == nil || !strings.Contains(err.Error(), "https") {
+		t.Fatalf("remote http transparency gateway err=%v, want https rejection", err)
+	}
+}

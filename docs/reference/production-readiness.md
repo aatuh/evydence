@@ -73,9 +73,10 @@ Known hardening work remains:
   creating permanent role bindings, provider verification can optionally call a
   discovered OIDC UserInfo endpoint or an operator-controlled provider
   validation gateway with a supplied access token, and public transparency
-  proof material can be fetched from a configured endpoint and verified
-  locally, but provider-specific trust semantics and availability remain
-  deployment responsibilities;
+  proof material can be fetched from a configured endpoint or an
+  operator-controlled transparency proof gateway and verified locally, but
+  provider-specific trust semantics and availability remain deployment
+  responsibilities;
 - the broader production exit review remains incomplete.
 
 ## Production Profiles

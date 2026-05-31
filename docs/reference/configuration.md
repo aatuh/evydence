@@ -64,6 +64,10 @@ The example secrets are placeholders. Replace them before using shared or produc
 | `EVYDENCE_AWS_KMS_ENDPOINT` | No | unset | Optional AWS KMS-compatible endpoint for tests or controlled private endpoints. |
 | `EVYDENCE_AWS_KMS_SIGNING_ALGORITHM` | No | `ECDSA_SHA_256` | Supported values are `ECDSA_SHA_256`, `RSASSA_PSS_SHA_256`, and `RSASSA_PKCS1_V1_5_SHA_256` because Evydence signs stored SHA-256 payload hashes. |
 | `EVYDENCE_AWS_KMS_TIMEOUT_SECONDS` | No | `10` | Timeout for AWS KMS signing requests. |
+| `EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_URL` | No | unset | Optional HTTPS operator-controlled gateway for transparency inclusion proof fetch/verification material. When unset, Evydence fetches from the configured public log endpoint. |
+| `EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_TOKEN` | Gateway | unset | Optional bearer token for the transparency proof gateway. Store outside source control and logs. |
+| `EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_TIMEOUT_SECONDS` | No | `10` | Timeout for transparency proof gateway requests. |
+| `EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_ALLOW_INSECURE_LOCALHOST` | Local only | `false` | Allows an HTTP localhost transparency proof gateway for tests. Do not use for production. |
 | `EVYDENCE_TEST_DATABASE_URL` | Live tests | `.test.env.example` value | Used by `make live-postgres-check`, `make postgres-integration-test`, and `make release-check`. |
 
 ## Production Rejection Checks
@@ -151,6 +155,20 @@ other provider-specific validation logic that depends on deployment-owned
 credentials and policies. It does not make external group synchronization
 automatic, does not create permanent role bindings, and does not prove provider
 truth beyond the gateway response and recorded limitations.
+
+## Transparency Proof Gateway
+
+When `EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_URL` is set, public transparency
+proof fetches call an operator-controlled HTTPS gateway instead of constructing
+`/entries/{external_id}/inclusion-proof` requests directly against the log
+endpoint. Evydence sends tenant id, log id, entry id, configured endpoint,
+external entry id, and the expected Evydence entry hash. The gateway returns
+RFC6962-style proof material plus optional non-secret checks and limitations.
+
+Evydence still verifies the returned proof material locally against the
+published entry hash. The gateway records provider-specific proof retrieval or
+timestamp semantics as evidence only; operators remain responsible for public
+log trust, gateway operation, and provider availability.
 
 ## Related Commands
 
