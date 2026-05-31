@@ -60,6 +60,39 @@ func TestValidateProductionLoadModeRequiresRelationalOnly(t *testing.T) {
 	}
 }
 
+func TestStoreAPIWriterLeaseIsExclusive(t *testing.T) {
+	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("EVYDENCE_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	first, err := Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer first.Close()
+	second, err := Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer second.Close()
+	releaseFirst, err := first.AcquireAPIWriterLease(ctx)
+	if err != nil {
+		t.Fatalf("first lease: %v", err)
+	}
+	if _, err := second.AcquireAPIWriterLease(ctx); err == nil || !strings.Contains(err.Error(), "already active") {
+		releaseFirst()
+		t.Fatalf("second lease err=%v, want active writer rejection", err)
+	}
+	releaseFirst()
+	releaseSecond, err := second.AcquireAPIWriterLease(ctx)
+	if err != nil {
+		t.Fatalf("second lease after release: %v", err)
+	}
+	releaseSecond()
+}
+
 func TestStoreCanDisableSnapshotWritesAndLoadRelationalState(t *testing.T) {
 	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
 	if databaseURL == "" {

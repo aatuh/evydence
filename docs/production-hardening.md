@@ -11,6 +11,8 @@ Before labeling a deployment production, verify:
 - `EVYDENCE_API_KEY_PEPPER` is a non-default random value.
 - `EVYDENCE_SIGNING_KEY_MODE=external` or `EVYDENCE_SIGNING_KEY_MODE=aws-kms` is set.
 - `EVYDENCE_PRINT_BOOTSTRAP_SECRET` is unset or false.
+- Only one API writer replica is deployed; production API startup also enforces
+  this with a PostgreSQL advisory writer lease.
 
 These checks are enforced by API startup. See [Configuration](reference/configuration.md).
 

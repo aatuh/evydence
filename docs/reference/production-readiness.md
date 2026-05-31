@@ -91,10 +91,12 @@ The current self-hosted production profile supports one API writer replica.
 This is intentional while the application still uses a large in-process ledger
 aggregate and some resource families still use aggregate persistence. Focused
 critical mutations reduce the riskiest `SaveState` dependence, but they are
-not a full multi-writer concurrency design. Do not scale API writer replicas
-above one for production use until focused relational repository writes cover
-all write families or another reviewed concurrency-control design is
-implemented and documented.
+not a full multi-writer concurrency design. When `ENV=production` and
+PostgreSQL is configured, API startup takes a PostgreSQL advisory writer lease
+and fails if another API writer already holds it. Do not scale API writer
+replicas above one for production use until focused relational repository
+writes cover all write families or another reviewed concurrency-control design
+is implemented and documented.
 
 Worker replicas may be scaled because persisted outbox jobs are claimed with
 PostgreSQL row locking. Scaling workers increases parser/signing/report
