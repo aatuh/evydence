@@ -72,8 +72,9 @@ Known hardening work remains:
   material, OIDC group claim values can map to session-scoped roles without
   creating permanent role bindings, provider verification can optionally call a
   discovered OIDC UserInfo endpoint or an operator-controlled provider
-  validation gateway with a supplied access token, and public transparency
-  proof material can be fetched from a configured endpoint or an
+  validation gateway when a caller supplies an access token. The gateway
+  receives only non-secret metadata and an access-token-present flag. Public
+  transparency proof material can be fetched from a configured endpoint or an
   operator-controlled transparency proof gateway and verified locally, but
   provider-specific trust semantics and availability remain deployment
   responsibilities;
@@ -218,8 +219,9 @@ implemented capabilities:
   is implemented for public trust-material updates, manual JWKS and SAML
   signing-certificate rotation is implemented through the SSO provider
   trust-material endpoint, provider verification can optionally call OIDC
-  UserInfo or an operator-controlled provider validation gateway with a
-  supplied access token and record group-claim checks without storing the token,
+  UserInfo or an operator-controlled provider validation gateway when a caller
+  supplies an access token and record group-claim checks without storing or
+  forwarding that token to the gateway,
   SSO credential exchange can issue bearer sessions plus HttpOnly cookies after
   local token or assertion verification, OIDC group claim values can map to
   session-scoped roles, and API-first session logout can revoke the current SSO

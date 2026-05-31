@@ -2,6 +2,7 @@ package httpvalidator
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,12 +15,18 @@ import (
 func TestValidateProviderIdentityPostsSafeRequestAndReturnsChecks(t *testing.T) {
 	var gotAuth string
 	var gotRequest validationRequest
+	var gotBody []byte
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			t.Fatalf("method = %s", r.Method)
 		}
 		gotAuth = r.Header.Get("Authorization")
-		if err := json.NewDecoder(r.Body).Decode(&gotRequest); err != nil {
+		var err error
+		gotBody, err = io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(gotBody, &gotRequest); err != nil {
 			t.Fatal(err)
 		}
 		_ = json.NewEncoder(w).Encode(validationResponse{
@@ -52,8 +59,11 @@ func TestValidateProviderIdentityPostsSafeRequestAndReturnsChecks(t *testing.T) 
 	if gotAuth != "Bearer gateway-token" {
 		t.Fatalf("auth header = %q", gotAuth)
 	}
-	if gotRequest.AccessToken != "access-token-secret" || !gotRequest.AccessTokenPresent || gotRequest.Subject != "sub-1" {
+	if !gotRequest.AccessTokenPresent || gotRequest.Subject != "sub-1" {
 		t.Fatalf("request = %#v", gotRequest)
+	}
+	if strings.Contains(string(gotBody), "access-token-secret") {
+		t.Fatalf("gateway request leaked supplied access token: %s", gotBody)
 	}
 	if len(result.Groups) != 2 || result.Groups[0] != "security" || result.Groups[1] != "engineering" {
 		t.Fatalf("groups = %#v", result.Groups)
