@@ -326,6 +326,34 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "id", "tenant_id", "finding_id", "scan_id", "vulnerability", "status", "justification", "source", "schema_version", "created_at"))
 	registry.RegisterSchema("VulnerabilityDecisionEnvelope", dataEnvelopeSchema("#/components/schemas/VulnerabilityDecision"))
 	registry.RegisterSchema("VulnerabilityDecisionListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/VulnerabilityDecision"))
+	registry.RegisterSchema("VulnerabilityDecisionCustomerSummary", objectSchema(map[string]any{
+		"id":               map[string]any{"type": "string"},
+		"finding_id":       map[string]any{"type": "string"},
+		"scan_id":          map[string]any{"type": "string"},
+		"release_id":       map[string]any{"type": "string"},
+		"vulnerability":    map[string]any{"type": "string"},
+		"component":        map[string]any{"type": "string"},
+		"status":           map[string]any{"type": "string"},
+		"justification":    map[string]any{"type": "string"},
+		"impact_statement": map[string]any{"type": "string"},
+		"action_statement": map[string]any{"type": "string"},
+		"source":           map[string]any{"type": "string"},
+		"evidence_id":      map[string]any{"type": "string"},
+		"evidence_ids":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"vex_document_id":  map[string]any{"type": "string"},
+		"created_at":       map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "finding_id", "scan_id", "release_id", "vulnerability", "status", "impact_statement", "source", "created_at"))
+	registry.RegisterSchema("VulnerabilityDecisionSummaryReport", objectSchema(map[string]any{
+		"report_type":      map[string]any{"type": "string"},
+		"template_version": map[string]any{"type": "string"},
+		"product_id":       map[string]any{"type": "string"},
+		"release_id":       map[string]any{"type": "string"},
+		"decisions":        map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/VulnerabilityDecisionCustomerSummary"}},
+		"assumptions":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"limitations":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"generated_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "report_type", "template_version", "product_id", "release_id", "decisions", "assumptions", "limitations", "generated_at"))
+	registry.RegisterSchema("VulnerabilityDecisionSummaryReportEnvelope", dataEnvelopeSchema("#/components/schemas/VulnerabilityDecisionSummaryReport"))
 	registry.RegisterSchema("RecordVulnerabilityWorkflowRequest", objectSchema(map[string]any{
 		"action": map[string]any{"type": "string"},
 		"reason": map[string]any{"type": "string"},

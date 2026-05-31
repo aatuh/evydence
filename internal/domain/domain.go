@@ -1113,6 +1113,35 @@ type VulnerabilityDecision struct {
 	CreatedAt       time.Time `json:"created_at"`
 }
 
+type VulnerabilityDecisionCustomerSummary struct {
+	ID              string    `json:"id"`
+	FindingID       string    `json:"finding_id"`
+	ScanID          string    `json:"scan_id"`
+	ReleaseID       string    `json:"release_id"`
+	Vulnerability   string    `json:"vulnerability"`
+	Component       string    `json:"component,omitempty"`
+	Status          string    `json:"status"`
+	Justification   string    `json:"justification,omitempty"`
+	ImpactStatement string    `json:"impact_statement"`
+	ActionStatement string    `json:"action_statement,omitempty"`
+	Source          string    `json:"source"`
+	EvidenceID      string    `json:"evidence_id,omitempty"`
+	EvidenceIDs     []string  `json:"evidence_ids,omitempty"`
+	VEXDocumentID   string    `json:"vex_document_id,omitempty"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
+type VulnerabilityDecisionSummaryReport struct {
+	ReportType      string                                 `json:"report_type"`
+	TemplateVersion string                                 `json:"template_version"`
+	ProductID       string                                 `json:"product_id"`
+	ReleaseID       string                                 `json:"release_id"`
+	Decisions       []VulnerabilityDecisionCustomerSummary `json:"decisions"`
+	Assumptions     []string                               `json:"assumptions"`
+	Limitations     []string                               `json:"limitations"`
+	GeneratedAt     time.Time                              `json:"generated_at"`
+}
+
 type OpenAPIContract struct {
 	ID         string             `json:"id"`
 	TenantID   string             `json:"tenant_id"`

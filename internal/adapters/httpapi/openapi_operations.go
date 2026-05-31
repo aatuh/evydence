@@ -601,6 +601,10 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Description = "Returns a vulnerability posture report derived from stored scan, decision, VEX, exception, and workflow records."
 		operation.Parameters = append(operation.Parameters, queryParam("release_id", "Release id.", "string"))
 		operation.Responses[http.StatusOK] = jsonResponse("Vulnerability posture report envelope.", "#/components/schemas/VulnerabilityPostureReportEnvelope")
+	case "vulnerabilityDecisionSummaryReport":
+		operation.Description = "Returns customer-safe active vulnerability decision summaries for a release with assumptions and limitations. Raw payloads and internal notes are excluded."
+		operation.Parameters = append(operation.Parameters, queryParam("release_id", "Release id.", "string"))
+		operation.Responses[http.StatusOK] = jsonResponse("Vulnerability decision summary report envelope.", "#/components/schemas/VulnerabilityDecisionSummaryReportEnvelope")
 	case "generateAnomalyReport":
 		operation.Description = "Creates a deterministic anomaly report over existing tenant evidence and metrics with assumptions and limitations."
 		operation.RequestBody = jsonRequest("Anomaly report creation request.", "#/components/schemas/CreateAnomalyReportRequest")

@@ -358,6 +358,78 @@ func (s releaseEvidenceService) ListVulnerabilityDecisions(ctx context.Context, 
 	return out, nil
 }
 
+func (s releaseEvidenceService) VulnerabilityDecisionSummaryReport(ctx context.Context, actor domain.Actor, releaseID string) (domain.VulnerabilityDecisionSummaryReport, error) {
+	l := s.ledger
+	if err := ctx.Err(); err != nil {
+		return domain.VulnerabilityDecisionSummaryReport{}, err
+	}
+	if err := require(actor, ScopeReportRead); err != nil {
+		return domain.VulnerabilityDecisionSummaryReport{}, err
+	}
+	releaseID = strings.TrimSpace(releaseID)
+	if releaseID == "" {
+		return domain.VulnerabilityDecisionSummaryReport{}, ErrValidation
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	release, ok := l.releases[releaseID]
+	if !ok || release.TenantID != actor.TenantID {
+		return domain.VulnerabilityDecisionSummaryReport{}, ErrNotFound
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeReportRead, resourceRefs{ProductID: release.ProductID, ReleaseID: release.ID}); err != nil {
+		return domain.VulnerabilityDecisionSummaryReport{}, err
+	}
+	decisions := []domain.VulnerabilityDecisionCustomerSummary{}
+	for _, decision := range l.decisions {
+		if decision.TenantID != actor.TenantID || decision.ReleaseID != release.ID || decision.SupersededBy != "" || !decision.CustomerVisible {
+			continue
+		}
+		decisions = append(decisions, customerDecisionSummary(decision))
+	}
+	sort.Slice(decisions, func(i, j int) bool {
+		if decisions[i].CreatedAt.Equal(decisions[j].CreatedAt) {
+			return decisions[i].ID < decisions[j].ID
+		}
+		return decisions[i].CreatedAt.Before(decisions[j].CreatedAt)
+	})
+	return domain.VulnerabilityDecisionSummaryReport{
+		ReportType:      "vulnerability_decision_summary",
+		TemplateVersion: "vulnerability-decision-summary.v1.0.0",
+		ProductID:       release.ProductID,
+		ReleaseID:       release.ID,
+		Decisions:       decisions,
+		Assumptions: []string{
+			"Only active vulnerability decisions marked customer_visible are included.",
+			"Evidence identifiers point to records in this Evydence instance; raw evidence payload bytes are not included.",
+		},
+		Limitations: []string{
+			"This summary supports compliance-readiness review; it is not certification, legal advice, complete SBOM proof, or authoritative vulnerability coverage.",
+			"Decision accuracy depends on tenant-supplied evidence, scanner inputs, and review quality.",
+		},
+		GeneratedAt: l.now(),
+	}, nil
+}
+
+func customerDecisionSummary(decision domain.VulnerabilityDecision) domain.VulnerabilityDecisionCustomerSummary {
+	return domain.VulnerabilityDecisionCustomerSummary{
+		ID:              decision.ID,
+		FindingID:       decision.FindingID,
+		ScanID:          decision.ScanID,
+		ReleaseID:       decision.ReleaseID,
+		Vulnerability:   decision.Vulnerability,
+		Component:       decision.Component,
+		Status:          decision.Status,
+		Justification:   decision.Justification,
+		ImpactStatement: decision.ImpactStatement,
+		ActionStatement: decision.ActionStatement,
+		Source:          decision.Source,
+		EvidenceID:      decision.EvidenceID,
+		EvidenceIDs:     append([]string(nil), decision.EvidenceIDs...),
+		VEXDocumentID:   decision.VEXDocumentID,
+		CreatedAt:       decision.CreatedAt,
+	}
+}
+
 func (s releaseEvidenceService) CreateException(ctx context.Context, actor domain.Actor, in CreateExceptionInput) (domain.Exception, error) {
 	l := s.ledger
 	if err := ctx.Err(); err != nil {

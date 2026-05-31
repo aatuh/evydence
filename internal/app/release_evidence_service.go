@@ -110,6 +110,10 @@ func (l *Ledger) ListVulnerabilityDecisions(ctx context.Context, actor domain.Ac
 	return l.releaseEvidenceService().ListVulnerabilityDecisions(ctx, actor, in)
 }
 
+func (l *Ledger) VulnerabilityDecisionSummaryReport(ctx context.Context, actor domain.Actor, releaseID string) (domain.VulnerabilityDecisionSummaryReport, error) {
+	return l.releaseEvidenceService().VulnerabilityDecisionSummaryReport(ctx, actor, releaseID)
+}
+
 func (l *Ledger) CreateException(ctx context.Context, actor domain.Actor, in CreateExceptionInput) (domain.Exception, error) {
 	return l.releaseEvidenceService().CreateException(ctx, actor, in)
 }

@@ -3,7 +3,7 @@
 This generated reference inventories Evydence `/v1` route contract precision from `openapi.yaml`.
 It is a planning aid for production contract hardening; `broad` means the route still uses a shared envelope, unspecified body, or generic schema where an endpoint-specific contract should be considered.
 
-Generated from 167 operations: 167 precise, 0 broad.
+Generated from 168 operations: 168 precise, 0 broad.
 
 | Method | Path | Operation | Auth | Scopes | Idempotency | Params | Request | 2xx Response | Precision |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -129,6 +129,7 @@ Generated from 167 operations: 167 precise, 0 broad.
 | GET | /v1/reports/release-readiness | releaseReadinessReport | Bearer | verify:read | - | query:release_id | - | 200:application/json:ReadinessReportEnvelope | precise |
 | GET | /v1/reports/retention | retentionReport | Bearer | admin | - | query:scope_id, query:scope_type | - | 200:application/json:RetentionReportEnvelope | precise |
 | GET | /v1/reports/security-review-package | securityReviewPackageReport | Bearer | package:read | - | query:package_id | - | 200:application/json:SecurityReviewPackageReportEnvelope | precise |
+| GET | /v1/reports/vulnerability-decision-summary | vulnerabilityDecisionSummaryReport | Bearer | report:read | - | query:release_id | - | 200:application/json:VulnerabilityDecisionSummaryReportEnvelope | precise |
 | GET | /v1/reports/vulnerability-posture | vulnerabilityPostureReport | Bearer | security:read | - | query:release_id | - | 200:application/json:VulnerabilityPostureReportEnvelope | precise |
 | POST | /v1/retention-overrides | createRetentionOverride | Bearer | admin | required | - | application/json:CreateRetentionOverrideRequest | 201:application/json:RetentionOverrideEnvelope | precise |
 | GET | /v1/role-bindings | listRoleBindings | Bearer | identity:admin | - | - | - | 200:application/json:RoleBindingListEnvelope | precise |

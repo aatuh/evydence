@@ -192,6 +192,17 @@ The history endpoint supports `product_id`, `release_id`, `vulnerability`,
 records, including timestamps and supersession fields. It is tenant-scoped and
 requires `evidence:read`.
 
+Customer-safe decision summary:
+
+```http
+GET /v1/reports/vulnerability-decision-summary?release_id=rel_...
+```
+
+The summary endpoint returns only active decisions marked `customer_visible`.
+It excludes `internal_notes`, raw payload bytes, object-store references, bearer
+tokens, and private review context. The response includes assumptions and
+limitations and is intended for package viewers and exports.
+
 ### 4. Readiness And Bundle Retrieval
 
 Create a release bundle:
@@ -309,6 +320,7 @@ Current SSO endpoints model admin-managed provider, identity-link, trust-materia
 | `GET` | `/v1/vulnerability-decisions` | List decision history by product, release, vulnerability, component, status, and active state. |
 | `POST` | `/v1/vulnerability-findings/{id}/workflow` | Append workflow event. |
 | `GET` | `/v1/reports/vulnerability-posture` | Summarize findings for a release. |
+| `GET` | `/v1/reports/vulnerability-decision-summary` | Customer-safe active vulnerability decision summary for a release. |
 | `GET` | `/v1/reports/release-readiness` | Deterministic readiness report. |
 | `GET` | `/v1/reports/missing-evidence` | Missing evidence report for review. |
 | `POST` | `/v1/reports/anomaly` | Generate deterministic evidence anomaly signals. |

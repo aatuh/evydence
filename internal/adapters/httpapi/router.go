@@ -1551,6 +1551,19 @@ func (s *Server) vulnerabilityPostureReport(w http.ResponseWriter, r *http.Reque
 	writeData(w, http.StatusOK, report)
 }
 
+func (s *Server) vulnerabilityDecisionSummaryReport(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	report, err := s.ledger.VulnerabilityDecisionSummaryReport(r.Context(), actor, r.URL.Query().Get("release_id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, report)
+}
+
 func (s *Server) uploadOpenAPIContract(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ProductID string          `json:"product_id"`
