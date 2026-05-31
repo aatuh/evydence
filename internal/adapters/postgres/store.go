@@ -198,100 +198,101 @@ func (s *Store) loadRelationalState(ctx context.Context) (app.PersistedState, bo
 
 func relationalEmptyState() app.PersistedState {
 	return app.PersistedState{
-		Tenants:                  map[string]domain.Tenant{},
-		Organizations:            map[string]domain.Organization{},
-		Users:                    map[string]domain.HumanUser{},
-		RoleBindings:             map[string]domain.RoleBinding{},
-		SSOProviders:             map[string]domain.SSOProvider{},
-		IdentityLinks:            map[string]domain.UserIdentityLink{},
-		SSOSessions:              map[string]domain.SSOSession{},
-		SSOSessionHashes:         map[string]string{},
-		APIKeys:                  map[string]domain.APIKey{},
-		APIKeyHashes:             map[string]string{},
-		Collectors:               map[string]domain.Collector{},
-		CollectorReleases:        map[string]domain.CollectorRelease{},
-		BuildRuns:                map[string]domain.BuildRun{},
-		BuildAttestations:        map[string]domain.BuildAttestation{},
-		EvidenceLifecycle:        map[string]domain.EvidenceLifecycleEvent{},
-		ReleaseCandidates:        map[string]domain.ReleaseCandidate{},
-		ContainerImages:          map[string]domain.ContainerImage{},
-		ArtifactSignatures:       map[string]domain.ArtifactSignature{},
-		Repositories:             map[string]domain.SourceRepository{},
-		Commits:                  map[string]domain.SourceCommit{},
-		Branches:                 map[string]domain.SourceBranch{},
-		PullRequests:             map[string]domain.PullRequest{},
-		Environments:             map[string]domain.DeploymentEnvironment{},
-		Deployments:              map[string]domain.DeploymentEvent{},
-		Incidents:                map[string]domain.Incident{},
-		TimelineEvents:           map[string]domain.IncidentTimelineEvent{},
-		IncidentWebhookReceivers: map[string]domain.IncidentWebhookReceiver{},
-		IncidentWebhookEvents:    map[string]domain.IncidentWebhookEvent{},
-		RemediationTasks:         map[string]domain.RemediationTask{},
-		SecurityScans:            map[string]domain.SecurityScan{},
-		ManualSecurityDocs:       map[string]domain.ManualSecurityDocument{},
-		SBOMDiffs:                map[string]domain.SBOMDiff{},
-		DependencyChanges:        map[string]domain.DependencyChange{},
-		VulnerabilityWorkflow:    map[string]domain.VulnerabilityWorkflowRecord{},
-		ContractDiffs:            map[string]domain.ContractDiff{},
-		CustomPolicies:           map[string]domain.CustomPolicy{},
-		CustomPolicyEvaluations:  map[string]domain.CustomPolicyEvaluation{},
-		Waivers:                  map[string]domain.Waiver{},
-		Approvals:                map[string]domain.ApprovalRecord{},
-		DSSETrustRoots:           map[string]domain.DSSETrustRoot{},
-		CosignVerifications:      map[string]domain.CosignVerification{},
-		SigningProviders:         map[string]domain.SigningProvider{},
-		MerkleBatches:            map[string]domain.MerkleBatch{},
-		TransparencyCheckpoints:  map[string]domain.TransparencyCheckpoint{},
-		CustomerPortalAccess:     map[string]domain.CustomerPortalAccess{},
-		CustomerPortalHashes:     map[string]string{},
-		RedactionProfiles:        map[string]domain.RedactionProfile{},
-		CustomerPackages:         map[string]domain.CustomerSecurityPackage{},
-		HTMLReports:              map[string]domain.HTMLReportPackage{},
-		ReportTemplates:          map[string]domain.CustomReportTemplate{},
-		RenderedReports:          map[string]domain.RenderedCustomReport{},
-		EvidenceBundles:          map[string]domain.EvidenceBundle{},
-		BundleImports:            map[string]domain.EvidenceBundleImport{},
-		ObjectRetentionPolicies:  map[string]domain.ObjectRetentionPolicy{},
-		BackupManifests:          map[string]domain.BackupManifest{},
-		LegalHolds:               map[string]domain.LegalHold{},
-		RetentionOverrides:       map[string]domain.RetentionOverride{},
-		QuestionnaireTemplates:   map[string]domain.QuestionnaireTemplate{},
-		QuestionnairePackages:    map[string]domain.QuestionnairePackage{},
-		CommercialCollectors:     map[string]domain.CommercialCollectorDefinition{},
-		EvidenceSummaries:        map[string]domain.EvidenceSummary{},
-		QuestionnaireDrafts:      map[string]domain.QuestionnaireDraft{},
-		GraphSnapshots:           map[string]domain.EvidenceGraphSnapshot{},
-		SaaSProfiles:             map[string]domain.SaaSEditionProfile{},
-		PublicTransparencyLogs:   map[string]domain.PublicTransparencyLog{},
-		PublicTransparencyItems:  map[string]domain.PublicTransparencyLogEntry{},
-		MarketplaceCollectors:    map[string]domain.MarketplaceCollector{},
-		PDFReports:               map[string]domain.PDFReportPackage{},
-		AnomalyReports:           map[string]domain.AnomalyReport{},
-		ProviderVerifications:    map[string]domain.ProviderVerification{},
-		SigningOperations:        map[string]domain.SigningOperation{},
-		ControlFrameworks:        map[string]domain.ControlFramework{},
-		SecurityControls:         map[string]domain.SecurityControl{},
-		ControlEvidence:          map[string]domain.ControlEvidence{},
-		Products:                 map[string]domain.Product{},
-		Projects:                 map[string]domain.Project{},
-		Releases:                 map[string]domain.Release{},
-		Artifacts:                map[string]domain.Artifact{},
-		Evidence:                 map[string]domain.EvidenceItem{},
-		SBOMs:                    map[string]domain.SBOM{},
-		Scans:                    map[string]domain.VulnerabilityScan{},
-		VEXDocuments:             map[string]domain.VEXDocument{},
-		VEXImportReports:         map[string]domain.VEXImportReport{},
-		Decisions:                map[string]domain.VulnerabilityDecision{},
-		Contracts:                map[string]domain.OpenAPIContract{},
-		Policies:                 map[string]domain.PolicyEvaluation{},
-		Exceptions:               map[string]domain.Exception{},
-		Bundles:                  map[string]domain.ReleaseBundle{},
-		SigningKeys:              map[string]domain.SigningKey{},
-		SigningKeyPrivate:        map[string][]byte{},
-		Signatures:               map[string]domain.Signature{},
-		Verifications:            map[string]domain.VerificationResult{},
-		Chain:                    map[string][]domain.AuditChainEntry{},
-		Idempotency:              map[string]app.IdempotencyRecord{},
+		Tenants:                    map[string]domain.Tenant{},
+		Organizations:              map[string]domain.Organization{},
+		Users:                      map[string]domain.HumanUser{},
+		RoleBindings:               map[string]domain.RoleBinding{},
+		SSOProviders:               map[string]domain.SSOProvider{},
+		IdentityLinks:              map[string]domain.UserIdentityLink{},
+		SSOSessions:                map[string]domain.SSOSession{},
+		SSOSessionHashes:           map[string]string{},
+		APIKeys:                    map[string]domain.APIKey{},
+		APIKeyHashes:               map[string]string{},
+		Collectors:                 map[string]domain.Collector{},
+		CollectorReleases:          map[string]domain.CollectorRelease{},
+		BuildRuns:                  map[string]domain.BuildRun{},
+		BuildAttestations:          map[string]domain.BuildAttestation{},
+		EvidenceLifecycle:          map[string]domain.EvidenceLifecycleEvent{},
+		ReleaseCandidates:          map[string]domain.ReleaseCandidate{},
+		ContainerImages:            map[string]domain.ContainerImage{},
+		ArtifactSignatures:         map[string]domain.ArtifactSignature{},
+		Repositories:               map[string]domain.SourceRepository{},
+		Commits:                    map[string]domain.SourceCommit{},
+		Branches:                   map[string]domain.SourceBranch{},
+		PullRequests:               map[string]domain.PullRequest{},
+		Environments:               map[string]domain.DeploymentEnvironment{},
+		Deployments:                map[string]domain.DeploymentEvent{},
+		Incidents:                  map[string]domain.Incident{},
+		TimelineEvents:             map[string]domain.IncidentTimelineEvent{},
+		IncidentWebhookReceivers:   map[string]domain.IncidentWebhookReceiver{},
+		IncidentWebhookEvents:      map[string]domain.IncidentWebhookEvent{},
+		RemediationTasks:           map[string]domain.RemediationTask{},
+		SecurityScans:              map[string]domain.SecurityScan{},
+		ManualSecurityDocs:         map[string]domain.ManualSecurityDocument{},
+		SBOMDiffs:                  map[string]domain.SBOMDiff{},
+		DependencyChanges:          map[string]domain.DependencyChange{},
+		VulnerabilityWorkflow:      map[string]domain.VulnerabilityWorkflowRecord{},
+		ContractDiffs:              map[string]domain.ContractDiff{},
+		CustomPolicies:             map[string]domain.CustomPolicy{},
+		CustomPolicyEvaluations:    map[string]domain.CustomPolicyEvaluation{},
+		Waivers:                    map[string]domain.Waiver{},
+		Approvals:                  map[string]domain.ApprovalRecord{},
+		DSSETrustRoots:             map[string]domain.DSSETrustRoot{},
+		CosignVerifications:        map[string]domain.CosignVerification{},
+		SigningProviders:           map[string]domain.SigningProvider{},
+		MerkleBatches:              map[string]domain.MerkleBatch{},
+		TransparencyCheckpoints:    map[string]domain.TransparencyCheckpoint{},
+		CustomerPortalAccess:       map[string]domain.CustomerPortalAccess{},
+		CustomerPortalHashes:       map[string]string{},
+		RedactionProfiles:          map[string]domain.RedactionProfile{},
+		CustomerPackages:           map[string]domain.CustomerSecurityPackage{},
+		HTMLReports:                map[string]domain.HTMLReportPackage{},
+		ReportTemplates:            map[string]domain.CustomReportTemplate{},
+		RenderedReports:            map[string]domain.RenderedCustomReport{},
+		EvidenceBundles:            map[string]domain.EvidenceBundle{},
+		BundleImports:              map[string]domain.EvidenceBundleImport{},
+		ObjectRetentionPolicies:    map[string]domain.ObjectRetentionPolicy{},
+		BackupManifests:            map[string]domain.BackupManifest{},
+		LegalHolds:                 map[string]domain.LegalHold{},
+		RetentionOverrides:         map[string]domain.RetentionOverride{},
+		QuestionnaireTemplates:     map[string]domain.QuestionnaireTemplate{},
+		QuestionnairePackages:      map[string]domain.QuestionnairePackage{},
+		QuestionnaireAnswerLibrary: map[string]domain.QuestionnaireAnswerLibraryEntry{},
+		CommercialCollectors:       map[string]domain.CommercialCollectorDefinition{},
+		EvidenceSummaries:          map[string]domain.EvidenceSummary{},
+		QuestionnaireDrafts:        map[string]domain.QuestionnaireDraft{},
+		GraphSnapshots:             map[string]domain.EvidenceGraphSnapshot{},
+		SaaSProfiles:               map[string]domain.SaaSEditionProfile{},
+		PublicTransparencyLogs:     map[string]domain.PublicTransparencyLog{},
+		PublicTransparencyItems:    map[string]domain.PublicTransparencyLogEntry{},
+		MarketplaceCollectors:      map[string]domain.MarketplaceCollector{},
+		PDFReports:                 map[string]domain.PDFReportPackage{},
+		AnomalyReports:             map[string]domain.AnomalyReport{},
+		ProviderVerifications:      map[string]domain.ProviderVerification{},
+		SigningOperations:          map[string]domain.SigningOperation{},
+		ControlFrameworks:          map[string]domain.ControlFramework{},
+		SecurityControls:           map[string]domain.SecurityControl{},
+		ControlEvidence:            map[string]domain.ControlEvidence{},
+		Products:                   map[string]domain.Product{},
+		Projects:                   map[string]domain.Project{},
+		Releases:                   map[string]domain.Release{},
+		Artifacts:                  map[string]domain.Artifact{},
+		Evidence:                   map[string]domain.EvidenceItem{},
+		SBOMs:                      map[string]domain.SBOM{},
+		Scans:                      map[string]domain.VulnerabilityScan{},
+		VEXDocuments:               map[string]domain.VEXDocument{},
+		VEXImportReports:           map[string]domain.VEXImportReport{},
+		Decisions:                  map[string]domain.VulnerabilityDecision{},
+		Contracts:                  map[string]domain.OpenAPIContract{},
+		Policies:                   map[string]domain.PolicyEvaluation{},
+		Exceptions:                 map[string]domain.Exception{},
+		Bundles:                    map[string]domain.ReleaseBundle{},
+		SigningKeys:                map[string]domain.SigningKey{},
+		SigningKeyPrivate:          map[string][]byte{},
+		Signatures:                 map[string]domain.Signature{},
+		Verifications:              map[string]domain.VerificationResult{},
+		Chain:                      map[string][]domain.AuditChainEntry{},
+		Idempotency:                map[string]app.IdempotencyRecord{},
 	}
 }
 
@@ -511,7 +512,8 @@ func (s *Store) loadRelationalCustomerPortalAccess(ctx context.Context, state *a
 	rows, err := s.pool.Query(ctx, `
 		SELECT id, tenant_id, package_id, customer_name, prefix, hash,
 		       expires_at, revoked_at, access_count, failed_access_count,
-		       last_accessed_at, last_failed_at, schema_version, created_at
+		       last_accessed_at, last_failed_at, require_nda, nda_accepted_at,
+		       nda_accepted_by, watermark, schema_version, created_at
 		FROM customer_portal_access
 	`)
 	if err != nil {
@@ -521,17 +523,21 @@ func (s *Store) loadRelationalCustomerPortalAccess(ctx context.Context, state *a
 	for rows.Next() {
 		var access domain.CustomerPortalAccess
 		var hash string
-		var revokedAt, lastAccessedAt, lastFailedAt sql.NullTime
+		var revokedAt, lastAccessedAt, lastFailedAt, ndaAcceptedAt sql.NullTime
+		var ndaAcceptedBy, watermark sql.NullString
 		if err := rows.Scan(
 			&access.ID, &access.TenantID, &access.PackageID, &access.CustomerName, &access.Prefix, &hash,
 			&access.ExpiresAt, &revokedAt, &access.AccessCount, &access.FailedAccessCount,
-			&lastAccessedAt, &lastFailedAt, &access.SchemaVersion, &access.CreatedAt,
+			&lastAccessedAt, &lastFailedAt, &access.RequireNDA, &ndaAcceptedAt, &ndaAcceptedBy, &watermark, &access.SchemaVersion, &access.CreatedAt,
 		); err != nil {
 			return fmt.Errorf("scan relational customer portal access: %w", err)
 		}
 		access.RevokedAt = nullableSQLTime(revokedAt)
 		access.LastAccessedAt = nullableSQLTime(lastAccessedAt)
 		access.LastFailedAt = nullableSQLTime(lastFailedAt)
+		access.NDAAcceptedAt = nullableSQLTime(ndaAcceptedAt)
+		access.NDAAcceptedBy = nullableSQLString(ndaAcceptedBy)
+		access.Watermark = nullableSQLString(watermark)
 		state.CustomerPortalAccess[access.ID] = access
 		state.CustomerPortalHashes[access.ID] = hash
 		*loaded = true
@@ -2301,7 +2307,30 @@ func (s *Store) loadRelationalRetention(ctx context.Context, state *app.Persiste
 		state.QuestionnairePackages[pkg.ID] = pkg
 		*loaded = true
 	}
-	return qpRows.Err()
+	if err := qpRows.Err(); err != nil {
+		return err
+	}
+
+	answerRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, question_id, evidence_type, control_id, product_id, release_id, answer, evidence_ids, limitations, schema_version, created_at FROM questionnaire_answer_library`)
+	if err != nil {
+		return fmt.Errorf("load relational questionnaire answer library: %w", err)
+	}
+	defer answerRows.Close()
+	for answerRows.Next() {
+		var entry domain.QuestionnaireAnswerLibraryEntry
+		var questionID, evidenceType, controlID, productID, releaseID sql.NullString
+		if err := answerRows.Scan(&entry.ID, &entry.TenantID, &questionID, &evidenceType, &controlID, &productID, &releaseID, &entry.Answer, &entry.EvidenceIDs, &entry.Limitations, &entry.SchemaVersion, &entry.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational questionnaire answer library: %w", err)
+		}
+		entry.QuestionID = nullableSQLString(questionID)
+		entry.EvidenceType = nullableSQLString(evidenceType)
+		entry.ControlID = nullableSQLString(controlID)
+		entry.ProductID = nullableSQLString(productID)
+		entry.ReleaseID = nullableSQLString(releaseID)
+		state.QuestionnaireAnswerLibrary[entry.ID] = entry
+		*loaded = true
+	}
+	return answerRows.Err()
 }
 
 func (s *Store) loadRelationalFutureExtensionRows(ctx context.Context, state *app.PersistedState, loaded *bool) error {
@@ -4251,6 +4280,25 @@ func syncPackageReportRetentionRows(ctx context.Context, tx pgx.Tx, state app.Pe
 			return fmt.Errorf("upsert questionnaire package row: %w", err)
 		}
 	}
+	for _, entry := range state.QuestionnaireAnswerLibrary {
+		if entry.ID == "" || entry.TenantID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO questionnaire_answer_library (
+				id, tenant_id, question_id, evidence_type, control_id, product_id,
+				release_id, answer, evidence_ids, limitations, schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			ON CONFLICT (id) DO UPDATE SET
+				answer = EXCLUDED.answer,
+				evidence_ids = EXCLUDED.evidence_ids,
+				limitations = EXCLUDED.limitations,
+				schema_version = EXCLUDED.schema_version
+		`, entry.ID, entry.TenantID, nullableString(entry.QuestionID), nullableString(entry.EvidenceType), nullableString(entry.ControlID), nullableString(entry.ProductID), nullableString(entry.ReleaseID), entry.Answer, entry.EvidenceIDs, entry.Limitations, entry.SchemaVersion, nonZeroTime(entry.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert questionnaire answer library row: %w", err)
+		}
+	}
 	for _, report := range state.PDFReports {
 		if report.ID == "" || report.TenantID == "" {
 			continue
@@ -4701,9 +4749,10 @@ func syncIdentityAndIdempotency(ctx context.Context, tx pgx.Tx, state app.Persis
 			INSERT INTO customer_portal_access (
 				id, tenant_id, package_id, customer_name, prefix, hash,
 				expires_at, revoked_at, access_count, failed_access_count,
-				last_accessed_at, last_failed_at, schema_version, created_at
+				last_accessed_at, last_failed_at, require_nda, nda_accepted_at,
+				nda_accepted_by, watermark, schema_version, created_at
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
 			ON CONFLICT (id) DO UPDATE SET
 				customer_name = EXCLUDED.customer_name,
 				prefix = EXCLUDED.prefix,
@@ -4714,8 +4763,12 @@ func syncIdentityAndIdempotency(ctx context.Context, tx pgx.Tx, state app.Persis
 				failed_access_count = EXCLUDED.failed_access_count,
 				last_accessed_at = EXCLUDED.last_accessed_at,
 				last_failed_at = EXCLUDED.last_failed_at,
+				require_nda = EXCLUDED.require_nda,
+				nda_accepted_at = EXCLUDED.nda_accepted_at,
+				nda_accepted_by = EXCLUDED.nda_accepted_by,
+				watermark = EXCLUDED.watermark,
 				schema_version = EXCLUDED.schema_version
-		`, access.ID, access.TenantID, access.PackageID, access.CustomerName, access.Prefix, hash, access.ExpiresAt, nullableTime(access.RevokedAt), access.AccessCount, access.FailedAccessCount, nullableTime(access.LastAccessedAt), nullableTime(access.LastFailedAt), access.SchemaVersion, nonZeroTime(access.CreatedAt)); err != nil {
+		`, access.ID, access.TenantID, access.PackageID, access.CustomerName, access.Prefix, hash, access.ExpiresAt, nullableTime(access.RevokedAt), access.AccessCount, access.FailedAccessCount, nullableTime(access.LastAccessedAt), nullableTime(access.LastFailedAt), access.RequireNDA, nullableTime(access.NDAAcceptedAt), nullableString(access.NDAAcceptedBy), nullableString(access.Watermark), access.SchemaVersion, nonZeroTime(access.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert customer portal access row: %w", err)
 		}
 	}
@@ -4828,9 +4881,10 @@ func syncCriticalIdentityAndIdempotency(ctx context.Context, tx pgx.Tx, mutation
 			INSERT INTO customer_portal_access (
 				id, tenant_id, package_id, customer_name, prefix, hash,
 				expires_at, revoked_at, access_count, failed_access_count,
-				last_accessed_at, last_failed_at, schema_version, created_at
+				last_accessed_at, last_failed_at, require_nda, nda_accepted_at,
+				nda_accepted_by, watermark, schema_version, created_at
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
 			ON CONFLICT (id) DO UPDATE SET
 				customer_name = EXCLUDED.customer_name,
 				prefix = EXCLUDED.prefix,
@@ -4841,8 +4895,12 @@ func syncCriticalIdentityAndIdempotency(ctx context.Context, tx pgx.Tx, mutation
 				failed_access_count = EXCLUDED.failed_access_count,
 				last_accessed_at = EXCLUDED.last_accessed_at,
 				last_failed_at = EXCLUDED.last_failed_at,
+				require_nda = EXCLUDED.require_nda,
+				nda_accepted_at = EXCLUDED.nda_accepted_at,
+				nda_accepted_by = EXCLUDED.nda_accepted_by,
+				watermark = EXCLUDED.watermark,
 				schema_version = EXCLUDED.schema_version
-		`, access.ID, access.TenantID, access.PackageID, access.CustomerName, access.Prefix, hash, access.ExpiresAt, nullableTime(access.RevokedAt), access.AccessCount, access.FailedAccessCount, nullableTime(access.LastAccessedAt), nullableTime(access.LastFailedAt), access.SchemaVersion, nonZeroTime(access.CreatedAt)); err != nil {
+		`, access.ID, access.TenantID, access.PackageID, access.CustomerName, access.Prefix, hash, access.ExpiresAt, nullableTime(access.RevokedAt), access.AccessCount, access.FailedAccessCount, nullableTime(access.LastAccessedAt), nullableTime(access.LastFailedAt), access.RequireNDA, nullableTime(access.NDAAcceptedAt), nullableString(access.NDAAcceptedBy), nullableString(access.Watermark), access.SchemaVersion, nonZeroTime(access.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert critical customer portal access row: %w", err)
 		}
 	}
@@ -5133,6 +5191,9 @@ func resourceProjections(state app.PersistedState) []resourceProjection {
 	}
 	for _, v := range state.QuestionnairePackages {
 		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "questionnaire_package", ResourceID: v.ID, ProductID: v.ProductID, ReleaseID: v.ReleaseID, CreatedAt: v.CreatedAt})
+	}
+	for _, v := range state.QuestionnaireAnswerLibrary {
+		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "questionnaire_answer_library", ResourceID: v.ID, ProductID: v.ProductID, ReleaseID: v.ReleaseID, CreatedAt: v.CreatedAt})
 	}
 	for _, v := range state.CommercialCollectors {
 		out = append(out, resourceProjection{TenantID: v.TenantID, ResourceType: "commercial_collector", ResourceID: v.ID, CreatedAt: v.CreatedAt})

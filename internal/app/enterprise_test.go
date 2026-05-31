@@ -532,19 +532,22 @@ func TestCustomerPortalRetentionQuestionnairesAndCommercialCollectors(t *testing
 	if err != nil {
 		t.Fatalf("customer package: %v", err)
 	}
-	access, token, err := ledger.CreateCustomerPortalAccess(ctx, actor, CreateCustomerPortalAccessInput{PackageID: pkg.ID, CustomerName: "ACME", ExpiresAt: fixedNow().Add(time.Hour)})
+	access, token, err := ledger.CreateCustomerPortalAccess(ctx, actor, CreateCustomerPortalAccessInput{PackageID: pkg.ID, CustomerName: "ACME", RequireNDA: true, Watermark: "ACME confidential review copy", ExpiresAt: fixedNow().Add(time.Hour)})
 	if err != nil {
 		t.Fatalf("portal access: %v", err)
 	}
-	if token == "" || access.Hash != "" {
+	if token == "" || access.Hash != "" || !access.RequireNDA || access.Watermark == "" {
 		t.Fatalf("portal token/hash leakage access=%#v token=%q", access, token)
 	}
-	portalPkg, err := ledger.AccessCustomerPortalPackage(ctx, token)
+	if _, err := ledger.AccessCustomerPortalPackage(ctx, token); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("NDA-gated portal package without acceptance err=%v, want forbidden", err)
+	}
+	portalPkg, err := ledger.AccessCustomerPortalPackageWithAcceptance(ctx, token, CustomerPortalAcceptanceInput{NDAAccepted: true, NDAAcceptedBy: "reviewer@example.test"})
 	if err != nil {
 		t.Fatalf("portal package: %v", err)
 	}
-	if portalPkg.ID != pkg.ID {
-		t.Fatalf("portal package id = %s want %s", portalPkg.ID, pkg.ID)
+	if portalPkg.ID != pkg.ID || portalPkg.DistributionWatermark != "ACME confidential review copy" {
+		t.Fatalf("portal package = %#v, want id %s with watermark", portalPkg, pkg.ID)
 	}
 	portalArchive, err := ledger.ExportCustomerPortalPackageArchive(ctx, token)
 	if err != nil {
@@ -561,13 +564,19 @@ func TestCustomerPortalRetentionQuestionnairesAndCommercialCollectors(t *testing
 	if err != nil {
 		t.Fatalf("portal audit log: %v", err)
 	}
-	foundAccess, foundDownload, foundFailedAccess := false, false, false
+	portalFiles := packageArchiveFiles(t, portalArchive.Bytes)
+	if !strings.Contains(portalFiles["WATERMARK.txt"], "ACME confidential review copy") || !strings.Contains(portalFiles["report.html"], "ACME confidential review copy") || strings.Contains(portalFiles["package.json"], token) {
+		t.Fatalf("portal archive watermark/token handling invalid: files=%#v", portalFiles)
+	}
+	foundAccess, foundDownload, foundFailedAccess, foundNDAAccepted := false, false, false, false
 	for _, entry := range entries {
 		switch entry.EntryType {
 		case "customer_portal_package.accessed":
 			if entry.ActorID == access.ID && entry.PayloadHash == pkg.ManifestHash {
 				foundAccess = true
 			}
+		case "customer_portal_package.nda_accepted":
+			foundNDAAccepted = true
 		case "customer_portal_package.downloaded":
 			if entry.ActorID == access.ID && entry.PayloadHash == pkg.ManifestHash {
 				foundDownload = true
@@ -582,8 +591,8 @@ func TestCustomerPortalRetentionQuestionnairesAndCommercialCollectors(t *testing
 			t.Fatalf("portal audit leaked token: %#v", entry)
 		}
 	}
-	if !foundAccess || !foundDownload {
-		t.Fatalf("missing portal access/download audit entries access=%v download=%v entries=%#v", foundAccess, foundDownload, entries)
+	if !foundAccess || !foundDownload || !foundNDAAccepted {
+		t.Fatalf("missing portal access/download/NDA audit entries access=%v download=%v nda=%v entries=%#v", foundAccess, foundDownload, foundNDAAccepted, entries)
 	}
 	if !foundFailedAccess {
 		t.Fatalf("missing failed portal access audit entry: %#v", entries)
@@ -612,11 +621,19 @@ func TestCustomerPortalRetentionQuestionnairesAndCommercialCollectors(t *testing
 	if err != nil {
 		t.Fatalf("questionnaire template: %v", err)
 	}
+	answer, err := ledger.CreateQuestionnaireAnswerLibraryEntry(ctx, actor, CreateQuestionnaireAnswerLibraryEntryInput{QuestionID: "q1", EvidenceType: "sbom", ProductID: release.ProductID, ReleaseID: release.ID, Answer: "A scoped SBOM evidence record is available in the linked package evidence.", EvidenceIDs: []string{item.ID}})
+	if err != nil {
+		t.Fatalf("answer library: %v", err)
+	}
+	answers, err := ledger.ListQuestionnaireAnswerLibrary(ctx, actor, ListQuestionnaireAnswerLibraryInput{ProductID: release.ProductID, ReleaseID: release.ID})
+	if err != nil || len(answers) != 1 || answers[0].ID != answer.ID {
+		t.Fatalf("answer library list=%#v err=%v", answers, err)
+	}
 	qpkg, err := ledger.CreateQuestionnairePackage(ctx, actor, CreateQuestionnairePackageInput{TemplateID: template.ID, PackageID: pkg.ID, ProductID: release.ProductID, ReleaseID: release.ID})
 	if err != nil {
 		t.Fatalf("questionnaire package: %v", err)
 	}
-	if len(qpkg.Responses) != 1 || len(qpkg.Responses[0].EvidenceIDs) != 1 {
+	if len(qpkg.Responses) != 1 || len(qpkg.Responses[0].EvidenceIDs) != 1 || qpkg.Responses[0].Answer != answer.Answer {
 		t.Fatalf("questionnaire package = %#v", qpkg)
 	}
 	def, err := ledger.CreateCommercialCollectorDefinition(ctx, actor, CreateCommercialCollectorInput{Name: "jira", Provider: "jira", Version: "1.0.0", ManifestHash: sampleDigest("manifest"), AllowedScopes: []string{ScopeEvidenceWrite}})
@@ -636,6 +653,9 @@ func TestCustomerPortalRetentionQuestionnairesAndCommercialCollectors(t *testing
 	}
 	if _, _, err := ledger.CreateCustomerPortalAccess(ctx, other, CreateCustomerPortalAccessInput{PackageID: pkg.ID, CustomerName: "bad", ExpiresAt: fixedNow().Add(time.Hour)}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("cross tenant portal err=%v, want not found", err)
+	}
+	if _, err := ledger.CreateQuestionnaireAnswerLibraryEntry(ctx, other, CreateQuestionnaireAnswerLibraryEntryInput{QuestionID: "q1", ProductID: release.ProductID, ReleaseID: release.ID, Answer: "bad"}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("cross tenant answer library err=%v, want not found", err)
 	}
 }
 

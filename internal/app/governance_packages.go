@@ -95,6 +95,7 @@ var redactionProfilePresets = map[string]redactionProfilePreset{
 		Description: "Customer-safe package profile for release evidence summaries without raw payloads, secrets, internal notes, or internal-only provenance fields.",
 		AllowedTypes: []string{
 			"artifact",
+			"answer_library",
 			"sbom",
 			"vulnerability_scan",
 			"vex",
@@ -129,6 +130,7 @@ var redactionProfilePresets = map[string]redactionProfilePreset{
 		AllowedTypes: []string{
 			"api_security",
 			"approval",
+			"answer_library",
 			"artifact",
 			"build",
 			"build_attestation",
@@ -456,6 +458,9 @@ func (l *Ledger) customerPackageManifestLocked(packageID string, generatedAt tim
 	}
 	if profileAllowsPackageType(profile, "waiver") {
 		manifest["waivers"] = l.packageWaiverSummariesLocked(tenantID, productID, releaseID)
+	}
+	if profileAllowsPackageType(profile, "answer_library") {
+		manifest["answer_library"] = l.packageAnswerLibraryMetadataLocked(tenantID, productID, releaseID)
 	}
 	if profileAllowsPackageType(profile, "build") || profileAllowsPackageType(profile, "build_attestation") {
 		manifest["provenance"] = l.packageProvenanceMetadataLocked(tenantID, releaseID, profile)
@@ -830,6 +835,35 @@ func waiverBelongsToPackage(waiver domain.Waiver, productID, releaseID string) b
 	}
 }
 
+func (l *Ledger) packageAnswerLibraryMetadataLocked(tenantID, productID, releaseID string) []map[string]any {
+	out := []map[string]any{}
+	for _, entry := range l.answerLibrary {
+		if entry.TenantID != tenantID {
+			continue
+		}
+		if entry.ProductID != "" && entry.ProductID != productID {
+			continue
+		}
+		if entry.ReleaseID != "" && entry.ReleaseID != releaseID {
+			continue
+		}
+		out = append(out, map[string]any{
+			"id":            entry.ID,
+			"question_id":   entry.QuestionID,
+			"evidence_type": entry.EvidenceType,
+			"control_id":    entry.ControlID,
+			"product_id":    entry.ProductID,
+			"release_id":    entry.ReleaseID,
+			"answer":        entry.Answer,
+			"evidence_ids":  append([]string(nil), entry.EvidenceIDs...),
+			"limitations":   append([]string(nil), entry.Limitations...),
+			"created_at":    entry.CreatedAt.UTC().Format(time.RFC3339),
+		})
+	}
+	sortManifestMapsByID(out)
+	return out
+}
+
 func (l *Ledger) packageProvenanceMetadataLocked(tenantID, releaseID string, profile domain.RedactionProfile) map[string]any {
 	builds := []map[string]any{}
 	buildIDs := map[string]bool{}
@@ -1112,8 +1146,12 @@ func (s packageReportService) ExportCustomerSecurityPackageArchive(ctx context.C
 }
 
 func (s packageReportService) ExportCustomerPortalPackageArchive(ctx context.Context, token string) (CustomerPackageArchive, error) {
+	return s.ExportCustomerPortalPackageArchiveWithAcceptance(ctx, token, CustomerPortalAcceptanceInput{})
+}
+
+func (s packageReportService) ExportCustomerPortalPackageArchiveWithAcceptance(ctx context.Context, token string, in CustomerPortalAcceptanceInput) (CustomerPackageArchive, error) {
 	l := s.ledger
-	pkg, err := l.identityService().accessCustomerPortalPackage(ctx, token, "customer_portal_package.downloaded")
+	pkg, err := l.identityService().accessCustomerPortalPackage(ctx, token, in, "customer_portal_package.downloaded")
 	if err != nil {
 		return CustomerPackageArchive{}, err
 	}
@@ -1140,6 +1178,41 @@ func (s packageReportService) SecurityReviewPackageReport(ctx context.Context, a
 	return domain.SecurityReviewPackageReport{ReportType: "security_review_package", TemplateVersion: "security-review-package.v1.0.0", PackageID: pkg.ID, ProductID: pkg.ProductID, ReleaseID: pkg.ReleaseID, EvidenceIDs: ids, Assumptions: []string{"Report includes only package-scoped evidence metadata."}, Limitations: []string{"This report supports customer review but is not a compliance, legal, or secure-release conclusion."}, GeneratedAt: l.now()}, nil
 }
 
+func packageWithDistributionWatermark(pkg domain.CustomerSecurityPackage, access domain.CustomerPortalAccess) domain.CustomerSecurityPackage {
+	pkg.DistributionWatermark = packageDistributionWatermark(pkg, access.CustomerName, access.ID)
+	if access.Watermark != "" {
+		pkg.DistributionWatermark = access.Watermark
+	}
+	return pkg
+}
+
+func packageDistributionWatermark(pkg domain.CustomerSecurityPackage, customerName, accessID string) string {
+	customerName = cleanExternalLabel(customerName)
+	accessID = strings.TrimSpace(accessID)
+	if customerName == "" && accessID == "" {
+		return "Evydence package " + pkg.ID + " exported for scoped review."
+	}
+	return cleanExternalLabel("Evydence package " + pkg.ID + " for " + customerName + " via access " + accessID + ".")
+}
+
+func cleanExternalLabel(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	runes := make([]rune, 0, len(value))
+	for _, r := range value {
+		if r < 32 || r == 127 {
+			continue
+		}
+		runes = append(runes, r)
+		if len(runes) >= 160 {
+			break
+		}
+	}
+	return strings.TrimSpace(string(runes))
+}
+
 func customerPackageArchive(pkg domain.CustomerSecurityPackage) (CustomerPackageArchive, error) {
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
@@ -1155,6 +1228,9 @@ func customerPackageArchive(pkg domain.CustomerSecurityPackage) (CustomerPackage
 		"expires_at":           pkg.ExpiresAt.UTC().Format(time.RFC3339),
 		"schema_version":       pkg.SchemaVersion,
 		"created_at":           pkg.CreatedAt.UTC().Format(time.RFC3339),
+	}
+	if pkg.DistributionWatermark != "" {
+		metadata["distribution_watermark"] = pkg.DistributionWatermark
 	}
 	verification := map[string]any{
 		"package_id":        pkg.ID,
@@ -1197,6 +1273,12 @@ func customerPackageArchive(pkg domain.CustomerSecurityPackage) (CustomerPackage
 		_ = zw.Close()
 		return CustomerPackageArchive{}, err
 	}
+	if pkg.DistributionWatermark != "" {
+		if err := addZIPFile(zw, "WATERMARK.txt", []byte(pkg.DistributionWatermark+"\n")); err != nil {
+			_ = zw.Close()
+			return CustomerPackageArchive{}, err
+		}
+	}
 	if err := addZIPFile(zw, "report.html", customerPackageHTMLReport(pkg, metadata, verification)); err != nil {
 		_ = zw.Close()
 		return CustomerPackageArchive{}, err
@@ -1216,6 +1298,7 @@ func customerPackageHTMLReport(pkg domain.CustomerSecurityPackage, metadata, ver
 	apiContracts := packageHTMLMap(manifest["api_contracts"])
 	vexDocuments := packageHTMLRecords(manifest["vex_documents"])
 	decisions := packageHTMLRecords(manifest["vulnerability_decisions"])
+	answerLibrary := packageHTMLRecords(manifest["answer_library"])
 	limitations := packageHTMLStrings(manifest["limitations"])
 	nonClaims := packageHTMLStrings(manifest["non_claims"])
 
@@ -1226,6 +1309,11 @@ func customerPackageHTMLReport(pkg domain.CustomerSecurityPackage, metadata, ver
 	b.WriteString("<h1>")
 	b.WriteString(packageHTMLEscape(pkg.Title))
 	b.WriteString("</h1><p class=\"notice\">This static report is generated from the redacted customer package manifest. It supports technical evidence review and compliance readiness only; it is not legal compliance proof, certification, complete SBOM proof, an authoritative vulnerability result, regulator acceptance, or a secure-release guarantee.</p>")
+	if watermark := packageHTMLString(metadata["distribution_watermark"]); watermark != "" {
+		b.WriteString("<p class=\"notice\"><strong>Distribution watermark:</strong> ")
+		b.WriteString(packageHTMLEscape(watermark))
+		b.WriteString("</p>")
+	}
 
 	b.WriteString("<h2>Release Summary</h2><table><tbody>")
 	packageHTMLRow(&b, "Package ID", pkg.ID)
@@ -1254,6 +1342,17 @@ func customerPackageHTMLReport(pkg domain.CustomerSecurityPackage, metadata, ver
 			}
 			b.WriteString("</tbody></table>")
 		}
+	}
+
+	b.WriteString("<h2>Questionnaire Answer Library</h2>")
+	if len(answerLibrary) == 0 {
+		b.WriteString("<p class=\"muted\">No customer-visible questionnaire answer library entries are included by this package profile.</p>")
+	} else {
+		b.WriteString("<table><thead><tr><th>Question</th><th>Evidence Type</th><th>Answer</th><th>Evidence IDs</th></tr></thead><tbody>")
+		for _, record := range answerLibrary {
+			b.WriteString("<tr><td>" + packageHTMLEscape(packageHTMLString(record["question_id"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["evidence_type"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["answer"])) + "</td><td>" + packageHTMLEscape(packageHTMLJSON(record["evidence_ids"])) + "</td></tr>")
+		}
+		b.WriteString("</tbody></table>")
 	}
 
 	b.WriteString("<h2>API Contract Evidence</h2>")

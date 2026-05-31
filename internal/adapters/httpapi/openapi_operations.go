@@ -856,6 +856,18 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Description = "Creates an evidence-backed questionnaire draft with limitations."
 		operation.RequestBody = jsonRequest("Questionnaire draft creation request.", "#/components/schemas/CreateQuestionnaireDraftRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created questionnaire draft envelope.", "#/components/schemas/QuestionnaireDraftEnvelope")
+	case "createQuestionnaireAnswerLibraryEntry":
+		operation.Description = "Creates a tenant-scoped reusable questionnaire answer draft linked to optional evidence, product, release, or control scope."
+		operation.RequestBody = jsonRequest("Questionnaire answer library entry creation request.", "#/components/schemas/CreateQuestionnaireAnswerLibraryEntryRequest")
+		operation.Responses[http.StatusCreated] = jsonResponse("Created questionnaire answer library entry envelope.", "#/components/schemas/QuestionnaireAnswerLibraryEntryEnvelope")
+	case "listQuestionnaireAnswerLibrary":
+		operation.Description = "Lists tenant-scoped questionnaire answer library entries with optional question, product, and release filters."
+		operation.Parameters = append(operation.Parameters,
+			queryParam("question_id", "Filter by questionnaire question id.", "string"),
+			queryParam("product_id", "Filter by product id.", "string"),
+			queryParam("release_id", "Filter by release id.", "string"),
+		)
+		operation.Responses[http.StatusOK] = jsonResponse("Questionnaire answer library entry list envelope.", "#/components/schemas/QuestionnaireAnswerLibraryEntryListEnvelope")
 	case "createPDFReportPackage":
 		operation.Description = "Creates a deterministic PDF report package record and payload metadata."
 		operation.RequestBody = jsonRequest("PDF report package creation request.", "#/components/schemas/CreatePDFReportPackageRequest")

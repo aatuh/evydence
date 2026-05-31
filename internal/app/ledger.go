@@ -153,6 +153,7 @@ type Ledger struct {
 	portalAccess          map[string]domain.CustomerPortalAccess
 	questionTemplates     map[string]domain.QuestionnaireTemplate
 	questionPackages      map[string]domain.QuestionnairePackage
+	answerLibrary         map[string]domain.QuestionnaireAnswerLibraryEntry
 	commercialCollectors  map[string]domain.CommercialCollectorDefinition
 	evidenceSummaries     map[string]domain.EvidenceSummary
 	questionDrafts        map[string]domain.QuestionnaireDraft
@@ -280,6 +281,7 @@ func NewLedgerWithError(cfg Config) (*Ledger, error) {
 		portalAccess:          map[string]domain.CustomerPortalAccess{},
 		questionTemplates:     map[string]domain.QuestionnaireTemplate{},
 		questionPackages:      map[string]domain.QuestionnairePackage{},
+		answerLibrary:         map[string]domain.QuestionnaireAnswerLibraryEntry{},
 		commercialCollectors:  map[string]domain.CommercialCollectorDefinition{},
 		evidenceSummaries:     map[string]domain.EvidenceSummary{},
 		questionDrafts:        map[string]domain.QuestionnaireDraft{},

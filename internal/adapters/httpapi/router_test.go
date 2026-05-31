@@ -94,7 +94,7 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	if _, ok := redactionRequestProps["preset"]; !ok {
 		t.Fatalf("redaction profile request schema missing preset: %#v", redactionRequestProps)
 	}
-	for _, schemaName := range []string{"ReadinessStatusEnvelope", "BackupManifestEnvelope", "VerificationResultEnvelope", "ReadinessReportEnvelope", "CRAVulnerabilityHandlingReportEnvelope", "SecurityUpdateEvidenceReportEnvelope", "CreateProductRequest", "ProductEnvelope", "ProductListEnvelope", "CreateProjectRequest", "ProjectEnvelope", "CreateReleaseRequest", "ReleaseEnvelope", "ReleaseEvidenceFlowEnvelope", "ReleaseSecuritySummaryEnvelope", "RegisterArtifactRequest", "ArtifactEnvelope", "CreateBuildRequest", "BuildRunEnvelope", "EvidenceUploadRequest", "SBOMEnvelope", "VEXDocumentEnvelope", "VEXImportReportEnvelope", "UploadVulnerabilityScanRequest", "VulnerabilityScanEnvelope", "VulnerabilityDecisionListEnvelope", "VulnerabilityDecisionSummaryReportEnvelope", "CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOProviderRequest", "UpdateSSOProviderTrustMaterialRequest", "SSOProviderEnvelope", "VerifyProviderIdentityRequest", "ProviderVerificationEnvelope", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "ExchangeSSOCredentialRequest", "SSOCredentialExchangeEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalPackageRequest", "DataEnvelope"} {
+	for _, schemaName := range []string{"ReadinessStatusEnvelope", "BackupManifestEnvelope", "VerificationResultEnvelope", "ReadinessReportEnvelope", "CRAVulnerabilityHandlingReportEnvelope", "SecurityUpdateEvidenceReportEnvelope", "CreateProductRequest", "ProductEnvelope", "ProductListEnvelope", "CreateProjectRequest", "ProjectEnvelope", "CreateReleaseRequest", "ReleaseEnvelope", "ReleaseEvidenceFlowEnvelope", "ReleaseSecuritySummaryEnvelope", "RegisterArtifactRequest", "ArtifactEnvelope", "CreateBuildRequest", "BuildRunEnvelope", "EvidenceUploadRequest", "SBOMEnvelope", "VEXDocumentEnvelope", "VEXImportReportEnvelope", "UploadVulnerabilityScanRequest", "VulnerabilityScanEnvelope", "VulnerabilityDecisionListEnvelope", "VulnerabilityDecisionSummaryReportEnvelope", "CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOProviderRequest", "UpdateSSOProviderTrustMaterialRequest", "SSOProviderEnvelope", "VerifyProviderIdentityRequest", "ProviderVerificationEnvelope", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "ExchangeSSOCredentialRequest", "SSOCredentialExchangeEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalPackageRequest", "QuestionnaireAnswerLibraryEntryEnvelope", "QuestionnaireAnswerLibraryEntryListEnvelope", "DataEnvelope"} {
 		if _, ok := schemas[schemaName]; !ok {
 			t.Fatalf("schema %s missing from OpenAPI components", schemaName)
 		}
@@ -195,6 +195,12 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	if _, ok := portalDownload["security"]; ok {
 		t.Fatalf("public portal download should not advertise bearer security: %#v", portalDownload["security"])
 	}
+	createAnswerLibrary := operationMap(t, paths, "/v1/questionnaire-answer-library", "post")
+	assertRequestRef(t, createAnswerLibrary, "#/components/schemas/CreateQuestionnaireAnswerLibraryEntryRequest")
+	assertResponseRef(t, createAnswerLibrary, "201", "#/components/schemas/QuestionnaireAnswerLibraryEntryEnvelope")
+	listAnswerLibrary := operationMap(t, paths, "/v1/questionnaire-answer-library", "get")
+	assertQueryParams(t, listAnswerLibrary, "question_id", "product_id", "release_id")
+	assertResponseRef(t, listAnswerLibrary, "200", "#/components/schemas/QuestionnaireAnswerLibraryEntryListEnvelope")
 	incidentWebhook := operationMap(t, paths, "/v1/incident-webhooks/{receiver_id}", "post")
 	assertQueryParams(t, incidentWebhook, "receiver_id", "X-Evydence-Webhook-Event-ID", "X-Evydence-Webhook-Timestamp", "X-Evydence-Webhook-Signature")
 	if _, ok := incidentWebhook["security"]; ok {
@@ -501,6 +507,7 @@ func TestAuthenticatedReadRoutesRejectMissingBearerToken(t *testing.T) {
 		"/v1/marketplace-collectors/collector_missing/health",
 		"/v1/openapi-contracts/contract_missing",
 		"/v1/products",
+		"/v1/questionnaire-answer-library",
 		"/v1/release-bundles/bundle_missing",
 		"/v1/release-bundles/bundle_missing/manifest",
 		"/v1/release-bundles/bundle_missing/verify",
@@ -1248,14 +1255,15 @@ func TestEnterprisePortalRetentionAndCommercialCollectorHTTPFlow(t *testing.T) {
 	profileID := dataField(t, profileBody, "id")
 	packageBody := postJSON(t, server, sessionSecret, "/v1/customer-packages", "ent-package", map[string]any{"product_id": productID, "release_id": releaseID, "redaction_profile_id": profileID, "title": "Customer package", "expires_at": time.Now().UTC().Add(time.Hour).Format(time.RFC3339)}, http.StatusCreated)
 	packageID := dataField(t, packageBody, "id")
-	accessBody := postJSON(t, server, sessionSecret, "/v1/customer-portal/access", "ent-access", map[string]any{"package_id": packageID, "customer_name": "ACME", "expires_at": time.Now().UTC().Add(time.Hour).Format(time.RFC3339)}, http.StatusCreated)
+	accessBody := postJSON(t, server, sessionSecret, "/v1/customer-portal/access", "ent-access", map[string]any{"package_id": packageID, "customer_name": "ACME", "require_nda": true, "watermark": "ACME confidential review copy", "expires_at": time.Now().UTC().Add(time.Hour).Format(time.RFC3339)}, http.StatusCreated)
 	portalSecret := nestedDataField(t, accessBody, "secret")
-	portalBody := postJSONNoAuth(t, server, "/v1/customer-portal/package", map[string]any{"token": portalSecret}, http.StatusOK)
-	if !strings.Contains(portalBody, packageID) || strings.Contains(portalBody, portalSecret) {
+	postJSONNoAuth(t, server, "/v1/customer-portal/package", map[string]any{"token": portalSecret}, http.StatusForbidden)
+	portalBody := postJSONNoAuth(t, server, "/v1/customer-portal/package", map[string]any{"token": portalSecret, "nda_accepted": true, "nda_accepted_by": "reviewer@example.test"}, http.StatusOK)
+	if !strings.Contains(portalBody, packageID) || !strings.Contains(portalBody, "ACME confidential review copy") || strings.Contains(portalBody, portalSecret) {
 		t.Fatalf("portal package response invalid: %s", portalBody)
 	}
 	portalArchive := postJSONNoAuthRaw(t, server, "/v1/customer-portal/package/download", map[string]any{"token": portalSecret}, http.StatusOK)
-	if portalArchive.Header().Get("Content-Type") != "application/zip" || !bytes.HasPrefix(portalArchive.Body.Bytes(), []byte("PK")) || bytes.Contains(portalArchive.Body.Bytes(), []byte(portalSecret)) {
+	if portalArchive.Header().Get("Content-Type") != "application/zip" || !bytes.HasPrefix(portalArchive.Body.Bytes(), []byte("PK")) || bytes.Contains(portalArchive.Body.Bytes(), []byte(portalSecret)) || !bytes.Contains(portalArchive.Body.Bytes(), []byte("WATERMARK.txt")) {
 		t.Fatalf("portal archive response invalid headers=%v len=%d", portalArchive.Header(), portalArchive.Body.Len())
 	}
 	postJSON(t, server, sessionSecret, "/v1/legal-holds", "ent-hold", map[string]any{"scope_type": "release", "scope_id": releaseID, "reason": "extended review", "owner": "legal"}, http.StatusCreated)
@@ -1266,8 +1274,13 @@ func TestEnterprisePortalRetentionAndCommercialCollectorHTTPFlow(t *testing.T) {
 	}
 	templateBody := postJSON(t, server, sessionSecret, "/v1/questionnaire-templates", "ent-question-template", map[string]any{"name": "customer", "version": "1", "questions": []map[string]any{{"id": "q1", "prompt": "Is review evidence available?", "evidence_type": "security_review"}}}, http.StatusCreated)
 	templateID := dataField(t, templateBody, "id")
+	postJSON(t, server, sessionSecret, "/v1/questionnaire-answer-library", "ent-answer-library", map[string]any{"question_id": "q1", "evidence_type": "security_review", "product_id": productID, "release_id": releaseID, "answer": "A scoped security review evidence record is available in the package evidence.", "evidence_ids": []string{evidenceID}}, http.StatusCreated)
+	answerLibrary := getJSON(t, server, sessionSecret, "/v1/questionnaire-answer-library?product_id="+productID+"&release_id="+releaseID, http.StatusOK)
+	if !strings.Contains(answerLibrary, evidenceID) {
+		t.Fatalf("answer library missing evidence: %s", answerLibrary)
+	}
 	questionnaire := postJSON(t, server, sessionSecret, "/v1/questionnaire-packages", "ent-question-package", map[string]any{"template_id": templateID, "package_id": packageID, "product_id": productID, "release_id": releaseID}, http.StatusCreated)
-	if !strings.Contains(questionnaire, evidenceID) {
+	if !strings.Contains(questionnaire, evidenceID) || !strings.Contains(questionnaire, "scoped security review evidence") {
 		t.Fatalf("questionnaire package missing evidence id: %s", questionnaire)
 	}
 	collectorBody := postJSON(t, server, sessionSecret, "/v1/commercial-collectors", "ent-commercial-collector", map[string]any{"name": "jira", "provider": "jira", "version": "1.0.0", "manifest_hash": "sha256:2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae", "allowed_scopes": []string{"evidence:write"}}, http.StatusCreated)

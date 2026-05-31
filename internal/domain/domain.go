@@ -3,84 +3,85 @@ package domain
 import "time"
 
 const (
-	EvidenceItemSchemaVersion       = "evidence-item.v1.0.0"
-	AuditChainEntrySchemaVersion    = "audit-chain-entry.v1.0.0"
-	ReleaseBundleSchemaVersion      = "release-bundle.v1.0.0"
-	ReleaseEvidenceFlowVersion      = "release-evidence-flow.v1.0.0"
-	ReleaseSecuritySummaryVersion   = "release-security-summary.v1.0.0"
-	CanonicalizationProfileVersion  = "canonicalization-profile.v1.0.0"
-	PolicySetVersion                = "policy-set.v1.0.0"
-	VEXDocumentSchemaVersion        = "vex-document.v1.0.0"
-	VEXImportReportSchemaVersion    = "vex-import-report.v1.0.0"
-	VulnerabilityDecisionVersion    = "vulnerability-decision.v1.0.0"
-	ReleaseReadinessTemplateVersion = "release-readiness.v1.0.0"
-	CollectorSchemaVersion          = "collector.v1.0.0"
-	BuildRunSchemaVersion           = "build-run.v1.0.0"
-	BuildAttestationSchemaVersion   = "build-attestation.v1.0.0"
-	ControlFrameworkSchemaVersion   = "control-framework.v1.0.0"
-	SecurityControlSchemaVersion    = "security-control.v1.0.0"
-	ControlEvidenceSchemaVersion    = "control-evidence.v1.0.0"
-	ControlCoverageTemplateVersion  = "control-coverage.v1.0.0"
-	CRAReadinessTemplateVersion     = "cra-readiness.v1.0.0"
-	EvidenceLifecycleSchemaVersion  = "evidence-lifecycle-event.v1.0.0"
-	ReleaseCandidateSchemaVersion   = "release-candidate.v1.0.0"
-	ContainerImageSchemaVersion     = "container-image.v1.0.0"
-	ArtifactSignatureSchemaVersion  = "artifact-signature.v1.0.0"
-	SourceRepositorySchemaVersion   = "source-repository.v1.0.0"
-	SourceCommitSchemaVersion       = "source-commit.v1.0.0"
-	SourceBranchSchemaVersion       = "source-branch.v1.0.0"
-	PullRequestSchemaVersion        = "pull-request.v1.0.0"
-	DeploymentEnvironmentVersion    = "deployment-environment.v1.0.0"
-	DeploymentEventSchemaVersion    = "deployment-event.v1.0.0"
-	IncidentSchemaVersion           = "incident.v1.0.0"
-	IncidentTimelineSchemaVersion   = "incident-timeline-event.v1.0.0"
-	IncidentWebhookReceiverVersion  = "incident-webhook-receiver.v1.0.0"
-	IncidentWebhookEventVersion     = "incident-webhook-event.v1.0.0"
-	RemediationTaskSchemaVersion    = "remediation-task.v1.0.0"
-	SecurityScanSchemaVersion       = "security-scan.v1.0.0"
-	ManualSecurityDocSchemaVersion  = "manual-security-document.v1.0.0"
-	SBOMDiffSchemaVersion           = "sbom-diff.v1.0.0"
-	DependencyChangeSchemaVersion   = "dependency-change.v1.0.0"
-	ContractDiffSchemaVersion       = "contract-diff.v1.0.0"
-	CustomPolicySchemaVersion       = "custom-policy.v1.0.0"
-	CustomPolicyEvalSchemaVersion   = "custom-policy-evaluation.v1.0.0"
-	WaiverSchemaVersion             = "waiver.v1.0.0"
-	ApprovalRecordSchemaVersion     = "approval-record.v1.0.0"
-	RedactionProfileSchemaVersion   = "redaction-profile.v1.0.0"
-	CustomerPackageSchemaVersion    = "customer-security-package.v2.0.0"
-	ReportTemplateSchemaVersion     = "report-template.v1.0.0"
-	EvidenceBundleSchemaVersion     = "evidence-bundle.v1.0.0"
-	EvidenceBundleImportVersion     = "evidence-bundle-import.v1.0.0"
-	DSSETrustRootSchemaVersion      = "dsse-trust-root.v1.0.0"
-	CosignVerificationSchemaVersion = "cosign-verification.v1.0.0"
-	SigningProviderSchemaVersion    = "signing-provider.v1.0.0"
-	MerkleBatchSchemaVersion        = "merkle-batch.v1.0.0"
-	TransparencyCheckpointVersion   = "transparency-checkpoint.v1.0.0"
-	ObjectRetentionPolicyVersion    = "object-retention-policy.v1.0.0"
-	BackupManifestSchemaVersion     = "backup-manifest.v1.0.0"
-	CollectorReleaseSchemaVersion   = "collector-release.v1.0.0"
-	OrganizationSchemaVersion       = "organization.v1.0.0"
-	HumanUserSchemaVersion          = "human-user.v1.0.0"
-	RoleBindingSchemaVersion        = "role-binding.v1.0.0"
-	SSOProviderSchemaVersion        = "sso-provider.v1.0.0"
-	SSOSessionSchemaVersion         = "sso-session.v1.0.0"
-	LegalHoldSchemaVersion          = "legal-hold.v1.0.0"
-	RetentionOverrideSchemaVersion  = "retention-override.v1.0.0"
-	CustomerPortalAccessVersion     = "customer-portal-access.v1.0.0"
-	QuestionnaireTemplateVersion    = "questionnaire-template.v1.0.0"
-	QuestionnairePackageVersion     = "questionnaire-package.v1.0.0"
-	CommercialCollectorVersion      = "commercial-collector.v1.0.0"
-	EvidenceSummaryVersion          = "evidence-summary.v1.0.0"
-	QuestionnaireDraftVersion       = "questionnaire-draft.v1.0.0"
-	EvidenceGraphSnapshotVersion    = "evidence-graph-snapshot.v1.0.0"
-	SaaSEditionProfileVersion       = "saas-edition-profile.v1.0.0"
-	PublicTransparencyLogVersion    = "public-transparency-log.v1.0.0"
-	PublicTransparencyEntryVersion  = "public-transparency-entry.v1.0.0"
-	MarketplaceCollectorVersion     = "marketplace-collector.v1.0.0"
-	PDFReportPackageVersion         = "pdf-report-package.v1.0.0"
-	AnomalyReportVersion            = "anomaly-report.v1.0.0"
-	ProviderVerificationVersion     = "provider-verification.v1.0.0"
-	SigningOperationVersion         = "signing-operation.v1.0.0"
+	EvidenceItemSchemaVersion         = "evidence-item.v1.0.0"
+	AuditChainEntrySchemaVersion      = "audit-chain-entry.v1.0.0"
+	ReleaseBundleSchemaVersion        = "release-bundle.v1.0.0"
+	ReleaseEvidenceFlowVersion        = "release-evidence-flow.v1.0.0"
+	ReleaseSecuritySummaryVersion     = "release-security-summary.v1.0.0"
+	CanonicalizationProfileVersion    = "canonicalization-profile.v1.0.0"
+	PolicySetVersion                  = "policy-set.v1.0.0"
+	VEXDocumentSchemaVersion          = "vex-document.v1.0.0"
+	VEXImportReportSchemaVersion      = "vex-import-report.v1.0.0"
+	VulnerabilityDecisionVersion      = "vulnerability-decision.v1.0.0"
+	ReleaseReadinessTemplateVersion   = "release-readiness.v1.0.0"
+	CollectorSchemaVersion            = "collector.v1.0.0"
+	BuildRunSchemaVersion             = "build-run.v1.0.0"
+	BuildAttestationSchemaVersion     = "build-attestation.v1.0.0"
+	ControlFrameworkSchemaVersion     = "control-framework.v1.0.0"
+	SecurityControlSchemaVersion      = "security-control.v1.0.0"
+	ControlEvidenceSchemaVersion      = "control-evidence.v1.0.0"
+	ControlCoverageTemplateVersion    = "control-coverage.v1.0.0"
+	CRAReadinessTemplateVersion       = "cra-readiness.v1.0.0"
+	EvidenceLifecycleSchemaVersion    = "evidence-lifecycle-event.v1.0.0"
+	ReleaseCandidateSchemaVersion     = "release-candidate.v1.0.0"
+	ContainerImageSchemaVersion       = "container-image.v1.0.0"
+	ArtifactSignatureSchemaVersion    = "artifact-signature.v1.0.0"
+	SourceRepositorySchemaVersion     = "source-repository.v1.0.0"
+	SourceCommitSchemaVersion         = "source-commit.v1.0.0"
+	SourceBranchSchemaVersion         = "source-branch.v1.0.0"
+	PullRequestSchemaVersion          = "pull-request.v1.0.0"
+	DeploymentEnvironmentVersion      = "deployment-environment.v1.0.0"
+	DeploymentEventSchemaVersion      = "deployment-event.v1.0.0"
+	IncidentSchemaVersion             = "incident.v1.0.0"
+	IncidentTimelineSchemaVersion     = "incident-timeline-event.v1.0.0"
+	IncidentWebhookReceiverVersion    = "incident-webhook-receiver.v1.0.0"
+	IncidentWebhookEventVersion       = "incident-webhook-event.v1.0.0"
+	RemediationTaskSchemaVersion      = "remediation-task.v1.0.0"
+	SecurityScanSchemaVersion         = "security-scan.v1.0.0"
+	ManualSecurityDocSchemaVersion    = "manual-security-document.v1.0.0"
+	SBOMDiffSchemaVersion             = "sbom-diff.v1.0.0"
+	DependencyChangeSchemaVersion     = "dependency-change.v1.0.0"
+	ContractDiffSchemaVersion         = "contract-diff.v1.0.0"
+	CustomPolicySchemaVersion         = "custom-policy.v1.0.0"
+	CustomPolicyEvalSchemaVersion     = "custom-policy-evaluation.v1.0.0"
+	WaiverSchemaVersion               = "waiver.v1.0.0"
+	ApprovalRecordSchemaVersion       = "approval-record.v1.0.0"
+	RedactionProfileSchemaVersion     = "redaction-profile.v1.0.0"
+	CustomerPackageSchemaVersion      = "customer-security-package.v2.0.0"
+	ReportTemplateSchemaVersion       = "report-template.v1.0.0"
+	EvidenceBundleSchemaVersion       = "evidence-bundle.v1.0.0"
+	EvidenceBundleImportVersion       = "evidence-bundle-import.v1.0.0"
+	DSSETrustRootSchemaVersion        = "dsse-trust-root.v1.0.0"
+	CosignVerificationSchemaVersion   = "cosign-verification.v1.0.0"
+	SigningProviderSchemaVersion      = "signing-provider.v1.0.0"
+	MerkleBatchSchemaVersion          = "merkle-batch.v1.0.0"
+	TransparencyCheckpointVersion     = "transparency-checkpoint.v1.0.0"
+	ObjectRetentionPolicyVersion      = "object-retention-policy.v1.0.0"
+	BackupManifestSchemaVersion       = "backup-manifest.v1.0.0"
+	CollectorReleaseSchemaVersion     = "collector-release.v1.0.0"
+	OrganizationSchemaVersion         = "organization.v1.0.0"
+	HumanUserSchemaVersion            = "human-user.v1.0.0"
+	RoleBindingSchemaVersion          = "role-binding.v1.0.0"
+	SSOProviderSchemaVersion          = "sso-provider.v1.0.0"
+	SSOSessionSchemaVersion           = "sso-session.v1.0.0"
+	LegalHoldSchemaVersion            = "legal-hold.v1.0.0"
+	RetentionOverrideSchemaVersion    = "retention-override.v1.0.0"
+	CustomerPortalAccessVersion       = "customer-portal-access.v1.0.0"
+	QuestionnaireTemplateVersion      = "questionnaire-template.v1.0.0"
+	QuestionnairePackageVersion       = "questionnaire-package.v1.0.0"
+	QuestionnaireAnswerLibraryVersion = "questionnaire-answer-library.v1.0.0"
+	CommercialCollectorVersion        = "commercial-collector.v1.0.0"
+	EvidenceSummaryVersion            = "evidence-summary.v1.0.0"
+	QuestionnaireDraftVersion         = "questionnaire-draft.v1.0.0"
+	EvidenceGraphSnapshotVersion      = "evidence-graph-snapshot.v1.0.0"
+	SaaSEditionProfileVersion         = "saas-edition-profile.v1.0.0"
+	PublicTransparencyLogVersion      = "public-transparency-log.v1.0.0"
+	PublicTransparencyEntryVersion    = "public-transparency-entry.v1.0.0"
+	MarketplaceCollectorVersion       = "marketplace-collector.v1.0.0"
+	PDFReportPackageVersion           = "pdf-report-package.v1.0.0"
+	AnomalyReportVersion              = "anomaly-report.v1.0.0"
+	ProviderVerificationVersion       = "provider-verification.v1.0.0"
+	SigningOperationVersion           = "signing-operation.v1.0.0"
 )
 
 type Actor struct {
@@ -878,6 +879,10 @@ type CustomerPortalAccess struct {
 	TenantID          string     `json:"tenant_id"`
 	PackageID         string     `json:"package_id"`
 	CustomerName      string     `json:"customer_name"`
+	RequireNDA        bool       `json:"require_nda"`
+	NDAAcceptedAt     *time.Time `json:"nda_accepted_at,omitempty"`
+	NDAAcceptedBy     string     `json:"nda_accepted_by,omitempty"`
+	Watermark         string     `json:"watermark,omitempty"`
 	Prefix            string     `json:"prefix"`
 	ExpiresAt         time.Time  `json:"expires_at"`
 	RevokedAt         *time.Time `json:"revoked_at,omitempty"`
@@ -926,6 +931,21 @@ type QuestionnaireResponse struct {
 	Answer      string   `json:"answer"`
 	EvidenceIDs []string `json:"evidence_ids,omitempty"`
 	Limitations []string `json:"limitations,omitempty"`
+}
+
+type QuestionnaireAnswerLibraryEntry struct {
+	ID            string    `json:"id"`
+	TenantID      string    `json:"tenant_id"`
+	QuestionID    string    `json:"question_id,omitempty"`
+	EvidenceType  string    `json:"evidence_type,omitempty"`
+	ControlID     string    `json:"control_id,omitempty"`
+	ProductID     string    `json:"product_id,omitempty"`
+	ReleaseID     string    `json:"release_id,omitempty"`
+	Answer        string    `json:"answer"`
+	EvidenceIDs   []string  `json:"evidence_ids,omitempty"`
+	Limitations   []string  `json:"limitations,omitempty"`
+	SchemaVersion string    `json:"schema_version"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 type CommercialCollectorDefinition struct {
@@ -1701,19 +1721,20 @@ type RedactionProfile struct {
 }
 
 type CustomerSecurityPackage struct {
-	ID                 string         `json:"id"`
-	TenantID           string         `json:"tenant_id"`
-	ProductID          string         `json:"product_id"`
-	ReleaseID          string         `json:"release_id,omitempty"`
-	RedactionProfileID string         `json:"redaction_profile_id"`
-	Title              string         `json:"title"`
-	State              string         `json:"state"`
-	Manifest           map[string]any `json:"manifest"`
-	ManifestHash       string         `json:"manifest_hash"`
-	ExpiresAt          time.Time      `json:"expires_at"`
-	AccessCount        int            `json:"access_count"`
-	SchemaVersion      string         `json:"schema_version"`
-	CreatedAt          time.Time      `json:"created_at"`
+	ID                    string         `json:"id"`
+	TenantID              string         `json:"tenant_id"`
+	ProductID             string         `json:"product_id"`
+	ReleaseID             string         `json:"release_id,omitempty"`
+	RedactionProfileID    string         `json:"redaction_profile_id"`
+	Title                 string         `json:"title"`
+	State                 string         `json:"state"`
+	Manifest              map[string]any `json:"manifest"`
+	ManifestHash          string         `json:"manifest_hash"`
+	DistributionWatermark string         `json:"distribution_watermark,omitempty"`
+	ExpiresAt             time.Time      `json:"expires_at"`
+	AccessCount           int            `json:"access_count"`
+	SchemaVersion         string         `json:"schema_version"`
+	CreatedAt             time.Time      `json:"created_at"`
 }
 
 type SecurityReviewPackageReport struct {
