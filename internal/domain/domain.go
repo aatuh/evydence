@@ -821,6 +821,17 @@ type ObjectRetentionPolicy struct {
 	CreatedAt               time.Time     `json:"created_at"`
 }
 
+type SigningCustodyReviewReport struct {
+	ReportType              string                  `json:"report_type"`
+	TenantID                string                  `json:"tenant_id"`
+	SigningProviders        []SigningProvider       `json:"signing_providers,omitempty"`
+	ObjectRetentionPolicies []ObjectRetentionPolicy `json:"object_retention_policies,omitempty"`
+	Checks                  []VerifyCheck           `json:"checks"`
+	Assumptions             []string                `json:"assumptions"`
+	Limitations             []string                `json:"limitations"`
+	GeneratedAt             time.Time               `json:"generated_at"`
+}
+
 type BackupManifest struct {
 	ID                string         `json:"id"`
 	TenantID          string         `json:"tenant_id"`

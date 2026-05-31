@@ -52,7 +52,8 @@ objects instead of unsupported prose:
 - Container publication uses the maintainer-run GHCR workflow and must be
   verified by immutable digest and cosign evidence; Helm installs should not use
   floating image tags.
-- Native PKCS#11/HSM module handling, broad WORM/object-lock proof, direct
+- Native PKCS#11/HSM module execution, broad provider-side WORM enforcement
+  proof beyond recorded object-lock verification metadata, direct
   provider-specific management API clients, external group synchronization,
   regulated production, and hosted SaaS production remain outside the current
   supported profile unless a deployment review closes those gaps.
@@ -174,7 +175,7 @@ non-sensitive sample data and does not upload files.
 - AGPL license, commercial licensing, governance, contribution, security,
   support, code of conduct, trademark, release-evidence, and changelog metadata.
 
-Implemented-but-partial areas are documented explicitly: signing-provider operation receipts can use an HTTPS signing gateway, built-in AWS KMS, GCP Cloud KMS, or Azure Key Vault executors, and `pkcs11-hsm` remains gateway-backed because native HSM modules are deployment-specific; deployment-specific custody review remains operator work. SSO credential exchange uses configured local OIDC/SAML trust material and session-scoped OIDC group-role mappings, and provider verification can optionally call OIDC UserInfo or an operator-controlled provider validation gateway when a caller supplies an access token, but the gateway receives only non-secret metadata and this does not replace direct provider-specific management API clients or external group synchronization. Public transparency records can verify operator-supplied proof material, fetch from configured endpoints, or use an operator-controlled transparency proof gateway without replacing provider-specific trust review.
+Implemented-but-partial areas are documented explicitly: signing-provider operation receipts can use an HTTPS signing gateway, built-in AWS KMS, GCP Cloud KMS, or Azure Key Vault executors, `pkcs11-hsm` remains gateway-backed because native HSM modules are deployment-specific, and `native_pkcs11_hsm` provider records plus custody-review reports capture operator-supplied HSM profile evidence without loading modules or proving custody. SSO credential exchange uses configured local OIDC/SAML trust material and session-scoped OIDC group-role mappings, and provider verification can optionally call OIDC UserInfo or an operator-controlled provider validation gateway when a caller supplies an access token, but the gateway receives only non-secret metadata and this does not replace direct provider-specific management API clients or external group synchronization. Public transparency records can verify operator-supplied proof material, fetch from configured endpoints, or use an operator-controlled transparency proof gateway without replacing provider-specific trust review.
 
 ## License, Security, Support, And Governance
 

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"sort"
 	"strings"
 	"time"
 
@@ -163,6 +164,12 @@ func (l *Ledger) CreateSigningProvider(ctx context.Context, actor domain.Actor, 
 		return domain.SigningProvider{}, ErrValidation
 	}
 	if in.Type == "local_encrypted_dev" && !in.Encrypted {
+		return domain.SigningProvider{}, ErrValidation
+	}
+	if in.Type == "native_pkcs11_hsm" && (!in.Encrypted || !strings.HasPrefix(in.KeyRef, "pkcs11:")) {
+		return domain.SigningProvider{}, ErrValidation
+	}
+	if in.Type == "native_pkcs11_hsm" && signingProviderRefContainsSecret(in.KeyRef) {
 		return domain.SigningProvider{}, ErrValidation
 	}
 	l.mu.Lock()
@@ -419,6 +426,65 @@ func (l *Ledger) VerifyObjectRetentionPolicy(ctx context.Context, actor domain.A
 	return policy, nil
 }
 
+func (l *Ledger) SigningCustodyReviewReport(ctx context.Context, actor domain.Actor) (domain.SigningCustodyReviewReport, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.SigningCustodyReviewReport{}, err
+	}
+	if err := require(actor, ScopeKeysAdmin); err != nil {
+		return domain.SigningCustodyReviewReport{}, err
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	providers := []domain.SigningProvider{}
+	hasProductionProvider := false
+	hasNativePKCS11 := false
+	for _, provider := range l.signingProviders {
+		if provider.TenantID != actor.TenantID {
+			continue
+		}
+		providers = append(providers, provider)
+		if provider.Type != "local_encrypted_dev" {
+			hasProductionProvider = true
+		}
+		if provider.Type == "native_pkcs11_hsm" {
+			hasNativePKCS11 = true
+		}
+	}
+	sort.Slice(providers, func(i, j int) bool { return providers[i].ID < providers[j].ID })
+	retentionPolicies := []domain.ObjectRetentionPolicy{}
+	hasVerifiedRetention := false
+	for _, policy := range l.retentionPolicies {
+		if policy.TenantID != actor.TenantID {
+			continue
+		}
+		retentionPolicies = append(retentionPolicies, policy)
+		if policy.Status == "verified" && policy.VerificationHash != "" {
+			hasVerifiedRetention = true
+		}
+	}
+	sort.Slice(retentionPolicies, func(i, j int) bool { return retentionPolicies[i].ID < retentionPolicies[j].ID })
+	return domain.SigningCustodyReviewReport{
+		ReportType:              "signing_custody_review",
+		TenantID:                actor.TenantID,
+		SigningProviders:        providers,
+		ObjectRetentionPolicies: retentionPolicies,
+		Checks: []domain.VerifyCheck{
+			{Name: "production_signing_provider_recorded", Result: checkResultString(hasProductionProvider), Detail: "At least one non-local signing provider is recorded for the tenant."},
+			{Name: "native_pkcs11_hsm_profile_recorded", Result: checkResultString(hasNativePKCS11), Detail: "A native PKCS#11/HSM custody profile is recorded when the deployment uses local HSM modules or slots."},
+			{Name: "object_lock_proof_recorded", Result: checkResultString(hasVerifiedRetention), Detail: "At least one object-retention policy has provider verification hash material."},
+		},
+		Assumptions: []string{
+			"Custody review uses Evydence records and configured provider verification receipts.",
+			"Native PKCS#11/HSM records describe operator-supplied module and key references; Evydence does not load HSM modules in this API process.",
+		},
+		Limitations: []string{
+			"This report does not prove legal compliance, certification, HSM hardware custody, WORM enforcement, or deployment security.",
+			"Operators remain responsible for HSM driver installation, slot access controls, IAM policy, object-store retention settings, and independent review.",
+		},
+		GeneratedAt: l.now(),
+	}, nil
+}
+
 func (l *Ledger) GenerateBackupManifest(ctx context.Context, actor domain.Actor) (domain.BackupManifest, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.BackupManifest{}, err
@@ -632,9 +698,19 @@ func merkleRoot(leaves []string) string {
 
 func validSigningProviderType(value string) bool {
 	switch value {
-	case "local_encrypted_dev", "aws_kms", "gcp_kms", "azure_key_vault", "pkcs11_hsm":
+	case "local_encrypted_dev", "aws_kms", "gcp_kms", "azure_key_vault", "pkcs11_hsm", "native_pkcs11_hsm":
 		return true
 	default:
 		return false
 	}
+}
+
+func signingProviderRefContainsSecret(value string) bool {
+	lowered := strings.ToLower(value)
+	for _, marker := range []string{"pin-value=", "pin-source=", "password=", "secret=", "token=" + "secret"} {
+		if strings.Contains(lowered, marker) {
+			return true
+		}
+	}
+	return false
 }

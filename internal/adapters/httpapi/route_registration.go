@@ -256,6 +256,7 @@ func (s *Server) integrityOpsRoutes() []routeDef {
 		{http.MethodPost, "/v1/legal-holds", op("createLegalHold", http.MethodPost, "/v1/legal-holds", "Create legal hold", []string{app.ScopeAdmin}), http.HandlerFunc(s.createLegalHold)},
 		{http.MethodPost, "/v1/retention-overrides", op("createRetentionOverride", http.MethodPost, "/v1/retention-overrides", "Create retention override", []string{app.ScopeAdmin}), http.HandlerFunc(s.createRetentionOverride)},
 		{http.MethodGet, "/v1/reports/retention", op("retentionReport", http.MethodGet, "/v1/reports/retention", "Retention report", []string{app.ScopeAdmin}), http.HandlerFunc(s.retentionReport)},
+		{http.MethodGet, "/v1/reports/custody-review", op("signingCustodyReviewReport", http.MethodGet, "/v1/reports/custody-review", "Signing custody review report", []string{app.ScopeKeysAdmin}), http.HandlerFunc(s.signingCustodyReviewReport)},
 		{http.MethodPost, "/v1/backup-manifests", op("generateBackupManifest", http.MethodPost, "/v1/backup-manifests", "Generate backup manifest", []string{app.ScopeAdmin}), http.HandlerFunc(s.generateBackupManifest)},
 		{http.MethodGet, "/v1/backup-manifests/{id}/verify", op("verifyBackupManifest", http.MethodGet, "/v1/backup-manifests/{id}/verify", "Verify backup manifest", []string{app.ScopeVerifyRead}), http.HandlerFunc(s.verifyBackupManifest)},
 	}

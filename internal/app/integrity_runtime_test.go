@@ -173,6 +173,93 @@ func TestObjectRetentionVerifierRecordsProviderChecks(t *testing.T) {
 	}
 }
 
+func TestSigningCustodyReviewAndObjectLockProofExports(t *testing.T) {
+	verifier := &fakeObjectRetentionVerifier{result: ObjectRetentionResult{
+		Provider: "s3",
+		Enforced: true,
+		Checks: []domain.VerifyCheck{
+			{Name: "s3_bucket_versioning", Result: "passed"},
+			{Name: "s3_object_lock_mode", Result: "passed"},
+		},
+		Limitations: []string{"Operator must review bucket IAM, lifecycle, and legal requirements."},
+	}}
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Retention: verifier})
+	ctx := context.Background()
+	actor, release, _ := setupReleaseRiskFixture(t, ledger)
+
+	if _, err := ledger.CreateSigningProvider(ctx, actor, CreateSigningProviderInput{Name: "bad native", Type: "native_pkcs11_hsm", KeyRef: "pkcs11:token=release;object=key;pin-value=1234", Encrypted: true}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("native provider with embedded PIN err=%v, want validation", err)
+	}
+	if _, err := ledger.CreateSigningProvider(ctx, actor, CreateSigningProviderInput{Name: "bad native", Type: "native_pkcs11_hsm", KeyRef: "pkcs11:token=release;object=key"}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("unencrypted native provider err=%v, want validation", err)
+	}
+	provider, err := ledger.CreateSigningProvider(ctx, actor, CreateSigningProviderInput{Name: "native hsm", Type: "native_pkcs11_hsm", KeyRef: "pkcs11:token=release;object=evydence-signing-key", Encrypted: true})
+	if err != nil {
+		t.Fatalf("native provider: %v", err)
+	}
+	policy, err := ledger.CreateObjectRetentionPolicy(ctx, actor, CreateObjectRetentionPolicyInput{Name: "release objects", ObjectPrefix: "tenants/" + actor.TenantID + "/raw/", Mode: "compliance", RetentionDays: 180})
+	if err != nil {
+		t.Fatalf("retention policy: %v", err)
+	}
+	verified, err := ledger.VerifyObjectRetentionPolicy(ctx, actor, policy.ID)
+	if err != nil {
+		t.Fatalf("verify retention: %v", err)
+	}
+	report, err := ledger.SigningCustodyReviewReport(ctx, actor)
+	if err != nil {
+		t.Fatalf("custody report: %v", err)
+	}
+	if report.ReportType != "signing_custody_review" || len(report.SigningProviders) != 1 || report.SigningProviders[0].ID != provider.ID {
+		t.Fatalf("custody report providers = %#v", report)
+	}
+	if len(report.ObjectRetentionPolicies) != 1 || report.ObjectRetentionPolicies[0].VerificationHash != verified.VerificationHash {
+		t.Fatalf("custody report retention policies = %#v", report.ObjectRetentionPolicies)
+	}
+	for _, want := range []string{"production_signing_provider_recorded", "native_pkcs11_hsm_profile_recorded", "object_lock_proof_recorded"} {
+		if !hasVerifyCheck(report.Checks, want, "passed") {
+			t.Fatalf("custody report missing passed check %q: %#v", want, report.Checks)
+		}
+	}
+	if !strings.Contains(strings.Join(report.Limitations, "\n"), "does not prove legal compliance") || strings.Contains(strings.Join(report.Limitations, "\n"), "certified secure") {
+		t.Fatalf("unsafe custody limitations: %#v", report.Limitations)
+	}
+
+	profile, err := ledger.CreateRedactionProfile(ctx, actor, CreateRedactionProfileInput{Name: "object lock proof", AllowedTypes: []string{"object_lock_proof"}})
+	if err != nil {
+		t.Fatalf("profile: %v", err)
+	}
+	pkg, err := ledger.CreateCustomerSecurityPackage(ctx, actor, CreateCustomerPackageInput{ProductID: release.ProductID, ReleaseID: release.ID, RedactionProfileID: profile.ID, Title: "Object-lock proof package", ExpiresAt: fixedNow().Add(time.Hour)})
+	if err != nil {
+		t.Fatalf("package: %v", err)
+	}
+	proofs, ok := pkg.Manifest["object_lock_proofs"].([]map[string]any)
+	if !ok || len(proofs) != 1 || proofs[0]["verification_hash"] != verified.VerificationHash {
+		t.Fatalf("package object-lock proofs = %#v", pkg.Manifest["object_lock_proofs"])
+	}
+	if _, ok := proofs[0]["object_key"]; ok {
+		t.Fatalf("customer package object-lock proof exposed object key: %#v", proofs[0])
+	}
+	limitations, _ := proofs[0]["limitations"].([]string)
+	if strings.Contains(strings.Join(limitations, "\n"), "secure release") {
+		t.Fatalf("object-lock proof made unsafe claim: %#v", proofs[0])
+	}
+
+	bundle, err := ledger.CreateReleaseBundle(ctx, actor, release.ID)
+	if err != nil {
+		t.Fatalf("release bundle: %v", err)
+	}
+	if proofs, ok := bundle.Manifest["object_lock_proofs"].([]map[string]any); !ok || len(proofs) != 1 || proofs[0]["verification_hash"] != verified.VerificationHash {
+		t.Fatalf("release bundle object-lock proofs = %#v", bundle.Manifest["object_lock_proofs"])
+	}
+	evidenceBundle, err := ledger.ExportEvidenceBundle(ctx, actor, release.ID, nil)
+	if err != nil {
+		t.Fatalf("evidence bundle: %v", err)
+	}
+	if proofs, ok := evidenceBundle.Manifest["object_lock_proofs"].([]map[string]any); !ok || len(proofs) != 1 || proofs[0]["verification_hash"] != verified.VerificationHash {
+		t.Fatalf("evidence bundle object-lock proofs = %#v", evidenceBundle.Manifest["object_lock_proofs"])
+	}
+}
+
 func TestObjectRetentionVerifierReceivesLegalHoldRequirement(t *testing.T) {
 	verifier := &fakeObjectRetentionVerifier{result: ObjectRetentionResult{
 		Provider:    "s3",

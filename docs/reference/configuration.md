@@ -148,6 +148,13 @@ native HSM modules and slots are deployment-specific. Operators remain
 responsible for provider credentials, IAM, key lifecycle, gateway operation
 where used, and custody review.
 
+Tenant signing-provider records also accept `native_pkcs11_hsm` for deployments
+that operate local PKCS#11 modules or slots outside Evydence. The provider
+`key_ref` must be a `pkcs11:` URI and must not embed PIN values, PIN sources,
+passwords, or secrets. This profile records custody evidence for review through
+`GET /v1/reports/custody-review`; it does not load native HSM modules or prove
+hardware custody by itself.
+
 When `EVYDENCE_SIGNING_KEY_MODE=aws-kms`, Evydence uses the AWS KMS `Sign`
 operation against `EVYDENCE_AWS_KMS_KEY_ID`. The executor signs the decoded
 SHA-256 digest with KMS `MessageType=DIGEST`; it does not send raw evidence

@@ -1260,6 +1260,7 @@ func (l *Ledger) CreateReleaseBundle(ctx context.Context, actor domain.Actor, re
 			"name":    "evydence",
 			"version": "dev",
 		},
+		"object_lock_proofs": l.packageObjectLockProofsLocked(actor.TenantID),
 	}
 	manifestHash, err := canonicalAnyHash(manifest)
 	if err != nil {

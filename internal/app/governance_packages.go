@@ -103,6 +103,7 @@ var redactionProfilePresets = map[string]redactionProfilePreset{
 			"release_bundle",
 			"approval",
 			"exception",
+			"object_lock_proof",
 			"waiver",
 		},
 		ExcludedFields: []string{
@@ -138,6 +139,7 @@ var redactionProfilePresets = map[string]redactionProfilePreset{
 			"exception",
 			"license_scan",
 			"manual_security_document",
+			"object_lock_proof",
 			"openapi_contract",
 			"pen_test_report",
 			"release_bundle",
@@ -461,6 +463,9 @@ func (l *Ledger) customerPackageManifestLocked(packageID string, generatedAt tim
 	}
 	if profileAllowsPackageType(profile, "answer_library") {
 		manifest["answer_library"] = l.packageAnswerLibraryMetadataLocked(tenantID, productID, releaseID)
+	}
+	if profileAllowsPackageType(profile, "object_lock_proof") {
+		manifest["object_lock_proofs"] = l.packageObjectLockProofsLocked(tenantID)
 	}
 	if profileAllowsPackageType(profile, "build") || profileAllowsPackageType(profile, "build_attestation") {
 		manifest["provenance"] = l.packageProvenanceMetadataLocked(tenantID, releaseID, profile)
@@ -861,6 +866,52 @@ func (l *Ledger) packageAnswerLibraryMetadataLocked(tenantID, productID, release
 		})
 	}
 	sortManifestMapsByID(out)
+	return out
+}
+
+func (l *Ledger) packageObjectLockProofsLocked(tenantID string) []map[string]any {
+	out := []map[string]any{}
+	for _, policy := range l.retentionPolicies {
+		if policy.TenantID != tenantID {
+			continue
+		}
+		proof := map[string]any{
+			"id":                           policy.ID,
+			"name":                         policy.Name,
+			"object_prefix_configured":     policy.ObjectPrefix != "",
+			"sample_object_key_configured": policy.ObjectKey != "",
+			"require_legal_hold":           policy.RequireLegalHold,
+			"mode":                         policy.Mode,
+			"retention_days":               policy.RetentionDays,
+			"status":                       policy.Status,
+			"verification_hash":            policy.VerificationHash,
+			"verification_checks":          packageVerifyChecks(policy.VerificationChecks),
+			"verification_limitations":     append([]string(nil), policy.VerificationLimitations...),
+			"created_at":                   policy.CreatedAt.UTC().Format(time.RFC3339),
+			"limitations": []string{
+				"Object-lock proof records show configured Evydence verification results for tenant object-storage settings only.",
+				"They do not prove external WORM enforcement, IAM policy, lifecycle policy, backup behavior, or legal compliance.",
+			},
+		}
+		if policy.VerifiedAt != nil {
+			proof["verified_at"] = policy.VerifiedAt.UTC().Format(time.RFC3339)
+		}
+		out = append(out, proof)
+	}
+	sortManifestMapsByID(out)
+	return out
+}
+
+func packageVerifyChecks(checks []domain.VerifyCheck) []map[string]any {
+	out := make([]map[string]any, 0, len(checks))
+	for _, check := range checks {
+		out = append(out, map[string]any{"name": check.Name, "result": check.Result, "detail": check.Detail})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		left, _ := out[i]["name"].(string)
+		right, _ := out[j]["name"].(string)
+		return left < right
+	})
 	return out
 }
 
@@ -1299,6 +1350,7 @@ func customerPackageHTMLReport(pkg domain.CustomerSecurityPackage, metadata, ver
 	vexDocuments := packageHTMLRecords(manifest["vex_documents"])
 	decisions := packageHTMLRecords(manifest["vulnerability_decisions"])
 	answerLibrary := packageHTMLRecords(manifest["answer_library"])
+	objectLockProofs := packageHTMLRecords(manifest["object_lock_proofs"])
 	limitations := packageHTMLStrings(manifest["limitations"])
 	nonClaims := packageHTMLStrings(manifest["non_claims"])
 
@@ -1351,6 +1403,17 @@ func customerPackageHTMLReport(pkg domain.CustomerSecurityPackage, metadata, ver
 		b.WriteString("<table><thead><tr><th>Question</th><th>Evidence Type</th><th>Answer</th><th>Evidence IDs</th></tr></thead><tbody>")
 		for _, record := range answerLibrary {
 			b.WriteString("<tr><td>" + packageHTMLEscape(packageHTMLString(record["question_id"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["evidence_type"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["answer"])) + "</td><td>" + packageHTMLEscape(packageHTMLJSON(record["evidence_ids"])) + "</td></tr>")
+		}
+		b.WriteString("</tbody></table>")
+	}
+
+	b.WriteString("<h2>Object-Lock Proofs</h2>")
+	if len(objectLockProofs) == 0 {
+		b.WriteString("<p class=\"muted\">No customer-visible object-lock proof records are included by this package profile.</p>")
+	} else {
+		b.WriteString("<table><thead><tr><th>ID</th><th>Status</th><th>Mode</th><th>Retention Days</th><th>Verification Hash</th></tr></thead><tbody>")
+		for _, record := range objectLockProofs {
+			b.WriteString("<tr><td>" + packageHTMLEscape(packageHTMLString(record["id"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["status"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["mode"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["retention_days"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["verification_hash"])) + "</td></tr>")
 		}
 		b.WriteString("</tbody></table>")
 	}
@@ -1708,7 +1771,16 @@ func (s packageReportService) ExportEvidenceBundle(ctx context.Context, actor do
 	if entries := l.chain[actor.TenantID]; len(entries) > 0 {
 		head = entries[len(entries)-1].EntryHash
 	}
-	manifest := map[string]any{"bundle_version": domain.EvidenceBundleSchemaVersion, "tenant_id": actor.TenantID, "release_id": releaseID, "evidence_ids": ids, "audit_chain_head": head, "verification": "Run evydence verify-evidence-bundle <bundle.json> offline."}
+	manifest := map[string]any{
+		"bundle_version":      domain.EvidenceBundleSchemaVersion,
+		"tenant_id":           actor.TenantID,
+		"release_id":          releaseID,
+		"evidence_ids":        ids,
+		"audit_chain_head":    head,
+		"object_lock_proofs":  l.packageObjectLockProofsLocked(actor.TenantID),
+		"verification":        "Run evydence verify-evidence-bundle <bundle.json> offline.",
+		"verification_limits": []string{"Object-lock proof records reflect Evydence verification metadata and do not prove legal compliance, provider IAM correctness, or complete WORM enforcement."},
+	}
 	hash, err := canonicalAnyHash(manifest)
 	if err != nil {
 		return domain.EvidenceBundle{}, err

@@ -63,10 +63,11 @@ Known hardening work remains:
   parameters, and request/response schemas;
 - production signing can use the HTTPS signing gateway executor, built-in AWS
   KMS, GCP Cloud KMS, Azure Key Vault signing executors, or gateway-backed
-  `pkcs11-hsm`, but native PKCS#11/HSM module custody, direct
-  provider-specific management API clients/group synchronization, and broad
-  object-lock enforcement proof beyond bucket plus sample-object
-  retention/legal-hold checks remain provider- and deployment-dependent
+  `pkcs11-hsm`. Tenant records can also capture a `native_pkcs11_hsm` custody
+  profile and a custody-review report, but native module loading/execution,
+  direct provider-specific management API clients/group synchronization, and
+  broad object-lock enforcement proof beyond recorded bucket plus sample-object
+  retention/legal-hold metadata remain provider- and deployment-dependent
   hardening areas. SSO credential exchange can issue bearer sessions and
   HttpOnly cookies after local OIDC/SAML verification against configured trust
   material, OIDC group claim values can map to session-scoped roles without
@@ -217,11 +218,12 @@ because they are hardening work on already implemented capabilities:
   PostgreSQL store supports them.
 - Keep OpenAPI precision at zero broad operations as routes are added or
   changed, and expand generated SDK coverage from the committed contract.
-- Add native PKCS#11/HSM module support where required by the deployment
+- Add native PKCS#11/HSM module execution where required by the deployment
   profile. The current HTTPS signing gateway executor covers deployments that
   put HSM custody behind a tenant-controlled signing service and do not send raw
-  payload bytes. AWS KMS, GCP Cloud KMS, and Azure Key Vault direct executors
-  sign stored SHA-256 payload hashes through their provider APIs.
+  payload bytes, while `native_pkcs11_hsm` records capture review metadata only.
+  AWS KMS, GCP Cloud KMS, and Azure Key Vault direct executors sign stored
+  SHA-256 payload hashes through their provider APIs.
 - Complete direct provider-specific management API clients and external group
   synchronization where those profiles are enabled. OIDC discovery/JWKS refresh
   is implemented for public trust-material updates, manual JWKS and SAML

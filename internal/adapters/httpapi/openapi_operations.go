@@ -726,6 +726,9 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Object retention policy id."))
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Verified object retention policy envelope.", "#/components/schemas/ObjectRetentionPolicyEnvelope")
+	case "signingCustodyReviewReport":
+		operation.Description = "Returns tenant signing-provider and object-lock verification metadata for deployment custody review. It is evidence metadata only, not legal compliance proof, certification, HSM custody proof, or a secure-deployment guarantee."
+		operation.Responses[http.StatusOK] = jsonResponse("Signing custody review report envelope.", "#/components/schemas/SigningCustodyReviewReportEnvelope")
 	case "createLegalHold":
 		operation.Description = "Creates an append-only legal-hold marker for a tenant-scoped retention subject."
 		operation.RequestBody = jsonRequest("Legal hold creation request.", "#/components/schemas/CreateLegalHoldRequest")

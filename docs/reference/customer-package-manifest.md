@@ -36,6 +36,8 @@ matching release-scoped records exist:
 - `approvals`: release or product approval records.
 - `exceptions`: approved, unexpired release exceptions.
 - `waivers`: approved, unexpired product or release waivers.
+- `object_lock_proofs`: tenant object-retention verification records, included
+  only when the profile explicitly allows `object_lock_proof`.
 - `provenance`: build runs and build attestation metadata.
 
 The `api_contracts` section contains `openapi_contracts` and `contract_diffs`.
@@ -55,6 +57,12 @@ object-store payload references, bearer tokens, private keys, API key hashes,
 SSO/session token hashes, and tenant-internal vulnerability decision notes.
 Customer-visible vulnerability decisions require `impact_statement`; internal
 notes are not copied into `vulnerability_decisions`.
+
+`object_lock_proofs` entries include policy identifiers, object-scope presence
+indicators, retention mode/days, verification checks, verification hash, and
+limitations. They do not include raw object payloads, object-store paths, or
+storage credentials, and they do not prove legal compliance, IAM correctness,
+lifecycle policy completeness, or complete WORM enforcement.
 
 ## Customer-Safe Gaps
 
@@ -91,14 +99,14 @@ the matching archive fixture is
 Runtime ZIP exports also include `report.html`, a self-contained static HTML
 rendering of the redacted manifest. It shows release summary, VEX and
 vulnerability-decision tables, questionnaire answer-library entries when
-included, API contract evidence when included, readiness checks, verification
-material, limitations, and non-claims without requiring a server or loading
-remote assets. Portal ZIP downloads can also include `WATERMARK.txt` and a
-visible report watermark for customer-specific distribution. The watermark is
-not a secret and does not change the canonical package manifest hash. The HTML
-report is generated from package-scoped data only and excludes raw evidence
-payload bytes, object-store references, token material, private keys, and
-internal decision notes.
+included, object-lock proof records when included, API contract evidence when
+included, readiness checks, verification material, limitations, and non-claims
+without requiring a server or loading remote assets. Portal ZIP downloads can
+also include `WATERMARK.txt` and a visible report watermark for
+customer-specific distribution. The watermark is not a secret and does not
+change the canonical package manifest hash. The HTML report is generated from
+package-scoped data only and excludes raw evidence payload bytes, object-store
+references, token material, private keys, and internal decision notes.
 
 ## Redaction Leakage Guard
 
