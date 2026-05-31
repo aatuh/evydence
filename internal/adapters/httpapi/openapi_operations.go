@@ -159,7 +159,35 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 	case "createRelease":
 		operation.Description = "Creates an append-only release record under a product and optional project."
 		operation.RequestBody = jsonRequest("Release creation request.", "#/components/schemas/CreateReleaseRequest")
+		addJSONRequestExamples(operation.RequestBody, map[string]any{
+			"release-candidate": specs.Example{
+				Summary: "Create a release for evidence collection",
+				Value: map[string]any{
+					"product_id": "prod_20260527120000",
+					"project_id": "proj_20260527120000",
+					"version":    "1.0.0-rc.1",
+				},
+			},
+		})
 		operation.Responses[http.StatusCreated] = jsonResponse("Created release envelope.", "#/components/schemas/ReleaseEnvelope")
+		addJSONResponseExamples(&operation, http.StatusCreated, map[string]any{
+			"created-release": specs.Example{
+				Summary: "Created release response",
+				Value: map[string]any{
+					"data": map[string]any{
+						"id":             "rel_20260527120000",
+						"tenant_id":      "ten_20260527120000",
+						"product_id":     "prod_20260527120000",
+						"project_id":     "proj_20260527120000",
+						"version":        "1.0.0-rc.1",
+						"status":         "draft",
+						"schema_version": "release.v1.0.0",
+						"created_at":     "2026-05-27T12:00:00Z",
+					},
+					"meta": map[string]any{"api_version": "v1"},
+				},
+			},
+		})
 	case "getRelease":
 		operation.Description = "Returns a tenant-scoped release by id."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Release id."))
@@ -206,6 +234,12 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 	case "uploadSBOM":
 		operation.Description = "Uploads a CycloneDX SBOM payload, stores raw bytes in object storage, and records normalized SBOM metadata."
 		operation.RequestBody = jsonRequest("CycloneDX SBOM upload request.", "#/components/schemas/EvidenceUploadRequest")
+		addJSONRequestExamples(operation.RequestBody, map[string]any{
+			"cyclonedx-release-sbom": specs.Example{
+				Summary: "Upload a CycloneDX SBOM linked to the release artifact",
+				Value:   cyclonedxSBOMUploadExample(),
+			},
+		})
 		operation.Responses[http.StatusCreated] = jsonResponse("Created SBOM envelope.", "#/components/schemas/SBOMEnvelope")
 	case "getSBOM":
 		operation.Description = "Returns a tenant-scoped SBOM metadata record by id."
@@ -239,6 +273,12 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 	case "uploadVulnerabilityScan":
 		operation.Description = "Uploads a generic vulnerability scan JSON payload and records normalized findings."
 		operation.RequestBody = jsonRequest("Vulnerability scan upload payload.", "#/components/schemas/UploadVulnerabilityScanRequest")
+		addJSONRequestExamples(operation.RequestBody, map[string]any{
+			"generic-critical-finding": specs.Example{
+				Summary: "Upload a generic scanner finding for release triage",
+				Value:   vulnerabilityScanUploadExample(),
+			},
+		})
 		operation.Responses[http.StatusCreated] = jsonResponse("Created vulnerability scan envelope.", "#/components/schemas/VulnerabilityScanEnvelope")
 	case "getVulnerabilityScan":
 		operation.Description = "Returns a tenant-scoped vulnerability scan by id."
@@ -366,6 +406,12 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Description = "Returns a deterministic release-readiness report with gaps, assumptions, and limitations."
 		operation.Parameters = append(operation.Parameters, queryParam("release_id", "Release id.", "string"))
 		operation.Responses[http.StatusOK] = jsonResponse("Release readiness report envelope.", "#/components/schemas/ReadinessReportEnvelope")
+		addJSONResponseExamples(&operation, http.StatusOK, map[string]any{
+			"failed-readiness-with-gap": specs.Example{
+				Summary: "Readiness report with a vulnerability decision gap",
+				Value:   releaseReadinessReportExample(),
+			},
+		})
 	case "missingEvidenceReport":
 		operation.Description = "Returns a deterministic missing-evidence report for a release with assumptions and limitations."
 		operation.Parameters = append(operation.Parameters, queryParam("release_id", "Release id.", "string"))
@@ -378,6 +424,12 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Description = "Creates an append-only vulnerability decision for a tenant-scoped scan finding."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Vulnerability finding id."))
 		operation.RequestBody = jsonRequest("Vulnerability decision creation request.", "#/components/schemas/CreateVulnerabilityDecisionRequest")
+		addJSONRequestExamples(operation.RequestBody, map[string]any{
+			"not-affected-decision": specs.Example{
+				Summary: "Record a customer-visible not-affected decision",
+				Value:   vulnerabilityDecisionExample(),
+			},
+		})
 		operation.Responses[http.StatusCreated] = jsonResponse("Created vulnerability decision envelope.", "#/components/schemas/VulnerabilityDecisionEnvelope")
 	case "listVulnerabilityDecisions":
 		operation.Description = "Lists append-only vulnerability decisions over time with tenant-scoped product, release, vulnerability, component, status, and active filters."
@@ -715,6 +767,12 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 	case "createCustomerPackage":
 		operation.Description = "Creates a scoped customer security package manifest using an explicit redaction profile."
 		operation.RequestBody = jsonRequest("Customer package creation request.", "#/components/schemas/CreateCustomerPackageRequest")
+		addJSONRequestExamples(operation.RequestBody, map[string]any{
+			"release-evidence-package": specs.Example{
+				Summary: "Create a scoped release evidence package",
+				Value:   customerPackageRequestExample(),
+			},
+		})
 		operation.Responses[http.StatusCreated] = jsonResponse("Created customer security package envelope.", "#/components/schemas/CustomerSecurityPackageEnvelope")
 	case "getCustomerPackage":
 		operation.Description = "Returns a tenant-scoped customer security package manifest by id."
@@ -809,6 +867,41 @@ func jsonRequest(description, schemaRef string) *specs.RequestBody {
 	}
 }
 
+func addJSONRequestExamples(body *specs.RequestBody, examples map[string]any) {
+	if body == nil || len(examples) == 0 {
+		return
+	}
+	media := body.Content["application/json"]
+	media.Examples = examples
+	body.Content["application/json"] = media
+}
+
+func addJSONResponseExamples(operation *specs.Operation, status int, examples map[string]any) {
+	if operation == nil || len(examples) == 0 {
+		return
+	}
+	response := operation.Responses[status]
+	media := response.Content["application/json"]
+	media.Examples = examples
+	response.Content["application/json"] = media
+	operation.Responses[status] = response
+}
+
+func cyclonedxSBOMUploadExample() map[string]any {
+	return map[string]any{
+		"release_id":  "rel_20260527120000",
+		"artifact_id": "art_20260527120000",
+		"payload": map[string]any{
+			"bomFormat":   "CycloneDX",
+			"specVersion": "1.6",
+			"components": []map[string]any{
+				{"name": "payments-api", "version": "1.0.0-rc.1", "purl": "pkg:oci/payments-api@sha256-ca978112"},
+				{"name": "openssl", "version": "3.1.0-r0", "purl": "pkg:apk/openssl@3.1.0-r0"},
+			},
+		},
+	}
+}
+
 func openVEXUploadExample() map[string]any {
 	return map[string]any{
 		"release_id":  "rel_20260527120000",
@@ -830,6 +923,84 @@ func openVEXUploadExample() map[string]any {
 				},
 			},
 		},
+	}
+}
+
+func vulnerabilityScanUploadExample() map[string]any {
+	return map[string]any{
+		"scanner":    "generic-json",
+		"target_ref": "pkg:oci/payments-api@sha256-ca978112",
+		"release_id": "rel_20260527120000",
+		"findings": []map[string]any{
+			{
+				"vulnerability": "CVE-2026-0099",
+				"component":     "pkg:apk/openssl@3.1.0-r0",
+				"severity":      "critical",
+				"state":         "open",
+			},
+		},
+	}
+}
+
+func vulnerabilityDecisionExample() map[string]any {
+	return map[string]any{
+		"status":           "not_affected",
+		"justification":    "The vulnerable code path is not reachable in this release.",
+		"impact_statement": "The shipped artifact does not include the affected runtime path.",
+		"customer_visible": true,
+		"evidence_ids":     []string{"ev_20260527120000"},
+	}
+}
+
+func releaseReadinessReportExample() map[string]any {
+	return map[string]any{
+		"data": map[string]any{
+			"report_type":      "release_readiness",
+			"template_version": "release-readiness.v1.0.0",
+			"product_id":       "prod_20260527120000",
+			"release_id":       "rel_20260527120000",
+			"result":           "failed",
+			"policy_set":       "policy-set.v1.0.0",
+			"summary": map[string]any{
+				"headline":      "Release evidence has one blocking vulnerability decision gap.",
+				"result":        "failed",
+				"human_summary": "Required artifact, SBOM, scan, build, and bundle evidence is present, but one critical finding still needs a valid decision or approved exception.",
+				"policy_set":    "policy-set.v1.0.0",
+			},
+			"blocking_findings": []map[string]any{
+				{
+					"finding_id":     "scan_20260527120000:finding:1",
+					"scan_id":        "scan_20260527120000",
+					"release_id":     "rel_20260527120000",
+					"vulnerability":  "CVE-2026-0099",
+					"component":      "pkg:apk/openssl@3.1.0-r0",
+					"severity":       "critical",
+					"state":          "open",
+					"decision_state": "missing",
+				},
+			},
+			"missing_evidence":    []string{"vulnerability_decision"},
+			"accepted_exceptions": []map[string]any{},
+			"assumptions": []string{
+				"Readiness is based on tenant evidence recorded in Evydence.",
+			},
+			"limitations": []string{
+				"Readiness supports technical review and does not prove legal compliance, certification, complete vulnerability coverage, or release security.",
+			},
+			"schema_version": "release-readiness.v1.0.0",
+			"generated_at":   "2026-05-27T12:00:00Z",
+		},
+		"meta": map[string]any{"api_version": "v1"},
+	}
+}
+
+func customerPackageRequestExample() map[string]any {
+	return map[string]any{
+		"product_id":           "prod_20260527120000",
+		"release_id":           "rel_20260527120000",
+		"redaction_profile_id": "rp_20260527120000",
+		"title":                "Payments API 1.0.0 release evidence package",
+		"expires_at":           "2026-06-30T00:00:00Z",
 	}
 }
 

@@ -3,6 +3,7 @@
 The public API base path is `/v1`. The generated contract is committed at [`../openapi.yaml`](../openapi.yaml) and served by the API at `/v1/openapi.json`.
 
 Use this page for common integration workflows and route lookup. The endpoint catalog is expected to list every path in `openapi.yaml`; the generated contract remains the source of truth for operation details, schemas, status codes, security metadata, and route drift checks.
+The OpenAPI contract also includes non-sensitive examples for the main release evidence flow: create release, upload SBOM, upload vulnerability scan, record a vulnerability decision, read release readiness, and create a customer package.
 
 ## Request Contract
 

@@ -111,6 +111,7 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	releaseReadiness := operationMap(t, paths, "/v1/reports/release-readiness", "get")
 	assertQueryParams(t, releaseReadiness, "release_id")
 	assertResponseRef(t, releaseReadiness, "200", "#/components/schemas/ReadinessReportEnvelope")
+	assertResponseExampleContains(t, releaseReadiness, "200", "failed-readiness-with-gap", "blocking_findings")
 	craReadiness := operationMap(t, paths, "/v1/reports/cra-readiness", "get")
 	assertQueryParams(t, craReadiness, "product_id", "release_id")
 	assertResponseRef(t, craReadiness, "200", "#/components/schemas/ReadinessReportEnvelope")
@@ -124,7 +125,9 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	assertResponseRef(t, createProject, "201", "#/components/schemas/ProjectEnvelope")
 	createRelease := operationMap(t, paths, "/v1/releases", "post")
 	assertRequestRef(t, createRelease, "#/components/schemas/CreateReleaseRequest")
+	assertRequestExampleContains(t, createRelease, "release-candidate", "1.0.0-rc.1")
 	assertResponseRef(t, createRelease, "201", "#/components/schemas/ReleaseEnvelope")
+	assertResponseExampleContains(t, createRelease, "201", "created-release", "rel_20260527120000")
 	getRelease := operationMap(t, paths, "/v1/releases/{id}", "get")
 	assertResponseRef(t, getRelease, "200", "#/components/schemas/ReleaseEnvelope")
 	startFlow := operationMap(t, paths, "/v1/releases/{id}/evidence-flow/start", "post")
@@ -142,13 +145,17 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	assertResponseRef(t, createBuild, "201", "#/components/schemas/BuildRunEnvelope")
 	uploadSBOM := operationMap(t, paths, "/v1/sboms", "post")
 	assertRequestRef(t, uploadSBOM, "#/components/schemas/EvidenceUploadRequest")
+	assertRequestExampleContains(t, uploadSBOM, "cyclonedx-release-sbom", "pkg:apk/openssl")
 	assertResponseRef(t, uploadSBOM, "201", "#/components/schemas/SBOMEnvelope")
 	uploadVulnerabilityScan := operationMap(t, paths, "/v1/vulnerability-scans", "post")
 	assertRequestRef(t, uploadVulnerabilityScan, "#/components/schemas/UploadVulnerabilityScanRequest")
+	assertRequestExampleContains(t, uploadVulnerabilityScan, "generic-critical-finding", "CVE-2026-0099")
 	assertResponseRef(t, uploadVulnerabilityScan, "201", "#/components/schemas/VulnerabilityScanEnvelope")
 	listVulnerabilityDecisions := operationMap(t, paths, "/v1/vulnerability-decisions", "get")
 	assertQueryParams(t, listVulnerabilityDecisions, "product_id", "release_id", "vulnerability", "component", "status", "active")
 	assertResponseRef(t, listVulnerabilityDecisions, "200", "#/components/schemas/VulnerabilityDecisionListEnvelope")
+	createVulnerabilityDecision := operationMap(t, paths, "/v1/vulnerability-findings/{id}/decisions", "post")
+	assertRequestExampleContains(t, createVulnerabilityDecision, "not-affected-decision", "customer_visible")
 	decisionSummary := operationMap(t, paths, "/v1/reports/vulnerability-decision-summary", "get")
 	assertQueryParams(t, decisionSummary, "release_id")
 	assertResponseRef(t, decisionSummary, "200", "#/components/schemas/VulnerabilityDecisionSummaryReportEnvelope")
@@ -172,6 +179,8 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	if _, ok := portalPackage["security"]; ok {
 		t.Fatalf("public portal token exchange should not advertise bearer security: %#v", portalPackage["security"])
 	}
+	createCustomerPackage := operationMap(t, paths, "/v1/customer-packages", "post")
+	assertRequestExampleContains(t, createCustomerPackage, "release-evidence-package", "redaction_profile_id")
 	downloadPackage := operationMap(t, paths, "/v1/customer-packages/{id}/download", "get")
 	assertMediaResponseType(t, downloadPackage, "200", "application/zip")
 	portalDownload := operationMap(t, paths, "/v1/customer-portal/package/download", "post")
@@ -1722,6 +1731,23 @@ func assertRequestExampleContains(t *testing.T, operation map[string]any, exampl
 	}
 	if !strings.Contains(string(raw), want) {
 		t.Fatalf("example %s does not contain %q: %s", exampleName, want, raw)
+	}
+}
+
+func assertResponseExampleContains(t *testing.T, operation map[string]any, status, exampleName, want string) {
+	t.Helper()
+	responses := asStringAnyMap(t, operation["responses"])
+	response := asStringAnyMap(t, responses[status])
+	content := asStringAnyMap(t, response["content"])
+	media := asStringAnyMap(t, content["application/json"])
+	examples := asStringAnyMap(t, media["examples"])
+	example := asStringAnyMap(t, examples[exampleName])
+	raw, err := json.Marshal(example["value"])
+	if err != nil {
+		t.Fatalf("marshal response example %s: %v", exampleName, err)
+	}
+	if !strings.Contains(string(raw), want) {
+		t.Fatalf("response example %s does not contain %q: %s", exampleName, want, raw)
 	}
 }
 
