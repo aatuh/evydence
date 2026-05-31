@@ -89,7 +89,8 @@ jobs:
         run: |
           set -euo pipefail
           # scripts/release_candidate_package.sh runs make production-check before artifact packaging.
-          # The generated dist/<tag>/ evidence set includes evydence-release-manifest.sig.json.
+          # The generated dist/<tag>/ evidence set includes evydence-release-manifest.sig.json
+          # plus a Scorecard-compatible evydence-release-manifest.sig alias.
           scripts/release_candidate_package.sh "${{ steps.release.outputs.tag }}"
 
       - name: Upload packaged release evidence

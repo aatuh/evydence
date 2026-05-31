@@ -27,6 +27,7 @@ under `dist/<tag>/` after `make production-check` passes.
 | `release-check-summary.txt` | `make release-check` inside `make production-check` | Record whether formatting, unit tests, OpenAPI, docs, deployment, SDK, lint, gosec, govulncheck, race, and live PostgreSQL checks passed. |
 | `evydence-release-manifest.json` | `./evydence release manifest` through the package script | List release artifacts, hashes, OpenAPI checksum, migration checksum, and release metadata. |
 | `evydence-release-manifest.sig.json` | `./evydence release sign` through the package script | Verify the release manifest signature with the release public key. |
+| `evydence-release-manifest.sig` | Copied from `evydence-release-manifest.sig.json` by the package script | Scorecard-compatible alias for the signed manifest metadata. Use the `.sig.json` file with the Evydence CLI verifier. |
 | `evydence-release-sbom.cdx.json` | `scripts/release_evidence_metadata.py` | Record release SBOM metadata and limitations; this does not prove SBOM completeness. |
 | `evydence-release-provenance.json` | `scripts/release_evidence_metadata.py` | Record build/release provenance metadata and limitations; this does not prove provider trust by itself. |
 | `release-notes.md` | Tag-specific release notes or `docs/reference/release-notes-template.md` | State supported profile, upgrade notes, assumptions, limitations, and unresolved hardening work. |
@@ -48,8 +49,8 @@ The public prerelease includes release archives for Linux, macOS, and Windows;
 `SHA256SUMS`; `openapi.yaml`; `openapi.sha256`; `migrations.sha256`;
 `coverage.out`; `release-check-summary.txt`; `evydence-release-sbom.cdx.json`;
 `evydence-release-provenance.json`; `release-notes.md`;
-`evydence-release-manifest.json`; and
-`evydence-release-manifest.sig.json`.
+`evydence-release-manifest.json`; `evydence-release-manifest.sig.json`; and
+`evydence-release-manifest.sig`.
 
 ## Local Verification
 

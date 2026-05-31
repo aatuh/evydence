@@ -32,6 +32,7 @@ required=(
   "release-notes.md"
   "evydence-release-manifest.json"
   "evydence-release-manifest.sig.json"
+  "evydence-release-manifest.sig"
   "evydence_${tag}_linux_amd64.tar.gz"
   "evydence_${tag}_linux_arm64.tar.gz"
   "evydence_${tag}_darwin_amd64.tar.gz"
@@ -52,6 +53,7 @@ sha256sum -c "$distdir/migrations.sha256" >/dev/null
 go run ./cmd/evydence release verify \
   --manifest "$distdir/evydence-release-manifest.json" \
   --signature "$distdir/evydence-release-manifest.sig.json" >/dev/null
+cmp -s "$distdir/evydence-release-manifest.sig.json" "$distdir/evydence-release-manifest.sig"
 
 grep -Fi "Controlled self-hosted production candidate" "$distdir/release-notes.md" >/dev/null
 grep -Fi "not legal compliance proof" "$distdir/release-notes.md" >/dev/null
