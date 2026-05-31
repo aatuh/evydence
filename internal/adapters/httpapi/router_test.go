@@ -142,6 +142,7 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	assertResponseRef(t, decisionSummary, "200", "#/components/schemas/VulnerabilityDecisionSummaryReportEnvelope")
 	uploadVEX := operationMap(t, paths, "/v1/vex", "post")
 	assertRequestRef(t, uploadVEX, "#/components/schemas/EvidenceUploadRequest")
+	assertRequestExampleContains(t, uploadVEX, "openvex-fixed-decision", "CVE-2026-0002")
 	assertResponseRef(t, uploadVEX, "201", "#/components/schemas/VEXDocumentEnvelope")
 	getVEXImportReport := operationMap(t, paths, "/v1/vex/{id}/import-report", "get")
 	assertQueryParams(t, getVEXImportReport, "id")
@@ -1600,6 +1601,22 @@ func assertRequestRef(t *testing.T, operation map[string]any, wantRef string) {
 	schema := asStringAnyMap(t, media["schema"])
 	if got := asString(t, schema["$ref"]); got != wantRef {
 		t.Fatalf("request schema ref = %q, want %q", got, wantRef)
+	}
+}
+
+func assertRequestExampleContains(t *testing.T, operation map[string]any, exampleName, want string) {
+	t.Helper()
+	body := asStringAnyMap(t, operation["requestBody"])
+	content := asStringAnyMap(t, body["content"])
+	media := asStringAnyMap(t, content["application/json"])
+	examples := asStringAnyMap(t, media["examples"])
+	example := asStringAnyMap(t, examples[exampleName])
+	raw, err := json.Marshal(example["value"])
+	if err != nil {
+		t.Fatalf("marshal example %s: %v", exampleName, err)
+	}
+	if !strings.Contains(string(raw), want) {
+		t.Fatalf("example %s does not contain %q: %s", exampleName, want, raw)
 	}
 }
 

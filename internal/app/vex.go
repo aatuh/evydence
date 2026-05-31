@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"sort"
 	"strconv"
@@ -178,13 +179,24 @@ func (s releaseEvidenceService) UploadVEX(ctx context.Context, actor domain.Acto
 	createdDecisions := 0
 	supersededDecisions := 0
 	mappingFailures := []domain.VEXImportIssue{}
+	warnings := []string{}
 	if !l.workerOwnedParsers {
+		createdForFinding := map[string]struct{}{}
+		duplicateWarningAdded := false
 		for index, statement := range doc.Statements {
 			matches := l.findMatchingFindingsLocked(actor.TenantID, releaseID, statement)
 			if len(matches) == 0 {
 				mappingFailures = append(mappingFailures, vexImportIssue(index+1, "finding_not_found", "No matching vulnerability scan finding was found for this VEX statement."))
 			}
 			for _, matched := range matches {
+				if _, seen := createdForFinding[matched.finding.ID]; seen {
+					if !duplicateWarningAdded {
+						warnings = append(warnings, "Duplicate VEX statements for an already mapped finding were ignored.")
+						duplicateWarningAdded = true
+					}
+					continue
+				}
+				createdForFinding[matched.finding.ID] = struct{}{}
 				decision := l.createDecisionLocked(actor.TenantID, matched.scan, matched.finding, CreateVulnerabilityDecisionInput{
 					Status:          statement.Status,
 					Justification:   statement.Justification,
@@ -207,7 +219,6 @@ func (s releaseEvidenceService) UploadVEX(ctx context.Context, actor domain.Acto
 			}
 		}
 	}
-	warnings := []string{}
 	if l.workerOwnedParsers {
 		warnings = append(warnings, "Worker-owned parser side effects are enabled; decisions are created asynchronously after payload replay.")
 	}
@@ -647,31 +658,70 @@ func parseOpenVEX(raw []byte) (openVEXDocument, error) {
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&doc); err != nil {
-		return openVEXDocument{}, ErrValidation
+		return openVEXDocument{}, vexValidationError("openvex JSON is malformed or contains unsupported fields")
 	}
 	if err := dec.Decode(&struct{}{}); err != io.EOF {
-		return openVEXDocument{}, ErrValidation
+		return openVEXDocument{}, vexValidationError("openvex JSON must contain a single document")
 	}
-	if strings.TrimSpace(doc.Author) == "" || strings.TrimSpace(doc.Timestamp) == "" || len(doc.Statements) == 0 {
-		return openVEXDocument{}, ErrValidation
+	doc.Author = strings.TrimSpace(doc.Author)
+	doc.Timestamp = strings.TrimSpace(doc.Timestamp)
+	if doc.Author == "" {
+		return openVEXDocument{}, vexValidationError("openvex author is required")
+	}
+	if doc.Timestamp == "" {
+		return openVEXDocument{}, vexValidationError("openvex timestamp is required")
+	}
+	if len(doc.Statements) == 0 {
+		return openVEXDocument{}, vexValidationError("openvex must include at least one statement")
 	}
 	if _, err := time.Parse(time.RFC3339, doc.Timestamp); err != nil {
-		return openVEXDocument{}, ErrValidation
+		return openVEXDocument{}, vexValidationError("openvex timestamp must be RFC3339")
 	}
-	for _, statement := range doc.Statements {
-		if strings.TrimSpace(statement.Vulnerability.Name) == "" || !validDecisionStatus(statement.Status) || strings.TrimSpace(statement.Justification) == "" {
-			return openVEXDocument{}, ErrValidation
+	for index := range doc.Statements {
+		statement := &doc.Statements[index]
+		statement.Vulnerability.Name = strings.TrimSpace(statement.Vulnerability.Name)
+		statement.Status = strings.TrimSpace(statement.Status)
+		statement.Justification = strings.TrimSpace(statement.Justification)
+		statement.ImpactStatement = strings.TrimSpace(statement.ImpactStatement)
+		statement.ActionStatement = strings.TrimSpace(statement.ActionStatement)
+		if statement.Vulnerability.Name == "" {
+			return openVEXDocument{}, vexStatementValidationError(index+1, "is missing a vulnerability name")
+		}
+		if !validDecisionStatus(statement.Status) {
+			return openVEXDocument{}, vexStatementValidationError(index+1, "has an unsupported status")
+		}
+		if statement.Justification == "" {
+			return openVEXDocument{}, vexStatementValidationError(index+1, "is missing a justification")
 		}
 		if len(statement.Products) == 0 {
-			return openVEXDocument{}, ErrValidation
+			return openVEXDocument{}, vexStatementValidationError(index+1, "is missing products")
 		}
-		for _, product := range statement.Products {
-			if strings.TrimSpace(product.ID) == "" {
-				return openVEXDocument{}, ErrValidation
-			}
+		if err := validateOpenVEXProducts(index+1, statement.Products); err != nil {
+			return openVEXDocument{}, err
 		}
 	}
 	return doc, nil
+}
+
+func validateOpenVEXProducts(statementIndex int, products []openVEXProduct) error {
+	for index := range products {
+		products[index].ID = strings.TrimSpace(products[index].ID)
+		if products[index].ID == "" {
+			return vexValidationError(fmt.Sprintf("openvex statement %d product %d is missing an @id", statementIndex, index+1))
+		}
+		if err := validateOpenVEXProducts(statementIndex, products[index].Subcomponents); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func vexStatementValidationError(index int, detail string) error {
+	return vexValidationError(fmt.Sprintf("openvex statement %d %s", index, detail))
+}
+
+func vexValidationError(detail string) error {
+	return fmt.Errorf("%s: %w", detail, ErrValidation)
 }
 
 func validDecisionStatus(status string) bool {

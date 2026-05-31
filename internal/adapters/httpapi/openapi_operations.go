@@ -202,9 +202,22 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Description = "Returns a tenant-scoped SBOM metadata record by id."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "SBOM id."))
 		operation.Responses[http.StatusOK] = jsonResponse("SBOM envelope.", "#/components/schemas/SBOMEnvelope")
-	case "uploadVEX", "uploadCycloneDXVEX":
+	case "uploadVEX":
 		operation.Description = "Uploads VEX payload bytes, stores raw evidence in object storage, and records normalized VEX metadata and decisions where applicable."
-		operation.RequestBody = jsonRequest("VEX upload request.", "#/components/schemas/EvidenceUploadRequest")
+		operation.RequestBody = jsonRequest("OpenVEX upload request.", "#/components/schemas/EvidenceUploadRequest")
+		operation.RequestBody.Content["application/json"] = specs.MediaType{
+			SchemaRef: "#/components/schemas/EvidenceUploadRequest",
+			Examples: map[string]any{
+				"openvex-fixed-decision": specs.Example{
+					Summary: "Imported OpenVEX fixed decision",
+					Value:   openVEXUploadExample(),
+				},
+			},
+		}
+		operation.Responses[http.StatusCreated] = jsonResponse("Created VEX document envelope.", "#/components/schemas/VEXDocumentEnvelope")
+	case "uploadCycloneDXVEX":
+		operation.Description = "Uploads VEX payload bytes, stores raw evidence in object storage, and records normalized VEX metadata and decisions where applicable."
+		operation.RequestBody = jsonRequest("CycloneDX VEX upload request.", "#/components/schemas/EvidenceUploadRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created VEX document envelope.", "#/components/schemas/VEXDocumentEnvelope")
 	case "getVEX":
 		operation.Description = "Returns a tenant-scoped VEX document metadata record by id."
@@ -783,6 +796,30 @@ func jsonRequest(description, schemaRef string) *specs.RequestBody {
 		ContentTypes: []string{"application/json"},
 		Content: map[string]specs.MediaType{
 			"application/json": {SchemaRef: schemaRef},
+		},
+	}
+}
+
+func openVEXUploadExample() map[string]any {
+	return map[string]any{
+		"release_id":  "rel_20260527120000",
+		"artifact_id": "art_20260527120000",
+		"payload": map[string]any{
+			"@context":  "https://openvex.dev/ns/v0.2.0",
+			"@id":       "https://example.test/vex/payments-api/1.0.0",
+			"author":    "security@example.test",
+			"timestamp": "2026-05-27T12:00:00Z",
+			"version":   1,
+			"statements": []map[string]any{
+				{
+					"vulnerability":    map[string]any{"name": "CVE-2026-0002"},
+					"products":         []map[string]any{{"@id": "pkg:apk/openssl@3.1.0"}},
+					"status":           "fixed",
+					"justification":    "fixed_in_release_candidate",
+					"impact_statement": "Patched before this release candidate.",
+					"action_statement": "Ship the fixed artifact after operator review.",
+				},
+			},
 		},
 	}
 }
