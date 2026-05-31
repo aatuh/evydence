@@ -11,6 +11,14 @@ running the API, load
 `examples/end-to-end-release-evidence/sample-customer-package-manifest.json` or
 press **Load bundled demo** in the viewer.
 
+Before sharing or reviewing a package, use the offline verifier for hash,
+structure, archive metadata, and optional evidence-bundle signature checks:
+
+```sh
+go run ./cmd/evydence package verify \
+  --manifest examples/end-to-end-release-evidence/sample-customer-package-manifest.json
+```
+
 ![Static package viewer preview](../assets/package-viewer-preview.svg)
 
 Use it for:

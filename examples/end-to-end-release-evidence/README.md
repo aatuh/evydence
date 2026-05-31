@@ -93,8 +93,15 @@ question to concrete Evydence records:
 
 To visually inspect the customer-safe output, open
 `site/package-viewer/index.html` and load `customer-package.json` from the demo
-output directory. To verify the release bundle through the API, read the bundle
-id from `release-bundle.json` and call:
+output directory. To verify the package manifest offline, run:
+
+```sh
+go run ./cmd/evydence package verify \
+  --manifest tmp/end-to-end-release-evidence/customer-package.json
+```
+
+To verify the release bundle through the API, read the bundle id from
+`release-bundle.json` and call:
 
 ```sh
 bundle_id="$(jq -r '.data.id' tmp/end-to-end-release-evidence/release-bundle.json)"
