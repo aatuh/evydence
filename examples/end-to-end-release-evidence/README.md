@@ -34,6 +34,8 @@ you use source-checkout commands for local development.
 - `release-evidence-manifest.json`: example CLI bulk-upload manifest.
 - `sample-readiness-report.json`: representative readiness output with gaps and
   limitations.
+- `sample-security-summary.json`: representative release security quick-check
+  output without raw tenant payload bytes.
 - `sample-customer-package-manifest.json`: representative customer package
   manifest without raw tenant payload bytes.
 - `sample-customer-package.zip`: downloadable fixture with `manifest.json`,
@@ -89,6 +91,8 @@ question to concrete Evydence records:
   this demo.
 - `release-readiness.json`: the readiness result, gaps, assumptions, and
   limitations.
+- `release-security-summary.json`: the compact release security status for
+  review surfaces.
 - `release-bundle.json`: the signed release bundle metadata.
 - `customer-package.json`: the customer-safe package manifest.
 - `audit-chain-verification.json`: audit-chain continuity verification.

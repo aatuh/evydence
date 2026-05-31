@@ -136,6 +136,83 @@ func TestUploadSBOMEnqueuesParserVersion(t *testing.T) {
 	}
 }
 
+func TestReleaseSecuritySummaryIsTenantScopedAndRedacted(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
+	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"openssl","purl":"pkg:apk/openssl@3.1.0"}]}`)); err != nil {
+		t.Fatalf("sbom: %v", err)
+	}
+	scan, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{
+		"scanner":"grype",
+		"target_ref":"pkg:oci/payments-api",
+		"release_id":"`+release.ID+`",
+		"findings":[{"vulnerability":"CVE-2026-0099","component":"pkg:apk/openssl@3.1.0","severity":"critical","state":"open"}]
+	}`))
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	addBuildProvenance(t, ledger, actor, release, artifact)
+	if _, err := ledger.CreateReleaseBundle(ctx, actor, release.ID); err != nil {
+		t.Fatalf("bundle: %v", err)
+	}
+
+	summary, err := ledger.ReleaseSecuritySummary(ctx, actor, release.ID)
+	if err != nil {
+		t.Fatalf("summary: %v", err)
+	}
+	if summary.SchemaVersion != domain.ReleaseSecuritySummaryVersion || summary.SBOMStatus != "present" || summary.VulnerabilityScanStatus != "present" {
+		t.Fatalf("summary basics missing: %#v", summary)
+	}
+	if summary.OpenFindingsBySeverity["critical"] != 1 || len(summary.MissingRequiredDecisions) != 1 || summary.ReadinessStatus != "failed" {
+		t.Fatalf("summary should show unhandled critical finding: %#v", summary)
+	}
+	body, err := json.Marshal(summary)
+	if err != nil {
+		t.Fatalf("marshal summary: %v", err)
+	}
+	for _, forbidden := range []string{"payload_ref", "payload_hash", "internal_notes", "secret", "token"} {
+		if strings.Contains(string(body), forbidden) {
+			t.Fatalf("summary leaked %q: %s", forbidden, body)
+		}
+	}
+
+	if _, err := ledger.CreateVulnerabilityDecision(ctx, actor, scan.Findings[0].ID, CreateVulnerabilityDecisionInput{Status: decisionStatusNotAffected, Justification: "vulnerable code is not present"}); err != nil {
+		t.Fatalf("decision: %v", err)
+	}
+	summary, err = ledger.ReleaseSecuritySummary(ctx, actor, release.ID)
+	if err != nil {
+		t.Fatalf("summary after decision: %v", err)
+	}
+	if len(summary.MissingRequiredDecisions) != 0 || summary.DecisionsByStatus[decisionStatusNotAffected] != 1 || summary.ReadinessStatus != "passed" {
+		t.Fatalf("summary should reflect accepted decision: %#v", summary)
+	}
+
+	_, readerSecret, err := ledger.CreateAPIKey(ctx, actor, "release-reader", []string{ScopeReleaseRead}, nil)
+	if err != nil {
+		t.Fatalf("reader key: %v", err)
+	}
+	reader, err := ledger.Authenticate(ctx, readerSecret)
+	if err != nil {
+		t.Fatalf("reader auth: %v", err)
+	}
+	if _, err := ledger.ReleaseSecuritySummary(ctx, reader, release.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("wrong-scope summary err = %v, want forbidden", err)
+	}
+
+	_, _, otherSecret, err := ledger.BootstrapTenant(ctx, "Other Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("other bootstrap: %v", err)
+	}
+	other, err := ledger.Authenticate(ctx, otherSecret)
+	if err != nil {
+		t.Fatalf("other auth: %v", err)
+	}
+	if _, err := ledger.ReleaseSecuritySummary(ctx, other, release.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("cross-tenant summary err = %v, want not found", err)
+	}
+}
+
 func TestUploadSBOMCanDeferParserSideEffectsToWorker(t *testing.T) {
 	outbox := &recordingOutbox{}
 	store := NewMemoryStore()

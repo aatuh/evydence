@@ -1,5 +1,5 @@
 {
-  "route_count": 170,
+  "route_count": 171,
   "routes": [
     {
       "idempotency_key_required": false,
@@ -1852,6 +1852,23 @@
       ],
       "scopes": [
         "release:write"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "releaseSecuritySummary",
+      "path": "/v1/releases/{id}/security-summary",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/ReleaseSecuritySummaryEnvelope"
+      ],
+      "scopes": [
+        "report:read"
       ],
       "success_statuses": [
         "200"

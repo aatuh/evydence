@@ -169,6 +169,10 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Release id."))
 		delete(operation.Responses, http.StatusCreated)
 		operation.Responses[http.StatusOK] = jsonResponse("Release evidence flow envelope.", "#/components/schemas/ReleaseEvidenceFlowEnvelope")
+	case "releaseSecuritySummary":
+		operation.Description = "Returns a tenant-scoped release security summary for review surfaces without raw evidence payload bytes."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Release id."))
+		operation.Responses[http.StatusOK] = jsonResponse("Release security summary envelope.", "#/components/schemas/ReleaseSecuritySummaryEnvelope")
 	case "freezeRelease":
 		operation.Description = "Freezes a release as an append-only transition."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Release id."))

@@ -1172,28 +1172,8 @@ func (l *Ledger) EvaluateRelease(ctx context.Context, actor domain.Actor, releas
 	if err := l.authorizeResourceLocked(actor, ScopeVerifyRead, resourceRefs{ReleaseID: release.ID}); err != nil {
 		return domain.PolicyEvaluation{}, err
 	}
-	checks := []domain.PolicyCheck{
-		l.checkReleaseHasArtifactLocked(actor.TenantID, release.ID),
-		l.checkReleaseHasEvidenceLocked(actor.TenantID, release.ID, "sbom", "release_requires_sbom", "high"),
-		l.checkReleaseHasEvidenceLocked(actor.TenantID, release.ID, "vulnerability_scan", "release_requires_vulnerability_scan", "high"),
-		l.checkReleaseHasArtifactDigestLocked(actor.TenantID, release.ID),
-		l.checkReleaseHasSignedBundleLocked(actor.TenantID, release.ID),
-		l.checkReleaseHasPassedBuildLocked(actor.TenantID, release.ID),
-		l.checkReleaseHasBuildAttestationLocked(actor.TenantID, release.ID),
-		l.checkNoOpenCriticalLocked(actor.TenantID, release.ID),
-		l.checkNoOpenHighLocked(actor.TenantID, release.ID),
-		l.checkCustomerVisibleDecisionsHaveStatementsLocked(actor.TenantID, release.ID),
-		l.checkNotAffectedDecisionsHaveJustificationLocked(actor.TenantID, release.ID),
-		l.checkExceptionsCompleteLocked(actor.TenantID, release.ID),
-		l.checkPackageRedactionProfilesValidLocked(actor.TenantID, release.ID),
-	}
-	result := "passed"
-	for _, check := range checks {
-		if check.Result == "failed" {
-			result = "failed"
-			break
-		}
-	}
+	checks := l.releasePolicyChecksLocked(actor.TenantID, release.ID)
+	result := releasePolicyResult(checks)
 	eval := domain.PolicyEvaluation{ID: newID("pe"), TenantID: actor.TenantID, ReleaseID: release.ID, Result: result, PolicySet: domain.PolicySetVersion, Checks: checks, CreatedAt: l.now()}
 	l.policies[eval.ID] = eval
 	_, _ = l.appendChainLocked(actor.TenantID, "policy.evaluated", "policy_evaluation", eval.ID, "api_key", actor.KeyID, "", "")
@@ -1201,6 +1181,33 @@ func (l *Ledger) EvaluateRelease(ctx context.Context, actor domain.Actor, releas
 		return domain.PolicyEvaluation{}, err
 	}
 	return eval, nil
+}
+
+func (l *Ledger) releasePolicyChecksLocked(tenantID, releaseID string) []domain.PolicyCheck {
+	return []domain.PolicyCheck{
+		l.checkReleaseHasArtifactLocked(tenantID, releaseID),
+		l.checkReleaseHasEvidenceLocked(tenantID, releaseID, "sbom", "release_requires_sbom", "high"),
+		l.checkReleaseHasEvidenceLocked(tenantID, releaseID, "vulnerability_scan", "release_requires_vulnerability_scan", "high"),
+		l.checkReleaseHasArtifactDigestLocked(tenantID, releaseID),
+		l.checkReleaseHasSignedBundleLocked(tenantID, releaseID),
+		l.checkReleaseHasPassedBuildLocked(tenantID, releaseID),
+		l.checkReleaseHasBuildAttestationLocked(tenantID, releaseID),
+		l.checkNoOpenCriticalLocked(tenantID, releaseID),
+		l.checkNoOpenHighLocked(tenantID, releaseID),
+		l.checkCustomerVisibleDecisionsHaveStatementsLocked(tenantID, releaseID),
+		l.checkNotAffectedDecisionsHaveJustificationLocked(tenantID, releaseID),
+		l.checkExceptionsCompleteLocked(tenantID, releaseID),
+		l.checkPackageRedactionProfilesValidLocked(tenantID, releaseID),
+	}
+}
+
+func releasePolicyResult(checks []domain.PolicyCheck) string {
+	for _, check := range checks {
+		if check.Result == "failed" {
+			return "failed"
+		}
+	}
+	return "passed"
 }
 
 func (l *Ledger) CreateReleaseBundle(ctx context.Context, actor domain.Actor, releaseID string) (domain.ReleaseBundle, error) {

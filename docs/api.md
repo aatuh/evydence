@@ -66,6 +66,7 @@ Then create:
 POST /v1/projects
 POST /v1/releases
 POST /v1/releases/{id}/evidence-flow/start
+GET /v1/releases/{id}/security-summary
 ```
 
 Representative request bodies:
@@ -82,6 +83,11 @@ Representative request bodies:
 with current evidence counts, required endpoints, scopes, idempotency guidance,
 assumptions, and limitations. It does not create evidence or replace the
 resource-specific endpoints.
+
+`GET /v1/releases/{id}/security-summary` returns a tenant-scoped quick-check
+summary for review surfaces. It includes artifact, SBOM, scan, finding,
+decision, approval, exception, readiness, and package-generation status, but it
+does not include raw evidence payload bytes or private decision notes.
 
 ### 2. Register Artifact And Upload Evidence
 
@@ -327,6 +333,7 @@ Current SSO endpoints model admin-managed provider, identity-link, trust-materia
 | `POST` | `/v1/releases` | Create release. |
 | `GET` | `/v1/releases/{id}` | Read release. |
 | `POST` | `/v1/releases/{id}/evidence-flow/start` | Read high-level release evidence workflow plan. |
+| `GET` | `/v1/releases/{id}/security-summary` | Read customer-safe release security summary status. |
 | `POST` | `/v1/releases/{id}/freeze` | Append freeze transition. |
 | `POST` | `/v1/releases/{id}/approve` | Append approval transition. |
 | `POST` | `/v1/artifacts` | Register artifact digest metadata. |
