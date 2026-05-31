@@ -61,16 +61,16 @@ Known hardening work remains:
 - OpenAPI precision is enforced across the registered public API. The generated
   matrix remains the source of truth for operation ids, scopes, idempotency,
   parameters, and request/response schemas;
-- production signing can use the HTTPS signing gateway executor, but direct
-  cloud KMS/HSM SDK adapters, live provider API validation/group sync, and
-  broad object-lock enforcement proof remain provider- and deployment-dependent
-  hardening areas. SSO credential exchange can issue bearer sessions and
-  HttpOnly cookies after local OIDC/SAML verification against configured trust
-  material, OIDC group claim values can map to session-scoped roles without
-  creating permanent role bindings, and public transparency proof material can
-  be fetched from a configured endpoint and verified locally, but
-  provider-specific trust semantics and availability remain deployment
-  responsibilities;
+- production signing can use the HTTPS signing gateway executor or the built-in
+  AWS KMS signing executor, but non-AWS cloud KMS/HSM SDK adapters, live
+  provider API validation/group sync, and broad object-lock enforcement proof
+  remain provider- and deployment-dependent hardening areas. SSO credential
+  exchange can issue bearer sessions and HttpOnly cookies after local OIDC/SAML
+  verification against configured trust material, OIDC group claim values can
+  map to session-scoped roles without creating permanent role bindings, and
+  public transparency proof material can be fetched from a configured endpoint
+  and verified locally, but provider-specific trust semantics and availability
+  remain deployment responsibilities;
 - the broader production exit review remains incomplete.
 
 ## Production Profiles
@@ -197,9 +197,11 @@ implemented capabilities:
   PostgreSQL store supports them.
 - Keep OpenAPI precision at zero broad operations as routes are added or
   changed, and expand generated SDK coverage from the committed contract.
-- Add direct cloud KMS/HSM SDK adapters where required. The current HTTPS
-  signing gateway executor covers deployments that put KMS/HSM custody behind a
-  tenant-controlled signing service and do not send raw payload bytes.
+- Add direct cloud KMS/HSM SDK adapters where required beyond AWS KMS. The
+  current HTTPS signing gateway executor covers deployments that put KMS/HSM
+  custody behind a tenant-controlled signing service and do not send raw
+  payload bytes; the AWS KMS executor signs stored SHA-256 payload hashes with
+  KMS `MessageType=DIGEST`.
 - Complete live provider API validation and optional group mapping where those
   profiles are enabled. OIDC discovery/JWKS refresh is implemented for public
   trust-material updates, manual JWKS and SAML signing-certificate rotation is

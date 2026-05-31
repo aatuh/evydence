@@ -36,6 +36,8 @@ Release-candidate tagging requires the production gate and checklist in
   outbox jobs.
 - Relational PostgreSQL state synchronization for remaining aggregate
   persistence calls without writing the compatibility `ledger_state` snapshot.
+- AWS KMS signing executor for signing provider operations over stored
+  SHA-256 payload hashes without sending raw evidence payload bytes.
 
 ### Known Limits
 
@@ -43,6 +45,6 @@ Release-candidate tagging requires the production gate and checklist in
 - Operators remain responsible for production PostgreSQL, object storage,
   network policy, TLS, backups, monitoring, external signing, and incident
   response.
-- Service decomposition, HA/multi-writer operation, direct KMS/HSM SDK
+- Service decomposition, HA/multi-writer operation, non-AWS KMS/HSM SDK
   adapters, live provider validation, broader object-lock proof, and final exit
   review remain production-hardening work after the release-candidate gate.

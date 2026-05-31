@@ -46,11 +46,16 @@ The example secrets are placeholders. Replace them before using shared or produc
 | `EVYDENCE_WORKER_POLL_INTERVAL` | No | `1s` | Worker outbox polling interval. |
 | `EVYDENCE_WORKER_BATCH_SIZE` | No | `10` | Maximum outbox jobs claimed per polling cycle. |
 | `EVYDENCE_WORKER_MAX_PAYLOAD_BYTES` | No | `20971520` | Maximum raw object payload size replayed by a worker job. |
-| `EVYDENCE_SIGNING_KEY_MODE` | Production yes | `external` for production | Production rejects local plaintext signing-key mode. |
+| `EVYDENCE_SIGNING_KEY_MODE` | Production yes | `external` or `aws-kms` for production | Production rejects local plaintext signing-key mode. `external` uses the optional HTTPS signing gateway; `aws-kms` uses the built-in AWS KMS executor. |
 | `EVYDENCE_SIGNING_EXECUTOR_URL` | No | unset | Optional HTTPS signing gateway used by `POST /v1/signing-operations` when `external_signature` is omitted. The API sends subject metadata and `payload_hash`, not raw payload bytes. |
 | `EVYDENCE_SIGNING_EXECUTOR_TOKEN` | Signing gateway | unset | Optional bearer token for the signing gateway. Store outside source control and logs. |
 | `EVYDENCE_SIGNING_EXECUTOR_TIMEOUT_SECONDS` | No | `10` | Timeout for signing gateway requests. |
 | `EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST` | Local only | `false` | Allows `http://localhost` or loopback signing gateway endpoints for local development and tests. Do not use for production. |
+| `EVYDENCE_AWS_KMS_KEY_ID` | AWS KMS mode | unset | AWS KMS asymmetric signing key id, alias, or ARN. Store IAM credentials outside Evydence config and logs. |
+| `EVYDENCE_AWS_REGION` / `AWS_REGION` | AWS KMS mode | unset | Region used by the AWS KMS executor. `EVYDENCE_AWS_REGION` takes precedence. |
+| `EVYDENCE_AWS_KMS_ENDPOINT` | No | unset | Optional AWS KMS-compatible endpoint for tests or controlled private endpoints. |
+| `EVYDENCE_AWS_KMS_SIGNING_ALGORITHM` | No | `ECDSA_SHA_256` | Supported values are `ECDSA_SHA_256`, `RSASSA_PSS_SHA_256`, and `RSASSA_PKCS1_V1_5_SHA_256` because Evydence signs stored SHA-256 payload hashes. |
+| `EVYDENCE_AWS_KMS_TIMEOUT_SECONDS` | No | `10` | Timeout for AWS KMS signing requests. |
 | `EVYDENCE_TEST_DATABASE_URL` | Live tests | `.test.env.example` value | Used by `make live-postgres-check`, `make postgres-integration-test`, and `make release-check`. |
 
 ## Production Rejection Checks
@@ -59,7 +64,7 @@ When `ENV=production`, the API refuses to start unless:
 
 - `EVYDENCE_DATABASE_URL` is set.
 - `EVYDENCE_API_KEY_PEPPER` is non-empty and not the local default.
-- `EVYDENCE_SIGNING_KEY_MODE=external`.
+- `EVYDENCE_SIGNING_KEY_MODE=external` or `EVYDENCE_SIGNING_KEY_MODE=aws-kms`.
 - `EVYDENCE_PRINT_BOOTSTRAP_SECRET` is not `true`.
 - `EVYDENCE_POSTGRES_LOAD_MODE`, when set, is `relational_only`.
 
@@ -90,7 +95,7 @@ and limitations. The check is bucket-level: operators still need to review
 bucket creation mode, IAM policy, lifecycle rules, backups, and any
 deployment-specific WORM requirements.
 
-## External Signing Gateway
+## Signing Executors
 
 When `EVYDENCE_SIGNING_EXECUTOR_URL` is set, signing operations can omit
 `external_signature`. Evydence sends a JSON request containing tenant id,
@@ -98,6 +103,13 @@ provider id/type, key reference, subject type/id, and `payload_hash`. The
 gateway returns a signature, optional provider key id, and optional algorithm.
 Evydence records the signature receipt and verification checks; it does not
 store production private key material or send raw evidence payload bytes.
+
+When `EVYDENCE_SIGNING_KEY_MODE=aws-kms`, Evydence uses the AWS KMS `Sign`
+operation against `EVYDENCE_AWS_KMS_KEY_ID`. The executor signs the decoded
+SHA-256 digest with KMS `MessageType=DIGEST`; it does not send raw evidence
+payload bytes to AWS KMS. Operators remain responsible for AWS IAM policy,
+key lifecycle, CloudTrail review, regional availability, and external review
+of whether the selected key custody profile satisfies their deployment needs.
 
 ## Related Commands
 
