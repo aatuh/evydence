@@ -83,4 +83,4 @@ Rollback does not roll back PostgreSQL data or object-store payloads. Keep datab
 
 ## Production Notes
 
-Production deployments should use external PostgreSQL, S3/MinIO-compatible object storage, TLS ingress, backup automation, network access controls, and external signing. Current production guidance uses a single API writer replica; worker replicas can scale independently through PostgreSQL outbox row locking. See [Production hardening review](production-hardening.md), [Production readiness](reference/production-readiness.md), and [Configuration](reference/configuration.md).
+Production deployments should use external PostgreSQL, S3/MinIO-compatible object storage, TLS ingress, backup automation, network access controls, and external signing. Current production guidance uses a single API writer replica; production API startup enforces that stance with a PostgreSQL advisory writer lease, and worker replicas can scale independently through PostgreSQL outbox row locking. See [Production hardening review](production-hardening.md), [Production readiness](reference/production-readiness.md), and [Configuration](reference/configuration.md).

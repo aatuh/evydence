@@ -58,6 +58,7 @@ func run() error {
 		cfg.Signer = signer
 	}
 	var closeStore func()
+	var releaseWriterLease func()
 	if databaseURL != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -75,6 +76,13 @@ func run() error {
 			return err
 		}
 		closeStore = pgStore.Close
+		if production {
+			releaseWriterLease, err = pgStore.AcquireAPIWriterLease(ctx)
+			if err != nil {
+				closeStore()
+				return fmt.Errorf("acquire api writer lease: %w", err)
+			}
+		}
 		migrationsDir := envDefault("EVYDENCE_MIGRATIONS_DIR", "migrations")
 		if !strings.EqualFold(os.Getenv("EVYDENCE_SKIP_MIGRATIONS"), "true") {
 			if _, err := pgStore.ApplyMigrations(ctx, migrationsDir); err != nil {
@@ -97,6 +105,9 @@ func run() error {
 	}
 	if closeStore != nil {
 		defer closeStore()
+	}
+	if releaseWriterLease != nil {
+		defer releaseWriterLease()
 	}
 	ledger, err := app.NewLedgerWithError(cfg)
 	if err != nil {

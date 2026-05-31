@@ -36,6 +36,8 @@ type StoreOptions struct {
 	DisableSnapshotWrites bool
 }
 
+const apiWriterLeaseKey int64 = 0x65767964656e6365
+
 type ClaimedJob struct {
 	ID          string
 	TenantID    string
@@ -103,6 +105,34 @@ func ValidateProductionLoadMode(mode LoadMode) error {
 		return errors.New("production requires EVYDENCE_POSTGRES_LOAD_MODE=relational_only or unset")
 	}
 	return nil
+}
+
+func (s *Store) AcquireAPIWriterLease(ctx context.Context) (func(), error) {
+	if s == nil || s.pool == nil {
+		return nil, app.ErrValidation
+	}
+	conn, err := s.pool.Acquire(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("acquire api writer lease connection: %w", err)
+	}
+	releaseConn := true
+	defer func() {
+		if releaseConn {
+			conn.Release()
+		}
+	}()
+	var acquired bool
+	if err := conn.QueryRow(ctx, `SELECT pg_try_advisory_lock($1)`, apiWriterLeaseKey).Scan(&acquired); err != nil {
+		return nil, fmt.Errorf("acquire api writer lease: %w", err)
+	}
+	if !acquired {
+		return nil, errors.New("another Evydence API writer is already active")
+	}
+	releaseConn = false
+	return func() {
+		_, _ = conn.Exec(context.Background(), `SELECT pg_advisory_unlock($1)`, apiWriterLeaseKey)
+		conn.Release()
+	}, nil
 }
 
 func normalizeLoadMode(mode LoadMode) (LoadMode, error) {

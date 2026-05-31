@@ -80,6 +80,10 @@ preserve existing workflows. Use `relational_preferred` only for controlled
 non-production migration or recovery checks that intentionally fall back to the
 snapshot.
 
+In production, API startup takes a PostgreSQL advisory writer lease and fails
+if another API writer already holds it. Worker replicas are not constrained by
+that lease because outbox jobs use row locking.
+
 When PostgreSQL is configured, critical runtime mutations use focused
 transaction-backed writes for tenants, API-key hashes, SSO-session hashes,
 customer-portal token hashes, idempotency records, audit-chain entries,

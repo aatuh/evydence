@@ -43,6 +43,8 @@ Release-candidate tagging requires the production gate and checklist in
   persisted.
 - Object-retention policies can require sample-object legal hold verification
   with S3/MinIO providers that expose object legal-hold status.
+- Production API startup takes a PostgreSQL advisory writer lease so accidental
+  second API writers fail closed under the supported single-writer profile.
 
 ### Known Limits
 
