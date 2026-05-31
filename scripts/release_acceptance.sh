@@ -43,6 +43,8 @@ for file in \
   RELEASE_EVIDENCE.md \
   CHANGELOG.md \
   .dockerignore \
+  .github/ISSUE_TEMPLATE.md \
+  .github/pull_request_template.md \
   README.md \
   docs/README.md \
   docs/reference/release-candidate.md \
@@ -62,6 +64,10 @@ require_text SECURITY.md "raw evidence payloads"
 require_text SECURITY.md "tenant isolation"
 require_text SECURITY.md "private security intake"
 require_text SECURITY.md "Supported Versions And Scope"
+require_text .github/ISSUE_TEMPLATE.md "private vulnerability reporting"
+require_text .github/ISSUE_TEMPLATE.md "raw evidence payloads"
+require_text .github/pull_request_template.md "tenant isolation"
+require_text .github/pull_request_template.md "Sensitive Data Check"
 require_text SUPPORT.md "sanitized logs"
 require_text SUPPORT.md "release evidence artifacts"
 require_text TRADEMARKS.md "Evydence fork"

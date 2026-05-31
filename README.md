@@ -49,6 +49,8 @@ separate operator action.
 For a first local API flow, follow [Getting started](docs/tutorials/getting-started.md).
 For durable local evaluation, run the production-like Compose rehearsal in
 [Install and operate](docs/how-to/install-and-operate.md).
+For the release-evidence path to inspect first, use the
+[end-to-end release evidence example](examples/end-to-end-release-evidence/README.md).
 
 The end-to-end evidence flow to evaluate first is:
 
