@@ -84,6 +84,8 @@ func run(args []string) error {
 			return usage()
 		}
 		switch args[1] {
+		case "upload-evidence":
+			return uploadReleaseEvidence(context.Background(), http.DefaultClient, args[2:])
 		case "manifest":
 			return createReleaseArtifactManifest(args[2:])
 		case "sign":
@@ -101,7 +103,7 @@ func run(args []string) error {
 }
 
 func usage() error {
-	return errors.New("usage: evydence hash <file> | evydence verify-manifest <manifest.json> --hash sha256:<hex> | evydence verify-evidence-bundle <bundle.json> | evydence verify-audit-chain <chain.json> | evydence package verify ... | evydence github-actions upload-build ... | evydence import-bundle upload ... | evydence upload manifest ... | evydence release manifest|sign|verify|keygen")
+	return errors.New("usage: evydence hash <file> | evydence verify-manifest <manifest.json> --hash sha256:<hex> | evydence verify-evidence-bundle <bundle.json> | evydence verify-audit-chain <chain.json> | evydence package verify ... | evydence github-actions upload-build ... | evydence import-bundle upload ... | evydence upload manifest ... | evydence release upload-evidence|manifest|sign|verify|keygen")
 }
 
 func hashFile(path string) (string, error) {
@@ -838,6 +840,15 @@ func stringInSlice(values []string, expected string) bool {
 	return false
 }
 
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
 func cleanOperatorPath(path string) (string, error) {
 	path = strings.TrimSpace(path)
 	if path == "" {
@@ -1059,6 +1070,352 @@ func uploadManifestRequests(ctx context.Context, client *http.Client, args []str
 		fmt.Println("uploaded " + path + ": " + id)
 	}
 	return nil
+}
+
+type releaseUploadConfig struct {
+	APIURL            string
+	APIKey            string
+	ProductID         string
+	ProductName       string
+	ProductSlug       string
+	CreateProduct     bool
+	ReleaseID         string
+	ReleaseVersion    string
+	CreateRelease     bool
+	ArtifactID        string
+	ArtifactPath      string
+	ArtifactName      string
+	ArtifactMediaType string
+	CreateArtifact    bool
+	SBOMPath          string
+	ScanPath          string
+	ScanScanner       string
+	TargetRef         string
+	VEXPath           string
+	CreateBundle      bool
+	DryRun            bool
+	IdempotencyPrefix string
+}
+
+func uploadReleaseEvidence(ctx context.Context, client *http.Client, args []string) error {
+	cfg, err := parseReleaseUploadConfig(args)
+	if err != nil {
+		return err
+	}
+	artifact, err := releaseUploadArtifactMetadata(cfg.ArtifactPath, cfg.ArtifactName, cfg.ArtifactMediaType)
+	if err != nil {
+		return err
+	}
+	sbomPayload, err := readOptionalJSONPayload(cfg.SBOMPath, "SBOM")
+	if err != nil {
+		return err
+	}
+	scanPayload, err := readOptionalJSONPayload(cfg.ScanPath, "vulnerability scan")
+	if err != nil {
+		return err
+	}
+	vexPayload, err := readOptionalJSONPayload(cfg.VEXPath, "VEX")
+	if err != nil {
+		return err
+	}
+	if len(sbomPayload) == 0 && len(scanPayload) == 0 && len(vexPayload) == 0 && !cfg.CreateBundle {
+		return errors.New("provide at least one evidence file or leave --create-bundle enabled")
+	}
+	if cfg.ArtifactPath != "" && cfg.ArtifactID == "" && !cfg.CreateArtifact {
+		return errors.New("--artifact-id is required when --artifact is supplied unless --create-artifact is set")
+	}
+	if cfg.ReleaseID == "" && !cfg.CreateRelease {
+		return errors.New("--release-id is required unless --create-release is set")
+	}
+	if cfg.ProductID == "" && (cfg.CreateRelease || cfg.CreateProduct) && !cfg.CreateProduct {
+		return errors.New("--product-id is required unless --create-product is set")
+	}
+	if cfg.CreateProduct && (cfg.ProductName == "" || cfg.ProductSlug == "") {
+		return errors.New("--product-name and --product-slug are required with --create-product")
+	}
+	if cfg.CreateRelease && cfg.ReleaseVersion == "" {
+		return errors.New("--release-version is required with --create-release")
+	}
+	if cfg.CreateArtifact && cfg.ArtifactPath == "" {
+		return errors.New("--artifact is required with --create-artifact")
+	}
+	if !cfg.DryRun && (cfg.APIURL == "" || cfg.APIKey == "") {
+		return usage()
+	}
+	if cfg.IdempotencyPrefix == "" {
+		cfg.IdempotencyPrefix = releaseUploadIdempotencyPrefix(cfg, artifact, sbomPayload, scanPayload, vexPayload)
+	}
+	productID := cfg.ProductID
+	if cfg.CreateProduct {
+		id, err := postReleaseUploadJSON(ctx, client, cfg, "/v1/products", cfg.IdempotencyPrefix+"-product", map[string]any{
+			"name": cfg.ProductName,
+			"slug": cfg.ProductSlug,
+		}, "<created-product-id>")
+		if err != nil {
+			return err
+		}
+		productID = id
+	}
+	releaseID := cfg.ReleaseID
+	if cfg.CreateRelease {
+		if productID == "" {
+			return errors.New("product id is required before creating a release")
+		}
+		id, err := postReleaseUploadJSON(ctx, client, cfg, "/v1/releases", cfg.IdempotencyPrefix+"-release", map[string]any{
+			"product_id": productID,
+			"version":    cfg.ReleaseVersion,
+		}, "<created-release-id>")
+		if err != nil {
+			return err
+		}
+		releaseID = id
+	}
+	if releaseID == "" {
+		return errors.New("release id is required")
+	}
+	artifactID := cfg.ArtifactID
+	if cfg.CreateArtifact {
+		id, err := postReleaseUploadJSON(ctx, client, cfg, "/v1/artifacts", cfg.IdempotencyPrefix+"-artifact", map[string]any{
+			"name":       artifact.Name,
+			"media_type": artifact.MediaType,
+			"digest":     artifact.Digest,
+			"size":       artifact.Size,
+		}, "<created-artifact-id>")
+		if err != nil {
+			return err
+		}
+		artifactID = id
+	}
+	if len(sbomPayload) > 0 {
+		if _, err := postReleaseUploadJSON(ctx, client, cfg, "/v1/sboms", cfg.IdempotencyPrefix+"-sbom", map[string]any{
+			"release_id":  releaseID,
+			"artifact_id": artifactID,
+			"payload":     json.RawMessage(sbomPayload),
+		}, "<created-sbom-id>"); err != nil {
+			return err
+		}
+	}
+	if len(scanPayload) > 0 {
+		payload, err := buildReleaseUploadScanPayload(scanPayload, releaseID, cfg.TargetRef, cfg.ScanScanner, artifact)
+		if err != nil {
+			return err
+		}
+		if _, err := postReleaseUploadRaw(ctx, client, cfg, "/v1/vulnerability-scans", cfg.IdempotencyPrefix+"-scan", payload, "<created-scan-id>"); err != nil {
+			return err
+		}
+	}
+	if len(vexPayload) > 0 {
+		if _, err := postReleaseUploadJSON(ctx, client, cfg, "/v1/vex", cfg.IdempotencyPrefix+"-vex", map[string]any{
+			"release_id":  releaseID,
+			"artifact_id": artifactID,
+			"payload":     json.RawMessage(vexPayload),
+		}, "<created-vex-id>"); err != nil {
+			return err
+		}
+	}
+	if cfg.CreateBundle {
+		if _, err := postReleaseUploadJSON(ctx, client, cfg, "/v1/release-bundles", cfg.IdempotencyPrefix+"-release-bundle", map[string]any{
+			"release_id": releaseID,
+		}, "<created-release-bundle-id>"); err != nil {
+			return err
+		}
+	}
+	printReleaseUploadNextSteps(cfg.APIURL, releaseID)
+	return nil
+}
+
+func parseReleaseUploadConfig(args []string) (releaseUploadConfig, error) {
+	fs := flag.NewFlagSet("release upload-evidence", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	cfg := releaseUploadConfig{CreateBundle: true, ArtifactMediaType: "application/octet-stream", ScanScanner: "generic"}
+	productAlias := ""
+	releaseAlias := ""
+	fs.StringVar(&cfg.APIURL, "url", strings.TrimSpace(os.Getenv("EVYDENCE_API_URL")), "Evydence API URL")
+	fs.StringVar(&cfg.APIKey, "api-key", strings.TrimSpace(os.Getenv("EVYDENCE_API_KEY")), "Evydence API key")
+	fs.StringVar(&cfg.ProductID, "product-id", "", "existing product id")
+	fs.StringVar(&productAlias, "product", "", "existing product id alias")
+	fs.StringVar(&cfg.ProductName, "product-name", "", "product name used with --create-product")
+	fs.StringVar(&cfg.ProductSlug, "product-slug", "", "product slug used with --create-product")
+	fs.BoolVar(&cfg.CreateProduct, "create-product", false, "create product before uploading evidence")
+	fs.StringVar(&cfg.ReleaseID, "release-id", "", "existing release id")
+	fs.StringVar(&releaseAlias, "release", "", "existing release id alias")
+	fs.StringVar(&cfg.ReleaseVersion, "release-version", "", "release version used with --create-release")
+	fs.BoolVar(&cfg.CreateRelease, "create-release", false, "create release before uploading evidence")
+	fs.StringVar(&cfg.ArtifactID, "artifact-id", "", "existing artifact id")
+	fs.StringVar(&cfg.ArtifactPath, "artifact", "", "artifact file path used for digest and optional registration")
+	fs.StringVar(&cfg.ArtifactName, "artifact-name", "", "artifact name; defaults to artifact file basename")
+	fs.StringVar(&cfg.ArtifactMediaType, "artifact-media-type", "application/octet-stream", "artifact media type used with --create-artifact")
+	fs.BoolVar(&cfg.CreateArtifact, "create-artifact", false, "register artifact before uploading evidence")
+	fs.StringVar(&cfg.SBOMPath, "sbom", "", "CycloneDX SBOM JSON path")
+	fs.StringVar(&cfg.ScanPath, "scan", "", "Evydence generic vulnerability scan JSON path")
+	fs.StringVar(&cfg.ScanScanner, "scan-scanner", "generic", "scanner name to use when the scan JSON omits scanner")
+	fs.StringVar(&cfg.TargetRef, "target-ref", "", "scan target reference; defaults to artifact digest when available")
+	fs.StringVar(&cfg.VEXPath, "vex", "", "OpenVEX JSON path")
+	fs.BoolVar(&cfg.CreateBundle, "create-bundle", true, "create a release bundle after uploads")
+	fs.BoolVar(&cfg.DryRun, "dry-run", false, "validate inputs and print planned requests without network calls")
+	fs.StringVar(&cfg.IdempotencyPrefix, "idempotency-prefix", "", "stable idempotency prefix")
+	if err := fs.Parse(args); err != nil {
+		return releaseUploadConfig{}, usage()
+	}
+	if fs.NArg() != 0 {
+		return releaseUploadConfig{}, usage()
+	}
+	cfg.APIURL = strings.TrimSpace(cfg.APIURL)
+	cfg.APIKey = strings.TrimSpace(cfg.APIKey)
+	cfg.ProductID = firstNonEmpty(cfg.ProductID, productAlias)
+	cfg.ReleaseID = firstNonEmpty(cfg.ReleaseID, releaseAlias)
+	cfg.ProductName = strings.TrimSpace(cfg.ProductName)
+	cfg.ProductSlug = strings.TrimSpace(cfg.ProductSlug)
+	cfg.ReleaseVersion = strings.TrimSpace(cfg.ReleaseVersion)
+	cfg.ArtifactID = strings.TrimSpace(cfg.ArtifactID)
+	cfg.ArtifactName = strings.TrimSpace(cfg.ArtifactName)
+	cfg.ArtifactMediaType = firstNonEmpty(cfg.ArtifactMediaType, "application/octet-stream")
+	cfg.ScanScanner = firstNonEmpty(cfg.ScanScanner, "generic")
+	cfg.TargetRef = strings.TrimSpace(cfg.TargetRef)
+	cfg.IdempotencyPrefix = strings.TrimSpace(cfg.IdempotencyPrefix)
+	return cfg, nil
+}
+
+type releaseUploadArtifact struct {
+	Name      string
+	MediaType string
+	Digest    string
+	Size      int64
+}
+
+func releaseUploadArtifactMetadata(path, name, mediaType string) (releaseUploadArtifact, error) {
+	if strings.TrimSpace(path) == "" {
+		return releaseUploadArtifact{Name: strings.TrimSpace(name), MediaType: firstNonEmpty(mediaType, "application/octet-stream")}, nil
+	}
+	cleaned, err := cleanOperatorPath(path)
+	if err != nil {
+		return releaseUploadArtifact{}, err
+	}
+	info, err := os.Stat(cleaned)
+	if err != nil {
+		return releaseUploadArtifact{}, err
+	}
+	if info.IsDir() {
+		return releaseUploadArtifact{}, errors.New("--artifact must point to a file")
+	}
+	digest, err := hashFile(cleaned)
+	if err != nil {
+		return releaseUploadArtifact{}, err
+	}
+	if strings.TrimSpace(name) == "" {
+		name = filepath.Base(cleaned)
+	}
+	return releaseUploadArtifact{Name: strings.TrimSpace(name), MediaType: firstNonEmpty(mediaType, "application/octet-stream"), Digest: digest, Size: info.Size()}, nil
+}
+
+func readOptionalJSONPayload(path, label string) (json.RawMessage, error) {
+	if strings.TrimSpace(path) == "" {
+		return nil, nil
+	}
+	body, err := readFileStrict(path)
+	if err != nil {
+		return nil, err
+	}
+	if len(body) > 20<<20 {
+		return nil, fmt.Errorf("%s payload exceeds 20 MiB", label)
+	}
+	var normalized any
+	dec := json.NewDecoder(bytes.NewReader(body))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&normalized); err != nil {
+		return nil, fmt.Errorf("%s payload is not valid JSON", label)
+	}
+	if err := dec.Decode(&struct{}{}); err != io.EOF {
+		return nil, fmt.Errorf("%s payload must contain one JSON document", label)
+	}
+	canonical, err := json.Marshal(normalized)
+	if err != nil {
+		return nil, err
+	}
+	return canonical, nil
+}
+
+func buildReleaseUploadScanPayload(raw json.RawMessage, releaseID, targetRef, scanner string, artifact releaseUploadArtifact) ([]byte, error) {
+	var doc struct {
+		Scanner   string `json:"scanner"`
+		TargetRef string `json:"target_ref"`
+		ReleaseID string `json:"release_id"`
+		Findings  []struct {
+			Vulnerability string `json:"vulnerability"`
+			Component     string `json:"component"`
+			Severity      string `json:"severity"`
+			State         string `json:"state"`
+		} `json:"findings"`
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&doc); err != nil {
+		return nil, errors.New("scan payload must use Evydence generic vulnerability scan JSON")
+	}
+	doc.Scanner = firstNonEmpty(doc.Scanner, scanner)
+	doc.TargetRef = firstNonEmpty(doc.TargetRef, targetRef)
+	if doc.TargetRef == "" && artifact.Digest != "" {
+		doc.TargetRef = "artifact-digest:" + artifact.Digest
+	}
+	doc.ReleaseID = releaseID
+	if strings.TrimSpace(doc.Scanner) == "" || strings.TrimSpace(doc.TargetRef) == "" {
+		return nil, errors.New("scan payload requires scanner and target_ref; use --scan-scanner and --target-ref when the file omits them")
+	}
+	if doc.Findings == nil {
+		return nil, errors.New("scan payload requires findings")
+	}
+	body, err := json.Marshal(doc)
+	if err != nil {
+		return nil, err
+	}
+	return body, nil
+}
+
+func releaseUploadIdempotencyPrefix(cfg releaseUploadConfig, artifact releaseUploadArtifact, sbom, scan, vex json.RawMessage) string {
+	parts := []string{
+		cfg.ProductID, cfg.ProductName, cfg.ProductSlug,
+		cfg.ReleaseID, cfg.ReleaseVersion,
+		cfg.ArtifactID, artifact.Name, artifact.Digest,
+		hashBytes(sbom), hashBytes(scan), hashBytes(vex),
+	}
+	sum := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
+	return "release-evidence-" + hex.EncodeToString(sum[:8])
+}
+
+func postReleaseUploadJSON(ctx context.Context, client *http.Client, cfg releaseUploadConfig, path, idem string, payload any, placeholderID string) (string, error) {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+	return postReleaseUploadRaw(ctx, client, cfg, path, idem, body, placeholderID)
+}
+
+func postReleaseUploadRaw(ctx context.Context, client *http.Client, cfg releaseUploadConfig, path, idem string, body []byte, placeholderID string) (string, error) {
+	if cfg.DryRun {
+		fmt.Printf("dry-run: would POST %s idempotency=%s payload_hash=%s\n", path, idem, hashBytes(body))
+		return placeholderID, nil
+	}
+	response, err := postRawEvydence(ctx, client, cfg.APIURL, cfg.APIKey, path, idem, body)
+	if err != nil {
+		return "", err
+	}
+	id, err := responseDataID(response)
+	if err != nil {
+		return "", err
+	}
+	fmt.Println("uploaded " + path + ": " + id)
+	return id, nil
+}
+
+func printReleaseUploadNextSteps(apiURL, releaseID string) {
+	reference := "/v1/reports/release-readiness?release_id=" + releaseID
+	if strings.TrimSpace(apiURL) != "" {
+		if base, err := cleanAPIURL(apiURL); err == nil {
+			reference = base + "/v1/reports/release-readiness?release_id=" + url.QueryEscape(releaseID)
+		}
+	}
+	fmt.Println("next: read release readiness at " + reference)
+	fmt.Println("next: verify release bundle with GET /v1/release-bundles/{id}/verify after bundle creation")
 }
 
 func createReleaseArtifactManifest(args []string) error {

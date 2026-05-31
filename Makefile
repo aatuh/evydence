@@ -221,6 +221,8 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@grep -F 'package-viewer-preview.svg' docs/how-to/view-packages.md >/dev/null
 	@grep -F 'v0.1.0-rc.4 - 2026-05-31' CHANGELOG.md >/dev/null
 	@grep -F 'make restore-rehearsal-check' docs/runbooks/backup-restore.md >/dev/null
+	@grep -F 'release upload-evidence' docs/how-to/integrate-ci.md >/dev/null
+	@grep -F -- '--dry-run' docs/how-to/integrate-ci.md >/dev/null
 	@grep -F 'dist/evydence github-actions upload-build' docs/github-actions/quickstart-release-evidence.yml >/dev/null
 	@grep -F 'scripts/github_release_evidence_manifest.py' docs/github-actions/quickstart-release-evidence.yml >/dev/null
 	@grep -F '/v1/reports/release-readiness' docs/github-actions/quickstart-release-evidence.yml >/dev/null

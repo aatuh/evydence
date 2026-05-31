@@ -61,6 +61,56 @@ and record GitHub OIDC metadata, grant `id-token: write` in the workflow and pas
 the value as evidence metadata; it does not request or verify a GitHub OIDC
 token.
 
+## One-Shot CLI Upload
+
+For a local or CI path that already has files on disk, use the one-shot release
+evidence uploader:
+
+```sh
+go run ./cmd/evydence release upload-evidence \
+  --url "$EVYDENCE_API_URL" \
+  --api-key "$EVYDENCE_API_KEY" \
+  --product-id "$EVYDENCE_PRODUCT_ID" \
+  --release-id "$EVYDENCE_RELEASE_ID" \
+  --artifact-id "$EVYDENCE_ARTIFACT_ID" \
+  --artifact dist/api.tar.gz \
+  --sbom .evydence/sbom.cdx.json \
+  --scan .evydence/scan.evydence.json \
+  --target-ref "pkg:github/${GITHUB_REPOSITORY}@${GITHUB_SHA}" \
+  --vex .evydence/review.openvex.json
+```
+
+The command computes the artifact digest locally, validates JSON inputs, uploads
+the SBOM, generic vulnerability scan, optional OpenVEX document, and release
+bundle through existing `/v1` endpoints, then prints the release-readiness API
+reference to check next. It never prints the API key.
+
+Use explicit create flags when the product, release, or artifact should be
+created by the command:
+
+```sh
+go run ./cmd/evydence release upload-evidence \
+  --url "$EVYDENCE_API_URL" \
+  --api-key "$EVYDENCE_API_KEY" \
+  --create-product \
+  --product-name "Payments API" \
+  --product-slug payments-api \
+  --create-release \
+  --release-version 1.0.0 \
+  --create-artifact \
+  --artifact dist/api.tar.gz \
+  --sbom .evydence/sbom.cdx.json \
+  --scan .evydence/scan.evydence.json \
+  --target-ref "pkg:github/acme/payments-api@${GITHUB_SHA}" \
+  --idempotency-prefix "release-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+```
+
+Without the matching `--create-*` flag, missing product, release, or artifact
+IDs fail before side effects. Add `--dry-run` to validate paths and JSON and
+print planned requests without requiring an API URL or key. The `--scan` file is
+Evydence generic vulnerability scan JSON with `findings`; use the full
+scanner-oriented workflow when you need Grype or Trivy normalization.
+
 The full workflow also shows a scanner handoff path:
 
 - produce CycloneDX JSON with `syft`;

@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -343,6 +344,140 @@ func TestGitHubActionsUploadBuildPostsBuildAndAttestationSafely(t *testing.T) {
 	}
 }
 
+func TestReleaseUploadEvidenceDryRunValidatesFilesAndPrintsNextSteps(t *testing.T) {
+	dir := t.TempDir()
+	artifactPath := writeTestFile(t, dir+"/api.tar.gz", []byte("artifact"))
+	sbomPath := writeTestFile(t, dir+"/sbom.json", []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api","purl":"pkg:github/acme/api@abc"}]}`))
+	scanPath := writeTestFile(t, dir+"/scan.json", []byte(`{"findings":[]}`))
+	vexPath := writeTestFile(t, dir+"/vex.json", []byte(`{"@context":"https://openvex.dev/ns/v0.2.0","@id":"https://example.test/vex","author":"security@example.test","timestamp":"2026-05-27T12:00:00Z","version":1,"statements":[{"vulnerability":{"name":"CVE-2026-0001"},"products":[{"@id":"pkg:github/acme/api@abc"}],"status":"not_affected","justification":"component_not_present","impact_statement":"not shipped","action_statement":"none"}]}`))
+	t.Setenv("EVYDENCE_API_KEY", "evy_secret_should_not_print")
+
+	out, err := captureStdout(t, func() error {
+		return uploadReleaseEvidence(t.Context(), http.DefaultClient, []string{
+			"--dry-run",
+			"--product-id", "prod_1",
+			"--release-id", "rel_1",
+			"--artifact-id", "art_1",
+			"--artifact", artifactPath,
+			"--sbom", sbomPath,
+			"--scan", scanPath,
+			"--scan-scanner", "generic",
+			"--target-ref", "pkg:github/acme/api@abc",
+			"--vex", vexPath,
+		})
+	})
+	if err != nil {
+		t.Fatalf("dry-run upload: %v", err)
+	}
+	for _, expected := range []string{"/v1/sboms", "/v1/vulnerability-scans", "/v1/vex", "/v1/release-bundles", "/v1/reports/release-readiness?release_id=rel_1"} {
+		if !strings.Contains(out, expected) {
+			t.Fatalf("dry-run output missing %q:\n%s", expected, out)
+		}
+	}
+	if strings.Contains(out, "evy_secret_should_not_print") {
+		t.Fatalf("dry-run output leaked API key: %s", out)
+	}
+}
+
+func TestReleaseUploadEvidenceCreatesMissingResourcesAndUploads(t *testing.T) {
+	dir := t.TempDir()
+	artifactPath := writeTestFile(t, dir+"/api.tar.gz", []byte("artifact"))
+	sbomPath := writeTestFile(t, dir+"/sbom.json", []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api","purl":"pkg:github/acme/api@abc"}]}`))
+	scanPath := writeTestFile(t, dir+"/scan.json", []byte(`{"scanner":"generic","findings":[]}`))
+	vexPath := writeTestFile(t, dir+"/vex.json", []byte(`{"@context":"https://openvex.dev/ns/v0.2.0","@id":"https://example.test/vex","author":"security@example.test","timestamp":"2026-05-27T12:00:00Z","version":1,"statements":[{"vulnerability":{"name":"CVE-2026-0001"},"products":[{"@id":"pkg:github/acme/api@abc"}],"status":"fixed","justification":"fixed","impact_statement":"patched","action_statement":"upgrade"}]}`))
+	seen := []string{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer evy_secret" {
+			t.Fatalf("authorization header=%q", got)
+		}
+		if !strings.HasPrefix(r.Header.Get("Idempotency-Key"), "one-shot-") {
+			t.Fatalf("idempotency key=%q", r.Header.Get("Idempotency-Key"))
+		}
+		seen = append(seen, r.URL.Path)
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode payload for %s: %v", r.URL.Path, err)
+		}
+		switch r.URL.Path {
+		case "/v1/products":
+			if payload["name"] != "Payments" || payload["slug"] != "payments" {
+				t.Fatalf("product payload=%#v", payload)
+			}
+			_, _ = w.Write([]byte(`{"data":{"id":"prod_1"},"meta":{"api_version":"v1"}}`))
+		case "/v1/releases":
+			if payload["product_id"] != "prod_1" || payload["version"] != "1.0.0" {
+				t.Fatalf("release payload=%#v", payload)
+			}
+			_, _ = w.Write([]byte(`{"data":{"id":"rel_1"},"meta":{"api_version":"v1"}}`))
+		case "/v1/artifacts":
+			if payload["name"] != "api.tar.gz" || !strings.HasPrefix(payload["digest"].(string), "sha256:") {
+				t.Fatalf("artifact payload=%#v", payload)
+			}
+			_, _ = w.Write([]byte(`{"data":{"id":"art_1"},"meta":{"api_version":"v1"}}`))
+		case "/v1/sboms":
+			if payload["release_id"] != "rel_1" || payload["artifact_id"] != "art_1" {
+				t.Fatalf("sbom payload=%#v", payload)
+			}
+			_, _ = w.Write([]byte(`{"data":{"id":"sbom_1"},"meta":{"api_version":"v1"}}`))
+		case "/v1/vulnerability-scans":
+			if payload["release_id"] != "rel_1" || payload["target_ref"] != "pkg:github/acme/api@abc" {
+				t.Fatalf("scan payload=%#v", payload)
+			}
+			_, _ = w.Write([]byte(`{"data":{"id":"scan_1"},"meta":{"api_version":"v1"}}`))
+		case "/v1/vex":
+			if payload["release_id"] != "rel_1" || payload["artifact_id"] != "art_1" {
+				t.Fatalf("vex payload=%#v", payload)
+			}
+			_, _ = w.Write([]byte(`{"data":{"id":"vex_1"},"meta":{"api_version":"v1"}}`))
+		case "/v1/release-bundles":
+			if payload["release_id"] != "rel_1" {
+				t.Fatalf("bundle payload=%#v", payload)
+			}
+			_, _ = w.Write([]byte(`{"data":{"id":"bundle_1"},"meta":{"api_version":"v1"}}`))
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	if err := uploadReleaseEvidence(t.Context(), server.Client(), []string{
+		"--url", server.URL,
+		"--api-key", "evy_secret",
+		"--create-product",
+		"--product-name", "Payments",
+		"--product-slug", "payments",
+		"--create-release",
+		"--release-version", "1.0.0",
+		"--create-artifact",
+		"--artifact", artifactPath,
+		"--sbom", sbomPath,
+		"--scan", scanPath,
+		"--target-ref", "pkg:github/acme/api@abc",
+		"--vex", vexPath,
+		"--idempotency-prefix", "one-shot",
+	}); err != nil {
+		t.Fatalf("upload evidence: %v", err)
+	}
+	want := []string{"/v1/products", "/v1/releases", "/v1/artifacts", "/v1/sboms", "/v1/vulnerability-scans", "/v1/vex", "/v1/release-bundles"}
+	if strings.Join(seen, ",") != strings.Join(want, ",") {
+		t.Fatalf("paths=%v want=%v", seen, want)
+	}
+}
+
+func TestReleaseUploadEvidenceRequiresExplicitCreateFlags(t *testing.T) {
+	dir := t.TempDir()
+	sbomPath := writeTestFile(t, dir+"/sbom.json", []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api"}]}`))
+	err := uploadReleaseEvidence(t.Context(), http.DefaultClient, []string{"--dry-run", "--sbom", sbomPath})
+	if err == nil || !strings.Contains(err.Error(), "--release-id") {
+		t.Fatalf("missing release err=%v", err)
+	}
+	artifactPath := writeTestFile(t, dir+"/api.tar.gz", []byte("artifact"))
+	err = uploadReleaseEvidence(t.Context(), http.DefaultClient, []string{"--dry-run", "--release-id", "rel_1", "--artifact", artifactPath, "--sbom", sbomPath})
+	if err == nil || !strings.Contains(err.Error(), "--artifact-id") {
+		t.Fatalf("missing artifact err=%v", err)
+	}
+}
+
 func TestUsageRunAndManifestVerificationHelpers(t *testing.T) {
 	if err := usage(); err == nil || !strings.Contains(err.Error(), "evydence hash") {
 		t.Fatalf("usage err=%v", err)
@@ -373,6 +508,37 @@ func TestUsageRunAndManifestVerificationHelpers(t *testing.T) {
 	if err := verifyManifest(path, "sha256:"+strings.Repeat("0", 64)); err == nil || !strings.Contains(err.Error(), "mismatch") {
 		t.Fatalf("hash mismatch err=%v", err)
 	}
+}
+
+func writeTestFile(t *testing.T, path string, body []byte) string {
+	t.Helper()
+	if err := os.WriteFile(path, body, 0o600); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
+	return path
+}
+
+func captureStdout(t *testing.T, fn func() error) (string, error) {
+	t.Helper()
+	old := os.Stdout
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+	os.Stdout = writer
+	runErr := fn()
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close writer: %v", err)
+	}
+	os.Stdout = old
+	out, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("read stdout: %v", err)
+	}
+	if err := reader.Close(); err != nil {
+		t.Fatalf("close reader: %v", err)
+	}
+	return string(out), runErr
 }
 
 func TestGenerateReleaseSigningKeyWritesBase64Keys(t *testing.T) {
