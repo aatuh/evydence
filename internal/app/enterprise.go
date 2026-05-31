@@ -784,6 +784,10 @@ func (s identityService) CreateCustomerPortalAccess(ctx context.Context, actor d
 }
 
 func (s identityService) AccessCustomerPortalPackage(ctx context.Context, token string) (domain.CustomerSecurityPackage, error) {
+	return s.accessCustomerPortalPackage(ctx, token, "customer_portal_package.accessed")
+}
+
+func (s identityService) accessCustomerPortalPackage(ctx context.Context, token, successEntryType string) (domain.CustomerSecurityPackage, error) {
 	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.CustomerSecurityPackage{}, err
@@ -822,13 +826,18 @@ func (s identityService) AccessCustomerPortalPackage(ctx context.Context, token 
 		now := l.now()
 		access.LastAccessedAt = &now
 		l.portalAccess[id] = access
-		_, _ = l.appendChainLocked(access.TenantID, "customer_portal_package.accessed", "customer_security_package", pkg.ID, "customer_portal", access.ID, pkg.ManifestHash, "")
+		l.appendCustomerPortalAccessEventLocked(successEntryType, access, pkg)
 		if err := l.persistCriticalLocked(ctx, l.criticalMutationLocked()); err != nil {
 			return domain.CustomerSecurityPackage{}, err
 		}
 		return pkg, nil
 	}
 	return domain.CustomerSecurityPackage{}, ErrUnauthorized
+}
+
+func (l *Ledger) appendCustomerPortalAccessEventLocked(entryType string, access domain.CustomerPortalAccess, pkg domain.CustomerSecurityPackage) {
+	_, _ = l.appendChainLocked(access.TenantID, entryType, "customer_portal_access", access.ID, "customer_portal", access.ID, pkg.ManifestHash, "")
+	_, _ = l.appendChainLocked(access.TenantID, entryType, "customer_security_package", pkg.ID, "customer_portal", access.ID, pkg.ManifestHash, "")
 }
 
 func (s packageReportService) CreateQuestionnaireTemplate(ctx context.Context, actor domain.Actor, in CreateQuestionnaireTemplateInput) (domain.QuestionnaireTemplate, error) {

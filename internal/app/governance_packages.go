@@ -1113,7 +1113,7 @@ func (s packageReportService) ExportCustomerSecurityPackageArchive(ctx context.C
 
 func (s packageReportService) ExportCustomerPortalPackageArchive(ctx context.Context, token string) (CustomerPackageArchive, error) {
 	l := s.ledger
-	pkg, err := l.AccessCustomerPortalPackage(ctx, token)
+	pkg, err := l.identityService().accessCustomerPortalPackage(ctx, token, "customer_portal_package.downloaded")
 	if err != nil {
 		return CustomerPackageArchive{}, err
 	}
