@@ -94,6 +94,9 @@ meta-check: ## Validate root legal, governance, support, and release-evidence me
 	@grep -F 'docs/reference/release-evidence-index.md' CODEOWNERS >/dev/null
 	@grep -F 'OpenSSF Scorecard' .github/workflows/scorecard.yml >/dev/null
 	@grep -F 'ossf/scorecard-action@62b2cac7ed8198b15735ed49ab1e5cf35480ba46' .github/workflows/scorecard.yml >/dev/null
+	@grep -F 'OpenSSF Scorecard SARIF' .github/workflows/scorecard-sarif.yml >/dev/null
+	@grep -F 'ossf/scorecard-action@62b2cac7ed8198b15735ed49ab1e5cf35480ba46' .github/workflows/scorecard-sarif.yml >/dev/null
+	@grep -F 'github/codeql-action/upload-sarif@fee9466b8957867761f2d78f922ab084e3e2dd17' .github/workflows/scorecard-sarif.yml >/dev/null
 	@grep -F 'github/codeql-action/analyze@fee9466b8957867761f2d78f922ab084e3e2dd17' .github/workflows/codeql.yml >/dev/null
 	@grep -F 'actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd' .github/workflows/ci.yml >/dev/null
 	@grep -F 'actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c' .github/workflows/ci.yml >/dev/null
