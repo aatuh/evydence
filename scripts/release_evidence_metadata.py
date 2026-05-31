@@ -51,6 +51,10 @@ def write_json(path: Path, payload: dict) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def write_jsonl(path: Path, payload: dict) -> None:
+    path.write_text(json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
+
+
 def main() -> int:
     if len(sys.argv) != 3:
         print("usage: scripts/release_evidence_metadata.py <tag> <distdir>", file=sys.stderr)
@@ -132,11 +136,28 @@ def main() -> int:
             "github_ref": os.environ.get("GITHUB_REF", ""),
         },
     }
+    intoto_statement = {
+        "_type": "https://in-toto.io/Statement/v0.1",
+        "subject": [
+            {"name": material["path"], "digest": {"sha256": material["sha256"]}}
+            for material in provenance["materials"]
+        ],
+        "predicateType": "https://evydence.dev/schemas/release-provenance/v1",
+        "predicate": {
+            "schema": "evydence-release-provenance.v1",
+            "subject": provenance["subject"],
+            "builder": provenance["builder"],
+            "environment": provenance["environment"],
+            "limitations": provenance["limitations"],
+        },
+    }
 
     write_json(distdir / "evydence-release-sbom.cdx.json", sbom)
     write_json(distdir / "evydence-release-provenance.json", provenance)
+    write_jsonl(distdir / "evydence-release-provenance.intoto.jsonl", intoto_statement)
     print(f"wrote {distdir / 'evydence-release-sbom.cdx.json'}")
     print(f"wrote {distdir / 'evydence-release-provenance.json'}")
+    print(f"wrote {distdir / 'evydence-release-provenance.intoto.jsonl'}")
     return 0
 
 
