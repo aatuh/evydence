@@ -546,6 +546,13 @@ func TestCustomerPortalRetentionQuestionnairesAndCommercialCollectors(t *testing
 	if portalPkg.ID != pkg.ID {
 		t.Fatalf("portal package id = %s want %s", portalPkg.ID, pkg.ID)
 	}
+	portalArchive, err := ledger.ExportCustomerPortalPackageArchive(ctx, token)
+	if err != nil {
+		t.Fatalf("portal package download: %v", err)
+	}
+	if portalArchive.PackageID != pkg.ID || portalArchive.MediaType != "application/zip" {
+		t.Fatalf("portal archive metadata = %#v", portalArchive)
+	}
 	badToken := mutateTokenSuffix(token)
 	if _, err := ledger.AccessCustomerPortalPackage(ctx, badToken); !errors.Is(err, ErrUnauthorized) {
 		t.Fatalf("bad portal token err=%v, want unauthorized", err)
@@ -554,14 +561,29 @@ func TestCustomerPortalRetentionQuestionnairesAndCommercialCollectors(t *testing
 	if err != nil {
 		t.Fatalf("portal audit log: %v", err)
 	}
-	foundFailedAccess := false
+	foundAccess, foundDownload, foundFailedAccess := false, false, false
 	for _, entry := range entries {
-		if entry.EntryType == "customer_portal_package.access_failed" && entry.ActorID == "unverified" {
+		switch entry.EntryType {
+		case "customer_portal_package.accessed":
+			if entry.ActorID == access.ID && entry.PayloadHash == pkg.ManifestHash {
+				foundAccess = true
+			}
+		case "customer_portal_package.downloaded":
+			if entry.ActorID == access.ID && entry.PayloadHash == pkg.ManifestHash {
+				foundDownload = true
+			}
+		case "customer_portal_package.access_failed":
 			foundFailedAccess = true
+			if entry.ActorID != "unverified" {
+				t.Fatalf("failed portal access actor = %q, want unverified", entry.ActorID)
+			}
 		}
 		if entry.ActorID == badToken || entry.PayloadHash == badToken {
 			t.Fatalf("portal audit leaked token: %#v", entry)
 		}
+	}
+	if !foundAccess || !foundDownload {
+		t.Fatalf("missing portal access/download audit entries access=%v download=%v entries=%#v", foundAccess, foundDownload, entries)
 	}
 	if !foundFailedAccess {
 		t.Fatalf("missing failed portal access audit entry: %#v", entries)

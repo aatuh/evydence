@@ -287,7 +287,7 @@ Important scope boundaries:
 | Tenant data | Cross-tenant reads return `404` where applicable. |
 | Collector identity | Build attribution is derived from the authenticated collector key; clients must not submit `collector_id` for build attribution. |
 | Instance admin | `GET /v1/admin/instance` requires explicit `instance:admin`; tenant admin and ordinary wildcard tenant keys are insufficient. |
-| Customer portal | `POST /v1/customer-portal/package` is a public token exchange endpoint and intentionally does not use bearer authentication. |
+| Customer portal | `POST /v1/customer-portal/package` and `/v1/customer-portal/package/download` are public token exchange endpoints and intentionally do not use bearer authentication. Successful exchanges and downloads are visible through the tenant audit log without storing the supplied token. |
 
 ## Endpoint Catalog
 
