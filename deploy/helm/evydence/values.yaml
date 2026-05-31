@@ -11,6 +11,7 @@ api:
   # fails closed until multi-writer concurrency controls are implemented and
   # documented.
   replicas: 1
+  writerMode: single
   addr: ":8080"
   resources:
     requests:

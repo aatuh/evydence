@@ -187,6 +187,9 @@ deploy-check: ## Validate deployment and air-gap skeletons exist
 	@test -f deploy/observability/grafana-dashboard.json
 	@grep -F 'tag: ""' deploy/helm/evydence/values.yaml >/dev/null
 	@grep -F 'replicas: 1' deploy/helm/evydence/values.yaml >/dev/null
+	@grep -F 'writerMode: single' deploy/helm/evydence/values.yaml >/dev/null
+	@grep -F 'EVYDENCE_API_WRITER_MODE' deploy/helm/evydence/templates/configmap.yaml >/dev/null
+	@grep -F 'EVYDENCE_API_WRITER_REPLICAS' deploy/helm/evydence/templates/configmap.yaml >/dev/null
 	@grep -F 'runAsNonRoot: true' deploy/helm/evydence/values.yaml >/dev/null
 	@grep -F 'allowPrivilegeEscalation: false' deploy/helm/evydence/values.yaml >/dev/null
 	@grep -F 'required "image.tag is required' deploy/helm/evydence/templates/deployment-api.yaml >/dev/null

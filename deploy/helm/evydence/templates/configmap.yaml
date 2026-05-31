@@ -5,6 +5,8 @@ metadata:
 data:
   ENV: {{ ternary "production" "development" .Values.env.production | quote }}
   EVYDENCE_ADDR: {{ .Values.api.addr | quote }}
+  EVYDENCE_API_WRITER_MODE: {{ .Values.api.writerMode | quote }}
+  EVYDENCE_API_WRITER_REPLICAS: {{ .Values.api.replicas | quote }}
   EVYDENCE_OBJECT_STORE: {{ .Values.env.objectStore | quote }}
   EVYDENCE_S3_ENDPOINT: {{ .Values.env.s3Endpoint | quote }}
   EVYDENCE_S3_BUCKET: {{ .Values.env.s3Bucket | quote }}

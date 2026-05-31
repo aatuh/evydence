@@ -38,6 +38,9 @@ func run() error {
 	if err := validateRuntimeConfig(production, databaseURL, pepper, strings.TrimSpace(os.Getenv("EVYDENCE_SIGNING_KEY_MODE")), strings.EqualFold(os.Getenv("EVYDENCE_PRINT_BOOTSTRAP_SECRET"), "true")); err != nil {
 		return err
 	}
+	if err := validateAPIWriterMode(production, os.Getenv("EVYDENCE_API_WRITER_MODE"), os.Getenv("EVYDENCE_API_WRITER_REPLICAS")); err != nil {
+		return err
+	}
 	cfg := app.Config{APIKeyPepper: pepper}
 	cfg.WorkerOwnedParserSideEffects = boolEnv("EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS")
 	cfg.OIDC = oidcdiscovery.New(oidcdiscovery.Config{
@@ -195,6 +198,33 @@ func validateRuntimeConfig(production bool, databaseURL, pepper, signingKeyMode 
 	}
 	if printBootstrapSecret {
 		return errors.New("production refuses EVYDENCE_PRINT_BOOTSTRAP_SECRET=true")
+	}
+	return nil
+}
+
+func validateAPIWriterMode(production bool, mode, replicas string) error {
+	normalizedMode := strings.ToLower(strings.TrimSpace(mode))
+	if normalizedMode == "" {
+		normalizedMode = "single"
+	}
+	switch normalizedMode {
+	case "single", "single-writer":
+	default:
+		if production {
+			return fmt.Errorf("production supports only EVYDENCE_API_WRITER_MODE=single until multi-writer concurrency controls are implemented")
+		}
+	}
+
+	replicaValue := strings.TrimSpace(replicas)
+	if replicaValue == "" {
+		return nil
+	}
+	replicaCount, err := strconv.Atoi(replicaValue)
+	if err != nil || replicaCount < 1 {
+		return fmt.Errorf("EVYDENCE_API_WRITER_REPLICAS must be a positive integer")
+	}
+	if production && replicaCount != 1 {
+		return fmt.Errorf("production supports only one API writer replica until multi-writer concurrency controls are implemented")
 	}
 	return nil
 }

@@ -28,6 +28,8 @@ The example secrets are placeholders. Replace them before using shared or produc
 | `EVYDENCE_API_KEY_PEPPER` | Production yes | `change-me-long-random-pepper` | HMAC pepper for API key, session, and portal-token hashes. Use a long random value. |
 | `EVYDENCE_DATABASE_URL` | Production yes | `postgres://evydence:change-me@localhost:5432/evydence?sslmode=disable` | Enables PostgreSQL durable state, projections, migrations, and persisted outbox jobs. If unset, the API uses in-process state. |
 | `EVYDENCE_POSTGRES_LOAD_MODE` | No | `snapshot_preferred` locally, `relational_only` when `ENV=production` | PostgreSQL state load mode. Supported values are `snapshot_preferred`, `relational_preferred`, and `relational_only`. Production defaults to relational-only startup reads, refuses snapshot fallback modes, and disables compatibility snapshot writes; snapshots remain available for local compatibility and non-production migration checks. |
+| `EVYDENCE_API_WRITER_MODE` | No | `single` | API writer concurrency mode. Production supports only `single` or `single-writer` until multi-writer concurrency controls are implemented. |
+| `EVYDENCE_API_WRITER_REPLICAS` | No | unset, chart sets `1` | Optional self-declared API writer replica count used by startup safety checks. Production rejects values other than `1`. |
 | `EVYDENCE_OBJECT_STORE` | No | `filesystem` | Supported values are `filesystem`, `s3`, and `minio`. |
 | `EVYDENCE_OBJECT_DIR` | Filesystem object store | `./tmp/objects` | Local raw payload storage root. |
 | `EVYDENCE_S3_ENDPOINT` | S3/MinIO object store | `localhost:9000` | Endpoint for S3-compatible object storage. |
@@ -69,6 +71,8 @@ When `ENV=production`, the API refuses to start unless:
 - `EVYDENCE_SIGNING_KEY_MODE=external` or `EVYDENCE_SIGNING_KEY_MODE=aws-kms`.
 - `EVYDENCE_PRINT_BOOTSTRAP_SECRET` is not `true`.
 - `EVYDENCE_POSTGRES_LOAD_MODE`, when set, is `relational_only`.
+- `EVYDENCE_API_WRITER_MODE`, when set, is `single` or `single-writer`.
+- `EVYDENCE_API_WRITER_REPLICAS`, when set, is `1`.
 
 These checks reduce unsafe runtime defaults. They do not replace secret management, network controls, backup validation, or external signing operations.
 
@@ -80,9 +84,10 @@ preserve existing workflows. Use `relational_preferred` only for controlled
 non-production migration or recovery checks that intentionally fall back to the
 snapshot.
 
-In production, API startup takes a PostgreSQL advisory writer lease and fails
-if another API writer already holds it. Worker replicas are not constrained by
-that lease because outbox jobs use row locking.
+In production, API startup rejects non-single writer mode, rejects a declared
+API writer replica count above one, takes a PostgreSQL advisory writer lease,
+and fails if another API writer already holds it. Worker replicas are not
+constrained by that lease because outbox jobs use row locking.
 
 When PostgreSQL is configured, critical runtime mutations use focused
 transaction-backed writes for tenants, API-key hashes, SSO-session hashes,

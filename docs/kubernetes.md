@@ -40,6 +40,7 @@ Relevant chart values are defined in `deploy/helm/evydence/values.yaml`:
 |-------|---------|
 | `image.repository`, `image.tag` | API and worker image. |
 | `api.replicas` | API writer replicas. Keep `1` for the current production profile. |
+| `api.writerMode` | Runtime writer mode passed as `EVYDENCE_API_WRITER_MODE`. Keep `single` for production. |
 | `worker.replicas` | Worker replicas. May be scaled with PostgreSQL outbox locking. |
 | `api.resources`, `worker.resources` | Resource requests and limits. |
 | `podSecurityContext`, `containerSecurityContext` | Non-root and least-privilege pod/container defaults. |
@@ -83,4 +84,4 @@ Rollback does not roll back PostgreSQL data or object-store payloads. Keep datab
 
 ## Production Notes
 
-Production deployments should use external PostgreSQL, S3/MinIO-compatible object storage, TLS ingress, backup automation, network access controls, and external signing. Current production guidance uses a single API writer replica; production API startup enforces that stance with a PostgreSQL advisory writer lease, and worker replicas can scale independently through PostgreSQL outbox row locking. See [Production hardening review](production-hardening.md), [Production readiness](reference/production-readiness.md), and [Configuration](reference/configuration.md).
+Production deployments should use external PostgreSQL, S3/MinIO-compatible object storage, TLS ingress, backup automation, network access controls, and external signing. Current production guidance uses a single API writer replica; the chart passes `EVYDENCE_API_WRITER_MODE=single` and `EVYDENCE_API_WRITER_REPLICAS=1`, production API startup rejects unsupported writer modes or replica counts above one, then enforces the stance with a PostgreSQL advisory writer lease. Worker replicas can scale independently through PostgreSQL outbox row locking. See [Production hardening review](production-hardening.md), [Production readiness](reference/production-readiness.md), and [Configuration](reference/configuration.md).

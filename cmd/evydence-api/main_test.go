@@ -52,6 +52,46 @@ func TestValidateRuntimeConfigAllowsProductionAWSKMSMode(t *testing.T) {
 	}
 }
 
+func TestValidateAPIWriterModeAllowsProductionSingleWriter(t *testing.T) {
+	if err := validateAPIWriterMode(true, "single", "1"); err != nil {
+		t.Fatalf("single writer production mode should be accepted: %v", err)
+	}
+	if err := validateAPIWriterMode(true, "", ""); err != nil {
+		t.Fatalf("default writer mode should be accepted: %v", err)
+	}
+}
+
+func TestValidateAPIWriterModeRejectsProductionMultiWriter(t *testing.T) {
+	err := validateAPIWriterMode(true, "multi", "1")
+	if err == nil || !strings.Contains(err.Error(), "EVYDENCE_API_WRITER_MODE") {
+		t.Fatalf("multi-writer production mode err=%v", err)
+	}
+}
+
+func TestValidateAPIWriterModeRejectsProductionReplicaCountAboveOne(t *testing.T) {
+	err := validateAPIWriterMode(true, "single", "2")
+	if err == nil || !strings.Contains(err.Error(), "one API writer replica") {
+		t.Fatalf("production replica count err=%v", err)
+	}
+}
+
+func TestValidateAPIWriterModeRejectsInvalidReplicaCount(t *testing.T) {
+	for _, value := range []string{"0", "-1", "not-a-number"} {
+		t.Run(value, func(t *testing.T) {
+			err := validateAPIWriterMode(false, "multi", value)
+			if err == nil || !strings.Contains(err.Error(), "EVYDENCE_API_WRITER_REPLICAS") {
+				t.Fatalf("invalid replica count err=%v", err)
+			}
+		})
+	}
+}
+
+func TestValidateAPIWriterModeAllowsLocalExperimentalMode(t *testing.T) {
+	if err := validateAPIWriterMode(false, "multi", "3"); err != nil {
+		t.Fatalf("local experimental writer mode should not be production-blocked: %v", err)
+	}
+}
+
 func TestPostgresLoadModeDefaultsToRelationalOnlyInProduction(t *testing.T) {
 	mode, err := postgres.ResolveLoadMode("", true)
 	if err != nil {
