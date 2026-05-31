@@ -31,9 +31,9 @@ acceptance.
 - Use PostgreSQL for durable runtime state.
 - Use S3/MinIO-compatible object storage or the documented filesystem mode for
   local evaluation only.
-- Set `ENV=production`, a non-default `EVYDENCE_API_KEY_PEPPER`, and
-  `EVYDENCE_SIGNING_KEY_MODE=external` or `EVYDENCE_SIGNING_KEY_MODE=aws-kms`
-  for production-profile startup.
+- Set `ENV=production`, a non-default `EVYDENCE_API_KEY_PEPPER`, and a
+  production signing mode such as `external`, `aws-kms`, or an explicit
+  gateway-backed provider profile for production-profile startup.
 - Apply all committed migrations before starting API or worker processes.
 - For Kubernetes, set an explicit image tag or digest and keep API replicas at
   `1` until HA/multi-writer support is reviewed.
@@ -44,8 +44,9 @@ acceptance.
   PostgreSQL writes cover the highest-risk runtime mutations, but not every
   resource family.
 - HA/multi-writer API operation is not supported in this profile.
-- The AWS KMS signing executor is included; non-AWS cloud KMS/HSM SDK adapters
-  are not included.
+- The AWS KMS signing executor and explicit gateway-backed non-AWS KMS/HSM
+  profiles are included; direct non-AWS cloud KMS/HSM SDK adapters are not
+  included.
 - OIDC UserInfo validation is available when a caller supplies an access token;
   provider-specific management API validation and external group
   synchronization remain deployment-dependent.
