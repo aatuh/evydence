@@ -62,7 +62,7 @@ func TestEvaluateObjectRetentionRequiresVersioningLockAndTenantPrefix(t *testing
 		ObjectPrefix:  "tenants/ten_1/raw/",
 		Mode:          "compliance",
 		RetentionDays: 30,
-	}, true, &mode, &validity, &unit, nil, nil, time.Date(2026, 5, 29, 0, 0, 0, 0, time.UTC))
+	}, true, &mode, &validity, &unit, nil, nil, nil, time.Date(2026, 5, 29, 0, 0, 0, 0, time.UTC))
 	if !result.Enforced {
 		t.Fatalf("expected enforced retention: %#v", result)
 	}
@@ -83,7 +83,7 @@ func TestEvaluateObjectRetentionReportsMissingProviderControls(t *testing.T) {
 		ObjectPrefix:  "tenants/other/raw/",
 		Mode:          "compliance",
 		RetentionDays: 30,
-	}, false, &mode, &validity, &unit, nil, nil, time.Date(2026, 5, 29, 0, 0, 0, 0, time.UTC))
+	}, false, &mode, &validity, &unit, nil, nil, nil, time.Date(2026, 5, 29, 0, 0, 0, 0, time.UTC))
 	if result.Enforced {
 		t.Fatalf("unexpected enforced retention: %#v", result)
 	}
@@ -110,12 +110,48 @@ func TestEvaluateObjectRetentionChecksSampleObjectRetention(t *testing.T) {
 		ObjectKey:     "tenants/ten_1/raw/sample.json",
 		Mode:          "compliance",
 		RetentionDays: 30,
-	}, true, &mode, &validity, &unit, &mode, &retainUntil, now)
+	}, true, &mode, &validity, &unit, &mode, &retainUntil, nil, now)
 	if !result.Enforced {
 		t.Fatalf("expected object-level enforced retention: %#v", result)
 	}
 	if len(result.Checks) != 7 {
 		t.Fatalf("checks = %#v", result.Checks)
+	}
+}
+
+func TestEvaluateObjectRetentionChecksRequiredLegalHold(t *testing.T) {
+	mode := minio.Compliance
+	validity := uint(90)
+	unit := minio.Days
+	now := time.Date(2026, 5, 29, 0, 0, 0, 0, time.UTC)
+	retainUntil := now.Add(45 * 24 * time.Hour)
+	legalHold := minio.LegalHoldEnabled
+	result := evaluateObjectRetention(app.ObjectRetentionRequest{
+		TenantID:         "ten_1",
+		ObjectPrefix:     "tenants/ten_1/raw/",
+		ObjectKey:        "tenants/ten_1/raw/sample.json",
+		Mode:             "compliance",
+		RetentionDays:    30,
+		RequireLegalHold: true,
+	}, true, &mode, &validity, &unit, &mode, &retainUntil, &legalHold, now)
+	if !result.Enforced {
+		t.Fatalf("expected legal-hold enforced retention: %#v", result)
+	}
+	if got := result.Checks[len(result.Checks)-1]; got.Name != "s3_object_legal_hold" || got.Result != "passed" {
+		t.Fatalf("legal hold check = %#v", got)
+	}
+
+	legalHold = minio.LegalHoldDisabled
+	result = evaluateObjectRetention(app.ObjectRetentionRequest{
+		TenantID:         "ten_1",
+		ObjectPrefix:     "tenants/ten_1/raw/",
+		ObjectKey:        "tenants/ten_1/raw/sample.json",
+		Mode:             "compliance",
+		RetentionDays:    30,
+		RequireLegalHold: true,
+	}, true, &mode, &validity, &unit, &mode, &retainUntil, &legalHold, now)
+	if result.Enforced {
+		t.Fatalf("disabled legal hold should not be enforced: %#v", result)
 	}
 }
 

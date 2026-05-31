@@ -36,11 +36,12 @@ type CreateTransparencyCheckpointInput struct {
 }
 
 type CreateObjectRetentionPolicyInput struct {
-	Name          string
-	ObjectPrefix  string
-	ObjectKey     string
-	Mode          string
-	RetentionDays int
+	Name             string
+	ObjectPrefix     string
+	ObjectKey        string
+	Mode             string
+	RetentionDays    int
+	RequireLegalHold bool
 }
 
 type AuditLogFilter struct {
@@ -308,9 +309,12 @@ func (l *Ledger) CreateObjectRetentionPolicy(ctx context.Context, actor domain.A
 	if in.ObjectKey != "" && (!strings.HasPrefix(in.ObjectKey, expectedPrefix) || !strings.HasPrefix(in.ObjectKey, in.ObjectPrefix)) {
 		return domain.ObjectRetentionPolicy{}, ErrValidation
 	}
+	if in.RequireLegalHold && in.ObjectKey == "" {
+		return domain.ObjectRetentionPolicy{}, ErrValidation
+	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	policy := domain.ObjectRetentionPolicy{ID: newID("orp"), TenantID: actor.TenantID, Name: in.Name, ObjectPrefix: in.ObjectPrefix, ObjectKey: in.ObjectKey, Mode: in.Mode, RetentionDays: in.RetentionDays, Status: "configured", SchemaVersion: domain.ObjectRetentionPolicyVersion, CreatedAt: l.now()}
+	policy := domain.ObjectRetentionPolicy{ID: newID("orp"), TenantID: actor.TenantID, Name: in.Name, ObjectPrefix: in.ObjectPrefix, ObjectKey: in.ObjectKey, RequireLegalHold: in.RequireLegalHold, Mode: in.Mode, RetentionDays: in.RetentionDays, Status: "configured", SchemaVersion: domain.ObjectRetentionPolicyVersion, CreatedAt: l.now()}
 	l.retentionPolicies[policy.ID] = policy
 	_, _ = l.appendChainLocked(actor.TenantID, "object_retention_policy.created", "object_retention_policy", policy.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {
@@ -348,11 +352,12 @@ func (l *Ledger) VerifyObjectRetentionPolicy(ctx context.Context, actor domain.A
 	status := "verified"
 	if verifier != nil {
 		result, err := verifier.VerifyObjectRetention(ctx, ObjectRetentionRequest{
-			TenantID:      policy.TenantID,
-			ObjectPrefix:  policy.ObjectPrefix,
-			ObjectKey:     policy.ObjectKey,
-			Mode:          policy.Mode,
-			RetentionDays: policy.RetentionDays,
+			TenantID:         policy.TenantID,
+			ObjectPrefix:     policy.ObjectPrefix,
+			ObjectKey:        policy.ObjectKey,
+			Mode:             policy.Mode,
+			RetentionDays:    policy.RetentionDays,
+			RequireLegalHold: policy.RequireLegalHold,
 		})
 		if err != nil {
 			return domain.ObjectRetentionPolicy{}, ErrVerificationFailed
@@ -369,29 +374,31 @@ func (l *Ledger) VerifyObjectRetentionPolicy(ctx context.Context, actor domain.A
 	policy.VerificationChecks = append([]domain.VerifyCheck(nil), retentionResult.Checks...)
 	policy.VerificationLimitations = append([]string(nil), retentionResult.Limitations...)
 	verificationHash, err := canonicalAnyHash(struct {
-		ID            string               `json:"id"`
-		TenantID      string               `json:"tenant_id"`
-		ObjectPrefix  string               `json:"object_prefix"`
-		ObjectKey     string               `json:"object_key,omitempty"`
-		Mode          string               `json:"mode"`
-		Provider      string               `json:"provider"`
-		RetentionDays int                  `json:"retention_days"`
-		Status        string               `json:"status"`
-		VerifiedAt    string               `json:"verified_at"`
-		Checks        []domain.VerifyCheck `json:"checks"`
-		Limitations   []string             `json:"limitations"`
+		ID               string               `json:"id"`
+		TenantID         string               `json:"tenant_id"`
+		ObjectPrefix     string               `json:"object_prefix"`
+		ObjectKey        string               `json:"object_key,omitempty"`
+		RequireLegalHold bool                 `json:"require_legal_hold"`
+		Mode             string               `json:"mode"`
+		Provider         string               `json:"provider"`
+		RetentionDays    int                  `json:"retention_days"`
+		Status           string               `json:"status"`
+		VerifiedAt       string               `json:"verified_at"`
+		Checks           []domain.VerifyCheck `json:"checks"`
+		Limitations      []string             `json:"limitations"`
 	}{
-		ID:            policy.ID,
-		TenantID:      policy.TenantID,
-		ObjectPrefix:  policy.ObjectPrefix,
-		ObjectKey:     policy.ObjectKey,
-		Mode:          policy.Mode,
-		Provider:      retentionResult.Provider,
-		RetentionDays: policy.RetentionDays,
-		Status:        policy.Status,
-		VerifiedAt:    now.Format(time.RFC3339Nano),
-		Checks:        policy.VerificationChecks,
-		Limitations:   policy.VerificationLimitations,
+		ID:               policy.ID,
+		TenantID:         policy.TenantID,
+		ObjectPrefix:     policy.ObjectPrefix,
+		ObjectKey:        policy.ObjectKey,
+		RequireLegalHold: policy.RequireLegalHold,
+		Mode:             policy.Mode,
+		Provider:         retentionResult.Provider,
+		RetentionDays:    policy.RetentionDays,
+		Status:           policy.Status,
+		VerifiedAt:       now.Format(time.RFC3339Nano),
+		Checks:           policy.VerificationChecks,
+		Limitations:      policy.VerificationLimitations,
 	})
 	if err != nil {
 		return domain.ObjectRetentionPolicy{}, err

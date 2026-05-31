@@ -41,6 +41,8 @@ Release-candidate tagging requires the production gate and checklist in
 - Optional OIDC UserInfo live provider validation for
   `POST /v1/provider-verifications` using a supplied access token that is not
   persisted.
+- Object-retention policies can require sample-object legal hold verification
+  with S3/MinIO providers that expose object legal-hold status.
 
 ### Known Limits
 
@@ -50,5 +52,6 @@ Release-candidate tagging requires the production gate and checklist in
   response.
 - Service decomposition, HA/multi-writer operation, non-AWS KMS/HSM SDK
   adapters, provider-specific management API/group synchronization, broader
-  object-lock proof, and final exit review remain production-hardening work
-  after the release-candidate gate.
+  object-lock proof beyond configured bucket/sample-object checks, and final
+  exit review remain production-hardening work after the release-candidate
+  gate.

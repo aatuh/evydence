@@ -49,7 +49,7 @@ acceptance.
 - OIDC UserInfo validation is available when a caller supplies an access token;
   provider-specific management API validation and external group
   synchronization remain deployment-dependent.
-- Broader WORM/object-lock proof beyond configured S3/MinIO checks remains
-  deployment-dependent.
+- Broader WORM/object-lock proof beyond configured S3/MinIO bucket and
+  sample-object retention/legal-hold checks remains deployment-dependent.
 - Operators must run backup and restore rehearsals for their target
   infrastructure before relying on this in production.

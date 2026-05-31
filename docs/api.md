@@ -400,7 +400,7 @@ Source snapshots capture submitted provider metadata. They do not call provider 
 | `POST` | `/v1/public-transparency-log-entries` | Record published public transparency log entry metadata. |
 | `POST` | `/v1/public-transparency-log-entries/{id}/verify` | Verify operator-supplied RFC6962-style public transparency inclusion proof material. |
 | `POST` | `/v1/public-transparency-log-entries/{id}/fetch-proof` | Fetch proof material from the configured transparency endpoint and verify it locally. |
-| `POST` | `/v1/object-retention-policies` | Record retention policy intent with optional tenant-prefixed sample object key. |
+| `POST` | `/v1/object-retention-policies` | Record retention policy intent with optional tenant-prefixed sample object key and legal-hold proof requirement. |
 | `POST` | `/v1/object-retention-policies/{id}/verify` | Record provider verification transition. |
 | `POST` | `/v1/legal-holds` | Record legal hold. |
 | `POST` | `/v1/retention-overrides` | Record retention override. |

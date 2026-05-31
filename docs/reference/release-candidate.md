@@ -66,5 +66,5 @@ production, and hosted SaaS production require additional review and controls.
   monitoring, and documented incident response.
 - Keep service decomposition, HA/multi-writer operation, non-AWS KMS/HSM SDK
   adapters, provider-specific management API/group synchronization, and broader
-  object-lock proof listed as unresolved hardening work until they are
-  implemented and verified.
+  object-lock proof beyond configured bucket/sample-object checks listed as
+  unresolved hardening work until they are implemented and verified.
