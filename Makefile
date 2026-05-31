@@ -152,6 +152,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@test -f docs/explanation/trust-model.md
 	@test -f docs/collectors/source-snapshots.md
 	@test -f docs/collectors/supply-chain.md
+	@test -f docs/github-actions/quickstart-release-evidence.yml
 	@test -f docs/github-actions/release-evidence-workflow.yml
 	@test -f docs/github-actions/upload-build/action.yml
 	@test -f docs/gitlab/evydence-release-evidence.gitlab-ci.yml
@@ -189,6 +190,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 		"reference/release-validation.md" \
 		"collectors/source-snapshots.md" \
 		"collectors/supply-chain.md" \
+		"github-actions/quickstart-release-evidence.yml" \
 		"github-actions/release-evidence-workflow.yml" \
 		"github-actions/upload-build/action.yml" \
 		"gitlab/evydence-release-evidence.gitlab-ci.yml" \
@@ -219,6 +221,9 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@grep -F 'package-viewer-preview.svg' docs/how-to/view-packages.md >/dev/null
 	@grep -F 'v0.1.0-rc.4 - 2026-05-31' CHANGELOG.md >/dev/null
 	@grep -F 'make restore-rehearsal-check' docs/runbooks/backup-restore.md >/dev/null
+	@grep -F 'dist/evydence github-actions upload-build' docs/github-actions/quickstart-release-evidence.yml >/dev/null
+	@grep -F 'scripts/github_release_evidence_manifest.py' docs/github-actions/quickstart-release-evidence.yml >/dev/null
+	@grep -F '/v1/reports/release-readiness' docs/github-actions/quickstart-release-evidence.yml >/dev/null
 	@grep -F 'dist/evydence github-actions upload-build' docs/github-actions/release-evidence-workflow.yml >/dev/null
 	@grep -F 'go run ./cmd/evydence "$${args[@]}"' docs/github-actions/upload-build/action.yml >/dev/null
 	@grep -F 'cat > evydence-upload-manifest.json' docs/gitlab/evydence-release-evidence.gitlab-ci.yml >/dev/null

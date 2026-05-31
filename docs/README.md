@@ -11,7 +11,7 @@ This documentation is organized by reader task. Implementation claims should be 
 
 ## How-To Guides
 
-- [Integrate CI collectors](how-to/integrate-ci.md): connect GitHub Actions, the composite upload action, GitLab CI, source snapshots, and collector supply-chain records.
+- [Integrate CI collectors](how-to/integrate-ci.md): connect the GitHub Actions quickstart, the scanner workflow, the composite upload action, GitLab CI, source snapshots, and collector supply-chain records.
 - [Kubernetes deployment](kubernetes.md): install the Helm chart and verify a self-hosted cluster deployment.
 - [Air-gapped installation](air-gapped.md): build, sign, transfer, verify, and import an offline package.
 - [Release signing](release-signing.md): create and verify local release artifact manifests.
@@ -62,7 +62,8 @@ This documentation is organized by reader task. Implementation claims should be 
 
 ## Workflow Examples
 
-- [GitHub Actions release evidence workflow](github-actions/release-evidence-workflow.yml)
+- [GitHub Actions quickstart release evidence workflow](github-actions/quickstart-release-evidence.yml)
+- [GitHub Actions scanner release evidence workflow](github-actions/release-evidence-workflow.yml)
 - [GitHub Actions upload-build composite action](github-actions/upload-build/action.yml)
 - [GitHub release evidence manifest generator](../scripts/github_release_evidence_manifest.py)
 - [GitLab release evidence CI template](gitlab/evydence-release-evidence.gitlab-ci.yml)
