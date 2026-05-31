@@ -93,6 +93,12 @@ fields. Runtime package archives and the checked sample fixture must not contain
 those canaries, raw payload references, object-store URLs, source identity
 metadata, uploader identifiers, or canonical evidence hashes.
 
+The sample manifest is also protected by
+`examples/end-to-end-release-evidence/sample-customer-package-manifest.sha256`.
+Intentional fixture or manifest-shape changes must update the JSON fixture and
+checksum together, and the fixture schema version must match the current
+`customer-security-package.v2.0.0` domain version.
+
 ## Offline Verification
 
 The CLI verifies a package manifest without contacting the API:
