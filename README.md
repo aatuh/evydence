@@ -44,6 +44,11 @@ This repository contains a Go implementation under module
 been generated from this checkout; public release publication remains a
 separate operator action.
 
+Until a public release candidate is published, source checkout is the
+development and evaluation path. After the first public release candidate is
+available, GitHub Releases and the checked release evidence artifacts should be
+the operator install source.
+
 ## Fastest Proof Path
 
 For a first local API flow, follow [Getting started](docs/tutorials/getting-started.md).
@@ -51,6 +56,15 @@ For durable local evaluation, run the production-like Compose rehearsal in
 [Install and operate](docs/how-to/install-and-operate.md).
 For the release-evidence path to inspect first, use the
 [end-to-end release evidence example](examples/end-to-end-release-evidence/README.md).
+For concrete JSON outputs to inspect without running a full stack, open the
+sample readiness report, customer-package manifest, and audit-chain
+verification fixtures in that example or load the bundled package in the
+[local package viewer](docs/how-to/view-packages.md).
+
+Release-candidate artifacts and their verification commands are indexed in
+[Release evidence index](docs/reference/release-evidence-index.md). Before a
+public release exists, that index describes the evidence contract rather than a
+published install guarantee.
 
 The end-to-end evidence flow to evaluate first is:
 
@@ -156,6 +170,9 @@ For a runnable first evidence flow, use [Getting started](docs/tutorials/getting
 The canonical release validation reference is [docs/reference/release-validation.md](docs/reference/release-validation.md).
 The self-hosted production-readiness profile is [docs/reference/production-readiness.md](docs/reference/production-readiness.md).
 The release-candidate checklist is [docs/reference/release-candidate.md](docs/reference/release-candidate.md).
+The release evidence artifact map is [docs/reference/release-evidence-index.md](docs/reference/release-evidence-index.md).
+The maintainer review policy for high-risk paths is [docs/reference/maintainer-review-policy.md](docs/reference/maintainer-review-policy.md).
+The public roadmap and release cadence are [docs/reference/roadmap.md](docs/reference/roadmap.md).
 
 Common local checks:
 

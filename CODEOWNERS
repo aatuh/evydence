@@ -1,0 +1,39 @@
+# Maintainer review ownership for high-trust Evydence changes.
+#
+# GitHub branch protection or repository rules must enforce these patterns
+# before CODEOWNERS becomes a merge gate. Until then, this file documents the
+# expected reviewer surface for security-sensitive paths.
+
+* @aatuh
+
+# Core application, tenant boundaries, evidence integrity, and policies.
+/internal/app/ @aatuh
+/internal/domain/ @aatuh
+/internal/adapters/httpapi/ @aatuh
+/internal/adapters/postgres/ @aatuh
+/internal/adapters/objectstore/ @aatuh
+
+# Executables, operators, collectors, release tooling, and scripts.
+/cmd/ @aatuh
+/scripts/ @aatuh
+/.github/workflows/ @aatuh
+/Makefile @aatuh
+
+# Persistence, deployment, release evidence, and public trust surfaces.
+/migrations/ @aatuh
+/deploy/ @aatuh
+/Dockerfile @aatuh
+/docker-compose.yml @aatuh
+/compose.production-like.yml @aatuh
+/openapi.yaml @aatuh
+/RELEASE_EVIDENCE.md @aatuh
+/SECURITY.md @aatuh
+
+# Documentation that affects production positioning or public claims.
+/README.md @aatuh
+/docs/reference/production-readiness.md @aatuh
+/docs/reference/production-exit-review.md @aatuh
+/docs/reference/release-candidate.md @aatuh
+/docs/reference/release-validation.md @aatuh
+/docs/reference/release-evidence-index.md @aatuh
+/docs/reference/maintainer-review-policy.md @aatuh

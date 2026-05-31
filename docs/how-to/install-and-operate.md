@@ -2,6 +2,13 @@
 
 Use this guide for a local self-hosted development or evaluation deployment.
 
+Until a public release candidate is published, use a source checkout for local
+evaluation. After a public release exists, install from the release archive and
+verify `SHA256SUMS`, `openapi.sha256`, `migrations.sha256`, and the signed
+release manifest before starting the API or worker. See
+[Release evidence index](../reference/release-evidence-index.md) for the
+artifact map and verification commands.
+
 ## Runtime Modes
 
 | Mode | How To Enable | Expected Use |

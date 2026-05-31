@@ -42,12 +42,16 @@ for file in \
   TRADEMARKS.md \
   RELEASE_EVIDENCE.md \
   CHANGELOG.md \
+  CODEOWNERS \
   .dockerignore \
   .github/ISSUE_TEMPLATE.md \
   .github/pull_request_template.md \
   README.md \
   docs/README.md \
   docs/reference/release-candidate.md \
+  docs/reference/release-evidence-index.md \
+  docs/reference/maintainer-review-policy.md \
+  docs/reference/roadmap.md \
   docs/reference/release-validation.md; do
   require_file "$file"
 done
@@ -68,6 +72,8 @@ require_text .github/ISSUE_TEMPLATE.md "private vulnerability reporting"
 require_text .github/ISSUE_TEMPLATE.md "raw evidence payloads"
 require_text .github/pull_request_template.md "tenant isolation"
 require_text .github/pull_request_template.md "Sensitive Data Check"
+require_text CODEOWNERS "internal/app/"
+require_text CODEOWNERS "docs/reference/release-evidence-index.md"
 require_text SUPPORT.md "sanitized logs"
 require_text SUPPORT.md "release evidence artifacts"
 require_text TRADEMARKS.md "Evydence fork"
@@ -79,6 +85,13 @@ require_text docs/reference/release-candidate.md "Controlled self-hosted product
 require_text docs/reference/release-candidate.md "Use one API writer replica"
 require_text docs/reference/release-candidate.md "OpenAPI checksum"
 require_text docs/reference/release-candidate.md "migration checksum"
+require_text docs/reference/release-candidate.md "Release evidence index"
+require_text docs/reference/release-evidence-index.md "evydence-release-manifest.sig.json"
+require_text docs/reference/release-evidence-index.md "not legal compliance proof"
+require_text docs/reference/maintainer-review-policy.md "CODEOWNERS"
+require_text docs/reference/maintainer-review-policy.md "tenant-scoped resources cannot cross tenant boundaries"
+require_text docs/reference/roadmap.md "one API writer replica"
+require_text docs/reference/roadmap.md "Release candidates"
 
 for pattern in \
   ".refs" \

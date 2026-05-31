@@ -13,7 +13,10 @@ product-boundary language across the docs.
 | Kubernetes | `docs/kubernetes.md` | Helm-specific operator interface. |
 | Release validation | `docs/reference/release-validation.md` | Canonical release gate behavior. |
 | Release-candidate evidence | `docs/reference/release-candidate.md` | Canonical release-candidate artifact checklist. |
+| Release evidence artifact map | `docs/reference/release-evidence-index.md` | Maps each release artifact to generation and verification commands. |
 | Production profiles and exit criteria | `docs/reference/production-readiness.md` and `docs/reference/production-exit-review.md` | Do not broaden status elsewhere without updating these. |
+| Maintainer review ownership | `CODEOWNERS` and `docs/reference/maintainer-review-policy.md` | Branch protection or repository rules must enforce this before it is a merge gate. |
+| Roadmap and cadence | `docs/reference/roadmap.md` | Public roadmap, supported release line, and cadence expectations. |
 | Backup/restore | `docs/runbooks/backup-restore.md` | Operator rehearsal steps and evidence to keep. |
 | Upgrade | `docs/runbooks/upgrade.md` | Migration and release artifact verification steps. |
 | Incident response | `docs/runbooks/incident-response.md` | Secrets, tenant, object-store, signing, provider, and package boundaries. |

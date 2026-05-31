@@ -159,6 +159,10 @@ the release manifest, and the manifest signature. Tag pushes create or update a
 draft GitHub release; manual runs can upload only the workflow artifact unless
 `upload_draft_release` is enabled.
 
+The canonical artifact map is
+[Release evidence index](release-evidence-index.md). Keep that page aligned
+with the release-candidate package script whenever the artifact set changes.
+
 These artifacts support reproducible engineering review. They are not legal
 compliance proof, certification, a secure-release guarantee, complete SBOM
 proof, or authoritative vulnerability coverage.

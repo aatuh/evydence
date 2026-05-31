@@ -64,6 +64,7 @@ meta-check: ## Validate root legal, governance, support, and release-evidence me
 	@test -f SUPPORT.md
 	@test -f TRADEMARKS.md
 	@test -f CODE_OF_CONDUCT.md
+	@test -f CODEOWNERS
 	@test -f RELEASE_EVIDENCE.md
 	@test -f CHANGELOG.md
 	@test -f .dockerignore
@@ -88,6 +89,8 @@ meta-check: ## Validate root legal, governance, support, and release-evidence me
 	@grep -F 'Security vulnerability' .github/ISSUE_TEMPLATE/config.yml >/dev/null
 	@grep -F 'private vulnerability reporting' .github/ISSUE_TEMPLATE.md >/dev/null
 	@grep -F 'tenant isolation' .github/pull_request_template.md >/dev/null
+	@grep -F 'internal/app/' CODEOWNERS >/dev/null
+	@grep -F 'docs/reference/release-evidence-index.md' CODEOWNERS >/dev/null
 	@grep -F 'OpenSSF Scorecard' .github/workflows/scorecard.yml >/dev/null
 	@grep -F 'Evydence fork' TRADEMARKS.md >/dev/null
 	@grep -F 'Release evidence is not a certification' RELEASE_EVIDENCE.md >/dev/null
@@ -119,8 +122,11 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@test -f docs/reference/production-readiness.md
 	@test -f docs/reference/production-exit-review.md
 	@test -f docs/reference/release-candidate.md
+	@test -f docs/reference/release-evidence-index.md
 	@test -f docs/reference/release-notes-template.md
 	@test -f docs/reference/release-notes-v0.1.0-rc.1.md
+	@test -f docs/reference/maintainer-review-policy.md
+	@test -f docs/reference/roadmap.md
 	@test -f docs/reference/worker-outbox.md
 	@test -f docs/reference/release-validation.md
 	@test -f docs/explanation/trust-model.md
@@ -151,8 +157,11 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 		"reference/production-readiness.md" \
 		"reference/production-exit-review.md" \
 		"reference/release-candidate.md" \
+		"reference/release-evidence-index.md" \
 		"reference/release-notes-template.md" \
 		"reference/release-notes-v0.1.0-rc.1.md" \
+		"reference/maintainer-review-policy.md" \
+		"reference/roadmap.md" \
 		"reference/worker-outbox.md" \
 		"reference/release-validation.md" \
 		"collectors/source-snapshots.md" \
@@ -190,6 +199,10 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@grep -F 'evydence-release-manifest.sig.json' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'gh release create' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'Controlled self-hosted production candidate' docs/reference/release-candidate.md >/dev/null
+	@grep -F 'Release evidence index' docs/reference/release-candidate.md >/dev/null
+	@grep -F 'evydence-release-manifest.sig.json' docs/reference/release-evidence-index.md >/dev/null
+	@grep -F 'CODEOWNERS' docs/reference/maintainer-review-policy.md >/dev/null
+	@grep -F 'one API writer replica' docs/reference/roadmap.md >/dev/null
 	@grep -F 'Controlled self-hosted production candidate' docs/reference/release-notes-template.md >/dev/null
 	@grep -F 'not legal compliance proof' docs/reference/release-notes-template.md >/dev/null
 	@grep -F 'Controlled self-hosted production candidate' docs/reference/release-notes-v0.1.0-rc.1.md >/dev/null

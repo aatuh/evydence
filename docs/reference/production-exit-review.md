@@ -26,11 +26,15 @@ SaaS-ready, legally compliant, certified, or secure-release-guaranteed.
   release-ledger write paths are implemented for the current candidate profile.
 - Security, support, governance, contribution, code of conduct, issue
   templates, Dependabot, and Scorecard workflow files exist.
+- CODEOWNERS and the maintainer review policy document expected review
+  ownership for high-risk code, release, deployment, and public-claim surfaces.
 
 ## Remaining Exit Blockers
 
 - Public release publication and branch protection require GitHub/operator
   settings outside repository files.
+- CODEOWNERS is documented but does not become an enforced merge gate until
+  branch protection or repository rules require it.
 - Native PKCS#11/HSM module custody requires operator hardware, drivers, and
   provider-specific validation.
 - Broad WORM/object-lock proof requires object-store policy, IAM, lifecycle,

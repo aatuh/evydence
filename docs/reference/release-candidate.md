@@ -24,6 +24,9 @@ Before creating a release-candidate tag, collect:
 - release notes with supported profile, upgrade notes, assumptions,
   limitations, and unresolved hardening work.
 
+The artifact map and verification commands are maintained in
+[Release evidence index](release-evidence-index.md).
+
 ## Required Commands
 
 Run from a clean checkout with a disposable PostgreSQL database:
@@ -57,6 +60,14 @@ explicitly changed it:
 
 The notes must also state that broad production for most uses, regulated
 production, and hosted SaaS production require additional review and controls.
+
+## Public Publication
+
+Before the first public release candidate is published, source checkout remains
+the development and evaluation path. Public release readiness requires a pushed
+tag, a completed release-artifacts workflow run, uploaded release archives,
+checksums, signed manifest files, release notes, and any configured repository
+or registry trust settings.
 
 ## Deployment Constraints
 
