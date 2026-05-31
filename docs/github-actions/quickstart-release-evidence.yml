@@ -1,0 +1,110 @@
+name: evydence-quickstart-release-evidence
+
+on:
+  workflow_dispatch:
+
+jobs:
+  evydence-release-evidence:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      EVYDENCE_API_URL: ${{ secrets.EVYDENCE_API_URL }}
+      EVYDENCE_API_KEY: ${{ secrets.EVYDENCE_API_KEY }}
+      EVYDENCE_PROJECT_ID: ${{ vars.EVYDENCE_PROJECT_ID }}
+      EVYDENCE_RELEASE_ID: ${{ vars.EVYDENCE_RELEASE_ID }}
+      EVYDENCE_ARTIFACT_ID: ${{ vars.EVYDENCE_ARTIFACT_ID }}
+      EVYDENCE_OPENVEX_PATH: ${{ vars.EVYDENCE_OPENVEX_PATH }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build CLI artifact
+        run: |
+          set -euo pipefail
+          mkdir -p dist .evydence
+          go build -o dist/evydence ./cmd/evydence
+
+      - id: artifact
+        name: Compute artifact digest
+        run: |
+          set -euo pipefail
+          dist/evydence hash dist/evydence > .evydence/artifact.digest
+          printf 'digest=%s\n' "$(cat .evydence/artifact.digest)" >> "$GITHUB_OUTPUT"
+
+      - name: Write quickstart SBOM and vulnerability scan evidence
+        run: |
+          set -euo pipefail
+          cat > .evydence/sbom.cdx.json <<JSON
+          {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "components": [
+              {
+                "type": "application",
+                "name": "${GITHUB_REPOSITORY}",
+                "version": "${GITHUB_SHA}",
+                "purl": "pkg:github/${GITHUB_REPOSITORY}@${GITHUB_SHA}"
+              }
+            ]
+          }
+          JSON
+          cat > .evydence/grype.json <<JSON
+          {
+            "matches": []
+          }
+          JSON
+
+      - name: Upload GitHub Actions build provenance
+        run: |
+          set -euo pipefail
+          dist/evydence github-actions upload-build \
+            --url "$EVYDENCE_API_URL" \
+            --api-key "$EVYDENCE_API_KEY" \
+            --project-id "$EVYDENCE_PROJECT_ID" \
+            --release-id "$EVYDENCE_RELEASE_ID" \
+            --artifact-id "$EVYDENCE_ARTIFACT_ID" \
+            --artifact-digest "${{ steps.artifact.outputs.digest }}"
+
+      - name: Build Evydence upload manifest
+        run: |
+          set -euo pipefail
+          args=(
+            scripts/github_release_evidence_manifest.py
+            --out .evydence/upload-manifest.json
+            --release-id "$EVYDENCE_RELEASE_ID"
+            --artifact-id "$EVYDENCE_ARTIFACT_ID"
+            --target-ref "pkg:github/${GITHUB_REPOSITORY}@${GITHUB_SHA}"
+            --idempotency-prefix "gha-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            --cyclonedx-sbom .evydence/sbom.cdx.json
+            --grype-json .evydence/grype.json
+            --include-release-bundle
+          )
+          if [ -n "${EVYDENCE_OPENVEX_PATH:-}" ]; then
+            args+=(--openvex-json "$EVYDENCE_OPENVEX_PATH")
+          fi
+          python3 "${args[@]}"
+
+      - name: Upload release evidence and create release bundle
+        run: |
+          set -euo pipefail
+          dist/evydence upload manifest \
+            --url "$EVYDENCE_API_URL" \
+            --api-key "$EVYDENCE_API_KEY" \
+            --manifest .evydence/upload-manifest.json
+
+      - name: Read release readiness
+        run: |
+          set -euo pipefail
+          curl -fsS \
+            -H "Authorization: Bearer $EVYDENCE_API_KEY" \
+            "$EVYDENCE_API_URL/v1/reports/release-readiness?release_id=$EVYDENCE_RELEASE_ID" \
+            | tee .evydence/release-readiness.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: evydence-quickstart-evidence
+          path: .evydence/

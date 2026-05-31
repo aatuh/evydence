@@ -84,6 +84,10 @@ For durable local evaluation, run the production-like Compose rehearsal in
 [Install and operate](docs/how-to/install-and-operate.md).
 For the release-evidence path to inspect first, use the
 [end-to-end release evidence example](examples/end-to-end-release-evidence/README.md).
+For the first CI wiring example, start with the
+[GitHub Actions quickstart release evidence workflow](docs/github-actions/quickstart-release-evidence.yml),
+then move to the scanner-oriented workflow once your runner has pinned scanner
+versions.
 For concrete JSON outputs to inspect without running a full stack, open the
 sample readiness report,
 [customer-package manifest](examples/end-to-end-release-evidence/sample-customer-package-manifest.json),

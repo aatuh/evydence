@@ -26,21 +26,40 @@ Expected status is `201`. The response returns the collector API key secret once
 
 ## GitHub Actions
 
-The full example workflow is [docs/github-actions/release-evidence-workflow.yml](../github-actions/release-evidence-workflow.yml). The composite upload action is [docs/github-actions/upload-build/action.yml](../github-actions/upload-build/action.yml).
+Start with the quickstart workflow
+[docs/github-actions/quickstart-release-evidence.yml](../github-actions/quickstart-release-evidence.yml).
+It builds one artifact, computes its digest, writes a minimal CycloneDX SBOM,
+writes an empty generic vulnerability scan payload, uploads GitHub Actions build
+metadata with the scoped API key, creates an upload manifest, creates a release
+bundle, and reads the release-readiness report.
 
-Required CI inputs:
+The fuller scanner-oriented workflow is
+[docs/github-actions/release-evidence-workflow.yml](../github-actions/release-evidence-workflow.yml).
+The composite upload action is
+[docs/github-actions/upload-build/action.yml](../github-actions/upload-build/action.yml).
 
-- `EVYDENCE_API_URL`
-- `EVYDENCE_API_KEY`
-- `EVYDENCE_PROJECT_ID`
-- `EVYDENCE_RELEASE_ID`
-- `EVYDENCE_ARTIFACT_ID`
-- `EVYDENCE_ARTIFACT_DIGEST`
-- a DSSE attestation file when uploading build attestation evidence
+Required quickstart inputs:
+
+- `EVYDENCE_API_URL` as a GitHub secret
+- `EVYDENCE_API_KEY` as a GitHub secret
+- `EVYDENCE_PROJECT_ID` as a GitHub variable
+- `EVYDENCE_RELEASE_ID` as a GitHub variable
+- `EVYDENCE_ARTIFACT_ID` as a GitHub variable
+- optionally `EVYDENCE_OPENVEX_PATH` as a GitHub variable when the repository includes a reviewed
+  OpenVEX JSON document to upload
 
 The CLI command used by the workflow reads GitHub-provided environment variables such as `GITHUB_REPOSITORY`, `GITHUB_WORKFLOW_REF`, `GITHUB_RUN_ID`, `GITHUB_RUN_ATTEMPT`, `GITHUB_REF`, and `GITHUB_SHA`.
 
-`EVYDENCE_GITHUB_OIDC_SUBJECT` or `--oidc-subject` can record an OIDC subject string when the workflow already has one. This implementation records the value as evidence metadata; it does not request or verify a GitHub OIDC token.
+The API key used by the quickstart must be scoped for the operations it runs:
+`build:write`, `evidence:write`, `bundle:write`, and `verify:read`. Add
+`package:write` only when the workflow is extended to generate a customer
+package.
+
+The quickstart grants only `contents: read`. If a deployment chooses to request
+and record GitHub OIDC metadata, grant `id-token: write` in the workflow and pass
+`EVYDENCE_GITHUB_OIDC_SUBJECT` or `--oidc-subject`. This implementation records
+the value as evidence metadata; it does not request or verify a GitHub OIDC
+token.
 
 The full workflow also shows a scanner handoff path:
 
