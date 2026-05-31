@@ -63,7 +63,8 @@ type openVEXProduct struct {
 	Subcomponents []openVEXProduct `json:"subcomponents,omitempty"`
 }
 
-func (l *Ledger) UploadVEX(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.VEXDocument, error) {
+func (s releaseEvidenceService) UploadVEX(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.VEXDocument, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.VEXDocument{}, err
 	}
@@ -186,7 +187,8 @@ func (l *Ledger) UploadVEX(ctx context.Context, actor domain.Actor, releaseID, a
 	return vex, nil
 }
 
-func (l *Ledger) GetVEXDocument(ctx context.Context, actor domain.Actor, id string) (domain.VEXDocument, error) {
+func (s releaseEvidenceService) GetVEXDocument(ctx context.Context, actor domain.Actor, id string) (domain.VEXDocument, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.VEXDocument{}, err
 	}
@@ -205,7 +207,8 @@ func (l *Ledger) GetVEXDocument(ctx context.Context, actor domain.Actor, id stri
 	return vex, nil
 }
 
-func (l *Ledger) CreateVulnerabilityDecision(ctx context.Context, actor domain.Actor, findingID string, in CreateVulnerabilityDecisionInput) (domain.VulnerabilityDecision, error) {
+func (s releaseEvidenceService) CreateVulnerabilityDecision(ctx context.Context, actor domain.Actor, findingID string, in CreateVulnerabilityDecisionInput) (domain.VulnerabilityDecision, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.VulnerabilityDecision{}, err
 	}
@@ -233,7 +236,8 @@ func (l *Ledger) CreateVulnerabilityDecision(ctx context.Context, actor domain.A
 	return decision, nil
 }
 
-func (l *Ledger) CreateException(ctx context.Context, actor domain.Actor, in CreateExceptionInput) (domain.Exception, error) {
+func (s releaseEvidenceService) CreateException(ctx context.Context, actor domain.Actor, in CreateExceptionInput) (domain.Exception, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.Exception{}, err
 	}
@@ -288,7 +292,8 @@ func (l *Ledger) CreateException(ctx context.Context, actor domain.Actor, in Cre
 	return exception, nil
 }
 
-func (l *Ledger) ListExceptions(ctx context.Context, actor domain.Actor, releaseID string) ([]domain.Exception, error) {
+func (s releaseEvidenceService) ListExceptions(ctx context.Context, actor domain.Actor, releaseID string) ([]domain.Exception, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -314,7 +319,8 @@ func (l *Ledger) ListExceptions(ctx context.Context, actor domain.Actor, release
 	return out, nil
 }
 
-func (l *Ledger) ApproveException(ctx context.Context, actor domain.Actor, id string) (domain.Exception, error) {
+func (s releaseEvidenceService) ApproveException(ctx context.Context, actor domain.Actor, id string) (domain.Exception, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.Exception{}, err
 	}
@@ -348,7 +354,8 @@ func (l *Ledger) ApproveException(ctx context.Context, actor domain.Actor, id st
 	return exception, nil
 }
 
-func (l *Ledger) ReleaseReadinessReport(ctx context.Context, actor domain.Actor, releaseID string) (domain.ReleaseReadinessReport, error) {
+func (s releaseEvidenceService) ReleaseReadinessReport(ctx context.Context, actor domain.Actor, releaseID string) (domain.ReleaseReadinessReport, error) {
+	l := s.ledger
 	eval, err := l.EvaluateRelease(ctx, actor, releaseID)
 	if err != nil {
 		return domain.ReleaseReadinessReport{}, err

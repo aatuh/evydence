@@ -113,7 +113,8 @@ type CreateCommercialCollectorInput struct {
 	AllowedScopes []string
 }
 
-func (l *Ledger) CreateOrganization(ctx context.Context, actor domain.Actor, in CreateOrganizationInput) (domain.Organization, error) {
+func (s identityService) CreateOrganization(ctx context.Context, actor domain.Actor, in CreateOrganizationInput) (domain.Organization, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.Organization{}, err
 	}
@@ -140,7 +141,8 @@ func (l *Ledger) CreateOrganization(ctx context.Context, actor domain.Actor, in 
 	return org, nil
 }
 
-func (l *Ledger) CreateUser(ctx context.Context, actor domain.Actor, in CreateUserInput) (domain.HumanUser, error) {
+func (s identityService) CreateUser(ctx context.Context, actor domain.Actor, in CreateUserInput) (domain.HumanUser, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.HumanUser{}, err
 	}
@@ -174,7 +176,8 @@ func (l *Ledger) CreateUser(ctx context.Context, actor domain.Actor, in CreateUs
 	return user, nil
 }
 
-func (l *Ledger) DeactivateUser(ctx context.Context, actor domain.Actor, id string) (domain.HumanUser, error) {
+func (s identityService) DeactivateUser(ctx context.Context, actor domain.Actor, id string) (domain.HumanUser, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.HumanUser{}, err
 	}
@@ -201,7 +204,8 @@ func (l *Ledger) DeactivateUser(ctx context.Context, actor domain.Actor, id stri
 	return user, nil
 }
 
-func (l *Ledger) CreateRoleBinding(ctx context.Context, actor domain.Actor, in CreateRoleBindingInput) (domain.RoleBinding, error) {
+func (s identityService) CreateRoleBinding(ctx context.Context, actor domain.Actor, in CreateRoleBindingInput) (domain.RoleBinding, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.RoleBinding{}, err
 	}
@@ -230,7 +234,8 @@ func (l *Ledger) CreateRoleBinding(ctx context.Context, actor domain.Actor, in C
 	return binding, nil
 }
 
-func (l *Ledger) ListRoleBindings(ctx context.Context, actor domain.Actor) ([]domain.RoleBinding, error) {
+func (s identityService) ListRoleBindings(ctx context.Context, actor domain.Actor) ([]domain.RoleBinding, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -248,7 +253,8 @@ func (l *Ledger) ListRoleBindings(ctx context.Context, actor domain.Actor) ([]do
 	return out, nil
 }
 
-func (l *Ledger) CreateSSOProvider(ctx context.Context, actor domain.Actor, in CreateSSOProviderInput) (domain.SSOProvider, error) {
+func (s identityService) CreateSSOProvider(ctx context.Context, actor domain.Actor, in CreateSSOProviderInput) (domain.SSOProvider, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.SSOProvider{}, err
 	}
@@ -278,7 +284,8 @@ func (l *Ledger) CreateSSOProvider(ctx context.Context, actor domain.Actor, in C
 	return provider, nil
 }
 
-func (l *Ledger) UpdateSSOProviderTrustMaterial(ctx context.Context, actor domain.Actor, id string, in UpdateSSOProviderTrustMaterialInput) (domain.SSOProvider, error) {
+func (s identityService) UpdateSSOProviderTrustMaterial(ctx context.Context, actor domain.Actor, id string, in UpdateSSOProviderTrustMaterialInput) (domain.SSOProvider, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.SSOProvider{}, err
 	}
@@ -343,7 +350,8 @@ func (l *Ledger) UpdateSSOProviderTrustMaterial(ctx context.Context, actor domai
 	return provider, nil
 }
 
-func (l *Ledger) RefreshSSOProviderOIDCTrustMaterial(ctx context.Context, actor domain.Actor, id string) (domain.SSOProvider, error) {
+func (s identityService) RefreshSSOProviderOIDCTrustMaterial(ctx context.Context, actor domain.Actor, id string) (domain.SSOProvider, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.SSOProvider{}, err
 	}
@@ -420,7 +428,8 @@ func (l *Ledger) RefreshSSOProviderOIDCTrustMaterial(ctx context.Context, actor 
 	return current, nil
 }
 
-func (l *Ledger) LinkSSOIdentity(ctx context.Context, actor domain.Actor, in LinkSSOIdentityInput) (domain.UserIdentityLink, error) {
+func (s identityService) LinkSSOIdentity(ctx context.Context, actor domain.Actor, in LinkSSOIdentityInput) (domain.UserIdentityLink, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.UserIdentityLink{}, err
 	}
@@ -451,7 +460,8 @@ func (l *Ledger) LinkSSOIdentity(ctx context.Context, actor domain.Actor, in Lin
 	return link, nil
 }
 
-func (l *Ledger) CreateSSOSession(ctx context.Context, actor domain.Actor, in CreateSSOSessionInput) (domain.SSOSession, string, error) {
+func (s identityService) CreateSSOSession(ctx context.Context, actor domain.Actor, in CreateSSOSessionInput) (domain.SSOSession, string, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.SSOSession{}, "", err
 	}
@@ -482,7 +492,8 @@ func (l *Ledger) CreateSSOSession(ctx context.Context, actor domain.Actor, in Cr
 	return session, secret, nil
 }
 
-func (l *Ledger) ExchangeSSOCredential(ctx context.Context, in ExchangeSSOCredentialInput) (domain.ProviderVerification, domain.SSOSession, string, error) {
+func (s identityService) ExchangeSSOCredential(ctx context.Context, in ExchangeSSOCredentialInput) (domain.ProviderVerification, domain.SSOSession, string, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.ProviderVerification{}, domain.SSOSession{}, "", err
 	}
@@ -600,7 +611,8 @@ func (l *Ledger) ExchangeSSOCredential(ctx context.Context, in ExchangeSSOCreden
 	return verification, session, secret, nil
 }
 
-func (l *Ledger) RevokeSSOSession(ctx context.Context, actor domain.Actor, id string) (domain.SSOSession, error) {
+func (s identityService) RevokeSSOSession(ctx context.Context, actor domain.Actor, id string) (domain.SSOSession, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.SSOSession{}, err
 	}
@@ -627,7 +639,8 @@ func (l *Ledger) RevokeSSOSession(ctx context.Context, actor domain.Actor, id st
 	return session, nil
 }
 
-func (l *Ledger) RevokeCurrentSSOSession(ctx context.Context, actor domain.Actor) (domain.SSOSession, error) {
+func (s identityService) RevokeCurrentSSOSession(ctx context.Context, actor domain.Actor) (domain.SSOSession, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.SSOSession{}, err
 	}
@@ -716,7 +729,8 @@ func (l *Ledger) CreateRetentionOverride(ctx context.Context, actor domain.Actor
 	return override, nil
 }
 
-func (l *Ledger) RetentionReport(ctx context.Context, actor domain.Actor, scopeType, scopeID string) (domain.RetentionReport, error) {
+func (s packageReportService) RetentionReport(ctx context.Context, actor domain.Actor, scopeType, scopeID string) (domain.RetentionReport, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.RetentionReport{}, err
 	}
@@ -740,7 +754,8 @@ func (l *Ledger) RetentionReport(ctx context.Context, actor domain.Actor, scopeT
 	return domain.RetentionReport{ReportType: "retention", ScopeType: scopeType, ScopeID: scopeID, LegalHolds: holds, RetentionOverrides: overrides, Limitations: []string{"Retention reports describe Evydence records and do not replace external storage lifecycle verification."}, GeneratedAt: l.now()}, nil
 }
 
-func (l *Ledger) CreateCustomerPortalAccess(ctx context.Context, actor domain.Actor, in CreateCustomerPortalAccessInput) (domain.CustomerPortalAccess, string, error) {
+func (s identityService) CreateCustomerPortalAccess(ctx context.Context, actor domain.Actor, in CreateCustomerPortalAccessInput) (domain.CustomerPortalAccess, string, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.CustomerPortalAccess{}, "", err
 	}
@@ -768,7 +783,8 @@ func (l *Ledger) CreateCustomerPortalAccess(ctx context.Context, actor domain.Ac
 	return access, secret, nil
 }
 
-func (l *Ledger) AccessCustomerPortalPackage(ctx context.Context, token string) (domain.CustomerSecurityPackage, error) {
+func (s identityService) AccessCustomerPortalPackage(ctx context.Context, token string) (domain.CustomerSecurityPackage, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.CustomerSecurityPackage{}, err
 	}
@@ -815,7 +831,8 @@ func (l *Ledger) AccessCustomerPortalPackage(ctx context.Context, token string) 
 	return domain.CustomerSecurityPackage{}, ErrUnauthorized
 }
 
-func (l *Ledger) CreateQuestionnaireTemplate(ctx context.Context, actor domain.Actor, in CreateQuestionnaireTemplateInput) (domain.QuestionnaireTemplate, error) {
+func (s packageReportService) CreateQuestionnaireTemplate(ctx context.Context, actor domain.Actor, in CreateQuestionnaireTemplateInput) (domain.QuestionnaireTemplate, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.QuestionnaireTemplate{}, err
 	}
@@ -847,7 +864,8 @@ func (l *Ledger) CreateQuestionnaireTemplate(ctx context.Context, actor domain.A
 	return tpl, nil
 }
 
-func (l *Ledger) CreateQuestionnairePackage(ctx context.Context, actor domain.Actor, in CreateQuestionnairePackageInput) (domain.QuestionnairePackage, error) {
+func (s packageReportService) CreateQuestionnairePackage(ctx context.Context, actor domain.Actor, in CreateQuestionnairePackageInput) (domain.QuestionnairePackage, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.QuestionnairePackage{}, err
 	}

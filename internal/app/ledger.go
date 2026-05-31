@@ -324,143 +324,27 @@ func NewLedgerWithError(cfg Config) (*Ledger, error) {
 }
 
 func (l *Ledger) HasTenants() bool {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return len(l.tenants) > 0
+	return l.identityService().HasTenants()
 }
 
 func (l *Ledger) BootstrapTenant(ctx context.Context, name, keyName string, scopes []string) (domain.Tenant, domain.APIKey, string, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.Tenant{}, domain.APIKey{}, "", err
-	}
-	name = strings.TrimSpace(name)
-	keyName = strings.TrimSpace(keyName)
-	if name == "" || keyName == "" {
-		return domain.Tenant{}, domain.APIKey{}, "", ErrValidation
-	}
-	if len(scopes) == 0 {
-		scopes = []string{"*"}
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	now := l.now()
-	tenant := domain.Tenant{ID: newID("ten"), Name: name, CreatedAt: now}
-	l.tenants[tenant.ID] = tenant
-	key, secret, err := l.createAPIKeyLocked(tenant.ID, keyName, scopes, nil)
-	if err != nil {
-		return domain.Tenant{}, domain.APIKey{}, "", err
-	}
-	if _, err := l.rotateSigningKeyLocked(tenant.ID, "bootstrap"); err != nil {
-		return domain.Tenant{}, domain.APIKey{}, "", err
-	}
-	_, _ = l.appendChainLocked(tenant.ID, "tenant.created", "tenant", tenant.ID, "system", "bootstrap", "", "")
-	if err := l.persistCriticalLocked(ctx, l.criticalMutationLocked()); err != nil {
-		return domain.Tenant{}, domain.APIKey{}, "", err
-	}
-	return tenant, key, secret, nil
+	return l.identityService().BootstrapTenant(ctx, name, keyName, scopes)
 }
 
 func (l *Ledger) Authenticate(ctx context.Context, secret string) (domain.Actor, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.Actor{}, err
-	}
-	secret = strings.TrimSpace(strings.TrimPrefix(secret, "Bearer "))
-	if secret == "" {
-		return domain.Actor{}, ErrUnauthorized
-	}
-	prefix := secretPrefix(secret)
-	hash := l.hashSecret(secret)
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	for id, key := range l.apiKeys {
-		if key.Prefix != prefix || !secretHashEqual(key.Hash, hash) || key.RevokedAt != nil {
-			continue
-		}
-		if key.ExpiresAt != nil && !key.ExpiresAt.After(l.now()) {
-			return domain.Actor{}, ErrUnauthorized
-		}
-		now := l.now()
-		key.LastUsedAt = &now
-		l.apiKeys[id] = key
-		collectorID := ""
-		for collectorMapID, collector := range l.collectors {
-			if collector.TenantID == key.TenantID && collector.APIKeyID == key.ID {
-				collectorID = collector.ID
-				collector.LastSeenAt = &now
-				l.collectors[collectorMapID] = collector
-				break
-			}
-		}
-		_ = l.persistCriticalLocked(ctx, l.criticalMutationLocked())
-		return domain.Actor{TenantID: key.TenantID, KeyID: key.ID, Name: key.Name, Scopes: append([]string(nil), key.Scopes...), CollectorID: collectorID}, nil
-	}
-	for id, session := range l.ssoSessions {
-		if session.Prefix != prefix || !secretHashEqual(session.Hash, hash) || session.RevokedAt != nil || !session.ExpiresAt.After(l.now()) {
-			continue
-		}
-		user, ok := l.users[session.UserID]
-		if !ok || user.TenantID != session.TenantID || user.Status != "active" {
-			return domain.Actor{}, ErrUnauthorized
-		}
-		grants := append(l.resourceGrantsForUserLocked(user.ID), l.resourceGrantsForSSOSessionLocked(session)...)
-		scopes := scopesFromResourceGrants(grants)
-		if len(scopes) == 0 {
-			return domain.Actor{}, ErrForbidden
-		}
-		l.ssoSessions[id] = session
-		_ = l.persistCriticalLocked(ctx, l.criticalMutationLocked())
-		return domain.Actor{TenantID: user.TenantID, UserID: user.ID, SessionID: session.ID, Name: user.Email, Scopes: scopes, ResourceGrants: grants}, nil
-	}
-	return domain.Actor{}, ErrUnauthorized
+	return l.identityService().Authenticate(ctx, secret)
 }
 
 func (l *Ledger) CreateAPIKey(ctx context.Context, actor domain.Actor, name string, scopes []string, expiresAt *time.Time) (domain.APIKey, string, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.APIKey{}, "", err
-	}
-	if err := require(actor, ScopeAdmin); err != nil {
-		return domain.APIKey{}, "", err
-	}
-	if strings.TrimSpace(name) == "" || len(scopes) == 0 {
-		return domain.APIKey{}, "", ErrValidation
-	}
-	if err := requireGrantableScopes(actor, scopes); err != nil {
-		return domain.APIKey{}, "", err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	key, secret, err := l.createAPIKeyLocked(actor.TenantID, name, scopes, expiresAt)
-	if err != nil {
-		return domain.APIKey{}, "", err
-	}
-	_, _ = l.appendChainLocked(actor.TenantID, "api_key.created", "api_key", key.ID, "api_key", actor.KeyID, "", "")
-	if err := l.persistCriticalLocked(ctx, l.criticalMutationLocked()); err != nil {
-		return domain.APIKey{}, "", err
-	}
-	return key, secret, nil
+	return l.identityService().CreateAPIKey(ctx, actor, name, scopes, expiresAt)
 }
 
 func (l *Ledger) ListAPIKeys(ctx context.Context, actor domain.Actor) ([]domain.APIKey, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	if err := require(actor, ScopeAdmin); err != nil {
-		return nil, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	out := []domain.APIKey{}
-	for _, key := range l.apiKeys {
-		if key.TenantID == actor.TenantID {
-			key.Hash = ""
-			out = append(out, key)
-		}
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
-	return out, nil
+	return l.identityService().ListAPIKeys(ctx, actor)
 }
 
-func (l *Ledger) CreateProduct(ctx context.Context, actor domain.Actor, name, slug string) (domain.Product, error) {
+func (s releaseEvidenceService) CreateProduct(ctx context.Context, actor domain.Actor, name, slug string) (domain.Product, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.Product{}, err
 	}
@@ -490,7 +374,8 @@ func (l *Ledger) CreateProduct(ctx context.Context, actor domain.Actor, name, sl
 	return product, nil
 }
 
-func (l *Ledger) ListProducts(ctx context.Context, actor domain.Actor) ([]domain.Product, error) {
+func (s releaseEvidenceService) ListProducts(ctx context.Context, actor domain.Actor) ([]domain.Product, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -509,7 +394,8 @@ func (l *Ledger) ListProducts(ctx context.Context, actor domain.Actor) ([]domain
 	return out, nil
 }
 
-func (l *Ledger) CreateProject(ctx context.Context, actor domain.Actor, productID, name string) (domain.Project, error) {
+func (s releaseEvidenceService) CreateProject(ctx context.Context, actor domain.Actor, productID, name string) (domain.Project, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.Project{}, err
 	}
@@ -538,7 +424,8 @@ func (l *Ledger) CreateProject(ctx context.Context, actor domain.Actor, productI
 	return project, nil
 }
 
-func (l *Ledger) CreateRelease(ctx context.Context, actor domain.Actor, productID, version string) (domain.Release, error) {
+func (s releaseEvidenceService) CreateRelease(ctx context.Context, actor domain.Actor, productID, version string) (domain.Release, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.Release{}, err
 	}
@@ -572,7 +459,8 @@ func (l *Ledger) CreateRelease(ctx context.Context, actor domain.Actor, productI
 	return release, nil
 }
 
-func (l *Ledger) GetRelease(ctx context.Context, actor domain.Actor, releaseID string) (domain.Release, error) {
+func (s releaseEvidenceService) GetRelease(ctx context.Context, actor domain.Actor, releaseID string) (domain.Release, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.Release{}, err
 	}
@@ -591,7 +479,8 @@ func (l *Ledger) GetRelease(ctx context.Context, actor domain.Actor, releaseID s
 	return release, nil
 }
 
-func (l *Ledger) FreezeRelease(ctx context.Context, actor domain.Actor, releaseID string) (domain.Release, error) {
+func (s releaseEvidenceService) FreezeRelease(ctx context.Context, actor domain.Actor, releaseID string) (domain.Release, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.Release{}, err
 	}
@@ -621,7 +510,8 @@ func (l *Ledger) FreezeRelease(ctx context.Context, actor domain.Actor, releaseI
 	return release, nil
 }
 
-func (l *Ledger) ApproveRelease(ctx context.Context, actor domain.Actor, releaseID string) (domain.Release, error) {
+func (s releaseEvidenceService) ApproveRelease(ctx context.Context, actor domain.Actor, releaseID string) (domain.Release, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.Release{}, err
 	}
@@ -651,7 +541,8 @@ func (l *Ledger) ApproveRelease(ctx context.Context, actor domain.Actor, release
 	return release, nil
 }
 
-func (l *Ledger) RegisterArtifact(ctx context.Context, actor domain.Actor, name, mediaType, digest string, size int64) (domain.Artifact, error) {
+func (s releaseEvidenceService) RegisterArtifact(ctx context.Context, actor domain.Actor, name, mediaType, digest string, size int64) (domain.Artifact, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.Artifact{}, err
 	}
@@ -701,7 +592,8 @@ type CreateEvidenceInput struct {
 	Limitations      []string
 }
 
-func (l *Ledger) CreateEvidence(ctx context.Context, actor domain.Actor, in CreateEvidenceInput) (domain.EvidenceItem, error) {
+func (s releaseEvidenceService) CreateEvidence(ctx context.Context, actor domain.Actor, in CreateEvidenceInput) (domain.EvidenceItem, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.EvidenceItem{}, err
 	}
@@ -778,7 +670,8 @@ func (l *Ledger) CreateEvidence(ctx context.Context, actor domain.Actor, in Crea
 	return item, nil
 }
 
-func (l *Ledger) GetEvidence(ctx context.Context, actor domain.Actor, id string) (domain.EvidenceItem, error) {
+func (s releaseEvidenceService) GetEvidence(ctx context.Context, actor domain.Actor, id string) (domain.EvidenceItem, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.EvidenceItem{}, err
 	}
@@ -797,7 +690,8 @@ func (l *Ledger) GetEvidence(ctx context.Context, actor domain.Actor, id string)
 	return item, nil
 }
 
-func (l *Ledger) ListEvidence(ctx context.Context, actor domain.Actor, releaseID, typ string) ([]domain.EvidenceItem, error) {
+func (s releaseEvidenceService) ListEvidence(ctx context.Context, actor domain.Actor, releaseID, typ string) ([]domain.EvidenceItem, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -826,7 +720,8 @@ func (l *Ledger) ListEvidence(ctx context.Context, actor domain.Actor, releaseID
 	return out, nil
 }
 
-func (l *Ledger) SupersedeEvidence(ctx context.Context, actor domain.Actor, id, replacementID, reason string) (domain.EvidenceItem, error) {
+func (s releaseEvidenceService) SupersedeEvidence(ctx context.Context, actor domain.Actor, id, replacementID, reason string) (domain.EvidenceItem, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.EvidenceItem{}, err
 	}
@@ -863,7 +758,8 @@ func (l *Ledger) SupersedeEvidence(ctx context.Context, actor domain.Actor, id, 
 	return item, nil
 }
 
-func (l *Ledger) LinkEvidence(ctx context.Context, actor domain.Actor, id, targetType, targetID string) (domain.EvidenceItem, error) {
+func (s releaseEvidenceService) LinkEvidence(ctx context.Context, actor domain.Actor, id, targetType, targetID string) (domain.EvidenceItem, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.EvidenceItem{}, err
 	}
@@ -914,7 +810,8 @@ func (l *Ledger) LinkEvidence(ctx context.Context, actor domain.Actor, id, targe
 	return item, nil
 }
 
-func (l *Ledger) UploadSBOM(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.SBOM, error) {
+func (s releaseEvidenceService) UploadSBOM(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.SBOM, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.SBOM{}, err
 	}
@@ -1001,7 +898,8 @@ func (l *Ledger) UploadSBOM(ctx context.Context, actor domain.Actor, releaseID, 
 	return sbom, nil
 }
 
-func (l *Ledger) UploadVulnerabilityScan(ctx context.Context, actor domain.Actor, raw []byte) (domain.VulnerabilityScan, error) {
+func (s releaseEvidenceService) UploadVulnerabilityScan(ctx context.Context, actor domain.Actor, raw []byte) (domain.VulnerabilityScan, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.VulnerabilityScan{}, err
 	}
@@ -1095,7 +993,8 @@ func (l *Ledger) UploadVulnerabilityScan(ctx context.Context, actor domain.Actor
 	return scan, nil
 }
 
-func (l *Ledger) UploadOpenAPIContract(ctx context.Context, actor domain.Actor, productID, releaseID, version string, raw []byte) (domain.OpenAPIContract, error) {
+func (s releaseEvidenceService) UploadOpenAPIContract(ctx context.Context, actor domain.Actor, productID, releaseID, version string, raw []byte) (domain.OpenAPIContract, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.OpenAPIContract{}, err
 	}
@@ -1389,7 +1288,8 @@ func (l *Ledger) GetReleaseBundle(ctx context.Context, actor domain.Actor, id st
 	return bundle, nil
 }
 
-func (l *Ledger) GetSBOM(ctx context.Context, actor domain.Actor, id string) (domain.SBOM, error) {
+func (s releaseEvidenceService) GetSBOM(ctx context.Context, actor domain.Actor, id string) (domain.SBOM, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.SBOM{}, err
 	}
@@ -1417,7 +1317,8 @@ type ListSBOMComponentsInput struct {
 	Limit      int
 }
 
-func (l *Ledger) ListSBOMComponents(ctx context.Context, actor domain.Actor, in ListSBOMComponentsInput) ([]domain.SBOMComponentRecord, error) {
+func (s releaseEvidenceService) ListSBOMComponents(ctx context.Context, actor domain.Actor, in ListSBOMComponentsInput) ([]domain.SBOMComponentRecord, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -1490,7 +1391,8 @@ func sbomComponentMatches(component domain.SBOMComponent, query, purl string) bo
 	return strings.Contains(haystack, query)
 }
 
-func (l *Ledger) GetVulnerabilityScan(ctx context.Context, actor domain.Actor, id string) (domain.VulnerabilityScan, error) {
+func (s releaseEvidenceService) GetVulnerabilityScan(ctx context.Context, actor domain.Actor, id string) (domain.VulnerabilityScan, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.VulnerabilityScan{}, err
 	}
@@ -1509,7 +1411,8 @@ func (l *Ledger) GetVulnerabilityScan(ctx context.Context, actor domain.Actor, i
 	return scan, nil
 }
 
-func (l *Ledger) GetOpenAPIContract(ctx context.Context, actor domain.Actor, id string) (domain.OpenAPIContract, error) {
+func (s releaseEvidenceService) GetOpenAPIContract(ctx context.Context, actor domain.Actor, id string) (domain.OpenAPIContract, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.OpenAPIContract{}, err
 	}
@@ -1672,7 +1575,8 @@ func (l *Ledger) ListSigningKeys(ctx context.Context, actor domain.Actor) ([]dom
 	return out, nil
 }
 
-func (l *Ledger) MissingEvidenceReport(ctx context.Context, actor domain.Actor, releaseID string) (map[string]any, error) {
+func (s packageReportService) MissingEvidenceReport(ctx context.Context, actor domain.Actor, releaseID string) (map[string]any, error) {
+	l := s.ledger
 	eval, err := l.EvaluateRelease(ctx, actor, releaseID)
 	if err != nil && !errors.Is(err, ErrVerificationFailed) {
 		return nil, err

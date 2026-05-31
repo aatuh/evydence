@@ -477,4 +477,34 @@ func TestRelationalStateStoreAvoidsAggregateSaveForRemainingFamilies(t *testing.
 	if got := store.states[0].Incidents[incident.ID]; got.ID != incident.ID || got.TenantID != actor.TenantID {
 		t.Fatalf("relational state missed incident: %#v", got)
 	}
+
+	store.reset()
+	profile, err := ledger.CreateRedactionProfile(ctx, actor, CreateRedactionProfileInput{Name: "Customer Safe", AllowedTypes: []string{"sbom", "vulnerability_scan"}})
+	if err != nil {
+		t.Fatalf("create redaction profile: %v", err)
+	}
+	if store.saveCalls != 0 || store.relationalCalls != 1 {
+		t.Fatalf("redaction persistence save=%d relational=%d", store.saveCalls, store.relationalCalls)
+	}
+	if got := store.states[0].RedactionProfiles[profile.ID]; got.ID != profile.ID || got.TenantID != actor.TenantID {
+		t.Fatalf("relational state missed redaction profile: %#v", got)
+	}
+
+	store.reset()
+	pkg, err := ledger.CreateCustomerSecurityPackage(ctx, actor, CreateCustomerPackageInput{
+		ProductID:          product.ID,
+		ReleaseID:          release.ID,
+		RedactionProfileID: profile.ID,
+		Title:              "Customer package",
+		ExpiresAt:          fixedNow().Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("create customer package: %v", err)
+	}
+	if store.saveCalls != 0 || store.relationalCalls != 1 {
+		t.Fatalf("customer package persistence save=%d relational=%d", store.saveCalls, store.relationalCalls)
+	}
+	if got := store.states[0].CustomerPackages[pkg.ID]; got.ID != pkg.ID || got.TenantID != actor.TenantID {
+		t.Fatalf("relational state missed customer package: %#v", got)
+	}
 }

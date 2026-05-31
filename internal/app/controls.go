@@ -285,7 +285,8 @@ func (l *Ledger) ListControlEvidence(ctx context.Context, actor domain.Actor, co
 	return out, nil
 }
 
-func (l *Ledger) ControlCoverageReport(ctx context.Context, actor domain.Actor, in ControlCoverageReportInput) (domain.ControlCoverageReport, error) {
+func (s packageReportService) ControlCoverageReport(ctx context.Context, actor domain.Actor, in ControlCoverageReportInput) (domain.ControlCoverageReport, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.ControlCoverageReport{}, err
 	}
@@ -304,7 +305,8 @@ func (l *Ledger) ControlCoverageReport(ctx context.Context, actor domain.Actor, 
 	return report, nil
 }
 
-func (l *Ledger) CRAReadinessReport(ctx context.Context, actor domain.Actor, in CRAReadinessReportInput) (domain.CRAReadinessReport, error) {
+func (s packageReportService) CRAReadinessReport(ctx context.Context, actor domain.Actor, in CRAReadinessReportInput) (domain.CRAReadinessReport, error) {
+	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.CRAReadinessReport{}, err
 	}
