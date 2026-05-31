@@ -9,7 +9,7 @@ GOVULNCHECK_VERSION ?= v1.2.0
 
 TAG ?=
 
-.PHONY: help tools fmt lint vuln gosec test test-race coverage coverage-check openapi-check openapi-precision-check meta-check docs-check deploy-check sdk-check fast-check finalize release-acceptance release-check production-check release-candidate-check migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
+.PHONY: help tools fmt lint vuln gosec test test-race coverage coverage-check openapi-check openapi-precision-check meta-check docs-check deploy-check sdk-check demo-check fast-check finalize release-acceptance release-check production-check release-candidate-check migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -69,10 +69,12 @@ meta-check: ## Validate root legal, governance, support, and release-evidence me
 	@test -f .dockerignore
 	@test -f .github/dependabot.yml
 	@test -f .github/workflows/scorecard.yml
+	@test -f .github/ISSUE_TEMPLATE.md
 	@test -f .github/ISSUE_TEMPLATE/bug_report.yml
 	@test -f .github/ISSUE_TEMPLATE/feature_request.yml
 	@test -f .github/ISSUE_TEMPLATE/docs.yml
 	@test -f .github/ISSUE_TEMPLATE/production_support.yml
+	@test -f .github/pull_request_template.md
 	@test -x scripts/release_acceptance.sh
 	@test -x scripts/release_candidate_package.sh
 	@test -x scripts/release_candidate_validate.sh
@@ -84,6 +86,8 @@ meta-check: ## Validate root legal, governance, support, and release-evidence me
 	@grep -F 'raw evidence payloads' SECURITY.md >/dev/null
 	@grep -F 'release evidence artifacts' SUPPORT.md >/dev/null
 	@grep -F 'Security vulnerability' .github/ISSUE_TEMPLATE/config.yml >/dev/null
+	@grep -F 'private vulnerability reporting' .github/ISSUE_TEMPLATE.md >/dev/null
+	@grep -F 'tenant isolation' .github/pull_request_template.md >/dev/null
 	@grep -F 'OpenSSF Scorecard' .github/workflows/scorecard.yml >/dev/null
 	@grep -F 'Evydence fork' TRADEMARKS.md >/dev/null
 	@grep -F 'Release evidence is not a certification' RELEASE_EVIDENCE.md >/dev/null
@@ -221,6 +225,19 @@ sdk-check: ## Validate SDK helper and generated route-catalog coverage against O
 	@test -f sdk/openapi-route-catalog.json
 	@python3 scripts/sdk_check.py
 
+demo-check: ## Validate checked end-to-end evidence demo fixtures
+	@test -x examples/end-to-end-release-evidence/run-local-demo.sh
+	@test -f examples/end-to-end-release-evidence/README.md
+	@test -f examples/end-to-end-release-evidence/release-evidence-manifest.json
+	@test -f examples/end-to-end-release-evidence/sample-readiness-report.json
+	@test -f examples/end-to-end-release-evidence/sample-customer-package-manifest.json
+	@test -f examples/end-to-end-release-evidence/sample-audit-chain-verification.json
+	@python3 -c 'import json, pathlib; [json.loads(path.read_text()) for path in pathlib.Path("examples/end-to-end-release-evidence").glob("*.json")]'
+	@grep -F '/v1/reports/release-readiness' examples/end-to-end-release-evidence/run-local-demo.sh >/dev/null
+	@grep -F '/v1/audit-chain/verify' examples/end-to-end-release-evidence/run-local-demo.sh >/dev/null
+	@grep -F '/v1/customer-packages' examples/end-to-end-release-evidence/run-local-demo.sh >/dev/null
+	@grep -F 'not legal' examples/end-to-end-release-evidence/README.md >/dev/null
+
 fast-check: ## Run non-mutating fast validation
 	@$(MAKE) test
 	@$(MAKE) openapi-check
@@ -228,6 +245,7 @@ fast-check: ## Run non-mutating fast validation
 	@$(MAKE) docs-check
 	@$(MAKE) deploy-check
 	@$(MAKE) sdk-check
+	@$(MAKE) demo-check
 
 finalize: ## Thorough validity check
 	@$(MAKE) fmt
@@ -237,6 +255,7 @@ finalize: ## Thorough validity check
 	@$(MAKE) docs-check
 	@$(MAKE) deploy-check
 	@$(MAKE) sdk-check
+	@$(MAKE) demo-check
 
 release-acceptance: ## Run deterministic release metadata acceptance checks
 	@scripts/release_acceptance.sh
