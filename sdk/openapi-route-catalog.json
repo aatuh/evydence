@@ -1,5 +1,5 @@
 {
-  "route_count": 175,
+  "route_count": 176,
   "routes": [
     {
       "idempotency_key_required": false,
@@ -2039,6 +2039,23 @@
       ],
       "scopes": [
         "report:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "signingCustodyReviewReport",
+      "path": "/v1/reports/custody-review",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SigningCustodyReviewReportEnvelope"
+      ],
+      "scopes": [
+        "keys:admin"
       ],
       "success_statuses": [
         "200"

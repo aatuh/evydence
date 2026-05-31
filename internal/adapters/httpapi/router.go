@@ -1991,6 +1991,19 @@ func (s *Server) verifyObjectRetentionPolicy(w http.ResponseWriter, r *http.Requ
 	})
 }
 
+func (s *Server) signingCustodyReviewReport(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	report, err := s.ledger.SigningCustodyReviewReport(r.Context(), actor)
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, report)
+}
+
 func (s *Server) generateBackupManifest(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
 		manifest, err := s.ledger.GenerateBackupManifest(ctx, actor)

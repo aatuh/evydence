@@ -493,6 +493,7 @@ presets; preset policy fields cannot be overridden in the create request.
 | `POST` | `/v1/legal-holds` | Record legal hold. |
 | `POST` | `/v1/retention-overrides` | Record retention override. |
 | `GET` | `/v1/reports/retention` | List retention records. |
+| `GET` | `/v1/reports/custody-review` | Review tenant signing-provider and object-lock verification metadata for deployment custody review. |
 | `POST` | `/v1/backup-manifests` | Generate backup manifest. |
 | `GET` | `/v1/backup-manifests/{id}/verify` | Verify backup manifest. |
 

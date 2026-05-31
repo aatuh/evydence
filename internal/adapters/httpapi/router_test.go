@@ -94,7 +94,7 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	if _, ok := redactionRequestProps["preset"]; !ok {
 		t.Fatalf("redaction profile request schema missing preset: %#v", redactionRequestProps)
 	}
-	for _, schemaName := range []string{"ReadinessStatusEnvelope", "BackupManifestEnvelope", "VerificationResultEnvelope", "ReadinessReportEnvelope", "CRAVulnerabilityHandlingReportEnvelope", "SecurityUpdateEvidenceReportEnvelope", "CreateProductRequest", "ProductEnvelope", "ProductListEnvelope", "CreateProjectRequest", "ProjectEnvelope", "CreateReleaseRequest", "ReleaseEnvelope", "ReleaseEvidenceFlowEnvelope", "ReleaseSecuritySummaryEnvelope", "RegisterArtifactRequest", "ArtifactEnvelope", "CreateBuildRequest", "BuildRunEnvelope", "EvidenceUploadRequest", "SBOMEnvelope", "VEXDocumentEnvelope", "VEXImportReportEnvelope", "UploadVulnerabilityScanRequest", "VulnerabilityScanEnvelope", "VulnerabilityDecisionListEnvelope", "VulnerabilityDecisionSummaryReportEnvelope", "CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOProviderRequest", "UpdateSSOProviderTrustMaterialRequest", "SSOProviderEnvelope", "VerifyProviderIdentityRequest", "ProviderVerificationEnvelope", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "ExchangeSSOCredentialRequest", "SSOCredentialExchangeEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalPackageRequest", "QuestionnaireAnswerLibraryEntryEnvelope", "QuestionnaireAnswerLibraryEntryListEnvelope", "DataEnvelope"} {
+	for _, schemaName := range []string{"ReadinessStatusEnvelope", "BackupManifestEnvelope", "VerificationResultEnvelope", "ReadinessReportEnvelope", "CRAVulnerabilityHandlingReportEnvelope", "SecurityUpdateEvidenceReportEnvelope", "SigningCustodyReviewReportEnvelope", "CreateProductRequest", "ProductEnvelope", "ProductListEnvelope", "CreateProjectRequest", "ProjectEnvelope", "CreateReleaseRequest", "ReleaseEnvelope", "ReleaseEvidenceFlowEnvelope", "ReleaseSecuritySummaryEnvelope", "RegisterArtifactRequest", "ArtifactEnvelope", "CreateBuildRequest", "BuildRunEnvelope", "EvidenceUploadRequest", "SBOMEnvelope", "VEXDocumentEnvelope", "VEXImportReportEnvelope", "UploadVulnerabilityScanRequest", "VulnerabilityScanEnvelope", "VulnerabilityDecisionListEnvelope", "VulnerabilityDecisionSummaryReportEnvelope", "CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOProviderRequest", "UpdateSSOProviderTrustMaterialRequest", "SSOProviderEnvelope", "VerifyProviderIdentityRequest", "ProviderVerificationEnvelope", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "ExchangeSSOCredentialRequest", "SSOCredentialExchangeEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalPackageRequest", "QuestionnaireAnswerLibraryEntryEnvelope", "QuestionnaireAnswerLibraryEntryListEnvelope", "DataEnvelope"} {
 		if _, ok := schemas[schemaName]; !ok {
 			t.Fatalf("schema %s missing from OpenAPI components", schemaName)
 		}
@@ -121,6 +121,8 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	securityUpdateEvidence := operationMap(t, paths, "/v1/reports/security-update-evidence", "get")
 	assertQueryParams(t, securityUpdateEvidence, "product_id", "release_id")
 	assertResponseRef(t, securityUpdateEvidence, "200", "#/components/schemas/SecurityUpdateEvidenceReportEnvelope")
+	custodyReview := operationMap(t, paths, "/v1/reports/custody-review", "get")
+	assertResponseRef(t, custodyReview, "200", "#/components/schemas/SigningCustodyReviewReportEnvelope")
 	createProduct := operationMap(t, paths, "/v1/products", "post")
 	assertRequestRef(t, createProduct, "#/components/schemas/CreateProductRequest")
 	assertResponseRef(t, createProduct, "201", "#/components/schemas/ProductEnvelope")
@@ -518,6 +520,7 @@ func TestAuthenticatedReadRoutesRejectMissingBearerToken(t *testing.T) {
 		"/v1/reports/cra-readiness",
 		"/v1/reports/cra-readiness-html",
 		"/v1/reports/cra-vulnerability-handling",
+		"/v1/reports/custody-review",
 		"/v1/reports/incident-package",
 		"/v1/reports/missing-evidence",
 		"/v1/reports/retention",
@@ -804,6 +807,10 @@ func TestIntegrityRuntimeHTTPFlow(t *testing.T) {
 	retentionBody := postJSON(t, server, secret, "/v1/object-retention-policies", "int-retention", map[string]any{"name": "lock", "mode": "governance", "retention_days": 30}, http.StatusCreated)
 	retentionID := dataField(t, retentionBody, "id")
 	postJSON(t, server, secret, "/v1/object-retention-policies/"+retentionID+"/verify", "int-retention-verify", map[string]any{}, http.StatusOK)
+	custodyReview := getJSON(t, server, secret, "/v1/reports/custody-review", http.StatusOK)
+	if !strings.Contains(custodyReview, `"report_type":"signing_custody_review"`) || !strings.Contains(custodyReview, `"object_lock_proof_recorded"`) || strings.Contains(custodyReview, "private_key") {
+		t.Fatalf("custody review response missing checks or leaked sensitive wording: %s", custodyReview)
+	}
 	backupBody := postJSON(t, server, secret, "/v1/backup-manifests", "int-backup", map[string]any{}, http.StatusCreated)
 	backupID := dataField(t, backupBody, "id")
 	backupVerify := getJSON(t, server, secret, "/v1/backup-manifests/"+backupID+"/verify", http.StatusOK)

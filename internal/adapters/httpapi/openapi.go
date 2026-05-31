@@ -562,6 +562,26 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"created_at":     map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "name", "type", "status", "key_ref", "encrypted", "schema_version", "created_at"))
 	registry.RegisterSchema("SigningProviderEnvelope", dataEnvelopeSchema("#/components/schemas/SigningProvider"))
+	registry.RegisterSchema("SigningCustodyReviewReport", objectSchema(map[string]any{
+		"report_type": map[string]any{"type": "string"},
+		"tenant_id":   map[string]any{"type": "string"},
+		"signing_providers": map[string]any{
+			"type":  "array",
+			"items": map[string]any{"$ref": "#/components/schemas/SigningProvider"},
+		},
+		"object_retention_policies": map[string]any{
+			"type":  "array",
+			"items": map[string]any{"$ref": "#/components/schemas/ObjectRetentionPolicy"},
+		},
+		"checks": map[string]any{
+			"type":  "array",
+			"items": map[string]any{"$ref": "#/components/schemas/VerifyCheck"},
+		},
+		"assumptions":  map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"limitations":  map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"generated_at": map[string]any{"type": "string", "format": "date-time"},
+	}, "report_type", "tenant_id", "checks", "assumptions", "limitations", "generated_at"))
+	registry.RegisterSchema("SigningCustodyReviewReportEnvelope", dataEnvelopeSchema("#/components/schemas/SigningCustodyReviewReport"))
 	registry.RegisterSchema("CreateSigningOperationRequest", objectSchema(map[string]any{
 		"provider_id":        map[string]any{"type": "string"},
 		"subject_type":       map[string]any{"type": "string"},

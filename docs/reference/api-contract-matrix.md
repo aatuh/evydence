@@ -3,7 +3,7 @@
 This generated reference inventories Evydence `/v1` route contract precision from `openapi.yaml`.
 It is a planning aid for production contract hardening; `broad` means the route still uses a shared envelope, unspecified body, or generic schema where an endpoint-specific contract should be considered.
 
-Generated from 175 operations: 175 precise, 0 broad.
+Generated from 176 operations: 176 precise, 0 broad.
 
 | Method | Path | Operation | Auth | Scopes | Idempotency | Params | Request | 2xx Response | Precision |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -128,6 +128,7 @@ Generated from 175 operations: 175 precise, 0 broad.
 | GET | /v1/reports/cra-readiness | craReadinessReport | Bearer | report:read | - | query:product_id, query:release_id | - | 200:application/json:ReadinessReportEnvelope | precise |
 | GET | /v1/reports/cra-readiness-html | craReadinessHTMLPackage | Bearer | report:read | - | query:product_id, query:release_id | - | 200:application/json:HTMLReportPackageEnvelope | precise |
 | GET | /v1/reports/cra-vulnerability-handling | craVulnerabilityHandlingReport | Bearer | report:read | - | query:product_id, query:release_id | - | 200:application/json:CRAVulnerabilityHandlingReportEnvelope | precise |
+| GET | /v1/reports/custody-review | signingCustodyReviewReport | Bearer | keys:admin | - | - | - | 200:application/json:SigningCustodyReviewReportEnvelope | precise |
 | GET | /v1/reports/incident-package | incidentReport | Bearer | incident:read | - | query:incident_id | - | 200:application/json:IncidentReportEnvelope | precise |
 | GET | /v1/reports/missing-evidence | missingEvidenceReport | Bearer | verify:read | - | query:release_id | - | 200:application/json:MissingEvidenceReportEnvelope | precise |
 | POST | /v1/reports/pdf | createPDFReportPackage | Bearer | report:read | required | - | application/json:CreatePDFReportPackageRequest | 201:application/json:PDFReportPackageEnvelope | precise |

@@ -387,6 +387,7 @@ func TestLedgerOperationsHonorCanceledContextBeforeWork(t *testing.T) {
 			return err
 		}},
 		{"VerifyObjectRetentionPolicy", func() error { _, err := ledger.VerifyObjectRetentionPolicy(ctx, actor, "policy"); return err }},
+		{"SigningCustodyReviewReport", func() error { _, err := ledger.SigningCustodyReviewReport(ctx, actor); return err }},
 		{"GenerateBackupManifest", func() error { _, err := ledger.GenerateBackupManifest(ctx, actor); return err }},
 		{"VerifyBackupManifest", func() error { _, err := ledger.VerifyBackupManifest(ctx, actor, "backup"); return err }},
 		{"ReadinessStatus", func() error { _, err := ledger.ReadinessStatus(ctx); return err }},
@@ -728,6 +729,7 @@ func TestLedgerOperationsRejectActorsWithoutRequiredScopesBeforeResourceWork(t *
 			return err
 		}},
 		{"VerifyObjectRetentionPolicy", func() error { _, err := ledger.VerifyObjectRetentionPolicy(ctx, actor, "policy"); return err }},
+		{"SigningCustodyReviewReport", func() error { _, err := ledger.SigningCustodyReviewReport(ctx, actor); return err }},
 		{"GenerateBackupManifest", func() error { _, err := ledger.GenerateBackupManifest(ctx, actor); return err }},
 		{"VerifyBackupManifest", func() error { _, err := ledger.VerifyBackupManifest(ctx, actor, "backup"); return err }},
 		{"Metrics", func() error { _, err := ledger.Metrics(ctx, actor); return err }},
