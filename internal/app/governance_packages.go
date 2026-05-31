@@ -442,6 +442,9 @@ func (l *Ledger) customerPackageManifestLocked(packageID string, generatedAt tim
 	if profileAllowsPackageType(profile, "vex") {
 		manifest["vex_documents"] = l.packageVEXMetadataLocked(tenantID, releaseID)
 	}
+	if profileAllowsPackageType(profile, "openapi_contract") {
+		manifest["api_contracts"] = l.packageAPIContractMetadataLocked(tenantID, releaseID)
+	}
 	if decisions := l.packageDecisionSummariesLocked(tenantID, releaseID, profile); len(decisions) > 0 {
 		manifest["vulnerability_decisions"] = decisions
 	}
@@ -649,6 +652,83 @@ func (l *Ledger) packageVEXMetadataLocked(tenantID, releaseID string) []map[stri
 		})
 	}
 	sortManifestMapsByID(out)
+	return out
+}
+
+func (l *Ledger) packageAPIContractMetadataLocked(tenantID, releaseID string) map[string]any {
+	contracts := []map[string]any{}
+	for _, contract := range l.contracts {
+		if contract.TenantID != tenantID || contract.ReleaseID != releaseID {
+			continue
+		}
+		contracts = append(contracts, map[string]any{
+			"id":              contract.ID,
+			"evidence_id":     contract.EvidenceID,
+			"product_id":      contract.ProductID,
+			"release_id":      contract.ReleaseID,
+			"version":         contract.Version,
+			"hash":            contract.Hash,
+			"path_count":      contract.PathCount,
+			"operation_count": len(contract.Operations),
+			"operations":      packageOpenAPIOperations(contract.Operations),
+			"created_at":      contract.CreatedAt.UTC().Format(time.RFC3339),
+		})
+	}
+	sortManifestMapsByID(contracts)
+	diffs := []map[string]any{}
+	for _, diff := range l.contractDiffs {
+		if diff.TenantID != tenantID || diff.ReleaseID != releaseID {
+			continue
+		}
+		diffs = append(diffs, map[string]any{
+			"id":                   diff.ID,
+			"base_contract_id":     diff.BaseContractID,
+			"target_contract_id":   diff.TargetContractID,
+			"product_id":           diff.ProductID,
+			"release_id":           diff.ReleaseID,
+			"result":               diff.Result,
+			"breaking_changes":     append([]string(nil), diff.BreakingChanges...),
+			"non_breaking_changes": append([]string(nil), diff.NonBreakingChanges...),
+			"schema_version":       diff.SchemaVersion,
+			"created_at":           diff.CreatedAt.UTC().Format(time.RFC3339),
+		})
+	}
+	sortManifestMapsByID(diffs)
+	return map[string]any{
+		"openapi_contracts": contracts,
+		"contract_diffs":    diffs,
+		"limitations": []string{
+			"OpenAPI contract evidence includes stored metadata, hashes, and normalized operation summaries only.",
+			"Raw OpenAPI document bytes, object-store payload references, and private/internal extensions are not included.",
+			"Diff results summarize recorded contract evidence and do not make this package an API governance approval.",
+		},
+	}
+}
+
+func packageOpenAPIOperations(operations []domain.OpenAPIOperation) []map[string]any {
+	out := make([]map[string]any, 0, len(operations))
+	for _, operation := range operations {
+		method := strings.ToUpper(strings.TrimSpace(operation.Method))
+		path := strings.TrimSpace(operation.Path)
+		if method == "" || path == "" {
+			continue
+		}
+		out = append(out, map[string]any{
+			"label":                   method + " " + path,
+			"path":                    path,
+			"method":                  method,
+			"operation_id":            operation.OperationID,
+			"deprecated":              operation.Deprecated,
+			"request_body_required":   operation.RequestBodyRequired,
+			"required_request_fields": append([]string(nil), operation.RequiredRequestFields...),
+			"response_statuses":       append([]string(nil), operation.ResponseStatuses...),
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		left, _ := out[i]["label"].(string)
+		right, _ := out[j]["label"].(string)
+		return left < right
+	})
 	return out
 }
 
@@ -1133,6 +1213,7 @@ func customerPackageHTMLReport(pkg domain.CustomerSecurityPackage, metadata, ver
 	product := packageHTMLMap(manifest["product"])
 	release := packageHTMLMap(manifest["release"])
 	readiness := packageHTMLMap(manifest["readiness_summary"])
+	apiContracts := packageHTMLMap(manifest["api_contracts"])
 	vexDocuments := packageHTMLRecords(manifest["vex_documents"])
 	decisions := packageHTMLRecords(manifest["vulnerability_decisions"])
 	limitations := packageHTMLStrings(manifest["limitations"])
@@ -1170,6 +1251,28 @@ func customerPackageHTMLReport(pkg domain.CustomerSecurityPackage, metadata, ver
 			b.WriteString("<h3>Vulnerability Decisions</h3><table><thead><tr><th>Vulnerability</th><th>Component</th><th>Status</th><th>Impact Statement</th><th>Source</th></tr></thead><tbody>")
 			for _, record := range decisions {
 				b.WriteString("<tr><td>" + packageHTMLEscape(packageHTMLString(record["vulnerability"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["component"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["status"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["impact_statement"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["source"])) + "</td></tr>")
+			}
+			b.WriteString("</tbody></table>")
+		}
+	}
+
+	b.WriteString("<h2>API Contract Evidence</h2>")
+	contractRecords := packageHTMLRecords(apiContracts["openapi_contracts"])
+	diffRecords := packageHTMLRecords(apiContracts["contract_diffs"])
+	if len(contractRecords) == 0 && len(diffRecords) == 0 {
+		b.WriteString("<p class=\"muted\">No customer-visible OpenAPI contract evidence is included by this package profile.</p>")
+	} else {
+		if len(contractRecords) > 0 {
+			b.WriteString("<h3>OpenAPI Contracts</h3><table><thead><tr><th>ID</th><th>Version</th><th>Hash</th><th>Paths</th><th>Operations</th></tr></thead><tbody>")
+			for _, record := range contractRecords {
+				b.WriteString("<tr><td>" + packageHTMLEscape(packageHTMLString(record["id"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["version"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["hash"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["path_count"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["operation_count"])) + "</td></tr>")
+			}
+			b.WriteString("</tbody></table>")
+		}
+		if len(diffRecords) > 0 {
+			b.WriteString("<h3>Contract Diffs</h3><table><thead><tr><th>ID</th><th>Result</th><th>Breaking Changes</th><th>Non-breaking Changes</th></tr></thead><tbody>")
+			for _, record := range diffRecords {
+				b.WriteString("<tr><td>" + packageHTMLEscape(packageHTMLString(record["id"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["result"])) + "</td><td>" + packageHTMLEscape(packageHTMLJSON(record["breaking_changes"])) + "</td><td>" + packageHTMLEscape(packageHTMLJSON(record["non_breaking_changes"])) + "</td></tr>")
 			}
 			b.WriteString("</tbody></table>")
 		}
