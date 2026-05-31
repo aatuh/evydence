@@ -214,6 +214,79 @@ func TestCustomerPackageV2ManifestSchemaAndSensitiveFieldExclusion(t *testing.T)
 	}
 }
 
+func TestRedactionProfilePresetsAreExplicitAndSafe(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
+	project, err := ledger.CreateProject(ctx, actor, release.ProductID, "api")
+	if err != nil {
+		t.Fatalf("project: %v", err)
+	}
+	if _, err := ledger.CreateBuildRun(ctx, actor, CreateBuildRunInput{
+		ProjectID:   project.ID,
+		ReleaseID:   release.ID,
+		Provider:    "github_actions",
+		CommitSHA:   "0123456789abcdef0123456789abcdef01234567",
+		Repository:  "github.internal.example/payments/api",
+		WorkflowRef: "github.internal.example/payments/api/.github/workflows/build.yml@refs/heads/main",
+		RunID:       "123",
+		RunAttempt:  1,
+		Status:      "passed",
+		StartedAt:   fixedNow(),
+		Outputs:     []domain.BuildOutput{{ArtifactID: artifact.ID, Digest: artifact.Digest}},
+	}); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	customerSafe, err := ledger.CreateRedactionProfile(ctx, actor, CreateRedactionProfileInput{Preset: "customer_safe"})
+	if err != nil {
+		t.Fatalf("customer-safe preset: %v", err)
+	}
+	if customerSafe.Name != "customer_safe" || !stringSliceContains(customerSafe.ExcludedFields, "internal_url") || stringSliceContains(customerSafe.AllowedTypes, "build") {
+		t.Fatalf("customer-safe profile = %#v", customerSafe)
+	}
+	pkg, err := ledger.CreateCustomerSecurityPackage(ctx, actor, CreateCustomerPackageInput{ProductID: release.ProductID, ReleaseID: release.ID, RedactionProfileID: customerSafe.ID, Title: "Customer safe package", ExpiresAt: fixedNow().Add(time.Hour)})
+	if err != nil {
+		t.Fatalf("customer-safe package: %v", err)
+	}
+	body, err := json.Marshal(pkg.Manifest)
+	if err != nil {
+		t.Fatalf("marshal customer-safe manifest: %v", err)
+	}
+	text := string(body)
+	if !strings.Contains(text, `"name":"customer_safe"`) {
+		t.Fatalf("manifest does not name preset profile: %s", text)
+	}
+	if strings.Contains(text, "github.internal.example") || strings.Contains(text, `"provenance"`) {
+		t.Fatalf("customer-safe package leaked internal provenance: %s", text)
+	}
+
+	securityReview, err := ledger.CreateRedactionProfile(ctx, actor, CreateRedactionProfileInput{Preset: "security_review"})
+	if err != nil {
+		t.Fatalf("security-review preset: %v", err)
+	}
+	if !stringSliceContains(securityReview.AllowedTypes, "build") || !stringSliceContains(securityReview.AllowedTypes, "build_attestation") {
+		t.Fatalf("security-review profile missing provenance types: %#v", securityReview)
+	}
+	securityPkg, err := ledger.CreateCustomerSecurityPackage(ctx, actor, CreateCustomerPackageInput{ProductID: release.ProductID, ReleaseID: release.ID, RedactionProfileID: securityReview.ID, Title: "Security review package", ExpiresAt: fixedNow().Add(time.Hour)})
+	if err != nil {
+		t.Fatalf("security-review package: %v", err)
+	}
+	securityBody, err := json.Marshal(securityPkg.Manifest)
+	if err != nil {
+		t.Fatalf("marshal security-review manifest: %v", err)
+	}
+	if !strings.Contains(string(securityBody), `"provenance"`) {
+		t.Fatalf("security-review package missing provenance: %s", securityBody)
+	}
+
+	if _, err := ledger.CreateRedactionProfile(ctx, actor, CreateRedactionProfileInput{Preset: "customer_safe", AllowedTypes: []string{"build"}}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("preset override err=%v, want validation", err)
+	}
+	if _, err := ledger.CreateRedactionProfile(ctx, actor, CreateRedactionProfileInput{Name: "unsafe"}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("unsafe unscoped profile err=%v, want validation", err)
+	}
+}
+
 func packageArchiveFiles(t *testing.T, body []byte) map[string]string {
 	t.Helper()
 	reader, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
