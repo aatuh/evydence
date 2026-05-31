@@ -698,6 +698,7 @@ type ObjectRetentionPolicy struct {
 	Name                    string        `json:"name"`
 	ObjectPrefix            string        `json:"object_prefix"`
 	ObjectKey               string        `json:"object_key,omitempty"`
+	RequireLegalHold        bool          `json:"require_legal_hold,omitempty"`
 	Mode                    string        `json:"mode"`
 	RetentionDays           int           `json:"retention_days"`
 	Status                  string        `json:"status"`

@@ -120,11 +120,12 @@ type TransparencyProofResult struct {
 }
 
 type ObjectRetentionRequest struct {
-	TenantID      string
-	ObjectPrefix  string
-	ObjectKey     string
-	Mode          string
-	RetentionDays int
+	TenantID         string
+	ObjectPrefix     string
+	ObjectKey        string
+	Mode             string
+	RetentionDays    int
+	RequireLegalHold bool
 }
 
 type ObjectRetentionResult struct {

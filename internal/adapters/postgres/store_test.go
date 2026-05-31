@@ -421,7 +421,7 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 			"ebi_test": {ID: "ebi_test", TenantID: "ten_test", BundleHash: "sha256:" + strings.Repeat("5", 64), Result: "imported", ImportedCount: 1, SchemaVersion: domain.EvidenceBundleImportVersion, CreatedAt: time.Now().UTC()},
 		},
 		ObjectRetentionPolicies: map[string]domain.ObjectRetentionPolicy{
-			"orp_test": {ID: "orp_test", TenantID: "ten_test", Name: "retain", ObjectPrefix: "tenants/ten_test/", Mode: "governance", RetentionDays: 30, Status: "verified", VerifiedAt: ptrTime(time.Now().UTC()), VerificationHash: "sha256:" + strings.Repeat("6", 64), VerificationChecks: []domain.VerifyCheck{{Name: "versioning", Result: "passed"}}, VerificationLimitations: []string{"test"}, SchemaVersion: domain.ObjectRetentionPolicyVersion, CreatedAt: time.Now().UTC()},
+			"orp_test": {ID: "orp_test", TenantID: "ten_test", Name: "retain", ObjectPrefix: "tenants/ten_test/", ObjectKey: "tenants/ten_test/raw/sample.json", RequireLegalHold: true, Mode: "governance", RetentionDays: 30, Status: "verified", VerifiedAt: ptrTime(time.Now().UTC()), VerificationHash: "sha256:" + strings.Repeat("6", 64), VerificationChecks: []domain.VerifyCheck{{Name: "versioning", Result: "passed"}}, VerificationLimitations: []string{"test"}, SchemaVersion: domain.ObjectRetentionPolicyVersion, CreatedAt: time.Now().UTC()},
 		},
 		BackupManifests: map[string]domain.BackupManifest{
 			"bak_test": {ID: "bak_test", TenantID: "ten_test", StateHash: "sha256:" + strings.Repeat("7", 64), ResourceCounts: map[string]int{"evidence": 1}, ConsistencyChecks: []domain.VerifyCheck{{Name: "chain", Result: "passed"}}, Limitations: []string{"objects separately backed up"}, SchemaVersion: domain.BackupManifestSchemaVersion, CreatedAt: time.Now().UTC()},
@@ -614,7 +614,7 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 		{name: "rendered report", query: `SELECT count(*) FROM rendered_reports WHERE tenant_id = 'ten_test' AND id = 'render_test'`},
 		{name: "evidence bundle", query: `SELECT count(*) FROM evidence_bundles WHERE tenant_id = 'ten_test' AND id = 'eb_test'`},
 		{name: "evidence bundle import", query: `SELECT count(*) FROM evidence_bundle_imports WHERE tenant_id = 'ten_test' AND id = 'ebi_test'`},
-		{name: "object retention", query: `SELECT count(*) FROM object_retention_policies WHERE tenant_id = 'ten_test' AND id = 'orp_test' AND verification_checks <> '[]'::jsonb`},
+		{name: "object retention", query: `SELECT count(*) FROM object_retention_policies WHERE tenant_id = 'ten_test' AND id = 'orp_test' AND require_legal_hold = true AND verification_checks <> '[]'::jsonb`},
 		{name: "backup manifest", query: `SELECT count(*) FROM backup_manifests WHERE tenant_id = 'ten_test' AND id = 'bak_test'`},
 		{name: "legal hold", query: `SELECT count(*) FROM legal_holds WHERE tenant_id = 'ten_test' AND id = 'hold_test' AND released_at IS NOT NULL`},
 		{name: "retention override", query: `SELECT count(*) FROM retention_overrides WHERE tenant_id = 'ten_test' AND id = 'ret_test'`},
@@ -745,7 +745,7 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	if relational.EvidenceBundles["eb_test"].ManifestHash == "" || relational.BundleImports["ebi_test"].ImportedCount != 1 {
 		t.Fatalf("relational evidence bundle rows missing: bundle=%#v import=%#v", relational.EvidenceBundles["eb_test"], relational.BundleImports["ebi_test"])
 	}
-	if relational.ObjectRetentionPolicies["orp_test"].Status != "verified" || len(relational.ObjectRetentionPolicies["orp_test"].VerificationChecks) != 1 {
+	if relational.ObjectRetentionPolicies["orp_test"].Status != "verified" || !relational.ObjectRetentionPolicies["orp_test"].RequireLegalHold || len(relational.ObjectRetentionPolicies["orp_test"].VerificationChecks) != 1 {
 		t.Fatalf("relational object retention policy = %#v", relational.ObjectRetentionPolicies["orp_test"])
 	}
 	if relational.BackupManifests["bak_test"].ResourceCounts["evidence"] != 1 || relational.LegalHolds["hold_test"].ReleasedAt == nil || relational.RetentionOverrides["ret_test"].Owner != "security" {

@@ -92,8 +92,11 @@ later repository decomposition work.
 
 When `EVYDENCE_OBJECT_STORE=s3` or `minio`, object-retention policy verification
 uses the same S3/MinIO client to check bucket versioning and default
-object-lock settings. The resulting policy record includes verification checks
-and limitations. The check is bucket-level: operators still need to review
+object-lock settings. When the policy names a tenant-prefixed sample object,
+the verifier also checks object-level retention; when `require_legal_hold` is
+true, it checks that legal hold is enabled for that sample object. The resulting
+policy record includes verification checks and limitations. These checks cover
+the configured bucket and sample object only: operators still need to review
 bucket creation mode, IAM policy, lifecycle rules, backups, and any
 deployment-specific WORM requirements.
 

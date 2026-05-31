@@ -64,7 +64,8 @@ Known hardening work remains:
 - production signing can use the HTTPS signing gateway executor or the built-in
   AWS KMS signing executor, but non-AWS cloud KMS/HSM SDK adapters,
   provider-specific management API validation/group synchronization, and broad
-  object-lock enforcement proof remain provider- and deployment-dependent
+  object-lock enforcement proof beyond bucket plus sample-object retention/legal-hold
+  checks remain provider- and deployment-dependent
   hardening areas. SSO credential exchange can issue bearer sessions and
   HttpOnly cookies after local OIDC/SAML verification against configured trust
   material, OIDC group claim values can map to session-scoped roles without
@@ -215,8 +216,8 @@ implemented capabilities:
   claim values can map to session-scoped roles, and API-first session logout
   can revoke the current SSO bearer session.
 - Extend object-lock/WORM verification beyond the current S3/MinIO bucket-level
-  checks plus optional sample-object retention checks where deployments require
-  broader object-level legal hold proofs or provider policy evidence.
+  checks plus optional sample-object retention and legal-hold checks where
+  deployments require broader provider policy evidence.
 - Run final product, codebase, security, documentation, and test audits before
   changing release status beyond controlled self-hosted production candidate.
 

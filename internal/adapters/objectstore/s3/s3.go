@@ -124,13 +124,20 @@ func (s *Store) VerifyObjectRetention(ctx context.Context, req app.ObjectRetenti
 	}
 	var objectMode *minio.RetentionMode
 	var retainUntil *time.Time
+	var legalHold *minio.LegalHoldStatus
 	if objectKey != "" {
 		objectMode, retainUntil, err = s.client.GetObjectRetention(ctx, s.bucket, objectKey, "")
 		if err != nil && !objectLockConfigMissing(err) {
 			return app.ObjectRetentionResult{}, fmt.Errorf("check s3 object retention: %w", err)
 		}
+		if req.RequireLegalHold {
+			legalHold, err = s.client.GetObjectLegalHold(ctx, s.bucket, objectKey, minio.GetObjectLegalHoldOptions{})
+			if err != nil && !objectLockConfigMissing(err) {
+				return app.ObjectRetentionResult{}, fmt.Errorf("check s3 object legal hold: %w", err)
+			}
+		}
 	}
-	return evaluateObjectRetention(req, versioning.Enabled(), mode, validity, unit, objectMode, retainUntil, time.Now().UTC()), nil
+	return evaluateObjectRetention(req, versioning.Enabled(), mode, validity, unit, objectMode, retainUntil, legalHold, time.Now().UTC()), nil
 }
 
 func metadataValue(metadata map[string]string, keys ...string) string {
@@ -147,7 +154,7 @@ func objectLockConfigMissing(err error) bool {
 	return resp.Code == "NoSuchObjectLockConfiguration" || resp.Code == "ObjectLockConfigurationNotFoundError"
 }
 
-func evaluateObjectRetention(req app.ObjectRetentionRequest, versioningEnabled bool, mode *minio.RetentionMode, validity *uint, unit *minio.ValidityUnit, objectMode *minio.RetentionMode, retainUntil *time.Time, now time.Time) app.ObjectRetentionResult {
+func evaluateObjectRetention(req app.ObjectRetentionRequest, versioningEnabled bool, mode *minio.RetentionMode, validity *uint, unit *minio.ValidityUnit, objectMode *minio.RetentionMode, retainUntil *time.Time, legalHold *minio.LegalHoldStatus, now time.Time) app.ObjectRetentionResult {
 	expectedPrefix := "tenants/" + strings.TrimSpace(req.TenantID) + "/"
 	prefixOK := strings.HasPrefix(strings.TrimSpace(req.ObjectPrefix), expectedPrefix)
 	objectKey := strings.TrimSpace(req.ObjectKey)
@@ -166,6 +173,7 @@ func evaluateObjectRetention(req app.ObjectRetentionRequest, versioningEnabled b
 	retentionOK := req.RetentionDays > 0 && retentionDays >= uint(req.RetentionDays)
 	objectModeOK := objectKey == "" || (expectedMode != "" && actualObjectMode == expectedMode)
 	objectRetainUntilOK := objectKey == "" || (retainUntil != nil && retainUntil.UTC().After(now.Add(time.Duration(req.RetentionDays)*24*time.Hour-time.Second)))
+	legalHoldOK := !req.RequireLegalHold || (objectKey != "" && legalHold != nil && *legalHold == minio.LegalHoldEnabled)
 	checks := []domain.VerifyCheck{
 		{Name: "s3_bucket_versioning", Result: checkResult(versioningEnabled), Detail: "Bucket versioning must be enabled for object-lock retention."},
 		{Name: "s3_object_lock_mode", Result: checkResult(modeOK), Detail: "Bucket default object-lock mode must match the policy mode."},
@@ -179,7 +187,10 @@ func evaluateObjectRetention(req app.ObjectRetentionRequest, versioningEnabled b
 			domain.VerifyCheck{Name: "s3_object_retention_until", Result: checkResult(objectRetainUntilOK), Detail: "Sample object retain-until timestamp must meet or exceed the policy duration."},
 		)
 	}
-	enforced := versioningEnabled && modeOK && retentionOK && prefixOK && objectKeyOK && objectModeOK && objectRetainUntilOK
+	if req.RequireLegalHold {
+		checks = append(checks, domain.VerifyCheck{Name: "s3_object_legal_hold", Result: checkResult(legalHoldOK), Detail: "Sample object legal hold must be enabled when the policy requires legal hold proof."})
+	}
+	enforced := versioningEnabled && modeOK && retentionOK && prefixOK && objectKeyOK && objectModeOK && objectRetainUntilOK && legalHoldOK
 	limitations := []string{
 		"S3/MinIO checks validate bucket-level versioning and default object-lock settings.",
 		"Operators remain responsible for bucket creation mode, IAM policy, lifecycle rules, backups, and deployment-specific retention review.",
@@ -188,6 +199,9 @@ func evaluateObjectRetention(req app.ObjectRetentionRequest, versioningEnabled b
 		limitations = append(limitations, "No sample object key was supplied, so object-level retention was not verified.")
 	} else {
 		limitations = append(limitations, "Object-level retention was checked for the configured sample object key only.")
+	}
+	if req.RequireLegalHold {
+		limitations = append(limitations, "Object-level legal hold was checked for the configured sample object key only.")
 	}
 	return app.ObjectRetentionResult{
 		Provider:    "s3",

@@ -83,6 +83,9 @@ func TestRuntimeRetentionBackupReadinessMetricsAndAudit(t *testing.T) {
 	if _, err := ledger.CreateObjectRetentionPolicy(ctx, actor, CreateObjectRetentionPolicyInput{Name: "bad key", ObjectKey: "tenants/other/raw/sample.json", Mode: "governance", RetentionDays: 30}); !errors.Is(err, ErrValidation) {
 		t.Fatalf("foreign object key err=%v, want validation", err)
 	}
+	if _, err := ledger.CreateObjectRetentionPolicy(ctx, actor, CreateObjectRetentionPolicyInput{Name: "legal hold without object", RequireLegalHold: true, Mode: "governance", RetentionDays: 30}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("legal hold without object err=%v, want validation", err)
+	}
 	verifiedPolicy, err := ledger.VerifyObjectRetentionPolicy(ctx, actor, policy.ID)
 	if err != nil {
 		t.Fatalf("verify retention: %v", err)
@@ -167,6 +170,37 @@ func TestObjectRetentionVerifierRecordsProviderChecks(t *testing.T) {
 	}
 	if len(verified.VerificationChecks) != 2 || verified.VerificationChecks[0].Name != "s3_bucket_versioning" {
 		t.Fatalf("checks = %#v", verified.VerificationChecks)
+	}
+}
+
+func TestObjectRetentionVerifierReceivesLegalHoldRequirement(t *testing.T) {
+	verifier := &fakeObjectRetentionVerifier{result: ObjectRetentionResult{
+		Provider:    "s3",
+		Enforced:    true,
+		Checks:      []domain.VerifyCheck{{Name: "s3_object_legal_hold", Result: "passed"}},
+		Limitations: []string{"Sample object legal hold checked only."},
+	}}
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Retention: verifier})
+	ctx := context.Background()
+	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	actor, err := ledger.Authenticate(ctx, secret)
+	if err != nil {
+		t.Fatalf("auth: %v", err)
+	}
+	objectKey := "tenants/" + actor.TenantID + "/raw/sample.json"
+	policy, err := ledger.CreateObjectRetentionPolicy(ctx, actor, CreateObjectRetentionPolicyInput{Name: "objects", ObjectPrefix: "tenants/" + actor.TenantID + "/raw/", ObjectKey: objectKey, RequireLegalHold: true, Mode: "compliance", RetentionDays: 90})
+	if err != nil {
+		t.Fatalf("create policy: %v", err)
+	}
+	verified, err := ledger.VerifyObjectRetentionPolicy(ctx, actor, policy.ID)
+	if err != nil {
+		t.Fatalf("verify policy: %v", err)
+	}
+	if !verified.RequireLegalHold || len(verifier.requests) != 1 || !verifier.requests[0].RequireLegalHold || verifier.requests[0].ObjectKey != objectKey {
+		t.Fatalf("verified=%#v requests=%#v", verified, verifier.requests)
 	}
 }
 
