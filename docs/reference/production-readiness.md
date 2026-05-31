@@ -34,9 +34,13 @@ Known hardening work remains:
   customer-portal token hashes, idempotency records, audit-chain entries,
   signing keys, signatures, release bundles, verification results, provider
   verification receipts, vulnerability decisions, and outbox jobs now use
-  focused PostgreSQL transactions when that store is configured. Non-migrated
-  resource families still use broader aggregate persistence. If the snapshot
-  row is absent, the store can rebuild identity, SSO session,
+  focused PostgreSQL transactions when that store is configured. Release-ledger
+  and evidence-core mutations for products, projects, releases, artifacts,
+  evidence items, evidence lifecycle events, SBOMs, vulnerability scans,
+  OpenAPI contracts, VEX documents, audit-chain entries, and parser outbox jobs
+  also use focused PostgreSQL transactions when that store is configured.
+  Non-migrated resource families still use broader aggregate persistence. If
+  the snapshot row is absent, the store can rebuild identity, SSO session,
   customer portal token, release-ledger core,
   build provenance, source/deployment, incident, security evidence, SBOM diff,
   vulnerability workflow, contract diff, custom policy, waiver, approval, DSSE
@@ -156,8 +160,11 @@ implemented capabilities:
   SSO-session hashes, customer-portal token hashes, idempotency records,
   audit-chain entries, signing keys, signatures, release bundles, verification
   results, provider verification receipts, vulnerability decisions, and outbox
-  jobs. Relational row synchronization also covers identity, idempotency,
-  customer portal token, release-ledger core, build provenance,
+  jobs, plus release-ledger and evidence-core writes for products, projects,
+  releases, artifacts, evidence items, evidence lifecycle events, SBOMs,
+  vulnerability scans, OpenAPI contracts, VEX documents, audit-chain entries,
+  and parser outbox jobs. Relational row synchronization also covers identity,
+  idempotency, customer portal token, release-ledger core, build provenance,
   source/deployment, incident, security evidence, SBOM diff, vulnerability
   workflow, contract diff, custom policy, waiver, approval, DSSE trust-root,
   collector release, Cosign verification, signing provider, Merkle batch,
@@ -183,8 +190,9 @@ implemented capabilities:
   CycloneDX SBOM, generic vulnerability scan, OpenAPI contract, DSSE
   build-attestation, OpenVEX document metadata, and OpenVEX-derived
   vulnerability decisions can be worker-owned behind
-  `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`; workers also persist
-  missing parser-derived fields for replay-compatible records.
+  `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`; SBOM, scan, OpenAPI, and
+  OpenVEX replay side effects use focused release-ledger mutations when the
+  PostgreSQL store supports them.
 - Keep OpenAPI precision at zero broad operations as routes are added or
   changed, and expand generated SDK coverage from the committed contract.
 - Add direct cloud KMS/HSM SDK adapters where required. The current HTTPS
