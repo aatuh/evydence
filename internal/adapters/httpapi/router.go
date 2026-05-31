@@ -1489,6 +1489,7 @@ func (s *Server) createVulnerabilityDecision(w http.ResponseWriter, r *http.Requ
 		CustomerVisible bool     `json:"customer_visible"`
 		InternalNotes   string   `json:"internal_notes"`
 		EvidenceIDs     []string `json:"evidence_ids"`
+		VEXDocumentID   string   `json:"vex_document_id"`
 	}
 	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
@@ -1502,6 +1503,7 @@ func (s *Server) createVulnerabilityDecision(w http.ResponseWriter, r *http.Requ
 			CustomerVisible: req.CustomerVisible,
 			InternalNotes:   req.InternalNotes,
 			EvidenceIDs:     req.EvidenceIDs,
+			VEXDocumentID:   req.VEXDocumentID,
 		})
 		return http.StatusCreated, decision, err
 	})

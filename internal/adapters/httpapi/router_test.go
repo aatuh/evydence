@@ -86,6 +86,10 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	if _, ok := problemProps["request_id"]; !ok {
 		t.Fatalf("Problem schema missing request_id: %#v", problemProps)
 	}
+	decisionRequestProps := asStringAnyMap(t, asStringAnyMap(t, schemas["CreateVulnerabilityDecisionRequest"])["properties"])
+	if _, ok := decisionRequestProps["vex_document_id"]; !ok {
+		t.Fatalf("manual decision request schema missing vex_document_id: %#v", decisionRequestProps)
+	}
 	for _, schemaName := range []string{"ReadinessStatusEnvelope", "BackupManifestEnvelope", "VerificationResultEnvelope", "ReadinessReportEnvelope", "CreateProductRequest", "ProductEnvelope", "ProductListEnvelope", "CreateProjectRequest", "ProjectEnvelope", "CreateReleaseRequest", "ReleaseEnvelope", "RegisterArtifactRequest", "ArtifactEnvelope", "CreateBuildRequest", "BuildRunEnvelope", "EvidenceUploadRequest", "SBOMEnvelope", "VEXDocumentEnvelope", "VEXImportReportEnvelope", "UploadVulnerabilityScanRequest", "VulnerabilityScanEnvelope", "VulnerabilityDecisionListEnvelope", "VulnerabilityDecisionSummaryReportEnvelope", "CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOProviderRequest", "UpdateSSOProviderTrustMaterialRequest", "SSOProviderEnvelope", "VerifyProviderIdentityRequest", "ProviderVerificationEnvelope", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "ExchangeSSOCredentialRequest", "SSOCredentialExchangeEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalPackageRequest", "DataEnvelope"} {
 		if _, ok := schemas[schemaName]; !ok {
 			t.Fatalf("schema %s missing from OpenAPI components", schemaName)
@@ -731,10 +735,11 @@ func TestVEXAndExceptionHTTPValidation(t *testing.T) {
 	releaseID := dataField(t, releaseBody, "id")
 	artifactBody := postJSON(t, server, secret, "/v1/artifacts", "vex-artifact", map[string]any{"name": "api.tar.gz", "media_type": "application/gzip", "digest": "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb", "size": 42}, http.StatusCreated)
 	artifactID := dataField(t, artifactBody, "id")
-	postJSON(t, server, secret, "/v1/vulnerability-scans", "vex-scan", map[string]any{
+	scanBody := postJSON(t, server, secret, "/v1/vulnerability-scans", "vex-scan", map[string]any{
 		"scanner": "grype", "target_ref": "pkg:oci/payments-api", "release_id": releaseID,
 		"findings": []map[string]any{{"vulnerability": "CVE-2026-0100", "component": "pkg:apk/openssl@3.1.0", "severity": "critical", "state": "open"}},
 	}, http.StatusCreated)
+	findingID := firstFindingID(t, scanBody)
 	vexBody := postJSON(t, server, secret, "/v1/vex", "vex-upload", map[string]any{
 		"release_id":  releaseID,
 		"artifact_id": artifactID,
@@ -759,6 +764,19 @@ func TestVEXAndExceptionHTTPValidation(t *testing.T) {
 	importReport := getJSON(t, server, secret, "/v1/vex/"+vexID+"/import-report", http.StatusOK)
 	if !strings.Contains(importReport, `"status":"parsed"`) || !strings.Contains(importReport, `"decisions_created":1`) || strings.Contains(importReport, "payload_ref") {
 		t.Fatalf("unsafe or incomplete VEX import report: %s", importReport)
+	}
+	postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "manual-vex-link-bad", map[string]any{
+		"status": "not_affected", "justification": "manual review", "customer_visible": true, "vex_document_id": vexID,
+	}, http.StatusBadRequest)
+	manualDecision := postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "manual-vex-link", map[string]any{
+		"status":           "not_affected",
+		"justification":    "manual review linked to imported VEX",
+		"impact_statement": "This release is not affected based on a manual review linked to the imported VEX document.",
+		"customer_visible": true,
+		"vex_document_id":  vexID,
+	}, http.StatusCreated)
+	if !strings.Contains(manualDecision, `"vex_document_id":"`+vexID+`"`) || strings.Contains(manualDecision, "payload_ref") {
+		t.Fatalf("manual linked VEX decision response unsafe or incomplete: %s", manualDecision)
 	}
 	postJSON(t, server, secret, "/v1/vex", "vex-bad", map[string]any{"release_id": releaseID, "payload": map[string]any{"author": "a", "timestamp": "2026-05-27T12:00:00Z", "statements": []any{}, "extra": true}}, http.StatusBadRequest)
 
