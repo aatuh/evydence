@@ -48,7 +48,7 @@ goos: linux
 goarch: amd64
 pkg: github.com/aatuh/evydence/internal/app
 cpu: AMD Ryzen 7 3700X 8-Core Processor
-BenchmarkReleaseEvidenceIngestion-16    	     100	   1426426 ns/op	  499913 B/op	    2543 allocs/op
+BenchmarkReleaseEvidenceIngestion-16    	     100	   1392755 ns/op	  499973 B/op	    2543 allocs/op
 ```
 
 Interpretation: this is a narrow app-layer benchmark for regression tracking.
