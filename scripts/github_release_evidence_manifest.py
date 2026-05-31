@@ -66,8 +66,8 @@ def trivy_findings(doc: dict[str, Any]) -> list[dict[str, str]]:
     return findings
 
 
-def request(path: str, idempotency_key: str, payload_file: str) -> dict[str, str]:
-    return {"path": path, "idempotency_key": idempotency_key, "payload_file": payload_file}
+def request(path: str, idempotency_key: str, payload_file: str, kind: str) -> dict[str, str]:
+    return {"kind": kind, "path": path, "idempotency_key": idempotency_key, "payload_file": payload_file}
 
 
 def parse_args() -> argparse.Namespace:
@@ -99,7 +99,7 @@ def main() -> None:
         payload = {"release_id": args.release_id, "artifact_id": args.artifact_id, "payload": load_json(args.cyclonedx_sbom)}
         payload_path = base / "sbom-cyclonedx-upload.json"
         write_json(payload_path, payload)
-        requests.append(request("/v1/sboms", f"{args.idempotency_prefix}-sbom-cyclonedx", payload_path.name))
+        requests.append(request("/v1/sboms", f"{args.idempotency_prefix}-sbom-cyclonedx", payload_path.name, "sbom"))
 
     if args.grype_json:
         payload = {
@@ -110,7 +110,7 @@ def main() -> None:
         }
         payload_path = base / "scan-grype-upload.json"
         write_json(payload_path, payload)
-        requests.append(request("/v1/vulnerability-scans", f"{args.idempotency_prefix}-scan-grype", payload_path.name))
+        requests.append(request("/v1/vulnerability-scans", f"{args.idempotency_prefix}-scan-grype", payload_path.name, "scan"))
 
     if args.trivy_json:
         payload = {
@@ -121,18 +121,18 @@ def main() -> None:
         }
         payload_path = base / "scan-trivy-upload.json"
         write_json(payload_path, payload)
-        requests.append(request("/v1/vulnerability-scans", f"{args.idempotency_prefix}-scan-trivy", payload_path.name))
+        requests.append(request("/v1/vulnerability-scans", f"{args.idempotency_prefix}-scan-trivy", payload_path.name, "scan"))
 
     if args.openvex_json:
         payload = {"release_id": args.release_id, "artifact_id": args.artifact_id, "payload": load_json(args.openvex_json)}
         payload_path = base / "vex-openvex-upload.json"
         write_json(payload_path, payload)
-        requests.append(request("/v1/vex", f"{args.idempotency_prefix}-vex-openvex", payload_path.name))
+        requests.append(request("/v1/vex", f"{args.idempotency_prefix}-vex-openvex", payload_path.name, "vex"))
 
     if args.include_release_bundle:
         payload_path = base / "release-bundle-upload.json"
         write_json(payload_path, {"release_id": args.release_id})
-        requests.append(request("/v1/release-bundles", f"{args.idempotency_prefix}-release-bundle", payload_path.name))
+        requests.append(request("/v1/release-bundles", f"{args.idempotency_prefix}-release-bundle", payload_path.name, "release_bundle"))
 
     package_fields = [
         args.customer_package_product_id,
@@ -158,11 +158,11 @@ def main() -> None:
                 "expires_at": args.customer_package_expires_at,
             },
         )
-        requests.append(request("/v1/customer-packages", f"{args.idempotency_prefix}-customer-package", payload_path.name))
+        requests.append(request("/v1/customer-packages", f"{args.idempotency_prefix}-customer-package", payload_path.name, "package_export"))
 
     if not requests:
         raise SystemExit("no evidence inputs were supplied")
-    write_json(out, {"requests": requests})
+    write_json(out, {"schema_version": "evydence-upload-manifest.v1.0.0", "requests": requests})
 
 
 if __name__ == "__main__":

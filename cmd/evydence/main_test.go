@@ -78,6 +78,85 @@ func TestUploadManifestPostsRequests(t *testing.T) {
 	}
 }
 
+func TestValidateUploadManifestCommand(t *testing.T) {
+	dir := t.TempDir()
+	payloadPath := writeTestFile(t, dir+"/artifact.json", []byte(`{"name":"api","digest":"sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb","size":1}`))
+	_ = payloadPath
+	manifestPath := dir + "/upload.json"
+	body, err := json.Marshal(map[string]any{
+		"schema_version": uploadManifestSchemaVersion,
+		"requests": []map[string]any{{
+			"kind":            "artifact",
+			"path":            "/v1/artifacts",
+			"idempotency_key": "artifact-1",
+			"payload_file":    "artifact.json",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("marshal manifest: %v", err)
+	}
+	if err := os.WriteFile(manifestPath, body, 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	out, err := captureStdout(t, func() error {
+		return validateUploadManifestCommand([]string{"--manifest", manifestPath})
+	})
+	if err != nil {
+		t.Fatalf("validate manifest: %v", err)
+	}
+	if !strings.Contains(out, "upload manifest valid: 1 requests") {
+		t.Fatalf("unexpected validate output: %s", out)
+	}
+}
+
+func TestUploadManifestValidationRejectsUnsafeInputs(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, dir+"/payload.json", []byte(`{"release_id":"rel_1"}`))
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			name: "unknown schema",
+			body: `{"schema_version":"other","requests":[{"path":"/v1/release-bundles","idempotency_key":"k","payload":{"release_id":"rel_1"}}]}`,
+			want: "schema_version",
+		},
+		{
+			name: "unknown field",
+			body: `{"schema_version":"evydence-upload-manifest.v1.0.0","unexpected":true,"requests":[{"path":"/v1/release-bundles","idempotency_key":"k","payload":{"release_id":"rel_1"}}]}`,
+			want: "unknown fields",
+		},
+		{
+			name: "both payload sources",
+			body: `{"requests":[{"path":"/v1/release-bundles","idempotency_key":"k","payload":{"release_id":"rel_1"},"payload_file":"payload.json"}]}`,
+			want: "exactly one",
+		},
+		{
+			name: "payload traversal",
+			body: `{"requests":[{"path":"/v1/release-bundles","idempotency_key":"k","payload_file":"../payload.json"}]}`,
+			want: "inside the manifest directory",
+		},
+		{
+			name: "kind mismatch",
+			body: `{"requests":[{"kind":"sbom","path":"/v1/vex","idempotency_key":"k","payload":{"release_id":"rel_1"}}]}`,
+			want: "does not allow path",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			manifestPath := dir + "/" + strings.ReplaceAll(tt.name, " ", "-") + ".json"
+			if err := os.WriteFile(manifestPath, []byte(tt.body), 0o600); err != nil {
+				t.Fatalf("write manifest: %v", err)
+			}
+			err := validateUploadManifestCommand([]string{"--manifest", manifestPath})
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("err=%v want %q", err, tt.want)
+			}
+		})
+	}
+}
+
 func TestImportBundleUploadPostsImport(t *testing.T) {
 	dir := t.TempDir()
 	bundlePath := dir + "/bundle.json"
