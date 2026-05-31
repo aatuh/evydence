@@ -75,3 +75,8 @@ make release-candidate-check TAG=<vX.Y.Z-rc.N>
 Those stronger commands require live PostgreSQL and release signing material;
 skips or unavailable external dependencies must be recorded in release notes or
 the release evidence index.
+
+Repository CI and SAST workflows should keep third-party Actions pinned by
+commit SHA and service/container images pinned by digest. If an Action or image
+pin is updated, reviewers should verify the upstream tag or digest source and
+record the reason in the pull request or release evidence.

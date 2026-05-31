@@ -128,6 +128,11 @@ production-check release manifest/signature smoke artifacts as build artifacts.
 The database must not contain production evidence, customer package tokens,
 signing-key material, or other real secrets.
 
+GitHub Actions and service container dependencies are pinned by commit SHA or
+image digest in the checked CI workflows. The repository also runs a CodeQL
+workflow with the `security-and-quality` query suite so SAST results are
+published through GitHub code scanning when that service is available.
+
 ## Signed Release Artifact Workflow
 
 The checked-in `.github/workflows/release-artifacts.yml` workflow calls the

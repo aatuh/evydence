@@ -10,10 +10,11 @@ object storage, reports, exports, and release evidence.
 
 If you believe you found a vulnerability, use GitHub private vulnerability
 reporting for this repository when the "Report a vulnerability" button is
-available on GitHub. If the button is unavailable for your account or region,
-use the private security intake channel listed for the current release notes or
-request a private channel from the maintainer without including vulnerability
-details in the first contact.
+available on GitHub. The expected intake URL is
+<https://github.com/aatuh/evydence/security/advisories/new>. If the button or
+URL is unavailable for your account or region, use the private security intake
+channel listed for the current release notes or request a private channel from
+the maintainer without including vulnerability details in the first contact.
 
 The repository file cannot itself prove that GitHub private vulnerability
 reporting or a dedicated mailbox is enabled; that is an operator setting that
