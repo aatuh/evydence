@@ -890,6 +890,8 @@ type CustomerPortalAccess struct {
 	TenantID          string     `json:"tenant_id"`
 	PackageID         string     `json:"package_id"`
 	CustomerName      string     `json:"customer_name"`
+	ReviewerName      string     `json:"reviewer_name,omitempty"`
+	ReviewerEmail     string     `json:"reviewer_email,omitempty"`
 	RequireNDA        bool       `json:"require_nda"`
 	NDAAcceptedAt     *time.Time `json:"nda_accepted_at,omitempty"`
 	NDAAcceptedBy     string     `json:"nda_accepted_by,omitempty"`

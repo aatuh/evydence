@@ -259,7 +259,7 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 		},
 		SSOSessionHashes: map[string]string{"sess_test": "session-hash"},
 		CustomerPortalAccess: map[string]domain.CustomerPortalAccess{
-			"cpa_test": {ID: "cpa_test", TenantID: "ten_test", PackageID: "pkg_test", CustomerName: "Customer", Prefix: "evycp_test", ExpiresAt: time.Now().UTC().Add(time.Hour), AccessCount: 2, FailedAccessCount: 1, LastAccessedAt: ptrTime(time.Now().UTC()), LastFailedAt: ptrTime(time.Now().UTC()), SchemaVersion: domain.CustomerPortalAccessVersion, CreatedAt: time.Now().UTC()},
+			"cpa_test": {ID: "cpa_test", TenantID: "ten_test", PackageID: "pkg_test", CustomerName: "Customer", ReviewerName: "Reviewer", ReviewerEmail: "reviewer@example.test", Prefix: "evycp_test", ExpiresAt: time.Now().UTC().Add(time.Hour), AccessCount: 2, FailedAccessCount: 1, LastAccessedAt: ptrTime(time.Now().UTC()), LastFailedAt: ptrTime(time.Now().UTC()), SchemaVersion: domain.CustomerPortalAccessVersion, CreatedAt: time.Now().UTC()},
 		},
 		CustomerPortalHashes: map[string]string{"cpa_test": "portal-token-hash"},
 		Products: map[string]domain.Product{
@@ -579,7 +579,7 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 		t.Fatalf("idempotency actor = %q", idemActor)
 	}
 	var portalHash string
-	if err := store.pool.QueryRow(ctx, `SELECT hash FROM customer_portal_access WHERE id = 'cpa_test' AND failed_access_count = 1 AND last_accessed_at IS NOT NULL`).Scan(&portalHash); err != nil {
+	if err := store.pool.QueryRow(ctx, `SELECT hash FROM customer_portal_access WHERE id = 'cpa_test' AND reviewer_email = 'reviewer@example.test' AND failed_access_count = 1 AND last_accessed_at IS NOT NULL`).Scan(&portalHash); err != nil {
 		t.Fatal(err)
 	}
 	if portalHash != "portal-token-hash" {
@@ -770,7 +770,7 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	if len(relational.Idempotency) != 1 {
 		t.Fatalf("relational idempotency records = %d, want 1", len(relational.Idempotency))
 	}
-	if relational.CustomerPortalHashes["cpa_test"] != "portal-token-hash" || relational.CustomerPortalAccess["cpa_test"].FailedAccessCount != 1 {
+	if relational.CustomerPortalHashes["cpa_test"] != "portal-token-hash" || relational.CustomerPortalAccess["cpa_test"].FailedAccessCount != 1 || relational.CustomerPortalAccess["cpa_test"].ReviewerEmail != "reviewer@example.test" {
 		t.Fatalf("relational portal access = %#v hash=%q", relational.CustomerPortalAccess["cpa_test"], relational.CustomerPortalHashes["cpa_test"])
 	}
 	if relational.RedactionProfiles["redact_test"].Name != "Default" || relational.CustomerPackages["pkg_test"].AccessCount != 3 {
@@ -901,6 +901,7 @@ func TestApplyCriticalMutationWithPostgres(t *testing.T) {
 		SSOSessionHashes: map[string]string{"sess_focus": "sso-session-hash"},
 		CustomerPortalAccess: []domain.CustomerPortalAccess{{
 			ID: "cpa_focus", TenantID: "ten_focus", PackageID: "pkg_focus", CustomerName: "Customer",
+			ReviewerName: "Reviewer", ReviewerEmail: "reviewer@example.test",
 			Prefix: "evycp_focus", ExpiresAt: now.Add(time.Hour), AccessCount: 2, FailedAccessCount: 1,
 			LastAccessedAt: ptrTime(now), LastFailedAt: ptrTime(now), SchemaVersion: domain.CustomerPortalAccessVersion,
 			CreatedAt: now,
@@ -979,7 +980,7 @@ func TestApplyCriticalMutationWithPostgres(t *testing.T) {
 		{name: "tenant", query: `SELECT count(*) FROM tenants WHERE id = 'ten_focus'`},
 		{name: "api key hash", query: `SELECT count(*) FROM api_keys WHERE id = 'key_focus' AND hash = 'api-key-hmac-hash' AND last_used_at IS NOT NULL`},
 		{name: "sso session hash", query: `SELECT count(*) FROM sso_sessions WHERE id = 'sess_focus' AND hash = 'sso-session-hash' AND groups = '["security"]'::jsonb`},
-		{name: "portal hash", query: `SELECT count(*) FROM customer_portal_access WHERE id = 'cpa_focus' AND hash = 'portal-token-hash' AND failed_access_count = 1`},
+		{name: "portal hash", query: `SELECT count(*) FROM customer_portal_access WHERE id = 'cpa_focus' AND hash = 'portal-token-hash' AND reviewer_email = 'reviewer@example.test' AND failed_access_count = 1`},
 		{name: "audit chain", query: `SELECT count(*) FROM audit_chain_entries WHERE tenant_id = 'ten_focus' AND sequence = 1`},
 		{name: "signing key private", query: `SELECT count(*) FROM signing_keys WHERE id = 'sigkey_focus' AND encrypted_private_key IS NOT NULL`},
 		{name: "signature", query: `SELECT count(*) FROM signatures WHERE id = 'sig_focus' AND key_id = 'sigkey_focus'`},

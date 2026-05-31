@@ -2397,17 +2397,42 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "result"))
 	registry.RegisterSchema("ReleaseBundleVerificationEnvelope", dataEnvelopeSchema("#/components/schemas/ReleaseBundleVerification"))
 	registry.RegisterSchema("CreateCustomerPortalAccessRequest", objectSchema(map[string]any{
-		"package_id":    map[string]any{"type": "string"},
-		"customer_name": map[string]any{"type": "string"},
-		"require_nda":   map[string]any{"type": "boolean"},
-		"watermark":     map[string]any{"type": "string", "description": "Optional customer-visible distribution watermark. It is not a token or secret."},
-		"expires_at":    map[string]any{"type": "string", "format": "date-time"},
+		"package_id":     map[string]any{"type": "string"},
+		"customer_name":  map[string]any{"type": "string"},
+		"reviewer_name":  map[string]any{"type": "string", "description": "Optional external reviewer display name for this package access record."},
+		"reviewer_email": map[string]any{"type": "string", "description": "Optional external reviewer email label. It is not used as an authentication secret."},
+		"require_nda":    map[string]any{"type": "boolean"},
+		"watermark":      map[string]any{"type": "string", "description": "Optional customer-visible distribution watermark. It is not a token or secret."},
+		"expires_at":     map[string]any{"type": "string", "format": "date-time"},
 	}, "package_id", "customer_name", "expires_at"))
+	registry.RegisterSchema("CustomerPortalAccess", objectSchema(map[string]any{
+		"id":                  map[string]any{"type": "string"},
+		"tenant_id":           map[string]any{"type": "string"},
+		"package_id":          map[string]any{"type": "string"},
+		"customer_name":       map[string]any{"type": "string"},
+		"reviewer_name":       map[string]any{"type": "string"},
+		"reviewer_email":      map[string]any{"type": "string"},
+		"require_nda":         map[string]any{"type": "boolean"},
+		"nda_accepted_at":     map[string]any{"type": "string", "format": "date-time"},
+		"nda_accepted_by":     map[string]any{"type": "string"},
+		"watermark":           map[string]any{"type": "string"},
+		"prefix":              map[string]any{"type": "string", "description": "Non-secret portal token prefix for operational lookup."},
+		"expires_at":          map[string]any{"type": "string", "format": "date-time"},
+		"revoked_at":          map[string]any{"type": "string", "format": "date-time"},
+		"access_count":        map[string]any{"type": "integer"},
+		"failed_access_count": map[string]any{"type": "integer"},
+		"last_accessed_at":    map[string]any{"type": "string", "format": "date-time"},
+		"last_failed_at":      map[string]any{"type": "string", "format": "date-time"},
+		"schema_version":      map[string]any{"type": "string"},
+		"created_at":          map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "package_id", "customer_name", "prefix", "expires_at", "access_count", "failed_access_count", "schema_version", "created_at"))
 	registry.RegisterSchema("CustomerPortalAccessCreateResponse", objectSchema(map[string]any{
-		"access": map[string]any{"type": "object"},
+		"access": map[string]any{"$ref": "#/components/schemas/CustomerPortalAccess"},
 		"secret": map[string]any{"type": "string", "description": "One-time portal token; stored only as a HMAC hash."},
 	}, "access", "secret"))
 	registry.RegisterSchema("CustomerPortalAccessCreateEnvelope", dataEnvelopeSchema("#/components/schemas/CustomerPortalAccessCreateResponse"))
+	registry.RegisterSchema("CustomerPortalAccessEnvelope", dataEnvelopeSchema("#/components/schemas/CustomerPortalAccess"))
+	registry.RegisterSchema("CustomerPortalAccessListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/CustomerPortalAccess"))
 	registry.RegisterSchema("CustomerPortalPackageRequest", objectSchema(map[string]any{
 		"token":           map[string]any{"type": "string", "description": "Customer portal access token issued by createCustomerPortalAccess."},
 		"nda_accepted":    map[string]any{"type": "boolean", "description": "Set true to record acceptance for NDA-gated portal access."},

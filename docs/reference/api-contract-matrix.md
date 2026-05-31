@@ -3,7 +3,7 @@
 This generated reference inventories Evydence `/v1` route contract precision from `openapi.yaml`.
 It is a planning aid for production contract hardening; `broad` means the route still uses a shared envelope, unspecified body, or generic schema where an endpoint-specific contract should be considered.
 
-Generated from 176 operations: 176 precise, 0 broad.
+Generated from 178 operations: 178 precise, 0 broad.
 
 | Method | Path | Operation | Auth | Scopes | Idempotency | Params | Request | 2xx Response | Precision |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -46,7 +46,9 @@ Generated from 176 operations: 176 precise, 0 broad.
 | POST | /v1/customer-packages | createCustomerPackage | Bearer | package:write | required | - | application/json:CreateCustomerPackageRequest | 201:application/json:CustomerSecurityPackageEnvelope | precise |
 | GET | /v1/customer-packages/{id} | getCustomerPackage | Bearer | package:read | - | path:id | - | 200:application/json:CustomerSecurityPackageEnvelope | precise |
 | GET | /v1/customer-packages/{id}/download | downloadCustomerPackage | Bearer | package:read | - | path:id | - | 200:application/zip:string/binary | precise |
+| GET | /v1/customer-portal/access | listCustomerPortalAccess | Bearer | package:read | - | query:package_id | - | 200:application/json:CustomerPortalAccessListEnvelope | precise |
 | POST | /v1/customer-portal/access | createCustomerPortalAccess | Bearer | package:write | required | - | application/json:CreateCustomerPortalAccessRequest | 201:application/json:CustomerPortalAccessCreateEnvelope | precise |
+| POST | /v1/customer-portal/access/{id}/revoke | revokeCustomerPortalAccess | Bearer | package:write | required | path:id | application/json:EmptyObject | 200:application/json:CustomerPortalAccessEnvelope | precise |
 | POST | /v1/customer-portal/package | accessCustomerPortalPackage | public | - | not required | - | application/json:CustomerPortalPackageRequest | 200:application/json:CustomerSecurityPackageEnvelope | precise |
 | POST | /v1/customer-portal/package/download | downloadCustomerPortalPackage | public | - | not required | - | application/json:CustomerPortalPackageRequest | 200:application/zip:string/binary | precise |
 | GET | /v1/deployments | listDeployments | Bearer | deployment:read | - | query:environment_id, query:release_id | - | 200:application/json:DeploymentEventListEnvelope | precise |

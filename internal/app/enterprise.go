@@ -88,11 +88,13 @@ type CreateRetentionOverrideInput struct {
 }
 
 type CreateCustomerPortalAccessInput struct {
-	PackageID    string
-	CustomerName string
-	RequireNDA   bool
-	Watermark    string
-	ExpiresAt    time.Time
+	PackageID     string
+	CustomerName  string
+	ReviewerName  string
+	ReviewerEmail string
+	RequireNDA    bool
+	Watermark     string
+	ExpiresAt     time.Time
 }
 
 type CustomerPortalAcceptanceInput struct {
@@ -788,8 +790,13 @@ func (s identityService) CreateCustomerPortalAccess(ctx context.Context, actor d
 		return domain.CustomerPortalAccess{}, "", err
 	}
 	in.PackageID, in.CustomerName = strings.TrimSpace(in.PackageID), cleanExternalLabel(in.CustomerName)
+	in.ReviewerName = cleanExternalLabel(in.ReviewerName)
+	in.ReviewerEmail = cleanReviewerEmail(in.ReviewerEmail)
 	in.Watermark = cleanExternalLabel(in.Watermark)
 	if in.PackageID == "" || in.CustomerName == "" || !in.ExpiresAt.After(l.now()) {
+		return domain.CustomerPortalAccess{}, "", ErrValidation
+	}
+	if in.ReviewerEmail != "" && !validReviewerEmail(in.ReviewerEmail) {
 		return domain.CustomerPortalAccess{}, "", ErrValidation
 	}
 	l.mu.Lock()
@@ -802,9 +809,9 @@ func (s identityService) CreateCustomerPortalAccess(ctx context.Context, actor d
 	accessID := newID("cpa")
 	watermark := in.Watermark
 	if watermark == "" {
-		watermark = packageDistributionWatermark(pkg, in.CustomerName, accessID)
+		watermark = packageDistributionWatermark(pkg, portalReviewerLabel(in.CustomerName, in.ReviewerName, in.ReviewerEmail), accessID)
 	}
-	access := domain.CustomerPortalAccess{ID: accessID, TenantID: actor.TenantID, PackageID: pkg.ID, CustomerName: in.CustomerName, RequireNDA: in.RequireNDA, Watermark: watermark, Prefix: secretPrefix(secret), ExpiresAt: in.ExpiresAt.UTC(), SchemaVersion: domain.CustomerPortalAccessVersion, CreatedAt: l.now(), Hash: l.hashSecret(secret)}
+	access := domain.CustomerPortalAccess{ID: accessID, TenantID: actor.TenantID, PackageID: pkg.ID, CustomerName: in.CustomerName, ReviewerName: in.ReviewerName, ReviewerEmail: in.ReviewerEmail, RequireNDA: in.RequireNDA, Watermark: watermark, Prefix: secretPrefix(secret), ExpiresAt: in.ExpiresAt.UTC(), SchemaVersion: domain.CustomerPortalAccessVersion, CreatedAt: l.now(), Hash: l.hashSecret(secret)}
 	l.portalAccess[access.ID] = access
 	_, _ = l.appendChainLocked(actor.TenantID, "customer_portal_access.created", "customer_security_package", pkg.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistCriticalLocked(ctx, l.criticalMutationLocked()); err != nil {
@@ -812,6 +819,71 @@ func (s identityService) CreateCustomerPortalAccess(ctx context.Context, actor d
 	}
 	access.Hash = ""
 	return access, secret, nil
+}
+
+func (s identityService) ListCustomerPortalAccess(ctx context.Context, actor domain.Actor, packageID string) ([]domain.CustomerPortalAccess, error) {
+	l := s.ledger
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := require(actor, ScopePackageRead); err != nil {
+		return nil, err
+	}
+	packageID = strings.TrimSpace(packageID)
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if packageID != "" {
+		pkg, ok := l.customerPackages[packageID]
+		if !ok || pkg.TenantID != actor.TenantID {
+			return nil, ErrNotFound
+		}
+	}
+	accesses := []domain.CustomerPortalAccess{}
+	for _, access := range l.portalAccess {
+		if access.TenantID != actor.TenantID || (packageID != "" && access.PackageID != packageID) {
+			continue
+		}
+		access.Hash = ""
+		accesses = append(accesses, access)
+	}
+	sort.Slice(accesses, func(i, j int) bool {
+		if accesses[i].CreatedAt.Equal(accesses[j].CreatedAt) {
+			return accesses[i].ID < accesses[j].ID
+		}
+		return accesses[i].CreatedAt.Before(accesses[j].CreatedAt)
+	})
+	return accesses, nil
+}
+
+func (s identityService) RevokeCustomerPortalAccess(ctx context.Context, actor domain.Actor, id string) (domain.CustomerPortalAccess, error) {
+	l := s.ledger
+	if err := ctx.Err(); err != nil {
+		return domain.CustomerPortalAccess{}, err
+	}
+	if err := require(actor, ScopePackageWrite); err != nil {
+		return domain.CustomerPortalAccess{}, err
+	}
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return domain.CustomerPortalAccess{}, ErrValidation
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	access, ok := l.portalAccess[id]
+	if !ok || access.TenantID != actor.TenantID {
+		return domain.CustomerPortalAccess{}, ErrNotFound
+	}
+	if access.RevokedAt == nil {
+		now := l.now()
+		access.RevokedAt = &now
+		l.portalAccess[id] = access
+		_, _ = l.appendChainLocked(access.TenantID, "customer_portal_access.revoked", "customer_portal_access", access.ID, actorType(actor), actorID(actor), "", "")
+		if err := l.persistCriticalLocked(ctx, l.criticalMutationLocked()); err != nil {
+			return domain.CustomerPortalAccess{}, err
+		}
+	}
+	access.Hash = ""
+	return access, nil
 }
 
 func (s identityService) AccessCustomerPortalPackage(ctx context.Context, token string) (domain.CustomerSecurityPackage, error) {
@@ -886,6 +958,18 @@ func (s identityService) accessCustomerPortalPackage(ctx context.Context, token 
 func (l *Ledger) appendCustomerPortalAccessEventLocked(entryType string, access domain.CustomerPortalAccess, pkg domain.CustomerSecurityPackage) {
 	_, _ = l.appendChainLocked(access.TenantID, entryType, "customer_portal_access", access.ID, "customer_portal", access.ID, pkg.ManifestHash, "")
 	_, _ = l.appendChainLocked(access.TenantID, entryType, "customer_security_package", pkg.ID, "customer_portal", access.ID, pkg.ManifestHash, "")
+}
+
+func cleanReviewerEmail(value string) string {
+	return strings.ToLower(cleanExternalLabel(value))
+}
+
+func validReviewerEmail(value string) bool {
+	if strings.ContainsAny(value, " \t\r\n") {
+		return false
+	}
+	at := strings.IndexByte(value, '@')
+	return at > 0 && at < len(value)-1 && strings.Contains(value[at+1:], ".")
 }
 
 func (s packageReportService) CreateQuestionnaireTemplate(ctx context.Context, actor domain.Actor, in CreateQuestionnaireTemplateInput) (domain.QuestionnaireTemplate, error) {

@@ -1230,11 +1230,24 @@ func (s packageReportService) SecurityReviewPackageReport(ctx context.Context, a
 }
 
 func packageWithDistributionWatermark(pkg domain.CustomerSecurityPackage, access domain.CustomerPortalAccess) domain.CustomerSecurityPackage {
-	pkg.DistributionWatermark = packageDistributionWatermark(pkg, access.CustomerName, access.ID)
+	pkg.DistributionWatermark = packageDistributionWatermark(pkg, portalReviewerLabel(access.CustomerName, access.ReviewerName, access.ReviewerEmail), access.ID)
 	if access.Watermark != "" {
 		pkg.DistributionWatermark = access.Watermark
 	}
 	return pkg
+}
+
+func portalReviewerLabel(customerName, reviewerName, reviewerEmail string) string {
+	if reviewerName != "" && reviewerEmail != "" {
+		return reviewerName + " <" + reviewerEmail + ">"
+	}
+	if reviewerEmail != "" {
+		return reviewerEmail
+	}
+	if reviewerName != "" {
+		return reviewerName
+	}
+	return customerName
 }
 
 func packageDistributionWatermark(pkg domain.CustomerSecurityPackage, customerName, accessID string) string {

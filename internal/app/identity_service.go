@@ -215,6 +215,14 @@ func (l *Ledger) CreateCustomerPortalAccess(ctx context.Context, actor domain.Ac
 	return l.identityService().CreateCustomerPortalAccess(ctx, actor, in)
 }
 
+func (l *Ledger) ListCustomerPortalAccess(ctx context.Context, actor domain.Actor, packageID string) ([]domain.CustomerPortalAccess, error) {
+	return l.identityService().ListCustomerPortalAccess(ctx, actor, packageID)
+}
+
+func (l *Ledger) RevokeCustomerPortalAccess(ctx context.Context, actor domain.Actor, id string) (domain.CustomerPortalAccess, error) {
+	return l.identityService().RevokeCustomerPortalAccess(ctx, actor, id)
+}
+
 func (l *Ledger) AccessCustomerPortalPackage(ctx context.Context, token string) (domain.CustomerSecurityPackage, error) {
 	return l.identityService().AccessCustomerPortalPackage(ctx, token)
 }
