@@ -76,6 +76,14 @@ directly from disk. A non-sensitive sample is available at
 the matching archive fixture is
 `examples/end-to-end-release-evidence/sample-customer-package.zip`.
 
+Runtime ZIP exports also include `report.html`, a self-contained static HTML
+rendering of the redacted manifest. It shows release summary, VEX and
+vulnerability-decision tables, readiness checks, verification material,
+limitations, and non-claims without requiring a server or loading remote assets.
+The HTML report is generated from package-scoped data only and excludes raw
+evidence payload bytes, object-store references, token material, private keys,
+and internal decision notes.
+
 ## Offline Verification
 
 The CLI verifies a package manifest without contacting the API:

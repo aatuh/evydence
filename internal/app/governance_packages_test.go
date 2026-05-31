@@ -69,12 +69,18 @@ func TestWaiverApprovalAndCustomerPackageFlow(t *testing.T) {
 		t.Fatalf("archive metadata invalid: %#v", archive)
 	}
 	files := packageArchiveFiles(t, archive.Bytes)
-	for _, name := range []string{"manifest.json", "package.json", "verification.json", "README.txt"} {
+	for _, name := range []string{"manifest.json", "package.json", "verification.json", "README.txt", "report.html"} {
 		if files[name] == "" {
 			t.Fatalf("archive missing %s: %#v", name, files)
 		}
 	}
-	archiveText := strings.Join([]string{files["manifest.json"], files["package.json"], files["verification.json"], files["README.txt"]}, "\n")
+	if report := files["report.html"]; !strings.Contains(report, "Release Summary") || !strings.Contains(report, "VEX And Vulnerability Decisions") || !strings.Contains(report, "Readiness") || !strings.Contains(report, "Verification") || !strings.Contains(report, "Limitations") || !strings.Contains(report, "not legal compliance proof") {
+		t.Fatalf("HTML report missing expected sections or non-claim: %s", report)
+	}
+	if strings.Contains(files["report.html"], "<script") || strings.Contains(files["report.html"], "payload_ref") || strings.Contains(files["report.html"], "internal reviewer note") {
+		t.Fatalf("HTML report includes unsafe content: %s", files["report.html"])
+	}
+	archiveText := strings.Join([]string{files["manifest.json"], files["package.json"], files["verification.json"], files["README.txt"], files["report.html"]}, "\n")
 	if !strings.Contains(archiveText, item.ID) {
 		t.Fatalf("archive manifest missing package evidence id: %s", archiveText)
 	}

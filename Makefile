@@ -222,6 +222,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@grep -F 'make public-release-verify TAG=v0.1.0-rc.4' examples/end-to-end-release-evidence/README.md >/dev/null
 	@test -f docs/assets/package-viewer-preview.svg
 	@grep -F 'package-viewer-preview.svg' docs/how-to/view-packages.md >/dev/null
+	@grep -F 'report.html' docs/reference/customer-package-manifest.md docs/how-to/view-packages.md >/dev/null
 	@grep -F 'v0.1.0-rc.4 - 2026-05-31' CHANGELOG.md >/dev/null
 	@grep -F 'make restore-rehearsal-check' docs/runbooks/backup-restore.md >/dev/null
 	@grep -F 'release upload-evidence' docs/how-to/integrate-ci.md >/dev/null
