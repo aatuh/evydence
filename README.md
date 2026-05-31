@@ -4,7 +4,7 @@
 [![OpenSSF Scorecard](https://github.com/aatuh/evydence/actions/workflows/scorecard.yml/badge.svg)](https://github.com/aatuh/evydence/actions/workflows/scorecard.yml)
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue.svg)](LICENSE)
 ![Go Version](https://img.shields.io/badge/go-1.25+-00ADD8.svg)
-![OpenAPI](https://img.shields.io/badge/OpenAPI-166%20precise%20operations-brightgreen.svg)
+![OpenAPI](https://img.shields.io/badge/OpenAPI-170%20precise%20operations-brightgreen.svg)
 ![Coverage Gate](https://img.shields.io/badge/coverage%20gate-80%25+-brightgreen.svg)
 
 Evydence is a self-hosted, API-first release evidence ledger for product

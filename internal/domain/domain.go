@@ -6,6 +6,7 @@ const (
 	EvidenceItemSchemaVersion       = "evidence-item.v1.0.0"
 	AuditChainEntrySchemaVersion    = "audit-chain-entry.v1.0.0"
 	ReleaseBundleSchemaVersion      = "release-bundle.v1.0.0"
+	ReleaseEvidenceFlowVersion      = "release-evidence-flow.v1.0.0"
 	CanonicalizationProfileVersion  = "canonicalization-profile.v1.0.0"
 	PolicySetVersion                = "policy-set.v1.0.0"
 	VEXDocumentSchemaVersion        = "vex-document.v1.0.0"
@@ -274,6 +275,31 @@ type Release struct {
 	CreatedAt  time.Time  `json:"created_at"`
 	FrozenAt   *time.Time `json:"frozen_at,omitempty"`
 	ApprovedAt *time.Time `json:"approved_at,omitempty"`
+}
+
+type ReleaseEvidenceFlow struct {
+	ReleaseID     string                    `json:"release_id"`
+	ProductID     string                    `json:"product_id"`
+	Status        string                    `json:"status"`
+	Counts        map[string]int            `json:"counts"`
+	Steps         []ReleaseEvidenceFlowStep `json:"steps"`
+	Assumptions   []string                  `json:"assumptions"`
+	Limitations   []string                  `json:"limitations"`
+	SchemaVersion string                    `json:"schema_version"`
+	GeneratedAt   time.Time                 `json:"generated_at"`
+}
+
+type ReleaseEvidenceFlowStep struct {
+	ID                  string   `json:"id"`
+	Title               string   `json:"title"`
+	Status              string   `json:"status"`
+	Required            bool     `json:"required"`
+	Method              string   `json:"method"`
+	Path                string   `json:"path"`
+	RequiredScopes      []string `json:"required_scopes"`
+	IdempotencyRequired bool     `json:"idempotency_required"`
+	Description         string   `json:"description"`
+	NextReference       string   `json:"next_reference,omitempty"`
 }
 
 type Artifact struct {

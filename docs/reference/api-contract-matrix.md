@@ -3,7 +3,7 @@
 This generated reference inventories Evydence `/v1` route contract precision from `openapi.yaml`.
 It is a planning aid for production contract hardening; `broad` means the route still uses a shared envelope, unspecified body, or generic schema where an endpoint-specific contract should be considered.
 
-Generated from 169 operations: 169 precise, 0 broad.
+Generated from 170 operations: 170 precise, 0 broad.
 
 | Method | Path | Operation | Auth | Scopes | Idempotency | Params | Request | 2xx Response | Precision |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -115,6 +115,7 @@ Generated from 169 operations: 169 precise, 0 broad.
 | POST | /v1/releases | createRelease | Bearer | release:write | required | - | application/json:CreateReleaseRequest | 201:application/json:ReleaseEnvelope | precise |
 | GET | /v1/releases/{id} | getRelease | Bearer | release:read | - | path:id | - | 200:application/json:ReleaseEnvelope | precise |
 | POST | /v1/releases/{id}/approve | approveRelease | Bearer | release:write | required | path:id | application/json:EmptyObject | 200:application/json:ReleaseEnvelope | precise |
+| POST | /v1/releases/{id}/evidence-flow/start | startReleaseEvidenceFlow | Bearer | release:read | required | path:id | - | 200:application/json:ReleaseEvidenceFlowEnvelope | precise |
 | POST | /v1/releases/{id}/freeze | freezeRelease | Bearer | release:write | required | path:id | application/json:EmptyObject | 200:application/json:ReleaseEnvelope | precise |
 | POST | /v1/remediation-tasks | createRemediationTask | Bearer | incident:write | required | - | application/json:CreateRemediationTaskRequest | 201:application/json:RemediationTaskEnvelope | precise |
 | POST | /v1/report-templates | createReportTemplate | Bearer | report:read | required | - | application/json:CreateReportTemplateRequest | 201:application/json:CustomReportTemplateEnvelope | precise |

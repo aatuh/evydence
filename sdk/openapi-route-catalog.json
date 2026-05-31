@@ -1,5 +1,5 @@
 {
-  "route_count": 169,
+  "route_count": 170,
   "routes": [
     {
       "idempotency_key_required": false,
@@ -1818,6 +1818,23 @@
       ],
       "scopes": [
         "release:write"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "startReleaseEvidenceFlow",
+      "path": "/v1/releases/{id}/evidence-flow/start",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/ReleaseEvidenceFlowEnvelope"
+      ],
+      "scopes": [
+        "release:read"
       ],
       "success_statuses": [
         "200"

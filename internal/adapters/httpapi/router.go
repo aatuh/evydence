@@ -344,6 +344,19 @@ func (s *Server) getRelease(w http.ResponseWriter, r *http.Request) {
 	writeData(w, http.StatusOK, release)
 }
 
+func (s *Server) startReleaseEvidenceFlow(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	flow, err := s.ledger.ReleaseEvidenceFlowPlan(r.Context(), actor, r.PathValue("id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, flow)
+}
+
 func (s *Server) freezeRelease(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
 		release, err := s.ledger.FreezeRelease(ctx, actor, r.PathValue("id"))

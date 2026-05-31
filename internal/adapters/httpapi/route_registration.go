@@ -111,6 +111,7 @@ func (s *Server) productReleaseRoutes() []routeDef {
 		{http.MethodPost, "/v1/projects", op("createProject", http.MethodPost, "/v1/projects", "Create project", []string{app.ScopeProjectWrite}), http.HandlerFunc(s.createProject)},
 		{http.MethodPost, "/v1/releases", op("createRelease", http.MethodPost, "/v1/releases", "Create release", []string{app.ScopeReleaseWrite}), http.HandlerFunc(s.createRelease)},
 		{http.MethodGet, "/v1/releases/{id}", op("getRelease", http.MethodGet, "/v1/releases/{id}", "Get release", []string{app.ScopeReleaseRead}), http.HandlerFunc(s.getRelease)},
+		{http.MethodPost, "/v1/releases/{id}/evidence-flow/start", op("startReleaseEvidenceFlow", http.MethodPost, "/v1/releases/{id}/evidence-flow/start", "Start release evidence flow", []string{app.ScopeReleaseRead}), http.HandlerFunc(s.startReleaseEvidenceFlow)},
 		{http.MethodPost, "/v1/releases/{id}/freeze", op("freezeRelease", http.MethodPost, "/v1/releases/{id}/freeze", "Freeze release", []string{app.ScopeReleaseWrite}), http.HandlerFunc(s.freezeRelease)},
 		{http.MethodPost, "/v1/releases/{id}/approve", op("approveRelease", http.MethodPost, "/v1/releases/{id}/approve", "Approve release", []string{app.ScopeReleaseWrite}), http.HandlerFunc(s.approveRelease)},
 		{http.MethodPost, "/v1/release-candidates", op("createReleaseCandidate", http.MethodPost, "/v1/release-candidates", "Create release candidate", []string{app.ScopeReleaseWrite}), http.HandlerFunc(s.createReleaseCandidate)},

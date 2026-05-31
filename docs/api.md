@@ -65,6 +65,7 @@ Then create:
 ```http
 POST /v1/projects
 POST /v1/releases
+POST /v1/releases/{id}/evidence-flow/start
 ```
 
 Representative request bodies:
@@ -76,6 +77,11 @@ Representative request bodies:
 ```json
 {"product_id":"prod_...","version":"1.0.0"}
 ```
+
+`POST /v1/releases/{id}/evidence-flow/start` returns a read-only workflow plan
+with current evidence counts, required endpoints, scopes, idempotency guidance,
+assumptions, and limitations. It does not create evidence or replace the
+resource-specific endpoints.
 
 ### 2. Register Artifact And Upload Evidence
 
@@ -320,6 +326,7 @@ Current SSO endpoints model admin-managed provider, identity-link, trust-materia
 | `POST` | `/v1/projects` | Create project under product. |
 | `POST` | `/v1/releases` | Create release. |
 | `GET` | `/v1/releases/{id}` | Read release. |
+| `POST` | `/v1/releases/{id}/evidence-flow/start` | Read high-level release evidence workflow plan. |
 | `POST` | `/v1/releases/{id}/freeze` | Append freeze transition. |
 | `POST` | `/v1/releases/{id}/approve` | Append approval transition. |
 | `POST` | `/v1/artifacts` | Register artifact digest metadata. |
