@@ -8,7 +8,7 @@ import (
 )
 
 func TestValidateRuntimeConfigRejectsProductionBootstrapSecretPrinting(t *testing.T) {
-	err := validateRuntimeConfig(true, "postgres://example", "not-default", "external", true)
+	err := validateRuntimeConfig(true, "postgres://example", "not-default", "external", "", true)
 	if err == nil {
 		t.Fatal("expected production bootstrap secret printing to be rejected")
 	}
@@ -18,7 +18,7 @@ func TestValidateRuntimeConfigRejectsProductionBootstrapSecretPrinting(t *testin
 }
 
 func TestValidateRuntimeConfigAllowsLocalBootstrapSecretPrinting(t *testing.T) {
-	if err := validateRuntimeConfig(false, "", "", "", true); err != nil {
+	if err := validateRuntimeConfig(false, "", "", "", "", true); err != nil {
 		t.Fatalf("local config should allow explicit bootstrap secret printing: %v", err)
 	}
 }
@@ -38,7 +38,7 @@ func TestValidateRuntimeConfigRejectsProductionDefaults(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateRuntimeConfig(true, tt.database, tt.pepper, tt.signing, false)
+			err := validateRuntimeConfig(true, tt.database, tt.pepper, tt.signing, "", false)
 			if err == nil || !strings.Contains(err.Error(), tt.wantSubstr) {
 				t.Fatalf("err=%v, want %q", err, tt.wantSubstr)
 			}
@@ -47,8 +47,29 @@ func TestValidateRuntimeConfigRejectsProductionDefaults(t *testing.T) {
 }
 
 func TestValidateRuntimeConfigAllowsProductionAWSKMSMode(t *testing.T) {
-	if err := validateRuntimeConfig(true, "postgres://example", "not-default", "aws-kms", false); err != nil {
+	if err := validateRuntimeConfig(true, "postgres://example", "not-default", "aws-kms", "", false); err != nil {
 		t.Fatalf("aws-kms production mode should be accepted: %v", err)
+	}
+}
+
+func TestValidateRuntimeConfigAllowsGatewayBackedKMSModesWithExecutor(t *testing.T) {
+	for _, mode := range []string{"gcp-kms", "azure-key-vault", "pkcs11-hsm"} {
+		t.Run(mode, func(t *testing.T) {
+			if err := validateRuntimeConfig(true, "postgres://example", "not-default", mode, "https://signer.example.test/sign", false); err != nil {
+				t.Fatalf("%s production gateway mode should be accepted: %v", mode, err)
+			}
+		})
+	}
+}
+
+func TestValidateRuntimeConfigRejectsGatewayBackedKMSModesWithoutExecutor(t *testing.T) {
+	for _, mode := range []string{"gcp-kms", "azure-key-vault", "pkcs11-hsm"} {
+		t.Run(mode, func(t *testing.T) {
+			err := validateRuntimeConfig(true, "postgres://example", "not-default", mode, "", false)
+			if err == nil || !strings.Contains(err.Error(), "EVYDENCE_SIGNING_EXECUTOR_URL") {
+				t.Fatalf("%s missing gateway err=%v", mode, err)
+			}
+		})
 	}
 }
 
@@ -182,6 +203,26 @@ func TestOpenSigningExecutorRequiresHTTPSUnlessLocalOverride(t *testing.T) {
 	}
 	if signer == nil {
 		t.Fatal("expected signer")
+	}
+}
+
+func TestOpenSigningExecutorUsesGatewayForNonAWSKMSModes(t *testing.T) {
+	t.Setenv("EVYDENCE_SIGNING_KEY_MODE", "gcp-kms")
+	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_URL", "http://127.0.0.1/sign")
+	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST", "true")
+	signer, err := openSigningExecutor()
+	if err != nil {
+		t.Fatalf("gcp-kms gateway signer should be accepted: %v", err)
+	}
+	if signer == nil {
+		t.Fatal("expected signer")
+	}
+}
+
+func TestOpenSigningExecutorRequiresGatewayForNonAWSKMSModes(t *testing.T) {
+	t.Setenv("EVYDENCE_SIGNING_KEY_MODE", "azure-key-vault")
+	if _, err := openSigningExecutor(); err == nil || !strings.Contains(err.Error(), "EVYDENCE_SIGNING_EXECUTOR_URL") {
+		t.Fatalf("missing gateway err=%v", err)
 	}
 }
 

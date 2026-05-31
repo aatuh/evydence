@@ -50,7 +50,7 @@ The example secrets are placeholders. Replace them before using shared or produc
 | `EVYDENCE_WORKER_MAX_PAYLOAD_BYTES` | No | `20971520` | Maximum raw object payload size replayed by a worker job. |
 | `EVYDENCE_OIDC_USERINFO_TIMEOUT_SECONDS` | No | `10` | Timeout for optional live OIDC UserInfo validation when `POST /v1/provider-verifications` includes `access_token`. |
 | `EVYDENCE_OIDC_USERINFO_ALLOW_INSECURE_LOCALHOST` | Local only | `false` | Allows HTTP OIDC issuer/UserInfo endpoints only for localhost tests. Do not use for production. |
-| `EVYDENCE_SIGNING_KEY_MODE` | Production yes | `external` or `aws-kms` for production | Production rejects local plaintext signing-key mode. `external` uses the optional HTTPS signing gateway; `aws-kms` uses the built-in AWS KMS executor. |
+| `EVYDENCE_SIGNING_KEY_MODE` | Production yes | `external`, `aws-kms`, `gcp-kms`, `azure-key-vault`, or `pkcs11-hsm` for production | Production rejects local plaintext signing-key mode. `aws-kms` uses the built-in AWS KMS executor. `gcp-kms`, `azure-key-vault`, and `pkcs11-hsm` are explicit HTTPS signing-gateway profiles and require `EVYDENCE_SIGNING_EXECUTOR_URL`. |
 | `EVYDENCE_SIGNING_EXECUTOR_URL` | No | unset | Optional HTTPS signing gateway used by `POST /v1/signing-operations` when `external_signature` is omitted. The API sends subject metadata and `payload_hash`, not raw payload bytes. |
 | `EVYDENCE_SIGNING_EXECUTOR_TOKEN` | Signing gateway | unset | Optional bearer token for the signing gateway. Store outside source control and logs. |
 | `EVYDENCE_SIGNING_EXECUTOR_TIMEOUT_SECONDS` | No | `10` | Timeout for signing gateway requests. |
@@ -68,7 +68,9 @@ When `ENV=production`, the API refuses to start unless:
 
 - `EVYDENCE_DATABASE_URL` is set.
 - `EVYDENCE_API_KEY_PEPPER` is non-empty and not the local default.
-- `EVYDENCE_SIGNING_KEY_MODE=external` or `EVYDENCE_SIGNING_KEY_MODE=aws-kms`.
+- `EVYDENCE_SIGNING_KEY_MODE` is `external`, `aws-kms`, `gcp-kms`,
+  `azure-key-vault`, or `pkcs11-hsm`. The non-AWS provider modes require
+  `EVYDENCE_SIGNING_EXECUTOR_URL`.
 - `EVYDENCE_PRINT_BOOTSTRAP_SECRET` is not `true`.
 - `EVYDENCE_POSTGRES_LOAD_MODE`, when set, is `relational_only`.
 - `EVYDENCE_API_WRITER_MODE`, when set, is `single` or `single-writer`.
@@ -117,6 +119,12 @@ provider id/type, key reference, subject type/id, and `payload_hash`. The
 gateway returns a signature, optional provider key id, and optional algorithm.
 Evydence records the signature receipt and verification checks; it does not
 store production private key material or send raw evidence payload bytes.
+
+`EVYDENCE_SIGNING_KEY_MODE=gcp-kms`, `azure-key-vault`, or `pkcs11-hsm` makes
+that gateway requirement explicit for deployments that keep non-AWS KMS/HSM
+custody behind a tenant-controlled signing service. These modes are not direct
+cloud-provider SDK adapters; operators remain responsible for provider
+credentials, IAM, key lifecycle, gateway operation, and custody review.
 
 When `EVYDENCE_SIGNING_KEY_MODE=aws-kms`, Evydence uses the AWS KMS `Sign`
 operation against `EVYDENCE_AWS_KMS_KEY_ID`. The executor signs the decoded

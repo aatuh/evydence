@@ -35,7 +35,14 @@ func run() error {
 	production := strings.EqualFold(os.Getenv("ENV"), "production")
 	databaseURL := strings.TrimSpace(os.Getenv("EVYDENCE_DATABASE_URL"))
 	pepper := strings.TrimSpace(os.Getenv("EVYDENCE_API_KEY_PEPPER"))
-	if err := validateRuntimeConfig(production, databaseURL, pepper, strings.TrimSpace(os.Getenv("EVYDENCE_SIGNING_KEY_MODE")), strings.EqualFold(os.Getenv("EVYDENCE_PRINT_BOOTSTRAP_SECRET"), "true")); err != nil {
+	if err := validateRuntimeConfig(
+		production,
+		databaseURL,
+		pepper,
+		strings.TrimSpace(os.Getenv("EVYDENCE_SIGNING_KEY_MODE")),
+		strings.TrimSpace(os.Getenv("EVYDENCE_SIGNING_EXECUTOR_URL")),
+		strings.EqualFold(os.Getenv("EVYDENCE_PRINT_BOOTSTRAP_SECRET"), "true"),
+	); err != nil {
 		return err
 	}
 	if err := validateAPIWriterMode(production, os.Getenv("EVYDENCE_API_WRITER_MODE"), os.Getenv("EVYDENCE_API_WRITER_REPLICAS")); err != nil {
@@ -148,8 +155,8 @@ func run() error {
 }
 
 func openSigningExecutor() (app.SigningExecutor, error) {
-	mode := strings.ToLower(strings.TrimSpace(os.Getenv("EVYDENCE_SIGNING_KEY_MODE")))
-	if mode == "aws_kms" || mode == "aws-kms" {
+	mode := normalizeSigningKeyMode(os.Getenv("EVYDENCE_SIGNING_KEY_MODE"))
+	if mode == "aws_kms" {
 		region := strings.TrimSpace(os.Getenv("EVYDENCE_AWS_REGION"))
 		if region == "" {
 			region = strings.TrimSpace(os.Getenv("AWS_REGION"))
@@ -167,6 +174,9 @@ func openSigningExecutor() (app.SigningExecutor, error) {
 		return executor, nil
 	}
 	endpoint := strings.TrimSpace(os.Getenv("EVYDENCE_SIGNING_EXECUTOR_URL"))
+	if endpoint == "" && signingModeRequiresGateway(mode) {
+		return nil, fmt.Errorf("EVYDENCE_SIGNING_KEY_MODE=%s requires EVYDENCE_SIGNING_EXECUTOR_URL because no direct SDK executor is configured", mode)
+	}
 	if endpoint == "" {
 		return nil, nil
 	}
@@ -182,7 +192,7 @@ func openSigningExecutor() (app.SigningExecutor, error) {
 	return executor, nil
 }
 
-func validateRuntimeConfig(production bool, databaseURL, pepper, signingKeyMode string, printBootstrapSecret bool) error {
+func validateRuntimeConfig(production bool, databaseURL, pepper, signingKeyMode, signingExecutorURL string, printBootstrapSecret bool) error {
 	if !production {
 		return nil
 	}
@@ -192,14 +202,41 @@ func validateRuntimeConfig(production bool, databaseURL, pepper, signingKeyMode 
 	if strings.TrimSpace(pepper) == "" || strings.TrimSpace(pepper) == "local-dev-pepper-change-me" {
 		return errors.New("production requires a non-default EVYDENCE_API_KEY_PEPPER")
 	}
-	normalizedMode := strings.ToLower(strings.TrimSpace(signingKeyMode))
-	if normalizedMode != "external" && normalizedMode != "aws-kms" && normalizedMode != "aws_kms" {
-		return errors.New("production requires EVYDENCE_SIGNING_KEY_MODE=external or aws-kms; plaintext local signing keys are dev-only")
+	normalizedMode := normalizeSigningKeyMode(signingKeyMode)
+	if !productionSigningKeyMode(normalizedMode) {
+		return errors.New("production requires EVYDENCE_SIGNING_KEY_MODE=external, aws-kms, gcp-kms, azure-key-vault, or pkcs11-hsm; plaintext local signing keys are dev-only")
+	}
+	if signingModeRequiresGateway(normalizedMode) && strings.TrimSpace(signingExecutorURL) == "" {
+		return fmt.Errorf("production EVYDENCE_SIGNING_KEY_MODE=%s requires EVYDENCE_SIGNING_EXECUTOR_URL", normalizedMode)
 	}
 	if printBootstrapSecret {
 		return errors.New("production refuses EVYDENCE_PRINT_BOOTSTRAP_SECRET=true")
 	}
 	return nil
+}
+
+func normalizeSigningKeyMode(value string) string {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	normalized = strings.ReplaceAll(normalized, "-", "_")
+	return normalized
+}
+
+func productionSigningKeyMode(normalizedMode string) bool {
+	switch normalizedMode {
+	case "external", "aws_kms", "gcp_kms", "azure_key_vault", "pkcs11_hsm":
+		return true
+	default:
+		return false
+	}
+}
+
+func signingModeRequiresGateway(normalizedMode string) bool {
+	switch normalizedMode {
+	case "gcp_kms", "azure_key_vault", "pkcs11_hsm":
+		return true
+	default:
+		return false
+	}
 }
 
 func validateAPIWriterMode(production bool, mode, replicas string) error {

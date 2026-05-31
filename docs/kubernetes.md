@@ -10,7 +10,9 @@ The Helm chart lives at `deploy/helm/evydence`. It deploys the API, worker, serv
 - External PostgreSQL and S3/MinIO-compatible object storage.
 - A pre-created object-store bucket.
 - A Kubernetes secret containing at least `EVYDENCE_DATABASE_URL` and `EVYDENCE_API_KEY_PEPPER`.
-- A signing setup compatible with `EVYDENCE_SIGNING_KEY_MODE=external`.
+- A signing setup compatible with `EVYDENCE_SIGNING_KEY_MODE=external`,
+  `aws-kms`, or one of the gateway-backed provider profiles documented in the
+  configuration reference.
 
 The chart does not create databases, buckets, KMS keys, or secrets.
 
@@ -51,7 +53,7 @@ Relevant chart values are defined in `deploy/helm/evydence/values.yaml`:
 | `env.apiKeyPepperSecretKey` | Secret key for `EVYDENCE_API_KEY_PEPPER`. |
 | `env.objectStore` | `s3` or `minio` for cluster deployments. |
 | `env.s3Endpoint`, `env.s3Bucket`, `env.s3Region`, `env.s3UseSSL` | Object-store configuration. |
-| `env.signingKeyMode` | Should be `external` for production. |
+| `env.signingKeyMode` | Production signing mode. Use `external`, `aws-kms`, or a gateway-backed provider profile. |
 | `ingress.*` | Optional ingress host and TLS secret. |
 
 ## Verify
