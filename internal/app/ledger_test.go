@@ -659,8 +659,12 @@ func TestReleaseReadinessRequiresHandledCriticalFinding(t *testing.T) {
 	if report.Result != "failed" || len(report.BlockingFindings) != 1 {
 		t.Fatalf("expected blocking critical finding, got %#v", report)
 	}
-	if report.Summary.Headline == "" || len(report.Sections) < 5 || !hasMissing(report.MissingEvidence, "vulnerability_decision") || !hasMissing(report.FailedPolicies, "critical_exploitable_blocks_release") || len(report.KnownLimitations) == 0 || len(report.NonClaims) == 0 {
+	if report.PolicySet == "" || report.Summary.Headline == "" || len(report.Sections) < 5 || !hasMissing(report.MissingEvidence, "vulnerability_decision") || !hasMissing(report.FailedPolicies, "critical_exploitable_blocks_release") || len(report.KnownLimitations) == 0 || len(report.NonClaims) == 0 {
 		t.Fatalf("readiness v2 fields missing: %#v", report)
+	}
+	criticalCheck := policyCheckByName(t, report.Checks, "critical_exploitable_blocks_release")
+	if criticalCheck.Remediation == "" {
+		t.Fatalf("critical check missing remediation: %#v", criticalCheck)
 	}
 	criticalQuestion := readinessQuestionByID(t, report, "critical_findings_triaged")
 	if criticalQuestion.Status != "missing_evidence" || !hasMissing(criticalQuestion.MissingEvidence, "vulnerability_decision") {
@@ -683,6 +687,48 @@ func TestReleaseReadinessRequiresHandledCriticalFinding(t *testing.T) {
 	decisionQuestion := readinessQuestionByID(t, report, "vex_decisions_for_blockers")
 	if decisionQuestion.Status != "passed" || !hasMissing(decisionQuestion.Evidence, "vulnerability_decision") {
 		t.Fatalf("decision readiness question = %#v", decisionQuestion)
+	}
+	highScan, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{
+		"scanner":"grype",
+		"target_ref":"pkg:oci/payments-api",
+		"release_id":"`+release.ID+`",
+		"findings":[{"vulnerability":"CVE-2026-0002","component":"pkg:apk/curl@8.0.0","severity":"high","state":"open"}]
+	}`))
+	if err != nil {
+		t.Fatalf("high scan: %v", err)
+	}
+	report, err = ledger.ReleaseReadinessReport(ctx, actor, release.ID)
+	if err != nil {
+		t.Fatalf("readiness after high finding: %v", err)
+	}
+	highCheck := policyCheckByName(t, report.Checks, "high_findings_require_triage")
+	if report.Result != "failed" || highCheck.Result != "failed" || highCheck.Remediation == "" {
+		t.Fatalf("expected high finding triage failure, report=%#v check=%#v", report, highCheck)
+	}
+	if _, err := ledger.CreateVulnerabilityDecision(ctx, actor, highScan.Findings[0].ID, CreateVulnerabilityDecisionInput{Status: decisionStatusFixed, Justification: "fixed in release"}); err != nil {
+		t.Fatalf("high decision: %v", err)
+	}
+	report, err = ledger.ReleaseReadinessReport(ctx, actor, release.ID)
+	if err != nil {
+		t.Fatalf("readiness after high decision: %v", err)
+	}
+	if report.Result != "passed" {
+		t.Fatalf("expected readiness pass after high decision, got %#v", report)
+	}
+	profile, err := ledger.CreateRedactionProfile(ctx, actor, CreateRedactionProfileInput{Name: "unsafe package profile", AllowedTypes: []string{"vulnerability_decision"}})
+	if err != nil {
+		t.Fatalf("redaction profile: %v", err)
+	}
+	if _, err := ledger.CreateCustomerSecurityPackage(ctx, actor, CreateCustomerPackageInput{ProductID: release.ProductID, ReleaseID: release.ID, RedactionProfileID: profile.ID, Title: "Unsafe package", ExpiresAt: fixedNow().Add(time.Hour)}); err != nil {
+		t.Fatalf("customer package: %v", err)
+	}
+	report, err = ledger.ReleaseReadinessReport(ctx, actor, release.ID)
+	if err != nil {
+		t.Fatalf("readiness after unsafe package: %v", err)
+	}
+	packageCheck := policyCheckByName(t, report.Checks, "package_redaction_profile_valid")
+	if report.Result != "failed" || packageCheck.Result != "failed" || packageCheck.Remediation == "" {
+		t.Fatalf("expected package redaction failure, report=%#v check=%#v", report, packageCheck)
 	}
 }
 
@@ -1510,6 +1556,17 @@ func hasMissing(items []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func policyCheckByName(t *testing.T, checks []domain.PolicyCheck, name string) domain.PolicyCheck {
+	t.Helper()
+	for _, check := range checks {
+		if check.Name == name {
+			return check
+		}
+	}
+	t.Fatalf("policy check %s not found in %#v", name, checks)
+	return domain.PolicyCheck{}
 }
 
 func readinessQuestionByID(t *testing.T, report domain.ReleaseReadinessReport, id string) domain.ReadinessQuestion {

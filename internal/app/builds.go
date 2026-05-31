@@ -764,7 +764,7 @@ func (l *Ledger) checkReleaseHasPassedBuildLocked(tenantID, releaseID string) do
 			}
 		}
 	}
-	return domain.PolicyCheck{Name: "release_requires_passed_build", Result: "failed", Severity: "high", Missing: []string{"passed_build"}, Explanation: "no passed build with output digest linked to the release was found"}
+	return domain.PolicyCheck{Name: "release_requires_passed_build", Result: "failed", Severity: "high", Missing: []string{"passed_build"}, Explanation: "no passed build with output digest linked to the release was found", Remediation: "Upload a passed build run whose output digest matches a release artifact digest."}
 }
 
 func (l *Ledger) checkReleaseHasBuildAttestationLocked(tenantID, releaseID string) domain.PolicyCheck {
@@ -783,7 +783,7 @@ func (l *Ledger) checkReleaseHasBuildAttestationLocked(tenantID, releaseID strin
 			}
 		}
 	}
-	return domain.PolicyCheck{Name: "release_requires_build_attestation", Result: "failed", Severity: "high", Missing: []string{"build_attestation"}, Explanation: "no build attestation subject matches a release artifact digest"}
+	return domain.PolicyCheck{Name: "release_requires_build_attestation", Result: "failed", Severity: "high", Missing: []string{"build_attestation"}, Explanation: "no build attestation subject matches a release artifact digest", Remediation: "Upload a DSSE/in-toto attestation whose subject digest matches a release artifact digest."}
 }
 
 func (l *Ledger) releaseArtifactDigestsLocked(tenantID, releaseID string) map[string]struct{} {
