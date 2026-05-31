@@ -7,128 +7,298 @@
   <style>
     :root {
       color-scheme: light dark;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      line-height: 1.4;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.45;
+      --bg: #f5f7fa;
+      --surface: #ffffff;
+      --ink: #172033;
+      --muted: #5e6878;
+      --line: #d8dee8;
+      --accent: #1f6feb;
+      --ok: #0f7b4f;
+      --warn: #b7791f;
+      --bad: #b42318;
+      --soft: #eef4ff;
+      --soft-warn: #fff8e6;
+      --soft-bad: #fff1f0;
+    }
+    * {
+      box-sizing: border-box;
     }
     body {
       margin: 0;
-      background: #f6f7f9;
-      color: #171923;
+      background: var(--bg);
+      color: var(--ink);
     }
     main {
-      max-width: 1120px;
+      max-width: 1240px;
       margin: 0 auto;
-      padding: 32px 20px 48px;
+      padding: 24px 20px 48px;
+    }
+    header {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+      padding: 8px 0 18px;
+      border-bottom: 1px solid var(--line);
     }
     h1 {
+      margin: 0;
+      font-size: 30px;
+      letter-spacing: 0;
+    }
+    h2 {
+      margin: 0 0 12px;
+      font-size: 20px;
+      letter-spacing: 0;
+    }
+    h3 {
       margin: 0 0 8px;
-      font-size: 32px;
+      font-size: 15px;
+      letter-spacing: 0;
     }
-    .muted {
-      color: #5b6370;
+    p {
+      margin: 0;
     }
-    .toolbar {
+    .controls {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 12px;
-      margin: 24px 0;
-      padding: 16px;
-      border: 1px solid #d7dce2;
-      border-radius: 8px;
-      background: #ffffff;
+      gap: 10px;
     }
     input[type="file"] {
+      min-height: 40px;
       max-width: 100%;
+      color: var(--ink);
     }
     button {
-      cursor: pointer;
-      border: 1px solid #2b6cb0;
+      min-height: 40px;
+      border: 1px solid var(--accent);
       border-radius: 6px;
-      background: #2b6cb0;
+      background: var(--accent);
       color: #ffffff;
       padding: 8px 12px;
       font: inherit;
-      font-weight: 600;
+      font-weight: 700;
+      cursor: pointer;
     }
-    .grid {
+    .status {
+      min-height: 28px;
+      border-radius: 999px;
+      padding: 5px 10px;
+      background: var(--soft);
+      color: #174ea6;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .muted {
+      color: var(--muted);
+    }
+    .layout {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 12px;
-      margin: 20px 0;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 26px;
+      margin-top: 24px;
     }
-    .panel {
-      border: 1px solid #d7dce2;
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 12px;
+    }
+    .metric {
+      min-height: 92px;
+      border: 1px solid var(--line);
       border-radius: 8px;
-      background: #ffffff;
-      padding: 16px;
+      background: var(--surface);
+      padding: 14px;
+    }
+    .metric.ok {
+      border-color: rgba(15, 123, 79, 0.35);
+      background: #effaf5;
+    }
+    .metric.warn {
+      border-color: rgba(183, 121, 31, 0.35);
+      background: var(--soft-warn);
+    }
+    .metric.bad {
+      border-color: rgba(180, 35, 24, 0.35);
+      background: var(--soft-bad);
     }
     .label {
-      margin: 0 0 4px;
+      margin: 0 0 5px;
+      color: var(--muted);
       font-size: 12px;
-      text-transform: uppercase;
+      font-weight: 700;
       letter-spacing: 0;
-      color: #697386;
+      text-transform: uppercase;
     }
     .value {
       margin: 0;
       overflow-wrap: anywhere;
-      font-weight: 600;
+      font-weight: 750;
+    }
+    .section {
+      border-top: 1px solid var(--line);
+      padding-top: 20px;
+    }
+    .section-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .badge-row,
+    .tag-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .badge,
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      border-radius: 999px;
+      padding: 4px 9px;
+      background: var(--soft);
+      color: #174ea6;
+      font-size: 12px;
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+    .badge.ok {
+      background: #e7f7ef;
+      color: var(--ok);
+    }
+    .badge.warn {
+      background: var(--soft-warn);
+      color: #8a5b10;
+    }
+    .badge.bad {
+      background: var(--soft-bad);
+      color: var(--bad);
+    }
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    th,
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      overflow-wrap: anywhere;
+      font-size: 14px;
+    }
+    th {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+    tr:last-child td {
+      border-bottom: 0;
+    }
+    .split {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+    }
+    .note {
+      border-left: 4px solid var(--warn);
+      padding: 10px 12px;
+      background: var(--soft-warn);
+      color: #6f4b12;
+    }
+    .empty {
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.55);
     }
     pre {
       overflow: auto;
       max-height: 520px;
-      padding: 16px;
-      border: 1px solid #d7dce2;
+      margin: 0;
+      padding: 14px;
+      border: 1px solid var(--line);
       border-radius: 8px;
       background: #101418;
       color: #f7fafc;
+      font-size: 13px;
     }
-    .warning {
-      border-left: 4px solid #b45309;
+    @media (min-width: 900px) {
+      header {
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: end;
+      }
     }
     @media (prefers-color-scheme: dark) {
-      body {
-        background: #101418;
-        color: #f7fafc;
+      :root {
+        --bg: #101418;
+        --surface: #171d26;
+        --ink: #f7fafc;
+        --muted: #a7b0bd;
+        --line: #303846;
+        --soft: #182842;
+        --soft-warn: #2b2110;
+        --soft-bad: #2b1715;
       }
-      .toolbar,
-      .panel {
-        border-color: #303846;
-        background: #171d26;
+      input[type="file"] {
+        color: var(--ink);
       }
-      .muted,
-      .label {
-        color: #a7b0bd;
+      .metric.ok {
+        background: #10251d;
+      }
+      .empty {
+        background: rgba(23, 29, 38, 0.62);
+      }
+      .note {
+        color: #f5d58a;
       }
     }
   </style>
 </head>
 <body>
   <main>
-    <h1>Evydence Package Viewer</h1>
-    <p class="muted">
-      Open a customer package, release-readiness report, evidence bundle, or
-      package manifest JSON file locally. This viewer never uploads data.
-    </p>
+    <header>
+      <div>
+        <h1>Evydence Package Viewer</h1>
+        <p class="muted">Local review surface for release evidence packages.</p>
+      </div>
+      <div class="controls">
+        <input id="file" type="file" accept="application/json,.json">
+        <button id="demo" type="button">Load bundled demo</button>
+        <span id="status" class="status">No file loaded</span>
+      </div>
+    </header>
 
-    <section class="toolbar">
-      <input id="file" type="file" accept="application/json,.json">
-      <button id="demo" type="button">Load bundled demo</button>
-      <span id="status" class="muted">No file loaded.</span>
-    </section>
+    <section id="summary" class="summary-grid" aria-live="polite"></section>
 
-    <section class="panel warning">
-      <p class="label">Boundary</p>
-      <p class="value">
-        Viewer output supports technical evidence review only. It is not legal
-        compliance proof, certification, complete SBOM proof, an authoritative
-        vulnerability result, or a secure-release guarantee.
-      </p>
-    </section>
-
-    <section id="summary" class="grid" aria-live="polite"></section>
-    <pre id="json">{}</pre>
+    <div class="layout">
+      <section id="release" class="section"></section>
+      <section id="artifacts" class="section"></section>
+      <section id="sbom" class="section"></section>
+      <section id="risk" class="section"></section>
+      <section id="approvals" class="section"></section>
+      <section id="readiness" class="section"></section>
+      <section id="contents" class="section"></section>
+      <section id="verification" class="section"></section>
+      <section id="limitations" class="section"></section>
+      <section id="raw" class="section"></section>
+    </div>
   </main>
 
   <script>
@@ -136,38 +306,98 @@
     const demoButton = document.getElementById("demo");
     const statusNode = document.getElementById("status");
     const summaryNode = document.getElementById("summary");
-    const jsonNode = document.getElementById("json");
+    const nodes = {
+      release: document.getElementById("release"),
+      artifacts: document.getElementById("artifacts"),
+      sbom: document.getElementById("sbom"),
+      risk: document.getElementById("risk"),
+      approvals: document.getElementById("approvals"),
+      readiness: document.getElementById("readiness"),
+      contents: document.getElementById("contents"),
+      verification: document.getElementById("verification"),
+      limitations: document.getElementById("limitations"),
+      raw: document.getElementById("raw")
+    };
 
     const bundledDemo = {
       schema_version: "customer-security-package.v2.0.0",
+      package_version: "customer-security-package.v2.0.0",
       package_id: "csp_example",
+      id: "csp_example",
       title: "Example customer review package",
-      release_id: "rel_example",
       generated_at: "2026-05-27T12:00:00Z",
-      readiness_summary: {
-        result: "passed",
-        checks: [{ name: "release_requires_sbom", result: "passed", severity: "high" }]
+      tenant: { id: "ten_example", name: "Example Tenant" },
+      product: { id: "prod_example", name: "Payments API", slug: "payments-api" },
+      product_id: "prod_example",
+      release: { id: "rel_example", version: "1.0.0", state: "approved", created_at: "2026-05-27T12:00:00Z" },
+      release_id: "rel_example",
+      redaction_profile_id: "rp_example",
+      redaction_profile: {
+        id: "rp_example",
+        name: "customer_safe",
+        allowed_types: ["artifact", "sbom", "vulnerability_scan", "vex", "vulnerability_decision", "release_bundle"],
+        excluded_fields: ["internal_notes", "payload_ref", "object_key"],
+        schema_version: "redaction-profile.v1.0.0"
       },
+      evidence_ids: ["ev_sbom", "ev_scan", "ev_vex"],
       artifact_digests: [
-        { id: "art_example", name: "payments-api.tar.gz", digest: "sha256:example" }
+        { id: "art_example", name: "payments-api.tar.gz", media_type: "application/gzip", size: 123, digest: "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb" }
+      ],
+      sboms: [
+        { id: "sbom_example", evidence_id: "ev_sbom", format: "cyclonedx", spec_version: "1.6", component_count: 42 }
+      ],
+      vulnerability_scans: [
+        { id: "scan_example", scanner: "example-scanner", target_ref: "pkg:oci/payments-api", finding_count: 1, summary: { critical: 0, high: 1 } }
+      ],
+      vex_documents: [
+        { id: "vex_example", format: "openvex", author: "security@example.test", statement_count: 1, status_summary: { fixed: 1 } }
       ],
       vulnerability_decisions: [
-        {
-          id: "vd_example",
-          vulnerability: "CVE-2026-0002",
-          status: "fixed",
-          impact_statement: "The finding is fixed in this release artifact."
-        }
+        { id: "vd_example", vulnerability: "CVE-2026-0002", component: "pkg:apk/openssl@3.1.0", status: "fixed", source: "vex", impact_statement: "The finding is fixed in this release artifact.", action_statement: "Upgrade to this release after normal operator review." }
       ],
+      approvals: [{ id: "appr_example", subject_type: "release", decision: "approved", reason: "Release evidence package reviewed." }],
+      exceptions: [],
+      readiness_summary: {
+        result: "passed",
+        checks: [
+          { name: "release_requires_sbom", result: "passed", severity: "high", explanation: "SBOM evidence exists." },
+          { name: "release_requires_build_attestation", result: "missing", severity: "medium", missing: ["build_attestation"], explanation: "Customer-safe package omits internal provenance by profile." }
+        ],
+        gaps: ["build_attestation"],
+        limitations: ["Readiness is derived from recorded package-scope evidence only."]
+      },
+      verification_material: {
+        hash_algorithm: "sha256",
+        canonicalization: "canonicalization-profile.v1.0.0",
+        manifest_hash_field: "manifest_hash",
+        release_bundles: [{ id: "rb_example", state: "generated", manifest_hash: "sha256:example", signature_refs: ["sig_example"] }],
+        audit_chain: { result: "passed", latest_sequence: 12, head_hash: "sha256:example" }
+      },
       limitations: [
-        "Customer package supports technical evidence review only.",
-        "It is not legal compliance proof, certification, or a secure-release guarantee."
+        "Package contents are scoped by product, release, redaction profile, and package expiry.",
+        "Raw tenant evidence payload bytes, object-store payload references, bearer tokens, private keys, API key hashes, SSO/session token hashes, and internal decision notes are not included.",
+        "Package data reflects records present in this Evydence instance at generation time."
       ],
       non_claims: [
-        "This package is not legal compliance proof, certification, complete SBOM proof, an authoritative vulnerability result, or a secure-release guarantee."
+        "This package supports technical evidence review and compliance readiness only.",
+        "It is not legal compliance proof, certification, complete SBOM proof, an authoritative vulnerability result, regulator acceptance, or a secure-release guarantee."
       ]
     };
 
+    const safeArray = (value) => Array.isArray(value) ? value : [];
+    const safeObject = (value) => value && typeof value === "object" && !Array.isArray(value) ? value : {};
+    const text = (value, fallback = "not present") => {
+      if (value === undefined || value === null || value === "") {
+        return fallback;
+      }
+      if (Array.isArray(value)) {
+        return value.length ? value.join(", ") : fallback;
+      }
+      if (typeof value === "object") {
+        return JSON.stringify(value);
+      }
+      return String(value);
+    };
     const pick = (obj, paths) => {
       for (const path of paths) {
         const value = path.split(".").reduce((current, key) => {
@@ -182,31 +412,311 @@
       }
       return "";
     };
-
-    const addPanel = (label, value) => {
+    const resultTone = (result) => {
+      const normalized = String(result || "").toLowerCase();
+      if (["passed", "satisfied", "approved", "fixed", "not_affected", "verified"].includes(normalized)) {
+        return "ok";
+      }
+      if (["failed", "blocked", "critical", "affected"].includes(normalized)) {
+        return "bad";
+      }
+      if (["missing", "partial", "unknown", "under_investigation"].includes(normalized)) {
+        return "warn";
+      }
+      return "";
+    };
+    const clearNode = (node) => {
+      node.replaceChildren();
+    };
+    const appendText = (parent, tagName, className, value) => {
+      const child = document.createElement(tagName);
+      if (className) {
+        child.className = className;
+      }
+      child.textContent = text(value);
+      parent.append(child);
+      return child;
+    };
+    const addMetric = (label, value, tone = "") => {
       const panel = document.createElement("section");
-      panel.className = "panel";
-      const labelNode = document.createElement("p");
-      labelNode.className = "label";
-      labelNode.textContent = label;
-      const valueNode = document.createElement("p");
-      valueNode.className = "value";
-      valueNode.textContent = String(value || "not present");
-      panel.append(labelNode, valueNode);
+      panel.className = ["metric", tone].filter(Boolean).join(" ");
+      appendText(panel, "p", "label", label);
+      appendText(panel, "p", "value", value);
       summaryNode.append(panel);
+    };
+    const sectionHead = (node, title, meta = "") => {
+      clearNode(node);
+      const head = document.createElement("div");
+      head.className = "section-head";
+      appendText(head, "h2", "", title);
+      if (meta) {
+        appendText(head, "span", "badge", meta);
+      }
+      node.append(head);
+    };
+    const emptyState = (node, message) => {
+      appendText(node, "p", "empty", message);
+    };
+    const tagList = (node, values) => {
+      const list = document.createElement("div");
+      list.className = "tag-list";
+      safeArray(values).forEach((value) => appendText(list, "span", "tag", value));
+      if (!list.childNodes.length) {
+        appendText(list, "span", "tag", "not present");
+      }
+      node.append(list);
+    };
+    const table = (node, columns, rows, emptyMessage) => {
+      if (!safeArray(rows).length) {
+        emptyState(node, emptyMessage);
+        return;
+      }
+      const wrap = document.createElement("div");
+      wrap.className = "table-wrap";
+      const tableNode = document.createElement("table");
+      const thead = document.createElement("thead");
+      const headRow = document.createElement("tr");
+      columns.forEach((column) => appendText(headRow, "th", "", column.label));
+      thead.append(headRow);
+      const tbody = document.createElement("tbody");
+      rows.forEach((row) => {
+        const tr = document.createElement("tr");
+        columns.forEach((column) => {
+          const td = document.createElement("td");
+          const value = typeof column.value === "function" ? column.value(row) : row[column.value];
+          if (column.badge) {
+            const badge = appendText(td, "span", "badge " + resultTone(value), value);
+            badge.setAttribute("aria-label", column.label + ": " + text(value));
+          } else {
+            td.textContent = text(value);
+          }
+          tr.append(td);
+        });
+        tbody.append(tr);
+      });
+      tableNode.append(thead, tbody);
+      wrap.append(tableNode);
+      node.append(wrap);
+    };
+    const normalizeData = (parsed) => parsed && (parsed.data || parsed.manifest || parsed);
+
+    const renderSummary = (data, fileName) => {
+      summaryNode.replaceChildren();
+      addMetric("File", fileName);
+      addMetric("Package", pick(data, ["title", "package_id", "id"]));
+      addMetric("Readiness", pick(data, ["readiness_summary.result", "result", "status", "state"]), resultTone(pick(data, ["readiness_summary.result", "result", "status", "state"])));
+      addMetric("Profile", pick(data, ["redaction_profile.name", "redaction_profile_id"]));
+      addMetric("Evidence IDs", safeArray(data.evidence_ids).length);
+      addMetric("Generated", pick(data, ["generated_at", "created_at", "checked_at"]));
+    };
+
+    const renderRelease = (data) => {
+      sectionHead(nodes.release, "Release Summary", data.schema_version || "");
+      const grid = document.createElement("div");
+      grid.className = "summary-grid";
+      const release = safeObject(data.release);
+      [
+        ["Product", pick(data, ["product.name", "product_id"])],
+        ["Release", pick(data, ["release.version", "release_id"])],
+        ["Release state", pick(data, ["release.state", "state"])],
+        ["Tenant", pick(data, ["tenant.name", "tenant.id"])],
+        ["Package ID", pick(data, ["package_id", "id"])],
+        ["Generated", data.generated_at]
+      ].forEach(([label, value]) => {
+        const card = document.createElement("section");
+        card.className = "metric";
+        appendText(card, "p", "label", label);
+        appendText(card, "p", "value", value);
+        grid.append(card);
+      });
+      if (!Object.keys(release).length) {
+        emptyState(nodes.release, "No release metadata is present.");
+      }
+      nodes.release.append(grid);
+    };
+
+    const renderArtifactsAndSBOM = (data) => {
+      sectionHead(nodes.artifacts, "Artifact Summary", String(safeArray(data.artifact_digests).length) + " artifact records");
+      table(nodes.artifacts, [
+        { label: "Artifact", value: (row) => row.name || row.id },
+        { label: "Digest", value: "digest" },
+        { label: "Media type", value: "media_type" },
+        { label: "Size", value: "size" }
+      ], data.artifact_digests, "No artifact digest records are present.");
+
+      sectionHead(nodes.sbom, "SBOM Summary", String(safeArray(data.sboms).length) + " SBOM records");
+      table(nodes.sbom, [
+        { label: "SBOM", value: (row) => row.id || row.evidence_id },
+        { label: "Format", value: "format" },
+        { label: "Spec", value: "spec_version" },
+        { label: "Components", value: "component_count" }
+      ], data.sboms, "No SBOM metadata is present.");
+    };
+
+    const renderRisk = (data) => {
+      const decisions = safeArray(data.vulnerability_decisions);
+      const vexDocs = safeArray(data.vex_documents);
+      const scans = safeArray(data.vulnerability_scans);
+      sectionHead(nodes.risk, "Vulnerability / VEX Decisions", String(decisions.length) + " active decisions");
+      const split = document.createElement("div");
+      split.className = "split";
+      const scanNode = document.createElement("div");
+      appendText(scanNode, "h3", "", "Scan summary");
+      table(scanNode, [
+        { label: "Scanner", value: "scanner" },
+        { label: "Target", value: "target_ref" },
+        { label: "Findings", value: "finding_count" },
+        { label: "Summary", value: (row) => row.summary || "" }
+      ], scans, "No vulnerability scan metadata is present.");
+      const vexNode = document.createElement("div");
+      appendText(vexNode, "h3", "", "VEX documents");
+      table(vexNode, [
+        { label: "Document", value: (row) => row.id || row.evidence_id },
+        { label: "Format", value: "format" },
+        { label: "Author", value: "author" },
+        { label: "Statements", value: "statement_count" }
+      ], vexDocs, "No VEX document metadata is present.");
+      split.append(scanNode, vexNode);
+      nodes.risk.append(split);
+      table(nodes.risk, [
+        { label: "Vulnerability", value: "vulnerability" },
+        { label: "Component", value: "component" },
+        { label: "Status", value: "status", badge: true },
+        { label: "Source", value: "source" },
+        { label: "Impact", value: "impact_statement" },
+        { label: "Action", value: "action_statement" }
+      ], decisions, "No active customer-visible decisions are present.");
+    };
+
+    const renderApprovals = (data) => {
+      sectionHead(nodes.approvals, "Approvals And Exceptions");
+      const split = document.createElement("div");
+      split.className = "split";
+      const approvals = document.createElement("div");
+      appendText(approvals, "h3", "", "Approvals");
+      table(approvals, [
+        { label: "Subject", value: (row) => [row.subject_type, row.subject_id].filter(Boolean).join(": ") },
+        { label: "Decision", value: "decision", badge: true },
+        { label: "Reason", value: "reason" }
+      ], data.approvals, "No approval records are present.");
+      const exceptions = document.createElement("div");
+      appendText(exceptions, "h3", "", "Exceptions / waivers");
+      table(exceptions, [
+        { label: "Scope", value: (row) => [row.scope_type, row.scope_id].filter(Boolean).join(": ") || row.id },
+        { label: "State", value: (row) => row.approved === true ? "approved" : row.state, badge: true },
+        { label: "Expiry", value: "expires_at" },
+        { label: "Reason", value: "reason" }
+      ], safeArray(data.exceptions).concat(safeArray(data.waivers)), "No approved exceptions or waivers are present.");
+      split.append(approvals, exceptions);
+      nodes.approvals.append(split);
+    };
+
+    const renderReadiness = (data) => {
+      const summary = safeObject(data.readiness_summary);
+      const checks = safeArray(summary.checks);
+      sectionHead(nodes.readiness, "Readiness Gaps", summary.result || "not present");
+      table(nodes.readiness, [
+        { label: "Check", value: "name" },
+        { label: "Result", value: "result", badge: true },
+        { label: "Severity", value: "severity" },
+        { label: "Missing", value: (row) => safeArray(row.missing).join(", ") },
+        { label: "Explanation", value: "explanation" }
+      ], checks, "No readiness checks are present.");
+      const gaps = safeArray(summary.gaps);
+      appendText(nodes.readiness, "h3", "", "Gaps");
+      tagList(nodes.readiness, gaps);
+    };
+
+    const renderContents = (data) => {
+      sectionHead(nodes.contents, "What Is Included / Excluded");
+      const profile = safeObject(data.redaction_profile);
+      const split = document.createElement("div");
+      split.className = "split";
+      const included = document.createElement("div");
+      appendText(included, "h3", "", "Included evidence types");
+      tagList(included, profile.allowed_types);
+      const excluded = document.createElement("div");
+      appendText(excluded, "h3", "", "Excluded fields");
+      tagList(excluded, profile.excluded_fields);
+      split.append(included, excluded);
+      nodes.contents.append(split);
+      const profileName = String(profile.name || "");
+      const provenancePresent = Boolean(data.provenance);
+      const boundary = document.createElement("p");
+      boundary.className = "note";
+      boundary.textContent = profileName.includes("customer") || !provenancePresent
+        ? "Customer-safe view: internal-only payloads, object references, and internal notes are not shown unless explicitly included by the package profile."
+        : "Security-review view: broader technical metadata may be present, but raw payloads and secrets remain excluded by package policy.";
+      nodes.contents.append(boundary);
+    };
+
+    const renderVerification = (data) => {
+      const material = safeObject(data.verification_material);
+      sectionHead(nodes.verification, "Verification Status", material.hash_algorithm || "not present");
+      const releaseBundles = safeArray(material.release_bundles);
+      const audit = safeObject(material.audit_chain);
+      const grid = document.createElement("div");
+      grid.className = "summary-grid";
+      [
+        ["Canonicalization", material.canonicalization],
+        ["Release bundle hashes", releaseBundles.length],
+        ["Audit chain", audit.result],
+        ["Latest sequence", audit.latest_sequence],
+        ["Head hash", audit.head_hash],
+        ["Manifest hash field", material.manifest_hash_field]
+      ].forEach(([label, value]) => {
+        const card = document.createElement("section");
+        card.className = "metric " + resultTone(value);
+        appendText(card, "p", "label", label);
+        appendText(card, "p", "value", value);
+        grid.append(card);
+      });
+      nodes.verification.append(grid);
+      table(nodes.verification, [
+        { label: "Bundle", value: (row) => row.id || row.manifest_hash },
+        { label: "State", value: "state", badge: true },
+        { label: "Manifest hash", value: "manifest_hash" },
+        { label: "Signature refs", value: (row) => safeArray(row.signature_refs).join(", ") }
+      ], releaseBundles, "No release bundle verification material is present.");
+    };
+
+    const renderLimitations = (data) => {
+      sectionHead(nodes.limitations, "Non-Claims And Limitations");
+      const split = document.createElement("div");
+      split.className = "split";
+      const limitations = document.createElement("div");
+      appendText(limitations, "h3", "", "Limitations");
+      tagList(limitations, data.limitations);
+      const nonClaims = document.createElement("div");
+      appendText(nonClaims, "h3", "", "Non-claims");
+      tagList(nonClaims, data.non_claims);
+      split.append(limitations, nonClaims);
+      nodes.limitations.append(split);
+    };
+
+    const renderRaw = (parsed) => {
+      sectionHead(nodes.raw, "Raw JSON");
+      const pre = document.createElement("pre");
+      pre.textContent = JSON.stringify(parsed, null, 2);
+      nodes.raw.append(pre);
     };
 
     const renderPackage = (parsed, fileName) => {
-      const data = parsed.data || parsed.manifest || parsed;
-      summaryNode.textContent = "";
-      addPanel("File", fileName);
-      addPanel("Subject", pick(data, ["title", "package_id", "id", "release_id", "subject_id", "manifest_hash"]));
-      addPanel("Result", pick(data, ["result", "readiness_summary.result", "status", "state"]));
-      addPanel("Release", pick(data, ["release_id", "release.id", "subject.release_id"]));
-      addPanel("Generated", pick(data, ["generated_at", "created_at", "checked_at"]));
-      addPanel("Limitations", Array.isArray(data.limitations) ? data.limitations.length : "not present");
-      jsonNode.textContent = JSON.stringify(parsed, null, 2);
-      statusNode.textContent = "Loaded locally.";
+      const data = normalizeData(parsed);
+      if (!data || typeof data !== "object") {
+        throw new Error("JSON document is not an object");
+      }
+      renderSummary(data, fileName);
+      renderRelease(data);
+      renderArtifactsAndSBOM(data);
+      renderRisk(data);
+      renderApprovals(data);
+      renderReadiness(data);
+      renderContents(data);
+      renderVerification(data);
+      renderLimitations(data);
+      renderRaw(parsed);
+      statusNode.textContent = "Loaded locally";
     };
 
     fileInput.addEventListener("change", async () => {
@@ -217,15 +727,18 @@
       try {
         renderPackage(JSON.parse(await file.text()), file.name);
       } catch (error) {
-        statusNode.textContent = "Could not parse JSON.";
-        summaryNode.textContent = "";
-        jsonNode.textContent = String(error);
+        statusNode.textContent = "Could not parse JSON";
+        summaryNode.replaceChildren();
+        Object.values(nodes).forEach(clearNode);
+        appendText(nodes.raw, "pre", "", String(error));
       }
     });
 
     demoButton.addEventListener("click", () => {
       renderPackage(bundledDemo, "bundled-demo-customer-package.json");
     });
+
+    renderPackage(bundledDemo, "bundled-demo-customer-package.json");
   </script>
 </body>
 </html>

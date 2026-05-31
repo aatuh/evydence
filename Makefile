@@ -321,6 +321,9 @@ package-viewer-check: ## Validate local package viewer and walkthrough
 	@grep -F 'Load bundled demo' site/package-viewer/index.html >/dev/null
 	@grep -F 'textContent' site/package-viewer/index.html >/dev/null
 	@! grep -F 'innerHTML' site/package-viewer/index.html >/dev/null
+	@grep -F 'Release Summary' site/package-viewer/index.html >/dev/null
+	@grep -F 'Vulnerability / VEX Decisions' site/package-viewer/index.html >/dev/null
+	@grep -F 'Verification Status' site/package-viewer/index.html >/dev/null
 	@grep -F 'examples/end-to-end-release-evidence/sample-customer-package-manifest.json' docs/how-to/view-packages.md >/dev/null
 
 restore-rehearsal-check: ## Run repository-owned backup/restore rehearsal tests
