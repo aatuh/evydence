@@ -1,0 +1,41 @@
+name: Production support question
+description: Ask a non-sensitive self-hosting or operations question.
+title: "ops: "
+labels: ["operations", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Public issues are not a private support channel. Do not include secrets,
+        raw evidence payloads, customer data, private keys, bearer tokens,
+        database URLs, or provider credentials.
+  - type: dropdown
+    id: profile
+    attributes:
+      label: Deployment profile
+      options:
+        - Local evaluation
+        - Controlled internal self-hosted candidate
+        - Air-gapped self-hosted candidate
+        - Regulated self-hosted review
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+    validations:
+      required: true
+  - type: textarea
+    id: sanitized_config
+    attributes:
+      label: Sanitized configuration summary
+      description: Use variable names and redacted values only.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety confirmation
+      options:
+        - label: I have redacted all secrets, raw payloads, customer data, bearer tokens, private keys, provider credentials, and database URLs.
+          required: true

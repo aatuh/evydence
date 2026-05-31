@@ -54,6 +54,9 @@ The helper rejects paths that do not start with `/v1/` and blank idempotency key
 
 The Go wrapper also exposes typed helpers for `CreateRelease`, `RegisterArtifact`, `CreateBuild`, `Readiness`, `ReleaseReadiness`, `CreateSSOProvider`, and `VerifyProviderIdentity`. `VerifyProviderIdentity` can carry an OIDC `id_token`, OIDC `access_token` for live UserInfo validation, or SAML `saml_assertion`; SDK errors intentionally include only the HTTP status code and not the response body.
 
+See [`examples/sdk/go/main.go`](../../examples/sdk/go/main.go) for a minimal
+product-create example.
+
 ## TypeScript
 
 Import the source wrapper directly from the checkout or from your application-owned package copy. The wrapper uses `fetch`; Node.js 18+ provides it globally, and older runtimes should pass `fetchImpl`.
@@ -75,6 +78,9 @@ const response = await client.createProduct<{ data: { id: string } }>(
 The helper validates `/v1/` paths and idempotency keys. Non-2xx responses throw an error with the HTTP status code.
 
 The TypeScript wrapper also exposes `createRelease`, `registerArtifact`, `createBuild`, `readiness`, `releaseReadiness`, `createSSOProvider`, and `verifyProviderIdentity` helpers over the same routes.
+
+See [`examples/sdk/typescript/example.ts`](../../examples/sdk/typescript/example.ts)
+for a minimal product-create example.
 
 ## Python
 
@@ -99,6 +105,9 @@ response = client.create_product(
 The helper validates `/v1/` paths and idempotency keys. HTTP errors raise `RuntimeError` with the status code.
 
 The Python wrapper also exposes `create_release`, `register_artifact`, `create_build`, `readiness`, `release_readiness`, `create_sso_provider`, and `verify_provider_identity` helpers over the same routes.
+
+See [`examples/sdk/python/example.py`](../../examples/sdk/python/example.py)
+for a minimal product-create example.
 
 ## Idempotency Guidance
 

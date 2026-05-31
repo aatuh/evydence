@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/aatuh/evydence/security
+    about: Use the private security intake described in SECURITY.md. Do not post suspected vulnerabilities publicly.
+  - name: Support policy
+    url: https://github.com/aatuh/evydence/blob/master/SUPPORT.md
+    about: Read support boundaries and sanitized-report expectations before opening an issue.

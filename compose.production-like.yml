@@ -1,0 +1,118 @@
+# Production-like local evaluation stack.
+#
+# This file is for local operator rehearsal, not a turnkey production
+# deployment. Replace all secrets, use TLS at the edge, back up PostgreSQL and
+# object storage together, and keep API replicas at one for the current
+# supported writer profile.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-evydence}
+      POSTGRES_USER: ${POSTGRES_USER:-evydence}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-evydence}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-evydence}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio-data:/data
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_started
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-evydence}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+      EVYDENCE_S3_BUCKET: ${EVYDENCE_S3_BUCKET:-evydence}
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        until mc alias set local http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}" >/dev/null 2>&1; do
+          sleep 2
+        done
+        mc mb --ignore-existing "local/$${EVYDENCE_S3_BUCKET}"
+
+  migrate:
+    build: .
+    image: ${EVYDENCE_IMAGE:-evydence:local}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      EVYDENCE_DATABASE_URL: postgres://${POSTGRES_USER:-evydence}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-evydence}?sslmode=disable
+    entrypoint: ["evydence-migrate"]
+
+  api:
+    build: .
+    image: ${EVYDENCE_IMAGE:-evydence:local}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      ENV: production
+      EVYDENCE_ADDR: :8080
+      EVYDENCE_API_KEY_PEPPER: ${EVYDENCE_API_KEY_PEPPER:?EVYDENCE_API_KEY_PEPPER is required}
+      EVYDENCE_DATABASE_URL: postgres://${POSTGRES_USER:-evydence}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-evydence}?sslmode=disable
+      EVYDENCE_OBJECT_STORE: minio
+      EVYDENCE_S3_ENDPOINT: minio:9000
+      EVYDENCE_S3_BUCKET: ${EVYDENCE_S3_BUCKET:-evydence}
+      EVYDENCE_S3_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-evydence}
+      EVYDENCE_S3_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+      EVYDENCE_S3_USE_SSL: "false"
+      EVYDENCE_SIGNING_KEY_MODE: ${EVYDENCE_SIGNING_KEY_MODE:-external}
+      EVYDENCE_API_WRITER_MODE: single
+      EVYDENCE_API_WRITER_REPLICAS: "1"
+      EVYDENCE_PRINT_BOOTSTRAP_SECRET: "false"
+    ports:
+      - "${EVYDENCE_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/v1/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
+  worker:
+    image: ${EVYDENCE_IMAGE:-evydence:local}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      ENV: production
+      EVYDENCE_API_KEY_PEPPER: ${EVYDENCE_API_KEY_PEPPER:?EVYDENCE_API_KEY_PEPPER is required}
+      EVYDENCE_DATABASE_URL: postgres://${POSTGRES_USER:-evydence}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-evydence}?sslmode=disable
+      EVYDENCE_OBJECT_STORE: minio
+      EVYDENCE_S3_ENDPOINT: minio:9000
+      EVYDENCE_S3_BUCKET: ${EVYDENCE_S3_BUCKET:-evydence}
+      EVYDENCE_S3_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-evydence}
+      EVYDENCE_S3_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+      EVYDENCE_S3_USE_SSL: "false"
+      EVYDENCE_SIGNING_KEY_MODE: ${EVYDENCE_SIGNING_KEY_MODE:-external}
+    entrypoint: ["evydence-worker"]
+
+volumes:
+  postgres-data:
+  minio-data:

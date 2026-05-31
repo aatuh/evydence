@@ -15,15 +15,23 @@ This documentation is organized by reader task. Implementation claims should be 
 - [Kubernetes deployment](kubernetes.md): install the Helm chart and verify a self-hosted cluster deployment.
 - [Air-gapped installation](air-gapped.md): build, sign, transfer, verify, and import an offline package.
 - [Release signing](release-signing.md): create and verify local release artifact manifests.
+- [View packages locally](how-to/view-packages.md): inspect package, readiness, and evidence-bundle JSON without uploading it.
 - [Production hardening review](production-hardening.md): review production configuration, backups, ingress, diagnostics, and customer package controls.
+- [Backup and restore runbook](runbooks/backup-restore.md): rehearse paired database/object-store restore and verification.
+- [Upgrade runbook](runbooks/upgrade.md): verify release artifacts, migrations, and post-upgrade checks.
+- [Incident response runbook](runbooks/incident-response.md): handle operator incidents without leaking secrets or raw evidence.
 
 ## Reference
 
 - [Configuration](reference/configuration.md): canonical environment variables and the roles of `.env.example`, `.api.env.example`, and `.test.env.example`.
+- [Documentation source of truth](reference/source-of-truth.md): canonical source map to keep commands, status, and limitations from drifting.
 - [API contract matrix](reference/api-contract-matrix.md): generated route-by-route contract precision inventory for production hardening.
 - [OpenAPI contract](reference/openapi.md): generation, drift checks, and review tips for `openapi.yaml`.
 - [Observability](reference/observability.md): readiness, admin metrics, Prometheus rules, and dashboard starter assets.
+- [Capacity and failure modes](reference/capacity-and-failures.md): supported concurrency profile, sizing inputs, and failure behavior.
+- [Benchmark results](reference/benchmark-results.md): current local benchmark command and interpretation.
 - [Production readiness](reference/production-readiness.md): self-hosted production profiles, production gates, and exit criteria.
+- [Production exit review](reference/production-exit-review.md): current release-positioning decision and unresolved blockers.
 - [Release candidate checklist](reference/release-candidate.md): required evidence before tagging a controlled self-hosted release candidate.
 - [Release notes template](reference/release-notes-template.md): checked wording used by release-candidate packaging when a tag-specific note file is absent.
 - [Release notes v0.1.0-rc.1](reference/release-notes-v0.1.0-rc.1.md): checked release-note wording for the first controlled self-hosted release candidate.
@@ -41,6 +49,7 @@ This documentation is organized by reader task. Implementation claims should be 
 - [Support](../SUPPORT.md): community support expectations, commercial support boundaries, and sanitized bug-report requirements.
 - [Governance](../GOVERNANCE.md): maintainer-led decision process, contribution acceptance, release evidence expectations, and conservative product-language policy.
 - [Contributing](../CONTRIBUTING.md): contribution workflow, CLA expectation, licensing compatibility, and implementation invariants.
+- [Code of conduct](../CODE_OF_CONDUCT.md): participation expectations for public project spaces.
 - [Trademarks](../TRADEMARKS.md): conservative use of the Evydence name and modified-build naming rules.
 - [Release evidence](../RELEASE_EVIDENCE.md): release evidence routing, local acceptance checks, and limits of release validation.
 - [Changelog](../CHANGELOG.md): unreleased and future public-release notes.
@@ -51,12 +60,15 @@ This documentation is organized by reader task. Implementation claims should be 
 - [GitHub Actions upload-build composite action](github-actions/upload-build/action.yml)
 - [GitHub release evidence manifest generator](../scripts/github_release_evidence_manifest.py)
 - [GitLab release evidence CI template](gitlab/evydence-release-evidence.gitlab-ci.yml)
+- [End-to-end release evidence example](../examples/end-to-end-release-evidence/README.md)
+- [SDK examples](../examples/sdk)
 
 These examples require tenant-scoped API or collector secrets created through the API. They capture CI metadata as submitted evidence; provider-side truth still depends on the CI provider, workflow controls, and any verification receipts recorded separately.
 
 ## Explanation
 
 - [Architecture](architecture.md): ports/adapters boundaries, persistence, object storage, append-only behavior, and current limitations.
+- [Architecture diagram](explanation/architecture-diagram.md): compact diagram of API, worker, storage, signing, and provider boundaries.
 - [Trust model](explanation/trust-model.md): what Evydence verifies, what it records as assumptions, and where external review remains required.
 
 Evydence supports compliance readiness and technical evidence organization. The documentation avoids claims that Evydence makes legal compliance conclusions, grants certification, proves SBOM completeness, treats scanner output as authoritative, or guarantees release security.

@@ -54,6 +54,7 @@ is:
 - `tmp/release-check-summary.txt` from the same run;
 - coverage output and threshold result;
 - OpenAPI checksum and migration checksums;
+- release SBOM metadata and release provenance metadata;
 - signed release artifact manifest, manifest signature, and artifact checksums;
 - release notes that state supported profile, assumptions, limitations,
   upgrade notes, and unresolved hardening work.
@@ -72,10 +73,11 @@ make release-candidate-check TAG=<vX.Y.Z-rc.N>
 
 `scripts/release_candidate_package.sh` creates `dist/<tag>/` with the
 release archives, `SHA256SUMS`, `openapi.sha256`, `migrations.sha256`,
-`coverage.out`, `release-check-summary.txt`, checked release notes, signed
-release manifest, and manifest signature. It refuses dirty worktrees, invalid
-release-candidate tags, missing live PostgreSQL configuration, missing signing
-material, and existing local tags unless a CI tag build explicitly sets
+release SBOM metadata, release provenance metadata, `coverage.out`,
+`release-check-summary.txt`, checked release notes, signed release manifest,
+and manifest signature. It refuses dirty worktrees, invalid release-candidate
+tags, missing live PostgreSQL configuration, missing signing material, and
+existing local tags unless a CI tag build explicitly sets
 `EVYDENCE_RELEASE_ALLOW_EXISTING_TAG=1`.
 
 ## Configured Live PostgreSQL Profile

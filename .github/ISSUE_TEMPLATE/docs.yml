@@ -1,0 +1,30 @@
+name: Documentation issue
+description: Report unclear, stale, missing, or misleading documentation.
+title: "docs: "
+labels: ["documentation", "triage"]
+body:
+  - type: input
+    id: path
+    attributes:
+      label: Document path
+      placeholder: docs/tutorials/getting-started.md
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong or missing?
+      description: Include the exact command, section, or expectation that did not match reality.
+    validations:
+      required: true
+  - type: textarea
+    id: fix
+    attributes:
+      label: Suggested correction
+  - type: checkboxes
+    id: claims
+    attributes:
+      label: Claim safety
+      options:
+        - label: This issue does not ask Evydence to claim legal compliance, certification, complete SBOM coverage, authoritative scanner results, or secure releases.
+          required: true

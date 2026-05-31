@@ -9,7 +9,48 @@ results, no secure-release guarantee, and no regulator or auditor acceptance.
 
 ## Unreleased
 
-No public release notes have been added after `v0.1.0-rc.2`.
+No public release notes have been added after local release-candidate evidence
+for `v0.1.0-rc.3`. Public GitHub release publication remains an operator
+action.
+
+## v0.1.0-rc.3 - 2026-05-31
+
+Release status: controlled self-hosted production candidate. This build is
+suitable for evaluation, pilots, and controlled internal production after
+operator review. Broad self-hosted production readiness, regulated production,
+and hosted SaaS production remain out of scope for this status. The local
+release-candidate package for this tag was generated with
+`make release-candidate-check TAG=v0.1.0-rc.3`.
+
+### Added
+
+- Direct GCP Cloud KMS and Azure Key Vault signing executors for signing stored
+  SHA-256 payload hashes without sending raw evidence payload bytes.
+- Operator-controlled provider validation gateway that records non-secret
+  validation metadata without forwarding supplied access tokens.
+- Operator-controlled transparency proof gateway before local proof
+  verification.
+- Release-candidate SBOM metadata and release provenance metadata generation.
+- OpenSSF Scorecard workflow, Dependabot configuration, issue templates, code
+  of conduct, and production-like Compose rehearsal.
+
+### Changed
+
+- README positioning now leads with the release-evidence user problem, current
+  limitations, fastest proof path, and differentiation from adjacent tools.
+- Security reporting guidance no longer depends on LinkedIn as the first
+  recommended path and calls out external repository settings that operators
+  must verify.
+
+### Known Limits
+
+- Public GitHub release publication, branch protection, public CI status,
+  private vulnerability-reporting settings, and public adoption evidence remain
+  external repository/operator proof.
+- High-scale multi-writer API HA, native PKCS#11/HSM module handling, direct
+  provider management API/group synchronization, broad WORM/object-lock proof,
+  and final production exit review remain hardening work or deployment-specific
+  review items.
 
 ## v0.1.0-rc.2 - 2026-05-31
 
