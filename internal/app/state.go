@@ -294,8 +294,79 @@ func (l *Ledger) persistCriticalLocked(ctx context.Context, mutation CriticalMut
 	return focused.ApplyCriticalMutation(ctx, mutation)
 }
 
+func (l *Ledger) persistReleaseLedgerLocked(ctx context.Context, mutation ReleaseLedgerMutation) error {
+	if l.store == nil {
+		return nil
+	}
+	focused, ok := l.store.(ReleaseLedgerMutationStore)
+	if !ok {
+		return l.persistLocked(ctx)
+	}
+	return focused.ApplyReleaseLedgerMutation(ctx, mutation)
+}
+
 func (l *Ledger) criticalMutationLocked() CriticalMutation {
 	return criticalMutationFromState(l.snapshotLocked())
+}
+
+func (l *Ledger) releaseLedgerMutationLocked() ReleaseLedgerMutation {
+	return releaseLedgerMutationFromState(l.snapshotLocked())
+}
+
+func ReleaseLedgerMutationFromState(state PersistedState) ReleaseLedgerMutation {
+	return releaseLedgerMutationFromState(state)
+}
+
+func (l *Ledger) persistReleaseLedgerWithOutboxLocked(ctx context.Context, job OutboxJob) error {
+	mutation := l.releaseLedgerMutationLocked()
+	mutation.OutboxJobs = append(mutation.OutboxJobs, job)
+	if _, ok := l.store.(ReleaseLedgerMutationStore); !ok {
+		if err := l.enqueueJob(ctx, job); err != nil {
+			return err
+		}
+	}
+	return l.persistReleaseLedgerLocked(ctx, mutation)
+}
+
+func releaseLedgerMutationFromState(state PersistedState) ReleaseLedgerMutation {
+	mutation := ReleaseLedgerMutation{}
+	for _, product := range state.Products {
+		mutation.Products = append(mutation.Products, product)
+	}
+	for _, project := range state.Projects {
+		mutation.Projects = append(mutation.Projects, project)
+	}
+	for _, release := range state.Releases {
+		mutation.Releases = append(mutation.Releases, release)
+	}
+	for _, artifact := range state.Artifacts {
+		mutation.Artifacts = append(mutation.Artifacts, artifact)
+	}
+	for _, evidence := range state.Evidence {
+		mutation.Evidence = append(mutation.Evidence, evidence)
+	}
+	for _, event := range state.EvidenceLifecycle {
+		mutation.EvidenceLifecycle = append(mutation.EvidenceLifecycle, event)
+	}
+	for _, sbom := range state.SBOMs {
+		mutation.SBOMs = append(mutation.SBOMs, sbom)
+	}
+	for _, scan := range state.Scans {
+		mutation.Scans = append(mutation.Scans, scan)
+	}
+	for _, contract := range state.Contracts {
+		mutation.Contracts = append(mutation.Contracts, contract)
+	}
+	for _, vex := range state.VEXDocuments {
+		mutation.VEXDocuments = append(mutation.VEXDocuments, vex)
+	}
+	for _, decision := range state.Decisions {
+		mutation.VulnerabilityDecisions = append(mutation.VulnerabilityDecisions, decision)
+	}
+	for _, tenantChain := range state.Chain {
+		mutation.AuditChainEntries = append(mutation.AuditChainEntries, tenantChain...)
+	}
+	return mutation
 }
 
 func criticalMutationFromState(state PersistedState) CriticalMutation {

@@ -16,6 +16,10 @@ type CriticalMutationStore interface {
 	ApplyCriticalMutation(context.Context, CriticalMutation) error
 }
 
+type ReleaseLedgerMutationStore interface {
+	ApplyReleaseLedgerMutation(context.Context, ReleaseLedgerMutation) error
+}
+
 type ObjectStore interface {
 	Put(context.Context, Object) error
 	Get(context.Context, string) (Object, error)
@@ -299,6 +303,22 @@ type CriticalMutation struct {
 	ReleaseBundles         []domain.ReleaseBundle
 	VerificationResults    []domain.VerificationResult
 	ProviderVerifications  []domain.ProviderVerification
+	VulnerabilityDecisions []domain.VulnerabilityDecision
+	AuditChainEntries      []domain.AuditChainEntry
+	OutboxJobs             []OutboxJob
+}
+
+type ReleaseLedgerMutation struct {
+	Products               []domain.Product
+	Projects               []domain.Project
+	Releases               []domain.Release
+	Artifacts              []domain.Artifact
+	Evidence               []domain.EvidenceItem
+	EvidenceLifecycle      []domain.EvidenceLifecycleEvent
+	SBOMs                  []domain.SBOM
+	Scans                  []domain.VulnerabilityScan
+	Contracts              []domain.OpenAPIContract
+	VEXDocuments           []domain.VEXDocument
 	VulnerabilityDecisions []domain.VulnerabilityDecision
 	AuditChainEntries      []domain.AuditChainEntry
 	OutboxJobs             []OutboxJob

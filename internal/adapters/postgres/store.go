@@ -2564,6 +2564,36 @@ func (s *Store) ApplyCriticalMutation(ctx context.Context, mutation app.Critical
 	return nil
 }
 
+func (s *Store) ApplyReleaseLedgerMutation(ctx context.Context, mutation app.ReleaseLedgerMutation) error {
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("begin release ledger mutation transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	state := releaseLedgerMutationState(mutation)
+	if err := syncReleaseLedgerCore(ctx, tx, state); err != nil {
+		return err
+	}
+	if err := syncRiskBuildControlRows(ctx, tx, state); err != nil {
+		return err
+	}
+	if err := syncSourceDeploymentLifecycleRows(ctx, tx, state); err != nil {
+		return err
+	}
+	for _, job := range mutation.OutboxJobs {
+		if err := insertOutboxJobTx(ctx, tx, job); err != nil {
+			return err
+		}
+	}
+	if err := syncCriticalResourceIndex(ctx, tx, state); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit release ledger mutation transaction: %w", err)
+	}
+	return nil
+}
+
 func criticalMutationState(mutation app.CriticalMutation) app.PersistedState {
 	state := relationalEmptyState()
 	for _, tenant := range mutation.Tenants {
@@ -2610,6 +2640,47 @@ func criticalMutationState(mutation app.CriticalMutation) app.PersistedState {
 	}
 	for _, verification := range mutation.ProviderVerifications {
 		state.ProviderVerifications[verification.ID] = verification
+	}
+	for _, decision := range mutation.VulnerabilityDecisions {
+		state.Decisions[decision.ID] = decision
+	}
+	for _, entry := range mutation.AuditChainEntries {
+		state.Chain[entry.TenantID] = append(state.Chain[entry.TenantID], entry)
+	}
+	return state
+}
+
+func releaseLedgerMutationState(mutation app.ReleaseLedgerMutation) app.PersistedState {
+	state := relationalEmptyState()
+	for _, product := range mutation.Products {
+		state.Products[product.ID] = product
+	}
+	for _, project := range mutation.Projects {
+		state.Projects[project.ID] = project
+	}
+	for _, release := range mutation.Releases {
+		state.Releases[release.ID] = release
+	}
+	for _, artifact := range mutation.Artifacts {
+		state.Artifacts[artifact.ID] = artifact
+	}
+	for _, evidence := range mutation.Evidence {
+		state.Evidence[evidence.ID] = evidence
+	}
+	for _, event := range mutation.EvidenceLifecycle {
+		state.EvidenceLifecycle[event.ID] = event
+	}
+	for _, sbom := range mutation.SBOMs {
+		state.SBOMs[sbom.ID] = sbom
+	}
+	for _, scan := range mutation.Scans {
+		state.Scans[scan.ID] = scan
+	}
+	for _, contract := range mutation.Contracts {
+		state.Contracts[contract.ID] = contract
+	}
+	for _, vex := range mutation.VEXDocuments {
+		state.VEXDocuments[vex.ID] = vex
 	}
 	for _, decision := range mutation.VulnerabilityDecisions {
 		state.Decisions[decision.ID] = decision

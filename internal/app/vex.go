@@ -179,10 +179,8 @@ func (l *Ledger) UploadVEX(ctx context.Context, actor domain.Actor, releaseID, a
 		jobPayload["actor_id"] = actorID(actor)
 		jobPayload["evidence_id"] = item.ID
 	}
-	if err := l.enqueue(ctx, actor.TenantID, "parse_vex", "vex_document", vex.ID, jobPayload); err != nil {
-		return domain.VEXDocument{}, err
-	}
-	if err := l.persistLocked(ctx); err != nil {
+	job := l.newOutboxJob(actor.TenantID, "parse_vex", "vex_document", vex.ID, jobPayload)
+	if err := l.persistReleaseLedgerWithOutboxLocked(ctx, job); err != nil {
 		return domain.VEXDocument{}, err
 	}
 	return vex, nil

@@ -134,6 +134,11 @@ type jobStateStore interface {
 	SaveState(context.Context, app.PersistedState) error
 }
 
+type jobReleaseLedgerMutationStore interface {
+	jobStateLoader
+	ApplyReleaseLedgerMutation(context.Context, app.ReleaseLedgerMutation) error
+}
+
 type jobObjectGetter interface {
 	Get(context.Context, string) (app.Object, error)
 }
@@ -317,6 +322,12 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 		return errors.New("unsupported outbox job kind")
 	}
 	if stateChanged {
+		if focused, ok := state.(jobReleaseLedgerMutationStore); ok && releaseLedgerParserJob(job.Kind) {
+			if err := focused.ApplyReleaseLedgerMutation(ctx, app.ReleaseLedgerMutationFromState(snapshot)); err != nil {
+				return errors.New("persist durable parser side effects")
+			}
+			return nil
+		}
 		stateStore, ok := state.(jobStateStore)
 		if !ok {
 			return errors.New("durable parser side effects require writable state")
@@ -326,6 +337,15 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 		}
 	}
 	return nil
+}
+
+func releaseLedgerParserJob(kind string) bool {
+	switch kind {
+	case "parse_sbom", "parse_vulnerability_scan", "parse_openapi_contract", "parse_vex":
+		return true
+	default:
+		return false
+	}
 }
 
 func requireParserVersion(job postgres.ClaimedJob) error {

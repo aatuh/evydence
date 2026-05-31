@@ -481,7 +481,7 @@ func (l *Ledger) CreateProduct(ctx context.Context, actor domain.Actor, name, sl
 	product := domain.Product{ID: newID("prod"), TenantID: actor.TenantID, Name: name, Slug: slug, CreatedAt: l.now()}
 	l.products[product.ID] = product
 	_, _ = l.appendChainLocked(actor.TenantID, "product.created", "product", product.ID, "api_key", actor.KeyID, "", "")
-	if err := l.persistLocked(ctx); err != nil {
+	if err := l.persistReleaseLedgerLocked(ctx, l.releaseLedgerMutationLocked()); err != nil {
 		return domain.Product{}, err
 	}
 	return product, nil
@@ -529,7 +529,7 @@ func (l *Ledger) CreateProject(ctx context.Context, actor domain.Actor, productI
 	project := domain.Project{ID: newID("proj"), TenantID: actor.TenantID, ProductID: productID, Name: name, CreatedAt: l.now()}
 	l.projects[project.ID] = project
 	_, _ = l.appendChainLocked(actor.TenantID, "project.created", "project", project.ID, "api_key", actor.KeyID, "", "")
-	if err := l.persistLocked(ctx); err != nil {
+	if err := l.persistReleaseLedgerLocked(ctx, l.releaseLedgerMutationLocked()); err != nil {
 		return domain.Project{}, err
 	}
 	return project, nil
@@ -563,7 +563,7 @@ func (l *Ledger) CreateRelease(ctx context.Context, actor domain.Actor, productI
 	release := domain.Release{ID: newID("rel"), TenantID: actor.TenantID, ProductID: productID, Version: version, State: "draft", CreatedAt: l.now()}
 	l.releases[release.ID] = release
 	_, _ = l.appendChainLocked(actor.TenantID, "release.created", "release", release.ID, "api_key", actor.KeyID, "", "")
-	if err := l.persistLocked(ctx); err != nil {
+	if err := l.persistReleaseLedgerLocked(ctx, l.releaseLedgerMutationLocked()); err != nil {
 		return domain.Release{}, err
 	}
 	return release, nil
@@ -612,7 +612,7 @@ func (l *Ledger) FreezeRelease(ctx context.Context, actor domain.Actor, releaseI
 	release.FrozenAt = &now
 	l.releases[release.ID] = release
 	_, _ = l.appendChainLocked(actor.TenantID, "release.frozen", "release", release.ID, "api_key", actor.KeyID, "", "")
-	if err := l.persistLocked(ctx); err != nil {
+	if err := l.persistReleaseLedgerLocked(ctx, l.releaseLedgerMutationLocked()); err != nil {
 		return domain.Release{}, err
 	}
 	return release, nil
@@ -642,7 +642,7 @@ func (l *Ledger) ApproveRelease(ctx context.Context, actor domain.Actor, release
 	release.ApprovedAt = &now
 	l.releases[release.ID] = release
 	_, _ = l.appendChainLocked(actor.TenantID, "release.approved", "release", release.ID, "api_key", actor.KeyID, "", "")
-	if err := l.persistLocked(ctx); err != nil {
+	if err := l.persistReleaseLedgerLocked(ctx, l.releaseLedgerMutationLocked()); err != nil {
 		return domain.Release{}, err
 	}
 	return release, nil
@@ -669,7 +669,7 @@ func (l *Ledger) RegisterArtifact(ctx context.Context, actor domain.Actor, name,
 	artifact := domain.Artifact{ID: newID("art"), TenantID: actor.TenantID, Name: name, MediaType: mediaType, Size: size, Digest: digest, CreatedAt: l.now()}
 	l.artifacts[artifact.ID] = artifact
 	_, _ = l.appendChainLocked(actor.TenantID, "artifact.created", "artifact", artifact.ID, "api_key", actor.KeyID, digest, "")
-	if err := l.persistLocked(ctx); err != nil {
+	if err := l.persistReleaseLedgerLocked(ctx, l.releaseLedgerMutationLocked()); err != nil {
 		return domain.Artifact{}, err
 	}
 	return artifact, nil
@@ -769,7 +769,7 @@ func (l *Ledger) CreateEvidence(ctx context.Context, actor domain.Actor, in Crea
 	}
 	item.ChainEntryID = entry.ID
 	l.evidence[item.ID] = item
-	if err := l.persistLocked(ctx); err != nil {
+	if err := l.persistReleaseLedgerLocked(ctx, l.releaseLedgerMutationLocked()); err != nil {
 		return domain.EvidenceItem{}, err
 	}
 	return item, nil
@@ -854,7 +854,7 @@ func (l *Ledger) SupersedeEvidence(ctx context.Context, actor domain.Actor, id, 
 	l.evidence[item.ID] = item
 	l.evidence[replacement.ID] = replacement
 	_, _ = l.appendChainLocked(actor.TenantID, "evidence.superseded", "evidence_item", item.ID, "api_key", actor.KeyID, item.PayloadHash, "")
-	if err := l.persistLocked(ctx); err != nil {
+	if err := l.persistReleaseLedgerLocked(ctx, l.releaseLedgerMutationLocked()); err != nil {
 		return domain.EvidenceItem{}, err
 	}
 	return item, nil
@@ -905,7 +905,7 @@ func (l *Ledger) LinkEvidence(ctx context.Context, actor domain.Actor, id, targe
 	item.RelatedEvidenceRefs = append(item.RelatedEvidenceRefs, domain.EvidenceRef{Type: targetType, ID: targetID, Relationship: "linked_to"})
 	l.evidence[item.ID] = item
 	_, _ = l.appendChainLocked(actor.TenantID, "evidence.linked", "evidence_item", item.ID, "api_key", actor.KeyID, item.PayloadHash, "")
-	if err := l.persistLocked(ctx); err != nil {
+	if err := l.persistReleaseLedgerLocked(ctx, l.releaseLedgerMutationLocked()); err != nil {
 		return domain.EvidenceItem{}, err
 	}
 	return item, nil
@@ -991,10 +991,8 @@ func (l *Ledger) UploadSBOM(ctx context.Context, actor domain.Actor, releaseID, 
 	}
 	l.sboms[sbom.ID] = persistedSBOM
 	_, _ = l.appendChainLocked(actor.TenantID, chainAction, "sbom", sbom.ID, "api_key", actor.KeyID, payloadHash, "")
-	if err := l.enqueue(ctx, actor.TenantID, "parse_sbom", "sbom", sbom.ID, map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionCycloneDXJSON}); err != nil {
-		return domain.SBOM{}, err
-	}
-	if err := l.persistLocked(ctx); err != nil {
+	job := l.newOutboxJob(actor.TenantID, "parse_sbom", "sbom", sbom.ID, map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionCycloneDXJSON})
+	if err := l.persistReleaseLedgerWithOutboxLocked(ctx, job); err != nil {
 		return domain.SBOM{}, err
 	}
 	return sbom, nil
@@ -1087,10 +1085,8 @@ func (l *Ledger) UploadVulnerabilityScan(ctx context.Context, actor domain.Actor
 	}
 	l.scans[scan.ID] = persistedScan
 	_, _ = l.appendChainLocked(actor.TenantID, chainAction, "vulnerability_scan", scan.ID, "api_key", actor.KeyID, payloadHash, "")
-	if err := l.enqueue(ctx, actor.TenantID, "parse_vulnerability_scan", "vulnerability_scan", scan.ID, map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionGenericVulnerabilityJSON}); err != nil {
-		return domain.VulnerabilityScan{}, err
-	}
-	if err := l.persistLocked(ctx); err != nil {
+	job := l.newOutboxJob(actor.TenantID, "parse_vulnerability_scan", "vulnerability_scan", scan.ID, map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionGenericVulnerabilityJSON})
+	if err := l.persistReleaseLedgerWithOutboxLocked(ctx, job); err != nil {
 		return domain.VulnerabilityScan{}, err
 	}
 	return scan, nil
@@ -1156,10 +1152,8 @@ func (l *Ledger) UploadOpenAPIContract(ctx context.Context, actor domain.Actor, 
 	}
 	l.contracts[contract.ID] = persistedContract
 	_, _ = l.appendChainLocked(actor.TenantID, chainAction, "openapi_contract", contract.ID, "api_key", actor.KeyID, contract.Hash, "")
-	if err := l.enqueue(ctx, actor.TenantID, "parse_openapi_contract", "openapi_contract", contract.ID, map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionOpenAPIJSON}); err != nil {
-		return domain.OpenAPIContract{}, err
-	}
-	if err := l.persistLocked(ctx); err != nil {
+	job := l.newOutboxJob(actor.TenantID, "parse_openapi_contract", "openapi_contract", contract.ID, map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionOpenAPIJSON})
+	if err := l.persistReleaseLedgerWithOutboxLocked(ctx, job); err != nil {
 		return domain.OpenAPIContract{}, err
 	}
 	return contract, nil

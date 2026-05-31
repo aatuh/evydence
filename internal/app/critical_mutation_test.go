@@ -11,7 +11,9 @@ import (
 type focusedStoreSpy struct {
 	saveCalls     int
 	criticalCalls int
+	releaseCalls  int
 	mutations     []CriticalMutation
+	releases      []ReleaseLedgerMutation
 }
 
 func (s *focusedStoreSpy) LoadState(context.Context) (PersistedState, bool, error) {
@@ -29,10 +31,18 @@ func (s *focusedStoreSpy) ApplyCriticalMutation(_ context.Context, mutation Crit
 	return nil
 }
 
+func (s *focusedStoreSpy) ApplyReleaseLedgerMutation(_ context.Context, mutation ReleaseLedgerMutation) error {
+	s.releaseCalls++
+	s.releases = append(s.releases, mutation)
+	return nil
+}
+
 func (s *focusedStoreSpy) reset() {
 	s.saveCalls = 0
 	s.criticalCalls = 0
+	s.releaseCalls = 0
 	s.mutations = nil
+	s.releases = nil
 }
 
 func TestCriticalMutationStoreAvoidsAggregateSaveForMigratedFlows(t *testing.T) {
@@ -176,6 +186,121 @@ func TestCriticalMutationStoreCoversSSOAndPortalSecrets(t *testing.T) {
 	}
 }
 
+func TestReleaseLedgerMutationStoreAvoidsAggregateSaveForCoreFlows(t *testing.T) {
+	ctx := context.Background()
+	store := &focusedStoreSpy{}
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
+	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	actor, err := ledger.Authenticate(ctx, secret)
+	if err != nil {
+		t.Fatalf("authenticate: %v", err)
+	}
+
+	store.reset()
+	product, err := ledger.CreateProduct(ctx, actor, "Payments API", "payments-core")
+	if err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	if store.saveCalls != 0 || store.releaseCalls != 1 || len(store.releases[0].Products) == 0 || len(store.releases[0].AuditChainEntries) == 0 {
+		t.Fatalf("product mutation save=%d release=%d mutation=%#v", store.saveCalls, store.releaseCalls, store.releases)
+	}
+
+	store.reset()
+	project, err := ledger.CreateProject(ctx, actor, product.ID, "API")
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	release, err := ledger.CreateRelease(ctx, actor, product.ID, "1.0.0")
+	if err != nil {
+		t.Fatalf("create release: %v", err)
+	}
+	if _, err := ledger.FreezeRelease(ctx, actor, release.ID); err != nil {
+		t.Fatalf("freeze release: %v", err)
+	}
+	if _, err := ledger.ApproveRelease(ctx, actor, release.ID); err != nil {
+		t.Fatalf("approve release: %v", err)
+	}
+	if store.saveCalls != 0 || store.releaseCalls != 4 {
+		t.Fatalf("project/release save=%d release=%d mutations=%#v", store.saveCalls, store.releaseCalls, store.releases)
+	}
+	lastReleaseMutation := store.releases[len(store.releases)-1]
+	if len(lastReleaseMutation.Releases) == 0 || len(lastReleaseMutation.AuditChainEntries) == 0 {
+		t.Fatalf("release mutation incomplete: %#v", lastReleaseMutation)
+	}
+
+	store.reset()
+	artifact, err := ledger.RegisterArtifact(ctx, actor, "api.tar.gz", "application/gzip", sampleDigest("artifact"), 42)
+	if err != nil {
+		t.Fatalf("register artifact: %v", err)
+	}
+	item, err := ledger.CreateEvidence(ctx, actor, CreateEvidenceInput{
+		ProductID:   product.ID,
+		ProjectID:   project.ID,
+		ReleaseID:   release.ID,
+		Type:        "build",
+		Title:       "Build evidence",
+		PayloadHash: sampleDigest("build"),
+		SubjectRefs: []domain.SubjectRef{{Type: "artifact", ID: artifact.ID}},
+	})
+	if err != nil {
+		t.Fatalf("create evidence: %v", err)
+	}
+	if _, err := ledger.RecordEvidenceLifecycleEvent(ctx, actor, item.ID, RecordEvidenceLifecycleInput{Action: lifecycleAmendment, Reason: "corrected metadata"}); err != nil {
+		t.Fatalf("record lifecycle: %v", err)
+	}
+	if store.saveCalls != 0 || store.releaseCalls != 3 {
+		t.Fatalf("artifact/evidence save=%d release=%d mutations=%#v", store.saveCalls, store.releaseCalls, store.releases)
+	}
+	last := store.releases[len(store.releases)-1]
+	if len(last.Evidence) == 0 || len(last.EvidenceLifecycle) == 0 || len(last.AuditChainEntries) == 0 {
+		t.Fatalf("evidence lifecycle mutation incomplete: %#v", last)
+	}
+}
+
+func TestReleaseLedgerMutationStoreCoversParserMetadataAndOutbox(t *testing.T) {
+	ctx := context.Background()
+	store := &focusedStoreSpy{}
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store, WorkerOwnedParserSideEffects: true})
+	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
+
+	store.reset()
+	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.5","components":[{"name":"lib","version":"1.0.0"}]}`)); err != nil {
+		t.Fatalf("upload sbom: %v", err)
+	}
+	if store.saveCalls != 0 || store.releaseCalls == 0 || !releaseMutationsContainSBOMAndOutbox(store.releases, "parse_sbom") {
+		t.Fatalf("sbom release mutations save=%d release=%d mutations=%#v", store.saveCalls, store.releaseCalls, store.releases)
+	}
+
+	store.reset()
+	if _, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{"scanner":"generic","target_ref":"api","release_id":"`+release.ID+`","findings":[{"vulnerability":"CVE-0000-0001","component":"lib","severity":"critical"}]}`)); err != nil {
+		t.Fatalf("upload scan: %v", err)
+	}
+	if store.saveCalls != 0 || store.releaseCalls == 0 || !releaseMutationsContainScanAndOutbox(store.releases, "parse_vulnerability_scan") {
+		t.Fatalf("scan release mutations save=%d release=%d mutations=%#v", store.saveCalls, store.releaseCalls, store.releases)
+	}
+
+	store.reset()
+	rawOpenAPI := []byte(`{"openapi":"3.1.0","info":{"title":"API","version":"1.0.0"},"paths":{"/health":{"get":{"responses":{"200":{"description":"ok"}}}}}}`)
+	if _, err := ledger.UploadOpenAPIContract(ctx, actor, release.ProductID, release.ID, "1.0.0", rawOpenAPI); err != nil {
+		t.Fatalf("upload openapi: %v", err)
+	}
+	if store.saveCalls != 0 || store.releaseCalls == 0 || !releaseMutationsContainContractAndOutbox(store.releases, "parse_openapi_contract") {
+		t.Fatalf("openapi release mutations save=%d release=%d mutations=%#v", store.saveCalls, store.releaseCalls, store.releases)
+	}
+
+	store.reset()
+	rawVEX := []byte(`{"@context":"https://openvex.dev/ns/v0.2.0","@id":"https://example.test/vex","author":"security","timestamp":"2026-01-01T00:00:00Z","statements":[{"vulnerability":{"name":"CVE-0000-0001"},"products":[{"@id":"lib"}],"status":"not_affected","justification":"component_not_present","impact_statement":"not shipped"}]}`)
+	if _, err := ledger.UploadVEX(ctx, actor, release.ID, artifact.ID, rawVEX); err != nil {
+		t.Fatalf("upload vex: %v", err)
+	}
+	if store.saveCalls != 0 || store.releaseCalls == 0 || !releaseMutationsContainVEXAndOutbox(store.releases, "parse_vex") {
+		t.Fatalf("vex release mutations save=%d release=%d mutations=%#v", store.saveCalls, store.releaseCalls, store.releases)
+	}
+}
+
 func TestCriticalMutationFallsBackToAggregateSave(t *testing.T) {
 	ctx := context.Background()
 	store := &focusedFallbackStore{}
@@ -186,6 +311,72 @@ func TestCriticalMutationFallsBackToAggregateSave(t *testing.T) {
 	if store.saveCalls != 1 {
 		t.Fatalf("fallback save calls = %d", store.saveCalls)
 	}
+}
+
+func TestReleaseLedgerMutationFallsBackToAggregateSave(t *testing.T) {
+	ctx := context.Background()
+	store := &focusedFallbackStore{}
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
+	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	actor, err := ledger.Authenticate(ctx, secret)
+	if err != nil {
+		t.Fatalf("authenticate: %v", err)
+	}
+	store.saveCalls = 0
+	if _, err := ledger.CreateProduct(ctx, actor, "Payments API", "payments-fallback"); err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	if store.saveCalls != 1 {
+		t.Fatalf("release fallback save calls = %d", store.saveCalls)
+	}
+}
+
+func releaseMutationsContainSBOMAndOutbox(mutations []ReleaseLedgerMutation, kind string) bool {
+	for _, mutation := range mutations {
+		if len(mutation.SBOMs) > 0 && releaseMutationHasOutbox(mutation, kind) {
+			return true
+		}
+	}
+	return false
+}
+
+func releaseMutationsContainScanAndOutbox(mutations []ReleaseLedgerMutation, kind string) bool {
+	for _, mutation := range mutations {
+		if len(mutation.Scans) > 0 && releaseMutationHasOutbox(mutation, kind) {
+			return true
+		}
+	}
+	return false
+}
+
+func releaseMutationsContainContractAndOutbox(mutations []ReleaseLedgerMutation, kind string) bool {
+	for _, mutation := range mutations {
+		if len(mutation.Contracts) > 0 && releaseMutationHasOutbox(mutation, kind) {
+			return true
+		}
+	}
+	return false
+}
+
+func releaseMutationsContainVEXAndOutbox(mutations []ReleaseLedgerMutation, kind string) bool {
+	for _, mutation := range mutations {
+		if len(mutation.VEXDocuments) > 0 && releaseMutationHasOutbox(mutation, kind) {
+			return true
+		}
+	}
+	return false
+}
+
+func releaseMutationHasOutbox(mutation ReleaseLedgerMutation, kind string) bool {
+	for _, job := range mutation.OutboxJobs {
+		if job.Kind == kind {
+			return true
+		}
+	}
+	return false
 }
 
 type focusedFallbackStore struct {
