@@ -100,8 +100,8 @@ meta-check: ## Validate root legal, governance, support, and release-evidence me
 	@grep -F 'ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a' .github/workflows/scorecard.yml >/dev/null
 	@grep -F 'OpenSSF Scorecard SARIF' .github/workflows/scorecard-sarif.yml >/dev/null
 	@grep -F 'ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a' .github/workflows/scorecard-sarif.yml >/dev/null
-	@grep -F 'github/codeql-action/upload-sarif@03e4368ac7daa2bd82b3e85262f3bf87ee112f57' .github/workflows/scorecard-sarif.yml >/dev/null
-	@grep -F 'github/codeql-action/analyze@03e4368ac7daa2bd82b3e85262f3bf87ee112f57' .github/workflows/codeql.yml >/dev/null
+	@grep -F 'github/codeql-action/upload-sarif@7211b7c8077ea37d8641b6271f6a365a22a5fbfa' .github/workflows/scorecard-sarif.yml >/dev/null
+	@grep -F 'github/codeql-action/analyze@7211b7c8077ea37d8641b6271f6a365a22a5fbfa' .github/workflows/codeql.yml >/dev/null
 	@grep -F 'actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd' .github/workflows/ci.yml >/dev/null
 	@grep -F 'actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c' .github/workflows/ci.yml >/dev/null
 	@grep -F 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' .github/workflows/ci.yml >/dev/null
@@ -239,7 +239,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@grep -F 'ghcr.io/aatuh/evydence' deploy/airgap/manifest.yaml >/dev/null
 	@grep -F 'sha256:de5627ec300cb603c3f1dc21029bffc096d43399114888cd5c194e00f1285603' docs/reference/release-evidence-index.md docs/kubernetes.md deploy/airgap/manifest.yaml >/dev/null
 	@grep -F 'cosign verify' docs/reference/release-evidence-index.md >/dev/null
-	@grep -F 'github/codeql-action/init@03e4368ac7daa2bd82b3e85262f3bf87ee112f57' .github/workflows/codeql.yml >/dev/null
+	@grep -F 'github/codeql-action/init@7211b7c8077ea37d8641b6271f6a365a22a5fbfa' .github/workflows/codeql.yml >/dev/null
 	@grep -F 'security-and-quality' .github/workflows/codeql.yml >/dev/null
 	@grep -F 'Controlled self-hosted production candidate' docs/reference/release-candidate.md >/dev/null
 	@grep -F 'Release evidence index' docs/reference/release-candidate.md >/dev/null
