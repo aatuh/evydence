@@ -48,6 +48,7 @@ This documentation is organized by reader task. Implementation claims should be 
 
 - [GitHub Actions release evidence workflow](github-actions/release-evidence-workflow.yml)
 - [GitHub Actions upload-build composite action](github-actions/upload-build/action.yml)
+- [GitHub release evidence manifest generator](../scripts/github_release_evidence_manifest.py)
 - [GitLab release evidence CI template](gitlab/evydence-release-evidence.gitlab-ci.yml)
 
 These examples require tenant-scoped API or collector secrets created through the API. They capture CI metadata as submitted evidence; provider-side truth still depends on the CI provider, workflow controls, and any verification receipts recorded separately.

@@ -35,3 +35,54 @@ jobs:
             --release-id "$EVYDENCE_RELEASE_ID" \
             --artifact-id "$EVYDENCE_ARTIFACT_ID" \
             --artifact-digest "$EVYDENCE_ARTIFACT_DIGEST"
+      - name: Generate SBOM and scanner evidence
+        run: |
+          set -euo pipefail
+          # Install or provide reviewed, pinned scanner versions in your runner image.
+          # These commands produce files consumed by scripts/github_release_evidence_manifest.py.
+          syft dir:. -o cyclonedx-json=sbom.cdx.json
+          grype dir:. -o json > grype.json
+          trivy fs --format json --output trivy.json .
+      - name: Build Evydence upload manifest
+        env:
+          EVYDENCE_RELEASE_ID: ${{ vars.EVYDENCE_RELEASE_ID }}
+          EVYDENCE_ARTIFACT_ID: ${{ vars.EVYDENCE_ARTIFACT_ID }}
+          EVYDENCE_PRODUCT_ID: ${{ vars.EVYDENCE_PRODUCT_ID }}
+          EVYDENCE_REDACTION_PROFILE_ID: ${{ vars.EVYDENCE_REDACTION_PROFILE_ID }}
+        run: |
+          set -euo pipefail
+          python3 scripts/github_release_evidence_manifest.py \
+            --out .evydence/upload-manifest.json \
+            --release-id "$EVYDENCE_RELEASE_ID" \
+            --artifact-id "$EVYDENCE_ARTIFACT_ID" \
+            --target-ref "pkg:github/${GITHUB_REPOSITORY}@${GITHUB_SHA}" \
+            --idempotency-prefix "gha-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --cyclonedx-sbom sbom.cdx.json \
+            --grype-json grype.json \
+            --trivy-json trivy.json \
+            --include-release-bundle
+          if [ -n "${EVYDENCE_PRODUCT_ID:-}" ] && [ -n "${EVYDENCE_REDACTION_PROFILE_ID:-}" ]; then
+            python3 scripts/github_release_evidence_manifest.py \
+              --out .evydence/upload-manifest.json \
+              --release-id "$EVYDENCE_RELEASE_ID" \
+              --artifact-id "$EVYDENCE_ARTIFACT_ID" \
+              --target-ref "pkg:github/${GITHUB_REPOSITORY}@${GITHUB_SHA}" \
+              --idempotency-prefix "gha-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+              --cyclonedx-sbom sbom.cdx.json \
+              --grype-json grype.json \
+              --trivy-json trivy.json \
+              --include-release-bundle \
+              --customer-package-product-id "$EVYDENCE_PRODUCT_ID" \
+              --customer-package-redaction-profile-id "$EVYDENCE_REDACTION_PROFILE_ID" \
+              --customer-package-title "Release evidence ${GITHUB_SHA}" \
+              --customer-package-expires-at "$(date -u -d '+30 days' +%Y-%m-%dT%H:%M:%SZ)"
+          fi
+      - name: Upload SBOM, scanner, bundle, and package evidence
+        env:
+          EVYDENCE_API_URL: ${{ secrets.EVYDENCE_API_URL }}
+          EVYDENCE_API_KEY: ${{ secrets.EVYDENCE_API_KEY }}
+        run: |
+          dist/evydence upload manifest \
+            --url "$EVYDENCE_API_URL" \
+            --api-key "$EVYDENCE_API_KEY" \
+            --manifest .evydence/upload-manifest.json
