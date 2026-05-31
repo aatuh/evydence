@@ -236,6 +236,10 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@grep -F 'One-Sentence Pitch' docs/commercial/product-landing-copy.md >/dev/null
 	@grep -F 'Why Self-Hosted' docs/commercial/product-landing-copy.md >/dev/null
 	@grep -F 'Pilot CTA' docs/commercial/product-landing-copy.md >/dev/null
+	@test -f docs/commercial/category-comparison.md
+	@grep -F 'Vulnerability scanners' docs/commercial/category-comparison.md >/dev/null
+	@grep -F 'SBOM inventory tools' docs/commercial/category-comparison.md >/dev/null
+	@grep -F 'Trust centers' docs/commercial/category-comparison.md >/dev/null
 	@grep -F 'release upload-evidence' docs/how-to/integrate-ci.md >/dev/null
 	@grep -F -- '--dry-run' docs/how-to/integrate-ci.md >/dev/null
 	@grep -F 'upload validate-manifest' docs/how-to/integrate-ci.md >/dev/null
