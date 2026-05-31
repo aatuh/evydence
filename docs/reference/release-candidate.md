@@ -63,11 +63,17 @@ production, and hosted SaaS production require additional review and controls.
 
 ## Public Publication
 
-Before the first public release candidate is published, source checkout remains
-the development and evaluation path. Public release readiness requires a pushed
-tag, a completed release-artifacts workflow run, uploaded release archives,
-checksums, signed manifest files, release notes, and any configured repository
-or registry trust settings.
+The first public release candidate,
+[`v0.1.0-rc.4`](https://github.com/aatuh/evydence/releases/tag/v0.1.0-rc.4),
+is published as a prerelease. Public release readiness requires a pushed tag, a
+completed release-artifacts workflow run, uploaded release archives, checksums,
+signed manifest files, release notes, and any configured repository or registry
+trust settings.
+
+The current release line publishes release archives and release evidence only.
+No project-owned public container image is part of `v0.1.0-rc.4`; operators
+must build and publish images into their own registry when using Helm or
+air-gapped deployment flows.
 
 ## Deployment Constraints
 

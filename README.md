@@ -29,9 +29,9 @@ security.
   evaluation, pilots, and controlled internal production after operator review.
 - Production API deployments use one API writer replica; workers may scale
   through PostgreSQL outbox locking.
-- Public release publication, branch protection, private vulnerability
-  reporting settings, and public CI status are GitHub/operator controls, not
-  guarantees made by repository files alone.
+- The current public release candidate publishes signed release archives and
+  release evidence, but no project-published container image is part of this
+  release line yet.
 - Native PKCS#11/HSM module handling, broad WORM/object-lock proof, direct
   provider-specific management API clients, external group synchronization,
   regulated production, and hosted SaaS production remain outside the current
@@ -40,14 +40,15 @@ security.
 ## Current Implementation
 
 This repository contains a Go implementation under module
-`github.com/aatuh/evydence`. A local signed `v0.1.0-rc.3` evidence package has
-been generated from this checkout; public release publication remains a
-separate operator action.
+`github.com/aatuh/evydence`. The current public release candidate is
+[`v0.1.0-rc.4`](https://github.com/aatuh/evydence/releases/tag/v0.1.0-rc.4),
+published as a prerelease with signed archives, checksums, OpenAPI and
+migration checksums, coverage output, production-check summary, SBOM/provenance
+metadata, release notes, and a signed release manifest.
 
-Until a public release candidate is published, source checkout is the
-development and evaluation path. After the first public release candidate is
-available, GitHub Releases and the checked release evidence artifacts should be
-the operator install source.
+Use GitHub Releases and the checked release evidence artifacts as the operator
+install source for the release-candidate line. Source checkout remains the
+development path.
 
 ## Fastest Proof Path
 
@@ -62,9 +63,9 @@ verification fixtures in that example or load the bundled package in the
 [local package viewer](docs/how-to/view-packages.md).
 
 Release-candidate artifacts and their verification commands are indexed in
-[Release evidence index](docs/reference/release-evidence-index.md). Before a
-public release exists, that index describes the evidence contract rather than a
-published install guarantee.
+[Release evidence index](docs/reference/release-evidence-index.md). Start with
+the public `v0.1.0-rc.4` release if you want to evaluate release verification
+before running the API.
 
 The end-to-end evidence flow to evaluate first is:
 

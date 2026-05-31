@@ -22,6 +22,10 @@ SaaS-ready, legally compliant, certified, or secure-release-guaranteed.
 - Release-candidate packaging generates checksums, OpenAPI checksum, migration
   checksum, release SBOM metadata, release provenance metadata, release notes,
   signed manifest, and manifest signature.
+- Public prerelease `v0.1.0-rc.4` is published with signed release archives,
+  checksums, OpenAPI and migration checksums, coverage output,
+  production-check summary, SBOM/provenance metadata, release notes, and signed
+  release manifest.
 - PostgreSQL relational-only production loading and focused critical plus
   release-ledger write paths are implemented for the current candidate profile.
 - Security, support, governance, contribution, code of conduct, issue
@@ -31,10 +35,9 @@ SaaS-ready, legally compliant, certified, or secure-release-guaranteed.
 
 ## Remaining Exit Blockers
 
-- Public release publication and branch protection require GitHub/operator
-  settings outside repository files.
-- CODEOWNERS is documented but does not become an enforced merge gate until
-  branch protection or repository rules require it.
+- Public container images are not published for `v0.1.0-rc.4`; operators who
+  use Helm or air-gapped workflows must build, sign, publish, and record their
+  own image digests.
 - Native PKCS#11/HSM module custody requires operator hardware, drivers, and
   provider-specific validation.
 - Broad WORM/object-lock proof requires object-store policy, IAM, lifecycle,

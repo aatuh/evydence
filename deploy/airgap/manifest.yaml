@@ -2,7 +2,7 @@ schema_version: evydence-airgap-package.v1.0.0
 images:
   - name: evydence
     repository: ghcr.io/aatuh/evydence
-    tag: dev
+    tag: operator-built-v0.1.0-rc.4
     required: true
 bundled_paths:
   - migrations/
@@ -13,4 +13,4 @@ verification:
   checksums: SHA256SUMS
   signature: SHA256SUMS.sig.json
 limitations:
-  - The air-gapped package manifest describes required artifacts; operators must build, sign, and transfer actual images and archives through their controlled process.
+  - The v0.1.0-rc.4 public release publishes release archives and release evidence, but no project-owned public container image. Operators must build, sign, and transfer actual images and archives through their controlled process.

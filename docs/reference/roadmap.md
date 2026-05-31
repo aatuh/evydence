@@ -14,12 +14,13 @@ is not part of the current supported profile.
 
 ## Near-Term Focus
 
-- publish a public signed release candidate with checksums, release notes,
-  OpenAPI checksum, migration checksum, coverage output, production-check
-  summary, SBOM/provenance metadata, and a signed release manifest;
-- enable public GitHub trust controls such as required checks, branch
-  protection or repository rules, vulnerability alerts, Dependabot security
-  updates, and private vulnerability reporting;
+- keep the public signed release-candidate line current with checksums, release
+  notes, OpenAPI checksum, migration checksum, coverage output,
+  production-check summary, SBOM/provenance metadata, and a signed release
+  manifest;
+- keep public GitHub trust controls active, including required checks, branch
+  protection, vulnerability alerts, Dependabot security updates, and private
+  vulnerability reporting;
 - keep the first evaluation path tied to release artifacts, the end-to-end
   release evidence example, the package viewer, and the release evidence index;
 - continue reducing large service surfaces while preserving tenant isolation,

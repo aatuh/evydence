@@ -2,12 +2,13 @@
 
 Use this guide for a local self-hosted development or evaluation deployment.
 
-Until a public release candidate is published, use a source checkout for local
-evaluation. After a public release exists, install from the release archive and
-verify `SHA256SUMS`, `openapi.sha256`, `migrations.sha256`, and the signed
-release manifest before starting the API or worker. See
-[Release evidence index](../reference/release-evidence-index.md) for the
-artifact map and verification commands.
+For operator evaluation, start from the current public release candidate
+[`v0.1.0-rc.4`](https://github.com/aatuh/evydence/releases/tag/v0.1.0-rc.4).
+Download the release archive for your platform, then verify `SHA256SUMS`,
+`openapi.sha256`, `migrations.sha256`, and the signed release manifest before
+starting the API or worker. Source checkout remains the local development path.
+See [Release evidence index](../reference/release-evidence-index.md) for the
+artifact map and exact verification commands.
 
 ## Runtime Modes
 
@@ -18,6 +19,32 @@ artifact map and verification commands.
 | Production checks | Set `ENV=production`. | Rejects unsafe local defaults before API startup. |
 
 Configuration details live in [Configuration](../reference/configuration.md).
+
+## Install From The Public Release Candidate
+
+For a release-backed evaluation on Linux amd64:
+
+```sh
+mkdir -p dist/v0.1.0-rc.4
+gh release download v0.1.0-rc.4 --repo aatuh/evydence --dir dist/v0.1.0-rc.4
+(cd dist/v0.1.0-rc.4 && sha256sum -c SHA256SUMS)
+(cd dist/v0.1.0-rc.4 && sha256sum -c openapi.sha256)
+sha256sum -c dist/v0.1.0-rc.4/migrations.sha256
+tar -C dist/v0.1.0-rc.4 -xzf dist/v0.1.0-rc.4/evydence_v0.1.0-rc.4_linux_amd64.tar.gz
+./dist/v0.1.0-rc.4/evydence_v0.1.0-rc.4_linux_amd64/evydence release verify \
+  --manifest dist/v0.1.0-rc.4/evydence-release-manifest.json \
+  --signature dist/v0.1.0-rc.4/evydence-release-manifest.sig.json
+```
+
+Expected result: checksum verification exits successfully, manifest signature
+verification prints `release manifest verified`, and the extracted directory
+contains `evydence`, `evydence-api`, `evydence-worker`, and
+`evydence-migrate`.
+
+To run a release-binary local demo instead of `go run`, use the extracted
+`evydence-api` and `evydence-worker` binaries with the same environment
+variables shown below. The in-process tutorial is still local-only; for durable
+evaluation set `EVYDENCE_DATABASE_URL` and run migrations first.
 
 ## Start Local Dependencies
 
