@@ -1,23 +1,187 @@
 {
-  "data": {
-    "id": "pkg_example",
-    "release_id": "rel_example",
-    "scope": "customer_review",
-    "expires_at": "2026-06-30T00:00:00Z",
-    "manifest_hash": "sha256:example",
-    "included_subjects": [
-      "release_bundle",
-      "readiness_report",
-      "sbom_summary",
-      "vulnerability_decisions"
-    ],
-    "redactions": [
-      "raw evidence payload bytes are excluded",
-      "secrets and private keys are excluded"
+  "schema_version": "customer-security-package.v2.0.0",
+  "package_version": "customer-security-package.v2.0.0",
+  "package_id": "csp_example",
+  "id": "csp_example",
+  "title": "Example customer review package",
+  "generated_at": "2026-05-27T12:00:00Z",
+  "tenant": {
+    "id": "ten_example",
+    "name": "Example Tenant"
+  },
+  "organization": {
+    "records": [
+      {
+        "id": "org_example",
+        "name": "Example Org",
+        "slug": "example-org",
+        "status": "active",
+        "created": "2026-05-27T12:00:00Z"
+      }
     ],
     "limitations": [
-      "Customer package supports technical evidence review only.",
-      "It is not legal compliance proof, certification, or a secure-release guarantee."
+      "Organization records are included only as tenant metadata; product-to-organization ownership is not inferred by this package schema."
     ]
-  }
+  },
+  "product": {
+    "id": "prod_example",
+    "name": "Payments API",
+    "slug": "payments-api",
+    "created_at": "2026-05-27T12:00:00Z"
+  },
+  "product_id": "prod_example",
+  "release": {
+    "id": "rel_example",
+    "product_id": "prod_example",
+    "version": "1.0.0",
+    "state": "approved",
+    "created_at": "2026-05-27T12:00:00Z"
+  },
+  "release_id": "rel_example",
+  "redaction_profile_id": "rp_example",
+  "redaction_profile": {
+    "id": "rp_example",
+    "name": "customer review",
+    "allowed_types": [
+      "artifact",
+      "sbom",
+      "vulnerability_scan",
+      "vex",
+      "vulnerability_decision",
+      "release_bundle"
+    ],
+    "excluded_fields": [
+      "internal_notes"
+    ],
+    "schema_version": "redaction-profile.v1.0.0"
+  },
+  "evidence_ids": [
+    "ev_sbom",
+    "ev_scan",
+    "ev_vex"
+  ],
+  "artifact_digests": [
+    {
+      "id": "art_example",
+      "name": "payments-api.tar.gz",
+      "media_type": "application/gzip",
+      "size": 123,
+      "digest": "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",
+      "created_at": "2026-05-27T12:00:00Z"
+    }
+  ],
+  "sboms": [
+    {
+      "id": "sbom_example",
+      "evidence_id": "ev_sbom",
+      "release_id": "rel_example",
+      "artifact_id": "art_example",
+      "format": "cyclonedx",
+      "spec_version": "1.6",
+      "component_count": 42,
+      "created_at": "2026-05-27T12:00:00Z"
+    }
+  ],
+  "vulnerability_scans": [
+    {
+      "id": "scan_example",
+      "evidence_id": "ev_scan",
+      "release_id": "rel_example",
+      "scanner": "example-scanner",
+      "target_ref": "pkg:oci/payments-api",
+      "summary": {
+        "critical": 0,
+        "high": 1
+      },
+      "finding_count": 1,
+      "created_at": "2026-05-27T12:00:00Z"
+    }
+  ],
+  "vex_documents": [
+    {
+      "id": "vex_example",
+      "evidence_id": "ev_vex",
+      "release_id": "rel_example",
+      "artifact_id": "art_example",
+      "format": "openvex",
+      "author": "security@example.test",
+      "statement_count": 1,
+      "status_summary": {
+        "fixed": 1
+      },
+      "schema_version": "vex-document.v1.0.0",
+      "created_at": "2026-05-27T12:00:00Z"
+    }
+  ],
+  "vulnerability_decisions": [
+    {
+      "id": "vd_example",
+      "finding_id": "finding_example",
+      "scan_id": "scan_example",
+      "release_id": "rel_example",
+      "vulnerability": "CVE-2026-0002",
+      "component": "pkg:apk/openssl@3.1.0",
+      "status": "fixed",
+      "justification": "fixed_in_release",
+      "impact_statement": "The finding is fixed in this release artifact.",
+      "action_statement": "Upgrade to this release after normal operator review.",
+      "source": "vex",
+      "evidence_id": "ev_vex",
+      "vex_document_id": "vex_example",
+      "created_at": "2026-05-27T12:00:00Z"
+    }
+  ],
+  "readiness_summary": {
+    "result": "passed",
+    "checks": [
+      {
+        "name": "release_requires_sbom",
+        "result": "passed",
+        "severity": "high",
+        "missing": [],
+        "explanation": "sbom evidence exists"
+      }
+    ],
+    "gaps": [],
+    "limitations": [
+      "Readiness is derived from recorded package-scope evidence only.",
+      "Readiness output is not a compliance, certification, or secure-release conclusion."
+    ]
+  },
+  "verification_material": {
+    "hash_algorithm": "sha256",
+    "canonicalization": "canonicalization-profile.v1.0.0",
+    "manifest_hash_field": "manifest_hash",
+    "release_bundles": [
+      {
+        "id": "rb_example",
+        "state": "generated",
+        "manifest_hash": "sha256:example",
+        "signature_refs": [
+          "sig_example"
+        ],
+        "created_at": "2026-05-27T12:00:00Z"
+      }
+    ],
+    "audit_chain": {
+      "result": "passed",
+      "latest_sequence": 12,
+      "head_hash": "sha256:example",
+      "checks": [
+        {
+          "name": "audit_chain",
+          "result": "passed"
+        }
+      ]
+    }
+  },
+  "limitations": [
+    "Package contents are scoped by product, release, redaction profile, and package expiry.",
+    "Raw tenant evidence payload bytes, object-store payload references, bearer tokens, private keys, API key hashes, SSO/session token hashes, and internal decision notes are not included.",
+    "Package data reflects records present in this Evydence instance at generation time."
+  ],
+  "non_claims": [
+    "This package supports technical evidence review and compliance readiness only.",
+    "It is not legal compliance proof, certification, complete SBOM proof, an authoritative vulnerability result, regulator acceptance, or a secure-release guarantee."
+  ]
 }

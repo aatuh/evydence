@@ -257,29 +257,573 @@ func (s packageReportService) CreateCustomerSecurityPackage(ctx context.Context,
 		return domain.CustomerSecurityPackage{}, ErrNotFound
 	}
 	evidenceIDs := l.packageEvidenceIDsLocked(actor.TenantID, in.ProductID, in.ReleaseID, profile)
-	manifest := map[string]any{
-		"package_version":      domain.CustomerPackageSchemaVersion,
-		"title":                in.Title,
-		"product_id":           in.ProductID,
-		"release_id":           in.ReleaseID,
-		"redaction_profile_id": profile.ID,
-		"evidence_ids":         evidenceIDs,
-		"limitations":          []string{"Package contents are scoped and redacted; raw evidence payload bytes are not included in this manifest."},
-	}
-	if decisions := l.packageDecisionSummariesLocked(actor.TenantID, in.ReleaseID, profile); len(decisions) > 0 {
-		manifest["vulnerability_decisions"] = decisions
-	}
+	packageID := newID("csp")
+	generatedAt := l.now()
+	manifest := l.customerPackageManifestLocked(packageID, generatedAt, actor.TenantID, in.Title, in.ProductID, in.ReleaseID, profile, evidenceIDs)
 	hash, err := canonicalAnyHash(manifest)
 	if err != nil {
 		return domain.CustomerSecurityPackage{}, err
 	}
-	pkg := domain.CustomerSecurityPackage{ID: newID("csp"), TenantID: actor.TenantID, ProductID: in.ProductID, ReleaseID: in.ReleaseID, RedactionProfileID: profile.ID, Title: in.Title, State: "generated", Manifest: manifest, ManifestHash: hash, ExpiresAt: in.ExpiresAt.UTC(), SchemaVersion: domain.CustomerPackageSchemaVersion, CreatedAt: l.now()}
+	pkg := domain.CustomerSecurityPackage{ID: packageID, TenantID: actor.TenantID, ProductID: in.ProductID, ReleaseID: in.ReleaseID, RedactionProfileID: profile.ID, Title: in.Title, State: "generated", Manifest: manifest, ManifestHash: hash, ExpiresAt: in.ExpiresAt.UTC(), SchemaVersion: domain.CustomerPackageSchemaVersion, CreatedAt: generatedAt}
 	l.customerPackages[pkg.ID] = pkg
 	_, _ = l.appendChainLocked(actor.TenantID, "customer_package.generated", "customer_security_package", pkg.ID, "api_key", actor.KeyID, hash, "")
 	if err := l.persistLocked(ctx); err != nil {
 		return domain.CustomerSecurityPackage{}, err
 	}
 	return pkg, nil
+}
+
+func (l *Ledger) customerPackageManifestLocked(packageID string, generatedAt time.Time, tenantID, title, productID, releaseID string, profile domain.RedactionProfile, evidenceIDs []string) map[string]any {
+	product := l.products[productID]
+	var release domain.Release
+	if releaseID != "" {
+		release = l.releases[releaseID]
+	}
+	checks := l.packageReadinessChecksLocked(tenantID, releaseID)
+	gaps := []string{}
+	readinessResult := "not_applicable"
+	if releaseID != "" {
+		readinessResult = "passed"
+		for _, check := range checks {
+			gaps = append(gaps, check.Missing...)
+			if check.Result == "failed" {
+				readinessResult = "failed"
+			}
+		}
+		sort.Strings(gaps)
+	}
+	manifest := map[string]any{
+		"schema_version":        domain.CustomerPackageSchemaVersion,
+		"package_version":       domain.CustomerPackageSchemaVersion,
+		"package_id":            packageID,
+		"id":                    packageID,
+		"title":                 title,
+		"generated_at":          generatedAt.UTC().Format(time.RFC3339Nano),
+		"tenant":                l.packageTenantMetadataLocked(tenantID),
+		"organization":          l.packageOrganizationMetadataLocked(tenantID),
+		"product":               packageProductMetadata(product),
+		"product_id":            productID,
+		"release":               packageReleaseMetadata(release),
+		"release_id":            releaseID,
+		"redaction_profile_id":  profile.ID,
+		"redaction_profile":     packageRedactionProfileMetadata(profile),
+		"evidence_ids":          append([]string(nil), evidenceIDs...),
+		"artifact_digests":      l.packageArtifactMetadataLocked(tenantID, releaseID),
+		"readiness_summary":     packageReadinessSummary(readinessResult, checks, gaps),
+		"verification_material": l.packageVerificationMaterialLocked(tenantID, releaseID),
+		"limitations": []string{
+			"Package contents are scoped by product, release, redaction profile, and package expiry.",
+			"Raw tenant evidence payload bytes, object-store payload references, bearer tokens, private keys, API key hashes, SSO/session token hashes, and internal decision notes are not included.",
+			"Package data reflects records present in this Evydence instance at generation time.",
+		},
+		"non_claims": []string{
+			"This package supports technical evidence review and compliance readiness only.",
+			"It is not legal compliance proof, certification, complete SBOM proof, an authoritative vulnerability result, regulator acceptance, or a secure-release guarantee.",
+		},
+	}
+	if profileAllowsPackageType(profile, "sbom") {
+		manifest["sboms"] = l.packageSBOMMetadataLocked(tenantID, releaseID)
+	}
+	if profileAllowsPackageType(profile, "vulnerability_scan") {
+		manifest["vulnerability_scans"] = l.packageVulnerabilityScanMetadataLocked(tenantID, releaseID)
+	}
+	if profileAllowsPackageType(profile, "vex") {
+		manifest["vex_documents"] = l.packageVEXMetadataLocked(tenantID, releaseID)
+	}
+	if decisions := l.packageDecisionSummariesLocked(tenantID, releaseID, profile); len(decisions) > 0 {
+		manifest["vulnerability_decisions"] = decisions
+	}
+	if profileAllowsPackageType(profile, "approval") {
+		manifest["approvals"] = l.packageApprovalSummariesLocked(tenantID, productID, releaseID)
+	}
+	if profileAllowsPackageType(profile, "exception") {
+		manifest["exceptions"] = l.packageExceptionSummariesLocked(tenantID, releaseID)
+	}
+	if profileAllowsPackageType(profile, "waiver") {
+		manifest["waivers"] = l.packageWaiverSummariesLocked(tenantID, productID, releaseID)
+	}
+	if profileAllowsPackageType(profile, "build") || profileAllowsPackageType(profile, "build_attestation") {
+		manifest["provenance"] = l.packageProvenanceMetadataLocked(tenantID, releaseID, profile)
+	}
+	return manifest
+}
+
+func (l *Ledger) packageTenantMetadataLocked(tenantID string) map[string]any {
+	tenant := l.tenants[tenantID]
+	return map[string]any{"id": tenant.ID, "name": tenant.Name}
+}
+
+func (l *Ledger) packageOrganizationMetadataLocked(tenantID string) map[string]any {
+	organizations := []map[string]any{}
+	for _, organization := range l.organizations {
+		if organization.TenantID != tenantID {
+			continue
+		}
+		organizations = append(organizations, map[string]any{
+			"id":      organization.ID,
+			"name":    organization.Name,
+			"slug":    organization.Slug,
+			"status":  organization.Status,
+			"created": organization.CreatedAt.UTC().Format(time.RFC3339),
+		})
+	}
+	sort.Slice(organizations, func(i, j int) bool { return organizations[i]["id"].(string) < organizations[j]["id"].(string) })
+	return map[string]any{
+		"records": organizations,
+		"limitations": []string{
+			"Organization records are included only as tenant metadata; product-to-organization ownership is not inferred by this package schema.",
+		},
+	}
+}
+
+func packageProductMetadata(product domain.Product) map[string]any {
+	if product.ID == "" {
+		return map[string]any{}
+	}
+	return map[string]any{
+		"id":         product.ID,
+		"name":       product.Name,
+		"slug":       product.Slug,
+		"created_at": product.CreatedAt.UTC().Format(time.RFC3339),
+	}
+}
+
+func packageReleaseMetadata(release domain.Release) map[string]any {
+	if release.ID == "" {
+		return map[string]any{}
+	}
+	out := map[string]any{
+		"id":         release.ID,
+		"product_id": release.ProductID,
+		"version":    release.Version,
+		"state":      release.State,
+		"created_at": release.CreatedAt.UTC().Format(time.RFC3339),
+	}
+	if release.FrozenAt != nil {
+		out["frozen_at"] = release.FrozenAt.UTC().Format(time.RFC3339)
+	}
+	if release.ApprovedAt != nil {
+		out["approved_at"] = release.ApprovedAt.UTC().Format(time.RFC3339)
+	}
+	return out
+}
+
+func packageRedactionProfileMetadata(profile domain.RedactionProfile) map[string]any {
+	return map[string]any{
+		"id":              profile.ID,
+		"name":            profile.Name,
+		"description":     profile.Description,
+		"allowed_types":   append([]string(nil), profile.AllowedTypes...),
+		"excluded_fields": append([]string(nil), profile.ExcludedFields...),
+		"schema_version":  profile.SchemaVersion,
+	}
+}
+
+func (l *Ledger) packageArtifactMetadataLocked(tenantID, releaseID string) []map[string]any {
+	ids := l.packageReleaseArtifactIDsLocked(tenantID, releaseID)
+	out := []map[string]any{}
+	for _, id := range ids {
+		artifact := l.artifacts[id]
+		out = append(out, map[string]any{
+			"id":         artifact.ID,
+			"name":       artifact.Name,
+			"media_type": artifact.MediaType,
+			"size":       artifact.Size,
+			"digest":     artifact.Digest,
+			"created_at": artifact.CreatedAt.UTC().Format(time.RFC3339),
+		})
+	}
+	return out
+}
+
+func (l *Ledger) packageReleaseArtifactIDsLocked(tenantID, releaseID string) []string {
+	ids := map[string]bool{}
+	if releaseID == "" {
+		return nil
+	}
+	for _, item := range l.evidence {
+		if item.TenantID != tenantID || item.ReleaseID != releaseID {
+			continue
+		}
+		for _, ref := range item.SubjectRefs {
+			if ref.Type == "artifact" && ref.ID != "" {
+				ids[ref.ID] = true
+			}
+		}
+	}
+	for _, sbom := range l.sboms {
+		if sbom.TenantID == tenantID && sbom.ReleaseID == releaseID && sbom.ArtifactID != "" {
+			ids[sbom.ArtifactID] = true
+		}
+	}
+	for _, vex := range l.vexDocuments {
+		if vex.TenantID == tenantID && vex.ReleaseID == releaseID && vex.ArtifactID != "" {
+			ids[vex.ArtifactID] = true
+		}
+	}
+	for _, build := range l.buildRuns {
+		if build.TenantID != tenantID || build.ReleaseID != releaseID {
+			continue
+		}
+		for _, output := range build.Outputs {
+			if output.ArtifactID != "" {
+				ids[output.ArtifactID] = true
+			}
+		}
+	}
+	return sortedStringSet(ids)
+}
+
+func (l *Ledger) packageSBOMMetadataLocked(tenantID, releaseID string) []map[string]any {
+	out := []map[string]any{}
+	for _, sbom := range l.sboms {
+		if sbom.TenantID != tenantID || sbom.ReleaseID != releaseID {
+			continue
+		}
+		out = append(out, map[string]any{
+			"id":              sbom.ID,
+			"evidence_id":     sbom.EvidenceID,
+			"release_id":      sbom.ReleaseID,
+			"artifact_id":     sbom.ArtifactID,
+			"format":          sbom.Format,
+			"spec_version":    sbom.SpecVersion,
+			"component_count": sbom.ComponentCount,
+			"created_at":      sbom.CreatedAt.UTC().Format(time.RFC3339),
+		})
+	}
+	sortManifestMapsByID(out)
+	return out
+}
+
+func (l *Ledger) packageVulnerabilityScanMetadataLocked(tenantID, releaseID string) []map[string]any {
+	out := []map[string]any{}
+	for _, scan := range l.scans {
+		if scan.TenantID != tenantID || scan.ReleaseID != releaseID {
+			continue
+		}
+		out = append(out, map[string]any{
+			"id":            scan.ID,
+			"evidence_id":   scan.EvidenceID,
+			"release_id":    scan.ReleaseID,
+			"scanner":       scan.Scanner,
+			"target_ref":    scan.TargetRef,
+			"summary":       cloneIntMap(scan.Summary),
+			"finding_count": len(scan.Findings),
+			"created_at":    scan.CreatedAt.UTC().Format(time.RFC3339),
+		})
+	}
+	sortManifestMapsByID(out)
+	return out
+}
+
+func (l *Ledger) packageVEXMetadataLocked(tenantID, releaseID string) []map[string]any {
+	out := []map[string]any{}
+	for _, vex := range l.vexDocuments {
+		if vex.TenantID != tenantID || vex.ReleaseID != releaseID {
+			continue
+		}
+		out = append(out, map[string]any{
+			"id":              vex.ID,
+			"evidence_id":     vex.EvidenceID,
+			"release_id":      vex.ReleaseID,
+			"artifact_id":     vex.ArtifactID,
+			"format":          vex.Format,
+			"author":          vex.Author,
+			"version":         vex.Version,
+			"statement_count": vex.StatementCount,
+			"status_summary":  cloneIntMap(vex.StatusSummary),
+			"schema_version":  vex.SchemaVersion,
+			"created_at":      vex.CreatedAt.UTC().Format(time.RFC3339),
+		})
+	}
+	sortManifestMapsByID(out)
+	return out
+}
+
+func (l *Ledger) packageApprovalSummariesLocked(tenantID, productID, releaseID string) []map[string]any {
+	out := []map[string]any{}
+	for _, approval := range l.approvals {
+		if approval.TenantID != tenantID || !approvalBelongsToPackage(approval, productID, releaseID) {
+			continue
+		}
+		out = append(out, map[string]any{
+			"id":           approval.ID,
+			"subject_type": approval.SubjectType,
+			"subject_id":   approval.SubjectID,
+			"decision":     approval.Decision,
+			"reason":       approval.Reason,
+			"evidence_id":  approval.EvidenceID,
+			"created_at":   approval.CreatedAt.UTC().Format(time.RFC3339),
+		})
+	}
+	sortManifestMapsByID(out)
+	return out
+}
+
+func approvalBelongsToPackage(approval domain.ApprovalRecord, productID, releaseID string) bool {
+	switch approval.SubjectType {
+	case "release":
+		return releaseID != "" && approval.SubjectID == releaseID
+	case "product":
+		return approval.SubjectID == productID
+	default:
+		return false
+	}
+}
+
+func (l *Ledger) packageExceptionSummariesLocked(tenantID, releaseID string) []map[string]any {
+	out := []map[string]any{}
+	now := l.now()
+	for _, exception := range l.exceptions {
+		if exception.TenantID != tenantID || exception.ReleaseID != releaseID || !exception.Approved || !exception.ExpiresAt.After(now) {
+			continue
+		}
+		summary := map[string]any{
+			"id":         exception.ID,
+			"release_id": exception.ReleaseID,
+			"finding_id": exception.FindingID,
+			"control_id": exception.ControlID,
+			"reason":     exception.Reason,
+			"owner":      exception.Owner,
+			"expires_at": exception.ExpiresAt.UTC().Format(time.RFC3339),
+			"approved":   exception.Approved,
+			"created_at": exception.CreatedAt.UTC().Format(time.RFC3339),
+		}
+		if exception.ApprovedAt != nil {
+			summary["approved_at"] = exception.ApprovedAt.UTC().Format(time.RFC3339)
+		}
+		out = append(out, summary)
+	}
+	sortManifestMapsByID(out)
+	return out
+}
+
+func (l *Ledger) packageWaiverSummariesLocked(tenantID, productID, releaseID string) []map[string]any {
+	out := []map[string]any{}
+	now := l.now()
+	for _, waiver := range l.waivers {
+		if waiver.TenantID != tenantID || !waiver.Approved || !waiver.ExpiresAt.After(now) || !waiverBelongsToPackage(waiver, productID, releaseID) {
+			continue
+		}
+		summary := map[string]any{
+			"id":         waiver.ID,
+			"scope_type": waiver.ScopeType,
+			"scope_id":   waiver.ScopeID,
+			"control_id": waiver.ControlID,
+			"policy_id":  waiver.PolicyID,
+			"owner":      waiver.Owner,
+			"risk":       waiver.Risk,
+			"reason":     waiver.Reason,
+			"expires_at": waiver.ExpiresAt.UTC().Format(time.RFC3339),
+			"approved":   waiver.Approved,
+			"created_at": waiver.CreatedAt.UTC().Format(time.RFC3339),
+		}
+		if waiver.ApprovedAt != nil {
+			summary["approved_at"] = waiver.ApprovedAt.UTC().Format(time.RFC3339)
+		}
+		out = append(out, summary)
+	}
+	sortManifestMapsByID(out)
+	return out
+}
+
+func waiverBelongsToPackage(waiver domain.Waiver, productID, releaseID string) bool {
+	switch waiver.ScopeType {
+	case "release":
+		return releaseID != "" && waiver.ScopeID == releaseID
+	case "product":
+		return waiver.ScopeID == productID
+	default:
+		return false
+	}
+}
+
+func (l *Ledger) packageProvenanceMetadataLocked(tenantID, releaseID string, profile domain.RedactionProfile) map[string]any {
+	builds := []map[string]any{}
+	buildIDs := map[string]bool{}
+	if profileAllowsPackageType(profile, "build") {
+		for _, build := range l.buildRuns {
+			if build.TenantID != tenantID || build.ReleaseID != releaseID {
+				continue
+			}
+			buildIDs[build.ID] = true
+			builds = append(builds, map[string]any{
+				"id":               build.ID,
+				"project_id":       build.ProjectID,
+				"collector_id":     build.CollectorID,
+				"provider":         build.Provider,
+				"commit_sha":       build.CommitSHA,
+				"repository":       build.Repository,
+				"workflow_ref":     build.WorkflowRef,
+				"run_id":           build.RunID,
+				"run_attempt":      build.RunAttempt,
+				"status":           build.Status,
+				"started_at":       build.StartedAt.UTC().Format(time.RFC3339),
+				"finished_at":      packageOptionalTime(build.FinishedAt),
+				"parameters_hash":  build.ParametersHash,
+				"environment_hash": build.EnvironmentHash,
+				"outputs":          packageBuildOutputs(build.Outputs),
+				"schema_version":   build.SchemaVersion,
+				"created_at":       build.CreatedAt.UTC().Format(time.RFC3339),
+			})
+		}
+	}
+	sortManifestMapsByID(builds)
+	attestations := []map[string]any{}
+	if profileAllowsPackageType(profile, "build_attestation") {
+		for _, attestation := range l.attestations {
+			if attestation.TenantID != tenantID || !buildIDs[attestation.BuildID] {
+				continue
+			}
+			attestations = append(attestations, map[string]any{
+				"id":                  attestation.ID,
+				"build_id":            attestation.BuildID,
+				"evidence_id":         attestation.EvidenceID,
+				"payload_hash":        attestation.PayloadHash,
+				"payload_size":        attestation.PayloadSize,
+				"payload_type":        attestation.PayloadType,
+				"predicate_type":      attestation.PredicateType,
+				"subject_digests":     append([]string(nil), attestation.SubjectDigests...),
+				"signature_count":     attestation.SignatureCount,
+				"verification_status": attestation.VerificationStatus,
+				"schema_version":      attestation.SchemaVersion,
+				"created_at":          attestation.CreatedAt.UTC().Format(time.RFC3339),
+			})
+		}
+	}
+	sortManifestMapsByID(attestations)
+	return map[string]any{"builds": builds, "build_attestations": attestations}
+}
+
+func packageBuildOutputs(outputs []domain.BuildOutput) []map[string]any {
+	out := make([]map[string]any, 0, len(outputs))
+	for _, output := range outputs {
+		out = append(out, map[string]any{"artifact_id": output.ArtifactID, "digest": output.Digest})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i]["artifact_id"].(string)+"\x00"+out[i]["digest"].(string) < out[j]["artifact_id"].(string)+"\x00"+out[j]["digest"].(string)
+	})
+	return out
+}
+
+func packageOptionalTime(value *time.Time) string {
+	if value == nil {
+		return ""
+	}
+	return value.UTC().Format(time.RFC3339)
+}
+
+func (l *Ledger) packageReadinessChecksLocked(tenantID, releaseID string) []domain.PolicyCheck {
+	if releaseID == "" {
+		return nil
+	}
+	return []domain.PolicyCheck{
+		l.checkReleaseHasEvidenceLocked(tenantID, releaseID, "sbom", "release_requires_sbom", "high"),
+		l.checkReleaseHasEvidenceLocked(tenantID, releaseID, "vulnerability_scan", "release_requires_vulnerability_scan", "high"),
+		l.checkReleaseHasArtifactDigestLocked(tenantID, releaseID),
+		l.checkReleaseHasSignedBundleLocked(tenantID, releaseID),
+		l.checkReleaseHasPassedBuildLocked(tenantID, releaseID),
+		l.checkReleaseHasBuildAttestationLocked(tenantID, releaseID),
+		l.checkNoOpenCriticalLocked(tenantID, releaseID),
+	}
+}
+
+func packageReadinessSummary(result string, checks []domain.PolicyCheck, gaps []string) map[string]any {
+	checkSummaries := make([]map[string]any, 0, len(checks))
+	for _, check := range checks {
+		checkSummaries = append(checkSummaries, map[string]any{
+			"name":        check.Name,
+			"result":      check.Result,
+			"severity":    check.Severity,
+			"missing":     append([]string(nil), check.Missing...),
+			"explanation": check.Explanation,
+		})
+	}
+	return map[string]any{
+		"result": result,
+		"checks": checkSummaries,
+		"gaps":   append([]string(nil), gaps...),
+		"limitations": []string{
+			"Readiness is derived from recorded package-scope evidence only.",
+			"Readiness output is not a compliance, certification, or secure-release conclusion.",
+		},
+	}
+}
+
+func (l *Ledger) packageVerificationMaterialLocked(tenantID, releaseID string) map[string]any {
+	bundles := []map[string]any{}
+	for _, bundle := range l.bundles {
+		if bundle.TenantID != tenantID || bundle.ReleaseID != releaseID {
+			continue
+		}
+		bundles = append(bundles, map[string]any{
+			"id":             bundle.ID,
+			"state":          bundle.State,
+			"manifest_hash":  bundle.ManifestHash,
+			"signature_refs": append([]string(nil), bundle.SignatureRefs...),
+			"created_at":     bundle.CreatedAt.UTC().Format(time.RFC3339),
+		})
+	}
+	sortManifestMapsByID(bundles)
+	return map[string]any{
+		"hash_algorithm":      "sha256",
+		"canonicalization":    domain.CanonicalizationProfileVersion,
+		"manifest_hash_field": "manifest_hash",
+		"release_bundles":     bundles,
+		"audit_chain":         l.packageAuditChainSummaryLocked(tenantID),
+	}
+}
+
+func (l *Ledger) packageAuditChainSummaryLocked(tenantID string) map[string]any {
+	checks := l.verifyChainLocked(tenantID)
+	result := "passed"
+	for _, check := range checks {
+		if check.Result == "failed" {
+			result = "failed"
+			break
+		}
+	}
+	entries := l.chain[tenantID]
+	head := ""
+	if len(entries) > 0 {
+		head = entries[len(entries)-1].EntryHash
+	}
+	return map[string]any{
+		"result":          result,
+		"latest_sequence": len(entries),
+		"head_hash":       head,
+		"checks":          checks,
+	}
+}
+
+func sortedStringSet(in map[string]bool) []string {
+	out := make([]string, 0, len(in))
+	for value := range in {
+		if strings.TrimSpace(value) != "" {
+			out = append(out, value)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+func cloneIntMap(in map[string]int) map[string]int {
+	if len(in) == 0 {
+		return map[string]int{}
+	}
+	out := make(map[string]int, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}
+
+func sortManifestMapsByID(items []map[string]any) {
+	sort.Slice(items, func(i, j int) bool {
+		left, _ := items[i]["id"].(string)
+		right, _ := items[j]["id"].(string)
+		return left < right
+	})
 }
 
 func (s packageReportService) AccessCustomerSecurityPackage(ctx context.Context, actor domain.Actor, id string) (domain.CustomerSecurityPackage, error) {
@@ -737,7 +1281,14 @@ func (l *Ledger) packageEvidenceIDsLocked(tenantID, productID, releaseID string,
 	}
 	ids := []string{}
 	for _, item := range l.evidence {
-		if item.TenantID != tenantID || (productID != "" && item.ProductID != productID) || (releaseID != "" && item.ReleaseID != releaseID) {
+		if item.TenantID != tenantID {
+			continue
+		}
+		if releaseID != "" {
+			if item.ReleaseID != releaseID {
+				continue
+			}
+		} else if productID != "" && item.ProductID != productID {
 			continue
 		}
 		if len(allowed) > 0 {

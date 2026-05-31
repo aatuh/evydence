@@ -1,0 +1,50 @@
+# Customer Package Manifest
+
+Customer packages use `customer-security-package.v2.0.0` manifests. The
+manifest is a scoped, redacted JSON summary for technical evidence review. It is
+not legal compliance proof, certification, complete SBOM proof, an authoritative
+vulnerability result, or a secure-release guarantee.
+
+## Required Top-Level Fields
+
+| Field | Purpose |
+| --- | --- |
+| `schema_version` / `package_version` | Stable manifest schema version. |
+| `package_id` / `id` | Package identifier used by API responses and ZIP exports. |
+| `title` | Operator-provided package title. |
+| `generated_at` | UTC generation timestamp. |
+| `tenant`, `organization`, `product`, `release` | Scoped metadata for the package subject. |
+| `redaction_profile` | Redaction profile id, allowed types, excluded fields, and schema version. |
+| `evidence_ids` | Included evidence metadata identifiers after redaction profile filtering. |
+| `artifact_digests` | Artifact IDs, names, media types, sizes, and digests linked to the release. |
+| `readiness_summary` | Deterministic readiness checks, gaps, and limitations. |
+| `verification_material` | Hash algorithm, canonicalization profile, release bundle hashes, and audit-chain summary. |
+| `limitations`, `non_claims` | Required package limitations and conservative product-language boundaries. |
+
+## Optional Sections
+
+Sections appear only when the redaction profile allows the relevant type and
+matching release-scoped records exist:
+
+- `sboms`: SBOM metadata such as format, spec version, component count, and evidence ID.
+- `vulnerability_scans`: scanner metadata, target reference, summary counts, and finding count.
+- `vex_documents`: VEX metadata, statement counts, status summary, and evidence ID.
+- `vulnerability_decisions`: active customer-visible decision summaries only.
+- `approvals`: release or product approval records.
+- `exceptions`: approved, unexpired release exceptions.
+- `waivers`: approved, unexpired product or release waivers.
+- `provenance`: build runs and build attestation metadata.
+
+## Exclusions
+
+Customer package manifests exclude raw tenant evidence payload bytes,
+object-store payload references, bearer tokens, private keys, API key hashes,
+SSO/session token hashes, and tenant-internal vulnerability decision notes.
+Customer-visible vulnerability decisions require `impact_statement`; internal
+notes are not copied into `vulnerability_decisions`.
+
+## Viewer Compatibility
+
+The local package viewer at `site/package-viewer/index.html` loads v2 manifests
+directly from disk. A non-sensitive sample is available at
+`examples/end-to-end-release-evidence/sample-customer-package-manifest.json`.

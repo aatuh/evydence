@@ -45,7 +45,7 @@ const (
 	WaiverSchemaVersion             = "waiver.v1.0.0"
 	ApprovalRecordSchemaVersion     = "approval-record.v1.0.0"
 	RedactionProfileSchemaVersion   = "redaction-profile.v1.0.0"
-	CustomerPackageSchemaVersion    = "customer-security-package.v1.0.0"
+	CustomerPackageSchemaVersion    = "customer-security-package.v2.0.0"
 	ReportTemplateSchemaVersion     = "report-template.v1.0.0"
 	EvidenceBundleSchemaVersion     = "evidence-bundle.v1.0.0"
 	EvidenceBundleImportVersion     = "evidence-bundle-import.v1.0.0"

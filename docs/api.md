@@ -419,6 +419,13 @@ Source snapshots capture submitted provider metadata. They do not call provider 
 | `POST` | `/v1/incidents/{id}/webhook-receivers` | Create incident-scoped Ed25519 webhook receiver. |
 | `POST` | `/v1/incident-webhooks/{receiver_id}` | Receive signed incident timeline webhook without bearer authentication. |
 
+Customer package manifests use the documented
+[`customer-security-package.v2.0.0`](reference/customer-package-manifest.md)
+schema. They include scoped release metadata, evidence summaries, redaction
+profile details, readiness checks, verification material, limitations, and
+non-claims while excluding raw payload bytes, object-store references, secrets,
+token hashes, and internal decision notes.
+
 ### Integrity, Verification, And Operations
 
 | Method | Path | Notes |
