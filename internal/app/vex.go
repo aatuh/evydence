@@ -36,6 +36,7 @@ type CreateVulnerabilityDecisionInput struct {
 	CustomerVisible bool
 	InternalNotes   string
 	EvidenceIDs     []string
+	VEXDocumentID   string
 }
 
 type ListVulnerabilityDecisionsInput struct {
@@ -331,12 +332,20 @@ func (s releaseEvidenceService) CreateVulnerabilityDecision(ctx context.Context,
 	if latest, ok := l.latestDecisionForFindingLocked(actor.TenantID, finding.ID); ok && !validDecisionTransition(latest.Status, strings.TrimSpace(in.Status)) {
 		return domain.VulnerabilityDecision{}, ErrValidation
 	}
+	in.VEXDocumentID = strings.TrimSpace(in.VEXDocumentID)
+	if in.VEXDocumentID != "" {
+		vex, ok := l.vexDocuments[in.VEXDocumentID]
+		if !ok || vex.TenantID != actor.TenantID || vex.ReleaseID != scan.ReleaseID {
+			return domain.VulnerabilityDecision{}, ErrNotFound
+		}
+		in.VEXDocumentID = vex.ID
+	}
 	evidenceIDs, err := l.validateDecisionEvidenceLinksLocked(actor.TenantID, scan.ReleaseID, in.EvidenceIDs)
 	if err != nil {
 		return domain.VulnerabilityDecision{}, err
 	}
 	in.EvidenceIDs = evidenceIDs
-	decision := l.createDecisionLocked(actor.TenantID, scan, finding, in, "api", actor.KeyID, "", "")
+	decision := l.createDecisionLocked(actor.TenantID, scan, finding, in, "api", actor.KeyID, "", in.VEXDocumentID)
 	l.decisions[decision.ID] = decision
 	l.appendDecisionLifecycleAuditLocked(actor.TenantID, decision, finding.ID, "api_key", actor.KeyID, "")
 	if err := l.persistCriticalLocked(ctx, l.criticalMutationLocked()); err != nil {

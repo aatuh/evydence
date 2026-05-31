@@ -168,7 +168,8 @@ POST /v1/vulnerability-findings/{id}/decisions
   "action_statement": "No customer action is required for this finding.",
   "customer_visible": true,
   "internal_notes": "tenant-internal triage note",
-  "evidence_ids": ["ev_supporting_review"]
+  "evidence_ids": ["ev_supporting_review"],
+  "vex_document_id": "vex_imported_review"
 }
 ```
 
@@ -179,7 +180,9 @@ into customer-safe package summaries. A later decision for the same finding
 supersedes the previous active decision and records audit-chain entries for the
 supersession and replacement. `evidence_ids` may reference tenant-scoped
 supporting evidence from the same release; foreign-tenant or wrong-release
-evidence links are rejected.
+evidence links are rejected. `vex_document_id` can link a manual decision to an
+imported VEX document from the same release, including cases where automated VEX
+mapping did not create a decision.
 
 Decision history:
 

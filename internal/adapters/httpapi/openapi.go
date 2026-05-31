@@ -299,6 +299,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"customer_visible": map[string]any{"type": "boolean"},
 		"internal_notes":   map[string]any{"type": "string", "description": "Tenant-internal notes; excluded from customer-safe package summaries."},
 		"evidence_ids":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"vex_document_id":  map[string]any{"type": "string", "description": "Optional tenant-scoped VEX document from the same release to link to this manual decision."},
 	}, "status", "justification"))
 	registry.RegisterSchema("VulnerabilityDecision", objectSchema(map[string]any{
 		"id":               map[string]any{"type": "string"},
