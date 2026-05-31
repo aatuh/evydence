@@ -42,6 +42,16 @@ The CLI command used by the workflow reads GitHub-provided environment variables
 
 `EVYDENCE_GITHUB_OIDC_SUBJECT` or `--oidc-subject` can record an OIDC subject string when the workflow already has one. This implementation records the value as evidence metadata; it does not request or verify a GitHub OIDC token.
 
+The full workflow also shows a scanner handoff path:
+
+- produce CycloneDX JSON with `syft`;
+- produce Grype and Trivy JSON scanner outputs;
+- run `scripts/github_release_evidence_manifest.py` to normalize those files into Evydence upload payloads;
+- upload the manifest with `evydence upload manifest`;
+- optionally create a customer package when `EVYDENCE_PRODUCT_ID` and `EVYDENCE_REDACTION_PROFILE_ID` are configured.
+
+Pin scanner versions in your runner image or workflow before using the example for production evidence. Scanner output is evidence for review; it is not treated as complete or authoritative vulnerability coverage.
+
 ## GitLab CI
 
 The GitLab template is [docs/gitlab/evydence-release-evidence.gitlab-ci.yml](../gitlab/evydence-release-evidence.gitlab-ci.yml).
