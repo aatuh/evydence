@@ -405,6 +405,9 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 		VEXDocuments: map[string]domain.VEXDocument{
 			"vex_test": {ID: "vex_test", TenantID: "ten_test", EvidenceID: "ev_test", ReleaseID: "rel_test", ArtifactID: "art_test", Format: "openvex", Author: "tester", Version: "1", StatementCount: 1, StatusSummary: map[string]int{"not_affected": 1}, SchemaVersion: domain.VEXDocumentSchemaVersion, CreatedAt: time.Now().UTC()},
 		},
+		VEXImportReports: map[string]domain.VEXImportReport{
+			"vex_report_test": {ID: "vex_report_test", TenantID: "ten_test", VEXDocumentID: "vex_test", EvidenceID: "ev_test", ReleaseID: "rel_test", ArtifactID: "art_test", ParserVersion: app.ParserVersionOpenVEXJSON, Status: "parsed", StatementCount: 1, DecisionsCreated: 1, MappingFailures: []domain.VEXImportIssue{{StatementIndex: 2, Code: "finding_not_found", Detail: "No matching finding."}}, SchemaVersion: domain.VEXImportReportSchemaVersion, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()},
+		},
 		Decisions: map[string]domain.VulnerabilityDecision{
 			"decision_test": {ID: "decision_test", TenantID: "ten_test", FindingID: "finding_test", ScanID: "scan_test", ReleaseID: "rel_test", Vulnerability: "CVE-0000-0001", Component: "lib", Status: "not_affected", Justification: "not_present", Source: "manual", EvidenceID: "ev_test", VEXDocumentID: "vex_test", SchemaVersion: domain.VulnerabilityDecisionVersion, CreatedAt: time.Now().UTC()},
 		},
@@ -631,6 +634,7 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 		{name: "sbom", query: `SELECT count(*) FROM sboms WHERE tenant_id = 'ten_test' AND release_id = 'rel_test' AND component_count = 1`},
 		{name: "scan", query: `SELECT count(*) FROM vulnerability_scans WHERE tenant_id = 'ten_test' AND release_id = 'rel_test'`},
 		{name: "vex", query: `SELECT count(*) FROM vex_documents WHERE tenant_id = 'ten_test' AND id = 'vex_test' AND statement_count = 1`},
+		{name: "vex report", query: `SELECT count(*) FROM vex_import_reports WHERE tenant_id = 'ten_test' AND id = 'vex_report_test' AND decisions_created = 1`},
 		{name: "decision", query: `SELECT count(*) FROM vulnerability_decisions WHERE tenant_id = 'ten_test' AND id = 'decision_test' AND status = 'not_affected'`},
 		{name: "exception", query: `SELECT count(*) FROM exceptions WHERE tenant_id = 'ten_test' AND id = 'exception_test' AND approved = true`},
 		{name: "contract", query: `SELECT count(*) FROM openapi_contracts WHERE tenant_id = 'ten_test' AND id = 'contract_test' AND operations <> '[]'::jsonb`},
@@ -748,8 +752,8 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	if relational.Products["prod_test"].Slug != "product" || relational.Evidence["ev_test"].ReleaseID != "rel_test" || relational.SBOMs["sbom_test"].ComponentCount != 1 {
 		t.Fatalf("relational fallback missing core rows: product=%#v evidence=%#v sbom=%#v", relational.Products["prod_test"], relational.Evidence["ev_test"], relational.SBOMs["sbom_test"])
 	}
-	if relational.VEXDocuments["vex_test"].StatusSummary["not_affected"] != 1 || relational.Decisions["decision_test"].Status != "not_affected" || !relational.Exceptions["exception_test"].Approved {
-		t.Fatalf("relational risk rows missing: vex=%#v decision=%#v exception=%#v", relational.VEXDocuments["vex_test"], relational.Decisions["decision_test"], relational.Exceptions["exception_test"])
+	if relational.VEXDocuments["vex_test"].StatusSummary["not_affected"] != 1 || relational.VEXImportReports["vex_report_test"].DecisionsCreated != 1 || relational.Decisions["decision_test"].Status != "not_affected" || !relational.Exceptions["exception_test"].Approved {
+		t.Fatalf("relational risk rows missing: vex=%#v report=%#v decision=%#v exception=%#v", relational.VEXDocuments["vex_test"], relational.VEXImportReports["vex_report_test"], relational.Decisions["decision_test"], relational.Exceptions["exception_test"])
 	}
 	if relational.ControlFrameworks["framework_test"].Slug != "framework" || len(relational.SecurityControls["control_test"].EvidenceRequirements) != 1 || relational.ControlEvidence["control_evidence_test"].Confidence != "high" {
 		t.Fatalf("relational control rows missing: framework=%#v control=%#v evidence=%#v", relational.ControlFrameworks["framework_test"], relational.SecurityControls["control_test"], relational.ControlEvidence["control_evidence_test"])
@@ -1112,6 +1116,11 @@ func TestApplyReleaseLedgerMutationWithPostgres(t *testing.T) {
 			Format: "openvex", Author: "security", Version: "1", StatementCount: 1,
 			StatusSummary: map[string]int{"not_affected": 1}, SchemaVersion: domain.VEXDocumentSchemaVersion, CreatedAt: now,
 		}},
+		VEXImportReports: []domain.VEXImportReport{{
+			ID: "vex_report_focus", TenantID: "ten_release_focus", VEXDocumentID: "vex_focus", EvidenceID: "ev_focus", ReleaseID: "rel_focus",
+			ParserVersion: app.ParserVersionOpenVEXJSON, Status: "parsed", StatementCount: 1, DecisionsCreated: 1,
+			SchemaVersion: domain.VEXImportReportSchemaVersion, CreatedAt: now, UpdatedAt: now,
+		}},
 		VulnerabilityDecisions: []domain.VulnerabilityDecision{{
 			ID: "decision_release_focus", TenantID: "ten_release_focus", FindingID: "finding_focus", ScanID: "scan_focus",
 			ReleaseID: "rel_focus", Vulnerability: "CVE-2099-0001", Component: "lib", Status: "not_affected",
@@ -1157,6 +1166,7 @@ func TestApplyReleaseLedgerMutationWithPostgres(t *testing.T) {
 		{name: "scan", query: `SELECT count(*) FROM vulnerability_scans WHERE id = 'scan_focus' AND release_id = 'rel_focus'`},
 		{name: "contract", query: `SELECT count(*) FROM openapi_contracts WHERE id = 'oas_focus' AND path_count = 1`},
 		{name: "vex", query: `SELECT count(*) FROM vex_documents WHERE id = 'vex_focus' AND statement_count = 1`},
+		{name: "vex report", query: `SELECT count(*) FROM vex_import_reports WHERE id = 'vex_report_focus' AND decisions_created = 1`},
 		{name: "decision", query: `SELECT count(*) FROM vulnerability_decisions WHERE id = 'decision_release_focus' AND status = 'not_affected'`},
 		{name: "audit chain", query: `SELECT count(*) FROM audit_chain_entries WHERE id = 'chain_release_focus'`},
 		{name: "outbox", query: `SELECT count(*) FROM outbox_jobs WHERE id = 'job_release_focus' AND status = 'queued'`},
@@ -1185,8 +1195,8 @@ func TestApplyReleaseLedgerMutationWithPostgres(t *testing.T) {
 	if loaded.Products["prod_focus"].Slug != "payments" || loaded.Evidence["ev_focus"].CanonicalHash == "" || len(loaded.EvidenceLifecycle) != 1 {
 		t.Fatalf("loaded release ledger core missing: product=%#v evidence=%#v lifecycle=%#v", loaded.Products["prod_focus"], loaded.Evidence["ev_focus"], loaded.EvidenceLifecycle)
 	}
-	if loaded.SBOMs["sbom_focus"].ComponentCount != 1 || loaded.Scans["scan_focus"].ReleaseID != "rel_focus" || loaded.Contracts["oas_focus"].PathCount != 1 || loaded.VEXDocuments["vex_focus"].StatementCount != 1 {
-		t.Fatalf("loaded parser metadata missing: sbom=%#v scan=%#v contract=%#v vex=%#v", loaded.SBOMs["sbom_focus"], loaded.Scans["scan_focus"], loaded.Contracts["oas_focus"], loaded.VEXDocuments["vex_focus"])
+	if loaded.SBOMs["sbom_focus"].ComponentCount != 1 || loaded.Scans["scan_focus"].ReleaseID != "rel_focus" || loaded.Contracts["oas_focus"].PathCount != 1 || loaded.VEXDocuments["vex_focus"].StatementCount != 1 || loaded.VEXImportReports["vex_report_focus"].DecisionsCreated != 1 {
+		t.Fatalf("loaded parser metadata missing: sbom=%#v scan=%#v contract=%#v vex=%#v report=%#v", loaded.SBOMs["sbom_focus"], loaded.Scans["scan_focus"], loaded.Contracts["oas_focus"], loaded.VEXDocuments["vex_focus"], loaded.VEXImportReports["vex_report_focus"])
 	}
 	if loaded.Decisions["decision_release_focus"].Status != "not_affected" || len(loaded.Chain["ten_release_focus"]) != 1 {
 		t.Fatalf("loaded decision/chain missing: decision=%#v chain=%#v", loaded.Decisions["decision_release_focus"], loaded.Chain["ten_release_focus"])

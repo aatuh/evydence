@@ -276,6 +276,7 @@ func TestProcessJobWithObjectsParsesPayloadAndChecksDurableState(t *testing.T) {
 }
 
 func TestProcessJobWithObjectsCreatesVEXDecisionsIdempotently(t *testing.T) {
+	now := time.Date(2026, 5, 28, 12, 0, 0, 0, time.UTC)
 	body := []byte(`{"@context":"https://openvex.dev/ns/v0.2.0","@id":"https://example.test/vex","author":"security@example.test","timestamp":"2026-05-28T12:00:00Z","version":1,"statements":[{"vulnerability":{"name":"CVE-1"},"products":[{"@id":"pkg:oci/api"}],"status":"fixed","justification":"fixed","impact_statement":"patched","action_statement":"ship"}]}`)
 	hash := digestBytes(body)
 	job := postgres.ClaimedJob{
@@ -291,11 +292,15 @@ func TestProcessJobWithObjectsCreatesVEXDecisionsIdempotently(t *testing.T) {
 			"actor_type":              "api_key",
 			"actor_id":                "key_test",
 			"evidence_id":             "ev_vex",
+			"import_report_id":        "vex_report",
 		},
 	}
 	store := &fakeStateStore{ok: true, state: app.PersistedState{
 		VEXDocuments: map[string]domain.VEXDocument{
 			"vex_test": {ID: "vex_test", TenantID: "ten_test", ReleaseID: "rel_test", EvidenceID: "ev_vex", Format: "openvex"},
+		},
+		VEXImportReports: map[string]domain.VEXImportReport{
+			"vex_report": {ID: "vex_report", TenantID: "ten_test", VEXDocumentID: "vex_test", EvidenceID: "ev_vex", Status: "accepted", SchemaVersion: domain.VEXImportReportSchemaVersion, CreatedAt: now, UpdatedAt: now},
 		},
 		Scans: map[string]domain.VulnerabilityScan{
 			"scan_test": {ID: "scan_test", TenantID: "ten_test", ReleaseID: "rel_test", Findings: []domain.VulnerabilityFinding{{ID: "finding_1", Vulnerability: "CVE-1", Component: "pkg:oci/api", Severity: "critical", State: "open"}}},
@@ -317,6 +322,10 @@ func TestProcessJobWithObjectsCreatesVEXDecisionsIdempotently(t *testing.T) {
 	}
 	if got := len(store.saved.Chain["ten_test"]); got != 1 {
 		t.Fatalf("chain entries = %d, want 1", got)
+	}
+	report := store.saved.VEXImportReports["vex_report"]
+	if report.Status != "parsed" || report.StatementCount != 1 || report.DecisionsCreated != 1 || report.DecisionsSuperseded != 0 {
+		t.Fatalf("import report = %#v", report)
 	}
 
 	previous := store.saved

@@ -1082,7 +1082,7 @@ func TestOpenVEXIngestionCreatesDecisionAndRejectsMalformedInput(t *testing.T) {
 	}`)); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
-	if _, err := ledger.UploadVEX(ctx, actor, release.ID, artifact.ID, []byte(`{
+	vex, err := ledger.UploadVEX(ctx, actor, release.ID, artifact.ID, []byte(`{
 		"@context":"https://openvex.dev/ns/v0.2.0",
 		"@id":"https://example.test/vex/1",
 		"author":"security@example.test",
@@ -1096,8 +1096,16 @@ func TestOpenVEXIngestionCreatesDecisionAndRejectsMalformedInput(t *testing.T) {
 			"impact_statement":"patched before release",
 			"action_statement":"ship fixed artifact"
 		}]
-	}`)); err != nil {
+	}`))
+	if err != nil {
 		t.Fatalf("vex: %v", err)
+	}
+	importReport, err := ledger.GetVEXImportReport(ctx, actor, vex.ID)
+	if err != nil {
+		t.Fatalf("import report: %v", err)
+	}
+	if importReport.Status != "parsed" || importReport.StatementCount != 1 || importReport.DecisionsCreated != 1 || importReport.DecisionsSuperseded != 0 || len(importReport.MappingFailures) != 0 {
+		t.Fatalf("unexpected import report: %#v", importReport)
 	}
 	report, err := ledger.ReleaseReadinessReport(ctx, actor, release.ID)
 	if err != nil {
@@ -1108,6 +1116,69 @@ func TestOpenVEXIngestionCreatesDecisionAndRejectsMalformedInput(t *testing.T) {
 	}
 	if _, err := ledger.UploadVEX(ctx, actor, release.ID, artifact.ID, []byte(`{"author":"a","timestamp":"2026-05-27T12:00:00Z","statements":[],"extra":true}`)); !errors.Is(err, ErrValidation) {
 		t.Fatalf("malformed VEX err = %v, want validation", err)
+	}
+}
+
+func TestOpenVEXImportReportTracksSupersessionAndMappingFailures(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
+	scan, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{
+		"scanner":"grype",
+		"target_ref":"pkg:oci/payments-api",
+		"release_id":"`+release.ID+`",
+		"findings":[{"vulnerability":"CVE-2026-0003","component":"pkg:apk/openssl@3.1.0","severity":"critical","state":"open"}]
+	}`))
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if _, err := ledger.CreateVulnerabilityDecision(ctx, actor, scan.Findings[0].ID, CreateVulnerabilityDecisionInput{
+		Status:          decisionStatusUnderInvestigation,
+		Justification:   "manual triage started",
+		ImpactStatement: "The finding is under investigation.",
+		CustomerVisible: true,
+	}); err != nil {
+		t.Fatalf("manual decision: %v", err)
+	}
+	vex, err := ledger.UploadVEX(ctx, actor, release.ID, artifact.ID, []byte(`{
+		"@context":"https://openvex.dev/ns/v0.2.0",
+		"@id":"https://example.test/vex/2",
+		"author":"security@example.test",
+		"timestamp":"2026-05-27T12:00:00Z",
+		"version":1,
+		"statements":[{
+			"vulnerability":{"name":"CVE-2026-0003"},
+			"products":[{"@id":"pkg:apk/openssl@3.1.0"}],
+			"status":"fixed",
+			"justification":"fixed in release candidate",
+			"impact_statement":"patched before release"
+		},{
+			"vulnerability":{"name":"CVE-2026-9999"},
+			"products":[{"@id":"pkg:apk/missing@1.0.0"}],
+			"status":"not_affected",
+			"justification":"component not present",
+			"impact_statement":"not present in this release"
+		}]
+	}`))
+	if err != nil {
+		t.Fatalf("vex: %v", err)
+	}
+	report, err := ledger.GetVEXImportReport(ctx, actor, vex.ID)
+	if err != nil {
+		t.Fatalf("import report: %v", err)
+	}
+	if report.StatementCount != 2 || report.DecisionsCreated != 1 || report.DecisionsSuperseded != 1 {
+		t.Fatalf("report counts = %#v", report)
+	}
+	if len(report.MappingFailures) != 1 || report.MappingFailures[0].StatementIndex != 2 || report.MappingFailures[0].Code != "finding_not_found" {
+		t.Fatalf("mapping failures = %#v", report.MappingFailures)
+	}
+	body, err := json.Marshal(report)
+	if err != nil {
+		t.Fatalf("marshal report: %v", err)
+	}
+	if strings.Contains(string(body), "payload") || strings.Contains(string(body), "manual triage") {
+		t.Fatalf("import report leaked raw payload or internal triage details: %s", body)
 	}
 }
 
@@ -1169,6 +1240,13 @@ func TestUploadVEXCanDeferDocumentParserSideEffectsToWorker(t *testing.T) {
 	if persisted.Author != "" || persisted.StatementCount != 0 || persisted.StatusSummary != nil {
 		t.Fatalf("persisted vex document should wait for worker parser side effects: %#v", persisted)
 	}
+	importReport, err := ledger.GetVEXImportReport(ctx, actor, vex.ID)
+	if err != nil {
+		t.Fatalf("import report: %v", err)
+	}
+	if importReport.Status != "accepted" || importReport.StatementCount != 1 || importReport.DecisionsCreated != 0 || len(importReport.Warnings) == 0 {
+		t.Fatalf("worker-owned import report = %#v", importReport)
+	}
 	decisionFound := false
 	for _, decision := range state.Decisions {
 		if decision.FindingID == scan.Findings[0].ID && decision.VEXDocumentID == vex.ID && decision.Status == decisionStatusFixed {
@@ -1182,7 +1260,7 @@ func TestUploadVEXCanDeferDocumentParserSideEffectsToWorker(t *testing.T) {
 		t.Fatalf("outbox jobs = %d, want 1", len(outbox.jobs))
 	}
 	job := outbox.jobs[0]
-	if job.Kind != "parse_vex" || job.Payload["payload_ref"] == "" || job.Payload["payload_hash"] == "" || job.Payload["parser_version"] != ParserVersionOpenVEXJSON || job.Payload["worker_create_decisions"] != true {
+	if job.Kind != "parse_vex" || job.Payload["payload_ref"] == "" || job.Payload["payload_hash"] == "" || job.Payload["parser_version"] != ParserVersionOpenVEXJSON || job.Payload["worker_create_decisions"] != true || job.Payload["import_report_id"] == "" {
 		t.Fatalf("outbox job missing replay metadata: %#v", job)
 	}
 	payloadRef, ok := job.Payload["payload_ref"].(string)

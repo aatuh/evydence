@@ -1,5 +1,5 @@
 {
-  "route_count": 168,
+  "route_count": 169,
   "routes": [
     {
       "idempotency_key_required": false,
@@ -2710,6 +2710,23 @@
       "response_schemas": [
         "#/components/schemas/Problem",
         "#/components/schemas/VEXDocumentEnvelope"
+      ],
+      "scopes": [
+        "evidence:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "getVEXImportReport",
+      "path": "/v1/vex/{id}/import-report",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/VEXImportReportEnvelope"
       ],
       "scopes": [
         "evidence:read"

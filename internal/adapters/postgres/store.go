@@ -280,6 +280,7 @@ func relationalEmptyState() app.PersistedState {
 		SBOMs:                    map[string]domain.SBOM{},
 		Scans:                    map[string]domain.VulnerabilityScan{},
 		VEXDocuments:             map[string]domain.VEXDocument{},
+		VEXImportReports:         map[string]domain.VEXImportReport{},
 		Decisions:                map[string]domain.VulnerabilityDecision{},
 		Contracts:                map[string]domain.OpenAPIContract{},
 		Policies:                 map[string]domain.PolicyEvaluation{},
@@ -1107,6 +1108,47 @@ func (s *Store) loadRelationalRiskDecisions(ctx context.Context, state *app.Pers
 		*loaded = true
 	}
 	if err := vexRows.Err(); err != nil {
+		return err
+	}
+
+	reportRows, err := s.pool.Query(ctx, `
+		SELECT id, tenant_id, vex_document_id, evidence_id, release_id, artifact_id,
+		       parser_version, status, statement_count, decisions_created,
+		       decisions_superseded, unsupported_fields, warnings, invalid_statements,
+		       mapping_failures, schema_version, created_at, updated_at
+		FROM vex_import_reports
+	`)
+	if err != nil {
+		return fmt.Errorf("load relational vex import reports: %w", err)
+	}
+	defer reportRows.Close()
+	for reportRows.Next() {
+		var report domain.VEXImportReport
+		var releaseID, artifactID sql.NullString
+		var warnings, invalidStatements, mappingFailures []byte
+		if err := reportRows.Scan(
+			&report.ID, &report.TenantID, &report.VEXDocumentID, &report.EvidenceID, &releaseID, &artifactID,
+			&report.ParserVersion, &report.Status, &report.StatementCount, &report.DecisionsCreated,
+			&report.DecisionsSuperseded, &report.UnsupportedFields, &warnings, &invalidStatements,
+			&mappingFailures, &report.SchemaVersion, &report.CreatedAt, &report.UpdatedAt,
+		); err != nil {
+			return fmt.Errorf("scan relational vex import report: %w", err)
+		}
+		report.ReleaseID = nullableSQLString(releaseID)
+		report.ArtifactID = nullableSQLString(artifactID)
+		if err := decodeJSON(warnings, &report.Warnings); err != nil {
+			return fmt.Errorf("decode relational vex import warnings: %w", err)
+		}
+		if err := decodeJSON(invalidStatements, &report.InvalidStatements); err != nil {
+			return fmt.Errorf("decode relational vex import invalid statements: %w", err)
+		}
+		if err := decodeJSON(mappingFailures, &report.MappingFailures); err != nil {
+			return fmt.Errorf("decode relational vex import mapping failures: %w", err)
+		}
+		state.VEXImportReports[report.ID] = report
+		*loaded = true
+	}
+	if err := reportRows.Err(); err != nil {
 		return err
 	}
 
@@ -2711,6 +2753,9 @@ func releaseLedgerMutationState(mutation app.ReleaseLedgerMutation) app.Persiste
 	for _, vex := range mutation.VEXDocuments {
 		state.VEXDocuments[vex.ID] = vex
 	}
+	for _, report := range mutation.VEXImportReports {
+		state.VEXImportReports[report.ID] = report
+	}
 	for _, decision := range mutation.VulnerabilityDecisions {
 		state.Decisions[decision.ID] = decision
 	}
@@ -3170,6 +3215,52 @@ func syncRiskBuildControlRows(ctx context.Context, tx pgx.Tx, state app.Persiste
 			document.Author, nullableString(document.Version), document.StatementCount, statusSummary,
 			document.SchemaVersion, nonZeroTime(document.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert vex document row: %w", err)
+		}
+	}
+	for _, report := range state.VEXImportReports {
+		if report.ID == "" || report.TenantID == "" || report.VEXDocumentID == "" || report.EvidenceID == "" {
+			continue
+		}
+		warnings, err := json.Marshal(report.Warnings)
+		if err != nil {
+			return fmt.Errorf("encode vex import warnings: %w", err)
+		}
+		invalidStatements, err := json.Marshal(report.InvalidStatements)
+		if err != nil {
+			return fmt.Errorf("encode vex import invalid statements: %w", err)
+		}
+		mappingFailures, err := json.Marshal(report.MappingFailures)
+		if err != nil {
+			return fmt.Errorf("encode vex import mapping failures: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO vex_import_reports (
+				id, tenant_id, vex_document_id, evidence_id, release_id, artifact_id,
+				parser_version, status, statement_count, decisions_created,
+				decisions_superseded, unsupported_fields, warnings, invalid_statements,
+				mapping_failures, schema_version, created_at, updated_at
+			)
+			VALUES (
+				$1, $2, $3, $4, $5, $6,
+				$7, $8, $9, $10,
+				$11, $12, $13, $14,
+				$15, $16, $17, $18
+			)
+			ON CONFLICT (id) DO UPDATE SET
+				status = EXCLUDED.status,
+				statement_count = EXCLUDED.statement_count,
+				decisions_created = EXCLUDED.decisions_created,
+				decisions_superseded = EXCLUDED.decisions_superseded,
+				unsupported_fields = EXCLUDED.unsupported_fields,
+				warnings = EXCLUDED.warnings,
+				invalid_statements = EXCLUDED.invalid_statements,
+				mapping_failures = EXCLUDED.mapping_failures,
+				updated_at = EXCLUDED.updated_at
+		`, report.ID, report.TenantID, report.VEXDocumentID, report.EvidenceID, nullableString(report.ReleaseID), nullableString(report.ArtifactID),
+			report.ParserVersion, report.Status, report.StatementCount, report.DecisionsCreated,
+			report.DecisionsSuperseded, report.UnsupportedFields, warnings, invalidStatements,
+			mappingFailures, report.SchemaVersion, nonZeroTime(report.CreatedAt), nonZeroTime(report.UpdatedAt)); err != nil {
+			return fmt.Errorf("upsert vex import report row: %w", err)
 		}
 	}
 	for _, decision := range state.Decisions {
