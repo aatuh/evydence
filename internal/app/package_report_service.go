@@ -54,6 +54,14 @@ func (l *Ledger) CreateQuestionnairePackage(ctx context.Context, actor domain.Ac
 	return l.packageReportService().CreateQuestionnairePackage(ctx, actor, in)
 }
 
+func (l *Ledger) CreateQuestionnaireAnswerLibraryEntry(ctx context.Context, actor domain.Actor, in CreateQuestionnaireAnswerLibraryEntryInput) (domain.QuestionnaireAnswerLibraryEntry, error) {
+	return l.packageReportService().CreateQuestionnaireAnswerLibraryEntry(ctx, actor, in)
+}
+
+func (l *Ledger) ListQuestionnaireAnswerLibrary(ctx context.Context, actor domain.Actor, in ListQuestionnaireAnswerLibraryInput) ([]domain.QuestionnaireAnswerLibraryEntry, error) {
+	return l.packageReportService().ListQuestionnaireAnswerLibrary(ctx, actor, in)
+}
+
 func (l *Ledger) CreateRedactionProfile(ctx context.Context, actor domain.Actor, in CreateRedactionProfileInput) (domain.RedactionProfile, error) {
 	return l.packageReportService().CreateRedactionProfile(ctx, actor, in)
 }
@@ -72,6 +80,10 @@ func (l *Ledger) ExportCustomerSecurityPackageArchive(ctx context.Context, actor
 
 func (l *Ledger) ExportCustomerPortalPackageArchive(ctx context.Context, token string) (CustomerPackageArchive, error) {
 	return l.packageReportService().ExportCustomerPortalPackageArchive(ctx, token)
+}
+
+func (l *Ledger) ExportCustomerPortalPackageArchiveWithAcceptance(ctx context.Context, token string, in CustomerPortalAcceptanceInput) (CustomerPackageArchive, error) {
+	return l.packageReportService().ExportCustomerPortalPackageArchiveWithAcceptance(ctx, token, in)
 }
 
 func (l *Ledger) SecurityReviewPackageReport(ctx context.Context, actor domain.Actor, packageID string) (domain.SecurityReviewPackageReport, error) {

@@ -3,7 +3,7 @@
 This generated reference inventories Evydence `/v1` route contract precision from `openapi.yaml`.
 It is a planning aid for production contract hardening; `broad` means the route still uses a shared envelope, unspecified body, or generic schema where an endpoint-specific contract should be considered.
 
-Generated from 173 operations: 173 precise, 0 broad.
+Generated from 175 operations: 175 precise, 0 broad.
 
 | Method | Path | Operation | Auth | Scopes | Idempotency | Params | Request | 2xx Response | Precision |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -98,6 +98,8 @@ Generated from 173 operations: 173 precise, 0 broad.
 | POST | /v1/public-transparency-log-entries/{id}/fetch-proof | fetchPublicTransparencyLogEntryProof | Bearer | keys:admin | required | path:id | application/json:EmptyObject | 200:application/json:PublicTransparencyLogEntryEnvelope | precise |
 | POST | /v1/public-transparency-log-entries/{id}/verify | verifyPublicTransparencyLogEntry | Bearer | keys:admin | required | path:id | application/json:VerifyPublicTransparencyLogEntryRequest | 200:application/json:PublicTransparencyLogEntryEnvelope | precise |
 | POST | /v1/public-transparency-logs | createPublicTransparencyLog | Bearer | keys:admin | required | - | application/json:CreatePublicTransparencyLogRequest | 201:application/json:PublicTransparencyLogEnvelope | precise |
+| GET | /v1/questionnaire-answer-library | listQuestionnaireAnswerLibrary | Bearer | package:read | - | query:product_id, query:question_id, query:release_id | - | 200:application/json:QuestionnaireAnswerLibraryEntryListEnvelope | precise |
+| POST | /v1/questionnaire-answer-library | createQuestionnaireAnswerLibraryEntry | Bearer | package:write | required | - | application/json:CreateQuestionnaireAnswerLibraryEntryRequest | 201:application/json:QuestionnaireAnswerLibraryEntryEnvelope | precise |
 | POST | /v1/questionnaire-drafts | createQuestionnaireDraft | Bearer | package:read | required | - | application/json:CreateQuestionnaireDraftRequest | 201:application/json:QuestionnaireDraftEnvelope | precise |
 | POST | /v1/questionnaire-packages | createQuestionnairePackage | Bearer | package:write | required | - | application/json:CreateQuestionnairePackageRequest | 201:application/json:QuestionnairePackageEnvelope | precise |
 | POST | /v1/questionnaire-templates | createQuestionnaireTemplate | Bearer | package:write | required | - | application/json:CreateQuestionnaireTemplateRequest | 201:application/json:QuestionnaireTemplateEnvelope | precise |

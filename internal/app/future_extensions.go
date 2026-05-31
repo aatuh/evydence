@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"sort"
 	"strings"
 	"time"
 
@@ -195,17 +196,7 @@ func (s packageReportService) CreateQuestionnaireDraft(ctx context.Context, acto
 	}
 	responses := make([]domain.QuestionnaireResponse, 0, len(template.Questions))
 	for _, question := range template.Questions {
-		ids := l.evidenceIDsForQuestionLocked(actor.TenantID, question, in.ProductID, in.ReleaseID)
-		answer := "No matching evidence is recorded for this question."
-		if len(ids) > 0 {
-			answer = "Evidence is available for this question in " + strings.Join(ids, ", ") + "."
-		}
-		responses = append(responses, domain.QuestionnaireResponse{
-			QuestionID:  question.ID,
-			Answer:      answer,
-			EvidenceIDs: ids,
-			Limitations: []string{"Draft response is evidence-backed but requires human review before external use."},
-		})
+		responses = append(responses, l.questionnaireResponseForQuestionLocked(actor.TenantID, question, in.ProductID, in.ReleaseID))
 	}
 	hash, err := canonicalAnyHash(responses)
 	if err != nil {
@@ -1398,6 +1389,84 @@ func (l *Ledger) evidenceIDsForQuestionLocked(tenantID string, question domain.Q
 		return sortedStrings(ids)
 	}
 	return l.evidenceIDsForRefsLocked(tenantID, resourceRefs{ProductID: strings.TrimSpace(productID), ReleaseID: strings.TrimSpace(releaseID)}, strings.TrimSpace(question.EvidenceType))
+}
+
+func (l *Ledger) questionnaireResponseForQuestionLocked(tenantID string, question domain.QuestionnaireQuestion, productID, releaseID string) domain.QuestionnaireResponse {
+	if entry, ok := l.questionnaireAnswerLibraryMatchLocked(tenantID, question, productID, releaseID); ok {
+		return domain.QuestionnaireResponse{
+			QuestionID:  question.ID,
+			Answer:      entry.Answer,
+			EvidenceIDs: append([]string(nil), entry.EvidenceIDs...),
+			Limitations: append([]string(nil), entry.Limitations...),
+		}
+	}
+	ids := l.evidenceIDsForQuestionLocked(tenantID, question, productID, releaseID)
+	answer := "No matching evidence is recorded for this question."
+	if len(ids) > 0 {
+		answer = "Evidence is available for review in the linked evidence records."
+	}
+	return domain.QuestionnaireResponse{QuestionID: question.ID, Answer: answer, EvidenceIDs: ids, Limitations: []string{"Questionnaire responses summarize recorded evidence and require human review."}}
+}
+
+func (l *Ledger) questionnaireAnswerLibraryMatchLocked(tenantID string, question domain.QuestionnaireQuestion, productID, releaseID string) (domain.QuestionnaireAnswerLibraryEntry, bool) {
+	productID, releaseID = strings.TrimSpace(productID), strings.TrimSpace(releaseID)
+	candidates := []domain.QuestionnaireAnswerLibraryEntry{}
+	for _, entry := range l.answerLibrary {
+		if entry.TenantID != tenantID || !questionnaireAnswerMatchesQuestion(entry, question) {
+			continue
+		}
+		if entry.ProductID != "" && entry.ProductID != productID {
+			continue
+		}
+		if entry.ReleaseID != "" && entry.ReleaseID != releaseID {
+			continue
+		}
+		candidates = append(candidates, entry)
+	}
+	if len(candidates) == 0 {
+		return domain.QuestionnaireAnswerLibraryEntry{}, false
+	}
+	sort.Slice(candidates, func(i, j int) bool {
+		left, right := questionnaireAnswerSpecificity(candidates[i], question), questionnaireAnswerSpecificity(candidates[j], question)
+		if left != right {
+			return left > right
+		}
+		if !candidates[i].CreatedAt.Equal(candidates[j].CreatedAt) {
+			return candidates[i].CreatedAt.After(candidates[j].CreatedAt)
+		}
+		return candidates[i].ID < candidates[j].ID
+	})
+	return candidates[0], true
+}
+
+func questionnaireAnswerMatchesQuestion(entry domain.QuestionnaireAnswerLibraryEntry, question domain.QuestionnaireQuestion) bool {
+	if entry.QuestionID != "" && entry.QuestionID == question.ID {
+		return true
+	}
+	if entry.ControlID != "" && entry.ControlID == question.ControlID {
+		return true
+	}
+	return entry.EvidenceType != "" && entry.EvidenceType == question.EvidenceType
+}
+
+func questionnaireAnswerSpecificity(entry domain.QuestionnaireAnswerLibraryEntry, question domain.QuestionnaireQuestion) int {
+	score := 0
+	if entry.QuestionID != "" && entry.QuestionID == question.ID {
+		score += 8
+	}
+	if entry.ControlID != "" && entry.ControlID == question.ControlID {
+		score += 4
+	}
+	if entry.EvidenceType != "" && entry.EvidenceType == question.EvidenceType {
+		score += 2
+	}
+	if entry.ReleaseID != "" {
+		score++
+	}
+	if entry.ProductID != "" {
+		score++
+	}
+	return score
 }
 
 func (l *Ledger) evidenceIDsForRefsLocked(tenantID string, refs resourceRefs, evidenceType string) []string {

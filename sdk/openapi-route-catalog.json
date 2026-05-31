@@ -1,5 +1,5 @@
 {
-  "route_count": 173,
+  "route_count": 175,
   "routes": [
     {
       "idempotency_key_required": false,
@@ -1531,6 +1531,40 @@
       ],
       "scopes": [
         "keys:admin"
+      ],
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "listQuestionnaireAnswerLibrary",
+      "path": "/v1/questionnaire-answer-library",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/QuestionnaireAnswerLibraryEntryListEnvelope"
+      ],
+      "scopes": [
+        "package:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "createQuestionnaireAnswerLibraryEntry",
+      "path": "/v1/questionnaire-answer-library",
+      "request_schema": "#/components/schemas/CreateQuestionnaireAnswerLibraryEntryRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/QuestionnaireAnswerLibraryEntryEnvelope"
+      ],
+      "scopes": [
+        "package:write"
       ],
       "success_statuses": [
         "201"

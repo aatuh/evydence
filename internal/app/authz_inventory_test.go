@@ -21,6 +21,10 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 			"CRAVulnerabilityHandlingReport",
 			"SecurityUpdateEvidenceReport",
 		},
+		"enterprise.go": {
+			"CreateQuestionnaireAnswerLibraryEntry",
+			"ListQuestionnaireAnswerLibrary",
+		},
 		"risk_workflows.go": {
 			"CreateIncident",
 			"RecordIncidentTimelineEvent",

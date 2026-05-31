@@ -1021,19 +1021,20 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"expires_at":           map[string]any{"type": "string", "format": "date-time"},
 	}, "product_id", "redaction_profile_id", "title", "expires_at"))
 	registry.RegisterSchema("CustomerSecurityPackage", objectSchema(map[string]any{
-		"id":                   map[string]any{"type": "string"},
-		"tenant_id":            map[string]any{"type": "string"},
-		"product_id":           map[string]any{"type": "string"},
-		"release_id":           map[string]any{"type": "string"},
-		"redaction_profile_id": map[string]any{"type": "string"},
-		"title":                map[string]any{"type": "string"},
-		"state":                map[string]any{"type": "string"},
-		"manifest":             map[string]any{"type": "object", "additionalProperties": true},
-		"manifest_hash":        map[string]any{"type": "string", "pattern": "^sha256:"},
-		"expires_at":           map[string]any{"type": "string", "format": "date-time"},
-		"access_count":         map[string]any{"type": "integer"},
-		"schema_version":       map[string]any{"type": "string"},
-		"created_at":           map[string]any{"type": "string", "format": "date-time"},
+		"id":                     map[string]any{"type": "string"},
+		"tenant_id":              map[string]any{"type": "string"},
+		"product_id":             map[string]any{"type": "string"},
+		"release_id":             map[string]any{"type": "string"},
+		"redaction_profile_id":   map[string]any{"type": "string"},
+		"title":                  map[string]any{"type": "string"},
+		"state":                  map[string]any{"type": "string"},
+		"manifest":               map[string]any{"type": "object", "additionalProperties": true},
+		"manifest_hash":          map[string]any{"type": "string", "pattern": "^sha256:"},
+		"distribution_watermark": map[string]any{"type": "string"},
+		"expires_at":             map[string]any{"type": "string", "format": "date-time"},
+		"access_count":           map[string]any{"type": "integer"},
+		"schema_version":         map[string]any{"type": "string"},
+		"created_at":             map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "product_id", "redaction_profile_id", "title", "state", "manifest", "manifest_hash", "expires_at", "access_count", "schema_version", "created_at"))
 	registry.RegisterSchema("CustomerSecurityPackageEnvelope", dataEnvelopeSchema("#/components/schemas/CustomerSecurityPackage"))
 	registry.RegisterSchema("SecurityReviewPackageReport", objectSchema(map[string]any{
@@ -1212,6 +1213,32 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"created_at":     map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "template_id", "responses", "manifest_hash", "limitations", "schema_version", "created_at"))
 	registry.RegisterSchema("QuestionnaireDraftEnvelope", dataEnvelopeSchema("#/components/schemas/QuestionnaireDraft"))
+	registry.RegisterSchema("CreateQuestionnaireAnswerLibraryEntryRequest", objectSchema(map[string]any{
+		"question_id":   map[string]any{"type": "string"},
+		"evidence_type": map[string]any{"type": "string"},
+		"control_id":    map[string]any{"type": "string"},
+		"product_id":    map[string]any{"type": "string"},
+		"release_id":    map[string]any{"type": "string"},
+		"answer":        map[string]any{"type": "string"},
+		"evidence_ids":  map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"limitations":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+	}, "answer"))
+	registry.RegisterSchema("QuestionnaireAnswerLibraryEntry", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"question_id":    map[string]any{"type": "string"},
+		"evidence_type":  map[string]any{"type": "string"},
+		"control_id":     map[string]any{"type": "string"},
+		"product_id":     map[string]any{"type": "string"},
+		"release_id":     map[string]any{"type": "string"},
+		"answer":         map[string]any{"type": "string"},
+		"evidence_ids":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"limitations":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"schema_version": map[string]any{"type": "string"},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "answer", "schema_version", "created_at"))
+	registry.RegisterSchema("QuestionnaireAnswerLibraryEntryEnvelope", dataEnvelopeSchema("#/components/schemas/QuestionnaireAnswerLibraryEntry"))
+	registry.RegisterSchema("QuestionnaireAnswerLibraryEntryListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/QuestionnaireAnswerLibraryEntry"))
 	registry.RegisterSchema("CreatePDFReportPackageRequest", objectSchema(map[string]any{
 		"report_type": map[string]any{"type": "string"},
 		"product_id":  map[string]any{"type": "string"},
@@ -2352,6 +2379,8 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	registry.RegisterSchema("CreateCustomerPortalAccessRequest", objectSchema(map[string]any{
 		"package_id":    map[string]any{"type": "string"},
 		"customer_name": map[string]any{"type": "string"},
+		"require_nda":   map[string]any{"type": "boolean"},
+		"watermark":     map[string]any{"type": "string", "description": "Optional customer-visible distribution watermark. It is not a token or secret."},
 		"expires_at":    map[string]any{"type": "string", "format": "date-time"},
 	}, "package_id", "customer_name", "expires_at"))
 	registry.RegisterSchema("CustomerPortalAccessCreateResponse", objectSchema(map[string]any{
@@ -2360,7 +2389,9 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "access", "secret"))
 	registry.RegisterSchema("CustomerPortalAccessCreateEnvelope", dataEnvelopeSchema("#/components/schemas/CustomerPortalAccessCreateResponse"))
 	registry.RegisterSchema("CustomerPortalPackageRequest", objectSchema(map[string]any{
-		"token": map[string]any{"type": "string", "description": "Customer portal access token issued by createCustomerPortalAccess."},
+		"token":           map[string]any{"type": "string", "description": "Customer portal access token issued by createCustomerPortalAccess."},
+		"nda_accepted":    map[string]any{"type": "boolean", "description": "Set true to record acceptance for NDA-gated portal access."},
+		"nda_accepted_by": map[string]any{"type": "string", "description": "Reviewer label recorded when NDA acceptance is required. Do not include secrets."},
 	}, "token"))
 }
 

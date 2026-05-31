@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -89,7 +90,14 @@ type CreateRetentionOverrideInput struct {
 type CreateCustomerPortalAccessInput struct {
 	PackageID    string
 	CustomerName string
+	RequireNDA   bool
+	Watermark    string
 	ExpiresAt    time.Time
+}
+
+type CustomerPortalAcceptanceInput struct {
+	NDAAccepted   bool
+	NDAAcceptedBy string
 }
 
 type CreateQuestionnaireTemplateInput struct {
@@ -101,6 +109,23 @@ type CreateQuestionnaireTemplateInput struct {
 type CreateQuestionnairePackageInput struct {
 	TemplateID string
 	PackageID  string
+	ProductID  string
+	ReleaseID  string
+}
+
+type CreateQuestionnaireAnswerLibraryEntryInput struct {
+	QuestionID   string
+	EvidenceType string
+	ControlID    string
+	ProductID    string
+	ReleaseID    string
+	Answer       string
+	EvidenceIDs  []string
+	Limitations  []string
+}
+
+type ListQuestionnaireAnswerLibraryInput struct {
+	QuestionID string
 	ProductID  string
 	ReleaseID  string
 }
@@ -762,7 +787,8 @@ func (s identityService) CreateCustomerPortalAccess(ctx context.Context, actor d
 	if err := require(actor, ScopePackageWrite); err != nil {
 		return domain.CustomerPortalAccess{}, "", err
 	}
-	in.PackageID, in.CustomerName = strings.TrimSpace(in.PackageID), strings.TrimSpace(in.CustomerName)
+	in.PackageID, in.CustomerName = strings.TrimSpace(in.PackageID), cleanExternalLabel(in.CustomerName)
+	in.Watermark = cleanExternalLabel(in.Watermark)
 	if in.PackageID == "" || in.CustomerName == "" || !in.ExpiresAt.After(l.now()) {
 		return domain.CustomerPortalAccess{}, "", ErrValidation
 	}
@@ -773,7 +799,12 @@ func (s identityService) CreateCustomerPortalAccess(ctx context.Context, actor d
 		return domain.CustomerPortalAccess{}, "", ErrNotFound
 	}
 	secret := "evycp_" + randomToken(32)
-	access := domain.CustomerPortalAccess{ID: newID("cpa"), TenantID: actor.TenantID, PackageID: pkg.ID, CustomerName: in.CustomerName, Prefix: secretPrefix(secret), ExpiresAt: in.ExpiresAt.UTC(), SchemaVersion: domain.CustomerPortalAccessVersion, CreatedAt: l.now(), Hash: l.hashSecret(secret)}
+	accessID := newID("cpa")
+	watermark := in.Watermark
+	if watermark == "" {
+		watermark = packageDistributionWatermark(pkg, in.CustomerName, accessID)
+	}
+	access := domain.CustomerPortalAccess{ID: accessID, TenantID: actor.TenantID, PackageID: pkg.ID, CustomerName: in.CustomerName, RequireNDA: in.RequireNDA, Watermark: watermark, Prefix: secretPrefix(secret), ExpiresAt: in.ExpiresAt.UTC(), SchemaVersion: domain.CustomerPortalAccessVersion, CreatedAt: l.now(), Hash: l.hashSecret(secret)}
 	l.portalAccess[access.ID] = access
 	_, _ = l.appendChainLocked(actor.TenantID, "customer_portal_access.created", "customer_security_package", pkg.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistCriticalLocked(ctx, l.criticalMutationLocked()); err != nil {
@@ -784,10 +815,14 @@ func (s identityService) CreateCustomerPortalAccess(ctx context.Context, actor d
 }
 
 func (s identityService) AccessCustomerPortalPackage(ctx context.Context, token string) (domain.CustomerSecurityPackage, error) {
-	return s.accessCustomerPortalPackage(ctx, token, "customer_portal_package.accessed")
+	return s.AccessCustomerPortalPackageWithAcceptance(ctx, token, CustomerPortalAcceptanceInput{})
 }
 
-func (s identityService) accessCustomerPortalPackage(ctx context.Context, token, successEntryType string) (domain.CustomerSecurityPackage, error) {
+func (s identityService) AccessCustomerPortalPackageWithAcceptance(ctx context.Context, token string, in CustomerPortalAcceptanceInput) (domain.CustomerSecurityPackage, error) {
+	return s.accessCustomerPortalPackage(ctx, token, in, "customer_portal_package.accessed")
+}
+
+func (s identityService) accessCustomerPortalPackage(ctx context.Context, token string, in CustomerPortalAcceptanceInput, successEntryType string) (domain.CustomerSecurityPackage, error) {
 	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.CustomerSecurityPackage{}, err
@@ -822,6 +857,19 @@ func (s identityService) accessCustomerPortalPackage(ctx context.Context, token,
 		if !ok || pkg.TenantID != access.TenantID || !pkg.ExpiresAt.After(l.now()) {
 			return domain.CustomerSecurityPackage{}, ErrNotFound
 		}
+		if access.RequireNDA && access.NDAAcceptedAt == nil {
+			acceptedBy := cleanExternalLabel(in.NDAAcceptedBy)
+			if !in.NDAAccepted || acceptedBy == "" {
+				_, _ = l.appendChainLocked(access.TenantID, "customer_portal_package.nda_required", "customer_portal_access", access.ID, "customer_portal", access.ID, pkg.ManifestHash, "")
+				_ = l.persistCriticalLocked(ctx, l.criticalMutationLocked())
+				return domain.CustomerSecurityPackage{}, ErrForbidden
+			}
+			now := l.now()
+			access.NDAAcceptedAt = &now
+			access.NDAAcceptedBy = acceptedBy
+			l.portalAccess[id] = access
+			_, _ = l.appendChainLocked(access.TenantID, "customer_portal_package.nda_accepted", "customer_portal_access", access.ID, "customer_portal", access.ID, pkg.ManifestHash, "")
+		}
 		access.AccessCount++
 		now := l.now()
 		access.LastAccessedAt = &now
@@ -830,7 +878,7 @@ func (s identityService) accessCustomerPortalPackage(ctx context.Context, token,
 		if err := l.persistCriticalLocked(ctx, l.criticalMutationLocked()); err != nil {
 			return domain.CustomerSecurityPackage{}, err
 		}
-		return pkg, nil
+		return packageWithDistributionWatermark(pkg, access), nil
 	}
 	return domain.CustomerSecurityPackage{}, ErrUnauthorized
 }
@@ -902,17 +950,7 @@ func (s packageReportService) CreateQuestionnairePackage(ctx context.Context, ac
 	}
 	responses := []domain.QuestionnaireResponse{}
 	for _, question := range tpl.Questions {
-		evidenceIDs := []string{}
-		for _, item := range l.evidence {
-			if item.TenantID == actor.TenantID && (in.ProductID == "" || item.ProductID == in.ProductID) && (in.ReleaseID == "" || item.ReleaseID == in.ReleaseID) && (question.EvidenceType == "" || item.Type == question.EvidenceType) {
-				evidenceIDs = append(evidenceIDs, item.ID)
-			}
-		}
-		answer := "No matching evidence was linked for this question."
-		if len(evidenceIDs) > 0 {
-			answer = "Evidence is available for review in the linked evidence records."
-		}
-		responses = append(responses, domain.QuestionnaireResponse{QuestionID: question.ID, Answer: answer, EvidenceIDs: sortedStrings(evidenceIDs), Limitations: []string{"Questionnaire responses summarize recorded evidence and require human review."}})
+		responses = append(responses, l.questionnaireResponseForQuestionLocked(actor.TenantID, question, in.ProductID, in.ReleaseID))
 	}
 	hash, err := canonicalAnyHash(responses)
 	if err != nil {
@@ -925,6 +963,107 @@ func (s packageReportService) CreateQuestionnairePackage(ctx context.Context, ac
 		return domain.QuestionnairePackage{}, err
 	}
 	return pkg, nil
+}
+
+func (s packageReportService) CreateQuestionnaireAnswerLibraryEntry(ctx context.Context, actor domain.Actor, in CreateQuestionnaireAnswerLibraryEntryInput) (domain.QuestionnaireAnswerLibraryEntry, error) {
+	l := s.ledger
+	if err := ctx.Err(); err != nil {
+		return domain.QuestionnaireAnswerLibraryEntry{}, err
+	}
+	if err := require(actor, ScopePackageWrite); err != nil {
+		return domain.QuestionnaireAnswerLibraryEntry{}, err
+	}
+	in.QuestionID, in.EvidenceType, in.ControlID = strings.TrimSpace(in.QuestionID), strings.TrimSpace(in.EvidenceType), strings.TrimSpace(in.ControlID)
+	in.ProductID, in.ReleaseID = strings.TrimSpace(in.ProductID), strings.TrimSpace(in.ReleaseID)
+	in.Answer = strings.TrimSpace(in.Answer)
+	if in.Answer == "" || (in.QuestionID == "" && in.EvidenceType == "" && in.ControlID == "") {
+		return domain.QuestionnaireAnswerLibraryEntry{}, ErrValidation
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if in.ProductID != "" || in.ReleaseID != "" {
+		if err := l.ensureScopeLocked(actor.TenantID, in.ProductID, "", in.ReleaseID); err != nil {
+			return domain.QuestionnaireAnswerLibraryEntry{}, err
+		}
+		if err := l.authorizeResourceLocked(actor, ScopePackageWrite, resourceRefs{ProductID: in.ProductID, ReleaseID: in.ReleaseID}); err != nil {
+			return domain.QuestionnaireAnswerLibraryEntry{}, err
+		}
+	}
+	if in.ControlID != "" {
+		control, ok := l.controls[in.ControlID]
+		if !ok || control.TenantID != actor.TenantID {
+			return domain.QuestionnaireAnswerLibraryEntry{}, ErrNotFound
+		}
+	}
+	evidenceIDs := sortedStrings(in.EvidenceIDs)
+	for _, id := range evidenceIDs {
+		item, ok := l.evidence[id]
+		if !ok || item.TenantID != actor.TenantID || !evidenceMatchesRefs(item, resourceRefs{ProductID: in.ProductID, ReleaseID: in.ReleaseID}) {
+			return domain.QuestionnaireAnswerLibraryEntry{}, ErrNotFound
+		}
+	}
+	entry := domain.QuestionnaireAnswerLibraryEntry{
+		ID:            newID("qal"),
+		TenantID:      actor.TenantID,
+		QuestionID:    in.QuestionID,
+		EvidenceType:  in.EvidenceType,
+		ControlID:     in.ControlID,
+		ProductID:     in.ProductID,
+		ReleaseID:     in.ReleaseID,
+		Answer:        in.Answer,
+		EvidenceIDs:   evidenceIDs,
+		Limitations:   sortedStrings(in.Limitations),
+		SchemaVersion: domain.QuestionnaireAnswerLibraryVersion,
+		CreatedAt:     l.now(),
+	}
+	if len(entry.Limitations) == 0 {
+		entry.Limitations = []string{"Answer library entries are reusable drafts and require human review before external use."}
+	}
+	l.answerLibrary[entry.ID] = entry
+	_, _ = l.appendChainLocked(actor.TenantID, "questionnaire_answer_library.created", "questionnaire_answer_library", entry.ID, actorType(actor), actorID(actor), "", "")
+	if err := l.persistLocked(ctx); err != nil {
+		return domain.QuestionnaireAnswerLibraryEntry{}, err
+	}
+	return entry, nil
+}
+
+func (s packageReportService) ListQuestionnaireAnswerLibrary(ctx context.Context, actor domain.Actor, in ListQuestionnaireAnswerLibraryInput) ([]domain.QuestionnaireAnswerLibraryEntry, error) {
+	l := s.ledger
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := require(actor, ScopePackageRead); err != nil {
+		return nil, err
+	}
+	in.QuestionID, in.ProductID, in.ReleaseID = strings.TrimSpace(in.QuestionID), strings.TrimSpace(in.ProductID), strings.TrimSpace(in.ReleaseID)
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if in.ProductID != "" || in.ReleaseID != "" {
+		if err := l.ensureScopeLocked(actor.TenantID, in.ProductID, "", in.ReleaseID); err != nil {
+			return nil, err
+		}
+		if err := l.authorizeResourceLocked(actor, ScopePackageRead, resourceRefs{ProductID: in.ProductID, ReleaseID: in.ReleaseID}); err != nil {
+			return nil, err
+		}
+	}
+	out := []domain.QuestionnaireAnswerLibraryEntry{}
+	for _, entry := range l.answerLibrary {
+		if entry.TenantID != actor.TenantID {
+			continue
+		}
+		if in.QuestionID != "" && entry.QuestionID != in.QuestionID {
+			continue
+		}
+		if in.ProductID != "" && entry.ProductID != "" && entry.ProductID != in.ProductID {
+			continue
+		}
+		if in.ReleaseID != "" && entry.ReleaseID != "" && entry.ReleaseID != in.ReleaseID {
+			continue
+		}
+		out = append(out, entry)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out, nil
 }
 
 func (l *Ledger) CreateCommercialCollectorDefinition(ctx context.Context, actor domain.Actor, in CreateCommercialCollectorInput) (domain.CommercialCollectorDefinition, error) {

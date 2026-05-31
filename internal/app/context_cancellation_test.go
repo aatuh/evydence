@@ -187,6 +187,10 @@ func TestLedgerOperationsHonorCanceledContextBeforeWork(t *testing.T) {
 		{"AccessCustomerSecurityPackage", func() error { _, err := ledger.AccessCustomerSecurityPackage(ctx, actor, "pkg"); return err }},
 		{"ExportCustomerSecurityPackageArchive", func() error { _, err := ledger.ExportCustomerSecurityPackageArchive(ctx, actor, "pkg"); return err }},
 		{"ExportCustomerPortalPackageArchive", func() error { _, err := ledger.ExportCustomerPortalPackageArchive(ctx, "token"); return err }},
+		{"ExportCustomerPortalPackageArchiveWithAcceptance", func() error {
+			_, err := ledger.ExportCustomerPortalPackageArchiveWithAcceptance(ctx, "token", CustomerPortalAcceptanceInput{NDAAccepted: true, NDAAcceptedBy: "reviewer"})
+			return err
+		}},
 		{"SecurityReviewPackageReport", func() error { _, err := ledger.SecurityReviewPackageReport(ctx, actor, "pkg"); return err }},
 		{"CRAReadinessHTMLPackage", func() error { _, err := ledger.CRAReadinessHTMLPackage(ctx, actor, "prod", "rel"); return err }},
 		{"ListControlFrameworkTemplatePacks", func() error { _, err := ledger.ListControlFrameworkTemplatePacks(ctx, actor); return err }},
@@ -289,12 +293,24 @@ func TestLedgerOperationsHonorCanceledContextBeforeWork(t *testing.T) {
 			return err
 		}},
 		{"AccessCustomerPortalPackage", func() error { _, err := ledger.AccessCustomerPortalPackage(ctx, "token"); return err }},
+		{"AccessCustomerPortalPackageWithAcceptance", func() error {
+			_, err := ledger.AccessCustomerPortalPackageWithAcceptance(ctx, "token", CustomerPortalAcceptanceInput{NDAAccepted: true, NDAAcceptedBy: "reviewer"})
+			return err
+		}},
 		{"CreateQuestionnaireTemplate", func() error {
 			_, err := ledger.CreateQuestionnaireTemplate(ctx, actor, CreateQuestionnaireTemplateInput{Name: "template", Version: "1"})
 			return err
 		}},
 		{"CreateQuestionnairePackage", func() error {
 			_, err := ledger.CreateQuestionnairePackage(ctx, actor, CreateQuestionnairePackageInput{TemplateID: "template", PackageID: "pkg", ProductID: "prod", ReleaseID: "rel"})
+			return err
+		}},
+		{"CreateQuestionnaireAnswerLibraryEntry", func() error {
+			_, err := ledger.CreateQuestionnaireAnswerLibraryEntry(ctx, actor, CreateQuestionnaireAnswerLibraryEntryInput{QuestionID: "q1", Answer: "answer"})
+			return err
+		}},
+		{"ListQuestionnaireAnswerLibrary", func() error {
+			_, err := ledger.ListQuestionnaireAnswerLibrary(ctx, actor, ListQuestionnaireAnswerLibraryInput{QuestionID: "q1"})
 			return err
 		}},
 		{"CreateCommercialCollectorDefinition", func() error {
@@ -628,6 +644,14 @@ func TestLedgerOperationsRejectActorsWithoutRequiredScopesBeforeResourceWork(t *
 		}},
 		{"CreateQuestionnairePackage", func() error {
 			_, err := ledger.CreateQuestionnairePackage(ctx, actor, CreateQuestionnairePackageInput{TemplateID: "template", PackageID: "pkg", ProductID: "prod", ReleaseID: "rel"})
+			return err
+		}},
+		{"CreateQuestionnaireAnswerLibraryEntry", func() error {
+			_, err := ledger.CreateQuestionnaireAnswerLibraryEntry(ctx, actor, CreateQuestionnaireAnswerLibraryEntryInput{QuestionID: "q1", Answer: "answer"})
+			return err
+		}},
+		{"ListQuestionnaireAnswerLibrary", func() error {
+			_, err := ledger.ListQuestionnaireAnswerLibrary(ctx, actor, ListQuestionnaireAnswerLibraryInput{QuestionID: "q1"})
 			return err
 		}},
 		{"CreateCommercialCollectorDefinition", func() error {

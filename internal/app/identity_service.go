@@ -218,3 +218,7 @@ func (l *Ledger) CreateCustomerPortalAccess(ctx context.Context, actor domain.Ac
 func (l *Ledger) AccessCustomerPortalPackage(ctx context.Context, token string) (domain.CustomerSecurityPackage, error) {
 	return l.identityService().AccessCustomerPortalPackage(ctx, token)
 }
+
+func (l *Ledger) AccessCustomerPortalPackageWithAcceptance(ctx context.Context, token string, in CustomerPortalAcceptanceInput) (domain.CustomerSecurityPackage, error) {
+	return l.identityService().AccessCustomerPortalPackageWithAcceptance(ctx, token, in)
+}
