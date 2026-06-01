@@ -134,6 +134,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@test -f docs/how-to/install-and-operate.md
 	@test -f docs/how-to/view-packages.md
 	@test -f docs/reference/configuration.md
+	@test -f docs/reference/capability-map.md
 	@test -f docs/reference/api-contract-matrix.md
 	@test -f docs/reference/openapi.md
 	@test -f docs/reference/vulnerability-decisions.md
@@ -176,6 +177,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 		"release-signing.md" \
 		"production-hardening.md" \
 		"reference/configuration.md" \
+		"reference/capability-map.md" \
 		"reference/api-contract-matrix.md" \
 		"reference/openapi.md" \
 		"reference/vulnerability-decisions.md" \
@@ -225,6 +227,9 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@grep -F 'examples/end-to-end-release-evidence/run-local-demo.sh' docs/tutorials/evaluate-in-10-minutes.md >/dev/null
 	@grep -F 'Evaluate Evydence in 10 minutes' README.md docs/README.md >/dev/null
 	@grep -F 'make public-release-verify TAG=v0.1.0-rc.5' README.md >/dev/null
+	@grep -F 'Capability map' README.md docs/README.md >/dev/null
+	@grep -F 'Implemented-But-Partial Areas' docs/reference/capability-map.md >/dev/null
+	@grep -F 'VEX/manual' README.md >/dev/null
 	@grep -F 'make public-release-verify TAG=v0.1.0-rc.5' docs/how-to/install-and-operate.md >/dev/null
 	@grep -F 'make public-release-verify TAG=v0.1.0-rc.5' docs/reference/release-evidence-index.md >/dev/null
 	@grep -F 'make public-release-verify TAG=v0.1.0-rc.5' examples/end-to-end-release-evidence/README.md >/dev/null

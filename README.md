@@ -137,47 +137,24 @@ non-sensitive sample data and does not upload files.
   contract, tenant scoping, idempotency, audit chains, release evidence, and
   checked non-claim language from the start.
 
-### API And Contracts
+### Core Product Path
 
-- HTTP API under `/v1` using `github.com/aatuh/api-toolkit/v3` route contracts, OpenAPI generation, response helpers, and Problem Details.
-- Generated OpenAPI contract committed at `openapi.yaml` and served at `/v1/openapi.json`.
-- Request idempotency for create/action endpoints and tenant-scoped Problem Details responses.
+- `/v1` API, committed OpenAPI contract, idempotent create/action requests, and
+  tenant-scoped Problem Details responses.
+- Products, releases, artifacts, SBOMs, vulnerability scans, VEX/manual
+  decisions, exceptions, approvals, release bundles, audit-chain verification,
+  and customer-safe packages.
+- Release-readiness, vulnerability-decision, control-coverage, CRA-readiness,
+  security-summary, package, retention, and backup reports with assumptions and
+  limitations.
+- PostgreSQL, object storage, outbox worker, CLI upload/verification helpers,
+  GitHub Actions/GitLab examples, SDK wrappers, Compose, Helm, and air-gapped
+  packaging paths.
 
-### Identity And Tenant Boundaries
-
-- Multi-tenant scoped API keys with one-time secret output, HMAC-SHA256 storage, and server-side scope checks.
-- Organizations, users, role bindings, admin-managed SSO provider/session records, collector keys, and customer portal package tokens.
-- Instance diagnostics require explicit `instance:admin` scope.
-
-### Evidence And Release Records
-
-- Products, projects, releases, release candidates, artifacts, container images, artifact signatures, evidence search, evidence lifecycle events, SBOM and VEX upload, vulnerability scans, vulnerability decisions, exceptions, waivers, approvals, incidents, remediation tasks, source records, deployment events, controls, reports, policies, release bundles, evidence bundles, backup manifests, and retention records.
-- Immutable or append-only behavior for evidence core fields, release bundles, approvals, exceptions, audit entries, chain entries, and related transition records.
-- Release-readiness, control-coverage, CRA-readiness, vulnerability-posture, incident-package, security-review-package, evidence-summary, questionnaire-draft, graph-snapshot, PDF-package, anomaly, retention, and backup-manifest reports with assumptions and limitations.
-
-### Persistence, Object Storage, And Workers
-
-- In-process store for local demos and unit-test execution when `EVYDENCE_DATABASE_URL` is unset.
-- PostgreSQL-backed durable ledger state, tenant-scoped relational projections, migrations, and persisted outbox jobs when `EVYDENCE_DATABASE_URL` is set.
-- Filesystem or S3/MinIO-compatible object storage for raw upload payload bytes under tenant-prefixed paths.
-- Polling `cmd/evydence-worker` process that claims persisted outbox jobs with PostgreSQL row locking and records retry or terminal status.
-- Optional worker-owned parser side effects through `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`, including OpenVEX-derived vulnerability decisions created idempotently by the `parse_vex` worker.
-
-### Tooling, Deployment, And Examples
-
-- `cmd/evydence` helper for hashing, one-shot release evidence upload, manifest verification, GitHub Actions build provenance upload, release artifact manifest signing/verification, bulk upload manifests, and air-gapped evidence bundle import.
-- Docker Compose dependencies for PostgreSQL and MinIO.
-- Production-like Docker Compose rehearsal with API, worker, migrations,
-  PostgreSQL, and MinIO.
-- Kubernetes Helm chart under `deploy/helm/evydence`.
-- Air-gapped package manifest under `deploy/airgap/manifest.yaml`.
-- Lightweight Go, TypeScript, and Python SDK wrappers.
-- GitHub Actions and GitLab CI workflow examples.
-- Documentation portal under `docs/`.
-- AGPL license, commercial licensing, governance, contribution, security,
-  support, code of conduct, trademark, release-evidence, and changelog metadata.
-
-Implemented-but-partial areas are documented explicitly: signing-provider operation receipts can use an HTTPS signing gateway, built-in AWS KMS, GCP Cloud KMS, or Azure Key Vault executors, `pkcs11-hsm` remains gateway-backed because native HSM modules are deployment-specific, and `native_pkcs11_hsm` provider records plus custody-review reports capture operator-supplied HSM profile evidence without loading modules or proving custody. SSO credential exchange uses configured local OIDC/SAML trust material and session-scoped OIDC group-role mappings, and provider verification can optionally call OIDC UserInfo or an operator-controlled provider validation gateway when a caller supplies an access token, but the gateway receives only non-secret metadata and this does not replace direct provider-specific management API clients or external group synchronization. Public transparency records can verify operator-supplied proof material, fetch from configured endpoints, or use an operator-controlled transparency proof gateway without replacing provider-specific trust review.
+For the full advanced capability inventory, including identity, controls,
+source/deployment/incident evidence, retention, backup, signing-provider
+profiles, provider verification, transparency records, and
+implemented-but-partial areas, see [Capability map](docs/reference/capability-map.md).
 
 ## License, Security, Support, And Governance
 
