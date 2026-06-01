@@ -18,6 +18,7 @@ vulnerability result, or a secure-release guarantee.
 | `evidence_ids` | Included evidence metadata identifiers after redaction profile filtering. |
 | `artifact_digests` | Artifact IDs, names, media types, sizes, and digests linked to the release. |
 | `readiness_summary` | Deterministic readiness checks, gaps, and limitations. |
+| `customer_decision_export` | Optional archive file metadata for the package-scoped customer-safe decision export. |
 | `customer_safe_gaps` | Optional customer-visible gap records filtered through the package redaction profile. |
 | `verification_material` | Hash algorithm, canonicalization profile, release bundle hashes, and audit-chain summary. |
 | `reviewer_checklist` | Optional proof-path checklist covering package scope, included evidence, excluded evidence, verification, non-claims, and escalation path. |
@@ -55,6 +56,12 @@ and target contract IDs, result, breaking and non-breaking change summaries,
 schema version, and timestamp. The section deliberately omits raw OpenAPI
 document bytes, object-store references, and private/internal document
 extensions.
+
+When customer-visible vulnerability decisions are present, generated package
+archives also include `vulnerability-decisions.json`. That file is scoped to the
+package, repeats only customer-safe decision fields, records the source manifest
+hash, and includes assumptions and limitations. The package verifier validates
+the file when `verification.json` declares `decision_export_file`.
 
 ## Exclusions
 
@@ -174,6 +181,11 @@ go run ./cmd/evydence package verify \
   --archive evydence-customer-package-csp_123.zip \
   --hash sha256:<canonical-manifest-hash>
 ```
+
+The checked sample ZIP includes `vulnerability-decisions.json` for the
+package-scoped decision export. The verifier checks the export scope and source
+manifest hash alongside `manifest.json`, `package.json`, and
+`verification.json`.
 
 When an evidence bundle is supplied, the verifier also checks the bundle
 manifest hash, included signatures, and package evidence-id coverage:

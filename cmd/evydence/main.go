@@ -427,10 +427,13 @@ type customerPackageVerifyResult struct {
 }
 
 type customerPackageArchiveFiles struct {
-	Manifest     []byte
-	Metadata     map[string]any
-	Verification map[string]any
+	Manifest       []byte
+	DecisionExport []byte
+	Metadata       map[string]any
+	Verification   map[string]any
 }
+
+const customerDecisionExportSchemaVersion = "customer-vulnerability-decisions.v1.0.0"
 
 func verifyCustomerPackage(args []string) error {
 	fs := flag.NewFlagSet("package verify", flag.ContinueOnError)
@@ -665,6 +668,8 @@ func readCustomerPackageArchive(path string) (customerPackageArchiveFiles, error
 			if err == nil {
 				err = json.Unmarshal(body, &files.Verification)
 			}
+		case "vulnerability-decisions.json":
+			files.DecisionExport, err = readZIPFileLimited(file)
 		}
 		if err != nil {
 			return customerPackageArchiveFiles{}, err
@@ -708,6 +713,64 @@ func verifyCustomerPackageArchiveMetadata(archive customerPackageArchiveFiles, r
 		if name == "package.json" {
 			if got := stringMapField(document, "id"); got != "" && got != result.PackageID {
 				return fmt.Errorf("%s id mismatch", name)
+			}
+		}
+	}
+	if exportFile := stringMapField(archive.Verification, "decision_export_file"); strings.TrimSpace(exportFile) != "" {
+		if strings.TrimSpace(exportFile) != "vulnerability-decisions.json" {
+			return errors.New("verification.json decision_export_file is unsupported")
+		}
+		if len(archive.DecisionExport) == 0 {
+			return errors.New("customer package archive missing declared vulnerability decision export")
+		}
+		if err := verifyCustomerDecisionExportBytes(archive.DecisionExport, result); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func verifyCustomerDecisionExportBytes(body []byte, result customerPackageVerifyResult) error {
+	var raw any
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return errors.New("customer package decision export is not valid JSON")
+	}
+	if err := rejectCustomerPackageSensitiveKeys(raw); err != nil {
+		return err
+	}
+	var export struct {
+		SchemaVersion      string           `json:"schema_version"`
+		PackageID          string           `json:"package_id"`
+		ProductID          string           `json:"product_id"`
+		ReleaseID          string           `json:"release_id"`
+		SourceManifestHash string           `json:"source_manifest_hash"`
+		Decisions          []map[string]any `json:"decisions"`
+		Assumptions        []string         `json:"assumptions"`
+		Limitations        []string         `json:"limitations"`
+		GeneratedAt        string           `json:"generated_at"`
+	}
+	if err := json.Unmarshal(body, &export); err != nil {
+		return errors.New("customer package decision export structure is invalid")
+	}
+	if strings.TrimSpace(export.SchemaVersion) != customerDecisionExportSchemaVersion {
+		return errors.New("customer package decision export schema_version is unsupported")
+	}
+	if strings.TrimSpace(export.PackageID) != result.PackageID || strings.TrimSpace(export.ProductID) != result.ProductID || strings.TrimSpace(export.ReleaseID) != result.ReleaseID {
+		return errors.New("customer package decision export scope mismatch")
+	}
+	if strings.TrimSpace(export.SourceManifestHash) != result.ManifestHash {
+		return errors.New("customer package decision export manifest_hash mismatch")
+	}
+	if len(export.Decisions) == 0 || len(export.Assumptions) == 0 || len(export.Limitations) == 0 {
+		return errors.New("customer package decision export missing decisions, assumptions, or limitations")
+	}
+	if _, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(export.GeneratedAt)); err != nil {
+		return errors.New("customer package decision export generated_at must be RFC3339")
+	}
+	for _, decision := range export.Decisions {
+		for _, key := range []string{"id", "vulnerability", "status", "impact_statement"} {
+			if strings.TrimSpace(stringMapField(decision, key)) == "" {
+				return fmt.Errorf("customer package decision export missing decision field %s", key)
 			}
 		}
 	}

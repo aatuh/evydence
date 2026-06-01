@@ -184,7 +184,7 @@ func TestVEXFirstReleaseEvidenceFlowEndToEnd(t *testing.T) {
 		t.Fatalf("export archive: %v", err)
 	}
 	files := packageArchiveFiles(t, archive.Bytes)
-	for _, name := range []string{"manifest.json", "package.json", "verification.json", "README.txt", "report.html"} {
+	for _, name := range []string{"manifest.json", "package.json", "verification.json", "README.txt", "report.html", "vulnerability-decisions.json"} {
 		if strings.TrimSpace(files[name]) == "" {
 			t.Fatalf("archive missing %s: %#v", name, files)
 		}
@@ -203,6 +203,15 @@ func TestVEXFirstReleaseEvidenceFlowEndToEnd(t *testing.T) {
 	reportHTML := files["report.html"]
 	if !strings.Contains(reportHTML, "Release Summary") || !strings.Contains(reportHTML, "Verification") || strings.Contains(reportHTML, "<script") {
 		t.Fatalf("HTML report missing expected content or includes script: %s", reportHTML)
+	}
+	decisionExport := files["vulnerability-decisions.json"]
+	for _, want := range []string{"customer-vulnerability-decisions.v1.0.0", pkg.ID, product.ID, release.ID, decisions[0].ID, "assumptions", "limitations"} {
+		if !strings.Contains(decisionExport, want) {
+			t.Fatalf("decision export missing %q: %s", want, decisionExport)
+		}
+	}
+	if strings.Contains(decisionExport, "internal_notes") || strings.Contains(decisionExport, "payload_ref") || strings.Contains(decisionExport, "object_key") {
+		t.Fatalf("decision export leaked unsafe content: %s", decisionExport)
 	}
 
 	auditVerification, err := ledger.VerifySubject(ctx, actor, "audit_chain", "")

@@ -39,7 +39,8 @@ you use source-checkout commands for local development.
 - `sample-customer-package-manifest.json`: representative customer package
   manifest with a reviewer checklist and without raw tenant payload bytes.
 - `sample-customer-package.zip`: downloadable fixture with `manifest.json`,
-  `package.json`, `verification.json`, and `README.txt`.
+  `package.json`, `verification.json`, `vulnerability-decisions.json`, and
+  `README.txt`.
 - `sample-audit-chain-verification.json`: representative audit-chain
   verification result.
 

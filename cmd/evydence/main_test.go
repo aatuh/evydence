@@ -263,7 +263,18 @@ func TestVerifyCustomerPackageManifestArchiveAndBundle(t *testing.T) {
 	if err := os.WriteFile(manifestPath, body, 0o600); err != nil {
 		t.Fatalf("write manifest: %v", err)
 	}
-	archivePath := writeTestCustomerPackageArchive(t, dir+"/package.zip", body, hash, "csp_1")
+	decisionExport := mustMarshalJSON(t, map[string]any{
+		"schema_version":       "customer-vulnerability-decisions.v1.0.0",
+		"package_id":           "csp_1",
+		"product_id":           "prod_1",
+		"release_id":           "rel_1",
+		"source_manifest_hash": hash,
+		"decisions":            []any{map[string]any{"id": "vd_1", "vulnerability": "CVE-2026-0001", "status": "fixed", "impact_statement": "Customer-safe impact."}},
+		"assumptions":          []any{"Package-scoped decisions only."},
+		"limitations":          []any{"This export does not prove legal compliance or complete vulnerability coverage."},
+		"generated_at":         "2026-05-28T12:00:00Z",
+	})
+	archivePath := writeTestCustomerPackageArchive(t, dir+"/package.zip", body, hash, "csp_1", decisionExport)
 	bundlePath := writeSignedEvidenceBundle(t, dir+"/evidence-bundle.json", []any{"ev_1"}, "sk_1")
 	if err := verifyCustomerPackage([]string{
 		"--manifest", manifestPath,
@@ -842,21 +853,32 @@ func testCustomerPackageManifest() map[string]any {
 	}
 }
 
-func writeTestCustomerPackageArchive(t *testing.T, path string, manifest []byte, manifestHash, packageID string) string {
+func writeTestCustomerPackageArchive(t *testing.T, path string, manifest []byte, manifestHash, packageID string, decisionExport ...[]byte) string {
 	t.Helper()
 	file, err := os.Create(path)
 	if err != nil {
 		t.Fatalf("create archive: %v", err)
 	}
 	zw := zip.NewWriter(file)
-	for _, entry := range []struct {
+	verification := map[string]any{"package_id": packageID, "manifest_hash": manifestHash, "manifest_file": "manifest.json"}
+	if len(decisionExport) > 0 {
+		verification["decision_export_file"] = "vulnerability-decisions.json"
+	}
+	entries := []struct {
 		name string
 		body []byte
 	}{
 		{name: "manifest.json", body: manifest},
 		{name: "package.json", body: mustMarshalJSON(t, map[string]any{"id": packageID, "manifest_hash": manifestHash})},
-		{name: "verification.json", body: mustMarshalJSON(t, map[string]any{"package_id": packageID, "manifest_hash": manifestHash, "manifest_file": "manifest.json"})},
-	} {
+		{name: "verification.json", body: mustMarshalJSON(t, verification)},
+	}
+	if len(decisionExport) > 0 {
+		entries = append(entries, struct {
+			name string
+			body []byte
+		}{name: "vulnerability-decisions.json", body: decisionExport[0]})
+	}
+	for _, entry := range entries {
 		writer, err := zw.Create(entry.name)
 		if err != nil {
 			t.Fatalf("create archive entry: %v", err)

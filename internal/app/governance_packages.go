@@ -61,6 +61,11 @@ type CustomerPackageArchive struct {
 	Size      int64
 }
 
+const (
+	customerDecisionExportFile    = "vulnerability-decisions.json"
+	customerDecisionExportVersion = "customer-vulnerability-decisions.v1.0.0"
+)
+
 type CreateReportTemplateInput struct {
 	Name          string
 	Version       string
@@ -451,6 +456,12 @@ func (l *Ledger) customerPackageManifestLocked(packageID string, generatedAt tim
 	}
 	if decisions := l.packageDecisionSummariesLocked(tenantID, releaseID, profile); len(decisions) > 0 {
 		manifest["vulnerability_decisions"] = decisions
+		manifest["customer_decision_export"] = map[string]any{
+			"file":           customerDecisionExportFile,
+			"schema_version": customerDecisionExportVersion,
+			"decision_count": len(decisions),
+			"scope":          "package",
+		}
 	}
 	if profileAllowsPackageType(profile, "approval") {
 		manifest["approvals"] = l.packageApprovalSummariesLocked(tenantID, productID, releaseID)
@@ -1280,6 +1291,7 @@ func cleanExternalLabel(value string) string {
 func customerPackageArchive(pkg domain.CustomerSecurityPackage) (CustomerPackageArchive, error) {
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
+	decisionExport := customerPackageDecisionExport(pkg)
 	metadata := map[string]any{
 		"id":                   pkg.ID,
 		"product_id":           pkg.ProductID,
@@ -1292,6 +1304,9 @@ func customerPackageArchive(pkg domain.CustomerSecurityPackage) (CustomerPackage
 		"expires_at":           pkg.ExpiresAt.UTC().Format(time.RFC3339),
 		"schema_version":       pkg.SchemaVersion,
 		"created_at":           pkg.CreatedAt.UTC().Format(time.RFC3339),
+	}
+	if decisionExport != nil {
+		metadata["decision_export_file"] = customerDecisionExportFile
 	}
 	if pkg.DistributionWatermark != "" {
 		metadata["distribution_watermark"] = pkg.DistributionWatermark
@@ -1310,8 +1325,11 @@ func customerPackageArchive(pkg domain.CustomerSecurityPackage) (CustomerPackage
 			"This package supports technical evidence review and does not prove legal compliance, certification, or release security status.",
 		},
 	}
+	if decisionExport != nil {
+		verification["decision_export_file"] = customerDecisionExportFile
+	}
 	readme := "Evydence customer security package\n\n" +
-		"This ZIP contains a scoped package manifest, package metadata, and verification guidance.\n" +
+		"This ZIP contains a scoped package manifest, package metadata, verification guidance, and customer-safe decision export when present.\n" +
 		"It intentionally excludes raw tenant evidence payload bytes and bearer tokens.\n" +
 		"Use the manifest hash with Evydence verification records or signed bundles before relying on package contents.\n"
 	for _, entry := range []struct {
@@ -1329,6 +1347,18 @@ func customerPackageArchive(pkg domain.CustomerSecurityPackage) (CustomerPackage
 		}
 		body = append(body, '\n')
 		if err := addZIPFile(zw, entry.name, body); err != nil {
+			_ = zw.Close()
+			return CustomerPackageArchive{}, err
+		}
+	}
+	if decisionExport != nil {
+		body, err := json.MarshalIndent(decisionExport, "", "  ")
+		if err != nil {
+			_ = zw.Close()
+			return CustomerPackageArchive{}, err
+		}
+		body = append(body, '\n')
+		if err := addZIPFile(zw, customerDecisionExportFile, body); err != nil {
 			_ = zw.Close()
 			return CustomerPackageArchive{}, err
 		}
@@ -1352,6 +1382,31 @@ func customerPackageArchive(pkg domain.CustomerSecurityPackage) (CustomerPackage
 	}
 	body := buf.Bytes()
 	return CustomerPackageArchive{PackageID: pkg.ID, Filename: "evydence-customer-package-" + pkg.ID + ".zip", MediaType: "application/zip", Bytes: body, Hash: hashBytes(body), Size: int64(len(body))}, nil
+}
+
+func customerPackageDecisionExport(pkg domain.CustomerSecurityPackage) map[string]any {
+	decisions := packageHTMLRecords(pkg.Manifest["vulnerability_decisions"])
+	if len(decisions) == 0 {
+		return nil
+	}
+	return map[string]any{
+		"schema_version":       customerDecisionExportVersion,
+		"package_id":           pkg.ID,
+		"product_id":           pkg.ProductID,
+		"release_id":           pkg.ReleaseID,
+		"source_manifest_hash": pkg.ManifestHash,
+		"decision_count":       len(decisions),
+		"decisions":            decisions,
+		"assumptions": []string{
+			"This file contains only active vulnerability decisions included by the package redaction profile.",
+			"Supporting links are Evydence record type/id pairs scoped by the package manifest.",
+		},
+		"limitations": []string{
+			"This export supports technical evidence review and compliance readiness only; it is not legal compliance proof, certification, complete SBOM proof, authoritative vulnerability coverage, or a secure-release guarantee.",
+			"Decision accuracy depends on tenant-supplied scanner, VEX, SBOM, exception, waiver, approval, and review evidence.",
+		},
+		"generated_at": pkg.CreatedAt.UTC().Format(time.RFC3339),
+	}
 }
 
 func customerPackageHTMLReport(pkg domain.CustomerSecurityPackage, metadata, verification map[string]any) []byte {
@@ -1458,6 +1513,7 @@ func customerPackageHTMLReport(pkg domain.CustomerSecurityPackage, metadata, ver
 	b.WriteString("<h2>Verification</h2><table><tbody>")
 	packageHTMLRow(&b, "Manifest File", packageHTMLString(verification["manifest_file"]))
 	packageHTMLRow(&b, "Manifest Hash", packageHTMLString(verification["manifest_hash"]))
+	packageHTMLRow(&b, "Decision Export", packageHTMLString(verification["decision_export_file"]))
 	packageHTMLRow(&b, "Hash Algorithm", packageHTMLString(verification["hash_algorithm"]))
 	packageHTMLRow(&b, "Verification Note", packageHTMLString(verification["verification_note"]))
 	b.WriteString("</tbody></table>")
