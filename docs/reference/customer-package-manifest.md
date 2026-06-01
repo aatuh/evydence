@@ -20,6 +20,7 @@ vulnerability result, or a secure-release guarantee.
 | `readiness_summary` | Deterministic readiness checks, gaps, and limitations. |
 | `customer_safe_gaps` | Optional customer-visible gap records filtered through the package redaction profile. |
 | `verification_material` | Hash algorithm, canonicalization profile, release bundle hashes, and audit-chain summary. |
+| `reviewer_checklist` | Optional proof-path checklist covering package scope, included evidence, excluded evidence, verification, non-claims, and escalation path. |
 | `limitations`, `non_claims` | Required package limitations and conservative product-language boundaries. |
 
 ## Optional Sections
@@ -73,6 +74,22 @@ while build-attestation or internal provenance gaps are omitted unless the
 profile explicitly includes `build` or `build_attestation`. Internal-only gaps
 remain outside the package manifest.
 
+## Reviewer Checklist
+
+`reviewer_checklist` is a customer-safe proof-path summary. The checked sample
+package uses it to show:
+
+- package scope;
+- included evidence;
+- excluded evidence;
+- hash and signature verification;
+- non-claims;
+- escalation path for missing or broader evidence.
+
+Checklist entries are summaries only. They must not include raw payloads,
+object-store paths, bearer credentials, signing material, token hashes, tenant
+internal notes, or customer data outside the package scope.
+
 ## Presets
 
 `POST /v1/redaction-profiles` accepts either an explicit `allowed_types` list or
@@ -95,6 +112,8 @@ directly from disk. A non-sensitive sample is available at
 `examples/end-to-end-release-evidence/sample-customer-package-manifest.json`;
 the matching archive fixture is
 `examples/end-to-end-release-evidence/sample-customer-package.zip`.
+The viewer renders the optional `reviewer_checklist` with text-only DOM APIs so
+operator-provided package text is displayed as text, not interpreted as HTML.
 
 Runtime ZIP exports also include `report.html`, a self-contained static HTML
 rendering of the redacted manifest. It shows release summary, VEX and

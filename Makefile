@@ -237,6 +237,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@grep -F 'package-viewer-preview.svg' docs/how-to/view-packages.md >/dev/null
 	@grep -F 'report.html' docs/reference/customer-package-manifest.md docs/how-to/view-packages.md >/dev/null
 	@grep -F 'Redaction Leakage Guard' docs/reference/customer-package-manifest.md >/dev/null
+	@grep -F 'reviewer_checklist' docs/reference/customer-package-manifest.md >/dev/null
 	@grep -F 'v0.1.0-rc.5 - 2026-06-01' CHANGELOG.md >/dev/null
 	@grep -F 'make restore-rehearsal-check' docs/runbooks/backup-restore.md >/dev/null
 	@test -f docs/how-to/pilot-deployment-checklist.md
@@ -360,6 +361,8 @@ demo-check: ## Validate checked end-to-end evidence demo fixtures
 	@grep -F '/v1/audit-chain/verify' examples/end-to-end-release-evidence/run-local-demo.sh >/dev/null
 	@grep -F '/v1/customer-packages' examples/end-to-end-release-evidence/run-local-demo.sh >/dev/null
 	@grep -F 'not legal' examples/end-to-end-release-evidence/README.md >/dev/null
+	@grep -F 'reviewer_checklist' examples/end-to-end-release-evidence/sample-customer-package-manifest.json >/dev/null
+	@grep -F 'escalation_path' examples/end-to-end-release-evidence/sample-customer-package-manifest.json >/dev/null
 
 black-box-demo-check: ## Run live PostgreSQL black-box API/worker demo; requires EVYDENCE_TEST_DATABASE_URL
 	@scripts/black_box_demo_check.sh
@@ -379,8 +382,11 @@ package-viewer-check: ## Validate local package viewer and walkthrough
 	@grep -F 'Release Summary' site/package-viewer/index.html >/dev/null
 	@grep -F 'Vulnerability / VEX Decisions' site/package-viewer/index.html >/dev/null
 	@grep -F 'Verification Status' site/package-viewer/index.html >/dev/null
+	@grep -F 'Reviewer checklist' site/package-viewer/index.html >/dev/null
+	@grep -F 'reviewer_checklist' site/package-viewer/index.html >/dev/null
 	@grep -F 'examples/end-to-end-release-evidence/sample-customer-package-manifest.json' docs/how-to/view-packages.md >/dev/null
 	@grep -F 'reviewer-journey.svg' docs/how-to/view-packages.md >/dev/null
+	@grep -F 'hash/signature verification' docs/how-to/view-packages.md >/dev/null
 	@grep -F 'Release Summary' docs/assets/reviewer-journey.svg >/dev/null
 	@grep -F 'VEX Decisions' docs/assets/reviewer-journey.svg >/dev/null
 	@grep -F 'Evidence Contents' docs/assets/reviewer-journey.svg >/dev/null
