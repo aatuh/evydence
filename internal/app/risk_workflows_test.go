@@ -151,3 +151,74 @@ func TestCycloneDXVEXVulnerabilityWorkflowContractDiffAndPolicyV2(t *testing.T) 
 		t.Fatalf("eval = %#v, want missing sbom failure", eval)
 	}
 }
+
+func TestCycloneDXVEXImportReportTracksIssuesDuplicatesAndOutbox(t *testing.T) {
+	outbox := &recordingOutbox{}
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Outbox: outbox})
+	ctx := context.Background()
+	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
+	scan, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{
+		"scanner":"grype",
+		"target_ref":"pkg:oci/payments-api",
+		"release_id":"`+release.ID+`",
+		"findings":[
+			{"vulnerability":"CVE-2026-2001","component":"pkg:apk/openssl@3.1.0","severity":"critical","state":"open"},
+			{"vulnerability":"CVE-2026-2002","component":"pkg:apk/curl@8.0.0","severity":"high","state":"open"}
+		]
+	}`))
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if _, err := ledger.CreateVulnerabilityDecision(ctx, actor, scan.Findings[0].ID, CreateVulnerabilityDecisionInput{Status: decisionStatusAffected, Justification: "initial triage"}); err != nil {
+		t.Fatalf("initial decision: %v", err)
+	}
+	outbox.jobs = nil
+
+	vex, err := ledger.UploadCycloneDXVEX(ctx, actor, release.ID, artifact.ID, []byte(`{
+		"bomFormat":"CycloneDX",
+		"specVersion":"1.6",
+		"vulnerabilities":[
+			{"id":"CVE-2026-2001","affects":[{"ref":"pkg:apk/openssl@3.1.0"}],"analysis":{"state":"resolved","justification":"fixed_in_release","detail":"fixed in this release","response":["update"]}},
+			{"id":"CVE-2026-2001","affects":[{"ref":"pkg:apk/openssl@3.1.0"}],"analysis":{"state":"resolved","justification":"fixed_in_release","detail":"duplicate statement","response":["update"]}},
+			{"id":"CVE-2026-2999","affects":[{"ref":"pkg:apk/missing@1.0.0"}],"analysis":{"state":"resolved","justification":"fixed_elsewhere","detail":"not in scan","response":["none"]}},
+			{"id":"CVE-2026-2002","analysis":{"state":"unknown","justification":"unknown_state","detail":"bad state"}}
+		]
+	}`))
+	if err != nil {
+		t.Fatalf("cyclonedx vex: %v", err)
+	}
+	report, err := ledger.GetVEXImportReport(ctx, actor, vex.ID)
+	if err != nil {
+		t.Fatalf("import report: %v", err)
+	}
+	if report.ParserVersion != ParserVersionCycloneDXVEXJSON || report.StatementCount != 4 || report.DecisionsCreated != 1 || report.DecisionsSuperseded != 1 {
+		t.Fatalf("import report counts = %#v", report)
+	}
+	if len(report.MappingFailures) != 1 || report.MappingFailures[0].StatementIndex != 3 || report.MappingFailures[0].Code != "finding_not_found" {
+		t.Fatalf("mapping failures = %#v", report.MappingFailures)
+	}
+	if len(report.InvalidStatements) != 1 || report.InvalidStatements[0].StatementIndex != 4 || report.InvalidStatements[0].Code != "unsupported_analysis_state" {
+		t.Fatalf("invalid statements = %#v", report.InvalidStatements)
+	}
+	if !strings.Contains(strings.Join(report.Warnings, "\n"), "Duplicate CycloneDX VEX vulnerabilities") || !strings.Contains(strings.Join(report.Warnings, "\n"), "skipped") {
+		t.Fatalf("warnings = %#v", report.Warnings)
+	}
+	active := true
+	decisions, err := ledger.ListVulnerabilityDecisions(ctx, actor, ListVulnerabilityDecisionsInput{ReleaseID: release.ID, Vulnerability: "CVE-2026-2001", Active: &active})
+	if err != nil {
+		t.Fatalf("list decisions: %v", err)
+	}
+	if len(decisions) != 1 || decisions[0].Status != decisionStatusFixed || decisions[0].Source != "cyclonedx_vex" {
+		t.Fatalf("active decisions = %#v", decisions)
+	}
+	if len(outbox.jobs) != 1 || outbox.jobs[0].Kind != "parse_vex" || outbox.jobs[0].Payload["parser_version"] != ParserVersionCycloneDXVEXJSON || outbox.jobs[0].Payload["import_report_id"] != report.ID {
+		t.Fatalf("outbox jobs = %#v", outbox.jobs)
+	}
+
+	if _, err := ledger.UploadCycloneDXVEX(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","unexpected":true,"vulnerabilities":[{"id":"CVE-2026-2001","analysis":{"state":"resolved"}}]}`)); !errors.Is(err, ErrValidation) {
+		t.Fatalf("unsupported field err=%v, want validation", err)
+	}
+	if _, err := ledger.UploadCycloneDXVEX(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","vulnerabilities":[`)); !errors.Is(err, ErrValidation) {
+		t.Fatalf("malformed err=%v, want validation", err)
+	}
+}

@@ -339,6 +339,27 @@ func TestProcessJobWithObjectsCreatesVEXDecisionsIdempotently(t *testing.T) {
 	}
 }
 
+func TestParseReplayedVEXSupportsCycloneDX(t *testing.T) {
+	body := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","vulnerabilities":[{"id":"CVE-2026-2001","affects":[{"ref":"pkg:oci/api"}],"analysis":{"state":"resolved","justification":"code_not_reachable","detail":"patched in release artifact","response":["update"]}},{"id":"CVE-2026-2999","analysis":{"state":"unknown"}}]}`)
+	parsed, err := parseReplayedVEX(body)
+	if err != nil {
+		t.Fatalf("parse cyclonedx vex replay: %v", err)
+	}
+	if parsed.Author != "cyclonedx" || parsed.StatementCount != 2 || parsed.StatusSummary["fixed"] != 1 {
+		t.Fatalf("parsed cyclonedx vex summary = %#v", parsed)
+	}
+	if len(parsed.Statements) != 1 {
+		t.Fatalf("statements = %#v, want one valid statement", parsed.Statements)
+	}
+	statement := parsed.Statements[0]
+	if statement.Vulnerability != "CVE-2026-2001" || statement.Status != "fixed" || statement.Justification != "code_not_reachable" || statement.ImpactStatement != "patched in release artifact" || statement.ActionStatement != "update" {
+		t.Fatalf("statement = %#v", statement)
+	}
+	if _, ok := statement.Products["pkg:oci/api"]; !ok {
+		t.Fatalf("products = %#v, want affected ref", statement.Products)
+	}
+}
+
 func TestProcessJobWithObjectsFailsSafelyForParserMismatches(t *testing.T) {
 	body := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api"},{"name":"worker"}]}`)
 	hash := digestBytes(body)
