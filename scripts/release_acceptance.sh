@@ -80,7 +80,17 @@ require_text .github/workflows/codeql.yml "github/codeql-action/analyze@7211b7c8
 require_text .github/workflows/codeql.yml "security-and-quality"
 require_text .github/workflows/ci.yml "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
 require_text .github/workflows/release-artifacts.yml "contents: read"
+require_text .github/workflows/release-artifacts.yml "EVYDENCE_RELEASE_PUBLISH_TOKEN"
+if grep -F "contents: write" .github/workflows/release-artifacts.yml >/dev/null; then
+  printf '%s\n' "release-acceptance: release artifact workflow must not grant GITHUB_TOKEN contents: write" >&2
+  exit 2
+fi
 require_text .github/workflows/container-image.yml "ghcr.io/\${{ github.repository }}"
+require_text .github/workflows/container-image.yml "EVYDENCE_GHCR_PUBLISH_TOKEN"
+if grep -F "packages: write" .github/workflows/container-image.yml >/dev/null; then
+  printf '%s\n' "release-acceptance: container image workflow must not grant GITHUB_TOKEN packages: write" >&2
+  exit 2
+fi
 require_text .github/workflows/container-image.yml "cosign sign --yes"
 require_text .github/workflows/container-image.yml "cosign verify"
 require_text .github/workflows/container-image.yml "evydence-container-image-manifest.json"

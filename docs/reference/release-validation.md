@@ -163,9 +163,20 @@ set includes binaries, checksums, `openapi.yaml`, `openapi.sha256`, migration
 checksums, `coverage.out`, `release-check-summary.txt`, checked release notes,
 release SBOM/provenance metadata, the Scorecard-compatible in-toto provenance
 statement, the release manifest, and the manifest signature. Tag pushes create
-or update a draft GitHub release. Maintainers publish it as a prerelease only
-after the workflow artifact and release assets are verified. Manual runs can
-upload only the workflow artifact unless `upload_draft_release` is enabled.
+or update a draft GitHub release only when the external
+`EVYDENCE_RELEASE_PUBLISH_TOKEN` secret is configured. The packaging job keeps
+the repository `GITHUB_TOKEN` read-only; the publish token should be a
+maintainer-controlled fine-grained token or GitHub App token with the minimum
+release-publication scope needed for the repository. Maintainers publish a draft
+as a prerelease only after the workflow artifact and release assets are
+verified. Manual runs can upload only the workflow artifact unless
+`upload_draft_release` is enabled.
+
+The container image workflow similarly keeps `GITHUB_TOKEN` from receiving
+package-write permissions. GHCR publication requires
+`EVYDENCE_GHCR_PUBLISH_TOKEN`; keyless image signing still requires GitHub OIDC
+through `id-token: write`. These secrets are repository settings, not release
+evidence artifacts, and must not be logged or committed.
 
 The canonical artifact map is
 [Release evidence index](release-evidence-index.md). Keep that page aligned

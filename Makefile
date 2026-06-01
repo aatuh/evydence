@@ -258,12 +258,16 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@grep -F 'make production-check' .github/workflows/ci.yml >/dev/null
 	@grep -F 'make production-check' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64' .github/workflows/release-artifacts.yml >/dev/null
+	@grep -F 'EVYDENCE_RELEASE_PUBLISH_TOKEN' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'scripts/release_candidate_package.sh' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'evydence-release-manifest.sig.json' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'evydence-release-manifest.sig alias' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'gh release create' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'contents: read' .github/workflows/release-artifacts.yml >/dev/null
+	@! grep -F 'contents: write' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'Container Image' .github/workflows/container-image.yml >/dev/null
+	@grep -F 'EVYDENCE_GHCR_PUBLISH_TOKEN' .github/workflows/container-image.yml >/dev/null
+	@! grep -F 'packages: write' .github/workflows/container-image.yml >/dev/null
 	@grep -F 'evydence-container-image-manifest.json' .github/workflows/container-image.yml >/dev/null
 	@grep -F 'cosign-keyless' .github/workflows/container-image.yml >/dev/null
 	@grep -F 'ghcr.io/aatuh/evydence' README.md >/dev/null

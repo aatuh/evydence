@@ -34,6 +34,12 @@ release signing material, then writes release archives, checksums, OpenAPI and
 migration checksums, coverage output, release-check summary, checked release
 notes, a signed release manifest, and a manifest signature under `dist/<tag>/`.
 
+GitHub release and GHCR publication use explicit repository secrets instead of
+broad `GITHUB_TOKEN` write permissions: `EVYDENCE_RELEASE_PUBLISH_TOKEN` for
+draft release publication and `EVYDENCE_GHCR_PUBLISH_TOKEN` for container image
+publication. Those secrets are external repository settings and are not release
+evidence artifacts.
+
 Release-candidate tagging is documented in
 [`docs/reference/release-candidate.md`](docs/reference/release-candidate.md).
 The required evidence set is a passing production-check summary, coverage
