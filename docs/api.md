@@ -216,7 +216,9 @@ GET /v1/vex/{id}/import-report
 
 The import report records parser version, statement counts, decision counts,
 supersession counts, warnings, invalid statement issues, and mapping failures.
-It does not include raw VEX payload bytes or object-store payload references.
+When worker replay fails it records safe `failure_code` and `failure_detail`
+fields. It does not include raw VEX payload bytes, object-store payload
+references, backend error strings, or bearer tokens.
 
 VEX import preview:
 

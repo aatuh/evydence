@@ -1254,6 +1254,8 @@ type VEXImportReport struct {
 	Warnings            []string         `json:"warnings,omitempty"`
 	InvalidStatements   []VEXImportIssue `json:"invalid_statements,omitempty"`
 	MappingFailures     []VEXImportIssue `json:"mapping_failures,omitempty"`
+	FailureCode         string           `json:"failure_code,omitempty"`
+	FailureDetail       string           `json:"failure_detail,omitempty"`
 	SchemaVersion       string           `json:"schema_version"`
 	CreatedAt           time.Time        `json:"created_at"`
 	UpdatedAt           time.Time        `json:"updated_at"`

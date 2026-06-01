@@ -339,6 +339,131 @@ func TestProcessJobWithObjectsCreatesVEXDecisionsIdempotently(t *testing.T) {
 	}
 }
 
+func TestProcessJobWithObjectsRecordsVEXImportReportFailure(t *testing.T) {
+	now := time.Date(2026, 5, 28, 12, 0, 0, 0, time.UTC)
+	validBody := []byte(`{"@context":"https://openvex.dev/ns/v0.2.0","@id":"https://example.test/vex","author":"security@example.test","timestamp":"2026-05-28T12:00:00Z","version":1,"statements":[{"vulnerability":{"name":"CVE-1"},"products":[{"@id":"pkg:oci/api"}],"status":"fixed","justification":"fixed"}]}`)
+	baseJob := postgres.ClaimedJob{
+		ID:        "job_vex",
+		TenantID:  "ten_test",
+		Kind:      "parse_vex",
+		SubjectID: "vex_test",
+		Payload: map[string]any{
+			"payload_ref":      "object://tenants/ten_test/payloads/vex.json",
+			"payload_hash":     digestBytes(validBody),
+			"parser_version":   app.ParserVersionOpenVEXJSON,
+			"import_report_id": "vex_report",
+		},
+	}
+	baseState := func() app.PersistedState {
+		return app.PersistedState{
+			VEXDocuments: map[string]domain.VEXDocument{
+				"vex_test": {ID: "vex_test", TenantID: "ten_test", ReleaseID: "rel_test", EvidenceID: "ev_vex", Format: "openvex"},
+			},
+			VEXImportReports: map[string]domain.VEXImportReport{
+				"vex_report": {ID: "vex_report", TenantID: "ten_test", VEXDocumentID: "vex_test", EvidenceID: "ev_vex", Status: "accepted", SchemaVersion: domain.VEXImportReportSchemaVersion, CreatedAt: now, UpdatedAt: now},
+			},
+		}
+	}
+	tests := []struct {
+		name        string
+		object      fakeObjectGetter
+		payloadHash string
+		want        string
+		noLeak      string
+		wantErr     string
+	}{
+		{
+			name:        "malformed payload",
+			object:      fakeObjectGetter{object: app.Object{Key: "tenants/ten_test/payloads/vex.json", TenantID: "ten_test", Digest: digestBytes([]byte(`{"not":"vex"}`)), Bytes: []byte(`{"not":"vex"}`)}},
+			payloadHash: digestBytes([]byte(`{"not":"vex"}`)),
+			want:        "payload_invalid",
+			noLeak:      `{"not":"vex"}`,
+			wantErr:     "replayed vex payload is invalid",
+		},
+		{
+			name:    "missing object",
+			object:  fakeObjectGetter{err: errors.New("backend leaked secret")},
+			want:    "payload_read_failed",
+			noLeak:  "backend leaked secret",
+			wantErr: "read outbox payload object",
+		},
+		{
+			name:    "digest mismatch",
+			object:  fakeObjectGetter{object: app.Object{Key: "tenants/ten_test/payloads/vex.json", TenantID: "ten_test", Digest: digestBytes([]byte("other")), Bytes: []byte("other")}},
+			want:    "payload_digest_mismatch",
+			noLeak:  "other",
+			wantErr: "metadata digest mismatch",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := &fakeStateStore{ok: true, state: baseState()}
+			job := baseJob
+			if tt.payloadHash != "" {
+				payload := map[string]any{}
+				for key, value := range baseJob.Payload {
+					payload[key] = value
+				}
+				payload["payload_hash"] = tt.payloadHash
+				job.Payload = payload
+			}
+			err := processJobWithObjects(context.Background(), store, tt.object, job)
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("err=%v want %q", err, tt.wantErr)
+			}
+			report := store.saved.VEXImportReports["vex_report"]
+			if report.Status != "failed" || report.FailureCode != tt.want || report.FailureDetail == "" {
+				t.Fatalf("saved report = %#v", report)
+			}
+			text := report.FailureDetail + strings.Join(report.Warnings, "\n")
+			if strings.Contains(text, tt.noLeak) || strings.Contains(text, "vex.json") {
+				t.Fatalf("failure report leaked unsafe details: %#v", report)
+			}
+		})
+	}
+}
+
+func TestProcessJobWithObjectsRecordsVEXMappingFailure(t *testing.T) {
+	now := time.Date(2026, 5, 28, 12, 0, 0, 0, time.UTC)
+	body := []byte(`{"@context":"https://openvex.dev/ns/v0.2.0","@id":"https://example.test/vex","author":"security@example.test","timestamp":"2026-05-28T12:00:00Z","version":1,"statements":[{"vulnerability":{"name":"CVE-missing"},"products":[{"@id":"pkg:oci/api"}],"status":"fixed","justification":"fixed"}]}`)
+	hash := digestBytes(body)
+	job := postgres.ClaimedJob{
+		ID:        "job_vex",
+		TenantID:  "ten_test",
+		Kind:      "parse_vex",
+		SubjectID: "vex_test",
+		Payload: map[string]any{
+			"payload_ref":             "object://tenants/ten_test/payloads/vex.json",
+			"payload_hash":            hash,
+			"parser_version":          app.ParserVersionOpenVEXJSON,
+			"worker_create_decisions": true,
+			"actor_type":              "api_key",
+			"actor_id":                "key_test",
+			"evidence_id":             "ev_vex",
+			"import_report_id":        "vex_report",
+		},
+	}
+	store := &fakeStateStore{ok: true, state: app.PersistedState{
+		VEXDocuments: map[string]domain.VEXDocument{
+			"vex_test": {ID: "vex_test", TenantID: "ten_test", ReleaseID: "rel_test", EvidenceID: "ev_vex", Format: "openvex"},
+		},
+		VEXImportReports: map[string]domain.VEXImportReport{
+			"vex_report": {ID: "vex_report", TenantID: "ten_test", VEXDocumentID: "vex_test", EvidenceID: "ev_vex", Status: "accepted", SchemaVersion: domain.VEXImportReportSchemaVersion, CreatedAt: now, UpdatedAt: now},
+		},
+		Scans:     map[string]domain.VulnerabilityScan{},
+		Decisions: map[string]domain.VulnerabilityDecision{},
+		Chain:     map[string][]domain.AuditChainEntry{},
+	}}
+	object := app.Object{Key: "tenants/ten_test/payloads/vex.json", TenantID: "ten_test", Digest: hash, Bytes: body}
+	if err := processJobWithObjects(context.Background(), store, fakeObjectGetter{object: object}, job); err != nil {
+		t.Fatalf("process vex job: %v", err)
+	}
+	report := store.saved.VEXImportReports["vex_report"]
+	if report.Status != "parsed" || report.DecisionsCreated != 0 || len(report.MappingFailures) != 1 || report.MappingFailures[0].Code != "finding_not_found" {
+		t.Fatalf("report = %#v", report)
+	}
+}
+
 func TestParseReplayedVEXSupportsCycloneDX(t *testing.T) {
 	body := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","vulnerabilities":[{"id":"CVE-2026-2001","affects":[{"ref":"pkg:oci/api"}],"analysis":{"state":"resolved","justification":"code_not_reachable","detail":"patched in release artifact","response":["update"]}},{"id":"CVE-2026-2999","analysis":{"state":"unknown"}}]}`)
 	parsed, err := parseReplayedVEX(body)

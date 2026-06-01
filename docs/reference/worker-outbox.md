@@ -12,7 +12,7 @@ Configured job kinds:
 - `verify_subject`
 - `verify_attestation`
 
-Current behavior is intentionally conservative. The API still records normalized signing and verification results before enqueueing jobs for the implemented paths. Parser jobs independently replay tenant-prefixed payload objects when `payload_ref` is present, verify object metadata and byte digests when `payload_hash` is present, parse SBOM, vulnerability-scan, OpenAPI, OpenVEX, CycloneDX VEX, and DSSE attestation payloads, and check that replayed payload summaries match the expected durable state. When `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`, parser-backed uploads store accepted records first and workers write parser-derived document fields after replay. The `parse_vex` worker also creates VEX-derived vulnerability decisions idempotently in that mode and updates the VEX import report from `accepted` to `parsed` with safe decision and mapping-failure counts. Missing objects, wrong tenant prefixes, tenant mismatches, oversized payload objects, malformed replay payloads, durable-state mismatches, incomplete verification, missing signatures, hash mismatch, uninitialized storage, and unsupported job kinds fail the job safely.
+Current behavior is intentionally conservative. The API still records normalized signing and verification results before enqueueing jobs for the implemented paths. Parser jobs independently replay tenant-prefixed payload objects when `payload_ref` is present, verify object metadata and byte digests when `payload_hash` is present, parse SBOM, vulnerability-scan, OpenAPI, OpenVEX, CycloneDX VEX, and DSSE attestation payloads, and check that replayed payload summaries match the expected durable state. When `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`, parser-backed uploads store accepted records first and workers write parser-derived document fields after replay. The `parse_vex` worker also creates VEX-derived vulnerability decisions idempotently in that mode and updates the VEX import report from `accepted` to `parsed` with safe decision and mapping-failure counts. VEX parser failures update the import report to `failed` with `failure_code` and `failure_detail` before the outbox job is retried or marked terminal by the persisted job status. Missing objects, wrong tenant prefixes, tenant mismatches, oversized payload objects, malformed replay payloads, durable-state mismatches, incomplete verification, missing signatures, hash mismatch, uninitialized storage, and unsupported job kinds fail the job safely.
 
 Parser and attestation jobs include a deterministic `parser_version` payload
 field for new uploads. Workers reject unsupported parser versions and accept
@@ -32,5 +32,9 @@ Safe logging rules:
 - Log job ID, kind, subject type, and attempt count.
 - Do not log raw payload bytes, object paths, bearer tokens, customer portal tokens, private keys, or full provider environment dumps.
 - Error messages should describe the failed invariant without echoing subject IDs or raw payload fields.
+- VEX import report `failure_code` values are stable operator hints such as
+  `payload_read_failed`, `payload_ref_invalid`, `payload_tenant_mismatch`,
+  `payload_digest_mismatch`, `payload_too_large`, `payload_invalid`,
+  `unsupported_parser_version`, and `durable_state_mismatch`.
 
 This contract supports operations evidence for asynchronous processing. It does not claim external scanner authority, complete parsing coverage, or cryptographic attestation trust unless the relevant trust roots and verification receipts are recorded.
