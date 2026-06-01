@@ -67,6 +67,9 @@ def auth_label(operation: dict) -> str:
 def idempotency_label(method: str, operation: dict) -> str:
     if method.lower() != "post":
         return "-"
+    policy = operation.get("x-idempotency-key")
+    if isinstance(policy, dict) and policy.get("required") is False:
+        return "not required"
     if auth_label(operation) == "public":
         return "not required"
     return "required"

@@ -12,6 +12,7 @@ const (
 	PolicySetVersion                  = "policy-set.v1.0.0"
 	VEXDocumentSchemaVersion          = "vex-document.v1.0.0"
 	VEXImportReportSchemaVersion      = "vex-import-report.v1.0.0"
+	VEXImportPreviewSchemaVersion     = "vex-import-preview.v1.0.0"
 	VulnerabilityDecisionVersion      = "vulnerability-decision.v1.0.0"
 	ReleaseReadinessTemplateVersion   = "release-readiness.v1.0.0"
 	CollectorSchemaVersion            = "collector.v1.0.0"
@@ -1256,6 +1257,26 @@ type VEXImportReport struct {
 	SchemaVersion       string           `json:"schema_version"`
 	CreatedAt           time.Time        `json:"created_at"`
 	UpdatedAt           time.Time        `json:"updated_at"`
+}
+
+type VEXImportPreview struct {
+	TenantID                string           `json:"tenant_id"`
+	ReleaseID               string           `json:"release_id"`
+	ArtifactID              string           `json:"artifact_id,omitempty"`
+	Format                  string           `json:"format"`
+	ParserVersion           string           `json:"parser_version"`
+	Advisory                bool             `json:"advisory"`
+	StatementCount          int              `json:"statement_count"`
+	StatusSummary           map[string]int   `json:"status_summary"`
+	DecisionsWouldCreate    int              `json:"decisions_would_create"`
+	DecisionsWouldSupersede int              `json:"decisions_would_supersede"`
+	Warnings                []string         `json:"warnings,omitempty"`
+	InvalidStatements       []VEXImportIssue `json:"invalid_statements,omitempty"`
+	MappingFailures         []VEXImportIssue `json:"mapping_failures,omitempty"`
+	Assumptions             []string         `json:"assumptions"`
+	Limitations             []string         `json:"limitations"`
+	SchemaVersion           string           `json:"schema_version"`
+	GeneratedAt             time.Time        `json:"generated_at"`
 }
 
 type VulnerabilityDecision struct {

@@ -1971,6 +1971,26 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"updated_at":           map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "vex_document_id", "evidence_id", "parser_version", "status", "statement_count", "decisions_created", "decisions_superseded", "schema_version", "created_at", "updated_at"))
 	registry.RegisterSchema("VEXImportReportEnvelope", dataEnvelopeSchema("#/components/schemas/VEXImportReport"))
+	registry.RegisterSchema("VEXImportPreview", objectSchema(map[string]any{
+		"tenant_id":                 map[string]any{"type": "string"},
+		"release_id":                map[string]any{"type": "string"},
+		"artifact_id":               map[string]any{"type": "string"},
+		"format":                    map[string]any{"type": "string", "enum": []string{"openvex", "cyclonedx"}},
+		"parser_version":            map[string]any{"type": "string"},
+		"advisory":                  map[string]any{"type": "boolean"},
+		"statement_count":           map[string]any{"type": "integer"},
+		"status_summary":            map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "integer"}},
+		"decisions_would_create":    map[string]any{"type": "integer"},
+		"decisions_would_supersede": map[string]any{"type": "integer"},
+		"warnings":                  map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"invalid_statements":        map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/VEXImportIssue"}},
+		"mapping_failures":          map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/VEXImportIssue"}},
+		"assumptions":               map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"limitations":               map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"schema_version":            map[string]any{"type": "string"},
+		"generated_at":              map[string]any{"type": "string", "format": "date-time"},
+	}, "tenant_id", "release_id", "format", "parser_version", "advisory", "statement_count", "status_summary", "decisions_would_create", "decisions_would_supersede", "assumptions", "limitations", "schema_version", "generated_at"))
+	registry.RegisterSchema("VEXImportPreviewEnvelope", dataEnvelopeSchema("#/components/schemas/VEXImportPreview"))
 	registry.RegisterSchema("VulnerabilityScan", objectSchema(map[string]any{
 		"id":         map[string]any{"type": "string"},
 		"tenant_id":  map[string]any{"type": "string"},

@@ -1446,6 +1446,33 @@ func (s *Server) uploadVEX(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) previewVEXImport(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ReleaseID  string          `json:"release_id"`
+		ArtifactID string          `json:"artifact_id"`
+		Payload    json.RawMessage `json:"payload"`
+	}
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	body, err := readBody(r)
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	if err := decodeJSON(body, &req); err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	preview, err := s.ledger.PreviewVEXImport(r.Context(), actor, req.ReleaseID, req.ArtifactID, req.Payload)
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, preview)
+}
+
 func (s *Server) getVEX(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
@@ -1485,6 +1512,33 @@ func (s *Server) uploadCycloneDXVEX(w http.ResponseWriter, r *http.Request) {
 		vex, err := s.ledger.UploadCycloneDXVEX(ctx, actor, req.ReleaseID, req.ArtifactID, req.Payload)
 		return http.StatusCreated, vex, err
 	})
+}
+
+func (s *Server) previewCycloneDXVEXImport(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ReleaseID  string          `json:"release_id"`
+		ArtifactID string          `json:"artifact_id"`
+		Payload    json.RawMessage `json:"payload"`
+	}
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	body, err := readBody(r)
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	if err := decodeJSON(body, &req); err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	preview, err := s.ledger.PreviewCycloneDXVEXImport(r.Context(), actor, req.ReleaseID, req.ArtifactID, req.Payload)
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, preview)
 }
 
 func (s *Server) uploadVulnerabilityScan(w http.ResponseWriter, r *http.Request) {
@@ -2446,6 +2500,12 @@ func authenticatedOp(id, method, path, summary string) specs.Operation {
 	return operation
 }
 
+func readOnlyPostOp(id, method, path, summary string, scopes []string) specs.Operation {
+	operation := op(id, method, path, summary, scopes)
+	operation.Extensions = idempotent.OperationExtensions(false)
+	return operation
+}
+
 func publicPostOp(id, method, path, summary string) specs.Operation {
 	operation := op(id, method, path, summary, nil)
 	operation.Security = nil
@@ -2473,6 +2533,8 @@ func defaultSuccessStatus(operationID, method string) int {
 		"rejectReleaseCandidate",
 		"verifyCosignSignature",
 		"verifyBuildAttestationSignature",
+		"previewVEXImport",
+		"previewCycloneDXVEXImport",
 		"approveWaiver",
 		"accessCustomerPortalPackage",
 		"downloadCustomerPortalPackage",

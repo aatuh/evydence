@@ -98,6 +98,10 @@ func (l *Ledger) UploadVEX(ctx context.Context, actor domain.Actor, releaseID, a
 	return l.releaseEvidenceService().UploadVEX(ctx, actor, releaseID, artifactID, raw)
 }
 
+func (l *Ledger) PreviewVEXImport(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.VEXImportPreview, error) {
+	return l.releaseEvidenceService().PreviewVEXImport(ctx, actor, releaseID, artifactID, raw)
+}
+
 func (l *Ledger) GetVEXDocument(ctx context.Context, actor domain.Actor, id string) (domain.VEXDocument, error) {
 	return l.releaseEvidenceService().GetVEXDocument(ctx, actor, id)
 }

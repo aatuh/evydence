@@ -107,7 +107,7 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	if _, ok := redactionRequestProps["preset"]; !ok {
 		t.Fatalf("redaction profile request schema missing preset: %#v", redactionRequestProps)
 	}
-	for _, schemaName := range []string{"ReadinessStatusEnvelope", "BackupManifestEnvelope", "VerificationResultEnvelope", "ReadinessReportEnvelope", "CRAVulnerabilityHandlingReportEnvelope", "SecurityUpdateEvidenceReportEnvelope", "SigningCustodyReviewReportEnvelope", "CreateProductRequest", "ProductEnvelope", "ProductListEnvelope", "CreateProjectRequest", "ProjectEnvelope", "CreateReleaseRequest", "ReleaseEnvelope", "ReleaseEvidenceFlowEnvelope", "ReleaseSecuritySummaryEnvelope", "RegisterArtifactRequest", "ArtifactEnvelope", "CreateBuildRequest", "BuildRunEnvelope", "EvidenceUploadRequest", "SBOMEnvelope", "VEXDocumentEnvelope", "VEXImportReportEnvelope", "UploadVulnerabilityScanRequest", "VulnerabilityScanEnvelope", "VulnerabilityDecisionListEnvelope", "VulnerabilityDecisionSummaryReportEnvelope", "CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOProviderRequest", "UpdateSSOProviderTrustMaterialRequest", "SSOProviderEnvelope", "VerifyProviderIdentityRequest", "ProviderVerificationEnvelope", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "ExchangeSSOCredentialRequest", "SSOCredentialExchangeEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalAccessEnvelope", "CustomerPortalAccessListEnvelope", "CustomerPortalPackageRequest", "QuestionnaireAnswerLibraryEntryEnvelope", "QuestionnaireAnswerLibraryEntryListEnvelope", "DataEnvelope"} {
+	for _, schemaName := range []string{"ReadinessStatusEnvelope", "BackupManifestEnvelope", "VerificationResultEnvelope", "ReadinessReportEnvelope", "CRAVulnerabilityHandlingReportEnvelope", "SecurityUpdateEvidenceReportEnvelope", "SigningCustodyReviewReportEnvelope", "CreateProductRequest", "ProductEnvelope", "ProductListEnvelope", "CreateProjectRequest", "ProjectEnvelope", "CreateReleaseRequest", "ReleaseEnvelope", "ReleaseEvidenceFlowEnvelope", "ReleaseSecuritySummaryEnvelope", "RegisterArtifactRequest", "ArtifactEnvelope", "CreateBuildRequest", "BuildRunEnvelope", "EvidenceUploadRequest", "SBOMEnvelope", "VEXDocumentEnvelope", "VEXImportReportEnvelope", "VEXImportPreviewEnvelope", "UploadVulnerabilityScanRequest", "VulnerabilityScanEnvelope", "VulnerabilityDecisionListEnvelope", "VulnerabilityDecisionSummaryReportEnvelope", "CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOProviderRequest", "UpdateSSOProviderTrustMaterialRequest", "SSOProviderEnvelope", "VerifyProviderIdentityRequest", "ProviderVerificationEnvelope", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "ExchangeSSOCredentialRequest", "SSOCredentialExchangeEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalAccessEnvelope", "CustomerPortalAccessListEnvelope", "CustomerPortalPackageRequest", "QuestionnaireAnswerLibraryEntryEnvelope", "QuestionnaireAnswerLibraryEntryListEnvelope", "DataEnvelope"} {
 		if _, ok := schemas[schemaName]; !ok {
 			t.Fatalf("schema %s missing from OpenAPI components", schemaName)
 		}
@@ -184,6 +184,12 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	assertRequestRef(t, uploadVEX, "#/components/schemas/EvidenceUploadRequest")
 	assertRequestExampleContains(t, uploadVEX, "openvex-fixed-decision", "CVE-2026-0002")
 	assertResponseRef(t, uploadVEX, "201", "#/components/schemas/VEXDocumentEnvelope")
+	previewVEX := operationMap(t, paths, "/v1/vex/preview", "post")
+	assertRequestRef(t, previewVEX, "#/components/schemas/EvidenceUploadRequest")
+	assertResponseRef(t, previewVEX, "200", "#/components/schemas/VEXImportPreviewEnvelope")
+	previewCycloneDXVEX := operationMap(t, paths, "/v1/vex/cyclonedx/preview", "post")
+	assertRequestRef(t, previewCycloneDXVEX, "#/components/schemas/EvidenceUploadRequest")
+	assertResponseRef(t, previewCycloneDXVEX, "200", "#/components/schemas/VEXImportPreviewEnvelope")
 	getVEXImportReport := operationMap(t, paths, "/v1/vex/{id}/import-report", "get")
 	assertQueryParams(t, getVEXImportReport, "id")
 	assertResponseRef(t, getVEXImportReport, "200", "#/components/schemas/VEXImportReportEnvelope")
@@ -873,6 +879,41 @@ func TestVEXAndExceptionHTTPValidation(t *testing.T) {
 		"findings": []map[string]any{{"vulnerability": "CVE-2026-0100", "component": "pkg:apk/openssl@3.1.0", "severity": "critical", "state": "open"}},
 	}, http.StatusCreated)
 	findingID := firstFindingID(t, scanBody)
+	previewPayload := map[string]any{
+		"release_id":  releaseID,
+		"artifact_id": artifactID,
+		"payload": map[string]any{
+			"@context":  "https://openvex.dev/ns/v0.2.0",
+			"@id":       "https://example.test/vex/preview",
+			"author":    "security@example.test",
+			"timestamp": "2026-05-27T12:00:00Z",
+			"version":   1,
+			"statements": []map[string]any{{
+				"vulnerability":    map[string]any{"name": "CVE-2026-0100"},
+				"products":         []map[string]any{{"@id": "pkg:apk/openssl@3.1.0"}},
+				"status":           "fixed",
+				"justification":    "fixed in release candidate",
+				"impact_statement": "patched before release",
+				"action_statement": "ship fixed artifact",
+			}},
+		},
+	}
+	previewBodyBytes, err := json.Marshal(previewPayload)
+	if err != nil {
+		t.Fatalf("marshal preview: %v", err)
+	}
+	previewRec := httptest.NewRecorder()
+	previewReq := httptest.NewRequest(http.MethodPost, "/v1/vex/preview", bytes.NewReader(previewBodyBytes))
+	previewReq.Header.Set("Authorization", "Bearer "+secret)
+	previewReq.Header.Set("Content-Type", "application/json")
+	server.Handler().ServeHTTP(previewRec, previewReq)
+	if previewRec.Code != http.StatusOK || !strings.Contains(previewRec.Body.String(), `"advisory":true`) || !strings.Contains(previewRec.Body.String(), `"decisions_would_create":1`) || strings.Contains(previewRec.Body.String(), "payload_ref") {
+		t.Fatalf("preview status=%d body=%s", previewRec.Code, previewRec.Body.String())
+	}
+	badPreview := postRaw(t, server, secret, "/v1/vex/preview", "", []byte(`{"release_id":"`+releaseID+`","payload":{"author":"a"},"unexpected":true}`), http.StatusBadRequest)
+	if strings.Contains(badPreview, "author") {
+		t.Fatalf("bad preview leaked payload details: %s", badPreview)
+	}
 	vexBody := postJSON(t, server, secret, "/v1/vex", "vex-upload", map[string]any{
 		"release_id":  releaseID,
 		"artifact_id": artifactID,

@@ -218,6 +218,18 @@ The import report records parser version, statement counts, decision counts,
 supersession counts, warnings, invalid statement issues, and mapping failures.
 It does not include raw VEX payload bytes or object-store payload references.
 
+VEX import preview:
+
+```http
+POST /v1/vex/preview
+POST /v1/vex/cyclonedx/preview
+```
+
+Preview validates OpenVEX or CycloneDX VEX payloads and returns advisory
+mapping counts, warnings, invalid-statement issues, and mapping failures. It
+does not store raw payloads, create evidence, create decisions, or enqueue
+worker jobs, so it does not require `Idempotency-Key`.
+
 Customer-safe decision summary:
 
 ```http
@@ -507,7 +519,9 @@ presets; preset policy fields cannot be overridden in the create request.
 | `POST` | `/v1/api-security-scans` | Convenience API-security scan route. |
 | `POST` | `/v1/security-documents` | Upload sensitive manual security document metadata/payload. |
 | `POST` | `/v1/vex` | Upload OpenVEX. |
+| `POST` | `/v1/vex/preview` | Preview OpenVEX mapping without storing evidence. |
 | `POST` | `/v1/vex/cyclonedx` | Upload CycloneDX VEX. |
+| `POST` | `/v1/vex/cyclonedx/preview` | Preview CycloneDX VEX mapping without storing evidence. |
 | `GET` | `/v1/vex/{id}` | Read VEX metadata. |
 | `GET` | `/v1/vex/{id}/import-report` | Read VEX parser report with safe counts, warnings, and mapping failures. |
 | `POST` | `/v1/openapi-contracts` | Upload OpenAPI contract. |
