@@ -4,6 +4,26 @@ Evydence is API-first, but the repository includes a local package viewer at
 `site/package-viewer/index.html` for customer-package and release-evidence
 review.
 
+## Reviewer Surface Boundary
+
+Evydence intentionally keeps operator workflows API/CLI-first. Operators create
+products, releases, evidence, redaction profiles, customer packages, and portal
+access records through the API or CLI so tenant authorization, scopes,
+idempotency, audit entries, and package expiry stay server-side.
+
+The local package viewer is an offline inspection helper. It reads files that a
+reviewer already has on disk, renders package-scoped JSON as text, and never
+grants or checks access to tenant resources. Do not treat the viewer as a
+customer portal, identity provider, access-control layer, or evidence source of
+truth.
+
+The only browser-facing server surface currently in scope is a minimal
+customer-portal review page backed by the existing package-token exchange and
+download endpoints. That page may collect a portal token and optional NDA
+acceptance fields, but all access decisions must remain in the API. It must not
+expose raw evidence payloads, object-store paths, internal notes, token hashes,
+private keys, or customer data outside the scoped package.
+
 Open the file in a browser, then select a JSON package, readiness report,
 evidence bundle, or package manifest from disk. The viewer runs entirely in the
 browser and does not upload data. To inspect a non-sensitive fixture without
