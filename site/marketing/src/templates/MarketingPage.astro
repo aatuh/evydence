@@ -1,0 +1,84 @@
+---
+import DossierVisual from "@components/DossierVisual.astro";
+import BaseLayout from "@layouts/BaseLayout.astro";
+import { externalLinks, pageFor, routeFor, type Locale, type PageKey } from "@data/site";
+
+const { locale, pageKey } = Astro.props as { locale: Locale; pageKey: PageKey };
+const page = pageFor(locale, pageKey);
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+const withBase = (path: string) => `${basePath}${path}`.replace(/\/{2,}/g, "/");
+const primaryHref = pageKey === "privacyCookies" ? "#" : externalLinks.commercialEmail;
+const primaryAttrs = pageKey === "privacyCookies" ? { "data-cookie-preferences": "" } : { "data-track": "contact_click" };
+---
+
+<BaseLayout locale={locale} pageKey={pageKey}>
+  <section class="hero">
+    <div class="hero__content">
+      {page.eyebrow && <p class="eyebrow">{page.eyebrow}</p>}
+      <h1>{page.heroTitle}</h1>
+      {page.heroBody.map((paragraph) => <p class="lede">{paragraph}</p>)}
+      <div class="hero__actions">
+        <a class="button button--solid" href={primaryHref} {...primaryAttrs}>{page.primaryCta}</a>
+        <a class="button button--ghost" href={externalLinks.github} data-track="github_click">{page.secondaryCta}</a>
+      </div>
+    </div>
+    <DossierVisual />
+  </section>
+
+  {page.sections.map((section) => (
+    <section class="section section--split">
+      <div>
+        {section.eyebrow && <p class="eyebrow">{section.eyebrow}</p>}
+        <h2>{section.title}</h2>
+      </div>
+      <div class="section__body">
+        {section.body?.map((paragraph) => <p>{paragraph}</p>)}
+        {section.bullets && (
+          <ul class="bullet-grid">
+            {section.bullets.map((bullet) => <li>{bullet}</li>)}
+          </ul>
+        )}
+        {section.cards && (
+          <div class="card-grid">
+            {section.cards.map((card) => (
+              <article class="card">
+                <h3>{card.title}</h3>
+                <p>{card.body}</p>
+              </article>
+            ))}
+          </div>
+        )}
+        {section.table && (
+          <div class="table-list">
+            {section.table.map((row) => (
+              <div class="table-row">
+                <span>{row.left}</span>
+                <span>{row.right}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  ))}
+
+  <section class="section">
+    <p class="eyebrow">{locale === "en" ? "Next step" : "Seuraava askel"}</p>
+    <h2>{locale === "en" ? "Evaluate the technical truth on GitHub." : "Arvioi tekninen totuus GitHubissa."}</h2>
+    <div class="section__body">
+      <p>
+        {locale === "en"
+          ? "The website qualifies the business problem. The repository remains the source of truth for code, docs, release artifacts, limitations, and verification evidence."
+          : "Verkkosivusto rajaa liiketoimintaongelman. Repositorio pysyy lähteenä koodille, dokumentaatiolle, julkaisuartefakteille, rajoituksille ja todennusevidencelle."}
+      </p>
+      <div class="section__actions">
+        <a class="button button--solid" href={externalLinks.github} data-track="github_click">
+          {locale === "en" ? "View GitHub" : "Avaa GitHub"}
+        </a>
+        <a class="button button--ghost" href={withBase(routeFor("contact", locale))} data-track="contact_click">
+          {locale === "en" ? "Contact" : "Yhteys"}
+        </a>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
