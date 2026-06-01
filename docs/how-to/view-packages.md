@@ -30,6 +30,23 @@ redacted package manifest and local inline styles.
 
 ![Static package viewer preview](../assets/package-viewer-preview.svg)
 
+The sample reviewer journey is:
+
+![Reviewer journey through package sections](../assets/reviewer-journey.svg)
+
+1. Read the release summary to confirm product, release, package scope,
+   artifact digests, and readiness result.
+2. Inspect vulnerability and VEX decisions to see the recorded status,
+   impact/action statement, approval context, and whether the decision is
+   customer-visible.
+3. Review evidence contents to confirm which SBOM, scan, VEX, release bundle,
+   approval, exception, and redaction metadata are included.
+4. Check verification status before relying on package bytes for review.
+5. Read gaps for missing evidence, stale evidence, unhandled findings, and
+   exceptions that did not unblock readiness.
+6. Read assumptions and limitations before using the package in a customer or
+   internal review.
+
 Use it for:
 
 - checking a release-readiness report before sending a customer package;
