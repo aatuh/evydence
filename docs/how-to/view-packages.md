@@ -29,6 +29,8 @@ server-backed review page. It accepts portal tokens only in form bodies, sets
 no-store browser cache headers, and renders the same scoped package data exposed
 by `POST /v1/customer-portal/package`. The page includes a separate ZIP
 download form so the token is never copied into the returned HTML or a URL.
+For the full reviewer workflow, see
+[Review a customer package](review-customer-package.md).
 
 Open the file in a browser, then select a JSON package, readiness report,
 evidence bundle, or package manifest from disk. The viewer runs entirely in the

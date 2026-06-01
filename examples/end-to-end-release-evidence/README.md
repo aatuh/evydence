@@ -133,6 +133,18 @@ go run ./cmd/evydence package verify \
   --expected-package-id csp_example
 ```
 
+The deterministic reviewer workflow is checked by:
+
+```sh
+make reviewer-package-workflow-check
+```
+
+That target verifies the manifest checksum, validates the manifest and archive,
+safely extracts the ZIP under `tmp/`, and checks the generated `report.html`
+for verification and limitations sections without exposing raw payload refs,
+object-store keys, token hashes, private-key markers, internal notes, or script
+tags.
+
 To verify the release bundle through the API, read the bundle id from
 `release-bundle.json` and call:
 
