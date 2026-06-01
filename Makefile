@@ -367,6 +367,7 @@ benchmark-check: ## Run the checked app-layer release evidence benchmark
 package-viewer-check: ## Validate local package viewer and walkthrough
 	@test -f site/package-viewer/index.html
 	@test -f docs/how-to/view-packages.md
+	@test -f docs/assets/reviewer-journey.svg
 	@grep -F 'Load bundled demo' site/package-viewer/index.html >/dev/null
 	@grep -F 'textContent' site/package-viewer/index.html >/dev/null
 	@! grep -F 'innerHTML' site/package-viewer/index.html >/dev/null
@@ -374,6 +375,13 @@ package-viewer-check: ## Validate local package viewer and walkthrough
 	@grep -F 'Vulnerability / VEX Decisions' site/package-viewer/index.html >/dev/null
 	@grep -F 'Verification Status' site/package-viewer/index.html >/dev/null
 	@grep -F 'examples/end-to-end-release-evidence/sample-customer-package-manifest.json' docs/how-to/view-packages.md >/dev/null
+	@grep -F 'reviewer-journey.svg' docs/how-to/view-packages.md >/dev/null
+	@grep -F 'Release Summary' docs/assets/reviewer-journey.svg >/dev/null
+	@grep -F 'VEX Decisions' docs/assets/reviewer-journey.svg >/dev/null
+	@grep -F 'Evidence Contents' docs/assets/reviewer-journey.svg >/dev/null
+	@grep -F 'Verification Status' docs/assets/reviewer-journey.svg >/dev/null
+	@grep -F 'Gaps' docs/assets/reviewer-journey.svg >/dev/null
+	@grep -F 'Limitations' docs/assets/reviewer-journey.svg >/dev/null
 
 restore-rehearsal-check: ## Run repository-owned backup/restore rehearsal tests
 	@$(GO) test ./internal/app -run TestBackupRestoreRehearsalPreservesLedgerAndObjectPayloads -count=1
