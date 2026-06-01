@@ -3,7 +3,7 @@
 This tutorial runs Evydence with in-process state and records a small release evidence flow. It is for local development only; data is lost when the process exits.
 
 For operator evaluation, prefer the current public release candidate
-[`v0.1.0-rc.4`](https://github.com/aatuh/evydence/releases/tag/v0.1.0-rc.4)
+[`v0.1.0-rc.5`](https://github.com/aatuh/evydence/releases/tag/v0.1.0-rc.5)
 and verify the release evidence before starting binaries. This tutorial remains
 the source-checkout local development path. The release artifact map is in
 [Release evidence index](../reference/release-evidence-index.md).

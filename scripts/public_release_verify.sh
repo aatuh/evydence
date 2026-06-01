@@ -2,14 +2,14 @@
 set -euo pipefail
 
 repo="${EVYDENCE_RELEASE_REPO:-aatuh/evydence}"
-tag="${1:-${TAG:-v0.1.0-rc.4}}"
+tag="${1:-${TAG:-v0.1.0-rc.5}}"
 
 if [[ ! "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
   echo "EVYDENCE_RELEASE_REPO must look like owner/name" >&2
   exit 2
 fi
 if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]; then
-  echo "release candidate tag must look like v0.1.0-rc.4" >&2
+  echo "release candidate tag must look like v0.1.0-rc.5" >&2
   exit 2
 fi
 if ! command -v gh >/dev/null 2>&1; then

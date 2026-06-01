@@ -9,14 +9,23 @@ results, no secure-release guarantee, and no regulator or auditor acceptance.
 
 ## Unreleased
 
+- No unreleased changes.
+
+## v0.1.0-rc.5 - 2026-06-01
+
+Release status: controlled self-hosted production candidate. This prerelease is
+suitable for evaluation, pilots, and controlled internal production after
+operator review. Broad self-hosted production readiness, regulated production,
+and hosted SaaS production remain out of scope for this status.
+
 ### Added
 
-- Public release verification helper for downloading `v0.1.0-rc.4` from
+- Public release verification helper for downloading `v0.1.0-rc.5` from
   GitHub Releases into a clean temporary directory, checking release checksums,
   validating in-toto provenance metadata shape, and verifying the signed
   release manifest with the released Linux amd64 CLI.
 - Container image workflow evidence for
-  `ghcr.io/aatuh/evydence:v0.1.0-rc.4@sha256:de5627ec300cb603c3f1dc21029bffc096d43399114888cd5c194e00f1285603`,
+  `ghcr.io/aatuh/evydence:v0.1.0-rc.5@sha256:38188044a3e5ded3c6094564ab39ce989185f65e22cf4296985ec19ba0eb1888`,
   including release-attached image manifest and cosign verification output.
 - Repository-owned restore rehearsal target for app-layer and live PostgreSQL
   backup/restore mechanics.
@@ -26,6 +35,20 @@ results, no secure-release guarantee, and no regulator or auditor acceptance.
 
 - Dependency maintenance updates for pinned GitHub Actions, the Docker build
   and runtime base images, and `kin-openapi`.
+
+### Fixed
+
+- PostgreSQL release-evidence persistence now normalizes empty string slices to
+  empty `text[]` values for non-null array columns, including VEX import
+  reports and vulnerability decision evidence IDs.
+
+### Known Limits
+
+- Operators remain responsible for PostgreSQL, object storage, TLS, external
+  signing or KMS/HSM custody, WORM/object-lock policy where required, backups,
+  restore rehearsals, monitoring, provider validation, and incident response.
+- Multi-writer API HA remains outside the supported production profile; use one
+  API writer replica and scale workers through PostgreSQL outbox locking.
 
 ## v0.1.0-rc.4 - 2026-05-31
 

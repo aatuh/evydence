@@ -104,7 +104,7 @@ require_text docs/reference/release-evidence-index.md "evydence-release-manifest
 require_text docs/reference/release-evidence-index.md "evydence-release-manifest.sig"
 require_text docs/reference/release-evidence-index.md "evydence-release-provenance.intoto.jsonl"
 require_text docs/reference/release-evidence-index.md "evydence-container-image-manifest.json"
-require_text docs/reference/release-evidence-index.md "sha256:de5627ec300cb603c3f1dc21029bffc096d43399114888cd5c194e00f1285603"
+require_text docs/reference/release-evidence-index.md "sha256:38188044a3e5ded3c6094564ab39ce989185f65e22cf4296985ec19ba0eb1888"
 require_text docs/reference/release-evidence-index.md "not legal compliance proof"
 require_text docs/reference/maintainer-review-policy.md "CODEOWNERS"
 require_text docs/reference/maintainer-review-policy.md "tenant-scoped resources cannot cross tenant boundaries"

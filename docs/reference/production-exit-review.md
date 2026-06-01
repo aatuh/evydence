@@ -22,7 +22,7 @@ SaaS-ready, legally compliant, certified, or secure-release-guaranteed.
 - Release-candidate packaging generates checksums, OpenAPI checksum, migration
   checksum, release SBOM metadata, release provenance metadata, release notes,
   signed manifest, and manifest signature.
-- Public prerelease `v0.1.0-rc.4` is published with signed release archives,
+- Public prerelease `v0.1.0-rc.5` is published with signed release archives,
   checksums, OpenAPI and migration checksums, coverage output,
   production-check summary, SBOM/provenance metadata, release notes, and signed
   release manifest.

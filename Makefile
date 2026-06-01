@@ -216,15 +216,15 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@grep -F './evydence release verify' docs/air-gapped.md >/dev/null
 	@grep -F './evydence import-bundle upload' docs/air-gapped.md >/dev/null
 	@test -x scripts/public_release_verify.sh
-	@grep -F 'make public-release-verify TAG=v0.1.0-rc.4' README.md >/dev/null
-	@grep -F 'make public-release-verify TAG=v0.1.0-rc.4' docs/how-to/install-and-operate.md >/dev/null
-	@grep -F 'make public-release-verify TAG=v0.1.0-rc.4' docs/reference/release-evidence-index.md >/dev/null
-	@grep -F 'make public-release-verify TAG=v0.1.0-rc.4' examples/end-to-end-release-evidence/README.md >/dev/null
+	@grep -F 'make public-release-verify TAG=v0.1.0-rc.5' README.md >/dev/null
+	@grep -F 'make public-release-verify TAG=v0.1.0-rc.5' docs/how-to/install-and-operate.md >/dev/null
+	@grep -F 'make public-release-verify TAG=v0.1.0-rc.5' docs/reference/release-evidence-index.md >/dev/null
+	@grep -F 'make public-release-verify TAG=v0.1.0-rc.5' examples/end-to-end-release-evidence/README.md >/dev/null
 	@test -f docs/assets/package-viewer-preview.svg
 	@grep -F 'package-viewer-preview.svg' docs/how-to/view-packages.md >/dev/null
 	@grep -F 'report.html' docs/reference/customer-package-manifest.md docs/how-to/view-packages.md >/dev/null
 	@grep -F 'Redaction Leakage Guard' docs/reference/customer-package-manifest.md >/dev/null
-	@grep -F 'v0.1.0-rc.4 - 2026-05-31' CHANGELOG.md >/dev/null
+	@grep -F 'v0.1.0-rc.5 - 2026-06-01' CHANGELOG.md >/dev/null
 	@grep -F 'make restore-rehearsal-check' docs/runbooks/backup-restore.md >/dev/null
 	@test -f docs/how-to/pilot-deployment-checklist.md
 	@grep -F 'Required: external PostgreSQL' docs/how-to/pilot-deployment-checklist.md >/dev/null
@@ -270,7 +270,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@grep -F 'ghcr.io/aatuh/evydence' docs/reference/release-evidence-index.md >/dev/null
 	@grep -F 'ghcr.io/aatuh/evydence' docs/kubernetes.md >/dev/null
 	@grep -F 'ghcr.io/aatuh/evydence' deploy/airgap/manifest.yaml >/dev/null
-	@grep -F 'sha256:de5627ec300cb603c3f1dc21029bffc096d43399114888cd5c194e00f1285603' docs/reference/release-evidence-index.md docs/kubernetes.md deploy/airgap/manifest.yaml >/dev/null
+	@grep -F 'sha256:38188044a3e5ded3c6094564ab39ce989185f65e22cf4296985ec19ba0eb1888' docs/reference/release-evidence-index.md docs/kubernetes.md deploy/airgap/manifest.yaml >/dev/null
 	@grep -F 'cosign verify' docs/reference/release-evidence-index.md >/dev/null
 	@grep -F 'github/codeql-action/init@7211b7c8077ea37d8641b6271f6a365a22a5fbfa' .github/workflows/codeql.yml >/dev/null
 	@grep -F 'security-and-quality' .github/workflows/codeql.yml >/dev/null

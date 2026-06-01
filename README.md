@@ -62,7 +62,7 @@ objects instead of unsupported prose:
 
 This repository contains a Go implementation under module
 `github.com/aatuh/evydence`. The current public release candidate is
-[`v0.1.0-rc.4`](https://github.com/aatuh/evydence/releases/tag/v0.1.0-rc.4),
+[`v0.1.0-rc.5`](https://github.com/aatuh/evydence/releases/tag/v0.1.0-rc.5),
 published as a prerelease with signed archives, checksums, OpenAPI and
 migration checksums, coverage output, production-check summary, SBOM/provenance
 metadata, release notes, and a signed release manifest.
@@ -75,8 +75,8 @@ Container images for the release-candidate line are published, when the
 maintainer image workflow has run for the tag, as
 `ghcr.io/aatuh/evydence:<tag>`. Treat the digest and cosign evidence as the
 operator trust input, not the mutable tag alone.
-For `v0.1.0-rc.4`, the published image is
-`ghcr.io/aatuh/evydence:v0.1.0-rc.4@sha256:de5627ec300cb603c3f1dc21029bffc096d43399114888cd5c194e00f1285603`.
+For `v0.1.0-rc.5`, the published image is
+`ghcr.io/aatuh/evydence:v0.1.0-rc.5@sha256:38188044a3e5ded3c6094564ab39ce989185f65e22cf4296985ec19ba0eb1888`.
 
 ## Fastest Proof Path
 
@@ -98,14 +98,14 @@ package in the [local package viewer](docs/how-to/view-packages.md).
 
 Release-candidate artifacts and their verification commands are indexed in
 [Release evidence index](docs/reference/release-evidence-index.md). Start with
-the public `v0.1.0-rc.4` release if you want to evaluate release verification
+the public `v0.1.0-rc.5` release if you want to evaluate release verification
 before running the API.
 
 To verify the public release assets from a clean temporary directory on Linux
 amd64, run:
 
 ```sh
-make public-release-verify TAG=v0.1.0-rc.4
+make public-release-verify TAG=v0.1.0-rc.5
 ```
 
 The VEX-first evidence flow to evaluate first is:

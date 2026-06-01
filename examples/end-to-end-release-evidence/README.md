@@ -22,7 +22,7 @@ Before running a local API flow, verify the current public release-candidate
 assets from a clean temporary directory:
 
 ```sh
-make public-release-verify TAG=v0.1.0-rc.4
+make public-release-verify TAG=v0.1.0-rc.5
 ```
 
 This proves the downloaded public archives, OpenAPI checksum, migration
