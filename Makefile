@@ -144,6 +144,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@test -f docs/reference/production-readiness.md
 	@test -f docs/reference/production-exit-review.md
 	@test -f docs/reference/external-controls-matrix.md
+	@test -f docs/reference/production-gate-troubleshooting.md
 	@test -f docs/reference/release-candidate.md
 	@test -f docs/reference/release-evidence-index.md
 	@test -f docs/reference/release-notes-template.md
@@ -188,6 +189,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 		"reference/production-readiness.md" \
 		"reference/production-exit-review.md" \
 		"reference/external-controls-matrix.md" \
+		"reference/production-gate-troubleshooting.md" \
 		"reference/release-candidate.md" \
 		"reference/release-evidence-index.md" \
 		"reference/release-notes-template.md" \
@@ -245,6 +247,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@test -f docs/how-to/pilot-deployment-checklist.md
 	@grep -F 'Required: external PostgreSQL' docs/how-to/pilot-deployment-checklist.md >/dev/null
 	@grep -F 'external controls matrix' docs/reference/production-readiness.md docs/kubernetes.md docs/how-to/pilot-deployment-checklist.md >/dev/null
+	@grep -F 'Production gate troubleshooting' docs/reference/production-readiness.md docs/reference/release-validation.md docs/README.md >/dev/null
 	@grep -F 'Required: object paths are tenant-prefixed' docs/how-to/pilot-deployment-checklist.md >/dev/null
 	@grep -F 'Required: public API access is behind TLS' docs/how-to/pilot-deployment-checklist.md >/dev/null
 	@test -f docs/commercial/design-partner-pilot.md

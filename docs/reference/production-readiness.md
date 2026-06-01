@@ -162,6 +162,10 @@ output as production release evidence.
 `make finalize` for routine local development. Use `make production-check` for
 self-hosted production readiness evidence.
 
+If the gate fails, use
+[Production gate troubleshooting](production-gate-troubleshooting.md) with a
+disposable database and sanitized logs.
+
 ## Exit Criteria
 
 Do not describe an Evydence build as broadly self-hosted production-ready until:

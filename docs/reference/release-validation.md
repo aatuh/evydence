@@ -94,7 +94,12 @@ For the scripted local profile, run:
 make release-check-local-postgres
 ```
 
-The target starts the Compose PostgreSQL service, waits for readiness, loads `.test.env` when present or `.test.env.example` otherwise, runs `make release-check`, and preserves `tmp/release-check-summary.txt`.
+The target starts the Compose PostgreSQL service, waits for readiness, loads
+`.test.env` when present or `.test.env.example` otherwise, runs
+`make release-check`, and preserves `tmp/release-check-summary.txt`. For
+production-gate failures, use
+[Production gate troubleshooting](production-gate-troubleshooting.md) before
+changing release status or weakening a gate.
 
 You can also run the sequence manually:
 
