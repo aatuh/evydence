@@ -380,6 +380,14 @@
         release_bundles: [{ id: "rb_example", state: "generated", manifest_hash: "sha256:example", signature_refs: ["sig_example"] }],
         audit_chain: { result: "passed", latest_sequence: 12, head_hash: "sha256:example" }
       },
+      reviewer_checklist: [
+        { id: "package_scope", label: "Package scope", status: "included", detail: "Scoped to product prod_example, release rel_example, redaction profile rp_example, and package csp_example." },
+        { id: "included_evidence", label: "Included evidence", status: "included", detail: "Includes artifact digest, SBOM metadata, vulnerability scan summary, OpenVEX metadata, active customer-visible decision, release bundle metadata, and audit-chain summary." },
+        { id: "excluded_evidence", label: "Excluded evidence", status: "documented", detail: "Excludes raw tenant evidence bytes, storage references, bearer credentials, signing material, API key hashes, SSO or session hashes, and internal decision notes." },
+        { id: "hash_signature_verification", label: "Hash and signature verification", status: "available", detail: "Verify the package archive or manifest hash with evydence package verify, then inspect release bundle and audit-chain verification material." },
+        { id: "non_claims", label: "Non-claims", status: "documented", detail: "The package supports technical evidence review and compliance readiness only; it is not legal compliance proof, certification, complete SBOM proof, an authoritative vulnerability result, or a secure-release guarantee." },
+        { id: "escalation_path", label: "Escalation path", status: "documented", detail: "Ask the package owner for missing release-specific evidence, a regenerated package with a broader approved redaction profile, or deployment-specific assumptions." }
+      ],
       limitations: [
         "Package contents are scoped by product, release, redaction profile, and package expiry.",
         "Raw tenant evidence payload bytes, object-store payload references, bearer tokens, private keys, API key hashes, SSO/session token hashes, and internal decision notes are not included.",
@@ -672,6 +680,12 @@
         ? "Customer-safe view: internal-only payloads, object references, and internal notes are not shown unless explicitly included by the package profile."
         : "Security-review view: broader technical metadata may be present, but raw payloads and secrets remain excluded by package policy.";
       nodes.contents.append(boundary);
+      appendText(nodes.contents, "h3", "", "Reviewer checklist");
+      table(nodes.contents, [
+        { label: "Check", value: (row) => row.label || row.id },
+        { label: "Status", value: "status", badge: true },
+        { label: "Detail", value: "detail" }
+      ], data.reviewer_checklist, "No reviewer checklist is present.");
     };
 
     const renderVerification = (data) => {

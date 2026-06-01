@@ -53,6 +53,9 @@ Use it for:
 - inspecting package manifests and limitations;
 - reviewing artifact, SBOM, vulnerability, VEX, approval, exception, readiness,
   contents, and verification sections;
+- following the reviewer checklist for package scope, included evidence,
+  excluded evidence, hash/signature verification, non-claims, and escalation
+  path;
 - reading evidence-bundle metadata during an offline review;
 - confirming that a shared package does not contain raw evidence payload bytes
   or secrets.

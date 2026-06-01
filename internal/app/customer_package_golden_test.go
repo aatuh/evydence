@@ -39,6 +39,7 @@ func TestSampleCustomerPackageManifestGolden(t *testing.T) {
 		"redaction_profile",
 		"readiness_summary",
 		"verification_material",
+		"reviewer_checklist",
 		"limitations",
 		"non_claims",
 	} {
@@ -48,5 +49,23 @@ func TestSampleCustomerPackageManifestGolden(t *testing.T) {
 	}
 	if manifest["schema_version"] != domain.CustomerPackageSchemaVersion || manifest["package_version"] != domain.CustomerPackageSchemaVersion {
 		t.Fatalf("manifest fixture schema version = schema:%v package:%v want %s", manifest["schema_version"], manifest["package_version"], domain.CustomerPackageSchemaVersion)
+	}
+	checklist, ok := manifest["reviewer_checklist"].([]any)
+	if !ok || len(checklist) < 6 {
+		t.Fatalf("manifest fixture reviewer checklist missing expected proof-path entries: %#v", manifest["reviewer_checklist"])
+	}
+	seen := map[string]bool{}
+	for _, item := range checklist {
+		entry, ok := item.(map[string]any)
+		if !ok {
+			t.Fatalf("manifest fixture reviewer checklist entry is not an object: %#v", item)
+		}
+		id, _ := entry["id"].(string)
+		seen[id] = true
+	}
+	for _, id := range []string{"package_scope", "included_evidence", "excluded_evidence", "hash_signature_verification", "non_claims", "escalation_path"} {
+		if !seen[id] {
+			t.Fatalf("manifest fixture reviewer checklist missing %q: %#v", id, checklist)
+		}
 	}
 }

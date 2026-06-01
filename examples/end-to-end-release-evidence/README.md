@@ -37,7 +37,7 @@ you use source-checkout commands for local development.
 - `sample-security-summary.json`: representative release security quick-check
   output without raw tenant payload bytes.
 - `sample-customer-package-manifest.json`: representative customer package
-  manifest without raw tenant payload bytes.
+  manifest with a reviewer checklist and without raw tenant payload bytes.
 - `sample-customer-package.zip`: downloadable fixture with `manifest.json`,
   `package.json`, `verification.json`, and `README.txt`.
 - `sample-audit-chain-verification.json`: representative audit-chain
@@ -97,7 +97,8 @@ question to concrete Evydence records:
 - `release-security-summary.json`: the compact release security status for
   review surfaces.
 - `release-bundle.json`: the signed release bundle metadata.
-- `customer-package.json`: the customer-safe package manifest.
+- `customer-package.json`: the customer-safe package manifest, including the
+  proof-path checklist when present.
 - `audit-chain-verification.json`: audit-chain continuity verification.
 
 To visually inspect the customer-safe output, open
