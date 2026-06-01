@@ -258,10 +258,18 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 			},
 		}
 		operation.Responses[http.StatusCreated] = jsonResponse("Created VEX document envelope.", "#/components/schemas/VEXDocumentEnvelope")
+	case "previewVEXImport":
+		operation.Description = "Validates an OpenVEX payload and returns advisory mapping counts without storing raw payloads, creating evidence, creating decisions, or enqueueing parser jobs."
+		operation.RequestBody = jsonRequest("OpenVEX import preview request.", "#/components/schemas/EvidenceUploadRequest")
+		operation.Responses[http.StatusOK] = jsonResponse("Advisory VEX import preview envelope.", "#/components/schemas/VEXImportPreviewEnvelope")
 	case "uploadCycloneDXVEX":
 		operation.Description = "Uploads VEX payload bytes, stores raw evidence in object storage, and records normalized VEX metadata and decisions where applicable."
 		operation.RequestBody = jsonRequest("CycloneDX VEX upload request.", "#/components/schemas/EvidenceUploadRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created VEX document envelope.", "#/components/schemas/VEXDocumentEnvelope")
+	case "previewCycloneDXVEXImport":
+		operation.Description = "Validates a CycloneDX VEX payload and returns advisory mapping counts without storing raw payloads, creating evidence, creating decisions, or enqueueing parser jobs."
+		operation.RequestBody = jsonRequest("CycloneDX VEX import preview request.", "#/components/schemas/EvidenceUploadRequest")
+		operation.Responses[http.StatusOK] = jsonResponse("Advisory VEX import preview envelope.", "#/components/schemas/VEXImportPreviewEnvelope")
 	case "getVEX":
 		operation.Description = "Returns a tenant-scoped VEX document metadata record by id."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "VEX document id."))

@@ -964,6 +964,68 @@ func (l *Ledger) UploadCycloneDXVEX(ctx context.Context, actor domain.Actor, rel
 	return vex, nil
 }
 
+func (l *Ledger) PreviewCycloneDXVEXImport(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.VEXImportPreview, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.VEXImportPreview{}, err
+	}
+	if err := require(actor, ScopeEvidenceRead); err != nil {
+		return domain.VEXImportPreview{}, err
+	}
+	if len(raw) == 0 || len(raw) > 20<<20 {
+		return domain.VEXImportPreview{}, ErrValidation
+	}
+	var doc cycloneDXVEXDocument
+	if err := strictDecode(raw, &doc); err != nil || !strings.EqualFold(strings.TrimSpace(doc.BOMFormat), "cyclonedx") || len(doc.Vulnerabilities) == 0 {
+		return domain.VEXImportPreview{}, ErrValidation
+	}
+	statusSummary, invalidStatements, validStatements := analyzeCycloneDXVEXStatements(doc)
+	if len(validStatements) == 0 {
+		return domain.VEXImportPreview{}, ErrValidation
+	}
+	releaseID = strings.TrimSpace(releaseID)
+	artifactID = strings.TrimSpace(artifactID)
+	if releaseID == "" {
+		return domain.VEXImportPreview{}, ErrValidation
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if err := l.ensureScopeLocked(actor.TenantID, "", "", releaseID); err != nil {
+		return domain.VEXImportPreview{}, err
+	}
+	if artifactID != "" {
+		artifact, ok := l.artifacts[artifactID]
+		if !ok || artifact.TenantID != actor.TenantID {
+			return domain.VEXImportPreview{}, ErrNotFound
+		}
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeEvidenceRead, resourceRefs{ReleaseID: releaseID}); err != nil {
+		return domain.VEXImportPreview{}, err
+	}
+	created, superseded, warnings, mappingFailures := l.previewCycloneDXVEXDecisionEffectsLocked(actor.TenantID, releaseID, validStatements)
+	if len(invalidStatements) > 0 {
+		warnings = append(warnings, "One or more CycloneDX VEX vulnerabilities were skipped because required analysis fields were missing or unsupported.")
+	}
+	return domain.VEXImportPreview{
+		TenantID:                actor.TenantID,
+		ReleaseID:               releaseID,
+		ArtifactID:              artifactID,
+		Format:                  "cyclonedx",
+		ParserVersion:           ParserVersionCycloneDXVEXJSON,
+		Advisory:                true,
+		StatementCount:          len(doc.Vulnerabilities),
+		StatusSummary:           cloneIntMap(statusSummary),
+		DecisionsWouldCreate:    created,
+		DecisionsWouldSupersede: superseded,
+		Warnings:                warnings,
+		InvalidStatements:       invalidStatements,
+		MappingFailures:         mappingFailures,
+		Assumptions:             vexImportPreviewAssumptions(),
+		Limitations:             vexImportPreviewLimitations(),
+		SchemaVersion:           domain.VEXImportPreviewSchemaVersion,
+		GeneratedAt:             l.now(),
+	}, nil
+}
+
 type cycloneDXVEXStatement struct {
 	index         int
 	vulnerability cycloneDXVEXVulnerability
@@ -1021,6 +1083,28 @@ func (l *Ledger) findCycloneDXVEXMatchingFindingsLocked(tenantID, releaseID stri
 		}
 	}
 	return out
+}
+
+func (l *Ledger) previewCycloneDXVEXDecisionEffectsLocked(tenantID, releaseID string, statements []cycloneDXVEXStatement) (int, int, []string, []domain.VEXImportIssue) {
+	created, superseded := 0, 0
+	mappingFailures := []domain.VEXImportIssue{}
+	warnings := []string{}
+	createdForFinding := map[string]struct{}{}
+	duplicateWarningAdded := false
+	for _, statement := range statements {
+		matches := l.findCycloneDXVEXMatchingFindingsLocked(tenantID, releaseID, statement)
+		if len(matches) == 0 {
+			mappingFailures = append(mappingFailures, vexImportIssue(statement.index, "finding_not_found", "No matching vulnerability scan finding was found for this CycloneDX VEX vulnerability."))
+		}
+		added, replaced, duplicate := l.previewDecisionEffectsForMatchesLocked(tenantID, matches, createdForFinding)
+		created += added
+		superseded += replaced
+		if duplicate && !duplicateWarningAdded {
+			warnings = append(warnings, "Duplicate CycloneDX VEX vulnerabilities for an already mapped finding were ignored.")
+			duplicateWarningAdded = true
+		}
+	}
+	return created, superseded, warnings, mappingFailures
 }
 
 func (l *Ledger) RecordVulnerabilityWorkflow(ctx context.Context, actor domain.Actor, in RecordVulnerabilityWorkflowInput) (domain.VulnerabilityWorkflowRecord, error) {

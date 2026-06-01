@@ -222,3 +222,73 @@ func TestCycloneDXVEXImportReportTracksIssuesDuplicatesAndOutbox(t *testing.T) {
 		t.Fatalf("malformed err=%v, want validation", err)
 	}
 }
+
+func TestVEXImportPreviewIsAdvisoryAndDoesNotMutateLedger(t *testing.T) {
+	outbox := &recordingOutbox{}
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Outbox: outbox})
+	ctx := context.Background()
+	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
+	scan, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{
+		"scanner":"grype",
+		"target_ref":"pkg:oci/payments-api",
+		"release_id":"`+release.ID+`",
+		"findings":[{"vulnerability":"CVE-2026-4001","component":"pkg:apk/openssl@3.1.0","severity":"critical","state":"open"}]
+	}`))
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if _, err := ledger.CreateVulnerabilityDecision(ctx, actor, scan.Findings[0].ID, CreateVulnerabilityDecisionInput{Status: decisionStatusAffected, Justification: "initial triage"}); err != nil {
+		t.Fatalf("initial decision: %v", err)
+	}
+	outbox.jobs = nil
+	evidenceCount, vexCount, decisionCount := len(ledger.evidence), len(ledger.vexDocuments), len(ledger.decisions)
+
+	preview, err := ledger.PreviewVEXImport(ctx, actor, release.ID, artifact.ID, []byte(`{
+		"@context":"https://openvex.dev/ns/v0.2.0",
+		"@id":"https://example.test/vex/preview",
+		"author":"security@example.test",
+		"timestamp":"2026-05-27T12:00:00Z",
+		"version":1,
+		"statements":[
+			{"vulnerability":{"name":"CVE-2026-4001"},"products":[{"@id":"pkg:apk/openssl@3.1.0"}],"status":"fixed","justification":"fixed","impact_statement":"patched","action_statement":"ship"},
+			{"vulnerability":{"name":"CVE-2026-4999"},"products":[{"@id":"pkg:apk/missing@1.0.0"}],"status":"fixed","justification":"fixed","impact_statement":"missing","action_statement":"none"}
+		]
+	}`))
+	if err != nil {
+		t.Fatalf("openvex preview: %v", err)
+	}
+	if preview.Format != "openvex" || !preview.Advisory || preview.ParserVersion != ParserVersionOpenVEXJSON || preview.StatementCount != 2 || preview.DecisionsWouldCreate != 1 || preview.DecisionsWouldSupersede != 1 {
+		t.Fatalf("openvex preview = %#v", preview)
+	}
+	if len(preview.MappingFailures) != 1 || preview.MappingFailures[0].StatementIndex != 2 || preview.MappingFailures[0].Code != "finding_not_found" {
+		t.Fatalf("openvex mapping failures = %#v", preview.MappingFailures)
+	}
+	if len(ledger.evidence) != evidenceCount || len(ledger.vexDocuments) != vexCount || len(ledger.decisions) != decisionCount || len(outbox.jobs) != 0 {
+		t.Fatalf("preview mutated state evidence=%d/%d vex=%d/%d decisions=%d/%d jobs=%d", len(ledger.evidence), evidenceCount, len(ledger.vexDocuments), vexCount, len(ledger.decisions), decisionCount, len(outbox.jobs))
+	}
+
+	cyclonePreview, err := ledger.PreviewCycloneDXVEXImport(ctx, actor, release.ID, artifact.ID, []byte(`{
+		"bomFormat":"CycloneDX",
+		"specVersion":"1.6",
+		"vulnerabilities":[
+			{"id":"CVE-2026-4001","affects":[{"ref":"pkg:apk/openssl@3.1.0"}],"analysis":{"state":"resolved","justification":"fixed","detail":"patched","response":["update"]}},
+			{"id":"CVE-2026-4999","analysis":{"state":"resolved","justification":"fixed","detail":"not in scan"}},
+			{"id":"CVE-2026-4002","analysis":{"state":"unknown","detail":"bad state"}}
+		]
+	}`))
+	if err != nil {
+		t.Fatalf("cyclonedx preview: %v", err)
+	}
+	if cyclonePreview.Format != "cyclonedx" || cyclonePreview.ParserVersion != ParserVersionCycloneDXVEXJSON || cyclonePreview.StatementCount != 3 || cyclonePreview.DecisionsWouldCreate != 1 || cyclonePreview.DecisionsWouldSupersede != 1 {
+		t.Fatalf("cyclonedx preview = %#v", cyclonePreview)
+	}
+	if len(cyclonePreview.InvalidStatements) != 1 || cyclonePreview.InvalidStatements[0].StatementIndex != 3 {
+		t.Fatalf("cyclonedx invalid statements = %#v", cyclonePreview.InvalidStatements)
+	}
+	if len(cyclonePreview.MappingFailures) != 1 || cyclonePreview.MappingFailures[0].StatementIndex != 2 {
+		t.Fatalf("cyclonedx mapping failures = %#v", cyclonePreview.MappingFailures)
+	}
+	if _, err := ledger.PreviewCycloneDXVEXImport(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","unexpected":true,"vulnerabilities":[{"id":"CVE-2026-4001","analysis":{"state":"resolved"}}]}`)); !errors.Is(err, ErrValidation) {
+		t.Fatalf("strict preview err=%v, want validation", err)
+	}
+}

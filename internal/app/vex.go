@@ -261,6 +261,65 @@ func (s releaseEvidenceService) UploadVEX(ctx context.Context, actor domain.Acto
 	return vex, nil
 }
 
+func (s releaseEvidenceService) PreviewVEXImport(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.VEXImportPreview, error) {
+	l := s.ledger
+	if err := ctx.Err(); err != nil {
+		return domain.VEXImportPreview{}, err
+	}
+	if err := require(actor, ScopeEvidenceRead); err != nil {
+		return domain.VEXImportPreview{}, err
+	}
+	if len(raw) == 0 || len(raw) > 20<<20 {
+		return domain.VEXImportPreview{}, ErrValidation
+	}
+	doc, err := parseOpenVEX(raw)
+	if err != nil {
+		return domain.VEXImportPreview{}, err
+	}
+	releaseID = strings.TrimSpace(releaseID)
+	artifactID = strings.TrimSpace(artifactID)
+	if releaseID == "" {
+		return domain.VEXImportPreview{}, ErrValidation
+	}
+	statusSummary := map[string]int{}
+	for _, statement := range doc.Statements {
+		statusSummary[statement.Status]++
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if err := l.ensureScopeLocked(actor.TenantID, "", "", releaseID); err != nil {
+		return domain.VEXImportPreview{}, err
+	}
+	if artifactID != "" {
+		artifact, ok := l.artifacts[artifactID]
+		if !ok || artifact.TenantID != actor.TenantID {
+			return domain.VEXImportPreview{}, ErrNotFound
+		}
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeEvidenceRead, resourceRefs{ReleaseID: releaseID}); err != nil {
+		return domain.VEXImportPreview{}, err
+	}
+	created, superseded, warnings, mappingFailures := l.previewOpenVEXDecisionEffectsLocked(actor.TenantID, releaseID, doc.Statements)
+	return domain.VEXImportPreview{
+		TenantID:                actor.TenantID,
+		ReleaseID:               releaseID,
+		ArtifactID:              artifactID,
+		Format:                  "openvex",
+		ParserVersion:           ParserVersionOpenVEXJSON,
+		Advisory:                true,
+		StatementCount:          len(doc.Statements),
+		StatusSummary:           cloneIntMap(statusSummary),
+		DecisionsWouldCreate:    created,
+		DecisionsWouldSupersede: superseded,
+		Warnings:                warnings,
+		MappingFailures:         mappingFailures,
+		Assumptions:             vexImportPreviewAssumptions(),
+		Limitations:             vexImportPreviewLimitations(),
+		SchemaVersion:           domain.VEXImportPreviewSchemaVersion,
+		GeneratedAt:             l.now(),
+	}, nil
+}
+
 func (s releaseEvidenceService) GetVEXImportReport(ctx context.Context, actor domain.Actor, vexID string) (domain.VEXImportReport, error) {
 	l := s.ledger
 	if err := ctx.Err(); err != nil {
@@ -1103,6 +1162,45 @@ func (l *Ledger) findMatchingFindingsLocked(tenantID, releaseID string, statemen
 	return out
 }
 
+func (l *Ledger) previewOpenVEXDecisionEffectsLocked(tenantID, releaseID string, statements []openVEXStatement) (int, int, []string, []domain.VEXImportIssue) {
+	created, superseded := 0, 0
+	mappingFailures := []domain.VEXImportIssue{}
+	warnings := []string{}
+	createdForFinding := map[string]struct{}{}
+	duplicateWarningAdded := false
+	for index, statement := range statements {
+		matches := l.findMatchingFindingsLocked(tenantID, releaseID, statement)
+		if len(matches) == 0 {
+			mappingFailures = append(mappingFailures, vexImportIssue(index+1, "finding_not_found", "No matching vulnerability scan finding was found for this VEX statement."))
+		}
+		added, replaced, duplicate := l.previewDecisionEffectsForMatchesLocked(tenantID, matches, createdForFinding)
+		created += added
+		superseded += replaced
+		if duplicate && !duplicateWarningAdded {
+			warnings = append(warnings, "Duplicate VEX statements for an already mapped finding were ignored.")
+			duplicateWarningAdded = true
+		}
+	}
+	return created, superseded, warnings, mappingFailures
+}
+
+func (l *Ledger) previewDecisionEffectsForMatchesLocked(tenantID string, matches []matchedFinding, createdForFinding map[string]struct{}) (int, int, bool) {
+	created, superseded := 0, 0
+	duplicate := false
+	for _, matched := range matches {
+		if _, seen := createdForFinding[matched.finding.ID]; seen {
+			duplicate = true
+			continue
+		}
+		createdForFinding[matched.finding.ID] = struct{}{}
+		created++
+		if _, ok := l.latestDecisionForFindingLocked(tenantID, matched.finding.ID); ok {
+			superseded++
+		}
+	}
+	return created, superseded, duplicate
+}
+
 func openVEXProductIDs(products []openVEXProduct) map[string]struct{} {
 	out := map[string]struct{}{}
 	var walk func([]openVEXProduct)
@@ -1384,6 +1482,20 @@ func decisionEvidenceIDs(primary string, extra []string) []string {
 
 func vexImportIssue(statementIndex int, code, detail string) domain.VEXImportIssue {
 	return domain.VEXImportIssue{StatementIndex: statementIndex, Code: code, Detail: detail}
+}
+
+func vexImportPreviewAssumptions() []string {
+	return []string{
+		"Preview results are computed from currently stored scan findings and active decisions for the requested release.",
+		"Preview does not store raw VEX payloads, create evidence, create decisions, or enqueue parser jobs.",
+	}
+}
+
+func vexImportPreviewLimitations() []string {
+	return []string{
+		"Preview is advisory and may change if scans, decisions, exceptions, or releases change before upload.",
+		"Preview does not prove legal compliance, complete vulnerability coverage, complete SBOM coverage, or release security.",
+	}
 }
 
 func sortedUniqueNonEmptyStrings(in []string) []string {
