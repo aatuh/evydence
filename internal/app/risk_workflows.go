@@ -101,6 +101,25 @@ type CreateCustomPolicyInput struct {
 
 const incidentWebhookTimestampTolerance = 5 * time.Minute
 
+type cycloneDXVEXDocument struct {
+	BOMFormat       string                      `json:"bomFormat"`
+	SpecVersion     string                      `json:"specVersion"`
+	Vulnerabilities []cycloneDXVEXVulnerability `json:"vulnerabilities"`
+}
+
+type cycloneDXVEXVulnerability struct {
+	ID      string `json:"id"`
+	Affects []struct {
+		Ref string `json:"ref"`
+	} `json:"affects,omitempty"`
+	Analysis struct {
+		State         string   `json:"state"`
+		Justification string   `json:"justification"`
+		Detail        string   `json:"detail"`
+		Response      []string `json:"response"`
+	} `json:"analysis"`
+}
+
 func (l *Ledger) CreateIncident(ctx context.Context, actor domain.Actor, in CreateIncidentInput) (domain.Incident, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.Incident{}, err
@@ -820,33 +839,26 @@ func (l *Ledger) UploadCycloneDXVEX(ctx context.Context, actor domain.Actor, rel
 	if len(raw) == 0 || len(raw) > 20<<20 {
 		return domain.VEXDocument{}, ErrValidation
 	}
-	var doc struct {
-		BOMFormat       string `json:"bomFormat"`
-		SpecVersion     string `json:"specVersion"`
-		Vulnerabilities []struct {
-			ID       string `json:"id"`
-			Analysis struct {
-				State         string   `json:"state"`
-				Justification string   `json:"justification"`
-				Detail        string   `json:"detail"`
-				Response      []string `json:"response"`
-			} `json:"analysis"`
-		} `json:"vulnerabilities"`
-	}
-	if err := strictDecode(raw, &doc); err != nil || strings.ToLower(doc.BOMFormat) != "cyclonedx" || len(doc.Vulnerabilities) == 0 {
+	var doc cycloneDXVEXDocument
+	if err := strictDecode(raw, &doc); err != nil || !strings.EqualFold(strings.TrimSpace(doc.BOMFormat), "cyclonedx") || len(doc.Vulnerabilities) == 0 {
 		return domain.VEXDocument{}, ErrValidation
 	}
+	statusSummary, invalidStatements, validStatements := analyzeCycloneDXVEXStatements(doc)
+	if len(validStatements) == 0 {
+		return domain.VEXDocument{}, ErrValidation
+	}
+	releaseID = strings.TrimSpace(releaseID)
+	artifactID = strings.TrimSpace(artifactID)
 	l.mu.Lock()
-	if err := l.ensureScopeLocked(actor.TenantID, "", "", strings.TrimSpace(releaseID)); err != nil {
+	if err := l.ensureScopeLocked(actor.TenantID, "", "", releaseID); err != nil {
 		l.mu.Unlock()
 		return domain.VEXDocument{}, err
 	}
-	if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, resourceRefs{ReleaseID: strings.TrimSpace(releaseID)}); err != nil {
+	if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, resourceRefs{ReleaseID: releaseID}); err != nil {
 		l.mu.Unlock()
 		return domain.VEXDocument{}, err
 	}
 	l.mu.Unlock()
-	statusSummary := map[string]int{}
 	payloadHash := hashBytes(raw)
 	payloadRef, err := l.storePayload(ctx, actor.TenantID, "vex-cyclonedx", "application/vnd.cyclonedx+json", payloadHash, raw)
 	if err != nil {
@@ -863,38 +875,152 @@ func (l *Ledger) UploadCycloneDXVEX(ctx context.Context, actor domain.Actor, rel
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	vex := domain.VEXDocument{ID: newID("vex"), TenantID: actor.TenantID, EvidenceID: item.ID, ReleaseID: releaseID, ArtifactID: artifactID, Format: "cyclonedx", Author: "cyclonedx", Version: doc.SpecVersion, StatementCount: len(doc.Vulnerabilities), StatusSummary: statusSummary, SchemaVersion: domain.VEXDocumentSchemaVersion, CreatedAt: l.now()}
-	for _, vuln := range doc.Vulnerabilities {
-		status := cyclonedxAnalysisStatus(vuln.Analysis.State)
-		if status == "" || strings.TrimSpace(vuln.ID) == "" {
-			return domain.VEXDocument{}, ErrValidation
+	persistedVEX := vex
+	chainAction := "vex.parsed"
+	if l.workerOwnedParsers {
+		persistedVEX.Author = ""
+		persistedVEX.StatementCount = 0
+		persistedVEX.StatusSummary = nil
+		chainAction = "vex.accepted"
+	}
+	l.vexDocuments[vex.ID] = persistedVEX
+	createdDecisions := 0
+	supersededDecisions := 0
+	mappingFailures := []domain.VEXImportIssue{}
+	warnings := []string{}
+	createdForFinding := map[string]struct{}{}
+	duplicateWarningAdded := false
+	for _, statement := range validStatements {
+		matches := l.findCycloneDXVEXMatchingFindingsLocked(actor.TenantID, releaseID, statement)
+		if len(matches) == 0 {
+			mappingFailures = append(mappingFailures, vexImportIssue(statement.index, "finding_not_found", "No matching vulnerability scan finding was found for this CycloneDX VEX vulnerability."))
 		}
-		statusSummary[status]++
-		for _, scan := range l.scans {
-			if scan.TenantID != actor.TenantID || scan.ReleaseID != releaseID {
+		if l.workerOwnedParsers {
+			continue
+		}
+		for _, matched := range matches {
+			if _, seen := createdForFinding[matched.finding.ID]; seen {
+				if !duplicateWarningAdded {
+					warnings = append(warnings, "Duplicate CycloneDX VEX vulnerabilities for an already mapped finding were ignored.")
+					duplicateWarningAdded = true
+				}
 				continue
 			}
-			for _, finding := range scan.Findings {
-				if finding.Vulnerability != vuln.ID {
-					continue
-				}
-				decision := l.createDecisionLocked(actor.TenantID, scan, finding, CreateVulnerabilityDecisionInput{
-					Status:          status,
-					Justification:   nonEmpty(vuln.Analysis.Justification, "cyclonedx_vex"),
-					ImpactStatement: vuln.Analysis.Detail,
-					ActionStatement: strings.Join(vuln.Analysis.Response, ","),
-					CustomerVisible: strings.TrimSpace(vuln.Analysis.Detail) != "",
-				}, "cyclonedx_vex", actor.KeyID, item.ID, vex.ID)
-				l.decisions[decision.ID] = decision
-				l.appendDecisionLifecycleAuditLocked(actor.TenantID, decision, finding.ID, "api_key", actor.KeyID, payloadHash)
+			createdForFinding[matched.finding.ID] = struct{}{}
+			decision := l.createDecisionLocked(actor.TenantID, matched.scan, matched.finding, CreateVulnerabilityDecisionInput{
+				Status:          statement.status,
+				Justification:   nonEmpty(statement.vulnerability.Analysis.Justification, "cyclonedx_vex"),
+				ImpactStatement: strings.TrimSpace(statement.vulnerability.Analysis.Detail),
+				ActionStatement: strings.Join(statement.vulnerability.Analysis.Response, ","),
+				CustomerVisible: strings.TrimSpace(statement.vulnerability.Analysis.Detail) != "",
+			}, "cyclonedx_vex", actor.KeyID, item.ID, vex.ID)
+			l.decisions[decision.ID] = decision
+			if decision.Supersedes != "" {
+				supersededDecisions++
 			}
+			l.appendDecisionLifecycleAuditLocked(actor.TenantID, decision, matched.finding.ID, "api_key", actor.KeyID, payloadHash)
+			createdDecisions++
 		}
 	}
-	l.vexDocuments[vex.ID] = vex
-	_, _ = l.appendChainLocked(actor.TenantID, "vex.parsed", "vex_document", vex.ID, "api_key", actor.KeyID, payloadHash, "")
-	if err := l.persistReleaseLedgerLocked(ctx, l.releaseLedgerMutationLocked()); err != nil {
+	if len(invalidStatements) > 0 {
+		warnings = append(warnings, "One or more CycloneDX VEX vulnerabilities were skipped because required analysis fields were missing or unsupported.")
+	}
+	if l.workerOwnedParsers {
+		warnings = append(warnings, "Worker-owned parser side effects are enabled; CycloneDX VEX decisions are created asynchronously after payload replay.")
+	}
+	report := domain.VEXImportReport{
+		ID:                  newID("vexrep"),
+		TenantID:            actor.TenantID,
+		VEXDocumentID:       vex.ID,
+		EvidenceID:          item.ID,
+		ReleaseID:           releaseID,
+		ArtifactID:          artifactID,
+		ParserVersion:       ParserVersionCycloneDXVEXJSON,
+		Status:              ternary(l.workerOwnedParsers, "accepted", "parsed"),
+		StatementCount:      len(doc.Vulnerabilities),
+		DecisionsCreated:    createdDecisions,
+		DecisionsSuperseded: supersededDecisions,
+		UnsupportedFields:   []string{},
+		Warnings:            warnings,
+		InvalidStatements:   invalidStatements,
+		MappingFailures:     mappingFailures,
+		SchemaVersion:       domain.VEXImportReportSchemaVersion,
+		CreatedAt:           l.now(),
+		UpdatedAt:           l.now(),
+	}
+	l.vexImportReports[report.ID] = report
+	_, _ = l.appendChainLocked(actor.TenantID, chainAction, "vex_document", vex.ID, "api_key", actor.KeyID, payloadHash, "")
+	jobPayload := map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionCycloneDXVEXJSON, "decisions_created": createdDecisions, "import_report_id": report.ID}
+	if l.workerOwnedParsers {
+		jobPayload["worker_create_decisions"] = true
+		jobPayload["actor_type"] = "api_key"
+		jobPayload["actor_id"] = actor.KeyID
+		jobPayload["evidence_id"] = item.ID
+	}
+	job := l.newOutboxJob(actor.TenantID, "parse_vex", "vex_document", vex.ID, jobPayload)
+	if err := l.persistReleaseLedgerWithOutboxLocked(ctx, job); err != nil {
 		return domain.VEXDocument{}, err
 	}
 	return vex, nil
+}
+
+type cycloneDXVEXStatement struct {
+	index         int
+	vulnerability cycloneDXVEXVulnerability
+	status        string
+	affectedRefs  map[string]struct{}
+}
+
+func analyzeCycloneDXVEXStatements(doc cycloneDXVEXDocument) (map[string]int, []domain.VEXImportIssue, []cycloneDXVEXStatement) {
+	statusSummary := map[string]int{}
+	invalid := []domain.VEXImportIssue{}
+	valid := []cycloneDXVEXStatement{}
+	for index, vuln := range doc.Vulnerabilities {
+		vuln.ID = strings.TrimSpace(vuln.ID)
+		status := cyclonedxAnalysisStatus(vuln.Analysis.State)
+		switch {
+		case vuln.ID == "":
+			invalid = append(invalid, vexImportIssue(index+1, "missing_vulnerability", "CycloneDX VEX vulnerability is missing an id."))
+			continue
+		case status == "":
+			invalid = append(invalid, vexImportIssue(index+1, "unsupported_analysis_state", "CycloneDX VEX vulnerability has an unsupported analysis state."))
+			continue
+		}
+		statusSummary[status]++
+		valid = append(valid, cycloneDXVEXStatement{index: index + 1, vulnerability: vuln, status: status, affectedRefs: cycloneDXVEXAffectedRefs(vuln)})
+	}
+	return statusSummary, invalid, valid
+}
+
+func cycloneDXVEXAffectedRefs(vuln cycloneDXVEXVulnerability) map[string]struct{} {
+	out := map[string]struct{}{}
+	for _, affect := range vuln.Affects {
+		if ref := strings.TrimSpace(affect.Ref); ref != "" {
+			out[ref] = struct{}{}
+		}
+	}
+	return out
+}
+
+func (l *Ledger) findCycloneDXVEXMatchingFindingsLocked(tenantID, releaseID string, statement cycloneDXVEXStatement) []matchedFinding {
+	out := []matchedFinding{}
+	for _, scan := range l.scans {
+		if scan.TenantID != tenantID || scan.ReleaseID != releaseID {
+			continue
+		}
+		for _, finding := range scan.Findings {
+			if finding.Vulnerability != statement.vulnerability.ID {
+				continue
+			}
+			if len(statement.affectedRefs) > 0 && finding.Component != "" {
+				if _, ok := statement.affectedRefs[finding.Component]; !ok {
+					continue
+				}
+			}
+			out = append(out, matchedFinding{scan: scan, finding: finding})
+		}
+	}
+	return out
 }
 
 func (l *Ledger) RecordVulnerabilityWorkflow(ctx context.Context, actor domain.Actor, in RecordVulnerabilityWorkflowInput) (domain.VulnerabilityWorkflowRecord, error) {

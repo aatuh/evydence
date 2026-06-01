@@ -53,9 +53,9 @@ Known hardening work remains:
 - worker parser jobs re-read raw object-store payloads for key formats,
   verify digests, validate durable state, and persist missing parser-derived
   normalized fields. CycloneDX SBOM, generic vulnerability-scan, OpenAPI
-  contract, DSSE build-attestation, and OpenVEX uploads can run with
+  contract, DSSE build-attestation, OpenVEX, and CycloneDX VEX uploads can run with
   worker-owned parser side effects by setting
-  `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`; OpenVEX-derived
+  `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`; VEX-derived
   vulnerability decisions are created idempotently by the `parse_vex` worker in
   that mode;
 - OpenAPI precision is enforced across the registered public API. The generated
@@ -215,10 +215,10 @@ because they are hardening work on already implemented capabilities:
   append-only behavior throughout.
 - Keep worker-owned parser side effects covered as parser formats evolve.
   CycloneDX SBOM, generic vulnerability scan, OpenAPI contract, DSSE
-  build-attestation, OpenVEX document metadata, and OpenVEX-derived
-  vulnerability decisions can be worker-owned behind
+  build-attestation, OpenVEX document metadata, CycloneDX VEX document metadata,
+  and VEX-derived vulnerability decisions can be worker-owned behind
   `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`; SBOM, scan, OpenAPI, and
-  OpenVEX replay side effects use focused release-ledger mutations when the
+  VEX replay side effects use focused release-ledger mutations when the
   PostgreSQL store supports them.
 - Keep OpenAPI precision at zero broad operations as routes are added or
   changed, and expand generated SDK coverage from the committed contract.
