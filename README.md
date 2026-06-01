@@ -80,6 +80,8 @@ For `v0.1.0-rc.5`, the published image is
 
 ## Fastest Proof Path
 
+For a reviewer-first path, follow
+[Evaluate Evydence in 10 minutes](docs/tutorials/evaluate-in-10-minutes.md).
 For a first local API flow, follow [Getting started](docs/tutorials/getting-started.md).
 For durable local evaluation, run the production-like Compose rehearsal in
 [Install and operate](docs/how-to/install-and-operate.md).
