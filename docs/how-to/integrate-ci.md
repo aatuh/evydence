@@ -40,8 +40,9 @@ The composite upload action is
 
 Required quickstart inputs:
 
-- `EVYDENCE_API_URL` as a GitHub secret
-- `EVYDENCE_API_KEY` as a GitHub secret
+- `EVYDENCE_API_URL` as a GitHub secret, for example `https://evydence.example.test`
+- `EVYDENCE_API_KEY` as a GitHub secret with `build:write`, `evidence:write`,
+  `bundle:write`, and `verify:read`
 - `EVYDENCE_PROJECT_ID` as a GitHub variable
 - `EVYDENCE_RELEASE_ID` as a GitHub variable
 - `EVYDENCE_ARTIFACT_ID` as a GitHub variable
@@ -60,6 +61,53 @@ and record GitHub OIDC metadata, grant `id-token: write` in the workflow and pas
 `EVYDENCE_GITHUB_OIDC_SUBJECT` or `--oidc-subject`. This implementation records
 the value as evidence metadata; it does not request or verify a GitHub OIDC
 token.
+
+### Minimal GitHub Actions Setup
+
+1. Create or locate the Evydence product, project, release, and artifact
+   records for the release candidate. Copy the project, release, and artifact
+   IDs into GitHub Actions variables named exactly `EVYDENCE_PROJECT_ID`,
+   `EVYDENCE_RELEASE_ID`, and `EVYDENCE_ARTIFACT_ID`.
+2. Create a collector API key or tenant API key with the scopes listed above.
+   Store the API URL and API key as GitHub Actions secrets named exactly
+   `EVYDENCE_API_URL` and `EVYDENCE_API_KEY`.
+3. Copy
+   [`docs/github-actions/quickstart-release-evidence.yml`](../github-actions/quickstart-release-evidence.yml)
+   into `.github/workflows/evydence-release-evidence.yml` in the repository
+   that builds the artifact.
+4. Run the workflow manually with `workflow_dispatch`.
+
+Expected output:
+
+- `.evydence/artifact.digest` contains the SHA-256 digest of the built CLI
+  artifact.
+- `.evydence/sbom.cdx.json` and `.evydence/grype.json` are uploaded as release
+  evidence through an upload manifest.
+- GitHub Actions build provenance is recorded for the configured project and
+  release.
+- The manifest upload creates a release bundle when the required release
+  evidence is present.
+- `.evydence/release-readiness.json` contains the current readiness result,
+  gaps, assumptions, and limitations for review.
+
+Troubleshooting:
+
+- `401 Unauthorized` usually means `EVYDENCE_API_KEY` is missing, revoked, or
+  pasted with extra whitespace. Rotate the key if it may have been exposed; do
+  not print it in logs.
+- `403 Forbidden` means the key authenticated but lacks a required scope. The
+  quickstart requires `build:write`, `evidence:write`, `bundle:write`, and
+  `verify:read`.
+- `404 Not Found` usually means the project, release, or artifact ID is wrong
+  for the tenant bound to the API key. Check the GitHub variable values against
+  Evydence API responses.
+- `409 IDEMPOTENCY_KEY_REUSED` means the same workflow run idempotency prefix
+  was reused with different payload content. Re-run with a new
+  `GITHUB_RUN_ATTEMPT` or change the manifest idempotency prefix only after
+  reviewing whether the earlier upload should remain authoritative.
+- Readiness failures should be treated as evidence gaps or policy findings to
+  review, not as legal compliance, certification, or release-security
+  conclusions.
 
 ## One-Shot CLI Upload
 
