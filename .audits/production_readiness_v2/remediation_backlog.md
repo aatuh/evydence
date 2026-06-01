@@ -17,9 +17,9 @@ Execution rules:
   change.
 - Treat external items as tracked dependencies, not source-repository failures.
 
-## Epic E1 - Publish Local Trust Fixes [ ]
+## Epic E1 - Publish Local Trust Fixes [x]
 
-### Ticket E1-T1 - Push productization commits and rerun public checks [ ]
+### Ticket E1-T1 - Push productization commits and rerun public checks [x]
 
 Description: Push the local E1-E9 productization commits so public GitHub state
 matches the audited local checkout.
@@ -31,7 +31,11 @@ Validation:
 - Public `OpenSSF Scorecard` reruns.
 - Public code-scanning alerts are reviewed after the rerun.
 
-### Ticket E1-T2 - [e] Verify Scorecard token-permission alert closure [e]
+Status: complete. Commit `77ab18e5ad8b3ba3a9f4745e7f6437e5e3e1f596` is pushed
+to `origin/master`; public CI run `26765669971`, CodeQL run `26765669269`,
+Scorecard SARIF run `26765714988`, and Scorecard run `26765723736` all passed.
+
+### Ticket E1-T2 - Verify Scorecard token-permission alert closure [x]
 
 Description: Confirm the two public Scorecard `TokenPermissionsID` alerts close
 after the workflow permission fixes are pushed.
@@ -39,6 +43,9 @@ after the workflow permission fixes are pushed.
 External reason:
 
 - Alert lifecycle is GitHub/Scorecard provider state.
+
+Status: complete. `gh api repos/aatuh/evydence/code-scanning/alerts` returned
+zero open alerts after Scorecard SARIF run `26765714988`.
 
 ## Epic E2 - External Repository Settings [e]
 
@@ -90,9 +97,9 @@ External reason:
 
 - Requires external approval and careful disclosure review.
 
-## Epic E4 - Next Release Evidence [ ]
+## Epic E4 - Next Release Evidence [e]
 
-### Ticket E4-T1 - Cut the next public RC after E7/E9 push [ ]
+### Ticket E4-T1 - Cut the next public RC after E7/E9 push [e]
 
 Description: Produce and publish the next release-candidate evidence package
 after the productization commits are public and public checks pass.
@@ -102,3 +109,9 @@ Validation:
 - `make production-check`
 - `make release-candidate-check TAG=<next-rc>`
 - `make public-release-verify TAG=<next-rc>`
+
+External reason:
+
+- Public release/container publication depends on external
+  `EVYDENCE_RELEASE_PUBLISH_TOKEN` and `EVYDENCE_GHCR_PUBLISH_TOKEN` secret
+  values after the workflow permission hardening.

@@ -13,7 +13,7 @@ Local state inspected:
 - Local commit: `d080a2e8cf67792a0ec7cf850bd9ab3ddb1113a9`
 - Local commit date: `2026-06-01T18:35:38+03:00`
 - Local commit subject: `test(productization): preserve portal coverage gate`
-- Local branch state: ahead of `origin/master` by 28 commits at audit time
+- Local branch state: synchronized with `origin/master` after follow-up push
 - Primary language: Go
 - Package manifests: `go.mod`, `go.sum`
 - License: `AGPL-3.0-only`
@@ -29,8 +29,8 @@ Latest visible public state inspected with `gh`:
   `supply-chain-security`, `vulnerability-management`, and
   `compliance-readiness`
 - Public `origin/master` commit:
-  `34954f9ee88043b40797a0772a056bdb7f41108e`
-- Public `origin/master` commit date: `2026-06-01T14:53:58+03:00`
+  `77ab18e5ad8b3ba3a9f4745e7f6437e5e3e1f596`
+- Public push time: `2026-06-01T15:47:24Z`
 - Latest public release: `v0.1.0-rc.5`, prerelease, published
   `2026-06-01T11:48:56Z`
 - Public release assets include platform archives, `SHA256SUMS`,
@@ -38,19 +38,12 @@ Latest visible public state inspected with `gh`:
   `release-check-summary.txt`, release SBOM/provenance metadata, release
   notes, signed release manifest, manifest signatures, and container-image
   evidence.
-- Latest visible public CI for `origin/master`:
-  - `CI` run `26753278348`: success
-  - `CodeQL` run `26753278319`: success
-  - `Container Image` run `26752805538`: success for
-    `d5098c635ee7b171dac3a449ba7ca2e30d8b0c16`
-  - `OpenSSF Scorecard` run `26748354206`: success for
-    `d5098c635ee7b171dac3a449ba7ca2e30d8b0c16`
-- Public code-scanning alerts still visible before the local workflow fixes are
-  pushed:
-  - Scorecard `TokenPermissionsID` at
-    `.github/workflows/container-image.yml:17`
-  - Scorecard `TokenPermissionsID` at
-    `.github/workflows/release-artifacts.yml:27`
+- Latest visible public checks for `origin/master`:
+  - `CI` run `26765669971`: success
+  - `CodeQL` run `26765669269`: success
+  - `OpenSSF Scorecard SARIF` run `26765714988`: success
+  - `OpenSSF Scorecard` run `26765723736`: success
+- Public code-scanning alerts: zero open alerts after the Scorecard SARIF rerun.
 
 Local checks inspected or run after productization work:
 
@@ -67,20 +60,19 @@ Local checks inspected or run after productization work:
 
 External/visibility limits:
 
-- Local E1-E7 productization fixes are not yet visible on public GitHub until
-  the 28 local commits are pushed and public workflows rerun.
-- Private vulnerability reporting, secret scanning, push protection, repository
-  secret values, branch protection admin bypass state, and external provider
-  settings cannot be fully proven from source files.
+- Private vulnerability reporting, secret scanning, push protection, and
+  Dependabot security updates were verified through the GitHub API after the
+  initial audit. Repository secret values, branch protection admin bypass state,
+  and external provider settings cannot be fully proven from source files.
 - No external design-partner deployment or real customer review package was
   inspected.
 - KMS/HSM custody, broad WORM/object-lock enforcement, live SSO provider
   behavior, production backups, monitoring, and incident-response proof remain
   operator/provider responsibilities.
 
-Confidence: medium-high for the local checkout and public release evidence,
-medium for the current public-repository posture until local fixes are pushed
-and public alerts are re-evaluated.
+Confidence: medium-high for the local checkout and public repository posture.
+Confidence is not high because publishing-token values, design-partner proof,
+and deployment-specific external controls remain outside source evidence.
 
 ## What the project appears to be
 
@@ -120,7 +112,8 @@ Strong evidence:
 - The local production gate passes with live PostgreSQL, 80%+ coverage, race
   tests, lint, gosec, govulncheck, migration compatibility, restore rehearsal,
   black-box demo, and release-signing smoke proof.
-- Public CI and CodeQL passed on the latest pushed public commit.
+- Public CI, CodeQL, Scorecard, and Scorecard SARIF passed on the latest pushed
+  public commit.
 - The public API contract has 186 precise `/v1` operations and zero broad
   operations.
 - Production startup rejects unsafe defaults, in-process production state,
@@ -141,10 +134,11 @@ Strong evidence:
 
 Remaining caveats:
 
-- Public GitHub still shows two Scorecard token-permission alerts until the
-  local workflow fixes are pushed and Scorecard/code-scanning re-evaluate.
-- The public GitHub description is still compliance-readiness-first rather
-  than the sharper VEX-first buyer wording.
+- Code-scanning alerts are clear after Scorecard SARIF re-evaluation.
+- Release/container publication through the refactored workflows still depends
+  on external `EVYDENCE_RELEASE_PUBLISH_TOKEN` and
+  `EVYDENCE_GHCR_PUBLISH_TOKEN` secrets.
+- The public GitHub description now uses the sharper VEX-first buyer wording.
 - Multi-writer API HA is intentionally unsupported.
 - A real design-partner pilot and external case study remain unavailable.
 - External provider/security settings and operator deployment controls are not
@@ -201,9 +195,7 @@ Strong signals:
 
 Weak or external signals:
 
-- Current public code-scanning alerts still show broad token-permission
-  findings until the local workflow fixes land publicly.
-- Branch protection and private vulnerability reporting settings require
+- Branch protection and repository secret values still require
   maintainer/provider verification.
 - Native HSM, direct cloud-provider management, external transparency,
   object-lock enforcement, and real provider custody proof are not repo-local
@@ -267,8 +259,8 @@ Weak differentiation:
 | Quickstart | Strong | Getting started, 10-minute evaluator, CI quickstart | Low | Keep first path short as APIs expand. |
 | Examples/demo | Strong | End-to-end sample package, demo checks, reviewer workflow check | Low | Add real pilot proof externally. |
 | Tests | Strong | `make production-check` passed with 80.1% coverage and live Postgres | Low | Keep threshold above 80 as features are added. |
-| CI | Adequate | Public CI/CodeQL green on `origin/master`; local CI workflow fixes pending push | Medium | Push local workflow fixes and verify Scorecard alert closure. |
-| Releases/provenance | Strong | Public rc5 release assets, signatures, checksums, SBOM/provenance metadata | Low | Publish next RC after local E7/E9 commits are pushed. |
+| CI | Strong | Public CI, CodeQL, Scorecard, and Scorecard SARIF are green on `origin/master`; open code-scanning alerts are zero | Low | Keep public checks required. |
+| Releases/provenance | Strong | Public rc5 release assets, signatures, checksums, SBOM/provenance metadata | Low | Publish next RC after publishing-token secrets are configured. |
 | Docs/API/config/ops | Strong | OpenAPI matrix, operations, release, production, Kubernetes, runbooks | Low | Keep operation-count references generated or checked. |
 | Docker/deployment | Adequate | Dockerfile, Compose, production-like Compose, Helm, air-gap docs | Medium | Real operator deployment proof remains external. |
 | Security policy | Adequate | SECURITY, support, intake, non-secret reporting rules | Medium | Verify GitHub private reporting and secret scanning settings. |
@@ -281,11 +273,11 @@ Weak differentiation:
 |-----------|------:|-------|
 | Production readiness | 8.3/10 | Local production gate passes; controlled single-writer profile is honest. |
 | Feature completeness | 8.6/10 | VEX-first release-evidence path is end-to-end and reviewable. |
-| Security and open-source trust | 8.1/10 | Strong local posture; public Scorecard alert closure still pending push/rerun. |
-| Marketability and positioning | 8.2/10 | Clear buyer question and proof path; public description still generic. |
+| Security and open-source trust | 8.4/10 | Public checks are green and code-scanning alerts are clear; publishing-token values and adoption proof remain external. |
+| Marketability and positioning | 8.3/10 | Clear buyer question, proof path, and public VEX-first description. |
 | Differentiation | 8.1/10 | Strong release-evidence package angle versus scanner/GRC/status quo. |
 | Repository evidence quality | 8.6/10 | Release assets, gates, docs, contracts, and examples are substantial. |
-| Overall | 8.3/10 | Meets target for controlled self-hosted candidate, not broad production. |
+| Overall | 8.4/10 | Meets target for controlled self-hosted candidate, not broad production. |
 
 Confidence: medium-high.
 
@@ -295,9 +287,9 @@ Verdict: Production-usable with caveats.
 
 Next 1-2 days:
 
-- Push the 28 local productization commits, rerun public CI/CodeQL/Scorecard,
-  and verify the two public TokenPermissions alerts close.
-- Update the public GitHub description to the VEX-first positioning.
+- Configure `EVYDENCE_RELEASE_PUBLISH_TOKEN` and
+  `EVYDENCE_GHCR_PUBLISH_TOKEN` if release/container publication workflows will
+  be used.
 - Cut the next public RC after the local E7/E9 changes are visible and release
   evidence is regenerated.
 
@@ -305,8 +297,8 @@ Next 1-2 weeks:
 
 - Run a non-maintainer design-partner pilot on one real release and produce a
   sanitized lessons-learned note.
-- Verify GitHub private vulnerability reporting, secret scanning, push
-  protection, and branch-protection settings with maintainer access.
+- Configure release/container publication secrets if the refactored
+  publication workflows will be used.
 - Keep production-check, public-release verification, and reviewer workflow
   checks as required release gates.
 
@@ -337,14 +329,10 @@ the first-screen pitch.
 
 ## Residual risk and uncertainty
 
-The current local repo is stronger than the public visible branch. Public trust
-will not fully reflect this audit until the local commits are pushed and
-public CI/code-scanning reruns.
-
 External controls remain unresolved by source code: design-partner proof,
-GitHub security settings, repository secrets, KMS/HSM custody, SSO provider
-configuration, object-lock enforcement, public transparency services,
-operator backup/restore, monitoring, incident response, and legal/audit review.
+repository publishing-token secrets, KMS/HSM custody, SSO provider
+configuration, object-lock enforcement, public transparency services, operator
+backup/restore, monitoring, incident response, and legal/audit review.
 
 The correct public status remains controlled self-hosted production candidate.
 Do not strengthen to broad production-ready, regulated-production-ready,

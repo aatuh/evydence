@@ -8,9 +8,9 @@ Status legend:
 - [x] done
 - [e] external/customer/provider dependency
 
-## Epic E1 - Public State Alignment [ ]
+## Epic E1 - Public State Alignment [x]
 
-### Ticket E1-T1 - Push local productization commits [ ]
+### Ticket E1-T1 - Push local productization commits [x]
 
 Description: Publish the local E1-E9 productization work so the public
 repository exposes the audited VEX-first reviewer path.
@@ -21,7 +21,10 @@ Validation:
 - public `CI` and `CodeQL` pass
 - public Scorecard reruns
 
-### Ticket E1-T2 - Cut next public release candidate [ ]
+Status: complete. Commit `77ab18e5ad8b3ba3a9f4745e7f6437e5e3e1f596` is pushed
+to `origin/master`; public CI, CodeQL, Scorecard SARIF, and Scorecard passed.
+
+### Ticket E1-T2 - Cut next public release candidate [e]
 
 Description: Generate and publish the next RC so release assets include the
 portal/reviewer workflow and latest audit/status docs.
@@ -31,6 +34,11 @@ Validation:
 - `make production-check`
 - `make release-candidate-check TAG=<next-rc>`
 - `make public-release-verify TAG=<next-rc>`
+
+External reason:
+
+- Requires external release/container publication token secrets if the
+  refactored GitHub publication workflows are used.
 
 ## Epic E2 - External Product Proof [e]
 

@@ -13,19 +13,18 @@ Local state:
 - Commit: `d080a2e8cf67792a0ec7cf850bd9ab3ddb1113a9`
 - Commit date: `2026-06-01T18:35:38+03:00`
 - Commit subject: `test(productization): preserve portal coverage gate`
-- Local branch: ahead of `origin/master` by 28 commits
+- Local branch: synchronized with `origin/master` after follow-up push
 - Primary language: Go
 - License: `AGPL-3.0-only`
 
 Public state:
 
 - Public repository: `aatuh/evydence`
-- Public `origin/master`: `34954f9ee88043b40797a0772a056bdb7f41108e`
+- Public `origin/master`: `77ab18e5ad8b3ba3a9f4745e7f6437e5e3e1f596`
 - Latest public release: `v0.1.0-rc.5`, prerelease, published
   `2026-06-01T11:48:56Z`
-- Public CI and CodeQL are green on `origin/master`.
-- Local productization commits, including the package review page and reviewer
-  workflow proof, are not yet public until pushed.
+- Public CI, CodeQL, Scorecard SARIF, and Scorecard are green on
+  `origin/master`; open code-scanning alerts are zero.
 
 Validation evidence used:
 
@@ -47,8 +46,9 @@ Validation limits:
 - External provider controls and operator deployment controls are not
   source-repository facts.
 
-Confidence: medium-high for repo-local product fitness, medium for public
-adoption readiness until local commits are pushed and external proof exists.
+Confidence: medium-high for repo-local product fitness and public repository
+state. Confidence is not high because external pilot proof and publishing-token
+secrets remain outside repository evidence.
 
 ## Executive summary
 
@@ -63,10 +63,10 @@ can create release evidence, ingest VEX/manual decisions, generate readiness
 and package output, verify packages, and show limitations without asking a
 reviewer to read the full architecture.
 
-The product is still not broadly production-ready. The public branch trails the
-local productization work, there is no non-maintainer pilot proof, multi-writer
-API HA is out of scope, and deployment-specific high-trust controls remain
-external.
+The product is still not broadly production-ready. There is no non-maintainer
+pilot proof, multi-writer API HA is out of scope, release/container
+publication tokens still require external secret values, and
+deployment-specific high-trust controls remain external.
 
 Verdict: Production-usable with caveats. Worth continuing and hardening. Do
 not reposition beyond controlled self-hosted production candidate yet.
@@ -153,7 +153,7 @@ production gate output, and public rc5 release assets.
 | Integration and contract credibility | 8.5/10 | OpenAPI, CLI, SDKs, CI examples, and release assets are strong. |
 | Operability, supportability and debuggability | 8.2/10 | Production gate, runbooks, release validation, troubleshooting, and package checks exist. |
 | Positioning and adoption readiness | 8.0/10 | Clear product story; real external adoption proof still absent. |
-| Open-source trust and release integrity | 8.1/10 | Public rc5 evidence exists; public Scorecard alert closure awaits push/rerun. |
+| Open-source trust and release integrity | 8.4/10 | Public rc5 evidence exists; public CI/CodeQL/Scorecard are green and code-scanning alerts are clear. |
 | Evidence quality and release confidence | 8.4/10 | Tests, release assets, package fixtures, and audits are strong for the candidate profile. |
 | Overall | 8.4/10 | Product fulfills the controlled self-hosted VEX-first promise with caveats. |
 
@@ -169,17 +169,6 @@ Verdict: Production-usable with caveats.
 
 ### High leverage
 
-- PCA4-001: Public GitHub state trails the repo-local productization work.
-  Evidence: local branch is 28 commits ahead of `origin/master`; public
-  code-scanning still shows TokenPermissions alerts that are addressed locally.
-  Affected claim/workflow: public trust and adopter evaluation.
-  Impact: external users cannot yet see the improved portal/reviewer workflow
-  or workflow permission fixes.
-  Fix direction: push local commits, rerun public CI/CodeQL/Scorecard, and
-  verify alert status.
-  Validation plan: `gh run list`, code-scanning alert query, `make
-  public-release-verify TAG=<next-rc>`.
-
 - PCA4-002: No real non-maintainer pilot proof exists.
   Evidence: backlog E8 remains external; no case study or design-partner report
   is present.
@@ -190,16 +179,6 @@ Verdict: Production-usable with caveats.
   Validation plan: approved pilot report and package verification notes.
 
 ### Medium
-
-- PCA4-003: Public GitHub description is less sharp than the README.
-  Evidence: public description remains `Self-hosted API-first evidence ledger
-  for software release compliance readiness`.
-  Affected claim/workflow: first impression and market positioning.
-  Impact: the public repo does not immediately communicate the VEX-first buyer
-  wedge.
-  Fix direction: update provider metadata to
-  `Self-hosted VEX-first release evidence ledger for customer CVE, SBOM, provenance, and release-review questions.`
-  Validation plan: `gh repo view aatuh/evydence --json description`.
 
 - PCA4-004: Broad production claims remain unsupported.
   Evidence: production docs intentionally require one API writer and external
@@ -226,7 +205,7 @@ Verdict: Production-usable with caveats.
 | README | Strong | Buyer question, proof path, release evidence, non-claims | Low | Keep operation counts current. |
 | Quickstart | Strong | 10-minute evaluator, getting started, CI quickstart | Low | Keep one clear first path. |
 | Examples/demo | Strong | sample package, local CI simulation, reviewer workflow check | Low | Add external pilot proof. |
-| Tests/CI | Strong locally | production-check passed, public CI green on origin | Medium | Push local commits and rerun public checks. |
+| Tests/CI | Strong | production-check passed locally; public CI, CodeQL, Scorecard, and Scorecard SARIF passed on origin | Low | Keep public checks required. |
 | Releases/provenance | Strong | public rc5 verified; signed manifests/checksums present | Low | Cut next RC after local E7/E9 changes. |
 | Docs/API/config/ops | Strong | OpenAPI matrix, production docs, runbooks, troubleshooting | Low | Keep generated references aligned. |
 | Security/trust files | Adequate | SECURITY, CODEOWNERS, Scorecard/CodeQL, support/governance | Medium | Verify external GitHub security settings. |
@@ -236,9 +215,8 @@ Verdict: Production-usable with caveats.
 
 Next 1-2 days:
 
-- Push local productization commits and rerun public CI/Scorecard.
-- Verify public code-scanning alert closure.
-- Update public GitHub description.
+- Configure release/container publication secrets if the refactored publication
+  workflows will be used.
 
 Next 1-2 weeks:
 
@@ -255,9 +233,10 @@ Next 1-2 months:
 ## Residual risk and unproven claims
 
 The product is strong enough for controlled self-hosted candidate use, but not
-for broad production language. The largest remaining risks are public state not
-yet matching local state, lack of external pilot proof, and deployment-specific
-provider controls that cannot be implemented entirely inside this repository.
+for broad production language. The largest remaining risks are missing external
+pilot proof, missing release/container publication-token values, and
+deployment-specific provider controls that cannot be implemented entirely
+inside this repository.
 
 No audit evidence supports legal compliance, certification, complete SBOM
 coverage, scanner authority, secure-release guarantees, broad regulated

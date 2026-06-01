@@ -52,10 +52,11 @@ SaaS-ready, legally compliant, certified, or secure-release-guaranteed.
   plus cosign evidence. Operators who mirror or rebuild images for Helm or
   air-gapped workflows must record their own image digest and verification
   evidence.
-- GitHub private vulnerability reporting, secret scanning, branch protection,
-  Scorecard alert closure, and workflow execution history are external
-  repository-state checks. They remain required before changing the public
-  status beyond a controlled self-hosted production candidate.
+- GitHub private vulnerability reporting, secret scanning, push protection,
+  Dependabot security updates, public CI, CodeQL, Scorecard, Scorecard SARIF,
+  and zero open code-scanning alerts have been verified for the current public
+  `master` state. Branch protection admin bypass state, repository secret
+  values, and workflow publication credentials remain provider/account checks.
 - Native PKCS#11/HSM module custody requires operator hardware, drivers, and
   provider-specific validation.
 - Broad WORM/object-lock proof requires object-store policy, IAM, lifecycle,
