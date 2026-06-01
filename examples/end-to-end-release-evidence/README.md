@@ -84,6 +84,18 @@ vulnerability decision, release bundle, redaction profile, customer package,
 readiness report, and audit-chain verification output. It expects a local API
 that already has a tenant and scoped API key.
 
+To exercise the GitHub Actions-style CI path without external services, run:
+
+```sh
+make local-ci-simulation-check
+```
+
+That checked target starts a temporary loopback API, creates the required
+product, project, release, and artifact IDs, uploads build provenance and a
+structural DSSE/in-toto attestation, runs `evydence ci preflight`, uploads the
+manifest, and verifies readiness, customer-package, and audit-chain outputs
+under `tmp/local-ci-simulation/`.
+
 ## Inspect The Result
 
 The generated files under `tmp/end-to-end-release-evidence/` map the buyer

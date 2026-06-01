@@ -889,6 +889,7 @@ func (s releaseEvidenceService) UploadSBOM(ctx context.Context, actor domain.Act
 		BOMFormat   string `json:"bomFormat"`
 		SpecVersion string `json:"specVersion"`
 		Components  []struct {
+			Type    string `json:"type"`
 			Name    string `json:"name"`
 			Version string `json:"version"`
 			PURL    string `json:"purl"`
