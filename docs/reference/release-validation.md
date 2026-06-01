@@ -140,10 +140,14 @@ published through GitHub code scanning when that service is available.
 ## Signed Release Artifact Workflow
 
 The checked-in `.github/workflows/release-artifacts.yml` workflow calls the
-same release-candidate package script used locally. It packages self-contained
-release archives for the CLI, API, worker, and migration commands on Linux,
-macOS, and Windows targets. The script runs `make production-check` against
-disposable PostgreSQL before building artifacts.
+same release-candidate package script used locally. The package job has
+read-only `GITHUB_TOKEN` permissions and the release signing secret only; the
+separate draft-release publication job downloads the packaged evidence artifact
+and uses `EVYDENCE_RELEASE_PUBLISH_TOKEN` only when publishing is explicitly
+enabled or a release tag is pushed. It packages self-contained release archives
+for the CLI, API, worker, and migration commands on Linux, macOS, and Windows
+targets. The script runs `make production-check` against disposable PostgreSQL
+before building artifacts.
 
 The workflow requires this repository secret:
 
@@ -168,11 +172,10 @@ checksums, `coverage.out`, `release-check-summary.txt`, checked release notes,
 release SBOM/provenance metadata, the Scorecard-compatible in-toto provenance
 statement, the release manifest, and the manifest signature. Tag pushes create
 or update a draft GitHub release only when the external
-`EVYDENCE_RELEASE_PUBLISH_TOKEN` secret is configured. The packaging job keeps
-the repository `GITHUB_TOKEN` read-only; the publish token should be a
-maintainer-controlled fine-grained token or GitHub App token with the minimum
-release-publication scope needed for the repository. Maintainers publish a draft
-as a prerelease only after the workflow artifact and release assets are
+`EVYDENCE_RELEASE_PUBLISH_TOKEN` secret is configured. The publish token should
+be a maintainer-controlled fine-grained token or GitHub App token with the
+minimum release-publication scope needed for the repository. Maintainers publish
+a draft as a prerelease only after the workflow artifact and release assets are
 verified. Manual runs can upload only the workflow artifact unless
 `upload_draft_release` is enabled.
 

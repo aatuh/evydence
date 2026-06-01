@@ -78,8 +78,9 @@ evidence, and record that image digest with deployment evidence. If no image
 workflow evidence exists for a tag, operators must build and publish images into
 their own registry for Helm or air-gapped deployment flows.
 
-The release packaging workflow keeps the repository `GITHUB_TOKEN` read-only.
-Creating or updating the draft GitHub release requires the
+The release packaging workflow keeps the repository `GITHUB_TOKEN` read-only and
+separates package generation from draft-release publication. Creating or
+updating the draft GitHub release happens in a separate job and requires the
 `EVYDENCE_RELEASE_PUBLISH_TOKEN` secret with only the release-publication scope
 the maintainer account approves for that workflow. The container image workflow
 also keeps `GITHUB_TOKEN` from receiving package-write permissions; publishing

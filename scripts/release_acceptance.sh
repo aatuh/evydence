@@ -81,6 +81,7 @@ require_text .github/workflows/codeql.yml "security-and-quality"
 require_text .github/workflows/ci.yml "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
 require_text .github/workflows/release-artifacts.yml "contents: read"
 require_text .github/workflows/release-artifacts.yml "EVYDENCE_RELEASE_PUBLISH_TOKEN"
+require_text .github/workflows/release-artifacts.yml "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c"
 if grep -F "contents: write" .github/workflows/release-artifacts.yml >/dev/null; then
   printf '%s\n' "release-acceptance: release artifact workflow must not grant GITHUB_TOKEN contents: write" >&2
   exit 2

@@ -275,6 +275,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@grep -F 'EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'EVYDENCE_RELEASE_PUBLISH_TOKEN' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'scripts/release_candidate_package.sh' .github/workflows/release-artifacts.yml >/dev/null
+	@grep -F 'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'evydence-release-manifest.sig.json' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'evydence-release-manifest.sig alias' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'gh release create' .github/workflows/release-artifacts.yml >/dev/null
