@@ -83,9 +83,10 @@ Creating or updating the draft GitHub release requires the
 `EVYDENCE_RELEASE_PUBLISH_TOKEN` secret with only the release-publication scope
 the maintainer account approves for that workflow. The container image workflow
 also keeps `GITHUB_TOKEN` from receiving package-write permissions; publishing
-to GHCR requires `EVYDENCE_GHCR_PUBLISH_TOKEN`. Both secrets are external
-repository settings and must not be printed in logs, committed to files, or
-included in release evidence.
+to GHCR requires `EVYDENCE_GHCR_PUBLISH_TOKEN`, and only the separate signing
+job receives `id-token: write` for keyless cosign signing. Both secrets are
+external repository settings and must not be printed in logs, committed to
+files, or included in release evidence.
 
 ## Deployment Constraints
 

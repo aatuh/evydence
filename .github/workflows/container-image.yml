@@ -14,12 +14,18 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
   publish-image:
-    name: Publish Container Image
+    name: Build And Push Container Image
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+      digest: ${{ steps.image.outputs.digest }}
+      commit: ${{ steps.image.outputs.commit }}
+      created: ${{ steps.image.outputs.created }}
     steps:
       - name: Check out repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -61,6 +67,7 @@ jobs:
           printf '%s' "${EVYDENCE_GHCR_PUBLISH_TOKEN}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Build and push image
+        id: image
         shell: bash
         run: |
           set -euo pipefail
@@ -87,6 +94,44 @@ jobs:
           COMMIT=$commit
           CREATED=$created
           EOF
+          {
+            echo "image=$image"
+            echo "digest=$digest"
+            echo "commit=$commit"
+            echo "created=$created"
+          } >> "$GITHUB_OUTPUT"
+
+  sign-image:
+    name: Sign Container Image And Upload Evidence
+    runs-on: ubuntu-latest
+    needs: publish-image
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.inputs.ref }}
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.1.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Log in to GitHub Container Registry for signing
+        env:
+          EVYDENCE_GHCR_PUBLISH_TOKEN: ${{ secrets.EVYDENCE_GHCR_PUBLISH_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${EVYDENCE_GHCR_PUBLISH_TOKEN}" ]]; then
+            echo "EVYDENCE_GHCR_PUBLISH_TOKEN secret is required to sign container images" >&2
+            exit 2
+          fi
+          printf '%s' "${EVYDENCE_GHCR_PUBLISH_TOKEN}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Install cosign
         shell: bash
@@ -99,6 +144,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p tmp/container-image
+          cat > tmp/container-image/image.env <<EOF
+          IMAGE=${{ needs.publish-image.outputs.image }}
+          DIGEST=${{ needs.publish-image.outputs.digest }}
+          COMMIT=${{ needs.publish-image.outputs.commit }}
+          CREATED=${{ needs.publish-image.outputs.created }}
+          EOF
           . tmp/container-image/image.env
           cosign sign --yes "${IMAGE}@${DIGEST}"
           cosign verify \

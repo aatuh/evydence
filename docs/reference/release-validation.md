@@ -179,8 +179,9 @@ verified. Manual runs can upload only the workflow artifact unless
 The container image workflow similarly keeps `GITHUB_TOKEN` from receiving
 package-write permissions. GHCR publication requires
 `EVYDENCE_GHCR_PUBLISH_TOKEN`; keyless image signing still requires GitHub OIDC
-through `id-token: write`. These secrets are repository settings, not release
-evidence artifacts, and must not be logged or committed.
+through `id-token: write`, but that permission is scoped to the image-signing
+job rather than the build/push job. These secrets are repository settings, not
+release evidence artifacts, and must not be logged or committed.
 
 The canonical artifact map is
 [Release evidence index](release-evidence-index.md). Keep that page aligned
