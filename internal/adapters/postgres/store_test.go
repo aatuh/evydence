@@ -409,7 +409,7 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 			"vex_report_test": {ID: "vex_report_test", TenantID: "ten_test", VEXDocumentID: "vex_test", EvidenceID: "ev_test", ReleaseID: "rel_test", ArtifactID: "art_test", ParserVersion: app.ParserVersionOpenVEXJSON, Status: "parsed", StatementCount: 1, DecisionsCreated: 1, MappingFailures: []domain.VEXImportIssue{{StatementIndex: 2, Code: "finding_not_found", Detail: "No matching finding."}}, SchemaVersion: domain.VEXImportReportSchemaVersion, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()},
 		},
 		Decisions: map[string]domain.VulnerabilityDecision{
-			"decision_test": {ID: "decision_test", TenantID: "ten_test", FindingID: "finding_test", ScanID: "scan_test", ReleaseID: "rel_test", Vulnerability: "CVE-0000-0001", Component: "lib", SBOMID: "sbom_test", SBOMComponentName: "lib", Status: "not_affected", Justification: "not_present", Source: "manual", EvidenceID: "ev_test", VEXDocumentID: "vex_test", SchemaVersion: domain.VulnerabilityDecisionVersion, CreatedAt: time.Now().UTC()},
+			"decision_test": {ID: "decision_test", TenantID: "ten_test", FindingID: "finding_test", ScanID: "scan_test", ReleaseID: "rel_test", Vulnerability: "CVE-0000-0001", Component: "lib", SBOMID: "sbom_test", SBOMComponentName: "lib", Status: "not_affected", Justification: "not_present", Source: "manual", EvidenceID: "ev_test", VEXDocumentID: "vex_test", SupportingRefs: []domain.SubjectRef{{Type: "release_bundle", ID: "bundle_test"}}, SchemaVersion: domain.VulnerabilityDecisionVersion, CreatedAt: time.Now().UTC()},
 		},
 		Contracts: map[string]domain.OpenAPIContract{
 			"contract_test": {ID: "contract_test", TenantID: "ten_test", ProductID: "prod_test", ReleaseID: "rel_test", Version: "1.0.0", Hash: "sha256:" + strings.Repeat("f", 64), PathCount: 1, Operations: []domain.OpenAPIOperation{{Path: "/v1/test", Method: "get", OperationID: "getTest"}}, EvidenceID: "ev_test", CreatedAt: time.Now().UTC()},
@@ -935,7 +935,8 @@ func TestApplyCriticalMutationWithPostgres(t *testing.T) {
 			ReleaseID: "rel_focus", Vulnerability: "CVE-2099-0001", Component: "pkg:generic/api", SBOMID: "sbom_focus", SBOMComponentPURL: "pkg:generic/api", SBOMComponentName: "api",
 			Status: "not_affected", Justification: "component_not_present", ImpactStatement: "not shipped",
 			CustomerVisible: true, InternalNotes: "private triage", EvidenceIDs: []string{"ev_support"}, Source: "manual",
-			SchemaVersion: domain.VulnerabilityDecisionVersion, CreatedAt: now,
+			SupportingRefs: []domain.SubjectRef{{Type: "release_bundle", ID: "bundle_focus"}},
+			SchemaVersion:  domain.VulnerabilityDecisionVersion, CreatedAt: now,
 		}},
 		AuditChainEntries: []domain.AuditChainEntry{{
 			ID: "chain_focus", TenantID: "ten_focus", Sequence: 1, EntryType: "release_bundle.created",
@@ -1126,7 +1127,8 @@ func TestApplyReleaseLedgerMutationWithPostgres(t *testing.T) {
 			ID: "decision_release_focus", TenantID: "ten_release_focus", FindingID: "finding_focus", ScanID: "scan_focus",
 			ReleaseID: "rel_focus", Vulnerability: "CVE-2099-0001", Component: "lib", SBOMID: "sbom_focus", SBOMComponentName: "lib", Status: "not_affected",
 			Justification: "component_not_present", Source: "vex", EvidenceID: "ev_focus", VEXDocumentID: "vex_focus",
-			SchemaVersion: domain.VulnerabilityDecisionVersion, CreatedAt: now,
+			SupportingRefs: []domain.SubjectRef{{Type: "release_bundle", ID: "bundle_focus"}},
+			SchemaVersion:  domain.VulnerabilityDecisionVersion, CreatedAt: now,
 		}},
 		AuditChainEntries: []domain.AuditChainEntry{{
 			ID: "chain_release_focus", TenantID: "ten_release_focus", Sequence: 1, EntryType: "evidence.created",

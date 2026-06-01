@@ -987,6 +987,7 @@ func vulnerabilityDecisionExample() map[string]any {
 		"impact_statement": "The shipped artifact does not include the affected runtime path.",
 		"customer_visible": true,
 		"evidence_ids":     []string{"ev_20260527120000"},
+		"supporting_refs":  []map[string]string{{"type": "exception", "id": "exc_20260527120000"}},
 	}
 }
 

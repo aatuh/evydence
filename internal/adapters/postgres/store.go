@@ -1164,7 +1164,7 @@ func (s *Store) loadRelationalRiskDecisions(ctx context.Context, state *app.Pers
 		SELECT id, tenant_id, finding_id, scan_id, release_id, vulnerability,
 		       component, sbom_id, sbom_component_purl, sbom_component_name,
 		       status, justification, impact_statement, action_statement,
-		       customer_visible, internal_notes, source, evidence_id, evidence_ids, vex_document_id,
+		       customer_visible, internal_notes, source, evidence_id, evidence_ids, supporting_refs, vex_document_id,
 		       supersedes, superseded_by, approved_by, reviewed_at, review_due_at, schema_version, created_at
 		FROM vulnerability_decisions
 	`)
@@ -1176,10 +1176,11 @@ func (s *Store) loadRelationalRiskDecisions(ctx context.Context, state *app.Pers
 		var decision domain.VulnerabilityDecision
 		var releaseID, component, sbomID, sbomComponentPURL, sbomComponentName, impactStatement, actionStatement, internalNotes, evidenceID, vexDocumentID, supersedes, supersededBy, approvedBy sql.NullString
 		var reviewedAt, reviewDueAt sql.NullTime
+		var supportingRefs []byte
 		if err := decisionRows.Scan(
 			&decision.ID, &decision.TenantID, &decision.FindingID, &decision.ScanID, &releaseID, &decision.Vulnerability,
 			&component, &sbomID, &sbomComponentPURL, &sbomComponentName, &decision.Status, &decision.Justification, &impactStatement, &actionStatement,
-			&decision.CustomerVisible, &internalNotes, &decision.Source, &evidenceID, &decision.EvidenceIDs, &vexDocumentID, &supersedes, &supersededBy,
+			&decision.CustomerVisible, &internalNotes, &decision.Source, &evidenceID, &decision.EvidenceIDs, &supportingRefs, &vexDocumentID, &supersedes, &supersededBy,
 			&approvedBy, &reviewedAt, &reviewDueAt, &decision.SchemaVersion, &decision.CreatedAt,
 		); err != nil {
 			return fmt.Errorf("scan relational vulnerability decision: %w", err)
@@ -1193,6 +1194,9 @@ func (s *Store) loadRelationalRiskDecisions(ctx context.Context, state *app.Pers
 		decision.ActionStatement = nullableSQLString(actionStatement)
 		decision.InternalNotes = nullableSQLString(internalNotes)
 		decision.EvidenceID = nullableSQLString(evidenceID)
+		if err := decodeJSON(supportingRefs, &decision.SupportingRefs); err != nil {
+			return fmt.Errorf("decode relational vulnerability decision supporting refs: %w", err)
+		}
 		decision.VEXDocumentID = nullableSQLString(vexDocumentID)
 		decision.Supersedes = nullableSQLString(supersedes)
 		decision.SupersededBy = nullableSQLString(supersededBy)
@@ -3305,12 +3309,20 @@ func syncRiskBuildControlRows(ctx context.Context, tx pgx.Tx, state app.Persiste
 		if decision.ID == "" || decision.TenantID == "" || decision.FindingID == "" || decision.ScanID == "" {
 			continue
 		}
+		supportingRefs := decision.SupportingRefs
+		if supportingRefs == nil {
+			supportingRefs = []domain.SubjectRef{}
+		}
+		supportingRefsJSON, err := json.Marshal(supportingRefs)
+		if err != nil {
+			return fmt.Errorf("encode vulnerability decision supporting refs: %w", err)
+		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO vulnerability_decisions (
 				id, tenant_id, finding_id, scan_id, release_id, vulnerability,
 				component, sbom_id, sbom_component_purl, sbom_component_name,
 				status, justification, impact_statement, action_statement,
-				customer_visible, internal_notes, source, evidence_id, evidence_ids, vex_document_id,
+				customer_visible, internal_notes, source, evidence_id, evidence_ids, supporting_refs, vex_document_id,
 				supersedes, superseded_by, approved_by, reviewed_at, review_due_at, schema_version, created_at
 			)
 			VALUES (
@@ -3318,7 +3330,7 @@ func syncRiskBuildControlRows(ctx context.Context, tx pgx.Tx, state app.Persiste
 				$7, $8, $9, $10,
 				$11, $12, $13, $14,
 				$15, $16, $17, $18, $19, $20,
-				$21, $22, $23, $24, $25, $26, $27
+				$21, $22, $23, $24, $25, $26, $27, $28
 			)
 			ON CONFLICT (id) DO UPDATE SET
 				superseded_by = EXCLUDED.superseded_by,
@@ -3333,11 +3345,15 @@ func syncRiskBuildControlRows(ctx context.Context, tx pgx.Tx, state app.Persiste
 				evidence_ids = CASE
 					WHEN cardinality(vulnerability_decisions.evidence_ids) = 0 THEN EXCLUDED.evidence_ids
 					ELSE vulnerability_decisions.evidence_ids
+				END,
+				supporting_refs = CASE
+					WHEN vulnerability_decisions.supporting_refs = '[]'::jsonb THEN EXCLUDED.supporting_refs
+					ELSE vulnerability_decisions.supporting_refs
 				END
 		`, decision.ID, decision.TenantID, decision.FindingID, decision.ScanID, nullableString(decision.ReleaseID), decision.Vulnerability,
 			nullableString(decision.Component), nullableString(decision.SBOMID), nullableString(decision.SBOMComponentPURL), nullableString(decision.SBOMComponentName),
 			decision.Status, decision.Justification, nullableString(decision.ImpactStatement), nullableString(decision.ActionStatement),
-			decision.CustomerVisible, nullableString(decision.InternalNotes), decision.Source, nullableString(decision.EvidenceID), textArray(decision.EvidenceIDs), nullableString(decision.VEXDocumentID), nullableString(decision.Supersedes), nullableString(decision.SupersededBy),
+			decision.CustomerVisible, nullableString(decision.InternalNotes), decision.Source, nullableString(decision.EvidenceID), textArray(decision.EvidenceIDs), supportingRefsJSON, nullableString(decision.VEXDocumentID), nullableString(decision.Supersedes), nullableString(decision.SupersededBy),
 			nullableString(decision.ApprovedBy), nullableTime(decision.ReviewedAt), nullableTime(decision.ReviewDueAt), decision.SchemaVersion, nonZeroTime(decision.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert vulnerability decision row: %w", err)
 		}

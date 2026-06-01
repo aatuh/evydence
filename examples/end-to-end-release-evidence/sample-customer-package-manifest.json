@@ -140,6 +140,16 @@
       "source": "vex",
       "evidence_id": "ev_vex",
       "vex_document_id": "vex_example",
+      "supporting_refs": [
+        {
+          "type": "exception",
+          "id": "exc_example"
+        },
+        {
+          "type": "release_bundle",
+          "id": "bundle_example"
+        }
+      ],
       "reviewed_at": "2026-05-27T12:00:00Z",
       "review_due_at": "2026-08-25T12:00:00Z",
       "created_at": "2026-05-27T12:00:00Z"

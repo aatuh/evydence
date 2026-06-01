@@ -360,7 +360,7 @@
         { id: "vex_example", format: "openvex", author: "security@example.test", statement_count: 1, status_summary: { fixed: 1 } }
       ],
       vulnerability_decisions: [
-        { id: "vd_example", vulnerability: "CVE-2026-0002", component: "pkg:apk/openssl@3.1.0", sbom_id: "sbom_example", sbom_component_purl: "pkg:apk/openssl@3.1.0", sbom_component_name: "openssl", status: "fixed", source: "vex", impact_statement: "The finding is fixed in this release artifact.", action_statement: "Upgrade to this release after normal operator review.", reviewed_at: "2026-05-27T12:00:00Z", review_due_at: "2026-08-25T12:00:00Z" }
+        { id: "vd_example", vulnerability: "CVE-2026-0002", component: "pkg:apk/openssl@3.1.0", sbom_id: "sbom_example", sbom_component_purl: "pkg:apk/openssl@3.1.0", sbom_component_name: "openssl", status: "fixed", source: "vex", impact_statement: "The finding is fixed in this release artifact.", action_statement: "Upgrade to this release after normal operator review.", reviewed_at: "2026-05-27T12:00:00Z", review_due_at: "2026-08-25T12:00:00Z", supporting_refs: [{ type: "exception", id: "exc_example" }, { type: "release_bundle", id: "bundle_example" }] }
       ],
       approvals: [{ id: "appr_example", subject_type: "release", decision: "approved", reason: "Release evidence package reviewed." }],
       exceptions: [],
@@ -412,6 +412,15 @@
         return JSON.stringify(value);
       }
       return String(value);
+    };
+    const formatRefs = (refs) => {
+      const values = safeArray(refs).map((ref) => {
+        if (!ref || typeof ref !== "object") {
+          return "";
+        }
+        return [ref.type, ref.id].filter(Boolean).join(":");
+      }).filter(Boolean);
+      return values.length ? values.join(", ") : "not present";
     };
     const pick = (obj, paths) => {
       for (const path of paths) {
@@ -612,6 +621,7 @@
         { label: "Source", value: "source" },
         { label: "Reviewed", value: "reviewed_at" },
         { label: "Review due", value: "review_due_at" },
+        { label: "Supporting links", value: (row) => formatRefs(row.supporting_refs) },
         { label: "Impact", value: "impact_statement" },
         { label: "Action", value: "action_statement" }
       ], decisions, "No active customer-visible decisions are present.");

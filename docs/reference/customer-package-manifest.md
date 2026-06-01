@@ -35,7 +35,8 @@ matching release-scoped records exist:
   including `reviewed_at` and optional `review_due_at` freshness metadata when
   recorded, plus safe `sbom_id`, `sbom_component_purl`, and
   `sbom_component_name` context when a same-release SBOM component matched the
-  finding.
+  finding, and optional `supporting_refs` with first-class same-release record
+  type/id pairs.
 - `api_contracts`: OpenAPI contract metadata, normalized operation summaries,
   deterministic contract diff results, and API-contract limitations.
 - `approvals`: release or product approval records.
@@ -61,7 +62,10 @@ Customer package manifests exclude raw tenant evidence payload bytes,
 object-store payload references, bearer tokens, private keys, API key hashes,
 SSO/session token hashes, and tenant-internal vulnerability decision notes.
 Customer-visible vulnerability decisions require `impact_statement`; internal
-notes are not copied into `vulnerability_decisions`.
+notes are not copied into `vulnerability_decisions`. Decision `supporting_refs`
+include only validated record type and id values. They do not copy approval
+reason internals, exception payloads, incident timeline details, object-store
+paths, raw payloads, or token/key material.
 
 `object_lock_proofs` entries include policy identifiers, object-scope presence
 indicators, retention mode/days, verification checks, verification hash, and
