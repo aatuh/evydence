@@ -44,7 +44,7 @@ coverage: ## Run tests with coverage
 	@$(GO) test ./... -coverprofile=coverage.out
 	@$(GO) tool cover -func=coverage.out
 
-coverage-check: ## Enforce the production coverage threshold
+coverage-check: ## Enforce the production coverage threshold; requires EVYDENCE_TEST_DATABASE_URL
 	@scripts/coverage_check.sh
 
 openapi.yaml: ## Generate committed OpenAPI source

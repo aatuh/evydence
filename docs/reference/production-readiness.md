@@ -139,12 +139,16 @@ Release-candidate tagging additionally requires the evidence set in
 migration checksums, signed artifact manifests, artifact checksums, and release
 notes with limitations.
 
-The default coverage threshold is 80 percent:
+The default production coverage threshold is 80 percent and the gate requires
+`EVYDENCE_TEST_DATABASE_URL` so live PostgreSQL adapter tests are included:
 
 ```sh
 make coverage-check
 EVYDENCE_COVERAGE_THRESHOLD=85 make coverage-check
 ```
+
+For local no-PostgreSQL exploration, use `make coverage`; do not treat that
+output as production release evidence.
 
 `make production-check` is intentionally stricter than `make finalize`. Use
 `make finalize` for routine local development. Use `make production-check` for

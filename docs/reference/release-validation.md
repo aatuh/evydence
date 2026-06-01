@@ -45,6 +45,10 @@ PostgreSQL schema for a black-box demo/restart persistence check, and runs a
 release artifact signing smoke test. See [Production readiness](production-readiness.md)
 for the supported profiles and exit criteria.
 
+`make coverage-check` is intentionally part of the production profile and fails
+early when `EVYDENCE_TEST_DATABASE_URL` is unset. Use `make coverage` for a
+local no-database coverage report that is not release-candidate evidence.
+
 ## Release Candidate Checklist
 
 Before tagging `v0.1.0-rc.1`, `v0.9.0-rc.1`, or another controlled
