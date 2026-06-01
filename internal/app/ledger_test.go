@@ -830,6 +830,8 @@ func TestCustomerVisibleDecisionRequiresImpactAndRedactsInternalNotes(t *testing
 	}); !errors.Is(err, ErrValidation) {
 		t.Fatalf("customer-visible decision without impact err=%v, want validation", err)
 	}
+	reviewedAt := fixedNow().Add(-time.Hour)
+	reviewDueAt := fixedNow().Add(30 * 24 * time.Hour)
 	decision, err := ledger.CreateVulnerabilityDecision(ctx, actor, scan.Findings[0].ID, CreateVulnerabilityDecisionInput{
 		Status:          decisionStatusNotAffected,
 		Justification:   "runtime code path is not present",
@@ -837,6 +839,8 @@ func TestCustomerVisibleDecisionRequiresImpactAndRedactsInternalNotes(t *testing
 		ActionStatement: "No customer action is required for this finding.",
 		CustomerVisible: true,
 		InternalNotes:   "private triage note",
+		ReviewedAt:      &reviewedAt,
+		ReviewDueAt:     &reviewDueAt,
 	})
 	if err != nil {
 		t.Fatalf("decision: %v", err)
@@ -864,6 +868,9 @@ func TestCustomerVisibleDecisionRequiresImpactAndRedactsInternalNotes(t *testing
 	}
 	if !strings.Contains(string(body), decision.ImpactStatement) {
 		t.Fatalf("package manifest missing customer-safe impact statement: %s", body)
+	}
+	if !strings.Contains(string(body), `"reviewed_at"`) || !strings.Contains(string(body), `"review_due_at"`) {
+		t.Fatalf("package manifest missing decision freshness metadata: %s", body)
 	}
 	if strings.Contains(string(body), "private triage note") {
 		t.Fatalf("package manifest leaked internal notes: %s", body)
@@ -902,6 +909,18 @@ func TestVulnerabilityDecisionSummaryReportRedactsInternalAndOnlyIncludesActiveV
 	if err != nil {
 		t.Fatalf("first decision: %v", err)
 	}
+	reviewedAt := fixedNow().Add(-2 * time.Hour)
+	reviewDueAt := fixedNow().Add(90 * 24 * time.Hour)
+	if _, err := ledger.CreateVulnerabilityDecision(ctx, actor, scan.Findings[0].ID, CreateVulnerabilityDecisionInput{
+		Status:          decisionStatusNotAffected,
+		Justification:   "bad freshness metadata",
+		ImpactStatement: "This release is not affected.",
+		CustomerVisible: true,
+		ReviewedAt:      &reviewedAt,
+		ReviewDueAt:     &reviewedAt,
+	}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("decision with non-increasing review due err=%v, want validation", err)
+	}
 	second, err := ledger.CreateVulnerabilityDecision(ctx, actor, scan.Findings[0].ID, CreateVulnerabilityDecisionInput{
 		Status:          decisionStatusNotAffected,
 		Justification:   "runtime path not present",
@@ -910,6 +929,8 @@ func TestVulnerabilityDecisionSummaryReportRedactsInternalAndOnlyIncludesActiveV
 		CustomerVisible: true,
 		InternalNotes:   "replacement private note",
 		EvidenceIDs:     []string{supporting.ID},
+		ReviewedAt:      &reviewedAt,
+		ReviewDueAt:     &reviewDueAt,
 	})
 	if err != nil {
 		t.Fatalf("second decision: %v", err)
@@ -931,6 +952,9 @@ func TestVulnerabilityDecisionSummaryReportRedactsInternalAndOnlyIncludesActiveV
 	got := report.Decisions[0]
 	if got.ID != second.ID || got.ImpactStatement != second.ImpactStatement || len(got.EvidenceIDs) != 1 || got.EvidenceIDs[0] != supporting.ID {
 		t.Fatalf("summary decision=%#v, want active customer-visible decision", got)
+	}
+	if got.ReviewedAt == nil || got.ReviewDueAt == nil || !got.ReviewedAt.Equal(reviewedAt) || !got.ReviewDueAt.Equal(reviewDueAt) {
+		t.Fatalf("summary freshness metadata=%#v/%#v, want %#v/%#v", got.ReviewedAt, got.ReviewDueAt, reviewedAt, reviewDueAt)
 	}
 	body, err := json.Marshal(report)
 	if err != nil {

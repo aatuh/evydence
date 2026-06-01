@@ -384,6 +384,7 @@ package-viewer-check: ## Validate local package viewer and walkthrough
 	@grep -F 'Verification Status' site/package-viewer/index.html >/dev/null
 	@grep -F 'Reviewer checklist' site/package-viewer/index.html >/dev/null
 	@grep -F 'reviewer_checklist' site/package-viewer/index.html >/dev/null
+	@grep -F 'review_due_at' site/package-viewer/index.html >/dev/null
 	@grep -F 'examples/end-to-end-release-evidence/sample-customer-package-manifest.json' docs/how-to/view-packages.md >/dev/null
 	@grep -F 'reviewer-journey.svg' docs/how-to/view-packages.md >/dev/null
 	@grep -F 'hash/signature verification' docs/how-to/view-packages.md >/dev/null

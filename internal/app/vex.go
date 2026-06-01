@@ -37,6 +37,8 @@ type CreateVulnerabilityDecisionInput struct {
 	InternalNotes   string
 	EvidenceIDs     []string
 	VEXDocumentID   string
+	ReviewedAt      *time.Time
+	ReviewDueAt     *time.Time
 }
 
 type ListVulnerabilityDecisionsInput struct {
@@ -320,6 +322,9 @@ func (s releaseEvidenceService) CreateVulnerabilityDecision(ctx context.Context,
 	if len(strings.TrimSpace(in.InternalNotes)) > 8192 {
 		return domain.VulnerabilityDecision{}, ErrValidation
 	}
+	if err := normalizeDecisionReviewTimes(&in, l.now()); err != nil {
+		return domain.VulnerabilityDecision{}, err
+	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	scan, finding, ok := l.findFindingLocked(actor.TenantID, strings.TrimSpace(findingID))
@@ -485,10 +490,12 @@ func (s releaseEvidenceService) VulnerabilityDecisionSummaryReport(ctx context.C
 		Assumptions: []string{
 			"Only active vulnerability decisions marked customer_visible are included.",
 			"Evidence identifiers point to records in this Evydence instance; raw evidence payload bytes are not included.",
+			"reviewed_at records when the decision was reviewed; missing review_due_at means no scheduled follow-up review was recorded.",
 		},
 		Limitations: []string{
 			"This summary supports compliance-readiness review; it is not certification, legal advice, complete SBOM proof, or authoritative vulnerability coverage.",
 			"Decision accuracy depends on tenant-supplied evidence, scanner inputs, and review quality.",
+			"Review dates are tenant-supplied metadata and do not prove that the underlying vulnerability analysis is still correct.",
 		},
 		GeneratedAt: l.now(),
 	}, nil
@@ -510,6 +517,8 @@ func customerDecisionSummary(decision domain.VulnerabilityDecision) domain.Vulne
 		EvidenceID:      decision.EvidenceID,
 		EvidenceIDs:     append([]string(nil), decision.EvidenceIDs...),
 		VEXDocumentID:   decision.VEXDocumentID,
+		ReviewedAt:      cloneTimePtr(decision.ReviewedAt),
+		ReviewDueAt:     cloneTimePtr(decision.ReviewDueAt),
 		CreatedAt:       decision.CreatedAt,
 	}
 }
@@ -1101,6 +1110,7 @@ func openVEXProductIDs(products []openVEXProduct) map[string]struct{} {
 
 func (l *Ledger) createDecisionLocked(tenantID string, scan domain.VulnerabilityScan, finding domain.VulnerabilityFinding, in CreateVulnerabilityDecisionInput, source, actorID, evidenceID, vexID string) domain.VulnerabilityDecision {
 	decisionID := newID("vd")
+	createdAt := l.now()
 	var supersedes string
 	for id, existing := range l.decisions {
 		if existing.TenantID == tenantID && existing.FindingID == finding.ID && existing.SupersededBy == "" {
@@ -1129,10 +1139,53 @@ func (l *Ledger) createDecisionLocked(tenantID string, scan domain.Vulnerability
 		VEXDocumentID:   vexID,
 		Supersedes:      supersedes,
 		ApprovedBy:      actorID,
+		ReviewedAt:      decisionReviewedAt(in.ReviewedAt, createdAt),
+		ReviewDueAt:     cloneTimePtr(in.ReviewDueAt),
 		SchemaVersion:   domain.VulnerabilityDecisionVersion,
-		CreatedAt:       l.now(),
+		CreatedAt:       createdAt,
 	}
 	return decision
+}
+
+func normalizeDecisionReviewTimes(in *CreateVulnerabilityDecisionInput, now time.Time) error {
+	now = now.UTC()
+	var reviewedAt time.Time
+	if in.ReviewedAt != nil {
+		if in.ReviewedAt.IsZero() || in.ReviewedAt.After(now.Add(time.Minute)) {
+			return ErrValidation
+		}
+		reviewedAt = in.ReviewedAt.UTC()
+		in.ReviewedAt = &reviewedAt
+	} else {
+		reviewedAt = now
+	}
+	if in.ReviewDueAt != nil {
+		if in.ReviewDueAt.IsZero() {
+			return ErrValidation
+		}
+		dueAt := in.ReviewDueAt.UTC()
+		if !dueAt.After(reviewedAt) {
+			return ErrValidation
+		}
+		in.ReviewDueAt = &dueAt
+	}
+	return nil
+}
+
+func decisionReviewedAt(reviewedAt *time.Time, fallback time.Time) *time.Time {
+	if reviewedAt != nil {
+		return cloneTimePtr(reviewedAt)
+	}
+	value := fallback.UTC()
+	return &value
+}
+
+func cloneTimePtr(value *time.Time) *time.Time {
+	if value == nil {
+		return nil
+	}
+	clone := value.UTC()
+	return &clone
 }
 
 func (l *Ledger) validateDecisionEvidenceLinksLocked(tenantID, releaseID string, evidenceIDs []string) ([]string, error) {

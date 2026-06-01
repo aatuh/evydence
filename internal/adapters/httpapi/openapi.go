@@ -301,6 +301,8 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"internal_notes":   map[string]any{"type": "string", "description": "Tenant-internal notes; excluded from customer-safe package summaries."},
 		"evidence_ids":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 		"vex_document_id":  map[string]any{"type": "string", "description": "Optional tenant-scoped VEX document from the same release to link to this manual decision."},
+		"reviewed_at":      map[string]any{"type": "string", "format": "date-time", "description": "Optional UTC time when the decision was reviewed. Defaults to creation time."},
+		"review_due_at":    map[string]any{"type": "string", "format": "date-time", "description": "Optional UTC time when this decision should be reviewed again."},
 	}, "status", "justification"))
 	registry.RegisterSchema("VulnerabilityDecision", objectSchema(map[string]any{
 		"id":               map[string]any{"type": "string"},
@@ -323,6 +325,8 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"supersedes":       map[string]any{"type": "string"},
 		"superseded_by":    map[string]any{"type": "string"},
 		"approved_by":      map[string]any{"type": "string"},
+		"reviewed_at":      map[string]any{"type": "string", "format": "date-time"},
+		"review_due_at":    map[string]any{"type": "string", "format": "date-time"},
 		"schema_version":   map[string]any{"type": "string"},
 		"created_at":       map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "finding_id", "scan_id", "vulnerability", "status", "justification", "source", "schema_version", "created_at"))
@@ -343,6 +347,8 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"evidence_id":      map[string]any{"type": "string"},
 		"evidence_ids":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 		"vex_document_id":  map[string]any{"type": "string"},
+		"reviewed_at":      map[string]any{"type": "string", "format": "date-time"},
+		"review_due_at":    map[string]any{"type": "string", "format": "date-time"},
 		"created_at":       map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "finding_id", "scan_id", "release_id", "vulnerability", "status", "impact_statement", "source", "created_at"))
 	registry.RegisterSchema("VulnerabilityDecisionSummaryReport", objectSchema(map[string]any{
