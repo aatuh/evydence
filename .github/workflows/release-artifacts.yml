@@ -134,8 +134,9 @@ jobs:
         run: |
           set -euo pipefail
           tag="${{ needs.package.outputs.tag }}"
-          if gh release view "${tag}" >/dev/null 2>&1; then
-            gh release upload "${tag}" dist/${tag}/* --clobber
+          repo="${GITHUB_REPOSITORY:?}"
+          if gh release view "${tag}" --repo "${repo}" >/dev/null 2>&1; then
+            gh release upload "${tag}" dist/${tag}/* --repo "${repo}" --clobber
           else
-            gh release create "${tag}" dist/${tag}/* --draft --title "Evydence ${tag}" --notes-file "dist/${tag}/release-notes.md"
+            gh release create "${tag}" dist/${tag}/* --repo "${repo}" --draft --title "Evydence ${tag}" --notes-file "dist/${tag}/release-notes.md"
           fi

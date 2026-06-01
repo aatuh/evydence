@@ -14,7 +14,7 @@ require_file() {
 require_text() {
   file="$1"
   text="$2"
-  if ! grep -F "$text" "$file" >/dev/null; then
+  if ! grep -F -- "$text" "$file" >/dev/null; then
     printf '%s\n' "release-acceptance: $file missing text: $text" >&2
     exit 2
   fi
@@ -22,7 +22,7 @@ require_text() {
 
 reject_text() {
   text="$1"
-  if grep -R -i "$text" README.md docs COMMERCIAL.md GOVERNANCE.md CONTRIBUTING.md SECURITY.md SUPPORT.md TRADEMARKS.md RELEASE_EVIDENCE.md CHANGELOG.md >/dev/null; then
+  if grep -R -i -- "$text" README.md docs COMMERCIAL.md GOVERNANCE.md CONTRIBUTING.md SECURITY.md SUPPORT.md TRADEMARKS.md RELEASE_EVIDENCE.md CHANGELOG.md >/dev/null; then
     printf '%s\n' "release-acceptance: forbidden claim found: $text" >&2
     exit 2
   fi
@@ -82,6 +82,7 @@ require_text .github/workflows/ci.yml "actions/checkout@de0fac2e4500dabe0009e672
 require_text .github/workflows/release-artifacts.yml "contents: read"
 require_text .github/workflows/release-artifacts.yml "EVYDENCE_RELEASE_PUBLISH_TOKEN"
 require_text .github/workflows/release-artifacts.yml "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c"
+require_text .github/workflows/release-artifacts.yml "--repo \"\${repo}\""
 if grep -F "contents: write" .github/workflows/release-artifacts.yml >/dev/null; then
   printf '%s\n' "release-acceptance: release artifact workflow must not grant GITHUB_TOKEN contents: write" >&2
   exit 2

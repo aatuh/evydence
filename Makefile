@@ -287,6 +287,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@grep -F 'evydence-release-manifest.sig.json' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'evydence-release-manifest.sig alias' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'gh release create' .github/workflows/release-artifacts.yml >/dev/null
+	@grep -F -- '--repo "$${repo}"' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'contents: read' .github/workflows/release-artifacts.yml >/dev/null
 	@! grep -F 'contents: write' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'Container Image' .github/workflows/container-image.yml >/dev/null
