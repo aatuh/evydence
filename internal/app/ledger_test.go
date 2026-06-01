@@ -124,7 +124,7 @@ func TestUploadSBOMEnqueuesParserVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("artifact: %v", err)
 	}
-	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api"}]}`)); err != nil {
+	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"application","name":"api"}]}`)); err != nil {
 		t.Fatalf("upload sbom: %v", err)
 	}
 	if len(outbox.jobs) != 1 {

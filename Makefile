@@ -9,7 +9,7 @@ GOVULNCHECK_VERSION ?= v1.2.0
 
 TAG ?=
 
-.PHONY: help tools fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check meta-check docs-check deploy-check sdk-check demo-check black-box-demo-check benchmark-check package-viewer-check restore-rehearsal-check fast-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
+.PHONY: help tools fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check meta-check docs-check deploy-check sdk-check demo-check local-ci-simulation-check black-box-demo-check benchmark-check package-viewer-check restore-rehearsal-check fast-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -256,6 +256,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@grep -F 'SBOM inventory tools' docs/commercial/category-comparison.md >/dev/null
 	@grep -F 'Trust centers' docs/commercial/category-comparison.md >/dev/null
 	@grep -F 'release upload-evidence' docs/how-to/integrate-ci.md >/dev/null
+	@grep -F 'make local-ci-simulation-check' docs/how-to/integrate-ci.md examples/end-to-end-release-evidence/README.md >/dev/null
 	@grep -F -- '--dry-run' docs/how-to/integrate-ci.md >/dev/null
 	@grep -F 'upload validate-manifest' docs/how-to/integrate-ci.md >/dev/null
 	@grep -F 'evydence-upload-manifest.v1.0.0' docs/reference/upload-manifest.md schemas/upload-manifest.v1.schema.json >/dev/null
@@ -345,6 +346,7 @@ sdk-check: ## Validate SDK helper and generated route-catalog coverage against O
 
 demo-check: ## Validate checked end-to-end evidence demo fixtures
 	@test -x examples/end-to-end-release-evidence/run-local-demo.sh
+	@test -x scripts/local_ci_simulation_check.sh
 	@test -f examples/end-to-end-release-evidence/README.md
 	@test -f examples/end-to-end-release-evidence/release-evidence-manifest.json
 	@test -f examples/end-to-end-release-evidence/sample-readiness-report.json
@@ -364,6 +366,9 @@ demo-check: ## Validate checked end-to-end evidence demo fixtures
 	@grep -F 'reviewer_checklist' examples/end-to-end-release-evidence/sample-customer-package-manifest.json >/dev/null
 	@grep -F 'escalation_path' examples/end-to-end-release-evidence/sample-customer-package-manifest.json >/dev/null
 	@grep -F 'sbom_component_purl' examples/end-to-end-release-evidence/sample-customer-package-manifest.json >/dev/null
+
+local-ci-simulation-check: ## Run local one-command CI evidence simulation without external services
+	@scripts/local_ci_simulation_check.sh
 
 black-box-demo-check: ## Run live PostgreSQL black-box API/worker demo; requires EVYDENCE_TEST_DATABASE_URL
 	@scripts/black_box_demo_check.sh

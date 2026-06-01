@@ -180,6 +180,25 @@ go run ./cmd/evydence upload validate-manifest \
 The manifest schema and supported request kinds are documented in
 [Upload manifest](../reference/upload-manifest.md).
 
+## Local CI Simulation
+
+Run the checked local simulation before copying the workflow into another
+repository:
+
+```sh
+make local-ci-simulation-check
+```
+
+The target starts a local in-process Evydence API on a random loopback port,
+creates non-sensitive product, project, release, and artifact records, uploads
+GitHub Actions-style build provenance with a structural DSSE/in-toto
+attestation, generates the same upload manifest shape used by the quickstart,
+runs `evydence ci preflight`, uploads SBOM and vulnerability scan fixtures,
+creates a customer package, and verifies release-readiness and audit-chain
+outputs. All generated files are written under `tmp/local-ci-simulation/` during
+the run and removed afterward unless `EVYDENCE_LOCAL_CI_KEEP_ARTIFACTS=1` is
+set.
+
 The full workflow also shows a scanner handoff path:
 
 - produce CycloneDX JSON with `syft`;
