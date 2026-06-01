@@ -128,6 +128,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@test -f docs/air-gapped.md
 	@test -f docs/release-signing.md
 	@test -f docs/production-hardening.md
+	@test -f docs/tutorials/evaluate-in-10-minutes.md
 	@test -f docs/tutorials/getting-started.md
 	@test -f docs/how-to/integrate-ci.md
 	@test -f docs/how-to/install-and-operate.md
@@ -163,6 +164,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@test -f .github/workflows/codeql.yml
 	@test -f docs/sdk/README.md
 	@for path in \
+		"tutorials/evaluate-in-10-minutes.md" \
 		"tutorials/getting-started.md" \
 		"how-to/install-and-operate.md" \
 		"how-to/view-packages.md" \
@@ -216,6 +218,12 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@grep -F './evydence release verify' docs/air-gapped.md >/dev/null
 	@grep -F './evydence import-bundle upload' docs/air-gapped.md >/dev/null
 	@test -x scripts/public_release_verify.sh
+	@grep -F 'This CVE appears in your SBOM. Are you affected, why, who approved it, and' docs/tutorials/evaluate-in-10-minutes.md >/dev/null
+	@grep -F 'sample-customer-package-manifest.json' docs/tutorials/evaluate-in-10-minutes.md >/dev/null
+	@grep -F 'site/package-viewer/index.html' docs/tutorials/evaluate-in-10-minutes.md >/dev/null
+	@grep -F 'make public-release-verify TAG=v0.1.0-rc.5' docs/tutorials/evaluate-in-10-minutes.md >/dev/null
+	@grep -F 'examples/end-to-end-release-evidence/run-local-demo.sh' docs/tutorials/evaluate-in-10-minutes.md >/dev/null
+	@grep -F 'Evaluate Evydence in 10 minutes' README.md docs/README.md >/dev/null
 	@grep -F 'make public-release-verify TAG=v0.1.0-rc.5' README.md >/dev/null
 	@grep -F 'make public-release-verify TAG=v0.1.0-rc.5' docs/how-to/install-and-operate.md >/dev/null
 	@grep -F 'make public-release-verify TAG=v0.1.0-rc.5' docs/reference/release-evidence-index.md >/dev/null

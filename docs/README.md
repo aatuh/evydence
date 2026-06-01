@@ -4,6 +4,7 @@ This documentation is organized by reader task. Implementation claims should be 
 
 ## Start Here
 
+- [Evaluate Evydence in 10 minutes](tutorials/evaluate-in-10-minutes.md): inspect the public release verifier, sample customer package, local package viewer, and VEX-first proof path.
 - [Getting started](tutorials/getting-started.md): run the API locally and create a minimal release evidence flow.
 - [Install and operate](how-to/install-and-operate.md): choose a local runtime mode, start dependencies, run migrations, and launch API/worker processes.
 - [Operations](operations.md): find the canonical operator references for configuration, workers, CI, deployment, and validation.
