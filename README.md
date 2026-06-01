@@ -5,7 +5,7 @@
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue.svg)](LICENSE)
 ![Go Version](https://img.shields.io/badge/go-1.25+-00ADD8.svg)
 ![OpenAPI](https://img.shields.io/badge/OpenAPI-171%20precise%20operations-brightgreen.svg)
-![Coverage Gate](https://img.shields.io/badge/coverage%20gate-80%25+-brightgreen.svg)
+![Coverage Gate](https://img.shields.io/badge/production%20coverage-80%25+-brightgreen.svg)
 
 Evydence is a self-hosted, API-first release evidence ledger for product
 security, AppSec, platform, release engineering, and compliance-readiness teams
@@ -239,6 +239,6 @@ make live-postgres-check
 make postgres-integration-test
 ```
 
-`make finalize` runs the project-owned formatting, unit, OpenAPI, docs, deployment, and SDK gates. `make release-check` extends that with lint, gosec, govulncheck, race tests, and live PostgreSQL gates when `EVYDENCE_TEST_DATABASE_URL` is configured.
+`make finalize` runs the project-owned formatting, unit, OpenAPI, docs, deployment, and SDK gates. `make release-check` extends that with lint, gosec, govulncheck, race tests, and live PostgreSQL gates when `EVYDENCE_TEST_DATABASE_URL` is configured. `make coverage` is the no-database local coverage view; `make coverage-check` is the production coverage gate and requires `EVYDENCE_TEST_DATABASE_URL` so PostgreSQL-backed coverage is included.
 
 `make production-check` is stricter: it requires `EVYDENCE_TEST_DATABASE_URL`, enforces the configured coverage threshold, and runs a release artifact signing smoke test. Passing the gate is required release-candidate evidence, but it does not by itself close the remaining service decomposition, PKCS#11/native HSM custody, direct provider-specific management API/group synchronization, broader object-lock enforcement beyond configured bucket/sample-object checks, HA, and exit-review work. Production API and worker processes default to relational-only PostgreSQL loads and skip compatibility snapshot writes; the compatibility snapshot remains for migration, recovery, and local workflows. Critical runtime mutations for tenants, credential hashes, idempotency, audit-chain entries, release bundles, signatures, verification results, vulnerability decisions, and outbox jobs use focused PostgreSQL write paths when available. Release-ledger and evidence-core mutations for products, projects, releases, artifacts, evidence items, evidence lifecycle events, SBOMs, vulnerability scans, OpenAPI contracts, VEX documents, audit-chain entries, and parser outbox jobs also use focused PostgreSQL write paths when available. Remaining aggregate persistence calls use PostgreSQL relational synchronization without writing the compatibility snapshot when that store is configured. Current self-hosted production guidance still uses a single API writer replica; production API startup rejects unsupported writer modes and declared replica counts above one, then enforces that stance with a PostgreSQL advisory writer lease. Worker replicas may scale through PostgreSQL outbox row locking.

@@ -7,6 +7,12 @@ cd "$repo_root"
 threshold="${EVYDENCE_COVERAGE_THRESHOLD:-80.0}"
 profile="${EVYDENCE_COVERAGE_PROFILE:-coverage.out}"
 
+if [ -z "${EVYDENCE_TEST_DATABASE_URL:-}" ]; then
+  printf '%s\n' "coverage-check: EVYDENCE_TEST_DATABASE_URL is required for the production coverage gate" >&2
+  printf '%s\n' "coverage-check: use make coverage for local no-PostgreSQL coverage, or run make release-check-local-postgres" >&2
+  exit 2
+fi
+
 go test ./... -coverprofile="$profile"
 
 total="$(go tool cover -func="$profile" | awk '/^total:/ { gsub("%", "", $3); print $3 }')"
