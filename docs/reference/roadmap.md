@@ -10,7 +10,10 @@ security.
 The current release line is a controlled self-hosted production candidate. The
 supported API deployment profile is one API writer replica with scalable worker
 replicas through PostgreSQL outbox locking. Multi-writer API high availability
-is not part of the current supported profile.
+is not part of the current supported profile. This single-writer stance is
+acceptable for the current controlled self-hosted release line; multi-writer API
+HA becomes a blocker before any future broad production-ready or hosted SaaS
+status.
 
 ## Near-Term Focus
 
@@ -31,8 +34,10 @@ is not part of the current supported profile.
 
 ## Later Production Hardening
 
-- review whether the single API writer profile remains the supported long-term
-  posture or whether a multi-writer design is justified by operator demand;
+- keep one API writer as the supported profile for the current release line,
+  while designing multi-writer API HA only after focused repository
+  decomposition, optimistic-concurrency or resource-locking tests, and operator
+  demand justify the added complexity;
 - harden provider-specific KMS/HSM, object-lock/WORM, SSO/group-sync, and
   transparency-proof profiles with deployment-specific evidence and tests;
 - publish immutable container image digests if container images become a
