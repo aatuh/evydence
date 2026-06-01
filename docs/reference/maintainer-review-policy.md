@@ -15,6 +15,34 @@ rules must enforce CODEOWNERS and required checks before it becomes a merge
 gate. Until those GitHub settings are enabled, this file is a public review
 policy and not a technical enforcement guarantee.
 
+## Maintainer Bypass Posture
+
+The repository may allow maintainers or administrators to bypass branch
+protection depending on the live GitHub repository settings. Evydence therefore
+does not claim that every change is technically forced through pull-request
+review, even though pull-request review is the expected path for high-risk
+changes.
+
+When a maintainer bypass is used for an urgent or operational change, the
+maintainer should record the reason in the pull request, release evidence, or a
+follow-up audit note as appropriate. The compensating controls are:
+
+- required `Production Check` and `CodeQL Analyze` CI jobs on normal push and
+  pull-request paths;
+- project-owned `make production-check`, `make release-acceptance`, and
+  release-candidate validation gates for release-affecting changes;
+- signed release artifacts, checksums, OpenAPI checksums, migration checksums,
+  and release evidence manifests before candidate tags are treated as operator
+  evaluation inputs;
+- `CODEOWNERS` coverage for high-risk paths, which states expected maintainer
+  ownership even when repository settings are not public proof of enforcement;
+- public release evidence and audit visibility for candidate releases.
+
+These controls support review and reproducibility. They do not prove that a
+specific live GitHub setting prevented maintainer bypass, and they are not legal
+compliance proof, certification, complete vulnerability coverage, or a
+secure-release guarantee.
+
 ## High-Risk Paths
 
 Changes in these areas require maintainer review before merge or release:
