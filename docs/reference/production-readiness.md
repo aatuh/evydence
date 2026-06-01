@@ -114,8 +114,12 @@ Worker replicas may be scaled because persisted outbox jobs are claimed with
 PostgreSQL row locking. Scaling workers increases parser/signing/report
 throughput; it does not make API writes multi-writer safe.
 
-The roadmap records the future decision point for multi-writer API HA; see
-[Roadmap and release cadence](roadmap.md).
+The current decision is that one API writer is acceptable for controlled
+self-hosted deployments with monitored process restart, backup/restore
+rehearsal, and maintenance-window expectations. Multi-writer API HA is required
+before any future broad production or hosted SaaS claim. The roadmap records
+that backlog; see [Roadmap and release cadence](roadmap.md) and
+[Capacity and failure modes](capacity-and-failures.md).
 
 ## Machine Gate
 

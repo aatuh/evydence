@@ -8,8 +8,31 @@ production candidate profile. It is not a benchmark claim.
 - API writer replicas: `1`.
 - Worker replicas: may scale horizontally when PostgreSQL outbox locking is
   enabled.
+- Single API writer mode is an intentional supported profile for controlled
+  self-hosted deployments with reviewed recovery procedures and worker scaling.
 - API multi-writer HA remains unsupported until a reviewed concurrency design
-  replaces the current single-writer stance.
+  replaces or extends the current single-writer stance. It is a blocker for any
+  future broad production or hosted SaaS claim, not for the current controlled
+  self-hosted production candidate profile.
+
+## Single-Writer Decision
+
+Evydence keeps one API writer as the supported long-term profile for the
+current release line. This is acceptable for small internal deployments and
+design-partner pilots when the operator has:
+
+- a supervised API process managed by systemd, Kubernetes, or equivalent;
+- a working PostgreSQL writer lease and startup refusal for extra writers;
+- worker replicas scaled separately for parser, signing, and report backlog;
+- backups and restore rehearsals for PostgreSQL and object storage;
+- documented maintenance windows for API upgrades and migrations;
+- monitoring on readiness, outbox backlog, database connectivity, and object
+  storage failures.
+
+The multi-writer backlog remains technical hardening work: finish focused
+repository decomposition, add optimistic concurrency or transaction-scoped
+resource locks where needed, test concurrent writes per resource family, and
+re-run the production exit review before changing the supported HA claim.
 
 ## Practical Sizing Inputs
 
