@@ -53,13 +53,16 @@ External reason:
 
 ## Epic E3 - Provider Metadata [e]
 
-### Ticket E3-T1 - [e] Update public GitHub description [e]
+### Ticket E3-T1 - Update public GitHub description [x]
 
 Description: Align provider metadata with the README's VEX-first buyer story.
 
 External reason:
 
 - GitHub description is provider metadata.
+
+Status: complete. The public description now reads:
+`Self-hosted VEX-first release evidence ledger for customer CVE, SBOM, provenance, and release-review questions.`
 
 ## Epic E4 - Product Status Discipline [x]
 

@@ -42,7 +42,7 @@ External reason:
 
 ## Epic E2 - External Repository Settings [e]
 
-### Ticket E2-T1 - [e] Verify private vulnerability reporting and secret scanning [e]
+### Ticket E2-T1 - Verify private vulnerability reporting and secret scanning [x]
 
 Description: Confirm private vulnerability reporting, secret scanning, and push
 protection are enabled where available.
@@ -51,7 +51,11 @@ External reason:
 
 - These are GitHub account/repository settings.
 
-### Ticket E2-T2 - [e] Update public GitHub description [e]
+Status: verified with GitHub API on 2026-06-01. Dependabot security updates,
+secret scanning, secret scanning push protection, and private vulnerability
+reporting are enabled; secret-scanning alerts returned zero open alerts.
+
+### Ticket E2-T2 - Update public GitHub description [x]
 
 Description: Change the repository description to the VEX-first positioning.
 
@@ -62,6 +66,9 @@ Suggested wording:
 External reason:
 
 - Repository description is provider metadata.
+
+Status: complete. The public description now uses the VEX-first release
+evidence positioning.
 
 ## Epic E3 - Adoption Proof [e]
 
