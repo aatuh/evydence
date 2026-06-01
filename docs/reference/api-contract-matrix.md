@@ -3,7 +3,7 @@
 This generated reference inventories Evydence `/v1` route contract precision from `openapi.yaml`.
 It is a planning aid for production contract hardening; `broad` means the route still uses a shared envelope, unspecified body, or generic schema where an endpoint-specific contract should be considered.
 
-Generated from 180 operations: 180 precise, 0 broad.
+Generated from 183 operations: 183 precise, 0 broad.
 
 | Method | Path | Operation | Auth | Scopes | Idempotency | Params | Request | 2xx Response | Precision |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -16,6 +16,7 @@ Generated from 180 operations: 180 precise, 0 broad.
 | GET | /v1/artifact-signatures/{id} | getArtifactSignature | Bearer | evidence:read | - | path:id | - | 200:application/json:ArtifactSignatureEnvelope | precise |
 | POST | /v1/artifact-signatures/{id}/verify-cosign | verifyCosignSignature | Bearer | verify:read | required | path:id | application/json:VerifyCosignSignatureRequest | 200:application/json:CosignVerificationEnvelope | precise |
 | POST | /v1/artifacts | registerArtifact | Bearer | evidence:write | required | - | application/json:RegisterArtifactRequest | 201:application/json:ArtifactEnvelope | precise |
+| GET | /v1/artifacts/{id} | getArtifact | Bearer | evidence:read | - | path:id | - | 200:application/json:ArtifactEnvelope | precise |
 | GET | /v1/audit-chain/verify | verifyAuditChain | Bearer | verify:read | - | - | - | 200:application/json:VerificationResultEnvelope | precise |
 | GET | /v1/audit-log | listAuditLog | Bearer | admin | - | query:limit, query:since, query:subject_id, query:subject_type | - | 200:application/json:AuditChainEntryListEnvelope | precise |
 | POST | /v1/backup-manifests | generateBackupManifest | Bearer | admin | required | - | application/json:EmptyObject | 201:application/json:BackupManifestEnvelope | precise |
@@ -94,7 +95,9 @@ Generated from 180 operations: 180 precise, 0 broad.
 | POST | /v1/policies/evaluate | evaluatePolicy | Bearer | verify:read | required | - | application/json:EvaluatePolicyRequest | 201:application/json:PolicyEvaluationEnvelope | precise |
 | GET | /v1/products | listProducts | Bearer | product:read | - | - | - | 200:application/json:ProductListEnvelope | precise |
 | POST | /v1/products | createProduct | Bearer | product:write | required | - | application/json:CreateProductRequest | 201:application/json:ProductEnvelope | precise |
+| GET | /v1/products/{id} | getProduct | Bearer | product:read | - | path:id | - | 200:application/json:ProductEnvelope | precise |
 | POST | /v1/projects | createProject | Bearer | project:write | required | - | application/json:CreateProjectRequest | 201:application/json:ProjectEnvelope | precise |
+| GET | /v1/projects/{id} | getProject | Bearer | project:read | - | path:id | - | 200:application/json:ProjectEnvelope | precise |
 | POST | /v1/provider-verifications | verifyProviderIdentity | Bearer | identity:admin | required | - | application/json:VerifyProviderIdentityRequest | 201:application/json:ProviderVerificationEnvelope | precise |
 | POST | /v1/public-transparency-log-entries | publishPublicTransparencyLogEntry | Bearer | keys:admin | required | - | application/json:PublishPublicTransparencyLogEntryRequest | 201:application/json:PublicTransparencyLogEntryEnvelope | precise |
 | POST | /v1/public-transparency-log-entries/{id}/fetch-proof | fetchPublicTransparencyLogEntryProof | Bearer | keys:admin | required | path:id | application/json:EmptyObject | 200:application/json:PublicTransparencyLogEntryEnvelope | precise |

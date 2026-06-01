@@ -398,6 +398,26 @@ func (s releaseEvidenceService) ListProducts(ctx context.Context, actor domain.A
 	return out, nil
 }
 
+func (s releaseEvidenceService) GetProduct(ctx context.Context, actor domain.Actor, id string) (domain.Product, error) {
+	l := s.ledger
+	if err := ctx.Err(); err != nil {
+		return domain.Product{}, err
+	}
+	if err := require(actor, ScopeProductRead); err != nil {
+		return domain.Product{}, err
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	product, ok := l.products[strings.TrimSpace(id)]
+	if !ok || product.TenantID != actor.TenantID {
+		return domain.Product{}, ErrNotFound
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeProductRead, resourceRefs{ProductID: product.ID}); err != nil {
+		return domain.Product{}, err
+	}
+	return product, nil
+}
+
 func (s releaseEvidenceService) CreateProject(ctx context.Context, actor domain.Actor, productID, name string) (domain.Project, error) {
 	l := s.ledger
 	if err := ctx.Err(); err != nil {
@@ -423,6 +443,26 @@ func (s releaseEvidenceService) CreateProject(ctx context.Context, actor domain.
 	l.projects[project.ID] = project
 	_, _ = l.appendChainLocked(actor.TenantID, "project.created", "project", project.ID, "api_key", actor.KeyID, "", "")
 	if err := l.persistReleaseLedgerLocked(ctx, l.releaseLedgerMutationLocked()); err != nil {
+		return domain.Project{}, err
+	}
+	return project, nil
+}
+
+func (s releaseEvidenceService) GetProject(ctx context.Context, actor domain.Actor, id string) (domain.Project, error) {
+	l := s.ledger
+	if err := ctx.Err(); err != nil {
+		return domain.Project{}, err
+	}
+	if err := require(actor, ScopeProjectRead); err != nil {
+		return domain.Project{}, err
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	project, ok := l.projects[strings.TrimSpace(id)]
+	if !ok || project.TenantID != actor.TenantID {
+		return domain.Project{}, ErrNotFound
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeProjectRead, resourceRefs{ProductID: project.ProductID, ProjectID: project.ID}); err != nil {
 		return domain.Project{}, err
 	}
 	return project, nil
@@ -568,6 +608,26 @@ func (s releaseEvidenceService) RegisterArtifact(ctx context.Context, actor doma
 	l.artifacts[artifact.ID] = artifact
 	_, _ = l.appendChainLocked(actor.TenantID, "artifact.created", "artifact", artifact.ID, "api_key", actor.KeyID, digest, "")
 	if err := l.persistReleaseLedgerLocked(ctx, l.releaseLedgerMutationLocked()); err != nil {
+		return domain.Artifact{}, err
+	}
+	return artifact, nil
+}
+
+func (s releaseEvidenceService) GetArtifact(ctx context.Context, actor domain.Actor, id string) (domain.Artifact, error) {
+	l := s.ledger
+	if err := ctx.Err(); err != nil {
+		return domain.Artifact{}, err
+	}
+	if err := require(actor, ScopeEvidenceRead); err != nil {
+		return domain.Artifact{}, err
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	artifact, ok := l.artifacts[strings.TrimSpace(id)]
+	if !ok || artifact.TenantID != actor.TenantID {
+		return domain.Artifact{}, ErrNotFound
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeEvidenceRead, resourceRefs{ArtifactID: artifact.ID}); err != nil {
 		return domain.Artifact{}, err
 	}
 	return artifact, nil

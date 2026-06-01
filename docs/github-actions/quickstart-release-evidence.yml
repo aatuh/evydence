@@ -11,6 +11,7 @@ jobs:
     env:
       EVYDENCE_API_URL: ${{ secrets.EVYDENCE_API_URL }}
       EVYDENCE_API_KEY: ${{ secrets.EVYDENCE_API_KEY }}
+      EVYDENCE_PRODUCT_ID: ${{ vars.EVYDENCE_PRODUCT_ID }}
       EVYDENCE_PROJECT_ID: ${{ vars.EVYDENCE_PROJECT_ID }}
       EVYDENCE_RELEASE_ID: ${{ vars.EVYDENCE_RELEASE_ID }}
       EVYDENCE_ARTIFACT_ID: ${{ vars.EVYDENCE_ARTIFACT_ID }}
@@ -87,6 +88,18 @@ jobs:
             args+=(--openvex-json "$EVYDENCE_OPENVEX_PATH")
           fi
           python3 "${args[@]}"
+
+      - name: Preflight Evydence CI configuration
+        run: |
+          set -euo pipefail
+          dist/evydence ci preflight \
+            --url "$EVYDENCE_API_URL" \
+            --api-key "$EVYDENCE_API_KEY" \
+            --product-id "$EVYDENCE_PRODUCT_ID" \
+            --project-id "$EVYDENCE_PROJECT_ID" \
+            --release-id "$EVYDENCE_RELEASE_ID" \
+            --artifact-id "$EVYDENCE_ARTIFACT_ID" \
+            --manifest .evydence/upload-manifest.json
 
       - name: Upload release evidence and create release bundle
         run: |

@@ -152,10 +152,18 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 	case "listProducts":
 		operation.Description = "Lists tenant-scoped products visible to the authenticated actor."
 		operation.Responses[http.StatusOK] = jsonResponse("Product list envelope.", "#/components/schemas/ProductListEnvelope")
+	case "getProduct":
+		operation.Description = "Returns a tenant-scoped product by id."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Product id."))
+		operation.Responses[http.StatusOK] = jsonResponse("Product envelope.", "#/components/schemas/ProductEnvelope")
 	case "createProject":
 		operation.Description = "Creates a tenant-scoped project under a product."
 		operation.RequestBody = jsonRequest("Project creation request.", "#/components/schemas/CreateProjectRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created project envelope.", "#/components/schemas/ProjectEnvelope")
+	case "getProject":
+		operation.Description = "Returns a tenant-scoped project by id."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Project id."))
+		operation.Responses[http.StatusOK] = jsonResponse("Project envelope.", "#/components/schemas/ProjectEnvelope")
 	case "createRelease":
 		operation.Description = "Creates an append-only release record under a product and optional project."
 		operation.RequestBody = jsonRequest("Release creation request.", "#/components/schemas/CreateReleaseRequest")
@@ -215,6 +223,10 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Description = "Registers an artifact digest for release evidence and later build/attestation matching."
 		operation.RequestBody = jsonRequest("Artifact registration request.", "#/components/schemas/RegisterArtifactRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Registered artifact envelope.", "#/components/schemas/ArtifactEnvelope")
+	case "getArtifact":
+		operation.Description = "Returns a tenant-scoped artifact by id."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Artifact id."))
+		operation.Responses[http.StatusOK] = jsonResponse("Artifact envelope.", "#/components/schemas/ArtifactEnvelope")
 	case "createBuild":
 		operation.Description = "Records an immutable CI build run. Collector identity is derived from the authenticated key when present."
 		operation.RequestBody = jsonRequest("Build run creation request.", "#/components/schemas/CreateBuildRequest")

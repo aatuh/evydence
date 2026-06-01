@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -107,6 +108,104 @@ func TestValidateUploadManifestCommand(t *testing.T) {
 	if !strings.Contains(out, "upload manifest valid: 1 requests") {
 		t.Fatalf("unexpected validate output: %s", out)
 	}
+}
+
+func TestCIPreflightVerifiesAPIAndManifestWithoutSecretLeakage(t *testing.T) {
+	dir := t.TempDir()
+	manifestPath := dir + "/upload.json"
+	body, err := json.Marshal(map[string]any{
+		"schema_version": uploadManifestSchemaVersion,
+		"requests": []map[string]any{{
+			"kind":            "sbom",
+			"path":            "/v1/sboms",
+			"idempotency_key": "sbom-1",
+			"payload":         map[string]any{"release_id": "rel_1", "artifact_id": "art_1", "payload": map[string]any{"bomFormat": "CycloneDX"}},
+		}, {
+			"kind":            "release_bundle",
+			"path":            "/v1/release-bundles",
+			"idempotency_key": "bundle-1",
+			"payload":         map[string]any{"release_id": "rel_1"},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("marshal manifest: %v", err)
+	}
+	if err := os.WriteFile(manifestPath, body, 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	seen := map[string]bool{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer evy_secret_should_not_print" {
+			t.Fatalf("authorization header=%q", got)
+		}
+		seen[r.URL.Path] = true
+		switch r.URL.Path {
+		case "/v1/products/prod_1":
+			_, _ = w.Write([]byte(`{"data":{"id":"prod_1","tenant_id":"ten_1","name":"Payments","slug":"payments"},"meta":{"api_version":"v1"}}`))
+		case "/v1/projects/proj_1":
+			_, _ = w.Write([]byte(`{"data":{"id":"proj_1","tenant_id":"ten_1","product_id":"prod_1","name":"api"},"meta":{"api_version":"v1"}}`))
+		case "/v1/releases/rel_1":
+			_, _ = w.Write([]byte(`{"data":{"id":"rel_1","tenant_id":"ten_1","product_id":"prod_1","version":"1.0.0","state":"open"},"meta":{"api_version":"v1"}}`))
+		case "/v1/artifacts/art_1":
+			_, _ = w.Write([]byte(`{"data":{"id":"art_1","tenant_id":"ten_1","name":"api.tar.gz","digest":"sha256:abc"},"meta":{"api_version":"v1"}}`))
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	out, err := captureStdout(t, func() error {
+		return ciPreflight(t.Context(), server.Client(), []string{
+			"--url", server.URL,
+			"--api-key", "evy_secret_should_not_print",
+			"--product-id", "prod_1",
+			"--project-id", "proj_1",
+			"--release-id", "rel_1",
+			"--artifact-id", "art_1",
+			"--manifest", manifestPath,
+		})
+	})
+	if err != nil {
+		t.Fatalf("ci preflight: %v", err)
+	}
+	for _, path := range []string{"/v1/products/prod_1", "/v1/projects/proj_1", "/v1/releases/rel_1", "/v1/artifacts/art_1"} {
+		if !seen[path] {
+			t.Fatalf("missing preflight request %s, saw %#v", path, seen)
+		}
+	}
+	if !strings.Contains(out, "ci preflight ok") || strings.Contains(out, "evy_secret_should_not_print") {
+		t.Fatalf("unsafe or incomplete output: %s", out)
+	}
+}
+
+func TestCIPreflightMapsStableExitCodesAndRedactsSecrets(t *testing.T) {
+	dir := t.TempDir()
+	badManifest := dir + "/bad.json"
+	if err := os.WriteFile(badManifest, []byte(`{"requests":[]}`), 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	err := ciPreflight(t.Context(), http.DefaultClient, []string{"--url", "https://example.test", "--api-key", "evy_secret", "--product-id", "prod_1", "--project-id", "proj_1", "--release-id", "rel_1", "--artifact-id", "art_1", "--manifest", badManifest})
+	assertCLIExitCode(t, err, exitCIPreflightInvalidManifest)
+
+	statusTests := []struct {
+		status int
+		code   int
+	}{
+		{status: http.StatusUnauthorized, code: exitCIPreflightAuthFailure},
+		{status: http.StatusForbidden, code: exitCIPreflightWrongScope},
+		{status: http.StatusNotFound, code: exitCIPreflightWrongTenant},
+	}
+	for _, tt := range statusTests {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, `{"code":"TEST","detail":"safe failure"}`, tt.status)
+		}))
+		err := ciPreflight(t.Context(), server.Client(), []string{"--url", server.URL, "--api-key", "evy_secret_should_not_print", "--product-id", "prod_1", "--project-id", "proj_1", "--release-id", "rel_1", "--artifact-id", "art_1", "--manifest", validPreflightManifest(t, dir)})
+		server.Close()
+		assertCLIExitCode(t, err, tt.code)
+		if strings.Contains(err.Error(), "evy_secret_should_not_print") {
+			t.Fatalf("preflight error leaked secret: %v", err)
+		}
+	}
+	assertCLIExitCode(t, ciPreflight(t.Context(), http.DefaultClient, []string{"--url", "https://example.test"}), exitCIPreflightMissingConfig)
 }
 
 func TestUploadManifestValidationRejectsUnsafeInputs(t *testing.T) {
@@ -940,4 +1039,36 @@ func mustMarshalJSON(t *testing.T, value any) []byte {
 		t.Fatalf("marshal JSON: %v", err)
 	}
 	return body
+}
+
+func validPreflightManifest(t *testing.T, dir string) string {
+	t.Helper()
+	path := dir + "/preflight-valid.json"
+	body := mustMarshalJSON(t, map[string]any{
+		"schema_version": uploadManifestSchemaVersion,
+		"requests": []map[string]any{{
+			"kind":            "sbom",
+			"path":            "/v1/sboms",
+			"idempotency_key": "sbom-1",
+			"payload":         map[string]any{"release_id": "rel_1", "artifact_id": "art_1", "payload": map[string]any{"bomFormat": "CycloneDX"}},
+		}},
+	})
+	if err := os.WriteFile(path, body, 0o600); err != nil {
+		t.Fatalf("write preflight manifest: %v", err)
+	}
+	return path
+}
+
+func assertCLIExitCode(t *testing.T, err error, want int) {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("expected exit code %d, got nil", want)
+	}
+	var exitErr interface{ ExitCode() int }
+	if !errors.As(err, &exitErr) {
+		t.Fatalf("err=%v does not expose exit code %d", err, want)
+	}
+	if got := exitErr.ExitCode(); got != want {
+		t.Fatalf("exit code=%d want=%d err=%v", got, want, err)
+	}
 }

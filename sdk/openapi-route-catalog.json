@@ -1,5 +1,5 @@
 {
-  "route_count": 178,
+  "route_count": 183,
   "routes": [
     {
       "idempotency_key_required": false,
@@ -152,6 +152,23 @@
       ],
       "success_statuses": [
         "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "getArtifact",
+      "path": "/v1/artifacts/{id}",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/ArtifactEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "evidence:read"
+      ],
+      "success_statuses": [
+        "200"
       ]
     },
     {
@@ -1469,6 +1486,23 @@
       ]
     },
     {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "getProduct",
+      "path": "/v1/products/{id}",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/ProductEnvelope"
+      ],
+      "scopes": [
+        "product:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
       "idempotency_key_required": true,
       "method": "POST",
       "operation_id": "createProject",
@@ -1483,6 +1517,23 @@
       ],
       "success_statuses": [
         "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "getProject",
+      "path": "/v1/projects/{id}",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/ProjectEnvelope"
+      ],
+      "scopes": [
+        "project:read"
+      ],
+      "success_statuses": [
+        "200"
       ]
     },
     {
@@ -2852,6 +2903,40 @@
       ],
       "success_statuses": [
         "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "POST",
+      "operation_id": "previewCycloneDXVEXImport",
+      "path": "/v1/vex/cyclonedx/preview",
+      "request_schema": "#/components/schemas/EvidenceUploadRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/VEXImportPreviewEnvelope"
+      ],
+      "scopes": [
+        "evidence:read"
+      ],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "POST",
+      "operation_id": "previewVEXImport",
+      "path": "/v1/vex/preview",
+      "request_schema": "#/components/schemas/EvidenceUploadRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/VEXImportPreviewEnvelope"
+      ],
+      "scopes": [
+        "evidence:read"
+      ],
+      "success_statuses": [
+        "200"
       ]
     },
     {

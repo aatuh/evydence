@@ -25,6 +25,10 @@ import (
 func main() {
 	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, err)
+		var exitErr interface{ ExitCode() int }
+		if errors.As(err, &exitErr) {
+			os.Exit(exitErr.ExitCode())
+		}
 		os.Exit(1)
 	}
 }
@@ -69,6 +73,11 @@ func run(args []string) error {
 			return usage()
 		}
 		return uploadGitHubActionsBuild(context.Background(), http.DefaultClient, args[2:])
+	case "ci":
+		if len(args) < 2 || args[1] != "preflight" {
+			return usage()
+		}
+		return ciPreflight(context.Background(), http.DefaultClient, args[2:])
 	case "import-bundle":
 		if len(args) < 2 || args[1] != "upload" {
 			return usage()
@@ -110,7 +119,7 @@ func run(args []string) error {
 }
 
 func usage() error {
-	return errors.New("usage: evydence hash <file> | evydence verify-manifest <manifest.json> --hash sha256:<hex> | evydence verify-evidence-bundle <bundle.json> | evydence verify-audit-chain <chain.json> | evydence package verify ... | evydence github-actions upload-build ... | evydence import-bundle upload ... | evydence upload manifest|validate-manifest ... | evydence release upload-evidence|manifest|sign|verify|keygen")
+	return errors.New("usage: evydence hash <file> | evydence verify-manifest <manifest.json> --hash sha256:<hex> | evydence verify-evidence-bundle <bundle.json> | evydence verify-audit-chain <chain.json> | evydence package verify ... | evydence github-actions upload-build ... | evydence ci preflight ... | evydence import-bundle upload ... | evydence upload manifest|validate-manifest ... | evydence release upload-evidence|manifest|sign|verify|keygen")
 }
 
 func hashFile(path string) (string, error) {
@@ -1124,6 +1133,183 @@ func validateUploadManifestCommand(args []string) error {
 	return nil
 }
 
+const (
+	exitCIPreflightMissingConfig   = 2
+	exitCIPreflightAuthFailure     = 3
+	exitCIPreflightWrongScope      = 4
+	exitCIPreflightWrongTenant     = 5
+	exitCIPreflightInvalidManifest = 6
+)
+
+type cliExitError struct {
+	code    int
+	message string
+}
+
+func (e cliExitError) Error() string {
+	return e.message
+}
+
+func (e cliExitError) ExitCode() int {
+	return e.code
+}
+
+func ciPreflight(ctx context.Context, client *http.Client, args []string) error {
+	fs := flag.NewFlagSet("ci preflight", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	apiURL := fs.String("url", strings.TrimSpace(os.Getenv("EVYDENCE_API_URL")), "Evydence API URL")
+	apiKey := fs.String("api-key", strings.TrimSpace(os.Getenv("EVYDENCE_API_KEY")), "Evydence API key")
+	productID := fs.String("product-id", strings.TrimSpace(os.Getenv("EVYDENCE_PRODUCT_ID")), "Evydence product ID")
+	projectID := fs.String("project-id", strings.TrimSpace(os.Getenv("EVYDENCE_PROJECT_ID")), "Evydence project ID")
+	releaseID := fs.String("release-id", strings.TrimSpace(os.Getenv("EVYDENCE_RELEASE_ID")), "Evydence release ID")
+	artifactID := fs.String("artifact-id", strings.TrimSpace(os.Getenv("EVYDENCE_ARTIFACT_ID")), "Evydence artifact ID")
+	manifestPath := fs.String("manifest", "", "upload manifest JSON path")
+	if err := fs.Parse(args); err != nil {
+		return ciExit(exitCIPreflightMissingConfig, "ci preflight configuration is invalid")
+	}
+	if fs.NArg() != 0 || strings.TrimSpace(*apiURL) == "" || strings.TrimSpace(*apiKey) == "" ||
+		strings.TrimSpace(*productID) == "" || strings.TrimSpace(*projectID) == "" ||
+		strings.TrimSpace(*releaseID) == "" || strings.TrimSpace(*artifactID) == "" ||
+		strings.TrimSpace(*manifestPath) == "" {
+		return ciExit(exitCIPreflightMissingConfig, "ci preflight requires url, api key, product id, project id, release id, artifact id, and manifest path")
+	}
+	manifest, err := readAndValidateUploadManifest(*manifestPath)
+	if err != nil {
+		return ciExit(exitCIPreflightInvalidManifest, "ci preflight manifest is invalid: "+err.Error())
+	}
+	if err := validatePreflightManifestIDs(manifest, *productID, *projectID, *releaseID, *artifactID); err != nil {
+		return ciExit(exitCIPreflightInvalidManifest, err.Error())
+	}
+	productBody, err := getEvydence(ctx, client, *apiURL, *apiKey, "/v1/products/"+url.PathEscape(strings.TrimSpace(*productID)))
+	if err != nil {
+		return mapCIPreflightAPIError(err)
+	}
+	if err := ensureResponseDataID(productBody, *productID, "product"); err != nil {
+		return ciExit(exitCIPreflightWrongTenant, err.Error())
+	}
+	projectBody, err := getEvydence(ctx, client, *apiURL, *apiKey, "/v1/projects/"+url.PathEscape(strings.TrimSpace(*projectID)))
+	if err != nil {
+		return mapCIPreflightAPIError(err)
+	}
+	if err := ensureResponseDataID(projectBody, *projectID, "project"); err != nil {
+		return ciExit(exitCIPreflightWrongTenant, err.Error())
+	}
+	if err := ensureResponseDataField(projectBody, "product_id", *productID, "project product"); err != nil {
+		return ciExit(exitCIPreflightWrongTenant, err.Error())
+	}
+	releaseBody, err := getEvydence(ctx, client, *apiURL, *apiKey, "/v1/releases/"+url.PathEscape(strings.TrimSpace(*releaseID)))
+	if err != nil {
+		return mapCIPreflightAPIError(err)
+	}
+	if err := ensureResponseDataID(releaseBody, *releaseID, "release"); err != nil {
+		return ciExit(exitCIPreflightWrongTenant, err.Error())
+	}
+	if err := ensureResponseDataField(releaseBody, "product_id", *productID, "release product"); err != nil {
+		return ciExit(exitCIPreflightWrongTenant, err.Error())
+	}
+	artifactBody, err := getEvydence(ctx, client, *apiURL, *apiKey, "/v1/artifacts/"+url.PathEscape(strings.TrimSpace(*artifactID)))
+	if err != nil {
+		return mapCIPreflightAPIError(err)
+	}
+	if err := ensureResponseDataID(artifactBody, *artifactID, "artifact"); err != nil {
+		return ciExit(exitCIPreflightWrongTenant, err.Error())
+	}
+	fmt.Printf("ci preflight ok: product=%s project=%s release=%s artifact=%s manifest_requests=%d\n", strings.TrimSpace(*productID), strings.TrimSpace(*projectID), strings.TrimSpace(*releaseID), strings.TrimSpace(*artifactID), len(manifest.Requests))
+	return nil
+}
+
+func ciExit(code int, message string) error {
+	return cliExitError{code: code, message: message}
+}
+
+func mapCIPreflightAPIError(err error) error {
+	var apiErr apiRequestError
+	if errors.As(err, &apiErr) {
+		switch apiErr.status {
+		case http.StatusUnauthorized:
+			return ciExit(exitCIPreflightAuthFailure, "ci preflight authentication failed")
+		case http.StatusForbidden:
+			return ciExit(exitCIPreflightWrongScope, "ci preflight API key lacks required scope")
+		case http.StatusNotFound:
+			return ciExit(exitCIPreflightWrongTenant, "ci preflight resource was not found for this tenant")
+		}
+	}
+	return err
+}
+
+func ensureResponseDataID(body []byte, expected, name string) error {
+	return ensureResponseDataField(body, "id", expected, name)
+}
+
+func ensureResponseDataField(body []byte, field, expected, name string) error {
+	var decoded struct {
+		Data map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		return errors.New("ci preflight response is not valid JSON")
+	}
+	got, _ := decoded.Data[field].(string)
+	if strings.TrimSpace(got) != strings.TrimSpace(expected) {
+		return fmt.Errorf("ci preflight %s mismatch", name)
+	}
+	return nil
+}
+
+func validatePreflightManifestIDs(manifest uploadManifestFile, productID, projectID, releaseID, artifactID string) error {
+	for index, req := range manifest.Requests {
+		payload, err := req.PayloadBytes()
+		if err != nil {
+			return fmt.Errorf("ci preflight manifest request %d payload cannot be read", index)
+		}
+		var value any
+		if err := json.Unmarshal(payload, &value); err != nil {
+			return fmt.Errorf("ci preflight manifest request %d payload is not valid JSON", index)
+		}
+		if err := checkManifestIDField(value, "product_id", productID, index); err != nil {
+			return err
+		}
+		if err := checkManifestIDField(value, "project_id", projectID, index); err != nil {
+			return err
+		}
+		if err := checkManifestIDField(value, "release_id", releaseID, index); err != nil {
+			return err
+		}
+		if err := checkManifestIDField(value, "artifact_id", artifactID, index); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func checkManifestIDField(value any, field, expected string, index int) error {
+	found := []string{}
+	var walk func(any)
+	walk = func(node any) {
+		switch typed := node.(type) {
+		case map[string]any:
+			for key, child := range typed {
+				if key == field {
+					if got, ok := child.(string); ok && strings.TrimSpace(got) != "" {
+						found = append(found, strings.TrimSpace(got))
+					}
+				}
+				walk(child)
+			}
+		case []any:
+			for _, child := range typed {
+				walk(child)
+			}
+		}
+	}
+	walk(value)
+	for _, got := range found {
+		if got != strings.TrimSpace(expected) {
+			return fmt.Errorf("ci preflight manifest request %d %s does not match configured value", index, field)
+		}
+	}
+	return nil
+}
+
 const uploadManifestSchemaVersion = "evydence-upload-manifest.v1.0.0"
 
 type uploadManifestFile struct {
@@ -1922,6 +2108,38 @@ func postRawEvydence(ctx context.Context, client *http.Client, apiURL, apiKey, p
 	return responseBody, nil
 }
 
+func getEvydence(ctx context.Context, client *http.Client, apiURL, apiKey, path string) ([]byte, error) {
+	if client == nil {
+		client = http.DefaultClient
+	}
+	baseURL, err := cleanAPIURL(apiURL)
+	if err != nil {
+		return nil, err
+	}
+	// #nosec G704 -- this CLI intentionally sends requests to an operator-specified Evydence API URL after scheme and host validation.
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+path, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(apiKey))
+	// #nosec G704 -- request target is the validated operator-specified Evydence API URL for this CLI command.
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, safeAPIError(resp.StatusCode, responseBody)
+	}
+	return responseBody, nil
+}
+
 func cleanAPIURL(raw string) (string, error) {
 	parsed, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil {
@@ -1936,6 +2154,19 @@ func cleanAPIURL(raw string) (string, error) {
 	parsed.RawQuery = ""
 	parsed.Fragment = ""
 	return strings.TrimRight(parsed.String(), "/"), nil
+}
+
+type apiRequestError struct {
+	status int
+	code   string
+	detail string
+}
+
+func (e apiRequestError) Error() string {
+	if e.code != "" {
+		return fmt.Sprintf("evydence API request failed: status=%d code=%s detail=%s", e.status, e.code, e.detail)
+	}
+	return fmt.Sprintf("evydence API request failed: status=%d detail=%s", e.status, e.detail)
 }
 
 func safeAPIError(status int, body []byte) error {
@@ -1955,10 +2186,7 @@ func safeAPIError(status int, body []byte) error {
 	if detail == "" {
 		detail = http.StatusText(status)
 	}
-	if code != "" {
-		return fmt.Errorf("evydence API request failed: status=%d code=%s detail=%s", status, code, detail)
-	}
-	return fmt.Errorf("evydence API request failed: status=%d detail=%s", status, detail)
+	return apiRequestError{status: status, code: code, detail: detail}
 }
 
 func responseDataID(body []byte) (string, error) {
