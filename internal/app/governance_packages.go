@@ -1401,9 +1401,9 @@ func customerPackageHTMLReport(pkg domain.CustomerSecurityPackage, metadata, ver
 			b.WriteString("</tbody></table>")
 		}
 		if len(decisions) > 0 {
-			b.WriteString("<h3>Vulnerability Decisions</h3><table><thead><tr><th>Vulnerability</th><th>Component</th><th>SBOM</th><th>Status</th><th>Impact Statement</th><th>Reviewed</th><th>Review Due</th><th>Source</th></tr></thead><tbody>")
+			b.WriteString("<h3>Vulnerability Decisions</h3><table><thead><tr><th>Vulnerability</th><th>Component</th><th>SBOM</th><th>Status</th><th>Impact Statement</th><th>Reviewed</th><th>Review Due</th><th>Supporting Links</th><th>Source</th></tr></thead><tbody>")
 			for _, record := range decisions {
-				b.WriteString("<tr><td>" + packageHTMLEscape(packageHTMLString(record["vulnerability"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["component"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["sbom_id"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["status"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["impact_statement"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["reviewed_at"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["review_due_at"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["source"])) + "</td></tr>")
+				b.WriteString("<tr><td>" + packageHTMLEscape(packageHTMLString(record["vulnerability"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["component"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["sbom_id"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["status"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["impact_statement"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["reviewed_at"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["review_due_at"])) + "</td><td>" + packageHTMLEscape(packageHTMLJSON(record["supporting_refs"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["source"])) + "</td></tr>")
 			}
 			b.WriteString("</tbody></table>")
 		}
@@ -2001,6 +2001,9 @@ func (l *Ledger) packageDecisionSummariesLocked(tenantID, releaseID string, prof
 		}
 		if len(decision.EvidenceIDs) > 0 && !excluded["evidence_ids"] {
 			summary["evidence_ids"] = append([]string(nil), decision.EvidenceIDs...)
+		}
+		if len(decision.SupportingRefs) > 0 && !excluded["supporting_refs"] {
+			summary["supporting_refs"] = cloneSubjectRefs(decision.SupportingRefs)
 		}
 		summaries = append(summaries, summary)
 	}

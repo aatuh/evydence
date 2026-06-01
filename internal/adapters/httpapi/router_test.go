@@ -93,9 +93,15 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	if _, ok := decisionRequestProps["review_due_at"]; !ok {
 		t.Fatalf("manual decision request schema missing review_due_at: %#v", decisionRequestProps)
 	}
+	if _, ok := decisionRequestProps["supporting_refs"]; !ok {
+		t.Fatalf("manual decision request schema missing supporting_refs: %#v", decisionRequestProps)
+	}
 	decisionProps := asStringAnyMap(t, asStringAnyMap(t, schemas["VulnerabilityDecision"])["properties"])
 	if _, ok := decisionProps["sbom_component_purl"]; !ok {
 		t.Fatalf("decision schema missing sbom_component_purl: %#v", decisionProps)
+	}
+	if _, ok := decisionProps["supporting_refs"]; !ok {
+		t.Fatalf("decision schema missing supporting_refs: %#v", decisionProps)
 	}
 	redactionRequestProps := asStringAnyMap(t, asStringAnyMap(t, schemas["CreateRedactionProfileRequest"])["properties"])
 	if _, ok := redactionRequestProps["preset"]; !ok {

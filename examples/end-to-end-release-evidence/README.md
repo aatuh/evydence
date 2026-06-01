@@ -91,14 +91,14 @@ question to concrete Evydence records:
 - `sbom.json`: which SBOM was used for the release answer.
 - `vulnerability-scan.json`: which scanner result raised the finding.
 - `vulnerability-decision.json`: why the finding is treated as not affected in
-  this demo.
+  this demo, including any same-release supporting record references.
 - `release-readiness.json`: the readiness result, gaps, assumptions, and
   limitations.
 - `release-security-summary.json`: the compact release security status for
   review surfaces.
 - `release-bundle.json`: the signed release bundle metadata.
 - `customer-package.json`: the customer-safe package manifest, including the
-  proof-path checklist when present.
+  proof-path checklist and customer-safe decision supporting refs when present.
 - `audit-chain-verification.json`: audit-chain continuity verification.
 
 To visually inspect the customer-safe output, open

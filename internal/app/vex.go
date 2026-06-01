@@ -36,6 +36,7 @@ type CreateVulnerabilityDecisionInput struct {
 	CustomerVisible bool
 	InternalNotes   string
 	EvidenceIDs     []string
+	SupportingRefs  []domain.SubjectRef
 	VEXDocumentID   string
 	ReviewedAt      *time.Time
 	ReviewDueAt     *time.Time
@@ -350,6 +351,11 @@ func (s releaseEvidenceService) CreateVulnerabilityDecision(ctx context.Context,
 		return domain.VulnerabilityDecision{}, err
 	}
 	in.EvidenceIDs = evidenceIDs
+	supportingRefs, err := l.validateDecisionSupportingRefsLocked(actor.TenantID, scan.ReleaseID, in.SupportingRefs)
+	if err != nil {
+		return domain.VulnerabilityDecision{}, err
+	}
+	in.SupportingRefs = supportingRefs
 	decision := l.createDecisionLocked(actor.TenantID, scan, finding, in, "api", actor.KeyID, "", in.VEXDocumentID)
 	l.decisions[decision.ID] = decision
 	l.appendDecisionLifecycleAuditLocked(actor.TenantID, decision, finding.ID, "api_key", actor.KeyID, "")
@@ -519,6 +525,7 @@ func customerDecisionSummary(decision domain.VulnerabilityDecision) domain.Vulne
 		Source:            decision.Source,
 		EvidenceID:        decision.EvidenceID,
 		EvidenceIDs:       append([]string(nil), decision.EvidenceIDs...),
+		SupportingRefs:    cloneSubjectRefs(decision.SupportingRefs),
 		VEXDocumentID:     decision.VEXDocumentID,
 		ReviewedAt:        cloneTimePtr(decision.ReviewedAt),
 		ReviewDueAt:       cloneTimePtr(decision.ReviewDueAt),
@@ -1143,6 +1150,7 @@ func (l *Ledger) createDecisionLocked(tenantID string, scan domain.Vulnerability
 		Source:            source,
 		EvidenceID:        evidenceID,
 		EvidenceIDs:       decisionEvidenceIDs(evidenceID, in.EvidenceIDs),
+		SupportingRefs:    cloneSubjectRefs(in.SupportingRefs),
 		VEXDocumentID:     vexID,
 		Supersedes:        supersedes,
 		ApprovedBy:        actorID,
@@ -1255,6 +1263,115 @@ func (l *Ledger) validateDecisionEvidenceLinksLocked(tenantID, releaseID string,
 		}
 	}
 	return ids, nil
+}
+
+func (l *Ledger) validateDecisionSupportingRefsLocked(tenantID, releaseID string, refs []domain.SubjectRef) ([]domain.SubjectRef, error) {
+	if len(refs) == 0 {
+		return nil, nil
+	}
+	if releaseID == "" {
+		return nil, ErrValidation
+	}
+	release, ok := l.releases[releaseID]
+	if !ok || release.TenantID != tenantID {
+		return nil, ErrNotFound
+	}
+	if len(refs) > 20 {
+		return nil, ErrValidation
+	}
+	seen := map[string]struct{}{}
+	out := make([]domain.SubjectRef, 0, len(refs))
+	for _, ref := range refs {
+		typ := strings.ToLower(strings.TrimSpace(ref.Type))
+		id := strings.TrimSpace(ref.ID)
+		if typ == "" || id == "" || strings.TrimSpace(ref.Digest) != "" {
+			return nil, ErrValidation
+		}
+		normalized := domain.SubjectRef{Type: typ, ID: id}
+		key := normalized.Type + "\x00" + normalized.ID
+		if _, ok := seen[key]; ok {
+			return nil, ErrValidation
+		}
+		seen[key] = struct{}{}
+		if !l.decisionSupportingRefInScopeLocked(tenantID, release.ProductID, releaseID, normalized) {
+			return nil, ErrNotFound
+		}
+		out = append(out, normalized)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Type == out[j].Type {
+			return out[i].ID < out[j].ID
+		}
+		return out[i].Type < out[j].Type
+	})
+	return out, nil
+}
+
+func (l *Ledger) decisionSupportingRefInScopeLocked(tenantID, productID, releaseID string, ref domain.SubjectRef) bool {
+	switch ref.Type {
+	case "approval":
+		approval, ok := l.approvals[ref.ID]
+		return ok && approval.TenantID == tenantID && l.approvalSupportsReleaseLocked(tenantID, productID, releaseID, approval)
+	case "exception":
+		exception, ok := l.exceptions[ref.ID]
+		return ok && exception.TenantID == tenantID && exception.ReleaseID == releaseID
+	case "waiver":
+		waiver, ok := l.waivers[ref.ID]
+		return ok && waiver.TenantID == tenantID && waiverBelongsToPackage(waiver, productID, releaseID)
+	case "release_bundle":
+		bundle, ok := l.bundles[ref.ID]
+		return ok && bundle.TenantID == tenantID && bundle.ReleaseID == releaseID
+	case "incident":
+		incident, ok := l.incidents[ref.ID]
+		return ok && incident.TenantID == tenantID && incident.ReleaseID == releaseID
+	case "remediation_task":
+		task, ok := l.tasks[ref.ID]
+		if !ok || task.TenantID != tenantID {
+			return false
+		}
+		if task.ReleaseID == releaseID {
+			return true
+		}
+		if task.IncidentID != "" {
+			incident, ok := l.incidents[task.IncidentID]
+			return ok && incident.TenantID == tenantID && incident.ReleaseID == releaseID
+		}
+		return false
+	default:
+		return false
+	}
+}
+
+func (l *Ledger) approvalSupportsReleaseLocked(tenantID, productID, releaseID string, approval domain.ApprovalRecord) bool {
+	switch approval.SubjectType {
+	case "release":
+		return approval.SubjectID == releaseID
+	case "waiver":
+		waiver, ok := l.waivers[approval.SubjectID]
+		return ok && waiver.TenantID == tenantID && waiverBelongsToPackage(waiver, productID, releaseID)
+	case "customer_package":
+		pkg, ok := l.customerPackages[approval.SubjectID]
+		return ok && pkg.TenantID == tenantID && pkg.ProductID == productID && pkg.ReleaseID == releaseID
+	case "contract_diff":
+		diff, ok := l.contractDiffs[approval.SubjectID]
+		return ok && diff.TenantID == tenantID && diff.ProductID == productID && diff.ReleaseID == releaseID
+	case "security_review":
+		doc, ok := l.manualDocs[approval.SubjectID]
+		return ok && doc.TenantID == tenantID && doc.ProductID == productID && doc.ReleaseID == releaseID && doc.DocumentType == "security_review"
+	default:
+		return false
+	}
+}
+
+func cloneSubjectRefs(refs []domain.SubjectRef) []domain.SubjectRef {
+	if len(refs) == 0 {
+		return nil
+	}
+	out := make([]domain.SubjectRef, 0, len(refs))
+	for _, ref := range refs {
+		out = append(out, domain.SubjectRef{Type: strings.TrimSpace(ref.Type), ID: strings.TrimSpace(ref.ID), Digest: strings.TrimSpace(ref.Digest)})
+	}
+	return out
 }
 
 func decisionEvidenceIDs(primary string, extra []string) []string {
