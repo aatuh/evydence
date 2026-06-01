@@ -822,6 +822,14 @@ func TestCustomerVisibleDecisionRequiresImpactAndRedactsInternalNotes(t *testing
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
+	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, "", []byte(`{
+		"bomFormat":"CycloneDX",
+		"specVersion":"1.6",
+		"components":[{"name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"}]
+	}`))
+	if err != nil {
+		t.Fatalf("sbom: %v", err)
+	}
 	if _, err := ledger.CreateVulnerabilityDecision(ctx, actor, scan.Findings[0].ID, CreateVulnerabilityDecisionInput{
 		Status:          decisionStatusNotAffected,
 		Justification:   "runtime code path is not present",
@@ -848,6 +856,9 @@ func TestCustomerVisibleDecisionRequiresImpactAndRedactsInternalNotes(t *testing
 	if !decision.CustomerVisible || decision.InternalNotes != "private triage note" {
 		t.Fatalf("decision customer visibility/internal notes not preserved: %#v", decision)
 	}
+	if decision.SBOMID != sbom.ID || decision.SBOMComponentPURL != "pkg:apk/openssl@3.1.0" || decision.SBOMComponentName != "openssl" {
+		t.Fatalf("decision sbom context = %#v, want sbom %s openssl", decision, sbom.ID)
+	}
 	profile, err := ledger.CreateRedactionProfile(ctx, actor, CreateRedactionProfileInput{Name: "customer decisions", AllowedTypes: []string{"vulnerability_decision"}})
 	if err != nil {
 		t.Fatalf("redaction profile: %v", err)
@@ -871,6 +882,9 @@ func TestCustomerVisibleDecisionRequiresImpactAndRedactsInternalNotes(t *testing
 	}
 	if !strings.Contains(string(body), `"reviewed_at"`) || !strings.Contains(string(body), `"review_due_at"`) {
 		t.Fatalf("package manifest missing decision freshness metadata: %s", body)
+	}
+	if !strings.Contains(string(body), `"sbom_id"`) || !strings.Contains(string(body), sbom.ID) {
+		t.Fatalf("package manifest missing decision SBOM context: %s", body)
 	}
 	if strings.Contains(string(body), "private triage note") {
 		t.Fatalf("package manifest leaked internal notes: %s", body)
@@ -898,6 +912,14 @@ func TestVulnerabilityDecisionSummaryReportRedactsInternalAndOnlyIncludesActiveV
 	}`))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
+	}
+	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, "", []byte(`{
+		"bomFormat":"CycloneDX",
+		"specVersion":"1.6",
+		"components":[{"name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"}]
+	}`))
+	if err != nil {
+		t.Fatalf("summary sbom: %v", err)
 	}
 	first, err := ledger.CreateVulnerabilityDecision(ctx, actor, scan.Findings[0].ID, CreateVulnerabilityDecisionInput{
 		Status:          decisionStatusUnderInvestigation,
@@ -955,6 +977,9 @@ func TestVulnerabilityDecisionSummaryReportRedactsInternalAndOnlyIncludesActiveV
 	}
 	if got.ReviewedAt == nil || got.ReviewDueAt == nil || !got.ReviewedAt.Equal(reviewedAt) || !got.ReviewDueAt.Equal(reviewDueAt) {
 		t.Fatalf("summary freshness metadata=%#v/%#v, want %#v/%#v", got.ReviewedAt, got.ReviewDueAt, reviewedAt, reviewDueAt)
+	}
+	if got.SBOMID != sbom.ID || got.SBOMComponentPURL != "pkg:apk/openssl@3.1.0" {
+		t.Fatalf("summary SBOM context=%#v, want sbom %s", got, sbom.ID)
 	}
 	body, err := json.Marshal(report)
 	if err != nil {

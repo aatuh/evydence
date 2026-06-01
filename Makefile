@@ -363,6 +363,7 @@ demo-check: ## Validate checked end-to-end evidence demo fixtures
 	@grep -F 'not legal' examples/end-to-end-release-evidence/README.md >/dev/null
 	@grep -F 'reviewer_checklist' examples/end-to-end-release-evidence/sample-customer-package-manifest.json >/dev/null
 	@grep -F 'escalation_path' examples/end-to-end-release-evidence/sample-customer-package-manifest.json >/dev/null
+	@grep -F 'sbom_component_purl' examples/end-to-end-release-evidence/sample-customer-package-manifest.json >/dev/null
 
 black-box-demo-check: ## Run live PostgreSQL black-box API/worker demo; requires EVYDENCE_TEST_DATABASE_URL
 	@scripts/black_box_demo_check.sh
@@ -385,6 +386,7 @@ package-viewer-check: ## Validate local package viewer and walkthrough
 	@grep -F 'Reviewer checklist' site/package-viewer/index.html >/dev/null
 	@grep -F 'reviewer_checklist' site/package-viewer/index.html >/dev/null
 	@grep -F 'review_due_at' site/package-viewer/index.html >/dev/null
+	@grep -F 'sbom_component_purl' site/package-viewer/index.html >/dev/null
 	@grep -F 'examples/end-to-end-release-evidence/sample-customer-package-manifest.json' docs/how-to/view-packages.md >/dev/null
 	@grep -F 'reviewer-journey.svg' docs/how-to/view-packages.md >/dev/null
 	@grep -F 'hash/signature verification' docs/how-to/view-packages.md >/dev/null
