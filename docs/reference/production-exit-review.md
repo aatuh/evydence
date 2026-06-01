@@ -12,7 +12,7 @@ SaaS-ready, legally compliant, certified, or secure-release-guaranteed.
 
 ## Repo-Verified Strengths
 
-- API contract has 183 precise `/v1` operations and zero broad operations.
+- API contract has 186 precise `/v1` operations and zero broad operations.
 - `make production-check` is available and requires live PostgreSQL, coverage,
   migration compatibility, release validation, race tests, security scans, and
   release-signing smoke checks.
@@ -70,7 +70,9 @@ SaaS-ready, legally compliant, certified, or secure-release-guaranteed.
 ## Decision
 
 The current repository can support controlled self-hosted evaluation, pilots,
-and internal production after operator review. It should not be marketed as
-broad production-ready for most uses until the external controls above are
-closed and a fresh product, codebase, security, documentation, and test audit
-confirms the change.
+and internal production after operator review. The productization audit closeout
+in `.audits/production_readiness_v2/` and `.audits/product_code_audit_v4/`
+supports keeping this controlled candidate status, not strengthening it. It
+should not be marketed as broad production-ready for most uses until the
+external controls above are closed and a fresh product, codebase, security,
+documentation, and test audit confirms the change.
