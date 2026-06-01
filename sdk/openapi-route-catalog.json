@@ -1,5 +1,5 @@
 {
-  "route_count": 183,
+  "route_count": 186,
   "routes": [
     {
       "idempotency_key_required": false,
@@ -752,6 +752,48 @@
       "operation_id": "downloadCustomerPortalPackage",
       "path": "/v1/customer-portal/package/download",
       "request_schema": "#/components/schemas/CustomerPortalPackageRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "customerPortalPackageViewForm",
+      "path": "/v1/customer-portal/package/view",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "customerPortalPackageView",
+      "path": "/v1/customer-portal/package/view",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [],
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "downloadCustomerPortalPackageView",
+      "path": "/v1/customer-portal/package/view/download",
+      "request_schema": "",
       "response_schemas": [
         "#/components/schemas/Problem"
       ],

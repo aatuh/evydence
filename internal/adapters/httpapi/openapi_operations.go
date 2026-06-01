@@ -844,6 +844,23 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Security = nil
 		operation.Scopes = nil
 		operation.Responses[http.StatusOK] = binaryResponse("Customer security package ZIP archive.")
+	case "customerPortalPackageViewForm":
+		operation.Description = "Public HTML form for reviewing or downloading a scoped customer package with a portal token. It does not accept tokens in URLs and does not use bearer authentication."
+		operation.Security = nil
+		operation.Scopes = nil
+		operation.Responses[http.StatusOK] = htmlResponse("Customer portal package review form.")
+	case "customerPortalPackageView":
+		operation.Description = "Public HTML package review endpoint backed by the customer portal token exchange. Tokens are accepted only as form body fields."
+		operation.RequestBody = formRequest("Customer portal token form request.", "#/components/schemas/CustomerPortalPackageRequest")
+		operation.Security = nil
+		operation.Scopes = nil
+		operation.Responses[http.StatusOK] = htmlResponse("Scoped customer package review HTML.")
+	case "downloadCustomerPortalPackageView":
+		operation.Description = "Public HTML-form package ZIP download endpoint backed by the customer portal token exchange. Tokens are accepted only as form body fields."
+		operation.RequestBody = formRequest("Customer portal token form request.", "#/components/schemas/CustomerPortalPackageRequest")
+		operation.Security = nil
+		operation.Scopes = nil
+		operation.Responses[http.StatusOK] = binaryResponse("Customer security package ZIP archive.")
 	case "securityReviewPackageReport":
 		operation.Description = "Returns a redaction-aware security-review package report with assumptions and limitations."
 		operation.Parameters = append(operation.Parameters, queryParam("package_id", "Customer package id.", "string"))
@@ -921,6 +938,17 @@ func jsonRequest(description, schemaRef string) *specs.RequestBody {
 		ContentTypes: []string{"application/json"},
 		Content: map[string]specs.MediaType{
 			"application/json": {SchemaRef: schemaRef},
+		},
+	}
+}
+
+func formRequest(description, schemaRef string) *specs.RequestBody {
+	return &specs.RequestBody{
+		Description:  description,
+		Required:     true,
+		ContentTypes: []string{"application/x-www-form-urlencoded"},
+		Content: map[string]specs.MediaType{
+			"application/x-www-form-urlencoded": {SchemaRef: schemaRef},
 		},
 	}
 }
@@ -1089,6 +1117,16 @@ func binaryResponse(description string) specs.Response {
 		ContentTypes: []string{"application/zip"},
 		Content: map[string]specs.MediaType{
 			"application/zip": {Schema: map[string]any{"type": "string", "format": "binary"}},
+		},
+	}
+}
+
+func htmlResponse(description string) specs.Response {
+	return specs.Response{
+		Description:  description,
+		ContentTypes: []string{"text/html"},
+		Content: map[string]specs.MediaType{
+			"text/html": {Schema: map[string]any{"type": "string"}},
 		},
 	}
 }

@@ -228,6 +228,23 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	if _, ok := portalDownload["security"]; ok {
 		t.Fatalf("public portal download should not advertise bearer security: %#v", portalDownload["security"])
 	}
+	portalViewForm := operationMap(t, paths, "/v1/customer-portal/package/view", "get")
+	assertMediaResponseType(t, portalViewForm, "200", "text/html")
+	if _, ok := portalViewForm["security"]; ok {
+		t.Fatalf("public portal view form should not advertise bearer security: %#v", portalViewForm["security"])
+	}
+	portalView := operationMap(t, paths, "/v1/customer-portal/package/view", "post")
+	assertRequestMediaRef(t, portalView, "application/x-www-form-urlencoded", "#/components/schemas/CustomerPortalPackageRequest")
+	assertMediaResponseType(t, portalView, "200", "text/html")
+	if _, ok := portalView["security"]; ok {
+		t.Fatalf("public portal view should not advertise bearer security: %#v", portalView["security"])
+	}
+	portalViewDownload := operationMap(t, paths, "/v1/customer-portal/package/view/download", "post")
+	assertRequestMediaRef(t, portalViewDownload, "application/x-www-form-urlencoded", "#/components/schemas/CustomerPortalPackageRequest")
+	assertMediaResponseType(t, portalViewDownload, "200", "application/zip")
+	if _, ok := portalViewDownload["security"]; ok {
+		t.Fatalf("public portal view download should not advertise bearer security: %#v", portalViewDownload["security"])
+	}
 	createAnswerLibrary := operationMap(t, paths, "/v1/questionnaire-answer-library", "post")
 	assertRequestRef(t, createAnswerLibrary, "#/components/schemas/CreateQuestionnaireAnswerLibraryEntryRequest")
 	assertResponseRef(t, createAnswerLibrary, "201", "#/components/schemas/QuestionnaireAnswerLibraryEntryEnvelope")
@@ -1415,6 +1432,62 @@ func TestEnterprisePortalRetentionAndCommercialCollectorHTTPFlow(t *testing.T) {
 	postJSON(t, server, secret, "/v1/users/"+userID+"/deactivate", "ent-user-deactivate", map[string]any{}, http.StatusOK)
 }
 
+func TestCustomerPortalPackageViewHTMLSafety(t *testing.T) {
+	server, secret := testServer(t)
+	productBody := postJSON(t, server, secret, "/v1/products", "portal-view-product", map[string]any{"name": "Portal Product", "slug": "portal-product"}, http.StatusCreated)
+	productID := dataField(t, productBody, "id")
+	releaseBody := postJSON(t, server, secret, "/v1/releases", "portal-view-release", map[string]any{"product_id": productID, "version": "1.0.0"}, http.StatusCreated)
+	releaseID := dataField(t, releaseBody, "id")
+	digest := "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb"
+	postJSON(t, server, secret, "/v1/evidence", "portal-view-evidence", map[string]any{"product_id": productID, "release_id": releaseID, "type": "security_review", "title": "Review", "payload_hash": digest}, http.StatusCreated)
+	profileBody := postJSON(t, server, secret, "/v1/redaction-profiles", "portal-view-profile", map[string]any{"name": "customer", "allowed_types": []string{"security_review"}}, http.StatusCreated)
+	profileID := dataField(t, profileBody, "id")
+	packageBody := postJSON(t, server, secret, "/v1/customer-packages", "portal-view-package", map[string]any{"product_id": productID, "release_id": releaseID, "redaction_profile_id": profileID, "title": "Customer <script>alert(1)</script>", "expires_at": time.Now().UTC().Add(time.Hour).Format(time.RFC3339)}, http.StatusCreated)
+	packageID := dataField(t, packageBody, "id")
+	accessBody := postJSON(t, server, secret, "/v1/customer-portal/access", "portal-view-access", map[string]any{"package_id": packageID, "customer_name": "ACME <script>x</script>", "reviewer_name": "Rita Reviewer", "reviewer_email": "rita@example.test", "require_nda": true, "watermark": "ACME <b>review</b>", "expires_at": time.Now().UTC().Add(time.Hour).Format(time.RFC3339)}, http.StatusCreated)
+	portalSecret := nestedDataField(t, accessBody, "secret")
+
+	form := getRawNoAuth(t, server, "/v1/customer-portal/package/view", http.StatusOK)
+	if ct := form.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/html") {
+		t.Fatalf("portal view form content type = %q", ct)
+	}
+	assertNoStoreHTMLHeaders(t, form)
+	if strings.Contains(form.Body.String(), portalSecret) {
+		t.Fatalf("portal view form leaked token")
+	}
+
+	values := url.Values{}
+	values.Set("token", portalSecret)
+	values.Set("nda_accepted", "true")
+	values.Set("nda_accepted_by", "rita@example.test")
+	view := postFormNoAuthRaw(t, server, "/v1/customer-portal/package/view", values, http.StatusOK)
+	assertNoStoreHTMLHeaders(t, view)
+	htmlBody := view.Body.String()
+	for _, want := range []string{packageID, "Customer &lt;script&gt;alert(1)&lt;/script&gt;", "ACME &lt;b&gt;review&lt;/b&gt;", "manifest_hash", "limitations"} {
+		if !strings.Contains(htmlBody, want) {
+			t.Fatalf("portal view missing %q: %s", want, htmlBody)
+		}
+	}
+	for _, forbidden := range []string{portalSecret, "<script", "payload_ref", "object_key", "private_key", "token_hash"} {
+		if strings.Contains(htmlBody, forbidden) {
+			t.Fatalf("portal view leaked forbidden value %q: %s", forbidden, htmlBody)
+		}
+	}
+
+	download := postFormNoAuthRaw(t, server, "/v1/customer-portal/package/view/download", values, http.StatusOK)
+	if download.Header().Get("Content-Type") != "application/zip" || !bytes.HasPrefix(download.Body.Bytes(), []byte("PK")) || bytes.Contains(download.Body.Bytes(), []byte(portalSecret)) {
+		t.Fatalf("portal view download invalid headers=%v len=%d", download.Header(), download.Body.Len())
+	}
+	if !strings.Contains(download.Header().Get("Cache-Control"), "no-store") {
+		t.Fatalf("portal view download missing no-store cache header: %v", download.Header())
+	}
+
+	queryToken := postFormNoAuthRaw(t, server, "/v1/customer-portal/package/view?token="+url.QueryEscape(portalSecret), values, http.StatusBadRequest)
+	if strings.Contains(queryToken.Body.String(), portalSecret) {
+		t.Fatalf("portal view query-token rejection leaked token: %s", queryToken.Body.String())
+	}
+}
+
 func TestFutureExtensionAndReadAdminHTTPGaps(t *testing.T) {
 	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
 	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*", app.ScopeInstanceAdmin})
@@ -1722,6 +1795,18 @@ func postJSONNoAuthRaw(t *testing.T, server *Server, path string, payload any, w
 	return rec
 }
 
+func postFormNoAuthRaw(t *testing.T, server *Server, path string, payload url.Values, want int) *httptest.ResponseRecorder {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(payload.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != want {
+		t.Fatalf("POST %s status=%d want=%d body=%s", path, rec.Code, want, rec.Body.String())
+	}
+	return rec
+}
+
 func dataField(t *testing.T, body, field string) string {
 	t.Helper()
 	var decoded struct {
@@ -1815,6 +1900,17 @@ func getRaw(t *testing.T, server *Server, secret, path string, want int) *httpte
 	return rec
 }
 
+func getRawNoAuth(t *testing.T, server *Server, path string, want int) *httptest.ResponseRecorder {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != want {
+		t.Fatalf("GET %s status=%d want=%d body=%s", path, rec.Code, want, rec.Body.String())
+	}
+	return rec
+}
+
 func getRawWithAccept(t *testing.T, server *Server, secret, path, accept string, want int) *httptest.ResponseRecorder {
 	t.Helper()
 	rec := httptest.NewRecorder()
@@ -1826,6 +1922,22 @@ func getRawWithAccept(t *testing.T, server *Server, secret, path, accept string,
 		t.Fatalf("GET %s status=%d want=%d body=%s", path, rec.Code, want, rec.Body.String())
 	}
 	return rec
+}
+
+func assertNoStoreHTMLHeaders(t *testing.T, rec *httptest.ResponseRecorder) {
+	t.Helper()
+	if !strings.Contains(rec.Header().Get("Cache-Control"), "no-store") {
+		t.Fatalf("HTML response missing no-store cache header: %v", rec.Header())
+	}
+	if got := rec.Header().Get("Referrer-Policy"); got != "no-referrer" {
+		t.Fatalf("HTML response Referrer-Policy = %q", got)
+	}
+	if got := rec.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Fatalf("HTML response X-Content-Type-Options = %q", got)
+	}
+	if got := rec.Header().Get("Content-Security-Policy"); !strings.Contains(got, "default-src 'none'") || !strings.Contains(got, "form-action 'self'") {
+		t.Fatalf("HTML response CSP too weak: %q", got)
+	}
 }
 
 func asStringAnyMap(t *testing.T, value any) map[string]any {
@@ -1854,9 +1966,14 @@ func operationMap(t *testing.T, paths map[string]any, path, method string) map[s
 
 func assertRequestRef(t *testing.T, operation map[string]any, wantRef string) {
 	t.Helper()
+	assertRequestMediaRef(t, operation, "application/json", wantRef)
+}
+
+func assertRequestMediaRef(t *testing.T, operation map[string]any, mediaType, wantRef string) {
+	t.Helper()
 	body := asStringAnyMap(t, operation["requestBody"])
 	content := asStringAnyMap(t, body["content"])
-	media := asStringAnyMap(t, content["application/json"])
+	media := asStringAnyMap(t, content[mediaType])
 	schema := asStringAnyMap(t, media["schema"])
 	if got := asString(t, schema["$ref"]); got != wantRef {
 		t.Fatalf("request schema ref = %q, want %q", got, wantRef)

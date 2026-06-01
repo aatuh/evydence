@@ -156,9 +156,9 @@ The package review surface is deliberately narrow:
   redaction profiles, and audit evidence;
 - local reviewers may use `site/package-viewer/index.html` or archive
   `report.html` after they already possess package files;
-- browser-facing server review must reuse the same customer portal token
-  exchange, expiry, NDA, package scope, watermark, and audit behavior as the
-  JSON and ZIP endpoints.
+- browser-facing server review at `/v1/customer-portal/package/view` must reuse
+  the same customer portal token exchange, expiry, NDA, package scope,
+  watermark, and audit behavior as the JSON and ZIP endpoints.
 
 The local viewer and static reports are not authorization mechanisms. They do
 not verify that a reviewer should receive a package and they do not grant access

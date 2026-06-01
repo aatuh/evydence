@@ -2577,6 +2577,8 @@ func defaultSuccessStatus(operationID, method string) int {
 		"approveWaiver",
 		"accessCustomerPortalPackage",
 		"downloadCustomerPortalPackage",
+		"customerPortalPackageView",
+		"downloadCustomerPortalPackageView",
 		"revokeCustomerPortalAccess",
 		"approveException",
 		"verifyObjectRetentionPolicy",
