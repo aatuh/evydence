@@ -12,10 +12,13 @@ SaaS-ready, legally compliant, certified, or secure-release-guaranteed.
 
 ## Repo-Verified Strengths
 
-- API contract has 171 precise `/v1` operations and zero broad operations.
+- API contract has 183 precise `/v1` operations and zero broad operations.
 - `make production-check` is available and requires live PostgreSQL, coverage,
   migration compatibility, release validation, race tests, security scans, and
   release-signing smoke checks.
+- `make coverage-check` now fails early without `EVYDENCE_TEST_DATABASE_URL` so
+  local no-database coverage cannot be mistaken for production release
+  evidence.
 - Production API startup rejects in-process state, default pepper, unsupported
   writer modes, writer replicas above one, local plaintext signing-key mode,
   and bootstrap secret printing.
@@ -32,6 +35,15 @@ SaaS-ready, legally compliant, certified, or secure-release-guaranteed.
   templates, Dependabot, and Scorecard workflow files exist.
 - CODEOWNERS and the maintainer review policy document expected review
   ownership for high-risk code, release, deployment, and public-claim surfaces.
+- The release-artifacts workflow keeps `GITHUB_TOKEN` read-only and separates
+  signed package generation from draft GitHub release publication. Draft
+  publication uses `EVYDENCE_RELEASE_PUBLISH_TOKEN` only in the publication job.
+- The container-image workflow keeps `GITHUB_TOKEN` read-only, uses
+  `EVYDENCE_GHCR_PUBLISH_TOKEN` for GHCR publication, and scopes GitHub OIDC
+  `id-token: write` to the keyless cosign signing job.
+- `make release-acceptance` and
+  `make public-release-verify TAG=v0.1.0-rc.5` have passed against the current
+  repository state.
 
 ## Remaining Exit Blockers
 
@@ -40,6 +52,10 @@ SaaS-ready, legally compliant, certified, or secure-release-guaranteed.
   plus cosign evidence. Operators who mirror or rebuild images for Helm or
   air-gapped workflows must record their own image digest and verification
   evidence.
+- GitHub private vulnerability reporting, secret scanning, branch protection,
+  Scorecard alert closure, and workflow execution history are external
+  repository-state checks. They remain required before changing the public
+  status beyond a controlled self-hosted production candidate.
 - Native PKCS#11/HSM module custody requires operator hardware, drivers, and
   provider-specific validation.
 - Broad WORM/object-lock proof requires object-store policy, IAM, lifecycle,
