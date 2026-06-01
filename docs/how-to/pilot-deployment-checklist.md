@@ -10,6 +10,10 @@ record. The checklist supports deployment readiness review only. It is not legal
 compliance proof, certification, complete SBOM proof, authoritative scanner
 coverage, auditor acceptance, or a secure-release guarantee.
 
+Use the [external controls matrix](../reference/external-controls-matrix.md) to
+assign repo-owned, operator-owned, provider-owned, and legal/review-owned
+controls before accepting pilot traffic.
+
 ## Required Before Pilot Traffic
 
 ### Environment
@@ -137,4 +141,3 @@ Record final decision:
 - [ ] Go
 - [ ] No-go
 - [ ] Go with documented limitations:
-

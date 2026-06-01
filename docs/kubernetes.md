@@ -20,6 +20,9 @@ The Helm chart lives at `deploy/helm/evydence`. It deploys the API, worker, serv
   profile documented in the configuration reference.
 
 The chart does not create databases, buckets, KMS keys, or secrets.
+Use the [external controls matrix](reference/external-controls-matrix.md) to
+track which of those production controls are repo-owned, operator-owned,
+provider-owned, or legal/review-owned for the deployment.
 
 ## Create Secrets
 

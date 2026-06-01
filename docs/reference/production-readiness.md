@@ -90,6 +90,10 @@ Known hardening work remains:
 | Air-gapped production | Requires transfer controls | All small-production controls plus signed offline artifacts, import/export verification, local registry or package mirror, offline docs, and explicit backup/restore procedure. |
 | Hosted SaaS production | Out of scope for this profile | Requires separate hosted tenancy, SLO, abuse, billing, privacy, support, and cloud operations controls before any SaaS production claim. |
 
+Use the [external controls matrix](external-controls-matrix.md) to separate
+repo-owned checks from operator, provider, and legal/review responsibilities
+before applying these profiles to regulated or high-trust deployments.
+
 ## HA And Concurrency Contract
 
 The current self-hosted production profile supports one API writer replica.
