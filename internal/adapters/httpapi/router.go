@@ -303,6 +303,19 @@ func (s *Server) listProducts(w http.ResponseWriter, r *http.Request) {
 	writeData(w, http.StatusOK, products)
 }
 
+func (s *Server) getProduct(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	product, err := s.ledger.GetProduct(r.Context(), actor, r.PathValue("id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, product)
+}
+
 func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ProductID string `json:"product_id"`
@@ -315,6 +328,19 @@ func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
 		project, err := s.ledger.CreateProject(ctx, actor, req.ProductID, req.Name)
 		return http.StatusCreated, project, err
 	})
+}
+
+func (s *Server) getProject(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	project, err := s.ledger.GetProject(r.Context(), actor, r.PathValue("id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, project)
 }
 
 func (s *Server) createRelease(w http.ResponseWriter, r *http.Request) {
@@ -469,6 +495,19 @@ func (s *Server) registerArtifact(w http.ResponseWriter, r *http.Request) {
 		artifact, err := s.ledger.RegisterArtifact(ctx, actor, req.Name, req.MediaType, req.Digest, req.Size)
 		return http.StatusCreated, artifact, err
 	})
+}
+
+func (s *Server) getArtifact(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	artifact, err := s.ledger.GetArtifact(r.Context(), actor, r.PathValue("id"))
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, artifact)
 }
 
 func (s *Server) registerContainerImage(w http.ResponseWriter, r *http.Request) {

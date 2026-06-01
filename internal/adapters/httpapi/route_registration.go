@@ -110,7 +110,9 @@ func (s *Server) productReleaseRoutes() []routeDef {
 	return []routeDef{
 		{http.MethodPost, "/v1/products", op("createProduct", http.MethodPost, "/v1/products", "Create product", []string{app.ScopeProductWrite}), http.HandlerFunc(s.createProduct)},
 		{http.MethodGet, "/v1/products", op("listProducts", http.MethodGet, "/v1/products", "List products", []string{app.ScopeProductRead}), http.HandlerFunc(s.listProducts)},
+		{http.MethodGet, "/v1/products/{id}", op("getProduct", http.MethodGet, "/v1/products/{id}", "Get product", []string{app.ScopeProductRead}), http.HandlerFunc(s.getProduct)},
 		{http.MethodPost, "/v1/projects", op("createProject", http.MethodPost, "/v1/projects", "Create project", []string{app.ScopeProjectWrite}), http.HandlerFunc(s.createProject)},
+		{http.MethodGet, "/v1/projects/{id}", op("getProject", http.MethodGet, "/v1/projects/{id}", "Get project", []string{app.ScopeProjectRead}), http.HandlerFunc(s.getProject)},
 		{http.MethodPost, "/v1/releases", op("createRelease", http.MethodPost, "/v1/releases", "Create release", []string{app.ScopeReleaseWrite}), http.HandlerFunc(s.createRelease)},
 		{http.MethodGet, "/v1/releases/{id}", op("getRelease", http.MethodGet, "/v1/releases/{id}", "Get release", []string{app.ScopeReleaseRead}), http.HandlerFunc(s.getRelease)},
 		{http.MethodPost, "/v1/releases/{id}/evidence-flow/start", op("startReleaseEvidenceFlow", http.MethodPost, "/v1/releases/{id}/evidence-flow/start", "Start release evidence flow", []string{app.ScopeReleaseRead}), http.HandlerFunc(s.startReleaseEvidenceFlow)},
@@ -128,6 +130,7 @@ func (s *Server) productReleaseRoutes() []routeDef {
 func (s *Server) artifactBuildSourceRoutes() []routeDef {
 	return []routeDef{
 		{http.MethodPost, "/v1/artifacts", op("registerArtifact", http.MethodPost, "/v1/artifacts", "Register artifact", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.registerArtifact)},
+		{http.MethodGet, "/v1/artifacts/{id}", op("getArtifact", http.MethodGet, "/v1/artifacts/{id}", "Get artifact", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.getArtifact)},
 		{http.MethodPost, "/v1/container-images", op("registerContainerImage", http.MethodPost, "/v1/container-images", "Register container image", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.registerContainerImage)},
 		{http.MethodPost, "/v1/artifact-signatures", op("createArtifactSignature", http.MethodPost, "/v1/artifact-signatures", "Create artifact signature", []string{app.ScopeEvidenceWrite}), http.HandlerFunc(s.createArtifactSignature)},
 		{http.MethodGet, "/v1/artifact-signatures/{id}", op("getArtifactSignature", http.MethodGet, "/v1/artifact-signatures/{id}", "Get artifact signature", []string{app.ScopeEvidenceRead}), http.HandlerFunc(s.getArtifactSignature)},

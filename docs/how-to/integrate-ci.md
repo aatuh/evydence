@@ -42,7 +42,9 @@ Required quickstart inputs:
 
 - `EVYDENCE_API_URL` as a GitHub secret, for example `https://evydence.example.test`
 - `EVYDENCE_API_KEY` as a GitHub secret with `build:write`, `evidence:write`,
-  `bundle:write`, and `verify:read`
+  `bundle:write`, `verify:read`, `product:read`, `project:read`,
+  `release:read`, and `evidence:read`
+- `EVYDENCE_PRODUCT_ID` as a GitHub variable
 - `EVYDENCE_PROJECT_ID` as a GitHub variable
 - `EVYDENCE_RELEASE_ID` as a GitHub variable
 - `EVYDENCE_ARTIFACT_ID` as a GitHub variable
@@ -52,7 +54,8 @@ Required quickstart inputs:
 The CLI command used by the workflow reads GitHub-provided environment variables such as `GITHUB_REPOSITORY`, `GITHUB_WORKFLOW_REF`, `GITHUB_RUN_ID`, `GITHUB_RUN_ATTEMPT`, `GITHUB_REF`, and `GITHUB_SHA`.
 
 The API key used by the quickstart must be scoped for the operations it runs:
-`build:write`, `evidence:write`, `bundle:write`, and `verify:read`. Add
+`build:write`, `evidence:write`, `bundle:write`, `verify:read`,
+`product:read`, `project:read`, `release:read`, and `evidence:read`. Add
 `package:write` only when the workflow is extended to generate a customer
 package.
 
@@ -65,9 +68,10 @@ token.
 ### Minimal GitHub Actions Setup
 
 1. Create or locate the Evydence product, project, release, and artifact
-   records for the release candidate. Copy the project, release, and artifact
-   IDs into GitHub Actions variables named exactly `EVYDENCE_PROJECT_ID`,
-   `EVYDENCE_RELEASE_ID`, and `EVYDENCE_ARTIFACT_ID`.
+   records for the release candidate. Copy the product, project, release, and
+   artifact IDs into GitHub Actions variables named exactly
+   `EVYDENCE_PRODUCT_ID`, `EVYDENCE_PROJECT_ID`, `EVYDENCE_RELEASE_ID`, and
+   `EVYDENCE_ARTIFACT_ID`.
 2. Create a collector API key or tenant API key with the scopes listed above.
    Store the API URL and API key as GitHub Actions secrets named exactly
    `EVYDENCE_API_URL` and `EVYDENCE_API_KEY`.
@@ -83,6 +87,8 @@ Expected output:
   artifact.
 - `.evydence/sbom.cdx.json` and `.evydence/grype.json` are uploaded as release
   evidence through an upload manifest.
+- `evydence ci preflight` validates the API URL, API key scopes, product,
+  project, release, artifact, and manifest before the upload step.
 - GitHub Actions build provenance is recorded for the configured project and
   release.
 - The manifest upload creates a release bundle when the required release
@@ -96,11 +102,16 @@ Troubleshooting:
   pasted with extra whitespace. Rotate the key if it may have been exposed; do
   not print it in logs.
 - `403 Forbidden` means the key authenticated but lacks a required scope. The
-  quickstart requires `build:write`, `evidence:write`, `bundle:write`, and
-  `verify:read`.
-- `404 Not Found` usually means the project, release, or artifact ID is wrong
-  for the tenant bound to the API key. Check the GitHub variable values against
-  Evydence API responses.
+  quickstart requires `build:write`, `evidence:write`, `bundle:write`,
+  `verify:read`, `product:read`, `project:read`, `release:read`, and
+  `evidence:read`.
+- `404 Not Found` usually means the product, project, release, or artifact ID
+  is wrong for the tenant bound to the API key. Check the GitHub variable values
+  against Evydence API responses.
+- `evydence ci preflight` uses stable exit codes for CI routing: `2` for
+  missing configuration, `3` for authentication failure, `4` for missing scope,
+  `5` for wrong-tenant or missing resource, and `6` for invalid manifests. It
+  does not print the API key.
 - `409 IDEMPOTENCY_KEY_REUSED` means the same workflow run idempotency prefix
   was reused with different payload content. Re-run with a new
   `GITHUB_RUN_ATTEMPT` or change the manifest idempotency prefix only after

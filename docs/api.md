@@ -344,7 +344,9 @@ Current SSO endpoints model admin-managed provider, identity-link, trust-materia
 |--------|------|-------|
 | `POST` | `/v1/products` | Create product. |
 | `GET` | `/v1/products` | List products. |
+| `GET` | `/v1/products/{id}` | Read product. |
 | `POST` | `/v1/projects` | Create project under product. |
+| `GET` | `/v1/projects/{id}` | Read project. |
 | `POST` | `/v1/releases` | Create release. |
 | `GET` | `/v1/releases/{id}` | Read release. |
 | `POST` | `/v1/releases/{id}/evidence-flow/start` | Read high-level release evidence workflow plan. |
@@ -352,6 +354,7 @@ Current SSO endpoints model admin-managed provider, identity-link, trust-materia
 | `POST` | `/v1/releases/{id}/freeze` | Append freeze transition. |
 | `POST` | `/v1/releases/{id}/approve` | Append approval transition. |
 | `POST` | `/v1/artifacts` | Register artifact digest metadata. |
+| `GET` | `/v1/artifacts/{id}` | Read artifact digest metadata. |
 | `POST` | `/v1/evidence` | Create immutable evidence metadata. |
 | `GET` | `/v1/evidence` | List evidence by release/type. |
 | `GET` | `/v1/evidence/search` | Search by product, project, release, build, deployment, type, subtype, source, collector, verification status, subject, tag, created time, and limit. |

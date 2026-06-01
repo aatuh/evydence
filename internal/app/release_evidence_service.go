@@ -22,8 +22,16 @@ func (l *Ledger) ListProducts(ctx context.Context, actor domain.Actor) ([]domain
 	return l.releaseEvidenceService().ListProducts(ctx, actor)
 }
 
+func (l *Ledger) GetProduct(ctx context.Context, actor domain.Actor, id string) (domain.Product, error) {
+	return l.releaseEvidenceService().GetProduct(ctx, actor, id)
+}
+
 func (l *Ledger) CreateProject(ctx context.Context, actor domain.Actor, productID, name string) (domain.Project, error) {
 	return l.releaseEvidenceService().CreateProject(ctx, actor, productID, name)
+}
+
+func (l *Ledger) GetProject(ctx context.Context, actor domain.Actor, id string) (domain.Project, error) {
+	return l.releaseEvidenceService().GetProject(ctx, actor, id)
 }
 
 func (l *Ledger) CreateRelease(ctx context.Context, actor domain.Actor, productID, version string) (domain.Release, error) {
@@ -44,6 +52,10 @@ func (l *Ledger) ApproveRelease(ctx context.Context, actor domain.Actor, release
 
 func (l *Ledger) RegisterArtifact(ctx context.Context, actor domain.Actor, name, mediaType, digest string, size int64) (domain.Artifact, error) {
 	return l.releaseEvidenceService().RegisterArtifact(ctx, actor, name, mediaType, digest, size)
+}
+
+func (l *Ledger) GetArtifact(ctx context.Context, actor domain.Actor, id string) (domain.Artifact, error) {
+	return l.releaseEvidenceService().GetArtifact(ctx, actor, id)
 }
 
 func (l *Ledger) CreateEvidence(ctx context.Context, actor domain.Actor, in CreateEvidenceInput) (domain.EvidenceItem, error) {

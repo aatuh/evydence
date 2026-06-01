@@ -141,9 +141,13 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	assertResponseRef(t, createProduct, "201", "#/components/schemas/ProductEnvelope")
 	listProducts := operationMap(t, paths, "/v1/products", "get")
 	assertResponseRef(t, listProducts, "200", "#/components/schemas/ProductListEnvelope")
+	getProduct := operationMap(t, paths, "/v1/products/{id}", "get")
+	assertResponseRef(t, getProduct, "200", "#/components/schemas/ProductEnvelope")
 	createProject := operationMap(t, paths, "/v1/projects", "post")
 	assertRequestRef(t, createProject, "#/components/schemas/CreateProjectRequest")
 	assertResponseRef(t, createProject, "201", "#/components/schemas/ProjectEnvelope")
+	getProject := operationMap(t, paths, "/v1/projects/{id}", "get")
+	assertResponseRef(t, getProject, "200", "#/components/schemas/ProjectEnvelope")
 	createRelease := operationMap(t, paths, "/v1/releases", "post")
 	assertRequestRef(t, createRelease, "#/components/schemas/CreateReleaseRequest")
 	assertRequestExampleContains(t, createRelease, "release-candidate", "1.0.0-rc.1")
@@ -161,6 +165,8 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	registerArtifact := operationMap(t, paths, "/v1/artifacts", "post")
 	assertRequestRef(t, registerArtifact, "#/components/schemas/RegisterArtifactRequest")
 	assertResponseRef(t, registerArtifact, "201", "#/components/schemas/ArtifactEnvelope")
+	getArtifact := operationMap(t, paths, "/v1/artifacts/{id}", "get")
+	assertResponseRef(t, getArtifact, "200", "#/components/schemas/ArtifactEnvelope")
 	createBuild := operationMap(t, paths, "/v1/builds", "post")
 	assertRequestRef(t, createBuild, "#/components/schemas/CreateBuildRequest")
 	assertResponseRef(t, createBuild, "201", "#/components/schemas/BuildRunEnvelope")
@@ -469,6 +475,35 @@ func TestCreateProductRequiresAuthAndIdempotency(t *testing.T) {
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("status conflict = %d, want 409 body=%s", rec.Code, rec.Body.String())
 	}
+}
+
+func TestProductProjectArtifactReadEndpoints(t *testing.T) {
+	server, secret := testServer(t)
+	productBody := postJSON(t, server, secret, "/v1/products", "ci-read-product", map[string]any{"name": "Payments", "slug": "ci-read-payments"}, http.StatusCreated)
+	productID := dataField(t, productBody, "id")
+	projectBody := postJSON(t, server, secret, "/v1/projects", "ci-read-project", map[string]any{"product_id": productID, "name": "API"}, http.StatusCreated)
+	projectID := dataField(t, projectBody, "id")
+	artifactBody := postJSON(t, server, secret, "/v1/artifacts", "ci-read-artifact", map[string]any{
+		"name":       "api.tar.gz",
+		"media_type": "application/gzip",
+		"digest":     "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",
+		"size":       42,
+	}, http.StatusCreated)
+	artifactID := dataField(t, artifactBody, "id")
+
+	if !strings.Contains(getJSON(t, server, secret, "/v1/products/"+productID, http.StatusOK), `"id":"`+productID+`"`) {
+		t.Fatalf("product read did not include product id")
+	}
+	if !strings.Contains(getJSON(t, server, secret, "/v1/projects/"+projectID, http.StatusOK), `"product_id":"`+productID+`"`) {
+		t.Fatalf("project read did not include product link")
+	}
+	if !strings.Contains(getJSON(t, server, secret, "/v1/artifacts/"+artifactID, http.StatusOK), `"id":"`+artifactID+`"`) {
+		t.Fatalf("artifact read did not include artifact id")
+	}
+
+	getJSON(t, server, secret, "/v1/products/prod_missing", http.StatusNotFound)
+	getJSON(t, server, secret, "/v1/projects/proj_missing", http.StatusNotFound)
+	getJSON(t, server, secret, "/v1/artifacts/art_missing", http.StatusNotFound)
 }
 
 func TestServerRateLimitReturnsSafeProblem(t *testing.T) {
