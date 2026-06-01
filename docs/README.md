@@ -37,6 +37,7 @@ This documentation is organized by reader task. Implementation claims should be 
 - [Benchmark results](reference/benchmark-results.md): current local benchmark command and interpretation.
 - [Production readiness](reference/production-readiness.md): self-hosted production profiles, production gates, and exit criteria.
 - [Production exit review](reference/production-exit-review.md): current release-positioning decision and unresolved blockers.
+- [External controls matrix](reference/external-controls-matrix.md): owner boundaries for regulated or high-trust self-hosted deployments.
 - [Release candidate checklist](reference/release-candidate.md): required evidence before tagging a controlled self-hosted release candidate.
 - [Release evidence index](reference/release-evidence-index.md): release artifact map, generation commands, and verification commands.
 - [Release notes template](reference/release-notes-template.md): checked wording used by release-candidate packaging when a tag-specific note file is absent.
