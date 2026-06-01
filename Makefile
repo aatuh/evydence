@@ -9,7 +9,7 @@ GOVULNCHECK_VERSION ?= v1.2.0
 
 TAG ?=
 
-.PHONY: help tools fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check meta-check docs-check deploy-check sdk-check demo-check local-ci-simulation-check black-box-demo-check benchmark-check package-viewer-check restore-rehearsal-check fast-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
+.PHONY: help tools fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check meta-check docs-check deploy-check sdk-check demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check benchmark-check package-viewer-check restore-rehearsal-check fast-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -154,6 +154,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@test -f docs/reference/worker-outbox.md
 	@test -f docs/reference/release-validation.md
 	@test -f docs/reference/upload-manifest.md
+	@test -f docs/how-to/review-customer-package.md
 	@test -f schemas/upload-manifest.v1.schema.json
 	@test -f docs/explanation/trust-model.md
 	@test -f docs/collectors/source-snapshots.md
@@ -171,6 +172,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 		"tutorials/getting-started.md" \
 		"how-to/install-and-operate.md" \
 		"how-to/view-packages.md" \
+		"how-to/review-customer-package.md" \
 		"how-to/integrate-ci.md" \
 		"api.md" \
 		"operations.md" \
@@ -354,6 +356,7 @@ sdk-check: ## Validate SDK helper and generated route-catalog coverage against O
 demo-check: ## Validate checked end-to-end evidence demo fixtures
 	@test -x examples/end-to-end-release-evidence/run-local-demo.sh
 	@test -x scripts/local_ci_simulation_check.sh
+	@test -x scripts/reviewer_package_workflow_check.sh
 	@test -f examples/end-to-end-release-evidence/README.md
 	@test -f examples/end-to-end-release-evidence/release-evidence-manifest.json
 	@test -f examples/end-to-end-release-evidence/sample-readiness-report.json
@@ -373,9 +376,13 @@ demo-check: ## Validate checked end-to-end evidence demo fixtures
 	@grep -F 'reviewer_checklist' examples/end-to-end-release-evidence/sample-customer-package-manifest.json >/dev/null
 	@grep -F 'escalation_path' examples/end-to-end-release-evidence/sample-customer-package-manifest.json >/dev/null
 	@grep -F 'sbom_component_purl' examples/end-to-end-release-evidence/sample-customer-package-manifest.json >/dev/null
+	@scripts/reviewer_package_workflow_check.sh
 
 local-ci-simulation-check: ## Run local one-command CI evidence simulation without external services
 	@scripts/local_ci_simulation_check.sh
+
+reviewer-package-workflow-check: ## Validate offline reviewer package verification, extraction, and report inspection
+	@scripts/reviewer_package_workflow_check.sh
 
 black-box-demo-check: ## Run live PostgreSQL black-box API/worker demo; requires EVYDENCE_TEST_DATABASE_URL
 	@scripts/black_box_demo_check.sh

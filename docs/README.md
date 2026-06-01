@@ -17,6 +17,7 @@ This documentation is organized by reader task. Implementation claims should be 
 - [Air-gapped installation](air-gapped.md): build, sign, transfer, verify, and import an offline package.
 - [Release signing](release-signing.md): create and verify local release artifact manifests.
 - [View packages locally](how-to/view-packages.md): inspect package, readiness, and evidence-bundle JSON without uploading it.
+- [Review a customer package](how-to/review-customer-package.md): verify, inspect, and escalate a scoped package with checked fixtures.
 - [Production hardening review](production-hardening.md): review production configuration, backups, ingress, diagnostics, and customer package controls.
 - [Pilot deployment checklist](how-to/pilot-deployment-checklist.md): copy-paste checklist for the narrow design-partner pilot profile.
 - [Backup and restore runbook](runbooks/backup-restore.md): rehearse paired database/object-store restore and verification.
