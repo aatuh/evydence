@@ -37,8 +37,9 @@ notes, a signed release manifest, and a manifest signature under `dist/<tag>/`.
 GitHub release and GHCR publication use explicit repository secrets instead of
 broad `GITHUB_TOKEN` write permissions: `EVYDENCE_RELEASE_PUBLISH_TOKEN` for
 draft release publication and `EVYDENCE_GHCR_PUBLISH_TOKEN` for container image
-publication. Those secrets are external repository settings and are not release
-evidence artifacts.
+publication. The container signing job is the only container-image job with
+`id-token: write` for keyless cosign signing. Those secrets are external
+repository settings and are not release evidence artifacts.
 
 Release-candidate tagging is documented in
 [`docs/reference/release-candidate.md`](docs/reference/release-candidate.md).
