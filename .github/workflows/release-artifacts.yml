@@ -23,8 +23,6 @@ jobs:
   package:
     name: Package Signed Release Artifacts
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     services:
       postgres:
         image: postgres:16-alpine@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229
@@ -100,10 +98,22 @@ jobs:
           path: dist/${{ steps.release.outputs.tag }}/
           if-no-files-found: error
 
+      - name: Require release publishing token
+        if: github.event_name == 'push' || github.event.inputs.upload_draft_release == 'true'
+        env:
+          EVYDENCE_RELEASE_PUBLISH_TOKEN: ${{ secrets.EVYDENCE_RELEASE_PUBLISH_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${EVYDENCE_RELEASE_PUBLISH_TOKEN}" ]]; then
+            echo "EVYDENCE_RELEASE_PUBLISH_TOKEN secret is required to create or update draft GitHub releases" >&2
+            exit 2
+          fi
+
       - name: Create or update draft GitHub release
         if: github.event_name == 'push' || github.event.inputs.upload_draft_release == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.EVYDENCE_RELEASE_PUBLISH_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail

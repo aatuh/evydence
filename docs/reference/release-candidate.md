@@ -78,6 +78,15 @@ evidence, and record that image digest with deployment evidence. If no image
 workflow evidence exists for a tag, operators must build and publish images into
 their own registry for Helm or air-gapped deployment flows.
 
+The release packaging workflow keeps the repository `GITHUB_TOKEN` read-only.
+Creating or updating the draft GitHub release requires the
+`EVYDENCE_RELEASE_PUBLISH_TOKEN` secret with only the release-publication scope
+the maintainer account approves for that workflow. The container image workflow
+also keeps `GITHUB_TOKEN` from receiving package-write permissions; publishing
+to GHCR requires `EVYDENCE_GHCR_PUBLISH_TOKEN`. Both secrets are external
+repository settings and must not be printed in logs, committed to files, or
+included in release evidence.
+
 ## Deployment Constraints
 
 - Use one API writer replica for the current production profile.
