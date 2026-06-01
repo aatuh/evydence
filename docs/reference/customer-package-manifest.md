@@ -31,7 +31,9 @@ matching release-scoped records exist:
 - `sboms`: SBOM metadata such as format, spec version, component count, and evidence ID.
 - `vulnerability_scans`: scanner metadata, target reference, summary counts, and finding count.
 - `vex_documents`: VEX metadata, statement counts, status summary, and evidence ID.
-- `vulnerability_decisions`: active customer-visible decision summaries only.
+- `vulnerability_decisions`: active customer-visible decision summaries only,
+  including `reviewed_at` and optional `review_due_at` freshness metadata when
+  recorded.
 - `api_contracts`: OpenAPI contract metadata, normalized operation summaries,
   deterministic contract diff results, and API-contract limitations.
 - `approvals`: release or product approval records.

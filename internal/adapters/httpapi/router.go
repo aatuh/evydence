@@ -1509,14 +1509,16 @@ func (s *Server) getVulnerabilityScan(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) createVulnerabilityDecision(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Status          string   `json:"status"`
-		Justification   string   `json:"justification"`
-		ImpactStatement string   `json:"impact_statement"`
-		ActionStatement string   `json:"action_statement"`
-		CustomerVisible bool     `json:"customer_visible"`
-		InternalNotes   string   `json:"internal_notes"`
-		EvidenceIDs     []string `json:"evidence_ids"`
-		VEXDocumentID   string   `json:"vex_document_id"`
+		Status          string     `json:"status"`
+		Justification   string     `json:"justification"`
+		ImpactStatement string     `json:"impact_statement"`
+		ActionStatement string     `json:"action_statement"`
+		CustomerVisible bool       `json:"customer_visible"`
+		InternalNotes   string     `json:"internal_notes"`
+		EvidenceIDs     []string   `json:"evidence_ids"`
+		VEXDocumentID   string     `json:"vex_document_id"`
+		ReviewedAt      *time.Time `json:"reviewed_at"`
+		ReviewDueAt     *time.Time `json:"review_due_at"`
 	}
 	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
@@ -1531,6 +1533,8 @@ func (s *Server) createVulnerabilityDecision(w http.ResponseWriter, r *http.Requ
 			InternalNotes:   req.InternalNotes,
 			EvidenceIDs:     req.EvidenceIDs,
 			VEXDocumentID:   req.VEXDocumentID,
+			ReviewedAt:      req.ReviewedAt,
+			ReviewDueAt:     req.ReviewDueAt,
 		})
 		return http.StatusCreated, decision, err
 	})

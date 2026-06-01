@@ -1164,7 +1164,7 @@ func (s *Store) loadRelationalRiskDecisions(ctx context.Context, state *app.Pers
 		SELECT id, tenant_id, finding_id, scan_id, release_id, vulnerability,
 		       component, status, justification, impact_statement, action_statement,
 		       customer_visible, internal_notes, source, evidence_id, evidence_ids, vex_document_id,
-		       supersedes, superseded_by, approved_by, schema_version, created_at
+		       supersedes, superseded_by, approved_by, reviewed_at, review_due_at, schema_version, created_at
 		FROM vulnerability_decisions
 	`)
 	if err != nil {
@@ -1174,11 +1174,12 @@ func (s *Store) loadRelationalRiskDecisions(ctx context.Context, state *app.Pers
 	for decisionRows.Next() {
 		var decision domain.VulnerabilityDecision
 		var releaseID, component, impactStatement, actionStatement, internalNotes, evidenceID, vexDocumentID, supersedes, supersededBy, approvedBy sql.NullString
+		var reviewedAt, reviewDueAt sql.NullTime
 		if err := decisionRows.Scan(
 			&decision.ID, &decision.TenantID, &decision.FindingID, &decision.ScanID, &releaseID, &decision.Vulnerability,
 			&component, &decision.Status, &decision.Justification, &impactStatement, &actionStatement,
 			&decision.CustomerVisible, &internalNotes, &decision.Source, &evidenceID, &decision.EvidenceIDs, &vexDocumentID, &supersedes, &supersededBy,
-			&approvedBy, &decision.SchemaVersion, &decision.CreatedAt,
+			&approvedBy, &reviewedAt, &reviewDueAt, &decision.SchemaVersion, &decision.CreatedAt,
 		); err != nil {
 			return fmt.Errorf("scan relational vulnerability decision: %w", err)
 		}
@@ -1192,6 +1193,8 @@ func (s *Store) loadRelationalRiskDecisions(ctx context.Context, state *app.Pers
 		decision.Supersedes = nullableSQLString(supersedes)
 		decision.SupersededBy = nullableSQLString(supersededBy)
 		decision.ApprovedBy = nullableSQLString(approvedBy)
+		decision.ReviewedAt = nullableSQLTime(reviewedAt)
+		decision.ReviewDueAt = nullableSQLTime(reviewDueAt)
 		state.Decisions[decision.ID] = decision
 		*loaded = true
 	}
@@ -3303,17 +3306,19 @@ func syncRiskBuildControlRows(ctx context.Context, tx pgx.Tx, state app.Persiste
 				id, tenant_id, finding_id, scan_id, release_id, vulnerability,
 				component, status, justification, impact_statement, action_statement,
 				customer_visible, internal_notes, source, evidence_id, evidence_ids, vex_document_id,
-				supersedes, superseded_by, approved_by, schema_version, created_at
+				supersedes, superseded_by, approved_by, reviewed_at, review_due_at, schema_version, created_at
 			)
 			VALUES (
 				$1, $2, $3, $4, $5, $6,
 				$7, $8, $9, $10, $11,
 				$12, $13, $14, $15, $16,
-				$17, $18, $19, $20, $21, $22
+				$17, $18, $19, $20, $21, $22, $23, $24
 			)
 			ON CONFLICT (id) DO UPDATE SET
 				superseded_by = EXCLUDED.superseded_by,
 				approved_by = EXCLUDED.approved_by,
+				reviewed_at = COALESCE(vulnerability_decisions.reviewed_at, EXCLUDED.reviewed_at),
+				review_due_at = COALESCE(vulnerability_decisions.review_due_at, EXCLUDED.review_due_at),
 				customer_visible = vulnerability_decisions.customer_visible OR EXCLUDED.customer_visible,
 				internal_notes = COALESCE(NULLIF(vulnerability_decisions.internal_notes, ''), EXCLUDED.internal_notes),
 				evidence_ids = CASE
@@ -3323,7 +3328,7 @@ func syncRiskBuildControlRows(ctx context.Context, tx pgx.Tx, state app.Persiste
 		`, decision.ID, decision.TenantID, decision.FindingID, decision.ScanID, nullableString(decision.ReleaseID), decision.Vulnerability,
 			nullableString(decision.Component), decision.Status, decision.Justification, nullableString(decision.ImpactStatement), nullableString(decision.ActionStatement),
 			decision.CustomerVisible, nullableString(decision.InternalNotes), decision.Source, nullableString(decision.EvidenceID), textArray(decision.EvidenceIDs), nullableString(decision.VEXDocumentID), nullableString(decision.Supersedes), nullableString(decision.SupersededBy),
-			nullableString(decision.ApprovedBy), decision.SchemaVersion, nonZeroTime(decision.CreatedAt)); err != nil {
+			nullableString(decision.ApprovedBy), nullableTime(decision.ReviewedAt), nullableTime(decision.ReviewDueAt), decision.SchemaVersion, nonZeroTime(decision.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert vulnerability decision row: %w", err)
 		}
 	}
