@@ -148,6 +148,26 @@ watermarking, and audit triage only; the portal token remains the credential and
 is returned once, stored only as a hash, and omitted from package manifests,
 archives, logs, and list responses.
 
+## Reviewer UX Boundary
+
+The package review surface is deliberately narrow:
+
+- operators use the API and CLI to create packages, access records, downloads,
+  redaction profiles, and audit evidence;
+- local reviewers may use `site/package-viewer/index.html` or archive
+  `report.html` after they already possess package files;
+- browser-facing server review must reuse the same customer portal token
+  exchange, expiry, NDA, package scope, watermark, and audit behavior as the
+  JSON and ZIP endpoints.
+
+The local viewer and static reports are not authorization mechanisms. They do
+not verify that a reviewer should receive a package and they do not grant access
+to tenant data. Server-hosted review pages must accept portal tokens in request
+bodies rather than URLs, disable caching of package responses, escape
+operator-provided package text, and omit raw payloads, object-store references,
+internal notes, token material, signing private material, and unrelated customer
+data.
+
 ## Redaction Leakage Guard
 
 Customer package generation is tested with canary values for API key secrets,
