@@ -1488,6 +1488,59 @@ func TestCustomerPortalPackageViewHTMLSafety(t *testing.T) {
 	}
 }
 
+func TestCustomerPortalPackageFormValidation(t *testing.T) {
+	server, _ := testServer(t)
+	valid := url.Values{"token": {"secret"}, "nda_accepted": {"true"}, "nda_accepted_by": {"reviewer@example.test"}}
+	for _, tc := range []struct {
+		name        string
+		path        string
+		contentType string
+		body        string
+	}{
+		{name: "missing content type", path: "/v1/customer-portal/package/view", body: valid.Encode()},
+		{name: "query string rejected", path: "/v1/customer-portal/package/view?token=secret", contentType: "application/x-www-form-urlencoded", body: valid.Encode()},
+		{name: "unknown field", path: "/v1/customer-portal/package/view", contentType: "application/x-www-form-urlencoded", body: "token=secret&extra=true"},
+		{name: "duplicate token", path: "/v1/customer-portal/package/view", contentType: "application/x-www-form-urlencoded", body: "token=secret&token=other"},
+		{name: "invalid checkbox", path: "/v1/customer-portal/package/view", contentType: "application/x-www-form-urlencoded", body: "token=secret&nda_accepted=maybe"},
+		{name: "empty token", path: "/v1/customer-portal/package/view", contentType: "application/x-www-form-urlencoded", body: "token=%20"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, tc.path, strings.NewReader(tc.body))
+			if tc.contentType != "" {
+				req.Header.Set("Content-Type", tc.contentType)
+			}
+			server.Handler().ServeHTTP(rec, req)
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status=%d want=%d body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
+			}
+			if strings.Contains(rec.Body.String(), "secret") {
+				t.Fatalf("validation error leaked token: %s", rec.Body.String())
+			}
+		})
+	}
+
+	var b strings.Builder
+	portalHTMLValue(&b, map[string]any{
+		"string":   "value",
+		"bool":     true,
+		"number":   float64(3),
+		"list":     []any{"a", false},
+		"empty":    []any{},
+		"object":   map[string]any{"nested": "ok", "token_hash": "forbidden"},
+		"too_deep": map[string]any{"a": map[string]any{"b": map[string]any{"c": map[string]any{"d": map[string]any{"e": map[string]any{"f": "omitted"}}}}}},
+	}, 0)
+	htmlBody := b.String()
+	for _, want := range []string{"string", "value", "true", "3", "nested", "nested content omitted"} {
+		if !strings.Contains(htmlBody, want) {
+			t.Fatalf("rendered value missing %q: %s", want, htmlBody)
+		}
+	}
+	if strings.Contains(htmlBody, "forbidden") || strings.Contains(htmlBody, "token_hash") {
+		t.Fatalf("rendered value leaked sensitive key: %s", htmlBody)
+	}
+}
+
 func TestFutureExtensionAndReadAdminHTTPGaps(t *testing.T) {
 	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
 	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*", app.ScopeInstanceAdmin})

@@ -214,6 +214,17 @@ func TestVEXFirstReleaseEvidenceFlowEndToEnd(t *testing.T) {
 		t.Fatalf("decision export leaked unsafe content: %s", decisionExport)
 	}
 
+	flow, err := ledger.ReleaseEvidenceFlowPlan(ctx, actor, release.ID)
+	if err != nil {
+		t.Fatalf("release evidence flow: %v", err)
+	}
+	if flow.Status != "ready_for_review" || flow.Counts["sboms"] != 1 || flow.Counts["release_bundles"] != 1 || len(flow.Steps) == 0 {
+		t.Fatalf("release evidence flow incomplete: %#v", flow)
+	}
+	if !strings.Contains(flow.Steps[0].NextReference, "/v1/artifacts") || !flow.Steps[0].IdempotencyRequired {
+		t.Fatalf("release evidence step metadata incomplete: %#v", flow.Steps[0])
+	}
+
 	auditVerification, err := ledger.VerifySubject(ctx, actor, "audit_chain", "")
 	if err != nil {
 		t.Fatalf("verify audit chain: %v", err)
