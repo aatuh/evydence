@@ -93,6 +93,10 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	if _, ok := decisionRequestProps["review_due_at"]; !ok {
 		t.Fatalf("manual decision request schema missing review_due_at: %#v", decisionRequestProps)
 	}
+	decisionProps := asStringAnyMap(t, asStringAnyMap(t, schemas["VulnerabilityDecision"])["properties"])
+	if _, ok := decisionProps["sbom_component_purl"]; !ok {
+		t.Fatalf("decision schema missing sbom_component_purl: %#v", decisionProps)
+	}
 	redactionRequestProps := asStringAnyMap(t, asStringAnyMap(t, schemas["CreateRedactionProfileRequest"])["properties"])
 	if _, ok := redactionRequestProps["preset"]; !ok {
 		t.Fatalf("redaction profile request schema missing preset: %#v", redactionRequestProps)
@@ -763,7 +767,7 @@ func TestReleaseRiskDecisionHTTPFlow(t *testing.T) {
 	postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "risk-decision-bad", map[string]any{"status": "not_affected", "justification": "vulnerable code is not present", "customer_visible": true}, http.StatusBadRequest)
 	decisionPayload := map[string]any{"status": "not_affected", "justification": "vulnerable code is not present", "impact_statement": "The vulnerable code path is not present in this release.", "customer_visible": true, "internal_notes": "private note", "evidence_ids": []string{evidenceID}, "reviewed_at": "2026-05-27T12:00:00Z", "review_due_at": "2026-08-25T12:00:00Z"}
 	decisionBody := postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "risk-decision", decisionPayload, http.StatusCreated)
-	if !strings.Contains(decisionBody, `"customer_visible":true`) || !strings.Contains(decisionBody, `"internal_notes":"private note"`) || !strings.Contains(decisionBody, evidenceID) || !strings.Contains(decisionBody, `"review_due_at":"2026-08-25T12:00:00Z"`) {
+	if !strings.Contains(decisionBody, `"customer_visible":true`) || !strings.Contains(decisionBody, `"internal_notes":"private note"`) || !strings.Contains(decisionBody, evidenceID) || !strings.Contains(decisionBody, `"review_due_at":"2026-08-25T12:00:00Z"`) || !strings.Contains(decisionBody, `"sbom_component_purl":"pkg:apk/openssl@3.1.0"`) {
 		t.Fatalf("decision response missing customer visibility/internal note fields: %s", decisionBody)
 	}
 	replayed := postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "risk-decision", decisionPayload, http.StatusCreated)
@@ -778,7 +782,7 @@ func TestReleaseRiskDecisionHTTPFlow(t *testing.T) {
 	getJSON(t, server, secret, "/v1/vulnerability-decisions?active=maybe", http.StatusBadRequest)
 	getJSON(t, server, secret, "/v1/vulnerability-decisions?status=not_a_status", http.StatusBadRequest)
 	summary := getJSON(t, server, secret, "/v1/reports/vulnerability-decision-summary?release_id="+releaseID, http.StatusOK)
-	if !strings.Contains(summary, `"report_type":"vulnerability_decision_summary"`) || !strings.Contains(summary, `"The vulnerable code path is not present in this release."`) || !strings.Contains(summary, `"reviewed_at":"2026-05-27T12:00:00Z"`) {
+	if !strings.Contains(summary, `"report_type":"vulnerability_decision_summary"`) || !strings.Contains(summary, `"The vulnerable code path is not present in this release."`) || !strings.Contains(summary, `"reviewed_at":"2026-05-27T12:00:00Z"`) || !strings.Contains(summary, `"sbom_component_purl":"pkg:apk/openssl@3.1.0"`) {
 		t.Fatalf("decision summary missing customer-safe content: %s", summary)
 	}
 	if strings.Contains(summary, "private note") || strings.Contains(summary, "payload_ref") {

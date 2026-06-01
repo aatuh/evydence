@@ -503,23 +503,26 @@ func (s releaseEvidenceService) VulnerabilityDecisionSummaryReport(ctx context.C
 
 func customerDecisionSummary(decision domain.VulnerabilityDecision) domain.VulnerabilityDecisionCustomerSummary {
 	return domain.VulnerabilityDecisionCustomerSummary{
-		ID:              decision.ID,
-		FindingID:       decision.FindingID,
-		ScanID:          decision.ScanID,
-		ReleaseID:       decision.ReleaseID,
-		Vulnerability:   decision.Vulnerability,
-		Component:       decision.Component,
-		Status:          decision.Status,
-		Justification:   decision.Justification,
-		ImpactStatement: decision.ImpactStatement,
-		ActionStatement: decision.ActionStatement,
-		Source:          decision.Source,
-		EvidenceID:      decision.EvidenceID,
-		EvidenceIDs:     append([]string(nil), decision.EvidenceIDs...),
-		VEXDocumentID:   decision.VEXDocumentID,
-		ReviewedAt:      cloneTimePtr(decision.ReviewedAt),
-		ReviewDueAt:     cloneTimePtr(decision.ReviewDueAt),
-		CreatedAt:       decision.CreatedAt,
+		ID:                decision.ID,
+		FindingID:         decision.FindingID,
+		ScanID:            decision.ScanID,
+		ReleaseID:         decision.ReleaseID,
+		Vulnerability:     decision.Vulnerability,
+		Component:         decision.Component,
+		SBOMID:            decision.SBOMID,
+		SBOMComponentPURL: decision.SBOMComponentPURL,
+		SBOMComponentName: decision.SBOMComponentName,
+		Status:            decision.Status,
+		Justification:     decision.Justification,
+		ImpactStatement:   decision.ImpactStatement,
+		ActionStatement:   decision.ActionStatement,
+		Source:            decision.Source,
+		EvidenceID:        decision.EvidenceID,
+		EvidenceIDs:       append([]string(nil), decision.EvidenceIDs...),
+		VEXDocumentID:     decision.VEXDocumentID,
+		ReviewedAt:        cloneTimePtr(decision.ReviewedAt),
+		ReviewDueAt:       cloneTimePtr(decision.ReviewDueAt),
+		CreatedAt:         decision.CreatedAt,
 	}
 }
 
@@ -1111,6 +1114,7 @@ func openVEXProductIDs(products []openVEXProduct) map[string]struct{} {
 func (l *Ledger) createDecisionLocked(tenantID string, scan domain.VulnerabilityScan, finding domain.VulnerabilityFinding, in CreateVulnerabilityDecisionInput, source, actorID, evidenceID, vexID string) domain.VulnerabilityDecision {
 	decisionID := newID("vd")
 	createdAt := l.now()
+	sbomID, sbomComponentPURL, sbomComponentName := l.decisionSBOMContextLocked(tenantID, scan.ReleaseID, finding.Component)
 	var supersedes string
 	for id, existing := range l.decisions {
 		if existing.TenantID == tenantID && existing.FindingID == finding.ID && existing.SupersededBy == "" {
@@ -1120,31 +1124,70 @@ func (l *Ledger) createDecisionLocked(tenantID string, scan domain.Vulnerability
 		}
 	}
 	decision := domain.VulnerabilityDecision{
-		ID:              decisionID,
-		TenantID:        tenantID,
-		FindingID:       finding.ID,
-		ScanID:          scan.ID,
-		ReleaseID:       scan.ReleaseID,
-		Vulnerability:   finding.Vulnerability,
-		Component:       finding.Component,
-		Status:          strings.TrimSpace(in.Status),
-		Justification:   strings.TrimSpace(in.Justification),
-		ImpactStatement: strings.TrimSpace(in.ImpactStatement),
-		ActionStatement: strings.TrimSpace(in.ActionStatement),
-		CustomerVisible: in.CustomerVisible,
-		InternalNotes:   strings.TrimSpace(in.InternalNotes),
-		Source:          source,
-		EvidenceID:      evidenceID,
-		EvidenceIDs:     decisionEvidenceIDs(evidenceID, in.EvidenceIDs),
-		VEXDocumentID:   vexID,
-		Supersedes:      supersedes,
-		ApprovedBy:      actorID,
-		ReviewedAt:      decisionReviewedAt(in.ReviewedAt, createdAt),
-		ReviewDueAt:     cloneTimePtr(in.ReviewDueAt),
-		SchemaVersion:   domain.VulnerabilityDecisionVersion,
-		CreatedAt:       createdAt,
+		ID:                decisionID,
+		TenantID:          tenantID,
+		FindingID:         finding.ID,
+		ScanID:            scan.ID,
+		ReleaseID:         scan.ReleaseID,
+		Vulnerability:     finding.Vulnerability,
+		Component:         finding.Component,
+		SBOMID:            sbomID,
+		SBOMComponentPURL: sbomComponentPURL,
+		SBOMComponentName: sbomComponentName,
+		Status:            strings.TrimSpace(in.Status),
+		Justification:     strings.TrimSpace(in.Justification),
+		ImpactStatement:   strings.TrimSpace(in.ImpactStatement),
+		ActionStatement:   strings.TrimSpace(in.ActionStatement),
+		CustomerVisible:   in.CustomerVisible,
+		InternalNotes:     strings.TrimSpace(in.InternalNotes),
+		Source:            source,
+		EvidenceID:        evidenceID,
+		EvidenceIDs:       decisionEvidenceIDs(evidenceID, in.EvidenceIDs),
+		VEXDocumentID:     vexID,
+		Supersedes:        supersedes,
+		ApprovedBy:        actorID,
+		ReviewedAt:        decisionReviewedAt(in.ReviewedAt, createdAt),
+		ReviewDueAt:       cloneTimePtr(in.ReviewDueAt),
+		SchemaVersion:     domain.VulnerabilityDecisionVersion,
+		CreatedAt:         createdAt,
 	}
 	return decision
+}
+
+func (l *Ledger) decisionSBOMContextLocked(tenantID, releaseID, findingComponent string) (string, string, string) {
+	findingComponent = strings.TrimSpace(findingComponent)
+	if releaseID == "" || findingComponent == "" {
+		return "", "", ""
+	}
+	sboms := make([]domain.SBOM, 0, len(l.sboms))
+	for _, sbom := range l.sboms {
+		if sbom.TenantID == tenantID && sbom.ReleaseID == releaseID {
+			sboms = append(sboms, sbom)
+		}
+	}
+	sort.Slice(sboms, func(i, j int) bool {
+		if sboms[i].CreatedAt.Equal(sboms[j].CreatedAt) {
+			return sboms[i].ID < sboms[j].ID
+		}
+		return sboms[i].CreatedAt.Before(sboms[j].CreatedAt)
+	})
+	for _, sbom := range sboms {
+		for _, component := range sbom.Components {
+			if strings.TrimSpace(component.PURL) != "" && strings.TrimSpace(component.PURL) == findingComponent {
+				return sbom.ID, strings.TrimSpace(component.PURL), strings.TrimSpace(component.Name)
+			}
+		}
+	}
+	for _, sbom := range sboms {
+		for _, component := range sbom.Components {
+			name := strings.TrimSpace(component.Name)
+			version := strings.TrimSpace(component.Version)
+			if name == findingComponent || (version != "" && name+"@"+version == findingComponent) {
+				return sbom.ID, strings.TrimSpace(component.PURL), name
+			}
+		}
+	}
+	return "", "", ""
 }
 
 func normalizeDecisionReviewTimes(in *CreateVulnerabilityDecisionInput, now time.Time) error {

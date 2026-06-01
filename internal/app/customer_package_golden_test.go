@@ -68,4 +68,17 @@ func TestSampleCustomerPackageManifestGolden(t *testing.T) {
 			t.Fatalf("manifest fixture reviewer checklist missing %q: %#v", id, checklist)
 		}
 	}
+	decisions, ok := manifest["vulnerability_decisions"].([]any)
+	if !ok || len(decisions) == 0 {
+		t.Fatalf("manifest fixture missing vulnerability decisions: %#v", manifest["vulnerability_decisions"])
+	}
+	firstDecision, ok := decisions[0].(map[string]any)
+	if !ok {
+		t.Fatalf("manifest fixture decision is not an object: %#v", decisions[0])
+	}
+	for _, key := range []string{"reviewed_at", "review_due_at", "sbom_id", "sbom_component_purl", "sbom_component_name"} {
+		if firstDecision[key] == "" || firstDecision[key] == nil {
+			t.Fatalf("manifest fixture decision missing %q: %#v", key, firstDecision)
+		}
+	}
 }

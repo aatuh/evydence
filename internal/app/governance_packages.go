@@ -1401,9 +1401,9 @@ func customerPackageHTMLReport(pkg domain.CustomerSecurityPackage, metadata, ver
 			b.WriteString("</tbody></table>")
 		}
 		if len(decisions) > 0 {
-			b.WriteString("<h3>Vulnerability Decisions</h3><table><thead><tr><th>Vulnerability</th><th>Component</th><th>Status</th><th>Impact Statement</th><th>Reviewed</th><th>Review Due</th><th>Source</th></tr></thead><tbody>")
+			b.WriteString("<h3>Vulnerability Decisions</h3><table><thead><tr><th>Vulnerability</th><th>Component</th><th>SBOM</th><th>Status</th><th>Impact Statement</th><th>Reviewed</th><th>Review Due</th><th>Source</th></tr></thead><tbody>")
 			for _, record := range decisions {
-				b.WriteString("<tr><td>" + packageHTMLEscape(packageHTMLString(record["vulnerability"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["component"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["status"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["impact_statement"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["reviewed_at"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["review_due_at"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["source"])) + "</td></tr>")
+				b.WriteString("<tr><td>" + packageHTMLEscape(packageHTMLString(record["vulnerability"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["component"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["sbom_id"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["status"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["impact_statement"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["reviewed_at"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["review_due_at"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["source"])) + "</td></tr>")
 			}
 			b.WriteString("</tbody></table>")
 		}
@@ -1967,16 +1967,19 @@ func (l *Ledger) packageDecisionSummariesLocked(tenantID, releaseID string, prof
 			continue
 		}
 		summary := map[string]any{
-			"id":               decision.ID,
-			"finding_id":       decision.FindingID,
-			"scan_id":          decision.ScanID,
-			"release_id":       decision.ReleaseID,
-			"vulnerability":    decision.Vulnerability,
-			"component":        decision.Component,
-			"status":           decision.Status,
-			"impact_statement": decision.ImpactStatement,
-			"source":           decision.Source,
-			"created_at":       decision.CreatedAt.UTC().Format(time.RFC3339),
+			"id":                  decision.ID,
+			"finding_id":          decision.FindingID,
+			"scan_id":             decision.ScanID,
+			"release_id":          decision.ReleaseID,
+			"vulnerability":       decision.Vulnerability,
+			"component":           decision.Component,
+			"sbom_id":             decision.SBOMID,
+			"sbom_component_purl": decision.SBOMComponentPURL,
+			"sbom_component_name": decision.SBOMComponentName,
+			"status":              decision.Status,
+			"impact_statement":    decision.ImpactStatement,
+			"source":              decision.Source,
+			"created_at":          decision.CreatedAt.UTC().Format(time.RFC3339),
 		}
 		if decision.ReviewedAt != nil && !excluded["reviewed_at"] {
 			summary["reviewed_at"] = decision.ReviewedAt.UTC().Format(time.RFC3339)

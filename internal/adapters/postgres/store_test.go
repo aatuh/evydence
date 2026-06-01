@@ -409,7 +409,7 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 			"vex_report_test": {ID: "vex_report_test", TenantID: "ten_test", VEXDocumentID: "vex_test", EvidenceID: "ev_test", ReleaseID: "rel_test", ArtifactID: "art_test", ParserVersion: app.ParserVersionOpenVEXJSON, Status: "parsed", StatementCount: 1, DecisionsCreated: 1, MappingFailures: []domain.VEXImportIssue{{StatementIndex: 2, Code: "finding_not_found", Detail: "No matching finding."}}, SchemaVersion: domain.VEXImportReportSchemaVersion, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()},
 		},
 		Decisions: map[string]domain.VulnerabilityDecision{
-			"decision_test": {ID: "decision_test", TenantID: "ten_test", FindingID: "finding_test", ScanID: "scan_test", ReleaseID: "rel_test", Vulnerability: "CVE-0000-0001", Component: "lib", Status: "not_affected", Justification: "not_present", Source: "manual", EvidenceID: "ev_test", VEXDocumentID: "vex_test", SchemaVersion: domain.VulnerabilityDecisionVersion, CreatedAt: time.Now().UTC()},
+			"decision_test": {ID: "decision_test", TenantID: "ten_test", FindingID: "finding_test", ScanID: "scan_test", ReleaseID: "rel_test", Vulnerability: "CVE-0000-0001", Component: "lib", SBOMID: "sbom_test", SBOMComponentName: "lib", Status: "not_affected", Justification: "not_present", Source: "manual", EvidenceID: "ev_test", VEXDocumentID: "vex_test", SchemaVersion: domain.VulnerabilityDecisionVersion, CreatedAt: time.Now().UTC()},
 		},
 		Contracts: map[string]domain.OpenAPIContract{
 			"contract_test": {ID: "contract_test", TenantID: "ten_test", ProductID: "prod_test", ReleaseID: "rel_test", Version: "1.0.0", Hash: "sha256:" + strings.Repeat("f", 64), PathCount: 1, Operations: []domain.OpenAPIOperation{{Path: "/v1/test", Method: "get", OperationID: "getTest"}}, EvidenceID: "ev_test", CreatedAt: time.Now().UTC()},
@@ -635,7 +635,7 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 		{name: "scan", query: `SELECT count(*) FROM vulnerability_scans WHERE tenant_id = 'ten_test' AND release_id = 'rel_test'`},
 		{name: "vex", query: `SELECT count(*) FROM vex_documents WHERE tenant_id = 'ten_test' AND id = 'vex_test' AND statement_count = 1`},
 		{name: "vex report", query: `SELECT count(*) FROM vex_import_reports WHERE tenant_id = 'ten_test' AND id = 'vex_report_test' AND decisions_created = 1`},
-		{name: "decision", query: `SELECT count(*) FROM vulnerability_decisions WHERE tenant_id = 'ten_test' AND id = 'decision_test' AND status = 'not_affected'`},
+		{name: "decision", query: `SELECT count(*) FROM vulnerability_decisions WHERE tenant_id = 'ten_test' AND id = 'decision_test' AND status = 'not_affected' AND sbom_id = 'sbom_test'`},
 		{name: "exception", query: `SELECT count(*) FROM exceptions WHERE tenant_id = 'ten_test' AND id = 'exception_test' AND approved = true`},
 		{name: "contract", query: `SELECT count(*) FROM openapi_contracts WHERE tenant_id = 'ten_test' AND id = 'contract_test' AND operations <> '[]'::jsonb`},
 		{name: "policy", query: `SELECT count(*) FROM policy_evaluations WHERE tenant_id = 'ten_test' AND id = 'policy_test'`},
@@ -932,7 +932,7 @@ func TestApplyCriticalMutationWithPostgres(t *testing.T) {
 		}},
 		VulnerabilityDecisions: []domain.VulnerabilityDecision{{
 			ID: "decision_focus", TenantID: "ten_focus", FindingID: "finding_focus", ScanID: "scan_focus",
-			ReleaseID: "rel_focus", Vulnerability: "CVE-2099-0001", Component: "pkg:generic/api",
+			ReleaseID: "rel_focus", Vulnerability: "CVE-2099-0001", Component: "pkg:generic/api", SBOMID: "sbom_focus", SBOMComponentPURL: "pkg:generic/api", SBOMComponentName: "api",
 			Status: "not_affected", Justification: "component_not_present", ImpactStatement: "not shipped",
 			CustomerVisible: true, InternalNotes: "private triage", EvidenceIDs: []string{"ev_support"}, Source: "manual",
 			SchemaVersion: domain.VulnerabilityDecisionVersion, CreatedAt: now,
@@ -986,7 +986,7 @@ func TestApplyCriticalMutationWithPostgres(t *testing.T) {
 		{name: "signature", query: `SELECT count(*) FROM signatures WHERE id = 'sig_focus' AND key_id = 'sigkey_focus'`},
 		{name: "bundle", query: `SELECT count(*) FROM release_bundles WHERE id = 'bundle_focus' AND signature_refs = '["sig_focus"]'::jsonb`},
 		{name: "verification", query: `SELECT count(*) FROM verification_results WHERE id = 'verify_focus' AND result = 'passed'`},
-		{name: "decision", query: `SELECT count(*) FROM vulnerability_decisions WHERE id = 'decision_focus' AND status = 'not_affected' AND customer_visible = true AND internal_notes = 'private triage' AND evidence_ids = ARRAY['ev_support']::text[]`},
+		{name: "decision", query: `SELECT count(*) FROM vulnerability_decisions WHERE id = 'decision_focus' AND status = 'not_affected' AND customer_visible = true AND internal_notes = 'private triage' AND evidence_ids = ARRAY['ev_support']::text[] AND sbom_component_purl = 'pkg:generic/api'`},
 		{name: "outbox", query: `SELECT count(*) FROM outbox_jobs WHERE id = 'job_focus' AND status = 'queued'`},
 		{name: "resource index", query: `SELECT count(*) FROM resource_index WHERE tenant_id = 'ten_focus' AND resource_type = 'release_bundle' AND resource_id = 'bundle_focus'`},
 	}
@@ -1124,7 +1124,7 @@ func TestApplyReleaseLedgerMutationWithPostgres(t *testing.T) {
 		}},
 		VulnerabilityDecisions: []domain.VulnerabilityDecision{{
 			ID: "decision_release_focus", TenantID: "ten_release_focus", FindingID: "finding_focus", ScanID: "scan_focus",
-			ReleaseID: "rel_focus", Vulnerability: "CVE-2099-0001", Component: "lib", Status: "not_affected",
+			ReleaseID: "rel_focus", Vulnerability: "CVE-2099-0001", Component: "lib", SBOMID: "sbom_focus", SBOMComponentName: "lib", Status: "not_affected",
 			Justification: "component_not_present", Source: "vex", EvidenceID: "ev_focus", VEXDocumentID: "vex_focus",
 			SchemaVersion: domain.VulnerabilityDecisionVersion, CreatedAt: now,
 		}},
@@ -1168,7 +1168,7 @@ func TestApplyReleaseLedgerMutationWithPostgres(t *testing.T) {
 		{name: "contract", query: `SELECT count(*) FROM openapi_contracts WHERE id = 'oas_focus' AND path_count = 1`},
 		{name: "vex", query: `SELECT count(*) FROM vex_documents WHERE id = 'vex_focus' AND statement_count = 1`},
 		{name: "vex report", query: `SELECT count(*) FROM vex_import_reports WHERE id = 'vex_report_focus' AND decisions_created = 1`},
-		{name: "decision", query: `SELECT count(*) FROM vulnerability_decisions WHERE id = 'decision_release_focus' AND status = 'not_affected'`},
+		{name: "decision", query: `SELECT count(*) FROM vulnerability_decisions WHERE id = 'decision_release_focus' AND status = 'not_affected' AND sbom_id = 'sbom_focus'`},
 		{name: "audit chain", query: `SELECT count(*) FROM audit_chain_entries WHERE id = 'chain_release_focus'`},
 		{name: "outbox", query: `SELECT count(*) FROM outbox_jobs WHERE id = 'job_release_focus' AND status = 'queued'`},
 		{name: "resource index", query: `SELECT count(*) FROM resource_index WHERE tenant_id = 'ten_release_focus' AND resource_type = 'evidence_item' AND resource_id = 'ev_focus'`},
