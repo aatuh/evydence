@@ -362,6 +362,7 @@
       vulnerability_decisions: [
         { id: "vd_example", vulnerability: "CVE-2026-0002", component: "pkg:apk/openssl@3.1.0", sbom_id: "sbom_example", sbom_component_purl: "pkg:apk/openssl@3.1.0", sbom_component_name: "openssl", status: "fixed", source: "vex", impact_statement: "The finding is fixed in this release artifact.", action_statement: "Upgrade to this release after normal operator review.", reviewed_at: "2026-05-27T12:00:00Z", review_due_at: "2026-08-25T12:00:00Z", supporting_refs: [{ type: "exception", id: "exc_example" }, { type: "release_bundle", id: "bundle_example" }] }
       ],
+      customer_decision_export: { file: "vulnerability-decisions.json", schema_version: "customer-vulnerability-decisions.v1.0.0", decision_count: 1, scope: "package" },
       approvals: [{ id: "appr_example", subject_type: "release", decision: "approved", reason: "Release evidence package reviewed." }],
       exceptions: [],
       readiness_summary: {
@@ -579,10 +580,17 @@
 
     const renderRisk = (data) => {
       const decisions = safeArray(data.vulnerability_decisions);
+      const decisionExport = safeObject(data.customer_decision_export);
       const vexDocs = safeArray(data.vex_documents);
       const scans = safeArray(data.vulnerability_scans);
       const findings = safeArray(data.vulnerability_findings).concat(scans.flatMap((scan) => safeArray(scan.findings)));
       sectionHead(nodes.risk, "Vulnerability / VEX Decisions", String(decisions.length) + " active decisions");
+      if (Object.keys(decisionExport).length) {
+        const exportNote = document.createElement("p");
+        exportNote.className = "muted";
+        exportNote.textContent = "Package decision export: " + text(decisionExport.file) + " (" + text(decisionExport.schema_version) + ")";
+        nodes.risk.append(exportNote);
+      }
       const split = document.createElement("div");
       split.className = "split";
       const scanNode = document.createElement("div");

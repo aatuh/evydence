@@ -40,6 +40,7 @@ func TestSampleCustomerPackageManifestGolden(t *testing.T) {
 		"readiness_summary",
 		"verification_material",
 		"reviewer_checklist",
+		"customer_decision_export",
 		"limitations",
 		"non_claims",
 	} {
@@ -76,9 +77,13 @@ func TestSampleCustomerPackageManifestGolden(t *testing.T) {
 	if !ok {
 		t.Fatalf("manifest fixture decision is not an object: %#v", decisions[0])
 	}
-	for _, key := range []string{"reviewed_at", "review_due_at", "sbom_id", "sbom_component_purl", "sbom_component_name"} {
+	for _, key := range []string{"reviewed_at", "review_due_at", "sbom_id", "sbom_component_purl", "sbom_component_name", "supporting_refs"} {
 		if firstDecision[key] == "" || firstDecision[key] == nil {
 			t.Fatalf("manifest fixture decision missing %q: %#v", key, firstDecision)
 		}
+	}
+	export, ok := manifest["customer_decision_export"].(map[string]any)
+	if !ok || export["file"] != "vulnerability-decisions.json" || export["schema_version"] != "customer-vulnerability-decisions.v1.0.0" {
+		t.Fatalf("manifest fixture customer decision export missing expected metadata: %#v", manifest["customer_decision_export"])
 	}
 }
