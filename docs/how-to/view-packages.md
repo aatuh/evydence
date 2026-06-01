@@ -24,6 +24,12 @@ acceptance fields, but all access decisions must remain in the API. It must not
 expose raw evidence payloads, object-store paths, internal notes, token hashes,
 private keys, or customer data outside the scoped package.
 
+When the API is running, open `/v1/customer-portal/package/view` to use the
+server-backed review page. It accepts portal tokens only in form bodies, sets
+no-store browser cache headers, and renders the same scoped package data exposed
+by `POST /v1/customer-portal/package`. The page includes a separate ZIP
+download form so the token is never copied into the returned HTML or a URL.
+
 Open the file in a browser, then select a JSON package, readiness report,
 evidence bundle, or package manifest from disk. The viewer runs entirely in the
 browser and does not upload data. To inspect a non-sensitive fixture without

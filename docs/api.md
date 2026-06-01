@@ -452,6 +452,9 @@ Source snapshots capture submitted provider metadata. They do not call provider 
 | `POST` | `/v1/customer-portal/access/{id}/revoke` | Revoke an external reviewer access record. |
 | `POST` | `/v1/customer-portal/package` | Exchange package token for scoped manifest. |
 | `POST` | `/v1/customer-portal/package/download` | Exchange package token for scoped ZIP package download. |
+| `GET` | `/v1/customer-portal/package/view` | Render public token-entry page for scoped package review. |
+| `POST` | `/v1/customer-portal/package/view` | Exchange package token from a form body for scoped HTML package review. |
+| `POST` | `/v1/customer-portal/package/view/download` | Exchange package token from a form body for scoped ZIP package download. |
 | `POST` | `/v1/questionnaire-templates` | Create questionnaire template. |
 | `POST` | `/v1/questionnaire-packages` | Generate evidence-backed responses. |
 | `POST` | `/v1/questionnaire-drafts` | Create evidence-backed draft answers for review. |

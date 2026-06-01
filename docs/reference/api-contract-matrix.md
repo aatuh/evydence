@@ -3,7 +3,7 @@
 This generated reference inventories Evydence `/v1` route contract precision from `openapi.yaml`.
 It is a planning aid for production contract hardening; `broad` means the route still uses a shared envelope, unspecified body, or generic schema where an endpoint-specific contract should be considered.
 
-Generated from 183 operations: 183 precise, 0 broad.
+Generated from 186 operations: 186 precise, 0 broad.
 
 | Method | Path | Operation | Auth | Scopes | Idempotency | Params | Request | 2xx Response | Precision |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -52,6 +52,9 @@ Generated from 183 operations: 183 precise, 0 broad.
 | POST | /v1/customer-portal/access/{id}/revoke | revokeCustomerPortalAccess | Bearer | package:write | required | path:id | application/json:EmptyObject | 200:application/json:CustomerPortalAccessEnvelope | precise |
 | POST | /v1/customer-portal/package | accessCustomerPortalPackage | public | - | not required | - | application/json:CustomerPortalPackageRequest | 200:application/json:CustomerSecurityPackageEnvelope | precise |
 | POST | /v1/customer-portal/package/download | downloadCustomerPortalPackage | public | - | not required | - | application/json:CustomerPortalPackageRequest | 200:application/zip:string/binary | precise |
+| GET | /v1/customer-portal/package/view | customerPortalPackageViewForm | public | - | - | - | - | 200:text/html:string | precise |
+| POST | /v1/customer-portal/package/view | customerPortalPackageView | public | - | not required | - | application/x-www-form-urlencoded:CustomerPortalPackageRequest | 200:text/html:string | precise |
+| POST | /v1/customer-portal/package/view/download | downloadCustomerPortalPackageView | public | - | not required | - | application/x-www-form-urlencoded:CustomerPortalPackageRequest | 200:application/zip:string/binary | precise |
 | GET | /v1/deployments | listDeployments | Bearer | deployment:read | - | query:environment_id, query:release_id | - | 200:application/json:DeploymentEventListEnvelope | precise |
 | POST | /v1/deployments | recordDeployment | Bearer | deployment:write | required | - | application/json:RecordDeploymentRequest | 201:application/json:DeploymentEventEnvelope | precise |
 | GET | /v1/deployments/{id} | getDeployment | Bearer | deployment:read | - | path:id | - | 200:application/json:DeploymentEventEnvelope | precise |
