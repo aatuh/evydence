@@ -9,7 +9,7 @@ GOVULNCHECK_VERSION ?= v1.2.0
 
 TAG ?=
 
-.PHONY: help tools fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check meta-check docs-check deploy-check sdk-check demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check benchmark-check package-viewer-check restore-rehearsal-check fast-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
+.PHONY: help tools fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check meta-check docs-check deploy-check sdk-check demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check benchmark-check package-viewer-check marketing-site-check restore-rehearsal-check fast-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -416,6 +416,9 @@ package-viewer-check: ## Validate local package viewer and walkthrough
 	@grep -F 'Verification Status' docs/assets/reviewer-journey.svg >/dev/null
 	@grep -F 'Gaps' docs/assets/reviewer-journey.svg >/dev/null
 	@grep -F 'Limitations' docs/assets/reviewer-journey.svg >/dev/null
+
+marketing-site-check: ## Build and validate the static marketing site
+	@npm --prefix site/marketing run check
 
 restore-rehearsal-check: ## Run repository-owned backup/restore rehearsal tests
 	@$(GO) test ./internal/app -run TestBackupRestoreRehearsalPreservesLedgerAndObjectPayloads -count=1

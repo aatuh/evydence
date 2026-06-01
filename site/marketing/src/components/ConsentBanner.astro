@@ -1,0 +1,172 @@
+---
+import type { Locale } from "@data/site";
+
+type Copy = {
+  title: string;
+  body: string;
+  acceptAll: string;
+  rejectOptional: string;
+  note: string;
+};
+
+const copy: Record<Locale, Copy> = {
+  en: {
+    title: "Cookie choices",
+    body: "Evydence uses necessary local preferences for language and cookie choices. If you accept all, we also allow aggregate site measurement.",
+    acceptAll: "Accept all",
+    rejectOptional: "Reject optional",
+    note: "You can change this choice from Cookie preferences in the footer."
+  },
+  fi: {
+    title: "Evästevalinnat",
+    body: "Evydence käyttää välttämättömiä paikallisia asetuksia kieleen ja evästevalintoihin. Jos hyväksyt kaikki, sallimme myös kootun sivustomittauksen.",
+    acceptAll: "Hyväksy kaikki",
+    rejectOptional: "Hylkää valinnaiset",
+    note: "Voit muuttaa valintaa alatunnisteen evästeasetuksista."
+  }
+};
+
+const { locale } = Astro.props as { locale: Locale };
+const text = copy[locale];
+const measurementId = import.meta.env.PUBLIC_GA_MEASUREMENT_ID ?? "";
+---
+
+<div
+  class="consent"
+  id="cookie-consent"
+  data-measurement-id={measurementId}
+  data-locale={locale}
+  role="dialog"
+  aria-modal="false"
+  aria-labelledby="cookie-consent-title"
+  hidden
+>
+  <div class="consent__content">
+    <div>
+      <h2 id="cookie-consent-title">{text.title}</h2>
+      <p>{text.body}</p>
+      <p class="consent__note">{text.note}</p>
+    </div>
+    <div class="consent__actions">
+      <button type="button" class="button button--solid" data-consent-accept-all>{text.acceptAll}</button>
+      <button type="button" class="button button--ghost" data-consent-reject-optional>{text.rejectOptional}</button>
+    </div>
+  </div>
+</div>
+
+<script is:inline>
+  (() => {
+    const STORAGE_KEY = "evydence:cookie-consent:v1";
+    const CONSENT_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 180;
+    const banner = document.getElementById("cookie-consent");
+    if (!banner) return;
+
+    const measurementId = banner.getAttribute("data-measurement-id") || "";
+    const acceptAllButton = banner.querySelector("[data-consent-accept-all]");
+    const rejectOptionalButton = banner.querySelector("[data-consent-reject-optional]");
+
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = window.gtag || function gtag(){ window.dataLayer.push(arguments); };
+    window.gtag("consent", "default", {
+      ad_storage: "denied",
+      analytics_storage: "denied",
+      ad_user_data: "denied",
+      ad_personalization: "denied"
+    });
+
+    const readConsent = () => {
+      try {
+        const raw = window.localStorage.getItem(STORAGE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || parsed.expiresAt < Date.now()) return null;
+        return parsed;
+      } catch {
+        return null;
+      }
+    };
+
+    const writeConsent = (optional) => {
+      const record = {
+        optional: Boolean(optional),
+        analytics: Boolean(optional),
+        savedAt: Date.now(),
+        expiresAt: Date.now() + CONSENT_MAX_AGE_MS
+      };
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(record));
+      return record;
+    };
+
+    const updateConsent = (analytics) => {
+      window.gtag("consent", "update", {
+        analytics_storage: analytics ? "granted" : "denied",
+        ad_storage: "denied",
+        ad_user_data: "denied",
+        ad_personalization: "denied"
+      });
+    };
+
+    const trackEvents = () => {
+      document.querySelectorAll("[data-track]").forEach((element) => {
+        element.addEventListener("click", () => {
+          if (!window.gtag || !window.evydenceAnalyticsReady) return;
+          window.gtag("event", element.getAttribute("data-track") || "site_click", {
+            link_url: element.getAttribute("href") || "",
+            event_category: "marketing_site"
+          });
+        });
+      });
+    };
+
+    const loadAnalytics = () => {
+      if (!measurementId || window.evydenceAnalyticsReady) return;
+      const script = document.createElement("script");
+      script.async = true;
+      script.src = "https://www.googletagmanager.com/gtag/js?id=" + encodeURIComponent(measurementId);
+      script.addEventListener("load", () => {
+        window.gtag("js", new Date());
+        window.gtag("config", measurementId, {
+          anonymize_ip: true,
+          send_page_view: true
+        });
+        window.evydenceAnalyticsReady = true;
+        trackEvents();
+      });
+      document.head.appendChild(script);
+    };
+
+    const hideBanner = () => {
+      banner.setAttribute("hidden", "");
+    };
+
+    const showBanner = () => {
+      banner.removeAttribute("hidden");
+      if (acceptAllButton instanceof HTMLElement) acceptAllButton.focus();
+    };
+
+    const save = (analytics) => {
+      writeConsent(analytics);
+      updateConsent(analytics);
+      if (analytics) loadAnalytics();
+      hideBanner();
+    };
+
+    acceptAllButton?.addEventListener("click", () => save(true));
+    rejectOptionalButton?.addEventListener("click", () => save(false));
+
+    document.querySelectorAll("[data-cookie-preferences]").forEach((button) => {
+      button.addEventListener("click", () => {
+        showBanner();
+      });
+    });
+
+    const existing = readConsent();
+    if (!existing) {
+      showBanner();
+      return;
+    }
+    const existingOptional = Boolean(existing.optional ?? existing.analytics);
+    updateConsent(existingOptional);
+    if (existingOptional) loadAnalytics();
+  })();
+</script>

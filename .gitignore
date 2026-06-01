@@ -11,6 +11,7 @@ coverage.out
 bin/
 dist/
 tmp/
+node_modules/
 release-evidence/
 backups/
 __pycache__/

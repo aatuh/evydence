@@ -1,0 +1,15 @@
+---
+import { staticPages } from "@data/site";
+import MarketingPage from "@templates/MarketingPage.astro";
+
+export function getStaticPaths() {
+  return staticPages().map(({ slug, locale, pageKey }) => ({
+    params: { slug },
+    props: { locale, pageKey }
+  }));
+}
+
+const { locale, pageKey } = Astro.props;
+---
+
+<MarketingPage locale={locale} pageKey={pageKey} />

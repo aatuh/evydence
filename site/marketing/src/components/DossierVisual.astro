@@ -1,0 +1,27 @@
+---
+const items = [
+  ["01", "Artifact digest"],
+  ["02", "SBOM inventory"],
+  ["03", "Vulnerability decision"],
+  ["04", "Signed package"]
+];
+---
+
+<figure class="dossier" aria-label="Release evidence dossier preview">
+  <div class="dossier__header">
+    <span>Release dossier</span>
+    <strong>verify-ready</strong>
+  </div>
+  <div class="dossier__chain">
+    {items.map(([number, label]) => (
+      <div class="dossier__item">
+        <span>{number}</span>
+        <p>{label}</p>
+      </div>
+    ))}
+  </div>
+  <div class="dossier__footer">
+    <span>hash</span>
+    <code>sha256:linked-evidence</code>
+  </div>
+</figure>
