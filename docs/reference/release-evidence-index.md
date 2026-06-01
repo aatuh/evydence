@@ -38,15 +38,15 @@ under `dist/<tag>/` after `make production-check` passes.
 ## Current Public Release Candidate
 
 The current public release candidate is
-[`v0.1.0-rc.4`](https://github.com/aatuh/evydence/releases/tag/v0.1.0-rc.4).
-It was built from tag `v0.1.0-rc.4` at commit
-`944c4c6694535f6fc23a2b272e58347217321672`; the public Release Artifacts
+[`v0.1.0-rc.5`](https://github.com/aatuh/evydence/releases/tag/v0.1.0-rc.5).
+It was built from tag `v0.1.0-rc.5` at commit
+`d5098c635ee7b171dac3a449ba7ca2e30d8b0c16`; the public Release Artifacts
 workflow run is
-[`26719422897`](https://github.com/aatuh/evydence/actions/runs/26719422897).
+[`26752006813`](https://github.com/aatuh/evydence/actions/runs/26752006813).
 The release commit also has a public CI `Production Check` run
-[`26719406847`](https://github.com/aatuh/evydence/actions/runs/26719406847)
+[`26748345740`](https://github.com/aatuh/evydence/actions/runs/26748345740)
 and CodeQL run
-[`26719406836`](https://github.com/aatuh/evydence/actions/runs/26719406836).
+[`26748345664`](https://github.com/aatuh/evydence/actions/runs/26748345664).
 
 The public prerelease includes release archives for Linux, macOS, and Windows;
 `SHA256SUMS`; `openapi.yaml`; `openapi.sha256`; `migrations.sha256`;
@@ -60,24 +60,24 @@ The public prerelease includes release archives for Linux, macOS, and Windows;
 container image.
 
 The current project-owned container image is
-`ghcr.io/aatuh/evydence:v0.1.0-rc.4@sha256:de5627ec300cb603c3f1dc21029bffc096d43399114888cd5c194e00f1285603`.
+`ghcr.io/aatuh/evydence:v0.1.0-rc.5@sha256:38188044a3e5ded3c6094564ab39ce989185f65e22cf4296985ec19ba0eb1888`.
 It was produced by the Container Image workflow run
-[`26721113041`](https://github.com/aatuh/evydence/actions/runs/26721113041)
-from release source commit `944c4c6694535f6fc23a2b272e58347217321672`.
+[`26752805538`](https://github.com/aatuh/evydence/actions/runs/26752805538)
+from release source commit `d5098c635ee7b171dac3a449ba7ca2e30d8b0c16`.
 
 ## Local Verification
 
 After packaging, verify the evidence directory before publishing:
 
 ```sh
-gh release download v0.1.0-rc.4 --repo aatuh/evydence --dir dist/v0.1.0-rc.4
-(cd dist/v0.1.0-rc.4 && sha256sum -c SHA256SUMS)
-(cd dist/v0.1.0-rc.4 && sha256sum -c openapi.sha256)
-sha256sum -c dist/v0.1.0-rc.4/migrations.sha256
-tar -C dist/v0.1.0-rc.4 -xzf dist/v0.1.0-rc.4/evydence_v0.1.0-rc.4_linux_amd64.tar.gz
-./dist/v0.1.0-rc.4/evydence_v0.1.0-rc.4_linux_amd64/evydence release verify \
-  --manifest dist/v0.1.0-rc.4/evydence-release-manifest.json \
-  --signature dist/v0.1.0-rc.4/evydence-release-manifest.sig.json
+gh release download v0.1.0-rc.5 --repo aatuh/evydence --dir dist/v0.1.0-rc.5
+(cd dist/v0.1.0-rc.5 && sha256sum -c SHA256SUMS)
+(cd dist/v0.1.0-rc.5 && sha256sum -c openapi.sha256)
+sha256sum -c dist/v0.1.0-rc.5/migrations.sha256
+tar -C dist/v0.1.0-rc.5 -xzf dist/v0.1.0-rc.5/evydence_v0.1.0-rc.5_linux_amd64.tar.gz
+./dist/v0.1.0-rc.5/evydence_v0.1.0-rc.5_linux_amd64/evydence release verify \
+  --manifest dist/v0.1.0-rc.5/evydence-release-manifest.json \
+  --signature dist/v0.1.0-rc.5/evydence-release-manifest.sig.json
 ```
 
 Use the platform-specific `evydence` binary from the release archive whenever
@@ -88,7 +88,7 @@ To verify the already-published public release from a clean temporary directory,
 run:
 
 ```sh
-make public-release-verify TAG=v0.1.0-rc.4
+make public-release-verify TAG=v0.1.0-rc.5
 ```
 
 The helper downloads the release assets with `gh`, checks the public checksums,
@@ -98,16 +98,16 @@ and verifies the signed manifest with that released binary.
 To verify the public container image digest and workflow identity, run:
 
 ```sh
-docker buildx imagetools inspect ghcr.io/aatuh/evydence:v0.1.0-rc.4 \
+docker buildx imagetools inspect ghcr.io/aatuh/evydence:v0.1.0-rc.5 \
   --format '{{json .Manifest.Digest}}'
 cosign verify \
   --certificate-identity-regexp 'https://github.com/aatuh/evydence/.github/workflows/container-image.yml@.*' \
   --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
-  ghcr.io/aatuh/evydence@sha256:de5627ec300cb603c3f1dc21029bffc096d43399114888cd5c194e00f1285603
+  ghcr.io/aatuh/evydence@sha256:38188044a3e5ded3c6094564ab39ce989185f65e22cf4296985ec19ba0eb1888
 ```
 
 Expected digest:
-`sha256:de5627ec300cb603c3f1dc21029bffc096d43399114888cd5c194e00f1285603`.
+`sha256:38188044a3e5ded3c6094564ab39ce989185f65e22cf4296985ec19ba0eb1888`.
 The cosign verification proves the configured workflow identity signed the
 image digest; it is not legal compliance proof, certification, complete SBOM
 proof, authoritative vulnerability coverage, or a secure-release guarantee.

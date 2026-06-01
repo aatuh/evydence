@@ -4,13 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Git ref to build, such as v0.1.0-rc.4"
+        description: "Git ref to build, such as v0.1.0-rc.5"
         required: true
-        default: "v0.1.0-rc.4"
+        default: "v0.1.0-rc.5"
       image_tag:
         description: "OCI tag to publish"
         required: true
-        default: "v0.1.0-rc.4"
+        default: "v0.1.0-rc.5"
 
 permissions:
   contents: read
