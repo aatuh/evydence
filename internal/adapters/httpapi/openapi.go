@@ -1966,6 +1966,8 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"warnings":             map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 		"invalid_statements":   map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/VEXImportIssue"}},
 		"mapping_failures":     map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/VEXImportIssue"}},
+		"failure_code":         map[string]any{"type": "string"},
+		"failure_detail":       map[string]any{"type": "string"},
 		"schema_version":       map[string]any{"type": "string"},
 		"created_at":           map[string]any{"type": "string", "format": "date-time"},
 		"updated_at":           map[string]any{"type": "string", "format": "date-time"},

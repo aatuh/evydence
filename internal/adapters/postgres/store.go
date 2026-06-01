@@ -1123,7 +1123,7 @@ func (s *Store) loadRelationalRiskDecisions(ctx context.Context, state *app.Pers
 		SELECT id, tenant_id, vex_document_id, evidence_id, release_id, artifact_id,
 		       parser_version, status, statement_count, decisions_created,
 		       decisions_superseded, unsupported_fields, warnings, invalid_statements,
-		       mapping_failures, schema_version, created_at, updated_at
+		       mapping_failures, failure_code, failure_detail, schema_version, created_at, updated_at
 		FROM vex_import_reports
 	`)
 	if err != nil {
@@ -1138,7 +1138,7 @@ func (s *Store) loadRelationalRiskDecisions(ctx context.Context, state *app.Pers
 			&report.ID, &report.TenantID, &report.VEXDocumentID, &report.EvidenceID, &releaseID, &artifactID,
 			&report.ParserVersion, &report.Status, &report.StatementCount, &report.DecisionsCreated,
 			&report.DecisionsSuperseded, &report.UnsupportedFields, &warnings, &invalidStatements,
-			&mappingFailures, &report.SchemaVersion, &report.CreatedAt, &report.UpdatedAt,
+			&mappingFailures, &report.FailureCode, &report.FailureDetail, &report.SchemaVersion, &report.CreatedAt, &report.UpdatedAt,
 		); err != nil {
 			return fmt.Errorf("scan relational vex import report: %w", err)
 		}
@@ -3280,13 +3280,13 @@ func syncRiskBuildControlRows(ctx context.Context, tx pgx.Tx, state app.Persiste
 				id, tenant_id, vex_document_id, evidence_id, release_id, artifact_id,
 				parser_version, status, statement_count, decisions_created,
 				decisions_superseded, unsupported_fields, warnings, invalid_statements,
-				mapping_failures, schema_version, created_at, updated_at
+				mapping_failures, failure_code, failure_detail, schema_version, created_at, updated_at
 			)
 			VALUES (
 				$1, $2, $3, $4, $5, $6,
 				$7, $8, $9, $10,
 				$11, $12, $13, $14,
-				$15, $16, $17, $18
+				$15, $16, $17, $18, $19, $20
 			)
 			ON CONFLICT (id) DO UPDATE SET
 				status = EXCLUDED.status,
@@ -3297,11 +3297,13 @@ func syncRiskBuildControlRows(ctx context.Context, tx pgx.Tx, state app.Persiste
 				warnings = EXCLUDED.warnings,
 				invalid_statements = EXCLUDED.invalid_statements,
 				mapping_failures = EXCLUDED.mapping_failures,
+				failure_code = EXCLUDED.failure_code,
+				failure_detail = EXCLUDED.failure_detail,
 				updated_at = EXCLUDED.updated_at
 		`, report.ID, report.TenantID, report.VEXDocumentID, report.EvidenceID, nullableString(report.ReleaseID), nullableString(report.ArtifactID),
 			report.ParserVersion, report.Status, report.StatementCount, report.DecisionsCreated,
 			report.DecisionsSuperseded, textArray(report.UnsupportedFields), warnings, invalidStatements,
-			mappingFailures, report.SchemaVersion, nonZeroTime(report.CreatedAt), nonZeroTime(report.UpdatedAt)); err != nil {
+			mappingFailures, report.FailureCode, report.FailureDetail, report.SchemaVersion, nonZeroTime(report.CreatedAt), nonZeroTime(report.UpdatedAt)); err != nil {
 			return fmt.Errorf("upsert vex import report row: %w", err)
 		}
 	}

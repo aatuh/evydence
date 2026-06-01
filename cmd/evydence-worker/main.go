@@ -163,6 +163,7 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 	if requireObjectReplay {
 		object, ok, err := verifyJobObject(ctx, objects, job)
 		if err != nil {
+			recordVEXImportReportFailure(ctx, state, job, err)
 			return err
 		}
 		replayed, hasReplayedObject = object, ok
@@ -175,6 +176,11 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 		return errors.New("durable state is not initialized")
 	}
 	if err := requireParserVersion(job); err != nil {
+		if job.Kind == "parse_vex" {
+			if vex, ok := snapshot.VEXDocuments[job.SubjectID]; ok && vex.TenantID == job.TenantID {
+				return failVEXImportReportWithSnapshot(ctx, state, &snapshot, job, vex, err)
+			}
+		}
 		return err
 	}
 	stateChanged := false
@@ -250,10 +256,10 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 		if hasReplayedObject {
 			parsed, err := parseReplayedVEX(replayed.Bytes)
 			if err != nil {
-				return err
+				return failVEXImportReportWithSnapshot(ctx, state, &snapshot, job, vex, err)
 			}
 			if err := verifyReplayedVEX(parsed, vex); err != nil {
-				return err
+				return failVEXImportReportWithSnapshot(ctx, state, &snapshot, job, vex, err)
 			}
 			if updated, changed := mergeReplayedVEX(vex, parsed); changed {
 				snapshot.VEXDocuments[job.SubjectID] = updated
@@ -262,7 +268,7 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 			if payloadBool(job, "worker_create_decisions") {
 				created, superseded, mappingFailures, err := applyReplayedVEXDecisions(&snapshot, job, vex, parsed, replayed.Digest)
 				if err != nil {
-					return err
+					return failVEXImportReportWithSnapshot(ctx, state, &snapshot, job, vex, err)
 				}
 				if created > 0 {
 					stateChanged = true
@@ -325,19 +331,24 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 		return errors.New("unsupported outbox job kind")
 	}
 	if stateChanged {
-		if focused, ok := state.(jobReleaseLedgerMutationStore); ok && releaseLedgerParserJob(job.Kind) {
-			if err := focused.ApplyReleaseLedgerMutation(ctx, app.ReleaseLedgerMutationFromState(snapshot)); err != nil {
-				return errors.New("persist durable parser side effects")
-			}
-			return nil
-		}
-		stateStore, ok := state.(jobStateStore)
-		if !ok {
-			return errors.New("durable parser side effects require writable state")
-		}
-		if err := stateStore.SaveState(ctx, snapshot); err != nil {
+		return persistParserSideEffects(ctx, state, snapshot, job.Kind)
+	}
+	return nil
+}
+
+func persistParserSideEffects(ctx context.Context, state jobStateLoader, snapshot app.PersistedState, kind string) error {
+	if focused, ok := state.(jobReleaseLedgerMutationStore); ok && releaseLedgerParserJob(kind) {
+		if err := focused.ApplyReleaseLedgerMutation(ctx, app.ReleaseLedgerMutationFromState(snapshot)); err != nil {
 			return errors.New("persist durable parser side effects")
 		}
+		return nil
+	}
+	stateStore, ok := state.(jobStateStore)
+	if !ok {
+		return errors.New("durable parser side effects require writable state")
+	}
+	if err := stateStore.SaveState(ctx, snapshot); err != nil {
+		return errors.New("persist durable parser side effects")
 	}
 	return nil
 }
@@ -967,6 +978,11 @@ func updateVEXImportReport(state *app.PersistedState, job postgres.ClaimedJob, v
 		updated.Status = "parsed"
 		changed = true
 	}
+	if updated.FailureCode != "" || updated.FailureDetail != "" {
+		updated.FailureCode = ""
+		updated.FailureDetail = ""
+		changed = true
+	}
 	if updated.StatementCount != parsed.StatementCount {
 		updated.StatementCount = parsed.StatementCount
 		changed = true
@@ -993,6 +1009,131 @@ func updateVEXImportReport(state *app.PersistedState, job postgres.ClaimedJob, v
 	updated.UpdatedAt = time.Now().UTC()
 	state.VEXImportReports[reportID] = updated
 	return true
+}
+
+func failVEXImportReportWithSnapshot(ctx context.Context, state jobStateLoader, snapshot *app.PersistedState, job postgres.ClaimedJob, vex domain.VEXDocument, cause error) error {
+	if updateVEXImportReportFailure(snapshot, job, vex, cause) {
+		if err := persistParserSideEffects(ctx, state, *snapshot, job.Kind); err != nil {
+			return err
+		}
+	}
+	return cause
+}
+
+func recordVEXImportReportFailure(ctx context.Context, state jobStateLoader, job postgres.ClaimedJob, cause error) {
+	if job.Kind != "parse_vex" || state == nil {
+		return
+	}
+	snapshot, ok, err := state.LoadState(ctx)
+	if err != nil || !ok {
+		return
+	}
+	vex, ok := snapshot.VEXDocuments[job.SubjectID]
+	if !ok || vex.TenantID != job.TenantID {
+		return
+	}
+	if !updateVEXImportReportFailure(&snapshot, job, vex, cause) {
+		return
+	}
+	_ = persistParserSideEffects(ctx, state, snapshot, job.Kind)
+}
+
+func updateVEXImportReportFailure(state *app.PersistedState, job postgres.ClaimedJob, vex domain.VEXDocument, cause error) bool {
+	reportID := payloadString(job, "import_report_id")
+	if reportID == "" {
+		for id, report := range state.VEXImportReports {
+			if report.TenantID == job.TenantID && report.VEXDocumentID == vex.ID {
+				reportID = id
+				break
+			}
+		}
+	}
+	if reportID == "" {
+		return false
+	}
+	if state.VEXImportReports == nil {
+		state.VEXImportReports = map[string]domain.VEXImportReport{}
+	}
+	report, ok := state.VEXImportReports[reportID]
+	if !ok || report.TenantID != job.TenantID || report.VEXDocumentID != vex.ID {
+		return false
+	}
+	code := safeVEXParserFailureCode(cause)
+	detail := safeVEXParserFailureDetail(code)
+	updated := report
+	changed := false
+	if updated.Status != "failed" {
+		updated.Status = "failed"
+		changed = true
+	}
+	if updated.FailureCode != code {
+		updated.FailureCode = code
+		changed = true
+	}
+	if updated.FailureDetail != detail {
+		updated.FailureDetail = detail
+		changed = true
+	}
+	if updated.SchemaVersion == "" {
+		updated.SchemaVersion = domain.VEXImportReportSchemaVersion
+		changed = true
+	}
+	if !changed {
+		return false
+	}
+	updated.UpdatedAt = time.Now().UTC()
+	state.VEXImportReports[reportID] = updated
+	return true
+}
+
+func safeVEXParserFailureCode(cause error) string {
+	if cause == nil {
+		return "parser_failed"
+	}
+	message := cause.Error()
+	switch {
+	case strings.Contains(message, "read outbox payload object"):
+		return "payload_read_failed"
+	case strings.Contains(message, "tenant-prefixed"):
+		return "payload_ref_invalid"
+	case strings.Contains(message, "tenant mismatch"):
+		return "payload_tenant_mismatch"
+	case strings.Contains(message, "digest mismatch"), strings.Contains(message, "payload hash"):
+		return "payload_digest_mismatch"
+	case strings.Contains(message, "size limit"):
+		return "payload_too_large"
+	case strings.Contains(message, "unsupported outbox parser version"):
+		return "unsupported_parser_version"
+	case strings.Contains(message, "durable state"), strings.Contains(message, "not available"):
+		return "durable_state_mismatch"
+	case strings.Contains(message, "replayed vex payload is invalid"):
+		return "payload_invalid"
+	default:
+		return "parser_failed"
+	}
+}
+
+func safeVEXParserFailureDetail(code string) string {
+	switch code {
+	case "payload_read_failed":
+		return "The worker could not read the referenced VEX payload object."
+	case "payload_ref_invalid":
+		return "The VEX payload reference was not tenant-prefixed."
+	case "payload_tenant_mismatch":
+		return "The VEX payload object tenant did not match the job tenant."
+	case "payload_digest_mismatch":
+		return "The VEX payload digest did not match the expected digest."
+	case "payload_too_large":
+		return "The VEX payload exceeded the worker replay size limit."
+	case "unsupported_parser_version":
+		return "The VEX parser version is not supported by this worker."
+	case "durable_state_mismatch":
+		return "The replayed VEX payload did not match durable state for the job."
+	case "payload_invalid":
+		return "The VEX payload could not be parsed as a supported VEX document."
+	default:
+		return "The worker could not parse or verify the VEX payload."
+	}
 }
 
 func vexImportIssuesEqual(a, b []domain.VEXImportIssue) bool {
