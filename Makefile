@@ -134,6 +134,8 @@ release-truth-check: ## Validate current release metadata against public docs an
 docs-check: meta-check release-truth-check ## Validate canonical docs exist and avoid forbidden product claims
 	@test -f README.md
 	@test -f docs/README.md
+	@test -f docs/buyer-overview.md
+	@test -f docs/operator-overview.md
 	@test -f docs/architecture.md
 	@test -f docs/api.md
 	@test -f docs/operations.md
@@ -187,6 +189,8 @@ docs-check: meta-check release-truth-check ## Validate canonical docs exist and 
 		"tutorials/evaluate-in-10-minutes.md" \
 		"tutorials/customer-cve-review-demo.md" \
 		"tutorials/getting-started.md" \
+		"buyer-overview.md" \
+		"operator-overview.md" \
 		"how-to/install-and-operate.md" \
 		"how-to/view-packages.md" \
 		"how-to/review-customer-package.md" \
@@ -251,8 +255,12 @@ docs-check: meta-check release-truth-check ## Validate canonical docs exist and 
 	@grep -F 'Evaluate Evydence in 10 minutes' README.md docs/README.md >/dev/null
 	@grep -F 'Customer CVE review demo' README.md docs/README.md docs/tutorials/customer-cve-review-demo.md >/dev/null
 	@grep -F 'The core buyer question is' README.md >/dev/null
+	@grep -F 'Buyer evaluation overview' README.md docs/README.md >/dev/null
+	@grep -F 'Operator overview' README.md docs/README.md >/dev/null
 	@grep -F 'OpenAPI reference' README.md >/dev/null
 	@grep -F 'Install and operate' README.md >/dev/null
+	@grep -F 'Fastest Buyer Path' docs/buyer-overview.md >/dev/null
+	@grep -F 'Primary Operator Path' docs/operator-overview.md >/dev/null
 	@grep -F 'Capability map' README.md docs/README.md >/dev/null
 	@grep -F 'Production Check' README.md docs/reference/release-evidence-index.md >/dev/null
 	@grep -F 'coverage.out' README.md docs/reference/release-evidence-index.md >/dev/null

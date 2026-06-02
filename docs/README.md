@@ -4,6 +4,8 @@ This documentation is organized by reader task. Implementation claims should be 
 
 ## Start Here
 
+- [Buyer evaluation overview](buyer-overview.md): choose the package, demo, release-evidence, and API paths for customer-review evaluation.
+- [Operator overview](operator-overview.md): choose the install, configuration, deployment, runbook, and production-gate paths for self-hosting.
 - [Evaluate Evydence in 10 minutes](tutorials/evaluate-in-10-minutes.md): inspect the public release verifier, sample customer package, local package viewer, and VEX-first proof path.
 - [Customer CVE review demo](tutorials/customer-cve-review-demo.md): run the deterministic package-scope CVE answer without external services.
 - [Getting started](tutorials/getting-started.md): run the API locally and create a minimal release evidence flow.
