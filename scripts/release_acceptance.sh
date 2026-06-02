@@ -48,6 +48,8 @@ for file in \
   .github/pull_request_template.md \
   .github/workflows/codeql.yml \
   .github/workflows/container-image.yml \
+  release/current.json \
+  scripts/check_release_truth.py \
   README.md \
   docs/README.md \
   docs/reference/release-candidate.md \
@@ -146,6 +148,7 @@ require_text README.md "License, Security, Support, And Governance"
 require_text README.md "AGPL-3.0-only"
 require_text docs/README.md "Security policy"
 require_text docs/README.md "Release evidence"
+scripts/check_release_truth.py
 
 reject_text "automatically compliant"
 reject_text "certified secure"
