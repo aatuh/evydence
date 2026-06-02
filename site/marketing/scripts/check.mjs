@@ -48,6 +48,7 @@ const privacy = readFileSync(join(dist, "en/privacy-cookies/index.html"), "utf8"
 const cname = readFileSync(join(dist, "CNAME"), "utf8").trim();
 const consentSource = readFileSync(join(root, "src/components/ConsentBanner.astro"), "utf8");
 const layoutSource = readFileSync(join(root, "src/layouts/BaseLayout.astro"), "utf8");
+const templateSource = readFileSync(join(root, "src/templates/MarketingPage.astro"), "utf8");
 
 const requiredRoot = [
   'lang="en"',
@@ -70,7 +71,10 @@ const requiredEnglish = [
   'lang="en"',
   'hreflang="fi"',
   "Stop scrambling when customers ask for release security evidence.",
+  "Run the customer CVE review demo",
+  "One release, one SBOM finding, one decision, one package verifier.",
   "https://www.linkedin.com/in/aatu-harju",
+  "https://github.com/aatuh/evydence/tree/master/examples/customer-cve-review-demo",
   "Cookie preferences",
   "Evydence is not a legal compliance service"
 ];
@@ -85,6 +89,8 @@ const requiredFinnish = [
   'lang="fi"',
   'hreflang="en"',
   "Lopeta kiireinen selvittely",
+  "Aja asiakkaan CVE-katselmusdemo",
+  "Yksi julkaisu, yksi SBOM-löydös, yksi päätös ja paketin todennus.",
   "Evästeasetukset",
   "Evydence ei ole juridinen"
 ];
@@ -114,12 +120,13 @@ for (const text of consentChecks) {
 const layoutChecks = [
   "class=\"mobile-nav\"",
   "mobile-nav__panel",
-  "font-size: clamp(2.7rem, 5.4vw, 5.25rem)",
+  "font-size: clamp(2.55rem, 4.65vw, 4.65rem)",
   ".hero h1",
   "hyphens: none",
   "word-break: normal",
   ":lang(fi) h2",
   ":lang(fi) .section--split h2",
+  ".hero__demo",
   "font-size: 1.85rem",
   "overflow-wrap: anywhere",
   ".section--split > *",
@@ -131,6 +138,10 @@ for (const text of layoutChecks) {
   if (!layoutSource.includes(text)) {
     throw new Error(`Layout implementation missing: ${text}`);
   }
+}
+
+if (!templateSource.includes('data-track="demo_click"')) {
+  throw new Error('Marketing template missing demo click tracking marker');
 }
 
 for (const forbidden of [

@@ -17,6 +17,13 @@ const primaryAttrs = pageKey === "privacyCookies" ? { "data-cookie-preferences":
       {page.eyebrow && <p class="eyebrow">{page.eyebrow}</p>}
       <h1>{page.heroTitle}</h1>
       {page.heroBody.map((paragraph) => <p class="lede">{paragraph}</p>)}
+      {page.demoCta && page.demoHref && (
+        <p class="hero__demo">
+          {page.demoEyebrow && <span>{page.demoEyebrow}</span>}
+          <a href={page.demoHref} data-track="demo_click">{page.demoCta}</a>
+          {page.demoText && <small>{page.demoText}</small>}
+        </p>
+      )}
       <div class="hero__actions">
         <a class="button button--solid" href={primaryHref} {...primaryAttrs}>{page.primaryCta}</a>
         <a class="button button--ghost" href={externalLinks.github} data-track="github_click">{page.secondaryCta}</a>

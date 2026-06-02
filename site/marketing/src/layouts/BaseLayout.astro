@@ -377,12 +377,12 @@ const ui = {
   }
 
   h1 {
-    font-size: clamp(2.7rem, 5.4vw, 5.25rem);
+    font-size: clamp(2.55rem, 4.65vw, 4.65rem);
     hyphens: auto;
     line-height: 1.02;
     letter-spacing: 0;
     margin-bottom: 1.15rem;
-    max-width: 13.5ch;
+    max-width: 16.5ch;
     overflow-wrap: break-word;
   }
 
@@ -403,8 +403,8 @@ const ui = {
   }
 
   :lang(fi) h1 {
-    font-size: clamp(2.25rem, 3.9vw, 3.75rem);
-    max-width: 20ch;
+    font-size: clamp(2.15rem, 3.55vw, 3.45rem);
+    max-width: 22ch;
   }
 
   :lang(fi) h2 {
@@ -429,6 +429,37 @@ const ui = {
     flex-wrap: wrap;
     gap: 0.8rem;
     margin-top: 1.5rem;
+  }
+
+  .hero__demo {
+    align-items: center;
+    color: var(--muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem 0.65rem;
+    margin: 1.15rem 0 0;
+    max-width: 42rem;
+  }
+
+  .hero__demo span {
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--ink);
+    font-size: 0.78rem;
+    font-weight: 800;
+    padding: 0.2rem 0.55rem;
+    text-transform: uppercase;
+  }
+
+  .hero__demo a {
+    color: var(--accent-dark);
+    font-weight: 800;
+    text-decoration-thickness: 0.08em;
+    text-underline-offset: 0.22em;
+  }
+
+  .hero__demo small {
+    font-size: 0.94rem;
   }
 
   .section {
