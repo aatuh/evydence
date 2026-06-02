@@ -24,6 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      pages: write
     env:
       PUBLIC_SITE_URL: https://evydence.app
       PUBLIC_SITE_BASE: /
