@@ -19,6 +19,9 @@ artifact map and exact verification commands.
 | Production checks | Set `ENV=production`. | Rejects unsafe local defaults before API startup. |
 
 Configuration details live in [Configuration](../reference/configuration.md).
+For production planning, use `.production.env.example` as a deployment-secret
+checklist and translate it into your secret manager or Helm values; do not use
+local `.api.env.example` defaults for production.
 
 ## Install From The Public Release Candidate
 

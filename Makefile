@@ -139,6 +139,7 @@ release-truth-check: ## Validate current release metadata against public docs an
 
 docs-check: meta-check release-truth-check ## Validate canonical docs exist and avoid forbidden product claims
 	@test -f README.md
+	@test -f .production.env.example
 	@test -f docs/README.md
 	@test -f docs/buyer-overview.md
 	@test -f docs/operator-overview.md
@@ -307,6 +308,18 @@ docs-check: meta-check release-truth-check ## Validate canonical docs exist and 
 	@grep -F 'not legal compliance proof' docs/reference/stable-v0.1.0-exit-criteria.md >/dev/null
 	@grep -F 'make public-release-verify TAG=<v0.1.0-rc.N>' docs/reference/stable-v0.1.0-exit-criteria.md >/dev/null
 	@grep -F 'one API writer replica' docs/reference/stable-v0.1.0-exit-criteria.md >/dev/null
+	@grep -F '!.production.env.example' .gitignore >/dev/null
+	@grep -F 'ENV=production' .production.env.example >/dev/null
+	@grep -Fx 'EVYDENCE_DATABASE_URL=' .production.env.example >/dev/null
+	@grep -Fx 'EVYDENCE_API_KEY_PEPPER=' .production.env.example >/dev/null
+	@grep -F 'EVYDENCE_OBJECT_STORE=s3' .production.env.example >/dev/null
+	@grep -F 'EVYDENCE_SIGNING_KEY_MODE=external' .production.env.example >/dev/null
+	@grep -F 'EVYDENCE_RATE_LIMIT_REQUESTS_PER_MINUTE' .production.env.example >/dev/null
+	@grep -F 'EVYDENCE_PRINT_BOOTSTRAP_SECRET=false' .production.env.example >/dev/null
+	@! grep -F 'change-me' .production.env.example >/dev/null
+	@grep -F 'Telemetry and diagnostics' .production.env.example >/dev/null
+	@grep -F 'Do not export raw evidence payloads' .production.env.example >/dev/null
+	@grep -F '.production.env.example' docs/reference/configuration.md docs/how-to/install-and-operate.md docs/reference/hardened-reference-deployment.md >/dev/null
 	@grep -F 'single API writer replica' docs/reference/hardened-reference-deployment.md >/dev/null
 	@grep -F 'scalable worker replicas' docs/reference/hardened-reference-deployment.md >/dev/null
 	@grep -F 'external PostgreSQL' docs/reference/hardened-reference-deployment.md >/dev/null

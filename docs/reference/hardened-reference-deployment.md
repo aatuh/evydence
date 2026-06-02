@@ -42,6 +42,10 @@ provider, repo, and review responsibilities.
 For Kubernetes, start from `deploy/helm/evydence/values.yaml` and set an
 explicit image tag or digest. The chart intentionally defaults
 `api.replicas` to `1` and `api.writerMode` to `single`.
+Use `.production.env.example` as the environment-variable checklist when
+translating settings into Kubernetes Secrets or another secret manager; keep
+the empty secret fields empty in git and fill them only in the deployment
+system.
 
 ```sh
 helm upgrade --install evydence ./deploy/helm/evydence \

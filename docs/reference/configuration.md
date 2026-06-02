@@ -9,6 +9,7 @@ This is the canonical reference for current environment files and runtime variab
 | `.env.example` | `docker-compose.yml` | Local PostgreSQL and MinIO container credentials. | No |
 | `.api.env.example` | API, worker, migration command | Local API runtime settings, durable database URL, object storage mode, bootstrap tenant, and local secret printing. | No |
 | `.test.env.example` | Make targets for live PostgreSQL tests | `EVYDENCE_TEST_DATABASE_URL` and test-only API key pepper. | No |
+| `.production.env.example` | Operators translating config into deployment secrets | Production-mode variable checklist with empty secret fields, external object storage, single-writer API settings, rate limiting, signing profiles, and telemetry/diagnostic notes. | No |
 
 Copy examples to local untracked files when needed:
 
@@ -18,6 +19,12 @@ cp .test.env.example .test.env
 ```
 
 The example secrets are placeholders. Replace them before using shared or production-like infrastructure.
+
+For production planning, read `.production.env.example` as a checklist. It is
+not intended to be committed after filling values, and the empty required
+secret fields are deliberate so production startup fails until an operator
+supplies real values through a secret manager, Kubernetes Secret, sealed-secret
+process, or equivalent deployment control.
 
 ## Runtime Variables
 
