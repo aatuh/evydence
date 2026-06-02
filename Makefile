@@ -386,6 +386,11 @@ docs-check: meta-check release-truth-check persistence-decomposition-check rende
 	@grep -F 'Vulnerability scanners' docs/commercial/category-comparison.md >/dev/null
 	@grep -F 'SBOM inventory tools' docs/commercial/category-comparison.md >/dev/null
 	@grep -F 'Trust centers' docs/commercial/category-comparison.md >/dev/null
+	@grep -F 'Dependency-Track' docs/commercial/category-comparison.md README.md docs/README.md >/dev/null
+	@grep -F 'GUAC' docs/commercial/category-comparison.md README.md site/marketing/src/data/site.ts >/dev/null
+	@grep -F 'OpenVEX tooling' docs/commercial/category-comparison.md >/dev/null
+	@grep -F 'Vanta, Drata' docs/commercial/category-comparison.md README.md site/marketing/src/data/site.ts >/dev/null
+	@grep -F 'Internal scripts, spreadsheets, object storage, and ad hoc databases' docs/commercial/category-comparison.md >/dev/null
 	@grep -F 'release upload-evidence' docs/how-to/integrate-ci.md >/dev/null
 	@grep -F 'Tool-specific integration templates' docs/README.md docs/how-to/integrate-ci.md docs/integrations/tool-templates.md >/dev/null
 	@grep -F 'syft dir:.' docs/integrations/tool-templates.md >/dev/null

@@ -45,6 +45,8 @@ for (const file of requiredFiles) {
 const rootPage = readFileSync(join(dist, "index.html"), "utf8");
 const english = readFileSync(join(dist, "en/index.html"), "utf8");
 const finnish = readFileSync(join(dist, "fi/index.html"), "utf8");
+const productEnglish = readFileSync(join(dist, "en/product/index.html"), "utf8");
+const productFinnish = readFileSync(join(dist, "fi/tuote/index.html"), "utf8");
 const commercialEnglish = readFileSync(join(dist, "en/commercial/index.html"), "utf8");
 const commercialFinnish = readFileSync(join(dist, "fi/kaupallinen/index.html"), "utf8");
 const privacy = readFileSync(join(dist, "en/privacy-cookies/index.html"), "utf8");
@@ -104,6 +106,36 @@ const requiredFinnish = [
 for (const text of requiredFinnish) {
   if (!finnish.includes(text)) {
     throw new Error(`Finnish homepage missing: ${text}`);
+  }
+}
+
+const requiredProductEnglish = [
+  "Different from adjacent tools",
+  "Dependency-Track and SBOM inventory",
+  "GUAC-style supply-chain graph tools",
+  "OpenVEX tooling",
+  "Vanta, Drata, and broad GRC",
+  "Scanners and internal scripts"
+];
+
+for (const text of requiredProductEnglish) {
+  if (!productEnglish.includes(text)) {
+    throw new Error(`English product page missing: ${text}`);
+  }
+}
+
+const requiredProductFinnish = [
+  "Ero viereisiin työkaluihin",
+  "Dependency-Track ja SBOM-inventaario",
+  "GUAC-tyyliset supply-chain-graafityökalut",
+  "OpenVEX-työkalut",
+  "Vanta, Drata ja laaja GRC",
+  "Skannerit ja sisäiset skriptit"
+];
+
+for (const text of requiredProductFinnish) {
+  if (!productFinnish.includes(text)) {
+    throw new Error(`Finnish product page missing: ${text}`);
   }
 }
 

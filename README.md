@@ -161,6 +161,12 @@ does not upload files.
 - Dependency-Track and vulnerability-management tools are strong for SBOM and
   finding workflows; Evydence focuses on release-level evidence, decisions,
   bundles, audit chains, controls, customer packages, and review limitations.
+- GUAC-style supply-chain graph tools are strong for relationship exploration;
+  Evydence focuses on release manifests, verification receipts, and
+  reviewer-facing package evidence.
+- OpenVEX-focused tooling is strong for authoring or consuming VEX statements;
+  Evydence stores VEX as evidence and links normalized decisions to releases,
+  scans, SBOM context, exceptions, and customer-safe packages.
 - Vanta, Drata, and similar SaaS GRC tools are broad compliance platforms;
   Evydence is a self-hosted technical evidence ledger and does not claim legal
   compliance or certification.
