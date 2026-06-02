@@ -575,6 +575,11 @@ package-viewer-check: ## Validate local package viewer and walkthrough
 	@grep -F 'Package verification result' site/package-viewer/index.html >/dev/null
 	@grep -F 'Offline verification instructions' site/package-viewer/index.html >/dev/null
 	@grep -F 'evydence package verify' site/package-viewer/index.html docs/how-to/view-packages.md >/dev/null
+	@grep -F 'Manifest Summary And Proof' site/package-viewer/index.html docs/how-to/view-packages.md >/dev/null
+	@grep -F 'Evidence Link Status' site/package-viewer/index.html docs/how-to/view-packages.md >/dev/null
+	@grep -F 'Package Verification Result' site/package-viewer/index.html >/dev/null
+	@grep -F 'Signed release bundle material' site/package-viewer/index.html docs/how-to/view-packages.md >/dev/null
+	@grep -F 'limitation/non-claim copy' docs/how-to/view-packages.md >/dev/null
 	@grep -F 'Vulnerability / VEX Decisions' site/package-viewer/index.html >/dev/null
 	@grep -F 'Verification Status' site/package-viewer/index.html >/dev/null
 	@grep -F 'Reviewer checklist' site/package-viewer/index.html >/dev/null
