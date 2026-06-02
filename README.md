@@ -14,6 +14,18 @@ questions with signed, customer-safe release evidence bundles.
 
 Website: <https://evydence.app>
 
+## Current Status
+
+- Best for: evaluation, pilots, and controlled internal self-hosted use after operator review.
+- Not for: broad HA production, regulated production without review, hosted SaaS, or legal/compliance conclusions.
+- Current public release candidate metadata is tracked in
+  [`release/current.json`](release/current.json); GitHub Releases remains the
+  external source of truth for published tags and assets.
+- See [Production readiness](docs/reference/production-readiness.md),
+  [Pilot deployment checklist](docs/how-to/pilot-deployment-checklist.md), and
+  [Release evidence index](docs/reference/release-evidence-index.md) before
+  running beyond local evaluation.
+
 The concrete buyer question is: "This CVE appears in your SBOM for this
 release. Are you affected, why or why not, who approved that decision, and what
 evidence can we verify?" Evydence records the SBOM, vulnerability scan, VEX or
@@ -64,7 +76,7 @@ objects instead of unsupported prose:
 
 This repository contains a Go implementation under module
 `github.com/aatuh/evydence`. The current public release candidate is
-[`v0.1.0-rc.5`](https://github.com/aatuh/evydence/releases/tag/v0.1.0-rc.5),
+[`v0.1.0-rc.7`](https://github.com/aatuh/evydence/releases/tag/v0.1.0-rc.7),
 published as a prerelease with signed archives, checksums, OpenAPI and
 migration checksums, coverage output, production-check summary, SBOM/provenance
 metadata, release notes, and a signed release manifest.
@@ -76,9 +88,10 @@ development path.
 Container images for the release-candidate line are published, when the
 maintainer image workflow has run for the tag, as
 `ghcr.io/aatuh/evydence:<tag>`. Treat the digest and cosign evidence as the
-operator trust input, not the mutable tag alone.
-For `v0.1.0-rc.5`, the published image is
-`ghcr.io/aatuh/evydence:v0.1.0-rc.5@sha256:38188044a3e5ded3c6094564ab39ce989185f65e22cf4296985ec19ba0eb1888`.
+operator trust input, not the mutable tag alone. The current public release
+candidate metadata distinguishes release archive evidence from the last
+verified project-owned image evidence because image publication is a separate
+workflow.
 
 ## Fastest Proof Path
 
@@ -102,14 +115,14 @@ package in the [local package viewer](docs/how-to/view-packages.md).
 
 Release-candidate artifacts and their verification commands are indexed in
 [Release evidence index](docs/reference/release-evidence-index.md). Start with
-the public `v0.1.0-rc.5` release if you want to evaluate release verification
+the public `v0.1.0-rc.7` release if you want to evaluate release verification
 before running the API.
 
 To verify the public release assets from a clean temporary directory on Linux
 amd64, run:
 
 ```sh
-make public-release-verify TAG=v0.1.0-rc.5
+make public-release-verify TAG=v0.1.0-rc.7
 ```
 
 The VEX-first evidence flow to evaluate first is:
