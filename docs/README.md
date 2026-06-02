@@ -46,6 +46,7 @@ This documentation is organized by reader task. Implementation claims should be 
 - [Production exit review](reference/production-exit-review.md): current release-positioning decision and unresolved blockers.
 - [Stable v0.1.0 exit criteria](reference/stable-v0.1.0-exit-criteria.md): criteria for moving from release candidate to a stable `v0.1.0` tag.
 - [Hardened reference deployment](reference/hardened-reference-deployment.md): controlled self-hosted topology with external PostgreSQL, object storage, TLS, secrets, backups, monitoring, and signing.
+- [HA strategy](reference/ha-strategy.md): single-writer API decision, worker scaling stance, recovery boundaries, and multi-writer prerequisites.
 - [External controls matrix](reference/external-controls-matrix.md): owner boundaries for regulated or high-trust self-hosted deployments.
 - [Production gate troubleshooting](reference/production-gate-troubleshooting.md): safe diagnostics for `make production-check` failures.
 - [Upgrade and compatibility policy](reference/upgrade-compatibility-policy.md): supported upgrade paths, migration expectations, and API compatibility rules.

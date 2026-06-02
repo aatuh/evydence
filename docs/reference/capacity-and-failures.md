@@ -33,6 +33,7 @@ The multi-writer backlog remains technical hardening work: finish focused
 repository decomposition, add optimistic concurrency or transaction-scoped
 resource locks where needed, test concurrent writes per resource family, and
 re-run the production exit review before changing the supported HA claim.
+The detailed decision record is [HA strategy](ha-strategy.md).
 
 ## Practical Sizing Inputs
 

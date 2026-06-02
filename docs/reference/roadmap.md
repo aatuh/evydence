@@ -13,7 +13,7 @@ replicas through PostgreSQL outbox locking. Multi-writer API high availability
 is not part of the current supported profile. This single-writer stance is
 acceptable for the current controlled self-hosted release line; multi-writer API
 HA becomes a blocker before any future broad production-ready or hosted SaaS
-status.
+status. See [HA strategy](ha-strategy.md) for the decision record.
 
 ## Near-Term Focus
 
