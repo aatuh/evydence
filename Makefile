@@ -180,6 +180,7 @@ docs-check: meta-check release-truth-check persistence-decomposition-check rende
 	@test -f docs/reference/capacity-and-failures.md
 	@test -f docs/reference/benchmark-results.md
 	@test -f docs/reference/production-readiness.md
+	@test -f docs/reference/production-readiness-traceability.md
 	@test -f docs/reference/persistence-decomposition.md
 	@test -f docs/reference/production-exit-review.md
 	@test -f docs/reference/stable-v0.1.0-exit-criteria.md
@@ -239,9 +240,10 @@ docs-check: meta-check release-truth-check persistence-decomposition-check rende
 		"reference/vulnerability-decisions.md" \
 		"reference/observability.md" \
 		"reference/capacity-and-failures.md" \
-		"reference/benchmark-results.md" \
-		"reference/production-readiness.md" \
-		"reference/persistence-decomposition.md" \
+			"reference/benchmark-results.md" \
+			"reference/production-readiness.md" \
+			"reference/production-readiness-traceability.md" \
+			"reference/persistence-decomposition.md" \
 		"reference/production-exit-review.md" \
 		"reference/stable-v0.1.0-exit-criteria.md" \
 		"reference/hardened-reference-deployment.md" \
@@ -310,6 +312,10 @@ docs-check: meta-check release-truth-check persistence-decomposition-check rende
 	@grep -F 'Production Check' README.md docs/reference/release-evidence-index.md >/dev/null
 	@grep -F 'coverage.out' README.md docs/reference/release-evidence-index.md >/dev/null
 	@grep -F 'release-check-summary.txt' README.md docs/reference/release-evidence-index.md >/dev/null
+	@grep -F 'Production readiness traceability' docs/README.md >/dev/null
+	@grep -F 'Traceability Matrix' docs/reference/production-readiness-traceability.md >/dev/null
+	@grep -F 'Unmapped Internal Findings' docs/reference/production-readiness-traceability.md >/dev/null
+	@grep -F 'External Blockers' docs/reference/production-readiness-traceability.md >/dev/null
 	@test -x scripts/production_benchmark_check.sh
 	@grep -F 'production_benchmark_check.sh' docs/reference/benchmark-results.md >/dev/null
 	@grep -F 'tmp/production-benchmark/production-benchmark-summary.json' docs/reference/benchmark-results.md >/dev/null
