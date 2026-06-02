@@ -23,8 +23,10 @@ beyond evaluation.
    [Production gate troubleshooting](reference/production-gate-troubleshooting.md)
    with sanitized logs.
 5. Rehearse [Backup and restore](runbooks/backup-restore.md), follow the
-   [Upgrade runbook](runbooks/upgrade.md), and keep
-   [Incident response](runbooks/incident-response.md) ready.
+   [Upgrade runbook](runbooks/upgrade.md), keep
+   [Incident response](runbooks/incident-response.md) ready, and prepare
+   [Key rotation](runbooks/key-rotation.md) plus
+   [Object store recovery](runbooks/object-store-recovery.md).
 
 ## Operating Boundaries
 

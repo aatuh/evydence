@@ -173,6 +173,8 @@ docs-check: meta-check release-truth-check ## Validate canonical docs exist and 
 	@test -f docs/reference/release-validation.md
 	@test -f docs/reference/upload-manifest.md
 	@test -f docs/how-to/review-customer-package.md
+	@test -f docs/runbooks/key-rotation.md
+	@test -f docs/runbooks/object-store-recovery.md
 	@test -f schemas/upload-manifest.v1.schema.json
 	@test -f docs/explanation/trust-model.md
 	@test -f docs/collectors/source-snapshots.md
@@ -223,6 +225,8 @@ docs-check: meta-check release-truth-check ## Validate canonical docs exist and 
 		"reference/worker-outbox.md" \
 		"reference/release-validation.md" \
 		"reference/upload-manifest.md" \
+		"runbooks/key-rotation.md" \
+		"runbooks/object-store-recovery.md" \
 		"collectors/source-snapshots.md" \
 		"collectors/supply-chain.md" \
 		"github-actions/quickstart-release-evidence.yml" \
@@ -278,6 +282,10 @@ docs-check: meta-check release-truth-check ## Validate canonical docs exist and 
 	@grep -F 'Redaction Leakage Guard' docs/reference/customer-package-manifest.md >/dev/null
 	@grep -F 'reviewer_checklist' docs/reference/customer-package-manifest.md >/dev/null
 	@grep -F 'make restore-rehearsal-check' docs/runbooks/backup-restore.md >/dev/null
+	@grep -F 'API key' docs/runbooks/key-rotation.md >/dev/null
+	@grep -F 'Tenant signing key' docs/runbooks/key-rotation.md >/dev/null
+	@grep -F 'make restore-rehearsal-check' docs/runbooks/object-store-recovery.md >/dev/null
+	@grep -F 'Do not regenerate or overwrite historical evidence' docs/runbooks/object-store-recovery.md >/dev/null
 	@test -f docs/how-to/pilot-deployment-checklist.md
 	@grep -F 'Required: external PostgreSQL' docs/how-to/pilot-deployment-checklist.md >/dev/null
 	@grep -F 'external controls matrix' docs/reference/production-readiness.md docs/kubernetes.md docs/how-to/pilot-deployment-checklist.md >/dev/null

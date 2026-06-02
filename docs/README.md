@@ -27,6 +27,8 @@ This documentation is organized by reader task. Implementation claims should be 
 - [Backup and restore runbook](runbooks/backup-restore.md): rehearse paired database/object-store restore and verification.
 - [Upgrade runbook](runbooks/upgrade.md): verify release artifacts, migrations, and post-upgrade checks.
 - [Incident response runbook](runbooks/incident-response.md): handle operator incidents without leaking secrets or raw evidence.
+- [Key rotation runbook](runbooks/key-rotation.md): rotate API, collector, SSO/session, portal, signing, and provider credentials.
+- [Object store recovery runbook](runbooks/object-store-recovery.md): recover missing or mismatched raw payloads and package/export objects.
 
 ## Reference
 
