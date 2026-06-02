@@ -18,6 +18,38 @@ Do not submit code, docs, tests, schemas, generated artifacts, provider
 fixtures, or release evidence unless you have the right to license them to the
 project under terms compatible with this model.
 
+## First Contribution Path
+
+Small contributions are welcome when they preserve the project boundaries. Good
+starter contributions are:
+
+- typo fixes in documentation;
+- broken link fixes;
+- clearer command examples that point back to canonical docs;
+- non-sensitive fixture improvements;
+- issue reports with sanitized reproduction steps;
+- small docs updates that remove overstated compliance, certification,
+  complete-SBOM, scanner-authority, or secure-release language.
+
+Before opening a first pull request:
+
+1. Open or reference an issue for anything larger than a typo or broken link.
+2. Keep the change scoped to one topic.
+3. Avoid generated artifacts unless the documented project command produced
+   them and the change requires them.
+4. Run `make docs-check` for docs-only changes. Run `make finalize` when code,
+   examples, OpenAPI, deployment files, SDKs, or release behavior are touched.
+5. Expect a contributor license agreement before any substantive change is
+   merged.
+
+Issue reports do not need a contributor license agreement, but they must be
+safe to share. Include sanitized commands, versions, error codes, and expected
+versus actual behavior. Do not include tenant names, customer names, raw
+evidence payloads, object-store paths, API keys, collector keys, bearer tokens,
+session tokens, portal tokens, private keys, provider credentials, database
+URLs, local backups, unpublished customer packages, or release signing
+material.
+
 ## Development Rules
 
 Before opening a change:
