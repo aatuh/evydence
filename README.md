@@ -14,6 +14,29 @@ questions with signed, customer-safe release evidence bundles.
 
 Website: <https://evydence.app>
 
+The core buyer question is: "This CVE appears in your SBOM for this release.
+Are you affected, why or why not, who approved that decision, and what evidence
+can we verify?" Evydence records the SBOM, vulnerability scan, VEX or manual
+decision, build provenance, artifact digest, exceptions, release bundle, and
+customer package that support the answer.
+
+| Start here | Use this when you want to |
+| --- | --- |
+| [Customer CVE review demo](examples/customer-cve-review-demo/README.md) | Inspect the no-external-services buyer proof path. |
+| [OpenAPI reference](docs/reference/openapi.md) | Review the `/v1` API contract and generated schemas. |
+| [Install and operate](docs/how-to/install-and-operate.md) | Run the self-hosted API/worker path with PostgreSQL and object storage. |
+| [Release evidence index](docs/reference/release-evidence-index.md) | Verify public release artifacts, checksums, production-check evidence, and limitations. |
+
+Before Evydence, teams often stitch together scanner exports, CI logs, Slack
+approvals, spreadsheets, object-storage folders, and one-off customer answers.
+After Evydence, the same release has tenant-scoped API records, append-only
+decisions, tamper-evident audit entries, signed bundles, reproducible reports,
+and scoped packages that state gaps, assumptions, exceptions, and limitations.
+
+It does not make legal compliance conclusions, grant certification, prove SBOM
+completeness, treat scanner findings as authoritative, or guarantee release
+security.
+
 ## Current Status
 
 - Best for: evaluation, pilots, and controlled internal self-hosted use after operator review.
@@ -29,22 +52,6 @@ Website: <https://evydence.app>
   [Pilot deployment checklist](docs/how-to/pilot-deployment-checklist.md), and
   [Release evidence index](docs/reference/release-evidence-index.md) before
   running beyond local evaluation.
-
-The concrete buyer question is: "This CVE appears in your SBOM for this
-release. Are you affected, why or why not, who approved that decision, and what
-evidence can we verify?" Evydence records the SBOM, vulnerability scan, VEX or
-manual decision, build provenance, artifact digest, exceptions, release bundle,
-and customer package that support the answer.
-
-Before Evydence, teams often stitch together scanner exports, CI logs, Slack
-approvals, spreadsheets, object-storage folders, and one-off customer answers.
-After Evydence, the same release has tenant-scoped API records, append-only
-decisions, tamper-evident audit entries, signed bundles, reproducible reports,
-and scoped packages that state gaps, assumptions, exceptions, and limitations.
-
-It does not make legal compliance conclusions, grant certification, prove SBOM
-completeness, treat scanner findings as authoritative, or guarantee release
-security.
 
 ## What Question Does Evydence Answer?
 

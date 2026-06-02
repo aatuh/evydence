@@ -250,6 +250,9 @@ docs-check: meta-check release-truth-check ## Validate canonical docs exist and 
 	@grep -F 'examples/end-to-end-release-evidence/run-local-demo.sh' docs/tutorials/evaluate-in-10-minutes.md >/dev/null
 	@grep -F 'Evaluate Evydence in 10 minutes' README.md docs/README.md >/dev/null
 	@grep -F 'Customer CVE review demo' README.md docs/README.md docs/tutorials/customer-cve-review-demo.md >/dev/null
+	@grep -F 'The core buyer question is' README.md >/dev/null
+	@grep -F 'OpenAPI reference' README.md >/dev/null
+	@grep -F 'Install and operate' README.md >/dev/null
 	@grep -F 'Capability map' README.md docs/README.md >/dev/null
 	@grep -F 'Production Check' README.md docs/reference/release-evidence-index.md >/dev/null
 	@grep -F 'coverage.out' README.md docs/reference/release-evidence-index.md >/dev/null
