@@ -378,17 +378,38 @@ const ui = {
 
   h1 {
     font-size: clamp(2.7rem, 5.4vw, 5.25rem);
+    hyphens: auto;
     line-height: 1.02;
     letter-spacing: 0;
     margin-bottom: 1.15rem;
     max-width: 13.5ch;
+    overflow-wrap: break-word;
   }
 
   h2 {
     font-size: clamp(2rem, 4.5vw, 4rem);
+    hyphens: auto;
     line-height: 1.02;
     letter-spacing: 0;
     max-width: 13ch;
+    overflow-wrap: anywhere;
+  }
+
+  .hero h1 {
+    hyphens: none;
+    overflow-wrap: normal;
+    text-wrap: balance;
+    word-break: normal;
+  }
+
+  :lang(fi) h1 {
+    font-size: clamp(2.25rem, 3.9vw, 3.75rem);
+    max-width: 20ch;
+  }
+
+  :lang(fi) h2 {
+    font-size: clamp(1.8rem, 2.9vw, 2.75rem);
+    max-width: 100%;
   }
 
   h3 {
@@ -418,8 +439,23 @@ const ui = {
   .section--split {
     border-top: 1px solid var(--line);
     display: grid;
-    gap: 2rem;
-    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    gap: clamp(2rem, 5vw, 4rem);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .section--split h2 {
+    max-width: 100%;
+  }
+
+  :lang(fi) .section--split h2 {
+    font-size: clamp(1.75rem, 2.55vw, 2.45rem);
+  }
+
+  .hero__content,
+  .section--split > *,
+  .section__body,
+  .table-row > * {
+    min-width: 0;
   }
 
   .section__body {
@@ -589,6 +625,16 @@ const ui = {
 
     h1 {
       font-size: clamp(2.45rem, 12vw, 4rem);
+    }
+
+    :lang(fi) h1 {
+      font-size: 1.85rem;
+      line-height: 1.08;
+    }
+
+    :lang(fi) h2 {
+      font-size: 1.95rem;
+      line-height: 1.08;
     }
 
     .bullet-grid,

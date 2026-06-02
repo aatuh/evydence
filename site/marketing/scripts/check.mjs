@@ -115,6 +115,14 @@ const layoutChecks = [
   "class=\"mobile-nav\"",
   "mobile-nav__panel",
   "font-size: clamp(2.7rem, 5.4vw, 5.25rem)",
+  ".hero h1",
+  "hyphens: none",
+  "word-break: normal",
+  ":lang(fi) h2",
+  ":lang(fi) .section--split h2",
+  "font-size: 1.85rem",
+  "overflow-wrap: anywhere",
+  ".section--split > *",
   "min-height: min(760px, calc(100vh - 4.8rem))",
   ".nav,\n    .header-actions {\n      display: none;"
 ];
