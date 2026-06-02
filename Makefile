@@ -118,6 +118,7 @@ meta-check: ## Validate root legal, governance, support, and release-evidence me
 	@grep -F 'actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa' .github/workflows/marketing-site-pages.yml >/dev/null
 	@grep -F 'actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b' .github/workflows/marketing-site-pages.yml >/dev/null
 	@grep -F 'actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020' .github/workflows/marketing-site-pages.yml >/dev/null
+	@grep -F 'pages: write' .github/workflows/marketing-site-pages.yml >/dev/null
 	@test -f site/marketing/public/CNAME
 	@grep -Fx 'evydence.app' site/marketing/public/CNAME >/dev/null
 	@grep -F 'Evydence fork' TRADEMARKS.md >/dev/null
