@@ -207,6 +207,7 @@ docs-check: meta-check release-truth-check persistence-decomposition-check rende
 	@test -f .github/workflows/container-image.yml
 	@test -f .github/workflows/codeql.yml
 	@test -f docs/sdk/README.md
+	@test -f docs/sdk/quickstarts.md
 	@for path in \
 		"tutorials/evaluate-in-10-minutes.md" \
 		"tutorials/customer-cve-review-demo.md" \
@@ -259,6 +260,7 @@ docs-check: meta-check release-truth-check persistence-decomposition-check rende
 		"github-actions/upload-build/action.yml" \
 		"gitlab/evydence-release-evidence.gitlab-ci.yml" \
 		"sdk/README.md" \
+		"sdk/quickstarts.md" \
 		"architecture.md" \
 		"explanation/trust-model.md"; do \
 		grep -F "$$path" docs/README.md >/dev/null || { echo "docs/README.md missing link to $$path"; exit 1; }; \
@@ -289,6 +291,10 @@ docs-check: meta-check release-truth-check persistence-decomposition-check rende
 	@grep -F 'OpenAPI reference' README.md >/dev/null
 	@grep -F 'Rendered OpenAPI docs' README.md docs/README.md docs/reference/openapi.md >/dev/null
 	@grep -F 'site/marketing/public/api/index.html' docs/reference/openapi.md >/dev/null
+	@grep -F 'SDK quickstarts' docs/README.md docs/sdk/README.md docs/sdk/quickstarts.md >/dev/null
+	@grep -F 'Problem Details' docs/sdk/quickstarts.md >/dev/null
+	@grep -F 'Idempotency-Key' docs/sdk/quickstarts.md >/dev/null
+	@grep -F 'dist/evydence package verify' docs/sdk/quickstarts.md >/dev/null
 	@grep -F 'Install and operate' README.md >/dev/null
 	@grep -F 'Fastest Buyer Path' docs/buyer-overview.md >/dev/null
 	@grep -F 'Primary Operator Path' docs/operator-overview.md >/dev/null

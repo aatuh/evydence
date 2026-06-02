@@ -63,6 +63,7 @@ This documentation is organized by reader task. Implementation claims should be 
 - [Release validation](reference/release-validation.md): canonical `make release-check` behavior and summary evidence.
 - [Upload manifest](reference/upload-manifest.md): schema, validation command, supported evidence request kinds, and safe payload-file handling.
 - [SDK workflow](sdk/README.md): current Go, TypeScript, and Python wrapper usage and limitations.
+- [SDK quickstarts](sdk/quickstarts.md): Go, TypeScript, and Python create/read snippets, Problem Details handling, idempotency, and package verification boundaries.
 - [Collector supply chain](collectors/supply-chain.md): collector release evidence and health checks.
 - [Source snapshot collectors](collectors/source-snapshots.md): GitHub and GitLab source metadata upload examples.
 

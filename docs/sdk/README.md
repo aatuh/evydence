@@ -16,6 +16,10 @@ The generated SDK route catalog at [`sdk/openapi-route-catalog.json`](../../sdk/
 
 No package publishing manifests are committed for these wrappers yet. Use them as in-repository examples or copy them into an application-owned SDK package until a release process publishes versioned SDK artifacts.
 
+For short language-specific create/read snippets, idempotency guidance, Problem
+Details handling, and package verification boundaries, start with
+[SDK quickstarts](quickstarts.md).
+
 ## Go
 
 Import the wrapper from this module path when your code is in this repository or uses a local `replace` to this checkout:
