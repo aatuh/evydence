@@ -89,6 +89,9 @@ meta-check: ## Validate root legal, governance, support, and release-evidence me
 	@grep -F 'GNU AFFERO GENERAL PUBLIC LICENSE' LICENSE >/dev/null
 	@grep -F 'AGPL-3.0-only' COMMERCIAL.md >/dev/null
 	@grep -F 'Commercial license exceptions' COMMERCIAL.md >/dev/null
+	@grep -F 'License Decision Table' COMMERCIAL.md >/dev/null
+	@grep -F 'This table is a practical routing aid, not legal advice.' COMMERCIAL.md >/dev/null
+	@grep -F 'Discuss a commercial license exception' COMMERCIAL.md >/dev/null
 	@grep -F 'contributor license agreement' CONTRIBUTING.md >/dev/null
 	@grep -F 'raw evidence payloads' SECURITY.md >/dev/null
 	@grep -F 'release evidence artifacts' SUPPORT.md >/dev/null

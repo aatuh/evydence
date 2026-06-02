@@ -12,6 +12,23 @@ deployments, or other contexts where AGPL obligations are not suitable.
 This is not legal advice. Have counsel review AGPL and any commercial agreement
 before relying on it.
 
+## License Decision Table
+
+This table is a practical routing aid, not legal advice.
+
+| Situation | Likely path to review | Why |
+| --- | --- | --- |
+| Evaluating Evydence locally, reading source, or running non-production tests | Public `AGPL-3.0-only` license may be enough if your use complies with AGPL. | The public repository remains available under AGPL. |
+| Self-hosting Evydence for an internal team that can satisfy AGPL obligations | Public `AGPL-3.0-only` plus operator review may be enough. | You keep the public-license obligations and run your own deployment. |
+| Modifying Evydence for a network service where AGPL source-availability obligations are acceptable | Public `AGPL-3.0-only` may be enough after counsel review. | AGPL is designed to preserve source availability for modified network services. |
+| Embedding Evydence into proprietary products, private SaaS, closed appliances, or closed internal platforms where AGPL obligations do not fit | Discuss a commercial license exception. | A written exception can grant extra permission for a defined organization, product, deployment, or distribution model. |
+| Needing private deployment review, upgrade planning, release evidence review, or integration support | Discuss commercial support. | Support scope, response expectations, and deliverables should be written down before relying on them. |
+| Needing legal compliance conclusions, certification, secure-release guarantees, complete SBOM proof, or authoritative vulnerability results | Evydence is not the right source for that conclusion. | Evydence organizes technical evidence and limitations; legal, certification, audit, and security conclusions require separate review. |
+
+For contribution rights, see [Contributing](CONTRIBUTING.md). For support
+boundaries, see [Support](SUPPORT.md). For decision authority and product
+language rules, see [Governance](GOVERNANCE.md).
+
 ## Paid Options
 
 | Offer | Customer hosts? | Evydence hosts? | Notes |
