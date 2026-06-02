@@ -19,6 +19,11 @@ make release-acceptance
 ```
 
 That target runs the fast local checks, verifies the root license, governance, support, trademark, release-evidence, changelog, and Docker build-context metadata, and rejects prohibited product claims in the documented surfaces.
+It also runs `make release-asset-smoke-check`, which creates a synthetic local
+release-evidence set, verifies checksum files, verifies a signed release
+manifest, runs the customer package verifier against the checked sample package,
+and confirms checksum, signature, missing-asset, and package-identity mismatch
+failure cases are rejected.
 
 The target writes:
 
@@ -87,6 +92,17 @@ and manifest signature. It refuses dirty worktrees, invalid release-candidate
 tags, missing live PostgreSQL configuration, missing signing material, and
 existing local tags unless a CI tag build explicitly sets
 `EVYDENCE_RELEASE_ALLOW_EXISTING_TAG=1`.
+
+For a lightweight local smoke check that does not require a clean worktree,
+live PostgreSQL, release signing credentials, or GitHub Releases, run:
+
+```sh
+make release-asset-smoke-check
+```
+
+The smoke check writes temporary files under `tmp/release-asset-smoke/`,
+removes the temporary private signing key after signing, and leaves
+`tmp/release-asset-smoke/summary.txt` with the checked result.
 
 ## Configured Live PostgreSQL Profile
 

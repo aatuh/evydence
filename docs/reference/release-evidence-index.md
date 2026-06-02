@@ -99,6 +99,17 @@ The helper downloads the release assets with `gh`, checks the public checksums,
 validates the in-toto statement shape, extracts the released Linux amd64 CLI,
 and verifies the signed manifest with that released binary.
 
+For local release asset smoke validation without live GitHub Releases or full
+release-candidate packaging, run:
+
+```sh
+make release-asset-smoke-check
+```
+
+The smoke check verifies a synthetic release asset set, checksum mismatch
+failure, missing-asset failure, signed manifest verification, tampered manifest failure,
+sample customer package verification output, and wrong expected package ID failure.
+
 To verify the last checked public container image digest and workflow identity,
 run:
 
