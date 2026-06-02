@@ -106,6 +106,8 @@ For durable local evaluation, run the production-like Compose rehearsal in
 [Install and operate](docs/how-to/install-and-operate.md).
 For the release-evidence path to inspect first, use the
 [end-to-end release evidence example](examples/end-to-end-release-evidence/README.md).
+For a no-external-services buyer proof, run the
+[customer CVE review demo](examples/customer-cve-review-demo/README.md).
 For the first CI wiring example, start with the
 [GitHub Actions quickstart release evidence workflow](docs/github-actions/quickstart-release-evidence.yml),
 then move to the scanner-oriented workflow once your runner has pinned scanner
