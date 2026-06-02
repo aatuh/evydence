@@ -340,6 +340,10 @@ deploy-check: ## Validate deployment and air-gap skeletons exist
 	@test -f deploy/airgap/manifest.yaml
 	@test -f deploy/observability/prometheus-rules.yaml
 	@test -f deploy/observability/grafana-dashboard.json
+	@grep -F 'postgres:16-alpine@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229' compose.production-like.yml >/dev/null
+	@grep -F 'minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e' compose.production-like.yml >/dev/null
+	@grep -F 'minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727' compose.production-like.yml >/dev/null
+	@! grep -E 'image:[[:space:]]+[^$$]*:latest' compose.production-like.yml >/dev/null
 	@grep -F 'tag: ""' deploy/helm/evydence/values.yaml >/dev/null
 	@grep -F 'replicas: 1' deploy/helm/evydence/values.yaml >/dev/null
 	@grep -F 'writerMode: single' deploy/helm/evydence/values.yaml >/dev/null

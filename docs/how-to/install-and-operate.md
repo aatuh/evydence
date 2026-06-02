@@ -78,7 +78,9 @@ For a fuller local rehearsal, use `compose.production-like.yml`. It starts
 PostgreSQL, MinIO, bucket initialization, migrations, one API writer, and one
 worker. It is still a local evaluation stack: replace every secret, use TLS at
 the edge, back up PostgreSQL and object storage together, and keep production
-API writer replicas at one for the current supported profile.
+API writer replicas at one for the current supported profile. PostgreSQL and
+MinIO service images in this production-like file are digest-pinned so the
+rehearsal does not pull floating `latest` dependencies.
 
 ```sh
 export POSTGRES_PASSWORD='replace-with-long-random-password'
