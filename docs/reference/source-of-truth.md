@@ -20,9 +20,10 @@ product-boundary language across the docs.
 | Design-partner pilot checklist | `docs/how-to/pilot-deployment-checklist.md` | Narrow copy-paste checklist for one controlled self-hosted pilot profile. |
 | Maintainer review ownership | `CODEOWNERS` and `docs/reference/maintainer-review-policy.md` | Branch protection or repository rules must enforce this before it is a merge gate. |
 | Roadmap and cadence | `docs/reference/roadmap.md` | Public roadmap, supported release line, and cadence expectations. |
-| Backup/restore | `docs/runbooks/backup-restore.md` | Operator rehearsal steps and evidence to keep. |
+| Backup/restore | `docs/runbooks/backup-restore.md` and `docs/runbooks/object-store-recovery.md` | Operator rehearsal steps, object-store recovery, and evidence to keep. |
 | Upgrade | `docs/runbooks/upgrade.md` | Migration and release artifact verification steps. |
 | Incident response | `docs/runbooks/incident-response.md` | Secrets, tenant, object-store, signing, provider, and package boundaries. |
+| Key rotation | `docs/runbooks/key-rotation.md` | Credential and signing-provider rotation boundaries. |
 | Capacity and failure modes | `docs/reference/capacity-and-failures.md` and `docs/reference/benchmark-results.md` | Benchmark results are narrow and local. |
 | Security reporting | `SECURITY.md` | Repository settings for private reporting must be verified on GitHub. |
 | Support expectations | `SUPPORT.md` | Public support boundaries and sanitized-report rules. |
