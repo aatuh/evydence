@@ -199,6 +199,7 @@ docs-check: meta-check release-truth-check persistence-decomposition-check rende
 	@test -f docs/explanation/trust-model.md
 	@test -f docs/collectors/source-snapshots.md
 	@test -f docs/collectors/supply-chain.md
+	@test -f docs/github-actions/end-to-end-release-evidence.md
 	@test -f docs/github-actions/quickstart-release-evidence.yml
 	@test -f docs/github-actions/release-evidence-workflow.yml
 	@test -f docs/github-actions/upload-build/action.yml
@@ -255,6 +256,7 @@ docs-check: meta-check release-truth-check persistence-decomposition-check rende
 		"runbooks/object-store-recovery.md" \
 		"collectors/source-snapshots.md" \
 		"collectors/supply-chain.md" \
+		"github-actions/end-to-end-release-evidence.md" \
 		"github-actions/quickstart-release-evidence.yml" \
 		"github-actions/release-evidence-workflow.yml" \
 		"github-actions/upload-build/action.yml" \
@@ -377,6 +379,13 @@ docs-check: meta-check release-truth-check persistence-decomposition-check rende
 	@grep -F 'SBOM inventory tools' docs/commercial/category-comparison.md >/dev/null
 	@grep -F 'Trust centers' docs/commercial/category-comparison.md >/dev/null
 	@grep -F 'release upload-evidence' docs/how-to/integrate-ci.md >/dev/null
+	@grep -F 'End-to-end GitHub Actions release evidence guide' docs/how-to/integrate-ci.md docs/README.md docs/github-actions/end-to-end-release-evidence.md >/dev/null
+	@grep -F 'least-privilege' docs/github-actions/end-to-end-release-evidence.md >/dev/null
+	@grep -F 'do not make live GitHub API calls' docs/github-actions/end-to-end-release-evidence.md >/dev/null
+	@grep -F 'EVYDENCE_API_KEY' docs/github-actions/end-to-end-release-evidence.md >/dev/null
+	@grep -F 'release-readiness.json' docs/github-actions/end-to-end-release-evidence.md docs/github-actions/release-evidence-workflow.yml >/dev/null
+	@grep -F 'upload-output.txt' docs/github-actions/end-to-end-release-evidence.md docs/github-actions/release-evidence-workflow.yml >/dev/null
+	@grep -F 'actions/upload-artifact@v4' docs/github-actions/release-evidence-workflow.yml >/dev/null
 	@grep -F 'make local-ci-simulation-check' docs/how-to/integrate-ci.md examples/end-to-end-release-evidence/README.md >/dev/null
 	@grep -F -- '--dry-run' docs/how-to/integrate-ci.md >/dev/null
 	@grep -F 'upload validate-manifest' docs/how-to/integrate-ci.md >/dev/null

@@ -99,4 +99,20 @@ jobs:
           dist/evydence upload manifest \
             --url "$EVYDENCE_API_URL" \
             --api-key "$EVYDENCE_API_KEY" \
-            --manifest .evydence/upload-manifest.json
+            --manifest .evydence/upload-manifest.json \
+            | tee .evydence/upload-output.txt
+      - name: Read release readiness
+        env:
+          EVYDENCE_API_URL: ${{ secrets.EVYDENCE_API_URL }}
+          EVYDENCE_API_KEY: ${{ secrets.EVYDENCE_API_KEY }}
+          EVYDENCE_RELEASE_ID: ${{ vars.EVYDENCE_RELEASE_ID }}
+        run: |
+          set -euo pipefail
+          curl -fsS \
+            -H "Authorization: Bearer $EVYDENCE_API_KEY" \
+            "$EVYDENCE_API_URL/v1/reports/release-readiness?release_id=$EVYDENCE_RELEASE_ID" \
+            | tee .evydence/release-readiness.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: evydence-release-evidence
+          path: .evydence/
