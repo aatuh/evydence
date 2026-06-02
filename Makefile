@@ -181,6 +181,7 @@ docs-check: meta-check release-truth-check persistence-decomposition-check rende
 	@test -f docs/reference/benchmark-results.md
 	@test -f docs/reference/production-readiness.md
 	@test -f docs/reference/production-readiness-traceability.md
+	@test -f docs/reference/production-internal-exit-checklist.md
 	@test -f docs/reference/persistence-decomposition.md
 	@test -f docs/reference/production-exit-review.md
 	@test -f docs/reference/stable-v0.1.0-exit-criteria.md
@@ -243,6 +244,7 @@ docs-check: meta-check release-truth-check persistence-decomposition-check rende
 			"reference/benchmark-results.md" \
 			"reference/production-readiness.md" \
 			"reference/production-readiness-traceability.md" \
+			"reference/production-internal-exit-checklist.md" \
 			"reference/persistence-decomposition.md" \
 		"reference/production-exit-review.md" \
 		"reference/stable-v0.1.0-exit-criteria.md" \
@@ -316,6 +318,11 @@ docs-check: meta-check release-truth-check persistence-decomposition-check rende
 	@grep -F 'Traceability Matrix' docs/reference/production-readiness-traceability.md >/dev/null
 	@grep -F 'Unmapped Internal Findings' docs/reference/production-readiness-traceability.md >/dev/null
 	@grep -F 'External Blockers' docs/reference/production-readiness-traceability.md >/dev/null
+	@grep -F 'Internal production-readiness exit checklist' docs/README.md >/dev/null
+	@grep -F 'Required Internal State' docs/reference/production-internal-exit-checklist.md >/dev/null
+	@grep -F 'make production-check' docs/reference/production-internal-exit-checklist.md >/dev/null
+	@grep -F 'every external item must have a current owner and status' docs/reference/production-internal-exit-checklist.md >/dev/null
+	@grep -F 'fresh production-readiness audit finds no new repo-local remediation' docs/reference/production-internal-exit-checklist.md >/dev/null
 	@test -x scripts/production_benchmark_check.sh
 	@grep -F 'production_benchmark_check.sh' docs/reference/benchmark-results.md >/dev/null
 	@grep -F 'tmp/production-benchmark/production-benchmark-summary.json' docs/reference/benchmark-results.md >/dev/null
