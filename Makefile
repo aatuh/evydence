@@ -280,6 +280,10 @@ docs-check: meta-check release-truth-check ## Validate canonical docs exist and 
 	@grep -F 'Production Check' README.md docs/reference/release-evidence-index.md >/dev/null
 	@grep -F 'coverage.out' README.md docs/reference/release-evidence-index.md >/dev/null
 	@grep -F 'release-check-summary.txt' README.md docs/reference/release-evidence-index.md >/dev/null
+	@test -x scripts/production_benchmark_check.sh
+	@grep -F 'production_benchmark_check.sh' docs/reference/benchmark-results.md >/dev/null
+	@grep -F 'tmp/production-benchmark/production-benchmark-summary.json' docs/reference/benchmark-results.md >/dev/null
+	@grep -F 'local regression benchmark' docs/reference/benchmark-results.md >/dev/null
 	@grep -F 'Implemented-But-Partial Areas' docs/reference/capability-map.md >/dev/null
 	@grep -F 'VEX/manual' README.md >/dev/null
 	@test -f docs/assets/package-viewer-preview.svg
@@ -487,7 +491,10 @@ black-box-demo-check: ## Run live PostgreSQL black-box API/worker demo; requires
 
 benchmark-check: ## Run the checked app-layer release evidence benchmark
 	@$(GO) test ./internal/app -bench BenchmarkReleaseEvidenceIngestion -benchtime=100x -run '^$$' -benchmem
+	@if [ -n "$$EVYDENCE_TEST_DATABASE_URL" ]; then scripts/production_benchmark_check.sh; else echo "EVYDENCE_TEST_DATABASE_URL not set; skipping production black-box benchmark"; fi
 	@grep -F 'BenchmarkReleaseEvidenceIngestion' docs/reference/benchmark-results.md >/dev/null
+	@grep -F 'production_benchmark_check.sh' docs/reference/benchmark-results.md >/dev/null
+	@grep -F 'evydence-production-benchmark.v1.0.0' docs/reference/benchmark-results.md >/dev/null
 	@grep -F 'API writer replicas: `1`' docs/reference/capacity-and-failures.md >/dev/null
 
 package-viewer-check: ## Validate local package viewer and walkthrough
