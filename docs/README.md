@@ -20,6 +20,7 @@ This documentation is organized by reader task. Implementation claims should be 
 - [Review a customer package](how-to/review-customer-package.md): verify, inspect, and escalate a scoped package with checked fixtures.
 - [Production hardening review](production-hardening.md): review production configuration, backups, ingress, diagnostics, and customer package controls.
 - [Pilot deployment checklist](how-to/pilot-deployment-checklist.md): copy-paste checklist for the narrow design-partner pilot profile.
+- [Publish the marketing site](how-to/publish-marketing-site.md): deploy the Astro site to GitHub Pages at `evydence.app` with consent-gated Google Analytics.
 - [Backup and restore runbook](runbooks/backup-restore.md): rehearse paired database/object-store restore and verification.
 - [Upgrade runbook](runbooks/upgrade.md): verify release artifacts, migrations, and post-upgrade checks.
 - [Incident response runbook](runbooks/incident-response.md): handle operator incidents without leaking secrets or raw evidence.

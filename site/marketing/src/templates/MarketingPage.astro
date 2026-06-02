@@ -7,7 +7,7 @@ const { locale, pageKey } = Astro.props as { locale: Locale; pageKey: PageKey };
 const page = pageFor(locale, pageKey);
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 const withBase = (path: string) => `${basePath}${path}`.replace(/\/{2,}/g, "/");
-const primaryHref = pageKey === "privacyCookies" ? "#" : externalLinks.commercialEmail;
+const primaryHref = pageKey === "privacyCookies" ? "#" : externalLinks.linkedin;
 const primaryAttrs = pageKey === "privacyCookies" ? { "data-cookie-preferences": "" } : { "data-track": "contact_click" };
 ---
 

@@ -9,7 +9,7 @@ GOVULNCHECK_VERSION ?= v1.2.0
 
 TAG ?=
 
-.PHONY: help tools fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check meta-check docs-check deploy-check sdk-check demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check benchmark-check package-viewer-check marketing-site-check restore-rehearsal-check fast-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
+.PHONY: help tools fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check meta-check docs-check deploy-check sdk-check demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check benchmark-check package-viewer-check marketing-site-check marketing-site-production-check restore-rehearsal-check fast-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -75,6 +75,7 @@ meta-check: ## Validate root legal, governance, support, and release-evidence me
 	@test -f .github/workflows/scorecard.yml
 	@test -f .github/workflows/container-image.yml
 	@test -f .github/workflows/codeql.yml
+	@test -f .github/workflows/marketing-site-pages.yml
 	@test -f .github/ISSUE_TEMPLATE.md
 	@test -f .github/ISSUE_TEMPLATE/bug_report.yml
 	@test -f .github/ISSUE_TEMPLATE/feature_request.yml
@@ -111,6 +112,14 @@ meta-check: ## Validate root legal, governance, support, and release-evidence me
 	@grep -F 'cosign verify' .github/workflows/container-image.yml >/dev/null
 	@grep -F -- '--provenance=true' .github/workflows/container-image.yml >/dev/null
 	@grep -F -- '--sbom=true' .github/workflows/container-image.yml >/dev/null
+	@grep -F 'https://evydence.app' .github/workflows/marketing-site-pages.yml >/dev/null
+	@grep -F 'G-XC2ESEHQ3W' Makefile >/dev/null
+	@grep -F 'actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e' .github/workflows/marketing-site-pages.yml >/dev/null
+	@grep -F 'actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa' .github/workflows/marketing-site-pages.yml >/dev/null
+	@grep -F 'actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b' .github/workflows/marketing-site-pages.yml >/dev/null
+	@grep -F 'actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020' .github/workflows/marketing-site-pages.yml >/dev/null
+	@test -f site/marketing/public/CNAME
+	@grep -Fx 'evydence.app' site/marketing/public/CNAME >/dev/null
 	@grep -F 'Evydence fork' TRADEMARKS.md >/dev/null
 	@grep -F 'Release evidence is not a certification' RELEASE_EVIDENCE.md >/dev/null
 	@grep -F '.refs' .dockerignore >/dev/null
@@ -133,6 +142,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@test -f docs/how-to/integrate-ci.md
 	@test -f docs/how-to/install-and-operate.md
 	@test -f docs/how-to/view-packages.md
+	@test -f docs/how-to/publish-marketing-site.md
 	@test -f docs/reference/configuration.md
 	@test -f docs/reference/capability-map.md
 	@test -f docs/reference/api-contract-matrix.md
@@ -318,6 +328,9 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@grep -F 'Use one API writer replica' docs/reference/release-candidate.md >/dev/null
 	@grep -F 'private security intake' SECURITY.md >/dev/null
 	@! grep -R -i "automatically compliant\|certified secure\|legally sufficient\|SBOM is complete\|all vulnerabilities detected\|scanner findings are authoritative\|regulator-ready without review" README.md docs
+	@grep -F 'make marketing-site-production-check' docs/how-to/publish-marketing-site.md >/dev/null
+	@grep -F 'G-XC2ESEHQ3W' docs/how-to/publish-marketing-site.md >/dev/null
+	@grep -F 'evydence.app' docs/how-to/publish-marketing-site.md >/dev/null
 
 deploy-check: ## Validate deployment and air-gap skeletons exist
 	@test -f compose.production-like.yml
@@ -419,6 +432,9 @@ package-viewer-check: ## Validate local package viewer and walkthrough
 
 marketing-site-check: ## Build and validate the static marketing site
 	@npm --prefix site/marketing run check
+
+marketing-site-production-check: ## Build and validate the marketing site for evydence.app
+	@PUBLIC_SITE_URL=https://evydence.app PUBLIC_SITE_BASE=/ PUBLIC_GA_MEASUREMENT_ID=G-XC2ESEHQ3W npm --prefix site/marketing run check
 
 restore-rehearsal-check: ## Run repository-owned backup/restore rehearsal tests
 	@$(GO) test ./internal/app -run TestBackupRestoreRehearsalPreservesLedgerAndObjectPayloads -count=1
