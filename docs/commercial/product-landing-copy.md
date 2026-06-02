@@ -72,3 +72,28 @@ bundle, and review the self-hosted deployment profile.
 See [Design Partner Pilot](design-partner-pilot.md) for scope, deliverables,
 non-deliverables, support boundaries, and the AGPL/commercial license path.
 
+## Paid Readiness Offer
+
+Release evidence readiness review: install or review one self-hosted Evydence
+deployment profile, configure one product release, connect one CI evidence path,
+generate the first customer-safe package, verify it offline, and document gaps,
+assumptions, limitations, operator responsibilities, and external dependencies.
+
+Included deliverables:
+
+- one short readiness summary;
+- one deployment-checklist pass with accepted gaps;
+- one SBOM/vulnerability/build/artifact upload path where the operator already
+  has the files or commands;
+- one customer-safe package or evidence bundle with manifest, hashes,
+  verification material, limitations, and non-claims;
+- one prioritized follow-up list.
+
+Excluded unless separately agreed:
+
+- hosted SaaS operation;
+- legal compliance advice, certification, audit opinion, regulator acceptance,
+  secure-release guarantees, complete SBOM proof, or authoritative vulnerability
+  coverage;
+- unlimited integration work, broad GRC workflows, scanner replacement, custom
+  portal work, or public handling of raw customer evidence and secrets.
