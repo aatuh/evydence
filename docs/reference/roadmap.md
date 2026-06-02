@@ -50,6 +50,9 @@ status.
 Release candidates should be cut only after `make production-check` and the
 release-candidate evidence package pass. Public releases should include a clear
 support window, upgrade notes, limitations, and known unresolved hardening work.
+Stable `v0.1.0` should be tagged only after
+[Stable v0.1.0 exit criteria](stable-v0.1.0-exit-criteria.md) pass for the
+candidate being promoted.
 
 Community contributions remain selective until the public release, security
 intake, branch protection, and review enforcement surfaces are stable.

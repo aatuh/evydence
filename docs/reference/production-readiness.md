@@ -145,7 +145,9 @@ The gate requires:
 Release-candidate tagging additionally requires the evidence set in
 [Release candidate checklist](release-candidate.md), including OpenAPI and
 migration checksums, signed artifact manifests, artifact checksums, and release
-notes with limitations.
+notes with limitations. Moving from the release-candidate line to stable
+`v0.1.0` additionally requires
+[Stable v0.1.0 exit criteria](stable-v0.1.0-exit-criteria.md).
 
 The default production coverage threshold is 80 percent and the gate requires
 `EVYDENCE_TEST_DATABASE_URL` so live PostgreSQL adapter tests are included:
@@ -186,6 +188,8 @@ Do not describe an Evydence build as broadly self-hosted production-ready until:
 - the HA story for the target profile is documented and reviewed;
 - production hardening review is current;
 - production exit review is current;
+- stable `v0.1.0` exit criteria pass when moving out of the release-candidate
+  line;
 - unresolved limitations are documented in release notes.
 
 ## Remaining Production Maturity Backlog

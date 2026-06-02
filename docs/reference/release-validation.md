@@ -198,3 +198,8 @@ with the release-candidate package script whenever the artifact set changes.
 These artifacts support reproducible engineering review. They are not legal
 compliance proof, certification, a secure-release guarantee, complete SBOM
 proof, or authoritative vulnerability coverage.
+
+Before promoting the release-candidate line to a stable `v0.1.0` tag, also use
+[Stable v0.1.0 exit criteria](stable-v0.1.0-exit-criteria.md). That reference
+records the extra release evidence, documentation alignment, and hard blockers
+for leaving the candidate line.
