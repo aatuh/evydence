@@ -9,7 +9,7 @@ GOVULNCHECK_VERSION ?= v1.2.0
 
 TAG ?=
 
-.PHONY: help tools fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check meta-check release-truth-check docs-check deploy-check sdk-check demo-check customer-cve-review-demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check black-box-release-artifact-check benchmark-check package-viewer-check marketing-site-check marketing-site-production-check restore-rehearsal-check fast-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
+.PHONY: help tools fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check meta-check release-truth-check persistence-decomposition-check docs-check deploy-check sdk-check demo-check customer-cve-review-demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check black-box-release-artifact-check benchmark-check package-viewer-check marketing-site-check marketing-site-production-check restore-rehearsal-check fast-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -137,7 +137,10 @@ meta-check: ## Validate root legal, governance, support, and release-evidence me
 release-truth-check: ## Validate current release metadata against public docs and helper defaults
 	@scripts/check_release_truth.py
 
-docs-check: meta-check release-truth-check ## Validate canonical docs exist and avoid forbidden product claims
+persistence-decomposition-check: ## Validate generated persistence decomposition inventory
+	@scripts/persistence_decomposition_inventory.py --check
+
+docs-check: meta-check release-truth-check persistence-decomposition-check ## Validate canonical docs exist and avoid forbidden product claims
 	@test -f README.md
 	@test -f .production.env.example
 	@test -f docs/README.md
@@ -166,6 +169,7 @@ docs-check: meta-check release-truth-check ## Validate canonical docs exist and 
 	@test -f docs/reference/capacity-and-failures.md
 	@test -f docs/reference/benchmark-results.md
 	@test -f docs/reference/production-readiness.md
+	@test -f docs/reference/persistence-decomposition.md
 	@test -f docs/reference/production-exit-review.md
 	@test -f docs/reference/stable-v0.1.0-exit-criteria.md
 	@test -f docs/reference/hardened-reference-deployment.md
@@ -222,6 +226,7 @@ docs-check: meta-check release-truth-check ## Validate canonical docs exist and 
 		"reference/capacity-and-failures.md" \
 		"reference/benchmark-results.md" \
 		"reference/production-readiness.md" \
+		"reference/persistence-decomposition.md" \
 		"reference/production-exit-review.md" \
 		"reference/stable-v0.1.0-exit-criteria.md" \
 		"reference/hardened-reference-deployment.md" \
@@ -339,6 +344,10 @@ docs-check: meta-check release-truth-check ## Validate canonical docs exist and 
 	@grep -F 'Before Multi-Writer API Is Supported' docs/reference/ha-strategy.md >/dev/null
 	@grep -F 'EVYDENCE_API_WRITER_REPLICAS=1' docs/reference/ha-strategy.md >/dev/null
 	@grep -F 'HA strategy' docs/README.md docs/operator-overview.md docs/kubernetes.md docs/reference/production-readiness.md docs/reference/capacity-and-failures.md docs/reference/hardened-reference-deployment.md docs/reference/roadmap.md docs/reference/source-of-truth.md >/dev/null
+	@grep -F 'Persistence decomposition inventory' docs/README.md docs/reference/production-readiness.md docs/reference/capability-map.md docs/reference/ha-strategy.md docs/reference/source-of-truth.md >/dev/null
+	@grep -F 'scripts/persistence_decomposition_inventory.py --write' docs/reference/persistence-decomposition.md >/dev/null
+	@grep -F 'Remaining Broad Relational-State Mutations' docs/reference/persistence-decomposition.md >/dev/null
+	@grep -F 'make persistence-decomposition-check' docs/reference/persistence-decomposition.md >/dev/null
 	@grep -F 'Required: object paths are tenant-prefixed' docs/how-to/pilot-deployment-checklist.md >/dev/null
 	@grep -F 'Required: public API access is behind TLS' docs/how-to/pilot-deployment-checklist.md >/dev/null
 	@test -f docs/commercial/design-partner-pilot.md

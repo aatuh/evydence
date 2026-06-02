@@ -50,6 +50,10 @@ Known hardening work remains:
   batch, transparency checkpoint, evidence lifecycle, release candidate,
   VEX/risk decision, control, package, report, retention, provider verification,
   signing operation, and future-extension state from relational rows;
+  the generated
+  [Persistence decomposition inventory](persistence-decomposition.md) is the
+  repository-owned map of focused mutation paths, remaining broad
+  relational-state call sites, and the next split order;
 - worker parser jobs re-read raw object-store payloads for key formats,
   verify digests, validate durable state, and persist missing parser-derived
   normalized fields. CycloneDX SBOM, generic vulnerability-scan, OpenAPI

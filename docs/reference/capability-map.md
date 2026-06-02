@@ -109,6 +109,9 @@ vulnerability coverage, or a secure-release guarantee.
 - Production API deployments remain intentionally single-writer until
   multi-writer API concurrency is reviewed across every write family. Worker
   replicas may scale through PostgreSQL outbox locking.
+- [Persistence decomposition inventory](persistence-decomposition.md) tracks
+  focused mutation paths, remaining broad relational-state call sites, and the
+  next repository split order.
 
 ## Where To Go Next
 
