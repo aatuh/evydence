@@ -157,6 +157,7 @@ docs-check: meta-check release-truth-check ## Validate canonical docs exist and 
 	@test -f docs/reference/benchmark-results.md
 	@test -f docs/reference/production-readiness.md
 	@test -f docs/reference/production-exit-review.md
+	@test -f docs/reference/stable-v0.1.0-exit-criteria.md
 	@test -f docs/reference/external-controls-matrix.md
 	@test -f docs/reference/production-gate-troubleshooting.md
 	@test -f docs/reference/release-candidate.md
@@ -204,6 +205,7 @@ docs-check: meta-check release-truth-check ## Validate canonical docs exist and 
 		"reference/benchmark-results.md" \
 		"reference/production-readiness.md" \
 		"reference/production-exit-review.md" \
+		"reference/stable-v0.1.0-exit-criteria.md" \
 		"reference/external-controls-matrix.md" \
 		"reference/production-gate-troubleshooting.md" \
 		"reference/release-candidate.md" \
@@ -261,6 +263,10 @@ docs-check: meta-check release-truth-check ## Validate canonical docs exist and 
 	@grep -F 'Required: external PostgreSQL' docs/how-to/pilot-deployment-checklist.md >/dev/null
 	@grep -F 'external controls matrix' docs/reference/production-readiness.md docs/kubernetes.md docs/how-to/pilot-deployment-checklist.md >/dev/null
 	@grep -F 'Production gate troubleshooting' docs/reference/production-readiness.md docs/reference/release-validation.md docs/README.md >/dev/null
+	@grep -F 'Stable v0.1.0 exit criteria' docs/reference/production-readiness.md docs/reference/release-validation.md docs/reference/production-exit-review.md docs/reference/roadmap.md docs/README.md >/dev/null
+	@grep -F 'not legal compliance proof' docs/reference/stable-v0.1.0-exit-criteria.md >/dev/null
+	@grep -F 'make public-release-verify TAG=<v0.1.0-rc.N>' docs/reference/stable-v0.1.0-exit-criteria.md >/dev/null
+	@grep -F 'one API writer replica' docs/reference/stable-v0.1.0-exit-criteria.md >/dev/null
 	@grep -F 'Required: object paths are tenant-prefixed' docs/how-to/pilot-deployment-checklist.md >/dev/null
 	@grep -F 'Required: public API access is behind TLS' docs/how-to/pilot-deployment-checklist.md >/dev/null
 	@test -f docs/commercial/design-partner-pilot.md

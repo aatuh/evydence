@@ -39,6 +39,7 @@ This documentation is organized by reader task. Implementation claims should be 
 - [Benchmark results](reference/benchmark-results.md): current local benchmark command and interpretation.
 - [Production readiness](reference/production-readiness.md): self-hosted production profiles, production gates, and exit criteria.
 - [Production exit review](reference/production-exit-review.md): current release-positioning decision and unresolved blockers.
+- [Stable v0.1.0 exit criteria](reference/stable-v0.1.0-exit-criteria.md): criteria for moving from release candidate to a stable `v0.1.0` tag.
 - [External controls matrix](reference/external-controls-matrix.md): owner boundaries for regulated or high-trust self-hosted deployments.
 - [Production gate troubleshooting](reference/production-gate-troubleshooting.md): safe diagnostics for `make production-check` failures.
 - [Release candidate checklist](reference/release-candidate.md): required evidence before tagging a controlled self-hosted release candidate.
