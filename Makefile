@@ -246,6 +246,9 @@ docs-check: meta-check release-truth-check ## Validate canonical docs exist and 
 	@grep -F 'examples/end-to-end-release-evidence/run-local-demo.sh' docs/tutorials/evaluate-in-10-minutes.md >/dev/null
 	@grep -F 'Evaluate Evydence in 10 minutes' README.md docs/README.md >/dev/null
 	@grep -F 'Capability map' README.md docs/README.md >/dev/null
+	@grep -F 'Production Check' README.md docs/reference/release-evidence-index.md >/dev/null
+	@grep -F 'coverage.out' README.md docs/reference/release-evidence-index.md >/dev/null
+	@grep -F 'release-check-summary.txt' README.md docs/reference/release-evidence-index.md >/dev/null
 	@grep -F 'Implemented-But-Partial Areas' docs/reference/capability-map.md >/dev/null
 	@grep -F 'VEX/manual' README.md >/dev/null
 	@test -f docs/assets/package-viewer-preview.svg

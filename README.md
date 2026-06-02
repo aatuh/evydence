@@ -21,6 +21,10 @@ Website: <https://evydence.app>
 - Current public release candidate metadata is tracked in
   [`release/current.json`](release/current.json); GitHub Releases remains the
   external source of truth for published tags and assets.
+- Current release evidence links the Release Artifacts workflow, public CI
+  `Production Check` workflow run, CodeQL run, `coverage.out`, and
+  `release-check-summary.txt` from the
+  [Release evidence index](docs/reference/release-evidence-index.md).
 - See [Production readiness](docs/reference/production-readiness.md),
   [Pilot deployment checklist](docs/how-to/pilot-deployment-checklist.md), and
   [Release evidence index](docs/reference/release-evidence-index.md) before
