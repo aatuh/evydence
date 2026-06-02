@@ -164,6 +164,7 @@ docs-check: meta-check release-truth-check persistence-decomposition-check rende
 	@test -f docs/how-to/install-and-operate.md
 	@test -f docs/how-to/view-packages.md
 	@test -f docs/how-to/publish-marketing-site.md
+	@test -f docs/integrations/tool-templates.md
 	@test -f docs/reference/configuration.md
 	@test -f docs/reference/capability-map.md
 	@test -f docs/reference/api-contract-matrix.md
@@ -219,6 +220,7 @@ docs-check: meta-check release-truth-check persistence-decomposition-check rende
 		"how-to/view-packages.md" \
 		"how-to/review-customer-package.md" \
 		"how-to/integrate-ci.md" \
+		"integrations/tool-templates.md" \
 		"api.md" \
 		"operations.md" \
 		"kubernetes.md" \
@@ -379,6 +381,14 @@ docs-check: meta-check release-truth-check persistence-decomposition-check rende
 	@grep -F 'SBOM inventory tools' docs/commercial/category-comparison.md >/dev/null
 	@grep -F 'Trust centers' docs/commercial/category-comparison.md >/dev/null
 	@grep -F 'release upload-evidence' docs/how-to/integrate-ci.md >/dev/null
+	@grep -F 'Tool-specific integration templates' docs/README.md docs/how-to/integrate-ci.md docs/integrations/tool-templates.md >/dev/null
+	@grep -F 'syft dir:.' docs/integrations/tool-templates.md >/dev/null
+	@grep -F 'grype dir:.' docs/integrations/tool-templates.md >/dev/null
+	@grep -F 'trivy fs --format json' docs/integrations/tool-templates.md >/dev/null
+	@grep -F 'Dependency-Track is adjacent inventory' docs/integrations/tool-templates.md >/dev/null
+	@grep -F 'Jira links are metadata' docs/integrations/tool-templates.md >/dev/null
+	@grep -F 'EVYDENCE_OBJECT_STORE=s3' docs/integrations/tool-templates.md >/dev/null
+	@grep -F 'Default repository checks do not call Syft, Grype, Trivy, Dependency-Track, Jira, GitHub, GitLab, S3, or MinIO' docs/integrations/tool-templates.md >/dev/null
 	@grep -F 'End-to-end GitHub Actions release evidence guide' docs/how-to/integrate-ci.md docs/README.md docs/github-actions/end-to-end-release-evidence.md >/dev/null
 	@grep -F 'least-privilege' docs/github-actions/end-to-end-release-evidence.md >/dev/null
 	@grep -F 'do not make live GitHub API calls' docs/github-actions/end-to-end-release-evidence.md >/dev/null
