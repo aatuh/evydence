@@ -254,7 +254,12 @@ docs-check: meta-check release-truth-check ## Validate canonical docs exist and 
 	@grep -F 'Implemented-But-Partial Areas' docs/reference/capability-map.md >/dev/null
 	@grep -F 'VEX/manual' README.md >/dev/null
 	@test -f docs/assets/package-viewer-preview.svg
+	@test -f docs/assets/package-viewer-desktop.png
+	@test -f docs/assets/package-viewer-mobile.png
 	@grep -F 'package-viewer-preview.svg' docs/how-to/view-packages.md >/dev/null
+	@grep -F 'package-viewer-desktop.png' docs/how-to/view-packages.md >/dev/null
+	@grep -F 'package-viewer-mobile.png' docs/how-to/view-packages.md >/dev/null
+	@grep -F 'scripts/capture_package_viewer_screenshots.sh' docs/how-to/view-packages.md >/dev/null
 	@grep -F 'report.html' docs/reference/customer-package-manifest.md docs/how-to/view-packages.md >/dev/null
 	@grep -F 'Redaction Leakage Guard' docs/reference/customer-package-manifest.md >/dev/null
 	@grep -F 'reviewer_checklist' docs/reference/customer-package-manifest.md >/dev/null
@@ -420,6 +425,9 @@ benchmark-check: ## Run the checked app-layer release evidence benchmark
 package-viewer-check: ## Validate local package viewer and walkthrough
 	@test -f site/package-viewer/index.html
 	@test -f docs/how-to/view-packages.md
+	@test -x scripts/capture_package_viewer_screenshots.sh
+	@test -f docs/assets/package-viewer-desktop.png
+	@test -f docs/assets/package-viewer-mobile.png
 	@test -f docs/assets/reviewer-journey.svg
 	@grep -F 'Load bundled demo' site/package-viewer/index.html >/dev/null
 	@grep -F 'textContent' site/package-viewer/index.html >/dev/null
@@ -432,6 +440,9 @@ package-viewer-check: ## Validate local package viewer and walkthrough
 	@grep -F 'review_due_at' site/package-viewer/index.html >/dev/null
 	@grep -F 'sbom_component_purl' site/package-viewer/index.html >/dev/null
 	@grep -F 'examples/end-to-end-release-evidence/sample-customer-package-manifest.json' docs/how-to/view-packages.md >/dev/null
+	@grep -F 'package-viewer-desktop.png' docs/how-to/view-packages.md >/dev/null
+	@grep -F 'package-viewer-mobile.png' docs/how-to/view-packages.md >/dev/null
+	@grep -F 'not package verification evidence' docs/how-to/view-packages.md >/dev/null
 	@grep -F 'reviewer-journey.svg' docs/how-to/view-packages.md >/dev/null
 	@grep -F 'hash/signature verification' docs/how-to/view-packages.md >/dev/null
 	@grep -F 'Release Summary' docs/assets/reviewer-journey.svg >/dev/null
