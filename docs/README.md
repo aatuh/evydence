@@ -46,6 +46,7 @@ This documentation is organized by reader task. Implementation claims should be 
 - [Capacity and failure modes](reference/capacity-and-failures.md): supported concurrency profile, sizing inputs, and failure behavior.
 - [Benchmark results](reference/benchmark-results.md): current local benchmark command and interpretation.
 - [Production readiness](reference/production-readiness.md): self-hosted production profiles, production gates, and exit criteria.
+- [Production readiness traceability](reference/production-readiness-traceability.md): maps production/productization findings to repo-local evidence or external blockers.
 - [Persistence decomposition inventory](reference/persistence-decomposition.md): generated map of focused and broad relational persistence call sites.
 - [Production exit review](reference/production-exit-review.md): current release-positioning decision and unresolved blockers.
 - [Stable v0.1.0 exit criteria](reference/stable-v0.1.0-exit-criteria.md): criteria for moving from release candidate to a stable `v0.1.0` tag.
