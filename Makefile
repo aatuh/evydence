@@ -163,6 +163,7 @@ docs-check: meta-check release-truth-check ## Validate canonical docs exist and 
 	@test -f docs/reference/stable-v0.1.0-exit-criteria.md
 	@test -f docs/reference/external-controls-matrix.md
 	@test -f docs/reference/production-gate-troubleshooting.md
+	@test -f docs/reference/upgrade-compatibility-policy.md
 	@test -f docs/reference/release-candidate.md
 	@test -f docs/reference/release-evidence-index.md
 	@test -f docs/reference/release-notes-template.md
@@ -216,6 +217,7 @@ docs-check: meta-check release-truth-check ## Validate canonical docs exist and 
 		"reference/stable-v0.1.0-exit-criteria.md" \
 		"reference/external-controls-matrix.md" \
 		"reference/production-gate-troubleshooting.md" \
+		"reference/upgrade-compatibility-policy.md" \
 		"reference/release-candidate.md" \
 		"reference/release-evidence-index.md" \
 		"reference/release-notes-template.md" \
@@ -291,6 +293,9 @@ docs-check: meta-check release-truth-check ## Validate canonical docs exist and 
 	@grep -F 'external controls matrix' docs/reference/production-readiness.md docs/kubernetes.md docs/how-to/pilot-deployment-checklist.md >/dev/null
 	@grep -F 'Production gate troubleshooting' docs/reference/production-readiness.md docs/reference/release-validation.md docs/README.md >/dev/null
 	@grep -F 'Stable v0.1.0 exit criteria' docs/reference/production-readiness.md docs/reference/release-validation.md docs/reference/production-exit-review.md docs/reference/roadmap.md docs/README.md >/dev/null
+	@grep -F 'Upgrade and compatibility policy' docs/runbooks/upgrade.md docs/README.md >/dev/null
+	@grep -F 'Release candidates may still make breaking API or schema changes' docs/reference/upgrade-compatibility-policy.md >/dev/null
+	@grep -F 'make migration-compatibility-check' docs/reference/upgrade-compatibility-policy.md >/dev/null
 	@grep -F 'not legal compliance proof' docs/reference/stable-v0.1.0-exit-criteria.md >/dev/null
 	@grep -F 'make public-release-verify TAG=<v0.1.0-rc.N>' docs/reference/stable-v0.1.0-exit-criteria.md >/dev/null
 	@grep -F 'one API writer replica' docs/reference/stable-v0.1.0-exit-criteria.md >/dev/null
