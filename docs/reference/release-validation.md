@@ -41,9 +41,11 @@ That gate is stricter than `make release-check`: it requires
 the configured coverage threshold, verifies every committed migration prefix can
 upgrade to the current schema in a temporary PostgreSQL schema, runs the checked
 release-evidence benchmark, starts an API and worker against a disposable
-PostgreSQL schema for a black-box demo/restart persistence check, and runs a
-release artifact signing smoke test. See [Production readiness](production-readiness.md)
-for the supported profiles and exit criteria.
+PostgreSQL schema for a black-box demo/restart persistence check, runs the same
+black-box flow against release-style local binaries through
+`make black-box-release-artifact-check`, and runs a release artifact signing
+smoke test. See [Production readiness](production-readiness.md) for the
+supported profiles and exit criteria.
 
 `make coverage-check` is intentionally part of the production profile and fails
 early when `EVYDENCE_TEST_DATABASE_URL` is unset. Use `make coverage` for a
@@ -130,12 +132,14 @@ The checked-in GitHub Actions workflow provides a disposable PostgreSQL service,
 sets `EVYDENCE_TEST_DATABASE_URL`, and runs `make production-check`. That gate
 runs the live PostgreSQL release check, coverage threshold enforcement, lint,
 gosec, govulncheck, race tests, OpenAPI/docs/deployment/SDK checks, migration
-compatibility tests, and a release manifest signing smoke test.
+compatibility tests, production benchmark evidence, black-box release-style binary evidence,
+and a release manifest signing smoke test.
 
 The workflow preserves `tmp/release-check-summary.txt`, `coverage.out`, and the
-production-check release manifest/signature smoke artifacts as build artifacts.
-The database must not contain production evidence, customer package tokens,
-signing-key material, or other real secrets.
+production benchmark summary, black-box release-style binary summary,
+release-style binary checksums, and production-check release manifest/signature
+smoke artifacts as build artifacts. The database must not contain production
+evidence, customer package tokens, signing-key material, or other real secrets.
 
 GitHub Actions and service container dependencies are pinned by commit SHA or
 image digest in the checked CI workflows. The repository also runs a CodeQL

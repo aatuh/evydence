@@ -17,7 +17,7 @@ for tool in curl go jq psql python3; do
 done
 
 workdir="${EVYDENCE_BLACK_BOX_WORKDIR:-tmp/black-box-demo-check}"
-schema="evy_demo_$(date +%s)_$$"
+schema="demo_schema_$(date +%s)_$$"
 api_pid=""
 worker_pid=""
 
@@ -67,8 +67,31 @@ PY
 )"
 api_url="http://127.0.0.1:$port"
 
-go build -o "$workdir/evydence-api" ./cmd/evydence-api
-go build -o "$workdir/evydence-worker" ./cmd/evydence-worker
+prepare_binary() {
+  env_name="$1"
+  fallback_pkg="$2"
+  output="$3"
+  case "$env_name" in
+    EVYDENCE_BLACK_BOX_API_BIN) configured="${EVYDENCE_BLACK_BOX_API_BIN:-}" ;;
+    EVYDENCE_BLACK_BOX_WORKER_BIN) configured="${EVYDENCE_BLACK_BOX_WORKER_BIN:-}" ;;
+    *)
+      printf '%s\n' "black-box-demo-check: unsupported binary env selector" >&2
+      exit 2
+      ;;
+  esac
+  if [ -n "$configured" ]; then
+    if [ ! -x "$configured" ]; then
+      printf '%s\n' "black-box-demo-check: $env_name must point to an executable file" >&2
+      exit 2
+    fi
+    cp "$configured" "$output"
+  else
+    go build -o "$output" "$fallback_pkg"
+  fi
+}
+
+prepare_binary EVYDENCE_BLACK_BOX_API_BIN ./cmd/evydence-api "$workdir/evydence-api"
+prepare_binary EVYDENCE_BLACK_BOX_WORKER_BIN ./cmd/evydence-worker "$workdir/evydence-worker"
 
 start_api() {
   label="$1"

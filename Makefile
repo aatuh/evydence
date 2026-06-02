@@ -9,7 +9,7 @@ GOVULNCHECK_VERSION ?= v1.2.0
 
 TAG ?=
 
-.PHONY: help tools fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check meta-check release-truth-check docs-check deploy-check sdk-check demo-check customer-cve-review-demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check benchmark-check package-viewer-check marketing-site-check marketing-site-production-check restore-rehearsal-check fast-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
+.PHONY: help tools fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check meta-check release-truth-check docs-check deploy-check sdk-check demo-check customer-cve-review-demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check black-box-release-artifact-check benchmark-check package-viewer-check marketing-site-check marketing-site-production-check restore-rehearsal-check fast-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -361,6 +361,9 @@ docs-check: meta-check release-truth-check ## Validate canonical docs exist and 
 	@grep -F 'upload validate-manifest' docs/gitlab/evydence-release-evidence.gitlab-ci.yml >/dev/null
 	@grep -F -- '--manifest evydence-upload-manifest.json' docs/gitlab/evydence-release-evidence.gitlab-ci.yml >/dev/null
 	@grep -F 'make production-check' .github/workflows/ci.yml >/dev/null
+	@grep -F 'tmp/black-box-release-artifact/black-box-release-artifact-summary.json' .github/workflows/ci.yml >/dev/null
+	@grep -F 'black-box release-style binary evidence' docs/reference/release-validation.md >/dev/null
+	@grep -F 'make black-box-release-artifact-check' docs/reference/production-readiness.md docs/reference/release-validation.md >/dev/null
 	@grep -F 'make production-check' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64' .github/workflows/release-artifacts.yml >/dev/null
 	@grep -F 'EVYDENCE_RELEASE_PUBLISH_TOKEN' .github/workflows/release-artifacts.yml >/dev/null
@@ -449,6 +452,7 @@ demo-check: ## Validate checked end-to-end evidence demo fixtures
 	@test -x examples/customer-cve-review-demo/run-demo.sh
 	@test -x scripts/local_ci_simulation_check.sh
 	@test -x scripts/reviewer_package_workflow_check.sh
+	@test -x scripts/black_box_release_artifact_check.sh
 	@test -f examples/end-to-end-release-evidence/README.md
 	@test -f examples/customer-cve-review-demo/README.md
 	@test -f examples/customer-cve-review-demo/customer-cve-review-story.json
@@ -488,6 +492,9 @@ reviewer-package-workflow-check: ## Validate offline reviewer package verificati
 
 black-box-demo-check: ## Run live PostgreSQL black-box API/worker demo; requires EVYDENCE_TEST_DATABASE_URL
 	@scripts/black_box_demo_check.sh
+
+black-box-release-artifact-check: ## Run live PostgreSQL black-box demo against release-style local binaries
+	@scripts/black_box_release_artifact_check.sh
 
 benchmark-check: ## Run the checked app-layer release evidence benchmark
 	@$(GO) test ./internal/app -bench BenchmarkReleaseEvidenceIngestion -benchtime=100x -run '^$$' -benchmem

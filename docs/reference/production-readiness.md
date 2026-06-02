@@ -178,6 +178,9 @@ Do not describe an Evydence build as broadly self-hosted production-ready until:
 - `make black-box-demo-check` passes against a disposable PostgreSQL schema,
   exercising API, worker, restart persistence, readiness, package, and
   audit-chain verification paths;
+- `make black-box-release-artifact-check` passes against release-style local
+  binaries, disposable PostgreSQL, filesystem object storage, API restart, and
+  package/readiness/audit-chain verification paths;
 - coverage is at or above the configured threshold;
 - release artifacts have signed manifests and published checksums;
 - committed migrations have passed compatibility checks from every migration
