@@ -25,7 +25,7 @@ domain state, and third-party security review remain external evidence sources.
 | Security intake and public trust | E6-T4, E6-T5, E6-T7 | Repo-local release evidence and exit criteria are complete; private vulnerability reporting, branch protection, external review, and account settings remain external. | `SECURITY.md`, `docs/reference/stable-v0.1.0-exit-criteria.md`, `scripts/release_asset_smoke_check.sh`, `make release-acceptance`, `make public-release-verify TAG=v0.1.0-rc.7`. |
 | Reviewer UX and commercial packaging | E7-T1, E7-T2, E7-T3, E7-T5 | Complete locally; real buyer validation remains external. | `site/package-viewer/index.html`, `docs/how-to/view-packages.md`, `COMMERCIAL.md`, `docs/commercial/product-landing-copy.md`, `docs/commercial/category-comparison.md`, `site/marketing/src/data/site.ts`, `make package-viewer-check`, `make marketing-site-check`. |
 | External trust and adoption tracking | E8-T1 through E8-T4 | External. | Tracked as provider/customer/reviewer work only; repository files cannot prove public adoption, GitHub Pages health, analytics account settings, or third-party review completion. |
-| Perfect-score internal closure | E9-T1 through E9-T4 | In progress until this matrix, exit checklist, fresh audit, and internal-score summary are complete. | This file, `docs/reference/production-internal-exit-checklist.md`, future audit outputs, and final docs/finalize gates. |
+| Perfect-score internal closure | E9-T1 through E9-T4 | Complete locally; external blockers remain visible. | This file, `docs/reference/production-internal-exit-checklist.md`, `docs/reference/production-readiness-audit-closeout.md`, `docs/reference/production-internal-score.md`, and final docs/finalize gates. |
 
 ## External Blockers
 

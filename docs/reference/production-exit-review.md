@@ -71,11 +71,12 @@ SaaS-ready, legally compliant, certified, or secure-release-guaranteed.
 ## Decision
 
 The current repository can support controlled self-hosted evaluation, pilots,
-and internal production after operator review. The productization audit closeout
-in `.audits/production_readiness_v2/` and `.audits/product_code_audit_v4/`
-supports keeping this controlled candidate status, not strengthening it. It
-should not be marketed as broad production-ready for most uses until the
-external controls above are closed, the
+and internal production after operator review. The tracked
+[production readiness audit closeout](production-readiness-audit-closeout.md)
+and [highest achievable internal score](production-internal-score.md) support
+keeping this controlled candidate status, not strengthening it. It should not
+be marketed as broad production-ready for most uses until the external controls
+above are closed, the
 [Stable v0.1.0 exit criteria](stable-v0.1.0-exit-criteria.md) pass for a
 concrete candidate, and a fresh product, codebase, security, documentation, and
 test audit confirms the change.
