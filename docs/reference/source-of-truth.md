@@ -9,7 +9,7 @@ product-boundary language across the docs.
 | Buyer evaluation path | `docs/buyer-overview.md` | Links demo, package viewer, release evidence, capability map, and API review without duplicating commands. |
 | Operator path | `docs/operator-overview.md` and `docs/operations.md` | Links install, config, deployment, gates, runbooks, and production boundaries. |
 | Runtime configuration | `docs/reference/configuration.md` | How-to guides may show a short example, then link here for variables. |
-| API routes, scopes, idempotency, schemas | `openapi.yaml`, `docs/api.md`, `docs/reference/api-contract-matrix.md` | `openapi.yaml` is generated; the matrix is generated from it. |
+| API routes, scopes, idempotency, schemas | `openapi.yaml`, `docs/api.md`, `docs/reference/api-contract-matrix.md`, and `docs/openapi/index.html` | `openapi.yaml` is generated; the matrix and rendered OpenAPI docs are generated from it. |
 | Local startup | `docs/tutorials/getting-started.md` | Uses in-process state only. |
 | Durable operation | `docs/how-to/install-and-operate.md` | Includes PostgreSQL/object storage and production-like Compose rehearsal. |
 | Kubernetes | `docs/kubernetes.md` | Helm-specific operator interface. |

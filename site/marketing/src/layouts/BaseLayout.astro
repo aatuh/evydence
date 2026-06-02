@@ -28,6 +28,7 @@ const ui = {
     skip: "Skip to content",
     language: "Language",
     docs: "Docs",
+    apiDocs: "API docs",
     github: "GitHub",
     menu: "Menu",
     footerTagline: "Self-hosted release evidence for software vendors.",
@@ -39,6 +40,7 @@ const ui = {
     skip: "Siirry sisältöön",
     language: "Kieli",
     docs: "Dokumentaatio",
+    apiDocs: "API-dokumentaatio",
     github: "GitHub",
     menu: "Valikko",
     footerTagline: "Itse ylläpidettävä julkaisuevidence ohjelmistotoimittajille.",
@@ -124,6 +126,7 @@ const ui = {
         <a href={withBase(routeFor("status", locale))}>{copy.status.navTitle}</a>
         <a href={externalLinks.github} data-track="github_click">{ui.github}</a>
         <a href={externalLinks.docs} data-track="docs_click">{ui.docs}</a>
+        <a href={withBase("/api/")} data-track="docs_click">{ui.apiDocs}</a>
         <a href={withBase(routeFor("privacyCookies", locale))}>{copy.privacyCookies.navTitle}</a>
         <button type="button" data-cookie-preferences>{ui.cookiePreferences}</button>
       </nav>
