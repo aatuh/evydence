@@ -87,6 +87,7 @@ This documentation is organized by reader task. Implementation claims should be 
 ## Workflow Examples
 
 - [GitHub Actions quickstart release evidence workflow](github-actions/quickstart-release-evidence.yml)
+- [End-to-end GitHub Actions release evidence guide](github-actions/end-to-end-release-evidence.md)
 - [GitHub Actions scanner release evidence workflow](github-actions/release-evidence-workflow.yml)
 - [GitHub Actions upload-build composite action](github-actions/upload-build/action.yml)
 - [GitHub release evidence manifest generator](../scripts/github_release_evidence_manifest.py)

@@ -26,6 +26,10 @@ Expected status is `201`. The response returns the collector API key secret once
 
 ## GitHub Actions
 
+For the concrete end-to-end scanner, bundle, optional customer package, and
+readiness path, use
+[End-to-end GitHub Actions release evidence guide](../github-actions/end-to-end-release-evidence.md).
+
 Start with the quickstart workflow
 [docs/github-actions/quickstart-release-evidence.yml](../github-actions/quickstart-release-evidence.yml).
 It builds one artifact, computes its digest, writes a minimal CycloneDX SBOM,
