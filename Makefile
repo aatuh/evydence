@@ -9,7 +9,7 @@ GOVULNCHECK_VERSION ?= v1.2.0
 
 TAG ?=
 
-.PHONY: help tools fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check meta-check docs-check deploy-check sdk-check demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check benchmark-check package-viewer-check marketing-site-check marketing-site-production-check restore-rehearsal-check fast-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
+.PHONY: help tools fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check meta-check release-truth-check docs-check deploy-check sdk-check demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check benchmark-check package-viewer-check marketing-site-check marketing-site-production-check restore-rehearsal-check fast-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -128,7 +128,10 @@ meta-check: ## Validate root legal, governance, support, and release-evidence me
 	@grep -F 'backups' .dockerignore >/dev/null
 	@grep -F '*.pem' .dockerignore >/dev/null
 
-docs-check: meta-check ## Validate canonical docs exist and avoid forbidden product claims
+release-truth-check: ## Validate current release metadata against public docs and helper defaults
+	@scripts/check_release_truth.py
+
+docs-check: meta-check release-truth-check ## Validate canonical docs exist and avoid forbidden product claims
 	@test -f README.md
 	@test -f docs/README.md
 	@test -f docs/architecture.md
@@ -240,22 +243,16 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@grep -F 'This CVE appears in your SBOM. Are you affected, why, who approved it, and' docs/tutorials/evaluate-in-10-minutes.md >/dev/null
 	@grep -F 'sample-customer-package-manifest.json' docs/tutorials/evaluate-in-10-minutes.md >/dev/null
 	@grep -F 'site/package-viewer/index.html' docs/tutorials/evaluate-in-10-minutes.md >/dev/null
-	@grep -F 'make public-release-verify TAG=v0.1.0-rc.5' docs/tutorials/evaluate-in-10-minutes.md >/dev/null
 	@grep -F 'examples/end-to-end-release-evidence/run-local-demo.sh' docs/tutorials/evaluate-in-10-minutes.md >/dev/null
 	@grep -F 'Evaluate Evydence in 10 minutes' README.md docs/README.md >/dev/null
-	@grep -F 'make public-release-verify TAG=v0.1.0-rc.5' README.md >/dev/null
 	@grep -F 'Capability map' README.md docs/README.md >/dev/null
 	@grep -F 'Implemented-But-Partial Areas' docs/reference/capability-map.md >/dev/null
 	@grep -F 'VEX/manual' README.md >/dev/null
-	@grep -F 'make public-release-verify TAG=v0.1.0-rc.5' docs/how-to/install-and-operate.md >/dev/null
-	@grep -F 'make public-release-verify TAG=v0.1.0-rc.5' docs/reference/release-evidence-index.md >/dev/null
-	@grep -F 'make public-release-verify TAG=v0.1.0-rc.5' examples/end-to-end-release-evidence/README.md >/dev/null
 	@test -f docs/assets/package-viewer-preview.svg
 	@grep -F 'package-viewer-preview.svg' docs/how-to/view-packages.md >/dev/null
 	@grep -F 'report.html' docs/reference/customer-package-manifest.md docs/how-to/view-packages.md >/dev/null
 	@grep -F 'Redaction Leakage Guard' docs/reference/customer-package-manifest.md >/dev/null
 	@grep -F 'reviewer_checklist' docs/reference/customer-package-manifest.md >/dev/null
-	@grep -F 'v0.1.0-rc.5 - 2026-06-01' CHANGELOG.md >/dev/null
 	@grep -F 'make restore-rehearsal-check' docs/runbooks/backup-restore.md >/dev/null
 	@test -f docs/how-to/pilot-deployment-checklist.md
 	@grep -F 'Required: external PostgreSQL' docs/how-to/pilot-deployment-checklist.md >/dev/null
@@ -310,7 +307,7 @@ docs-check: meta-check ## Validate canonical docs exist and avoid forbidden prod
 	@grep -F 'ghcr.io/aatuh/evydence' docs/reference/release-evidence-index.md >/dev/null
 	@grep -F 'ghcr.io/aatuh/evydence' docs/kubernetes.md >/dev/null
 	@grep -F 'ghcr.io/aatuh/evydence' deploy/airgap/manifest.yaml >/dev/null
-	@grep -F 'sha256:38188044a3e5ded3c6094564ab39ce989185f65e22cf4296985ec19ba0eb1888' docs/reference/release-evidence-index.md docs/kubernetes.md deploy/airgap/manifest.yaml >/dev/null
+	@grep -F 'sha256:38188044a3e5ded3c6094564ab39ce989185f65e22cf4296985ec19ba0eb1888' docs/reference/release-evidence-index.md deploy/airgap/manifest.yaml >/dev/null
 	@grep -F 'cosign verify' docs/reference/release-evidence-index.md >/dev/null
 	@grep -F 'github/codeql-action/init@7211b7c8077ea37d8641b6271f6a365a22a5fbfa' .github/workflows/codeql.yml >/dev/null
 	@grep -F 'security-and-quality' .github/workflows/codeql.yml >/dev/null
