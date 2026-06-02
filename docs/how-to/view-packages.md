@@ -39,6 +39,13 @@ running the API, load
 `examples/end-to-end-release-evidence/sample-customer-package-manifest.json` or
 press **Load bundled demo** in the viewer.
 
+The top **Reviewer Dossier** is the quickest read-only path through a package.
+It summarizes package scope, package verification status, SBOM metadata, CVE
+decision status, approver or approval context, linked evidence, limitations, and
+the offline `evydence package verify` command. The browser does not verify the
+package bytes itself; use the CLI verifier before relying on a manifest or ZIP
+archive.
+
 Before sharing or reviewing a package, use the offline verifier for hash,
 structure, archive metadata, and optional evidence-bundle signature checks:
 
@@ -81,15 +88,18 @@ The sample reviewer journey is:
 
 1. Read the release summary to confirm product, release, package scope,
    artifact digests, and readiness result.
-2. Inspect vulnerability and VEX decisions to see the recorded status,
+2. Use the reviewer dossier to confirm read-only package scope, package
+   verification status, linked evidence, limitations, and the offline
+   verification command.
+3. Inspect vulnerability and VEX decisions to see the recorded status,
    impact/action statement, approval context, and whether the decision is
    customer-visible.
-3. Review evidence contents to confirm which SBOM, scan, VEX, release bundle,
+4. Review evidence contents to confirm which SBOM, scan, VEX, release bundle,
    approval, exception, and redaction metadata are included.
-4. Check verification status before relying on package bytes for review.
-5. Read gaps for missing evidence, stale evidence, unhandled findings, and
+5. Check verification status before relying on package bytes for review.
+6. Read gaps for missing evidence, stale evidence, unhandled findings, and
    exceptions that did not unblock readiness.
-6. Read assumptions and limitations before using the package in a customer or
+7. Read assumptions and limitations before using the package in a customer or
    internal review.
 
 Use it for:
