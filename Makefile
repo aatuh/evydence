@@ -570,6 +570,11 @@ package-viewer-check: ## Validate local package viewer and walkthrough
 	@grep -F 'textContent' site/package-viewer/index.html >/dev/null
 	@! grep -F 'innerHTML' site/package-viewer/index.html >/dev/null
 	@grep -F 'Release Summary' site/package-viewer/index.html >/dev/null
+	@grep -F 'Reviewer Dossier' site/package-viewer/index.html docs/how-to/view-packages.md >/dev/null
+	@grep -F 'read-only package scope' site/package-viewer/index.html docs/how-to/view-packages.md >/dev/null
+	@grep -F 'Package verification result' site/package-viewer/index.html >/dev/null
+	@grep -F 'Offline verification instructions' site/package-viewer/index.html >/dev/null
+	@grep -F 'evydence package verify' site/package-viewer/index.html docs/how-to/view-packages.md >/dev/null
 	@grep -F 'Vulnerability / VEX Decisions' site/package-viewer/index.html >/dev/null
 	@grep -F 'Verification Status' site/package-viewer/index.html >/dev/null
 	@grep -F 'Reviewer checklist' site/package-viewer/index.html >/dev/null

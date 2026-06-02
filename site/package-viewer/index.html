@@ -100,6 +100,16 @@
       gap: 26px;
       margin-top: 24px;
     }
+    .dossier {
+      margin-top: 22px;
+      border-top: 1px solid var(--line);
+      padding-top: 22px;
+    }
+    .dossier-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 12px;
+    }
     .summary-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
@@ -221,6 +231,19 @@
       background: var(--soft-warn);
       color: #6f4b12;
     }
+    .command {
+      display: block;
+      overflow-x: auto;
+      margin-top: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #101418;
+      color: #f7fafc;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 13px;
+      white-space: pre;
+    }
     .empty {
       border: 1px dashed var(--line);
       border-radius: 8px;
@@ -286,6 +309,7 @@
     </header>
 
     <section id="summary" class="summary-grid" aria-live="polite"></section>
+    <section id="dossier" class="dossier" aria-live="polite"></section>
 
     <div class="layout">
       <section id="release" class="section"></section>
@@ -307,6 +331,7 @@
     const statusNode = document.getElementById("status");
     const summaryNode = document.getElementById("summary");
     const nodes = {
+      dossier: document.getElementById("dossier"),
       release: document.getElementById("release"),
       artifacts: document.getElementById("artifacts"),
       sbom: document.getElementById("sbom"),
@@ -423,6 +448,16 @@
       }).filter(Boolean);
       return values.length ? values.join(", ") : "not present";
     };
+    const firstRecord = (rows) => safeArray(rows).find((row) => row && typeof row === "object") || {};
+    const joinRecordIDs = (rows) => {
+      const ids = safeArray(rows).map((row) => {
+        if (!row || typeof row !== "object") {
+          return "";
+        }
+        return row.id || row.evidence_id || row.manifest_hash || "";
+      }).filter(Boolean);
+      return ids.length ? ids.join(", ") : "not present";
+    };
     const pick = (obj, paths) => {
       for (const path of paths) {
         const value = path.split(".").reduce((current, key) => {
@@ -533,6 +568,84 @@
       addMetric("Profile", pick(data, ["redaction_profile.name", "redaction_profile_id"]));
       addMetric("Evidence IDs", safeArray(data.evidence_ids).length);
       addMetric("Generated", pick(data, ["generated_at", "created_at", "checked_at"]));
+    };
+
+    const renderDossier = (data) => {
+      clearNode(nodes.dossier);
+      const packageID = pick(data, ["package_id", "id"]);
+      const productID = pick(data, ["product.id", "product_id"]);
+      const releaseID = pick(data, ["release.id", "release_id"]);
+      const sbom = firstRecord(data.sboms);
+      const decision = firstRecord(data.vulnerability_decisions);
+      const approval = firstRecord(data.approvals);
+      const material = safeObject(data.verification_material);
+      const audit = safeObject(material.audit_chain);
+      const releaseBundles = safeArray(material.release_bundles);
+      const verificationStatus = material.hash_algorithm
+        ? "Verification material present; run CLI verifier before relying on bytes."
+        : "No package verification material is present.";
+      const approver = approval.approver || approval.approved_by || approval.actor || approval.reviewer || approval.decision || "not present";
+      const command = [
+        "evydence package verify \\",
+        "  --manifest package-manifest.json \\",
+        "  --expected-package-id " + text(packageID, "<package_id>") + " \\",
+        "  --expected-product-id " + text(productID, "<product_id>") + " \\",
+        "  --expected-release-id " + text(releaseID, "<release_id>")
+      ].join("\n");
+
+      const head = document.createElement("div");
+      head.className = "section-head";
+      appendText(head, "h2", "", "Reviewer Dossier");
+      appendText(head, "span", "badge warn", "read-only package scope");
+      nodes.dossier.append(head);
+
+      const grid = document.createElement("div");
+      grid.className = "dossier-grid";
+      [
+        ["Scope", [text(data.product && data.product.name, productID), text(data.release && data.release.version, releaseID), text(data.redaction_profile && data.redaction_profile.name, data.redaction_profile_id)].join(" / ")],
+        ["Package verification result", verificationStatus],
+        ["SBOM summary", [text(sbom.format), text(sbom.component_count, "0") + " components"].join(" / ")],
+        ["CVE decision", [text(decision.vulnerability), text(decision.status)].join(" / ")],
+        ["Approver / approval", approver],
+        ["Linked evidence", [safeArray(data.evidence_ids).length + " evidence IDs", releaseBundles.length + " release bundles", text(audit.result)].join(" / ")],
+        ["Limitations", safeArray(data.limitations).length + safeArray(data.non_claims).length + " listed"],
+        ["Package expiry", pick(data, ["expires_at", "expires", "valid_until"])]
+      ].forEach(([label, value]) => {
+        const card = document.createElement("section");
+        card.className = "metric";
+        appendText(card, "p", "label", label);
+        appendText(card, "p", "value", value);
+        grid.append(card);
+      });
+      nodes.dossier.append(grid);
+
+      const linked = document.createElement("div");
+      linked.className = "split";
+      const left = document.createElement("div");
+      appendText(left, "h3", "", "Linked evidence path");
+      table(left, [
+        { label: "Kind", value: "kind" },
+        { label: "Included IDs", value: "ids" }
+      ], [
+        { kind: "Evidence records", ids: safeArray(data.evidence_ids).join(", ") },
+        { kind: "Release bundles", ids: joinRecordIDs(releaseBundles) },
+        { kind: "Decision support", ids: formatRefs(decision.supporting_refs) },
+        { kind: "Redaction profile", ids: [data.redaction_profile_id, data.redaction_profile && data.redaction_profile.name].filter(Boolean).join(" / ") }
+      ], "No linked package evidence is present.");
+      const right = document.createElement("div");
+      appendText(right, "h3", "", "Offline verification instructions");
+      appendText(right, "p", "muted", "The browser view is read-only orientation. Verify the manifest or ZIP locally before relying on package bytes.");
+      const code = document.createElement("code");
+      code.className = "command";
+      code.textContent = command;
+      right.append(code);
+      linked.append(left, right);
+      nodes.dossier.append(linked);
+
+      const boundary = document.createElement("p");
+      boundary.className = "note";
+      boundary.textContent = "This viewer renders only package-scoped JSON already present in the selected file. It is not an authorization layer, does not fetch tenant data, and does not expose raw evidence payload bytes or secrets.";
+      nodes.dossier.append(boundary);
     };
 
     const renderRelease = (data) => {
@@ -767,6 +880,7 @@
         throw new Error("JSON document is not an object");
       }
       renderSummary(data, fileName);
+      renderDossier(data);
       renderRelease(data);
       renderArtifactsAndSBOM(data);
       renderRisk(data);
