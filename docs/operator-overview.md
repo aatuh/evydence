@@ -50,6 +50,7 @@ beyond evaluation.
 - [Observability](reference/observability.md)
 - [Capacity and failure modes](reference/capacity-and-failures.md)
 - [Hardened reference deployment](reference/hardened-reference-deployment.md)
+- [HA strategy](reference/ha-strategy.md)
 - [External controls matrix](reference/external-controls-matrix.md)
 - [Stable v0.1.0 exit criteria](reference/stable-v0.1.0-exit-criteria.md)
 - [Source of truth](reference/source-of-truth.md)

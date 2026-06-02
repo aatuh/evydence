@@ -120,8 +120,8 @@ The current decision is that one API writer is acceptable for controlled
 self-hosted deployments with monitored process restart, backup/restore
 rehearsal, and maintenance-window expectations. Multi-writer API HA is required
 before any future broad production or hosted SaaS claim. The roadmap records
-that backlog; see [Roadmap and release cadence](roadmap.md) and
-[Capacity and failure modes](capacity-and-failures.md).
+that backlog; see [HA strategy](ha-strategy.md),
+[Roadmap and release cadence](roadmap.md), and [Capacity and failure modes](capacity-and-failures.md).
 
 ## Machine Gate
 

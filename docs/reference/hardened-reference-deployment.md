@@ -23,6 +23,8 @@ Use the [pilot deployment checklist](../how-to/pilot-deployment-checklist.md)
 for the copy-paste go/no-go record and the
 [external controls matrix](external-controls-matrix.md) to assign operator,
 provider, repo, and review responsibilities.
+Use [HA strategy](ha-strategy.md) for the single-writer API decision,
+worker-scaling stance, recovery boundaries, and multi-writer prerequisites.
 
 ## Reference Topology
 
@@ -147,4 +149,4 @@ network, backup tooling, signing provider, or legal/review process is suitable.
 Do not broaden this reference into a multi-writer API HA claim. The supported
 self-hosted profile remains a single API writer replica with scalable worker
 replicas until multi-writer API concurrency is implemented, tested, and
-documented.
+documented. See [HA strategy](ha-strategy.md).
