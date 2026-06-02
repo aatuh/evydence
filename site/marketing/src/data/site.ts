@@ -222,6 +222,31 @@ const en: Record<PageKey, PageContent> = {
           "Evydence is designed for teams that want to run the evidence system in their own environment, close to release, security, and CI/CD systems.",
         ],
       },
+      {
+        title: "Different from adjacent tools",
+        table: [
+          {
+            left: "Dependency-Track and SBOM inventory",
+            right: "Evydence packages release-scoped SBOM, scan, decision, bundle, and verification evidence for review.",
+          },
+          {
+            left: "GUAC-style supply-chain graph tools",
+            right: "Evydence focuses on release manifests, verification receipts, and customer-safe package evidence.",
+          },
+          {
+            left: "OpenVEX tooling",
+            right: "Evydence stores VEX as evidence and links normalized decisions to releases, scans, SBOM context, and packages.",
+          },
+          {
+            left: "Vanta, Drata, and broad GRC",
+            right: "Evydence is self-hosted release evidence infrastructure, not a compliance platform or certification service.",
+          },
+          {
+            left: "Scanners and internal scripts",
+            right: "Evydence records their outputs, preserves hashes, and adds tenant scope, append-only history, and verification commands.",
+          },
+        ],
+      },
     ],
   },
   customerReview: {
@@ -722,6 +747,31 @@ const fi: Record<PageKey, PageContent> = {
         title: "Itse ylläpidettävä lähtökohta",
         body: [
           "Evydence on tarkoitettu tiimeille, jotka haluavat ajaa evidence-järjestelmää omassa ympäristössään lähellä julkaisu-, tietoturva- ja CI/CD-järjestelmiä.",
+        ],
+      },
+      {
+        title: "Ero viereisiin työkaluihin",
+        table: [
+          {
+            left: "Dependency-Track ja SBOM-inventaario",
+            right: "Evydence paketoi julkaisukohtaisen SBOM-, skannaus-, päätös-, bundle- ja todennusevidencen katselmoitavaksi.",
+          },
+          {
+            left: "GUAC-tyyliset supply-chain-graafityökalut",
+            right: "Evydence keskittyy julkaisumanifesteihin, todennuskuittauksiin ja asiakkaalle turvalliseen pakettievidenceen.",
+          },
+          {
+            left: "OpenVEX-työkalut",
+            right: "Evydence tallentaa VEXin evidencenä ja linkittää normalisoidut päätökset julkaisuihin, skannauksiin, SBOM-kontekstiin ja paketteihin.",
+          },
+          {
+            left: "Vanta, Drata ja laaja GRC",
+            right: "Evydence on itse ylläpidettävä julkaisuevidence-infra, ei compliance-alusta tai sertifiointipalvelu.",
+          },
+          {
+            left: "Skannerit ja sisäiset skriptit",
+            right: "Evydence tallentaa niiden tulokset, säilyttää tiivisteet ja lisää tenant-rajauksen, append-only-historian ja todennuskomennot.",
+          },
         ],
       },
     ],
