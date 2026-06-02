@@ -23,6 +23,8 @@ customer package that support the answer.
 | Start here | Use this when you want to |
 | --- | --- |
 | [Customer CVE review demo](examples/customer-cve-review-demo/README.md) | Inspect the no-external-services buyer proof path. |
+| [Buyer evaluation overview](docs/buyer-overview.md) | Follow the buyer package, demo, release-evidence, and API review path. |
+| [Operator overview](docs/operator-overview.md) | Follow the self-hosted install, runbook, and production-gate path. |
 | [OpenAPI reference](docs/reference/openapi.md) | Review the `/v1` API contract and generated schemas. |
 | [Install and operate](docs/how-to/install-and-operate.md) | Run the self-hosted API/worker path with PostgreSQL and object storage. |
 | [Release evidence index](docs/reference/release-evidence-index.md) | Verify public release artifacts, checksums, production-check evidence, and limitations. |

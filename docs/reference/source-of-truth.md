@@ -6,6 +6,8 @@ product-boundary language across the docs.
 | Topic | Canonical Source | Notes |
 | --- | --- | --- |
 | Product positioning and current status | `README.md` and `docs/reference/production-readiness.md` | Other docs should link here instead of redefining release status. |
+| Buyer evaluation path | `docs/buyer-overview.md` | Links demo, package viewer, release evidence, capability map, and API review without duplicating commands. |
+| Operator path | `docs/operator-overview.md` and `docs/operations.md` | Links install, config, deployment, gates, runbooks, and production boundaries. |
 | Runtime configuration | `docs/reference/configuration.md` | How-to guides may show a short example, then link here for variables. |
 | API routes, scopes, idempotency, schemas | `openapi.yaml`, `docs/api.md`, `docs/reference/api-contract-matrix.md` | `openapi.yaml` is generated; the matrix is generated from it. |
 | Local startup | `docs/tutorials/getting-started.md` | Uses in-process state only. |
