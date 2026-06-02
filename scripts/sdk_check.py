@@ -134,6 +134,7 @@ def main() -> None:
     go_client = (ROOT / "sdk/go/evydence/client.go").read_text(encoding="utf-8")
     typescript_client = (ROOT / "sdk/typescript/client.ts").read_text(encoding="utf-8")
     python_client = (ROOT / "sdk/python/evydence_client.py").read_text(encoding="utf-8")
+    quickstarts = (ROOT / "docs/sdk/quickstarts.md").read_text(encoding="utf-8")
 
     for helper in REQUIRED_HELPERS:
         require_text(go_client, f"func (c Client) {helper.go_name}", "Go SDK")
@@ -143,6 +144,18 @@ def main() -> None:
     require_text(go_client, "strings.HasPrefix(path, \"/v1/\")", "Go SDK path validation")
     require_text(typescript_client, "path.startsWith(\"/v1/\")", "TypeScript SDK path validation")
     require_text(python_client, "path.startswith(\"/v1/\")", "Python SDK path validation")
+
+    for token in (
+        "evydence.Client",
+        "EvydenceClient",
+        "create_product",
+        "Idempotency-Key",
+        "Problem Details",
+        "IDEMPOTENCY_KEY_REUSED",
+        "dist/evydence package verify",
+        "not an SDK helper",
+    ):
+        require_text(quickstarts, token, "SDK quickstarts")
 
     print(
         f"sdk-check: validated {len(REQUIRED_HELPERS)} SDK helpers and "
