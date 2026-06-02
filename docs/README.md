@@ -17,6 +17,7 @@ This documentation is organized by reader task. Implementation claims should be 
 ## How-To Guides
 
 - [Integrate CI collectors](how-to/integrate-ci.md): connect the GitHub Actions quickstart, the scanner workflow, the composite upload action, GitLab CI, source snapshots, and collector supply-chain records.
+- [Tool-specific integration templates](integrations/tool-templates.md): Syft, Grype, Trivy, GitHub Actions, GitLab CI, Dependency-Track, Jira metadata, and S3-compatible object storage handoff snippets.
 - [Kubernetes deployment](kubernetes.md): install the Helm chart and verify a self-hosted cluster deployment.
 - [Air-gapped installation](air-gapped.md): build, sign, transfer, verify, and import an offline package.
 - [Release signing](release-signing.md): create and verify local release artifact manifests.

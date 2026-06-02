@@ -26,6 +26,10 @@ Expected status is `201`. The response returns the collector API key secret once
 
 ## GitHub Actions
 
+For scanner, issue-tracker, Dependency-Track, GitLab, and object-storage
+handoff snippets, see
+[Tool-specific integration templates](../integrations/tool-templates.md).
+
 For the concrete end-to-end scanner, bundle, optional customer package, and
 readiness path, use
 [End-to-end GitHub Actions release evidence guide](../github-actions/end-to-end-release-evidence.md).
