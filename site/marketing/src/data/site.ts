@@ -373,6 +373,30 @@ const en: Record<PageKey, PageContent> = {
         ],
       },
       {
+        title: "Release evidence readiness review",
+        body: [
+          "A concrete paid starting point: install or review one self-hosted Evydence deployment profile, configure one product release, connect one CI evidence path, generate the first customer-safe package, verify it offline, and document gaps, assumptions, limitations, operator responsibilities, and external dependencies.",
+        ],
+        bullets: [
+          "one short readiness summary",
+          "one deployment-checklist pass with accepted gaps",
+          "one SBOM, vulnerability, build, artifact, and release-bundle upload path where the operator already has the files or commands",
+          "one customer-safe package or evidence bundle with manifest, hashes, verification material, limitations, and non-claims",
+          "one prioritized follow-up list",
+        ],
+      },
+      {
+        title: "What is excluded",
+        bullets: [
+          "hosted SaaS operation",
+          "legal compliance advice or certification",
+          "audit opinion or regulator acceptance",
+          "secure-release guarantees",
+          "complete SBOM proof or authoritative vulnerability coverage",
+          "unlimited integration work, scanner replacement, broad GRC workflow, or custom customer portal development",
+        ],
+      },
+      {
         title: "Commercial boundary",
         body: [
           "Commercial terms do not turn Evydence into a legal compliance guarantee, security certification, vulnerability scanner, or managed SaaS service.",
@@ -849,6 +873,30 @@ const fi: Record<PageKey, PageContent> = {
             title: "Custom Integration",
             body: "Collector-adapterit, evidence-työnkulut, raporttipohjat, CI/CD-integraatio tai deployment-kovennus.",
           },
+        ],
+      },
+      {
+        title: "Julkaisuevidencen readiness review",
+        body: [
+          "Konkreettinen maksullinen aloitus: asenna tai katselmoi yksi itse ylläpidettävä Evydence-käyttöprofiili, konfiguroi yksi tuotteen julkaisu, yhdistä yksi CI-evidence-polku, luo ensimmäinen asiakkaalle turvallinen paketti, todenna se offline-tilassa ja dokumentoi aukot, oletukset, rajoitukset, operaattorin vastuut ja ulkoiset riippuvuudet.",
+        ],
+        bullets: [
+          "yksi lyhyt readiness-yhteenveto",
+          "yksi deployment-checklist-kierros hyväksytyillä aukoilla",
+          "yksi SBOM-, haavoittuvuus-, koonti-, artefakti- ja release bundle -latauspolku, kun operaattorilla on jo tiedostot tai komennot",
+          "yksi asiakkaalle turvallinen paketti tai evidence bundle, jossa on manifesti, tiivisteet, todennusmateriaali, rajoitukset ja non-claim-teksti",
+          "yksi priorisoitu jatkolista",
+        ],
+      },
+      {
+        title: "Mitä ei sisälly",
+        bullets: [
+          "hostattu SaaS-operointi",
+          "juridinen vaatimustenmukaisuusneuvonta tai sertifiointi",
+          "audit-lausunto tai regulaattorihyväksyntä",
+          "takuu turvallisesta julkaisusta",
+          "täydellisen SBOMin todiste tai auktoritatiivinen haavoittuvuuskattavuus",
+          "rajaton integraatiotyö, skannerin korvaaminen, laaja GRC-työnkulku tai räätälöity asiakasportaali",
         ],
       },
       {

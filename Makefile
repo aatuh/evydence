@@ -97,6 +97,9 @@ meta-check: ## Validate root legal, governance, support, and release-evidence me
 	@grep -F 'License Decision Table' COMMERCIAL.md >/dev/null
 	@grep -F 'This table is a practical routing aid, not legal advice.' COMMERCIAL.md >/dev/null
 	@grep -F 'Discuss a commercial license exception' COMMERCIAL.md >/dev/null
+	@grep -F 'Release Evidence Readiness Review' COMMERCIAL.md >/dev/null
+	@grep -F 'one customer-safe package or evidence bundle' COMMERCIAL.md docs/commercial/product-landing-copy.md >/dev/null
+	@grep -F 'Out of scope unless separately agreed' COMMERCIAL.md >/dev/null
 	@grep -F 'contributor license agreement' CONTRIBUTING.md >/dev/null
 	@grep -F 'First Contribution Path' CONTRIBUTING.md >/dev/null
 	@grep -F 'Issue reports do not need a contributor license agreement' CONTRIBUTING.md >/dev/null
@@ -377,6 +380,8 @@ docs-check: meta-check release-truth-check persistence-decomposition-check rende
 	@grep -F 'One-Sentence Pitch' docs/commercial/product-landing-copy.md >/dev/null
 	@grep -F 'Why Self-Hosted' docs/commercial/product-landing-copy.md >/dev/null
 	@grep -F 'Pilot CTA' docs/commercial/product-landing-copy.md >/dev/null
+	@grep -F 'Paid Readiness Offer' docs/commercial/product-landing-copy.md >/dev/null
+	@grep -F 'Release evidence readiness review' docs/commercial/product-landing-copy.md >/dev/null
 	@test -f docs/commercial/category-comparison.md
 	@grep -F 'Vulnerability scanners' docs/commercial/category-comparison.md >/dev/null
 	@grep -F 'SBOM inventory tools' docs/commercial/category-comparison.md >/dev/null

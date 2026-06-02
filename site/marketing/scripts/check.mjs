@@ -45,6 +45,8 @@ for (const file of requiredFiles) {
 const rootPage = readFileSync(join(dist, "index.html"), "utf8");
 const english = readFileSync(join(dist, "en/index.html"), "utf8");
 const finnish = readFileSync(join(dist, "fi/index.html"), "utf8");
+const commercialEnglish = readFileSync(join(dist, "en/commercial/index.html"), "utf8");
+const commercialFinnish = readFileSync(join(dist, "fi/kaupallinen/index.html"), "utf8");
 const privacy = readFileSync(join(dist, "en/privacy-cookies/index.html"), "utf8");
 const cname = readFileSync(join(dist, "CNAME"), "utf8").trim();
 const consentSource = readFileSync(join(root, "src/components/ConsentBanner.astro"), "utf8");
@@ -102,6 +104,36 @@ const requiredFinnish = [
 for (const text of requiredFinnish) {
   if (!finnish.includes(text)) {
     throw new Error(`Finnish homepage missing: ${text}`);
+  }
+}
+
+const requiredCommercialEnglish = [
+  "Release evidence readiness review",
+  "one short readiness summary",
+  "one customer-safe package or evidence bundle",
+  "What is excluded",
+  "legal compliance advice or certification",
+  "secure-release guarantees"
+];
+
+for (const text of requiredCommercialEnglish) {
+  if (!commercialEnglish.includes(text)) {
+    throw new Error(`English commercial page missing: ${text}`);
+  }
+}
+
+const requiredCommercialFinnish = [
+  "Julkaisuevidencen readiness review",
+  "yksi lyhyt readiness-yhteenveto",
+  "asiakkaalle turvallinen paketti tai evidence bundle",
+  "Mitä ei sisälly",
+  "juridinen vaatimustenmukaisuusneuvonta tai sertifiointi",
+  "takuu turvallisesta julkaisusta"
+];
+
+for (const text of requiredCommercialFinnish) {
+  if (!commercialFinnish.includes(text)) {
+    throw new Error(`Finnish commercial page missing: ${text}`);
   }
 }
 

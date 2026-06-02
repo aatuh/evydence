@@ -35,9 +35,50 @@ language rules, see [Governance](GOVERNANCE.md).
 | --- | ---: | ---: | --- |
 | Commercial license exception | Yes | No | Written permission for agreed proprietary use cases. |
 | Self-hosted support | Yes | No | Deployment review, upgrade help, troubleshooting, and security notices. |
+| Release evidence readiness review | Yes | No | One scoped release workflow: install/configuration review, CI evidence upload, first customer-safe package, verification walkthrough, and limitations. |
 | Release evidence package | Yes | No | SBOMs, vulnerability scan results, OpenAPI checksum, acceptance evidence, and hardening notes. |
 | Production readiness review | Yes | No | Configuration, backup, restore, evidence handling, and deployment review. |
 | Custom integration work | Yes | No | Collector adapters, evidence workflows, report templates, or deployment hardening. |
+
+## Release Evidence Readiness Review
+
+The default paid services shape is a scoped self-hosted release evidence
+readiness review. It is meant for teams that want to prove one practical
+workflow before deciding whether Evydence belongs in their release process.
+
+Typical scope:
+
+- install or review a self-hosted Evydence deployment profile;
+- configure one product, project, release, artifact digest, and redaction
+  profile;
+- connect one CI path for SBOM, vulnerability scan, build, artifact, and release
+  bundle evidence where the operator already has those files or commands;
+- generate one customer-safe package or evidence bundle;
+- run the package verifier and walk through reviewer-facing limitations,
+  assumptions, gaps, and non-claims;
+- document follow-up work as repo-local product gaps, operator-owned deployment
+  responsibilities, or external provider dependencies.
+
+Deliverables:
+
+- short written readiness summary;
+- completed or gap-marked deployment checklist for the reviewed profile;
+- example upload or CI command path for the agreed release;
+- one generated package or bundle with manifest, hashes, verification material,
+  assumptions, limitations, and non-claims;
+- prioritized next-step list for production hardening, integrations, or package
+  sharing.
+
+Out of scope unless separately agreed:
+
+- legal compliance advice, certification, audit opinion, regulator acceptance,
+  secure-release guarantee, complete SBOM proof, or authoritative vulnerability
+  coverage;
+- hosted SaaS operation by Evydence;
+- unlimited custom collectors, scanner replacement, broad GRC workflow, or
+  customer portal development;
+- public handling of raw customer evidence, tokens, private keys, database URLs,
+  provider credentials, or unreleased product details.
 
 ## Commercial License Scope
 
