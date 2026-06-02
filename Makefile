@@ -182,6 +182,7 @@ docs-check: meta-check release-truth-check persistence-decomposition-check rende
 	@test -f docs/reference/production-readiness.md
 	@test -f docs/reference/production-readiness-traceability.md
 	@test -f docs/reference/production-internal-exit-checklist.md
+	@test -f docs/reference/production-readiness-audit-closeout.md
 	@test -f docs/reference/persistence-decomposition.md
 	@test -f docs/reference/production-exit-review.md
 	@test -f docs/reference/stable-v0.1.0-exit-criteria.md
@@ -245,6 +246,7 @@ docs-check: meta-check release-truth-check persistence-decomposition-check rende
 			"reference/production-readiness.md" \
 			"reference/production-readiness-traceability.md" \
 			"reference/production-internal-exit-checklist.md" \
+			"reference/production-readiness-audit-closeout.md" \
 			"reference/persistence-decomposition.md" \
 		"reference/production-exit-review.md" \
 		"reference/stable-v0.1.0-exit-criteria.md" \
@@ -323,6 +325,10 @@ docs-check: meta-check release-truth-check persistence-decomposition-check rende
 	@grep -F 'make production-check' docs/reference/production-internal-exit-checklist.md >/dev/null
 	@grep -F 'every external item must have a current owner and status' docs/reference/production-internal-exit-checklist.md >/dev/null
 	@grep -F 'fresh production-readiness audit finds no new repo-local remediation' docs/reference/production-internal-exit-checklist.md >/dev/null
+	@grep -F 'Production readiness audit closeout' docs/README.md >/dev/null
+	@grep -F 'Fresh Audit Result' docs/reference/production-readiness-audit-closeout.md >/dev/null
+	@grep -F 'found no new repo-local remediation' docs/reference/production-readiness-audit-closeout.md >/dev/null
+	@grep -F 'Production-usable with caveats' docs/reference/production-readiness-audit-closeout.md >/dev/null
 	@test -x scripts/production_benchmark_check.sh
 	@grep -F 'production_benchmark_check.sh' docs/reference/benchmark-results.md >/dev/null
 	@grep -F 'tmp/production-benchmark/production-benchmark-summary.json' docs/reference/benchmark-results.md >/dev/null
