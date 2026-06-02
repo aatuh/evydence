@@ -319,6 +319,7 @@
       <section id="approvals" class="section"></section>
       <section id="readiness" class="section"></section>
       <section id="contents" class="section"></section>
+      <section id="proof" class="section"></section>
       <section id="verification" class="section"></section>
       <section id="limitations" class="section"></section>
       <section id="raw" class="section"></section>
@@ -339,6 +340,7 @@
       approvals: document.getElementById("approvals"),
       readiness: document.getElementById("readiness"),
       contents: document.getElementById("contents"),
+      proof: document.getElementById("proof"),
       verification: document.getElementById("verification"),
       limitations: document.getElementById("limitations"),
       raw: document.getElementById("raw")
@@ -823,6 +825,88 @@
       ], data.reviewer_checklist, "No reviewer checklist is present.");
     };
 
+    const verificationResultLabel = (data) => {
+      const material = safeObject(data.verification_material);
+      const releaseBundles = safeArray(material.release_bundles);
+      const audit = safeObject(material.audit_chain);
+      if (releaseBundles.length && String(audit.result || "").toLowerCase() === "passed") {
+        return "release bundle and audit-chain material present";
+      }
+      if (releaseBundles.length) {
+        return "release bundle material present";
+      }
+      if (material.hash_algorithm || material.canonicalization) {
+        return "package verification material present";
+      }
+      return "verification material not present";
+    };
+
+    const linkStatus = (record, field = "evidence_id") => {
+      if (!record || typeof record !== "object") {
+        return "not present";
+      }
+      return record[field] || record.id || record.manifest_hash ? "linked" : "missing link";
+    };
+
+    const renderProof = (data) => {
+      sectionHead(nodes.proof, "Manifest Summary And Proof", verificationResultLabel(data));
+      const material = safeObject(data.verification_material);
+      const releaseBundles = safeArray(material.release_bundles);
+      const audit = safeObject(material.audit_chain);
+      const decisionExport = safeObject(data.customer_decision_export);
+
+      const manifestGrid = document.createElement("div");
+      manifestGrid.className = "summary-grid";
+      [
+        ["Schema", pick(data, ["schema_version", "package_version"])],
+        ["Package ID", pick(data, ["package_id", "id"])],
+        ["Product / release", [pick(data, ["product.id", "product_id"]), pick(data, ["release.id", "release_id"])].filter(Boolean).join(" / ")],
+        ["Redaction profile", [data.redaction_profile_id, data.redaction_profile && data.redaction_profile.name].filter(Boolean).join(" / ")],
+        ["Generated", pick(data, ["generated_at", "created_at"])],
+        ["Manifest hash", pick(data, ["manifest_hash", "package_metadata.manifest_hash", "verification.manifest_hash", "verification_material.manifest_hash"]) || text(material.manifest_hash_field)]
+      ].forEach(([label, value]) => {
+        const card = document.createElement("section");
+        card.className = "metric";
+        appendText(card, "p", "label", label);
+        appendText(card, "p", "value", value);
+        manifestGrid.append(card);
+      });
+      nodes.proof.append(manifestGrid);
+
+      appendText(nodes.proof, "h3", "", "Evidence Link Status");
+      table(nodes.proof, [
+        { label: "Evidence family", value: "family" },
+        { label: "Records", value: "count" },
+        { label: "Link status", value: "status", badge: true },
+        { label: "Reference", value: "reference" }
+      ], [
+        { family: "Artifact digests", count: safeArray(data.artifact_digests).length, status: safeArray(data.artifact_digests).length ? "linked" : "missing", reference: joinRecordIDs(data.artifact_digests) },
+        { family: "SBOM", count: safeArray(data.sboms).length, status: linkStatus(firstRecord(data.sboms)), reference: joinRecordIDs(data.sboms) },
+        { family: "Vulnerability scan", count: safeArray(data.vulnerability_scans).length, status: linkStatus(firstRecord(data.vulnerability_scans)), reference: joinRecordIDs(data.vulnerability_scans) },
+        { family: "VEX", count: safeArray(data.vex_documents).length, status: linkStatus(firstRecord(data.vex_documents)), reference: joinRecordIDs(data.vex_documents) },
+        { family: "Vulnerability decision", count: safeArray(data.vulnerability_decisions).length, status: linkStatus(firstRecord(data.vulnerability_decisions)), reference: joinRecordIDs(data.vulnerability_decisions) },
+        { family: "Release bundle", count: releaseBundles.length, status: releaseBundles.length ? "linked" : "missing", reference: joinRecordIDs(releaseBundles) }
+      ], "No evidence link metadata is present.");
+
+      appendText(nodes.proof, "h3", "", "Package Verification Result");
+      table(nodes.proof, [
+        { label: "Check", value: "check" },
+        { label: "Result", value: "result", badge: true },
+        { label: "Detail", value: "detail" }
+      ], [
+        { check: "Browser package view", result: "read_only", detail: "The viewer renders package-scoped JSON but does not verify package bytes." },
+        { check: "CLI package verifier", result: material.hash_algorithm ? "available" : "missing", detail: "Run evydence package verify against the manifest or ZIP archive." },
+        { check: "Signed release bundle material", result: releaseBundles.length ? "present" : "missing", detail: joinRecordIDs(releaseBundles) },
+        { check: "Audit-chain material", result: audit.result || "not present", detail: audit.head_hash || audit.latest_sequence || "not present" },
+        { check: "Customer decision export", result: decisionExport.file ? "present" : "not present", detail: decisionExport.file || "not present" }
+      ], "No package verification result metadata is present.");
+
+      const proofNote = document.createElement("p");
+      proofNote.className = "note";
+      proofNote.textContent = "Signed release bundle material and manifest hashes support reproducible technical review. They are not legal compliance proof, certification, complete SBOM proof, authoritative scanner coverage, or a secure-release guarantee.";
+      nodes.proof.append(proofNote);
+    };
+
     const renderVerification = (data) => {
       const material = safeObject(data.verification_material);
       sectionHead(nodes.verification, "Verification Status", material.hash_algorithm || "not present");
@@ -887,6 +971,7 @@
       renderApprovals(data);
       renderReadiness(data);
       renderContents(data);
+      renderProof(data);
       renderVerification(data);
       renderLimitations(data);
       renderRaw(parsed);

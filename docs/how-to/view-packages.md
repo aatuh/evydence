@@ -46,6 +46,12 @@ the offline `evydence package verify` command. The browser does not verify the
 package bytes itself; use the CLI verifier before relying on a manifest or ZIP
 archive.
 
+The **Manifest Summary And Proof** section gives a second proof-oriented view:
+schema and package identifiers, redaction profile, manifest-hash field,
+evidence link status, signed release bundle material, audit-chain material,
+decision-export presence, and the package verification result display. It is a
+review aid for redaction-approved package content only.
+
 Before sharing or reviewing a package, use the offline verifier for hash,
 structure, archive metadata, and optional evidence-bundle signature checks:
 
@@ -108,6 +114,8 @@ Use it for:
 - inspecting package manifests and limitations;
 - reviewing artifact, SBOM, vulnerability, VEX, approval, exception, readiness,
   contents, and verification sections;
+- checking manifest summary, evidence link status, signed release bundle
+  material, package verification result, and limitation/non-claim copy;
 - following the reviewer checklist for package scope, included evidence,
   excluded evidence, hash/signature verification, non-claims, and escalation
   path;
