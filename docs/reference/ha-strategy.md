@@ -44,6 +44,9 @@ hard-to-audit races around:
 
 The current supported stance favors clear recovery behavior over an unfinished
 multi-writer design.
+Use the [Persistence decomposition inventory](persistence-decomposition.md) to
+inspect the current focused mutation paths, remaining broad relational-state
+call sites, and next repository split order.
 
 ## Supported Recovery Boundaries
 

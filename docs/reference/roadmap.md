@@ -30,7 +30,9 @@ status. See [HA strategy](ha-strategy.md) for the decision record.
   `report.html` exports are the supported reviewer view, and a server-backed
   internal dashboard remains deferred until a pilot proves it is necessary;
 - continue reducing large service surfaces while preserving tenant isolation,
-  append-only evidence behavior, and safe error handling.
+  append-only evidence behavior, and safe error handling. The
+  [Persistence decomposition inventory](persistence-decomposition.md) is the
+  current generated map for that work.
 
 ## Later Production Hardening
 

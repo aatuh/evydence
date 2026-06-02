@@ -508,3 +508,168 @@ func TestRelationalStateStoreAvoidsAggregateSaveForRemainingFamilies(t *testing.
 		t.Fatalf("relational state missed customer package: %#v", got)
 	}
 }
+
+func TestRelationalStateStoreCoversPackageAndReportWriteFamilies(t *testing.T) {
+	ctx := context.Background()
+	store := &fullRelationalStoreSpy{}
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
+	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	actor, err := ledger.Authenticate(ctx, secret)
+	if err != nil {
+		t.Fatalf("authenticate: %v", err)
+	}
+	product, err := ledger.CreateProduct(ctx, actor, "Payments", "payments-package-report-state")
+	if err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	release, err := ledger.CreateRelease(ctx, actor, product.ID, "1.0.0")
+	if err != nil {
+		t.Fatalf("create release: %v", err)
+	}
+	evidence, err := ledger.CreateEvidence(ctx, actor, CreateEvidenceInput{
+		ProductID:   product.ID,
+		ReleaseID:   release.ID,
+		Type:        "security_review",
+		Title:       "Security review",
+		PayloadHash: sampleDigest("package-report-evidence"),
+	})
+	if err != nil {
+		t.Fatalf("create evidence: %v", err)
+	}
+	profile, err := ledger.CreateRedactionProfile(ctx, actor, CreateRedactionProfileInput{Name: "Customer Safe", AllowedTypes: []string{"security_review"}})
+	if err != nil {
+		t.Fatalf("create redaction profile: %v", err)
+	}
+	pkg, err := ledger.CreateCustomerSecurityPackage(ctx, actor, CreateCustomerPackageInput{
+		ProductID:          product.ID,
+		ReleaseID:          release.ID,
+		RedactionProfileID: profile.ID,
+		Title:              "Customer package",
+		ExpiresAt:          fixedNow().Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("create customer package: %v", err)
+	}
+	if pkg.TenantID != actor.TenantID || pkg.ReleaseID != release.ID {
+		t.Fatalf("customer package setup = %#v", pkg)
+	}
+	if _, err := ledger.CreateControlFramework(ctx, actor, CreateControlFrameworkInput{Name: "CRA Readiness", Slug: "cra-readiness-package-report", Version: "1.0.0"}); err != nil {
+		t.Fatalf("create control framework: %v", err)
+	}
+
+	store.reset()
+	htmlReport, err := ledger.CRAReadinessHTMLPackage(ctx, actor, product.ID, release.ID)
+	if err != nil {
+		t.Fatalf("cra html report: %v", err)
+	}
+	if store.saveCalls != 0 || store.relationalCalls != 1 {
+		t.Fatalf("html report persistence save=%d relational=%d", store.saveCalls, store.relationalCalls)
+	}
+	if got := store.states[0].HTMLReports[htmlReport.ID]; got.ID != htmlReport.ID || got.TenantID != actor.TenantID || got.ReleaseID != release.ID {
+		t.Fatalf("relational state missed html report: %#v", got)
+	}
+	if len(store.states[0].Chain[actor.TenantID]) == 0 {
+		t.Fatal("html report relational state missed audit chain")
+	}
+
+	store.reset()
+	template, err := ledger.CreateCustomReportTemplate(ctx, actor, CreateReportTemplateInput{
+		Name: "Reviewer report", Version: "1", ReportType: "reviewer", AllowedFields: []string{"subject_type", "subject_id"},
+	})
+	if err != nil {
+		t.Fatalf("create report template: %v", err)
+	}
+	rendered, err := ledger.RenderCustomReport(ctx, actor, RenderReportInput{TemplateID: template.ID, SubjectType: "release", SubjectID: release.ID})
+	if err != nil {
+		t.Fatalf("render report: %v", err)
+	}
+	if store.saveCalls != 0 || store.relationalCalls != 2 {
+		t.Fatalf("custom report persistence save=%d relational=%d", store.saveCalls, store.relationalCalls)
+	}
+	lastCustomReportState := store.states[len(store.states)-1]
+	if got := lastCustomReportState.ReportTemplates[template.ID]; got.ID != template.ID || got.TenantID != actor.TenantID {
+		t.Fatalf("relational state missed report template: %#v", got)
+	}
+	if got := lastCustomReportState.RenderedReports[rendered.ID]; got.ID != rendered.ID || got.TenantID != actor.TenantID {
+		t.Fatalf("relational state missed rendered report: %#v", got)
+	}
+
+	store.reset()
+	bundle, err := ledger.ExportEvidenceBundle(ctx, actor, release.ID, []string{evidence.ID})
+	if err != nil {
+		t.Fatalf("export evidence bundle: %v", err)
+	}
+	imported, err := ledger.ImportEvidenceBundle(ctx, actor, bundle)
+	if err != nil {
+		t.Fatalf("import evidence bundle: %v", err)
+	}
+	if store.saveCalls != 0 || store.relationalCalls != 2 {
+		t.Fatalf("evidence bundle persistence save=%d relational=%d", store.saveCalls, store.relationalCalls)
+	}
+	lastBundleState := store.states[len(store.states)-1]
+	if got := lastBundleState.EvidenceBundles[bundle.ID]; got.ID != bundle.ID || got.TenantID != actor.TenantID || len(got.SignatureRefs) == 0 {
+		t.Fatalf("relational state missed evidence bundle: %#v", got)
+	}
+	if got := lastBundleState.BundleImports[imported.ID]; got.ID != imported.ID || got.TenantID != actor.TenantID {
+		t.Fatalf("relational state missed bundle import: %#v", got)
+	}
+	if len(lastBundleState.SigningKeyPrivate) == 0 || len(lastBundleState.Signatures) == 0 {
+		t.Fatalf("relational state missed bundle signing material: keys=%#v signatures=%#v", lastBundleState.SigningKeyPrivate, lastBundleState.Signatures)
+	}
+
+	store.reset()
+	summary, err := ledger.CreateEvidenceSummary(ctx, actor, CreateEvidenceSummaryInput{SubjectType: "release", SubjectID: release.ID, EvidenceIDs: []string{evidence.ID}})
+	if err != nil {
+		t.Fatalf("create evidence summary: %v", err)
+	}
+	pdf, err := ledger.CreatePDFReportPackage(ctx, actor, CreatePDFReportPackageInput{ReportType: "customer_review", ProductID: product.ID, ReleaseID: release.ID, Title: "Customer review"})
+	if err != nil {
+		t.Fatalf("create pdf report: %v", err)
+	}
+	anomaly, err := ledger.GenerateAnomalyReport(ctx, actor, AnomalyReportInput{SubjectType: "release", SubjectID: release.ID})
+	if err != nil {
+		t.Fatalf("generate anomaly report: %v", err)
+	}
+	if store.saveCalls != 0 || store.relationalCalls != 3 {
+		t.Fatalf("future report persistence save=%d relational=%d", store.saveCalls, store.relationalCalls)
+	}
+	lastFutureReportState := store.states[len(store.states)-1]
+	if got := lastFutureReportState.EvidenceSummaries[summary.ID]; got.ID != summary.ID || got.TenantID != actor.TenantID {
+		t.Fatalf("relational state missed evidence summary: %#v", got)
+	}
+	if got := lastFutureReportState.PDFReports[pdf.ID]; got.ID != pdf.ID || got.TenantID != actor.TenantID || got.PayloadHash == "" {
+		t.Fatalf("relational state missed pdf report: %#v", got)
+	}
+	if got := lastFutureReportState.AnomalyReports[anomaly.ID]; got.ID != anomaly.ID || got.TenantID != actor.TenantID {
+		t.Fatalf("relational state missed anomaly report: %#v", got)
+	}
+
+	store.reset()
+	questionnaire, err := ledger.CreateQuestionnaireTemplate(ctx, actor, CreateQuestionnaireTemplateInput{
+		Name:    "Customer questionnaire",
+		Version: "1",
+		Questions: []domain.QuestionnaireQuestion{{
+			ID: "q1", Prompt: "Is review evidence available?", EvidenceType: "security_review",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("create questionnaire template: %v", err)
+	}
+	draft, err := ledger.CreateQuestionnaireDraft(ctx, actor, CreateQuestionnaireDraftInput{TemplateID: questionnaire.ID, ProductID: product.ID, ReleaseID: release.ID})
+	if err != nil {
+		t.Fatalf("create questionnaire draft: %v", err)
+	}
+	if store.saveCalls != 0 || store.relationalCalls != 2 {
+		t.Fatalf("questionnaire persistence save=%d relational=%d", store.saveCalls, store.relationalCalls)
+	}
+	lastQuestionnaireState := store.states[len(store.states)-1]
+	if got := lastQuestionnaireState.QuestionnaireTemplates[questionnaire.ID]; got.ID != questionnaire.ID || got.TenantID != actor.TenantID {
+		t.Fatalf("relational state missed questionnaire template: %#v", got)
+	}
+	if got := lastQuestionnaireState.QuestionnaireDrafts[draft.ID]; got.ID != draft.ID || got.TenantID != actor.TenantID || got.ReleaseID != release.ID {
+		t.Fatalf("relational state missed questionnaire draft: %#v", got)
+	}
+}
