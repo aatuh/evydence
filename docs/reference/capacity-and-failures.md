@@ -79,3 +79,14 @@ Do not publish broad throughput or scale claims without recording:
 - payload sizes and evidence mix;
 - API and worker replica counts;
 - pass/fail criteria and limitations.
+
+For a repo-owned local regression benchmark that includes HTTP, PostgreSQL,
+filesystem object storage, worker startup, release-readiness reporting, package
+creation, and audit-chain verification, run:
+
+```sh
+EVYDENCE_TEST_DATABASE_URL=... make benchmark-check
+```
+
+The output under `tmp/production-benchmark/` is benchmark evidence for that
+disposable environment only.
