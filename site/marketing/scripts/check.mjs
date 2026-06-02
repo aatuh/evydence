@@ -3,6 +3,10 @@ import { join } from "node:path";
 
 const root = new URL("..", import.meta.url).pathname;
 const dist = join(root, "dist");
+const configuredBase = process.env.PUBLIC_SITE_BASE ?? "/evydence";
+const normalizedBase =
+  configuredBase === "/" ? "" : `/${configuredBase.replace(/^\/+|\/+$/g, "")}`;
+const withBase = (path) => `${normalizedBase}${path}`.replace(/\/{2,}/g, "/");
 
 const requiredFiles = [
   "index.html",
@@ -41,14 +45,15 @@ const rootPage = readFileSync(join(dist, "index.html"), "utf8");
 const english = readFileSync(join(dist, "en/index.html"), "utf8");
 const finnish = readFileSync(join(dist, "fi/index.html"), "utf8");
 const privacy = readFileSync(join(dist, "en/privacy-cookies/index.html"), "utf8");
+const cname = readFileSync(join(dist, "CNAME"), "utf8").trim();
 const consentSource = readFileSync(join(root, "src/components/ConsentBanner.astro"), "utf8");
 const layoutSource = readFileSync(join(root, "src/layouts/BaseLayout.astro"), "utf8");
 
 const requiredRoot = [
   'lang="en"',
-  "url=/evydence/en/",
+  `url=${withBase("/en/")}`,
   "Continue in English",
-  "/evydence/fi/"
+  withBase("/fi/")
 ];
 
 for (const text of requiredRoot) {
@@ -57,10 +62,15 @@ for (const text of requiredRoot) {
   }
 }
 
+if (cname !== "evydence.app") {
+  throw new Error(`marketing site CNAME must be evydence.app, got: ${cname}`);
+}
+
 const requiredEnglish = [
   'lang="en"',
   'hreflang="fi"',
   "Stop scrambling when customers ask for release security evidence.",
+  "https://www.linkedin.com/in/aatu-harju",
   "Cookie preferences",
   "Evydence is not a legal compliance service"
 ];
@@ -115,7 +125,14 @@ for (const text of layoutChecks) {
   }
 }
 
-for (const forbidden of ["innerHTML", "Start free trial", "100% secure", "automatically compliant"]) {
+for (const forbidden of [
+  "innerHTML",
+  "Start free trial",
+  "100% secure",
+  "automatically compliant",
+  "mailto:",
+  "aatu@example.com"
+]) {
   if (english.includes(forbidden) || finnish.includes(forbidden) || privacy.includes(forbidden)) {
     throw new Error(`forbidden site text found: ${forbidden}`);
   }
