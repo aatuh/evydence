@@ -32,6 +32,10 @@ export type PageContent = {
   heroBody: string[];
   primaryCta: string;
   secondaryCta: string;
+  demoEyebrow?: string;
+  demoCta?: string;
+  demoText?: string;
+  demoHref?: string;
   sections: Section[];
 };
 
@@ -90,6 +94,8 @@ export const navItems: PageKey[] = [
 export const externalLinks = {
   github: "https://github.com/aatuh/evydence",
   docs: "https://github.com/aatuh/evydence/tree/master/docs",
+  customerCveDemo:
+    "https://github.com/aatuh/evydence/tree/master/examples/customer-cve-review-demo",
   linkedin: "https://www.linkedin.com/in/aatu-harju",
 };
 
@@ -110,6 +116,11 @@ const en: Record<PageKey, PageContent> = {
     ],
     primaryCta: "Ask about Commercial Self-Hosted",
     secondaryCta: "View GitHub",
+    demoEyebrow: "Demo",
+    demoCta: "Run the customer CVE review demo",
+    demoText:
+      "One release, one SBOM finding, one decision, one package verifier.",
+    demoHref: externalLinks.customerCveDemo,
     sections: [
       {
         eyebrow: "The problem",
@@ -580,6 +591,11 @@ const fi: Record<PageKey, PageContent> = {
     ],
     primaryCta: "Kysy Commercial Self-Hosted -ehdoista",
     secondaryCta: "Avaa GitHub",
+    demoEyebrow: "Demo",
+    demoCta: "Aja asiakkaan CVE-katselmusdemo",
+    demoText:
+      "Yksi julkaisu, yksi SBOM-löydös, yksi päätös ja paketin todennus.",
+    demoHref: externalLinks.customerCveDemo,
     sections: [
       {
         eyebrow: "Ongelma",
