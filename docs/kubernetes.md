@@ -39,7 +39,7 @@ Store real values in your secret manager or sealed-secret process. Do not commit
 ```sh
 helm upgrade --install evydence ./deploy/helm/evydence \
   --set image.repository=ghcr.io/aatuh/evydence \
-  --set image.tag=v0.1.0-rc.5@sha256:38188044a3e5ded3c6094564ab39ce989185f65e22cf4296985ec19ba0eb1888 \
+  --set image.tag='<verified-release-tag>@sha256:<verified-image-digest>' \
   --set env.s3Endpoint=s3.example.com \
   --set env.s3Bucket=evydence
 ```

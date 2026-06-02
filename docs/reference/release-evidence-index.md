@@ -38,15 +38,15 @@ under `dist/<tag>/` after `make production-check` passes.
 ## Current Public Release Candidate
 
 The current public release candidate is
-[`v0.1.0-rc.5`](https://github.com/aatuh/evydence/releases/tag/v0.1.0-rc.5).
-It was built from tag `v0.1.0-rc.5` at commit
-`d5098c635ee7b171dac3a449ba7ca2e30d8b0c16`; the public Release Artifacts
+[`v0.1.0-rc.7`](https://github.com/aatuh/evydence/releases/tag/v0.1.0-rc.7).
+It was built from tag `v0.1.0-rc.7` at commit
+`2f759100e723554e4e68e3ada712c923e391a17a`; the public Release Artifacts
 workflow run is
-[`26752006813`](https://github.com/aatuh/evydence/actions/runs/26752006813).
+[`26769039974`](https://github.com/aatuh/evydence/actions/runs/26769039974).
 The release commit also has a public CI `Production Check` run
-[`26748345740`](https://github.com/aatuh/evydence/actions/runs/26748345740)
+[`26767778491`](https://github.com/aatuh/evydence/actions/runs/26767778491)
 and CodeQL run
-[`26748345664`](https://github.com/aatuh/evydence/actions/runs/26748345664).
+[`26767778487`](https://github.com/aatuh/evydence/actions/runs/26767778487).
 
 The public prerelease includes release archives for Linux, macOS, and Windows;
 `SHA256SUMS`; `openapi.yaml`; `openapi.sha256`; `migrations.sha256`;
@@ -54,30 +54,34 @@ The public prerelease includes release archives for Linux, macOS, and Windows;
 `evydence-release-provenance.json`;
 `evydence-release-provenance.intoto.jsonl`; `release-notes.md`;
 `evydence-release-manifest.json`; `evydence-release-manifest.sig.json`; and
-`evydence-release-manifest.sig`. The release assets also include
-`evydence-container-image-manifest.json` and
-`evydence-container-image-cosign-verify.json` for the separately published
-container image.
+`evydence-release-manifest.sig`.
 
-The current project-owned container image is
+Project-owned container images are separate release evidence. At the time this
+index was updated, the latest verified project-owned container image evidence
+for the release-candidate line was
 `ghcr.io/aatuh/evydence:v0.1.0-rc.5@sha256:38188044a3e5ded3c6094564ab39ce989185f65e22cf4296985ec19ba0eb1888`.
 It was produced by the Container Image workflow run
 [`26752805538`](https://github.com/aatuh/evydence/actions/runs/26752805538)
 from release source commit `d5098c635ee7b171dac3a449ba7ca2e30d8b0c16`.
+That image is not an `v0.1.0-rc.7` image. For `v0.1.0-rc.7`, use release
+archives or publish and verify a tag-specific image before treating it as
+deployment evidence. A tag-specific image workflow run should attach
+`evydence-container-image-manifest.json` and
+`evydence-container-image-cosign-verify.json` when available.
 
 ## Local Verification
 
 After packaging, verify the evidence directory before publishing:
 
 ```sh
-gh release download v0.1.0-rc.5 --repo aatuh/evydence --dir dist/v0.1.0-rc.5
-(cd dist/v0.1.0-rc.5 && sha256sum -c SHA256SUMS)
-(cd dist/v0.1.0-rc.5 && sha256sum -c openapi.sha256)
-sha256sum -c dist/v0.1.0-rc.5/migrations.sha256
-tar -C dist/v0.1.0-rc.5 -xzf dist/v0.1.0-rc.5/evydence_v0.1.0-rc.5_linux_amd64.tar.gz
-./dist/v0.1.0-rc.5/evydence_v0.1.0-rc.5_linux_amd64/evydence release verify \
-  --manifest dist/v0.1.0-rc.5/evydence-release-manifest.json \
-  --signature dist/v0.1.0-rc.5/evydence-release-manifest.sig.json
+gh release download v0.1.0-rc.7 --repo aatuh/evydence --dir dist/v0.1.0-rc.7
+(cd dist/v0.1.0-rc.7 && sha256sum -c SHA256SUMS)
+(cd dist/v0.1.0-rc.7 && sha256sum -c openapi.sha256)
+sha256sum -c dist/v0.1.0-rc.7/migrations.sha256
+tar -C dist/v0.1.0-rc.7 -xzf dist/v0.1.0-rc.7/evydence_v0.1.0-rc.7_linux_amd64.tar.gz
+./dist/v0.1.0-rc.7/evydence_v0.1.0-rc.7_linux_amd64/evydence release verify \
+  --manifest dist/v0.1.0-rc.7/evydence-release-manifest.json \
+  --signature dist/v0.1.0-rc.7/evydence-release-manifest.sig.json
 ```
 
 Use the platform-specific `evydence` binary from the release archive whenever
@@ -88,14 +92,15 @@ To verify the already-published public release from a clean temporary directory,
 run:
 
 ```sh
-make public-release-verify TAG=v0.1.0-rc.5
+make public-release-verify TAG=v0.1.0-rc.7
 ```
 
 The helper downloads the release assets with `gh`, checks the public checksums,
 validates the in-toto statement shape, extracts the released Linux amd64 CLI,
 and verifies the signed manifest with that released binary.
 
-To verify the public container image digest and workflow identity, run:
+To verify the last checked public container image digest and workflow identity,
+run:
 
 ```sh
 docker buildx imagetools inspect ghcr.io/aatuh/evydence:v0.1.0-rc.5 \

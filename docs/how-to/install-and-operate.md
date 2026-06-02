@@ -3,7 +3,7 @@
 Use this guide for a local self-hosted development or evaluation deployment.
 
 For operator evaluation, start from the current public release candidate
-[`v0.1.0-rc.5`](https://github.com/aatuh/evydence/releases/tag/v0.1.0-rc.5).
+[`v0.1.0-rc.7`](https://github.com/aatuh/evydence/releases/tag/v0.1.0-rc.7).
 Download the release archive for your platform, then verify `SHA256SUMS`,
 `openapi.sha256`, `migrations.sha256`, and the signed release manifest before
 starting the API or worker. Source checkout remains the local development path.
@@ -25,15 +25,15 @@ Configuration details live in [Configuration](../reference/configuration.md).
 For a release-backed evaluation on Linux amd64:
 
 ```sh
-mkdir -p dist/v0.1.0-rc.5
-gh release download v0.1.0-rc.5 --repo aatuh/evydence --dir dist/v0.1.0-rc.5
-(cd dist/v0.1.0-rc.5 && sha256sum -c SHA256SUMS)
-(cd dist/v0.1.0-rc.5 && sha256sum -c openapi.sha256)
-sha256sum -c dist/v0.1.0-rc.5/migrations.sha256
-tar -C dist/v0.1.0-rc.5 -xzf dist/v0.1.0-rc.5/evydence_v0.1.0-rc.5_linux_amd64.tar.gz
-./dist/v0.1.0-rc.5/evydence_v0.1.0-rc.5_linux_amd64/evydence release verify \
-  --manifest dist/v0.1.0-rc.5/evydence-release-manifest.json \
-  --signature dist/v0.1.0-rc.5/evydence-release-manifest.sig.json
+mkdir -p dist/v0.1.0-rc.7
+gh release download v0.1.0-rc.7 --repo aatuh/evydence --dir dist/v0.1.0-rc.7
+(cd dist/v0.1.0-rc.7 && sha256sum -c SHA256SUMS)
+(cd dist/v0.1.0-rc.7 && sha256sum -c openapi.sha256)
+sha256sum -c dist/v0.1.0-rc.7/migrations.sha256
+tar -C dist/v0.1.0-rc.7 -xzf dist/v0.1.0-rc.7/evydence_v0.1.0-rc.7_linux_amd64.tar.gz
+./dist/v0.1.0-rc.7/evydence_v0.1.0-rc.7_linux_amd64/evydence release verify \
+  --manifest dist/v0.1.0-rc.7/evydence-release-manifest.json \
+  --signature dist/v0.1.0-rc.7/evydence-release-manifest.sig.json
 ```
 
 Expected result: checksum verification exits successfully, manifest signature
@@ -45,7 +45,7 @@ For the same verification from a clean temporary directory, use the checked
 helper:
 
 ```sh
-make public-release-verify TAG=v0.1.0-rc.5
+make public-release-verify TAG=v0.1.0-rc.7
 ```
 
 Expected result: the helper downloads the public GitHub Release assets,
