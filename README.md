@@ -141,7 +141,8 @@ The VEX-first evidence flow to evaluate first is:
 
 For a visual preview of the customer-package review surface, see the
 [package viewer guide](docs/how-to/view-packages.md). The preview uses
-non-sensitive sample data and does not upload files.
+non-sensitive bundled sample data, includes desktop and mobile screenshots, and
+does not upload files.
 
 ## Why Evydence Instead Of Existing Tools?
 

@@ -58,6 +58,23 @@ redacted package manifest and local inline styles.
 
 ![Static package viewer preview](../assets/package-viewer-preview.svg)
 
+The screenshots below are generated from the viewer's bundled demo package, not
+from customer data. They show the desktop and narrow-screen review layouts,
+included evidence summaries, readiness status, and limitations. Use them as UI
+orientation only; screenshots are not package verification evidence, legal
+compliance proof, certification, complete SBOM proof, authoritative scanner
+results, or a secure-release guarantee.
+
+![Desktop screenshot of the Evydence package viewer showing the bundled demo release summary, evidence count, readiness, artifact, SBOM, and VEX sections.](../assets/package-viewer-desktop.png)
+
+![Mobile screenshot of the Evydence package viewer showing the bundled demo stacked summary cards and release summary.](../assets/package-viewer-mobile.png)
+
+To regenerate these local proof assets after changing the viewer, run:
+
+```sh
+scripts/capture_package_viewer_screenshots.sh
+```
+
 The sample reviewer journey is:
 
 ![Reviewer journey through package sections](../assets/reviewer-journey.svg)
