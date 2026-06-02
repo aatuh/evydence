@@ -47,6 +47,7 @@ This documentation is organized by reader task. Implementation claims should be 
 - [Stable v0.1.0 exit criteria](reference/stable-v0.1.0-exit-criteria.md): criteria for moving from release candidate to a stable `v0.1.0` tag.
 - [External controls matrix](reference/external-controls-matrix.md): owner boundaries for regulated or high-trust self-hosted deployments.
 - [Production gate troubleshooting](reference/production-gate-troubleshooting.md): safe diagnostics for `make production-check` failures.
+- [Upgrade and compatibility policy](reference/upgrade-compatibility-policy.md): supported upgrade paths, migration expectations, and API compatibility rules.
 - [Release candidate checklist](reference/release-candidate.md): required evidence before tagging a controlled self-hosted release candidate.
 - [Release evidence index](reference/release-evidence-index.md): release artifact map, generation commands, and verification commands.
 - [Release notes template](reference/release-notes-template.md): checked wording used by release-candidate packaging when a tag-specific note file is absent.

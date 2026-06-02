@@ -4,17 +4,22 @@ Use this runbook when moving a self-hosted Evydence deployment to a new release
 candidate or release. It is a technical upgrade guide, not an assurance or
 certification statement.
 
+Read [Upgrade and compatibility policy](../reference/upgrade-compatibility-policy.md)
+before changing binaries, images, Helm values, or migrations.
+
 ## Before Upgrade
 
 1. Read the release notes and known limitations for the target version.
-2. Verify release artifacts:
+2. Review the supported upgrade path and breaking-change notes in the
+   compatibility policy.
+3. Verify release artifacts:
    `SHA256SUMS`, signed release manifest, OpenAPI checksum, migration checksum,
    release SBOM metadata, and release provenance metadata.
-3. Back up PostgreSQL and object storage together.
-4. Generate and verify a backup manifest.
-5. Confirm the target profile still uses one API writer replica unless a later
+4. Back up PostgreSQL and object storage together.
+5. Generate and verify a backup manifest.
+6. Confirm the target profile still uses one API writer replica unless a later
    release explicitly documents a reviewed multi-writer design.
-6. Check that production secrets are externalized and that local plaintext
+7. Check that production secrets are externalized and that local plaintext
    signing-key mode is not used in production.
 
 ## Upgrade
