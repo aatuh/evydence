@@ -167,6 +167,7 @@ docs-check: meta-check release-truth-check ## Validate canonical docs exist and 
 	@test -f docs/reference/production-readiness.md
 	@test -f docs/reference/production-exit-review.md
 	@test -f docs/reference/stable-v0.1.0-exit-criteria.md
+	@test -f docs/reference/hardened-reference-deployment.md
 	@test -f docs/reference/external-controls-matrix.md
 	@test -f docs/reference/production-gate-troubleshooting.md
 	@test -f docs/reference/upgrade-compatibility-policy.md
@@ -221,6 +222,7 @@ docs-check: meta-check release-truth-check ## Validate canonical docs exist and 
 		"reference/production-readiness.md" \
 		"reference/production-exit-review.md" \
 		"reference/stable-v0.1.0-exit-criteria.md" \
+		"reference/hardened-reference-deployment.md" \
 		"reference/external-controls-matrix.md" \
 		"reference/production-gate-troubleshooting.md" \
 		"reference/upgrade-compatibility-policy.md" \
@@ -305,6 +307,14 @@ docs-check: meta-check release-truth-check ## Validate canonical docs exist and 
 	@grep -F 'not legal compliance proof' docs/reference/stable-v0.1.0-exit-criteria.md >/dev/null
 	@grep -F 'make public-release-verify TAG=<v0.1.0-rc.N>' docs/reference/stable-v0.1.0-exit-criteria.md >/dev/null
 	@grep -F 'one API writer replica' docs/reference/stable-v0.1.0-exit-criteria.md >/dev/null
+	@grep -F 'single API writer replica' docs/reference/hardened-reference-deployment.md >/dev/null
+	@grep -F 'scalable worker replicas' docs/reference/hardened-reference-deployment.md >/dev/null
+	@grep -F 'external PostgreSQL' docs/reference/hardened-reference-deployment.md >/dev/null
+	@grep -F 'external S3/MinIO-compatible object storage' docs/reference/hardened-reference-deployment.md >/dev/null
+	@grep -F 'request body limits' docs/reference/hardened-reference-deployment.md >/dev/null
+	@grep -F 'make production-check' docs/reference/hardened-reference-deployment.md >/dev/null
+	@grep -F 'not legal compliance proof' docs/reference/hardened-reference-deployment.md >/dev/null
+	@grep -F 'Hardened reference deployment' docs/README.md docs/operator-overview.md docs/kubernetes.md docs/production-hardening.md docs/reference/production-readiness.md docs/reference/source-of-truth.md >/dev/null
 	@grep -F 'Required: object paths are tenant-prefixed' docs/how-to/pilot-deployment-checklist.md >/dev/null
 	@grep -F 'Required: public API access is behind TLS' docs/how-to/pilot-deployment-checklist.md >/dev/null
 	@test -f docs/commercial/design-partner-pilot.md
@@ -403,6 +413,7 @@ deploy-check: ## Validate deployment and air-gap skeletons exist
 	@grep -F 'evydence-worker' deploy/helm/evydence/templates/deployment-worker.yaml >/dev/null
 	@grep -F 'healthcheck' deploy/helm/evydence/values.yaml >/dev/null
 	@grep -F 'single API writer replica' docs/kubernetes.md >/dev/null
+	@grep -F 'Hardened reference deployment' docs/kubernetes.md docs/reference/hardened-reference-deployment.md >/dev/null
 	@grep -F 'EVYDENCE_API_WRITER_MODE: single' compose.production-like.yml >/dev/null
 	@grep -F 'EVYDENCE_PRINT_BOOTSTRAP_SECRET: "false"' compose.production-like.yml >/dev/null
 	@grep -F 'evydence-migrate ./cmd/evydence-migrate' Dockerfile >/dev/null

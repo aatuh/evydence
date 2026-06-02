@@ -93,6 +93,8 @@ Known hardening work remains:
 Use the [external controls matrix](external-controls-matrix.md) to separate
 repo-owned checks from operator, provider, and legal/review responsibilities
 before applying these profiles to regulated or high-trust deployments.
+Use [Hardened reference deployment](hardened-reference-deployment.md) for the
+controlled self-hosted topology that these profiles build from.
 
 ## HA And Concurrency Contract
 

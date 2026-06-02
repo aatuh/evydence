@@ -19,10 +19,12 @@ beyond evaluation.
 3. Use [Kubernetes deployment](kubernetes.md) or
    [Air-gapped installation](air-gapped.md) only after the package and release
    evidence have been verified.
-4. Run the gates in [Release validation](reference/release-validation.md) and
+4. Review the [Hardened reference deployment](reference/hardened-reference-deployment.md)
+   before accepting pilot or internal production traffic.
+5. Run the gates in [Release validation](reference/release-validation.md) and
    [Production gate troubleshooting](reference/production-gate-troubleshooting.md)
    with sanitized logs.
-5. Rehearse [Backup and restore](runbooks/backup-restore.md), follow the
+6. Rehearse [Backup and restore](runbooks/backup-restore.md), follow the
    [Upgrade runbook](runbooks/upgrade.md) and
    [Upgrade compatibility policy](reference/upgrade-compatibility-policy.md), keep
    [Incident response](runbooks/incident-response.md) ready, and prepare
@@ -47,6 +49,7 @@ beyond evaluation.
 
 - [Observability](reference/observability.md)
 - [Capacity and failure modes](reference/capacity-and-failures.md)
+- [Hardened reference deployment](reference/hardened-reference-deployment.md)
 - [External controls matrix](reference/external-controls-matrix.md)
 - [Stable v0.1.0 exit criteria](reference/stable-v0.1.0-exit-criteria.md)
 - [Source of truth](reference/source-of-truth.md)

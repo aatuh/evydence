@@ -23,6 +23,9 @@ The chart does not create databases, buckets, KMS keys, or secrets.
 Use the [external controls matrix](reference/external-controls-matrix.md) to
 track which of those production controls are repo-owned, operator-owned,
 provider-owned, or legal/review-owned for the deployment.
+Use [Hardened reference deployment](reference/hardened-reference-deployment.md)
+for the full self-hosted topology, backup pairing, ingress/TLS, monitoring,
+and signing review.
 
 ## Create Secrets
 
@@ -94,4 +97,4 @@ Rollback does not roll back PostgreSQL data or object-store payloads. Keep datab
 
 ## Production Notes
 
-Production deployments should use external PostgreSQL, S3/MinIO-compatible object storage, TLS ingress, backup automation, network access controls, and external signing. Current production guidance uses a single API writer replica; the chart passes `EVYDENCE_API_WRITER_MODE=single` and `EVYDENCE_API_WRITER_REPLICAS=1`, production API startup rejects unsupported writer modes or replica counts above one, then enforces the stance with a PostgreSQL advisory writer lease. Worker replicas can scale independently through PostgreSQL outbox row locking. See [Production hardening review](production-hardening.md), [Production readiness](reference/production-readiness.md), and [Configuration](reference/configuration.md).
+Production deployments should use external PostgreSQL, S3/MinIO-compatible object storage, TLS ingress, backup automation, network access controls, and external signing. Current production guidance uses a single API writer replica; the chart passes `EVYDENCE_API_WRITER_MODE=single` and `EVYDENCE_API_WRITER_REPLICAS=1`, production API startup rejects unsupported writer modes or replica counts above one, then enforces the stance with a PostgreSQL advisory writer lease. Worker replicas can scale independently through PostgreSQL outbox row locking. See [Hardened reference deployment](reference/hardened-reference-deployment.md), [Production hardening review](production-hardening.md), [Production readiness](reference/production-readiness.md), and [Configuration](reference/configuration.md).

@@ -19,6 +19,11 @@ These checks are enforced by API startup. See [Configuration](reference/configur
 
 ## Deployment Checklist
 
+Use [Hardened reference deployment](reference/hardened-reference-deployment.md)
+for the controlled self-hosted architecture and
+[Pilot deployment checklist](how-to/pilot-deployment-checklist.md) for the
+copy-paste go/no-go record.
+
 - PostgreSQL is external, backed up, monitored, and restored in a test environment.
 - Object storage is external S3/MinIO-compatible storage with tenant-prefixed paths, encryption, lifecycle policy, and retention/object-lock policy where required.
 - S3/MinIO object-retention policy verification has been run for required tenant prefixes, and records show bucket versioning, default object-lock mode/duration, sample object retention, and sample object legal-hold checks where those controls are required, with documented limitations.
