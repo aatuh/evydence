@@ -21,7 +21,7 @@ guarantee.
 Start by verifying the release artifacts you would install or evaluate:
 
 ```sh
-make public-release-verify TAG=v0.1.0-rc.5
+make public-release-verify TAG=v0.1.0-rc.7
 ```
 
 This downloads the public release-candidate evidence and checks the release

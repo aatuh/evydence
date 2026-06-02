@@ -63,8 +63,8 @@ production, and hosted SaaS production require additional review and controls.
 
 ## Public Publication
 
-The first public release candidate,
-[`v0.1.0-rc.5`](https://github.com/aatuh/evydence/releases/tag/v0.1.0-rc.5),
+The current public release candidate,
+[`v0.1.0-rc.7`](https://github.com/aatuh/evydence/releases/tag/v0.1.0-rc.7),
 is published as a prerelease. Public release readiness requires a pushed tag, a
 completed release-artifacts workflow run, uploaded release archives, checksums,
 signed manifest files, release notes, and any configured repository or registry

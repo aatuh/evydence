@@ -25,7 +25,7 @@ SaaS-ready, legally compliant, certified, or secure-release-guaranteed.
 - Release-candidate packaging generates checksums, OpenAPI checksum, migration
   checksum, release SBOM metadata, release provenance metadata, release notes,
   signed manifest, and manifest signature.
-- Public prerelease `v0.1.0-rc.5` is published with signed release archives,
+- Public prerelease `v0.1.0-rc.7` is published with signed release archives,
   checksums, OpenAPI and migration checksums, coverage output,
   production-check summary, SBOM/provenance metadata, release notes, and signed
   release manifest.
@@ -42,7 +42,7 @@ SaaS-ready, legally compliant, certified, or secure-release-guaranteed.
   `EVYDENCE_GHCR_PUBLISH_TOKEN` for GHCR publication, and scopes GitHub OIDC
   `id-token: write` to the keyless cosign signing job.
 - `make release-acceptance` and
-  `make public-release-verify TAG=v0.1.0-rc.5` have passed against the current
+  `make public-release-verify TAG=v0.1.0-rc.7` have passed against the current
   repository state.
 
 ## Remaining Exit Blockers

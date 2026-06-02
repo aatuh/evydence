@@ -11,6 +11,30 @@ results, no secure-release guarantee, and no regulator or auditor acceptance.
 
 - No unreleased changes.
 
+## v0.1.0-rc.7 - 2026-06-01
+
+Release status: controlled self-hosted production candidate. This prerelease is
+suitable for evaluation, pilots, and controlled internal production after
+operator review. Broad self-hosted production readiness, regulated production,
+and hosted SaaS production remain out of scope for this status.
+
+### Fixed
+
+- Release artifact publication now uses the dedicated release publication token
+  path after signed release evidence is generated.
+- The release-candidate evidence package includes signed archives, checksums,
+  OpenAPI and migration checksums, coverage output, production-check summary,
+  SBOM/provenance metadata, release notes, and a signed release manifest.
+
+### Known Limits
+
+- No tag-specific project-owned container image evidence is asserted for this
+  prerelease in the repository metadata; operators must verify a separately
+  published image digest or build/sign their own image for container
+  deployments.
+- Multi-writer API HA remains outside the supported production profile; use one
+  API writer replica and scale workers through PostgreSQL outbox locking.
+
 ## v0.1.0-rc.5 - 2026-06-01
 
 Release status: controlled self-hosted production candidate. This prerelease is
