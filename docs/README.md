@@ -12,6 +12,7 @@ This documentation is organized by reader task. Implementation claims should be 
 - [Install and operate](how-to/install-and-operate.md): choose a local runtime mode, start dependencies, run migrations, and launch API/worker processes.
 - [Operations](operations.md): find the canonical operator references for configuration, workers, CI, deployment, and validation.
 - [API reference](api.md): integrate with the `/v1` HTTP API using authentication, idempotency, examples, and endpoint tables.
+- [Rendered OpenAPI docs](openapi/index.html): browse the generated static operation and schema reference.
 
 ## How-To Guides
 
@@ -37,6 +38,7 @@ This documentation is organized by reader task. Implementation claims should be 
 - [Capability map](reference/capability-map.md): advanced inventory of implemented capabilities, implementation limits, and implemented-but-partial areas.
 - [API contract matrix](reference/api-contract-matrix.md): generated route-by-route contract precision inventory for production hardening.
 - [OpenAPI contract](reference/openapi.md): generation, drift checks, and review tips for `openapi.yaml`.
+- [Rendered OpenAPI docs](openapi/index.html): static page generated from the committed OpenAPI contract.
 - [Vulnerability decisions](reference/vulnerability-decisions.md): current VEX/decision model, buyer-facing gaps, and planned API changes.
 - [Customer package manifest](reference/customer-package-manifest.md): v2 package schema, included metadata, exclusions, and local viewer compatibility.
 - [Observability](reference/observability.md): readiness, admin metrics, Prometheus rules, and dashboard starter assets.

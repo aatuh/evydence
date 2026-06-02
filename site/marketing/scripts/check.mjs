@@ -30,6 +30,7 @@ const requiredFiles = [
   "fi/yhteys/index.html",
   "en/privacy-cookies/index.html",
   "fi/yksityisyys-evasteet/index.html",
+  "api/index.html",
   "docs/index.html",
   "github/index.html"
 ];
@@ -75,6 +76,8 @@ const requiredEnglish = [
   "One release, one SBOM finding, one decision, one package verifier.",
   "https://www.linkedin.com/in/aatu-harju",
   "https://github.com/aatuh/evydence/tree/master/examples/customer-cve-review-demo",
+  withBase("/api/"),
+  "API docs",
   "Cookie preferences",
   "Evydence is not a legal compliance service"
 ];
@@ -91,6 +94,7 @@ const requiredFinnish = [
   "Lopeta kiireinen selvittely",
   "Aja asiakkaan CVE-katselmusdemo",
   "Yksi julkaisu, yksi SBOM-löydös, yksi päätös ja paketin todennus.",
+  "API-dokumentaatio",
   "Evästeasetukset",
   "Evydence ei ole juridinen"
 ];

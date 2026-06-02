@@ -9,7 +9,7 @@ GOVULNCHECK_VERSION ?= v1.2.0
 
 TAG ?=
 
-.PHONY: help tools fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check meta-check release-truth-check persistence-decomposition-check docs-check deploy-check sdk-check demo-check customer-cve-review-demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check black-box-release-artifact-check benchmark-check package-viewer-check marketing-site-check marketing-site-production-check restore-rehearsal-check fast-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
+.PHONY: help tools fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check rendered-openapi-check meta-check release-truth-check persistence-decomposition-check docs-check deploy-check sdk-check demo-check customer-cve-review-demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check black-box-release-artifact-check benchmark-check package-viewer-check marketing-site-check marketing-site-production-check restore-rehearsal-check fast-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -54,9 +54,13 @@ openapi-check: openapi.yaml ## Validate OpenAPI generation and route contract te
 	@$(GO) test ./internal/adapters/httpapi -run 'TestRoutesValidateAndOpenAPIRenders'
 	@$(GO) run ./cmd/openapi > /tmp/evydence-openapi.yaml
 	@cmp -s openapi.yaml /tmp/evydence-openapi.yaml
+	@scripts/render_openapi_docs.py --check
 
 openapi-precision-check: ## Enforce current OpenAPI precision floor and broad-route ceiling
 	@python3 scripts/openapi_precision_check.py
+
+rendered-openapi-check: ## Validate generated static OpenAPI docs
+	@scripts/render_openapi_docs.py --check
 
 meta-check: ## Validate root legal, governance, support, and release-evidence metadata
 	@test -f LICENSE
@@ -140,7 +144,7 @@ release-truth-check: ## Validate current release metadata against public docs an
 persistence-decomposition-check: ## Validate generated persistence decomposition inventory
 	@scripts/persistence_decomposition_inventory.py --check
 
-docs-check: meta-check release-truth-check persistence-decomposition-check ## Validate canonical docs exist and avoid forbidden product claims
+docs-check: meta-check release-truth-check persistence-decomposition-check rendered-openapi-check ## Validate canonical docs exist and avoid forbidden product claims
 	@test -f README.md
 	@test -f .production.env.example
 	@test -f docs/README.md
@@ -164,6 +168,8 @@ docs-check: meta-check release-truth-check persistence-decomposition-check ## Va
 	@test -f docs/reference/capability-map.md
 	@test -f docs/reference/api-contract-matrix.md
 	@test -f docs/reference/openapi.md
+	@test -f docs/openapi/index.html
+	@test -f site/marketing/public/api/index.html
 	@test -f docs/reference/vulnerability-decisions.md
 	@test -f docs/reference/observability.md
 	@test -f docs/reference/capacity-and-failures.md
@@ -221,6 +227,7 @@ docs-check: meta-check release-truth-check persistence-decomposition-check ## Va
 		"reference/capability-map.md" \
 		"reference/api-contract-matrix.md" \
 		"reference/openapi.md" \
+		"openapi/index.html" \
 		"reference/vulnerability-decisions.md" \
 		"reference/observability.md" \
 		"reference/capacity-and-failures.md" \
@@ -280,6 +287,8 @@ docs-check: meta-check release-truth-check persistence-decomposition-check ## Va
 	@grep -F 'Buyer evaluation overview' README.md docs/README.md >/dev/null
 	@grep -F 'Operator overview' README.md docs/README.md >/dev/null
 	@grep -F 'OpenAPI reference' README.md >/dev/null
+	@grep -F 'Rendered OpenAPI docs' README.md docs/README.md docs/reference/openapi.md >/dev/null
+	@grep -F 'site/marketing/public/api/index.html' docs/reference/openapi.md >/dev/null
 	@grep -F 'Install and operate' README.md >/dev/null
 	@grep -F 'Fastest Buyer Path' docs/buyer-overview.md >/dev/null
 	@grep -F 'Primary Operator Path' docs/operator-overview.md >/dev/null
