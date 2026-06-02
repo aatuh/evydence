@@ -56,6 +56,11 @@ jobs:
           path: |
             coverage.out
             tmp/release-check-summary.txt
+            tmp/production-benchmark/production-benchmark-summary.json
+            tmp/production-benchmark/production-benchmark-summary.txt
+            tmp/black-box-release-artifact/black-box-release-artifact-summary.json
+            tmp/black-box-release-artifact/black-box-release-artifact-summary.txt
+            tmp/black-box-release-artifact/release/evydence_linux_amd64/SHA256SUMS
             tmp/production-check/evydence-release-manifest.json
             tmp/production-check/evydence-release-manifest.sig.json
           if-no-files-found: ignore

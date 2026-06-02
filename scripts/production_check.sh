@@ -16,6 +16,7 @@ make coverage-check
 make migration-compatibility-check
 make benchmark-check
 make black-box-demo-check
+make black-box-release-artifact-check
 
 workdir="tmp/production-check"
 rm -rf "$workdir"
