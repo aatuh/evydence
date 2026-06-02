@@ -9,7 +9,7 @@ GOVULNCHECK_VERSION ?= v1.2.0
 
 TAG ?=
 
-.PHONY: help tools fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check meta-check release-truth-check docs-check deploy-check sdk-check demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check benchmark-check package-viewer-check marketing-site-check marketing-site-production-check restore-rehearsal-check fast-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
+.PHONY: help tools fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check meta-check release-truth-check docs-check deploy-check sdk-check demo-check customer-cve-review-demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check benchmark-check package-viewer-check marketing-site-check marketing-site-production-check restore-rehearsal-check fast-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -142,6 +142,7 @@ docs-check: meta-check release-truth-check ## Validate canonical docs exist and 
 	@test -f docs/release-signing.md
 	@test -f docs/production-hardening.md
 	@test -f docs/tutorials/evaluate-in-10-minutes.md
+	@test -f docs/tutorials/customer-cve-review-demo.md
 	@test -f docs/tutorials/getting-started.md
 	@test -f docs/how-to/integrate-ci.md
 	@test -f docs/how-to/install-and-operate.md
@@ -184,6 +185,7 @@ docs-check: meta-check release-truth-check ## Validate canonical docs exist and 
 	@test -f docs/sdk/README.md
 	@for path in \
 		"tutorials/evaluate-in-10-minutes.md" \
+		"tutorials/customer-cve-review-demo.md" \
 		"tutorials/getting-started.md" \
 		"how-to/install-and-operate.md" \
 		"how-to/view-packages.md" \
@@ -247,6 +249,7 @@ docs-check: meta-check release-truth-check ## Validate canonical docs exist and 
 	@grep -F 'site/package-viewer/index.html' docs/tutorials/evaluate-in-10-minutes.md >/dev/null
 	@grep -F 'examples/end-to-end-release-evidence/run-local-demo.sh' docs/tutorials/evaluate-in-10-minutes.md >/dev/null
 	@grep -F 'Evaluate Evydence in 10 minutes' README.md docs/README.md >/dev/null
+	@grep -F 'Customer CVE review demo' README.md docs/README.md docs/tutorials/customer-cve-review-demo.md >/dev/null
 	@grep -F 'Capability map' README.md docs/README.md >/dev/null
 	@grep -F 'Production Check' README.md docs/reference/release-evidence-index.md >/dev/null
 	@grep -F 'coverage.out' README.md docs/reference/release-evidence-index.md >/dev/null
@@ -385,9 +388,13 @@ sdk-check: ## Validate SDK helper and generated route-catalog coverage against O
 
 demo-check: ## Validate checked end-to-end evidence demo fixtures
 	@test -x examples/end-to-end-release-evidence/run-local-demo.sh
+	@test -x examples/customer-cve-review-demo/run-demo.sh
 	@test -x scripts/local_ci_simulation_check.sh
 	@test -x scripts/reviewer_package_workflow_check.sh
 	@test -f examples/end-to-end-release-evidence/README.md
+	@test -f examples/customer-cve-review-demo/README.md
+	@test -f examples/customer-cve-review-demo/customer-cve-review-story.json
+	@test -f examples/customer-cve-review-demo/expected-verification-output.txt
 	@test -f examples/end-to-end-release-evidence/release-evidence-manifest.json
 	@test -f examples/end-to-end-release-evidence/sample-readiness-report.json
 	@test -f examples/end-to-end-release-evidence/sample-security-summary.json
@@ -403,10 +410,17 @@ demo-check: ## Validate checked end-to-end evidence demo fixtures
 	@grep -F '/v1/audit-chain/verify' examples/end-to-end-release-evidence/run-local-demo.sh >/dev/null
 	@grep -F '/v1/customer-packages' examples/end-to-end-release-evidence/run-local-demo.sh >/dev/null
 	@grep -F 'not legal' examples/end-to-end-release-evidence/README.md >/dev/null
+	@grep -F 'CVE-2026-0002' examples/customer-cve-review-demo/customer-cve-review-story.json examples/customer-cve-review-demo/README.md docs/tutorials/customer-cve-review-demo.md >/dev/null
+	@grep -F 'approved_for_customer_package' examples/customer-cve-review-demo/customer-cve-review-story.json examples/customer-cve-review-demo/README.md docs/tutorials/customer-cve-review-demo.md >/dev/null
+	@grep -F 'not legal compliance proof' examples/customer-cve-review-demo/README.md docs/tutorials/customer-cve-review-demo.md >/dev/null
 	@grep -F 'reviewer_checklist' examples/end-to-end-release-evidence/sample-customer-package-manifest.json >/dev/null
 	@grep -F 'escalation_path' examples/end-to-end-release-evidence/sample-customer-package-manifest.json >/dev/null
 	@grep -F 'sbom_component_purl' examples/end-to-end-release-evidence/sample-customer-package-manifest.json >/dev/null
 	@scripts/reviewer_package_workflow_check.sh
+	@$(MAKE) customer-cve-review-demo-check
+
+customer-cve-review-demo-check: ## Validate deterministic customer CVE review demo
+	@examples/customer-cve-review-demo/run-demo.sh >/dev/null
 
 local-ci-simulation-check: ## Run local one-command CI evidence simulation without external services
 	@scripts/local_ci_simulation_check.sh
