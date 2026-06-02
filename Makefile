@@ -9,7 +9,7 @@ GOVULNCHECK_VERSION ?= v1.2.0
 
 TAG ?=
 
-.PHONY: help tools fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check rendered-openapi-check meta-check release-truth-check persistence-decomposition-check docs-check deploy-check sdk-check demo-check customer-cve-review-demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check black-box-release-artifact-check benchmark-check package-viewer-check marketing-site-check marketing-site-production-check restore-rehearsal-check fast-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
+.PHONY: help tools fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check rendered-openapi-check meta-check release-truth-check persistence-decomposition-check docs-check deploy-check sdk-check demo-check customer-cve-review-demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check black-box-release-artifact-check benchmark-check package-viewer-check release-asset-smoke-check marketing-site-check marketing-site-production-check restore-rehearsal-check fast-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -89,6 +89,7 @@ meta-check: ## Validate root legal, governance, support, and release-evidence me
 	@test -x scripts/release_acceptance.sh
 	@test -x scripts/release_candidate_package.sh
 	@test -x scripts/release_candidate_validate.sh
+	@test -x scripts/release_asset_smoke_check.sh
 	@test -x scripts/release_evidence_metadata.py
 	@grep -F 'GNU AFFERO GENERAL PUBLIC LICENSE' LICENSE >/dev/null
 	@grep -F 'AGPL-3.0-only' COMMERCIAL.md >/dev/null
@@ -451,6 +452,9 @@ docs-check: meta-check release-truth-check persistence-decomposition-check rende
 	@grep -F 'Controlled self-hosted production candidate' docs/reference/release-notes-v0.1.0-rc.1.md >/dev/null
 	@grep -F 'not legal compliance proof' docs/reference/release-notes-v0.1.0-rc.1.md >/dev/null
 	@grep -F 'Use one API writer replica' docs/reference/release-candidate.md >/dev/null
+	@grep -F 'make release-asset-smoke-check' docs/reference/release-validation.md docs/reference/release-evidence-index.md >/dev/null
+	@grep -F 'checksum, signature, missing-asset, and package-identity mismatch' docs/reference/release-validation.md >/dev/null
+	@grep -F 'tampered manifest failure' docs/reference/release-evidence-index.md >/dev/null
 	@grep -F 'private security intake' SECURITY.md >/dev/null
 	@! grep -R -i "automatically compliant\|certified secure\|legally sufficient\|SBOM is complete\|all vulnerabilities detected\|scanner findings are authoritative\|regulator-ready without review" README.md docs
 	@grep -F 'make marketing-site-production-check' docs/how-to/publish-marketing-site.md >/dev/null
@@ -585,6 +589,9 @@ package-viewer-check: ## Validate local package viewer and walkthrough
 	@grep -F 'Gaps' docs/assets/reviewer-journey.svg >/dev/null
 	@grep -F 'Limitations' docs/assets/reviewer-journey.svg >/dev/null
 
+release-asset-smoke-check: ## Verify local release asset checksums, signature, package verification, and failure cases
+	@scripts/release_asset_smoke_check.sh
+
 marketing-site-check: ## Build and validate the static marketing site
 	@npm --prefix site/marketing run check
 
@@ -619,6 +626,7 @@ finalize: ## Thorough validity check
 
 release-acceptance: ## Run deterministic release metadata acceptance checks
 	@scripts/release_acceptance.sh
+	@$(MAKE) release-asset-smoke-check
 
 release-check: ## Release validation with security, race, and configured live integration gates
 	@$(MAKE) finalize
