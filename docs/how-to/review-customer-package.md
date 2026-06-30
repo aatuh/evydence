@@ -48,6 +48,10 @@ go run ./cmd/evydence package verify \
 Expected result: `customer package verified` with package, product, release,
 manifest hash, and evidence-bundle status.
 
+For ZIP archives, the verifier rejects unsafe or ambiguous archive shapes such
+as path-traversal entries, nested paths, absolute paths, backslash-separated
+paths, empty names, and duplicate entries before trusting package metadata.
+
 ## Inspect The Package
 
 Open the local viewer at `site/package-viewer/index.html`, then load

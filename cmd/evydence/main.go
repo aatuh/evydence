@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	pathpkg "path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -661,7 +662,15 @@ func readCustomerPackageArchive(path string) (customerPackageArchiveFiles, error
 		_ = reader.Close()
 	}()
 	files := customerPackageArchiveFiles{}
+	seenEntries := map[string]bool{}
 	for _, file := range reader.File {
+		if err := validateCustomerPackageArchiveEntryName(file.Name); err != nil {
+			return customerPackageArchiveFiles{}, err
+		}
+		if seenEntries[file.Name] {
+			return customerPackageArchiveFiles{}, fmt.Errorf("customer package archive duplicate archive entry %s", file.Name)
+		}
+		seenEntries[file.Name] = true
 		switch file.Name {
 		case "manifest.json":
 			files.Manifest, err = readZIPFileLimited(file)
@@ -688,6 +697,24 @@ func readCustomerPackageArchive(path string) (customerPackageArchiveFiles, error
 		return customerPackageArchiveFiles{}, errors.New("customer package archive missing manifest.json, package.json, or verification.json")
 	}
 	return files, nil
+}
+
+func validateCustomerPackageArchiveEntryName(name string) error {
+	if strings.TrimSpace(name) == "" {
+		return errors.New("customer package archive contains unsafe archive entry")
+	}
+	if strings.TrimSpace(name) != name || strings.Contains(name, "\x00") || strings.Contains(name, "\\") {
+		return fmt.Errorf("customer package archive contains unsafe archive entry %s", name)
+	}
+	for _, char := range name {
+		if char < 0x20 || char == 0x7f {
+			return fmt.Errorf("customer package archive contains unsafe archive entry %q", name)
+		}
+	}
+	if pathpkg.IsAbs(name) || pathpkg.Clean(name) != name || strings.Contains(name, "/") {
+		return fmt.Errorf("customer package archive contains unsafe archive entry %s", name)
+	}
+	return nil
 }
 
 func readZIPFileLimited(file *zip.File) ([]byte, error) {

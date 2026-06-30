@@ -395,6 +395,53 @@ func TestVerifyCustomerPackageManifestArchiveAndBundle(t *testing.T) {
 	}
 }
 
+func TestVerifyCustomerPackageRejectsUnsafeArchiveShape(t *testing.T) {
+	manifest := testCustomerPackageManifest()
+	body, err := json.Marshal(manifest)
+	if err != nil {
+		t.Fatalf("marshal manifest: %v", err)
+	}
+	hash, err := canonicalJSONBytesHash(body)
+	if err != nil {
+		t.Fatalf("manifest hash: %v", err)
+	}
+	dir := t.TempDir()
+	unsafeArchivePath := writeCustomCustomerPackageArchive(t, dir+"/package-unsafe.zip", []archiveEntry{
+		{name: "manifest.json", body: body},
+		{name: "package.json", body: mustMarshalJSON(t, map[string]any{"id": "csp_1", "manifest_hash": hash})},
+		{name: "verification.json", body: mustMarshalJSON(t, map[string]any{"package_id": "csp_1", "manifest_hash": hash})},
+		{name: "../manifest.json", body: []byte(`{"unsafe":true}`)},
+	})
+	if err := verifyCustomerPackage([]string{"--archive", unsafeArchivePath}); err == nil || !strings.Contains(err.Error(), "unsafe archive entry") {
+		t.Fatalf("unsafe archive err=%v", err)
+	}
+
+	duplicateArchivePath := writeCustomCustomerPackageArchive(t, dir+"/package-duplicate.zip", []archiveEntry{
+		{name: "manifest.json", body: body},
+		{name: "package.json", body: mustMarshalJSON(t, map[string]any{"id": "csp_1", "manifest_hash": hash})},
+		{name: "verification.json", body: mustMarshalJSON(t, map[string]any{"package_id": "csp_1", "manifest_hash": hash})},
+		{name: "manifest.json", body: body},
+	})
+	if err := verifyCustomerPackage([]string{"--archive", duplicateArchivePath}); err == nil || !strings.Contains(err.Error(), "duplicate archive entry") {
+		t.Fatalf("duplicate archive err=%v", err)
+	}
+}
+
+func TestValidateCustomerPackageArchiveEntryName(t *testing.T) {
+	valid := []string{"manifest.json", "package.json", "verification.json", "README.txt", "report.html", "WATERMARK.txt"}
+	for _, name := range valid {
+		if err := validateCustomerPackageArchiveEntryName(name); err != nil {
+			t.Fatalf("valid archive entry %q rejected: %v", name, err)
+		}
+	}
+	invalid := []string{"", " ", "../manifest.json", "dir/manifest.json", "/manifest.json", `dir\manifest.json`, "manifest.json ", "evil\nname"}
+	for _, name := range invalid {
+		if err := validateCustomerPackageArchiveEntryName(name); err == nil {
+			t.Fatalf("invalid archive entry %q accepted", name)
+		}
+	}
+}
+
 func TestVerifyCustomerPackageRejectsSensitiveFieldsAndMismatches(t *testing.T) {
 	manifest := testCustomerPackageManifest()
 	manifest["payload_ref"] = "objects/ten_1/raw-secret.json"
@@ -977,6 +1024,36 @@ func writeTestCustomerPackageArchive(t *testing.T, path string, manifest []byte,
 			body []byte
 		}{name: "vulnerability-decisions.json", body: decisionExport[0]})
 	}
+	for _, entry := range entries {
+		writer, err := zw.Create(entry.name)
+		if err != nil {
+			t.Fatalf("create archive entry: %v", err)
+		}
+		if _, err := writer.Write(entry.body); err != nil {
+			t.Fatalf("write archive entry: %v", err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("close archive writer: %v", err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatalf("close archive: %v", err)
+	}
+	return path
+}
+
+type archiveEntry struct {
+	name string
+	body []byte
+}
+
+func writeCustomCustomerPackageArchive(t *testing.T, path string, entries []archiveEntry) string {
+	t.Helper()
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("create archive: %v", err)
+	}
+	zw := zip.NewWriter(file)
 	for _, entry := range entries {
 		writer, err := zw.Create(entry.name)
 		if err != nil {

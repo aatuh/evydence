@@ -202,6 +202,11 @@ go run ./cmd/evydence package verify \
   --hash sha256:<canonical-manifest-hash>
 ```
 
+The archive verifier accepts only clean top-level ZIP entries and rejects
+path-traversal entries, nested paths, absolute paths, backslash-separated paths,
+empty names, and duplicate entries before trusting `manifest.json`,
+`package.json`, `verification.json`, or `vulnerability-decisions.json`.
+
 The checked sample ZIP includes `vulnerability-decisions.json` for the
 package-scoped decision export. The verifier checks the export scope and source
 manifest hash alongside `manifest.json`, `package.json`, and
