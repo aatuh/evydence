@@ -77,6 +77,9 @@ func TestWaiverApprovalAndCustomerPackageFlow(t *testing.T) {
 	if report := files["report.html"]; !strings.Contains(report, "Release Summary") || !strings.Contains(report, "VEX And Vulnerability Decisions") || !strings.Contains(report, "Readiness") || !strings.Contains(report, "Verification") || !strings.Contains(report, "Limitations") || !strings.Contains(report, "not legal compliance proof") {
 		t.Fatalf("HTML report missing expected sections or non-claim: %s", report)
 	}
+	if report := files["report.html"]; !strings.Contains(report, "http-equiv=\"Content-Security-Policy\"") || !strings.Contains(report, "default-src 'none'") || !strings.Contains(report, "form-action 'none'") {
+		t.Fatalf("HTML report missing restrictive CSP meta policy: %s", report)
+	}
 	if strings.Contains(files["report.html"], "<script") || strings.Contains(files["report.html"], "payload_ref") || strings.Contains(files["report.html"], "internal reviewer note") {
 		t.Fatalf("HTML report includes unsafe content: %s", files["report.html"])
 	}

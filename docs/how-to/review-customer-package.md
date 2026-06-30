@@ -59,8 +59,9 @@ Open the local viewer at `site/package-viewer/index.html`, then load
 The viewer runs locally in the browser and does not upload files.
 
 For ZIP packages, unpack the archive and open `report.html`. The static report
-is generated from the redacted package manifest and local inline styles. It
-does not require a running Evydence API.
+is generated from the redacted package manifest, local inline styles, and a
+restrictive CSP meta policy for offline browser viewing. It does not require a
+running Evydence API.
 
 When an Evydence API is running and the package owner issued a portal token,
 open `/v1/customer-portal/package/view`. The portal page accepts tokens only in

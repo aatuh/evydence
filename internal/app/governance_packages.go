@@ -1423,7 +1423,7 @@ func customerPackageHTMLReport(pkg domain.CustomerSecurityPackage, metadata, ver
 	nonClaims := packageHTMLStrings(manifest["non_claims"])
 
 	var b strings.Builder
-	b.WriteString("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>")
+	b.WriteString("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'\"><title>")
 	b.WriteString(packageHTMLEscape(pkg.Title))
 	b.WriteString("</title><style>body{font-family:Arial,sans-serif;margin:2rem;line-height:1.5;color:#17202a;background:#fff}main{max-width:980px}h1,h2{line-height:1.2}table{border-collapse:collapse;width:100%;margin:0.75rem 0 1.5rem}th,td{border:1px solid #ccd3db;padding:0.45rem;text-align:left;vertical-align:top}th{background:#f3f6f8}.muted{color:#59636e}.notice{border-left:4px solid #5b6f82;background:#f6f8fa;padding:0.75rem 1rem}.badge{display:inline-block;border:1px solid #ccd3db;padding:0.1rem 0.45rem;border-radius:4px}</style></head><body><main>")
 	b.WriteString("<h1>")

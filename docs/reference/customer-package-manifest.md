@@ -135,8 +135,10 @@ rendering of the redacted manifest. It shows release summary, VEX and
 vulnerability-decision tables, questionnaire answer-library entries when
 included, object-lock proof records when included, API contract evidence when
 included, readiness checks, verification material, limitations, and non-claims
-without requiring a server or loading remote assets. Portal ZIP downloads can
-also include `WATERMARK.txt` and a visible report watermark for
+without requiring a server or loading remote assets. The report includes a
+restrictive CSP meta policy for offline browser viewing and permits only its
+local inline styles. Portal ZIP downloads can also include `WATERMARK.txt` and
+a visible report watermark for
 customer-specific distribution. The watermark is not a secret and does not
 change the canonical package manifest hash. The HTML report is generated from
 package-scoped data only and excludes raw evidence payload bytes, object-store

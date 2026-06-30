@@ -106,6 +106,9 @@ report_lower = report.lower()
 for expected in ("limitations", "non-claims", "verification", "vulnerability"):
     if expected not in report_lower:
         raise SystemExit(f"report.html missing {expected}")
+for expected in ('http-equiv="Content-Security-Policy"', "default-src 'none'", "form-action 'none'"):
+    if expected not in report:
+        raise SystemExit(f"report.html missing CSP marker {expected}")
 for forbidden in ("payload_ref", "object_key", "private_key", "token_hash", "internal note", "<script"):
     if forbidden in report_lower:
         raise SystemExit(f"report.html leaked forbidden marker {forbidden}")
