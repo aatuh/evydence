@@ -425,6 +425,26 @@ func TestVerifyCustomerPackageRejectsUnsafeArchiveShape(t *testing.T) {
 	if err := verifyCustomerPackage([]string{"--archive", duplicateArchivePath}); err == nil || !strings.Contains(err.Error(), "duplicate archive entry") {
 		t.Fatalf("duplicate archive err=%v", err)
 	}
+
+	unexpectedArchivePath := writeCustomCustomerPackageArchive(t, dir+"/package-unexpected.zip", []archiveEntry{
+		{name: "manifest.json", body: body},
+		{name: "package.json", body: mustMarshalJSON(t, map[string]any{"id": "csp_1", "manifest_hash": hash})},
+		{name: "verification.json", body: mustMarshalJSON(t, map[string]any{"package_id": "csp_1", "manifest_hash": hash})},
+		{name: "secrets.txt", body: []byte("not part of the customer package contract")},
+	})
+	if err := verifyCustomerPackage([]string{"--archive", unexpectedArchivePath}); err == nil || !strings.Contains(err.Error(), "unexpected archive entry") {
+		t.Fatalf("unexpected archive err=%v", err)
+	}
+
+	undeclaredDecisionPath := writeCustomCustomerPackageArchive(t, dir+"/package-undeclared-decision.zip", []archiveEntry{
+		{name: "manifest.json", body: body},
+		{name: "package.json", body: mustMarshalJSON(t, map[string]any{"id": "csp_1", "manifest_hash": hash})},
+		{name: "verification.json", body: mustMarshalJSON(t, map[string]any{"package_id": "csp_1", "manifest_hash": hash})},
+		{name: "vulnerability-decisions.json", body: mustMarshalJSON(t, map[string]any{"source_manifest_hash": hash})},
+	})
+	if err := verifyCustomerPackage([]string{"--archive", undeclaredDecisionPath}); err == nil || !strings.Contains(err.Error(), "undeclared vulnerability decision export") {
+		t.Fatalf("undeclared decision export err=%v", err)
+	}
 }
 
 func TestValidateCustomerPackageArchiveEntryName(t *testing.T) {

@@ -86,9 +86,13 @@ for forbidden in ("payload_ref", "object_key", "private_key", "token_hash", "int
 with zipfile.ZipFile(archive_path) as zf:
     names = set(zf.namelist())
     required_archive = {"manifest.json", "package.json", "verification.json", "report.html"}
+    allowed_archive = required_archive | {"README.txt", "WATERMARK.txt", "vulnerability-decisions.json"}
     missing_archive = sorted(required_archive - names)
     if missing_archive:
         raise SystemExit(f"archive missing {', '.join(missing_archive)}")
+    unexpected_archive = sorted(names - allowed_archive)
+    if unexpected_archive:
+        raise SystemExit(f"archive includes unexpected entries: {', '.join(unexpected_archive)}")
     for info in zf.infolist():
         target = extract_dir / info.filename
         resolved = target.resolve()

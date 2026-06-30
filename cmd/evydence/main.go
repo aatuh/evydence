@@ -667,6 +667,9 @@ func readCustomerPackageArchive(path string) (customerPackageArchiveFiles, error
 		if err := validateCustomerPackageArchiveEntryName(file.Name); err != nil {
 			return customerPackageArchiveFiles{}, err
 		}
+		if !allowedCustomerPackageArchiveEntryName(file.Name) {
+			return customerPackageArchiveFiles{}, fmt.Errorf("customer package archive contains unexpected archive entry %s", file.Name)
+		}
 		if seenEntries[file.Name] {
 			return customerPackageArchiveFiles{}, fmt.Errorf("customer package archive duplicate archive entry %s", file.Name)
 		}
@@ -697,6 +700,15 @@ func readCustomerPackageArchive(path string) (customerPackageArchiveFiles, error
 		return customerPackageArchiveFiles{}, errors.New("customer package archive missing manifest.json, package.json, or verification.json")
 	}
 	return files, nil
+}
+
+func allowedCustomerPackageArchiveEntryName(name string) bool {
+	switch name {
+	case "manifest.json", "package.json", "verification.json", "README.txt", "report.html", "WATERMARK.txt", "vulnerability-decisions.json":
+		return true
+	default:
+		return false
+	}
 }
 
 func validateCustomerPackageArchiveEntryName(name string) error {
@@ -762,6 +774,9 @@ func verifyCustomerPackageArchiveMetadata(archive customerPackageArchiveFiles, r
 		if err := verifyCustomerDecisionExportBytes(archive.DecisionExport, result); err != nil {
 			return err
 		}
+	}
+	if len(archive.DecisionExport) > 0 && strings.TrimSpace(stringMapField(archive.Verification, "decision_export_file")) == "" {
+		return errors.New("customer package archive contains undeclared vulnerability decision export")
 	}
 	return nil
 }
