@@ -482,6 +482,15 @@ func TestVerifyCustomerPackageRejectsDuplicateJSONKeys(t *testing.T) {
 		t.Fatalf("duplicate metadata key err=%v", err)
 	}
 
+	duplicateVerificationArchive := writeCustomCustomerPackageArchive(t, dir+"/package-duplicate-verification-key.zip", []archiveEntry{
+		{name: "manifest.json", body: body},
+		{name: "package.json", body: mustMarshalJSON(t, map[string]any{"id": "csp_1", "manifest_hash": hash})},
+		{name: "verification.json", body: []byte(`{"package_id":"csp_conflicting","package_id":"csp_1","manifest_hash":"` + hash + `"}`)},
+	})
+	if err := verifyCustomerPackage([]string{"--archive", duplicateVerificationArchive}); err == nil || !strings.Contains(err.Error(), "duplicate JSON key") {
+		t.Fatalf("duplicate verification key err=%v", err)
+	}
+
 	decisionExport := mustMarshalJSON(t, map[string]any{
 		"schema_version":       customerDecisionExportSchemaVersion,
 		"package_id":           "csp_1",
