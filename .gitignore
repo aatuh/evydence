@@ -19,3 +19,5 @@ __pycache__/
 sdk/typescript/.build/
 .terraform/
 .terraform.lock.hcl
+
+.audits/
