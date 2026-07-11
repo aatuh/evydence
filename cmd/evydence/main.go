@@ -472,6 +472,9 @@ func verifyCustomerPackage(args []string) error {
 		if err != nil {
 			return err
 		}
+		if _, err := verifyCustomerPackageManifestBytes(archive.Manifest); err != nil {
+			return err
+		}
 		manifestBody = archive.Manifest
 	}
 	if strings.TrimSpace(*manifestPath) != "" {

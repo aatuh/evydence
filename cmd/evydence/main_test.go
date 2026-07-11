@@ -473,6 +473,19 @@ func TestVerifyCustomerPackageRejectsDuplicateJSONKeys(t *testing.T) {
 	if err != nil {
 		t.Fatalf("manifest hash: %v", err)
 	}
+	manifestPath := dir + "/manifest.json"
+	if err := os.WriteFile(manifestPath, body, 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	ambiguousArchiveManifest := []byte(strings.Replace(string(body), `"product_id":"prod_1"`, `"product_id":"prod_conflicting","product_id":"prod_1"`, 1))
+	ambiguousArchive := writeCustomCustomerPackageArchive(t, dir+"/package-ambiguous-archive-manifest.zip", []archiveEntry{
+		{name: "manifest.json", body: ambiguousArchiveManifest},
+		{name: "package.json", body: mustMarshalJSON(t, map[string]any{"id": "csp_1", "manifest_hash": hash})},
+		{name: "verification.json", body: mustMarshalJSON(t, map[string]any{"package_id": "csp_1", "manifest_hash": hash})},
+	})
+	if err := verifyCustomerPackage([]string{"--manifest", manifestPath, "--archive", ambiguousArchive}); err == nil || !strings.Contains(err.Error(), "duplicate JSON key") {
+		t.Fatalf("ambiguous archive manifest err=%v", err)
+	}
 	duplicateMetadataArchive := writeCustomCustomerPackageArchive(t, dir+"/package-duplicate-metadata-key.zip", []archiveEntry{
 		{name: "manifest.json", body: body},
 		{name: "package.json", body: []byte(`{"id":"csp_conflicting","id":"csp_1","manifest_hash":"` + hash + `"}`)},
