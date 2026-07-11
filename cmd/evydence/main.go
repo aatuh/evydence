@@ -552,6 +552,9 @@ func verifyCustomerPackageManifestBytes(body []byte) (customerPackageVerifyResul
 	if err := json.Unmarshal(body, &raw); err != nil {
 		return customerPackageVerifyResult{}, errors.New("customer package manifest is not valid JSON")
 	}
+	if err := rejectDuplicateCustomerPackageJSONKeys(body); err != nil {
+		return customerPackageVerifyResult{}, err
+	}
 	if err := rejectCustomerPackageSensitiveKeys(raw); err != nil {
 		return customerPackageVerifyResult{}, err
 	}
@@ -681,13 +684,13 @@ func readCustomerPackageArchive(path string) (customerPackageArchiveFiles, error
 			var body []byte
 			body, err = readZIPFileLimited(file)
 			if err == nil {
-				err = json.Unmarshal(body, &files.Metadata)
+				err = decodeCustomerPackageJSONObject(body, &files.Metadata)
 			}
 		case "verification.json":
 			var body []byte
 			body, err = readZIPFileLimited(file)
 			if err == nil {
-				err = json.Unmarshal(body, &files.Verification)
+				err = decodeCustomerPackageJSONObject(body, &files.Verification)
 			}
 		case "vulnerability-decisions.json":
 			files.DecisionExport, err = readZIPFileLimited(file)
@@ -786,6 +789,9 @@ func verifyCustomerDecisionExportBytes(body []byte, result customerPackageVerify
 	if err := json.Unmarshal(body, &raw); err != nil {
 		return errors.New("customer package decision export is not valid JSON")
 	}
+	if err := rejectDuplicateCustomerPackageJSONKeys(body); err != nil {
+		return err
+	}
 	if err := rejectCustomerPackageSensitiveKeys(raw); err != nil {
 		return err
 	}
@@ -854,6 +860,82 @@ func canonicalJSONBytesHash(body []byte) (string, error) {
 		return "", err
 	}
 	return hashBytes(canonical), nil
+}
+
+func decodeCustomerPackageJSONObject(body []byte, target *map[string]any) error {
+	if err := rejectDuplicateCustomerPackageJSONKeys(body); err != nil {
+		return err
+	}
+	return json.Unmarshal(body, target)
+}
+
+func rejectDuplicateCustomerPackageJSONKeys(body []byte) error {
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	if err := rejectDuplicateCustomerPackageJSONValue(decoder); err != nil {
+		return err
+	}
+	if _, err := decoder.Token(); err != io.EOF {
+		if err == nil {
+			return errors.New("customer package JSON contains trailing data")
+		}
+		return err
+	}
+	return nil
+}
+
+func rejectDuplicateCustomerPackageJSONValue(decoder *json.Decoder) error {
+	token, err := decoder.Token()
+	if err != nil {
+		return err
+	}
+	delimiter, isDelimiter := token.(json.Delim)
+	if !isDelimiter {
+		return nil
+	}
+	switch delimiter {
+	case '{':
+		keys := map[string]struct{}{}
+		for decoder.More() {
+			token, err := decoder.Token()
+			if err != nil {
+				return err
+			}
+			key, ok := token.(string)
+			if !ok {
+				return errors.New("customer package JSON object key is invalid")
+			}
+			if _, exists := keys[key]; exists {
+				return errors.New("customer package JSON contains duplicate JSON key")
+			}
+			keys[key] = struct{}{}
+			if err := rejectDuplicateCustomerPackageJSONValue(decoder); err != nil {
+				return err
+			}
+		}
+		token, err := decoder.Token()
+		if err != nil {
+			return err
+		}
+		if token != json.Delim('}') {
+			return errors.New("customer package JSON object is invalid")
+		}
+	case '[':
+		for decoder.More() {
+			if err := rejectDuplicateCustomerPackageJSONValue(decoder); err != nil {
+				return err
+			}
+		}
+		token, err := decoder.Token()
+		if err != nil {
+			return err
+		}
+		if token != json.Delim(']') {
+			return errors.New("customer package JSON array is invalid")
+		}
+	default:
+		return errors.New("customer package JSON contains an unexpected delimiter")
+	}
+	return nil
 }
 
 func validSHA256Digest(value string) bool {

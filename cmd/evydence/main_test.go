@@ -447,6 +447,64 @@ func TestVerifyCustomerPackageRejectsUnsafeArchiveShape(t *testing.T) {
 	}
 }
 
+func TestVerifyCustomerPackageRejectsDuplicateJSONKeys(t *testing.T) {
+	manifest := testCustomerPackageManifest()
+	body, err := json.Marshal(manifest)
+	if err != nil {
+		t.Fatalf("marshal manifest: %v", err)
+	}
+	dir := t.TempDir()
+
+	duplicateManifest := []byte(strings.Replace(string(body), `"product_id":"prod_1"`, `"product_id":"prod_conflicting","product_id":"prod_1"`, 1))
+	duplicateManifestHash, err := canonicalJSONBytesHash(duplicateManifest)
+	if err != nil {
+		t.Fatalf("duplicate manifest hash: %v", err)
+	}
+	duplicateManifestArchive := writeCustomCustomerPackageArchive(t, dir+"/package-duplicate-manifest-key.zip", []archiveEntry{
+		{name: "manifest.json", body: duplicateManifest},
+		{name: "package.json", body: mustMarshalJSON(t, map[string]any{"id": "csp_1", "manifest_hash": duplicateManifestHash})},
+		{name: "verification.json", body: mustMarshalJSON(t, map[string]any{"package_id": "csp_1", "manifest_hash": duplicateManifestHash})},
+	})
+	if err := verifyCustomerPackage([]string{"--archive", duplicateManifestArchive}); err == nil || !strings.Contains(err.Error(), "duplicate JSON key") {
+		t.Fatalf("duplicate manifest key err=%v", err)
+	}
+
+	hash, err := canonicalJSONBytesHash(body)
+	if err != nil {
+		t.Fatalf("manifest hash: %v", err)
+	}
+	duplicateMetadataArchive := writeCustomCustomerPackageArchive(t, dir+"/package-duplicate-metadata-key.zip", []archiveEntry{
+		{name: "manifest.json", body: body},
+		{name: "package.json", body: []byte(`{"id":"csp_conflicting","id":"csp_1","manifest_hash":"` + hash + `"}`)},
+		{name: "verification.json", body: mustMarshalJSON(t, map[string]any{"package_id": "csp_1", "manifest_hash": hash})},
+	})
+	if err := verifyCustomerPackage([]string{"--archive", duplicateMetadataArchive}); err == nil || !strings.Contains(err.Error(), "duplicate JSON key") {
+		t.Fatalf("duplicate metadata key err=%v", err)
+	}
+
+	decisionExport := mustMarshalJSON(t, map[string]any{
+		"schema_version":       customerDecisionExportSchemaVersion,
+		"package_id":           "csp_1",
+		"product_id":           "prod_1",
+		"release_id":           "rel_1",
+		"source_manifest_hash": hash,
+		"decisions":            []any{map[string]any{"id": "vd_1", "vulnerability": "CVE-2026-0001", "status": "fixed", "impact_statement": "Customer-safe impact."}},
+		"assumptions":          []any{"Package-scoped decisions only."},
+		"limitations":          []any{"This export does not prove legal compliance or complete vulnerability coverage."},
+		"generated_at":         "2026-05-28T12:00:00Z",
+	})
+	duplicateDecisionExport := []byte(strings.Replace(string(decisionExport), `"package_id":"csp_1"`, `"package_id":"csp_conflicting","package_id":"csp_1"`, 1))
+	duplicateDecisionArchive := writeCustomCustomerPackageArchive(t, dir+"/package-duplicate-decision-key.zip", []archiveEntry{
+		{name: "manifest.json", body: body},
+		{name: "package.json", body: mustMarshalJSON(t, map[string]any{"id": "csp_1", "manifest_hash": hash})},
+		{name: "verification.json", body: mustMarshalJSON(t, map[string]any{"package_id": "csp_1", "manifest_hash": hash, "decision_export_file": "vulnerability-decisions.json"})},
+		{name: "vulnerability-decisions.json", body: duplicateDecisionExport},
+	})
+	if err := verifyCustomerPackage([]string{"--archive", duplicateDecisionArchive}); err == nil || !strings.Contains(err.Error(), "duplicate JSON key") {
+		t.Fatalf("duplicate decision export key err=%v", err)
+	}
+}
+
 func TestValidateCustomerPackageArchiveEntryName(t *testing.T) {
 	valid := []string{"manifest.json", "package.json", "verification.json", "README.txt", "report.html", "WATERMARK.txt"}
 	for _, name := range valid {
