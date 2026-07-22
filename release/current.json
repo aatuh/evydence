@@ -3,7 +3,7 @@
   "repository": "aatuh/evydence",
   "latest_source_snapshot": {
     "branch": "master",
-    "commit": "4440fdc534ddedc1f3e94ebe08261a3090893fa8",
+    "commit": "266ec32bb4bc8857a2bafc8c2be0db06bfb01131",
     "recorded_at": "2026-07-22",
     "status": "repository-local source snapshot recorded during release-truth reconciliation; it is not a public release or verified container image"
   },
