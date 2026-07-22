@@ -64,6 +64,8 @@ This documentation is organized by reader task. Implementation claims should be 
 - [Release notes v0.1.0-rc.1](reference/release-notes-v0.1.0-rc.1.md): checked release-note wording for the first controlled self-hosted release candidate.
 - [Maintainer review policy](reference/maintainer-review-policy.md): CODEOWNERS-backed review expectations for high-risk paths.
 - [Roadmap and release cadence](reference/roadmap.md): current release-line focus, external trust controls, and cadence expectations.
+- [9/10 execution backlog](reference/world-class-backlog.md): tracked engineering programme, issue-template guidance, and evidence rules; not a production claim.
+- [Issue labels](reference/issue-labels.md): labels used to organize the execution backlog.
 - [Worker outbox contract](reference/worker-outbox.md): durable job kinds, idempotency, and safe logging rules.
 - [Release validation](reference/release-validation.md): canonical `make release-check` behavior and summary evidence.
 - [Upload manifest](reference/upload-manifest.md): schema, validation command, supported evidence request kinds, and safe payload-file handling.

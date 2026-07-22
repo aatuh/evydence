@@ -9,7 +9,7 @@ GOVULNCHECK_VERSION ?= v1.2.0
 
 TAG ?=
 
-.PHONY: help tools fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check rendered-openapi-check meta-check release-truth-check persistence-decomposition-check docs-check deploy-check sdk-check demo-check customer-cve-review-demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check black-box-release-artifact-check benchmark-check package-viewer-check release-asset-smoke-check marketing-site-check marketing-site-production-check restore-rehearsal-check fast-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
+.PHONY: help tools fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check rendered-openapi-check meta-check release-truth-check persistence-decomposition-check backlog-check docs-check deploy-check sdk-check demo-check customer-cve-review-demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check black-box-release-artifact-check benchmark-check package-viewer-check release-asset-smoke-check marketing-site-check marketing-site-production-check restore-rehearsal-check fast-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -148,7 +148,17 @@ release-truth-check: ## Validate current release metadata against public docs an
 persistence-decomposition-check: ## Validate generated persistence decomposition inventory
 	@scripts/persistence_decomposition_inventory.py --check
 
-docs-check: meta-check release-truth-check persistence-decomposition-check rendered-openapi-check ## Validate canonical docs exist and avoid forbidden product claims
+backlog-check: ## Validate tracked execution backlog metadata
+	@test -f .EVYDENCE_CODEX_BACKLOG.md
+	@test -f docs/reference/world-class-backlog.md
+	@test -f docs/reference/issue-labels.md
+	@test -f .github/ISSUE_TEMPLATE/backlog-ticket.md
+	@test -z "$$(rg -o '^### \[[ x]\] EVY-[0-9]+:' .EVYDENCE_CODEX_BACKLOG.md | sed -E 's/^### \[[ x]\] ([^:]+):/\1/' | sort | uniq -d)"
+	@rg -F 'implementation tracking, not a production claim' docs/reference/world-class-backlog.md >/dev/null
+	@rg -F 'Ticket ID' .github/ISSUE_TEMPLATE/backlog-ticket.md >/dev/null
+	@rg -F 'Completion evidence' .github/ISSUE_TEMPLATE/backlog-ticket.md >/dev/null
+
+docs-check: meta-check release-truth-check persistence-decomposition-check backlog-check rendered-openapi-check ## Validate canonical docs exist and avoid forbidden product claims
 	@test -f README.md
 	@test -f .production.env.example
 	@test -f docs/README.md
@@ -200,6 +210,8 @@ docs-check: meta-check release-truth-check persistence-decomposition-check rende
 	@test -f docs/reference/roadmap.md
 	@test -f docs/reference/worker-outbox.md
 	@test -f docs/reference/release-validation.md
+	@test -f docs/reference/world-class-backlog.md
+	@test -f docs/reference/issue-labels.md
 	@test -f docs/reference/upload-manifest.md
 	@test -f docs/how-to/review-customer-package.md
 	@test -f docs/runbooks/key-rotation.md
