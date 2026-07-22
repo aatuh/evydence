@@ -33,14 +33,25 @@ def main() -> int:
     spec = json.loads((ROOT / "openapi.yaml").read_text(encoding="utf-8"))
     precise = 0
     broad = 0
+    invalid_stability: list[str] = []
+    allowed_stability = {"core", "supported", "experimental", "deprecated"}
     for path_item in spec["paths"].values():
         for method, operation in path_item.items():
             if method.lower() not in {"get", "post", "put", "patch", "delete"}:
                 continue
+            if operation.get("x-evydence-stability") not in allowed_stability:
+                invalid_stability.append(str(operation.get("operationId") or method))
             if openapi_contract_matrix.precision_label(operation) == "precise":
                 precise += 1
             else:
                 broad += 1
+    if invalid_stability:
+        print(
+            "openapi-precision-check: missing or invalid stability classification for "
+            + ", ".join(sorted(invalid_stability)),
+            file=sys.stderr,
+        )
+        return 1
 
     min_precise = int_env("EVYDENCE_OPENAPI_MIN_PRECISE", 160)
     max_broad = int_env("EVYDENCE_OPENAPI_MAX_BROAD", 0)

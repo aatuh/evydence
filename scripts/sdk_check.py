@@ -128,6 +128,10 @@ def main() -> None:
         ]
     ):
         fail("SDK route catalog route_count does not match openapi.yaml")
+    allowed_stability = {"core", "supported", "experimental", "deprecated"}
+    for route in catalog.get("routes", []):
+        if route.get("stability") not in allowed_stability:
+            fail(f"SDK route catalog has invalid stability for {route.get('operation_id')!r}")
     for helper in REQUIRED_HELPERS:
         operation(spec, helper)
 

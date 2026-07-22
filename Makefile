@@ -185,6 +185,7 @@ docs-check: meta-check release-truth-check persistence-decomposition-check backl
 	@test -f docs/reference/configuration.md
 	@test -f docs/reference/capability-map.md
 	@test -f docs/reference/api-contract-matrix.md
+	@test -f docs/reference/product-boundary.md
 	@test -f docs/reference/openapi.md
 	@test -f docs/openapi/index.html
 	@test -f site/marketing/public/api/index.html
@@ -254,6 +255,7 @@ docs-check: meta-check release-truth-check persistence-decomposition-check backl
 		"reference/configuration.md" \
 		"reference/capability-map.md" \
 		"reference/api-contract-matrix.md" \
+		"reference/product-boundary.md" \
 		"reference/openapi.md" \
 		"openapi/index.html" \
 		"reference/vulnerability-decisions.md" \

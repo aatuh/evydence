@@ -372,7 +372,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Signed incident timeline event payload.", "#/components/schemas/SignedIncidentWebhookPayload")
 		operation.Security = nil
 		operation.Scopes = nil
-		operation.Extensions = nil
+		operation.Extensions = withStability(operation.OperationID, nil)
 		operation.Responses[http.StatusCreated] = jsonResponse("Accepted webhook event and timeline event envelope.", "#/components/schemas/IncidentWebhookDeliveryEnvelope")
 	case "createRemediationTask":
 		operation.Description = "Creates an incident or release remediation task linked to optional evidence."

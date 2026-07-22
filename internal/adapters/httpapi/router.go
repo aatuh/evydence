@@ -2528,7 +2528,9 @@ func op(id, method, path, summary string, scopes []string) specs.Operation {
 		operation.Scopes = scopes
 	}
 	if method == http.MethodPost {
-		operation.Extensions = idempotent.OperationExtensions(true)
+		operation.Extensions = withStability(id, idempotent.OperationExtensions(true))
+	} else {
+		operation.Extensions = withStability(id, nil)
 	}
 	return withCriticalOperationDetails(operation)
 }
@@ -2541,7 +2543,7 @@ func authenticatedOp(id, method, path, summary string) specs.Operation {
 
 func readOnlyPostOp(id, method, path, summary string, scopes []string) specs.Operation {
 	operation := op(id, method, path, summary, scopes)
-	operation.Extensions = idempotent.OperationExtensions(false)
+	operation.Extensions = withStability(id, idempotent.OperationExtensions(false))
 	return operation
 }
 
@@ -2549,8 +2551,46 @@ func publicPostOp(id, method, path, summary string) specs.Operation {
 	operation := op(id, method, path, summary, nil)
 	operation.Security = nil
 	operation.Scopes = nil
-	operation.Extensions = nil
+	operation.Extensions = withStability(id, nil)
 	return operation
+}
+
+func withStability(operationID string, extensions map[string]any) map[string]any {
+	result := make(map[string]any, len(extensions)+1)
+	for name, value := range extensions {
+		result[name] = value
+	}
+	result["x-evydence-stability"] = stabilityForOperation(operationID)
+	return result
+}
+
+func stabilityForOperation(operationID string) string {
+	switch operationID {
+	case "createProduct", "listProducts", "getProduct",
+		"createProject", "getProject",
+		"createRelease", "getRelease", "startReleaseEvidenceFlow",
+		"freezeRelease", "approveRelease",
+		"registerArtifact", "getArtifact",
+		"createBuild", "getBuild", "uploadBuildAttestation",
+		"createEvidence", "getEvidence", "listEvidence", "linkEvidence",
+		"uploadSBOM", "uploadSPDXSBOM", "getSBOM", "listSBOMComponents",
+		"uploadVulnerabilityScan", "getVulnerabilityScan",
+		"uploadVEX", "uploadCycloneDXVEX", "getVEX",
+		"createVulnerabilityDecision", "listVulnerabilityDecisions",
+		"createException", "approveException", "createApproval",
+		"releaseReadinessReport", "releaseSecuritySummary",
+		"createReleaseBundle", "getReleaseBundle", "getReleaseBundleManifest",
+		"verifyReleaseBundle", "createCustomerPackage", "getCustomerPackage",
+		"downloadCustomerPackage", "verify":
+		return "core"
+	case "health", "ready", "version", "openapi", "metrics",
+		"createAPIKey", "listAPIKeys", "exchangeSSOCredential",
+		"logoutSSOSession", "createCustomerPortalAccess",
+		"accessCustomerPortalPackage", "downloadCustomerPortalPackage":
+		return "supported"
+	default:
+		return "experimental"
+	}
 }
 
 func defaultSuccessStatus(operationID, method string) int {

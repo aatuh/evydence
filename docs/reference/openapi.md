@@ -27,7 +27,8 @@ make openapi-precision-check
 
 `make openapi-precision-check` enforces endpoint-specific contracts for all
 registered public routes and fails if any operation falls back to a broad
-request or response shape.
+request or response shape. It also fails when a public operation is missing a
+valid `x-evydence-stability` classification.
 
 Render the human-readable static API docs after changing route metadata:
 
@@ -87,7 +88,7 @@ GET /v1/openapi.json
 - `openapi.yaml` is generated in a compact JSON-compatible representation.
 - `docs/openapi/index.html` is generated from `openapi.yaml` for human review.
 - Registered public routes have endpoint-specific request and response schemas.
-- New routes must update operation metadata, component schemas, `openapi.yaml`, the generated [API contract matrix](api-contract-matrix.md), and the rendered [OpenAPI docs](../openapi/index.html).
+- New routes must update operation metadata, component schemas, `openapi.yaml`, the generated [API contract matrix](api-contract-matrix.md), the [product boundary](product-boundary.md), and the rendered [OpenAPI docs](../openapi/index.html).
 - Do not hand-edit `openapi.yaml`; update route metadata or the generator, then run `make openapi-check`.
 
 Route registration and OpenAPI generation use the same HTTP adapter registry so tests can catch missing routes or stale operation metadata.

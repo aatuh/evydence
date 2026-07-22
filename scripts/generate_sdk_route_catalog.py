@@ -3,11 +3,13 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import pathlib
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+OUTPUT = ROOT / "sdk" / "openapi-route-catalog.json"
 
 
 def success_statuses(operation: dict) -> list[str]:
@@ -18,7 +20,7 @@ def success_statuses(operation: dict) -> list[str]:
     return statuses
 
 
-def main() -> None:
+def render() -> str:
     spec = json.loads((ROOT / "openapi.yaml").read_text(encoding="utf-8"))
     routes: list[dict] = []
     for path, methods in sorted(spec.get("paths", {}).items()):
@@ -30,6 +32,7 @@ def main() -> None:
                     "operation_id": operation.get("operationId", ""),
                     "method": method.upper(),
                     "path": path,
+                    "stability": operation.get("x-evydence-stability", ""),
                     "scopes": operation.get("x-scopes", []),
                     "idempotency_key_required": bool(operation.get("x-idempotency-key", {}).get("required")),
                     "request_schema": operation.get("requestBody", {})
@@ -53,7 +56,18 @@ def main() -> None:
         "route_count": len(routes),
         "routes": routes,
     }
-    print(json.dumps(output, indent=2, sort_keys=True))
+    return json.dumps(output, indent=2, sort_keys=True) + "\n"
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--write", action="store_true", help="write sdk/openapi-route-catalog.json")
+    args = parser.parse_args()
+    output = render()
+    if args.write:
+        OUTPUT.write_text(output, encoding="utf-8")
+        return
+    print(output, end="")
 
 
 if __name__ == "__main__":

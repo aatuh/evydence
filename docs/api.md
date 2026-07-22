@@ -6,6 +6,15 @@ The static rendered companion is committed at [`openapi/index.html`](openapi/ind
 Use this page for common integration workflows and route lookup. The endpoint catalog is expected to list every path in `openapi.yaml`; the generated contract remains the source of truth for operation details, schemas, status codes, security metadata, and route drift checks.
 The OpenAPI contract also includes non-sensitive examples for the main release evidence flow: create release, upload SBOM, upload vulnerability scan, record a vulnerability decision, read release readiness, and create a customer package.
 
+## Stability
+
+Every operation is classified as `core`, `supported`, `experimental`, or
+`deprecated` in the generated OpenAPI extension
+`x-evydence-stability`. See [Product boundary and API stability](reference/product-boundary.md)
+for the classification policy and the generated [API contract matrix](reference/api-contract-matrix.md)
+for every operation. The current classification is planning metadata; EVY-705
+defines the formal compatibility and deprecation lifecycle.
+
 ## Request Contract
 
 Common headers:

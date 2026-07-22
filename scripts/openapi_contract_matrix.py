@@ -3,12 +3,14 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 OPENAPI = ROOT / "openapi.yaml"
+OUTPUT = ROOT / "docs" / "reference" / "api-contract-matrix.md"
 
 
 def schema_label(media: dict) -> str:
@@ -89,13 +91,18 @@ def precision_label(operation: dict) -> str:
     return "precise"
 
 
+def stability_label(operation: dict) -> str:
+    value = operation.get("x-evydence-stability")
+    return str(value) if value else "unclassified"
+
+
 def esc(value: str) -> str:
     return value.replace("|", "\\|")
 
 
-def main() -> int:
+def render() -> str:
     spec = json.loads(OPENAPI.read_text())
-    rows: list[tuple[str, str, str, str, str, str, str, str, str]] = []
+    rows: list[tuple[str, str, str, str, str, str, str, str, str, str, str]] = []
     for path, path_item in sorted(spec["paths"].items()):
         for method, operation in sorted(path_item.items()):
             if method.lower() not in {"get", "post", "put", "patch", "delete"}:
@@ -112,10 +119,11 @@ def main() -> int:
                     request_schema(operation),
                     response_schemas(operation),
                     precision_label(operation),
+                    stability_label(operation),
                 )
             )
 
-    precise = sum(1 for row in rows if row[-1] == "precise")
+    precise = sum(1 for row in rows if row[-2] == "precise")
     broad = len(rows) - precise
     lines = [
         "# API Contract Matrix",
@@ -125,12 +133,23 @@ def main() -> int:
         "",
         f"Generated from {len(rows)} operations: {precise} precise, {broad} broad.",
         "",
-        "| Method | Path | Operation | Auth | Scopes | Idempotency | Params | Request | 2xx Response | Precision |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| Method | Path | Operation | Auth | Scopes | Idempotency | Params | Request | 2xx Response | Precision | Stability |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for row in rows:
         lines.append("| " + " | ".join(esc(value) for value in row) + " |")
-    print("\n".join(lines) + "\n")
+    return "\n".join(lines) + "\n"
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--write", action="store_true", help="write docs/reference/api-contract-matrix.md")
+    args = parser.parse_args()
+    output = render()
+    if args.write:
+        OUTPUT.write_text(output, encoding="utf-8")
+    else:
+        print(output, end="")
     return 0
 
 

@@ -35,6 +35,36 @@ func TestRoutesValidateAndOpenAPIRenders(t *testing.T) {
 	}
 }
 
+func TestOpenAPIOperationsHaveExactlyOneStabilityClass(t *testing.T) {
+	server, _ := testServer(t)
+	docBytes, err := server.OpenAPI()
+	if err != nil {
+		t.Fatalf("OpenAPI: %v", err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(docBytes, &doc); err != nil {
+		t.Fatalf("decode OpenAPI: %v", err)
+	}
+	allowed := map[string]bool{
+		"core":         true,
+		"supported":    true,
+		"experimental": true,
+		"deprecated":   true,
+	}
+	for path, rawPath := range asStringAnyMap(t, doc["paths"]) {
+		for method, rawOperation := range asStringAnyMap(t, rawPath) {
+			if method != "get" && method != "post" && method != "put" && method != "patch" && method != "delete" {
+				continue
+			}
+			operation := asStringAnyMap(t, rawOperation)
+			stability, ok := operation["x-evydence-stability"].(string)
+			if !ok || !allowed[stability] {
+				t.Fatalf("%s %s stability = %#v, want one of core, supported, experimental, deprecated", method, path, operation["x-evydence-stability"])
+			}
+		}
+	}
+}
+
 func TestRouteFamiliesRegisterCriticalPaths(t *testing.T) {
 	server, _ := testServer(t)
 	groups := map[string][]routeDef{
