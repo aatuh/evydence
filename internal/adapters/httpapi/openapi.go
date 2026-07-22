@@ -642,10 +642,11 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "id", "tenant_id", "artifact_id", "subject_digest", "algorithm", "signature", "verification_status", "schema_version", "created_at"))
 	registry.RegisterSchema("ArtifactSignatureEnvelope", dataEnvelopeSchema("#/components/schemas/ArtifactSignature"))
 	registry.RegisterSchema("VerifyCosignSignatureRequest", objectSchema(map[string]any{
-		"rekor_uuid":           map[string]any{"type": "string"},
-		"rekor_log_index":      map[string]any{"type": "string"},
-		"certificate_identity": map[string]any{"type": "string"},
-		"certificate_issuer":   map[string]any{"type": "string"},
+		"rekor_uuid":                map[string]any{"type": "string"},
+		"rekor_log_index":           map[string]any{"type": "string"},
+		"certificate_identity":      map[string]any{"type": "string"},
+		"certificate_issuer":        map[string]any{"type": "string"},
+		"require_full_verification": map[string]any{"type": "boolean", "description": "Request cryptographic Cosign verification. This compatibility endpoint returns COSIGN_FULL_VERIFICATION_UNAVAILABLE until a verifier and trust policy are configured."},
 	}))
 	registry.RegisterSchema("CosignVerification", objectSchema(map[string]any{
 		"id":                    map[string]any{"type": "string"},
@@ -658,7 +659,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"rekor_log_index":       map[string]any{"type": "string"},
 		"certificate_identity":  map[string]any{"type": "string"},
 		"certificate_issuer":    map[string]any{"type": "string"},
-		"result":                map[string]any{"type": "string", "enum": []string{"passed", "failed"}},
+		"result":                map[string]any{"type": "string", "enum": []string{"limited", "failed"}, "description": "limited records only metadata assessment; it never proves a Cosign signature, certificate identity, trust policy, or Rekor inclusion."},
 		"checks":                map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/VerifyCheck"}},
 		"schema_version":        map[string]any{"type": "string"},
 		"created_at":            map[string]any{"type": "string", "format": "date-time"},

@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -232,6 +233,21 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	createEvidence := operationMap(t, paths, "/v1/evidence", "post")
 	assertRequestRef(t, createEvidence, "#/components/schemas/CreateEvidenceRequest")
 	assertProblemResponseRef(t, createEvidence, "400")
+	verifyCosign := operationMap(t, paths, "/v1/artifact-signatures/{id}/verify-cosign", "post")
+	assertRequestRef(t, verifyCosign, "#/components/schemas/VerifyCosignSignatureRequest")
+	assertResponseRef(t, verifyCosign, "200", "#/components/schemas/CosignVerificationEnvelope")
+	assertProblemResponseRef(t, verifyCosign, "422")
+	if deprecated, _ := verifyCosign["deprecated"].(bool); !deprecated {
+		t.Fatalf("cosign metadata assessment operation must be deprecated: %#v", verifyCosign)
+	}
+	cosignRequestProps := asStringAnyMap(t, asStringAnyMap(t, schemas["VerifyCosignSignatureRequest"])["properties"])
+	if _, ok := cosignRequestProps["require_full_verification"]; !ok {
+		t.Fatalf("cosign request must let callers request full verification: %#v", cosignRequestProps)
+	}
+	cosignResult := asStringAnyMap(t, asStringAnyMap(t, schemas["CosignVerification"])["properties"])["result"]
+	if strings.Contains(fmt.Sprintf("%v", cosignResult), "passed") || !strings.Contains(fmt.Sprintf("%v", cosignResult), "limited") {
+		t.Fatalf("cosign result schema must expose limited, not passed: %#v", cosignResult)
+	}
 	searchEvidence := operationMap(t, paths, "/v1/evidence/search", "get")
 	assertQueryParams(t, searchEvidence, "product_id", "project_id", "release_id", "type", "source", "tag", "cursor", "limit")
 	createPortalAccess := operationMap(t, paths, "/v1/customer-portal/access", "post")
@@ -901,8 +917,12 @@ func TestIntegrityRuntimeHTTPFlow(t *testing.T) {
 	sigBody := postJSON(t, server, secret, "/v1/artifact-signatures", "int-sig", map[string]any{"artifact_id": artifactID, "algorithm": "cosign", "signature": "MEUCIQ"}, http.StatusCreated)
 	sigID := dataField(t, sigBody, "id")
 	cosign := postJSON(t, server, secret, "/v1/artifact-signatures/"+sigID+"/verify-cosign", "int-cosign", map[string]any{"rekor_uuid": "uuid", "rekor_log_index": "1"}, http.StatusOK)
-	if !strings.Contains(cosign, `"result":"passed"`) {
+	if !strings.Contains(cosign, `"result":"limited"`) || !strings.Contains(cosign, `"digest_binding_assessed"`) {
 		t.Fatalf("cosign response: %s", cosign)
+	}
+	fullCosign := postJSON(t, server, secret, "/v1/artifact-signatures/"+sigID+"/verify-cosign", "int-cosign-full", map[string]any{"require_full_verification": true}, http.StatusUnprocessableEntity)
+	if !strings.Contains(fullCosign, `"code":"COSIGN_FULL_VERIFICATION_UNAVAILABLE"`) {
+		t.Fatalf("full cosign verification problem: %s", fullCosign)
 	}
 	postJSON(t, server, secret, "/v1/signing-providers", "int-provider", map[string]any{"name": "dev", "type": "local_encrypted_dev", "key_ref": "file://dev.keys", "encrypted": true}, http.StatusCreated)
 	batchBody := postJSON(t, server, secret, "/v1/merkle-batches", "int-batch", map[string]any{}, http.StatusCreated)

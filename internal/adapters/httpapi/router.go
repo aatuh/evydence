@@ -565,21 +565,23 @@ func (s *Server) getArtifactSignature(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) verifyCosignSignature(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		RekorUUID           string `json:"rekor_uuid"`
-		RekorLogIndex       string `json:"rekor_log_index"`
-		CertificateIdentity string `json:"certificate_identity"`
-		CertificateIssuer   string `json:"certificate_issuer"`
+		RekorUUID               string `json:"rekor_uuid"`
+		RekorLogIndex           string `json:"rekor_log_index"`
+		CertificateIdentity     string `json:"certificate_identity"`
+		CertificateIssuer       string `json:"certificate_issuer"`
+		RequireFullVerification bool   `json:"require_full_verification"`
 	}
 	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
 		result, err := s.ledger.VerifyCosignSignature(ctx, actor, app.VerifyCosignInput{
-			ArtifactSignatureID: r.PathValue("id"),
-			RekorUUID:           req.RekorUUID,
-			RekorLogIndex:       req.RekorLogIndex,
-			CertificateIdentity: req.CertificateIdentity,
-			CertificateIssuer:   req.CertificateIssuer,
+			ArtifactSignatureID:     r.PathValue("id"),
+			RekorUUID:               req.RekorUUID,
+			RekorLogIndex:           req.RekorLogIndex,
+			CertificateIdentity:     req.CertificateIdentity,
+			CertificateIssuer:       req.CertificateIssuer,
+			RequireFullVerification: req.RequireFullVerification,
 		})
 		return http.StatusOK, result, err
 	})

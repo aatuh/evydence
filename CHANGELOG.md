@@ -42,6 +42,10 @@ release artifacts.
 
 ### Fixed
 
+- Cosign metadata assessment can no longer report `passed` from a non-empty
+  signature string. The deprecated compatibility route now reports `limited`
+  unless stored digest or signature material is missing, and explicitly rejects
+  full-verification requests until a verifier and trust policy are configured.
 - Customer-package archive and manifest validation rejects unsafe entries and
   duplicate JSON keys before package contents are trusted.
 - Customer package reports include a Content Security Policy, and archive

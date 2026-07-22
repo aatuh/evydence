@@ -3,13 +3,14 @@ package app
 import "errors"
 
 var (
-	ErrValidation          = errors.New("validation failed")
-	ErrUnauthorized        = errors.New("unauthorized")
-	ErrForbidden           = errors.New("forbidden")
-	ErrNotFound            = errors.New("not found")
-	ErrConflict            = errors.New("conflict")
-	ErrImmutable           = errors.New("immutable resource")
-	ErrIdempotencyConflict = errors.New("idempotency key reused with different request")
-	ErrVerificationFailed  = errors.New("verification failed")
-	ErrRateLimited         = errors.New("rate limited")
+	ErrValidation                  = errors.New("validation failed")
+	ErrUnauthorized                = errors.New("unauthorized")
+	ErrForbidden                   = errors.New("forbidden")
+	ErrNotFound                    = errors.New("not found")
+	ErrConflict                    = errors.New("conflict")
+	ErrImmutable                   = errors.New("immutable resource")
+	ErrIdempotencyConflict         = errors.New("idempotency key reused with different request")
+	ErrVerificationFailed          = errors.New("verification failed")
+	ErrFullVerificationUnavailable = errors.New("full cosign verification is unavailable because no verifier or trust policy is configured")
+	ErrRateLimited                 = errors.New("rate limited")
 )

@@ -26,8 +26,15 @@ func TestCosignMerkleTransparencyAndKeyRevocationFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("cosign verify: %v", err)
 	}
-	if cosign.ContainerImageID != image.ID || cosign.Result != "passed" {
+	if cosign.ContainerImageID != image.ID || cosign.Result != "limited" {
 		t.Fatalf("cosign verification = %#v", cosign)
+	}
+	if !hasVerifyCheck(cosign.Checks, "digest_binding_assessed", "passed") || !hasVerifyCheck(cosign.Checks, "signature_material_present", "passed") || !hasVerifyCheck(cosign.Checks, "rekor_metadata_present", "passed") {
+		t.Fatalf("cosign metadata assessment checks = %#v", cosign.Checks)
+	}
+	full, err := ledger.VerifyCosignSignature(ctx, actor, VerifyCosignInput{ArtifactSignatureID: sig.ID, RequireFullVerification: true})
+	if !errors.Is(err, ErrFullVerificationUnavailable) || full.Result != "limited" {
+		t.Fatalf("full cosign verification = %#v err=%v", full, err)
 	}
 	bundle, err := ledger.CreateReleaseBundle(ctx, actor, release.ID)
 	if err != nil {

@@ -543,7 +543,8 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Artifact signature id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Artifact signature envelope.", "#/components/schemas/ArtifactSignatureEnvelope")
 	case "verifyCosignSignature":
-		operation.Description = "Records deterministic cosign-style verification metadata for an artifact signature without implying online transparency trust."
+		operation.Description = "Deprecated compatibility metadata-assessment endpoint. It assesses stored digest binding, signature-material presence, and supplied Rekor metadata only. It never cryptographically verifies a Cosign signature, certificate identity, trust policy, Rekor inclusion, or checkpoint. Successful metadata assessment returns limited; require_full_verification=true returns COSIGN_FULL_VERIFICATION_UNAVAILABLE until a verifier and trust policy are configured."
+		operation.Deprecated = true
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Artifact signature id."))
 		operation.RequestBody = jsonRequest("Cosign verification metadata request.", "#/components/schemas/VerifyCosignSignatureRequest")
 		operation.Responses[http.StatusOK] = jsonResponse("Cosign verification envelope.", "#/components/schemas/CosignVerificationEnvelope")

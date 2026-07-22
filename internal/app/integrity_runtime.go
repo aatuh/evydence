@@ -10,11 +10,12 @@ import (
 )
 
 type VerifyCosignInput struct {
-	ArtifactSignatureID string
-	RekorUUID           string
-	RekorLogIndex       string
-	CertificateIdentity string
-	CertificateIssuer   string
+	ArtifactSignatureID     string
+	RekorUUID               string
+	RekorLogIndex           string
+	CertificateIdentity     string
+	CertificateIssuer       string
+	RequireFullVerification bool
 }
 
 type CreateSigningProviderInput struct {
@@ -70,23 +71,25 @@ func (l *Ledger) VerifyCosignSignature(ctx context.Context, actor domain.Actor, 
 		return domain.CosignVerification{}, ErrNotFound
 	}
 	checks := []domain.VerifyCheck{}
-	result := "passed"
+	result := "limited"
 	if artifact.Digest != sig.SubjectDigest || !validDigest(sig.SubjectDigest) {
 		result = "failed"
-		checks = append(checks, domain.VerifyCheck{Name: "subject_digest", Result: "failed"})
+		checks = append(checks, domain.VerifyCheck{Name: "digest_binding_assessed", Result: "failed", Detail: "stored artifact and signature digest binding does not match"})
 	} else {
-		checks = append(checks, domain.VerifyCheck{Name: "subject_digest", Result: "passed"})
+		checks = append(checks, domain.VerifyCheck{Name: "digest_binding_assessed", Result: "passed", Detail: "stored artifact and signature digest binding matches"})
 	}
 	if strings.TrimSpace(sig.Signature) == "" {
 		result = "failed"
-		checks = append(checks, domain.VerifyCheck{Name: "signature_present", Result: "failed"})
+		checks = append(checks, domain.VerifyCheck{Name: "signature_material_present", Result: "failed", Detail: "no signature material was recorded"})
 	} else {
-		checks = append(checks, domain.VerifyCheck{Name: "signature_present", Result: "passed"})
+		checks = append(checks, domain.VerifyCheck{Name: "signature_material_present", Result: "passed", Detail: "signature material was recorded but was not cryptographically verified"})
 	}
-	if strings.TrimSpace(in.RekorUUID) != "" || strings.TrimSpace(in.RekorLogIndex) != "" {
-		checks = append(checks, domain.VerifyCheck{Name: "rekor_metadata", Result: "passed", Detail: "metadata captured; online transparency verification is not implied"})
+	if strings.TrimSpace(in.RekorUUID) != "" && strings.TrimSpace(in.RekorLogIndex) != "" {
+		checks = append(checks, domain.VerifyCheck{Name: "rekor_metadata_present", Result: "passed", Detail: "Rekor metadata was recorded but inclusion and checkpoint trust were not verified"})
+	} else if strings.TrimSpace(in.RekorUUID) != "" || strings.TrimSpace(in.RekorLogIndex) != "" {
+		checks = append(checks, domain.VerifyCheck{Name: "rekor_metadata_present", Result: "warning", Detail: "partial Rekor metadata was recorded but was not verified"})
 	} else {
-		checks = append(checks, domain.VerifyCheck{Name: "rekor_metadata", Result: "skipped", Detail: "no Rekor metadata supplied"})
+		checks = append(checks, domain.VerifyCheck{Name: "rekor_metadata_present", Result: "skipped", Detail: "no Rekor metadata was supplied"})
 	}
 	var imageID string
 	for _, image := range l.images {
@@ -117,8 +120,11 @@ func (l *Ledger) VerifyCosignSignature(ctx context.Context, actor domain.Actor, 
 	if err := l.persistLocked(ctx); err != nil {
 		return domain.CosignVerification{}, err
 	}
-	if result != "passed" {
+	if result == "failed" {
 		return record, ErrVerificationFailed
+	}
+	if in.RequireFullVerification {
+		return record, ErrFullVerificationUnavailable
 	}
 	return record, nil
 }
