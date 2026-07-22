@@ -7,6 +7,14 @@ set -eu
 outdir="${EVYDENCE_DEMO_OUTDIR:-tmp/end-to-end-release-evidence}"
 mkdir -p "$outdir"
 
+future_package_expiry() {
+  if date -u -v+30d '+%Y-%m-%dT%H:%M:%SZ' >/dev/null 2>&1; then
+    date -u -v+30d '+%Y-%m-%dT%H:%M:%SZ'
+    return
+  fi
+  date -u -d '+30 days' '+%Y-%m-%dT%H:%M:%SZ'
+}
+
 api() {
   method="$1"
   path="$2"
@@ -53,7 +61,8 @@ profile="$(api POST /v1/redaction-profiles demo-redaction-profile '{"name":"Demo
 printf '%s\n' "$profile" > "$outdir/redaction-profile.json"
 profile_id="$(printf '%s' "$profile" | jq -er '.data.id')"
 
-package="$(api POST /v1/customer-packages demo-customer-package "{\"product_id\":\"$product_id\",\"release_id\":\"$release_id\",\"redaction_profile_id\":\"$profile_id\",\"title\":\"Demo customer release evidence\",\"expires_at\":\"2026-06-30T00:00:00Z\"}")"
+package_expiry="$(future_package_expiry)"
+package="$(api POST /v1/customer-packages demo-customer-package "{\"product_id\":\"$product_id\",\"release_id\":\"$release_id\",\"redaction_profile_id\":\"$profile_id\",\"title\":\"Demo customer release evidence\",\"expires_at\":\"$package_expiry\"}")"
 printf '%s\n' "$package" > "$outdir/customer-package.json"
 
 readiness="$(api GET "/v1/reports/release-readiness?release_id=${release_id}" "" "")"
