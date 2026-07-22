@@ -672,6 +672,19 @@ func normalizeState(state PersistedState) PersistedState {
 	if state.ObjectRetentionPolicies == nil {
 		state.ObjectRetentionPolicies = map[string]domain.ObjectRetentionPolicy{}
 	}
+	for id, policy := range state.ObjectRetentionPolicies {
+		if policy.MaxVerificationAgeHours == 0 {
+			policy.MaxVerificationAgeHours = defaultRetentionVerificationAgeHours
+		}
+		if policy.SchemaVersion != domain.ObjectRetentionPolicyVersion {
+			if policy.Status == "verified" {
+				policy.Status = "not_verified"
+				policy.VerificationLimitations = append(policy.VerificationLimitations, "Legacy retention verification did not record complete provider observation metadata and is not treated as current provider enforcement.")
+			}
+			policy.SchemaVersion = domain.ObjectRetentionPolicyVersion
+		}
+		state.ObjectRetentionPolicies[id] = policy
+	}
 	if state.BackupManifests == nil {
 		state.BackupManifests = map[string]domain.BackupManifest{}
 	}

@@ -86,8 +86,11 @@ reason internals, exception payloads, incident timeline details, object-store
 paths, raw payloads, or token/key material.
 
 `object_lock_proofs` entries include policy identifiers, object-scope presence
-indicators, retention mode/days, verification checks, verification hash, and
-limitations. They do not include raw object payloads, object-store paths, or
+indicators, requested retention mode/days, provider type when observed,
+observation/expiry times, verification checks, verification hash, and
+limitations. A `verified` result is time-bounded; `not_verified`,
+`not_enforced`, and `stale` do not establish current provider enforcement.
+They do not include raw object payloads, object-store paths or bucket names, or
 storage credentials, and they do not prove legal compliance, IAM correctness,
 lifecycle policy completeness, or complete WORM enforcement.
 

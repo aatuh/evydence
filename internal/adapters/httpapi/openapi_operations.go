@@ -739,11 +739,11 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Fetched and verified public transparency log entry envelope.", "#/components/schemas/PublicTransparencyLogEntryEnvelope")
 	case "createObjectRetentionPolicy":
-		operation.Description = "Creates an object retention policy record for storage immutability verification."
+		operation.Description = "Creates a tenant-scoped retention-intent record and its maximum provider-observation age. Creation does not prove provider-enforced retention."
 		operation.RequestBody = jsonRequest("Object retention policy creation request.", "#/components/schemas/CreateObjectRetentionPolicyRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created object retention policy envelope.", "#/components/schemas/ObjectRetentionPolicyEnvelope")
 	case "verifyObjectRetentionPolicy":
-		operation.Description = "Records verification metadata for a tenant object retention policy."
+		operation.Description = "Records a provider-backed retention observation when available. Without complete provider, bucket, mode, duration, legal-hold, and observation-time evidence, the policy remains not_verified; expired successful observations are reported as stale."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Object retention policy id."))
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Verified object retention policy envelope.", "#/components/schemas/ObjectRetentionPolicyEnvelope")

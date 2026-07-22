@@ -72,6 +72,9 @@ func TestEvaluateObjectRetentionRequiresVersioningLockAndTenantPrefix(t *testing
 	if len(result.Limitations) == 0 {
 		t.Fatal("expected limitations")
 	}
+	if result.Provider != "s3" || result.Mode != minio.Compliance.String() || result.RetentionDays != 90 || !result.ObservedAt.Equal(time.Date(2026, 5, 29, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("provider observation metadata = %#v", result)
+	}
 }
 
 func TestEvaluateObjectRetentionReportsMissingProviderControls(t *testing.T) {
@@ -98,23 +101,42 @@ func TestEvaluateObjectRetentionReportsMissingProviderControls(t *testing.T) {
 	}
 }
 
+func TestEvaluateObjectRetentionRejectsUnrepresentableProviderDuration(t *testing.T) {
+	mode := minio.Compliance
+	validity := ^uint(0)
+	unit := minio.Days
+	result := evaluateObjectRetention(app.ObjectRetentionRequest{
+		TenantID:      "ten_1",
+		ObjectPrefix:  "tenants/ten_1/raw/",
+		Mode:          "compliance",
+		RetentionDays: 30,
+	}, true, &mode, &validity, &unit, nil, nil, nil, time.Date(2026, 5, 29, 0, 0, 0, 0, time.UTC))
+	if result.Enforced || result.RetentionDays != 0 {
+		t.Fatalf("unrepresentable provider duration must not be positive evidence: %#v", result)
+	}
+	if len(result.Limitations) == 0 || result.Checks[2].Result != "failed" {
+		t.Fatalf("unrepresentable provider duration checks = %#v", result)
+	}
+}
+
 func TestEvaluateObjectRetentionChecksSampleObjectRetention(t *testing.T) {
 	mode := minio.Compliance
 	validity := uint(90)
 	unit := minio.Days
 	now := time.Date(2026, 5, 29, 0, 0, 0, 0, time.UTC)
 	retainUntil := now.Add(45 * 24 * time.Hour)
+	legalHold := minio.LegalHoldDisabled
 	result := evaluateObjectRetention(app.ObjectRetentionRequest{
 		TenantID:      "ten_1",
 		ObjectPrefix:  "tenants/ten_1/raw/",
 		ObjectKey:     "tenants/ten_1/raw/sample.json",
 		Mode:          "compliance",
 		RetentionDays: 30,
-	}, true, &mode, &validity, &unit, &mode, &retainUntil, nil, now)
+	}, true, &mode, &validity, &unit, &mode, &retainUntil, &legalHold, now)
 	if !result.Enforced {
 		t.Fatalf("expected object-level enforced retention: %#v", result)
 	}
-	if len(result.Checks) != 7 {
+	if len(result.Checks) != 8 {
 		t.Fatalf("checks = %#v", result.Checks)
 	}
 }

@@ -210,25 +210,34 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "id", "tenant_id", "batch_id", "provider", "timestamp_hash", "state", "schema_version", "created_at"))
 	registry.RegisterSchema("TransparencyCheckpointEnvelope", dataEnvelopeSchema("#/components/schemas/TransparencyCheckpoint"))
 	registry.RegisterSchema("CreateObjectRetentionPolicyRequest", objectSchema(map[string]any{
-		"name":               map[string]any{"type": "string"},
-		"object_prefix":      map[string]any{"type": "string"},
-		"object_key":         map[string]any{"type": "string", "description": "Optional tenant-prefixed sample object key used for object-level retention verification when supported by the object store."},
-		"require_legal_hold": map[string]any{"type": "boolean", "description": "When true, the sample object key must have provider-reported legal hold enabled."},
-		"mode":               map[string]any{"type": "string", "enum": []string{"governance", "compliance"}},
-		"retention_days":     map[string]any{"type": "integer", "minimum": 1},
+		"name":                       map[string]any{"type": "string"},
+		"object_prefix":              map[string]any{"type": "string"},
+		"object_key":                 map[string]any{"type": "string", "description": "Optional tenant-prefixed sample object key used for object-level retention verification when supported by the object store."},
+		"require_legal_hold":         map[string]any{"type": "boolean", "description": "When true, the sample object key must have provider-reported legal hold enabled."},
+		"mode":                       map[string]any{"type": "string", "enum": []string{"governance", "compliance"}},
+		"retention_days":             map[string]any{"type": "integer", "minimum": 1},
+		"max_verification_age_hours": map[string]any{"type": "integer", "minimum": 1, "maximum": 8784, "description": "Maximum age of a successful provider observation before it is reported as stale. Defaults to 24 hours."},
 	}, "name", "mode", "retention_days"))
 	registry.RegisterSchema("ObjectRetentionPolicy", objectSchema(map[string]any{
-		"id":                 map[string]any{"type": "string"},
-		"tenant_id":          map[string]any{"type": "string"},
-		"name":               map[string]any{"type": "string"},
-		"object_prefix":      map[string]any{"type": "string"},
-		"object_key":         map[string]any{"type": "string"},
-		"require_legal_hold": map[string]any{"type": "boolean"},
-		"mode":               map[string]any{"type": "string"},
-		"retention_days":     map[string]any{"type": "integer"},
-		"status":             map[string]any{"type": "string"},
-		"verified_at":        map[string]any{"type": "string", "format": "date-time"},
-		"verification_hash":  map[string]any{"type": "string", "pattern": "^sha256:"},
+		"id":                          map[string]any{"type": "string"},
+		"tenant_id":                   map[string]any{"type": "string"},
+		"name":                        map[string]any{"type": "string"},
+		"object_prefix":               map[string]any{"type": "string"},
+		"object_key":                  map[string]any{"type": "string"},
+		"require_legal_hold":          map[string]any{"type": "boolean"},
+		"mode":                        map[string]any{"type": "string"},
+		"retention_days":              map[string]any{"type": "integer"},
+		"max_verification_age_hours":  map[string]any{"type": "integer"},
+		"status":                      map[string]any{"type": "string", "enum": []string{"configured", "not_verified", "not_enforced", "verified", "stale"}},
+		"verified_at":                 map[string]any{"type": "string", "format": "date-time"},
+		"verification_hash":           map[string]any{"type": "string", "pattern": "^sha256:"},
+		"verification_provider":       map[string]any{"type": "string"},
+		"verification_bucket":         map[string]any{"type": "string"},
+		"verification_mode":           map[string]any{"type": "string"},
+		"verification_retention_days": map[string]any{"type": "integer"},
+		"verification_legal_hold":     map[string]any{"type": "boolean"},
+		"verification_observed_at":    map[string]any{"type": "string", "format": "date-time"},
+		"verification_expires_at":     map[string]any{"type": "string", "format": "date-time"},
 		"verification_checks": map[string]any{
 			"type":  "array",
 			"items": map[string]any{"$ref": "#/components/schemas/VerifyCheck"},
@@ -236,7 +245,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"verification_limitations": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 		"schema_version":           map[string]any{"type": "string"},
 		"created_at":               map[string]any{"type": "string", "format": "date-time"},
-	}, "id", "tenant_id", "name", "object_prefix", "mode", "retention_days", "status", "schema_version", "created_at"))
+	}, "id", "tenant_id", "name", "object_prefix", "mode", "retention_days", "max_verification_age_hours", "status", "schema_version", "created_at"))
 	registry.RegisterSchema("ObjectRetentionPolicyEnvelope", dataEnvelopeSchema("#/components/schemas/ObjectRetentionPolicy"))
 	registry.RegisterSchema("CreateLegalHoldRequest", objectSchema(map[string]any{
 		"scope_type": map[string]any{"type": "string"},

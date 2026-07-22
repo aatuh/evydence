@@ -2199,21 +2199,25 @@ func (s *Store) loadRelationalReports(ctx context.Context, state *app.PersistedS
 }
 
 func (s *Store) loadRelationalRetention(ctx context.Context, state *app.PersistedState, loaded *bool) error {
-	policyRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, name, object_prefix, COALESCE(object_key, ''), COALESCE(require_legal_hold, false), mode, retention_days, status, verified_at, verification_hash, verification_checks, verification_limitations, schema_version, created_at FROM object_retention_policies`)
+	policyRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, name, object_prefix, COALESCE(object_key, ''), COALESCE(require_legal_hold, false), mode, retention_days, max_verification_age_hours, status, verified_at, verification_hash, verification_checks, verification_limitations, verification_provider, verification_bucket, verification_mode, verification_retention_days, verification_legal_hold, verification_observed_at, verification_expires_at, schema_version, created_at FROM object_retention_policies`)
 	if err != nil {
 		return fmt.Errorf("load relational object retention policies: %w", err)
 	}
 	defer policyRows.Close()
 	for policyRows.Next() {
 		var policy domain.ObjectRetentionPolicy
-		var verifiedAt sql.NullTime
+		var verifiedAt, observedAt, expiresAt sql.NullTime
 		var verificationHash sql.NullString
+		var verificationLegalHold sql.NullBool
 		var checks []byte
-		if err := policyRows.Scan(&policy.ID, &policy.TenantID, &policy.Name, &policy.ObjectPrefix, &policy.ObjectKey, &policy.RequireLegalHold, &policy.Mode, &policy.RetentionDays, &policy.Status, &verifiedAt, &verificationHash, &checks, &policy.VerificationLimitations, &policy.SchemaVersion, &policy.CreatedAt); err != nil {
+		if err := policyRows.Scan(&policy.ID, &policy.TenantID, &policy.Name, &policy.ObjectPrefix, &policy.ObjectKey, &policy.RequireLegalHold, &policy.Mode, &policy.RetentionDays, &policy.MaxVerificationAgeHours, &policy.Status, &verifiedAt, &verificationHash, &checks, &policy.VerificationLimitations, &policy.VerificationProvider, &policy.VerificationBucket, &policy.VerificationMode, &policy.VerificationRetentionDays, &verificationLegalHold, &observedAt, &expiresAt, &policy.SchemaVersion, &policy.CreatedAt); err != nil {
 			return fmt.Errorf("scan relational object retention policy: %w", err)
 		}
 		policy.VerifiedAt = nullableSQLTime(verifiedAt)
 		policy.VerificationHash = nullableSQLString(verificationHash)
+		policy.VerificationLegalHold = nullableSQLBool(verificationLegalHold)
+		policy.VerificationObservedAt = nullableSQLTime(observedAt)
+		policy.VerificationExpiresAt = nullableSQLTime(expiresAt)
 		if err := decodeJSON(checks, &policy.VerificationChecks); err != nil {
 			return fmt.Errorf("decode relational object retention checks: %w", err)
 		}
@@ -4213,20 +4217,30 @@ func syncPackageReportRetentionRows(ctx context.Context, tx pgx.Tx, state app.Pe
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO object_retention_policies (
 				id, tenant_id, name, object_prefix, object_key, require_legal_hold, mode, retention_days, status,
-				verified_at, verification_hash, verification_checks,
-				verification_limitations, schema_version, created_at
+				max_verification_age_hours, verified_at, verification_hash, verification_checks,
+				verification_limitations, verification_provider, verification_bucket, verification_mode,
+				verification_retention_days, verification_legal_hold, verification_observed_at, verification_expires_at,
+				schema_version, created_at
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
 			ON CONFLICT (id) DO UPDATE SET
 				object_key = EXCLUDED.object_key,
 				require_legal_hold = EXCLUDED.require_legal_hold,
 				status = EXCLUDED.status,
+				max_verification_age_hours = EXCLUDED.max_verification_age_hours,
 				verified_at = EXCLUDED.verified_at,
 				verification_hash = EXCLUDED.verification_hash,
 				verification_checks = EXCLUDED.verification_checks,
 				verification_limitations = EXCLUDED.verification_limitations,
+				verification_provider = EXCLUDED.verification_provider,
+				verification_bucket = EXCLUDED.verification_bucket,
+				verification_mode = EXCLUDED.verification_mode,
+				verification_retention_days = EXCLUDED.verification_retention_days,
+				verification_legal_hold = EXCLUDED.verification_legal_hold,
+				verification_observed_at = EXCLUDED.verification_observed_at,
+				verification_expires_at = EXCLUDED.verification_expires_at,
 				schema_version = EXCLUDED.schema_version
-		`, policy.ID, policy.TenantID, policy.Name, policy.ObjectPrefix, policy.ObjectKey, policy.RequireLegalHold, policy.Mode, policy.RetentionDays, policy.Status, nullableTime(policy.VerifiedAt), nullableString(policy.VerificationHash), checks, textArray(policy.VerificationLimitations), policy.SchemaVersion, nonZeroTime(policy.CreatedAt)); err != nil {
+		`, policy.ID, policy.TenantID, policy.Name, policy.ObjectPrefix, policy.ObjectKey, policy.RequireLegalHold, policy.Mode, policy.RetentionDays, policy.Status, policy.MaxVerificationAgeHours, nullableTime(policy.VerifiedAt), nullableString(policy.VerificationHash), checks, textArray(policy.VerificationLimitations), policy.VerificationProvider, policy.VerificationBucket, policy.VerificationMode, policy.VerificationRetentionDays, nullableBool(policy.VerificationLegalHold), nullableTime(policy.VerificationObservedAt), nullableTime(policy.VerificationExpiresAt), policy.SchemaVersion, nonZeroTime(policy.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert object retention policy row: %w", err)
 		}
 	}

@@ -28,6 +28,14 @@ func nullableSQLTime(value sql.NullTime) *time.Time {
 	return &t
 }
 
+func nullableSQLBool(value sql.NullBool) *bool {
+	if !value.Valid {
+		return nil
+	}
+	result := value.Bool
+	return &result
+}
+
 func decodeJSON(raw []byte, out any) error {
 	if len(raw) == 0 || string(raw) == "null" {
 		return nil
@@ -54,6 +62,13 @@ func nullableInt(value int) any {
 		return nil
 	}
 	return value
+}
+
+func nullableBool(value *bool) any {
+	if value == nil {
+		return nil
+	}
+	return *value
 }
 
 func nonZeroInt(value, fallback int) int {

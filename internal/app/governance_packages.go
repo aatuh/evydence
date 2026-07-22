@@ -886,6 +886,7 @@ func (l *Ledger) packageObjectLockProofsLocked(tenantID string) []map[string]any
 		if policy.TenantID != tenantID {
 			continue
 		}
+		policy = currentRetentionPolicy(policy, l.now())
 		proof := map[string]any{
 			"id":                           policy.ID,
 			"name":                         policy.Name,
@@ -896,6 +897,9 @@ func (l *Ledger) packageObjectLockProofsLocked(tenantID string) []map[string]any
 			"retention_days":               policy.RetentionDays,
 			"status":                       policy.Status,
 			"verification_hash":            policy.VerificationHash,
+			"verification_provider":        policy.VerificationProvider,
+			"verification_mode":            policy.VerificationMode,
+			"verification_retention_days":  policy.VerificationRetentionDays,
 			"verification_checks":          packageVerifyChecks(policy.VerificationChecks),
 			"verification_limitations":     append([]string(nil), policy.VerificationLimitations...),
 			"created_at":                   policy.CreatedAt.UTC().Format(time.RFC3339),
@@ -906,6 +910,15 @@ func (l *Ledger) packageObjectLockProofsLocked(tenantID string) []map[string]any
 		}
 		if policy.VerifiedAt != nil {
 			proof["verified_at"] = policy.VerifiedAt.UTC().Format(time.RFC3339)
+		}
+		if policy.VerificationObservedAt != nil {
+			proof["verification_observed_at"] = policy.VerificationObservedAt.UTC().Format(time.RFC3339)
+		}
+		if policy.VerificationExpiresAt != nil {
+			proof["verification_expires_at"] = policy.VerificationExpiresAt.UTC().Format(time.RFC3339)
+		}
+		if policy.VerificationLegalHold != nil {
+			proof["verification_legal_hold"] = *policy.VerificationLegalHold
 		}
 		out = append(out, proof)
 	}

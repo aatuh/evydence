@@ -129,10 +129,16 @@ type ObjectRetentionRequest struct {
 }
 
 type ObjectRetentionResult struct {
-	Provider    string
-	Enforced    bool
-	Checks      []domain.VerifyCheck
-	Limitations []string
+	Provider      string
+	Bucket        string
+	ObjectKey     string
+	Mode          string
+	RetentionDays int
+	LegalHold     *bool
+	ObservedAt    time.Time
+	Enforced      bool
+	Checks        []domain.VerifyCheck
+	Limitations   []string
 }
 
 type PersistedState struct {

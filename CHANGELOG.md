@@ -46,6 +46,10 @@ release artifacts.
 
 ### Fixed
 
+- Object-retention verification no longer treats a local policy record as
+  provider enforcement. Positive results now retain bounded provider-observation
+  metadata; unavailable, incomplete, failed, and stale observations remain
+  distinguishable.
 - Updated the indirect `golang.org/x/text` dependency to v0.39.0 to remediate
   the reachable invalid-input infinite-loop advisory reported by `make vuln`.
 - Cosign metadata assessment can no longer report `passed` from a non-empty

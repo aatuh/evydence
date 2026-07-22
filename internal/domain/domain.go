@@ -57,7 +57,7 @@ const (
 	SigningProviderSchemaVersion      = "signing-provider.v1.0.0"
 	MerkleBatchSchemaVersion          = "merkle-batch.v1.0.0"
 	TransparencyCheckpointVersion     = "transparency-checkpoint.v1.0.0"
-	ObjectRetentionPolicyVersion      = "object-retention-policy.v1.0.0"
+	ObjectRetentionPolicyVersion      = "object-retention-policy.v2.0.0"
 	BackupManifestSchemaVersion       = "backup-manifest.v1.0.0"
 	CollectorReleaseSchemaVersion     = "collector-release.v1.0.0"
 	OrganizationSchemaVersion         = "organization.v1.0.0"
@@ -807,21 +807,29 @@ type TransparencyCheckpoint struct {
 }
 
 type ObjectRetentionPolicy struct {
-	ID                      string        `json:"id"`
-	TenantID                string        `json:"tenant_id"`
-	Name                    string        `json:"name"`
-	ObjectPrefix            string        `json:"object_prefix"`
-	ObjectKey               string        `json:"object_key,omitempty"`
-	RequireLegalHold        bool          `json:"require_legal_hold,omitempty"`
-	Mode                    string        `json:"mode"`
-	RetentionDays           int           `json:"retention_days"`
-	Status                  string        `json:"status"`
-	VerifiedAt              *time.Time    `json:"verified_at,omitempty"`
-	VerificationHash        string        `json:"verification_hash,omitempty"`
-	VerificationChecks      []VerifyCheck `json:"verification_checks,omitempty"`
-	VerificationLimitations []string      `json:"verification_limitations,omitempty"`
-	SchemaVersion           string        `json:"schema_version"`
-	CreatedAt               time.Time     `json:"created_at"`
+	ID                        string        `json:"id"`
+	TenantID                  string        `json:"tenant_id"`
+	Name                      string        `json:"name"`
+	ObjectPrefix              string        `json:"object_prefix"`
+	ObjectKey                 string        `json:"object_key,omitempty"`
+	RequireLegalHold          bool          `json:"require_legal_hold,omitempty"`
+	Mode                      string        `json:"mode"`
+	RetentionDays             int           `json:"retention_days"`
+	MaxVerificationAgeHours   int           `json:"max_verification_age_hours"`
+	Status                    string        `json:"status"`
+	VerifiedAt                *time.Time    `json:"verified_at,omitempty"`
+	VerificationHash          string        `json:"verification_hash,omitempty"`
+	VerificationChecks        []VerifyCheck `json:"verification_checks,omitempty"`
+	VerificationLimitations   []string      `json:"verification_limitations,omitempty"`
+	VerificationProvider      string        `json:"verification_provider,omitempty"`
+	VerificationBucket        string        `json:"verification_bucket,omitempty"`
+	VerificationMode          string        `json:"verification_mode,omitempty"`
+	VerificationRetentionDays int           `json:"verification_retention_days,omitempty"`
+	VerificationLegalHold     *bool         `json:"verification_legal_hold,omitempty"`
+	VerificationObservedAt    *time.Time    `json:"verification_observed_at,omitempty"`
+	VerificationExpiresAt     *time.Time    `json:"verification_expires_at,omitempty"`
+	SchemaVersion             string        `json:"schema_version"`
+	CreatedAt                 time.Time     `json:"created_at"`
 }
 
 type SigningCustodyReviewReport struct {

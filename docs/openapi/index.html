@@ -1537,13 +1537,13 @@
               <div><dt>Responses</dt><dd>200 application/json: MetricsSnapshotEnvelope, text/plain: string; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/object-retention-policies create object retention policy record creates an object retention policy record for storage immutability verification. createobjectretentionpolicy evydence admin">
+          <article class="operation" data-operation data-search="post /v1/object-retention-policies create object retention policy record creates a tenant-scoped retention-intent record and its maximum provider-observation age. creation does not prove provider-enforced retention. createobjectretentionpolicy evydence admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/object-retention-policies</code>
             </div>
             <h3>Create object retention policy record</h3>
-            <p>Creates an object retention policy record for storage immutability verification.</p>
+            <p>Creates a tenant-scoped retention-intent record and its maximum provider-observation age. Creation does not prove provider-enforced retention.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createObjectRetentionPolicy</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -1554,13 +1554,13 @@
               <div><dt>Responses</dt><dd>201 application/json: ObjectRetentionPolicyEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/object-retention-policies/{id}/verify verify object retention policy record records verification metadata for a tenant object retention policy. verifyobjectretentionpolicy evydence verify:read">
+          <article class="operation" data-operation data-search="post /v1/object-retention-policies/{id}/verify verify object retention policy record records a provider-backed retention observation when available. without complete provider, bucket, mode, duration, legal-hold, and observation-time evidence, the policy remains not_verified; expired successful observations are reported as stale. verifyobjectretentionpolicy evydence verify:read">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/object-retention-policies/{id}/verify</code>
             </div>
             <h3>Verify object retention policy record</h3>
-            <p>Records verification metadata for a tenant object retention policy.</p>
+            <p>Records a provider-backed retention observation when available. Without complete provider, bucket, mode, duration, legal-hold, and observation-time evidence, the policy remains not_verified; expired successful observations are reported as stale.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>verifyObjectRetentionPolicy</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -4302,7 +4302,7 @@
           <tr>
             <td><code>ObjectRetentionPolicy</code></td>
             <td>object</td>
-            <td>id, tenant_id, name, object_prefix, mode, retention_days, status, schema_version, created_at</td>
+            <td>id, tenant_id, name, object_prefix, mode, retention_days, max_verification_age_hours, status, schema_version, created_at</td>
           </tr>
           <tr>
             <td><code>ObjectRetentionPolicyEnvelope</code></td>

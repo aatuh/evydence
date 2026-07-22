@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net/url"
 	"os"
@@ -160,6 +161,83 @@ func TestVerificationAssuranceTaxonomyMigratesLegacyResultsConservatively(t *tes
 	assertLegacyVerificationResult(t, ctx, store.pool, "legacy-generic-failed", "failed", "legacy-ambiguous-verification.v1", "verification-result.v2.0.0")
 	assertLegacyReceipt(t, ctx, store.pool, "cosign_verifications", "legacy-cosign-passed", "limited", "legacy-cosign-metadata.v1", "cosign-verification.v2.0.0")
 	assertLegacyReceipt(t, ctx, store.pool, "provider_verifications", "legacy-provider-passed", "limited", "legacy-provider-verification.v1", "provider-verification.v2.0.0")
+}
+
+func TestObjectRetentionVerificationTruthMigratesLegacyRecordsConservatively(t *testing.T) {
+	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
+	if strings.TrimSpace(databaseURL) == "" {
+		t.Skip("EVYDENCE_TEST_DATABASE_URL is not set")
+	}
+	const retentionMigration = "20260722000200_object_retention_verification_truth.up.sql"
+	names := migrationFileNames(t, "../../../migrations")
+	retentionIndex := -1
+	for i, name := range names {
+		if name == retentionMigration {
+			retentionIndex = i
+			break
+		}
+	}
+	if retentionIndex < 0 {
+		t.Fatalf("migration %q not found", retentionMigration)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	basePool, err := pgxpool.New(ctx, databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer basePool.Close()
+
+	schema := fmt.Sprintf("evydence_retention_truth_%d", time.Now().UnixNano())
+	quotedSchema := pgx.Identifier{schema}.Sanitize()
+	if _, err := basePool.Exec(ctx, "CREATE SCHEMA "+quotedSchema); err != nil {
+		t.Fatal(err)
+	}
+	defer func(cleanupCtx context.Context) {
+		_, _ = basePool.Exec(cleanupCtx, "DROP SCHEMA "+quotedSchema+" CASCADE")
+	}(context.WithoutCancel(ctx))
+
+	store, err := Open(ctx, databaseURLWithSearchPath(t, databaseURL, schema))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	applyMigrationPrefix(t, ctx, store, "../../../migrations", names[:retentionIndex])
+
+	now := time.Now().UTC()
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO object_retention_policies (
+			id, tenant_id, name, object_prefix, object_key, require_legal_hold, mode,
+			retention_days, status, verified_at, verification_hash, verification_checks,
+			verification_limitations, schema_version, created_at
+		) VALUES (
+			'legacy-retention', 'legacy-tenant', 'Legacy retention', 'tenants/legacy-tenant/',
+			'', false, 'compliance', 90, 'verified', $1, 'legacy-hash', '[]'::jsonb,
+			'{}', 'object-retention-policy.v1.0.0', $1
+		)
+	`, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.ApplyMigrations(ctx, "../../../migrations"); err != nil {
+		t.Fatal(err)
+	}
+
+	var status, provider, bucket, schemaVersion string
+	var maxAge, retentionDays int
+	var observedAt, expiresAt sql.NullTime
+	var limitations []string
+	if err := store.pool.QueryRow(ctx, `
+		SELECT status, max_verification_age_hours, verification_provider, verification_bucket,
+			verification_retention_days, verification_observed_at, verification_expires_at,
+			verification_limitations, schema_version
+		FROM object_retention_policies WHERE id = 'legacy-retention'
+	`).Scan(&status, &maxAge, &provider, &bucket, &retentionDays, &observedAt, &expiresAt, &limitations, &schemaVersion); err != nil {
+		t.Fatal(err)
+	}
+	if status != "not_verified" || maxAge != 24 || provider != "" || bucket != "" || retentionDays != 0 || observedAt.Valid || expiresAt.Valid || schemaVersion != "object-retention-policy.v2.0.0" || len(limitations) == 0 {
+		t.Fatalf("legacy retention migration = status:%q max_age:%d provider:%q bucket:%q retention_days:%d observed_at:%v expires_at:%v limitations:%#v schema:%q", status, maxAge, provider, bucket, retentionDays, observedAt, expiresAt, limitations, schemaVersion)
+	}
 }
 
 func assertLegacyVerificationResult(t *testing.T, ctx context.Context, pool *pgxpool.Pool, id, wantResult, wantProfile, wantVersion string) {

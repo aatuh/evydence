@@ -520,8 +520,8 @@ presets; preset policy fields cannot be overridden in the create request.
 | `POST` | `/v1/public-transparency-log-entries` | Record published public transparency log entry metadata. |
 | `POST` | `/v1/public-transparency-log-entries/{id}/verify` | Verify operator-supplied RFC6962-style public transparency inclusion proof material. |
 | `POST` | `/v1/public-transparency-log-entries/{id}/fetch-proof` | Fetch proof material from the configured transparency endpoint or proof gateway and verify it locally. |
-| `POST` | `/v1/object-retention-policies` | Record retention policy intent with optional tenant-prefixed sample object key and legal-hold proof requirement. |
-| `POST` | `/v1/object-retention-policies/{id}/verify` | Record provider verification transition. |
+| `POST` | `/v1/object-retention-policies` | Record retention policy intent, optional tenant-prefixed sample object/legal-hold proof requirement, and maximum provider-observation age. |
+| `POST` | `/v1/object-retention-policies/{id}/verify` | Record a provider observation without treating local intent as provider enforcement. |
 | `POST` | `/v1/legal-holds` | Record legal hold. |
 | `POST` | `/v1/retention-overrides` | Record retention override. |
 | `GET` | `/v1/reports/retention` | List retention records. |
@@ -544,6 +544,17 @@ and include an assurance profile plus limitations. `passed` is emitted only
 when every profile-required check passed; it is not a broad security or
 compliance claim. See [Verification results](reference/verification-results.md)
 for the state definitions, profile fields, and legacy-record behavior.
+
+Object-retention policy status is scoped to the retention observation rather
+than the generic verification-result taxonomy. `configured` records intent;
+`not_verified` covers missing, unavailable, or incomplete provider evidence;
+`not_enforced` records a completed provider observation that did not satisfy
+the requested condition; `verified` is a complete, time-bounded provider
+observation; and `stale` must be refreshed before it is treated as current.
+The response records the configured maximum age and, for an observed result,
+provider, bucket, mode, duration, applicable legal-hold state, observation
+time, expiry, checks, and limitations. These records support operator review;
+they do not establish legal compliance or complete WORM enforcement.
 
 ### Security Evidence And Contracts
 

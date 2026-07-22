@@ -2069,18 +2069,19 @@ func (s *Server) createTransparencyCheckpoint(w http.ResponseWriter, r *http.Req
 
 func (s *Server) createObjectRetentionPolicy(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Name             string `json:"name"`
-		ObjectPrefix     string `json:"object_prefix"`
-		ObjectKey        string `json:"object_key"`
-		RequireLegalHold bool   `json:"require_legal_hold"`
-		Mode             string `json:"mode"`
-		RetentionDays    int    `json:"retention_days"`
+		Name                    string `json:"name"`
+		ObjectPrefix            string `json:"object_prefix"`
+		ObjectKey               string `json:"object_key"`
+		RequireLegalHold        bool   `json:"require_legal_hold"`
+		Mode                    string `json:"mode"`
+		RetentionDays           int    `json:"retention_days"`
+		MaxVerificationAgeHours int    `json:"max_verification_age_hours"`
 	}
 	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		policy, err := s.ledger.CreateObjectRetentionPolicy(ctx, actor, app.CreateObjectRetentionPolicyInput{Name: req.Name, ObjectPrefix: req.ObjectPrefix, ObjectKey: req.ObjectKey, RequireLegalHold: req.RequireLegalHold, Mode: req.Mode, RetentionDays: req.RetentionDays})
+		policy, err := s.ledger.CreateObjectRetentionPolicy(ctx, actor, app.CreateObjectRetentionPolicyInput{Name: req.Name, ObjectPrefix: req.ObjectPrefix, ObjectKey: req.ObjectKey, RequireLegalHold: req.RequireLegalHold, Mode: req.Mode, RetentionDays: req.RetentionDays, MaxVerificationAgeHours: req.MaxVerificationAgeHours})
 		return http.StatusCreated, policy, err
 	})
 }

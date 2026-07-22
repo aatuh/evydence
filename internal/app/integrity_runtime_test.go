@@ -97,8 +97,8 @@ func TestRuntimeRetentionBackupReadinessMetricsAndAudit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("verify retention: %v", err)
 	}
-	if verifiedPolicy.Status != "verified" || verifiedPolicy.VerifiedAt == nil {
-		t.Fatalf("verified policy = %#v", verifiedPolicy)
+	if verifiedPolicy.Status != "not_verified" || verifiedPolicy.VerifiedAt == nil {
+		t.Fatalf("local-only retention policy must not be provider verified: %#v", verifiedPolicy)
 	}
 	if len(verifiedPolicy.VerificationChecks) == 0 || len(verifiedPolicy.VerificationLimitations) == 0 {
 		t.Fatalf("expected local retention verification limitations: %#v", verifiedPolicy)
@@ -143,8 +143,12 @@ func TestRuntimeRetentionBackupReadinessMetricsAndAudit(t *testing.T) {
 
 func TestObjectRetentionVerifierRecordsProviderChecks(t *testing.T) {
 	verifier := &fakeObjectRetentionVerifier{result: ObjectRetentionResult{
-		Provider: "s3",
-		Enforced: true,
+		Provider:      "s3",
+		Bucket:        "evydence-test",
+		Mode:          "compliance",
+		RetentionDays: 90,
+		ObservedAt:    fixedNow(),
+		Enforced:      true,
 		Checks: []domain.VerifyCheck{
 			{Name: "s3_bucket_versioning", Result: "passed"},
 			{Name: "s3_object_lock_mode", Result: "passed"},
@@ -175,15 +179,19 @@ func TestObjectRetentionVerifierRecordsProviderChecks(t *testing.T) {
 	if len(verifier.requests) != 1 || verifier.requests[0].ObjectPrefix != "tenants/"+actor.TenantID+"/" {
 		t.Fatalf("verifier requests = %#v", verifier.requests)
 	}
-	if len(verified.VerificationChecks) != 2 || verified.VerificationChecks[0].Name != "s3_bucket_versioning" {
+	if !hasVerifyCheck(verified.VerificationChecks, "s3_bucket_versioning", "passed") || !hasVerifyCheck(verified.VerificationChecks, "provider_enforced_proof", "passed") {
 		t.Fatalf("checks = %#v", verified.VerificationChecks)
 	}
 }
 
 func TestSigningCustodyReviewAndObjectLockProofExports(t *testing.T) {
 	verifier := &fakeObjectRetentionVerifier{result: ObjectRetentionResult{
-		Provider: "s3",
-		Enforced: true,
+		Provider:      "s3",
+		Bucket:        "evydence-test",
+		Mode:          "compliance",
+		RetentionDays: 365,
+		ObservedAt:    fixedNow(),
+		Enforced:      true,
 		Checks: []domain.VerifyCheck{
 			{Name: "s3_bucket_versioning", Result: "passed"},
 			{Name: "s3_object_lock_mode", Result: "passed"},
@@ -268,11 +276,17 @@ func TestSigningCustodyReviewAndObjectLockProofExports(t *testing.T) {
 }
 
 func TestObjectRetentionVerifierReceivesLegalHoldRequirement(t *testing.T) {
+	legalHold := true
 	verifier := &fakeObjectRetentionVerifier{result: ObjectRetentionResult{
-		Provider:    "s3",
-		Enforced:    true,
-		Checks:      []domain.VerifyCheck{{Name: "s3_object_legal_hold", Result: "passed"}},
-		Limitations: []string{"Sample object legal hold checked only."},
+		Provider:      "s3",
+		Bucket:        "evydence-test",
+		Mode:          "compliance",
+		RetentionDays: 90,
+		LegalHold:     &legalHold,
+		ObservedAt:    fixedNow(),
+		Enforced:      true,
+		Checks:        []domain.VerifyCheck{{Name: "s3_object_legal_hold", Result: "passed"}},
+		Limitations:   []string{"Sample object legal hold checked only."},
 	}}
 	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Retention: verifier})
 	ctx := context.Background()
@@ -285,6 +299,7 @@ func TestObjectRetentionVerifierReceivesLegalHoldRequirement(t *testing.T) {
 		t.Fatalf("auth: %v", err)
 	}
 	objectKey := "tenants/" + actor.TenantID + "/raw/sample.json"
+	verifier.result.ObjectKey = objectKey
 	policy, err := ledger.CreateObjectRetentionPolicy(ctx, actor, CreateObjectRetentionPolicyInput{Name: "objects", ObjectPrefix: "tenants/" + actor.TenantID + "/raw/", ObjectKey: objectKey, RequireLegalHold: true, Mode: "compliance", RetentionDays: 90})
 	if err != nil {
 		t.Fatalf("create policy: %v", err)
@@ -295,6 +310,41 @@ func TestObjectRetentionVerifierReceivesLegalHoldRequirement(t *testing.T) {
 	}
 	if !verified.RequireLegalHold || len(verifier.requests) != 1 || !verifier.requests[0].RequireLegalHold || verifier.requests[0].ObjectKey != objectKey {
 		t.Fatalf("verified=%#v requests=%#v", verified, verifier.requests)
+	}
+}
+
+func TestObjectRetentionSampleObjectRequiresObservedLegalHoldState(t *testing.T) {
+	verifier := &fakeObjectRetentionVerifier{result: ObjectRetentionResult{
+		Provider:      "s3",
+		Bucket:        "evydence-test",
+		Mode:          "compliance",
+		RetentionDays: 90,
+		ObservedAt:    fixedNow(),
+		Enforced:      true,
+		Checks:        []domain.VerifyCheck{{Name: "s3_object_retention_until", Result: "passed"}},
+	}}
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Retention: verifier})
+	ctx := context.Background()
+	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	actor, err := ledger.Authenticate(ctx, secret)
+	if err != nil {
+		t.Fatalf("auth: %v", err)
+	}
+	objectKey := "tenants/" + actor.TenantID + "/raw/sample.json"
+	verifier.result.ObjectKey = objectKey
+	policy, err := ledger.CreateObjectRetentionPolicy(ctx, actor, CreateObjectRetentionPolicyInput{Name: "objects", ObjectPrefix: "tenants/" + actor.TenantID + "/raw/", ObjectKey: objectKey, Mode: "compliance", RetentionDays: 90})
+	if err != nil {
+		t.Fatalf("create policy: %v", err)
+	}
+	verified, err := ledger.VerifyObjectRetentionPolicy(ctx, actor, policy.ID)
+	if err != nil {
+		t.Fatalf("verify policy: %v", err)
+	}
+	if verified.Status != "not_verified" || !hasVerifyCheck(verified.VerificationChecks, "provider_enforced_proof", "failed") {
+		t.Fatalf("sample object without legal-hold state must not be current proof: %#v", verified)
 	}
 }
 
@@ -322,8 +372,130 @@ func TestObjectRetentionVerifierMarksProviderFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("verify policy: %v", err)
 	}
-	if verified.Status != "not_enforced" || verified.VerificationChecks[0].Result != "failed" {
+	if verified.Status != "not_enforced" || !hasVerifyCheck(verified.VerificationChecks, "s3_object_lock_retention", "failed") {
 		t.Fatalf("verified policy = %#v", verified)
+	}
+}
+
+func TestObjectRetentionRequiresCompleteProviderObservation(t *testing.T) {
+	verifier := &fakeObjectRetentionVerifier{result: ObjectRetentionResult{
+		Provider:   "s3",
+		ObservedAt: fixedNow(),
+		Enforced:   true,
+		Checks:     []domain.VerifyCheck{{Name: "s3_bucket_versioning", Result: "passed"}},
+	}}
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Retention: verifier})
+	ctx := context.Background()
+	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	actor, err := ledger.Authenticate(ctx, secret)
+	if err != nil {
+		t.Fatalf("auth: %v", err)
+	}
+	policy, err := ledger.CreateObjectRetentionPolicy(ctx, actor, CreateObjectRetentionPolicyInput{Name: "objects", Mode: "compliance", RetentionDays: 30})
+	if err != nil {
+		t.Fatalf("create policy: %v", err)
+	}
+	verified, err := ledger.VerifyObjectRetentionPolicy(ctx, actor, policy.ID)
+	if err != nil {
+		t.Fatalf("verify policy: %v", err)
+	}
+	if verified.Status != "not_verified" || verified.VerificationExpiresAt != nil {
+		t.Fatalf("incomplete provider observation must not be current proof: %#v", verified)
+	}
+	if !hasVerifyCheck(verified.VerificationChecks, "provider_enforced_proof", "failed") {
+		t.Fatalf("incomplete provider observation checks = %#v", verified.VerificationChecks)
+	}
+}
+
+func TestObjectRetentionProviderUnavailableIsRecordedWithoutLeakingError(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Retention: &fakeObjectRetentionVerifier{err: errors.New("s3 credential secret must not leak")}})
+	ctx := context.Background()
+	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	actor, err := ledger.Authenticate(ctx, secret)
+	if err != nil {
+		t.Fatalf("auth: %v", err)
+	}
+	policy, err := ledger.CreateObjectRetentionPolicy(ctx, actor, CreateObjectRetentionPolicyInput{Name: "objects", Mode: "compliance", RetentionDays: 30})
+	if err != nil {
+		t.Fatalf("create policy: %v", err)
+	}
+	verified, err := ledger.VerifyObjectRetentionPolicy(ctx, actor, policy.ID)
+	if err != nil {
+		t.Fatalf("provider unavailability should produce a persisted non-positive result: %v", err)
+	}
+	if verified.Status != "not_verified" || !hasVerifyCheck(verified.VerificationChecks, "provider_observation", "error") {
+		t.Fatalf("provider unavailable policy = %#v", verified)
+	}
+	if strings.Contains(strings.Join(verified.VerificationLimitations, "\n"), "credential secret") {
+		t.Fatalf("provider error leaked into persisted limitation: %#v", verified.VerificationLimitations)
+	}
+}
+
+func TestObjectRetentionStaleProofNoLongerCountsAsCurrent(t *testing.T) {
+	now := fixedNow()
+	verifier := &fakeObjectRetentionVerifier{result: ObjectRetentionResult{
+		Provider:      "s3",
+		Bucket:        "evydence-test",
+		Mode:          "compliance",
+		RetentionDays: 90,
+		ObservedAt:    now,
+		Enforced:      true,
+		Checks:        []domain.VerifyCheck{{Name: "s3_bucket_versioning", Result: "passed"}},
+	}}
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: func() time.Time { return now }, Retention: verifier})
+	ctx := context.Background()
+	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	actor, err := ledger.Authenticate(ctx, secret)
+	if err != nil {
+		t.Fatalf("auth: %v", err)
+	}
+	policy, err := ledger.CreateObjectRetentionPolicy(ctx, actor, CreateObjectRetentionPolicyInput{Name: "objects", Mode: "compliance", RetentionDays: 30, MaxVerificationAgeHours: 1})
+	if err != nil {
+		t.Fatalf("create policy: %v", err)
+	}
+	verified, err := ledger.VerifyObjectRetentionPolicy(ctx, actor, policy.ID)
+	if err != nil || verified.Status != "verified" || verified.VerificationExpiresAt == nil {
+		t.Fatalf("fresh provider proof = %#v err=%v", verified, err)
+	}
+	now = now.Add(2 * time.Hour)
+	report, err := ledger.SigningCustodyReviewReport(ctx, actor)
+	if err != nil {
+		t.Fatalf("custody report: %v", err)
+	}
+	if len(report.ObjectRetentionPolicies) != 1 || report.ObjectRetentionPolicies[0].Status != "stale" {
+		t.Fatalf("stale retention policy was treated as current: %#v", report.ObjectRetentionPolicies)
+	}
+	if !hasVerifyCheck(report.Checks, "object_lock_proof_recorded", "failed") {
+		t.Fatalf("stale retention proof counted as current: %#v", report.Checks)
+	}
+}
+
+func TestObjectRetentionVerificationAgeInputIsBounded(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	actor, err := ledger.Authenticate(ctx, secret)
+	if err != nil {
+		t.Fatalf("auth: %v", err)
+	}
+	policy, err := ledger.CreateObjectRetentionPolicy(ctx, actor, CreateObjectRetentionPolicyInput{Name: "default age", Mode: "governance", RetentionDays: 30})
+	if err != nil || policy.MaxVerificationAgeHours != defaultRetentionVerificationAgeHours {
+		t.Fatalf("default retention verification age = %#v err=%v", policy, err)
+	}
+	if _, err := ledger.CreateObjectRetentionPolicy(ctx, actor, CreateObjectRetentionPolicyInput{Name: "invalid age", Mode: "governance", RetentionDays: 30, MaxVerificationAgeHours: maxRetentionVerificationAgeHours + 1}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("out-of-range verification age err=%v, want validation", err)
 	}
 }
 

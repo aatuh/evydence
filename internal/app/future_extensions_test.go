@@ -261,8 +261,8 @@ func TestFutureOperationalExtensionsAndPartialTrustClosures(t *testing.T) {
 	if err != nil {
 		t.Fatalf("verify retention: %v", err)
 	}
-	if verified.Status != "verified" || verified.VerificationHash == "" {
-		t.Fatalf("verified retention = %#v", verified)
+	if verified.Status != "not_verified" || verified.VerificationHash == "" {
+		t.Fatalf("local retention verification = %#v", verified)
 	}
 
 	_, _, otherSecret, err := ledger.BootstrapTenant(ctx, "Other", "admin", []string{"*"})

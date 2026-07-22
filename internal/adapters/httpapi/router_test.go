@@ -944,9 +944,13 @@ func TestIntegrityRuntimeHTTPFlow(t *testing.T) {
 		t.Fatalf("batch verify: %s", verifyBatch)
 	}
 	postJSON(t, server, secret, "/v1/transparency-checkpoints", "int-transparency", map[string]any{"batch_id": batchID, "provider": "internal-rfc3161", "external_id": "ts-1"}, http.StatusCreated)
-	retentionBody := postJSON(t, server, secret, "/v1/object-retention-policies", "int-retention", map[string]any{"name": "lock", "mode": "governance", "retention_days": 30}, http.StatusCreated)
+	retentionBody := postJSON(t, server, secret, "/v1/object-retention-policies", "int-retention", map[string]any{"name": "lock", "mode": "governance", "retention_days": 30, "max_verification_age_hours": 24}, http.StatusCreated)
 	retentionID := dataField(t, retentionBody, "id")
-	postJSON(t, server, secret, "/v1/object-retention-policies/"+retentionID+"/verify", "int-retention-verify", map[string]any{}, http.StatusOK)
+	retentionVerify := postJSON(t, server, secret, "/v1/object-retention-policies/"+retentionID+"/verify", "int-retention-verify", map[string]any{}, http.StatusOK)
+	if !strings.Contains(retentionVerify, `"status":"not_verified"`) || !strings.Contains(retentionVerify, `"provider_verifier_configured"`) {
+		t.Fatalf("local retention verification must not claim provider enforcement: %s", retentionVerify)
+	}
+	postJSON(t, server, secret, "/v1/object-retention-policies", "int-retention-invalid-age", map[string]any{"name": "invalid lock", "mode": "governance", "retention_days": 30, "max_verification_age_hours": 8785}, http.StatusBadRequest)
 	custodyReview := getJSON(t, server, secret, "/v1/reports/custody-review", http.StatusOK)
 	if !strings.Contains(custodyReview, `"report_type":"signing_custody_review"`) || !strings.Contains(custodyReview, `"object_lock_proof_recorded"`) || strings.Contains(custodyReview, "private_key") {
 		t.Fatalf("custody review response missing checks or leaked sensitive wording: %s", custodyReview)

@@ -43,6 +43,32 @@ regional availability.
 7. Record object-store backup ID, database backup ID, restored prefixes,
    verification results, failed objects, and limitations.
 
+## Retention Observation Review
+
+After the object store is available, run the retention verification endpoint for
+each affected policy and retain its sanitized result with the recovery record.
+The record separates configured intent from provider evidence:
+
+- `configured` has not yet been checked.
+- `not_verified` means no verifier is configured, an observation was
+  unavailable or incomplete, or the provider evidence did not support a
+  positive result.
+- `not_enforced` means the provider observation completed but reported that the
+  requested retention condition was not enforced.
+- `verified` means the ledger recorded the provider, bucket, mode, duration,
+  applicable sample-object/legal-hold evidence, observation time, and a
+  currently valid maximum age.
+- `stale` means a previously positive observation exceeded that configured
+  maximum age and must be refreshed.
+
+Use the policy's `verification_observed_at` and
+`max_verification_age_hours`/`verification_expires_at` fields to schedule
+rechecks. Keep bucket and object identifiers in protected operator evidence;
+customer packages intentionally omit object-store paths. Never treat a local
+policy record, a successful API call, or a stale observation as proof that a
+provider will prevent all deletion or that a retention obligation is legally
+satisfied.
+
 ## Repository-Owned Checks
 
 Use the local rehearsal for non-sensitive restore mechanics:
@@ -83,4 +109,4 @@ the limitation in customer-facing reports.
 - List of affected object refs or evidence IDs, sanitized for sharing.
 - Package, bundle, readiness, and audit-chain verification results.
 - Operator notes about provider-side IAM, encryption, lifecycle, object lock,
-  and retention assumptions.
+  retention assumptions, and the time of the last provider observation.

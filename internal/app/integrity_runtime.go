@@ -38,13 +38,19 @@ type CreateTransparencyCheckpointInput struct {
 }
 
 type CreateObjectRetentionPolicyInput struct {
-	Name             string
-	ObjectPrefix     string
-	ObjectKey        string
-	Mode             string
-	RetentionDays    int
-	RequireLegalHold bool
+	Name                    string
+	ObjectPrefix            string
+	ObjectKey               string
+	Mode                    string
+	RetentionDays           int
+	MaxVerificationAgeHours int
+	RequireLegalHold        bool
 }
+
+const (
+	defaultRetentionVerificationAgeHours = 24
+	maxRetentionVerificationAgeHours     = 24 * 366
+)
 
 type AuditLogFilter struct {
 	SubjectType string
@@ -311,6 +317,12 @@ func (l *Ledger) CreateObjectRetentionPolicy(ctx context.Context, actor domain.A
 	if in.Name == "" || in.RetentionDays <= 0 || (in.Mode != "governance" && in.Mode != "compliance") {
 		return domain.ObjectRetentionPolicy{}, ErrValidation
 	}
+	if in.MaxVerificationAgeHours == 0 {
+		in.MaxVerificationAgeHours = defaultRetentionVerificationAgeHours
+	}
+	if in.MaxVerificationAgeHours < 1 || in.MaxVerificationAgeHours > maxRetentionVerificationAgeHours {
+		return domain.ObjectRetentionPolicy{}, ErrValidation
+	}
 	if in.ObjectPrefix == "" {
 		in.ObjectPrefix = "tenants/" + actor.TenantID + "/"
 	}
@@ -326,7 +338,7 @@ func (l *Ledger) CreateObjectRetentionPolicy(ctx context.Context, actor domain.A
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	policy := domain.ObjectRetentionPolicy{ID: newID("orp"), TenantID: actor.TenantID, Name: in.Name, ObjectPrefix: in.ObjectPrefix, ObjectKey: in.ObjectKey, RequireLegalHold: in.RequireLegalHold, Mode: in.Mode, RetentionDays: in.RetentionDays, Status: "configured", SchemaVersion: domain.ObjectRetentionPolicyVersion, CreatedAt: l.now()}
+	policy := domain.ObjectRetentionPolicy{ID: newID("orp"), TenantID: actor.TenantID, Name: in.Name, ObjectPrefix: in.ObjectPrefix, ObjectKey: in.ObjectKey, RequireLegalHold: in.RequireLegalHold, Mode: in.Mode, RetentionDays: in.RetentionDays, MaxVerificationAgeHours: in.MaxVerificationAgeHours, Status: "configured", SchemaVersion: domain.ObjectRetentionPolicyVersion, CreatedAt: l.now()}
 	l.retentionPolicies[policy.ID] = policy
 	_, _ = l.appendChainLocked(actor.TenantID, "object_retention_policy.created", "object_retention_policy", policy.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {
@@ -349,19 +361,16 @@ func (l *Ledger) VerifyObjectRetentionPolicy(ctx context.Context, actor domain.A
 		l.mu.Unlock()
 		return domain.ObjectRetentionPolicy{}, ErrNotFound
 	}
+	if policy.MaxVerificationAgeHours == 0 {
+		policy.MaxVerificationAgeHours = defaultRetentionVerificationAgeHours
+	}
 	verifier := l.retention
 	l.mu.Unlock()
 
-	retentionResult := ObjectRetentionResult{
-		Provider: "local_record",
-		Checks: []domain.VerifyCheck{{
-			Name:   "object_retention_provider_verifier",
-			Result: "warning",
-			Detail: "No provider-backed object-lock verifier is configured; this records tenant-scoped retention intent only.",
-		}},
-		Limitations: []string{"Provider-enforced object-lock, bucket versioning, and WORM settings were not checked by this ledger instance."},
-	}
-	status := "verified"
+	now := l.now()
+	retentionResult := localRetentionIntentResult()
+	status := "not_verified"
+	providerObserved := false
 	if verifier != nil {
 		result, err := verifier.VerifyObjectRetention(ctx, ObjectRetentionRequest{
 			TenantID:         policy.TenantID,
@@ -372,45 +381,81 @@ func (l *Ledger) VerifyObjectRetentionPolicy(ctx context.Context, actor domain.A
 			RequireLegalHold: policy.RequireLegalHold,
 		})
 		if err != nil {
-			return domain.ObjectRetentionPolicy{}, ErrVerificationFailed
-		}
-		retentionResult = result
-		if !result.Enforced {
-			status = "not_enforced"
+			retentionResult = unavailableRetentionResult()
+		} else {
+			if result.ObservedAt.IsZero() {
+				result.ObservedAt = now
+			}
+			retentionResult = providerRetentionResult(policy, result)
+			status = retentionVerificationStatus(policy, result)
+			providerObserved = true
 		}
 	}
 
-	now := l.now()
 	policy.Status = status
 	policy.VerifiedAt = &now
 	policy.VerificationChecks = append([]domain.VerifyCheck(nil), retentionResult.Checks...)
 	policy.VerificationLimitations = append([]string(nil), retentionResult.Limitations...)
+	policy.VerificationProvider = ""
+	policy.VerificationBucket = ""
+	policy.VerificationMode = ""
+	policy.VerificationRetentionDays = 0
+	policy.VerificationLegalHold = nil
+	policy.VerificationObservedAt = nil
+	policy.VerificationExpiresAt = nil
+	if providerObserved {
+		policy.VerificationProvider = strings.TrimSpace(retentionResult.Provider)
+		policy.VerificationBucket = strings.TrimSpace(retentionResult.Bucket)
+		policy.VerificationMode = strings.TrimSpace(retentionResult.Mode)
+		policy.VerificationRetentionDays = retentionResult.RetentionDays
+		policy.VerificationLegalHold = copyBool(retentionResult.LegalHold)
+		observedAt := retentionResult.ObservedAt.UTC()
+		policy.VerificationObservedAt = &observedAt
+		if policy.Status == "verified" {
+			expiresAt := observedAt.Add(time.Duration(policy.MaxVerificationAgeHours) * time.Hour)
+			policy.VerificationExpiresAt = &expiresAt
+		}
+	}
 	verificationHash, err := canonicalAnyHash(struct {
-		ID               string               `json:"id"`
-		TenantID         string               `json:"tenant_id"`
-		ObjectPrefix     string               `json:"object_prefix"`
-		ObjectKey        string               `json:"object_key,omitempty"`
-		RequireLegalHold bool                 `json:"require_legal_hold"`
-		Mode             string               `json:"mode"`
-		Provider         string               `json:"provider"`
-		RetentionDays    int                  `json:"retention_days"`
-		Status           string               `json:"status"`
-		VerifiedAt       string               `json:"verified_at"`
-		Checks           []domain.VerifyCheck `json:"checks"`
-		Limitations      []string             `json:"limitations"`
+		ID                        string               `json:"id"`
+		TenantID                  string               `json:"tenant_id"`
+		ObjectPrefix              string               `json:"object_prefix"`
+		ObjectKey                 string               `json:"object_key,omitempty"`
+		RequireLegalHold          bool                 `json:"require_legal_hold"`
+		Mode                      string               `json:"mode"`
+		RetentionDays             int                  `json:"retention_days"`
+		MaxVerificationAgeHours   int                  `json:"max_verification_age_hours"`
+		Status                    string               `json:"status"`
+		VerifiedAt                string               `json:"verified_at"`
+		VerificationProvider      string               `json:"verification_provider,omitempty"`
+		VerificationBucket        string               `json:"verification_bucket,omitempty"`
+		VerificationMode          string               `json:"verification_mode,omitempty"`
+		VerificationRetentionDays int                  `json:"verification_retention_days,omitempty"`
+		VerificationLegalHold     *bool                `json:"verification_legal_hold,omitempty"`
+		VerificationObservedAt    string               `json:"verification_observed_at,omitempty"`
+		VerificationExpiresAt     string               `json:"verification_expires_at,omitempty"`
+		Checks                    []domain.VerifyCheck `json:"checks"`
+		Limitations               []string             `json:"limitations"`
 	}{
-		ID:               policy.ID,
-		TenantID:         policy.TenantID,
-		ObjectPrefix:     policy.ObjectPrefix,
-		ObjectKey:        policy.ObjectKey,
-		RequireLegalHold: policy.RequireLegalHold,
-		Mode:             policy.Mode,
-		Provider:         retentionResult.Provider,
-		RetentionDays:    policy.RetentionDays,
-		Status:           policy.Status,
-		VerifiedAt:       now.Format(time.RFC3339Nano),
-		Checks:           policy.VerificationChecks,
-		Limitations:      policy.VerificationLimitations,
+		ID:                        policy.ID,
+		TenantID:                  policy.TenantID,
+		ObjectPrefix:              policy.ObjectPrefix,
+		ObjectKey:                 policy.ObjectKey,
+		RequireLegalHold:          policy.RequireLegalHold,
+		Mode:                      policy.Mode,
+		RetentionDays:             policy.RetentionDays,
+		MaxVerificationAgeHours:   policy.MaxVerificationAgeHours,
+		Status:                    policy.Status,
+		VerifiedAt:                now.Format(time.RFC3339Nano),
+		VerificationProvider:      policy.VerificationProvider,
+		VerificationBucket:        policy.VerificationBucket,
+		VerificationMode:          policy.VerificationMode,
+		VerificationRetentionDays: policy.VerificationRetentionDays,
+		VerificationLegalHold:     policy.VerificationLegalHold,
+		VerificationObservedAt:    timeString(policy.VerificationObservedAt),
+		VerificationExpiresAt:     timeString(policy.VerificationExpiresAt),
+		Checks:                    policy.VerificationChecks,
+		Limitations:               policy.VerificationLimitations,
 	})
 	if err != nil {
 		return domain.ObjectRetentionPolicy{}, err
@@ -429,6 +474,109 @@ func (l *Ledger) VerifyObjectRetentionPolicy(ctx context.Context, actor domain.A
 		return domain.ObjectRetentionPolicy{}, err
 	}
 	return policy, nil
+}
+
+func localRetentionIntentResult() ObjectRetentionResult {
+	return ObjectRetentionResult{
+		Checks: []domain.VerifyCheck{
+			{Name: "retention_policy_recorded", Result: "passed", Detail: "Tenant-scoped retention intent was recorded."},
+			{Name: "provider_verifier_configured", Result: "skipped", Detail: "No provider-backed object-lock verifier is configured."},
+			{Name: "provider_bucket_configuration", Result: "skipped", Detail: "No provider bucket configuration was observed."},
+			{Name: "provider_enforced_proof", Result: "skipped", Detail: "Provider-enforced retention was not verified."},
+		},
+		Limitations: []string{"Provider-enforced object-lock, bucket versioning, and WORM settings were not checked by this ledger instance."},
+	}
+}
+
+func unavailableRetentionResult() ObjectRetentionResult {
+	return ObjectRetentionResult{
+		Checks: []domain.VerifyCheck{
+			{Name: "retention_policy_recorded", Result: "passed", Detail: "Tenant-scoped retention intent was recorded."},
+			{Name: "provider_verifier_configured", Result: "passed", Detail: "A provider-backed object-lock verifier is configured."},
+			{Name: "provider_observation", Result: "error", Detail: "Provider retention observation did not complete."},
+			{Name: "provider_enforced_proof", Result: "error", Detail: "Provider-enforced retention cannot be inferred while observation is unavailable."},
+		},
+		Limitations: []string{"Provider retention verification was unavailable; do not infer provider enforcement from this policy record."},
+	}
+}
+
+func providerRetentionResult(policy domain.ObjectRetentionPolicy, result ObjectRetentionResult) ObjectRetentionResult {
+	checks := append([]domain.VerifyCheck{{Name: "retention_policy_recorded", Result: "passed", Detail: "Tenant-scoped retention intent was recorded."}, {Name: "provider_verifier_configured", Result: "passed", Detail: "A provider-backed object-lock verifier is configured."}}, result.Checks...)
+	bucketEvidence := strings.TrimSpace(result.Provider) != "" && strings.TrimSpace(result.Bucket) != ""
+	sampleEvidence := policy.ObjectKey == "" || strings.TrimSpace(result.ObjectKey) == policy.ObjectKey
+	metadataComplete := retentionProviderMetadataComplete(policy, result)
+	checks = append(checks, domain.VerifyCheck{Name: "provider_bucket_configuration", Result: checkResultString(bucketEvidence), Detail: "Provider, bucket, mode, duration, and observation time must be recorded for a positive provider result."})
+	if policy.ObjectKey != "" {
+		checks = append(checks, domain.VerifyCheck{Name: "provider_sample_object", Result: checkResultString(sampleEvidence), Detail: "Provider observation must identify the configured tenant-scoped sample object."})
+	}
+	proof := result.Enforced && metadataComplete && retentionChecksPassed(result.Checks)
+	checks = append(checks, domain.VerifyCheck{Name: "provider_enforced_proof", Result: checkResultString(proof), Detail: "Provider enforcement requires complete observation metadata and passing provider checks."})
+	result.Checks = checks
+	result.Limitations = append([]string{"Provider verification reflects an observation at the recorded time and must be refreshed before its configured expiry."}, result.Limitations...)
+	return result
+}
+
+func retentionVerificationStatus(policy domain.ObjectRetentionPolicy, result ObjectRetentionResult) string {
+	if !result.Enforced {
+		return "not_enforced"
+	}
+	if !retentionProviderMetadataComplete(policy, result) || !retentionChecksPassed(result.Checks) {
+		return "not_verified"
+	}
+	return "verified"
+}
+
+func retentionProviderMetadataComplete(policy domain.ObjectRetentionPolicy, result ObjectRetentionResult) bool {
+	if strings.TrimSpace(result.Provider) == "" || strings.TrimSpace(result.Bucket) == "" || result.ObservedAt.IsZero() || !strings.EqualFold(strings.TrimSpace(result.Mode), policy.Mode) || result.RetentionDays < policy.RetentionDays {
+		return false
+	}
+	if policy.ObjectKey != "" && strings.TrimSpace(result.ObjectKey) != policy.ObjectKey {
+		return false
+	}
+	if policy.ObjectKey != "" && result.LegalHold == nil {
+		return false
+	}
+	return !policy.RequireLegalHold || (result.LegalHold != nil && *result.LegalHold)
+}
+
+func retentionChecksPassed(checks []domain.VerifyCheck) bool {
+	if len(checks) == 0 {
+		return false
+	}
+	for _, check := range checks {
+		if check.Result != "passed" {
+			return false
+		}
+	}
+	return true
+}
+
+func currentRetentionPolicy(policy domain.ObjectRetentionPolicy, now time.Time) domain.ObjectRetentionPolicy {
+	if policy.Status != "verified" {
+		return policy
+	}
+	if policy.VerificationExpiresAt != nil && now.Before(*policy.VerificationExpiresAt) {
+		return policy
+	}
+	policy.Status = "stale"
+	policy.VerificationChecks = append(append([]domain.VerifyCheck(nil), policy.VerificationChecks...), domain.VerifyCheck{Name: "provider_observation_freshness", Result: "failed", Detail: "Provider retention observation exceeded this policy's maximum verification age."})
+	policy.VerificationLimitations = append(append([]string(nil), policy.VerificationLimitations...), "Provider retention observation is stale and must be refreshed before it can be treated as current.")
+	return policy
+}
+
+func copyBool(value *bool) *bool {
+	if value == nil {
+		return nil
+	}
+	copy := *value
+	return &copy
+}
+
+func timeString(value *time.Time) string {
+	if value == nil {
+		return ""
+	}
+	return value.UTC().Format(time.RFC3339Nano)
 }
 
 func (l *Ledger) SigningCustodyReviewReport(ctx context.Context, actor domain.Actor) (domain.SigningCustodyReviewReport, error) {
@@ -462,8 +610,9 @@ func (l *Ledger) SigningCustodyReviewReport(ctx context.Context, actor domain.Ac
 		if policy.TenantID != actor.TenantID {
 			continue
 		}
-		retentionPolicies = append(retentionPolicies, policy)
-		if policy.Status == "verified" && policy.VerificationHash != "" {
+		current := currentRetentionPolicy(policy, l.now())
+		retentionPolicies = append(retentionPolicies, current)
+		if current.Status == "verified" && current.VerificationHash != "" {
 			hasVerifiedRetention = true
 		}
 	}
