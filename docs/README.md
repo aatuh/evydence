@@ -50,6 +50,7 @@ This documentation is organized by reader task. Implementation claims should be 
 - [Internal production-readiness exit checklist](reference/production-internal-exit-checklist.md): final repository-local closure checklist before claiming internal completion.
 - [Production readiness audit closeout](reference/production-readiness-audit-closeout.md): fresh audit result after internal backlog implementation.
 - [Highest achievable internal score](reference/production-internal-score.md): score summary and external blockers after repository-local closure.
+- [Quality scorecard](reference/quality-scorecard.md): current 9/10 evidence, external blockers, and conservative scoring rule.
 - [Persistence decomposition inventory](reference/persistence-decomposition.md): generated map of focused and broad relational persistence call sites.
 - [Production exit review](reference/production-exit-review.md): current release-positioning decision and unresolved blockers.
 - [Stable v0.1.0 exit criteria](reference/stable-v0.1.0-exit-criteria.md): criteria for moving from release candidate to a stable `v0.1.0` tag.

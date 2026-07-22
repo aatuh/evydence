@@ -1,10 +1,14 @@
-# Highest Achievable Internal Production-Readiness Score
+# Historical Internal Production-Readiness Score
 
-This page summarizes the highest production-readiness score supported by
-repository-local evidence after the internal backlog pass. It separates
+This historical snapshot summarizes the highest production-readiness score
+claimed by a prior repository-local assessment. It separates
 repo-local completion from external public trust proof. It is not release
 marketing, legal compliance proof, certification, complete SBOM proof,
 authoritative vulnerability coverage, or a secure-release guarantee.
+
+It does not evaluate the tracked 9/10 execution backlog. Use the current
+[quality scorecard](quality-scorecard.md) for that programme; this file remains
+only as dated context for the prior production-readiness review.
 
 ## Internal Result
 
