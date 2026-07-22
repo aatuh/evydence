@@ -11,6 +11,7 @@ product-boundary language across the docs.
 | Runtime configuration | `docs/reference/configuration.md` | How-to guides may show a short example, then link here for variables. |
 | API routes, scopes, idempotency, schemas | `openapi.yaml`, `docs/api.md`, `docs/reference/api-contract-matrix.md`, and `docs/openapi/index.html` | `openapi.yaml` is generated; the matrix and rendered OpenAPI docs are generated from it. |
 | Product boundary and API stability | `docs/reference/product-boundary.md` and `openapi.yaml` | Stability is generated per operation as `x-evydence-stability`; the matrix and route catalog must match it. |
+| Verification result taxonomy and assurance profiles | `docs/reference/verification-results.md` | Defines machine states, `passed` requirements, profile fields, legacy migration behavior, and customer-package representation. |
 | Local startup | `docs/tutorials/getting-started.md` | Uses in-process state only. |
 | Durable operation | `docs/how-to/install-and-operate.md` | Includes PostgreSQL/object storage and production-like Compose rehearsal. |
 | Kubernetes | `docs/kubernetes.md` | Helm-specific operator interface. |

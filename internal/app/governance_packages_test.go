@@ -223,6 +223,13 @@ func TestCustomerPackageV2ManifestSchemaAndSensitiveFieldExclusion(t *testing.T)
 	if err != nil {
 		t.Fatalf("bundle: %v", err)
 	}
+	bundleVerification, err := ledger.VerifySubject(ctx, actor, "release_bundle", bundle.ID)
+	if err != nil {
+		t.Fatalf("verify release bundle: %v", err)
+	}
+	if bundleVerification.Result != string(domain.VerificationStatePassed) {
+		t.Fatalf("release bundle verification = %#v", bundleVerification)
+	}
 	profile, err := ledger.CreateRedactionProfile(ctx, actor, CreateRedactionProfileInput{
 		Name: "customer v2",
 		AllowedTypes: []string{
@@ -244,6 +251,21 @@ func TestCustomerPackageV2ManifestSchemaAndSensitiveFieldExclusion(t *testing.T)
 		if _, ok := manifest[key]; !ok {
 			t.Fatalf("manifest missing %s: %#v", key, manifest)
 		}
+	}
+	verificationMaterial, ok := manifest["verification_material"].(map[string]any)
+	if !ok {
+		t.Fatalf("verification material has unexpected shape: %#v", manifest["verification_material"])
+	}
+	verificationResults, ok := verificationMaterial["verification_results"].([]map[string]any)
+	if !ok || len(verificationResults) != 1 {
+		t.Fatalf("verification result summaries = %#v, want one release-scoped result", verificationMaterial["verification_results"])
+	}
+	profileRecord, ok := verificationResults[0]["profile"].(domain.VerificationProfile)
+	if !ok || profileRecord.ID != "release-bundle-signature.v1" || len(profileRecord.Limitations) == 0 {
+		t.Fatalf("customer package verification profile = %#v", verificationResults[0]["profile"])
+	}
+	if limitations, ok := verificationResults[0]["limitations"].([]string); !ok || len(limitations) == 0 {
+		t.Fatalf("customer package verification limitations = %#v", verificationResults[0]["limitations"])
 	}
 	apiContracts, ok := manifest["api_contracts"].(map[string]any)
 	if !ok {

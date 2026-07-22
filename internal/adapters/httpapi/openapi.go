@@ -106,9 +106,20 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "provider_type", "provider_id", "subject"))
 	registry.RegisterSchema("VerifyCheck", objectSchema(map[string]any{
 		"name":   map[string]any{"type": "string"},
-		"result": map[string]any{"type": "string", "enum": []string{"passed", "failed", "warning", "skipped"}},
+		"result": map[string]any{"type": "string", "enum": []string{"passed", "failed", "warning", "skipped", "error"}},
 		"detail": map[string]any{"type": "string"},
 	}, "name", "result"))
+	registry.RegisterSchema("VerificationProfile", objectSchema(map[string]any{
+		"id":                 map[string]any{"type": "string"},
+		"version":            map[string]any{"type": "string"},
+		"required_checks":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"trust_material":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Non-secret trust-material identifiers or classes evaluated."},
+		"identity_policy":    map[string]any{"type": "string"},
+		"transparency_proof": map[string]any{"type": "string"},
+		"payload_scope":      map[string]any{"type": "string"},
+		"payload_digest":     map[string]any{"type": "string", "pattern": "^sha256:"},
+		"limitations":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+	}, "id", "version", "required_checks", "limitations"))
 	registry.RegisterSchema("AuditChainEntry", objectSchema(map[string]any{
 		"id":                   map[string]any{"type": "string"},
 		"tenant_id":            map[string]any{"type": "string"},
@@ -150,14 +161,17 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "id", "tenant_id", "state_hash", "resource_counts", "consistency_checks", "limitations", "schema_version", "created_at"))
 	registry.RegisterSchema("BackupManifestEnvelope", dataEnvelopeSchema("#/components/schemas/BackupManifest"))
 	registry.RegisterSchema("VerificationResult", objectSchema(map[string]any{
-		"id":           map[string]any{"type": "string"},
-		"tenant_id":    map[string]any{"type": "string"},
-		"subject_type": map[string]any{"type": "string"},
-		"subject_id":   map[string]any{"type": "string"},
-		"result":       map[string]any{"type": "string", "enum": []string{"passed", "failed"}},
-		"checks":       map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/VerifyCheck"}},
-		"verified_at":  map[string]any{"type": "string", "format": "date-time"},
-	}, "id", "tenant_id", "subject_type", "subject_id", "result", "checks", "verified_at"))
+		"id":             map[string]any{"type": "string"},
+		"tenant_id":      map[string]any{"type": "string"},
+		"subject_type":   map[string]any{"type": "string"},
+		"subject_id":     map[string]any{"type": "string"},
+		"result":         map[string]any{"type": "string", "enum": []string{"passed", "failed", "not_verified", "limited", "skipped", "error"}},
+		"checks":         map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/VerifyCheck"}},
+		"profile":        map[string]any{"$ref": "#/components/schemas/VerificationProfile"},
+		"limitations":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"schema_version": map[string]any{"type": "string"},
+		"verified_at":    map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "subject_type", "subject_id", "result", "checks", "profile", "limitations", "schema_version", "verified_at"))
 	registry.RegisterSchema("VerificationResultEnvelope", dataEnvelopeSchema("#/components/schemas/VerificationResult"))
 	registry.RegisterSchema("CreateMerkleBatchRequest", objectSchema(map[string]any{
 		"from_sequence": map[string]any{"type": "integer", "format": "int64"},
@@ -659,11 +673,13 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"rekor_log_index":       map[string]any{"type": "string"},
 		"certificate_identity":  map[string]any{"type": "string"},
 		"certificate_issuer":    map[string]any{"type": "string"},
-		"result":                map[string]any{"type": "string", "enum": []string{"limited", "failed"}, "description": "limited records only metadata assessment; it never proves a Cosign signature, certificate identity, trust policy, or Rekor inclusion."},
+		"result":                map[string]any{"type": "string", "enum": []string{"failed", "not_verified", "limited", "skipped", "error"}, "description": "limited records only metadata assessment; it never proves a Cosign signature, certificate identity, trust policy, or Rekor inclusion."},
 		"checks":                map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/VerifyCheck"}},
+		"profile":               map[string]any{"$ref": "#/components/schemas/VerificationProfile"},
+		"limitations":           map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 		"schema_version":        map[string]any{"type": "string"},
 		"created_at":            map[string]any{"type": "string", "format": "date-time"},
-	}, "id", "tenant_id", "artifact_signature_id", "subject_digest", "result", "checks", "schema_version", "created_at"))
+	}, "id", "tenant_id", "artifact_signature_id", "subject_digest", "result", "checks", "profile", "limitations", "schema_version", "created_at"))
 	registry.RegisterSchema("CosignVerificationEnvelope", dataEnvelopeSchema("#/components/schemas/CosignVerification"))
 	registry.RegisterSchema("DSSEEnvelope", objectSchema(map[string]any{
 		"payloadType": map[string]any{"type": "string"},
@@ -1370,12 +1386,13 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"provider_type":  map[string]any{"type": "string", "enum": []string{"oidc", "saml"}},
 		"provider_id":    map[string]any{"type": "string"},
 		"subject":        map[string]any{"type": "string"},
-		"result":         map[string]any{"type": "string", "enum": []string{"passed", "failed"}},
+		"result":         map[string]any{"type": "string", "enum": []string{"passed", "failed", "not_verified", "limited", "skipped", "error"}},
 		"checks":         map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/VerifyCheck"}},
+		"profile":        map[string]any{"$ref": "#/components/schemas/VerificationProfile"},
 		"limitations":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 		"schema_version": map[string]any{"type": "string"},
 		"created_at":     map[string]any{"type": "string", "format": "date-time"},
-	}, "id", "tenant_id", "provider_type", "provider_id", "subject", "result", "checks", "limitations", "schema_version", "created_at"))
+	}, "id", "tenant_id", "provider_type", "provider_id", "subject", "result", "checks", "profile", "limitations", "schema_version", "created_at"))
 	registry.RegisterSchema("ProviderVerificationEnvelope", dataEnvelopeSchema("#/components/schemas/ProviderVerification"))
 	registry.RegisterSchema("CreateOrganizationRequest", objectSchema(map[string]any{
 		"name": map[string]any{"type": "string"},

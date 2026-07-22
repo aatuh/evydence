@@ -143,7 +143,7 @@
         <div class="summary-card"><strong>3.1.0</strong><span>OpenAPI version</span></div>
         <div class="summary-card"><strong>169</strong><span>registered paths</span></div>
         <div class="summary-card"><strong>186</strong><span>operations</span></div>
-        <div class="summary-card"><strong>375</strong><span>schemas</span></div>
+        <div class="summary-card"><strong>376</strong><span>schemas</span></div>
       </div>
     </header>
     <main>
@@ -3572,7 +3572,7 @@
           <tr>
             <td><code>CosignVerification</code></td>
             <td>object</td>
-            <td>id, tenant_id, artifact_signature_id, subject_digest, result, checks, schema_version, created_at</td>
+            <td>id, tenant_id, artifact_signature_id, subject_digest, result, checks, profile, limitations, schema_version, created_at</td>
           </tr>
           <tr>
             <td><code>CosignVerificationEnvelope</code></td>
@@ -4402,7 +4402,7 @@
           <tr>
             <td><code>ProviderVerification</code></td>
             <td>object</td>
-            <td>id, tenant_id, provider_type, provider_id, subject, result, checks, limitations, schema_version, created_at</td>
+            <td>id, tenant_id, provider_type, provider_id, subject, result, checks, profile, limitations, schema_version, created_at</td>
           </tr>
           <tr>
             <td><code>ProviderVerificationEnvelope</code></td>
@@ -5095,9 +5095,14 @@
             <td>data, meta</td>
           </tr>
           <tr>
+            <td><code>VerificationProfile</code></td>
+            <td>object</td>
+            <td>id, version, required_checks, limitations</td>
+          </tr>
+          <tr>
             <td><code>VerificationResult</code></td>
             <td>object</td>
-            <td>id, tenant_id, subject_type, subject_id, result, checks, verified_at</td>
+            <td>id, tenant_id, subject_type, subject_id, result, checks, profile, limitations, schema_version, verified_at</td>
           </tr>
           <tr>
             <td><code>VerificationResultEnvelope</code></td>

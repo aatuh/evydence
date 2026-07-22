@@ -227,8 +227,11 @@ func TestFutureOperationalExtensionsAndPartialTrustClosures(t *testing.T) {
 	if err != nil {
 		t.Fatalf("provider verification: %v", err)
 	}
-	if verification.Result != "passed" {
+	if verification.Result != "limited" {
 		t.Fatalf("provider verification = %#v", verification)
+	}
+	if verification.Profile.ID != "provider-identity-oidc.v1" || len(verification.Limitations) == 0 {
+		t.Fatalf("provider verification assurance profile = %#v", verification)
 	}
 
 	marketplace, err := ledger.CreateMarketplaceCollector(ctx, actor, CreateMarketplaceCollectorInput{Name: "scanner", Provider: "scannerco", Version: "1.0.0", Publisher: "scannerco", ManifestHash: sampleDigest("collector")})
@@ -392,6 +395,14 @@ func TestProviderVerificationCanUseLiveOIDCUserInfoWithoutPersistingToken(t *tes
 	encoded, _ := json.Marshal(stored)
 	if strings.Contains(string(encoded), "access-token-secret") {
 		t.Fatalf("stored provider verification leaked access token: %s", encoded)
+	}
+	validator.err = errors.New("upstream provider unavailable")
+	failed, err := ledger.VerifyProviderIdentity(ctx, actor, VerifyProviderIdentityInput{ProviderType: "oidc", ProviderID: provider.ID, Subject: "sub-1", AccessToken: "access-token-secret"})
+	if !errors.Is(err, ErrVerificationFailed) || failed.Result != string(domain.VerificationStateError) {
+		t.Fatalf("provider API error verification = %#v err=%v", failed, err)
+	}
+	if !hasVerifyCheck(failed.Checks, "live_provider_api_validation", "error") {
+		t.Fatalf("provider API error checks = %#v", failed.Checks)
 	}
 }
 

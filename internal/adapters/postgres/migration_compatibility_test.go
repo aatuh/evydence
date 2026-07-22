@@ -84,6 +84,109 @@ func TestMigrationCompatibilityFromEveryCommittedState(t *testing.T) {
 	}
 }
 
+func TestVerificationAssuranceTaxonomyMigratesLegacyResultsConservatively(t *testing.T) {
+	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
+	if strings.TrimSpace(databaseURL) == "" {
+		t.Skip("EVYDENCE_TEST_DATABASE_URL is not set")
+	}
+	const taxonomyMigration = "20260722000100_verification_assurance_taxonomy.up.sql"
+	names := migrationFileNames(t, "../../../migrations")
+	taxonomyIndex := -1
+	for i, name := range names {
+		if name == taxonomyMigration {
+			taxonomyIndex = i
+			break
+		}
+	}
+	if taxonomyIndex < 0 {
+		t.Fatalf("migration %q not found", taxonomyMigration)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	basePool, err := pgxpool.New(ctx, databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer basePool.Close()
+
+	schema := fmt.Sprintf("evydence_assurance_taxonomy_%d", time.Now().UnixNano())
+	quotedSchema := pgx.Identifier{schema}.Sanitize()
+	if _, err := basePool.Exec(ctx, "CREATE SCHEMA "+quotedSchema); err != nil {
+		t.Fatal(err)
+	}
+	defer func(cleanupCtx context.Context) {
+		_, _ = basePool.Exec(cleanupCtx, "DROP SCHEMA "+quotedSchema+" CASCADE")
+	}(context.WithoutCancel(ctx))
+
+	store, err := Open(ctx, databaseURLWithSearchPath(t, databaseURL, schema))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	applyMigrationPrefix(t, ctx, store, "../../../migrations", names[:taxonomyIndex])
+
+	now := time.Now().UTC()
+	if _, err := store.pool.Exec(ctx, `INSERT INTO tenants (id, name, created_at) VALUES ($1, $2, $3)`, "legacy-tenant", "Legacy tenant", now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO verification_results (id, tenant_id, subject_type, subject_id, result, checks, verified_at)
+		VALUES
+			('legacy-generic-passed', 'legacy-tenant', 'release_bundle', 'bundle-1', 'passed', '[]'::jsonb, $1),
+			('legacy-generic-failed', 'legacy-tenant', 'release_bundle', 'bundle-2', 'failed', '[]'::jsonb, $1)
+	`, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO cosign_verifications (
+			id, tenant_id, artifact_signature_id, subject_digest, result, checks, schema_version, created_at
+		) VALUES ('legacy-cosign-passed', 'legacy-tenant', 'signature-1', 'sha256:legacy', 'passed', '[]'::jsonb, 'cosign-verification.v1.0.0', $1)
+	`, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO provider_verifications (
+			id, tenant_id, provider_type, provider_id, subject, result, checks, limitations, schema_version, created_at
+		) VALUES ('legacy-provider-passed', 'legacy-tenant', 'oidc', 'provider-1', 'subject-1', 'passed', '[]'::jsonb, '{}', 'provider-verification.v1.0.0', $1)
+	`, now); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := store.ApplyMigrations(ctx, "../../../migrations"); err != nil {
+		t.Fatal(err)
+	}
+	assertLegacyVerificationResult(t, ctx, store.pool, "legacy-generic-passed", "limited", "legacy-ambiguous-verification.v1", "verification-result.v2.0.0")
+	assertLegacyVerificationResult(t, ctx, store.pool, "legacy-generic-failed", "failed", "legacy-ambiguous-verification.v1", "verification-result.v2.0.0")
+	assertLegacyReceipt(t, ctx, store.pool, "cosign_verifications", "legacy-cosign-passed", "limited", "legacy-cosign-metadata.v1", "cosign-verification.v2.0.0")
+	assertLegacyReceipt(t, ctx, store.pool, "provider_verifications", "legacy-provider-passed", "limited", "legacy-provider-verification.v1", "provider-verification.v2.0.0")
+}
+
+func assertLegacyVerificationResult(t *testing.T, ctx context.Context, pool *pgxpool.Pool, id, wantResult, wantProfile, wantVersion string) {
+	t.Helper()
+	var result, profileID, schemaVersion string
+	var limitations []string
+	if err := pool.QueryRow(ctx, `SELECT result, assurance_profile->>'id', limitations, schema_version FROM verification_results WHERE id = $1`, id).Scan(&result, &profileID, &limitations, &schemaVersion); err != nil {
+		t.Fatal(err)
+	}
+	if result != wantResult || profileID != wantProfile || schemaVersion != wantVersion || len(limitations) == 0 {
+		t.Fatalf("legacy verification %s = result:%q profile:%q limitations:%#v version:%q", id, result, profileID, limitations, schemaVersion)
+	}
+}
+
+func assertLegacyReceipt(t *testing.T, ctx context.Context, pool *pgxpool.Pool, table, id, wantResult, wantProfile, wantVersion string) {
+	t.Helper()
+	var result, profileID, schemaVersion string
+	var limitations []string
+	query := fmt.Sprintf("SELECT result, assurance_profile->>'id', limitations, schema_version FROM %s WHERE id = $1", pgx.Identifier{table}.Sanitize())
+	if err := pool.QueryRow(ctx, query, id).Scan(&result, &profileID, &limitations, &schemaVersion); err != nil {
+		t.Fatal(err)
+	}
+	if result != wantResult || profileID != wantProfile || schemaVersion != wantVersion || len(limitations) == 0 {
+		t.Fatalf("legacy receipt %s/%s = result:%q profile:%q limitations:%#v version:%q", table, id, result, profileID, limitations, schemaVersion)
+	}
+}
+
 func migrationFileNames(t *testing.T, dir string) []string {
 	t.Helper()
 	entries, err := os.ReadDir(dir)

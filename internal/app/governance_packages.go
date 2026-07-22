@@ -1094,6 +1094,10 @@ func packageGapVisibleForProfile(missing string, profile domain.RedactionProfile
 }
 
 func (l *Ledger) packageVerificationMaterialLocked(tenantID, releaseID string) map[string]any {
+	releaseArtifactIDs := map[string]bool{}
+	for _, artifactID := range l.packageReleaseArtifactIDsLocked(tenantID, releaseID) {
+		releaseArtifactIDs[artifactID] = true
+	}
 	bundles := []map[string]any{}
 	for _, bundle := range l.bundles {
 		if bundle.TenantID != tenantID || bundle.ReleaseID != releaseID {
@@ -1108,12 +1112,77 @@ func (l *Ledger) packageVerificationMaterialLocked(tenantID, releaseID string) m
 		})
 	}
 	sortManifestMapsByID(bundles)
+	results := []map[string]any{}
+	for _, verification := range l.verifications {
+		if verification.TenantID != tenantID || !l.verificationMatchesReleaseLocked(verification, releaseID, releaseArtifactIDs) {
+			continue
+		}
+		results = append(results, map[string]any{
+			"id":             verification.ID,
+			"subject_type":   verification.SubjectType,
+			"subject_id":     verification.SubjectID,
+			"result":         verification.Result,
+			"checks":         packageVerifyChecks(verification.Checks),
+			"profile":        verification.Profile,
+			"limitations":    append([]string(nil), verification.Limitations...),
+			"schema_version": verification.SchemaVersion,
+			"verified_at":    verification.VerifiedAt.UTC().Format(time.RFC3339),
+		})
+	}
+	sortManifestMapsByID(results)
+	cosignAssessments := []map[string]any{}
+	for _, verification := range l.cosignVerifs {
+		artifact, ok := l.artifacts[verification.ArtifactID]
+		if !ok || artifact.TenantID != tenantID || !releaseArtifactIDs[artifact.ID] {
+			continue
+		}
+		cosignAssessments = append(cosignAssessments, map[string]any{
+			"id":             verification.ID,
+			"artifact_id":    verification.ArtifactID,
+			"result":         verification.Result,
+			"checks":         packageVerifyChecks(verification.Checks),
+			"profile":        verification.Profile,
+			"limitations":    append([]string(nil), verification.Limitations...),
+			"schema_version": verification.SchemaVersion,
+			"created_at":     verification.CreatedAt.UTC().Format(time.RFC3339),
+		})
+	}
+	sortManifestMapsByID(cosignAssessments)
 	return map[string]any{
-		"hash_algorithm":      "sha256",
-		"canonicalization":    domain.CanonicalizationProfileVersion,
-		"manifest_hash_field": "manifest_hash",
-		"release_bundles":     bundles,
-		"audit_chain":         l.packageAuditChainSummaryLocked(tenantID),
+		"hash_algorithm":       "sha256",
+		"canonicalization":     domain.CanonicalizationProfileVersion,
+		"manifest_hash_field":  "manifest_hash",
+		"release_bundles":      bundles,
+		"verification_results": results,
+		"cosign_assessments":   cosignAssessments,
+		"audit_chain":          l.packageAuditChainSummaryLocked(tenantID),
+	}
+}
+
+func (l *Ledger) verificationMatchesReleaseLocked(verification domain.VerificationResult, releaseID string, releaseArtifactIDs map[string]bool) bool {
+	switch verification.SubjectType {
+	case "release_bundle":
+		bundle, ok := l.bundles[verification.SubjectID]
+		return ok && bundle.ReleaseID == releaseID
+	case "evidence_item":
+		item, ok := l.evidence[verification.SubjectID]
+		return ok && item.ReleaseID == releaseID
+	case "artifact_signature":
+		signature, ok := l.artifactSigs[verification.SubjectID]
+		if !ok {
+			return false
+		}
+		artifact, ok := l.artifacts[signature.ArtifactID]
+		return ok && releaseArtifactIDs[artifact.ID]
+	case "build_attestation":
+		attestation, ok := l.attestations[verification.SubjectID]
+		if !ok {
+			return false
+		}
+		build, ok := l.buildRuns[attestation.BuildID]
+		return ok && build.ReleaseID == releaseID
+	default:
+		return false
 	}
 }
 
@@ -1966,19 +2035,18 @@ func (l *Ledger) VerifyDSSEAttestationSignature(ctx context.Context, actor domai
 			}
 		}
 	}
-	result := "passed"
 	if !passed {
-		result = "failed"
 		checks = append(checks, domain.VerifyCheck{Name: "dsse_signature", Result: "failed"})
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	vr := domain.VerificationResult{ID: newID("vr"), TenantID: actor.TenantID, SubjectType: "build_attestation", SubjectID: att.ID, Result: result, Checks: checks, VerifiedAt: l.now()}
+	profile := assuranceProfile("dsse-attestation-signature.v1", []string{"dsse_signature"}, []string{"active tenant DSSE Ed25519 trust roots"}, "DSSE key identifier matches configured trust root", "not_evaluated", "raw DSSE attestation bytes", att.PayloadHash, []string{"DSSE signature verification does not verify builder identity, provenance completeness, or external transparency inclusion."})
+	vr := verificationResult(newID("vr"), actor.TenantID, "build_attestation", att.ID, checks, profile, l.now())
 	l.verifications[vr.ID] = vr
 	if err := l.persistLocked(ctx); err != nil {
 		return domain.VerificationResult{}, err
 	}
-	if result != "passed" {
+	if verificationReturnsFailure(vr.Result) {
 		return vr, ErrVerificationFailed
 	}
 	return vr, nil

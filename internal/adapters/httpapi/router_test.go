@@ -138,9 +138,21 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	if _, ok := redactionRequestProps["preset"]; !ok {
 		t.Fatalf("redaction profile request schema missing preset: %#v", redactionRequestProps)
 	}
-	for _, schemaName := range []string{"ReadinessStatusEnvelope", "BackupManifestEnvelope", "VerificationResultEnvelope", "ReadinessReportEnvelope", "CRAVulnerabilityHandlingReportEnvelope", "SecurityUpdateEvidenceReportEnvelope", "SigningCustodyReviewReportEnvelope", "CreateProductRequest", "ProductEnvelope", "ProductListEnvelope", "CreateProjectRequest", "ProjectEnvelope", "CreateReleaseRequest", "ReleaseEnvelope", "ReleaseEvidenceFlowEnvelope", "ReleaseSecuritySummaryEnvelope", "RegisterArtifactRequest", "ArtifactEnvelope", "CreateBuildRequest", "BuildRunEnvelope", "EvidenceUploadRequest", "SBOMEnvelope", "VEXDocumentEnvelope", "VEXImportReportEnvelope", "VEXImportPreviewEnvelope", "UploadVulnerabilityScanRequest", "VulnerabilityScanEnvelope", "VulnerabilityDecisionListEnvelope", "VulnerabilityDecisionSummaryReportEnvelope", "CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOProviderRequest", "UpdateSSOProviderTrustMaterialRequest", "SSOProviderEnvelope", "VerifyProviderIdentityRequest", "ProviderVerificationEnvelope", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "ExchangeSSOCredentialRequest", "SSOCredentialExchangeEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalAccessEnvelope", "CustomerPortalAccessListEnvelope", "CustomerPortalPackageRequest", "QuestionnaireAnswerLibraryEntryEnvelope", "QuestionnaireAnswerLibraryEntryListEnvelope", "DataEnvelope"} {
+	for _, schemaName := range []string{"ReadinessStatusEnvelope", "BackupManifestEnvelope", "VerificationResultEnvelope", "VerificationProfile", "ReadinessReportEnvelope", "CRAVulnerabilityHandlingReportEnvelope", "SecurityUpdateEvidenceReportEnvelope", "SigningCustodyReviewReportEnvelope", "CreateProductRequest", "ProductEnvelope", "ProductListEnvelope", "CreateProjectRequest", "ProjectEnvelope", "CreateReleaseRequest", "ReleaseEnvelope", "ReleaseEvidenceFlowEnvelope", "ReleaseSecuritySummaryEnvelope", "RegisterArtifactRequest", "ArtifactEnvelope", "CreateBuildRequest", "BuildRunEnvelope", "EvidenceUploadRequest", "SBOMEnvelope", "VEXDocumentEnvelope", "VEXImportReportEnvelope", "VEXImportPreviewEnvelope", "UploadVulnerabilityScanRequest", "VulnerabilityScanEnvelope", "VulnerabilityDecisionListEnvelope", "VulnerabilityDecisionSummaryReportEnvelope", "CreateEvidenceRequest", "CreateReleaseBundleRequest", "CreateSSOProviderRequest", "UpdateSSOProviderTrustMaterialRequest", "SSOProviderEnvelope", "VerifyProviderIdentityRequest", "ProviderVerificationEnvelope", "CreateSSOSessionRequest", "SSOSessionCreateEnvelope", "ExchangeSSOCredentialRequest", "SSOCredentialExchangeEnvelope", "CreateCustomerPortalAccessRequest", "CustomerPortalAccessCreateEnvelope", "CustomerPortalAccessEnvelope", "CustomerPortalAccessListEnvelope", "CustomerPortalPackageRequest", "QuestionnaireAnswerLibraryEntryEnvelope", "QuestionnaireAnswerLibraryEntryListEnvelope", "DataEnvelope"} {
 		if _, ok := schemas[schemaName]; !ok {
 			t.Fatalf("schema %s missing from OpenAPI components", schemaName)
+		}
+	}
+	verificationProps := asStringAnyMap(t, asStringAnyMap(t, schemas["VerificationResult"])["properties"])
+	verificationResult := fmt.Sprintf("%v", verificationProps["result"])
+	for _, state := range []string{"passed", "failed", "not_verified", "limited", "skipped", "error"} {
+		if !strings.Contains(verificationResult, state) {
+			t.Fatalf("verification result schema missing %q: %#v", state, verificationProps["result"])
+		}
+	}
+	for _, field := range []string{"profile", "limitations", "schema_version"} {
+		if _, ok := verificationProps[field]; !ok {
+			t.Fatalf("verification result schema missing %q: %#v", field, verificationProps)
 		}
 	}
 

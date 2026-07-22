@@ -20,7 +20,7 @@ vulnerability result, or a secure-release guarantee.
 | `readiness_summary` | Deterministic readiness checks, gaps, and limitations. |
 | `customer_decision_export` | Optional archive file metadata for the package-scoped customer-safe decision export. |
 | `customer_safe_gaps` | Optional customer-visible gap records filtered through the package redaction profile. |
-| `verification_material` | Hash algorithm, canonicalization profile, release bundle hashes, and audit-chain summary. |
+| `verification_material` | Hash algorithm, canonicalization profile, release bundle hashes, audit-chain summary, and release-scoped verification result summaries with assurance profiles and limitations when present. |
 | `reviewer_checklist` | Optional proof-path checklist covering package scope, included evidence, excluded evidence, verification, non-claims, and escalation path. |
 | `limitations`, `non_claims` | Required package limitations and conservative product-language boundaries. |
 
@@ -56,6 +56,17 @@ and target contract IDs, result, breaking and non-breaking change summaries,
 schema version, and timestamp. The section deliberately omits raw OpenAPI
 document bytes, object-store references, and private/internal document
 extensions.
+
+When release-scoped verification results are present, `verification_material`
+also contains `verification_results`, and may contain `cosign_assessments` for
+artifacts linked to that release. Each summary records its result, individual
+checks, schema version, assurance profile, and limitations. Profiles include
+only non-secret trust-material identifiers or classes, identity-policy and
+transparency-proof treatment, and payload scope/digest; they never include raw
+payloads, signature bytes, trust roots, tokens, or private key material. A
+`passed` result means every check required by its own profile passed. It is not
+a compliance conclusion, a complete provenance claim, or a secure-release
+guarantee. See [Verification results](verification-results.md).
 
 When customer-visible vulnerability decisions are present, generated package
 archives also include `vulnerability-decisions.json`. That file is scoped to the

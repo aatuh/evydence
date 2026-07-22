@@ -1520,13 +1520,14 @@ func (l *Ledger) VerifySubject(ctx context.Context, actor domain.Actor, subjectT
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	checks := []domain.VerifyCheck{}
-	result := "passed"
+	var profile domain.VerificationProfile
 	switch strings.TrimSpace(subjectType) {
 	case "audit_chain":
 		if err := l.authorizeResourceLocked(actor, ScopeVerifyRead, resourceRefs{}); err != nil {
 			return domain.VerificationResult{}, err
 		}
 		checks = l.verifyChainLocked(actor.TenantID)
+		profile = assuranceProfile("audit-chain-integrity.v1", requiredCheckNames(checks), []string{"Evydence audit-chain canonical hashes"}, "tenant-scoped verification authorization", "not_evaluated", "tenant audit-chain entries", "", []string{"Audit-chain verification does not prove external anchoring or third-party log inclusion."})
 	case "evidence_item":
 		item, ok := l.evidence[strings.TrimSpace(subjectID)]
 		if !ok || item.TenantID != actor.TenantID {
@@ -1537,11 +1538,11 @@ func (l *Ledger) VerifySubject(ctx context.Context, actor domain.Actor, subjectT
 		}
 		hash, err := canonicalHash(item)
 		if err != nil || hash != item.CanonicalHash {
-			result = "failed"
 			checks = append(checks, domain.VerifyCheck{Name: "canonical_hash", Result: "failed"})
 		} else {
 			checks = append(checks, domain.VerifyCheck{Name: "canonical_hash", Result: "passed"})
 		}
+		profile = assuranceProfile("evidence-canonical-hash.v1", []string{"canonical_hash"}, []string{domain.CanonicalizationProfileVersion}, "tenant-scoped verification authorization", "not_evaluated", "canonical evidence fields", item.CanonicalHash, []string{"Canonical evidence hashing does not validate the origin or completeness of the uploaded payload."})
 	case "release_bundle":
 		bundle, ok := l.bundles[strings.TrimSpace(subjectID)]
 		if !ok || bundle.TenantID != actor.TenantID {
@@ -1552,17 +1553,16 @@ func (l *Ledger) VerifySubject(ctx context.Context, actor domain.Actor, subjectT
 		}
 		hash, err := canonicalAnyHash(bundle.Manifest)
 		if err != nil || hash != bundle.ManifestHash {
-			result = "failed"
 			checks = append(checks, domain.VerifyCheck{Name: "manifest_hash", Result: "failed"})
 		} else {
 			checks = append(checks, domain.VerifyCheck{Name: "manifest_hash", Result: "passed"})
 		}
 		if !l.verifySignatureLocked(bundle.TenantID, bundle.SignatureRefs, []byte(bundle.ManifestHash)) {
-			result = "failed"
 			checks = append(checks, domain.VerifyCheck{Name: "bundle_signature", Result: "failed"})
 		} else {
 			checks = append(checks, domain.VerifyCheck{Name: "bundle_signature", Result: "passed"})
 		}
+		profile = assuranceProfile("release-bundle-signature.v1", []string{"manifest_hash", "bundle_signature"}, []string{"active or historically valid tenant signing keys"}, "tenant-scoped verification authorization", "not_evaluated", "release bundle manifest canonical JSON", bundle.ManifestHash, []string{"Bundle verification does not establish external publication, registry provenance, or legal sufficiency."})
 	case "artifact_signature":
 		sig, ok := l.artifactSigs[strings.TrimSpace(subjectID)]
 		if !ok || sig.TenantID != actor.TenantID {
@@ -1576,26 +1576,20 @@ func (l *Ledger) VerifySubject(ctx context.Context, actor domain.Actor, subjectT
 			return domain.VerificationResult{}, ErrNotFound
 		}
 		if artifact.Digest != sig.SubjectDigest {
-			result = "failed"
-			checks = append(checks, domain.VerifyCheck{Name: "subject_digest", Result: "failed"})
+			checks = append(checks, domain.VerifyCheck{Name: "digest_binding_assessed", Result: "failed"})
 		} else {
-			checks = append(checks, domain.VerifyCheck{Name: "subject_digest", Result: "passed"})
+			checks = append(checks, domain.VerifyCheck{Name: "digest_binding_assessed", Result: "passed"})
 		}
 		if sig.Algorithm == "" || sig.Signature == "" {
-			result = "failed"
-			checks = append(checks, domain.VerifyCheck{Name: "signature_present", Result: "failed"})
+			checks = append(checks, domain.VerifyCheck{Name: "signature_material_present", Result: "failed"})
 		} else {
-			checks = append(checks, domain.VerifyCheck{Name: "signature_present", Result: "passed", Detail: "signature recorded; cryptographic trust-root verification is deferred"})
+			checks = append(checks, domain.VerifyCheck{Name: "signature_material_present", Result: "passed", Detail: "signature recorded; cryptographic trust-root verification is deferred"})
 		}
+		profile = assuranceProfile("artifact-signature-metadata.v1", []string{"digest_binding_assessed", "signature_material_present", "cryptographic_signature_verified", "certificate_identity_policy", "transparency_inclusion_proof"}, []string{"recorded artifact signature metadata"}, "no certificate identity policy evaluated", "not_evaluated", "artifact digest and detached signature metadata", sig.SubjectDigest, []string{"This profile is metadata-only and cannot verify cryptographic signature validity, certificate identity, trust roots, or transparency inclusion."})
 	default:
 		return domain.VerificationResult{}, ErrValidation
 	}
-	for _, check := range checks {
-		if check.Result != "passed" {
-			result = "failed"
-		}
-	}
-	vr := domain.VerificationResult{ID: newID("vr"), TenantID: actor.TenantID, SubjectType: subjectType, SubjectID: subjectID, Result: result, Checks: checks, VerifiedAt: l.now()}
+	vr := verificationResult(newID("vr"), actor.TenantID, subjectType, subjectID, checks, profile, l.now())
 	l.verifications[vr.ID] = vr
 	job := l.newOutboxJob(actor.TenantID, "verify_subject", subjectType, subjectID, map[string]any{"result_id": vr.ID})
 	mutation := l.criticalMutationLocked()
@@ -1608,7 +1602,7 @@ func (l *Ledger) VerifySubject(ctx context.Context, actor domain.Actor, subjectT
 	if err := l.persistCriticalLocked(ctx, mutation); err != nil {
 		return domain.VerificationResult{}, err
 	}
-	if result != "passed" {
+	if verificationReturnsFailure(vr.Result) {
 		return vr, ErrVerificationFailed
 	}
 	return vr, nil

@@ -548,20 +548,13 @@ func (s identityService) ExchangeSSOCredential(ctx context.Context, in ExchangeS
 		return domain.ProviderVerification{}, domain.SSOSession{}, "", ErrValidation
 	}
 	checks := []domain.VerifyCheck{}
-	result := "passed"
 	if idToken != "" {
-		tokenChecks, err := verifyOIDCIDToken(provider, subject, idToken, now)
+		tokenChecks, _ := verifyOIDCIDToken(provider, subject, idToken, now)
 		checks = append(checks, tokenChecks...)
-		if err != nil {
-			result = "failed"
-		}
 	}
 	if samlAssertion != "" {
-		assertionChecks, err := verifySAMLAssertion(provider, subject, samlAssertion, now)
+		assertionChecks, _ := verifySAMLAssertion(provider, subject, samlAssertion, now)
 		checks = append(checks, assertionChecks...)
-		if err != nil {
-			result = "failed"
-		}
 	}
 
 	var link domain.UserIdentityLink
@@ -572,7 +565,6 @@ func (s identityService) ExchangeSSOCredential(ctx context.Context, in ExchangeS
 		}
 	}
 	if link.ID == "" {
-		result = "failed"
 		checks = append(checks, domain.VerifyCheck{Name: "verified_identity_link", Result: "failed"})
 	} else {
 		checks = append(checks, domain.VerifyCheck{Name: "verified_identity_link", Result: "passed"})
@@ -584,15 +576,15 @@ func (s identityService) ExchangeSSOCredential(ctx context.Context, in ExchangeS
 		ProviderType:  provider.Type,
 		ProviderID:    provider.ID,
 		Subject:       subject,
-		Result:        result,
 		Checks:        checks,
 		Limitations:   []string{"Credential exchange uses configured local token/assertion trust roots and verified identity links; no live provider API or group synchronization call is made."},
 		SchemaVersion: domain.ProviderVerificationVersion,
 		CreatedAt:     now,
 	}
+	reassessProviderVerification(&verification, provider, true)
 	l.providerVerifications[verification.ID] = verification
 	_, _ = l.appendChainLocked(provider.TenantID, "provider_identity.verified", "provider_identity", verification.ID, "sso_provider", provider.ID, "", "")
-	if result != "passed" {
+	if verificationReturnsFailure(verification.Result) {
 		if err := l.persistLocked(ctx); err != nil {
 			return domain.ProviderVerification{}, domain.SSOSession{}, "", err
 		}
@@ -600,8 +592,8 @@ func (s identityService) ExchangeSSOCredential(ctx context.Context, in ExchangeS
 	}
 	user, ok := l.users[link.UserID]
 	if !ok || user.TenantID != provider.TenantID || user.Status != "active" {
-		verification.Result = "failed"
 		verification.Checks = append(verification.Checks, domain.VerifyCheck{Name: "active_user", Result: "failed"})
+		reassessProviderVerification(&verification, provider, true)
 		l.providerVerifications[verification.ID] = verification
 		if err := l.persistLocked(ctx); err != nil {
 			return domain.ProviderVerification{}, domain.SSOSession{}, "", err
@@ -609,13 +601,14 @@ func (s identityService) ExchangeSSOCredential(ctx context.Context, in ExchangeS
 		return verification, domain.SSOSession{}, "", ErrVerificationFailed
 	}
 	verification.Checks = append(verification.Checks, domain.VerifyCheck{Name: "active_user", Result: "passed"})
+	reassessProviderVerification(&verification, provider, true)
 	l.providerVerifications[verification.ID] = verification
 
 	groups := oidcGroupsFromVerifiedToken(provider, idToken)
 	grants := append(l.resourceGrantsForUserLocked(user.ID), resourceGrantsForProviderGroups(provider, groups)...)
 	if len(scopesFromResourceGrants(grants)) == 0 {
-		verification.Result = "failed"
 		verification.Checks = append(verification.Checks, domain.VerifyCheck{Name: "authorization_grant", Result: "failed"})
+		reassessProviderVerification(&verification, provider, true)
 		l.providerVerifications[verification.ID] = verification
 		if err := l.persistLocked(ctx); err != nil {
 			return domain.ProviderVerification{}, domain.SSOSession{}, "", err
@@ -624,6 +617,7 @@ func (s identityService) ExchangeSSOCredential(ctx context.Context, in ExchangeS
 	}
 	if len(groups) > 0 && len(resourceGrantsForProviderGroups(provider, groups)) > 0 {
 		verification.Checks = append(verification.Checks, domain.VerifyCheck{Name: "mapped_group_roles", Result: "passed", Detail: fmt.Sprintf("%d session-scoped provider group role mapping(s) applied", len(resourceGrantsForProviderGroups(provider, groups)))})
+		reassessProviderVerification(&verification, provider, true)
 	}
 	l.providerVerifications[verification.ID] = verification
 

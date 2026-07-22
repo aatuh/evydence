@@ -15,6 +15,10 @@ release artifacts.
 
 ### Added
 
+- Verification responses now use a versioned, conservative assurance-result
+  taxonomy and record profile scope, non-secret trust-material identifiers,
+  required checks, and limitations. Customer packages include release-scoped
+  verification profile summaries when available.
 - Customer package reviewer materials now include a proof summary, dossier,
   proof checklist, customer-safe vulnerability-decision context, and a
   token-scoped portal review path.
@@ -42,6 +46,8 @@ release artifacts.
 
 ### Fixed
 
+- Updated the indirect `golang.org/x/text` dependency to v0.39.0 to remediate
+  the reachable invalid-input infinite-loop advisory reported by `make vuln`.
 - Cosign metadata assessment can no longer report `passed` from a non-empty
   signature string. The deprecated compatibility route now reports `limited`
   unless stored digest or signature material is missing, and explicitly rejects

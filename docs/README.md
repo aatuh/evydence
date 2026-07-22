@@ -39,6 +39,7 @@ This documentation is organized by reader task. Implementation claims should be 
 - [Capability map](reference/capability-map.md): advanced inventory of implemented capabilities, implementation limits, and implemented-but-partial areas.
 - [API contract matrix](reference/api-contract-matrix.md): generated route-by-route contract precision inventory for production hardening.
 - [Product boundary and API stability](reference/product-boundary.md): differentiated core flow, stability classes, and experimental-surface limits.
+- [Verification results](reference/verification-results.md): machine result states, assurance-profile fields, legacy migration behavior, and customer-package limits.
 - [OpenAPI contract](reference/openapi.md): generation, drift checks, and review tips for `openapi.yaml`.
 - [Rendered OpenAPI docs](openapi/index.html): static page generated from the committed OpenAPI contract.
 - [Vulnerability decisions](reference/vulnerability-decisions.md): current VEX/decision model, buyer-facing gaps, and planned API changes.

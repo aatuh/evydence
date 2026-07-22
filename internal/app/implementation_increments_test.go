@@ -119,8 +119,11 @@ func TestReleaseCandidateContainerImageAndArtifactSignature(t *testing.T) {
 	if err != nil {
 		t.Fatalf("verify artifact signature: %v", err)
 	}
-	if vr.Result != "passed" {
-		t.Fatalf("artifact signature verification = %s, want passed", vr.Result)
+	if vr.Result != "limited" {
+		t.Fatalf("artifact signature verification = %s, want limited", vr.Result)
+	}
+	if vr.Profile.ID != "artifact-signature-metadata.v1" || len(vr.Limitations) == 0 {
+		t.Fatalf("artifact signature assurance profile = %#v", vr)
 	}
 }
 

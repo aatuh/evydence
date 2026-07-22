@@ -71,15 +71,12 @@ func (l *Ledger) VerifyCosignSignature(ctx context.Context, actor domain.Actor, 
 		return domain.CosignVerification{}, ErrNotFound
 	}
 	checks := []domain.VerifyCheck{}
-	result := "limited"
 	if artifact.Digest != sig.SubjectDigest || !validDigest(sig.SubjectDigest) {
-		result = "failed"
 		checks = append(checks, domain.VerifyCheck{Name: "digest_binding_assessed", Result: "failed", Detail: "stored artifact and signature digest binding does not match"})
 	} else {
 		checks = append(checks, domain.VerifyCheck{Name: "digest_binding_assessed", Result: "passed", Detail: "stored artifact and signature digest binding matches"})
 	}
 	if strings.TrimSpace(sig.Signature) == "" {
-		result = "failed"
 		checks = append(checks, domain.VerifyCheck{Name: "signature_material_present", Result: "failed", Detail: "no signature material was recorded"})
 	} else {
 		checks = append(checks, domain.VerifyCheck{Name: "signature_material_present", Result: "passed", Detail: "signature material was recorded but was not cryptographically verified"})
@@ -98,6 +95,8 @@ func (l *Ledger) VerifyCosignSignature(ctx context.Context, actor domain.Actor, 
 			break
 		}
 	}
+	profile := assuranceProfile("cosign-full-verification.v1", []string{"digest_binding_assessed", "signature_material_present", "cryptographic_signature_verified", "certificate_identity_policy", "transparency_inclusion_proof"}, []string{"configured Cosign verifier trust roots"}, "configured certificate identity and issuer policy", "verified inclusion proof and checkpoint", "artifact digest and detached signature material", sig.SubjectDigest, []string{"This deployment has no configured Cosign verifier or tenant trust policy, so metadata assessment cannot establish cryptographic signature validity."})
+	result := string(domain.AggregateVerificationState(profile, checks))
 	record := domain.CosignVerification{
 		ID:                  newID("cosv"),
 		TenantID:            actor.TenantID,
@@ -111,16 +110,18 @@ func (l *Ledger) VerifyCosignSignature(ctx context.Context, actor domain.Actor, 
 		CertificateIssuer:   strings.TrimSpace(in.CertificateIssuer),
 		Result:              result,
 		Checks:              checks,
+		Profile:             profile,
+		Limitations:         append([]string(nil), profile.Limitations...),
 		SchemaVersion:       domain.CosignVerificationSchemaVersion,
 		CreatedAt:           l.now(),
 	}
 	l.cosignVerifs[record.ID] = record
-	l.verifications[record.ID] = domain.VerificationResult{ID: record.ID, TenantID: actor.TenantID, SubjectType: "artifact_signature", SubjectID: sig.ID, Result: result, Checks: checks, VerifiedAt: record.CreatedAt}
+	l.verifications[record.ID] = verificationResult(record.ID, actor.TenantID, "artifact_signature", sig.ID, checks, profile, record.CreatedAt)
 	_, _ = l.appendChainLocked(actor.TenantID, "cosign_signature.verified", "artifact_signature", sig.ID, actorType(actor), actorID(actor), sig.SubjectDigest, "")
 	if err := l.persistLocked(ctx); err != nil {
 		return domain.CosignVerification{}, err
 	}
-	if result == "failed" {
+	if verificationReturnsFailure(result) {
 		return record, ErrVerificationFailed
 	}
 	if in.RequireFullVerification {
@@ -245,26 +246,24 @@ func (l *Ledger) VerifyMerkleBatch(ctx context.Context, actor domain.Actor, id s
 	if !ok || batch.TenantID != actor.TenantID {
 		return domain.VerificationResult{}, ErrNotFound
 	}
-	result := "passed"
 	checks := []domain.VerifyCheck{}
 	if got := merkleRoot(batch.LeafHashes); got != batch.RootHash {
-		result = "failed"
 		checks = append(checks, domain.VerifyCheck{Name: "merkle_root", Result: "failed"})
 	} else {
 		checks = append(checks, domain.VerifyCheck{Name: "merkle_root", Result: "passed"})
 	}
 	if !l.verifySignatureLocked(actor.TenantID, batch.SignatureRefs, []byte(batch.RootHash)) {
-		result = "failed"
 		checks = append(checks, domain.VerifyCheck{Name: "checkpoint_signature", Result: "failed"})
 	} else {
 		checks = append(checks, domain.VerifyCheck{Name: "checkpoint_signature", Result: "passed"})
 	}
-	vr := domain.VerificationResult{ID: newID("vr"), TenantID: actor.TenantID, SubjectType: "merkle_batch", SubjectID: batch.ID, Result: result, Checks: checks, VerifiedAt: l.now()}
+	profile := assuranceProfile("merkle-checkpoint.v1", []string{"merkle_root", "checkpoint_signature"}, []string{"tenant signing keys"}, "tenant-scoped verification authorization", "not_evaluated", "Merkle batch leaf hashes and signed root", batch.RootHash, []string{"Merkle checkpoint verification does not establish external transparency-log inclusion."})
+	vr := verificationResult(newID("vr"), actor.TenantID, "merkle_batch", batch.ID, checks, profile, l.now())
 	l.verifications[vr.ID] = vr
 	if err := l.persistLocked(ctx); err != nil {
 		return domain.VerificationResult{}, err
 	}
-	if result != "passed" {
+	if verificationReturnsFailure(vr.Result) {
 		return vr, ErrVerificationFailed
 	}
 	return vr, nil
@@ -538,21 +537,15 @@ func (l *Ledger) VerifyBackupManifest(ctx context.Context, actor domain.Actor, i
 	if !ok || manifest.TenantID != actor.TenantID {
 		return domain.VerificationResult{}, ErrNotFound
 	}
-	result := "passed"
 	checks := append([]domain.VerifyCheck(nil), manifest.ConsistencyChecks...)
-	for _, check := range checks {
-		if check.Result == "failed" {
-			result = "failed"
-			break
-		}
-	}
 	checks = append(checks, domain.VerifyCheck{Name: "backup_manifest_present", Result: "passed", Detail: manifest.StateHash})
-	vr := domain.VerificationResult{ID: newID("vr"), TenantID: actor.TenantID, SubjectType: "backup_manifest", SubjectID: manifest.ID, Result: result, Checks: checks, VerifiedAt: l.now()}
+	profile := assuranceProfile("backup-manifest-consistency.v1", requiredCheckNames(checks), []string{"backup manifest canonical hash"}, "tenant-scoped verification authorization", "not_evaluated", "backup manifest consistency counts and state hash", manifest.StateHash, []string{"Backup manifest verification does not prove an external backup can be restored or meets an operator's retention policy."})
+	vr := verificationResult(newID("vr"), actor.TenantID, "backup_manifest", manifest.ID, checks, profile, l.now())
 	l.verifications[vr.ID] = vr
 	if err := l.persistLocked(ctx); err != nil {
 		return domain.VerificationResult{}, err
 	}
-	if result != "passed" {
+	if verificationReturnsFailure(vr.Result) {
 		return vr, ErrVerificationFailed
 	}
 	return vr, nil

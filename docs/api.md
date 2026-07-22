@@ -539,6 +539,12 @@ Clients needing full verification can send `require_full_verification: true` and
 will receive a `422` Problem Details response with code
 `COSIGN_FULL_VERIFICATION_UNAVAILABLE` until that verifier is configured.
 
+All result-bearing verification APIs use the versioned machine-state taxonomy
+and include an assurance profile plus limitations. `passed` is emitted only
+when every profile-required check passed; it is not a broad security or
+compliance claim. See [Verification results](reference/verification-results.md)
+for the state definitions, profile fields, and legacy-record behavior.
+
 ### Security Evidence And Contracts
 
 | Method | Path | Notes |

@@ -1264,21 +1264,14 @@ func (l *Ledger) VerifyProviderIdentity(ctx context.Context, actor domain.Actor,
 	l.mu.Unlock()
 
 	checks := []domain.VerifyCheck{}
-	result := "passed"
 	now := l.now()
 	if idToken != "" {
-		tokenChecks, err := verifyOIDCIDToken(provider, subject, idToken, now)
+		tokenChecks, _ := verifyOIDCIDToken(provider, subject, idToken, now)
 		checks = append(checks, tokenChecks...)
-		if err != nil {
-			result = "failed"
-		}
 	}
 	if samlAssertion != "" {
-		assertionChecks, err := verifySAMLAssertion(provider, subject, samlAssertion, now)
+		assertionChecks, _ := verifySAMLAssertion(provider, subject, samlAssertion, now)
 		checks = append(checks, assertionChecks...)
-		if err != nil {
-			result = "failed"
-		}
 	}
 	limitations := []string{"Verification uses stored provider metadata and configured local token/assertion trust roots; no live provider API or discovery call is made."}
 	if idToken == "" && samlAssertion == "" {
@@ -1286,7 +1279,6 @@ func (l *Ledger) VerifyProviderIdentity(ctx context.Context, actor domain.Actor,
 	}
 	if accessToken != "" {
 		if l.providerAPI == nil {
-			result = "failed"
 			checks = append(checks, domain.VerifyCheck{Name: "live_provider_api_configured", Result: "failed"})
 			limitations = []string{"A provider access token was supplied, but no live provider API validator is configured."}
 		} else {
@@ -1309,18 +1301,19 @@ func (l *Ledger) VerifyProviderIdentity(ctx context.Context, actor domain.Actor,
 				limitations = []string{"Live provider API validation used a supplied OIDC access token; no access token is stored in Evydence records."}
 			}
 			if err != nil {
-				result = "failed"
+				checks = append(checks, domain.VerifyCheck{Name: "live_provider_api_validation", Result: "error", Detail: "provider API validation did not complete"})
 			}
 		}
 	}
 	if verifiedLinkFound {
 		checks = append(checks, domain.VerifyCheck{Name: "verified_identity_link", Result: "passed"})
 	} else {
-		result = "failed"
 		checks = append(checks, domain.VerifyCheck{Name: "verified_identity_link", Result: "failed"})
 	}
 
-	record := domain.ProviderVerification{ID: newID("pvr"), TenantID: actor.TenantID, ProviderType: providerType, ProviderID: providerID, Subject: subject, Result: result, Checks: checks, Limitations: limitations, SchemaVersion: domain.ProviderVerificationVersion, CreatedAt: l.now()}
+	profile := providerVerificationProfile(provider, idToken != "" || samlAssertion != "" || accessToken != "", checks, limitations)
+	result := string(domain.AggregateVerificationState(profile, checks))
+	record := domain.ProviderVerification{ID: newID("pvr"), TenantID: actor.TenantID, ProviderType: providerType, ProviderID: providerID, Subject: subject, Result: result, Checks: checks, Profile: profile, Limitations: limitations, SchemaVersion: domain.ProviderVerificationVersion, CreatedAt: l.now()}
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.providerVerifications[record.ID] = record
@@ -1328,7 +1321,7 @@ func (l *Ledger) VerifyProviderIdentity(ctx context.Context, actor domain.Actor,
 	if err := l.persistLocked(ctx); err != nil {
 		return domain.ProviderVerification{}, err
 	}
-	if result != "passed" {
+	if verificationReturnsFailure(result) {
 		return record, ErrVerificationFailed
 	}
 	return record, nil

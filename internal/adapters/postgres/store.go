@@ -947,19 +947,22 @@ func (s *Store) loadRelationalBundles(ctx context.Context, state *app.PersistedS
 }
 
 func (s *Store) loadRelationalVerifications(ctx context.Context, state *app.PersistedState, loaded *bool) error {
-	rows, err := s.pool.Query(ctx, `SELECT id, tenant_id, subject_type, subject_id, result, checks, verified_at FROM verification_results`)
+	rows, err := s.pool.Query(ctx, `SELECT id, tenant_id, subject_type, subject_id, result, checks, assurance_profile, limitations, schema_version, verified_at FROM verification_results`)
 	if err != nil {
 		return fmt.Errorf("load relational verification results: %w", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var verification domain.VerificationResult
-		var checks []byte
-		if err := rows.Scan(&verification.ID, &verification.TenantID, &verification.SubjectType, &verification.SubjectID, &verification.Result, &checks, &verification.VerifiedAt); err != nil {
+		var checks, profile []byte
+		if err := rows.Scan(&verification.ID, &verification.TenantID, &verification.SubjectType, &verification.SubjectID, &verification.Result, &checks, &profile, &verification.Limitations, &verification.SchemaVersion, &verification.VerifiedAt); err != nil {
 			return fmt.Errorf("scan relational verification result: %w", err)
 		}
 		if err := decodeJSON(checks, &verification.Checks); err != nil {
 			return fmt.Errorf("decode relational verification checks: %w", err)
+		}
+		if err := decodeJSON(profile, &verification.Profile); err != nil {
+			return fmt.Errorf("decode relational verification profile: %w", err)
 		}
 		state.Verifications[verification.ID] = verification
 		*loaded = true
@@ -1917,7 +1920,7 @@ func (s *Store) loadRelationalIntegrityProviderRows(ctx context.Context, state *
 		return err
 	}
 
-	cosignRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, artifact_id, container_image_id, artifact_signature_id, subject_digest, rekor_uuid, rekor_log_index, certificate_identity, certificate_issuer, result, checks, schema_version, created_at FROM cosign_verifications`)
+	cosignRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, artifact_id, container_image_id, artifact_signature_id, subject_digest, rekor_uuid, rekor_log_index, certificate_identity, certificate_issuer, result, checks, assurance_profile, limitations, schema_version, created_at FROM cosign_verifications`)
 	if err != nil {
 		return fmt.Errorf("load relational cosign verifications: %w", err)
 	}
@@ -1925,8 +1928,8 @@ func (s *Store) loadRelationalIntegrityProviderRows(ctx context.Context, state *
 	for cosignRows.Next() {
 		var verification domain.CosignVerification
 		var artifactID, imageID, rekorUUID, rekorLogIndex, certIdentity, certIssuer sql.NullString
-		var checks []byte
-		if err := cosignRows.Scan(&verification.ID, &verification.TenantID, &artifactID, &imageID, &verification.ArtifactSignatureID, &verification.SubjectDigest, &rekorUUID, &rekorLogIndex, &certIdentity, &certIssuer, &verification.Result, &checks, &verification.SchemaVersion, &verification.CreatedAt); err != nil {
+		var checks, profile []byte
+		if err := cosignRows.Scan(&verification.ID, &verification.TenantID, &artifactID, &imageID, &verification.ArtifactSignatureID, &verification.SubjectDigest, &rekorUUID, &rekorLogIndex, &certIdentity, &certIssuer, &verification.Result, &checks, &profile, &verification.Limitations, &verification.SchemaVersion, &verification.CreatedAt); err != nil {
 			return fmt.Errorf("scan relational cosign verification: %w", err)
 		}
 		verification.ArtifactID = nullableSQLString(artifactID)
@@ -1937,6 +1940,9 @@ func (s *Store) loadRelationalIntegrityProviderRows(ctx context.Context, state *
 		verification.CertificateIssuer = nullableSQLString(certIssuer)
 		if err := decodeJSON(checks, &verification.Checks); err != nil {
 			return fmt.Errorf("decode relational cosign checks: %w", err)
+		}
+		if err := decodeJSON(profile, &verification.Profile); err != nil {
+			return fmt.Errorf("decode relational cosign profile: %w", err)
 		}
 		state.CosignVerifications[verification.ID] = verification
 		*loaded = true
@@ -2517,19 +2523,22 @@ func (s *Store) loadRelationalFutureExtensionRows(ctx context.Context, state *ap
 		return err
 	}
 
-	providerRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, provider_type, provider_id, subject, result, checks, limitations, schema_version, created_at FROM provider_verifications`)
+	providerRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, provider_type, provider_id, subject, result, checks, assurance_profile, limitations, schema_version, created_at FROM provider_verifications`)
 	if err != nil {
 		return fmt.Errorf("load relational provider verifications: %w", err)
 	}
 	defer providerRows.Close()
 	for providerRows.Next() {
 		var verification domain.ProviderVerification
-		var checks []byte
-		if err := providerRows.Scan(&verification.ID, &verification.TenantID, &verification.ProviderType, &verification.ProviderID, &verification.Subject, &verification.Result, &checks, &verification.Limitations, &verification.SchemaVersion, &verification.CreatedAt); err != nil {
+		var checks, profile []byte
+		if err := providerRows.Scan(&verification.ID, &verification.TenantID, &verification.ProviderType, &verification.ProviderID, &verification.Subject, &verification.Result, &checks, &profile, &verification.Limitations, &verification.SchemaVersion, &verification.CreatedAt); err != nil {
 			return fmt.Errorf("scan relational provider verification: %w", err)
 		}
 		if err := decodeJSON(checks, &verification.Checks); err != nil {
 			return fmt.Errorf("decode relational provider verification checks: %w", err)
+		}
+		if err := decodeJSON(profile, &verification.Profile); err != nil {
+			return fmt.Errorf("decode relational provider verification profile: %w", err)
 		}
 		state.ProviderVerifications[verification.ID] = verification
 		*loaded = true
@@ -3114,13 +3123,17 @@ func syncReleaseLedgerCore(ctx context.Context, tx pgx.Tx, state app.PersistedSt
 		if err != nil {
 			return fmt.Errorf("encode verification checks: %w", err)
 		}
+		profile, err := json.Marshal(verification.Profile)
+		if err != nil {
+			return fmt.Errorf("encode verification profile: %w", err)
+		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO verification_results (
-				id, tenant_id, subject_type, subject_id, result, checks, verified_at
+				id, tenant_id, subject_type, subject_id, result, checks, assurance_profile, limitations, schema_version, verified_at
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)
-			ON CONFLICT (id) DO UPDATE SET result = EXCLUDED.result, checks = EXCLUDED.checks
-		`, verification.ID, verification.TenantID, verification.SubjectType, verification.SubjectID, verification.Result, checks, nonZeroTime(verification.VerifiedAt)); err != nil {
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			ON CONFLICT (id) DO UPDATE SET result = EXCLUDED.result, checks = EXCLUDED.checks, assurance_profile = EXCLUDED.assurance_profile, limitations = EXCLUDED.limitations, schema_version = EXCLUDED.schema_version
+		`, verification.ID, verification.TenantID, verification.SubjectType, verification.SubjectID, verification.Result, checks, profile, textArray(verification.Limitations), verification.SchemaVersion, nonZeroTime(verification.VerifiedAt)); err != nil {
 			return fmt.Errorf("upsert verification result row: %w", err)
 		}
 	}
@@ -3981,19 +3994,23 @@ func syncIntegrityProviderRows(ctx context.Context, tx pgx.Tx, state app.Persist
 		if err != nil {
 			return fmt.Errorf("encode cosign checks: %w", err)
 		}
+		profile, err := json.Marshal(verification.Profile)
+		if err != nil {
+			return fmt.Errorf("encode cosign verification profile: %w", err)
+		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO cosign_verifications (
 				id, tenant_id, artifact_id, container_image_id,
 				artifact_signature_id, subject_digest, rekor_uuid, rekor_log_index,
-				certificate_identity, certificate_issuer, result, checks,
+				certificate_identity, certificate_issuer, result, checks, assurance_profile, limitations,
 				schema_version, created_at
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-			ON CONFLICT (id) DO UPDATE SET result = EXCLUDED.result, checks = EXCLUDED.checks, schema_version = EXCLUDED.schema_version
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+			ON CONFLICT (id) DO UPDATE SET result = EXCLUDED.result, checks = EXCLUDED.checks, assurance_profile = EXCLUDED.assurance_profile, limitations = EXCLUDED.limitations, schema_version = EXCLUDED.schema_version
 		`, verification.ID, verification.TenantID, nullableString(verification.ArtifactID), nullableString(verification.ContainerImageID),
 			verification.ArtifactSignatureID, verification.SubjectDigest, nullableString(verification.RekorUUID),
 			nullableString(verification.RekorLogIndex), nullableString(verification.CertificateIdentity),
-			nullableString(verification.CertificateIssuer), verification.Result, checks, verification.SchemaVersion,
+			nullableString(verification.CertificateIssuer), verification.Result, checks, profile, textArray(verification.Limitations), verification.SchemaVersion,
 			nonZeroTime(verification.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert cosign verification row: %w", err)
 		}
@@ -4548,14 +4565,18 @@ func syncFutureExtensionRows(ctx context.Context, tx pgx.Tx, state app.Persisted
 		if err != nil {
 			return fmt.Errorf("encode provider verification checks: %w", err)
 		}
+		profile, err := json.Marshal(verification.Profile)
+		if err != nil {
+			return fmt.Errorf("encode provider verification profile: %w", err)
+		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO provider_verifications (
 				id, tenant_id, provider_type, provider_id, subject, result,
-				checks, limitations, schema_version, created_at
+				checks, assurance_profile, limitations, schema_version, created_at
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-			ON CONFLICT (id) DO UPDATE SET result = EXCLUDED.result, checks = EXCLUDED.checks, limitations = EXCLUDED.limitations, schema_version = EXCLUDED.schema_version
-		`, verification.ID, verification.TenantID, verification.ProviderType, verification.ProviderID, verification.Subject, verification.Result, checks, textArray(verification.Limitations), verification.SchemaVersion, nonZeroTime(verification.CreatedAt)); err != nil {
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			ON CONFLICT (id) DO UPDATE SET result = EXCLUDED.result, checks = EXCLUDED.checks, assurance_profile = EXCLUDED.assurance_profile, limitations = EXCLUDED.limitations, schema_version = EXCLUDED.schema_version
+		`, verification.ID, verification.TenantID, verification.ProviderType, verification.ProviderID, verification.Subject, verification.Result, checks, profile, textArray(verification.Limitations), verification.SchemaVersion, nonZeroTime(verification.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert provider verification row: %w", err)
 		}
 	}
