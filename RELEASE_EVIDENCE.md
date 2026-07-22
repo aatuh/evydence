@@ -48,6 +48,11 @@ summary, OpenAPI checksum, migration checksum, signed artifact manifest,
 checksums for published artifacts, and release notes with assumptions,
 limitations, and unresolved hardening work.
 
+[`release/current.json`](release/current.json) deliberately records the current
+public release, a dated local source snapshot, and the last verified
+project-owned container image as separate provenance facts. A source snapshot
+is not a public release, and it is not container-image verification evidence.
+
 Commercial release evidence packages may include signed release manifests,
 image digests, SBOMs, vulnerability scan outputs, OpenAPI checksums, migration
 checks, acceptance evidence, support notes, deployment hardening notes, and

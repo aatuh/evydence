@@ -9,7 +9,52 @@ results, no secure-release guarantee, and no regulator or auditor acceptance.
 
 ## Unreleased
 
-- No unreleased changes.
+This section records source changes after the current public release candidate.
+It does not mean a new release has been cut or that those changes have public
+release artifacts.
+
+### Added
+
+- Customer package reviewer materials now include a proof summary, dossier,
+  proof checklist, customer-safe vulnerability-decision context, and a
+  token-scoped portal review path.
+- VEX import preview and parser-report workflows, decision history, and
+  customer-safe decision summaries improve review of vulnerability evidence.
+- Rendered API reference, client quickstarts, CI handoff templates, and
+  production deployment/HA/operator guidance broaden the evaluation material.
+- CI preflight, one-shot release-evidence upload, release-evidence workflow,
+  and release security-summary paths add reproducible release-ledger inputs.
+- Provider validation, transparency-proof, and cloud-KMS signing gateways add
+  explicit integration points without treating provider metadata as trust by
+  itself.
+
+### Changed
+
+- The release-evidence, SDK route catalog, API contract matrix, and public API
+  operations now record explicit stability classifications for evaluation and
+  implementation planning.
+- The repository now tracks a scorecard and execution backlog with evidence
+  links and external-evidence blockers; these are implementation-tracking
+  records, not production or compliance claims.
+- Release packaging, black-box artifact checks, source-backed persistence
+  inventory, and production-like deployment configuration have been expanded
+  for controlled operator evaluation.
+
+### Fixed
+
+- Customer-package archive and manifest validation rejects unsafe entries and
+  duplicate JSON keys before package contents are trusted.
+- Customer package reports include a Content Security Policy, and archive
+  manifest comparison is validated before comparison results are reported.
+
+## v0.1.0-rc.6 - historical local tag record (2026-06-01)
+
+The local Git checkout contains annotated tag `v0.1.0-rc.6` (tag object
+`742703baccad1726d2ca939b0ec7119c28cba3d4`) pointing to commit
+`d4155b4007a4daf8ed0bd908e90792c69ade188e`. The repository does not contain
+enough checked public-release evidence to state whether that tag was published
+or withdrawn. It is retained here as local history only; use `v0.1.0-rc.7` for
+the current public release candidate.
 
 ## v0.1.0-rc.7 - 2026-06-01
 

@@ -56,6 +56,13 @@ The public prerelease includes release archives for Linux, macOS, and Windows;
 `evydence-release-manifest.json`; `evydence-release-manifest.sig.json`; and
 `evydence-release-manifest.sig`.
 
+The latest repository-local source snapshot recorded in
+[`release/current.json`](../../release/current.json) is commit
+`4440fdc534ddedc1f3e94ebe08261a3090893fa8` on `master`, recorded on
+2026-07-22. It is intentionally distinct from the `v0.1.0-rc.7` public release
+and from container image verification; a source snapshot alone has no public
+release artifacts.
+
 Project-owned container images are separate release evidence. At the time this
 index was updated, the latest verified project-owned container image evidence
 for the release-candidate line was

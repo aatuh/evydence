@@ -47,6 +47,9 @@ security.
 - Current public release candidate metadata is tracked in
   [`release/current.json`](release/current.json); GitHub Releases remains the
   external source of truth for published tags and assets.
+- That metadata separately records the current public release, a dated local
+  source snapshot (which is not a release), and the last verified
+  project-owned container image.
 - Current release evidence links the Release Artifacts workflow, public CI
   `Production Check` workflow run, CodeQL run, `coverage.out`, and
   `release-check-summary.txt` from the

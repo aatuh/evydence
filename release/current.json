@@ -1,6 +1,12 @@
 {
   "schema": "evydence-current-release.v1",
   "repository": "aatuh/evydence",
+  "latest_source_snapshot": {
+    "branch": "master",
+    "commit": "4440fdc534ddedc1f3e94ebe08261a3090893fa8",
+    "recorded_at": "2026-07-22",
+    "status": "repository-local source snapshot recorded during release-truth reconciliation; it is not a public release or verified container image"
+  },
   "current_public_release": {
     "tag": "v0.1.0-rc.7",
     "name": "Evydence v0.1.0-rc.7",
@@ -28,6 +34,7 @@
   },
   "notes": [
     "GitHub Releases remains the external source of truth for published tags and assets.",
+    "The repository-local source snapshot is recorded separately from the current public release and project-owned image evidence.",
     "The current public release candidate may differ from the last verified project-owned container image because image publication is a separate workflow.",
     "Release evidence is not legal compliance proof, certification, complete SBOM proof, authoritative vulnerability coverage, or a secure-release guarantee."
   ]
