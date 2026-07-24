@@ -50,7 +50,7 @@ func (s identityService) BootstrapTenant(ctx context.Context, name, keyName stri
 		return domain.Tenant{}, domain.APIKey{}, "", err
 	}
 	_, _ = l.appendChainLocked(tenant.ID, "tenant.created", "tenant", tenant.ID, "system", "bootstrap", "", "")
-	if err := l.persistCriticalLocked(ctx, l.criticalMutationLocked()); err != nil {
+	if err := l.persistCriticalStateLocked(ctx); err != nil {
 		return domain.Tenant{}, domain.APIKey{}, "", err
 	}
 	return tenant, key, secret, nil
@@ -88,7 +88,7 @@ func (s identityService) Authenticate(ctx context.Context, secret string) (domai
 				break
 			}
 		}
-		_ = l.persistCriticalLocked(ctx, l.criticalMutationLocked())
+		_ = l.persistCriticalStateLocked(ctx)
 		return domain.Actor{TenantID: key.TenantID, KeyID: key.ID, Name: key.Name, Scopes: append([]string(nil), key.Scopes...), CollectorID: collectorID}, nil
 	}
 	for id, session := range l.ssoSessions {
@@ -105,7 +105,7 @@ func (s identityService) Authenticate(ctx context.Context, secret string) (domai
 			return domain.Actor{}, ErrForbidden
 		}
 		l.ssoSessions[id] = session
-		_ = l.persistCriticalLocked(ctx, l.criticalMutationLocked())
+		_ = l.persistCriticalStateLocked(ctx)
 		return domain.Actor{TenantID: user.TenantID, UserID: user.ID, SessionID: session.ID, Name: user.Email, Scopes: scopes, ResourceGrants: grants}, nil
 	}
 	return domain.Actor{}, ErrUnauthorized
@@ -132,7 +132,7 @@ func (s identityService) CreateAPIKey(ctx context.Context, actor domain.Actor, n
 		return domain.APIKey{}, "", err
 	}
 	_, _ = l.appendChainLocked(actor.TenantID, "api_key.created", "api_key", key.ID, "api_key", actor.KeyID, "", "")
-	if err := l.persistCriticalLocked(ctx, l.criticalMutationLocked()); err != nil {
+	if err := l.persistCriticalStateLocked(ctx); err != nil {
 		return domain.APIKey{}, "", err
 	}
 	return key, secret, nil

@@ -18,44 +18,44 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 
 | Family | File | Function | Call |
 | --- | --- | --- | --- |
-| VEX and vulnerability decisions | `internal/app/vex.go` | `CreateVulnerabilityDecision` | `persistCriticalLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `CreateCustomerPortalAccess` | `persistCriticalLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `CreateSSOSession` | `persistCriticalLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `ExchangeSSOCredential` | `persistCriticalLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `RevokeCurrentSSOSession` | `persistCriticalLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `RevokeCustomerPortalAccess` | `persistCriticalLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `RevokeSSOSession` | `persistCriticalLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `accessCustomerPortalPackage` | `persistCriticalLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `accessCustomerPortalPackage` | `persistCriticalLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `accessCustomerPortalPackage` | `persistCriticalLocked` |
-| identity | `internal/app/identity_service.go` | `Authenticate` | `persistCriticalLocked` |
-| identity | `internal/app/identity_service.go` | `Authenticate` | `persistCriticalLocked` |
-| identity | `internal/app/identity_service.go` | `BootstrapTenant` | `persistCriticalLocked` |
-| identity | `internal/app/identity_service.go` | `CreateAPIKey` | `persistCriticalLocked` |
+| VEX and vulnerability decisions | `internal/app/vex.go` | `CreateVulnerabilityDecision` | `persistCriticalStateLocked` |
+| enterprise identity and retention | `internal/app/enterprise.go` | `CreateCustomerPortalAccess` | `persistCriticalStateLocked` |
+| enterprise identity and retention | `internal/app/enterprise.go` | `CreateSSOSession` | `persistCriticalStateLocked` |
+| enterprise identity and retention | `internal/app/enterprise.go` | `ExchangeSSOCredential` | `persistCriticalStateLocked` |
+| enterprise identity and retention | `internal/app/enterprise.go` | `RevokeCurrentSSOSession` | `persistCriticalStateLocked` |
+| enterprise identity and retention | `internal/app/enterprise.go` | `RevokeCustomerPortalAccess` | `persistCriticalStateLocked` |
+| enterprise identity and retention | `internal/app/enterprise.go` | `RevokeSSOSession` | `persistCriticalStateLocked` |
+| enterprise identity and retention | `internal/app/enterprise.go` | `accessCustomerPortalPackage` | `persistCriticalStateLocked` |
+| enterprise identity and retention | `internal/app/enterprise.go` | `accessCustomerPortalPackage` | `persistCriticalStateLocked` |
+| enterprise identity and retention | `internal/app/enterprise.go` | `accessCustomerPortalPackage` | `persistCriticalStateLocked` |
+| identity | `internal/app/identity_service.go` | `Authenticate` | `persistCriticalStateLocked` |
+| identity | `internal/app/identity_service.go` | `Authenticate` | `persistCriticalStateLocked` |
+| identity | `internal/app/identity_service.go` | `BootstrapTenant` | `persistCriticalStateLocked` |
+| identity | `internal/app/identity_service.go` | `CreateAPIKey` | `persistCriticalStateLocked` |
 | release ledger and signing | `internal/app/ledger.go` | `CreateReleaseBundle` | `persistCriticalLocked` |
 | release ledger and signing | `internal/app/ledger.go` | `VerifySubject` | `persistCriticalLocked` |
-| release ledger and signing | `internal/app/ledger.go` | `WithIdempotency` | `persistCriticalLocked` |
+| release ledger and signing | `internal/app/ledger.go` | `WithIdempotency` | `persistCriticalStateLocked` |
 
 ## Focused Release And Evidence Mutations
 
 | Family | File | Function | Call |
 | --- | --- | --- | --- |
 | VEX and vulnerability decisions | `internal/app/vex.go` | `UploadVEX` | `persistReleaseLedgerWithOutboxLocked` |
-| release extensions, source, and deployment | `internal/app/implementation_increments.go` | `RecordEvidenceLifecycleEvent` | `persistReleaseLedgerLocked` |
-| release ledger and signing | `internal/app/ledger.go` | `ApproveRelease` | `persistReleaseLedgerLocked` |
-| release ledger and signing | `internal/app/ledger.go` | `CreateEvidence` | `persistReleaseLedgerLocked` |
-| release ledger and signing | `internal/app/ledger.go` | `CreateProduct` | `persistReleaseLedgerLocked` |
-| release ledger and signing | `internal/app/ledger.go` | `CreateProject` | `persistReleaseLedgerLocked` |
-| release ledger and signing | `internal/app/ledger.go` | `CreateRelease` | `persistReleaseLedgerLocked` |
-| release ledger and signing | `internal/app/ledger.go` | `FreezeRelease` | `persistReleaseLedgerLocked` |
-| release ledger and signing | `internal/app/ledger.go` | `LinkEvidence` | `persistReleaseLedgerLocked` |
-| release ledger and signing | `internal/app/ledger.go` | `RegisterArtifact` | `persistReleaseLedgerLocked` |
-| release ledger and signing | `internal/app/ledger.go` | `SupersedeEvidence` | `persistReleaseLedgerLocked` |
+| release extensions, source, and deployment | `internal/app/implementation_increments.go` | `RecordEvidenceLifecycleEvent` | `persistReleaseLedgerStateLocked` |
+| release ledger and signing | `internal/app/ledger.go` | `ApproveRelease` | `persistReleaseLedgerStateLocked` |
+| release ledger and signing | `internal/app/ledger.go` | `CreateEvidence` | `persistReleaseLedgerStateLocked` |
+| release ledger and signing | `internal/app/ledger.go` | `CreateProduct` | `persistReleaseLedgerStateLocked` |
+| release ledger and signing | `internal/app/ledger.go` | `CreateProject` | `persistReleaseLedgerStateLocked` |
+| release ledger and signing | `internal/app/ledger.go` | `CreateRelease` | `persistReleaseLedgerStateLocked` |
+| release ledger and signing | `internal/app/ledger.go` | `FreezeRelease` | `persistReleaseLedgerStateLocked` |
+| release ledger and signing | `internal/app/ledger.go` | `LinkEvidence` | `persistReleaseLedgerStateLocked` |
+| release ledger and signing | `internal/app/ledger.go` | `RegisterArtifact` | `persistReleaseLedgerStateLocked` |
+| release ledger and signing | `internal/app/ledger.go` | `SupersedeEvidence` | `persistReleaseLedgerStateLocked` |
 | release ledger and signing | `internal/app/ledger.go` | `UploadOpenAPIContract` | `persistReleaseLedgerWithOutboxLocked` |
 | release ledger and signing | `internal/app/ledger.go` | `UploadSBOM` | `persistReleaseLedgerWithOutboxLocked` |
 | release ledger and signing | `internal/app/ledger.go` | `UploadVulnerabilityScan` | `persistReleaseLedgerWithOutboxLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `UploadCycloneDXVEX` | `persistReleaseLedgerWithOutboxLocked` |
-| risk and security workflows | `internal/app/risk_workflows.go` | `UploadSPDXSBOM` | `persistReleaseLedgerLocked` |
+| risk and security workflows | `internal/app/risk_workflows.go` | `UploadSPDXSBOM` | `persistReleaseLedgerStateLocked` |
 
 ## Remaining Broad Relational-State Mutations
 

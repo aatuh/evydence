@@ -187,15 +187,25 @@ type Ledger struct {
 	idempotency           map[string]IdempotencyRecord
 }
 
+// NewLedger creates an in-memory ledger. Durable state loading can fail, so
+// callers configuring Config.Store must use NewLedgerWithContext.
 func NewLedger(cfg Config) *Ledger {
-	ledger, err := NewLedgerWithError(cfg)
+	if cfg.Store != nil {
+		panic("NewLedger does not load durable state; use NewLedgerWithContext")
+	}
+	ledger, err := NewLedgerWithContext(context.Background(), cfg)
 	if err != nil {
-		panic(err)
+		panic("unexpected in-memory ledger initialization failure: " + err.Error())
 	}
 	return ledger
 }
 
-func NewLedgerWithError(cfg Config) (*Ledger, error) {
+// NewLedgerWithContext creates a ledger and honors cancellation while loading
+// configured durable state.
+func NewLedgerWithContext(ctx context.Context, cfg Config) (*Ledger, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	now := cfg.Now
 	if now == nil {
 		now = func() time.Time { return time.Now().UTC() }
@@ -319,12 +329,14 @@ func NewLedgerWithError(cfg Config) (*Ledger, error) {
 		ledger.outbox = nopOutbox{}
 	}
 	if cfg.Store != nil {
-		state, ok, err := cfg.Store.LoadState(context.Background())
+		state, ok, err := cfg.Store.LoadState(ctx)
 		if err != nil {
 			return nil, err
 		}
 		if ok {
-			ledger.applyState(state)
+			if err := ledger.applyState(state); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return ledger, nil
@@ -375,7 +387,7 @@ func (s releaseEvidenceService) CreateProduct(ctx context.Context, actor domain.
 	product := domain.Product{ID: newID("prod"), TenantID: actor.TenantID, Name: name, Slug: slug, CreatedAt: l.now()}
 	l.products[product.ID] = product
 	_, _ = l.appendChainLocked(actor.TenantID, "product.created", "product", product.ID, "api_key", actor.KeyID, "", "")
-	if err := l.persistReleaseLedgerLocked(ctx, l.releaseLedgerMutationLocked()); err != nil {
+	if err := l.persistReleaseLedgerStateLocked(ctx); err != nil {
 		return domain.Product{}, err
 	}
 	return product, nil
@@ -445,7 +457,7 @@ func (s releaseEvidenceService) CreateProject(ctx context.Context, actor domain.
 	project := domain.Project{ID: newID("proj"), TenantID: actor.TenantID, ProductID: productID, Name: name, CreatedAt: l.now()}
 	l.projects[project.ID] = project
 	_, _ = l.appendChainLocked(actor.TenantID, "project.created", "project", project.ID, "api_key", actor.KeyID, "", "")
-	if err := l.persistReleaseLedgerLocked(ctx, l.releaseLedgerMutationLocked()); err != nil {
+	if err := l.persistReleaseLedgerStateLocked(ctx); err != nil {
 		return domain.Project{}, err
 	}
 	return project, nil
@@ -500,7 +512,7 @@ func (s releaseEvidenceService) CreateRelease(ctx context.Context, actor domain.
 	release := domain.Release{ID: newID("rel"), TenantID: actor.TenantID, ProductID: productID, Version: version, State: "draft", CreatedAt: l.now()}
 	l.releases[release.ID] = release
 	_, _ = l.appendChainLocked(actor.TenantID, "release.created", "release", release.ID, "api_key", actor.KeyID, "", "")
-	if err := l.persistReleaseLedgerLocked(ctx, l.releaseLedgerMutationLocked()); err != nil {
+	if err := l.persistReleaseLedgerStateLocked(ctx); err != nil {
 		return domain.Release{}, err
 	}
 	return release, nil
@@ -551,7 +563,7 @@ func (s releaseEvidenceService) FreezeRelease(ctx context.Context, actor domain.
 	release.FrozenAt = &now
 	l.releases[release.ID] = release
 	_, _ = l.appendChainLocked(actor.TenantID, "release.frozen", "release", release.ID, "api_key", actor.KeyID, "", "")
-	if err := l.persistReleaseLedgerLocked(ctx, l.releaseLedgerMutationLocked()); err != nil {
+	if err := l.persistReleaseLedgerStateLocked(ctx); err != nil {
 		return domain.Release{}, err
 	}
 	return release, nil
@@ -582,7 +594,7 @@ func (s releaseEvidenceService) ApproveRelease(ctx context.Context, actor domain
 	release.ApprovedAt = &now
 	l.releases[release.ID] = release
 	_, _ = l.appendChainLocked(actor.TenantID, "release.approved", "release", release.ID, "api_key", actor.KeyID, "", "")
-	if err := l.persistReleaseLedgerLocked(ctx, l.releaseLedgerMutationLocked()); err != nil {
+	if err := l.persistReleaseLedgerStateLocked(ctx); err != nil {
 		return domain.Release{}, err
 	}
 	return release, nil
@@ -610,7 +622,7 @@ func (s releaseEvidenceService) RegisterArtifact(ctx context.Context, actor doma
 	artifact := domain.Artifact{ID: newID("art"), TenantID: actor.TenantID, Name: name, MediaType: mediaType, Size: size, Digest: digest, CreatedAt: l.now()}
 	l.artifacts[artifact.ID] = artifact
 	_, _ = l.appendChainLocked(actor.TenantID, "artifact.created", "artifact", artifact.ID, "api_key", actor.KeyID, digest, "")
-	if err := l.persistReleaseLedgerLocked(ctx, l.releaseLedgerMutationLocked()); err != nil {
+	if err := l.persistReleaseLedgerStateLocked(ctx); err != nil {
 		return domain.Artifact{}, err
 	}
 	return artifact, nil
@@ -731,7 +743,7 @@ func (s releaseEvidenceService) CreateEvidence(ctx context.Context, actor domain
 	}
 	item.ChainEntryID = entry.ID
 	l.evidence[item.ID] = item
-	if err := l.persistReleaseLedgerLocked(ctx, l.releaseLedgerMutationLocked()); err != nil {
+	if err := l.persistReleaseLedgerStateLocked(ctx); err != nil {
 		return domain.EvidenceItem{}, err
 	}
 	return item, nil
@@ -819,7 +831,7 @@ func (s releaseEvidenceService) SupersedeEvidence(ctx context.Context, actor dom
 	l.evidence[item.ID] = item
 	l.evidence[replacement.ID] = replacement
 	_, _ = l.appendChainLocked(actor.TenantID, "evidence.superseded", "evidence_item", item.ID, "api_key", actor.KeyID, item.PayloadHash, "")
-	if err := l.persistReleaseLedgerLocked(ctx, l.releaseLedgerMutationLocked()); err != nil {
+	if err := l.persistReleaseLedgerStateLocked(ctx); err != nil {
 		return domain.EvidenceItem{}, err
 	}
 	return item, nil
@@ -871,7 +883,7 @@ func (s releaseEvidenceService) LinkEvidence(ctx context.Context, actor domain.A
 	item.RelatedEvidenceRefs = append(item.RelatedEvidenceRefs, domain.EvidenceRef{Type: targetType, ID: targetID, Relationship: "linked_to"})
 	l.evidence[item.ID] = item
 	_, _ = l.appendChainLocked(actor.TenantID, "evidence.linked", "evidence_item", item.ID, "api_key", actor.KeyID, item.PayloadHash, "")
-	if err := l.persistReleaseLedgerLocked(ctx, l.releaseLedgerMutationLocked()); err != nil {
+	if err := l.persistReleaseLedgerStateLocked(ctx); err != nil {
 		return domain.EvidenceItem{}, err
 	}
 	return item, nil
@@ -1338,7 +1350,10 @@ func (l *Ledger) CreateReleaseBundle(ctx context.Context, actor domain.Actor, re
 	l.bundles[bundle.ID] = bundle
 	_, _ = l.appendChainLocked(actor.TenantID, "bundle.generated", "release_bundle", bundle.ID, "api_key", actor.KeyID, manifestHash, sig.ID)
 	job := l.newOutboxJob(actor.TenantID, "sign_bundle", "release_bundle", bundle.ID, map[string]any{"manifest_hash": manifestHash})
-	mutation := l.criticalMutationLocked()
+	mutation, err := l.criticalMutationLocked()
+	if err != nil {
+		return domain.ReleaseBundle{}, err
+	}
 	mutation.OutboxJobs = append(mutation.OutboxJobs, job)
 	if _, ok := l.store.(CriticalMutationStore); !ok {
 		if err := l.enqueueJob(ctx, job); err != nil {
@@ -1619,7 +1634,10 @@ func (l *Ledger) VerifySubject(ctx context.Context, actor domain.Actor, subjectT
 	vr := verificationResult(newID("vr"), actor.TenantID, subjectType, subjectID, checks, profile, l.now())
 	l.verifications[vr.ID] = vr
 	job := l.newOutboxJob(actor.TenantID, "verify_subject", subjectType, subjectID, map[string]any{"result_id": vr.ID})
-	mutation := l.criticalMutationLocked()
+	mutation, err := l.criticalMutationLocked()
+	if err != nil {
+		return domain.VerificationResult{}, err
+	}
 	mutation.OutboxJobs = append(mutation.OutboxJobs, job)
 	if _, ok := l.store.(CriticalMutationStore); !ok {
 		if err := l.enqueueJob(ctx, job); err != nil {
@@ -1722,7 +1740,7 @@ func (l *Ledger) WithIdempotency(ctx context.Context, actor domain.Actor, method
 	}
 	l.mu.Lock()
 	l.idempotency[storeKey] = IdempotencyRecord{RequestHash: requestHash, Status: status, Response: response, CreatedAt: l.now()}
-	if err := l.persistCriticalLocked(ctx, l.criticalMutationLocked()); err != nil {
+	if err := l.persistCriticalStateLocked(ctx); err != nil {
 		l.mu.Unlock()
 		return 0, nil, err
 	}

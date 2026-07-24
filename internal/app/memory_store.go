@@ -21,7 +21,11 @@ func (s *MemoryStore) LoadState(ctx context.Context) (PersistedState, bool, erro
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return cloneState(s.state), s.ok, nil
+	state, err := cloneState(s.state)
+	if err != nil {
+		return PersistedState{}, false, err
+	}
+	return state, s.ok, nil
 }
 
 func (s *MemoryStore) SaveState(ctx context.Context, state PersistedState) error {
@@ -30,7 +34,11 @@ func (s *MemoryStore) SaveState(ctx context.Context, state PersistedState) error
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.state = cloneState(state)
+	cloned, err := cloneState(state)
+	if err != nil {
+		return err
+	}
+	s.state = cloned
 	s.ok = true
 	return nil
 }

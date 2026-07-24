@@ -517,7 +517,7 @@ func TestBackupRestoreRehearsalPreservesLedgerAndObjectPayloads(t *testing.T) {
 	ctx := context.Background()
 	store := NewMemoryStore()
 	objects := newTestObjectStore()
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store, ObjectStore: objects})
+	ledger := newLedgerWithStore(t, Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store, ObjectStore: objects})
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap: %v", err)
@@ -567,7 +567,7 @@ func TestBackupRestoreRehearsalPreservesLedgerAndObjectPayloads(t *testing.T) {
 		t.Fatalf("restore state: %v", err)
 	}
 	restoredObjects := &testObjectStore{objects: objectBackup}
-	restored := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: restoredStore, ObjectStore: restoredObjects})
+	restored := newLedgerWithStore(t, Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: restoredStore, ObjectStore: restoredObjects})
 
 	restoredActor, err := restored.Authenticate(ctx, secret)
 	if err != nil {

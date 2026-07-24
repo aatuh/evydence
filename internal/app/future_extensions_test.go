@@ -389,8 +389,11 @@ func TestProviderVerificationCanUseLiveOIDCUserInfoWithoutPersistingToken(t *tes
 		}
 	}
 	ledger.mu.Lock()
-	state := ledger.snapshotLocked()
+	state, err := ledger.snapshotLocked()
 	ledger.mu.Unlock()
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
 	stored := state.ProviderVerifications[verification.ID]
 	encoded, _ := json.Marshal(stored)
 	if strings.Contains(string(encoded), "access-token-secret") {

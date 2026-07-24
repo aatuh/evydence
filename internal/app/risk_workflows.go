@@ -772,7 +772,7 @@ func (l *Ledger) UploadSPDXSBOM(ctx context.Context, actor domain.Actor, release
 	sbom := domain.SBOM{ID: newID("sbom"), TenantID: actor.TenantID, EvidenceID: item.ID, ReleaseID: releaseID, ArtifactID: artifactID, Format: "spdx", SpecVersion: doc.SPDXVersion, ComponentCount: len(components), Components: components, CreatedAt: l.now()}
 	l.sboms[sbom.ID] = sbom
 	_, _ = l.appendChainLocked(actor.TenantID, "sbom.parsed", "sbom", sbom.ID, "api_key", actor.KeyID, payloadHash, "")
-	if err := l.persistReleaseLedgerLocked(ctx, l.releaseLedgerMutationLocked()); err != nil {
+	if err := l.persistReleaseLedgerStateLocked(ctx); err != nil {
 		return domain.SBOM{}, err
 	}
 	return sbom, nil

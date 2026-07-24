@@ -16,6 +16,14 @@ APP_ROOT = REPO_ROOT / "internal" / "app"
 OUTPUT = REPO_ROOT / "docs" / "reference" / "persistence-decomposition.md"
 
 FUNC_RE = re.compile(r"^func\s+(?:\([^)]*\)\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\(")
+CRITICAL_CALLS = {"persistCriticalLocked", "persistCriticalStateLocked"}
+RELEASE_CALLS = {
+    "persistReleaseLedgerLocked",
+    "persistReleaseLedgerStateLocked",
+    "persistReleaseLedgerWithOutboxLocked",
+}
+BROAD_CALLS = {"persistLocked"}
+PERSISTENCE_CALLS = (*sorted(CRITICAL_CALLS), *sorted(RELEASE_CALLS), *sorted(BROAD_CALLS))
 
 
 @dataclass(frozen=True)
@@ -52,12 +60,7 @@ def collect_calls() -> list[PersistCall]:
             if match:
                 current = match.group(1)
                 continue
-            for call in (
-                "persistCriticalLocked",
-                "persistReleaseLedgerLocked",
-                "persistReleaseLedgerWithOutboxLocked",
-                "persistLocked",
-            ):
+            for call in PERSISTENCE_CALLS:
                 if f".{call}(ctx" in line or f" {call}(ctx" in line:
                     calls.append(PersistCall(path.name, current, call))
     return calls
@@ -84,9 +87,9 @@ def render_table(calls: list[PersistCall]) -> list[str]:
 
 
 def render(calls: list[PersistCall]) -> str:
-    critical = [c for c in calls if c.call == "persistCriticalLocked"]
-    release = [c for c in calls if c.call in {"persistReleaseLedgerLocked", "persistReleaseLedgerWithOutboxLocked"}]
-    broad = [c for c in calls if c.call == "persistLocked"]
+    critical = [c for c in calls if c.call in CRITICAL_CALLS]
+    release = [c for c in calls if c.call in RELEASE_CALLS]
+    broad = [c for c in calls if c.call in BROAD_CALLS]
     lines: list[str] = [
         "# Persistence Decomposition Inventory",
         "",

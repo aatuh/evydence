@@ -5,12 +5,116 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"math"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/aatuh/evydence/internal/domain"
 )
+
+type contextRecordingStore struct {
+	seen    context.Context
+	state   PersistedState
+	ok      bool
+	loadErr error
+}
+
+func (s *contextRecordingStore) LoadState(ctx context.Context) (PersistedState, bool, error) {
+	s.seen = ctx
+	if err := ctx.Err(); err != nil {
+		return PersistedState{}, false, err
+	}
+	if s.loadErr != nil {
+		return PersistedState{}, false, s.loadErr
+	}
+	return s.state, s.ok, nil
+}
+
+func (s *contextRecordingStore) SaveState(context.Context, PersistedState) error { return nil }
+
+func newLedgerWithStore(t testing.TB, cfg Config) *Ledger {
+	t.Helper()
+	ledger, err := NewLedgerWithContext(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("create ledger with store: %v", err)
+	}
+	return ledger
+}
+
+func TestCloneStateReturnsErrorWithoutReplacingState(t *testing.T) {
+	state := PersistedState{Chain: map[string][]domain.AuditChainEntry{
+		"tenant": {{Metadata: map[string]any{"invalid": math.NaN()}}},
+	}}
+	cloned, err := cloneState(state)
+	if err == nil {
+		t.Fatal("expected clone error for unsupported JSON value")
+	}
+	if cloned.Chain != nil || len(state.Chain["tenant"]) != 1 {
+		t.Fatalf("clone failure must not return replacement state: %#v", cloned)
+	}
+}
+
+func TestNewLedgerWithContextHonorsCanceledLoad(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	store := &contextRecordingStore{}
+	if _, err := NewLedgerWithContext(ctx, Config{APIKeyPepper: "test", Store: store}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("constructor err=%v, want context canceled", err)
+	}
+	if store.seen != nil {
+		t.Fatal("constructor must not start a state load after caller cancellation")
+	}
+}
+
+func TestNewLedgerWithContextHonorsExpiredLoadDeadline(t *testing.T) {
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+	store := &contextRecordingStore{}
+	if _, err := NewLedgerWithContext(ctx, Config{APIKeyPepper: "test", Store: store}); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("constructor err=%v, want context deadline exceeded", err)
+	}
+	if store.seen != nil {
+		t.Fatal("constructor must not start a state load after caller deadline")
+	}
+}
+
+func TestNewLedgerWithContextRejectsUncloneablePersistedState(t *testing.T) {
+	store := &contextRecordingStore{state: PersistedState{Chain: map[string][]domain.AuditChainEntry{"tenant": {{Metadata: map[string]any{"invalid": math.NaN()}}}}}, ok: true}
+	if _, err := NewLedgerWithContext(context.Background(), Config{APIKeyPepper: "test", Store: store}); err == nil {
+		t.Fatal("expected malformed persisted state to be rejected")
+	}
+	if store.seen == nil {
+		t.Fatal("constructor did not load configured state")
+	}
+}
+
+func TestNewLedgerWithContextReturnsLoadFailure(t *testing.T) {
+	want := errors.New("state load failed")
+	store := &contextRecordingStore{loadErr: want}
+	if _, err := NewLedgerWithContext(context.Background(), Config{APIKeyPepper: "test", Store: store}); !errors.Is(err, want) {
+		t.Fatalf("constructor err=%v, want load error", err)
+	}
+	if store.seen == nil {
+		t.Fatal("constructor did not call configured state store")
+	}
+}
+
+func TestMemoryStoreRetainsCommittedStateWhenCloneFails(t *testing.T) {
+	store := NewMemoryStore()
+	committed := PersistedState{Tenants: map[string]domain.Tenant{"ten_committed": {ID: "ten_committed", Name: "Committed"}}}
+	if err := store.SaveState(context.Background(), committed); err != nil {
+		t.Fatalf("save committed state: %v", err)
+	}
+	invalid := PersistedState{Chain: map[string][]domain.AuditChainEntry{"tenant": {{Metadata: map[string]any{"invalid": math.NaN()}}}}}
+	if err := store.SaveState(context.Background(), invalid); err == nil {
+		t.Fatal("expected invalid state clone to fail")
+	}
+	got, ok, err := store.LoadState(context.Background())
+	if err != nil || !ok || got.Tenants["ten_committed"].Name != "Committed" {
+		t.Fatalf("failed clone replaced committed state: state=%#v ok=%t err=%v", got, ok, err)
+	}
+}
 
 type recordingOutbox struct {
 	jobs []OutboxJob
@@ -217,7 +321,7 @@ func TestUploadSBOMCanDeferParserSideEffectsToWorker(t *testing.T) {
 	outbox := &recordingOutbox{}
 	store := NewMemoryStore()
 	objects := newTestObjectStore()
-	ledger := NewLedger(Config{
+	ledger := newLedgerWithStore(t, Config{
 		APIKeyPepper:                 "test-pepper",
 		Now:                          fixedNow,
 		Store:                        store,
@@ -284,7 +388,7 @@ func TestUploadVulnerabilityScanCanDeferParserSideEffectsToWorker(t *testing.T) 
 	outbox := &recordingOutbox{}
 	store := NewMemoryStore()
 	objects := newTestObjectStore()
-	ledger := NewLedger(Config{
+	ledger := newLedgerWithStore(t, Config{
 		APIKeyPepper:                 "test-pepper",
 		Now:                          fixedNow,
 		Store:                        store,
@@ -347,7 +451,7 @@ func TestUploadOpenAPIContractCanDeferParserSideEffectsToWorker(t *testing.T) {
 	outbox := &recordingOutbox{}
 	store := NewMemoryStore()
 	objects := newTestObjectStore()
-	ledger := NewLedger(Config{
+	ledger := newLedgerWithStore(t, Config{
 		APIKeyPepper:                 "test-pepper",
 		Now:                          fixedNow,
 		Store:                        store,
@@ -410,7 +514,7 @@ func TestUploadBuildAttestationCanDeferParserSideEffectsToWorker(t *testing.T) {
 	outbox := &recordingOutbox{}
 	store := NewMemoryStore()
 	objects := newTestObjectStore()
-	ledger := NewLedger(Config{
+	ledger := newLedgerWithStore(t, Config{
 		APIKeyPepper:                 "test-pepper",
 		Now:                          fixedNow,
 		Store:                        store,
@@ -887,7 +991,7 @@ func TestReleaseBundleSignatureVerification(t *testing.T) {
 func TestMemoryStorePersistsLedgerState(t *testing.T) {
 	store := NewMemoryStore()
 	ctx := context.Background()
-	ledger, err := NewLedgerWithError(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
+	ledger, err := NewLedgerWithContext(context.Background(), Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
 	if err != nil {
 		t.Fatalf("new ledger: %v", err)
 	}
@@ -912,7 +1016,7 @@ func TestMemoryStorePersistsLedgerState(t *testing.T) {
 		t.Fatalf("bundle: %v", err)
 	}
 
-	restarted, err := NewLedgerWithError(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
+	restarted, err := NewLedgerWithContext(context.Background(), Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
 	if err != nil {
 		t.Fatalf("restart ledger: %v", err)
 	}
@@ -1596,7 +1700,7 @@ func TestUploadVEXCanDeferDocumentParserSideEffectsToWorker(t *testing.T) {
 	outbox := &recordingOutbox{}
 	store := NewMemoryStore()
 	objects := newTestObjectStore()
-	ledger := NewLedger(Config{
+	ledger := newLedgerWithStore(t, Config{
 		APIKeyPepper:                 "test-pepper",
 		Now:                          fixedNow,
 		Store:                        store,

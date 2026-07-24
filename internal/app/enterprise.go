@@ -512,7 +512,7 @@ func (s identityService) CreateSSOSession(ctx context.Context, actor domain.Acto
 	session := domain.SSOSession{ID: newID("sess"), TenantID: actor.TenantID, UserID: user.ID, ProviderID: provider.ID, Prefix: secretPrefix(secret), ExpiresAt: in.ExpiresAt.UTC(), SchemaVersion: domain.SSOSessionSchemaVersion, CreatedAt: l.now(), Hash: l.hashSecret(secret)}
 	l.ssoSessions[session.ID] = session
 	_, _ = l.appendChainLocked(actor.TenantID, "sso_session.created", "human_user", user.ID, actorType(actor), actorID(actor), "", "")
-	if err := l.persistCriticalLocked(ctx, l.criticalMutationLocked()); err != nil {
+	if err := l.persistCriticalStateLocked(ctx); err != nil {
 		return domain.SSOSession{}, "", err
 	}
 	session.Hash = ""
@@ -625,7 +625,7 @@ func (s identityService) ExchangeSSOCredential(ctx context.Context, in ExchangeS
 	session := domain.SSOSession{ID: newID("sess"), TenantID: provider.TenantID, UserID: user.ID, ProviderID: provider.ID, Prefix: secretPrefix(secret), Groups: groups, ExpiresAt: expiresAt, SchemaVersion: domain.SSOSessionSchemaVersion, CreatedAt: now, Hash: l.hashSecret(secret)}
 	l.ssoSessions[session.ID] = session
 	_, _ = l.appendChainLocked(provider.TenantID, "sso_session.created", "human_user", user.ID, "sso_provider", provider.ID, "", "")
-	if err := l.persistCriticalLocked(ctx, l.criticalMutationLocked()); err != nil {
+	if err := l.persistCriticalStateLocked(ctx); err != nil {
 		return domain.ProviderVerification{}, domain.SSOSession{}, "", err
 	}
 	session.Hash = ""
@@ -653,7 +653,7 @@ func (s identityService) RevokeSSOSession(ctx context.Context, actor domain.Acto
 	session.RevokedAt = &now
 	l.ssoSessions[session.ID] = session
 	_, _ = l.appendChainLocked(actor.TenantID, "sso_session.revoked", "sso_session", session.ID, actorType(actor), actorID(actor), "", "")
-	if err := l.persistCriticalLocked(ctx, l.criticalMutationLocked()); err != nil {
+	if err := l.persistCriticalStateLocked(ctx); err != nil {
 		return domain.SSOSession{}, err
 	}
 	session.Hash = ""
@@ -681,7 +681,7 @@ func (s identityService) RevokeCurrentSSOSession(ctx context.Context, actor doma
 	session.RevokedAt = &now
 	l.ssoSessions[session.ID] = session
 	_, _ = l.appendChainLocked(actor.TenantID, "sso_session.revoked", "sso_session", session.ID, actorType(actor), actorID(actor), "", "")
-	if err := l.persistCriticalLocked(ctx, l.criticalMutationLocked()); err != nil {
+	if err := l.persistCriticalStateLocked(ctx); err != nil {
 		return domain.SSOSession{}, err
 	}
 	session.Hash = ""
@@ -808,7 +808,7 @@ func (s identityService) CreateCustomerPortalAccess(ctx context.Context, actor d
 	access := domain.CustomerPortalAccess{ID: accessID, TenantID: actor.TenantID, PackageID: pkg.ID, CustomerName: in.CustomerName, ReviewerName: in.ReviewerName, ReviewerEmail: in.ReviewerEmail, RequireNDA: in.RequireNDA, Watermark: watermark, Prefix: secretPrefix(secret), ExpiresAt: in.ExpiresAt.UTC(), SchemaVersion: domain.CustomerPortalAccessVersion, CreatedAt: l.now(), Hash: l.hashSecret(secret)}
 	l.portalAccess[access.ID] = access
 	_, _ = l.appendChainLocked(actor.TenantID, "customer_portal_access.created", "customer_security_package", pkg.ID, actorType(actor), actorID(actor), "", "")
-	if err := l.persistCriticalLocked(ctx, l.criticalMutationLocked()); err != nil {
+	if err := l.persistCriticalStateLocked(ctx); err != nil {
 		return domain.CustomerPortalAccess{}, "", err
 	}
 	access.Hash = ""
@@ -872,7 +872,7 @@ func (s identityService) RevokeCustomerPortalAccess(ctx context.Context, actor d
 		access.RevokedAt = &now
 		l.portalAccess[id] = access
 		_, _ = l.appendChainLocked(access.TenantID, "customer_portal_access.revoked", "customer_portal_access", access.ID, actorType(actor), actorID(actor), "", "")
-		if err := l.persistCriticalLocked(ctx, l.criticalMutationLocked()); err != nil {
+		if err := l.persistCriticalStateLocked(ctx); err != nil {
 			return domain.CustomerPortalAccess{}, err
 		}
 	}
@@ -915,7 +915,7 @@ func (s identityService) accessCustomerPortalPackage(ctx context.Context, token 
 				if access.RevokedAt != nil && access.FailedAccessCount == customerPortalFailedAccessLimit {
 					_, _ = l.appendChainLocked(access.TenantID, "customer_portal_access.revoked_after_failed_access", "customer_portal_access", access.ID, "customer_portal", "unverified", "", "")
 				}
-				_ = l.persistCriticalLocked(ctx, l.criticalMutationLocked())
+				_ = l.persistCriticalStateLocked(ctx)
 			}
 			continue
 		}
@@ -927,7 +927,7 @@ func (s identityService) accessCustomerPortalPackage(ctx context.Context, token 
 			acceptedBy := cleanExternalLabel(in.NDAAcceptedBy)
 			if !in.NDAAccepted || acceptedBy == "" {
 				_, _ = l.appendChainLocked(access.TenantID, "customer_portal_package.nda_required", "customer_portal_access", access.ID, "customer_portal", access.ID, pkg.ManifestHash, "")
-				_ = l.persistCriticalLocked(ctx, l.criticalMutationLocked())
+				_ = l.persistCriticalStateLocked(ctx)
 				return domain.CustomerSecurityPackage{}, ErrForbidden
 			}
 			now := l.now()
@@ -941,7 +941,7 @@ func (s identityService) accessCustomerPortalPackage(ctx context.Context, token 
 		access.LastAccessedAt = &now
 		l.portalAccess[id] = access
 		l.appendCustomerPortalAccessEventLocked(successEntryType, access, pkg)
-		if err := l.persistCriticalLocked(ctx, l.criticalMutationLocked()); err != nil {
+		if err := l.persistCriticalStateLocked(ctx); err != nil {
 			return domain.CustomerSecurityPackage{}, err
 		}
 		return packageWithDistributionWatermark(pkg, access), nil

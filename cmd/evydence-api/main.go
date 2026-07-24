@@ -148,7 +148,9 @@ func run() error {
 	if releaseWriterLease != nil {
 		defer releaseWriterLease()
 	}
-	ledger, err := app.NewLedgerWithError(cfg)
+	ledgerContext, cancelLedgerLoad := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancelLedgerLoad()
+	ledger, err := app.NewLedgerWithContext(ledgerContext, cfg)
 	if err != nil {
 		return fmt.Errorf("create ledger: %w", err)
 	}

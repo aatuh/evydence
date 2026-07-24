@@ -48,7 +48,7 @@ func (s *focusedStoreSpy) reset() {
 func TestCriticalMutationStoreAvoidsAggregateSaveForMigratedFlows(t *testing.T) {
 	ctx := context.Background()
 	store := &focusedStoreSpy{}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
+	ledger := newLedgerWithStore(t, Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
 
 	_, key, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
@@ -93,7 +93,7 @@ func TestCriticalMutationStoreAvoidsAggregateSaveForMigratedFlows(t *testing.T) 
 func TestCriticalMutationStoreCoversBundleVerificationAndDecision(t *testing.T) {
 	ctx := context.Background()
 	store := &focusedStoreSpy{}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
+	ledger := newLedgerWithStore(t, Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	_ = artifact
 
@@ -132,7 +132,7 @@ func TestCriticalMutationStoreCoversBundleVerificationAndDecision(t *testing.T) 
 func TestCriticalMutationStoreCoversSSOAndPortalSecrets(t *testing.T) {
 	ctx := context.Background()
 	store := &focusedStoreSpy{}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
+	ledger := newLedgerWithStore(t, Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
 	actor := domain.Actor{TenantID: "ten_test", KeyID: "key_test", Scopes: []string{"*"}}
 	ledger.tenants[actor.TenantID] = domain.Tenant{ID: actor.TenantID, Name: "Tenant", CreatedAt: fixedNow()}
 	ledger.users["user_test"] = domain.HumanUser{
@@ -189,7 +189,7 @@ func TestCriticalMutationStoreCoversSSOAndPortalSecrets(t *testing.T) {
 func TestReleaseLedgerMutationStoreAvoidsAggregateSaveForCoreFlows(t *testing.T) {
 	ctx := context.Background()
 	store := &focusedStoreSpy{}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
+	ledger := newLedgerWithStore(t, Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap: %v", err)
@@ -263,7 +263,7 @@ func TestReleaseLedgerMutationStoreAvoidsAggregateSaveForCoreFlows(t *testing.T)
 func TestReleaseLedgerMutationStoreCoversParserMetadataAndOutbox(t *testing.T) {
 	ctx := context.Background()
 	store := &focusedStoreSpy{}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store, WorkerOwnedParserSideEffects: true})
+	ledger := newLedgerWithStore(t, Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store, WorkerOwnedParserSideEffects: true})
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 
 	store.reset()
@@ -304,7 +304,7 @@ func TestReleaseLedgerMutationStoreCoversParserMetadataAndOutbox(t *testing.T) {
 func TestCriticalMutationFallsBackToAggregateSave(t *testing.T) {
 	ctx := context.Background()
 	store := &focusedFallbackStore{}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
+	ledger := newLedgerWithStore(t, Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
 	if _, _, _, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"}); err != nil {
 		t.Fatalf("bootstrap: %v", err)
 	}
@@ -316,7 +316,7 @@ func TestCriticalMutationFallsBackToAggregateSave(t *testing.T) {
 func TestReleaseLedgerMutationFallsBackToAggregateSave(t *testing.T) {
 	ctx := context.Background()
 	store := &focusedFallbackStore{}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
+	ledger := newLedgerWithStore(t, Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap: %v", err)
@@ -436,7 +436,7 @@ func (s *fullRelationalStoreSpy) reset() {
 func TestRelationalStateStoreAvoidsAggregateSaveForRemainingFamilies(t *testing.T) {
 	ctx := context.Background()
 	store := &fullRelationalStoreSpy{}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
+	ledger := newLedgerWithStore(t, Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap: %v", err)
@@ -512,7 +512,7 @@ func TestRelationalStateStoreAvoidsAggregateSaveForRemainingFamilies(t *testing.
 func TestRelationalStateStoreCoversPackageAndReportWriteFamilies(t *testing.T) {
 	ctx := context.Background()
 	store := &fullRelationalStoreSpy{}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
+	ledger := newLedgerWithStore(t, Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap: %v", err)

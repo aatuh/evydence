@@ -254,7 +254,7 @@ func TestControlValidationScopeAndWaivedCoverage(t *testing.T) {
 func TestControlStatePersistsAcrossRestart(t *testing.T) {
 	store := NewMemoryStore()
 	ctx := context.Background()
-	ledger, err := NewLedgerWithError(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
+	ledger, err := NewLedgerWithContext(context.Background(), Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
 	if err != nil {
 		t.Fatalf("new ledger: %v", err)
 	}
@@ -283,7 +283,7 @@ func TestControlStatePersistsAcrossRestart(t *testing.T) {
 	if _, err := ledger.LinkControlEvidence(ctx, actor, control.ID, LinkControlEvidenceInput{EvidenceType: "sbom", SubjectType: "sbom", SubjectID: sbom.ID, ProductID: release.ProductID, ReleaseID: release.ID, Confidence: "high"}); err != nil {
 		t.Fatalf("link: %v", err)
 	}
-	restarted, err := NewLedgerWithError(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
+	restarted, err := NewLedgerWithContext(context.Background(), Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
 	if err != nil {
 		t.Fatalf("restart: %v", err)
 	}

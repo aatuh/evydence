@@ -418,7 +418,7 @@ func (s releaseEvidenceService) CreateVulnerabilityDecision(ctx context.Context,
 	decision := l.createDecisionLocked(actor.TenantID, scan, finding, in, "api", actor.KeyID, "", in.VEXDocumentID)
 	l.decisions[decision.ID] = decision
 	l.appendDecisionLifecycleAuditLocked(actor.TenantID, decision, finding.ID, "api_key", actor.KeyID, "")
-	if err := l.persistCriticalLocked(ctx, l.criticalMutationLocked()); err != nil {
+	if err := l.persistCriticalStateLocked(ctx); err != nil {
 		return domain.VulnerabilityDecision{}, err
 	}
 	return decision, nil

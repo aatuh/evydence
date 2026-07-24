@@ -1514,7 +1514,7 @@ func TestPostgresBackupRestoreRehearsalPreservesLedgerAndObjects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ledger, err := app.NewLedgerWithError(app.Config{APIKeyPepper: "test-pepper", Store: sourceStore, ObjectStore: sourceObjects})
+	ledger, err := app.NewLedgerWithContext(context.Background(), app.Config{APIKeyPepper: "test-pepper", Store: sourceStore, ObjectStore: sourceObjects})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1572,7 +1572,7 @@ func TestPostgresBackupRestoreRehearsalPreservesLedgerAndObjects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	restored, err := app.NewLedgerWithError(app.Config{APIKeyPepper: "test-pepper", Store: targetStore, ObjectStore: targetObjects})
+	restored, err := app.NewLedgerWithContext(context.Background(), app.Config{APIKeyPepper: "test-pepper", Store: targetStore, ObjectStore: targetObjects})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -649,7 +649,10 @@ func (l *Ledger) GenerateBackupManifest(ctx context.Context, actor domain.Actor)
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	state := l.snapshotLocked()
+	state, err := l.snapshotLocked()
+	if err != nil {
+		return domain.BackupManifest{}, err
+	}
 	state.SigningKeyPrivate = nil
 	hash, err := canonicalAnyHash(state)
 	if err != nil {

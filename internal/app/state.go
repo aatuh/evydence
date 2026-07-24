@@ -8,7 +8,7 @@ import (
 	"github.com/aatuh/evydence/internal/domain"
 )
 
-func (l *Ledger) snapshotLocked() PersistedState {
+func (l *Ledger) snapshotLocked() (PersistedState, error) {
 	apiKeys := make(map[string]domain.APIKey, len(l.apiKeys))
 	for id, key := range l.apiKeys {
 		apiKeys[id] = key
@@ -153,8 +153,12 @@ func (l *Ledger) snapshotLocked() PersistedState {
 	return cloneState(state)
 }
 
-func (l *Ledger) applyState(state PersistedState) {
-	state = normalizeState(cloneState(state))
+func (l *Ledger) applyState(state PersistedState) error {
+	cloned, err := cloneState(state)
+	if err != nil {
+		return err
+	}
+	state = normalizeState(cloned)
 	for id, hash := range state.APIKeyHashes {
 		key, ok := state.APIKeys[id]
 		if !ok {
@@ -278,17 +282,25 @@ func (l *Ledger) applyState(state PersistedState) {
 	l.verifications = state.Verifications
 	l.chain = state.Chain
 	l.idempotency = state.Idempotency
+	return nil
 }
 
 func (l *Ledger) persistLocked(ctx context.Context) error {
 	if l.store == nil {
 		return nil
 	}
-	state := l.snapshotLocked()
+	state, err := l.snapshotLocked()
+	if err != nil {
+		return err
+	}
 	if reconciled, ok := l.store.(AuditChainRelationalStateStore); ok {
 		chain, err := reconciled.SaveRelationalStateWithAuditChain(ctx, state)
 		if err == nil {
-			l.chain = cloneAuditChain(chain)
+			cloned, cloneErr := cloneAuditChain(chain)
+			if cloneErr != nil {
+				return cloneErr
+			}
+			l.chain = cloned
 		}
 		return err
 	}
@@ -302,10 +314,17 @@ func (l *Ledger) persistCriticalLocked(ctx context.Context, mutation CriticalMut
 	if l.store == nil {
 		return nil
 	}
+	if _, err := l.snapshotLocked(); err != nil {
+		return err
+	}
 	if reconciled, ok := l.store.(AuditChainCriticalMutationStore); ok {
 		chain, err := reconciled.ApplyCriticalMutationWithAuditChain(ctx, mutation)
 		if err == nil {
-			l.chain = cloneAuditChain(chain)
+			cloned, cloneErr := cloneAuditChain(chain)
+			if cloneErr != nil {
+				return cloneErr
+			}
+			l.chain = cloned
 		}
 		return err
 	}
@@ -320,10 +339,17 @@ func (l *Ledger) persistReleaseLedgerLocked(ctx context.Context, mutation Releas
 	if l.store == nil {
 		return nil
 	}
+	if _, err := l.snapshotLocked(); err != nil {
+		return err
+	}
 	if reconciled, ok := l.store.(AuditChainReleaseLedgerMutationStore); ok {
 		chain, err := reconciled.ApplyReleaseLedgerMutationWithAuditChain(ctx, mutation)
 		if err == nil {
-			l.chain = cloneAuditChain(chain)
+			cloned, cloneErr := cloneAuditChain(chain)
+			if cloneErr != nil {
+				return cloneErr
+			}
+			l.chain = cloned
 		}
 		return err
 	}
@@ -334,12 +360,20 @@ func (l *Ledger) persistReleaseLedgerLocked(ctx context.Context, mutation Releas
 	return focused.ApplyReleaseLedgerMutation(ctx, mutation)
 }
 
-func (l *Ledger) criticalMutationLocked() CriticalMutation {
-	return criticalMutationFromState(l.snapshotLocked())
+func (l *Ledger) criticalMutationLocked() (CriticalMutation, error) {
+	state, err := l.snapshotLocked()
+	if err != nil {
+		return CriticalMutation{}, err
+	}
+	return criticalMutationFromState(state), nil
 }
 
-func (l *Ledger) releaseLedgerMutationLocked() ReleaseLedgerMutation {
-	return releaseLedgerMutationFromState(l.snapshotLocked())
+func (l *Ledger) releaseLedgerMutationLocked() (ReleaseLedgerMutation, error) {
+	state, err := l.snapshotLocked()
+	if err != nil {
+		return ReleaseLedgerMutation{}, err
+	}
+	return releaseLedgerMutationFromState(state), nil
 }
 
 func ReleaseLedgerMutationFromState(state PersistedState) ReleaseLedgerMutation {
@@ -347,12 +381,31 @@ func ReleaseLedgerMutationFromState(state PersistedState) ReleaseLedgerMutation 
 }
 
 func (l *Ledger) persistReleaseLedgerWithOutboxLocked(ctx context.Context, job OutboxJob) error {
-	mutation := l.releaseLedgerMutationLocked()
+	mutation, err := l.releaseLedgerMutationLocked()
+	if err != nil {
+		return err
+	}
 	mutation.OutboxJobs = append(mutation.OutboxJobs, job)
 	if _, ok := l.store.(ReleaseLedgerMutationStore); !ok {
 		if err := l.enqueueJob(ctx, job); err != nil {
 			return err
 		}
+	}
+	return l.persistReleaseLedgerLocked(ctx, mutation)
+}
+
+func (l *Ledger) persistCriticalStateLocked(ctx context.Context) error {
+	mutation, err := l.criticalMutationLocked()
+	if err != nil {
+		return err
+	}
+	return l.persistCriticalLocked(ctx, mutation)
+}
+
+func (l *Ledger) persistReleaseLedgerStateLocked(ctx context.Context) error {
+	mutation, err := l.releaseLedgerMutationLocked()
+	if err != nil {
+		return err
 	}
 	return l.persistReleaseLedgerLocked(ctx, mutation)
 }
@@ -509,20 +562,24 @@ func (l *Ledger) enqueueJob(ctx context.Context, job OutboxJob) error {
 	return l.outbox.Enqueue(ctx, job)
 }
 
-func cloneState(state PersistedState) PersistedState {
+func cloneState(state PersistedState) (PersistedState, error) {
 	body, err := json.Marshal(state)
 	if err != nil {
-		return normalizeState(PersistedState{})
+		return PersistedState{}, err
 	}
 	var out PersistedState
 	if err := json.Unmarshal(body, &out); err != nil {
-		return normalizeState(PersistedState{})
+		return PersistedState{}, err
 	}
-	return normalizeState(out)
+	return normalizeState(out), nil
 }
 
-func cloneAuditChain(chain map[string][]domain.AuditChainEntry) map[string][]domain.AuditChainEntry {
-	return cloneState(PersistedState{Chain: chain}).Chain
+func cloneAuditChain(chain map[string][]domain.AuditChainEntry) (map[string][]domain.AuditChainEntry, error) {
+	cloned, err := cloneState(PersistedState{Chain: chain})
+	if err != nil {
+		return nil, err
+	}
+	return cloned.Chain, nil
 }
 
 func normalizeState(state PersistedState) PersistedState {
