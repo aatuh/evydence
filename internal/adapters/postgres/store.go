@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -21,6 +22,8 @@ type Store struct {
 	pool                  *pgxpool.Pool
 	loadMode              LoadMode
 	disableSnapshotWrites bool
+	writerLeaseMu         sync.RWMutex
+	writerLease           *pgxpool.Conn
 }
 
 type LoadMode string
@@ -60,8 +63,53 @@ func OpenWithOptions(ctx context.Context, databaseURL string, opts StoreOptions)
 
 func (s *Store) Close() {
 	if s != nil && s.pool != nil {
+		s.writerLeaseMu.Lock()
+		s.writerLease = nil
+		s.writerLeaseMu.Unlock()
 		s.pool.Close()
 	}
+}
+
+// CheckReadiness verifies that this process can reach PostgreSQL without
+// exposing connection details to callers.
+func (s *Store) CheckReadiness(ctx context.Context) error {
+	if s == nil || s.pool == nil {
+		return app.ErrValidation
+	}
+	if err := s.pool.Ping(ctx); err != nil {
+		return fmt.Errorf("ping postgres readiness: %w", err)
+	}
+	return nil
+}
+
+// CheckMigrationState verifies that the configured migrations are current.
+func (s *Store) CheckMigrationState(ctx context.Context, dir string) error {
+	if s == nil || s.pool == nil {
+		return app.ErrValidation
+	}
+	if err := s.RequireNoPendingMigrations(ctx, dir); err != nil {
+		return fmt.Errorf("check migration readiness: %w", err)
+	}
+	return nil
+}
+
+// CheckAPIWriterLease verifies that the process still owns its writer lease.
+// The held connection is pinged directly so a dead lease connection cannot be
+// mistaken for a healthy pooled database connection.
+func (s *Store) CheckAPIWriterLease(ctx context.Context) error {
+	if s == nil {
+		return app.ErrValidation
+	}
+	s.writerLeaseMu.RLock()
+	defer s.writerLeaseMu.RUnlock()
+	lease := s.writerLease
+	if lease == nil {
+		return errors.New("api writer lease is not held")
+	}
+	if err := lease.Conn().Ping(ctx); err != nil {
+		return fmt.Errorf("ping api writer lease: %w", err)
+	}
+	return nil
 }
 
 func (s *Store) LoadState(ctx context.Context) (app.PersistedState, bool, error) {
@@ -119,10 +167,21 @@ func (s *Store) AcquireAPIWriterLease(ctx context.Context) (func(), error) {
 		return nil, errors.New("another Evydence API writer is already active")
 	}
 	releaseConn = false
+	s.writerLeaseMu.Lock()
+	s.writerLease = conn
+	s.writerLeaseMu.Unlock()
 	releaseCtx := context.WithoutCancel(ctx)
+	var once sync.Once
 	return func() {
-		_, _ = conn.Exec(releaseCtx, `SELECT pg_advisory_unlock($1)`, apiWriterLeaseKey)
-		conn.Release()
+		once.Do(func() {
+			_, _ = conn.Exec(releaseCtx, `SELECT pg_advisory_unlock($1)`, apiWriterLeaseKey)
+			s.writerLeaseMu.Lock()
+			if s.writerLease == conn {
+				s.writerLease = nil
+			}
+			s.writerLeaseMu.Unlock()
+			conn.Release()
+		})
 	}, nil
 }
 

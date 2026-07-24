@@ -62,7 +62,7 @@ process, or equivalent deployment control.
 | `EVYDENCE_PROVIDER_VALIDATION_GATEWAY_TIMEOUT_SECONDS` | No | `10` | Timeout for provider validation gateway requests. |
 | `EVYDENCE_PROVIDER_VALIDATION_GATEWAY_ALLOW_INSECURE_LOCALHOST` | Local only | `false` | Allows an HTTP localhost gateway for tests. Do not use for production. |
 | `EVYDENCE_SIGNING_KEY_MODE` | Production yes | `external`, `aws-kms`, `gcp-kms`, `azure-key-vault`, or `pkcs11-hsm` for production | Production rejects local plaintext signing-key mode. `aws-kms`, `gcp-kms`, and `azure-key-vault` can use built-in provider executors. `pkcs11-hsm` remains an HTTPS signing-gateway profile. |
-| `EVYDENCE_SIGNING_EXECUTOR_URL` | No | unset | Optional HTTPS signing gateway used by `POST /v1/signing-operations` when `external_signature` is omitted. The API sends subject metadata and `payload_hash`, not raw payload bytes. |
+| `EVYDENCE_SIGNING_EXECUTOR_URL` | `external` and `pkcs11-hsm` production modes | unset | HTTPS signing gateway used by `POST /v1/signing-operations` when `external_signature` is omitted. The API sends subject metadata and `payload_hash`, not raw payload bytes. |
 | `EVYDENCE_SIGNING_EXECUTOR_TOKEN` | Signing gateway | unset | Optional bearer token for the signing gateway. Store outside source control and logs. |
 | `EVYDENCE_SIGNING_EXECUTOR_TIMEOUT_SECONDS` | No | `10` | Timeout for signing gateway requests. |
 | `EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST` | Local only | `false` | Allows `http://localhost` or loopback signing gateway endpoints for local development and tests. Do not use for production. |
@@ -95,13 +95,27 @@ When `ENV=production`, the API refuses to start unless:
 - `EVYDENCE_DATABASE_URL` is set.
 - `EVYDENCE_API_KEY_PEPPER` is non-empty and not the local default.
 - `EVYDENCE_SIGNING_KEY_MODE` is `external`, `aws-kms`, `gcp-kms`,
-  `azure-key-vault`, or `pkcs11-hsm`. `pkcs11-hsm` requires
+  `azure-key-vault`, or `pkcs11-hsm`. `external` and `pkcs11-hsm` require
   `EVYDENCE_SIGNING_EXECUTOR_URL`; `gcp-kms` and `azure-key-vault` require
   either their direct provider credentials or `EVYDENCE_SIGNING_EXECUTOR_URL`.
 - `EVYDENCE_PRINT_BOOTSTRAP_SECRET` is not `true`.
 - `EVYDENCE_POSTGRES_LOAD_MODE`, when set, is `relational_only`.
 - `EVYDENCE_API_WRITER_MODE`, when set, is `single` or `single-writer`.
 - `EVYDENCE_API_WRITER_REPLICAS`, when set, is `1`.
+
+## Build Identity
+
+`make build-api` injects API identity through linker flags. CI and release
+packaging may set `BUILD_VERSION`, `BUILD_COMMIT`, `BUILD_TIME`, `BUILD_DIRTY`,
+`BUILD_GO_VERSION`, and `BUILD_RELEASE_MANIFEST_DIGEST`; none may contain
+secrets. Docker accepts corresponding `EVYDENCE_BUILD_*` build arguments.
+
+The release-candidate package script writes a deterministic pre-build release
+input manifest from the tag, commit, OpenAPI file, and migrations, injects its
+SHA-256 digest into `evydence-api`, and includes that manifest in the final
+signed release set. The field is intentionally not the digest of the final
+manifest, because a final manifest that covers the binary cannot recursively be
+embedded in that same binary.
 
 These checks reduce unsafe runtime defaults. They do not replace secret management, network controls, backup validation, or external signing operations.
 

@@ -15,6 +15,11 @@ release artifacts.
 
 ### Added
 
+- API build identity now records version, commit, build time, dirty state, Go
+  version, and a pre-build release-input-manifest digest. Runtime liveness,
+  dependency-backed readiness, and instance-admin readiness diagnostics are
+  separate surfaces; public readiness omits dependency errors and returns 503
+  for required unavailable dependencies.
 - Verification responses now use a versioned, conservative assurance-result
   taxonomy and record profile scope, non-secret trust-material identifiers,
   required checks, and limitations. Customer packages include release-scoped

@@ -68,6 +68,7 @@ is:
 - coverage output and threshold result;
 - OpenAPI checksum and migration checksums;
 - release SBOM metadata and release provenance metadata;
+- pre-build release-input manifest used by the API build identity;
 - signed release artifact manifest, manifest signature, and artifact checksums;
 - release notes that state supported profile, assumptions, limitations,
   upgrade notes, and unresolved hardening work.
@@ -86,6 +87,7 @@ make release-candidate-check TAG=<vX.Y.Z-rc.N>
 
 `scripts/release_candidate_package.sh` creates `dist/<tag>/` with the
 release archives, `SHA256SUMS`, `openapi.sha256`, `migrations.sha256`,
+`release-build-manifest.json`,
 release SBOM metadata, release provenance metadata, `coverage.out`,
 `release-check-summary.txt`, checked release notes, signed release manifest,
 and manifest signature. It refuses dirty worktrees, invalid release-candidate

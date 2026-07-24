@@ -22,6 +22,7 @@ import (
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
+	"github.com/aatuh/evydence/internal/runtimeinfo"
 )
 
 type requestContext = context.Context
@@ -30,15 +31,17 @@ const maxJSONBody = 2 << 20
 const requestIDHeader = "X-Request-ID"
 
 type Server struct {
-	ledger  *app.Ledger
-	mux     *http.ServeMux
-	specs   *specs.Registry
-	routes  *routecontracts.Registry
-	limiter *requestRateLimiter
+	ledger   *app.Ledger
+	mux      *http.ServeMux
+	specs    *specs.Registry
+	routes   *routecontracts.Registry
+	limiter  *requestRateLimiter
+	identity runtimeinfo.Identity
 }
 
 type ServerOptions struct {
 	RateLimitRequestsPerMinute int
+	BuildIdentity              runtimeinfo.Identity
 }
 
 func NewServer(ledger *app.Ledger) (*Server, error) {
@@ -53,7 +56,11 @@ func NewServerWithOptions(ledger *app.Ledger, opts ServerOptions) (*Server, erro
 	specRegistry := NewSpecRegistry()
 	router := &serveMuxRouter{mux: mux}
 	routeRegistry := routecontracts.NewRegistry(router, specRegistry)
-	server := &Server{ledger: ledger, mux: mux, specs: specRegistry, routes: routeRegistry, limiter: newRequestRateLimiter(opts.RateLimitRequestsPerMinute)}
+	identity := opts.BuildIdentity
+	if identity.IsZero() {
+		identity = runtimeinfo.Current()
+	}
+	server := &Server{ledger: ledger, mux: mux, specs: specRegistry, routes: routeRegistry, limiter: newRequestRateLimiter(opts.RateLimitRequestsPerMinute), identity: identity}
 	if err := server.registerRoutes(); err != nil {
 		return nil, err
 	}

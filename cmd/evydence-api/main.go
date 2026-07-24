@@ -27,7 +27,10 @@ import (
 	"github.com/aatuh/evydence/internal/adapters/transparency/httpfetcher"
 	transparencygateway "github.com/aatuh/evydence/internal/adapters/transparency/httpgateway"
 	"github.com/aatuh/evydence/internal/app"
+	"github.com/aatuh/evydence/internal/runtimeinfo"
 )
+
+const runtimeReadinessTimeout = 5 * time.Second
 
 func main() {
 	if err := run(); err != nil {
@@ -36,6 +39,8 @@ func main() {
 }
 
 func run() error {
+	identity := runtimeinfo.Current()
+	log.Printf("evydence api build identity %s", identity.String())
 	production := strings.EqualFold(os.Getenv("ENV"), "production")
 	databaseURL := strings.TrimSpace(os.Getenv("EVYDENCE_DATABASE_URL"))
 	pepper := strings.TrimSpace(os.Getenv("EVYDENCE_API_KEY_PEPPER"))
@@ -117,7 +122,25 @@ func run() error {
 		cfg.Store = pgStore
 		cfg.Outbox = pgStore
 		cfg.ObjectStore = objectStore
+		cfg.ReadinessChecks = append(cfg.ReadinessChecks,
+			app.ReadinessCheck{Name: "postgres", Timeout: runtimeReadinessTimeout, FailureDetail: "database connectivity is unavailable", Check: pgStore.CheckReadiness},
+			app.ReadinessCheck{Name: "migrations", Timeout: runtimeReadinessTimeout, FailureDetail: "database migration state is unavailable", Check: func(checkCtx context.Context) error {
+				return pgStore.CheckMigrationState(checkCtx, migrationsDir)
+			}},
+		)
+		if production {
+			cfg.ReadinessChecks = append(cfg.ReadinessChecks, app.ReadinessCheck{Name: "writer_lease", Timeout: runtimeReadinessTimeout, FailureDetail: "API writer lease is unavailable", Check: pgStore.CheckAPIWriterLease})
+		}
+		objectReadiness, ok := objectStore.(interface{ CheckReadiness(context.Context) error })
+		if !ok {
+			closeStore()
+			return errors.New("configured object store does not provide readiness checks")
+		}
+		cfg.ReadinessChecks = append(cfg.ReadinessChecks, app.ReadinessCheck{Name: "object_store", Timeout: runtimeReadinessTimeout, FailureDetail: "object store access is unavailable", Check: objectReadiness.CheckReadiness})
 		log.Print("evydence api using postgres state store and configured object store")
+	}
+	if production {
+		cfg.ReadinessChecks = append(cfg.ReadinessChecks, app.ReadinessCheck{Name: "signing_config", Timeout: runtimeReadinessTimeout, FailureDetail: "required signing configuration is unavailable", Check: signingConfigurationReadiness(cfg.Signer)})
 	}
 	if closeStore != nil {
 		defer closeStore()
@@ -146,6 +169,7 @@ func run() error {
 	}
 	server, err := httpapi.NewServerWithOptions(ledger, httpapi.ServerOptions{
 		RateLimitRequestsPerMinute: intEnv("EVYDENCE_RATE_LIMIT_REQUESTS_PER_MINUTE", 0),
+		BuildIdentity:              identity,
 	})
 	if err != nil {
 		return fmt.Errorf("create server: %w", err)
@@ -279,13 +303,25 @@ func validateRuntimeConfig(production bool, databaseURL, pepper, signingKeyMode,
 	if !productionSigningKeyMode(normalizedMode) {
 		return errors.New("production requires EVYDENCE_SIGNING_KEY_MODE=external, aws-kms, gcp-kms, azure-key-vault, or pkcs11-hsm; plaintext local signing keys are dev-only")
 	}
-	if normalizedMode == "pkcs11_hsm" && strings.TrimSpace(signingExecutorURL) == "" {
+	if (normalizedMode == "pkcs11_hsm" || normalizedMode == "external") && strings.TrimSpace(signingExecutorURL) == "" {
 		return fmt.Errorf("production EVYDENCE_SIGNING_KEY_MODE=%s requires EVYDENCE_SIGNING_EXECUTOR_URL", normalizedMode)
 	}
 	if printBootstrapSecret {
 		return errors.New("production refuses EVYDENCE_PRINT_BOOTSTRAP_SECRET=true")
 	}
 	return nil
+}
+
+func signingConfigurationReadiness(signer app.SigningExecutor) func(context.Context) error {
+	return func(ctx context.Context) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if signer == nil {
+			return errors.New("signing executor is not configured")
+		}
+		return nil
+	}
 }
 
 func normalizeSigningKeyMode(value string) string {
@@ -305,7 +341,7 @@ func productionSigningKeyMode(normalizedMode string) bool {
 
 func signingModeRequiresGateway(normalizedMode string) bool {
 	switch normalizedMode {
-	case "gcp_kms", "azure_key_vault", "pkcs11_hsm":
+	case "external", "gcp_kms", "azure_key_vault", "pkcs11_hsm":
 		return true
 	default:
 		return false

@@ -109,7 +109,7 @@ def main() -> int:
 
     artifact_names = sorted(
         path.name
-        for pattern in ("evydence_*.tar.gz", "evydence_*.zip", "openapi.yaml", "migrations.sha256", "release-notes.md")
+        for pattern in ("evydence_*.tar.gz", "evydence_*.zip", "openapi.yaml", "migrations.sha256", "release-notes.md", "release-build-manifest.json")
         for path in distdir.glob(pattern)
     )
     provenance = {

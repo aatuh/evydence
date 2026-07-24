@@ -62,16 +62,17 @@ const (
 const customerPortalFailedAccessLimit = 5
 
 type Config struct {
-	APIKeyPepper string
-	Now          func() time.Time
-	Store        Store
-	ObjectStore  ObjectStore
-	Retention    ObjectRetentionVerifier
-	Signer       SigningExecutor
-	OIDC         OIDCDiscoveryClient
-	ProviderAPI  ProviderIdentityValidator
-	Transparency TransparencyProofFetcher
-	Outbox       Outbox
+	APIKeyPepper    string
+	Now             func() time.Time
+	Store           Store
+	ObjectStore     ObjectStore
+	Retention       ObjectRetentionVerifier
+	Signer          SigningExecutor
+	OIDC            OIDCDiscoveryClient
+	ProviderAPI     ProviderIdentityValidator
+	Transparency    TransparencyProofFetcher
+	Outbox          Outbox
+	ReadinessChecks []ReadinessCheck
 	// WorkerOwnedParserSideEffects stores accepted parser records first and
 	// lets outbox workers populate parser-derived fields from raw payloads.
 	WorkerOwnedParserSideEffects bool
@@ -90,6 +91,7 @@ type Ledger struct {
 	providerAPI        ProviderIdentityValidator
 	transparencyProofs TransparencyProofFetcher
 	outbox             Outbox
+	readinessChecks    []ReadinessCheck
 	workerOwnedParsers bool
 
 	tenants               map[string]domain.Tenant
@@ -219,6 +221,7 @@ func NewLedgerWithError(cfg Config) (*Ledger, error) {
 		providerAPI:           cfg.ProviderAPI,
 		transparencyProofs:    cfg.Transparency,
 		outbox:                cfg.Outbox,
+		readinessChecks:       normalizedReadinessChecks(cfg.ReadinessChecks),
 		workerOwnedParsers:    cfg.WorkerOwnedParserSideEffects,
 		tenants:               map[string]domain.Tenant{},
 		organizations:         map[string]domain.Organization{},

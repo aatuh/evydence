@@ -43,6 +43,17 @@ type ObjectStore interface {
 	Get(context.Context, string) (Object, error)
 }
 
+// ReadinessCheck is a bounded, process-level dependency probe. Check must
+// honor its context and must not return raw credentials, URLs, paths, tenant
+// data, or provider responses in FailureDetail; public readiness never emits
+// either the returned error or FailureDetail.
+type ReadinessCheck struct {
+	Name          string
+	Timeout       time.Duration
+	FailureDetail string
+	Check         func(context.Context) error
+}
+
 type ObjectRetentionVerifier interface {
 	VerifyObjectRetention(context.Context, ObjectRetentionRequest) (ObjectRetentionResult, error)
 }

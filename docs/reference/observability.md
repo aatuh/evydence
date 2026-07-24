@@ -4,7 +4,29 @@ Evydence exposes low-detail runtime checks for operators. These signals support 
 
 ## Endpoints
 
-`GET /v1/ready` returns unauthenticated readiness JSON with only component status names such as `ledger`, `store`, and `object_store`.
+`GET /v1/health` is an unauthenticated liveness check. It does not contact
+PostgreSQL, object storage, a signing provider, or tenant evidence.
+
+`GET /v1/ready` is an unauthenticated, low-detail readiness check. When the
+durable API profile is configured, it runs bounded probes for PostgreSQL
+connectivity, migration state, the production API writer lease, object-store
+access, and required signing configuration. It returns `200` only when every
+required check is available and `503` with `"status":"unavailable"` when one
+is not. The response exposes check names and statuses only; it excludes raw
+dependency errors, credentials, database hosts, object-store paths, and tenant
+data.
+
+`GET /v1/admin/readiness` returns vetted per-check diagnostic text to a caller
+with the explicit `instance:admin` scope. Tenant admin and ordinary wildcard
+tenant keys are not enough. This diagnostic surface still excludes raw
+dependency errors, credentials, paths, and tenant data.
+
+`GET /v1/version` returns the immutable API build identity: version, commit,
+build time, dirty marker, Go version, and the digest of the pre-build release
+input manifest. Release-candidate packaging includes that manifest in the final
+signed release artifact set. The endpoint reports provenance fields; it does
+not prove that a binary, deployment, or release package is trustworthy without
+independent checksum and signature verification.
 
 `GET /v1/metrics` requires an admin API key. By default it returns JSON. When the request includes `Accept: text/plain`, it returns Prometheus exposition text for safe tenant-scoped counters and gauges:
 

@@ -74,6 +74,7 @@ jobs:
           image="ghcr.io/${{ github.repository }}:${{ github.event.inputs.image_tag }}"
           commit="$(git rev-parse HEAD)"
           created="$(git show -s --format=%cI HEAD)"
+          go_version="$(go env GOVERSION)"
           docker buildx create --use --name evydence-builder || docker buildx use evydence-builder
           docker buildx build \
             --platform linux/amd64 \
@@ -81,6 +82,12 @@ jobs:
             --label "org.opencontainers.image.revision=${commit}" \
             --label "org.opencontainers.image.created=${created}" \
             --label "org.opencontainers.image.version=${{ github.event.inputs.image_tag }}" \
+            --build-arg "EVYDENCE_BUILD_VERSION=${{ github.event.inputs.image_tag }}" \
+            --build-arg "EVYDENCE_BUILD_COMMIT=${commit}" \
+            --build-arg "EVYDENCE_BUILD_TIME=${created}" \
+            --build-arg "EVYDENCE_BUILD_DIRTY=false" \
+            --build-arg "EVYDENCE_BUILD_GO_VERSION=${go_version}" \
+            --build-arg "EVYDENCE_BUILD_RELEASE_MANIFEST_DIGEST=unknown" \
             --provenance=true \
             --sbom=true \
             --tag "$image" \

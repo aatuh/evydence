@@ -3,7 +3,19 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN go build -o /out/evydence-api ./cmd/evydence-api
+ARG EVYDENCE_BUILD_VERSION=unknown
+ARG EVYDENCE_BUILD_COMMIT=unknown
+ARG EVYDENCE_BUILD_TIME=unknown
+ARG EVYDENCE_BUILD_DIRTY=false
+ARG EVYDENCE_BUILD_GO_VERSION=unknown
+ARG EVYDENCE_BUILD_RELEASE_MANIFEST_DIGEST=unknown
+ENV EVYDENCE_BUILD_VERSION=${EVYDENCE_BUILD_VERSION} \
+    EVYDENCE_BUILD_COMMIT=${EVYDENCE_BUILD_COMMIT} \
+    EVYDENCE_BUILD_TIME=${EVYDENCE_BUILD_TIME} \
+    EVYDENCE_BUILD_DIRTY=${EVYDENCE_BUILD_DIRTY} \
+    EVYDENCE_BUILD_GO_VERSION=${EVYDENCE_BUILD_GO_VERSION} \
+    EVYDENCE_BUILD_RELEASE_MANIFEST_DIGEST=${EVYDENCE_BUILD_RELEASE_MANIFEST_DIGEST}
+RUN go build -trimpath -ldflags "$(sh scripts/build_ldflags.sh)" -o /out/evydence-api ./cmd/evydence-api
 RUN go build -o /out/evydence-migrate ./cmd/evydence-migrate
 RUN go build -o /out/evydence-worker ./cmd/evydence-worker
 RUN go build -o /out/evydence ./cmd/evydence

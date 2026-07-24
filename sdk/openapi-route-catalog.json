@@ -1,5 +1,5 @@
 {
-  "route_count": 186,
+  "route_count": 187,
   "routes": [
     {
       "idempotency_key_required": false,
@@ -10,6 +10,24 @@
       "response_schemas": [
         "#/components/schemas/InstanceAdminSnapshotEnvelope",
         "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "instance:admin"
+      ],
+      "stability": "experimental",
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "readinessDiagnostics",
+      "path": "/v1/admin/readiness",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/ReadinessDiagnosticsEnvelope"
       ],
       "scopes": [
         "instance:admin"

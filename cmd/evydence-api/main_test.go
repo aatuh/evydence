@@ -8,7 +8,7 @@ import (
 )
 
 func TestValidateRuntimeConfigRejectsProductionBootstrapSecretPrinting(t *testing.T) {
-	err := validateRuntimeConfig(true, "postgres://example", "not-default", "external", "", true)
+	err := validateRuntimeConfig(true, "postgres://example", "not-default", "external", "https://signer.example.test/sign", true)
 	if err == nil {
 		t.Fatal("expected production bootstrap secret printing to be rejected")
 	}
@@ -76,6 +76,19 @@ func TestValidateRuntimeConfigRejectsPKCS11ModeWithoutGateway(t *testing.T) {
 	err := validateRuntimeConfig(true, "postgres://example", "not-default", "pkcs11-hsm", "", false)
 	if err == nil || !strings.Contains(err.Error(), "EVYDENCE_SIGNING_EXECUTOR_URL") {
 		t.Fatalf("pkcs11 missing gateway err=%v", err)
+	}
+}
+
+func TestValidateRuntimeConfigRejectsExternalSigningWithoutGateway(t *testing.T) {
+	err := validateRuntimeConfig(true, "postgres://example", "not-default", "external", "", false)
+	if err == nil || !strings.Contains(err.Error(), "EVYDENCE_SIGNING_EXECUTOR_URL") {
+		t.Fatalf("external signing without gateway err=%v", err)
+	}
+}
+
+func TestSigningConfigurationReadinessRequiresExecutor(t *testing.T) {
+	if err := signingConfigurationReadiness(nil)(t.Context()); err == nil {
+		t.Fatal("expected missing signing executor to fail readiness")
 	}
 }
 

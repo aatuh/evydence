@@ -17,7 +17,24 @@ func (s *Server) ready(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, status)
+	code := http.StatusOK
+	if status["status"] != "ok" {
+		code = http.StatusServiceUnavailable
+	}
+	writeData(w, code, status)
+}
+
+func (s *Server) readinessDiagnostics(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	diagnostics, err := s.ledger.ReadinessDiagnostics(r.Context(), actor)
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, diagnostics)
 }
 
 func (s *Server) metrics(w http.ResponseWriter, r *http.Request) {
@@ -41,7 +58,7 @@ func (s *Server) metrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) version(w http.ResponseWriter, _ *http.Request) {
-	writeData(w, http.StatusOK, map[string]string{"version": "dev"})
+	writeData(w, http.StatusOK, s.identity)
 }
 
 func (s *Server) openapi(w http.ResponseWriter, _ *http.Request) {

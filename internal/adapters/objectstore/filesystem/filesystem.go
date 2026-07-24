@@ -125,6 +125,38 @@ func (s *Store) Get(ctx context.Context, key string) (app.Object, error) {
 	}, nil
 }
 
+// CheckReadiness verifies that the configured object-store root is available
+// for a small create-and-remove operation. It never includes the root path in
+// an error intended for a public health response.
+func (s *Store) CheckReadiness(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s == nil || strings.TrimSpace(s.root) == "" {
+		return app.ErrValidation
+	}
+	info, err := os.Stat(s.root)
+	if err != nil {
+		return fmt.Errorf("stat object store root: %w", err)
+	}
+	if !info.IsDir() {
+		return errors.New("object store root is not a directory")
+	}
+	temp, err := os.CreateTemp(s.root, ".evydence-readiness-*")
+	if err != nil {
+		return fmt.Errorf("write object store readiness marker: %w", err)
+	}
+	name := temp.Name()
+	if err := temp.Close(); err != nil {
+		_ = os.Remove(name)
+		return fmt.Errorf("close object store readiness marker: %w", err)
+	}
+	if err := os.Remove(name); err != nil {
+		return fmt.Errorf("remove object store readiness marker: %w", err)
+	}
+	return nil
+}
+
 func (s *Store) safePath(key string) (string, error) {
 	key = strings.TrimSpace(key)
 	if key == "" || strings.ContainsRune(key, 0) || filepath.IsAbs(key) {

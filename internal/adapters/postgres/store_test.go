@@ -81,11 +81,20 @@ func TestStoreAPIWriterLeaseIsExclusive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first lease: %v", err)
 	}
+	if err := first.CheckReadiness(ctx); err != nil {
+		t.Fatalf("first postgres readiness: %v", err)
+	}
+	if err := first.CheckAPIWriterLease(ctx); err != nil {
+		t.Fatalf("first writer lease readiness: %v", err)
+	}
 	if _, err := second.AcquireAPIWriterLease(ctx); err == nil || !strings.Contains(err.Error(), "already active") {
 		releaseFirst()
 		t.Fatalf("second lease err=%v, want active writer rejection", err)
 	}
 	releaseFirst()
+	if err := first.CheckAPIWriterLease(ctx); err == nil {
+		t.Fatal("released writer lease must fail readiness")
+	}
 	releaseSecond, err := second.AcquireAPIWriterLease(ctx)
 	if err != nil {
 		t.Fatalf("second lease after release: %v", err)

@@ -66,3 +66,23 @@ func TestStoreRejectsUnsafeObjectKeys(t *testing.T) {
 		t.Fatal("expected non-tenant-prefixed key to be rejected")
 	}
 }
+
+func TestStoreReadinessChecksConfiguredRootAccess(t *testing.T) {
+	store, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.CheckReadiness(t.Context()); err != nil {
+		t.Fatalf("object store readiness: %v", err)
+	}
+	if _, err := os.ReadDir(store.root); err != nil {
+		t.Fatalf("read readiness root: %v", err)
+	}
+	entries, err := os.ReadDir(store.root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("readiness marker was not removed: %#v", entries)
+	}
+}

@@ -51,6 +51,7 @@ func (s *Server) systemRoutes() []routeDef {
 		{http.MethodGet, "/v1/health", op("health", http.MethodGet, "/v1/health", "Health", nil), http.HandlerFunc(s.health)},
 		{http.MethodGet, "/v1/ready", op("ready", http.MethodGet, "/v1/ready", "Readiness", nil), http.HandlerFunc(s.ready)},
 		{http.MethodGet, "/v1/version", op("version", http.MethodGet, "/v1/version", "Version", nil), http.HandlerFunc(s.version)},
+		{http.MethodGet, "/v1/admin/readiness", op("readinessDiagnostics", http.MethodGet, "/v1/admin/readiness", "Readiness diagnostics", []string{app.ScopeInstanceAdmin}), http.HandlerFunc(s.readinessDiagnostics)},
 		{http.MethodGet, "/v1/metrics", op("metrics", http.MethodGet, "/v1/metrics", "Safe tenant metrics", []string{app.ScopeAdmin}), http.HandlerFunc(s.metrics)},
 		{http.MethodGet, "/v1/openapi.json", op("openapi", http.MethodGet, "/v1/openapi.json", "OpenAPI", nil), http.HandlerFunc(s.openapi)},
 		{http.MethodGet, "/v1/admin/instance", op("instanceAdminSnapshot", http.MethodGet, "/v1/admin/instance", "Instance admin snapshot", []string{app.ScopeInstanceAdmin}), http.HandlerFunc(s.instanceAdminSnapshot)},

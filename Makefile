@@ -8,11 +8,21 @@ GOSEC_VERSION ?= v2.25.0
 GOVULNCHECK_VERSION ?= v1.2.0
 
 TAG ?=
+BUILD_VERSION ?= dev
+BUILD_COMMIT ?= $(shell git rev-parse --verify HEAD 2>/dev/null || echo unknown)
+BUILD_TIME ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+BUILD_DIRTY ?= $(shell if test -n "$$(git status --porcelain --untracked-files=all 2>/dev/null)"; then echo true; else echo false; fi)
+BUILD_GO_VERSION ?= $(shell $(GO) env GOVERSION)
+BUILD_RELEASE_MANIFEST_DIGEST ?= unknown
 
-.PHONY: help tools fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check rendered-openapi-check meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check docs-check deploy-check sdk-check demo-check customer-cve-review-demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check black-box-release-artifact-check benchmark-check package-viewer-check release-asset-smoke-check marketing-site-check marketing-site-production-check restore-rehearsal-check fast-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
+.PHONY: help tools build-api fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check rendered-openapi-check meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check docs-check deploy-check sdk-check demo-check customer-cve-review-demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check black-box-release-artifact-check benchmark-check package-viewer-check release-asset-smoke-check marketing-site-check marketing-site-production-check restore-rehearsal-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+
+build-api: ## Build evydence-api with injected immutable build identity
+	@mkdir -p bin
+	@EVYDENCE_BUILD_VERSION='$(BUILD_VERSION)' EVYDENCE_BUILD_COMMIT='$(BUILD_COMMIT)' EVYDENCE_BUILD_TIME='$(BUILD_TIME)' EVYDENCE_BUILD_DIRTY='$(BUILD_DIRTY)' EVYDENCE_BUILD_GO_VERSION='$(BUILD_GO_VERSION)' EVYDENCE_BUILD_RELEASE_MANIFEST_DIGEST='$(BUILD_RELEASE_MANIFEST_DIGEST)' sh -c '$(GO) build -trimpath -ldflags "$$(sh scripts/build_ldflags.sh)" -o bin/evydence-api ./cmd/evydence-api'
 
 tools: ## Install local QA tools
 	@$(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)

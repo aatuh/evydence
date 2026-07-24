@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/app"
+	"github.com/aatuh/evydence/internal/runtimeinfo"
 )
 
 func TestRoutesValidateAndOpenAPIRenders(t *testing.T) {
@@ -117,6 +118,12 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	if _, ok := problemProps["request_id"]; !ok {
 		t.Fatalf("Problem schema missing request_id: %#v", problemProps)
 	}
+	versionProps := asStringAnyMap(t, asStringAnyMap(t, schemas["VersionInfo"])["properties"])
+	for _, field := range []string{"version", "commit", "build_time", "dirty", "go_version", "release_manifest_digest"} {
+		if _, ok := versionProps[field]; !ok {
+			t.Fatalf("version schema missing %q: %#v", field, versionProps)
+		}
+	}
 	decisionRequestProps := asStringAnyMap(t, asStringAnyMap(t, schemas["CreateVulnerabilityDecisionRequest"])["properties"])
 	if _, ok := decisionRequestProps["vex_document_id"]; !ok {
 		t.Fatalf("manual decision request schema missing vex_document_id: %#v", decisionRequestProps)
@@ -159,6 +166,9 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	paths := asStringAnyMap(t, doc["paths"])
 	ready := operationMap(t, paths, "/v1/ready", "get")
 	assertResponseRef(t, ready, "200", "#/components/schemas/ReadinessStatusEnvelope")
+	assertResponseRef(t, ready, "503", "#/components/schemas/ReadinessStatusEnvelope")
+	readinessDiagnostics := operationMap(t, paths, "/v1/admin/readiness", "get")
+	assertResponseRef(t, readinessDiagnostics, "200", "#/components/schemas/ReadinessDiagnosticsEnvelope")
 	backupManifest := operationMap(t, paths, "/v1/backup-manifests", "post")
 	assertRequestRef(t, backupManifest, "#/components/schemas/EmptyObject")
 	assertResponseRef(t, backupManifest, "201", "#/components/schemas/BackupManifestEnvelope")
@@ -1787,6 +1797,73 @@ func TestSourceSnapshotAndSystemHTTPGaps(t *testing.T) {
 	server.Handler().ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "VALIDATION_FAILED") {
 		t.Fatalf("bad JSON status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestRuntimeSystemEndpointsExposeIdentityAndSafeDependencyReadiness(t *testing.T) {
+	ledger := app.NewLedger(app.Config{APIKeyPepper: "test", ReadinessChecks: []app.ReadinessCheck{{
+		Name:          "postgres",
+		Timeout:       time.Second,
+		FailureDetail: "database connectivity is unavailable",
+		Check: func(context.Context) error {
+			return fmt.Errorf("postgres://user:super-secret@database.internal/evydence is unavailable")
+		},
+	}}})
+	_, _, instanceSecret, err := ledger.BootstrapTenant(t.Context(), "Runtime", "operator", []string{app.ScopeInstanceAdmin})
+	if err != nil {
+		t.Fatalf("bootstrap instance administrator: %v", err)
+	}
+	server, err := NewServerWithOptions(ledger, ServerOptions{BuildIdentity: runtimeinfo.Identity{
+		Version:               "v1.2.3",
+		Commit:                "0123456789abcdef",
+		BuildTime:             "2026-07-24T12:00:00Z",
+		Dirty:                 false,
+		GoVersion:             "go1.26.0",
+		ReleaseManifestDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+	}})
+	if err != nil {
+		t.Fatalf("create server: %v", err)
+	}
+
+	version := httptest.NewRecorder()
+	server.Handler().ServeHTTP(version, httptest.NewRequest(http.MethodGet, "/v1/version", nil))
+	if version.Code != http.StatusOK {
+		t.Fatalf("version status=%d body=%s", version.Code, version.Body.String())
+	}
+	for _, want := range []string{"v1.2.3", "0123456789abcdef", "2026-07-24T12:00:00Z", "go1.26.0", "sha256:aaaaaaaa"} {
+		if !strings.Contains(version.Body.String(), want) {
+			t.Fatalf("version response missing %q: %s", want, version.Body.String())
+		}
+	}
+
+	health := httptest.NewRecorder()
+	server.Handler().ServeHTTP(health, httptest.NewRequest(http.MethodGet, "/v1/health", nil))
+	if health.Code != http.StatusOK || strings.Contains(health.Body.String(), "database") {
+		t.Fatalf("liveness status=%d body=%s", health.Code, health.Body.String())
+	}
+
+	ready := httptest.NewRecorder()
+	server.Handler().ServeHTTP(ready, httptest.NewRequest(http.MethodGet, "/v1/ready", nil))
+	if ready.Code != http.StatusServiceUnavailable || !strings.Contains(ready.Body.String(), `"status":"unavailable"`) {
+		t.Fatalf("readiness status=%d body=%s", ready.Code, ready.Body.String())
+	}
+	for _, forbidden := range []string{"super-secret", "database.internal", "database connectivity"} {
+		if strings.Contains(ready.Body.String(), forbidden) {
+			t.Fatalf("public readiness leaked %q: %s", forbidden, ready.Body.String())
+		}
+	}
+
+	diagnostics := httptest.NewRecorder()
+	diagnosticRequest := httptest.NewRequest(http.MethodGet, "/v1/admin/readiness", nil)
+	diagnosticRequest.Header.Set("Authorization", "Bearer "+instanceSecret)
+	server.Handler().ServeHTTP(diagnostics, diagnosticRequest)
+	if diagnostics.Code != http.StatusOK || !strings.Contains(diagnostics.Body.String(), "database connectivity is unavailable") {
+		t.Fatalf("operator readiness status=%d body=%s", diagnostics.Code, diagnostics.Body.String())
+	}
+	for _, forbidden := range []string{"super-secret", "database.internal"} {
+		if strings.Contains(diagnostics.Body.String(), forbidden) {
+			t.Fatalf("operator readiness leaked %q: %s", forbidden, diagnostics.Body.String())
+		}
 	}
 }
 

@@ -141,9 +141,9 @@
       <p>This page is generated from <code>openapi.yaml</code>. It is a human-readable companion to the committed contract and does not replace route-contract tests.</p>
       <div class="summary-grid">
         <div class="summary-card"><strong>3.1.0</strong><span>OpenAPI version</span></div>
-        <div class="summary-card"><strong>169</strong><span>registered paths</span></div>
-        <div class="summary-card"><strong>186</strong><span>operations</span></div>
-        <div class="summary-card"><strong>376</strong><span>schemas</span></div>
+        <div class="summary-card"><strong>170</strong><span>registered paths</span></div>
+        <div class="summary-card"><strong>187</strong><span>operations</span></div>
+        <div class="summary-card"><strong>378</strong><span>schemas</span></div>
       </div>
     </header>
     <main>
@@ -175,6 +175,23 @@
               <div><dt>Idempotency</dt><dd>not required</dd></div>
               <div><dt>Request</dt><dd>none</dd></div>
               <div><dt>Responses</dt><dd>200 application/json: InstanceAdminSnapshotEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
+            </dl>
+          </article>
+          <article class="operation" data-operation data-search="get /v1/admin/readiness readiness diagnostics returns vetted per-dependency readiness diagnostics. requires the explicit instance:admin scope; raw dependency errors, credentials, paths, and tenant data are excluded. readinessdiagnostics evydence instance:admin">
+            <div class="operation-heading">
+              <span class="method method-get">GET</span>
+              <code>/v1/admin/readiness</code>
+            </div>
+            <h3>Readiness diagnostics</h3>
+            <p>Returns vetted per-dependency readiness diagnostics. Requires the explicit instance:admin scope; raw dependency errors, credentials, paths, and tenant data are excluded.</p>
+            <dl>
+              <div><dt>Operation ID</dt><dd><code>readinessDiagnostics</code></dd></div>
+              <div><dt>Tags</dt><dd>evydence</dd></div>
+              <div><dt>Auth</dt><dd>BearerAuth</dd></div>
+              <div><dt>Scopes</dt><dd>instance:admin</dd></div>
+              <div><dt>Idempotency</dt><dd>not required</dd></div>
+              <div><dt>Request</dt><dd>none</dd></div>
+              <div><dt>Responses</dt><dd>200 application/json: ReadinessDiagnosticsEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
           <article class="operation" data-operation data-search="get /v1/api-keys list api keys lists tenant-scoped api key metadata without key hashes or one-time secrets. listapikeys evydence admin">
@@ -1928,13 +1945,13 @@
               <div><dt>Responses</dt><dd>201 application/json: QuestionnaireTemplateEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/ready readiness returns low-detail process readiness without tenant evidence or secret material. ready evydence none">
+          <article class="operation" data-operation data-search="get /v1/ready readiness runs bounded postgresql, migration, writer-lease, object-store, and signing-configuration probes configured for this process. the public result contains no tenant data, credentials, paths, or raw dependency errors. ready evydence none">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/ready</code>
             </div>
             <h3>Readiness</h3>
-            <p>Returns low-detail process readiness without tenant evidence or secret material.</p>
+            <p>Runs bounded PostgreSQL, migration, writer-lease, object-store, and signing-configuration probes configured for this process. The public result contains no tenant data, credentials, paths, or raw dependency errors.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>ready</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -1942,7 +1959,7 @@
               <div><dt>Scopes</dt><dd>none</dd></div>
               <div><dt>Idempotency</dt><dd>not required</dd></div>
               <div><dt>Request</dt><dd>none</dd></div>
-              <div><dt>Responses</dt><dd>200 application/json: ReadinessStatusEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
+              <div><dt>Responses</dt><dd>200 application/json: ReadinessStatusEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 503 application/json: ReadinessStatusEnvelope</dd></div>
             </dl>
           </article>
           <article class="operation" data-operation data-search="post /v1/redaction-profiles create redaction profile creates an explicit redaction profile for customer and report package generation. createredactionprofile evydence package:write">
@@ -3084,13 +3101,13 @@
               <div><dt>Responses</dt><dd>200 application/json: VerificationResultEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/version version returns the api process version string. version evydence none">
+          <article class="operation" data-operation data-search="get /v1/version version returns immutable build identity injected at build time: version, source commit, build time, dirty marker, go version, and release-manifest digest. version evydence none">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/version</code>
             </div>
             <h3>Version</h3>
-            <p>Returns the API process version string.</p>
+            <p>Returns immutable build identity injected at build time: version, source commit, build time, dirty marker, Go version, and release-manifest digest.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>version</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -4500,6 +4517,16 @@
             <td>data, meta</td>
           </tr>
           <tr>
+            <td><code>ReadinessDiagnostics</code></td>
+            <td>object</td>
+            <td>status, checks</td>
+          </tr>
+          <tr>
+            <td><code>ReadinessDiagnosticsEnvelope</code></td>
+            <td>object</td>
+            <td>data, meta</td>
+          </tr>
+          <tr>
             <td><code>ReadinessReport</code></td>
             <td>object</td>
             <td>report_type, template_version, result, assumptions, limitations, generated_at</td>
@@ -5137,7 +5164,7 @@
           <tr>
             <td><code>VersionInfo</code></td>
             <td>object</td>
-            <td>version</td>
+            <td>version, commit, build_time, dirty, go_version, release_manifest_digest</td>
           </tr>
           <tr>
             <td><code>VersionInfoEnvelope</code></td>

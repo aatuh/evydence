@@ -15,15 +15,19 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Scopes = nil
 		operation.Responses[http.StatusOK] = jsonResponse("Liveness status envelope.", "#/components/schemas/HealthStatusEnvelope")
 	case "ready":
-		operation.Description = "Returns low-detail process readiness without tenant evidence or secret material."
+		operation.Description = "Runs bounded PostgreSQL, migration, writer-lease, object-store, and signing-configuration probes configured for this process. The public result contains no tenant data, credentials, paths, or raw dependency errors."
 		operation.Security = nil
 		operation.Scopes = nil
 		operation.Responses[http.StatusOK] = jsonResponse("Readiness status envelope.", "#/components/schemas/ReadinessStatusEnvelope")
+		operation.Responses[http.StatusServiceUnavailable] = jsonResponse("Required dependency unavailable; low-detail readiness status envelope.", "#/components/schemas/ReadinessStatusEnvelope")
 	case "version":
-		operation.Description = "Returns the API process version string."
+		operation.Description = "Returns immutable build identity injected at build time: version, source commit, build time, dirty marker, Go version, and release-manifest digest."
 		operation.Security = nil
 		operation.Scopes = nil
 		operation.Responses[http.StatusOK] = jsonResponse("Version information envelope.", "#/components/schemas/VersionInfoEnvelope")
+	case "readinessDiagnostics":
+		operation.Description = "Returns vetted per-dependency readiness diagnostics. Requires the explicit instance:admin scope; raw dependency errors, credentials, paths, and tenant data are excluded."
+		operation.Responses[http.StatusOK] = jsonResponse("Instance readiness diagnostics envelope.", "#/components/schemas/ReadinessDiagnosticsEnvelope")
 	case "metrics":
 		operation.Description = "Returns safe tenant-scoped resource metrics for admin actors. A Prometheus text response is also available when requested with Accept: text/plain."
 		operation.Responses[http.StatusOK] = specs.Response{

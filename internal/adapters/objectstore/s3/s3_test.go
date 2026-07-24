@@ -34,6 +34,9 @@ func TestPutGetRejectUninitializedStoreAndUnsafeKeys(t *testing.T) {
 	if _, err := store.Get(context.Background(), ""); !errors.Is(err, app.ErrValidation) {
 		t.Fatalf("empty key err = %v, want validation", err)
 	}
+	if err := (*Store)(nil).CheckReadiness(context.Background()); !errors.Is(err, app.ErrValidation) {
+		t.Fatalf("nil readiness err = %v, want validation", err)
+	}
 }
 
 func TestMetadataValueUsesFirstNonEmptyKey(t *testing.T) {

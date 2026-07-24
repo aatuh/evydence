@@ -3,11 +3,12 @@
 This generated reference inventories Evydence `/v1` route contract precision from `openapi.yaml`.
 It is a planning aid for production contract hardening; `broad` means the route still uses a shared envelope, unspecified body, or generic schema where an endpoint-specific contract should be considered.
 
-Generated from 186 operations: 186 precise, 0 broad.
+Generated from 187 operations: 187 precise, 0 broad.
 
 | Method | Path | Operation | Auth | Scopes | Idempotency | Params | Request | 2xx Response | Precision | Stability |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | GET | /v1/admin/instance | instanceAdminSnapshot | Bearer | instance:admin | - | - | - | 200:application/json:InstanceAdminSnapshotEnvelope | precise | experimental |
+| GET | /v1/admin/readiness | readinessDiagnostics | Bearer | instance:admin | - | - | - | 200:application/json:ReadinessDiagnosticsEnvelope | precise | experimental |
 | GET | /v1/api-keys | listAPIKeys | Bearer | admin | - | - | - | 200:application/json:APIKeyListEnvelope | precise | supported |
 | POST | /v1/api-keys | createAPIKey | Bearer | admin | required | - | application/json:CreateAPIKeyRequest | 201:application/json:APIKeyCreateEnvelope | precise | supported |
 | POST | /v1/api-security-scans | uploadAPISecurityScan | Bearer | security:write | required | - | application/json:UploadSecurityScanRequest | 201:application/json:SecurityScanEnvelope | precise | experimental |

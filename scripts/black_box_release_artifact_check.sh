@@ -33,8 +33,15 @@ release_dir="$workdir/release/evydence_linux_amd64"
 run_dir="$workdir/run"
 mkdir -p "$release_dir" "$run_dir"
 
+build_version="v0.0.0-black-box"
+build_commit="$(git rev-parse --verify HEAD 2>/dev/null || printf '%s' unknown)"
+build_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+build_go_version="$(go env GOVERSION)"
+build_release_manifest_digest="sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+api_ldflags="$(EVYDENCE_BUILD_VERSION="$build_version" EVYDENCE_BUILD_COMMIT="$build_commit" EVYDENCE_BUILD_TIME="$build_time" EVYDENCE_BUILD_DIRTY=false EVYDENCE_BUILD_GO_VERSION="$build_go_version" EVYDENCE_BUILD_RELEASE_MANIFEST_DIGEST="$build_release_manifest_digest" sh scripts/build_ldflags.sh)"
+
 go build -trimpath -o "$release_dir/evydence" ./cmd/evydence
-go build -trimpath -o "$release_dir/evydence-api" ./cmd/evydence-api
+go build -trimpath -ldflags "$api_ldflags" -o "$release_dir/evydence-api" ./cmd/evydence-api
 go build -trimpath -o "$release_dir/evydence-worker" ./cmd/evydence-worker
 go build -trimpath -o "$release_dir/evydence-migrate" ./cmd/evydence-migrate
 (cd "$release_dir" && sha256sum evydence evydence-api evydence-worker evydence-migrate > SHA256SUMS)
@@ -43,6 +50,9 @@ EVYDENCE_BLACK_BOX_WORKDIR="$run_dir" \
 EVYDENCE_BLACK_BOX_KEEP_ARTIFACTS=1 \
 EVYDENCE_BLACK_BOX_API_BIN="$release_dir/evydence-api" \
 EVYDENCE_BLACK_BOX_WORKER_BIN="$release_dir/evydence-worker" \
+EVYDENCE_BLACK_BOX_EXPECTED_VERSION="$build_version" \
+EVYDENCE_BLACK_BOX_EXPECTED_COMMIT="$build_commit" \
+EVYDENCE_BLACK_BOX_EXPECTED_RELEASE_MANIFEST_DIGEST="$build_release_manifest_digest" \
 scripts/black_box_demo_check.sh >"$workdir/black-box.stdout" 2>"$workdir/black-box.stderr"
 
 python3 - "$workdir" "$release_dir" "$run_dir" <<'PY'

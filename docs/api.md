@@ -310,7 +310,7 @@ Important scope boundaries:
 |----------|----------|
 | Tenant data | Cross-tenant reads return `404` where applicable. |
 | Collector identity | Build attribution is derived from the authenticated collector key; clients must not submit `collector_id` for build attribution. |
-| Instance admin | `GET /v1/admin/instance` requires explicit `instance:admin`; tenant admin and ordinary wildcard tenant keys are insufficient. |
+| Instance admin | `GET /v1/admin/instance` and `GET /v1/admin/readiness` require explicit `instance:admin`; tenant admin and ordinary wildcard tenant keys are insufficient. |
 | Customer portal | `POST /v1/customer-portal/package` and `/v1/customer-portal/package/download` are public token exchange endpoints and intentionally do not use bearer authentication. Optional NDA acceptance and distribution watermarks are recorded without storing supplied tokens. Successful exchanges and downloads are visible through the tenant audit log without storing the supplied token. |
 
 ## Endpoint Catalog
@@ -319,12 +319,13 @@ Important scope boundaries:
 
 | Method | Path | Notes |
 |--------|------|-------|
-| `GET` | `/v1/health` | Process health. |
-| `GET` | `/v1/ready` | Low-detail readiness. |
-| `GET` | `/v1/version` | Version metadata. |
+| `GET` | `/v1/health` | Process liveness; does not probe dependencies. |
+| `GET` | `/v1/ready` | Low-detail dependency readiness; returns `503` if a required dependency is unavailable. |
+| `GET` | `/v1/version` | Immutable build identity and release-input-manifest digest. |
 | `GET` | `/v1/metrics` | Tenant-safe counts; admin scope required. |
 | `GET` | `/v1/openapi.json` | Generated OpenAPI. |
 | `GET` | `/v1/admin/instance` | Low-detail instance counts; `instance:admin` required. |
+| `GET` | `/v1/admin/readiness` | Vetted readiness diagnostics; `instance:admin` required. |
 
 ### Identity And Administration
 

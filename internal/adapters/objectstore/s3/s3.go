@@ -3,6 +3,7 @@ package s3
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -99,6 +100,21 @@ func (s *Store) Get(ctx context.Context, key string) (app.Object, error) {
 		Bytes:     body,
 		CreatedAt: info.LastModified,
 	}, nil
+}
+
+// CheckReadiness verifies bucket access using the configured S3 client.
+func (s *Store) CheckReadiness(ctx context.Context) error {
+	if s == nil || s.client == nil || strings.TrimSpace(s.bucket) == "" {
+		return app.ErrValidation
+	}
+	exists, err := s.client.BucketExists(ctx, s.bucket)
+	if err != nil {
+		return fmt.Errorf("check s3 readiness: %w", err)
+	}
+	if !exists {
+		return errors.New("s3 bucket is unavailable")
+	}
+	return nil
 }
 
 func (s *Store) VerifyObjectRetention(ctx context.Context, req app.ObjectRetentionRequest) (app.ObjectRetentionResult, error) {

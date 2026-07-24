@@ -28,6 +28,7 @@ required=(
   "evydence-release-provenance.json"
   "evydence-release-provenance.intoto.jsonl"
   "migrations.sha256"
+  "release-build-manifest.json"
   "coverage.out"
   "release-check-summary.txt"
   "release-notes.md"

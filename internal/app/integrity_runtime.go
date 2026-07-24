@@ -705,20 +705,67 @@ func (l *Ledger) ReadinessStatus(ctx context.Context) (map[string]any, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	return l.readinessStatus(ctx, false), nil
+}
+
+// ReadinessDiagnostics returns safe, dependency-specific diagnostics for an
+// instance administrator. It deliberately excludes raw probe errors because
+// those can contain credentials, hostnames, filesystem paths, or tenant data.
+func (l *Ledger) ReadinessDiagnostics(ctx context.Context, actor domain.Actor) (map[string]any, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := require(actor, ScopeInstanceAdmin); err != nil {
+		return nil, err
+	}
+	return l.readinessStatus(ctx, true), nil
+}
+
+func (l *Ledger) readinessStatus(ctx context.Context, includeDetails bool) map[string]any {
 	l.mu.Lock()
-	defer l.mu.Unlock()
+	checksConfig := append([]ReadinessCheck(nil), l.readinessChecks...)
+	l.mu.Unlock()
 	checks := []map[string]string{{"name": "ledger", "status": "ok"}}
-	if l.store == nil {
-		checks = append(checks, map[string]string{"name": "store", "status": "memory"})
-	} else {
-		checks = append(checks, map[string]string{"name": "store", "status": "configured"})
+	overall := "ok"
+	for _, configured := range checksConfig {
+		checkCtx, cancel := context.WithTimeout(ctx, configured.Timeout)
+		err := configured.Check(checkCtx)
+		cancel()
+		check := map[string]string{"name": configured.Name, "status": "ok"}
+		if err != nil {
+			check["status"] = "unavailable"
+			overall = "unavailable"
+			if includeDetails {
+				check["detail"] = configured.FailureDetail
+			}
+		}
+		checks = append(checks, check)
 	}
-	if l.objects == nil {
-		checks = append(checks, map[string]string{"name": "object_store", "status": "not_configured"})
-	} else {
-		checks = append(checks, map[string]string{"name": "object_store", "status": "configured"})
+	return map[string]any{"status": overall, "checks": checks}
+}
+
+func normalizedReadinessChecks(checks []ReadinessCheck) []ReadinessCheck {
+	seen := map[string]struct{}{}
+	normalized := make([]ReadinessCheck, 0, len(checks))
+	for _, check := range checks {
+		check.Name = strings.TrimSpace(check.Name)
+		check.FailureDetail = strings.TrimSpace(check.FailureDetail)
+		if check.Name == "" || check.Check == nil {
+			continue
+		}
+		if _, duplicate := seen[check.Name]; duplicate {
+			continue
+		}
+		if check.Timeout <= 0 {
+			check.Timeout = 3 * time.Second
+		}
+		if check.FailureDetail == "" {
+			check.FailureDetail = "dependency check is unavailable"
+		}
+		seen[check.Name] = struct{}{}
+		normalized = append(normalized, check)
 	}
-	return map[string]any{"status": "ok", "checks": checks}, nil
+	return normalized
 }
 
 func (l *Ledger) Metrics(ctx context.Context, actor domain.Actor) (map[string]any, error) {

@@ -23,6 +23,7 @@ under `dist/<tag>/` after `make production-check` passes.
 | `openapi.yaml` | `cmd/openapi` through the release package script | Preserve the exact public API contract shipped with the release. |
 | `openapi.sha256` | `scripts/release_candidate_package.sh` | Verify the shipped OpenAPI contract has not drifted from the release evidence set. |
 | `migrations.sha256` | `scripts/release_candidate_package.sh` | Verify the migration directory that the release was checked against. |
+| `release-build-manifest.json` | `scripts/release_candidate_package.sh` | Bind the tag, commit, build time, Go version, OpenAPI input, and migration inputs used to inject the API build identity. Its SHA-256 digest is reported by `GET /v1/version`; it is also included in the final signed manifest. |
 | `coverage.out` | `make production-check` | Preserve the coverage input used by the release gate. |
 | `release-check-summary.txt` | `make release-check` inside `make production-check` | Record whether formatting, unit tests, OpenAPI, docs, deployment, SDK, lint, gosec, govulncheck, race, and live PostgreSQL checks passed. |
 | `evydence-release-manifest.json` | `./evydence release manifest` through the package script | List release artifacts, hashes, OpenAPI checksum, migration checksum, and release metadata. |
@@ -55,6 +56,10 @@ The public prerelease includes release archives for Linux, macOS, and Windows;
 `evydence-release-provenance.intoto.jsonl`; `release-notes.md`;
 `evydence-release-manifest.json`; `evydence-release-manifest.sig.json`; and
 `evydence-release-manifest.sig`.
+
+`release-build-manifest.json` is included by release packages produced after
+the build-identity addition. Its presence has not been verified for the
+historical public `v0.1.0-rc.7` artifact set.
 
 The latest repository-local source snapshot recorded in
 [`release/current.json`](../../release/current.json) is commit

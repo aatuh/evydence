@@ -63,6 +63,51 @@ install -m 755 -d "$distdir" "$workdir"
 
 commands=(evydence evydence-api evydence-worker evydence-migrate)
 targets=(linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64)
+build_commit="$(git rev-parse --verify HEAD)"
+build_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+build_go_version="$(go env GOVERSION)"
+build_manifest="$workdir/release-build-manifest.json"
+python3 - "$tag" "$build_commit" "$build_time" "$build_go_version" "$build_manifest" <<'PY'
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+tag, commit, build_time, go_version, output = sys.argv[1:]
+root = Path.cwd()
+
+def sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return "sha256:" + digest.hexdigest()
+
+migrations = [
+    {"path": str(path), "digest": sha256(path)}
+    for path in sorted((root / "migrations").rglob("*"))
+    if path.is_file()
+]
+manifest = {
+    "schema_version": "evydence-release-build-manifest.v1",
+    "tag": tag,
+    "commit": commit,
+    "build_time": build_time,
+    "go_version": go_version,
+    "materials": [
+        {"path": "openapi.yaml", "digest": sha256(root / "openapi.yaml")},
+        *migrations,
+    ],
+    "limitations": [
+        "This pre-build manifest binds source and release inputs used to inject API runtime identity.",
+        "The final signed evydence-release-manifest.json additionally covers packaged binaries and release artifacts.",
+        "It is not a certification, legal compliance conclusion, or secure-release guarantee.",
+    ],
+}
+Path(output).write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+PY
+build_release_manifest_digest="sha256:$(sha256sum "$build_manifest" | awk '{print $1}')"
+api_ldflags="$(EVYDENCE_BUILD_VERSION="$tag" EVYDENCE_BUILD_COMMIT="$build_commit" EVYDENCE_BUILD_TIME="$build_time" EVYDENCE_BUILD_DIRTY=false EVYDENCE_BUILD_GO_VERSION="$build_go_version" EVYDENCE_BUILD_RELEASE_MANIFEST_DIGEST="$build_release_manifest_digest" sh scripts/build_ldflags.sh)"
 
 for target in "${targets[@]}"; do
   goos="${target%/*}"
@@ -74,9 +119,15 @@ for target in "${targets[@]}"; do
     if [[ "$goos" == "windows" ]]; then
       suffix=".exe"
     fi
-    GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 \
-      go build -trimpath -ldflags "-s -w" \
-      -o "${outdir}/${command}${suffix}" "./cmd/${command}"
+    if [[ "$command" == "evydence-api" ]]; then
+      GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 \
+        go build -trimpath -ldflags "-s -w $api_ldflags" \
+        -o "${outdir}/${command}${suffix}" "./cmd/${command}"
+    else
+      GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 \
+        go build -trimpath -ldflags "-s -w" \
+        -o "${outdir}/${command}${suffix}" "./cmd/${command}"
+    fi
   done
   cp LICENSE README.md CHANGELOG.md "$outdir/"
   if [[ "$goos" == "windows" ]]; then
@@ -87,6 +138,7 @@ for target in "${targets[@]}"; do
 done
 
 cp openapi.yaml "$distdir/openapi.yaml"
+cp "$build_manifest" "$distdir/release-build-manifest.json"
 cp coverage.out "$distdir/coverage.out"
 cp tmp/release-check-summary.txt "$distdir/release-check-summary.txt"
 notes_source="docs/reference/release-notes-${tag}.md"
@@ -109,6 +161,7 @@ python3 scripts/release_evidence_metadata.py "$tag" "$distdir"
   evydence-release-sbom.cdx.json \
   evydence-release-provenance.json \
   evydence-release-provenance.intoto.jsonl \
+  release-build-manifest.json \
   coverage.out \
   release-check-summary.txt \
   migrations.sha256 \
@@ -131,6 +184,7 @@ cli="${signing_dir}/evydence_${tag}_linux_amd64/evydence"
   "$distdir/evydence-release-sbom.cdx.json" \
   "$distdir/evydence-release-provenance.json" \
   "$distdir/evydence-release-provenance.intoto.jsonl" \
+  "$distdir/release-build-manifest.json" \
   "$distdir/coverage.out" \
   "$distdir/release-check-summary.txt" \
   "$distdir/migrations.sha256" \

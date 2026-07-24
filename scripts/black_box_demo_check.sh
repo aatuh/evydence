@@ -142,6 +142,12 @@ start_worker() {
 }
 
 start_api first true
+if [ -n "${EVYDENCE_BLACK_BOX_EXPECTED_VERSION:-}" ]; then
+  curl -fsS "$api_url/v1/version" >"$workdir/version.json"
+  jq -e --arg version "$EVYDENCE_BLACK_BOX_EXPECTED_VERSION" --arg commit "${EVYDENCE_BLACK_BOX_EXPECTED_COMMIT:-}" --arg manifest "${EVYDENCE_BLACK_BOX_EXPECTED_RELEASE_MANIFEST_DIGEST:-}" \
+    '.data.version == $version and .data.commit == $commit and .data.release_manifest_digest == $manifest and .data.version != "dev"' \
+    "$workdir/version.json" >/dev/null
+fi
 if ! api_key="$(jq -er '.secret' "$workdir/api-first.stdout")"; then
   : >"$workdir/api-first.stdout"
   printf '%s\n' "black-box-demo-check: bootstrap secret output was not parseable" >&2

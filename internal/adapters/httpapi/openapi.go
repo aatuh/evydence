@@ -41,8 +41,13 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "status"))
 	registry.RegisterSchema("HealthStatusEnvelope", dataEnvelopeSchema("#/components/schemas/HealthStatus"))
 	registry.RegisterSchema("VersionInfo", objectSchema(map[string]any{
-		"version": map[string]any{"type": "string"},
-	}, "version"))
+		"version":                 map[string]any{"type": "string"},
+		"commit":                  map[string]any{"type": "string"},
+		"build_time":              map[string]any{"type": "string"},
+		"dirty":                   map[string]any{"type": "boolean"},
+		"go_version":              map[string]any{"type": "string"},
+		"release_manifest_digest": map[string]any{"type": "string"},
+	}, "version", "commit", "build_time", "dirty", "go_version", "release_manifest_digest"))
 	registry.RegisterSchema("VersionInfoEnvelope", dataEnvelopeSchema("#/components/schemas/VersionInfo"))
 	registry.RegisterSchema("MetricsSnapshot", objectSchema(map[string]any{
 		"tenant_id":                            map[string]any{"type": "string"},
@@ -142,13 +147,22 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "id", "tenant_id", "sequence", "entry_type", "subject_type", "subject_id", "actor_type", "actor_id", "occurred_at", "canonical_entry_hash", "previous_entry_hash", "entry_hash", "schema_version"))
 	registry.RegisterSchema("AuditChainEntryListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/AuditChainEntry"))
 	registry.RegisterSchema("ReadinessStatus", objectSchema(map[string]any{
-		"status": map[string]any{"type": "string"},
+		"status": map[string]any{"type": "string", "enum": []string{"ok", "unavailable"}},
 		"checks": map[string]any{"type": "array", "items": objectSchema(map[string]any{
 			"name":   map[string]any{"type": "string"},
-			"status": map[string]any{"type": "string"},
+			"status": map[string]any{"type": "string", "enum": []string{"ok", "unavailable"}},
 		}, "name", "status")},
 	}, "status", "checks"))
 	registry.RegisterSchema("ReadinessStatusEnvelope", dataEnvelopeSchema("#/components/schemas/ReadinessStatus"))
+	registry.RegisterSchema("ReadinessDiagnostics", objectSchema(map[string]any{
+		"status": map[string]any{"type": "string", "enum": []string{"ok", "unavailable"}},
+		"checks": map[string]any{"type": "array", "items": objectSchema(map[string]any{
+			"name":   map[string]any{"type": "string"},
+			"status": map[string]any{"type": "string", "enum": []string{"ok", "unavailable"}},
+			"detail": map[string]any{"type": "string", "description": "Vetted operator diagnostic; never a raw dependency error."},
+		}, "name", "status")},
+	}, "status", "checks"))
+	registry.RegisterSchema("ReadinessDiagnosticsEnvelope", dataEnvelopeSchema("#/components/schemas/ReadinessDiagnostics"))
 	registry.RegisterSchema("BackupManifest", objectSchema(map[string]any{
 		"id":                 map[string]any{"type": "string"},
 		"tenant_id":          map[string]any{"type": "string"},

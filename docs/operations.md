@@ -28,7 +28,8 @@ This operator index points to the canonical references for running Evydence. Kee
 
 ## Integrity Operations
 
-- Use `GET /v1/ready` for low-detail readiness checks.
+- Use `GET /v1/health` for process liveness only. Use unauthenticated `GET /v1/ready` for low-detail dependency-backed readiness; it returns `503` when a required configured dependency is unavailable and never returns raw errors, credentials, paths, or tenant data. Use `GET /v1/admin/readiness` only with an explicit `instance:admin` actor for vetted per-check diagnostics.
+- Use `GET /v1/version` to record API build identity with a release review. It reports source and release-input metadata, not an independent signature or deployment-trust conclusion.
 - Use `GET /v1/metrics` only with an admin API key; it returns safe tenant resource counts as JSON or Prometheus text when `Accept: text/plain` is sent, not raw evidence payloads or secrets.
 - Use `GET /v1/admin/instance` only with an actor explicitly granted `instance:admin`. Tenant admin and ordinary wildcard tenant keys do not satisfy this instance-wide scope by themselves.
 - Use `POST /v1/backup-manifests` after database and object-store backups complete. The manifest intentionally excludes raw payload bytes and private signing-key material.
