@@ -626,6 +626,229 @@ func TestEvidenceCanonicalHashAndAuditChainVerification(t *testing.T) {
 	}
 }
 
+func TestAuditChainVerificationRecomputesStoredEntryFields(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	actor, err := ledger.Authenticate(ctx, secret)
+	if err != nil {
+		t.Fatalf("auth: %v", err)
+	}
+	if _, err := ledger.CreateEvidence(ctx, actor, CreateEvidenceInput{Type: "build", Title: "Build", PayloadHash: sampleDigest("build")}); err != nil {
+		t.Fatalf("create evidence: %v", err)
+	}
+	ledger.mu.Lock()
+	entry := ledger.chain[actor.TenantID][0]
+	entry.ActorID = "rewritten-actor"
+	ledger.chain[actor.TenantID][0] = entry
+	ledger.mu.Unlock()
+
+	result, err := ledger.VerifySubject(ctx, actor, "audit_chain", "")
+	if !errors.Is(err, ErrVerificationFailed) {
+		t.Fatalf("verify rewritten audit chain err = %v, want verification failure", err)
+	}
+	if !hasVerifyCheck(result.Checks, "canonical_entry_hash", "failed") {
+		t.Fatalf("rewritten entry was not detected: %#v", result.Checks)
+	}
+}
+
+func TestAuditChainVerificationRejectsUnknownSchemaVersion(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	actor, _, _ := setupReleaseRiskFixture(t, ledger)
+
+	ledger.mu.Lock()
+	entry := ledger.chain[actor.TenantID][0]
+	entry.SchemaVersion = "audit-chain-entry.v999.0.0"
+	ledger.chain[actor.TenantID][0] = entry
+	ledger.mu.Unlock()
+
+	result, err := ledger.VerifySubject(ctx, actor, "audit_chain", "")
+	if !errors.Is(err, ErrVerificationFailed) {
+		t.Fatalf("verify err = %v, want ErrVerificationFailed", err)
+	}
+	if !hasVerifyCheck(result.Checks, "schema_version", "failed") {
+		t.Fatalf("verification checks = %#v, want failed schema_version", result.Checks)
+	}
+}
+
+func TestAuditChainCanonicalV2CoversAllStoredEntryFields(t *testing.T) {
+	entry := domain.AuditChainEntry{
+		ID:             "ace_test",
+		TenantID:       "ten_test",
+		Sequence:       1,
+		EntryType:      "evidence.created",
+		SubjectType:    "evidence_item",
+		SubjectID:      "ev_test",
+		ActorType:      "api_key",
+		ActorID:        "key_test",
+		OccurredAt:     fixedNow(),
+		RequestID:      "request_test",
+		IdempotencyKey: "idempotency_test",
+		PayloadHash:    sampleDigest("payload"),
+		SignatureRef:   "sig_test",
+		Metadata:       map[string]any{"source": "test"},
+		SchemaVersion:  domain.AuditChainEntrySchemaVersion,
+	}
+	baseline, err := canonicalAuditChainEntryHash(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, mutate := range map[string]func(*domain.AuditChainEntry){
+		"id":                  func(entry *domain.AuditChainEntry) { entry.ID = "ace_rewritten" },
+		"tenant_id":           func(entry *domain.AuditChainEntry) { entry.TenantID = "ten_rewritten" },
+		"sequence":            func(entry *domain.AuditChainEntry) { entry.Sequence = 2 },
+		"entry_type":          func(entry *domain.AuditChainEntry) { entry.EntryType = "evidence.deleted" },
+		"subject_type":        func(entry *domain.AuditChainEntry) { entry.SubjectType = "release_bundle" },
+		"subject_id":          func(entry *domain.AuditChainEntry) { entry.SubjectID = "bundle_rewritten" },
+		"actor_type":          func(entry *domain.AuditChainEntry) { entry.ActorType = "session" },
+		"actor_id":            func(entry *domain.AuditChainEntry) { entry.ActorID = "user_rewritten" },
+		"occurred_at":         func(entry *domain.AuditChainEntry) { entry.OccurredAt = entry.OccurredAt.Add(time.Second) },
+		"request_id":          func(entry *domain.AuditChainEntry) { entry.RequestID = "request_rewritten" },
+		"idempotency_key":     func(entry *domain.AuditChainEntry) { entry.IdempotencyKey = "idempotency_rewritten" },
+		"payload_hash":        func(entry *domain.AuditChainEntry) { entry.PayloadHash = sampleDigest("x") },
+		"previous_entry_hash": func(entry *domain.AuditChainEntry) { entry.PreviousEntryHash = sampleDigest("previous") },
+		"signature_ref":       func(entry *domain.AuditChainEntry) { entry.SignatureRef = "sig_rewritten" },
+		"metadata":            func(entry *domain.AuditChainEntry) { entry.Metadata = map[string]any{"source": "rewritten"} },
+		"schema_version":      func(entry *domain.AuditChainEntry) { entry.SchemaVersion = auditChainEntryLegacySchemaVersion },
+	} {
+		t.Run(name, func(t *testing.T) {
+			mutated := entry
+			mutate(&mutated)
+			got, err := canonicalAuditChainEntryHash(mutated)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got == baseline {
+				t.Fatalf("canonical hash did not cover %s", name)
+			}
+		})
+	}
+}
+
+func TestAuditChainLegacyV1EntriesRemainVerifiable(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	actor, err := ledger.Authenticate(ctx, secret)
+	if err != nil {
+		t.Fatalf("auth: %v", err)
+	}
+	entry := domain.AuditChainEntry{
+		ID:            "ace_legacy",
+		TenantID:      actor.TenantID,
+		Sequence:      1,
+		EntryType:     "evidence.created",
+		SubjectType:   "evidence_item",
+		SubjectID:     "ev_legacy",
+		ActorType:     "api_key",
+		ActorID:       actor.KeyID,
+		OccurredAt:    fixedNow().Add(789 * time.Nanosecond),
+		PayloadHash:   sampleDigest("legacy"),
+		SchemaVersion: auditChainEntryLegacySchemaVersion,
+	}
+	canonical, err := canonicalAuditChainEntryHash(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry.CanonicalEntryHash = canonical
+	entry.EntryHash = hashBytes([]byte("\n" + canonical))
+	entry.OccurredAt = entry.OccurredAt.Truncate(time.Microsecond)
+	ledger.mu.Lock()
+	ledger.chain[actor.TenantID] = []domain.AuditChainEntry{entry}
+	ledger.mu.Unlock()
+	result, err := ledger.VerifySubject(ctx, actor, "audit_chain", "")
+	if err != nil || result.Result != "passed" {
+		t.Fatalf("legacy audit-chain verification = %#v err=%v", result, err)
+	}
+}
+
+func TestAuditChainVerificationRejectsInvalidReferencedSignature(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	actor, release, _ := setupReleaseRiskFixture(t, ledger)
+	bundle, err := ledger.CreateReleaseBundle(ctx, actor, release.ID)
+	if err != nil {
+		t.Fatalf("create bundle: %v", err)
+	}
+	if len(bundle.SignatureRefs) != 1 {
+		t.Fatalf("bundle signature refs = %#v", bundle.SignatureRefs)
+	}
+	ledger.mu.Lock()
+	signature := ledger.signatures[bundle.SignatureRefs[0]]
+	signature.Value = "not-a-valid-ed25519-signature"
+	ledger.signatures[signature.ID] = signature
+	ledger.mu.Unlock()
+
+	result, err := ledger.VerifySubject(ctx, actor, "audit_chain", "")
+	if !errors.Is(err, ErrVerificationFailed) {
+		t.Fatalf("verify chain with invalid referenced signature err = %v, want verification failure", err)
+	}
+	if !hasVerifyCheck(result.Checks, "referenced_signature", "failed") {
+		t.Fatalf("invalid referenced signature was not detected: %#v", result.Checks)
+	}
+}
+
+func TestAuditChainCheckpointVerificationDetectsTruncation(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	actor, release, _ := setupReleaseRiskFixture(t, ledger)
+
+	bundle, err := ledger.CreateReleaseBundle(ctx, actor, release.ID)
+	if err != nil {
+		t.Fatalf("create release bundle: %v", err)
+	}
+	manifestVerification, err := ledger.VerifySubject(ctx, actor, "audit_chain_release_manifest", bundle.ID)
+	if err != nil {
+		t.Fatalf("verify release manifest checkpoint: %v", err)
+	}
+	if manifestVerification.Result != string(domain.VerificationStatePassed) {
+		t.Fatalf("release manifest checkpoint verification = %#v", manifestVerification)
+	}
+	ledger.mu.Lock()
+	entriesBeforeManifestTruncation := append([]domain.AuditChainEntry(nil), ledger.chain[actor.TenantID]...)
+	manifestSequence, _, ok := releaseManifestAuditChainCheckpoint(bundle.Manifest)
+	if !ok || manifestSequence < 1 {
+		ledger.mu.Unlock()
+		t.Fatalf("release bundle is missing a usable audit checkpoint: %#v", bundle.Manifest)
+	}
+	ledger.chain[actor.TenantID] = append([]domain.AuditChainEntry(nil), entriesBeforeManifestTruncation[:manifestSequence-1]...)
+	ledger.mu.Unlock()
+	if _, err := ledger.VerifySubject(ctx, actor, "audit_chain_release_manifest", bundle.ID); !errors.Is(err, ErrVerificationFailed) {
+		t.Fatalf("truncated release manifest checkpoint err = %v, want ErrVerificationFailed", err)
+	}
+	ledger.mu.Lock()
+	ledger.chain[actor.TenantID] = entriesBeforeManifestTruncation
+	ledger.mu.Unlock()
+
+	batch, err := ledger.CreateMerkleBatch(ctx, actor, CreateMerkleBatchInput{})
+	if err != nil {
+		t.Fatalf("create merkle batch: %v", err)
+	}
+	batchVerification, err := ledger.VerifySubject(ctx, actor, "audit_chain_checkpoint", batch.ID)
+	if err != nil {
+		t.Fatalf("verify merkle checkpoint: %v", err)
+	}
+	if batchVerification.Result != string(domain.VerificationStatePassed) {
+		t.Fatalf("merkle checkpoint verification = %#v", batchVerification)
+	}
+
+	ledger.mu.Lock()
+	entries := ledger.chain[actor.TenantID]
+	ledger.chain[actor.TenantID] = append([]domain.AuditChainEntry(nil), entries[:batch.ToSequence-1]...)
+	ledger.mu.Unlock()
+	_, err = ledger.VerifySubject(ctx, actor, "audit_chain_checkpoint", batch.ID)
+	if !errors.Is(err, ErrVerificationFailed) {
+		t.Fatalf("truncated checkpoint verification err = %v, want ErrVerificationFailed", err)
+	}
+}
+
 func TestReleaseBundleSignatureVerification(t *testing.T) {
 	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()

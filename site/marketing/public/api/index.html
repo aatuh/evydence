@@ -330,13 +330,13 @@
               <div><dt>Responses</dt><dd>200 application/json: ArtifactEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/audit-chain/verify verify audit chain verifies the tenant audit chain continuity and returns deterministic verification checks. verifyauditchain evydence verify:read">
+          <article class="operation" data-operation data-search="get /v1/audit-chain/verify verify audit chain recomputes tenant audit-chain entry hashes, continuity, schema versions, and referenced signatures. this local verification does not by itself prove protection from an administrator able to rewrite all history and signing material. verifyauditchain evydence verify:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/audit-chain/verify</code>
             </div>
             <h3>Verify audit chain</h3>
-            <p>Verifies the tenant audit chain continuity and returns deterministic verification checks.</p>
+            <p>Recomputes tenant audit-chain entry hashes, continuity, schema versions, and referenced signatures. This local verification does not by itself prove protection from an administrator able to rewrite all history and signing material.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>verifyAuditChain</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -3067,13 +3067,13 @@
               <div><dt>Responses</dt><dd>200 application/json: HumanUserEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/verify verify subject verifies a supported tenant-scoped subject such as evidence, audit chain, release bundle, artifact signature, or related verification target. verify evydence verify:read">
+          <article class="operation" data-operation data-search="post /v1/verify verify subject verifies a supported tenant-scoped subject. audit-chain checkpoint verification supports audit_chain_checkpoint with a merkle batch id and audit_chain_release_manifest with a release bundle id. verify evydence verify:read">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/verify</code>
             </div>
             <h3>Verify subject</h3>
-            <p>Verifies a supported tenant-scoped subject such as evidence, audit chain, release bundle, artifact signature, or related verification target.</p>
+            <p>Verifies a supported tenant-scoped subject. Audit-chain checkpoint verification supports audit_chain_checkpoint with a Merkle batch id and audit_chain_release_manifest with a release bundle id.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>verify</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

@@ -24,6 +24,20 @@ type RelationalStateStore interface {
 	SaveRelationalState(context.Context, PersistedState) error
 }
 
+// AuditChainRelationalStateStore atomically reconciles audit-chain append
+// sequences with the durable database and returns the committed chain state.
+type AuditChainRelationalStateStore interface {
+	SaveRelationalStateWithAuditChain(context.Context, PersistedState) (map[string][]domain.AuditChainEntry, error)
+}
+
+type AuditChainCriticalMutationStore interface {
+	ApplyCriticalMutationWithAuditChain(context.Context, CriticalMutation) (map[string][]domain.AuditChainEntry, error)
+}
+
+type AuditChainReleaseLedgerMutationStore interface {
+	ApplyReleaseLedgerMutationWithAuditChain(context.Context, ReleaseLedgerMutation) (map[string][]domain.AuditChainEntry, error)
+}
+
 type ObjectStore interface {
 	Put(context.Context, Object) error
 	Get(context.Context, string) (Object, error)
@@ -263,25 +277,9 @@ func AppendPersistedChainEntry(state *PersistedState, now time.Time, tenantID, e
 		SignatureRef:      signatureRef,
 		SchemaVersion:     domain.AuditChainEntrySchemaVersion,
 	}
-	canonical, err := canonicalAnyHash(map[string]any{
-		"tenant_id":           entry.TenantID,
-		"sequence":            entry.Sequence,
-		"entry_type":          entry.EntryType,
-		"subject_type":        entry.SubjectType,
-		"subject_id":          entry.SubjectID,
-		"actor_type":          entry.ActorType,
-		"actor_id":            entry.ActorID,
-		"occurred_at":         entry.OccurredAt.UTC().Format(time.RFC3339Nano),
-		"payload_hash":        entry.PayloadHash,
-		"previous_entry_hash": entry.PreviousEntryHash,
-		"signature_ref":       entry.SignatureRef,
-		"schema_version":      entry.SchemaVersion,
-	})
-	if err != nil {
+	if err := RehashAuditChainEntry(&entry); err != nil {
 		return domain.AuditChainEntry{}, err
 	}
-	entry.CanonicalEntryHash = canonical
-	entry.EntryHash = hashBytes([]byte(previous + "\n" + canonical))
 	state.Chain[tenantID] = append(entries, entry)
 	return entry, nil
 }

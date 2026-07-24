@@ -93,6 +93,97 @@ func TestStoreAPIWriterLeaseIsExclusive(t *testing.T) {
 	releaseSecond()
 }
 
+func TestStoreAllocatesConcurrentAuditChainSequencesInTransaction(t *testing.T) {
+	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("EVYDENCE_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	admin, err := Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close()
+	schema := "evydence_audit_chain_concurrency_" + strings.ReplaceAll(time.Now().UTC().Format("20060102150405.000000000"), ".", "_")
+	quotedSchema := pgx.Identifier{schema}.Sanitize()
+	if _, err := admin.pool.Exec(ctx, "CREATE SCHEMA "+quotedSchema); err != nil {
+		t.Fatal(err)
+	}
+	defer func(cleanupCtx context.Context) {
+		_, _ = admin.pool.Exec(cleanupCtx, "DROP SCHEMA "+quotedSchema+" CASCADE")
+	}(context.WithoutCancel(ctx))
+
+	first, err := OpenWithOptions(ctx, databaseURLWithSearchPath(t, databaseURL, schema), StoreOptions{LoadMode: LoadModeRelationalOnly, DisableSnapshotWrites: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer first.Close()
+	second, err := OpenWithOptions(ctx, databaseURLWithSearchPath(t, databaseURL, schema), StoreOptions{LoadMode: LoadModeRelationalOnly, DisableSnapshotWrites: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer second.Close()
+	if _, err := first.ApplyMigrations(ctx, "../../../migrations"); err != nil {
+		t.Fatal(err)
+	}
+
+	tenant := domain.Tenant{ID: "ten_audit_concurrency", Name: "Audit concurrency", CreatedAt: time.Now().UTC()}
+	newState := func(entryType string) app.PersistedState {
+		state := app.PersistedState{Tenants: map[string]domain.Tenant{tenant.ID: tenant}, Chain: map[string][]domain.AuditChainEntry{}}
+		if _, err := app.AppendPersistedChainEntry(&state, time.Now().UTC(), tenant.ID, entryType, "test", entryType, "system", "test", "", ""); err != nil {
+			t.Fatalf("append %s: %v", entryType, err)
+		}
+		return state
+	}
+	firstState := newState("first")
+	secondState := newState("second")
+	type result struct {
+		chain map[string][]domain.AuditChainEntry
+		err   error
+	}
+	results := make(chan result, 2)
+	go func() {
+		chain, err := first.SaveRelationalStateWithAuditChain(ctx, firstState)
+		results <- result{chain: chain, err: err}
+	}()
+	go func() {
+		chain, err := second.SaveRelationalStateWithAuditChain(ctx, secondState)
+		results <- result{chain: chain, err: err}
+	}()
+	for range 2 {
+		if result := <-results; result.err != nil {
+			t.Fatalf("save concurrent chain: %v", result.err)
+		}
+	}
+
+	rows, err := first.pool.Query(ctx, `SELECT sequence, previous_entry_hash, entry_hash FROM audit_chain_entries WHERE tenant_id = $1 ORDER BY sequence`, tenant.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	sequences := []int64{}
+	previous := ""
+	for rows.Next() {
+		var sequence int64
+		var previousHash, entryHash string
+		if err := rows.Scan(&sequence, &previousHash, &entryHash); err != nil {
+			t.Fatal(err)
+		}
+		if sequence != int64(len(sequences)+1) || previousHash != previous {
+			t.Fatalf("committed audit chain is not contiguous: sequence=%d previous=%q want_previous=%q", sequence, previousHash, previous)
+		}
+		sequences = append(sequences, sequence)
+		previous = entryHash
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if len(sequences) != 2 {
+		t.Fatalf("committed audit entries = %#v, want sequences [1 2]", sequences)
+	}
+}
+
 func TestStoreCanDisableSnapshotWritesAndLoadRelationalState(t *testing.T) {
 	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
 	if databaseURL == "" {
@@ -1480,8 +1571,8 @@ func TestPostgresBackupRestoreRehearsalPreservesLedgerAndObjects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := restored.VerifyBackupManifest(ctx, restoredActor, manifest.ID); err != nil {
-		t.Fatalf("verify backup manifest after restore: %v", err)
+	if result, err := restored.VerifyBackupManifest(ctx, restoredActor, manifest.ID); err != nil {
+		t.Fatalf("verify backup manifest after restore: %v result=%#v", err, result)
 	}
 	restoredSBOM, err := restored.GetSBOM(ctx, restoredActor, sbom.ID)
 	if err != nil || restoredSBOM.ComponentCount != sbom.ComponentCount {

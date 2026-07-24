@@ -285,6 +285,13 @@ func (l *Ledger) persistLocked(ctx context.Context) error {
 		return nil
 	}
 	state := l.snapshotLocked()
+	if reconciled, ok := l.store.(AuditChainRelationalStateStore); ok {
+		chain, err := reconciled.SaveRelationalStateWithAuditChain(ctx, state)
+		if err == nil {
+			l.chain = cloneAuditChain(chain)
+		}
+		return err
+	}
 	if relational, ok := l.store.(RelationalStateStore); ok {
 		return relational.SaveRelationalState(ctx, state)
 	}
@@ -294,6 +301,13 @@ func (l *Ledger) persistLocked(ctx context.Context) error {
 func (l *Ledger) persistCriticalLocked(ctx context.Context, mutation CriticalMutation) error {
 	if l.store == nil {
 		return nil
+	}
+	if reconciled, ok := l.store.(AuditChainCriticalMutationStore); ok {
+		chain, err := reconciled.ApplyCriticalMutationWithAuditChain(ctx, mutation)
+		if err == nil {
+			l.chain = cloneAuditChain(chain)
+		}
+		return err
 	}
 	focused, ok := l.store.(CriticalMutationStore)
 	if !ok {
@@ -305,6 +319,13 @@ func (l *Ledger) persistCriticalLocked(ctx context.Context, mutation CriticalMut
 func (l *Ledger) persistReleaseLedgerLocked(ctx context.Context, mutation ReleaseLedgerMutation) error {
 	if l.store == nil {
 		return nil
+	}
+	if reconciled, ok := l.store.(AuditChainReleaseLedgerMutationStore); ok {
+		chain, err := reconciled.ApplyReleaseLedgerMutationWithAuditChain(ctx, mutation)
+		if err == nil {
+			l.chain = cloneAuditChain(chain)
+		}
+		return err
 	}
 	focused, ok := l.store.(ReleaseLedgerMutationStore)
 	if !ok {
@@ -498,6 +519,10 @@ func cloneState(state PersistedState) PersistedState {
 		return normalizeState(PersistedState{})
 	}
 	return normalizeState(out)
+}
+
+func cloneAuditChain(chain map[string][]domain.AuditChainEntry) map[string][]domain.AuditChainEntry {
+	return cloneState(PersistedState{Chain: chain}).Chain
 }
 
 func normalizeState(state PersistedState) PersistedState {

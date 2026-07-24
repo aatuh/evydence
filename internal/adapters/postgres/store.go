@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -726,7 +727,7 @@ func (s *Store) loadRelationalEvidence(ctx context.Context, state *app.Persisted
 func (s *Store) loadRelationalAuditChain(ctx context.Context, state *app.PersistedState, loaded *bool) error {
 	rows, err := s.pool.Query(ctx, `
 		SELECT id, tenant_id, sequence, entry_type, subject_type, subject_id,
-		       actor_type, actor_id, occurred_at, payload_hash,
+		       actor_type, actor_id, occurred_at, request_id, idempotency_key, payload_hash,
 		       canonical_entry_hash, previous_entry_hash, entry_hash,
 		       signature_ref, metadata, schema_version
 		FROM audit_chain_entries
@@ -738,16 +739,18 @@ func (s *Store) loadRelationalAuditChain(ctx context.Context, state *app.Persist
 	defer rows.Close()
 	for rows.Next() {
 		var entry domain.AuditChainEntry
-		var payloadHash, signatureRef sql.NullString
+		var requestID, idempotencyKey, payloadHash, signatureRef sql.NullString
 		var metadata []byte
 		if err := rows.Scan(
 			&entry.ID, &entry.TenantID, &entry.Sequence, &entry.EntryType, &entry.SubjectType, &entry.SubjectID,
-			&entry.ActorType, &entry.ActorID, &entry.OccurredAt, &payloadHash,
+			&entry.ActorType, &entry.ActorID, &entry.OccurredAt, &requestID, &idempotencyKey, &payloadHash,
 			&entry.CanonicalEntryHash, &entry.PreviousEntryHash, &entry.EntryHash,
 			&signatureRef, &metadata, &entry.SchemaVersion,
 		); err != nil {
 			return fmt.Errorf("scan relational audit chain entry: %w", err)
 		}
+		entry.RequestID = nullableSQLString(requestID)
+		entry.IdempotencyKey = nullableSQLString(idempotencyKey)
 		entry.PayloadHash = nullableSQLString(payloadHash)
 		entry.SignatureRef = nullableSQLString(signatureRef)
 		if err := decodeJSON(metadata, &entry.Metadata); err != nil {
@@ -2597,23 +2600,33 @@ func (s *Store) loadRelationalIdempotency(ctx context.Context, state *app.Persis
 }
 
 func (s *Store) SaveState(ctx context.Context, state app.PersistedState) error {
-	return s.saveState(ctx, state, !s.disableSnapshotWrites)
+	_, err := s.saveState(ctx, state, !s.disableSnapshotWrites)
+	return err
 }
 
 func (s *Store) SaveRelationalState(ctx context.Context, state app.PersistedState) error {
+	_, err := s.saveState(ctx, state, false)
+	return err
+}
+
+func (s *Store) SaveRelationalStateWithAuditChain(ctx context.Context, state app.PersistedState) (map[string][]domain.AuditChainEntry, error) {
 	return s.saveState(ctx, state, false)
 }
 
-func (s *Store) saveState(ctx context.Context, state app.PersistedState, writeSnapshot bool) error {
+func (s *Store) saveState(ctx context.Context, state app.PersistedState, writeSnapshot bool) (map[string][]domain.AuditChainEntry, error) {
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
-		return fmt.Errorf("begin save ledger state transaction: %w", err)
+		return nil, fmt.Errorf("begin save ledger state transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	state, err = reconcileAuditChainSequences(ctx, tx, state)
+	if err != nil {
+		return nil, err
+	}
 	if writeSnapshot {
 		body, err := json.Marshal(state)
 		if err != nil {
-			return fmt.Errorf("encode ledger state: %w", err)
+			return nil, fmt.Errorf("encode ledger state: %w", err)
 		}
 		_, err = tx.Exec(ctx, `
 			INSERT INTO ledger_state (id, state, updated_at)
@@ -2621,103 +2634,129 @@ func (s *Store) saveState(ctx context.Context, state app.PersistedState, writeSn
 			ON CONFLICT (id) DO UPDATE SET state = EXCLUDED.state, updated_at = EXCLUDED.updated_at
 		`, body)
 		if err != nil {
-			return fmt.Errorf("save ledger state: %w", err)
+			return nil, fmt.Errorf("save ledger state: %w", err)
 		}
 	}
 	if err := syncResourceIndex(ctx, tx, state); err != nil {
-		return err
+		return nil, err
 	}
 	if err := syncIdentityAndIdempotency(ctx, tx, state); err != nil {
-		return err
+		return nil, err
 	}
 	if err := syncReleaseLedgerCore(ctx, tx, state); err != nil {
-		return err
+		return nil, err
 	}
 	if err := syncRiskBuildControlRows(ctx, tx, state); err != nil {
-		return err
+		return nil, err
 	}
 	if err := syncSourceDeploymentLifecycleRows(ctx, tx, state); err != nil {
-		return err
+		return nil, err
 	}
 	if err := syncIncidentSecurityGovernanceRows(ctx, tx, state); err != nil {
-		return err
+		return nil, err
 	}
 	if err := syncIntegrityProviderRows(ctx, tx, state); err != nil {
-		return err
+		return nil, err
 	}
 	if err := syncPackageReportRetentionRows(ctx, tx, state); err != nil {
-		return err
+		return nil, err
 	}
 	if err := syncFutureExtensionRows(ctx, tx, state); err != nil {
-		return err
+		return nil, err
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit save ledger state transaction: %w", err)
+		return nil, fmt.Errorf("commit save ledger state transaction: %w", err)
 	}
-	return nil
+	return state.Chain, nil
 }
 
 func (s *Store) ApplyCriticalMutation(ctx context.Context, mutation app.CriticalMutation) error {
+	_, err := s.applyCriticalMutation(ctx, mutation)
+	return err
+}
+
+func (s *Store) ApplyCriticalMutationWithAuditChain(ctx context.Context, mutation app.CriticalMutation) (map[string][]domain.AuditChainEntry, error) {
+	return s.applyCriticalMutation(ctx, mutation)
+}
+
+func (s *Store) applyCriticalMutation(ctx context.Context, mutation app.CriticalMutation) (map[string][]domain.AuditChainEntry, error) {
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
-		return fmt.Errorf("begin critical mutation transaction: %w", err)
+		return nil, fmt.Errorf("begin critical mutation transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	state := criticalMutationState(mutation)
+	state, err = reconcileAuditChainSequences(ctx, tx, state)
+	if err != nil {
+		return nil, err
+	}
 	if err := syncCriticalIdentityAndIdempotency(ctx, tx, mutation); err != nil {
-		return err
+		return nil, err
 	}
 	if err := syncRiskBuildControlRows(ctx, tx, state); err != nil {
-		return err
+		return nil, err
 	}
 	if err := syncReleaseLedgerCore(ctx, tx, state); err != nil {
-		return err
+		return nil, err
 	}
 	if err := syncPackageReportRetentionRows(ctx, tx, state); err != nil {
-		return err
+		return nil, err
 	}
 	for _, job := range mutation.OutboxJobs {
 		if err := insertOutboxJobTx(ctx, tx, job); err != nil {
-			return err
+			return nil, err
 		}
 	}
 	if err := syncCriticalResourceIndex(ctx, tx, state); err != nil {
-		return err
+		return nil, err
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit critical mutation transaction: %w", err)
+		return nil, fmt.Errorf("commit critical mutation transaction: %w", err)
 	}
-	return nil
+	return state.Chain, nil
 }
 
 func (s *Store) ApplyReleaseLedgerMutation(ctx context.Context, mutation app.ReleaseLedgerMutation) error {
+	_, err := s.applyReleaseLedgerMutation(ctx, mutation)
+	return err
+}
+
+func (s *Store) ApplyReleaseLedgerMutationWithAuditChain(ctx context.Context, mutation app.ReleaseLedgerMutation) (map[string][]domain.AuditChainEntry, error) {
+	return s.applyReleaseLedgerMutation(ctx, mutation)
+}
+
+func (s *Store) applyReleaseLedgerMutation(ctx context.Context, mutation app.ReleaseLedgerMutation) (map[string][]domain.AuditChainEntry, error) {
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
-		return fmt.Errorf("begin release ledger mutation transaction: %w", err)
+		return nil, fmt.Errorf("begin release ledger mutation transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	state := releaseLedgerMutationState(mutation)
+	state, err = reconcileAuditChainSequences(ctx, tx, state)
+	if err != nil {
+		return nil, err
+	}
 	if err := syncReleaseLedgerCore(ctx, tx, state); err != nil {
-		return err
+		return nil, err
 	}
 	if err := syncRiskBuildControlRows(ctx, tx, state); err != nil {
-		return err
+		return nil, err
 	}
 	if err := syncSourceDeploymentLifecycleRows(ctx, tx, state); err != nil {
-		return err
+		return nil, err
 	}
 	for _, job := range mutation.OutboxJobs {
 		if err := insertOutboxJobTx(ctx, tx, job); err != nil {
-			return err
+			return nil, err
 		}
 	}
 	if err := syncCriticalResourceIndex(ctx, tx, state); err != nil {
-		return err
+		return nil, err
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit release ledger mutation transaction: %w", err)
+		return nil, fmt.Errorf("commit release ledger mutation transaction: %w", err)
 	}
-	return nil
+	return state.Chain, nil
 }
 
 func criticalMutationState(mutation app.CriticalMutation) app.PersistedState {
@@ -2818,6 +2857,106 @@ func releaseLedgerMutationState(mutation app.ReleaseLedgerMutation) app.Persiste
 		state.Chain[entry.TenantID] = append(state.Chain[entry.TenantID], entry)
 	}
 	return state
+}
+
+func reconcileAuditChainSequences(ctx context.Context, tx pgx.Tx, state app.PersistedState) (app.PersistedState, error) {
+	tenantIDs := make([]string, 0, len(state.Chain))
+	for tenantID := range state.Chain {
+		if tenantID != "" {
+			tenantIDs = append(tenantIDs, tenantID)
+		}
+	}
+	sort.Strings(tenantIDs)
+	for _, tenantID := range tenantIDs {
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, tenantID); err != nil {
+			return state, fmt.Errorf("lock audit chain tenant %q: %w", tenantID, err)
+		}
+		durable, err := loadAuditChainEntriesForTenant(ctx, tx, tenantID)
+		if err != nil {
+			return state, err
+		}
+		previous := ""
+		durableIDs := make(map[string]struct{}, len(durable))
+		for index, entry := range durable {
+			if entry.Sequence != int64(index+1) || entry.PreviousEntryHash != previous {
+				return state, fmt.Errorf("audit chain tenant %q has non-contiguous committed sequence", tenantID)
+			}
+			durableIDs[entry.ID] = struct{}{}
+			previous = entry.EntryHash
+		}
+		pending := make([]domain.AuditChainEntry, 0)
+		for _, entry := range state.Chain[tenantID] {
+			if _, exists := durableIDs[entry.ID]; exists {
+				continue
+			}
+			if entry.ID == "" || entry.TenantID != tenantID {
+				return state, fmt.Errorf("invalid pending audit chain entry for tenant %q", tenantID)
+			}
+			pending = append(pending, entry)
+		}
+		sort.SliceStable(pending, func(i, j int) bool {
+			if pending[i].Sequence != pending[j].Sequence {
+				return pending[i].Sequence < pending[j].Sequence
+			}
+			if !pending[i].OccurredAt.Equal(pending[j].OccurredAt) {
+				return pending[i].OccurredAt.Before(pending[j].OccurredAt)
+			}
+			return pending[i].ID < pending[j].ID
+		})
+		for _, entry := range pending {
+			entry.Sequence = int64(len(durable) + 1)
+			entry.PreviousEntryHash = previous
+			if err := app.RehashAuditChainEntry(&entry); err != nil {
+				return state, fmt.Errorf("rehash audit chain entry %q: %w", entry.ID, err)
+			}
+			durable = append(durable, entry)
+			previous = entry.EntryHash
+		}
+		state.Chain[tenantID] = durable
+	}
+	return state, nil
+}
+
+func loadAuditChainEntriesForTenant(ctx context.Context, tx pgx.Tx, tenantID string) ([]domain.AuditChainEntry, error) {
+	rows, err := tx.Query(ctx, `
+		SELECT id, tenant_id, sequence, entry_type, subject_type, subject_id,
+		       actor_type, actor_id, occurred_at, request_id, idempotency_key, payload_hash,
+		       canonical_entry_hash, previous_entry_hash, entry_hash,
+		       signature_ref, metadata, schema_version
+		FROM audit_chain_entries
+		WHERE tenant_id = $1
+		ORDER BY sequence
+	`, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("load committed audit chain for tenant %q: %w", tenantID, err)
+	}
+	defer rows.Close()
+	entries := []domain.AuditChainEntry{}
+	for rows.Next() {
+		var entry domain.AuditChainEntry
+		var requestID, idempotencyKey, payloadHash, signatureRef sql.NullString
+		var metadata []byte
+		if err := rows.Scan(
+			&entry.ID, &entry.TenantID, &entry.Sequence, &entry.EntryType, &entry.SubjectType, &entry.SubjectID,
+			&entry.ActorType, &entry.ActorID, &entry.OccurredAt, &requestID, &idempotencyKey, &payloadHash,
+			&entry.CanonicalEntryHash, &entry.PreviousEntryHash, &entry.EntryHash,
+			&signatureRef, &metadata, &entry.SchemaVersion,
+		); err != nil {
+			return nil, fmt.Errorf("scan committed audit chain entry: %w", err)
+		}
+		entry.RequestID = nullableSQLString(requestID)
+		entry.IdempotencyKey = nullableSQLString(idempotencyKey)
+		entry.PayloadHash = nullableSQLString(payloadHash)
+		entry.SignatureRef = nullableSQLString(signatureRef)
+		if err := decodeJSON(metadata, &entry.Metadata); err != nil {
+			return nil, fmt.Errorf("decode committed audit metadata: %w", err)
+		}
+		entries = append(entries, entry)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate committed audit chain: %w", err)
+	}
+	return entries, nil
 }
 
 func syncReleaseLedgerCore(ctx context.Context, tx pgx.Tx, state app.PersistedState) error {
@@ -2962,14 +3101,14 @@ func syncReleaseLedgerCore(ctx context.Context, tx pgx.Tx, state app.PersistedSt
 			if _, err := tx.Exec(ctx, `
 				INSERT INTO audit_chain_entries (
 					id, tenant_id, sequence, entry_type, subject_type, subject_id,
-					actor_type, actor_id, occurred_at, payload_hash,
+					actor_type, actor_id, occurred_at, request_id, idempotency_key, payload_hash,
 					canonical_entry_hash, previous_entry_hash, entry_hash,
 					signature_ref, metadata, schema_version
 				)
-				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
 				ON CONFLICT (id) DO NOTHING
 			`, entry.ID, entry.TenantID, entry.Sequence, entry.EntryType, entry.SubjectType, entry.SubjectID,
-				entry.ActorType, entry.ActorID, nonZeroTime(entry.OccurredAt), nullableString(entry.PayloadHash),
+				entry.ActorType, entry.ActorID, nonZeroTime(entry.OccurredAt), entry.RequestID, entry.IdempotencyKey, nullableString(entry.PayloadHash),
 				entry.CanonicalEntryHash, entry.PreviousEntryHash, entry.EntryHash,
 				nullableString(entry.SignatureRef), metadata, entry.SchemaVersion); err != nil {
 				return fmt.Errorf("insert audit chain row: %w", err)

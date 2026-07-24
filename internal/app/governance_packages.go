@@ -1217,7 +1217,9 @@ func (l *Ledger) packageAuditChainSummaryLocked(tenantID string) map[string]any 
 		"result":          result,
 		"latest_sequence": len(entries),
 		"head_hash":       head,
-		"checks":          checks,
+		// Customer packages intentionally expose the aggregate integrity state,
+		// not internal audit verification check names or entry identifiers.
+		"checks": []map[string]any{{"name": "audit_chain_integrity", "result": result}},
 	}
 }
 
@@ -1936,11 +1938,12 @@ func (s packageReportService) ExportEvidenceBundle(ctx context.Context, actor do
 	if err != nil {
 		return domain.EvidenceBundle{}, err
 	}
-	sig, err := l.signLocked(actor.TenantID, "evidence_bundle", "pending", []byte(hash))
+	bundleID := newID("eb")
+	sig, err := l.signLocked(actor.TenantID, "evidence_bundle", bundleID, []byte(hash))
 	if err != nil {
 		return domain.EvidenceBundle{}, err
 	}
-	bundle := domain.EvidenceBundle{ID: newID("eb"), TenantID: actor.TenantID, ReleaseID: releaseID, EvidenceIDs: ids, Manifest: manifest, ManifestHash: hash, SignatureRefs: []string{sig.ID}, VerificationText: "Verify manifest_hash over manifest canonical JSON and signature references with tenant public keys.", SchemaVersion: domain.EvidenceBundleSchemaVersion, CreatedAt: l.now()}
+	bundle := domain.EvidenceBundle{ID: bundleID, TenantID: actor.TenantID, ReleaseID: releaseID, EvidenceIDs: ids, Manifest: manifest, ManifestHash: hash, SignatureRefs: []string{sig.ID}, VerificationText: "Verify manifest_hash over manifest canonical JSON and signature references with tenant public keys.", SchemaVersion: domain.EvidenceBundleSchemaVersion, CreatedAt: l.now()}
 	l.evidenceBundles[bundle.ID] = bundle
 	_, _ = l.appendChainLocked(actor.TenantID, "evidence_bundle.exported", "evidence_bundle", bundle.ID, "api_key", actor.KeyID, hash, sig.ID)
 	if err := l.persistLocked(ctx); err != nil {

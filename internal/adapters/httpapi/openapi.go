@@ -2342,8 +2342,8 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "id", "tenant_id", "name", "region", "admin_tenant_id", "isolation_model", "status", "config_hash", "limitations", "schema_version", "created_at"))
 	registry.RegisterSchema("SaaSEditionProfileEnvelope", dataEnvelopeSchema("#/components/schemas/SaaSEditionProfile"))
 	registry.RegisterSchema("VerifySubjectRequest", objectSchema(map[string]any{
-		"subject_type": map[string]any{"type": "string"},
-		"subject_id":   map[string]any{"type": "string"},
+		"subject_type": map[string]any{"type": "string", "description": "Verification target. Audit-chain checkpoints use audit_chain_checkpoint (Merkle batch id) or audit_chain_release_manifest (release bundle id)."},
+		"subject_id":   map[string]any{"type": "string", "description": "Target id; audit_chain does not require an id."},
 	}, "subject_type"))
 	registry.RegisterSchema("SubjectRef", objectSchema(map[string]any{
 		"type":   map[string]any{"type": "string"},

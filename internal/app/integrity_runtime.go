@@ -226,11 +226,12 @@ func (l *Ledger) CreateMerkleBatch(ctx context.Context, actor domain.Actor, in C
 		}
 	}
 	root := merkleRoot(leaves)
-	sig, err := l.signLocked(actor.TenantID, "merkle_batch", "pending", []byte(root))
+	batchID := newID("mb")
+	sig, err := l.signLocked(actor.TenantID, "merkle_batch", batchID, []byte(root))
 	if err != nil {
 		return domain.MerkleBatch{}, err
 	}
-	batch := domain.MerkleBatch{ID: newID("mb"), TenantID: actor.TenantID, FromSequence: from, ToSequence: to, EntryCount: len(leaves), LeafHashes: leaves, RootHash: root, SignatureRefs: []string{sig.ID}, SchemaVersion: domain.MerkleBatchSchemaVersion, CreatedAt: l.now()}
+	batch := domain.MerkleBatch{ID: batchID, TenantID: actor.TenantID, FromSequence: from, ToSequence: to, EntryCount: len(leaves), LeafHashes: leaves, RootHash: root, SignatureRefs: []string{sig.ID}, SchemaVersion: domain.MerkleBatchSchemaVersion, CreatedAt: l.now()}
 	l.merkleBatches[batch.ID] = batch
 	_, _ = l.appendChainLocked(actor.TenantID, "merkle_batch.created", "merkle_batch", batch.ID, actorType(actor), actorID(actor), root, sig.ID)
 	if err := l.persistLocked(ctx); err != nil {

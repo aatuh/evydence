@@ -4,7 +4,7 @@ import "time"
 
 const (
 	EvidenceItemSchemaVersion         = "evidence-item.v1.0.0"
-	AuditChainEntrySchemaVersion      = "audit-chain-entry.v1.0.0"
+	AuditChainEntrySchemaVersion      = "audit-chain-entry.v2.0.0"
 	ReleaseBundleSchemaVersion        = "release-bundle.v1.0.0"
 	ReleaseEvidenceFlowVersion        = "release-evidence-flow.v1.0.0"
 	ReleaseSecuritySummaryVersion     = "release-security-summary.v1.0.0"

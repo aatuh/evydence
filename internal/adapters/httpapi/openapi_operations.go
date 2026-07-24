@@ -399,10 +399,10 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Release bundle id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Release bundle verification envelope.", "#/components/schemas/VerificationResultEnvelope")
 	case "verifyAuditChain":
-		operation.Description = "Verifies the tenant audit chain continuity and returns deterministic verification checks."
+		operation.Description = "Recomputes tenant audit-chain entry hashes, continuity, schema versions, and referenced signatures. This local verification does not by itself prove protection from an administrator able to rewrite all history and signing material."
 		operation.Responses[http.StatusOK] = jsonResponse("Audit chain verification envelope.", "#/components/schemas/VerificationResultEnvelope")
 	case "verify":
-		operation.Description = "Verifies a supported tenant-scoped subject such as evidence, audit chain, release bundle, artifact signature, or related verification target."
+		operation.Description = "Verifies a supported tenant-scoped subject. Audit-chain checkpoint verification supports audit_chain_checkpoint with a Merkle batch id and audit_chain_release_manifest with a release bundle id."
 		operation.RequestBody = jsonRequest("Subject verification request.", "#/components/schemas/VerifySubjectRequest")
 		operation.Responses[http.StatusOK] = jsonResponse("Subject verification envelope.", "#/components/schemas/VerificationResultEnvelope")
 	case "listAuditLog":

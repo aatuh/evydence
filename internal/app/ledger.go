@@ -1528,6 +1528,30 @@ func (l *Ledger) VerifySubject(ctx context.Context, actor domain.Actor, subjectT
 		}
 		checks = l.verifyChainLocked(actor.TenantID)
 		profile = assuranceProfile("audit-chain-integrity.v1", requiredCheckNames(checks), []string{"Evydence audit-chain canonical hashes"}, "tenant-scoped verification authorization", "not_evaluated", "tenant audit-chain entries", "", []string{"Audit-chain verification does not prove external anchoring or third-party log inclusion."})
+	case "audit_chain_checkpoint":
+		if err := l.authorizeResourceLocked(actor, ScopeVerifyRead, resourceRefs{}); err != nil {
+			return domain.VerificationResult{}, err
+		}
+		var found bool
+		checks, found = l.verifyMerkleAuditChainCheckpointLocked(actor.TenantID, strings.TrimSpace(subjectID))
+		if !found {
+			return domain.VerificationResult{}, ErrNotFound
+		}
+		profile = assuranceProfile("audit-chain-merkle-checkpoint.v1", requiredCheckNames(checks), []string{"Evydence audit-chain hashes", "tenant signing keys"}, "tenant-scoped verification authorization", "not_evaluated", "tenant audit-chain range and signed Merkle root", "", []string{"This signed checkpoint detects truncation or rewrites within its covered sequence range, but does not prove external publication or third-party log inclusion."})
+	case "audit_chain_release_manifest":
+		bundle, ok := l.bundles[strings.TrimSpace(subjectID)]
+		if !ok || bundle.TenantID != actor.TenantID {
+			return domain.VerificationResult{}, ErrNotFound
+		}
+		if err := l.authorizeResourceLocked(actor, ScopeVerifyRead, resourceRefs{ReleaseID: bundle.ReleaseID}); err != nil {
+			return domain.VerificationResult{}, err
+		}
+		var found bool
+		checks, found = l.verifyReleaseManifestAuditChainCheckpointLocked(actor.TenantID, bundle.ID)
+		if !found {
+			return domain.VerificationResult{}, ErrNotFound
+		}
+		profile = assuranceProfile("audit-chain-release-manifest-checkpoint.v1", requiredCheckNames(checks), []string{"release bundle manifest", "tenant signing keys"}, "tenant-scoped verification authorization", "not_evaluated", "signed release manifest audit-chain checkpoint", bundle.ManifestHash, []string{"This signed checkpoint detects truncation or rewrites within its covered sequence range, but does not prove external publication or third-party log inclusion."})
 	case "evidence_item":
 		item, ok := l.evidence[strings.TrimSpace(subjectID)]
 		if !ok || item.TenantID != actor.TenantID {
@@ -1823,25 +1847,9 @@ func (l *Ledger) appendChainLocked(tenantID, entryType, subjectType, subjectID, 
 		SignatureRef:      signatureRef,
 		SchemaVersion:     domain.AuditChainEntrySchemaVersion,
 	}
-	canonical, err := canonicalAnyHash(map[string]any{
-		"tenant_id":           entry.TenantID,
-		"sequence":            entry.Sequence,
-		"entry_type":          entry.EntryType,
-		"subject_type":        entry.SubjectType,
-		"subject_id":          entry.SubjectID,
-		"actor_type":          entry.ActorType,
-		"actor_id":            entry.ActorID,
-		"occurred_at":         entry.OccurredAt.UTC().Format(time.RFC3339Nano),
-		"payload_hash":        entry.PayloadHash,
-		"previous_entry_hash": entry.PreviousEntryHash,
-		"signature_ref":       entry.SignatureRef,
-		"schema_version":      entry.SchemaVersion,
-	})
-	if err != nil {
+	if err := RehashAuditChainEntry(&entry); err != nil {
 		return domain.AuditChainEntry{}, err
 	}
-	entry.CanonicalEntryHash = canonical
-	entry.EntryHash = hashBytes([]byte(previous + "\n" + canonical))
 	l.chain[tenantID] = append(entries, entry)
 	return entry, nil
 }
@@ -1850,22 +1858,57 @@ func (l *Ledger) verifyChainLocked(tenantID string) []domain.VerifyCheck {
 	entries := l.chain[tenantID]
 	checks := []domain.VerifyCheck{}
 	previous := ""
+	passed := true
 	for i, entry := range entries {
+		if entry.TenantID != tenantID {
+			checks = append(checks, domain.VerifyCheck{Name: "tenant_id", Result: "failed", Detail: entry.ID})
+			passed = false
+		} else {
+			checks = append(checks, domain.VerifyCheck{Name: "tenant_id", Result: "passed", Detail: entry.ID})
+		}
+		if entry.SchemaVersion != auditChainEntryLegacySchemaVersion && entry.SchemaVersion != domain.AuditChainEntrySchemaVersion {
+			checks = append(checks, domain.VerifyCheck{Name: "schema_version", Result: "failed", Detail: entry.ID})
+			passed = false
+		} else {
+			checks = append(checks, domain.VerifyCheck{Name: "schema_version", Result: "passed", Detail: entry.ID})
+		}
 		if entry.Sequence != int64(i+1) {
 			checks = append(checks, domain.VerifyCheck{Name: "sequence", Result: "failed", Detail: entry.ID})
-			return checks
+			passed = false
+		} else {
+			checks = append(checks, domain.VerifyCheck{Name: "sequence", Result: "passed", Detail: entry.ID})
 		}
 		if entry.PreviousEntryHash != previous {
 			checks = append(checks, domain.VerifyCheck{Name: "previous_hash", Result: "failed", Detail: entry.ID})
-			return checks
+			passed = false
+		} else {
+			checks = append(checks, domain.VerifyCheck{Name: "previous_hash", Result: "passed", Detail: entry.ID})
 		}
-		if hashBytes([]byte(previous+"\n"+entry.CanonicalEntryHash)) != entry.EntryHash {
+		canonical, canonicalMatches, err := verifiedAuditChainCanonicalHash(entry)
+		if err != nil || !canonicalMatches {
+			checks = append(checks, domain.VerifyCheck{Name: "canonical_entry_hash", Result: "failed", Detail: entry.ID})
+			passed = false
+		} else {
+			checks = append(checks, domain.VerifyCheck{Name: "canonical_entry_hash", Result: "passed", Detail: entry.ID})
+		}
+		if err != nil || hashBytes([]byte(previous+"\n"+canonical)) != entry.EntryHash {
 			checks = append(checks, domain.VerifyCheck{Name: "entry_hash", Result: "failed", Detail: entry.ID})
-			return checks
+			passed = false
+		} else {
+			checks = append(checks, domain.VerifyCheck{Name: "entry_hash", Result: "passed", Detail: entry.ID})
+		}
+		signatureCheck := l.verifyAuditEntrySignatureLocked(entry)
+		checks = append(checks, signatureCheck)
+		if signatureCheck.Result != "passed" {
+			passed = false
 		}
 		previous = entry.EntryHash
 	}
-	checks = append(checks, domain.VerifyCheck{Name: "audit_chain", Result: "passed"})
+	if passed {
+		checks = append(checks, domain.VerifyCheck{Name: "audit_chain", Result: "passed"})
+	} else {
+		checks = append(checks, domain.VerifyCheck{Name: "audit_chain", Result: "failed"})
+	}
 	return checks
 }
 
