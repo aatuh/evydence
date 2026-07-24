@@ -78,6 +78,84 @@ type Outbox interface {
 	Enqueue(context.Context, OutboxJob) error
 }
 
+// UnitOfWorkFactory begins a single command transaction. Application commands
+// use its focused repositories rather than aggregating and saving the full
+// persisted ledger state.
+type UnitOfWorkFactory interface {
+	BeginUnitOfWork(context.Context) (UnitOfWork, error)
+}
+
+// UnitOfWork owns one command transaction. Commit publishes every repository
+// mutation together. Rollback discards all uncommitted work and is safe to call
+// after a failed command.
+type UnitOfWork interface {
+	Repositories() Repositories
+	Commit(context.Context) error
+	Rollback(context.Context) error
+}
+
+// Repositories are transaction-scoped persistence ports. The ports deliberately
+// expose bounded contexts rather than PersistedState so application services
+// cannot accidentally perform a whole-ledger write.
+type Repositories struct {
+	Identity       IdentityRepository
+	ReleaseCatalog ReleaseCatalogRepository
+	Evidence       EvidenceRepository
+	Decisions      DecisionRepository
+	Audit          AuditRepository
+	Idempotency    IdempotencyRepository
+	Outbox         OutboxRepository
+	Packages       PackageRepository
+	Signatures     SignatureRepository
+	Verification   VerificationRepository
+}
+
+type IdentityRepository interface {
+	InsertTenant(context.Context, domain.Tenant) error
+	InsertAPIKey(context.Context, domain.APIKey) error
+}
+
+type ReleaseCatalogRepository interface {
+	InsertProduct(context.Context, domain.Product) error
+	InsertProject(context.Context, domain.Project) error
+	InsertRelease(context.Context, domain.Release) error
+	InsertArtifact(context.Context, domain.Artifact) error
+}
+
+type EvidenceRepository interface {
+	InsertEvidence(context.Context, domain.EvidenceItem) error
+	AppendLifecycle(context.Context, domain.EvidenceLifecycleEvent) error
+}
+
+type DecisionRepository interface {
+	InsertVulnerabilityDecision(context.Context, domain.VulnerabilityDecision) error
+}
+
+type AuditRepository interface {
+	Append(context.Context, domain.AuditChainEntry) (domain.AuditChainEntry, error)
+}
+
+type IdempotencyRepository interface {
+	Insert(context.Context, IdempotencyRecordKey, IdempotencyRecord) error
+}
+
+type OutboxRepository interface {
+	Enqueue(context.Context, OutboxJob) error
+}
+
+type PackageRepository interface {
+	InsertReleaseBundle(context.Context, domain.ReleaseBundle) error
+}
+
+type SignatureRepository interface {
+	InsertSigningKey(context.Context, domain.SigningKey) error
+	InsertSignature(context.Context, domain.Signature) error
+}
+
+type VerificationRepository interface {
+	InsertVerificationResult(context.Context, domain.VerificationResult) error
+}
+
 type SigningRequest struct {
 	TenantID     string
 	ProviderID   string

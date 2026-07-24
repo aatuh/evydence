@@ -65,6 +65,7 @@ type Config struct {
 	APIKeyPepper    string
 	Now             func() time.Time
 	Store           Store
+	UnitOfWork      UnitOfWorkFactory
 	ObjectStore     ObjectStore
 	Retention       ObjectRetentionVerifier
 	Signer          SigningExecutor
@@ -84,6 +85,7 @@ type Ledger struct {
 	pepper             []byte
 	now                func() time.Time
 	store              Store
+	unitOfWork         UnitOfWorkFactory
 	objects            ObjectStore
 	retention          ObjectRetentionVerifier
 	signer             SigningExecutor
@@ -220,10 +222,17 @@ func NewLedgerWithContext(ctx context.Context, cfg Config) (*Ledger, error) {
 			retention = verifier
 		}
 	}
+	unitOfWork := cfg.UnitOfWork
+	if unitOfWork == nil {
+		if factory, ok := cfg.Store.(UnitOfWorkFactory); ok {
+			unitOfWork = factory
+		}
+	}
 	ledger := &Ledger{
 		pepper:                []byte(pepper),
 		now:                   now,
 		store:                 cfg.Store,
+		unitOfWork:            unitOfWork,
 		objects:               cfg.ObjectStore,
 		retention:             retention,
 		signer:                cfg.Signer,

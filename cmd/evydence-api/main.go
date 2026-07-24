@@ -120,6 +120,7 @@ func run() error {
 			return err
 		}
 		cfg.Store = pgStore
+		cfg.UnitOfWork = pgStore
 		cfg.Outbox = pgStore
 		cfg.ObjectStore = objectStore
 		cfg.ReadinessChecks = append(cfg.ReadinessChecks,

@@ -1,0 +1,693 @@
+package app
+
+import (
+	"context"
+	"encoding/json"
+	"sync"
+
+	"github.com/aatuh/evydence/internal/domain"
+)
+
+// MemoryUnitOfWorkFactory provides deterministic transaction semantics for
+// application tests and local-only adapters. It deliberately models focused
+// repositories instead of routing command tests through PersistedState.
+type MemoryUnitOfWorkFactory struct {
+	mu      sync.Mutex
+	version uint64
+	state   MemoryUnitOfWorkSnapshot
+}
+
+// MemoryUnitOfWorkSnapshot is a detached view of committed repository state.
+// It is intended for deterministic tests and must not be used as a production
+// persistence contract.
+type MemoryUnitOfWorkSnapshot struct {
+	Tenants             map[string]domain.Tenant
+	APIKeys             map[string]domain.APIKey
+	Products            map[string]domain.Product
+	Projects            map[string]domain.Project
+	Releases            map[string]domain.Release
+	Artifacts           map[string]domain.Artifact
+	Evidence            map[string]domain.EvidenceItem
+	EvidenceLifecycle   map[string]domain.EvidenceLifecycleEvent
+	Decisions           map[string]domain.VulnerabilityDecision
+	AuditEntries        map[string][]domain.AuditChainEntry
+	Idempotency         map[IdempotencyRecordKey]IdempotencyRecord
+	OutboxJobs          map[string]OutboxJob
+	ReleaseBundles      map[string]domain.ReleaseBundle
+	SigningKeys         map[string]domain.SigningKey
+	Signatures          map[string]domain.Signature
+	VerificationResults map[string]domain.VerificationResult
+}
+
+func NewMemoryUnitOfWorkFactory() *MemoryUnitOfWorkFactory {
+	return &MemoryUnitOfWorkFactory{state: emptyMemoryUnitOfWorkSnapshot()}
+}
+
+func (f *MemoryUnitOfWorkFactory) BeginUnitOfWork(ctx context.Context) (UnitOfWork, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	state, err := cloneMemoryUnitOfWorkSnapshot(f.state)
+	if err != nil {
+		return nil, err
+	}
+	return &memoryUnitOfWork{factory: f, version: f.version, state: state}, nil
+}
+
+func (f *MemoryUnitOfWorkFactory) Snapshot() (MemoryUnitOfWorkSnapshot, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return cloneMemoryUnitOfWorkSnapshot(f.state)
+}
+
+type memoryUnitOfWork struct {
+	factory *MemoryUnitOfWorkFactory
+	version uint64
+
+	mu     sync.Mutex
+	state  MemoryUnitOfWorkSnapshot
+	closed bool
+}
+
+func (u *memoryUnitOfWork) Repositories() Repositories {
+	return Repositories{
+		Identity:       memoryIdentityRepository{uow: u},
+		ReleaseCatalog: memoryReleaseCatalogRepository{uow: u},
+		Evidence:       memoryEvidenceRepository{uow: u},
+		Decisions:      memoryDecisionRepository{uow: u},
+		Audit:          memoryAuditRepository{uow: u},
+		Idempotency:    memoryIdempotencyRepository{uow: u},
+		Outbox:         memoryOutboxRepository{uow: u},
+		Packages:       memoryPackageRepository{uow: u},
+		Signatures:     memorySignatureRepository{uow: u},
+		Verification:   memoryVerificationRepository{uow: u},
+	}
+}
+
+func (u *memoryUnitOfWork) Commit(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if u.closed {
+		return ErrConflict
+	}
+	state, err := cloneMemoryUnitOfWorkSnapshot(u.state)
+	if err != nil {
+		return err
+	}
+	u.factory.mu.Lock()
+	defer u.factory.mu.Unlock()
+	if u.factory.version != u.version {
+		u.closed = true
+		return ErrConflict
+	}
+	u.factory.state = state
+	u.factory.version++
+	u.closed = true
+	return nil
+}
+
+func (u *memoryUnitOfWork) Rollback(context.Context) error {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if u.closed {
+		return ErrConflict
+	}
+	u.closed = true
+	return nil
+}
+
+func (u *memoryUnitOfWork) mutate(ctx context.Context, mutate func(*MemoryUnitOfWorkSnapshot) error) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if u.closed {
+		return ErrConflict
+	}
+	return mutate(&u.state)
+}
+
+func (u *memoryUnitOfWork) appendAudit(ctx context.Context, entry domain.AuditChainEntry) (domain.AuditChainEntry, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.AuditChainEntry{}, err
+	}
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if u.closed {
+		return domain.AuditChainEntry{}, ErrConflict
+	}
+	if err := requireMemoryTenant(u.state, entry.TenantID); err != nil {
+		return domain.AuditChainEntry{}, err
+	}
+	if entry.ID == "" || entry.EntryType == "" || entry.SubjectType == "" || entry.SubjectID == "" || entry.ActorType == "" || entry.ActorID == "" || entry.OccurredAt.IsZero() {
+		return domain.AuditChainEntry{}, ErrValidation
+	}
+	entries := u.state.AuditEntries[entry.TenantID]
+	for _, existing := range entries {
+		if existing.ID == entry.ID {
+			return domain.AuditChainEntry{}, ErrConflict
+		}
+	}
+	entry.Sequence = int64(len(entries) + 1)
+	entry.PreviousEntryHash = ""
+	if len(entries) > 0 {
+		entry.PreviousEntryHash = entries[len(entries)-1].EntryHash
+	}
+	if entry.SchemaVersion == "" {
+		entry.SchemaVersion = domain.AuditChainEntrySchemaVersion
+	}
+	if err := RehashAuditChainEntry(&entry); err != nil {
+		return domain.AuditChainEntry{}, err
+	}
+	cloned, err := cloneMemoryJSON(entry)
+	if err != nil {
+		return domain.AuditChainEntry{}, err
+	}
+	u.state.AuditEntries[entry.TenantID] = append(entries, cloned)
+	return cloned, nil
+}
+
+type memoryIdentityRepository struct{ uow *memoryUnitOfWork }
+
+func (r memoryIdentityRepository) InsertTenant(ctx context.Context, tenant domain.Tenant) error {
+	cloned, err := cloneMemoryJSON(tenant)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if cloned.ID == "" || cloned.Name == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if _, exists := state.Tenants[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.Tenants[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryIdentityRepository) InsertAPIKey(ctx context.Context, key domain.APIKey) error {
+	cloned := cloneMemoryAPIKey(key)
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.Name == "" || cloned.Prefix == "" || cloned.Hash == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if _, exists := state.APIKeys[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.APIKeys[cloned.ID] = cloned
+		return nil
+	})
+}
+
+type memoryReleaseCatalogRepository struct{ uow *memoryUnitOfWork }
+
+func (r memoryReleaseCatalogRepository) InsertProduct(ctx context.Context, product domain.Product) error {
+	cloned, err := cloneMemoryJSON(product)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.Name == "" || cloned.Slug == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if _, exists := state.Products[cloned.ID]; exists {
+			return ErrConflict
+		}
+		for _, existing := range state.Products {
+			if existing.TenantID == cloned.TenantID && existing.Slug == cloned.Slug {
+				return ErrConflict
+			}
+		}
+		state.Products[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryReleaseCatalogRepository) InsertProject(ctx context.Context, project domain.Project) error {
+	cloned, err := cloneMemoryJSON(project)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		product, ok := state.Products[cloned.ProductID]
+		if !ok || product.TenantID != cloned.TenantID {
+			return ErrNotFound
+		}
+		if cloned.ID == "" || cloned.Name == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if _, exists := state.Projects[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.Projects[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryReleaseCatalogRepository) InsertRelease(ctx context.Context, release domain.Release) error {
+	cloned, err := cloneMemoryJSON(release)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		product, ok := state.Products[cloned.ProductID]
+		if !ok || product.TenantID != cloned.TenantID {
+			return ErrNotFound
+		}
+		if cloned.ID == "" || cloned.Version == "" || cloned.State == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if _, exists := state.Releases[cloned.ID]; exists {
+			return ErrConflict
+		}
+		for _, existing := range state.Releases {
+			if existing.TenantID == cloned.TenantID && existing.ProductID == cloned.ProductID && existing.Version == cloned.Version {
+				return ErrConflict
+			}
+		}
+		state.Releases[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryReleaseCatalogRepository) InsertArtifact(ctx context.Context, artifact domain.Artifact) error {
+	cloned, err := cloneMemoryJSON(artifact)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.Name == "" || cloned.MediaType == "" || cloned.Digest == "" || cloned.Size < 0 || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if _, exists := state.Artifacts[cloned.ID]; exists {
+			return ErrConflict
+		}
+		for _, existing := range state.Artifacts {
+			if existing.TenantID == cloned.TenantID && existing.Digest == cloned.Digest {
+				return ErrConflict
+			}
+		}
+		state.Artifacts[cloned.ID] = cloned
+		return nil
+	})
+}
+
+type memoryEvidenceRepository struct{ uow *memoryUnitOfWork }
+
+func (r memoryEvidenceRepository) InsertEvidence(ctx context.Context, evidence domain.EvidenceItem) error {
+	cloned, err := cloneMemoryJSON(evidence)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if !memoryResourceBelongsToTenant(cloned.ProductID, cloned.TenantID, state.Products) || !memoryResourceBelongsToTenant(cloned.ProjectID, cloned.TenantID, state.Projects) || !memoryResourceBelongsToTenant(cloned.ReleaseID, cloned.TenantID, state.Releases) {
+			return ErrNotFound
+		}
+		if cloned.ID == "" || cloned.Type == "" || cloned.Title == "" || cloned.PayloadHash == "" || cloned.CanonicalHash == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if _, exists := state.Evidence[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.Evidence[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryEvidenceRepository) AppendLifecycle(ctx context.Context, event domain.EvidenceLifecycleEvent) error {
+	cloned, err := cloneMemoryJSON(event)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		evidence, ok := state.Evidence[cloned.EvidenceID]
+		if !ok || evidence.TenantID != cloned.TenantID {
+			return ErrNotFound
+		}
+		if cloned.ID == "" || cloned.Action == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if _, exists := state.EvidenceLifecycle[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.EvidenceLifecycle[cloned.ID] = cloned
+		return nil
+	})
+}
+
+type memoryDecisionRepository struct{ uow *memoryUnitOfWork }
+
+func (r memoryDecisionRepository) InsertVulnerabilityDecision(ctx context.Context, decision domain.VulnerabilityDecision) error {
+	cloned, err := cloneMemoryJSON(decision)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if !memoryResourceBelongsToTenant(cloned.ReleaseID, cloned.TenantID, state.Releases) || !memoryResourceBelongsToTenant(cloned.EvidenceID, cloned.TenantID, state.Evidence) {
+			return ErrNotFound
+		}
+		if cloned.ID == "" || cloned.FindingID == "" || cloned.ScanID == "" || cloned.Vulnerability == "" || cloned.Status == "" || cloned.Justification == "" || cloned.Source == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if _, exists := state.Decisions[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.Decisions[cloned.ID] = cloned
+		return nil
+	})
+}
+
+type memoryAuditRepository struct{ uow *memoryUnitOfWork }
+
+func (r memoryAuditRepository) Append(ctx context.Context, entry domain.AuditChainEntry) (domain.AuditChainEntry, error) {
+	return r.uow.appendAudit(ctx, entry)
+}
+
+type memoryIdempotencyRepository struct{ uow *memoryUnitOfWork }
+
+func (r memoryIdempotencyRepository) Insert(ctx context.Context, key IdempotencyRecordKey, record IdempotencyRecord) error {
+	cloned, err := cloneMemoryIdempotencyRecord(record)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, key.TenantID); err != nil {
+			return err
+		}
+		if key.ActorID == "" || key.Method == "" || key.Path == "" || key.IdempotencyKey == "" || cloned.RequestHash == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if _, exists := state.Idempotency[key]; exists {
+			return ErrConflict
+		}
+		state.Idempotency[key] = cloned
+		return nil
+	})
+}
+
+type memoryOutboxRepository struct{ uow *memoryUnitOfWork }
+
+func (r memoryOutboxRepository) Enqueue(ctx context.Context, job OutboxJob) error {
+	cloned, err := cloneMemoryJSON(job)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.Kind == "" || cloned.SubjectType == "" || cloned.SubjectID == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if _, exists := state.OutboxJobs[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.OutboxJobs[cloned.ID] = cloned
+		return nil
+	})
+}
+
+type memoryPackageRepository struct{ uow *memoryUnitOfWork }
+
+func (r memoryPackageRepository) InsertReleaseBundle(ctx context.Context, bundle domain.ReleaseBundle) error {
+	cloned, err := cloneMemoryJSON(bundle)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if !memoryResourceBelongsToTenant(cloned.ReleaseID, cloned.TenantID, state.Releases) {
+			return ErrNotFound
+		}
+		if cloned.ID == "" || cloned.State == "" || cloned.ManifestHash == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if _, exists := state.ReleaseBundles[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.ReleaseBundles[cloned.ID] = cloned
+		return nil
+	})
+}
+
+type memorySignatureRepository struct{ uow *memoryUnitOfWork }
+
+func (r memorySignatureRepository) InsertSigningKey(ctx context.Context, key domain.SigningKey) error {
+	cloned := cloneMemorySigningKey(key)
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.KID == "" || cloned.Algorithm == "" || cloned.Status == "" || cloned.PublicKey == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if _, exists := state.SigningKeys[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.SigningKeys[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memorySignatureRepository) InsertSignature(ctx context.Context, signature domain.Signature) error {
+	cloned, err := cloneMemoryJSON(signature)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		key, ok := state.SigningKeys[cloned.KeyID]
+		if !ok || key.TenantID != cloned.TenantID {
+			return ErrNotFound
+		}
+		if cloned.ID == "" || cloned.SubjectType == "" || cloned.SubjectID == "" || cloned.Algorithm == "" || cloned.Value == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if _, exists := state.Signatures[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.Signatures[cloned.ID] = cloned
+		return nil
+	})
+}
+
+type memoryVerificationRepository struct{ uow *memoryUnitOfWork }
+
+func (r memoryVerificationRepository) InsertVerificationResult(ctx context.Context, result domain.VerificationResult) error {
+	cloned, err := cloneMemoryJSON(result)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.SubjectType == "" || cloned.SubjectID == "" || cloned.Result == "" || cloned.VerifiedAt.IsZero() {
+			return ErrValidation
+		}
+		if _, exists := state.VerificationResults[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.VerificationResults[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
+	return MemoryUnitOfWorkSnapshot{
+		Tenants:             map[string]domain.Tenant{},
+		APIKeys:             map[string]domain.APIKey{},
+		Products:            map[string]domain.Product{},
+		Projects:            map[string]domain.Project{},
+		Releases:            map[string]domain.Release{},
+		Artifacts:           map[string]domain.Artifact{},
+		Evidence:            map[string]domain.EvidenceItem{},
+		EvidenceLifecycle:   map[string]domain.EvidenceLifecycleEvent{},
+		Decisions:           map[string]domain.VulnerabilityDecision{},
+		AuditEntries:        map[string][]domain.AuditChainEntry{},
+		Idempotency:         map[IdempotencyRecordKey]IdempotencyRecord{},
+		OutboxJobs:          map[string]OutboxJob{},
+		ReleaseBundles:      map[string]domain.ReleaseBundle{},
+		SigningKeys:         map[string]domain.SigningKey{},
+		Signatures:          map[string]domain.Signature{},
+		VerificationResults: map[string]domain.VerificationResult{},
+	}
+}
+
+func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUnitOfWorkSnapshot, error) {
+	cloned := emptyMemoryUnitOfWorkSnapshot()
+	var err error
+	if cloned.Tenants, err = cloneMemoryMap(snapshot.Tenants); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	cloned.APIKeys = make(map[string]domain.APIKey, len(snapshot.APIKeys))
+	for id, key := range snapshot.APIKeys {
+		cloned.APIKeys[id] = cloneMemoryAPIKey(key)
+	}
+	if cloned.Products, err = cloneMemoryMap(snapshot.Products); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.Projects, err = cloneMemoryMap(snapshot.Projects); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.Releases, err = cloneMemoryMap(snapshot.Releases); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.Artifacts, err = cloneMemoryMap(snapshot.Artifacts); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.Evidence, err = cloneMemoryMap(snapshot.Evidence); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.EvidenceLifecycle, err = cloneMemoryMap(snapshot.EvidenceLifecycle); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.Decisions, err = cloneMemoryMap(snapshot.Decisions); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.AuditEntries, err = cloneMemoryJSON(snapshot.AuditEntries); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	cloned.Idempotency = make(map[IdempotencyRecordKey]IdempotencyRecord, len(snapshot.Idempotency))
+	for key, record := range snapshot.Idempotency {
+		clonedRecord, err := cloneMemoryIdempotencyRecord(record)
+		if err != nil {
+			return MemoryUnitOfWorkSnapshot{}, err
+		}
+		cloned.Idempotency[key] = clonedRecord
+	}
+	if cloned.OutboxJobs, err = cloneMemoryMap(snapshot.OutboxJobs); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.ReleaseBundles, err = cloneMemoryMap(snapshot.ReleaseBundles); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	cloned.SigningKeys = make(map[string]domain.SigningKey, len(snapshot.SigningKeys))
+	for id, key := range snapshot.SigningKeys {
+		cloned.SigningKeys[id] = cloneMemorySigningKey(key)
+	}
+	if cloned.Signatures, err = cloneMemoryMap(snapshot.Signatures); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.VerificationResults, err = cloneMemoryMap(snapshot.VerificationResults); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	return cloned, nil
+}
+
+func cloneMemoryMap[T any](input map[string]T) (map[string]T, error) {
+	output := make(map[string]T, len(input))
+	for key, value := range input {
+		cloned, err := cloneMemoryJSON(value)
+		if err != nil {
+			return nil, err
+		}
+		output[key] = cloned
+	}
+	return output, nil
+}
+
+func cloneMemoryJSON[T any](value T) (T, error) {
+	var cloned T
+	body, err := json.Marshal(value)
+	if err != nil {
+		return cloned, err
+	}
+	if err := json.Unmarshal(body, &cloned); err != nil {
+		return cloned, err
+	}
+	return cloned, nil
+}
+
+func cloneMemoryAPIKey(key domain.APIKey) domain.APIKey {
+	cloned := key
+	cloned.Scopes = append([]string(nil), key.Scopes...)
+	return cloned
+}
+
+func cloneMemorySigningKey(key domain.SigningKey) domain.SigningKey {
+	cloned := key
+	cloned.Private = append([]byte(nil), key.Private...)
+	return cloned
+}
+
+func cloneMemoryIdempotencyRecord(record IdempotencyRecord) (IdempotencyRecord, error) {
+	cloned := record
+	response, err := cloneMemoryJSON(record.Response)
+	if err != nil {
+		return IdempotencyRecord{}, err
+	}
+	cloned.Response = response
+	return cloned, nil
+}
+
+func requireMemoryTenant(state MemoryUnitOfWorkSnapshot, tenantID string) error {
+	if tenantID == "" {
+		return ErrValidation
+	}
+	if _, ok := state.Tenants[tenantID]; !ok {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func memoryResourceBelongsToTenant[T interface{}](id, tenantID string, resources map[string]T) bool {
+	if id == "" {
+		return true
+	}
+	resource, ok := resources[id]
+	if !ok {
+		return false
+	}
+	return memoryResourceTenantID(resource) == tenantID
+}
+
+func memoryResourceTenantID(resource any) string {
+	switch value := resource.(type) {
+	case domain.Product:
+		return value.TenantID
+	case domain.Project:
+		return value.TenantID
+	case domain.Release:
+		return value.TenantID
+	case domain.EvidenceItem:
+		return value.TenantID
+	default:
+		return ""
+	}
+}
