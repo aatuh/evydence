@@ -16,6 +16,12 @@ controls.
 
 Known hardening work remains:
 
+- [ADR 0001](../adr/0001-database-authoritative-transactions.md) defines the
+  target database-authoritative transaction, rollback, retry, crash, cache,
+  and staged-object contract. The generated persistence inventory is the
+  current migration list; do not infer full command-transaction coverage until
+  its broad production call-site count is zero.
+
 - canonical production persistence still needs hand-tuned relational repository
   paths for all resource families. PostgreSQL now maintains
   relational identity, idempotency, customer portal token, release-ledger core,
