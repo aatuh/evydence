@@ -211,6 +211,22 @@ func (l *Ledger) RecordEvidenceLifecycleEvent(ctx context.Context, actor domain.
 		SchemaVersion: domain.EvidenceLifecycleSchemaVersion,
 		CreatedAt:     l.now(),
 	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Evidence.AppendLifecycle(ctx, event); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(event.CreatedAt, actor.TenantID, "evidence."+event.Action, "evidence_item", item.ID, actorType(actor), actorID(actor), item.PayloadHash, ""))
+			return err
+		}); err != nil {
+			return domain.EvidenceLifecycleEvent{}, err
+		}
+		l.lifecycle[event.ID] = event
+		l.publishCommittedAuditEntryLocked(entry)
+		return event, nil
+	}
 	l.lifecycle[event.ID] = event
 	_, _ = l.appendChainLocked(actor.TenantID, "evidence."+event.Action, "evidence_item", item.ID, actorType(actor), actorID(actor), item.PayloadHash, "")
 	if err := l.persistReleaseLedgerStateLocked(ctx); err != nil {
@@ -288,6 +304,22 @@ func (l *Ledger) CreateReleaseCandidate(ctx context.Context, actor domain.Actor,
 		return domain.ReleaseCandidate{}, err
 	}
 	candidate.SnapshotHash = hash
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.ReleaseCatalog.InsertReleaseCandidate(ctx, candidate); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(candidate.CreatedAt, actor.TenantID, "release_candidate.created", "release_candidate", candidate.ID, "api_key", actor.KeyID, hash, ""))
+			return err
+		}); err != nil {
+			return domain.ReleaseCandidate{}, err
+		}
+		l.candidates[candidate.ID] = candidate
+		l.publishCommittedAuditEntryLocked(entry)
+		return candidate, nil
+	}
 	l.candidates[candidate.ID] = candidate
 	_, _ = l.appendChainLocked(actor.TenantID, "release_candidate.created", "release_candidate", candidate.ID, "api_key", actor.KeyID, hash, "")
 	if err := l.persistLocked(ctx); err != nil {
@@ -370,6 +402,22 @@ func (l *Ledger) UpdateReleaseCandidateState(ctx context.Context, actor domain.A
 		candidate.PromotedAt = &now
 	} else {
 		candidate.RejectedAt = &now
+	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.ReleaseCatalog.UpdateReleaseCandidateState(ctx, candidate, candidateOpen); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, actor.TenantID, "release_candidate."+state, "release_candidate", candidate.ID, "api_key", actor.KeyID, candidate.SnapshotHash, ""))
+			return err
+		}); err != nil {
+			return domain.ReleaseCandidate{}, err
+		}
+		l.candidates[candidate.ID] = candidate
+		l.publishCommittedAuditEntryLocked(entry)
+		return candidate, nil
 	}
 	l.candidates[candidate.ID] = candidate
 	_, _ = l.appendChainLocked(actor.TenantID, "release_candidate."+state, "release_candidate", candidate.ID, "api_key", actor.KeyID, candidate.SnapshotHash, "")

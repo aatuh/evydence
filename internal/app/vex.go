@@ -130,7 +130,7 @@ func (s releaseEvidenceService) UploadVEX(ctx context.Context, actor domain.Acto
 	if err != nil {
 		return domain.VEXDocument{}, err
 	}
-	item, err := l.CreateEvidence(ctx, actor, CreateEvidenceInput{
+	evidenceInput := CreateEvidenceInput{
 		ReleaseID:        releaseID,
 		Type:             "vex",
 		Subtype:          "openvex",
@@ -146,7 +146,132 @@ func (s releaseEvidenceService) UploadVEX(ctx context.Context, actor domain.Acto
 			"format":          "openvex",
 			"statement_count": len(doc.Statements),
 		},
-	})
+	}
+	if l.unitOfWork != nil {
+		l.mu.Lock()
+		defer l.mu.Unlock()
+		item, err := s.newEvidenceItemLocked(actor, evidenceInput)
+		if err != nil {
+			return domain.VEXDocument{}, err
+		}
+		statusSummary := map[string]int{}
+		for _, statement := range doc.Statements {
+			statusSummary[statement.Status]++
+		}
+		vex := domain.VEXDocument{ID: newID("vex"), TenantID: actor.TenantID, EvidenceID: item.ID, ReleaseID: releaseID, ArtifactID: artifactID, Format: "openvex", Author: doc.Author, Version: versionString(doc.Version), StatementCount: len(doc.Statements), StatusSummary: statusSummary, SchemaVersion: domain.VEXDocumentSchemaVersion, CreatedAt: l.now()}
+		persistedVEX := vex
+		chainAction := "vex.parsed"
+		if l.workerOwnedParsers {
+			persistedVEX.Author = ""
+			persistedVEX.StatementCount = 0
+			persistedVEX.StatusSummary = nil
+			chainAction = "vex.accepted"
+		}
+		type decisionEffect struct {
+			decision   domain.VulnerabilityDecision
+			superseded []domain.VulnerabilityDecision
+		}
+		effects := []decisionEffect{}
+		createdDecisions, supersededDecisions := 0, 0
+		mappingFailures, warnings := []domain.VEXImportIssue{}, []string{}
+		if !l.workerOwnedParsers {
+			createdForFinding := map[string]struct{}{}
+			duplicateWarningAdded := false
+			for index, statement := range doc.Statements {
+				matches := l.findMatchingFindingsLocked(actor.TenantID, releaseID, statement)
+				if len(matches) == 0 {
+					mappingFailures = append(mappingFailures, vexImportIssue(index+1, "finding_not_found", "No matching vulnerability scan finding was found for this VEX statement."))
+				}
+				for _, matched := range matches {
+					if _, seen := createdForFinding[matched.finding.ID]; seen {
+						if !duplicateWarningAdded {
+							warnings = append(warnings, "Duplicate VEX statements for an already mapped finding were ignored.")
+							duplicateWarningAdded = true
+						}
+						continue
+					}
+					createdForFinding[matched.finding.ID] = struct{}{}
+					decision, superseded := l.newDecisionLocked(actor.TenantID, matched.scan, matched.finding, CreateVulnerabilityDecisionInput{Status: statement.Status, Justification: statement.Justification, ImpactStatement: statement.ImpactStatement, ActionStatement: statement.ActionStatement, CustomerVisible: strings.TrimSpace(statement.ImpactStatement) != ""}, "vex", actorID(actor), item.ID, vex.ID)
+					effects = append(effects, decisionEffect{decision: decision, superseded: superseded})
+					supersededDecisions += len(superseded)
+					createdDecisions++
+				}
+			}
+		} else {
+			for index, statement := range doc.Statements {
+				if len(l.findMatchingFindingsLocked(actor.TenantID, releaseID, statement)) == 0 {
+					mappingFailures = append(mappingFailures, vexImportIssue(index+1, "finding_not_found", "No matching vulnerability scan finding was found for this VEX statement at upload time."))
+				}
+			}
+			warnings = append(warnings, "Worker-owned parser side effects are enabled; decisions are created asynchronously after payload replay.")
+		}
+		now := l.now()
+		report := domain.VEXImportReport{ID: newID("vexrep"), TenantID: actor.TenantID, VEXDocumentID: vex.ID, EvidenceID: item.ID, ReleaseID: releaseID, ArtifactID: artifactID, ParserVersion: ParserVersionOpenVEXJSON, Status: ternary(l.workerOwnedParsers, "accepted", "parsed"), StatementCount: len(doc.Statements), DecisionsCreated: createdDecisions, DecisionsSuperseded: supersededDecisions, UnsupportedFields: []string{}, Warnings: warnings, MappingFailures: mappingFailures, SchemaVersion: domain.VEXImportReportSchemaVersion, CreatedAt: now, UpdatedAt: now}
+		jobPayload := map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionOpenVEXJSON, "decisions_created": createdDecisions, "import_report_id": report.ID}
+		if l.workerOwnedParsers {
+			jobPayload["worker_create_decisions"] = true
+			jobPayload["actor_type"] = actorType(actor)
+			jobPayload["actor_id"] = actorID(actor)
+			jobPayload["evidence_id"] = item.ID
+		}
+		job := l.newOutboxJob(actor.TenantID, "parse_vex", "vex_document", vex.ID, jobPayload)
+		entries := []domain.AuditChainEntry{}
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			appendAudit := func(entryType, subjectType, subjectID, payload string) error {
+				entry, err := repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, actor.TenantID, entryType, subjectType, subjectID, actorType(actor), actorID(actor), payload, ""))
+				if err == nil {
+					entries = append(entries, entry)
+				}
+				return err
+			}
+			if err := appendAudit("evidence.created", "evidence_item", item.ID, item.PayloadHash); err != nil {
+				return err
+			}
+			item.ChainEntryID = entries[len(entries)-1].ID
+			if err := repos.Evidence.InsertEvidence(ctx, item); err != nil {
+				return err
+			}
+			if err := appendAudit(chainAction, "vex_document", vex.ID, payloadHash); err != nil {
+				return err
+			}
+			if err := repos.Evidence.InsertVEXDocument(ctx, persistedVEX); err != nil {
+				return err
+			}
+			for _, effect := range effects {
+				if err := repos.Decisions.SupersedeAndInsert(ctx, effect.decision, effect.superseded); err != nil {
+					return err
+				}
+				for _, prior := range effect.superseded {
+					if err := appendAudit("vulnerability_decision.superseded", "vulnerability_decision", prior.ID, payloadHash); err != nil {
+						return err
+					}
+				}
+				if err := appendAudit("vulnerability_decision.created", "vulnerability_finding", effect.decision.FindingID, payloadHash); err != nil {
+					return err
+				}
+			}
+			if err := repos.Evidence.InsertVEXImportReport(ctx, report); err != nil {
+				return err
+			}
+			return repos.Outbox.Enqueue(ctx, job)
+		}); err != nil {
+			return domain.VEXDocument{}, err
+		}
+		l.evidence[item.ID] = item
+		l.vexDocuments[vex.ID] = persistedVEX
+		l.vexImportReports[report.ID] = report
+		for _, effect := range effects {
+			for _, prior := range effect.superseded {
+				l.decisions[prior.ID] = prior
+			}
+			l.decisions[effect.decision.ID] = effect.decision
+		}
+		for _, entry := range entries {
+			l.publishCommittedAuditEntryLocked(entry)
+		}
+		return vex, nil
+	}
+	item, err := l.CreateEvidence(ctx, actor, evidenceInput)
 	if err != nil {
 		return domain.VEXDocument{}, err
 	}
@@ -415,6 +540,38 @@ func (s releaseEvidenceService) CreateVulnerabilityDecision(ctx context.Context,
 		return domain.VulnerabilityDecision{}, err
 	}
 	in.SupportingRefs = supportingRefs
+	if l.unitOfWork != nil {
+		decision, superseded := l.newDecisionLocked(actor.TenantID, scan, finding, in, "api", actor.KeyID, "", in.VEXDocumentID)
+		entries := []domain.AuditChainEntry{}
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Decisions.SupersedeAndInsert(ctx, decision, superseded); err != nil {
+				return err
+			}
+			for _, prior := range superseded {
+				entry, err := repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(decision.CreatedAt, actor.TenantID, "vulnerability_decision.superseded", "vulnerability_decision", prior.ID, "api_key", actor.KeyID, "", ""))
+				if err != nil {
+					return err
+				}
+				entries = append(entries, entry)
+			}
+			entry, err := repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(decision.CreatedAt, actor.TenantID, "vulnerability_decision.created", "vulnerability_finding", finding.ID, "api_key", actor.KeyID, "", ""))
+			if err != nil {
+				return err
+			}
+			entries = append(entries, entry)
+			return nil
+		}); err != nil {
+			return domain.VulnerabilityDecision{}, err
+		}
+		for _, prior := range superseded {
+			l.decisions[prior.ID] = prior
+		}
+		l.decisions[decision.ID] = decision
+		for _, entry := range entries {
+			l.publishCommittedAuditEntryLocked(entry)
+		}
+		return decision, nil
+	}
 	decision := l.createDecisionLocked(actor.TenantID, scan, finding, in, "api", actor.KeyID, "", in.VEXDocumentID)
 	l.decisions[decision.ID] = decision
 	l.appendDecisionLifecycleAuditLocked(actor.TenantID, decision, finding.ID, "api_key", actor.KeyID, "")
@@ -1217,15 +1374,30 @@ func openVEXProductIDs(products []openVEXProduct) map[string]struct{} {
 }
 
 func (l *Ledger) createDecisionLocked(tenantID string, scan domain.VulnerabilityScan, finding domain.VulnerabilityFinding, in CreateVulnerabilityDecisionInput, source, actorID, evidenceID, vexID string) domain.VulnerabilityDecision {
+	decision, superseded := l.newDecisionLocked(tenantID, scan, finding, in, source, actorID, evidenceID, vexID)
+	for _, prior := range superseded {
+		l.decisions[prior.ID] = prior
+	}
+	return decision
+}
+
+// newDecisionLocked calculates a decision and any append-only supersession
+// updates without publishing either one. Transaction-first callers persist
+// these values before refreshing the local read model.
+func (l *Ledger) newDecisionLocked(tenantID string, scan domain.VulnerabilityScan, finding domain.VulnerabilityFinding, in CreateVulnerabilityDecisionInput, source, actorID, evidenceID, vexID string) (domain.VulnerabilityDecision, []domain.VulnerabilityDecision) {
 	decisionID := newID("vd")
 	createdAt := l.now()
 	sbomID, sbomComponentPURL, sbomComponentName := l.decisionSBOMContextLocked(tenantID, scan.ReleaseID, finding.Component)
 	var supersedes string
+	superseded := []domain.VulnerabilityDecision{}
 	for id, existing := range l.decisions {
 		if existing.TenantID == tenantID && existing.FindingID == finding.ID && existing.SupersededBy == "" {
 			supersedes = existing.ID
 			existing.SupersededBy = decisionID
-			l.decisions[id] = existing
+			if existing.ID == "" {
+				existing.ID = id
+			}
+			superseded = append(superseded, existing)
 		}
 	}
 	decision := domain.VulnerabilityDecision{
@@ -1257,7 +1429,7 @@ func (l *Ledger) createDecisionLocked(tenantID string, scan domain.Vulnerability
 		SchemaVersion:     domain.VulnerabilityDecisionVersion,
 		CreatedAt:         createdAt,
 	}
-	return decision
+	return decision, superseded
 }
 
 func (l *Ledger) decisionSBOMContextLocked(tenantID, releaseID, findingComponent string) (string, string, string) {

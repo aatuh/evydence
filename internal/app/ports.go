@@ -119,16 +119,27 @@ type ReleaseCatalogRepository interface {
 	InsertProduct(context.Context, domain.Product) error
 	InsertProject(context.Context, domain.Project) error
 	InsertRelease(context.Context, domain.Release) error
+	UpdateReleaseState(context.Context, domain.Release, string) error
 	InsertArtifact(context.Context, domain.Artifact) error
+	InsertReleaseCandidate(context.Context, domain.ReleaseCandidate) error
+	UpdateReleaseCandidateState(context.Context, domain.ReleaseCandidate, string) error
 }
 
 type EvidenceRepository interface {
 	InsertEvidence(context.Context, domain.EvidenceItem) error
+	UpdateEvidenceLinks(context.Context, domain.EvidenceItem) error
+	RecordSupersession(context.Context, domain.EvidenceItem, domain.EvidenceItem) error
 	AppendLifecycle(context.Context, domain.EvidenceLifecycleEvent) error
+	InsertSBOM(context.Context, domain.SBOM) error
+	InsertVulnerabilityScan(context.Context, domain.VulnerabilityScan) error
+	InsertOpenAPIContract(context.Context, domain.OpenAPIContract) error
+	InsertVEXDocument(context.Context, domain.VEXDocument) error
+	InsertVEXImportReport(context.Context, domain.VEXImportReport) error
 }
 
 type DecisionRepository interface {
 	InsertVulnerabilityDecision(context.Context, domain.VulnerabilityDecision) error
+	SupersedeAndInsert(context.Context, domain.VulnerabilityDecision, []domain.VulnerabilityDecision) error
 }
 
 type AuditRepository interface {

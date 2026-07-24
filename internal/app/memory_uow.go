@@ -29,6 +29,12 @@ type MemoryUnitOfWorkSnapshot struct {
 	Artifacts           map[string]domain.Artifact
 	Evidence            map[string]domain.EvidenceItem
 	EvidenceLifecycle   map[string]domain.EvidenceLifecycleEvent
+	SBOMs               map[string]domain.SBOM
+	VulnerabilityScans  map[string]domain.VulnerabilityScan
+	OpenAPIContracts    map[string]domain.OpenAPIContract
+	VEXDocuments        map[string]domain.VEXDocument
+	VEXImportReports    map[string]domain.VEXImportReport
+	ReleaseCandidates   map[string]domain.ReleaseCandidate
 	Decisions           map[string]domain.VulnerabilityDecision
 	AuditEntries        map[string][]domain.AuditChainEntry
 	Idempotency         map[IdempotencyRecordKey]IdempotencyRecord
@@ -289,6 +295,30 @@ func (r memoryReleaseCatalogRepository) InsertRelease(ctx context.Context, relea
 	})
 }
 
+func (r memoryReleaseCatalogRepository) UpdateReleaseState(ctx context.Context, release domain.Release, expectedState string) error {
+	cloned, err := cloneMemoryJSON(release)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.ProductID == "" || cloned.State == "" || expectedState == "" {
+			return ErrValidation
+		}
+		stored, ok := state.Releases[cloned.ID]
+		if !ok || stored.TenantID != cloned.TenantID || stored.ProductID != cloned.ProductID {
+			return ErrNotFound
+		}
+		if stored.State != expectedState {
+			return ErrConflict
+		}
+		state.Releases[cloned.ID] = cloned
+		return nil
+	})
+}
+
 func (r memoryReleaseCatalogRepository) InsertArtifact(ctx context.Context, artifact domain.Artifact) error {
 	cloned, err := cloneMemoryJSON(artifact)
 	if err != nil {
@@ -310,6 +340,50 @@ func (r memoryReleaseCatalogRepository) InsertArtifact(ctx context.Context, arti
 			}
 		}
 		state.Artifacts[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryReleaseCatalogRepository) InsertReleaseCandidate(ctx context.Context, candidate domain.ReleaseCandidate) error {
+	cloned, err := cloneMemoryJSON(candidate)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.ReleaseID == "" || cloned.Name == "" || cloned.State == "" || cloned.SnapshotHash == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.ReleaseID, cloned.TenantID, state.Releases) {
+			return ErrNotFound
+		}
+		if _, exists := state.ReleaseCandidates[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.ReleaseCandidates[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryReleaseCatalogRepository) UpdateReleaseCandidateState(ctx context.Context, candidate domain.ReleaseCandidate, expectedState string) error {
+	cloned, err := cloneMemoryJSON(candidate)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		stored, ok := state.ReleaseCandidates[cloned.ID]
+		if !ok || stored.TenantID != cloned.TenantID || stored.ReleaseID != cloned.ReleaseID {
+			return ErrNotFound
+		}
+		if expectedState == "" || stored.State != expectedState {
+			return ErrConflict
+		}
+		state.ReleaseCandidates[cloned.ID] = cloned
 		return nil
 	})
 }
@@ -339,6 +413,60 @@ func (r memoryEvidenceRepository) InsertEvidence(ctx context.Context, evidence d
 	})
 }
 
+func (r memoryEvidenceRepository) UpdateEvidenceLinks(ctx context.Context, evidence domain.EvidenceItem) error {
+	cloned, err := cloneMemoryJSON(evidence)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		stored, ok := state.Evidence[cloned.ID]
+		if !ok || stored.TenantID != cloned.TenantID {
+			return ErrNotFound
+		}
+		if !memoryResourceBelongsToTenant(cloned.ProductID, cloned.TenantID, state.Products) || !memoryResourceBelongsToTenant(cloned.ReleaseID, cloned.TenantID, state.Releases) {
+			return ErrNotFound
+		}
+		state.Evidence[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryEvidenceRepository) RecordSupersession(ctx context.Context, superseded, replacement domain.EvidenceItem) error {
+	clonedSuperseded, err := cloneMemoryJSON(superseded)
+	if err != nil {
+		return err
+	}
+	clonedReplacement, err := cloneMemoryJSON(replacement)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, clonedSuperseded.TenantID); err != nil {
+			return err
+		}
+		if clonedSuperseded.TenantID != clonedReplacement.TenantID || clonedSuperseded.ID == "" || clonedReplacement.ID == "" || clonedSuperseded.SupersededBy != clonedReplacement.ID || clonedReplacement.Supersedes != clonedSuperseded.ID {
+			return ErrValidation
+		}
+		storedSuperseded, ok := state.Evidence[clonedSuperseded.ID]
+		if !ok || storedSuperseded.TenantID != clonedSuperseded.TenantID {
+			return ErrNotFound
+		}
+		storedReplacement, ok := state.Evidence[clonedReplacement.ID]
+		if !ok || storedReplacement.TenantID != clonedSuperseded.TenantID {
+			return ErrNotFound
+		}
+		if storedSuperseded.SupersededBy != "" || storedReplacement.Supersedes != "" {
+			return ErrConflict
+		}
+		state.Evidence[clonedSuperseded.ID] = clonedSuperseded
+		state.Evidence[clonedReplacement.ID] = clonedReplacement
+		return nil
+	})
+}
+
 func (r memoryEvidenceRepository) AppendLifecycle(ctx context.Context, event domain.EvidenceLifecycleEvent) error {
 	cloned, err := cloneMemoryJSON(event)
 	if err != nil {
@@ -359,6 +487,122 @@ func (r memoryEvidenceRepository) AppendLifecycle(ctx context.Context, event dom
 			return ErrConflict
 		}
 		state.EvidenceLifecycle[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryEvidenceRepository) InsertSBOM(ctx context.Context, sbom domain.SBOM) error {
+	cloned, err := cloneMemoryJSON(sbom)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.EvidenceID == "" || cloned.Format == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.EvidenceID, cloned.TenantID, state.Evidence) || !memoryResourceBelongsToTenant(cloned.ReleaseID, cloned.TenantID, state.Releases) || !memoryResourceBelongsToTenant(cloned.ArtifactID, cloned.TenantID, state.Artifacts) {
+			return ErrNotFound
+		}
+		if _, exists := state.SBOMs[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.SBOMs[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryEvidenceRepository) InsertVulnerabilityScan(ctx context.Context, scan domain.VulnerabilityScan) error {
+	cloned, err := cloneMemoryJSON(scan)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.EvidenceID == "" || cloned.Scanner == "" || cloned.TargetRef == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.EvidenceID, cloned.TenantID, state.Evidence) || !memoryResourceBelongsToTenant(cloned.ReleaseID, cloned.TenantID, state.Releases) {
+			return ErrNotFound
+		}
+		if _, exists := state.VulnerabilityScans[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.VulnerabilityScans[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryEvidenceRepository) InsertOpenAPIContract(ctx context.Context, contract domain.OpenAPIContract) error {
+	cloned, err := cloneMemoryJSON(contract)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.ProductID == "" || cloned.EvidenceID == "" || cloned.Version == "" || cloned.Hash == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.ProductID, cloned.TenantID, state.Products) || !memoryResourceBelongsToTenant(cloned.ReleaseID, cloned.TenantID, state.Releases) || !memoryResourceBelongsToTenant(cloned.EvidenceID, cloned.TenantID, state.Evidence) {
+			return ErrNotFound
+		}
+		if _, exists := state.OpenAPIContracts[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.OpenAPIContracts[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryEvidenceRepository) InsertVEXDocument(ctx context.Context, document domain.VEXDocument) error {
+	cloned, err := cloneMemoryJSON(document)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.EvidenceID == "" || cloned.ReleaseID == "" || cloned.Format == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.EvidenceID, cloned.TenantID, state.Evidence) || !memoryResourceBelongsToTenant(cloned.ReleaseID, cloned.TenantID, state.Releases) || !memoryResourceBelongsToTenant(cloned.ArtifactID, cloned.TenantID, state.Artifacts) {
+			return ErrNotFound
+		}
+		if _, exists := state.VEXDocuments[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.VEXDocuments[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryEvidenceRepository) InsertVEXImportReport(ctx context.Context, report domain.VEXImportReport) error {
+	cloned, err := cloneMemoryJSON(report)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.VEXDocumentID == "" || cloned.EvidenceID == "" || cloned.ParserVersion == "" || cloned.Status == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() || cloned.UpdatedAt.IsZero() {
+			return ErrValidation
+		}
+		vex, ok := state.VEXDocuments[cloned.VEXDocumentID]
+		if !ok || vex.TenantID != cloned.TenantID || !memoryResourceBelongsToTenant(cloned.EvidenceID, cloned.TenantID, state.Evidence) || !memoryResourceBelongsToTenant(cloned.ReleaseID, cloned.TenantID, state.Releases) || !memoryResourceBelongsToTenant(cloned.ArtifactID, cloned.TenantID, state.Artifacts) {
+			return ErrNotFound
+		}
+		if _, exists := state.VEXImportReports[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.VEXImportReports[cloned.ID] = cloned
 		return nil
 	})
 }
@@ -384,6 +628,46 @@ func (r memoryDecisionRepository) InsertVulnerabilityDecision(ctx context.Contex
 			return ErrConflict
 		}
 		state.Decisions[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryDecisionRepository) SupersedeAndInsert(ctx context.Context, decision domain.VulnerabilityDecision, superseded []domain.VulnerabilityDecision) error {
+	clonedDecision, err := cloneMemoryJSON(decision)
+	if err != nil {
+		return err
+	}
+	clonedSuperseded, err := cloneMemoryJSON(superseded)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, clonedDecision.TenantID); err != nil {
+			return err
+		}
+		if clonedDecision.ID == "" || clonedDecision.FindingID == "" || clonedDecision.ScanID == "" || clonedDecision.Vulnerability == "" || clonedDecision.Status == "" || clonedDecision.Justification == "" || clonedDecision.Source == "" || clonedDecision.SchemaVersion == "" || clonedDecision.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(clonedDecision.ReleaseID, clonedDecision.TenantID, state.Releases) || !memoryResourceBelongsToTenant(clonedDecision.EvidenceID, clonedDecision.TenantID, state.Evidence) {
+			return ErrNotFound
+		}
+		scan, ok := state.VulnerabilityScans[clonedDecision.ScanID]
+		if !ok || scan.TenantID != clonedDecision.TenantID {
+			return ErrNotFound
+		}
+		if _, exists := state.Decisions[clonedDecision.ID]; exists {
+			return ErrConflict
+		}
+		for _, prior := range clonedSuperseded {
+			stored, ok := state.Decisions[prior.ID]
+			if !ok || stored.TenantID != clonedDecision.TenantID || stored.SupersededBy != "" || prior.SupersededBy != clonedDecision.ID {
+				return ErrConflict
+			}
+		}
+		for _, prior := range clonedSuperseded {
+			state.Decisions[prior.ID] = prior
+		}
+		state.Decisions[clonedDecision.ID] = clonedDecision
 		return nil
 	})
 }
@@ -538,6 +822,12 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		Artifacts:           map[string]domain.Artifact{},
 		Evidence:            map[string]domain.EvidenceItem{},
 		EvidenceLifecycle:   map[string]domain.EvidenceLifecycleEvent{},
+		SBOMs:               map[string]domain.SBOM{},
+		VulnerabilityScans:  map[string]domain.VulnerabilityScan{},
+		OpenAPIContracts:    map[string]domain.OpenAPIContract{},
+		VEXDocuments:        map[string]domain.VEXDocument{},
+		VEXImportReports:    map[string]domain.VEXImportReport{},
+		ReleaseCandidates:   map[string]domain.ReleaseCandidate{},
 		Decisions:           map[string]domain.VulnerabilityDecision{},
 		AuditEntries:        map[string][]domain.AuditChainEntry{},
 		Idempotency:         map[IdempotencyRecordKey]IdempotencyRecord{},
@@ -575,6 +865,24 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.EvidenceLifecycle, err = cloneMemoryMap(snapshot.EvidenceLifecycle); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.SBOMs, err = cloneMemoryMap(snapshot.SBOMs); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.VulnerabilityScans, err = cloneMemoryMap(snapshot.VulnerabilityScans); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.OpenAPIContracts, err = cloneMemoryMap(snapshot.OpenAPIContracts); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.VEXDocuments, err = cloneMemoryMap(snapshot.VEXDocuments); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.VEXImportReports, err = cloneMemoryMap(snapshot.VEXImportReports); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.ReleaseCandidates, err = cloneMemoryMap(snapshot.ReleaseCandidates); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.Decisions, err = cloneMemoryMap(snapshot.Decisions); err != nil {
@@ -684,6 +992,8 @@ func memoryResourceTenantID(resource any) string {
 	case domain.Project:
 		return value.TenantID
 	case domain.Release:
+		return value.TenantID
+	case domain.Artifact:
 		return value.TenantID
 	case domain.EvidenceItem:
 		return value.TenantID

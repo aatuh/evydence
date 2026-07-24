@@ -48,6 +48,11 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.ReleaseCatalog.InsertRelease(ctx, release); err != nil {
 		t.Fatalf("insert release: %v", err)
 	}
+	release.State = "frozen"
+	release.FrozenAt = &now
+	if err := repositories.ReleaseCatalog.UpdateReleaseState(ctx, release, "draft"); err != nil {
+		t.Fatalf("update release state: %v", err)
+	}
 	artifact := domain.Artifact{ID: "art_repository", TenantID: tenant.ID, Name: "repository.tgz", MediaType: "application/gzip", Digest: "sha256:repository", Size: 7, CreatedAt: now}
 	if err := repositories.ReleaseCatalog.InsertArtifact(ctx, artifact); err != nil {
 		t.Fatalf("insert artifact: %v", err)
@@ -62,17 +67,64 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Evidence.InsertEvidence(ctx, evidence); err != nil {
 		t.Fatalf("insert evidence: %v", err)
 	}
+	replacementEvidence := evidence
+	replacementEvidence.ID = "evi_repository_replacement"
+	replacementEvidence.Title = "Repository replacement SBOM"
+	replacementEvidence.CanonicalHash = "sha256:replacement"
+	if err := repositories.Evidence.InsertEvidence(ctx, replacementEvidence); err != nil {
+		t.Fatalf("insert replacement evidence: %v", err)
+	}
+	linkedEvidence := evidence
+	linkedEvidence.RelatedEvidenceRefs = []domain.EvidenceRef{{Type: "product", ID: product.ID, Relationship: "linked_to"}}
+	if err := repositories.Evidence.UpdateEvidenceLinks(ctx, linkedEvidence); err != nil {
+		t.Fatalf("update evidence links: %v", err)
+	}
+	supersededEvidence := linkedEvidence
+	supersededEvidence.SupersededBy = replacementEvidence.ID
+	replacementEvidence.Supersedes = supersededEvidence.ID
+	if err := repositories.Evidence.RecordSupersession(ctx, supersededEvidence, replacementEvidence); err != nil {
+		t.Fatalf("record evidence supersession: %v", err)
+	}
 	if err := repositories.Evidence.AppendLifecycle(ctx, domain.EvidenceLifecycleEvent{ID: "elc_repository", TenantID: tenant.ID, EvidenceID: evidence.ID, Action: "accepted", Reason: "test", ActorID: "key_repository", SchemaVersion: domain.EvidenceLifecycleSchemaVersion, CreatedAt: now, Details: map[string]any{"source": "test"}}); err != nil {
 		t.Fatalf("append lifecycle: %v", err)
 	}
-	if _, err := tx.Exec(ctx, `
-		INSERT INTO vulnerability_scans (id, tenant_id, evidence_id, scanner, target_ref, summary, findings, created_at)
-		VALUES ('scan_repository', $1, $2, 'test', 'pkg:oci/repository', '{}'::jsonb, '[]'::jsonb, $3)
-	`, tenant.ID, evidence.ID, now); err != nil {
-		t.Fatalf("seed scan: %v", err)
+	if err := repositories.Evidence.InsertSBOM(ctx, domain.SBOM{ID: "sbom_repository", TenantID: tenant.ID, EvidenceID: evidence.ID, ReleaseID: release.ID, ArtifactID: artifact.ID, Format: "cyclonedx", SpecVersion: "1.6", ComponentCount: 1, Components: []domain.SBOMComponent{{Name: "repository"}}, CreatedAt: now}); err != nil {
+		t.Fatalf("insert SBOM: %v", err)
 	}
-	if err := repositories.Decisions.InsertVulnerabilityDecision(ctx, domain.VulnerabilityDecision{ID: "dec_repository", TenantID: tenant.ID, FindingID: "finding_repository", ScanID: "scan_repository", ReleaseID: release.ID, Vulnerability: "CVE-2026-0001", Status: "not_affected", Justification: "test decision", Source: "test", EvidenceID: evidence.ID, SchemaVersion: domain.VulnerabilityDecisionVersion, CreatedAt: now, SupportingRefs: []domain.SubjectRef{}}); err != nil {
+	scan := domain.VulnerabilityScan{ID: "scan_repository", TenantID: tenant.ID, EvidenceID: evidence.ID, ReleaseID: release.ID, Scanner: "test", TargetRef: "pkg:oci/repository", Summary: map[string]int{}, Findings: []domain.VulnerabilityFinding{}, CreatedAt: now}
+	if err := repositories.Evidence.InsertVulnerabilityScan(ctx, scan); err != nil {
+		t.Fatalf("insert vulnerability scan: %v", err)
+	}
+	if err := repositories.Evidence.InsertOpenAPIContract(ctx, domain.OpenAPIContract{ID: "oas_repository", TenantID: tenant.ID, ProductID: product.ID, ReleaseID: release.ID, Version: "v1", Hash: "sha256:openapi", PathCount: 1, Operations: []domain.OpenAPIOperation{}, EvidenceID: evidence.ID, CreatedAt: now}); err != nil {
+		t.Fatalf("insert OpenAPI contract: %v", err)
+	}
+	candidate := domain.ReleaseCandidate{ID: "rc_repository", TenantID: tenant.ID, ReleaseID: release.ID, Name: "Repository candidate", State: "open", SnapshotHash: "sha256:candidate", SchemaVersion: domain.ReleaseCandidateSchemaVersion, CreatedAt: now}
+	if err := repositories.ReleaseCatalog.InsertReleaseCandidate(ctx, candidate); err != nil {
+		t.Fatalf("insert release candidate: %v", err)
+	}
+	candidate.State = "promoted"
+	candidate.PromotedAt = &now
+	if err := repositories.ReleaseCatalog.UpdateReleaseCandidateState(ctx, candidate, "open"); err != nil {
+		t.Fatalf("update release candidate state: %v", err)
+	}
+	vex := domain.VEXDocument{ID: "vex_repository", TenantID: tenant.ID, EvidenceID: evidence.ID, ReleaseID: release.ID, ArtifactID: artifact.ID, Format: "openvex", Author: "repository test", StatementCount: 1, StatusSummary: map[string]int{"not_affected": 1}, SchemaVersion: domain.VEXDocumentSchemaVersion, CreatedAt: now}
+	if err := repositories.Evidence.InsertVEXDocument(ctx, vex); err != nil {
+		t.Fatalf("insert VEX document: %v", err)
+	}
+	if err := repositories.Evidence.InsertVEXImportReport(ctx, domain.VEXImportReport{ID: "vexrep_repository", TenantID: tenant.ID, VEXDocumentID: vex.ID, EvidenceID: evidence.ID, ReleaseID: release.ID, ArtifactID: artifact.ID, ParserVersion: app.ParserVersionOpenVEXJSON, Status: "parsed", StatementCount: 1, UnsupportedFields: []string{}, Warnings: []string{}, InvalidStatements: []domain.VEXImportIssue{}, MappingFailures: []domain.VEXImportIssue{}, SchemaVersion: domain.VEXImportReportSchemaVersion, CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("insert VEX import report: %v", err)
+	}
+	decision := domain.VulnerabilityDecision{ID: "dec_repository", TenantID: tenant.ID, FindingID: "finding_repository", ScanID: "scan_repository", ReleaseID: release.ID, Vulnerability: "CVE-2026-0001", Status: "not_affected", Justification: "test decision", Source: "test", EvidenceID: evidence.ID, SchemaVersion: domain.VulnerabilityDecisionVersion, CreatedAt: now, SupportingRefs: []domain.SubjectRef{}}
+	if err := repositories.Decisions.InsertVulnerabilityDecision(ctx, decision); err != nil {
 		t.Fatalf("insert decision: %v", err)
+	}
+	replacementDecision := decision
+	replacementDecision.ID = "dec_repository_replacement"
+	replacementDecision.Status = "fixed"
+	replacementDecision.Supersedes = decision.ID
+	decision.SupersededBy = replacementDecision.ID
+	if err := repositories.Decisions.SupersedeAndInsert(ctx, replacementDecision, []domain.VulnerabilityDecision{decision}); err != nil {
+		t.Fatalf("supersede and insert decision: %v", err)
 	}
 	entry, err := repositories.Audit.Append(ctx, domain.AuditChainEntry{ID: "ace_repository", TenantID: tenant.ID, EntryType: "evidence.created", SubjectType: "evidence_item", SubjectID: evidence.ID, ActorType: "api_key", ActorID: "key_repository", OccurredAt: now, Metadata: map[string]any{"test": true}})
 	if err != nil {
@@ -134,10 +186,21 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"product", repositories.ReleaseCatalog.InsertProduct(ctx, domain.Product{})},
 		{"project", repositories.ReleaseCatalog.InsertProject(ctx, domain.Project{})},
 		{"release", repositories.ReleaseCatalog.InsertRelease(ctx, domain.Release{})},
+		{"release state", repositories.ReleaseCatalog.UpdateReleaseState(ctx, domain.Release{}, "")},
 		{"artifact", repositories.ReleaseCatalog.InsertArtifact(ctx, domain.Artifact{})},
+		{"release candidate", repositories.ReleaseCatalog.InsertReleaseCandidate(ctx, domain.ReleaseCandidate{})},
+		{"release candidate state", repositories.ReleaseCatalog.UpdateReleaseCandidateState(ctx, domain.ReleaseCandidate{}, "")},
 		{"evidence", repositories.Evidence.InsertEvidence(ctx, domain.EvidenceItem{})},
+		{"evidence links", repositories.Evidence.UpdateEvidenceLinks(ctx, domain.EvidenceItem{})},
+		{"evidence supersession", repositories.Evidence.RecordSupersession(ctx, domain.EvidenceItem{}, domain.EvidenceItem{})},
 		{"lifecycle", repositories.Evidence.AppendLifecycle(ctx, domain.EvidenceLifecycleEvent{})},
+		{"SBOM", repositories.Evidence.InsertSBOM(ctx, domain.SBOM{})},
+		{"vulnerability scan", repositories.Evidence.InsertVulnerabilityScan(ctx, domain.VulnerabilityScan{})},
+		{"OpenAPI contract", repositories.Evidence.InsertOpenAPIContract(ctx, domain.OpenAPIContract{})},
+		{"VEX document", repositories.Evidence.InsertVEXDocument(ctx, domain.VEXDocument{})},
+		{"VEX import report", repositories.Evidence.InsertVEXImportReport(ctx, domain.VEXImportReport{})},
 		{"decision", repositories.Decisions.InsertVulnerabilityDecision(ctx, domain.VulnerabilityDecision{})},
+		{"superseding decision", repositories.Decisions.SupersedeAndInsert(ctx, domain.VulnerabilityDecision{}, nil)},
 		{"idempotency", repositories.Idempotency.Insert(ctx, app.IdempotencyRecordKey{}, app.IdempotencyRecord{})},
 		{"outbox", repositories.Outbox.Enqueue(ctx, app.OutboxJob{})},
 		{"package", repositories.Packages.InsertReleaseBundle(ctx, domain.ReleaseBundle{})},
@@ -152,6 +215,55 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 	}
 	if _, err := repositories.Audit.Append(ctx, domain.AuditChainEntry{}); !errors.Is(err, app.ErrValidation) {
 		t.Fatalf("invalid audit err=%v, want validation", err)
+	}
+	missingReferenceChecks := []struct {
+		name string
+		err  error
+		want error
+	}{
+		{"release state", repositories.ReleaseCatalog.UpdateReleaseState(ctx, domain.Release{ID: "missing-release", TenantID: "ten_repository_a", ProductID: "prod_repository_a", State: "frozen"}, "draft"), app.ErrConflict},
+		{"candidate insert", repositories.ReleaseCatalog.InsertReleaseCandidate(ctx, domain.ReleaseCandidate{ID: "missing-candidate", TenantID: "ten_repository_a", ReleaseID: "missing-release", Name: "Missing", State: "open", SnapshotHash: "sha256:missing", SchemaVersion: domain.ReleaseCandidateSchemaVersion, CreatedAt: now}), app.ErrNotFound},
+		{"candidate state", repositories.ReleaseCatalog.UpdateReleaseCandidateState(ctx, domain.ReleaseCandidate{ID: "missing-candidate", TenantID: "ten_repository_a", ReleaseID: "missing-release", State: "promoted"}, "open"), app.ErrConflict},
+		{"evidence links", repositories.Evidence.UpdateEvidenceLinks(ctx, domain.EvidenceItem{ID: "missing-evidence", TenantID: "ten_repository_a"}), app.ErrNotFound},
+		{"SBOM evidence", repositories.Evidence.InsertSBOM(ctx, domain.SBOM{ID: "missing-sbom", TenantID: "ten_repository_a", EvidenceID: "missing-evidence", Format: "cyclonedx", CreatedAt: now}), app.ErrNotFound},
+		{"scan evidence", repositories.Evidence.InsertVulnerabilityScan(ctx, domain.VulnerabilityScan{ID: "missing-scan", TenantID: "ten_repository_a", EvidenceID: "missing-evidence", Scanner: "test", TargetRef: "target", CreatedAt: now}), app.ErrNotFound},
+		{"OpenAPI product", repositories.Evidence.InsertOpenAPIContract(ctx, domain.OpenAPIContract{ID: "missing-contract", TenantID: "ten_repository_a", ProductID: "missing-product", EvidenceID: "missing-evidence", Version: "v1", Hash: "sha256:missing", CreatedAt: now}), app.ErrNotFound},
+		{"VEX evidence", repositories.Evidence.InsertVEXDocument(ctx, domain.VEXDocument{ID: "missing-vex", TenantID: "ten_repository_a", EvidenceID: "missing-evidence", ReleaseID: "missing-release", Format: "openvex", SchemaVersion: domain.VEXDocumentSchemaVersion, CreatedAt: now}), app.ErrNotFound},
+		{"VEX report", repositories.Evidence.InsertVEXImportReport(ctx, domain.VEXImportReport{ID: "missing-vex-report", TenantID: "ten_repository_a", VEXDocumentID: "missing-vex", EvidenceID: "missing-evidence", ParserVersion: app.ParserVersionOpenVEXJSON, Status: "parsed", SchemaVersion: domain.VEXImportReportSchemaVersion, CreatedAt: now, UpdatedAt: now}), app.ErrNotFound},
+	}
+	for _, check := range missingReferenceChecks {
+		if !errors.Is(check.err, check.want) {
+			t.Errorf("%s err=%v, want %v", check.name, check.err, check.want)
+		}
+	}
+	releaseA := domain.Release{ID: "rel_repository_a", TenantID: "ten_repository_a", ProductID: "prod_repository_a", Version: "1.0.0", State: "draft", CreatedAt: now}
+	if err := repositories.ReleaseCatalog.InsertRelease(ctx, releaseA); err != nil {
+		t.Fatalf("insert tenant A release: %v", err)
+	}
+	artifactA := domain.Artifact{ID: "art_repository_a", TenantID: "ten_repository_a", Name: "A artifact", MediaType: "application/octet-stream", Digest: "sha256:artifact-a", Size: 1, CreatedAt: now}
+	if err := repositories.ReleaseCatalog.InsertArtifact(ctx, artifactA); err != nil {
+		t.Fatalf("insert tenant A artifact: %v", err)
+	}
+	evidenceA := domain.EvidenceItem{ID: "evi_repository_a", TenantID: "ten_repository_a", ProductID: "prod_repository_a", ReleaseID: releaseA.ID, Type: "note", Title: "A evidence", SourceSystem: "test", ObservedAt: now, SchemaVersion: domain.EvidenceItemSchemaVersion, PayloadHash: "sha256:evidence-a", CanonicalHash: "sha256:evidence-a", Canonicalization: domain.CanonicalizationProfileVersion, TrustLevel: "untrusted", VerificationStatus: "not_verified", CreatedAt: now}
+	if err := repositories.Evidence.InsertEvidence(ctx, evidenceA); err != nil {
+		t.Fatalf("insert tenant A evidence: %v", err)
+	}
+	foreignReferenceChecks := []struct {
+		name string
+		err  error
+	}{
+		{"candidate release", repositories.ReleaseCatalog.InsertReleaseCandidate(ctx, domain.ReleaseCandidate{ID: "rc_repository_b", TenantID: "ten_repository_b", ReleaseID: releaseA.ID, Name: "B candidate", State: "open", SnapshotHash: "sha256:candidate-b", SchemaVersion: domain.ReleaseCandidateSchemaVersion, CreatedAt: now})},
+		{"evidence link product", repositories.Evidence.UpdateEvidenceLinks(ctx, domain.EvidenceItem{ID: evidenceA.ID, TenantID: "ten_repository_b", ProductID: "prod_repository_a"})},
+		{"SBOM evidence", repositories.Evidence.InsertSBOM(ctx, domain.SBOM{ID: "sbom_repository_b", TenantID: "ten_repository_b", EvidenceID: evidenceA.ID, ReleaseID: releaseA.ID, ArtifactID: artifactA.ID, Format: "cyclonedx", CreatedAt: now})},
+		{"scan evidence", repositories.Evidence.InsertVulnerabilityScan(ctx, domain.VulnerabilityScan{ID: "scan_repository_b", TenantID: "ten_repository_b", EvidenceID: evidenceA.ID, ReleaseID: releaseA.ID, Scanner: "test", TargetRef: "target", CreatedAt: now})},
+		{"OpenAPI product", repositories.Evidence.InsertOpenAPIContract(ctx, domain.OpenAPIContract{ID: "oas_repository_b", TenantID: "ten_repository_b", ProductID: "prod_repository_a", ReleaseID: releaseA.ID, Version: "v1", Hash: "sha256:openapi-b", EvidenceID: evidenceA.ID, CreatedAt: now})},
+		{"VEX evidence", repositories.Evidence.InsertVEXDocument(ctx, domain.VEXDocument{ID: "vex_repository_b", TenantID: "ten_repository_b", EvidenceID: evidenceA.ID, ReleaseID: releaseA.ID, ArtifactID: artifactA.ID, Format: "openvex", SchemaVersion: domain.VEXDocumentSchemaVersion, CreatedAt: now})},
+		{"decision scan", repositories.Decisions.SupersedeAndInsert(ctx, domain.VulnerabilityDecision{ID: "dec_repository_b", TenantID: "ten_repository_b", FindingID: "finding-b", ScanID: "scan_repository_b", ReleaseID: releaseA.ID, Vulnerability: "CVE-2026-0001", Status: "not_affected", Justification: "test", Source: "test", SchemaVersion: domain.VulnerabilityDecisionVersion, CreatedAt: now}, nil)},
+	}
+	for _, check := range foreignReferenceChecks {
+		if !errors.Is(check.err, app.ErrNotFound) {
+			t.Errorf("%s err=%v, want not found", check.name, check.err)
+		}
 	}
 }
 
@@ -235,6 +347,231 @@ func TestRepositoriesCoverConflictOptionalAndEncodingPaths(t *testing.T) {
 	}
 	if err := closedRepositories.Identity.InsertTenant(ctx, domain.Tenant{ID: "ten_closed", Name: "Closed", CreatedAt: now}); err == nil {
 		t.Fatal("expected closed transaction write failure")
+	}
+}
+
+func TestRepositoriesRejectStaleStateTransitionsAndRepeatedSupersession(t *testing.T) {
+	ctx, pool := openRepositoryTestPool(t)
+	defer pool.Close()
+	tx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		t.Fatalf("begin transaction: %v", err)
+	}
+	defer func() { _ = tx.Rollback(context.Background()) }()
+	repositories := postgresrepositories.New(tx)
+	now := time.Now().UTC().Round(0)
+	tenant := domain.Tenant{ID: "ten_repository_conflicts", Name: "Conflicts", CreatedAt: now}
+	if err := repositories.Identity.InsertTenant(ctx, tenant); err != nil {
+		t.Fatalf("insert tenant: %v", err)
+	}
+	product := domain.Product{ID: "prod_repository_conflicts", TenantID: tenant.ID, Name: "Conflicts API", Slug: "conflicts-api", CreatedAt: now}
+	if err := repositories.ReleaseCatalog.InsertProduct(ctx, product); err != nil {
+		t.Fatalf("insert product: %v", err)
+	}
+	release := domain.Release{ID: "rel_repository_conflicts", TenantID: tenant.ID, ProductID: product.ID, Version: "1.0.0", State: "draft", CreatedAt: now}
+	if err := repositories.ReleaseCatalog.InsertRelease(ctx, release); err != nil {
+		t.Fatalf("insert release: %v", err)
+	}
+	if err := repositories.ReleaseCatalog.UpdateReleaseState(ctx, domain.Release{ID: release.ID, TenantID: tenant.ID, ProductID: product.ID, State: "approved"}, "frozen"); !errors.Is(err, app.ErrConflict) {
+		t.Fatalf("stale release transition err=%v, want conflict", err)
+	}
+	candidate := domain.ReleaseCandidate{ID: "rc_repository_conflicts", TenantID: tenant.ID, ReleaseID: release.ID, Name: "Conflicts candidate", State: "open", SnapshotHash: "sha256:candidate", SchemaVersion: domain.ReleaseCandidateSchemaVersion, CreatedAt: now}
+	if err := repositories.ReleaseCatalog.InsertReleaseCandidate(ctx, candidate); err != nil {
+		t.Fatalf("insert candidate: %v", err)
+	}
+	candidate.State = "promoted"
+	candidate.PromotedAt = &now
+	if err := repositories.ReleaseCatalog.UpdateReleaseCandidateState(ctx, candidate, "rejected"); !errors.Is(err, app.ErrConflict) {
+		t.Fatalf("stale candidate transition err=%v, want conflict", err)
+	}
+	evidence := domain.EvidenceItem{ID: "evi_repository_conflicts", TenantID: tenant.ID, ProductID: product.ID, ReleaseID: release.ID, Type: "note", Title: "first", SourceSystem: "test", ObservedAt: now, SchemaVersion: domain.EvidenceItemSchemaVersion, PayloadHash: "sha256:first", CanonicalHash: "sha256:first", Canonicalization: domain.CanonicalizationProfileVersion, TrustLevel: "untrusted", VerificationStatus: "not_verified", CreatedAt: now}
+	if err := repositories.Evidence.InsertEvidence(ctx, evidence); err != nil {
+		t.Fatalf("insert first evidence: %v", err)
+	}
+	replacement := evidence
+	replacement.ID, replacement.Title, replacement.CanonicalHash = "evi_repository_conflicts_replacement", "replacement", "sha256:replacement"
+	if err := repositories.Evidence.InsertEvidence(ctx, replacement); err != nil {
+		t.Fatalf("insert replacement evidence: %v", err)
+	}
+	evidence.SupersededBy, replacement.Supersedes = replacement.ID, evidence.ID
+	if err := repositories.Evidence.RecordSupersession(ctx, evidence, replacement); err != nil {
+		t.Fatalf("record supersession: %v", err)
+	}
+	if err := repositories.Evidence.RecordSupersession(ctx, evidence, replacement); !errors.Is(err, app.ErrConflict) {
+		t.Fatalf("repeated evidence supersession err=%v, want conflict", err)
+	}
+	if err := tx.Rollback(ctx); err != nil {
+		t.Fatalf("rollback conflict test transaction: %v", err)
+	}
+}
+
+func TestRepositoriesPropagateClosedTransactionFailures(t *testing.T) {
+	ctx, pool := openRepositoryTestPool(t)
+	defer pool.Close()
+	tx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		t.Fatalf("begin transaction: %v", err)
+	}
+	if err := tx.Rollback(ctx); err != nil {
+		t.Fatalf("close transaction: %v", err)
+	}
+	repositories := postgresrepositories.New(tx)
+	now := time.Now().UTC().Round(0)
+	tenantID := "ten_closed"
+	release := domain.Release{ID: "rel_closed", TenantID: tenantID, ProductID: "prod_closed", Version: "1.0.0", State: "draft", CreatedAt: now}
+	evidence := domain.EvidenceItem{ID: "evi_closed", TenantID: tenantID, Type: "note", Title: "Closed", SourceSystem: "test", ObservedAt: now, SchemaVersion: domain.EvidenceItemSchemaVersion, PayloadHash: "sha256:closed", CanonicalHash: "sha256:closed", Canonicalization: domain.CanonicalizationProfileVersion, TrustLevel: "untrusted", VerificationStatus: "not_verified", CreatedAt: now}
+	candidate := domain.ReleaseCandidate{ID: "rc_closed", TenantID: tenantID, ReleaseID: release.ID, Name: "Closed", State: "open", SnapshotHash: "sha256:closed", SchemaVersion: domain.ReleaseCandidateSchemaVersion, CreatedAt: now}
+	vex := domain.VEXDocument{ID: "vex_closed", TenantID: tenantID, EvidenceID: evidence.ID, ReleaseID: release.ID, Format: "openvex", SchemaVersion: domain.VEXDocumentSchemaVersion, CreatedAt: now}
+	decision := domain.VulnerabilityDecision{ID: "dec_closed", TenantID: tenantID, FindingID: "finding_closed", ScanID: "scan_closed", ReleaseID: release.ID, Vulnerability: "CVE-2026-0001", Status: "not_affected", Justification: "test", Source: "test", SchemaVersion: domain.VulnerabilityDecisionVersion, CreatedAt: now}
+	checks := []struct {
+		name string
+		run  func() error
+	}{
+		{"tenant", func() error {
+			return repositories.Identity.InsertTenant(ctx, domain.Tenant{ID: tenantID, Name: "Closed", CreatedAt: now})
+		}},
+		{"API key", func() error {
+			return repositories.Identity.InsertAPIKey(ctx, domain.APIKey{ID: "key_closed", TenantID: tenantID, Name: "Closed", Prefix: "evy_closed", Hash: "hash", CreatedAt: now})
+		}},
+		{"product", func() error {
+			return repositories.ReleaseCatalog.InsertProduct(ctx, domain.Product{ID: "prod_closed", TenantID: tenantID, Name: "Closed", Slug: "closed", CreatedAt: now})
+		}},
+		{"project", func() error {
+			return repositories.ReleaseCatalog.InsertProject(ctx, domain.Project{ID: "proj_closed", TenantID: tenantID, ProductID: "prod_closed", Name: "Closed", CreatedAt: now})
+		}},
+		{"release", func() error { return repositories.ReleaseCatalog.InsertRelease(ctx, release) }},
+		{"release state", func() error { return repositories.ReleaseCatalog.UpdateReleaseState(ctx, release, "draft") }},
+		{"artifact", func() error {
+			return repositories.ReleaseCatalog.InsertArtifact(ctx, domain.Artifact{ID: "art_closed", TenantID: tenantID, Name: "closed.tgz", MediaType: "application/gzip", Digest: "sha256:closed", Size: 1, CreatedAt: now})
+		}},
+		{"candidate", func() error { return repositories.ReleaseCatalog.InsertReleaseCandidate(ctx, candidate) }},
+		{"candidate state", func() error { return repositories.ReleaseCatalog.UpdateReleaseCandidateState(ctx, candidate, "open") }},
+		{"evidence links", func() error { return repositories.Evidence.UpdateEvidenceLinks(ctx, evidence) }},
+		{"evidence supersession", func() error {
+			replacement := evidence
+			replacement.ID, evidence.SupersededBy, replacement.Supersedes = "evi_closed_replacement", replacement.ID, evidence.ID
+			return repositories.Evidence.RecordSupersession(ctx, evidence, replacement)
+		}},
+		{"evidence", func() error { return repositories.Evidence.InsertEvidence(ctx, evidence) }},
+		{"lifecycle", func() error {
+			return repositories.Evidence.AppendLifecycle(ctx, domain.EvidenceLifecycleEvent{ID: "elc_closed", TenantID: tenantID, EvidenceID: evidence.ID, Action: "accepted", ActorID: "key_closed", SchemaVersion: domain.EvidenceLifecycleSchemaVersion, CreatedAt: now})
+		}},
+		{"SBOM", func() error {
+			return repositories.Evidence.InsertSBOM(ctx, domain.SBOM{ID: "sbom_closed", TenantID: tenantID, EvidenceID: evidence.ID, Format: "cyclonedx", CreatedAt: now})
+		}},
+		{"scan", func() error {
+			return repositories.Evidence.InsertVulnerabilityScan(ctx, domain.VulnerabilityScan{ID: "scan_closed", TenantID: tenantID, EvidenceID: evidence.ID, Scanner: "test", TargetRef: "target", CreatedAt: now})
+		}},
+		{"OpenAPI", func() error {
+			return repositories.Evidence.InsertOpenAPIContract(ctx, domain.OpenAPIContract{ID: "oas_closed", TenantID: tenantID, ProductID: "prod_closed", EvidenceID: evidence.ID, Version: "v1", Hash: "sha256:closed", CreatedAt: now})
+		}},
+		{"VEX", func() error { return repositories.Evidence.InsertVEXDocument(ctx, vex) }},
+		{"VEX report", func() error {
+			return repositories.Evidence.InsertVEXImportReport(ctx, domain.VEXImportReport{ID: "vexrep_closed", TenantID: tenantID, VEXDocumentID: vex.ID, EvidenceID: evidence.ID, ParserVersion: app.ParserVersionOpenVEXJSON, Status: "parsed", SchemaVersion: domain.VEXImportReportSchemaVersion, CreatedAt: now, UpdatedAt: now})
+		}},
+		{"decision", func() error { return repositories.Decisions.InsertVulnerabilityDecision(ctx, decision) }},
+		{"decision supersession", func() error {
+			prior := decision
+			prior.ID, prior.SupersededBy = "dec_closed_prior", decision.ID
+			return repositories.Decisions.SupersedeAndInsert(ctx, decision, []domain.VulnerabilityDecision{prior})
+		}},
+		{"audit", func() error {
+			_, err := repositories.Audit.Append(ctx, domain.AuditChainEntry{ID: "ace_closed", TenantID: tenantID, EntryType: "evidence.created", SubjectType: "evidence_item", SubjectID: evidence.ID, ActorType: "api_key", ActorID: "key_closed", OccurredAt: now})
+			return err
+		}},
+		{"idempotency", func() error {
+			return repositories.Idempotency.Insert(ctx, app.IdempotencyRecordKey{TenantID: tenantID, ActorID: "key_closed", Method: "POST", Path: "/v1/evidence", IdempotencyKey: "idem_closed"}, app.IdempotencyRecord{RequestHash: "sha256:closed", Status: 201, Response: map[string]any{"id": evidence.ID}, CreatedAt: now})
+		}},
+		{"outbox", func() error {
+			return repositories.Outbox.Enqueue(ctx, app.OutboxJob{ID: "job_closed", TenantID: tenantID, Kind: "index_evidence", SubjectType: "evidence_item", SubjectID: evidence.ID, CreatedAt: now})
+		}},
+		{"package", func() error {
+			return repositories.Packages.InsertReleaseBundle(ctx, domain.ReleaseBundle{ID: "bundle_closed", TenantID: tenantID, ReleaseID: release.ID, State: "generated", Manifest: map[string]any{"release_id": release.ID}, ManifestHash: "sha256:closed", CreatedAt: now})
+		}},
+		{"signing key", func() error {
+			return repositories.Signatures.InsertSigningKey(ctx, domain.SigningKey{ID: "sigkey_closed", TenantID: tenantID, KID: "closed-key", Algorithm: "Ed25519", Status: "active", PublicKey: "public", CreatedAt: now})
+		}},
+		{"signature", func() error {
+			return repositories.Signatures.InsertSignature(ctx, domain.Signature{ID: "sig_closed", TenantID: tenantID, SubjectType: "evidence_item", SubjectID: evidence.ID, KeyID: "sigkey_closed", Algorithm: "Ed25519", Value: "signature", CreatedAt: now})
+		}},
+		{"verification", func() error {
+			return repositories.Verification.InsertVerificationResult(ctx, domain.VerificationResult{ID: "verify_closed", TenantID: tenantID, SubjectType: "evidence_item", SubjectID: evidence.ID, Result: "limited", Checks: []domain.VerifyCheck{{Name: "closed", Result: "passed"}}, VerifiedAt: now})
+		}},
+	}
+	for _, check := range checks {
+		if err := check.run(); err == nil {
+			t.Errorf("%s accepted a closed transaction", check.name)
+		}
+	}
+}
+
+func TestRepositoriesRejectMalformedJSONAndRollBackPartialSupersession(t *testing.T) {
+	ctx, pool := openRepositoryTestPool(t)
+	defer pool.Close()
+	tx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		t.Fatalf("begin transaction: %v", err)
+	}
+	repositories := postgresrepositories.New(tx)
+	now := time.Now().UTC().Round(0)
+	tenant := domain.Tenant{ID: "ten_repository_rollback", Name: "Rollback", CreatedAt: now}
+	if err := repositories.Identity.InsertTenant(ctx, tenant); err != nil {
+		t.Fatalf("insert tenant: %v", err)
+	}
+	product := domain.Product{ID: "prod_repository_rollback", TenantID: tenant.ID, Name: "Rollback API", Slug: "rollback-api", CreatedAt: now}
+	if err := repositories.ReleaseCatalog.InsertProduct(ctx, product); err != nil {
+		t.Fatalf("insert product: %v", err)
+	}
+	release := domain.Release{ID: "rel_repository_rollback", TenantID: tenant.ID, ProductID: product.ID, Version: "1.0.0", State: "draft", CreatedAt: now}
+	if err := repositories.ReleaseCatalog.InsertRelease(ctx, release); err != nil {
+		t.Fatalf("insert release: %v", err)
+	}
+	evidence := domain.EvidenceItem{ID: "evi_repository_rollback", TenantID: tenant.ID, ProductID: product.ID, ReleaseID: release.ID, Type: "note", Title: "Rollback evidence", SourceSystem: "test", ObservedAt: now, SchemaVersion: domain.EvidenceItemSchemaVersion, PayloadHash: "sha256:rollback", CanonicalHash: "sha256:rollback", Canonicalization: domain.CanonicalizationProfileVersion, TrustLevel: "untrusted", VerificationStatus: "not_verified", CreatedAt: now}
+	if err := repositories.Evidence.InsertEvidence(ctx, evidence); err != nil {
+		t.Fatalf("insert evidence: %v", err)
+	}
+	nonZeroPayload := evidence
+	nonZeroPayload.ID, nonZeroPayload.Title, nonZeroPayload.CanonicalHash, nonZeroPayload.PayloadSize = "evi_repository_rollback_payload", "Non-zero payload", "sha256:payload", 1
+	if err := repositories.Evidence.InsertEvidence(ctx, nonZeroPayload); err != nil {
+		t.Fatalf("insert evidence with non-zero payload size: %v", err)
+	}
+	badSourceIdentity := evidence
+	badSourceIdentity.ID, badSourceIdentity.SourceIdentity = "evi_repository_rollback_bad_source", map[string]any{"not_json": math.NaN()}
+	if err := repositories.Evidence.InsertEvidence(ctx, badSourceIdentity); err == nil {
+		t.Fatal("expected source identity JSON encoding failure")
+	}
+	if err := repositories.Evidence.AppendLifecycle(ctx, domain.EvidenceLifecycleEvent{ID: "elc_repository_rollback", TenantID: tenant.ID, EvidenceID: evidence.ID, Action: "accepted", Reason: "test", Details: map[string]any{"not_json": math.NaN()}, ActorID: "test", SchemaVersion: domain.EvidenceLifecycleSchemaVersion, CreatedAt: now}); err == nil {
+		t.Fatal("expected lifecycle JSON encoding failure")
+	}
+	replacement := evidence
+	replacement.ID, replacement.Title, replacement.CanonicalHash, replacement.Supersedes = "evi_repository_rollback_replacement", "Replacement", "sha256:replacement", evidence.ID
+	if err := repositories.Evidence.InsertEvidence(ctx, replacement); err != nil {
+		t.Fatalf("insert pre-linked replacement: %v", err)
+	}
+	superseded := evidence
+	superseded.SupersededBy = replacement.ID
+	if err := repositories.Evidence.RecordSupersession(ctx, superseded, replacement); !errors.Is(err, app.ErrConflict) {
+		t.Fatalf("partially linked evidence supersession err=%v, want conflict", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO vulnerability_scans (id, tenant_id, evidence_id, scanner, target_ref, summary, findings, created_at)
+		VALUES ('scan_repository_rollback', $1, $2, 'test', 'pkg:oci/rollback', '{}'::jsonb, '[]'::jsonb, $3)
+	`, tenant.ID, evidence.ID, now); err != nil {
+		t.Fatalf("seed scan: %v", err)
+	}
+	decision := domain.VulnerabilityDecision{ID: "dec_repository_rollback", TenantID: tenant.ID, FindingID: "finding_rollback", ScanID: "scan_repository_rollback", ReleaseID: release.ID, Vulnerability: "CVE-2026-0001", Status: "not_affected", Justification: "test", Source: "test", SchemaVersion: domain.VulnerabilityDecisionVersion, CreatedAt: now}
+	if err := repositories.Decisions.SupersedeAndInsert(ctx, decision, []domain.VulnerabilityDecision{{ID: "dec_repository_missing", TenantID: tenant.ID, SupersededBy: decision.ID}}); !errors.Is(err, app.ErrConflict) {
+		t.Fatalf("missing superseded decision err=%v, want conflict", err)
+	}
+	if err := tx.Rollback(ctx); err != nil {
+		t.Fatalf("rollback partial mutation transaction: %v", err)
+	}
+	var persisted int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM evidence_items WHERE tenant_id = $1`, tenant.ID).Scan(&persisted); err != nil {
+		t.Fatalf("count rolled-back evidence: %v", err)
+	}
+	if persisted != 0 {
+		t.Fatalf("partial transaction persisted %d evidence records", persisted)
 	}
 }
 

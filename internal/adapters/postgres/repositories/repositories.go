@@ -126,6 +126,24 @@ func (r releaseCatalog) InsertRelease(ctx context.Context, release domain.Releas
 	return nil
 }
 
+func (r releaseCatalog) UpdateReleaseState(ctx context.Context, release domain.Release, expectedState string) error {
+	if release.ID == "" || release.TenantID == "" || release.ProductID == "" || release.State == "" || expectedState == "" {
+		return app.ErrValidation
+	}
+	result, err := r.tx.Exec(ctx, `
+		UPDATE releases
+		SET state = $4, frozen_at = $5, approved_at = $6
+		WHERE id = $1 AND tenant_id = $2 AND product_id = $3 AND state = $7
+	`, release.ID, release.TenantID, release.ProductID, release.State, release.FrozenAt, release.ApprovedAt, expectedState)
+	if err != nil {
+		return writeError("update release state", err)
+	}
+	if result.RowsAffected() != 1 {
+		return app.ErrConflict
+	}
+	return nil
+}
+
 func (r releaseCatalog) InsertArtifact(ctx context.Context, artifact domain.Artifact) error {
 	if artifact.ID == "" || artifact.TenantID == "" || artifact.Name == "" || artifact.MediaType == "" || artifact.Digest == "" || artifact.Size < 0 || artifact.CreatedAt.IsZero() {
 		return app.ErrValidation
@@ -138,6 +156,46 @@ func (r releaseCatalog) InsertArtifact(ctx context.Context, artifact domain.Arti
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`, artifact.ID, artifact.TenantID, artifact.Name, artifact.MediaType, artifact.Size, artifact.Digest, artifact.CreatedAt)
 	return writeError("insert artifact", err)
+}
+
+func (r releaseCatalog) InsertReleaseCandidate(ctx context.Context, candidate domain.ReleaseCandidate) error {
+	if candidate.ID == "" || candidate.TenantID == "" || candidate.ReleaseID == "" || candidate.Name == "" || candidate.State == "" || candidate.SnapshotHash == "" || candidate.SchemaVersion == "" || candidate.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireOptionalRelease(ctx, r.tx, candidate.TenantID, candidate.ReleaseID); err != nil {
+		return err
+	}
+	document, err := json.Marshal(candidate)
+	if err != nil {
+		return fmt.Errorf("encode release candidate document: %w", err)
+	}
+	_, err = r.tx.Exec(ctx, `
+		INSERT INTO release_candidates (id, tenant_id, release_id, name, state, snapshot_hash, document, schema_version, created_at, promoted_at, rejected_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+	`, candidate.ID, candidate.TenantID, candidate.ReleaseID, candidate.Name, candidate.State, candidate.SnapshotHash, document, candidate.SchemaVersion, candidate.CreatedAt, candidate.PromotedAt, candidate.RejectedAt)
+	return writeError("insert release candidate", err)
+}
+
+func (r releaseCatalog) UpdateReleaseCandidateState(ctx context.Context, candidate domain.ReleaseCandidate, expectedState string) error {
+	if candidate.ID == "" || candidate.TenantID == "" || candidate.ReleaseID == "" || candidate.State == "" || expectedState == "" {
+		return app.ErrValidation
+	}
+	document, err := json.Marshal(candidate)
+	if err != nil {
+		return fmt.Errorf("encode release candidate document: %w", err)
+	}
+	result, err := r.tx.Exec(ctx, `
+		UPDATE release_candidates
+		SET state = $4, document = $5, promoted_at = $6, rejected_at = $7
+		WHERE id = $1 AND tenant_id = $2 AND release_id = $3 AND state = $8
+	`, candidate.ID, candidate.TenantID, candidate.ReleaseID, candidate.State, document, candidate.PromotedAt, candidate.RejectedAt, expectedState)
+	if err != nil {
+		return writeError("update release candidate state", err)
+	}
+	if result.RowsAffected() != 1 {
+		return app.ErrConflict
+	}
+	return nil
 }
 
 type evidence struct{ tx pgx.Tx }
@@ -219,6 +277,63 @@ func (r evidence) InsertEvidence(ctx context.Context, item domain.EvidenceItem) 
 	return writeError("insert evidence", err)
 }
 
+func (r evidence) UpdateEvidenceLinks(ctx context.Context, item domain.EvidenceItem) error {
+	if item.ID == "" || item.TenantID == "" {
+		return app.ErrValidation
+	}
+	if err := requireOptionalProduct(ctx, r.tx, item.TenantID, item.ProductID); err != nil {
+		return err
+	}
+	if err := requireOptionalRelease(ctx, r.tx, item.TenantID, item.ReleaseID); err != nil {
+		return err
+	}
+	relatedRefs, err := json.Marshal(item.RelatedEvidenceRefs)
+	if err != nil {
+		return fmt.Errorf("encode evidence related references: %w", err)
+	}
+	result, err := r.tx.Exec(ctx, `
+		UPDATE evidence_items
+		SET product_id = $3, release_id = $4, related_evidence_refs = $5
+		WHERE id = $1 AND tenant_id = $2
+	`, item.ID, item.TenantID, nullableString(item.ProductID), nullableString(item.ReleaseID), relatedRefs)
+	if err != nil {
+		return writeError("update evidence links", err)
+	}
+	if result.RowsAffected() != 1 {
+		return app.ErrNotFound
+	}
+	return nil
+}
+
+func (r evidence) RecordSupersession(ctx context.Context, superseded, replacement domain.EvidenceItem) error {
+	if superseded.ID == "" || superseded.TenantID == "" || replacement.ID == "" || superseded.TenantID != replacement.TenantID || superseded.SupersededBy != replacement.ID || replacement.Supersedes != superseded.ID {
+		return app.ErrValidation
+	}
+	result, err := r.tx.Exec(ctx, `
+		UPDATE evidence_items
+		SET superseded_by = $3
+		WHERE id = $1 AND tenant_id = $2 AND superseded_by IS NULL
+	`, superseded.ID, superseded.TenantID, replacement.ID)
+	if err != nil {
+		return writeError("record evidence supersession", err)
+	}
+	if result.RowsAffected() != 1 {
+		return app.ErrConflict
+	}
+	result, err = r.tx.Exec(ctx, `
+		UPDATE evidence_items
+		SET supersedes = $1
+		WHERE id = $3 AND tenant_id = $2 AND supersedes IS NULL
+	`, superseded.ID, superseded.TenantID, replacement.ID)
+	if err != nil {
+		return writeError("record replacement evidence", err)
+	}
+	if result.RowsAffected() != 1 {
+		return app.ErrConflict
+	}
+	return nil
+}
+
 func (r evidence) AppendLifecycle(ctx context.Context, event domain.EvidenceLifecycleEvent) error {
 	if event.ID == "" || event.TenantID == "" || event.EvidenceID == "" || event.Action == "" || event.Reason == "" || event.ActorID == "" || event.SchemaVersion == "" || event.CreatedAt.IsZero() {
 		return app.ErrValidation
@@ -238,6 +353,143 @@ func (r evidence) AppendLifecycle(ctx context.Context, event domain.EvidenceLife
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`, event.ID, event.TenantID, event.EvidenceID, event.Action, event.Reason, details, nullableString(event.ReplacementID), event.ActorID, event.SchemaVersion, event.CreatedAt)
 	return writeError("append evidence lifecycle event", err)
+}
+
+func (r evidence) InsertSBOM(ctx context.Context, sbom domain.SBOM) error {
+	if sbom.ID == "" || sbom.TenantID == "" || sbom.EvidenceID == "" || sbom.Format == "" || sbom.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireOwnedEvidence(ctx, r.tx, sbom.TenantID, sbom.EvidenceID); err != nil {
+		return err
+	}
+	if err := requireOptionalRelease(ctx, r.tx, sbom.TenantID, sbom.ReleaseID); err != nil {
+		return err
+	}
+	if err := requireOptionalArtifact(ctx, r.tx, sbom.TenantID, sbom.ArtifactID); err != nil {
+		return err
+	}
+	components, err := json.Marshal(sbom.Components)
+	if err != nil {
+		return fmt.Errorf("encode SBOM components: %w", err)
+	}
+	_, err = r.tx.Exec(ctx, `
+		INSERT INTO sboms (id, tenant_id, evidence_id, release_id, artifact_id, format, spec_version, component_count, components, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	`, sbom.ID, sbom.TenantID, sbom.EvidenceID, nullableString(sbom.ReleaseID), nullableString(sbom.ArtifactID), sbom.Format, sbom.SpecVersion, sbom.ComponentCount, components, sbom.CreatedAt)
+	return writeError("insert SBOM", err)
+}
+
+func (r evidence) InsertVulnerabilityScan(ctx context.Context, scan domain.VulnerabilityScan) error {
+	if scan.ID == "" || scan.TenantID == "" || scan.EvidenceID == "" || scan.Scanner == "" || scan.TargetRef == "" || scan.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireOwnedEvidence(ctx, r.tx, scan.TenantID, scan.EvidenceID); err != nil {
+		return err
+	}
+	if err := requireOptionalRelease(ctx, r.tx, scan.TenantID, scan.ReleaseID); err != nil {
+		return err
+	}
+	summary, err := json.Marshal(scan.Summary)
+	if err != nil {
+		return fmt.Errorf("encode vulnerability scan summary: %w", err)
+	}
+	findings, err := json.Marshal(scan.Findings)
+	if err != nil {
+		return fmt.Errorf("encode vulnerability scan findings: %w", err)
+	}
+	_, err = r.tx.Exec(ctx, `
+		INSERT INTO vulnerability_scans (id, tenant_id, evidence_id, release_id, scanner, target_ref, summary, findings, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`, scan.ID, scan.TenantID, scan.EvidenceID, nullableString(scan.ReleaseID), scan.Scanner, scan.TargetRef, summary, findings, scan.CreatedAt)
+	return writeError("insert vulnerability scan", err)
+}
+
+func (r evidence) InsertOpenAPIContract(ctx context.Context, contract domain.OpenAPIContract) error {
+	if contract.ID == "" || contract.TenantID == "" || contract.ProductID == "" || contract.EvidenceID == "" || contract.Version == "" || contract.Hash == "" || contract.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireOptionalProduct(ctx, r.tx, contract.TenantID, contract.ProductID); err != nil {
+		return err
+	}
+	if err := requireOptionalRelease(ctx, r.tx, contract.TenantID, contract.ReleaseID); err != nil {
+		return err
+	}
+	if err := requireOwnedEvidence(ctx, r.tx, contract.TenantID, contract.EvidenceID); err != nil {
+		return err
+	}
+	operations, err := json.Marshal(contract.Operations)
+	if err != nil {
+		return fmt.Errorf("encode OpenAPI operations: %w", err)
+	}
+	_, err = r.tx.Exec(ctx, `
+		INSERT INTO openapi_contracts (id, tenant_id, product_id, release_id, version, hash, path_count, operations, evidence_id, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	`, contract.ID, contract.TenantID, contract.ProductID, nullableString(contract.ReleaseID), contract.Version, contract.Hash, contract.PathCount, operations, contract.EvidenceID, contract.CreatedAt)
+	return writeError("insert OpenAPI contract", err)
+}
+
+func (r evidence) InsertVEXDocument(ctx context.Context, document domain.VEXDocument) error {
+	if document.ID == "" || document.TenantID == "" || document.EvidenceID == "" || document.ReleaseID == "" || document.Format == "" || document.SchemaVersion == "" || document.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireOwnedEvidence(ctx, r.tx, document.TenantID, document.EvidenceID); err != nil {
+		return err
+	}
+	if err := requireOptionalRelease(ctx, r.tx, document.TenantID, document.ReleaseID); err != nil {
+		return err
+	}
+	if err := requireOptionalArtifact(ctx, r.tx, document.TenantID, document.ArtifactID); err != nil {
+		return err
+	}
+	statusSummary, err := json.Marshal(document.StatusSummary)
+	if err != nil {
+		return fmt.Errorf("encode VEX status summary: %w", err)
+	}
+	_, err = r.tx.Exec(ctx, `
+		INSERT INTO vex_documents (id, tenant_id, evidence_id, release_id, artifact_id, format, author, version, statement_count, status_summary, schema_version, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+	`, document.ID, document.TenantID, document.EvidenceID, document.ReleaseID, nullableString(document.ArtifactID), document.Format, document.Author, nullableString(document.Version), document.StatementCount, statusSummary, document.SchemaVersion, document.CreatedAt)
+	return writeError("insert VEX document", err)
+}
+
+func (r evidence) InsertVEXImportReport(ctx context.Context, report domain.VEXImportReport) error {
+	if report.ID == "" || report.TenantID == "" || report.VEXDocumentID == "" || report.EvidenceID == "" || report.ParserVersion == "" || report.Status == "" || report.SchemaVersion == "" || report.CreatedAt.IsZero() || report.UpdatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireOwnedVEXDocument(ctx, r.tx, report.TenantID, report.VEXDocumentID); err != nil {
+		return err
+	}
+	if err := requireOwnedEvidence(ctx, r.tx, report.TenantID, report.EvidenceID); err != nil {
+		return err
+	}
+	if err := requireOptionalRelease(ctx, r.tx, report.TenantID, report.ReleaseID); err != nil {
+		return err
+	}
+	if err := requireOptionalArtifact(ctx, r.tx, report.TenantID, report.ArtifactID); err != nil {
+		return err
+	}
+	warnings, err := json.Marshal(report.Warnings)
+	if err != nil {
+		return fmt.Errorf("encode VEX import warnings: %w", err)
+	}
+	invalidStatements, err := json.Marshal(report.InvalidStatements)
+	if err != nil {
+		return fmt.Errorf("encode VEX invalid statements: %w", err)
+	}
+	mappingFailures, err := json.Marshal(report.MappingFailures)
+	if err != nil {
+		return fmt.Errorf("encode VEX mapping failures: %w", err)
+	}
+	_, err = r.tx.Exec(ctx, `
+		INSERT INTO vex_import_reports (
+			id, tenant_id, vex_document_id, evidence_id, release_id, artifact_id,
+			parser_version, status, statement_count, decisions_created, decisions_superseded,
+			unsupported_fields, warnings, invalid_statements, mapping_failures, failure_code,
+			failure_detail, schema_version, created_at, updated_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+	`, report.ID, report.TenantID, report.VEXDocumentID, report.EvidenceID, nullableString(report.ReleaseID), nullableString(report.ArtifactID), report.ParserVersion, report.Status, report.StatementCount, report.DecisionsCreated, report.DecisionsSuperseded, textArray(report.UnsupportedFields), warnings, invalidStatements, mappingFailures, report.FailureCode, report.FailureDetail, report.SchemaVersion, report.CreatedAt, report.UpdatedAt)
+	return writeError("insert VEX import report", err)
 }
 
 type decisions struct{ tx pgx.Tx }
@@ -287,6 +539,26 @@ func (r decisions) InsertVulnerabilityDecision(ctx context.Context, decision dom
 		decision.CustomerVisible, nullableString(decision.InternalNotes), decision.Source, nullableString(decision.EvidenceID), textArray(decision.EvidenceIDs), supportingRefsJSON, nullableString(decision.VEXDocumentID), nullableString(decision.Supersedes), nullableString(decision.SupersededBy),
 		nullableString(decision.ApprovedBy), decision.ReviewedAt, decision.ReviewDueAt, decision.SchemaVersion, decision.CreatedAt)
 	return writeError("insert vulnerability decision", err)
+}
+
+func (r decisions) SupersedeAndInsert(ctx context.Context, decision domain.VulnerabilityDecision, superseded []domain.VulnerabilityDecision) error {
+	for _, prior := range superseded {
+		if prior.ID == "" || prior.TenantID != decision.TenantID || prior.SupersededBy != decision.ID {
+			return app.ErrValidation
+		}
+		result, err := r.tx.Exec(ctx, `
+			UPDATE vulnerability_decisions
+			SET superseded_by = $3
+			WHERE id = $1 AND tenant_id = $2 AND superseded_by IS NULL
+		`, prior.ID, prior.TenantID, decision.ID)
+		if err != nil {
+			return writeError("supersede vulnerability decision", err)
+		}
+		if result.RowsAffected() != 1 {
+			return app.ErrConflict
+		}
+	}
+	return r.InsertVulnerabilityDecision(ctx, decision)
 }
 
 type audit struct{ tx pgx.Tx }
@@ -507,6 +779,13 @@ func requireOptionalRelease(ctx context.Context, tx pgx.Tx, tenantID, releaseID 
 	return requireRow(ctx, tx, `SELECT 1 FROM releases WHERE id = $1 AND tenant_id = $2`, releaseID, tenantID)
 }
 
+func requireOptionalArtifact(ctx context.Context, tx pgx.Tx, tenantID, artifactID string) error {
+	if artifactID == "" {
+		return nil
+	}
+	return requireRow(ctx, tx, `SELECT 1 FROM artifacts WHERE id = $1 AND tenant_id = $2`, artifactID, tenantID)
+}
+
 func requireOwnedEvidence(ctx context.Context, tx pgx.Tx, tenantID, evidenceID string) error {
 	if evidenceID == "" {
 		return app.ErrValidation
@@ -523,6 +802,10 @@ func requireOptionalOwnedEvidence(ctx context.Context, tx pgx.Tx, tenantID, evid
 
 func requireOwnedScan(ctx context.Context, tx pgx.Tx, tenantID, scanID string) error {
 	return requireRow(ctx, tx, `SELECT 1 FROM vulnerability_scans WHERE id = $1 AND tenant_id = $2`, scanID, tenantID)
+}
+
+func requireOwnedVEXDocument(ctx context.Context, tx pgx.Tx, tenantID, vexDocumentID string) error {
+	return requireRow(ctx, tx, `SELECT 1 FROM vex_documents WHERE id = $1 AND tenant_id = $2`, vexDocumentID, tenantID)
 }
 
 func requireOwnedSigningKey(ctx context.Context, tx pgx.Tx, tenantID, keyID string) error {
