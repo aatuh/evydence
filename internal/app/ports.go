@@ -113,6 +113,21 @@ type Repositories struct {
 type IdentityRepository interface {
 	InsertTenant(context.Context, domain.Tenant) error
 	InsertAPIKey(context.Context, domain.APIKey) error
+	UpdateAPIKeyLastUsed(context.Context, domain.APIKey) error
+	UpdateCollectorLastSeen(context.Context, domain.Collector) error
+	InsertOrganization(context.Context, domain.Organization) error
+	InsertHumanUser(context.Context, domain.HumanUser) error
+	DeactivateHumanUser(context.Context, domain.HumanUser) error
+	InsertRoleBinding(context.Context, domain.RoleBinding) error
+	InsertSSOProvider(context.Context, domain.SSOProvider) error
+	UpdateSSOProviderTrustMaterial(context.Context, domain.SSOProvider) error
+	InsertUserIdentityLink(context.Context, domain.UserIdentityLink) error
+	InsertProviderVerification(context.Context, domain.ProviderVerification) error
+	InsertSSOSession(context.Context, domain.SSOSession) error
+	ValidateActiveSSOSession(context.Context, domain.SSOSession, time.Time) error
+	RevokeSSOSession(context.Context, domain.SSOSession) error
+	InsertCustomerPortalAccess(context.Context, domain.CustomerPortalAccess) error
+	UpdateCustomerPortalAccess(context.Context, domain.CustomerPortalAccess, domain.CustomerPortalAccess) error
 }
 
 type ReleaseCatalogRepository interface {

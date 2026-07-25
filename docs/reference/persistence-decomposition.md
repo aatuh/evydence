@@ -25,9 +25,7 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 | enterprise identity and retention | `internal/app/enterprise.go` | `RevokeCurrentSSOSession` | `persistCriticalStateLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `RevokeCustomerPortalAccess` | `persistCriticalStateLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `RevokeSSOSession` | `persistCriticalStateLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `accessCustomerPortalPackage` | `persistCriticalStateLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `accessCustomerPortalPackage` | `persistCriticalStateLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `accessCustomerPortalPackage` | `persistCriticalStateLocked` |
+| enterprise identity and retention | `internal/app/enterprise.go` | `persistCustomerPortalAccessUpdateLocked` | `persistCriticalStateLocked` |
 | identity | `internal/app/identity_service.go` | `Authenticate` | `persistCriticalStateLocked` |
 | identity | `internal/app/identity_service.go` | `Authenticate` | `persistCriticalStateLocked` |
 | identity | `internal/app/identity_service.go` | `BootstrapTenant` | `persistCriticalStateLocked` |
@@ -81,12 +79,10 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateSSOProvider` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateUser` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `DeactivateUser` | `persistLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `ExchangeSSOCredential` | `persistLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `ExchangeSSOCredential` | `persistLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `ExchangeSSOCredential` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `LinkSSOIdentity` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `RefreshSSOProviderOIDCTrustMaterial` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `UpdateSSOProviderTrustMaterial` | `persistLocked` |
+| enterprise identity and retention | `internal/app/enterprise.go` | `persistProviderVerificationLocked` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `CreateEvidenceSummary` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `CreateGraphSnapshot` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `CreateMarketplaceCollector` | `persistLocked` |

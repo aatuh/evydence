@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"sync"
+	"time"
 
 	"github.com/aatuh/evydence/internal/domain"
 )
@@ -21,28 +22,37 @@ type MemoryUnitOfWorkFactory struct {
 // It is intended for deterministic tests and must not be used as a production
 // persistence contract.
 type MemoryUnitOfWorkSnapshot struct {
-	Tenants             map[string]domain.Tenant
-	APIKeys             map[string]domain.APIKey
-	Products            map[string]domain.Product
-	Projects            map[string]domain.Project
-	Releases            map[string]domain.Release
-	Artifacts           map[string]domain.Artifact
-	Evidence            map[string]domain.EvidenceItem
-	EvidenceLifecycle   map[string]domain.EvidenceLifecycleEvent
-	SBOMs               map[string]domain.SBOM
-	VulnerabilityScans  map[string]domain.VulnerabilityScan
-	OpenAPIContracts    map[string]domain.OpenAPIContract
-	VEXDocuments        map[string]domain.VEXDocument
-	VEXImportReports    map[string]domain.VEXImportReport
-	ReleaseCandidates   map[string]domain.ReleaseCandidate
-	Decisions           map[string]domain.VulnerabilityDecision
-	AuditEntries        map[string][]domain.AuditChainEntry
-	Idempotency         map[IdempotencyRecordKey]IdempotencyRecord
-	OutboxJobs          map[string]OutboxJob
-	ReleaseBundles      map[string]domain.ReleaseBundle
-	SigningKeys         map[string]domain.SigningKey
-	Signatures          map[string]domain.Signature
-	VerificationResults map[string]domain.VerificationResult
+	Tenants               map[string]domain.Tenant
+	APIKeys               map[string]domain.APIKey
+	Collectors            map[string]domain.Collector
+	Organizations         map[string]domain.Organization
+	Users                 map[string]domain.HumanUser
+	RoleBindings          map[string]domain.RoleBinding
+	SSOProviders          map[string]domain.SSOProvider
+	IdentityLinks         map[string]domain.UserIdentityLink
+	ProviderVerifications map[string]domain.ProviderVerification
+	SSOSessions           map[string]domain.SSOSession
+	CustomerPortalAccess  map[string]domain.CustomerPortalAccess
+	Products              map[string]domain.Product
+	Projects              map[string]domain.Project
+	Releases              map[string]domain.Release
+	Artifacts             map[string]domain.Artifact
+	Evidence              map[string]domain.EvidenceItem
+	EvidenceLifecycle     map[string]domain.EvidenceLifecycleEvent
+	SBOMs                 map[string]domain.SBOM
+	VulnerabilityScans    map[string]domain.VulnerabilityScan
+	OpenAPIContracts      map[string]domain.OpenAPIContract
+	VEXDocuments          map[string]domain.VEXDocument
+	VEXImportReports      map[string]domain.VEXImportReport
+	ReleaseCandidates     map[string]domain.ReleaseCandidate
+	Decisions             map[string]domain.VulnerabilityDecision
+	AuditEntries          map[string][]domain.AuditChainEntry
+	Idempotency           map[IdempotencyRecordKey]IdempotencyRecord
+	OutboxJobs            map[string]OutboxJob
+	ReleaseBundles        map[string]domain.ReleaseBundle
+	SigningKeys           map[string]domain.SigningKey
+	Signatures            map[string]domain.Signature
+	VerificationResults   map[string]domain.VerificationResult
 }
 
 func NewMemoryUnitOfWorkFactory() *MemoryUnitOfWorkFactory {
@@ -213,6 +223,339 @@ func (r memoryIdentityRepository) InsertAPIKey(ctx context.Context, key domain.A
 		state.APIKeys[cloned.ID] = cloned
 		return nil
 	})
+}
+
+func (r memoryIdentityRepository) UpdateAPIKeyLastUsed(ctx context.Context, key domain.APIKey) error {
+	cloned := cloneMemoryAPIKey(key)
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		stored, ok := state.APIKeys[cloned.ID]
+		if !ok || stored.TenantID != cloned.TenantID || stored.Prefix != cloned.Prefix || stored.Hash != cloned.Hash || stored.RevokedAt != nil || cloned.LastUsedAt == nil {
+			return ErrConflict
+		}
+		state.APIKeys[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryIdentityRepository) UpdateCollectorLastSeen(ctx context.Context, collector domain.Collector) error {
+	cloned, err := cloneMemoryJSON(collector)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		stored, ok := state.Collectors[cloned.ID]
+		if !ok || stored.TenantID != cloned.TenantID || stored.APIKeyID != cloned.APIKeyID || cloned.LastSeenAt == nil {
+			return ErrConflict
+		}
+		state.Collectors[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryIdentityRepository) InsertOrganization(ctx context.Context, organization domain.Organization) error {
+	cloned, err := cloneMemoryJSON(organization)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.Name == "" || cloned.Slug == "" || cloned.Status == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if _, exists := state.Organizations[cloned.ID]; exists {
+			return ErrConflict
+		}
+		for _, existing := range state.Organizations {
+			if existing.TenantID == cloned.TenantID && existing.Slug == cloned.Slug {
+				return ErrConflict
+			}
+		}
+		state.Organizations[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryIdentityRepository) InsertHumanUser(ctx context.Context, user domain.HumanUser) error {
+	cloned, err := cloneMemoryJSON(user)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.Email == "" || cloned.DisplayName == "" || cloned.Status == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.OrganizationID, cloned.TenantID, state.Organizations) {
+			return ErrNotFound
+		}
+		if _, exists := state.Users[cloned.ID]; exists {
+			return ErrConflict
+		}
+		for _, existing := range state.Users {
+			if existing.TenantID == cloned.TenantID && existing.Email == cloned.Email {
+				return ErrConflict
+			}
+		}
+		state.Users[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryIdentityRepository) DeactivateHumanUser(ctx context.Context, user domain.HumanUser) error {
+	cloned, err := cloneMemoryJSON(user)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		stored, ok := state.Users[cloned.ID]
+		if !ok || stored.TenantID != cloned.TenantID || stored.Status != "active" || cloned.Status != "deactivated" || cloned.DeactivatedAt == nil {
+			return ErrConflict
+		}
+		state.Users[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryIdentityRepository) InsertRoleBinding(ctx context.Context, binding domain.RoleBinding) error {
+	cloned, err := cloneMemoryJSON(binding)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || !validRoleSubject(cloned.SubjectType) || cloned.SubjectID == "" || !validRole(cloned.Role) || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryRoleSubjectBelongsToTenant(*state, cloned.TenantID, cloned.SubjectType, cloned.SubjectID) || !memoryRoleResourceBelongsToTenant(*state, cloned.TenantID, cloned.ResourceType, cloned.ResourceID) {
+			return ErrNotFound
+		}
+		if _, exists := state.RoleBindings[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.RoleBindings[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryIdentityRepository) InsertSSOProvider(ctx context.Context, provider domain.SSOProvider) error {
+	cloned, err := cloneMemoryJSON(provider)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.Name == "" || !validSSOType(cloned.Type) || cloned.Issuer == "" || cloned.ClientID == "" || cloned.Status == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if _, exists := state.SSOProviders[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.SSOProviders[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryIdentityRepository) UpdateSSOProviderTrustMaterial(ctx context.Context, provider domain.SSOProvider) error {
+	cloned, err := cloneMemoryJSON(provider)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		stored, ok := state.SSOProviders[cloned.ID]
+		if !ok || stored.TenantID != cloned.TenantID || stored.Type != cloned.Type || cloned.TrustMaterialUpdatedAt == nil {
+			return ErrConflict
+		}
+		state.SSOProviders[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryIdentityRepository) InsertUserIdentityLink(ctx context.Context, link domain.UserIdentityLink) error {
+	cloned, err := cloneMemoryJSON(link)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.Subject == "" || cloned.Email == "" || !cloned.Verified || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.UserID, cloned.TenantID, state.Users) || !memoryResourceBelongsToTenant(cloned.ProviderID, cloned.TenantID, state.SSOProviders) {
+			return ErrNotFound
+		}
+		for _, existing := range state.IdentityLinks {
+			if existing.TenantID == cloned.TenantID && existing.ProviderID == cloned.ProviderID && existing.Subject == cloned.Subject {
+				return ErrConflict
+			}
+		}
+		if _, exists := state.IdentityLinks[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.IdentityLinks[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryIdentityRepository) InsertProviderVerification(ctx context.Context, verification domain.ProviderVerification) error {
+	cloned, err := cloneMemoryJSON(verification)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.ProviderType == "" || cloned.ProviderID == "" || cloned.Subject == "" || cloned.Result == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.ProviderID, cloned.TenantID, state.SSOProviders) {
+			return ErrNotFound
+		}
+		if _, exists := state.ProviderVerifications[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.ProviderVerifications[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryIdentityRepository) InsertSSOSession(ctx context.Context, session domain.SSOSession) error {
+	cloned := cloneMemorySSOSession(session)
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.Prefix == "" || cloned.Hash == "" || cloned.ExpiresAt.IsZero() || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		user, userExists := state.Users[cloned.UserID]
+		if !userExists || user.TenantID != cloned.TenantID || user.Status != "active" || !memoryResourceBelongsToTenant(cloned.ProviderID, cloned.TenantID, state.SSOProviders) {
+			return ErrNotFound
+		}
+		if _, exists := state.SSOSessions[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.SSOSessions[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryIdentityRepository) ValidateActiveSSOSession(ctx context.Context, session domain.SSOSession, now time.Time) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if session.ID == "" || session.TenantID == "" || session.UserID == "" || session.ProviderID == "" || session.Prefix == "" || session.Hash == "" || now.IsZero() {
+		return ErrValidation
+	}
+	r.uow.mu.Lock()
+	defer r.uow.mu.Unlock()
+	stored, ok := r.uow.state.SSOSessions[session.ID]
+	if !ok || stored.TenantID != session.TenantID || stored.UserID != session.UserID || stored.ProviderID != session.ProviderID || stored.Prefix != session.Prefix || !secretHashEqual(stored.Hash, session.Hash) || stored.RevokedAt != nil || !stored.ExpiresAt.After(now) {
+		return ErrUnauthorized
+	}
+	user, ok := r.uow.state.Users[stored.UserID]
+	if !ok || user.TenantID != stored.TenantID || user.Status != "active" {
+		return ErrUnauthorized
+	}
+	return nil
+}
+
+func (r memoryIdentityRepository) RevokeSSOSession(ctx context.Context, session domain.SSOSession) error {
+	cloned := cloneMemorySSOSession(session)
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		stored, ok := state.SSOSessions[cloned.ID]
+		if !ok || stored.TenantID != cloned.TenantID || stored.UserID != cloned.UserID || stored.ProviderID != cloned.ProviderID || stored.Hash != cloned.Hash || stored.RevokedAt != nil || cloned.RevokedAt == nil {
+			return ErrConflict
+		}
+		state.SSOSessions[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryIdentityRepository) InsertCustomerPortalAccess(ctx context.Context, access domain.CustomerPortalAccess) error {
+	cloned := cloneMemoryCustomerPortalAccess(access)
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.PackageID == "" || cloned.CustomerName == "" || cloned.Prefix == "" || cloned.Hash == "" || cloned.ExpiresAt.IsZero() || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if _, exists := state.CustomerPortalAccess[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.CustomerPortalAccess[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryIdentityRepository) UpdateCustomerPortalAccess(ctx context.Context, previous, current domain.CustomerPortalAccess) error {
+	clonedPrevious := cloneMemoryCustomerPortalAccess(previous)
+	clonedCurrent := cloneMemoryCustomerPortalAccess(current)
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, clonedCurrent.TenantID); err != nil {
+			return err
+		}
+		stored, ok := state.CustomerPortalAccess[clonedCurrent.ID]
+		if !ok || stored.TenantID != clonedCurrent.TenantID || clonedPrevious.ID != clonedCurrent.ID || stored.AccessCount != clonedPrevious.AccessCount || stored.FailedAccessCount != clonedPrevious.FailedAccessCount || (stored.RevokedAt == nil) != (clonedPrevious.RevokedAt == nil) {
+			return ErrConflict
+		}
+		state.CustomerPortalAccess[clonedCurrent.ID] = clonedCurrent
+		return nil
+	})
+}
+
+func memoryRoleSubjectBelongsToTenant(state MemoryUnitOfWorkSnapshot, tenantID, subjectType, subjectID string) bool {
+	switch subjectType {
+	case "user":
+		return memoryResourceBelongsToTenant(subjectID, tenantID, state.Users)
+	case "collector":
+		return memoryResourceBelongsToTenant(subjectID, tenantID, state.Collectors)
+	default:
+		return false
+	}
+}
+
+func memoryRoleResourceBelongsToTenant(state MemoryUnitOfWorkSnapshot, tenantID, resourceType, resourceID string) bool {
+	switch resourceType {
+	case "":
+		return resourceID == ""
+	case "tenant":
+		return resourceID == "" || resourceID == tenantID
+	case "product":
+		return memoryResourceBelongsToTenant(resourceID, tenantID, state.Products)
+	case "project":
+		return memoryResourceBelongsToTenant(resourceID, tenantID, state.Projects)
+	case "release":
+		return memoryResourceBelongsToTenant(resourceID, tenantID, state.Releases)
+	default:
+		return false
+	}
 }
 
 type memoryReleaseCatalogRepository struct{ uow *memoryUnitOfWork }
@@ -814,28 +1157,37 @@ func (r memoryVerificationRepository) InsertVerificationResult(ctx context.Conte
 
 func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 	return MemoryUnitOfWorkSnapshot{
-		Tenants:             map[string]domain.Tenant{},
-		APIKeys:             map[string]domain.APIKey{},
-		Products:            map[string]domain.Product{},
-		Projects:            map[string]domain.Project{},
-		Releases:            map[string]domain.Release{},
-		Artifacts:           map[string]domain.Artifact{},
-		Evidence:            map[string]domain.EvidenceItem{},
-		EvidenceLifecycle:   map[string]domain.EvidenceLifecycleEvent{},
-		SBOMs:               map[string]domain.SBOM{},
-		VulnerabilityScans:  map[string]domain.VulnerabilityScan{},
-		OpenAPIContracts:    map[string]domain.OpenAPIContract{},
-		VEXDocuments:        map[string]domain.VEXDocument{},
-		VEXImportReports:    map[string]domain.VEXImportReport{},
-		ReleaseCandidates:   map[string]domain.ReleaseCandidate{},
-		Decisions:           map[string]domain.VulnerabilityDecision{},
-		AuditEntries:        map[string][]domain.AuditChainEntry{},
-		Idempotency:         map[IdempotencyRecordKey]IdempotencyRecord{},
-		OutboxJobs:          map[string]OutboxJob{},
-		ReleaseBundles:      map[string]domain.ReleaseBundle{},
-		SigningKeys:         map[string]domain.SigningKey{},
-		Signatures:          map[string]domain.Signature{},
-		VerificationResults: map[string]domain.VerificationResult{},
+		Tenants:               map[string]domain.Tenant{},
+		APIKeys:               map[string]domain.APIKey{},
+		Collectors:            map[string]domain.Collector{},
+		Organizations:         map[string]domain.Organization{},
+		Users:                 map[string]domain.HumanUser{},
+		RoleBindings:          map[string]domain.RoleBinding{},
+		SSOProviders:          map[string]domain.SSOProvider{},
+		IdentityLinks:         map[string]domain.UserIdentityLink{},
+		ProviderVerifications: map[string]domain.ProviderVerification{},
+		SSOSessions:           map[string]domain.SSOSession{},
+		CustomerPortalAccess:  map[string]domain.CustomerPortalAccess{},
+		Products:              map[string]domain.Product{},
+		Projects:              map[string]domain.Project{},
+		Releases:              map[string]domain.Release{},
+		Artifacts:             map[string]domain.Artifact{},
+		Evidence:              map[string]domain.EvidenceItem{},
+		EvidenceLifecycle:     map[string]domain.EvidenceLifecycleEvent{},
+		SBOMs:                 map[string]domain.SBOM{},
+		VulnerabilityScans:    map[string]domain.VulnerabilityScan{},
+		OpenAPIContracts:      map[string]domain.OpenAPIContract{},
+		VEXDocuments:          map[string]domain.VEXDocument{},
+		VEXImportReports:      map[string]domain.VEXImportReport{},
+		ReleaseCandidates:     map[string]domain.ReleaseCandidate{},
+		Decisions:             map[string]domain.VulnerabilityDecision{},
+		AuditEntries:          map[string][]domain.AuditChainEntry{},
+		Idempotency:           map[IdempotencyRecordKey]IdempotencyRecord{},
+		OutboxJobs:            map[string]OutboxJob{},
+		ReleaseBundles:        map[string]domain.ReleaseBundle{},
+		SigningKeys:           map[string]domain.SigningKey{},
+		Signatures:            map[string]domain.Signature{},
+		VerificationResults:   map[string]domain.VerificationResult{},
 	}
 }
 
@@ -848,6 +1200,35 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 	cloned.APIKeys = make(map[string]domain.APIKey, len(snapshot.APIKeys))
 	for id, key := range snapshot.APIKeys {
 		cloned.APIKeys[id] = cloneMemoryAPIKey(key)
+	}
+	if cloned.Collectors, err = cloneMemoryMap(snapshot.Collectors); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.Organizations, err = cloneMemoryMap(snapshot.Organizations); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.Users, err = cloneMemoryMap(snapshot.Users); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.RoleBindings, err = cloneMemoryMap(snapshot.RoleBindings); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.SSOProviders, err = cloneMemoryMap(snapshot.SSOProviders); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.IdentityLinks, err = cloneMemoryMap(snapshot.IdentityLinks); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.ProviderVerifications, err = cloneMemoryMap(snapshot.ProviderVerifications); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	cloned.SSOSessions = make(map[string]domain.SSOSession, len(snapshot.SSOSessions))
+	for id, session := range snapshot.SSOSessions {
+		cloned.SSOSessions[id] = cloneMemorySSOSession(session)
+	}
+	cloned.CustomerPortalAccess = make(map[string]domain.CustomerPortalAccess, len(snapshot.CustomerPortalAccess))
+	for id, access := range snapshot.CustomerPortalAccess {
+		cloned.CustomerPortalAccess[id] = cloneMemoryCustomerPortalAccess(access)
 	}
 	if cloned.Products, err = cloneMemoryMap(snapshot.Products); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
@@ -954,6 +1335,16 @@ func cloneMemorySigningKey(key domain.SigningKey) domain.SigningKey {
 	return cloned
 }
 
+func cloneMemorySSOSession(session domain.SSOSession) domain.SSOSession {
+	cloned := session
+	cloned.Groups = append([]string(nil), session.Groups...)
+	return cloned
+}
+
+func cloneMemoryCustomerPortalAccess(access domain.CustomerPortalAccess) domain.CustomerPortalAccess {
+	return access
+}
+
 func cloneMemoryIdempotencyRecord(record IdempotencyRecord) (IdempotencyRecord, error) {
 	cloned := record
 	response, err := cloneMemoryJSON(record.Response)
@@ -996,6 +1387,14 @@ func memoryResourceTenantID(resource any) string {
 	case domain.Artifact:
 		return value.TenantID
 	case domain.EvidenceItem:
+		return value.TenantID
+	case domain.Organization:
+		return value.TenantID
+	case domain.HumanUser:
+		return value.TenantID
+	case domain.Collector:
+		return value.TenantID
+	case domain.SSOProvider:
 		return value.TenantID
 	default:
 		return ""

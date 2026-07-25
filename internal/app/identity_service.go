@@ -41,6 +41,37 @@ func (s identityService) BootstrapTenant(ctx context.Context, name, keyName stri
 	defer l.mu.Unlock()
 	now := l.now()
 	tenant := domain.Tenant{ID: newID("ten"), Name: name, CreatedAt: now}
+	if l.unitOfWork != nil {
+		key, secret := l.newAPIKey(tenant.ID, keyName, scopes, nil)
+		signingKey, err := l.newSigningKey(tenant.ID)
+		if err != nil {
+			return domain.Tenant{}, domain.APIKey{}, "", err
+		}
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Identity.InsertTenant(ctx, tenant); err != nil {
+				return err
+			}
+			if err := repos.Identity.InsertAPIKey(ctx, key); err != nil {
+				return err
+			}
+			if err := repos.Signatures.InsertSigningKey(ctx, signingKey); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, tenant.ID, "tenant.created", "tenant", tenant.ID, "system", "bootstrap", "", ""))
+			return err
+		}); err != nil {
+			return domain.Tenant{}, domain.APIKey{}, "", err
+		}
+		l.tenants[tenant.ID] = tenant
+		l.apiKeys[key.ID] = key
+		l.signingKeys[signingKey.ID] = signingKey
+		l.publishCommittedAuditEntryLocked(entry)
+		public := key
+		public.Hash = ""
+		return tenant, public, secret, nil
+	}
 	l.tenants[tenant.ID] = tenant
 	key, secret, err := l.createAPIKeyLocked(tenant.ID, keyName, scopes, nil)
 	if err != nil {
@@ -77,16 +108,39 @@ func (s identityService) Authenticate(ctx context.Context, secret string) (domai
 			return domain.Actor{}, ErrUnauthorized
 		}
 		now := l.now()
-		key.LastUsedAt = &now
-		l.apiKeys[id] = key
+		updatedKey := key
+		updatedKey.LastUsedAt = &now
 		collectorID := ""
-		for collectorMapID, collector := range l.collectors {
+		var updatedCollector domain.Collector
+		for _, collector := range l.collectors {
 			if collector.TenantID == key.TenantID && collector.APIKeyID == key.ID {
 				collectorID = collector.ID
 				collector.LastSeenAt = &now
-				l.collectors[collectorMapID] = collector
+				updatedCollector = collector
 				break
 			}
+		}
+		if l.unitOfWork != nil {
+			if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+				if err := repos.Identity.UpdateAPIKeyLastUsed(ctx, updatedKey); err != nil {
+					return err
+				}
+				if collectorID != "" {
+					return repos.Identity.UpdateCollectorLastSeen(ctx, updatedCollector)
+				}
+				return nil
+			}); err != nil {
+				return domain.Actor{}, ErrUnauthorized
+			}
+			l.apiKeys[id] = updatedKey
+			if collectorID != "" {
+				l.collectors[collectorID] = updatedCollector
+			}
+			return domain.Actor{TenantID: key.TenantID, KeyID: key.ID, Name: key.Name, Scopes: append([]string(nil), key.Scopes...), CollectorID: collectorID}, nil
+		}
+		l.apiKeys[id] = updatedKey
+		if collectorID != "" {
+			l.collectors[collectorID] = updatedCollector
 		}
 		_ = l.persistCriticalStateLocked(ctx)
 		return domain.Actor{TenantID: key.TenantID, KeyID: key.ID, Name: key.Name, Scopes: append([]string(nil), key.Scopes...), CollectorID: collectorID}, nil
@@ -98,6 +152,13 @@ func (s identityService) Authenticate(ctx context.Context, secret string) (domai
 		user, ok := l.users[session.UserID]
 		if !ok || user.TenantID != session.TenantID || user.Status != "active" {
 			return domain.Actor{}, ErrUnauthorized
+		}
+		if l.unitOfWork != nil {
+			if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+				return repos.Identity.ValidateActiveSSOSession(ctx, session, l.now())
+			}); err != nil {
+				return domain.Actor{}, ErrUnauthorized
+			}
 		}
 		grants := append(l.resourceGrantsForUserLocked(user.ID), l.resourceGrantsForSSOSessionLocked(session)...)
 		scopes := scopesFromResourceGrants(grants)
@@ -127,6 +188,25 @@ func (s identityService) CreateAPIKey(ctx context.Context, actor domain.Actor, n
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if l.unitOfWork != nil {
+		key, secret := l.newAPIKey(actor.TenantID, name, scopes, expiresAt)
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Identity.InsertAPIKey(ctx, key); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(key.CreatedAt, actor.TenantID, "api_key.created", "api_key", key.ID, "api_key", actor.KeyID, "", ""))
+			return err
+		}); err != nil {
+			return domain.APIKey{}, "", err
+		}
+		l.apiKeys[key.ID] = key
+		l.publishCommittedAuditEntryLocked(entry)
+		public := key
+		public.Hash = ""
+		return public, secret, nil
+	}
 	key, secret, err := l.createAPIKeyLocked(actor.TenantID, name, scopes, expiresAt)
 	if err != nil {
 		return domain.APIKey{}, "", err

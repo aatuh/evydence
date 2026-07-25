@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -64,6 +65,322 @@ func (r identity) InsertAPIKey(ctx context.Context, key domain.APIKey) error {
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`, key.ID, key.TenantID, key.Name, key.Prefix, key.Hash, scopes, key.ExpiresAt, key.RevokedAt, key.LastUsedAt, key.CreatedAt)
 	return writeError("insert API key", err)
+}
+
+func (r identity) UpdateAPIKeyLastUsed(ctx context.Context, key domain.APIKey) error {
+	if key.ID == "" || key.TenantID == "" || key.Prefix == "" || key.Hash == "" || key.LastUsedAt == nil {
+		return app.ErrValidation
+	}
+	result, err := r.tx.Exec(ctx, `
+		UPDATE api_keys
+		SET last_used_at = $5
+		WHERE id = $1 AND tenant_id = $2 AND prefix = $3 AND hash = $4
+		  AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > $5)
+	`, key.ID, key.TenantID, key.Prefix, key.Hash, *key.LastUsedAt)
+	if err != nil {
+		return writeError("update API key last used", err)
+	}
+	if result.RowsAffected() != 1 {
+		return app.ErrConflict
+	}
+	return nil
+}
+
+func (r identity) UpdateCollectorLastSeen(ctx context.Context, collector domain.Collector) error {
+	if collector.ID == "" || collector.TenantID == "" || collector.APIKeyID == "" || collector.LastSeenAt == nil {
+		return app.ErrValidation
+	}
+	result, err := r.tx.Exec(ctx, `
+		UPDATE collectors
+		SET last_seen_at = $4
+		WHERE id = $1 AND tenant_id = $2 AND api_key_id = $3
+	`, collector.ID, collector.TenantID, collector.APIKeyID, *collector.LastSeenAt)
+	if err != nil {
+		return writeError("update collector last seen", err)
+	}
+	if result.RowsAffected() != 1 {
+		return app.ErrConflict
+	}
+	return nil
+}
+
+func (r identity) InsertOrganization(ctx context.Context, organization domain.Organization) error {
+	if organization.ID == "" || organization.TenantID == "" || organization.Name == "" || organization.Slug == "" || organization.Status == "" || organization.SchemaVersion == "" || organization.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, organization.TenantID); err != nil {
+		return err
+	}
+	_, err := r.tx.Exec(ctx, `
+		INSERT INTO organizations (id, tenant_id, name, slug, status, schema_version, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`, organization.ID, organization.TenantID, organization.Name, organization.Slug, organization.Status, organization.SchemaVersion, organization.CreatedAt)
+	return writeError("insert organization", err)
+}
+
+func (r identity) InsertHumanUser(ctx context.Context, user domain.HumanUser) error {
+	if user.ID == "" || user.TenantID == "" || user.Email == "" || user.DisplayName == "" || user.Status == "" || user.SchemaVersion == "" || user.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, user.TenantID); err != nil {
+		return err
+	}
+	if err := requireOptionalOrganization(ctx, r.tx, user.TenantID, user.OrganizationID); err != nil {
+		return err
+	}
+	_, err := r.tx.Exec(ctx, `
+		INSERT INTO human_users (
+			id, tenant_id, organization_id, email, display_name, status,
+			deactivated_at, schema_version, created_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`, user.ID, user.TenantID, nullableString(user.OrganizationID), user.Email, user.DisplayName, user.Status, user.DeactivatedAt, user.SchemaVersion, user.CreatedAt)
+	return writeError("insert human user", err)
+}
+
+func (r identity) DeactivateHumanUser(ctx context.Context, user domain.HumanUser) error {
+	if user.ID == "" || user.TenantID == "" || user.Status != "deactivated" || user.DeactivatedAt == nil {
+		return app.ErrValidation
+	}
+	result, err := r.tx.Exec(ctx, `
+		UPDATE human_users
+		SET status = 'deactivated', deactivated_at = $3
+		WHERE id = $1 AND tenant_id = $2 AND status = 'active'
+	`, user.ID, user.TenantID, *user.DeactivatedAt)
+	if err != nil {
+		return writeError("deactivate human user", err)
+	}
+	if result.RowsAffected() != 1 {
+		return app.ErrConflict
+	}
+	return nil
+}
+
+func (r identity) InsertRoleBinding(ctx context.Context, binding domain.RoleBinding) error {
+	if binding.ID == "" || binding.TenantID == "" || binding.SubjectType == "" || binding.SubjectID == "" || binding.Role == "" || binding.SchemaVersion == "" || binding.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, binding.TenantID); err != nil {
+		return err
+	}
+	if err := requireRoleSubject(ctx, r.tx, binding.TenantID, binding.SubjectType, binding.SubjectID); err != nil {
+		return err
+	}
+	if err := requireRoleResource(ctx, r.tx, binding.TenantID, binding.ResourceType, binding.ResourceID); err != nil {
+		return err
+	}
+	_, err := r.tx.Exec(ctx, `
+		INSERT INTO role_bindings (
+			id, tenant_id, subject_type, subject_id, role, resource_type,
+			resource_id, schema_version, created_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`, binding.ID, binding.TenantID, binding.SubjectType, binding.SubjectID, binding.Role, nullableString(binding.ResourceType), nullableString(binding.ResourceID), binding.SchemaVersion, binding.CreatedAt)
+	return writeError("insert role binding", err)
+}
+
+func (r identity) InsertSSOProvider(ctx context.Context, provider domain.SSOProvider) error {
+	if provider.ID == "" || provider.TenantID == "" || provider.Name == "" || provider.Type == "" || provider.Issuer == "" || provider.ClientID == "" || provider.Status == "" || provider.SchemaVersion == "" || provider.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, provider.TenantID); err != nil {
+		return err
+	}
+	roleMapping, err := json.Marshal(provider.RoleMapping)
+	if err != nil {
+		return fmt.Errorf("encode SSO provider role mapping: %w", err)
+	}
+	jwks, err := json.Marshal(provider.JWKS)
+	if err != nil {
+		return fmt.Errorf("encode SSO provider JWKS: %w", err)
+	}
+	certificates, err := json.Marshal(provider.SAMLSigningCertificates)
+	if err != nil {
+		return fmt.Errorf("encode SSO provider certificates: %w", err)
+	}
+	_, err = r.tx.Exec(ctx, `
+		INSERT INTO sso_providers (
+			id, tenant_id, name, type, issuer, client_id, groups_claim,
+			role_mapping, jwks, saml_signing_certificates, trust_material_updated_at,
+			status, schema_version, created_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+	`, provider.ID, provider.TenantID, provider.Name, provider.Type, provider.Issuer, provider.ClientID, nullableString(provider.GroupsClaim), roleMapping, jwks, certificates, provider.TrustMaterialUpdatedAt, provider.Status, provider.SchemaVersion, provider.CreatedAt)
+	return writeError("insert SSO provider", err)
+}
+
+func (r identity) UpdateSSOProviderTrustMaterial(ctx context.Context, provider domain.SSOProvider) error {
+	if provider.ID == "" || provider.TenantID == "" || provider.Type == "" || provider.TrustMaterialUpdatedAt == nil {
+		return app.ErrValidation
+	}
+	jwks, err := json.Marshal(provider.JWKS)
+	if err != nil {
+		return fmt.Errorf("encode SSO provider JWKS: %w", err)
+	}
+	certificates, err := json.Marshal(provider.SAMLSigningCertificates)
+	if err != nil {
+		return fmt.Errorf("encode SSO provider certificates: %w", err)
+	}
+	result, err := r.tx.Exec(ctx, `
+		UPDATE sso_providers
+		SET jwks = $3, saml_signing_certificates = $4, trust_material_updated_at = $5
+		WHERE id = $1 AND tenant_id = $2 AND type = $6
+	`, provider.ID, provider.TenantID, jwks, certificates, *provider.TrustMaterialUpdatedAt, provider.Type)
+	if err != nil {
+		return writeError("update SSO provider trust material", err)
+	}
+	if result.RowsAffected() != 1 {
+		return app.ErrConflict
+	}
+	return nil
+}
+
+func (r identity) InsertUserIdentityLink(ctx context.Context, link domain.UserIdentityLink) error {
+	if link.ID == "" || link.TenantID == "" || link.UserID == "" || link.ProviderID == "" || link.Subject == "" || link.Email == "" || !link.Verified || link.SchemaVersion == "" || link.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireOwnedHumanUser(ctx, r.tx, link.TenantID, link.UserID); err != nil {
+		return err
+	}
+	if err := requireOwnedSSOProvider(ctx, r.tx, link.TenantID, link.ProviderID); err != nil {
+		return err
+	}
+	_, err := r.tx.Exec(ctx, `
+		INSERT INTO user_identity_links (
+			id, tenant_id, user_id, provider_id, subject, email, verified,
+			schema_version, created_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`, link.ID, link.TenantID, link.UserID, link.ProviderID, link.Subject, link.Email, link.Verified, link.SchemaVersion, link.CreatedAt)
+	return writeError("insert user identity link", err)
+}
+
+func (r identity) InsertProviderVerification(ctx context.Context, verification domain.ProviderVerification) error {
+	if verification.ID == "" || verification.TenantID == "" || verification.ProviderType == "" || verification.ProviderID == "" || verification.Subject == "" || verification.Result == "" || verification.SchemaVersion == "" || verification.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireOwnedSSOProvider(ctx, r.tx, verification.TenantID, verification.ProviderID); err != nil {
+		return err
+	}
+	checks, err := json.Marshal(verification.Checks)
+	if err != nil {
+		return fmt.Errorf("encode provider verification checks: %w", err)
+	}
+	_, err = r.tx.Exec(ctx, `
+		INSERT INTO provider_verifications (
+			id, tenant_id, provider_type, provider_id, subject, result, checks,
+			limitations, schema_version, created_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	`, verification.ID, verification.TenantID, verification.ProviderType, verification.ProviderID, verification.Subject, verification.Result, checks, textArray(verification.Limitations), verification.SchemaVersion, verification.CreatedAt)
+	return writeError("insert provider verification", err)
+}
+
+func (r identity) InsertSSOSession(ctx context.Context, session domain.SSOSession) error {
+	if session.ID == "" || session.TenantID == "" || session.UserID == "" || session.ProviderID == "" || session.Prefix == "" || session.Hash == "" || session.ExpiresAt.IsZero() || session.SchemaVersion == "" || session.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireOwnedActiveHumanUser(ctx, r.tx, session.TenantID, session.UserID); err != nil {
+		return err
+	}
+	if err := requireOwnedSSOProvider(ctx, r.tx, session.TenantID, session.ProviderID); err != nil {
+		return err
+	}
+	groups, err := json.Marshal(session.Groups)
+	if err != nil {
+		return fmt.Errorf("encode SSO session groups: %w", err)
+	}
+	_, err = r.tx.Exec(ctx, `
+		INSERT INTO sso_sessions (
+			id, tenant_id, user_id, provider_id, prefix, hash, groups, expires_at,
+			revoked_at, schema_version, created_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+	`, session.ID, session.TenantID, session.UserID, session.ProviderID, session.Prefix, session.Hash, groups, session.ExpiresAt, session.RevokedAt, session.SchemaVersion, session.CreatedAt)
+	return writeError("insert SSO session", err)
+}
+
+func (r identity) ValidateActiveSSOSession(ctx context.Context, session domain.SSOSession, now time.Time) error {
+	if session.ID == "" || session.TenantID == "" || session.UserID == "" || session.ProviderID == "" || session.Prefix == "" || session.Hash == "" || now.IsZero() {
+		return app.ErrValidation
+	}
+	err := requireRow(ctx, r.tx, `
+		SELECT 1
+		FROM sso_sessions AS session
+		JOIN human_users AS user_record
+		  ON user_record.id = session.user_id AND user_record.tenant_id = session.tenant_id
+		WHERE session.id = $1 AND session.tenant_id = $2 AND session.user_id = $3
+		  AND session.provider_id = $4 AND session.prefix = $5 AND session.hash = $6
+		  AND session.revoked_at IS NULL AND session.expires_at > $7
+		  AND user_record.status = 'active'
+	`, session.ID, session.TenantID, session.UserID, session.ProviderID, session.Prefix, session.Hash, now)
+	if errors.Is(err, app.ErrNotFound) {
+		return app.ErrUnauthorized
+	}
+	return err
+}
+
+func (r identity) RevokeSSOSession(ctx context.Context, session domain.SSOSession) error {
+	if session.ID == "" || session.TenantID == "" || session.UserID == "" || session.ProviderID == "" || session.Prefix == "" || session.Hash == "" || session.RevokedAt == nil {
+		return app.ErrValidation
+	}
+	result, err := r.tx.Exec(ctx, `
+		UPDATE sso_sessions
+		SET revoked_at = $7
+		WHERE id = $1 AND tenant_id = $2 AND user_id = $3 AND provider_id = $4
+		  AND prefix = $5 AND hash = $6 AND revoked_at IS NULL
+	`, session.ID, session.TenantID, session.UserID, session.ProviderID, session.Prefix, session.Hash, *session.RevokedAt)
+	if err != nil {
+		return writeError("revoke SSO session", err)
+	}
+	if result.RowsAffected() != 1 {
+		return app.ErrConflict
+	}
+	return nil
+}
+
+func (r identity) InsertCustomerPortalAccess(ctx context.Context, access domain.CustomerPortalAccess) error {
+	if access.ID == "" || access.TenantID == "" || access.PackageID == "" || access.CustomerName == "" || access.Prefix == "" || access.Hash == "" || access.ExpiresAt.IsZero() || access.SchemaVersion == "" || access.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, access.TenantID); err != nil {
+		return err
+	}
+	if err := requireOwnedCustomerPackage(ctx, r.tx, access.TenantID, access.PackageID); err != nil {
+		return err
+	}
+	_, err := r.tx.Exec(ctx, `
+		INSERT INTO customer_portal_access (
+			id, tenant_id, package_id, customer_name, reviewer_name, reviewer_email,
+			prefix, hash, expires_at, revoked_at, access_count, failed_access_count,
+			last_accessed_at, last_failed_at, require_nda, nda_accepted_at,
+			nda_accepted_by, watermark, schema_version, created_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+	`, access.ID, access.TenantID, access.PackageID, access.CustomerName, nullableString(access.ReviewerName), nullableString(access.ReviewerEmail), access.Prefix, access.Hash, access.ExpiresAt, access.RevokedAt, access.AccessCount, access.FailedAccessCount, access.LastAccessedAt, access.LastFailedAt, access.RequireNDA, access.NDAAcceptedAt, nullableString(access.NDAAcceptedBy), nullableString(access.Watermark), access.SchemaVersion, access.CreatedAt)
+	return writeError("insert customer portal access", err)
+}
+
+func (r identity) UpdateCustomerPortalAccess(ctx context.Context, previous, current domain.CustomerPortalAccess) error {
+	if current.ID == "" || current.TenantID == "" || current.Prefix == "" || current.Hash == "" || previous.ID != current.ID || previous.TenantID != current.TenantID || previous.Prefix != current.Prefix || previous.Hash != current.Hash {
+		return app.ErrValidation
+	}
+	result, err := r.tx.Exec(ctx, `
+		UPDATE customer_portal_access
+		SET revoked_at = $3, access_count = $4, failed_access_count = $5,
+			last_accessed_at = $6, last_failed_at = $7, require_nda = $8,
+			nda_accepted_at = $9, nda_accepted_by = $10, watermark = $11
+		WHERE id = $1 AND tenant_id = $2 AND prefix = $12 AND hash = $13
+		  AND access_count = $14 AND failed_access_count = $15
+		  AND revoked_at IS NOT DISTINCT FROM $16
+	`, current.ID, current.TenantID, current.RevokedAt, current.AccessCount, current.FailedAccessCount, current.LastAccessedAt, current.LastFailedAt, current.RequireNDA, current.NDAAcceptedAt, nullableString(current.NDAAcceptedBy), nullableString(current.Watermark), current.Prefix, current.Hash, previous.AccessCount, previous.FailedAccessCount, previous.RevokedAt)
+	if err != nil {
+		return writeError("update customer portal access", err)
+	}
+	if result.RowsAffected() != 1 {
+		return app.ErrConflict
+	}
+	return nil
 }
 
 type releaseCatalog struct{ tx pgx.Tx }
@@ -756,6 +1073,85 @@ func requireTenant(ctx context.Context, tx pgx.Tx, tenantID string) error {
 		return app.ErrValidation
 	}
 	return requireRow(ctx, tx, `SELECT 1 FROM tenants WHERE id = $1`, tenantID)
+}
+
+func requireOptionalOrganization(ctx context.Context, tx pgx.Tx, tenantID, organizationID string) error {
+	if organizationID == "" {
+		return nil
+	}
+	return requireRow(ctx, tx, `SELECT 1 FROM organizations WHERE id = $1 AND tenant_id = $2`, organizationID, tenantID)
+}
+
+func requireOwnedHumanUser(ctx context.Context, tx pgx.Tx, tenantID, userID string) error {
+	if userID == "" {
+		return app.ErrValidation
+	}
+	return requireRow(ctx, tx, `SELECT 1 FROM human_users WHERE id = $1 AND tenant_id = $2`, userID, tenantID)
+}
+
+func requireOwnedActiveHumanUser(ctx context.Context, tx pgx.Tx, tenantID, userID string) error {
+	if userID == "" {
+		return app.ErrValidation
+	}
+	return requireRow(ctx, tx, `SELECT 1 FROM human_users WHERE id = $1 AND tenant_id = $2 AND status = 'active'`, userID, tenantID)
+}
+
+func requireOwnedSSOProvider(ctx context.Context, tx pgx.Tx, tenantID, providerID string) error {
+	if providerID == "" {
+		return app.ErrValidation
+	}
+	return requireRow(ctx, tx, `SELECT 1 FROM sso_providers WHERE id = $1 AND tenant_id = $2`, providerID, tenantID)
+}
+
+func requireOwnedCustomerPackage(ctx context.Context, tx pgx.Tx, tenantID, packageID string) error {
+	if packageID == "" {
+		return app.ErrValidation
+	}
+	return requireRow(ctx, tx, `SELECT 1 FROM customer_security_packages WHERE id = $1 AND tenant_id = $2`, packageID, tenantID)
+}
+
+func requireRoleSubject(ctx context.Context, tx pgx.Tx, tenantID, subjectType, subjectID string) error {
+	switch subjectType {
+	case "user":
+		return requireOwnedHumanUser(ctx, tx, tenantID, subjectID)
+	case "collector":
+		if subjectID == "" {
+			return app.ErrValidation
+		}
+		return requireRow(ctx, tx, `SELECT 1 FROM collectors WHERE id = $1 AND tenant_id = $2`, subjectID, tenantID)
+	default:
+		return app.ErrValidation
+	}
+}
+
+func requireRoleResource(ctx context.Context, tx pgx.Tx, tenantID, resourceType, resourceID string) error {
+	switch resourceType {
+	case "":
+		if resourceID != "" {
+			return app.ErrValidation
+		}
+		return nil
+	case "tenant":
+		if resourceID == "" || resourceID == tenantID {
+			return nil
+		}
+		return app.ErrNotFound
+	case "product":
+		return requireOptionalProduct(ctx, tx, tenantID, resourceID)
+	case "project":
+		return requireOptionalProject(ctx, tx, tenantID, resourceID)
+	case "release":
+		return requireOptionalRelease(ctx, tx, tenantID, resourceID)
+	case "customer_security_package":
+		return requireOwnedCustomerPackage(ctx, tx, tenantID, resourceID)
+	case "evidence_bundle":
+		if resourceID == "" {
+			return app.ErrValidation
+		}
+		return requireRow(ctx, tx, `SELECT 1 FROM evidence_bundles WHERE id = $1 AND tenant_id = $2`, resourceID, tenantID)
+	default:
+		return app.ErrValidation
+	}
 }
 
 func requireOptionalProduct(ctx context.Context, tx pgx.Tx, tenantID, productID string) error {

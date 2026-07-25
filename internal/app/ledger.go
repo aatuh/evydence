@@ -2047,7 +2047,20 @@ func (l *Ledger) WithIdempotency(ctx context.Context, actor domain.Actor, method
 		return status, response, err
 	}
 	l.mu.Lock()
-	l.idempotency[storeKey] = IdempotencyRecord{RequestHash: requestHash, Status: status, Response: response, CreatedAt: l.now()}
+	record = IdempotencyRecord{RequestHash: requestHash, Status: status, Response: response, CreatedAt: l.now()}
+	if l.unitOfWork != nil {
+		persistenceKey := IdempotencyRecordKey{TenantID: actor.TenantID, ActorID: idempotencyActorID(actor), Method: method, Path: path, IdempotencyKey: key}
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			return repos.Idempotency.Insert(ctx, persistenceKey, record)
+		}); err != nil {
+			l.mu.Unlock()
+			return 0, nil, err
+		}
+		l.idempotency[storeKey] = record
+		l.mu.Unlock()
+		return status, response, nil
+	}
+	l.idempotency[storeKey] = record
 	if err := l.persistCriticalStateLocked(ctx); err != nil {
 		l.mu.Unlock()
 		return 0, nil, err
@@ -2112,12 +2125,20 @@ func idempotencyRecordKeyFromParts(parts []string) (IdempotencyRecordKey, bool) 
 }
 
 func (l *Ledger) createAPIKeyLocked(tenantID, name string, scopes []string, expiresAt *time.Time) (domain.APIKey, string, error) {
-	secret := "evy_" + randomToken(32)
-	key := domain.APIKey{ID: newID("key"), TenantID: tenantID, Name: name, Prefix: secretPrefix(secret), Scopes: sortedStrings(scopes), CreatedAt: l.now(), ExpiresAt: expiresAt, Hash: l.hashSecret(secret)}
+	key, secret := l.newAPIKey(tenantID, name, scopes, expiresAt)
 	l.apiKeys[key.ID] = key
 	public := key
 	public.Hash = ""
 	return public, secret, nil
+}
+
+// newAPIKey derives a credential and its stored hash without publishing either
+// value to the process read model. Transactional callers must persist key
+// material before returning the bearer secret to the caller.
+func (l *Ledger) newAPIKey(tenantID, name string, scopes []string, expiresAt *time.Time) (domain.APIKey, string) {
+	secret := "evy_" + randomToken(32)
+	key := domain.APIKey{ID: newID("key"), TenantID: tenantID, Name: name, Prefix: secretPrefix(secret), Scopes: sortedStrings(scopes), CreatedAt: l.now(), ExpiresAt: expiresAt, Hash: l.hashSecret(secret)}
+	return key, secret
 }
 
 func (l *Ledger) hashSecret(secret string) string {
@@ -2248,15 +2269,24 @@ func (l *Ledger) rotateSigningKeyLocked(tenantID, _ string) (domain.SigningKey, 
 			l.signingKeys[id] = key
 		}
 	}
-	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	key, err := l.newSigningKey(tenantID)
 	if err != nil {
 		return domain.SigningKey{}, err
 	}
-	key := domain.SigningKey{ID: newID("sk"), TenantID: tenantID, KID: time.Now().UTC().Format("20060102T150405Z"), Algorithm: "Ed25519", Status: "active", PublicKey: base64.RawStdEncoding.EncodeToString(pub), Private: priv, CreatedAt: l.now()}
 	l.signingKeys[key.ID] = key
 	public := key
 	public.Private = nil
 	return public, nil
+}
+
+// newSigningKey creates private material without publishing it. Callers must
+// write it transactionally and must never return Private to normal callers.
+func (l *Ledger) newSigningKey(tenantID string) (domain.SigningKey, error) {
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return domain.SigningKey{}, err
+	}
+	return domain.SigningKey{ID: newID("sk"), TenantID: tenantID, KID: time.Now().UTC().Format("20060102T150405Z"), Algorithm: "Ed25519", Status: "active", PublicKey: base64.RawStdEncoding.EncodeToString(pub), Private: priv, CreatedAt: l.now()}, nil
 }
 
 func (l *Ledger) signLocked(tenantID, subjectType, subjectID string, payload []byte) (domain.Signature, error) {

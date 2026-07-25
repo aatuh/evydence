@@ -33,8 +33,56 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Identity.InsertTenant(ctx, tenant); err != nil {
 		t.Fatalf("insert tenant: %v", err)
 	}
-	if err := repositories.Identity.InsertAPIKey(ctx, domain.APIKey{ID: "key_repository", TenantID: tenant.ID, Name: "repository key", Prefix: "evy_repo", Hash: "hmac-hash", Scopes: []string{"*"}, CreatedAt: now}); err != nil {
+	apiKey := domain.APIKey{ID: "key_repository", TenantID: tenant.ID, Name: "repository key", Prefix: "evy_repo", Hash: "hmac-hash", Scopes: []string{"*"}, CreatedAt: now}
+	if err := repositories.Identity.InsertAPIKey(ctx, apiKey); err != nil {
 		t.Fatalf("insert API key: %v", err)
+	}
+	apiKey.LastUsedAt = &now
+	if err := repositories.Identity.UpdateAPIKeyLastUsed(ctx, apiKey); err != nil {
+		t.Fatalf("update API key last used: %v", err)
+	}
+	collector := domain.Collector{ID: "col_repository", TenantID: tenant.ID, Name: "Repository collector", Type: "ci", Version: "1.0.0", APIKeyID: apiKey.ID, Status: "active", AllowedScopes: []string{"*"}, SchemaVersion: domain.CollectorSchemaVersion, CreatedAt: now, LastSeenAt: &now}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO collectors (id, tenant_id, name, type, version, api_key_id, status, allowed_scopes, last_seen_at, schema_version, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULL, $9, $10)
+	`, collector.ID, collector.TenantID, collector.Name, collector.Type, collector.Version, collector.APIKeyID, collector.Status, []string{"*"}, collector.SchemaVersion, collector.CreatedAt); err != nil {
+		t.Fatalf("seed collector: %v", err)
+	}
+	if err := repositories.Identity.UpdateCollectorLastSeen(ctx, collector); err != nil {
+		t.Fatalf("update collector last seen: %v", err)
+	}
+	organization := domain.Organization{ID: "org_repository", TenantID: tenant.ID, Name: "Repository organization", Slug: "repository-org", Status: "active", SchemaVersion: domain.OrganizationSchemaVersion, CreatedAt: now}
+	if err := repositories.Identity.InsertOrganization(ctx, organization); err != nil {
+		t.Fatalf("insert organization: %v", err)
+	}
+	user := domain.HumanUser{ID: "usr_repository", TenantID: tenant.ID, OrganizationID: organization.ID, Email: "repository@example.test", DisplayName: "Repository user", Status: "active", SchemaVersion: domain.HumanUserSchemaVersion, CreatedAt: now}
+	if err := repositories.Identity.InsertHumanUser(ctx, user); err != nil {
+		t.Fatalf("insert human user: %v", err)
+	}
+	provider := domain.SSOProvider{ID: "sso_repository", TenantID: tenant.ID, Name: "Repository OIDC", Type: "oidc", Issuer: "https://idp.example.test", ClientID: "repository-client", RoleMapping: map[string]string{"security": "security_engineer"}, JWKS: map[string]any{"keys": []any{}}, Status: "active", SchemaVersion: domain.SSOProviderSchemaVersion, CreatedAt: now}
+	if err := repositories.Identity.InsertSSOProvider(ctx, provider); err != nil {
+		t.Fatalf("insert SSO provider: %v", err)
+	}
+	provider.JWKS = map[string]any{"keys": []any{map[string]any{"kid": "repository-key"}}}
+	provider.TrustMaterialUpdatedAt = &now
+	if err := repositories.Identity.UpdateSSOProviderTrustMaterial(ctx, provider); err != nil {
+		t.Fatalf("update SSO provider trust material: %v", err)
+	}
+	if err := repositories.Identity.InsertRoleBinding(ctx, domain.RoleBinding{ID: "rbac_repository", TenantID: tenant.ID, SubjectType: "user", SubjectID: user.ID, Role: "security_engineer", ResourceType: "tenant", ResourceID: tenant.ID, SchemaVersion: domain.RoleBindingSchemaVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert role binding: %v", err)
+	}
+	if err := repositories.Identity.InsertUserIdentityLink(ctx, domain.UserIdentityLink{ID: "link_repository", TenantID: tenant.ID, UserID: user.ID, ProviderID: provider.ID, Subject: "repository-subject", Email: user.Email, Verified: true, SchemaVersion: "user-identity-link.v1.0.0", CreatedAt: now}); err != nil {
+		t.Fatalf("insert identity link: %v", err)
+	}
+	if err := repositories.Identity.InsertProviderVerification(ctx, domain.ProviderVerification{ID: "pvr_repository", TenantID: tenant.ID, ProviderType: provider.Type, ProviderID: provider.ID, Subject: "repository-subject", Result: "passed", Checks: []domain.VerifyCheck{{Name: "signature", Result: "passed"}}, SchemaVersion: domain.ProviderVerificationVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert provider verification: %v", err)
+	}
+	session := domain.SSOSession{ID: "sess_repository", TenantID: tenant.ID, UserID: user.ID, ProviderID: provider.ID, Prefix: "evysso_repo", Hash: "session-hash", Groups: []string{"security"}, ExpiresAt: now.Add(time.Hour), SchemaVersion: domain.SSOSessionSchemaVersion, CreatedAt: now}
+	if err := repositories.Identity.InsertSSOSession(ctx, session); err != nil {
+		t.Fatalf("insert SSO session: %v", err)
+	}
+	if err := repositories.Identity.ValidateActiveSSOSession(ctx, session, now); err != nil {
+		t.Fatalf("validate active SSO session: %v", err)
 	}
 	product := domain.Product{ID: "prod_repository", TenantID: tenant.ID, Name: "Repository API", Slug: "repository-api", CreatedAt: now}
 	if err := repositories.ReleaseCatalog.InsertProduct(ctx, product); err != nil {
@@ -43,6 +91,39 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	project := domain.Project{ID: "proj_repository", TenantID: tenant.ID, ProductID: product.ID, Name: "Repository project", CreatedAt: now}
 	if err := repositories.ReleaseCatalog.InsertProject(ctx, project); err != nil {
 		t.Fatalf("insert project: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO customer_security_packages (
+			id, tenant_id, product_id, redaction_profile_id, title, state, manifest,
+			manifest_hash, expires_at, schema_version, created_at
+		)
+		VALUES ('pkg_repository', $1, $2, 'redaction_repository', 'Repository package', 'generated', '{}'::jsonb, 'sha256:package', $3, $4, $5)
+	`, tenant.ID, product.ID, now.Add(time.Hour), domain.CustomerPackageSchemaVersion, now); err != nil {
+		t.Fatalf("seed customer package: %v", err)
+	}
+	portalAccess := domain.CustomerPortalAccess{ID: "cpa_repository", TenantID: tenant.ID, PackageID: "pkg_repository", CustomerName: "Repository customer", Prefix: "evycp_repo", Hash: "portal-hash", ExpiresAt: now.Add(time.Hour), SchemaVersion: domain.CustomerPortalAccessVersion, CreatedAt: now}
+	if err := repositories.Identity.InsertCustomerPortalAccess(ctx, portalAccess); err != nil {
+		t.Fatalf("insert customer portal access: %v", err)
+	}
+	updatedPortalAccess := portalAccess
+	updatedPortalAccess.AccessCount = 1
+	updatedPortalAccess.LastAccessedAt = &now
+	if err := repositories.Identity.UpdateCustomerPortalAccess(ctx, portalAccess, updatedPortalAccess); err != nil {
+		t.Fatalf("update customer portal access: %v", err)
+	}
+	revokedAt := now
+	session.RevokedAt = &revokedAt
+	if err := repositories.Identity.RevokeSSOSession(ctx, session); err != nil {
+		t.Fatalf("revoke SSO session: %v", err)
+	}
+	if err := repositories.Identity.ValidateActiveSSOSession(ctx, session, now); !errors.Is(err, app.ErrUnauthorized) {
+		t.Fatalf("validate revoked SSO session err=%v, want unauthorized", err)
+	}
+	deactivatedAt := now
+	user.Status = "deactivated"
+	user.DeactivatedAt = &deactivatedAt
+	if err := repositories.Identity.DeactivateHumanUser(ctx, user); err != nil {
+		t.Fatalf("deactivate human user: %v", err)
 	}
 	release := domain.Release{ID: "rel_repository", TenantID: tenant.ID, ProductID: product.ID, Version: "1.0.0", State: "draft", CreatedAt: now}
 	if err := repositories.ReleaseCatalog.InsertRelease(ctx, release); err != nil {
@@ -183,6 +264,21 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		err  error
 	}{
 		{"api key", repositories.Identity.InsertAPIKey(ctx, domain.APIKey{})},
+		{"api key usage", repositories.Identity.UpdateAPIKeyLastUsed(ctx, domain.APIKey{})},
+		{"collector usage", repositories.Identity.UpdateCollectorLastSeen(ctx, domain.Collector{})},
+		{"organization", repositories.Identity.InsertOrganization(ctx, domain.Organization{})},
+		{"human user", repositories.Identity.InsertHumanUser(ctx, domain.HumanUser{})},
+		{"human user deactivation", repositories.Identity.DeactivateHumanUser(ctx, domain.HumanUser{})},
+		{"role binding", repositories.Identity.InsertRoleBinding(ctx, domain.RoleBinding{})},
+		{"SSO provider", repositories.Identity.InsertSSOProvider(ctx, domain.SSOProvider{})},
+		{"SSO trust material", repositories.Identity.UpdateSSOProviderTrustMaterial(ctx, domain.SSOProvider{})},
+		{"identity link", repositories.Identity.InsertUserIdentityLink(ctx, domain.UserIdentityLink{})},
+		{"provider verification", repositories.Identity.InsertProviderVerification(ctx, domain.ProviderVerification{})},
+		{"SSO session", repositories.Identity.InsertSSOSession(ctx, domain.SSOSession{})},
+		{"SSO session validation", repositories.Identity.ValidateActiveSSOSession(ctx, domain.SSOSession{}, time.Time{})},
+		{"SSO session revocation", repositories.Identity.RevokeSSOSession(ctx, domain.SSOSession{})},
+		{"customer portal access", repositories.Identity.InsertCustomerPortalAccess(ctx, domain.CustomerPortalAccess{})},
+		{"customer portal access update", repositories.Identity.UpdateCustomerPortalAccess(ctx, domain.CustomerPortalAccess{}, domain.CustomerPortalAccess{})},
 		{"product", repositories.ReleaseCatalog.InsertProduct(ctx, domain.Product{})},
 		{"project", repositories.ReleaseCatalog.InsertProject(ctx, domain.Project{})},
 		{"release", repositories.ReleaseCatalog.InsertRelease(ctx, domain.Release{})},
@@ -248,10 +344,37 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 	if err := repositories.Evidence.InsertEvidence(ctx, evidenceA); err != nil {
 		t.Fatalf("insert tenant A evidence: %v", err)
 	}
+	organizationA := domain.Organization{ID: "org_repository_a", TenantID: "ten_repository_a", Name: "A organization", Slug: "a-organization", Status: "active", SchemaVersion: domain.OrganizationSchemaVersion, CreatedAt: now}
+	if err := repositories.Identity.InsertOrganization(ctx, organizationA); err != nil {
+		t.Fatalf("insert tenant A organization: %v", err)
+	}
+	userA := domain.HumanUser{ID: "usr_repository_a", TenantID: "ten_repository_a", OrganizationID: organizationA.ID, Email: "a@example.test", DisplayName: "A user", Status: "active", SchemaVersion: domain.HumanUserSchemaVersion, CreatedAt: now}
+	if err := repositories.Identity.InsertHumanUser(ctx, userA); err != nil {
+		t.Fatalf("insert tenant A user: %v", err)
+	}
+	providerA := domain.SSOProvider{ID: "sso_repository_a", TenantID: "ten_repository_a", Name: "A OIDC", Type: "oidc", Issuer: "https://a-idp.example.test", ClientID: "a-client", Status: "active", SchemaVersion: domain.SSOProviderSchemaVersion, CreatedAt: now}
+	if err := repositories.Identity.InsertSSOProvider(ctx, providerA); err != nil {
+		t.Fatalf("insert tenant A provider: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO customer_security_packages (
+			id, tenant_id, product_id, redaction_profile_id, title, state, manifest,
+			manifest_hash, expires_at, schema_version, created_at
+		)
+		VALUES ('pkg_repository_a', 'ten_repository_a', 'prod_repository_a', 'redaction_a', 'A package', 'generated', '{}'::jsonb, 'sha256:package-a', $1, $2, $3)
+	`, now.Add(time.Hour), domain.CustomerPackageSchemaVersion, now); err != nil {
+		t.Fatalf("seed tenant A customer package: %v", err)
+	}
 	foreignReferenceChecks := []struct {
 		name string
 		err  error
 	}{
+		{"human user organization", repositories.Identity.InsertHumanUser(ctx, domain.HumanUser{ID: "usr_repository_b", TenantID: "ten_repository_b", OrganizationID: organizationA.ID, Email: "b@example.test", DisplayName: "B user", Status: "active", SchemaVersion: domain.HumanUserSchemaVersion, CreatedAt: now})},
+		{"role binding subject", repositories.Identity.InsertRoleBinding(ctx, domain.RoleBinding{ID: "rbac_repository_b", TenantID: "ten_repository_b", SubjectType: "user", SubjectID: userA.ID, Role: "security_engineer", ResourceType: "tenant", ResourceID: "ten_repository_b", SchemaVersion: domain.RoleBindingSchemaVersion, CreatedAt: now})},
+		{"identity link", repositories.Identity.InsertUserIdentityLink(ctx, domain.UserIdentityLink{ID: "link_repository_b", TenantID: "ten_repository_b", UserID: userA.ID, ProviderID: providerA.ID, Subject: "b-subject", Email: "b@example.test", Verified: true, SchemaVersion: "user-identity-link.v1.0.0", CreatedAt: now})},
+		{"provider verification", repositories.Identity.InsertProviderVerification(ctx, domain.ProviderVerification{ID: "pvr_repository_b", TenantID: "ten_repository_b", ProviderType: "oidc", ProviderID: providerA.ID, Subject: "b-subject", Result: "failed", SchemaVersion: domain.ProviderVerificationVersion, CreatedAt: now})},
+		{"SSO session", repositories.Identity.InsertSSOSession(ctx, domain.SSOSession{ID: "sess_repository_b", TenantID: "ten_repository_b", UserID: userA.ID, ProviderID: providerA.ID, Prefix: "evysso_b", Hash: "hash-b", ExpiresAt: now.Add(time.Hour), SchemaVersion: domain.SSOSessionSchemaVersion, CreatedAt: now})},
+		{"customer portal access", repositories.Identity.InsertCustomerPortalAccess(ctx, domain.CustomerPortalAccess{ID: "cpa_repository_b", TenantID: "ten_repository_b", PackageID: "pkg_repository_a", CustomerName: "B customer", Prefix: "evycp_b", Hash: "portal-hash-b", ExpiresAt: now.Add(time.Hour), SchemaVersion: domain.CustomerPortalAccessVersion, CreatedAt: now})},
 		{"candidate release", repositories.ReleaseCatalog.InsertReleaseCandidate(ctx, domain.ReleaseCandidate{ID: "rc_repository_b", TenantID: "ten_repository_b", ReleaseID: releaseA.ID, Name: "B candidate", State: "open", SnapshotHash: "sha256:candidate-b", SchemaVersion: domain.ReleaseCandidateSchemaVersion, CreatedAt: now})},
 		{"evidence link product", repositories.Evidence.UpdateEvidenceLinks(ctx, domain.EvidenceItem{ID: evidenceA.ID, TenantID: "ten_repository_b", ProductID: "prod_repository_a"})},
 		{"SBOM evidence", repositories.Evidence.InsertSBOM(ctx, domain.SBOM{ID: "sbom_repository_b", TenantID: "ten_repository_b", EvidenceID: evidenceA.ID, ReleaseID: releaseA.ID, ArtifactID: artifactA.ID, Format: "cyclonedx", CreatedAt: now})},
@@ -432,6 +555,52 @@ func TestRepositoriesPropagateClosedTransactionFailures(t *testing.T) {
 		}},
 		{"API key", func() error {
 			return repositories.Identity.InsertAPIKey(ctx, domain.APIKey{ID: "key_closed", TenantID: tenantID, Name: "Closed", Prefix: "evy_closed", Hash: "hash", CreatedAt: now})
+		}},
+		{"API key usage", func() error {
+			return repositories.Identity.UpdateAPIKeyLastUsed(ctx, domain.APIKey{ID: "key_closed", TenantID: tenantID, Prefix: "evy_closed", Hash: "hash", LastUsedAt: &now})
+		}},
+		{"collector usage", func() error {
+			return repositories.Identity.UpdateCollectorLastSeen(ctx, domain.Collector{ID: "col_closed", TenantID: tenantID, APIKeyID: "key_closed", LastSeenAt: &now})
+		}},
+		{"organization", func() error {
+			return repositories.Identity.InsertOrganization(ctx, domain.Organization{ID: "org_closed", TenantID: tenantID, Name: "Closed", Slug: "closed", Status: "active", SchemaVersion: domain.OrganizationSchemaVersion, CreatedAt: now})
+		}},
+		{"human user", func() error {
+			return repositories.Identity.InsertHumanUser(ctx, domain.HumanUser{ID: "usr_closed", TenantID: tenantID, Email: "closed@example.test", DisplayName: "Closed", Status: "active", SchemaVersion: domain.HumanUserSchemaVersion, CreatedAt: now})
+		}},
+		{"human user deactivation", func() error {
+			return repositories.Identity.DeactivateHumanUser(ctx, domain.HumanUser{ID: "usr_closed", TenantID: tenantID, Status: "deactivated", DeactivatedAt: &now})
+		}},
+		{"role binding", func() error {
+			return repositories.Identity.InsertRoleBinding(ctx, domain.RoleBinding{ID: "rbac_closed", TenantID: tenantID, SubjectType: "user", SubjectID: "usr_closed", Role: "security_engineer", ResourceType: "tenant", ResourceID: tenantID, SchemaVersion: domain.RoleBindingSchemaVersion, CreatedAt: now})
+		}},
+		{"SSO provider", func() error {
+			return repositories.Identity.InsertSSOProvider(ctx, domain.SSOProvider{ID: "sso_closed", TenantID: tenantID, Name: "Closed", Type: "oidc", Issuer: "https://closed.example.test", ClientID: "closed", Status: "active", SchemaVersion: domain.SSOProviderSchemaVersion, CreatedAt: now})
+		}},
+		{"SSO trust material", func() error {
+			return repositories.Identity.UpdateSSOProviderTrustMaterial(ctx, domain.SSOProvider{ID: "sso_closed", TenantID: tenantID, Type: "oidc", TrustMaterialUpdatedAt: &now})
+		}},
+		{"identity link", func() error {
+			return repositories.Identity.InsertUserIdentityLink(ctx, domain.UserIdentityLink{ID: "link_closed", TenantID: tenantID, UserID: "usr_closed", ProviderID: "sso_closed", Subject: "closed", Email: "closed@example.test", Verified: true, SchemaVersion: "user-identity-link.v1.0.0", CreatedAt: now})
+		}},
+		{"provider verification", func() error {
+			return repositories.Identity.InsertProviderVerification(ctx, domain.ProviderVerification{ID: "pvr_closed", TenantID: tenantID, ProviderType: "oidc", ProviderID: "sso_closed", Subject: "closed", Result: "failed", SchemaVersion: domain.ProviderVerificationVersion, CreatedAt: now})
+		}},
+		{"SSO session", func() error {
+			return repositories.Identity.InsertSSOSession(ctx, domain.SSOSession{ID: "sess_closed", TenantID: tenantID, UserID: "usr_closed", ProviderID: "sso_closed", Prefix: "evysso_closed", Hash: "hash", ExpiresAt: now.Add(time.Hour), SchemaVersion: domain.SSOSessionSchemaVersion, CreatedAt: now})
+		}},
+		{"SSO session validation", func() error {
+			return repositories.Identity.ValidateActiveSSOSession(ctx, domain.SSOSession{ID: "sess_closed", TenantID: tenantID, UserID: "usr_closed", ProviderID: "sso_closed", Prefix: "evysso_closed", Hash: "hash"}, now)
+		}},
+		{"SSO session revocation", func() error {
+			return repositories.Identity.RevokeSSOSession(ctx, domain.SSOSession{ID: "sess_closed", TenantID: tenantID, UserID: "usr_closed", ProviderID: "sso_closed", Prefix: "evysso_closed", Hash: "hash", RevokedAt: &now})
+		}},
+		{"customer portal access", func() error {
+			return repositories.Identity.InsertCustomerPortalAccess(ctx, domain.CustomerPortalAccess{ID: "cpa_closed", TenantID: tenantID, PackageID: "pkg_closed", CustomerName: "Closed", Prefix: "evycp_closed", Hash: "hash", ExpiresAt: now.Add(time.Hour), SchemaVersion: domain.CustomerPortalAccessVersion, CreatedAt: now})
+		}},
+		{"customer portal access update", func() error {
+			access := domain.CustomerPortalAccess{ID: "cpa_closed", TenantID: tenantID, Prefix: "evycp_closed", Hash: "hash"}
+			return repositories.Identity.UpdateCustomerPortalAccess(ctx, access, access)
 		}},
 		{"product", func() error {
 			return repositories.ReleaseCatalog.InsertProduct(ctx, domain.Product{ID: "prod_closed", TenantID: tenantID, Name: "Closed", Slug: "closed", CreatedAt: now})

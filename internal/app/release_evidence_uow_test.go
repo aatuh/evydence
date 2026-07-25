@@ -103,7 +103,11 @@ func (failingEvidenceRepository) AppendLifecycle(context.Context, domain.Evidenc
 func newReleaseEvidenceUnitOfWorkFixture(t *testing.T, factory UnitOfWorkFactory) (*Ledger, *MemoryUnitOfWorkFactory, domain.Actor) {
 	t.Helper()
 	ctx := context.Background()
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, UnitOfWork: factory})
+	bootstrapFactory := factory
+	if failing, ok := factory.(commitFailingUnitOfWorkFactory); ok {
+		bootstrapFactory = failing.inner
+	}
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, UnitOfWork: bootstrapFactory})
 	tenant, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap tenant: %v", err)
@@ -112,20 +116,22 @@ func newReleaseEvidenceUnitOfWorkFixture(t *testing.T, factory UnitOfWorkFactory
 	if err != nil {
 		t.Fatalf("authenticate actor: %v", err)
 	}
-	memory, memoryOK := factory.(*MemoryUnitOfWorkFactory)
+	memory, memoryOK := bootstrapFactory.(*MemoryUnitOfWorkFactory)
 	if !memoryOK {
-		if failing, failingOK := factory.(commitFailingUnitOfWorkFactory); failingOK {
-			memory, memoryOK = failing.inner.(*MemoryUnitOfWorkFactory)
+		t.Fatalf("fixture requires a memory unit of work, got %T", bootstrapFactory)
+	}
+	snapshot, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("bootstrap snapshot: %v", err)
+	}
+	if _, ok := snapshot.Tenants[tenant.ID]; !ok {
+		if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repos Repositories) error {
+			return repos.Identity.InsertTenant(ctx, tenant)
+		}); err != nil {
+			t.Fatalf("seed unit-of-work tenant: %v", err)
 		}
 	}
-	if !memoryOK {
-		t.Fatalf("fixture requires a memory unit of work, got %T", factory)
-	}
-	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repos Repositories) error {
-		return repos.Identity.InsertTenant(ctx, tenant)
-	}); err != nil {
-		t.Fatalf("seed unit-of-work tenant: %v", err)
-	}
+	ledger.unitOfWork = factory
 	return ledger, memory, actor
 }
 
@@ -190,7 +196,7 @@ func TestReleaseEvidenceWritesUseUnitOfWorkAndPublishCacheAfterCommit(t *testing
 	if _, ok := snapshot.EvidenceLifecycle[lifecycle.ID]; !ok {
 		t.Fatal("committed lifecycle event is missing from the unit-of-work repository")
 	}
-	if len(entries) != 6 || entries[4].ID != storedEvidence.ChainEntryID {
+	if len(entries) != 7 || entries[5].ID != storedEvidence.ChainEntryID {
 		t.Fatalf("domain and audit writes were not committed together: %#v", entries)
 	}
 	if ledger.products[product.ID] != product || (ledger.evidence[evidence.ID]).ChainEntryID != storedEvidence.ChainEntryID {
@@ -217,7 +223,7 @@ func TestReleaseEvidenceWriteDoesNotPublishBeforeUnitOfWorkCommit(t *testing.T) 
 	if err != nil {
 		t.Fatalf("snapshot: %v", err)
 	}
-	if len(snapshot.Products) != 0 || len(snapshot.AuditEntries[actor.TenantID]) != 0 {
+	if len(snapshot.Products) != 0 || len(snapshot.AuditEntries[actor.TenantID]) != beforeEntries {
 		t.Fatalf("failed transaction committed repository state: %#v", snapshot)
 	}
 }
@@ -339,7 +345,7 @@ func TestReleaseEvidenceReleaseTransitionsUseUnitOfWork(t *testing.T) {
 	if stored := snapshot.Releases[release.ID]; stored.State != "approved" || stored.ApprovedAt == nil {
 		t.Fatalf("release transition did not commit through the unit of work: %#v", stored)
 	}
-	if len(snapshot.AuditEntries[actor.TenantID]) != 4 {
+	if len(snapshot.AuditEntries[actor.TenantID]) != 5 {
 		t.Fatalf("release transition audit entries were not committed: %#v", snapshot.AuditEntries[actor.TenantID])
 	}
 	if ledger.releases[release.ID].State != approved.State {
@@ -386,7 +392,7 @@ func TestReleaseEvidenceLinksAndSupersessionUseUnitOfWork(t *testing.T) {
 	if len(storedFirst.RelatedEvidenceRefs) != 1 || storedFirst.RelatedEvidenceRefs[0].ID != product.ID {
 		t.Fatalf("link was not persisted through the transaction repository: %#v", storedFirst.RelatedEvidenceRefs)
 	}
-	if len(snapshot.AuditEntries[actor.TenantID]) != 6 {
+	if len(snapshot.AuditEntries[actor.TenantID]) != 7 {
 		t.Fatalf("link and supersession audit entries are missing: %#v", snapshot.AuditEntries[actor.TenantID])
 	}
 }
@@ -420,7 +426,7 @@ func TestReleaseEvidenceSBOMUsesOneUnitOfWorkForEvidenceAuditAndOutbox(t *testin
 	if !ok || stored.EvidenceID == "" || snapshot.Evidence[stored.EvidenceID].ChainEntryID == "" {
 		t.Fatalf("SBOM and backing evidence were not committed together: sbom=%#v evidence=%#v", stored, snapshot.Evidence[stored.EvidenceID])
 	}
-	if len(snapshot.OutboxJobs) != 1 || len(snapshot.AuditEntries[actor.TenantID]) != 5 {
+	if len(snapshot.OutboxJobs) != 1 || len(snapshot.AuditEntries[actor.TenantID]) != 6 {
 		t.Fatalf("SBOM outbox/audit effects were not atomically committed: jobs=%#v audit=%#v", snapshot.OutboxJobs, snapshot.AuditEntries[actor.TenantID])
 	}
 }
@@ -456,7 +462,7 @@ func TestReleaseEvidenceScanAndOpenAPIUseOneUnitOfWork(t *testing.T) {
 	if stored, ok := snapshot.OpenAPIContracts[contract.ID]; !ok || stored.EvidenceID == "" || snapshot.Evidence[stored.EvidenceID].ChainEntryID == "" {
 		t.Fatalf("contract and backing evidence were not committed together: contract=%#v", stored)
 	}
-	if len(snapshot.OutboxJobs) != 2 || len(snapshot.AuditEntries[actor.TenantID]) != 6 {
+	if len(snapshot.OutboxJobs) != 2 || len(snapshot.AuditEntries[actor.TenantID]) != 7 {
 		t.Fatalf("parser outbox/audit effects were not atomically committed: jobs=%#v audit=%#v", snapshot.OutboxJobs, snapshot.AuditEntries[actor.TenantID])
 	}
 }
@@ -494,7 +500,7 @@ func TestReleaseEvidenceVEXUsesOneUnitOfWorkForDecisionEffects(t *testing.T) {
 	if len(snapshot.VEXImportReports) != 1 || len(snapshot.Decisions) != 1 {
 		t.Fatalf("VEX report/decision effects were not transactionally committed: reports=%#v decisions=%#v", snapshot.VEXImportReports, snapshot.Decisions)
 	}
-	if len(snapshot.OutboxJobs) != 2 || len(snapshot.AuditEntries[actor.TenantID]) != 7 {
+	if len(snapshot.OutboxJobs) != 2 || len(snapshot.AuditEntries[actor.TenantID]) != 8 {
 		t.Fatalf("VEX outbox/audit effects were not transactionally committed: scan=%#v jobs=%#v audit=%#v", scan, snapshot.OutboxJobs, snapshot.AuditEntries[actor.TenantID])
 	}
 }
@@ -526,7 +532,7 @@ func TestReleaseEvidenceReleaseCandidateUsesUnitOfWork(t *testing.T) {
 	if stored := snapshot.ReleaseCandidates[candidate.ID]; stored.State != candidatePromoted || stored.PromotedAt == nil {
 		t.Fatalf("candidate state was not committed through the unit of work: %#v", stored)
 	}
-	if len(snapshot.AuditEntries[actor.TenantID]) != 4 || ledger.candidates[candidate.ID].State != promoted.State {
+	if len(snapshot.AuditEntries[actor.TenantID]) != 5 || ledger.candidates[candidate.ID].State != promoted.State {
 		t.Fatalf("candidate audit/cache state was not committed together: audit=%#v candidate=%#v", snapshot.AuditEntries[actor.TenantID], ledger.candidates[candidate.ID])
 	}
 }
@@ -564,7 +570,7 @@ func TestReleaseEvidenceVEXSupersedesDecisionWithinUnitOfWork(t *testing.T) {
 	if storedOriginal.SupersededBy == "" || len(snapshot.Decisions) != 2 {
 		t.Fatalf("VEX supersession was not atomic: original=%#v decisions=%#v", storedOriginal, snapshot.Decisions)
 	}
-	if len(snapshot.OutboxJobs) != 2 || len(snapshot.AuditEntries[actor.TenantID]) != 9 {
+	if len(snapshot.OutboxJobs) != 2 || len(snapshot.AuditEntries[actor.TenantID]) != 10 {
 		t.Fatalf("VEX decision audit/outbox effects were not committed: jobs=%#v audit=%#v", snapshot.OutboxJobs, snapshot.AuditEntries[actor.TenantID])
 	}
 }

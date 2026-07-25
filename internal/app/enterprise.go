@@ -160,6 +160,22 @@ func (s identityService) CreateOrganization(ctx context.Context, actor domain.Ac
 		}
 	}
 	org := domain.Organization{ID: newID("org"), TenantID: actor.TenantID, Name: in.Name, Slug: in.Slug, Status: "active", SchemaVersion: domain.OrganizationSchemaVersion, CreatedAt: l.now()}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Identity.InsertOrganization(ctx, org); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(org.CreatedAt, actor.TenantID, "organization.created", "organization", org.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.Organization{}, err
+		}
+		l.organizations[org.ID] = org
+		l.publishCommittedAuditEntryLocked(entry)
+		return org, nil
+	}
 	l.organizations[org.ID] = org
 	_, _ = l.appendChainLocked(actor.TenantID, "organization.created", "organization", org.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {
@@ -195,6 +211,22 @@ func (s identityService) CreateUser(ctx context.Context, actor domain.Actor, in 
 		}
 	}
 	user := domain.HumanUser{ID: newID("usr"), TenantID: actor.TenantID, OrganizationID: strings.TrimSpace(in.OrganizationID), Email: email, DisplayName: name, Status: "active", SchemaVersion: domain.HumanUserSchemaVersion, CreatedAt: l.now()}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Identity.InsertHumanUser(ctx, user); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(user.CreatedAt, actor.TenantID, "user.created", "human_user", user.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.HumanUser{}, err
+		}
+		l.users[user.ID] = user
+		l.publishCommittedAuditEntryLocked(entry)
+		return user, nil
+	}
 	l.users[user.ID] = user
 	_, _ = l.appendChainLocked(actor.TenantID, "user.created", "human_user", user.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {
@@ -223,6 +255,22 @@ func (s identityService) DeactivateUser(ctx context.Context, actor domain.Actor,
 	now := l.now()
 	user.Status = "deactivated"
 	user.DeactivatedAt = &now
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Identity.DeactivateHumanUser(ctx, user); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, actor.TenantID, "user.deactivated", "human_user", user.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.HumanUser{}, err
+		}
+		l.users[user.ID] = user
+		l.publishCommittedAuditEntryLocked(entry)
+		return user, nil
+	}
 	l.users[user.ID] = user
 	_, _ = l.appendChainLocked(actor.TenantID, "user.deactivated", "human_user", user.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {
@@ -253,6 +301,22 @@ func (s identityService) CreateRoleBinding(ctx context.Context, actor domain.Act
 		return domain.RoleBinding{}, err
 	}
 	binding := domain.RoleBinding{ID: newID("rbac"), TenantID: actor.TenantID, SubjectType: in.SubjectType, SubjectID: in.SubjectID, Role: in.Role, ResourceType: in.ResourceType, ResourceID: in.ResourceID, SchemaVersion: domain.RoleBindingSchemaVersion, CreatedAt: l.now()}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Identity.InsertRoleBinding(ctx, binding); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(binding.CreatedAt, actor.TenantID, "role_binding.created", "role_binding", binding.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.RoleBinding{}, err
+		}
+		l.roleBindings[binding.ID] = binding
+		l.publishCommittedAuditEntryLocked(entry)
+		return binding, nil
+	}
 	l.roleBindings[binding.ID] = binding
 	_, _ = l.appendChainLocked(actor.TenantID, "role_binding.created", "role_binding", binding.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {
@@ -303,6 +367,22 @@ func (s identityService) CreateSSOProvider(ctx context.Context, actor domain.Act
 		return domain.SSOProvider{}, ErrValidation
 	}
 	provider := domain.SSOProvider{ID: newID("sso"), TenantID: actor.TenantID, Name: in.Name, Type: in.Type, Issuer: in.Issuer, ClientID: in.ClientID, GroupsClaim: strings.TrimSpace(in.GroupsClaim), RoleMapping: cloneStringMap(in.RoleMapping), JWKS: jwks, SAMLSigningCertificates: samlCerts, Status: "active", SchemaVersion: domain.SSOProviderSchemaVersion, CreatedAt: l.now()}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Identity.InsertSSOProvider(ctx, provider); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(provider.CreatedAt, actor.TenantID, "sso_provider.created", "sso_provider", provider.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.SSOProvider{}, err
+		}
+		l.ssoProviders[provider.ID] = provider
+		l.publishCommittedAuditEntryLocked(entry)
+		return provider, nil
+	}
 	l.ssoProviders[provider.ID] = provider
 	_, _ = l.appendChainLocked(actor.TenantID, "sso_provider.created", "sso_provider", provider.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {
@@ -368,6 +448,22 @@ func (s identityService) UpdateSSOProviderTrustMaterial(ctx context.Context, act
 	})
 	if err != nil {
 		return domain.SSOProvider{}, err
+	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Identity.UpdateSSOProviderTrustMaterial(ctx, provider); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, actor.TenantID, "sso_provider.trust_material_updated", "sso_provider", provider.ID, actorType(actor), actorID(actor), materialHash, ""))
+			return err
+		}); err != nil {
+			return domain.SSOProvider{}, err
+		}
+		l.ssoProviders[provider.ID] = provider
+		l.publishCommittedAuditEntryLocked(entry)
+		return provider, nil
 	}
 	l.ssoProviders[provider.ID] = provider
 	_, _ = l.appendChainLocked(actor.TenantID, "sso_provider.trust_material_updated", "sso_provider", provider.ID, actorType(actor), actorID(actor), materialHash, "")
@@ -447,6 +543,22 @@ func (s identityService) RefreshSSOProviderOIDCTrustMaterial(ctx context.Context
 	if err != nil {
 		return domain.SSOProvider{}, err
 	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Identity.UpdateSSOProviderTrustMaterial(ctx, current); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, actor.TenantID, "sso_provider.oidc_trust_material_refreshed", "sso_provider", current.ID, actorType(actor), actorID(actor), materialHash, ""))
+			return err
+		}); err != nil {
+			return domain.SSOProvider{}, err
+		}
+		l.ssoProviders[current.ID] = current
+		l.publishCommittedAuditEntryLocked(entry)
+		return current, nil
+	}
 	l.ssoProviders[current.ID] = current
 	_, _ = l.appendChainLocked(actor.TenantID, "sso_provider.oidc_trust_material_refreshed", "sso_provider", current.ID, actorType(actor), actorID(actor), materialHash, "")
 	if err := l.persistLocked(ctx); err != nil {
@@ -479,6 +591,22 @@ func (s identityService) LinkSSOIdentity(ctx context.Context, actor domain.Actor
 		return domain.UserIdentityLink{}, ErrNotFound
 	}
 	link := domain.UserIdentityLink{ID: newID("uil"), TenantID: actor.TenantID, UserID: user.ID, ProviderID: provider.ID, Subject: in.Subject, Email: email, Verified: true, SchemaVersion: "user-identity-link.v1.0.0", CreatedAt: l.now()}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Identity.InsertUserIdentityLink(ctx, link); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(link.CreatedAt, actor.TenantID, "identity_link.created", "human_user", user.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.UserIdentityLink{}, err
+		}
+		l.identityLinks[link.ID] = link
+		l.publishCommittedAuditEntryLocked(entry)
+		return link, nil
+	}
 	l.identityLinks[link.ID] = link
 	_, _ = l.appendChainLocked(actor.TenantID, "identity_link.created", "human_user", user.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {
@@ -510,6 +638,24 @@ func (s identityService) CreateSSOSession(ctx context.Context, actor domain.Acto
 	}
 	secret := "evysso_" + randomToken(32)
 	session := domain.SSOSession{ID: newID("sess"), TenantID: actor.TenantID, UserID: user.ID, ProviderID: provider.ID, Prefix: secretPrefix(secret), ExpiresAt: in.ExpiresAt.UTC(), SchemaVersion: domain.SSOSessionSchemaVersion, CreatedAt: l.now(), Hash: l.hashSecret(secret)}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Identity.InsertSSOSession(ctx, session); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(session.CreatedAt, actor.TenantID, "sso_session.created", "human_user", user.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.SSOSession{}, "", err
+		}
+		l.ssoSessions[session.ID] = session
+		l.publishCommittedAuditEntryLocked(entry)
+		public := session
+		public.Hash = ""
+		return public, secret, nil
+	}
 	l.ssoSessions[session.ID] = session
 	_, _ = l.appendChainLocked(actor.TenantID, "sso_session.created", "human_user", user.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistCriticalStateLocked(ctx); err != nil {
@@ -582,10 +728,8 @@ func (s identityService) ExchangeSSOCredential(ctx context.Context, in ExchangeS
 		CreatedAt:     now,
 	}
 	reassessProviderVerification(&verification, provider, true)
-	l.providerVerifications[verification.ID] = verification
-	_, _ = l.appendChainLocked(provider.TenantID, "provider_identity.verified", "provider_identity", verification.ID, "sso_provider", provider.ID, "", "")
 	if verificationReturnsFailure(verification.Result) {
-		if err := l.persistLocked(ctx); err != nil {
+		if err := s.persistProviderVerificationLocked(ctx, verification, provider); err != nil {
 			return domain.ProviderVerification{}, domain.SSOSession{}, "", err
 		}
 		return verification, domain.SSOSession{}, "", ErrVerificationFailed
@@ -594,23 +738,20 @@ func (s identityService) ExchangeSSOCredential(ctx context.Context, in ExchangeS
 	if !ok || user.TenantID != provider.TenantID || user.Status != "active" {
 		verification.Checks = append(verification.Checks, domain.VerifyCheck{Name: "active_user", Result: "failed"})
 		reassessProviderVerification(&verification, provider, true)
-		l.providerVerifications[verification.ID] = verification
-		if err := l.persistLocked(ctx); err != nil {
+		if err := s.persistProviderVerificationLocked(ctx, verification, provider); err != nil {
 			return domain.ProviderVerification{}, domain.SSOSession{}, "", err
 		}
 		return verification, domain.SSOSession{}, "", ErrVerificationFailed
 	}
 	verification.Checks = append(verification.Checks, domain.VerifyCheck{Name: "active_user", Result: "passed"})
 	reassessProviderVerification(&verification, provider, true)
-	l.providerVerifications[verification.ID] = verification
 
 	groups := oidcGroupsFromVerifiedToken(provider, idToken)
 	grants := append(l.resourceGrantsForUserLocked(user.ID), resourceGrantsForProviderGroups(provider, groups)...)
 	if len(scopesFromResourceGrants(grants)) == 0 {
 		verification.Checks = append(verification.Checks, domain.VerifyCheck{Name: "authorization_grant", Result: "failed"})
 		reassessProviderVerification(&verification, provider, true)
-		l.providerVerifications[verification.ID] = verification
-		if err := l.persistLocked(ctx); err != nil {
+		if err := s.persistProviderVerificationLocked(ctx, verification, provider); err != nil {
 			return domain.ProviderVerification{}, domain.SSOSession{}, "", err
 		}
 		return verification, domain.SSOSession{}, "", ErrForbidden
@@ -619,10 +760,42 @@ func (s identityService) ExchangeSSOCredential(ctx context.Context, in ExchangeS
 		verification.Checks = append(verification.Checks, domain.VerifyCheck{Name: "mapped_group_roles", Result: "passed", Detail: fmt.Sprintf("%d session-scoped provider group role mapping(s) applied", len(resourceGrantsForProviderGroups(provider, groups)))})
 		reassessProviderVerification(&verification, provider, true)
 	}
-	l.providerVerifications[verification.ID] = verification
 
 	secret := "evysso_" + randomToken(32)
 	session := domain.SSOSession{ID: newID("sess"), TenantID: provider.TenantID, UserID: user.ID, ProviderID: provider.ID, Prefix: secretPrefix(secret), Groups: groups, ExpiresAt: expiresAt, SchemaVersion: domain.SSOSessionSchemaVersion, CreatedAt: now, Hash: l.hashSecret(secret)}
+	if l.unitOfWork != nil {
+		entries := []domain.AuditChainEntry{}
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Identity.InsertProviderVerification(ctx, verification); err != nil {
+				return err
+			}
+			entry, err := repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, provider.TenantID, "provider_identity.verified", "provider_identity", verification.ID, "sso_provider", provider.ID, "", ""))
+			if err != nil {
+				return err
+			}
+			entries = append(entries, entry)
+			if err := repos.Identity.InsertSSOSession(ctx, session); err != nil {
+				return err
+			}
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, provider.TenantID, "sso_session.created", "human_user", user.ID, "sso_provider", provider.ID, "", ""))
+			if err != nil {
+				return err
+			}
+			entries = append(entries, entry)
+			return nil
+		}); err != nil {
+			return domain.ProviderVerification{}, domain.SSOSession{}, "", err
+		}
+		l.providerVerifications[verification.ID] = verification
+		l.ssoSessions[session.ID] = session
+		for _, entry := range entries {
+			l.publishCommittedAuditEntryLocked(entry)
+		}
+		public := session
+		public.Hash = ""
+		return verification, public, secret, nil
+	}
+	l.providerVerifications[verification.ID] = verification
 	l.ssoSessions[session.ID] = session
 	_, _ = l.appendChainLocked(provider.TenantID, "sso_session.created", "human_user", user.ID, "sso_provider", provider.ID, "", "")
 	if err := l.persistCriticalStateLocked(ctx); err != nil {
@@ -630,6 +803,32 @@ func (s identityService) ExchangeSSOCredential(ctx context.Context, in ExchangeS
 	}
 	session.Hash = ""
 	return verification, session, secret, nil
+}
+
+// persistProviderVerificationLocked records an exchange outcome and its audit
+// entry before making it visible through the local read model. The caller
+// holds l.mu and never includes the presented credential in the record.
+func (s identityService) persistProviderVerificationLocked(ctx context.Context, verification domain.ProviderVerification, provider domain.SSOProvider) error {
+	l := s.ledger
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Identity.InsertProviderVerification(ctx, verification); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(verification.CreatedAt, provider.TenantID, "provider_identity.verified", "provider_identity", verification.ID, "sso_provider", provider.ID, "", ""))
+			return err
+		}); err != nil {
+			return err
+		}
+		l.providerVerifications[verification.ID] = verification
+		l.publishCommittedAuditEntryLocked(entry)
+		return nil
+	}
+	l.providerVerifications[verification.ID] = verification
+	_, _ = l.appendChainLocked(provider.TenantID, "provider_identity.verified", "provider_identity", verification.ID, "sso_provider", provider.ID, "", "")
+	return l.persistLocked(ctx)
 }
 
 func (s identityService) RevokeSSOSession(ctx context.Context, actor domain.Actor, id string) (domain.SSOSession, error) {
@@ -651,6 +850,24 @@ func (s identityService) RevokeSSOSession(ctx context.Context, actor domain.Acto
 	}
 	now := l.now()
 	session.RevokedAt = &now
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Identity.RevokeSSOSession(ctx, session); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, actor.TenantID, "sso_session.revoked", "sso_session", session.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.SSOSession{}, err
+		}
+		l.ssoSessions[session.ID] = session
+		l.publishCommittedAuditEntryLocked(entry)
+		public := session
+		public.Hash = ""
+		return public, nil
+	}
 	l.ssoSessions[session.ID] = session
 	_, _ = l.appendChainLocked(actor.TenantID, "sso_session.revoked", "sso_session", session.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistCriticalStateLocked(ctx); err != nil {
@@ -679,6 +896,24 @@ func (s identityService) RevokeCurrentSSOSession(ctx context.Context, actor doma
 	}
 	now := l.now()
 	session.RevokedAt = &now
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Identity.RevokeSSOSession(ctx, session); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, actor.TenantID, "sso_session.revoked", "sso_session", session.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.SSOSession{}, err
+		}
+		l.ssoSessions[session.ID] = session
+		l.publishCommittedAuditEntryLocked(entry)
+		public := session
+		public.Hash = ""
+		return public, nil
+	}
 	l.ssoSessions[session.ID] = session
 	_, _ = l.appendChainLocked(actor.TenantID, "sso_session.revoked", "sso_session", session.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistCriticalStateLocked(ctx); err != nil {
@@ -806,6 +1041,24 @@ func (s identityService) CreateCustomerPortalAccess(ctx context.Context, actor d
 		watermark = packageDistributionWatermark(pkg, portalReviewerLabel(in.CustomerName, in.ReviewerName, in.ReviewerEmail), accessID)
 	}
 	access := domain.CustomerPortalAccess{ID: accessID, TenantID: actor.TenantID, PackageID: pkg.ID, CustomerName: in.CustomerName, ReviewerName: in.ReviewerName, ReviewerEmail: in.ReviewerEmail, RequireNDA: in.RequireNDA, Watermark: watermark, Prefix: secretPrefix(secret), ExpiresAt: in.ExpiresAt.UTC(), SchemaVersion: domain.CustomerPortalAccessVersion, CreatedAt: l.now(), Hash: l.hashSecret(secret)}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Identity.InsertCustomerPortalAccess(ctx, access); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(access.CreatedAt, actor.TenantID, "customer_portal_access.created", "customer_security_package", pkg.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.CustomerPortalAccess{}, "", err
+		}
+		l.portalAccess[access.ID] = access
+		l.publishCommittedAuditEntryLocked(entry)
+		public := access
+		public.Hash = ""
+		return public, secret, nil
+	}
 	l.portalAccess[access.ID] = access
 	_, _ = l.appendChainLocked(actor.TenantID, "customer_portal_access.created", "customer_security_package", pkg.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistCriticalStateLocked(ctx); err != nil {
@@ -868,8 +1121,27 @@ func (s identityService) RevokeCustomerPortalAccess(ctx context.Context, actor d
 		return domain.CustomerPortalAccess{}, ErrNotFound
 	}
 	if access.RevokedAt == nil {
+		previous := access
 		now := l.now()
 		access.RevokedAt = &now
+		if l.unitOfWork != nil {
+			var entry domain.AuditChainEntry
+			if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+				if err := repos.Identity.UpdateCustomerPortalAccess(ctx, previous, access); err != nil {
+					return err
+				}
+				var err error
+				entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, access.TenantID, "customer_portal_access.revoked", "customer_portal_access", access.ID, actorType(actor), actorID(actor), "", ""))
+				return err
+			}); err != nil {
+				return domain.CustomerPortalAccess{}, err
+			}
+			l.portalAccess[id] = access
+			l.publishCommittedAuditEntryLocked(entry)
+			public := access
+			public.Hash = ""
+			return public, nil
+		}
 		l.portalAccess[id] = access
 		_, _ = l.appendChainLocked(access.TenantID, "customer_portal_access.revoked", "customer_portal_access", access.ID, actorType(actor), actorID(actor), "", "")
 		if err := l.persistCriticalStateLocked(ctx); err != nil {
@@ -904,18 +1176,20 @@ func (s identityService) accessCustomerPortalPackage(ctx context.Context, token 
 	for id, access := range l.portalAccess {
 		if !secretHashEqual(access.Hash, hash) || access.RevokedAt != nil || !access.ExpiresAt.After(l.now()) {
 			if access.Prefix == prefix && access.RevokedAt == nil && access.ExpiresAt.After(l.now()) {
+				previous := access
 				now := l.now()
 				access.FailedAccessCount++
 				if access.RevokedAt == nil && access.FailedAccessCount >= customerPortalFailedAccessLimit {
 					access.RevokedAt = &now
 				}
 				access.LastFailedAt = &now
-				l.portalAccess[id] = access
-				_, _ = l.appendChainLocked(access.TenantID, "customer_portal_package.access_failed", "customer_portal_access", access.ID, "customer_portal", "unverified", "", "")
+				effects := []customerPortalAuditEffect{{EntryType: "customer_portal_package.access_failed", SubjectType: "customer_portal_access", SubjectID: access.ID, ActorID: "unverified"}}
 				if access.RevokedAt != nil && access.FailedAccessCount == customerPortalFailedAccessLimit {
-					_, _ = l.appendChainLocked(access.TenantID, "customer_portal_access.revoked_after_failed_access", "customer_portal_access", access.ID, "customer_portal", "unverified", "", "")
+					effects = append(effects, customerPortalAuditEffect{EntryType: "customer_portal_access.revoked_after_failed_access", SubjectType: "customer_portal_access", SubjectID: access.ID, ActorID: "unverified"})
 				}
-				_ = l.persistCriticalStateLocked(ctx)
+				if err := s.persistCustomerPortalAccessUpdateLocked(ctx, previous, access, effects); err != nil {
+					return domain.CustomerSecurityPackage{}, ErrUnauthorized
+				}
 			}
 			continue
 		}
@@ -926,22 +1200,28 @@ func (s identityService) accessCustomerPortalPackage(ctx context.Context, token 
 		if access.RequireNDA && access.NDAAcceptedAt == nil {
 			acceptedBy := cleanExternalLabel(in.NDAAcceptedBy)
 			if !in.NDAAccepted || acceptedBy == "" {
-				_, _ = l.appendChainLocked(access.TenantID, "customer_portal_package.nda_required", "customer_portal_access", access.ID, "customer_portal", access.ID, pkg.ManifestHash, "")
-				_ = l.persistCriticalStateLocked(ctx)
+				if err := s.persistCustomerPortalAccessUpdateLocked(ctx, access, access, []customerPortalAuditEffect{{EntryType: "customer_portal_package.nda_required", SubjectType: "customer_portal_access", SubjectID: access.ID, ActorID: access.ID, PayloadHash: pkg.ManifestHash}}); err != nil {
+					return domain.CustomerSecurityPackage{}, err
+				}
 				return domain.CustomerSecurityPackage{}, ErrForbidden
 			}
 			now := l.now()
 			access.NDAAcceptedAt = &now
 			access.NDAAcceptedBy = acceptedBy
-			l.portalAccess[id] = access
-			_, _ = l.appendChainLocked(access.TenantID, "customer_portal_package.nda_accepted", "customer_portal_access", access.ID, "customer_portal", access.ID, pkg.ManifestHash, "")
 		}
+		previous := l.portalAccess[id]
 		access.AccessCount++
 		now := l.now()
 		access.LastAccessedAt = &now
-		l.portalAccess[id] = access
-		l.appendCustomerPortalAccessEventLocked(successEntryType, access, pkg)
-		if err := l.persistCriticalStateLocked(ctx); err != nil {
+		effects := []customerPortalAuditEffect{}
+		if previous.NDAAcceptedAt == nil && access.NDAAcceptedAt != nil {
+			effects = append(effects, customerPortalAuditEffect{EntryType: "customer_portal_package.nda_accepted", SubjectType: "customer_portal_access", SubjectID: access.ID, ActorID: access.ID, PayloadHash: pkg.ManifestHash})
+		}
+		effects = append(effects,
+			customerPortalAuditEffect{EntryType: successEntryType, SubjectType: "customer_portal_access", SubjectID: access.ID, ActorID: access.ID, PayloadHash: pkg.ManifestHash},
+			customerPortalAuditEffect{EntryType: successEntryType, SubjectType: "customer_security_package", SubjectID: pkg.ID, ActorID: access.ID, PayloadHash: pkg.ManifestHash},
+		)
+		if err := s.persistCustomerPortalAccessUpdateLocked(ctx, previous, access, effects); err != nil {
 			return domain.CustomerSecurityPackage{}, err
 		}
 		return packageWithDistributionWatermark(pkg, access), nil
@@ -949,9 +1229,47 @@ func (s identityService) accessCustomerPortalPackage(ctx context.Context, token 
 	return domain.CustomerSecurityPackage{}, ErrUnauthorized
 }
 
-func (l *Ledger) appendCustomerPortalAccessEventLocked(entryType string, access domain.CustomerPortalAccess, pkg domain.CustomerSecurityPackage) {
-	_, _ = l.appendChainLocked(access.TenantID, entryType, "customer_portal_access", access.ID, "customer_portal", access.ID, pkg.ManifestHash, "")
-	_, _ = l.appendChainLocked(access.TenantID, entryType, "customer_security_package", pkg.ID, "customer_portal", access.ID, pkg.ManifestHash, "")
+type customerPortalAuditEffect struct {
+	EntryType   string
+	SubjectType string
+	SubjectID   string
+	ActorID     string
+	PayloadHash string
+}
+
+// persistCustomerPortalAccessUpdateLocked uses the previous counters and
+// revocation state as an optimistic predicate. A token-dependent update is
+// therefore committed with its audit trail or remains invisible on conflict.
+func (s identityService) persistCustomerPortalAccessUpdateLocked(ctx context.Context, previous, current domain.CustomerPortalAccess, effects []customerPortalAuditEffect) error {
+	l := s.ledger
+	if l.unitOfWork != nil {
+		entries := []domain.AuditChainEntry{}
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Identity.UpdateCustomerPortalAccess(ctx, previous, current); err != nil {
+				return err
+			}
+			for _, effect := range effects {
+				entry, err := repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(l.now(), current.TenantID, effect.EntryType, effect.SubjectType, effect.SubjectID, "customer_portal", effect.ActorID, effect.PayloadHash, ""))
+				if err != nil {
+					return err
+				}
+				entries = append(entries, entry)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		l.portalAccess[current.ID] = current
+		for _, entry := range entries {
+			l.publishCommittedAuditEntryLocked(entry)
+		}
+		return nil
+	}
+	l.portalAccess[current.ID] = current
+	for _, effect := range effects {
+		_, _ = l.appendChainLocked(current.TenantID, effect.EntryType, effect.SubjectType, effect.SubjectID, "customer_portal", effect.ActorID, effect.PayloadHash, "")
+	}
+	return l.persistCriticalStateLocked(ctx)
 }
 
 func cleanReviewerEmail(value string) string {
