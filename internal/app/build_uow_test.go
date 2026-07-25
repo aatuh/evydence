@@ -14,6 +14,49 @@ func (failingBuildRepository) InsertBuildRun(context.Context, domain.BuildRun) e
 	return errInjectedRepositoryFailure
 }
 
+func (failingBuildRepository) InsertCollector(context.Context, domain.Collector) error {
+	return errInjectedRepositoryFailure
+}
+
+func TestCollectorCredentialCommitsOnlyAfterUnitOfWorkCommit(t *testing.T) {
+	ctx := context.Background()
+	memory := NewMemoryUnitOfWorkFactory()
+	ledger, _, actor := newReleaseEvidenceUnitOfWorkFixture(t, memory)
+	collector, key, secret, err := ledger.CreateCollector(ctx, actor, CreateCollectorInput{Name: "build-collector", Type: collectorTypeGenericCI, Version: "1.0.0"})
+	if err != nil {
+		t.Fatalf("create collector: %v", err)
+	}
+	if collector.ID == "" || key.ID == "" || key.Hash != "" || secret == "" {
+		t.Fatalf("collector result=%#v key=%#v secret=%q", collector, key, secret)
+	}
+	snapshot, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	if snapshot.Collectors[collector.ID].APIKeyID != key.ID || snapshot.APIKeys[key.ID].Hash == "" {
+		t.Fatalf("collector credential state is not committed: %#v", snapshot)
+	}
+
+	ledger.unitOfWork = repositoryFailingUnitOfWorkFactory{inner: memory, decorate: func(repositories Repositories) Repositories {
+		repositories.Builds = failingBuildRepository{BuildRepository: repositories.Builds}
+		return repositories
+	}}
+	before, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot before failed collector: %v", err)
+	}
+	if _, _, failedSecret, err := ledger.CreateCollector(ctx, actor, CreateCollectorInput{Name: "failed-collector", Type: collectorTypeGenericCI, Version: "1.0.0"}); !errors.Is(err, errInjectedRepositoryFailure) || failedSecret != "" {
+		t.Fatalf("failed collector secret=%q err=%v", failedSecret, err)
+	}
+	after, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot after failed collector: %v", err)
+	}
+	if len(after.Collectors) != len(before.Collectors) || len(after.APIKeys) != len(before.APIKeys) || len(after.AuditEntries[actor.TenantID]) != len(before.AuditEntries[actor.TenantID]) {
+		t.Fatalf("collector failure published state: before=%#v after=%#v", before, after)
+	}
+}
+
 func TestBuildRunWritesUseUnitOfWorkAndPublishOnlyAfterCommit(t *testing.T) {
 	ctx := context.Background()
 	memory := NewMemoryUnitOfWorkFactory()

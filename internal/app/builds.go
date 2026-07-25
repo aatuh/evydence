@@ -94,9 +94,16 @@ func (l *Ledger) CreateCollector(ctx context.Context, actor domain.Actor, in Cre
 			return domain.Collector{}, domain.APIKey{}, "", ErrConflict
 		}
 	}
-	key, secret, err := l.createAPIKeyLocked(actor.TenantID, "collector:"+in.Name, scopes, nil)
-	if err != nil {
-		return domain.Collector{}, domain.APIKey{}, "", err
+	var key domain.APIKey
+	var secret string
+	if l.unitOfWork != nil {
+		key, secret = l.newAPIKey(actor.TenantID, "collector:"+in.Name, scopes, nil)
+	} else {
+		var err error
+		key, secret, err = l.createAPIKeyLocked(actor.TenantID, "collector:"+in.Name, scopes, nil)
+		if err != nil {
+			return domain.Collector{}, domain.APIKey{}, "", err
+		}
 	}
 	collector := domain.Collector{
 		ID:            newID("col"),
@@ -110,11 +117,34 @@ func (l *Ledger) CreateCollector(ctx context.Context, actor domain.Actor, in Cre
 		SchemaVersion: domain.CollectorSchemaVersion,
 		CreatedAt:     l.now(),
 	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Identity.InsertAPIKey(ctx, key); err != nil {
+				return err
+			}
+			if err := repos.Builds.InsertCollector(ctx, collector); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(collector.CreatedAt, actor.TenantID, "collector.created", "collector", collector.ID, "api_key", actor.KeyID, "", ""))
+			return err
+		}); err != nil {
+			return domain.Collector{}, domain.APIKey{}, "", err
+		}
+		l.apiKeys[key.ID] = key
+		l.collectors[collector.ID] = collector
+		l.publishCommittedAuditEntryLocked(entry)
+		public := key
+		public.Hash = ""
+		return collector, public, secret, nil
+	}
 	l.collectors[collector.ID] = collector
 	_, _ = l.appendChainLocked(actor.TenantID, "collector.created", "collector", collector.ID, "api_key", actor.KeyID, "", "")
 	if err := l.persistLocked(ctx); err != nil {
 		return domain.Collector{}, domain.APIKey{}, "", err
 	}
+	key.Hash = ""
 	return collector, key, secret, nil
 }
 

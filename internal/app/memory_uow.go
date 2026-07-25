@@ -1376,6 +1376,34 @@ func (r memoryGovernanceRepository) InsertRetentionOverride(ctx context.Context,
 
 type memoryBuildRepository struct{ uow *memoryUnitOfWork }
 
+func (r memoryBuildRepository) InsertCollector(ctx context.Context, collector domain.Collector) error {
+	cloned, err := cloneMemoryJSON(collector)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.Name == "" || cloned.Type == "" || cloned.Version == "" || cloned.APIKeyID == "" || cloned.Status == "" || len(cloned.AllowedScopes) == 0 || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.APIKeyID, cloned.TenantID, state.APIKeys) {
+			return ErrNotFound
+		}
+		if _, exists := state.Collectors[cloned.ID]; exists {
+			return ErrConflict
+		}
+		for _, existing := range state.Collectors {
+			if existing.TenantID == cloned.TenantID && existing.Name == cloned.Name {
+				return ErrConflict
+			}
+		}
+		state.Collectors[cloned.ID] = cloned
+		return nil
+	})
+}
+
 func (r memoryBuildRepository) InsertBuildRun(ctx context.Context, build domain.BuildRun) error {
 	cloned, err := cloneMemoryJSON(build)
 	if err != nil {
@@ -1776,6 +1804,8 @@ func memoryResourceTenantID(resource any) string {
 	case domain.Artifact:
 		return value.TenantID
 	case domain.EvidenceItem:
+		return value.TenantID
+	case domain.APIKey:
 		return value.TenantID
 	case domain.Organization:
 		return value.TenantID

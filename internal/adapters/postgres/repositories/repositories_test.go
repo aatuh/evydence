@@ -41,13 +41,11 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Identity.UpdateAPIKeyLastUsed(ctx, apiKey); err != nil {
 		t.Fatalf("update API key last used: %v", err)
 	}
-	collector := domain.Collector{ID: "col_repository", TenantID: tenant.ID, Name: "Repository collector", Type: "ci", Version: "1.0.0", APIKeyID: apiKey.ID, Status: "active", AllowedScopes: []string{"*"}, SchemaVersion: domain.CollectorSchemaVersion, CreatedAt: now, LastSeenAt: &now}
-	if _, err := tx.Exec(ctx, `
-		INSERT INTO collectors (id, tenant_id, name, type, version, api_key_id, status, allowed_scopes, last_seen_at, schema_version, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULL, $9, $10)
-	`, collector.ID, collector.TenantID, collector.Name, collector.Type, collector.Version, collector.APIKeyID, collector.Status, []string{"*"}, collector.SchemaVersion, collector.CreatedAt); err != nil {
-		t.Fatalf("seed collector: %v", err)
+	collector := domain.Collector{ID: "col_repository", TenantID: tenant.ID, Name: "Repository collector", Type: "ci", Version: "1.0.0", APIKeyID: apiKey.ID, Status: "active", AllowedScopes: []string{"*"}, SchemaVersion: domain.CollectorSchemaVersion, CreatedAt: now}
+	if err := repositories.Builds.InsertCollector(ctx, collector); err != nil {
+		t.Fatalf("insert collector: %v", err)
 	}
+	collector.LastSeenAt = &now
 	if err := repositories.Identity.UpdateCollectorLastSeen(ctx, collector); err != nil {
 		t.Fatalf("update collector last seen: %v", err)
 	}
@@ -342,6 +340,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"exception approval", repositories.Decisions.ApproveException(ctx, domain.Exception{})},
 		{"legal hold", repositories.Governance.InsertLegalHold(ctx, domain.LegalHold{})},
 		{"retention override", repositories.Governance.InsertRetentionOverride(ctx, domain.RetentionOverride{})},
+		{"collector", repositories.Builds.InsertCollector(ctx, domain.Collector{})},
 		{"build run", repositories.Builds.InsertBuildRun(ctx, domain.BuildRun{})},
 		{"product", repositories.ReleaseCatalog.InsertProduct(ctx, domain.Product{})},
 		{"project", repositories.ReleaseCatalog.InsertProject(ctx, domain.Project{})},

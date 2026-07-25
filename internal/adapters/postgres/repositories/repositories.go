@@ -1251,6 +1251,30 @@ func (r governance) InsertRetentionOverride(ctx context.Context, override domain
 
 type builds struct{ tx pgx.Tx }
 
+func (r builds) InsertCollector(ctx context.Context, collector domain.Collector) error {
+	if collector.ID == "" || collector.TenantID == "" || collector.Name == "" || collector.Type == "" || collector.Version == "" || collector.APIKeyID == "" || collector.Status == "" || len(collector.AllowedScopes) == 0 || collector.SchemaVersion == "" || collector.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, collector.TenantID); err != nil {
+		return err
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM api_keys WHERE id = $1 AND tenant_id = $2 AND revoked_at IS NULL`, collector.APIKeyID, collector.TenantID); err != nil {
+		return err
+	}
+	allowedScopes, err := json.Marshal(collector.AllowedScopes)
+	if err != nil {
+		return fmt.Errorf("encode collector allowed scopes: %w", err)
+	}
+	_, err = r.tx.Exec(ctx, `
+		INSERT INTO collectors (
+			id, tenant_id, name, type, version, api_key_id, status,
+			allowed_scopes, last_seen_at, schema_version, created_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+	`, collector.ID, collector.TenantID, collector.Name, collector.Type, collector.Version, collector.APIKeyID, collector.Status, allowedScopes, collector.LastSeenAt, collector.SchemaVersion, collector.CreatedAt)
+	return writeError("insert collector", err)
+}
+
 func (r builds) InsertBuildRun(ctx context.Context, build domain.BuildRun) error {
 	if build.ID == "" || build.TenantID == "" || build.ProjectID == "" || build.ReleaseID == "" || build.Provider == "" || build.CommitSHA == "" || build.Status == "" || build.StartedAt.IsZero() || build.SchemaVersion == "" || build.CreatedAt.IsZero() {
 		return app.ErrValidation

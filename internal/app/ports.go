@@ -190,6 +190,7 @@ type GovernanceRepository interface {
 }
 
 type BuildRepository interface {
+	InsertCollector(context.Context, domain.Collector) error
 	InsertBuildRun(context.Context, domain.BuildRun) error
 }
 
