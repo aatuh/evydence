@@ -22,55 +22,56 @@ type MemoryUnitOfWorkFactory struct {
 // It is intended for deterministic tests and must not be used as a production
 // persistence contract.
 type MemoryUnitOfWorkSnapshot struct {
-	Tenants               map[string]domain.Tenant
-	APIKeys               map[string]domain.APIKey
-	Collectors            map[string]domain.Collector
-	Organizations         map[string]domain.Organization
-	Users                 map[string]domain.HumanUser
-	RoleBindings          map[string]domain.RoleBinding
-	SSOProviders          map[string]domain.SSOProvider
-	IdentityLinks         map[string]domain.UserIdentityLink
-	ProviderVerifications map[string]domain.ProviderVerification
-	SSOSessions           map[string]domain.SSOSession
-	CustomerPortalAccess  map[string]domain.CustomerPortalAccess
-	Products              map[string]domain.Product
-	Projects              map[string]domain.Project
-	Releases              map[string]domain.Release
-	Artifacts             map[string]domain.Artifact
-	Evidence              map[string]domain.EvidenceItem
-	EvidenceLifecycle     map[string]domain.EvidenceLifecycleEvent
-	SBOMs                 map[string]domain.SBOM
-	VulnerabilityScans    map[string]domain.VulnerabilityScan
-	OpenAPIContracts      map[string]domain.OpenAPIContract
-	VEXDocuments          map[string]domain.VEXDocument
-	VEXImportReports      map[string]domain.VEXImportReport
-	ReleaseCandidates     map[string]domain.ReleaseCandidate
-	Decisions             map[string]domain.VulnerabilityDecision
-	Exceptions            map[string]domain.Exception
-	BuildRuns             map[string]domain.BuildRun
-	BuildAttestations     map[string]domain.BuildAttestation
-	CollectorReleases     map[string]domain.CollectorRelease
-	ContainerImages       map[string]domain.ContainerImage
-	ArtifactSignatures    map[string]domain.ArtifactSignature
-	SourceRepositories    map[string]domain.SourceRepository
-	SourceCommits         map[string]domain.SourceCommit
-	SourceBranches        map[string]domain.SourceBranch
-	PullRequests          map[string]domain.PullRequest
-	ControlFrameworks     map[string]domain.ControlFramework
-	SecurityControls      map[string]domain.SecurityControl
-	ControlEvidence       map[string]domain.ControlEvidence
-	Waivers               map[string]domain.Waiver
-	Approvals             map[string]domain.ApprovalRecord
-	RedactionProfiles     map[string]domain.RedactionProfile
-	LegalHolds            map[string]domain.LegalHold
-	RetentionOverrides    map[string]domain.RetentionOverride
-	AuditEntries          map[string][]domain.AuditChainEntry
-	Idempotency           map[IdempotencyRecordKey]IdempotencyRecord
-	OutboxJobs            map[string]OutboxJob
-	ReleaseBundles        map[string]domain.ReleaseBundle
-	SigningKeys           map[string]domain.SigningKey
-	Signatures            map[string]domain.Signature
-	VerificationResults   map[string]domain.VerificationResult
+	Tenants                map[string]domain.Tenant
+	APIKeys                map[string]domain.APIKey
+	Collectors             map[string]domain.Collector
+	Organizations          map[string]domain.Organization
+	Users                  map[string]domain.HumanUser
+	RoleBindings           map[string]domain.RoleBinding
+	SSOProviders           map[string]domain.SSOProvider
+	IdentityLinks          map[string]domain.UserIdentityLink
+	ProviderVerifications  map[string]domain.ProviderVerification
+	SSOSessions            map[string]domain.SSOSession
+	CustomerPortalAccess   map[string]domain.CustomerPortalAccess
+	Products               map[string]domain.Product
+	Projects               map[string]domain.Project
+	Releases               map[string]domain.Release
+	Artifacts              map[string]domain.Artifact
+	Evidence               map[string]domain.EvidenceItem
+	EvidenceLifecycle      map[string]domain.EvidenceLifecycleEvent
+	SBOMs                  map[string]domain.SBOM
+	VulnerabilityScans     map[string]domain.VulnerabilityScan
+	OpenAPIContracts       map[string]domain.OpenAPIContract
+	VEXDocuments           map[string]domain.VEXDocument
+	VEXImportReports       map[string]domain.VEXImportReport
+	ReleaseCandidates      map[string]domain.ReleaseCandidate
+	Decisions              map[string]domain.VulnerabilityDecision
+	Exceptions             map[string]domain.Exception
+	BuildRuns              map[string]domain.BuildRun
+	BuildAttestations      map[string]domain.BuildAttestation
+	CollectorReleases      map[string]domain.CollectorRelease
+	ContainerImages        map[string]domain.ContainerImage
+	ArtifactSignatures     map[string]domain.ArtifactSignature
+	SourceRepositories     map[string]domain.SourceRepository
+	SourceCommits          map[string]domain.SourceCommit
+	SourceBranches         map[string]domain.SourceBranch
+	PullRequests           map[string]domain.PullRequest
+	DeploymentEnvironments map[string]domain.DeploymentEnvironment
+	ControlFrameworks      map[string]domain.ControlFramework
+	SecurityControls       map[string]domain.SecurityControl
+	ControlEvidence        map[string]domain.ControlEvidence
+	Waivers                map[string]domain.Waiver
+	Approvals              map[string]domain.ApprovalRecord
+	RedactionProfiles      map[string]domain.RedactionProfile
+	LegalHolds             map[string]domain.LegalHold
+	RetentionOverrides     map[string]domain.RetentionOverride
+	AuditEntries           map[string][]domain.AuditChainEntry
+	Idempotency            map[IdempotencyRecordKey]IdempotencyRecord
+	OutboxJobs             map[string]OutboxJob
+	ReleaseBundles         map[string]domain.ReleaseBundle
+	SigningKeys            map[string]domain.SigningKey
+	Signatures             map[string]domain.Signature
+	VerificationResults    map[string]domain.VerificationResult
 }
 
 func NewMemoryUnitOfWorkFactory() *MemoryUnitOfWorkFactory {
@@ -119,6 +120,7 @@ func (u *memoryUnitOfWork) Repositories() Repositories {
 		Builds:         memoryBuildRepository{uow: u},
 		SupplyChain:    memorySupplyChainRepository{uow: u},
 		Source:         memorySourceRepository{uow: u},
+		Deployments:    memoryDeploymentRepository{uow: u},
 		Packages:       memoryPackageRepository{uow: u},
 		Signatures:     memorySignatureRepository{uow: u},
 		Verification:   memoryVerificationRepository{uow: u},
@@ -1523,6 +1525,36 @@ type memoryPackageRepository struct{ uow *memoryUnitOfWork }
 
 type memorySourceRepository struct{ uow *memoryUnitOfWork }
 
+type memoryDeploymentRepository struct{ uow *memoryUnitOfWork }
+
+func (r memoryDeploymentRepository) InsertDeploymentEnvironment(ctx context.Context, env domain.DeploymentEnvironment) error {
+	cloned, err := cloneMemoryJSON(env)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.ProductID == "" || cloned.Name == "" || cloned.Kind == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.ProductID, cloned.TenantID, state.Products) {
+			return ErrNotFound
+		}
+		if _, exists := state.DeploymentEnvironments[cloned.ID]; exists {
+			return ErrConflict
+		}
+		for _, existing := range state.DeploymentEnvironments {
+			if existing.TenantID == cloned.TenantID && existing.ProductID == cloned.ProductID && existing.Name == cloned.Name {
+				return ErrConflict
+			}
+		}
+		state.DeploymentEnvironments[cloned.ID] = cloned
+		return nil
+	})
+}
+
 func (r memorySourceRepository) InsertSourceRepository(ctx context.Context, repository domain.SourceRepository) error {
 	cloned, err := cloneMemoryJSON(repository)
 	if err != nil {
@@ -1819,55 +1851,56 @@ func (r memoryVerificationRepository) InsertVerificationResult(ctx context.Conte
 
 func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 	return MemoryUnitOfWorkSnapshot{
-		Tenants:               map[string]domain.Tenant{},
-		APIKeys:               map[string]domain.APIKey{},
-		Collectors:            map[string]domain.Collector{},
-		Organizations:         map[string]domain.Organization{},
-		Users:                 map[string]domain.HumanUser{},
-		RoleBindings:          map[string]domain.RoleBinding{},
-		SSOProviders:          map[string]domain.SSOProvider{},
-		IdentityLinks:         map[string]domain.UserIdentityLink{},
-		ProviderVerifications: map[string]domain.ProviderVerification{},
-		SSOSessions:           map[string]domain.SSOSession{},
-		CustomerPortalAccess:  map[string]domain.CustomerPortalAccess{},
-		Products:              map[string]domain.Product{},
-		Projects:              map[string]domain.Project{},
-		Releases:              map[string]domain.Release{},
-		Artifacts:             map[string]domain.Artifact{},
-		Evidence:              map[string]domain.EvidenceItem{},
-		EvidenceLifecycle:     map[string]domain.EvidenceLifecycleEvent{},
-		SBOMs:                 map[string]domain.SBOM{},
-		VulnerabilityScans:    map[string]domain.VulnerabilityScan{},
-		OpenAPIContracts:      map[string]domain.OpenAPIContract{},
-		VEXDocuments:          map[string]domain.VEXDocument{},
-		VEXImportReports:      map[string]domain.VEXImportReport{},
-		ReleaseCandidates:     map[string]domain.ReleaseCandidate{},
-		Decisions:             map[string]domain.VulnerabilityDecision{},
-		Exceptions:            map[string]domain.Exception{},
-		BuildRuns:             map[string]domain.BuildRun{},
-		BuildAttestations:     map[string]domain.BuildAttestation{},
-		CollectorReleases:     map[string]domain.CollectorRelease{},
-		ContainerImages:       map[string]domain.ContainerImage{},
-		ArtifactSignatures:    map[string]domain.ArtifactSignature{},
-		SourceRepositories:    map[string]domain.SourceRepository{},
-		SourceCommits:         map[string]domain.SourceCommit{},
-		SourceBranches:        map[string]domain.SourceBranch{},
-		PullRequests:          map[string]domain.PullRequest{},
-		ControlFrameworks:     map[string]domain.ControlFramework{},
-		SecurityControls:      map[string]domain.SecurityControl{},
-		ControlEvidence:       map[string]domain.ControlEvidence{},
-		Waivers:               map[string]domain.Waiver{},
-		Approvals:             map[string]domain.ApprovalRecord{},
-		RedactionProfiles:     map[string]domain.RedactionProfile{},
-		LegalHolds:            map[string]domain.LegalHold{},
-		RetentionOverrides:    map[string]domain.RetentionOverride{},
-		AuditEntries:          map[string][]domain.AuditChainEntry{},
-		Idempotency:           map[IdempotencyRecordKey]IdempotencyRecord{},
-		OutboxJobs:            map[string]OutboxJob{},
-		ReleaseBundles:        map[string]domain.ReleaseBundle{},
-		SigningKeys:           map[string]domain.SigningKey{},
-		Signatures:            map[string]domain.Signature{},
-		VerificationResults:   map[string]domain.VerificationResult{},
+		Tenants:                map[string]domain.Tenant{},
+		APIKeys:                map[string]domain.APIKey{},
+		Collectors:             map[string]domain.Collector{},
+		Organizations:          map[string]domain.Organization{},
+		Users:                  map[string]domain.HumanUser{},
+		RoleBindings:           map[string]domain.RoleBinding{},
+		SSOProviders:           map[string]domain.SSOProvider{},
+		IdentityLinks:          map[string]domain.UserIdentityLink{},
+		ProviderVerifications:  map[string]domain.ProviderVerification{},
+		SSOSessions:            map[string]domain.SSOSession{},
+		CustomerPortalAccess:   map[string]domain.CustomerPortalAccess{},
+		Products:               map[string]domain.Product{},
+		Projects:               map[string]domain.Project{},
+		Releases:               map[string]domain.Release{},
+		Artifacts:              map[string]domain.Artifact{},
+		Evidence:               map[string]domain.EvidenceItem{},
+		EvidenceLifecycle:      map[string]domain.EvidenceLifecycleEvent{},
+		SBOMs:                  map[string]domain.SBOM{},
+		VulnerabilityScans:     map[string]domain.VulnerabilityScan{},
+		OpenAPIContracts:       map[string]domain.OpenAPIContract{},
+		VEXDocuments:           map[string]domain.VEXDocument{},
+		VEXImportReports:       map[string]domain.VEXImportReport{},
+		ReleaseCandidates:      map[string]domain.ReleaseCandidate{},
+		Decisions:              map[string]domain.VulnerabilityDecision{},
+		Exceptions:             map[string]domain.Exception{},
+		BuildRuns:              map[string]domain.BuildRun{},
+		BuildAttestations:      map[string]domain.BuildAttestation{},
+		CollectorReleases:      map[string]domain.CollectorRelease{},
+		ContainerImages:        map[string]domain.ContainerImage{},
+		ArtifactSignatures:     map[string]domain.ArtifactSignature{},
+		SourceRepositories:     map[string]domain.SourceRepository{},
+		SourceCommits:          map[string]domain.SourceCommit{},
+		SourceBranches:         map[string]domain.SourceBranch{},
+		PullRequests:           map[string]domain.PullRequest{},
+		DeploymentEnvironments: map[string]domain.DeploymentEnvironment{},
+		ControlFrameworks:      map[string]domain.ControlFramework{},
+		SecurityControls:       map[string]domain.SecurityControl{},
+		ControlEvidence:        map[string]domain.ControlEvidence{},
+		Waivers:                map[string]domain.Waiver{},
+		Approvals:              map[string]domain.ApprovalRecord{},
+		RedactionProfiles:      map[string]domain.RedactionProfile{},
+		LegalHolds:             map[string]domain.LegalHold{},
+		RetentionOverrides:     map[string]domain.RetentionOverride{},
+		AuditEntries:           map[string][]domain.AuditChainEntry{},
+		Idempotency:            map[IdempotencyRecordKey]IdempotencyRecord{},
+		OutboxJobs:             map[string]OutboxJob{},
+		ReleaseBundles:         map[string]domain.ReleaseBundle{},
+		SigningKeys:            map[string]domain.SigningKey{},
+		Signatures:             map[string]domain.Signature{},
+		VerificationResults:    map[string]domain.VerificationResult{},
 	}
 }
 
@@ -1977,6 +2010,9 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.PullRequests, err = cloneMemoryMap(snapshot.PullRequests); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.DeploymentEnvironments, err = cloneMemoryMap(snapshot.DeploymentEnvironments); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.ControlFrameworks, err = cloneMemoryMap(snapshot.ControlFrameworks); err != nil {

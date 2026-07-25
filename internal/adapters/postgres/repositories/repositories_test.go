@@ -97,6 +97,9 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.ReleaseCatalog.InsertProduct(ctx, product); err != nil {
 		t.Fatalf("insert product: %v", err)
 	}
+	if err := repositories.Deployments.InsertDeploymentEnvironment(ctx, domain.DeploymentEnvironment{ID: "env_repository", TenantID: tenant.ID, ProductID: product.ID, Name: "production", Kind: "production", SchemaVersion: domain.DeploymentEnvironmentVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert deployment environment: %v", err)
+	}
 	project := domain.Project{ID: "proj_repository", TenantID: tenant.ID, ProductID: product.ID, Name: "Repository project", CreatedAt: now}
 	if err := repositories.ReleaseCatalog.InsertProject(ctx, project); err != nil {
 		t.Fatalf("insert project: %v", err)

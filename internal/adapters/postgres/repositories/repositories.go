@@ -32,6 +32,7 @@ func New(tx pgx.Tx) app.Repositories {
 		Builds:         builds{tx: tx},
 		SupplyChain:    supplyChain{tx: tx},
 		Source:         source{tx: tx},
+		Deployments:    deployments{tx: tx},
 		Packages:       packages{tx: tx},
 		Signatures:     signatures{tx: tx},
 		Verification:   verification{tx: tx},
@@ -1431,6 +1432,25 @@ func (r builds) InsertBuildAttestation(ctx context.Context, attestation domain.B
 type packages struct{ tx pgx.Tx }
 
 type source struct{ tx pgx.Tx }
+
+type deployments struct{ tx pgx.Tx }
+
+func (r deployments) InsertDeploymentEnvironment(ctx context.Context, env domain.DeploymentEnvironment) error {
+	if env.ID == "" || env.TenantID == "" || env.ProductID == "" || env.Name == "" || env.Kind == "" || env.SchemaVersion == "" || env.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, env.TenantID); err != nil {
+		return err
+	}
+	if err := requireOptionalProduct(ctx, r.tx, env.TenantID, env.ProductID); err != nil {
+		return err
+	}
+	_, err := r.tx.Exec(ctx, `
+		INSERT INTO deployment_environments (id, tenant_id, product_id, name, kind, schema_version, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`, env.ID, env.TenantID, env.ProductID, env.Name, env.Kind, env.SchemaVersion, env.CreatedAt)
+	return writeError("insert deployment environment", err)
+}
 
 func (r source) InsertSourceRepository(ctx context.Context, repository domain.SourceRepository) error {
 	if repository.ID == "" || repository.TenantID == "" || repository.Provider == "" || repository.FullName == "" || repository.SchemaVersion == "" || repository.CreatedAt.IsZero() {

@@ -949,6 +949,22 @@ func (l *Ledger) CreateDeploymentEnvironment(ctx context.Context, actor domain.A
 		SchemaVersion: domain.DeploymentEnvironmentVersion,
 		CreatedAt:     l.now(),
 	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Deployments.InsertDeploymentEnvironment(ctx, env); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(env.CreatedAt, actor.TenantID, "deployment_environment.created", "deployment_environment", env.ID, "api_key", actor.KeyID, "", ""))
+			return err
+		}); err != nil {
+			return domain.DeploymentEnvironment{}, err
+		}
+		l.environments[env.ID] = env
+		l.publishCommittedAuditEntryLocked(entry)
+		return env, nil
+	}
 	l.environments[env.ID] = env
 	_, _ = l.appendChainLocked(actor.TenantID, "deployment_environment.created", "deployment_environment", env.ID, "api_key", actor.KeyID, "", "")
 	if err := l.persistLocked(ctx); err != nil {

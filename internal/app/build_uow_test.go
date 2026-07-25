@@ -14,6 +14,8 @@ type failingSupplyChainRepository struct{ SupplyChainRepository }
 
 type failingSourceRepository struct{ SourceRepository }
 
+type failingDeploymentRepository struct{ DeploymentRepository }
+
 func (failingBuildRepository) InsertBuildRun(context.Context, domain.BuildRun) error {
 	return errInjectedRepositoryFailure
 }
@@ -55,6 +57,10 @@ func (failingSourceRepository) UpdateSourceBranch(context.Context, domain.Source
 }
 
 func (failingSourceRepository) InsertPullRequest(context.Context, domain.PullRequest) error {
+	return errInjectedRepositoryFailure
+}
+
+func (failingDeploymentRepository) InsertDeploymentEnvironment(context.Context, domain.DeploymentEnvironment) error {
 	return errInjectedRepositoryFailure
 }
 
@@ -545,5 +551,44 @@ func TestSourceWritesUseUnitOfWorkAndPublishOnlyAfterCommit(t *testing.T) {
 	}
 	if len(after.SourceRepositories) != len(before.SourceRepositories) || len(after.SourceCommits) != len(before.SourceCommits) || len(after.SourceBranches) != len(before.SourceBranches) || len(after.PullRequests) != len(before.PullRequests) || len(after.AuditEntries[actor.TenantID]) != len(before.AuditEntries[actor.TenantID]) || len(ledger.repositories) != 1 || len(ledger.commits) != 1 || len(ledger.branches) != 1 || len(ledger.pullRequests) != 1 {
 		t.Fatalf("failed source write published state: before=%#v after=%#v", before, after)
+	}
+}
+
+func TestDeploymentEnvironmentUsesUnitOfWorkAndPublishesOnlyAfterCommit(t *testing.T) {
+	ctx := context.Background()
+	memory := NewMemoryUnitOfWorkFactory()
+	ledger, _, actor := newReleaseEvidenceUnitOfWorkFixture(t, memory)
+	product, err := ledger.CreateProduct(ctx, actor, "Deployment API", "deployment-api")
+	if err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	env, err := ledger.CreateDeploymentEnvironment(ctx, actor, CreateEnvironmentInput{ProductID: product.ID, Name: "production", Kind: "production"})
+	if err != nil {
+		t.Fatalf("create deployment environment: %v", err)
+	}
+	snapshot, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	if snapshot.DeploymentEnvironments[env.ID].ProductID != product.ID {
+		t.Fatalf("environment not committed: %#v", snapshot)
+	}
+	ledger.unitOfWork = repositoryFailingUnitOfWorkFactory{inner: memory, decorate: func(repositories Repositories) Repositories {
+		repositories.Deployments = failingDeploymentRepository{DeploymentRepository: repositories.Deployments}
+		return repositories
+	}}
+	before, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot before failure: %v", err)
+	}
+	if _, err := ledger.CreateDeploymentEnvironment(ctx, actor, CreateEnvironmentInput{ProductID: product.ID, Name: "staging", Kind: "staging"}); !errors.Is(err, errInjectedRepositoryFailure) {
+		t.Fatalf("failed environment err=%v", err)
+	}
+	after, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot after failure: %v", err)
+	}
+	if len(after.DeploymentEnvironments) != len(before.DeploymentEnvironments) || len(after.AuditEntries[actor.TenantID]) != len(before.AuditEntries[actor.TenantID]) || len(ledger.environments) != 1 {
+		t.Fatalf("failed environment published state: before=%#v after=%#v", before, after)
 	}
 }

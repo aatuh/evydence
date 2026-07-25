@@ -110,6 +110,7 @@ type Repositories struct {
 	Builds         BuildRepository
 	SupplyChain    SupplyChainRepository
 	Source         SourceRepository
+	Deployments    DeploymentRepository
 	Packages       PackageRepository
 	Signatures     SignatureRepository
 	Verification   VerificationRepository
@@ -209,6 +210,10 @@ type SourceRepository interface {
 	InsertSourceBranch(context.Context, domain.SourceBranch) error
 	UpdateSourceBranch(context.Context, domain.SourceBranch) error
 	InsertPullRequest(context.Context, domain.PullRequest) error
+}
+
+type DeploymentRepository interface {
+	InsertDeploymentEnvironment(context.Context, domain.DeploymentEnvironment) error
 }
 
 type PackageRepository interface {
