@@ -181,6 +181,16 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Governance.InsertRedactionProfile(ctx, profile); err != nil {
 		t.Fatalf("insert redaction profile: %v", err)
 	}
+	exception := domain.Exception{ID: "ex_repository", TenantID: tenant.ID, ReleaseID: release.ID, ControlID: control.ID, Reason: "repository test", Owner: "security", ExpiresAt: now.Add(time.Hour), CreatedAt: now}
+	if err := repositories.Decisions.InsertException(ctx, exception); err != nil {
+		t.Fatalf("insert exception: %v", err)
+	}
+	exception.Approved = true
+	exception.ApprovedBy = apiKey.ID
+	exception.ApprovedAt = &now
+	if err := repositories.Decisions.ApproveException(ctx, exception); err != nil {
+		t.Fatalf("approve exception: %v", err)
+	}
 	replacementEvidence := evidence
 	replacementEvidence.ID = "evi_repository_replacement"
 	replacementEvidence.Title = "Repository replacement SBOM"
@@ -319,6 +329,8 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"waiver approval", repositories.Governance.ApproveWaiver(ctx, domain.Waiver{})},
 		{"approval record", repositories.Governance.InsertApprovalRecord(ctx, domain.ApprovalRecord{})},
 		{"redaction profile", repositories.Governance.InsertRedactionProfile(ctx, domain.RedactionProfile{})},
+		{"exception", repositories.Decisions.InsertException(ctx, domain.Exception{})},
+		{"exception approval", repositories.Decisions.ApproveException(ctx, domain.Exception{})},
 		{"product", repositories.ReleaseCatalog.InsertProduct(ctx, domain.Product{})},
 		{"project", repositories.ReleaseCatalog.InsertProject(ctx, domain.Project{})},
 		{"release", repositories.ReleaseCatalog.InsertRelease(ctx, domain.Release{})},
@@ -432,6 +444,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"waiver control", repositories.Governance.InsertWaiver(ctx, domain.Waiver{ID: "wv_repository_b", TenantID: "ten_repository_b", ScopeType: "release", ScopeID: "rel_repository_b", ControlID: controlA.ID, Owner: "security", Risk: "accepted temporarily", Reason: "B waiver", ExpiresAt: now.Add(time.Hour), SchemaVersion: domain.WaiverSchemaVersion, CreatedAt: now})},
 		{"waiver approval", repositories.Governance.ApproveWaiver(ctx, domain.Waiver{ID: waiverA.ID, TenantID: "ten_repository_b", Approved: true, ApprovedBy: "key_repository_b", ApprovedAt: &now, ExpiresAt: now.Add(time.Hour)})},
 		{"approval evidence", repositories.Governance.InsertApprovalRecord(ctx, domain.ApprovalRecord{ID: "apr_repository_b", TenantID: "ten_repository_b", SubjectType: "release", SubjectID: "rel_repository_b", Decision: "approved", Reason: "B approval", ApproverID: "key_repository_b", EvidenceID: evidenceA.ID, SchemaVersion: domain.ApprovalRecordSchemaVersion, CreatedAt: now})},
+		{"exception release", repositories.Decisions.InsertException(ctx, domain.Exception{ID: "ex_repository_b", TenantID: "ten_repository_b", ReleaseID: releaseA.ID, Reason: "B exception", Owner: "security", ExpiresAt: now.Add(time.Hour), CreatedAt: now})},
 		{"candidate release", repositories.ReleaseCatalog.InsertReleaseCandidate(ctx, domain.ReleaseCandidate{ID: "rc_repository_b", TenantID: "ten_repository_b", ReleaseID: releaseA.ID, Name: "B candidate", State: "open", SnapshotHash: "sha256:candidate-b", SchemaVersion: domain.ReleaseCandidateSchemaVersion, CreatedAt: now})},
 		{"evidence link product", repositories.Evidence.UpdateEvidenceLinks(ctx, domain.EvidenceItem{ID: evidenceA.ID, TenantID: "ten_repository_b", ProductID: "prod_repository_a"})},
 		{"SBOM evidence", repositories.Evidence.InsertSBOM(ctx, domain.SBOM{ID: "sbom_repository_b", TenantID: "ten_repository_b", EvidenceID: evidenceA.ID, ReleaseID: releaseA.ID, ArtifactID: artifactA.ID, Format: "cyclonedx", CreatedAt: now})},
@@ -679,6 +692,12 @@ func TestRepositoriesPropagateClosedTransactionFailures(t *testing.T) {
 		}},
 		{"redaction profile", func() error {
 			return repositories.Governance.InsertRedactionProfile(ctx, domain.RedactionProfile{ID: "rp_closed", TenantID: tenantID, Name: "Closed", AllowedTypes: []string{"sbom"}, SchemaVersion: domain.RedactionProfileSchemaVersion, CreatedAt: now})
+		}},
+		{"exception", func() error {
+			return repositories.Decisions.InsertException(ctx, domain.Exception{ID: "ex_closed", TenantID: tenantID, ReleaseID: release.ID, Reason: "closed", Owner: "security", ExpiresAt: now.Add(time.Hour), CreatedAt: now})
+		}},
+		{"exception approval", func() error {
+			return repositories.Decisions.ApproveException(ctx, domain.Exception{ID: "ex_closed", TenantID: tenantID, Approved: true, ApprovedBy: "key_closed", ApprovedAt: &now, ExpiresAt: now.Add(time.Hour)})
 		}},
 		{"product", func() error {
 			return repositories.ReleaseCatalog.InsertProduct(ctx, domain.Product{ID: "prod_closed", TenantID: tenantID, Name: "Closed", Slug: "closed", CreatedAt: now})

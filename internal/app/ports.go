@@ -157,6 +157,8 @@ type EvidenceRepository interface {
 type DecisionRepository interface {
 	InsertVulnerabilityDecision(context.Context, domain.VulnerabilityDecision) error
 	SupersedeAndInsert(context.Context, domain.VulnerabilityDecision, []domain.VulnerabilityDecision) error
+	InsertException(context.Context, domain.Exception) error
+	ApproveException(context.Context, domain.Exception) error
 }
 
 type AuditRepository interface {

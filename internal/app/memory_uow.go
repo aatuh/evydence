@@ -46,6 +46,7 @@ type MemoryUnitOfWorkSnapshot struct {
 	VEXImportReports      map[string]domain.VEXImportReport
 	ReleaseCandidates     map[string]domain.ReleaseCandidate
 	Decisions             map[string]domain.VulnerabilityDecision
+	Exceptions            map[string]domain.Exception
 	ControlFrameworks     map[string]domain.ControlFramework
 	SecurityControls      map[string]domain.SecurityControl
 	ControlEvidence       map[string]domain.ControlEvidence
@@ -1023,6 +1024,53 @@ func (r memoryDecisionRepository) SupersedeAndInsert(ctx context.Context, decisi
 	})
 }
 
+func (r memoryDecisionRepository) InsertException(ctx context.Context, exception domain.Exception) error {
+	cloned, err := cloneMemoryJSON(exception)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.ReleaseID == "" || cloned.Reason == "" || cloned.Owner == "" || !cloned.ExpiresAt.After(cloned.CreatedAt) || cloned.CreatedAt.IsZero() || cloned.Approved || cloned.ApprovedBy != "" || cloned.ApprovedAt != nil {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.ReleaseID, cloned.TenantID, state.Releases) {
+			return ErrNotFound
+		}
+		if cloned.ControlID != "" && !memoryResourceBelongsToTenant(cloned.ControlID, cloned.TenantID, state.SecurityControls) {
+			return ErrNotFound
+		}
+		if _, exists := state.Exceptions[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.Exceptions[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryDecisionRepository) ApproveException(ctx context.Context, exception domain.Exception) error {
+	cloned, err := cloneMemoryJSON(exception)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		stored, ok := state.Exceptions[cloned.ID]
+		if !ok || stored.TenantID != cloned.TenantID {
+			return ErrNotFound
+		}
+		if stored.Approved || !cloned.Approved || cloned.ApprovedBy == "" || cloned.ApprovedAt == nil || !cloned.ExpiresAt.After(*cloned.ApprovedAt) {
+			return ErrConflict
+		}
+		state.Exceptions[cloned.ID] = cloned
+		return nil
+	})
+}
+
 type memoryAuditRepository struct{ uow *memoryUnitOfWork }
 
 func (r memoryAuditRepository) Append(ctx context.Context, entry domain.AuditChainEntry) (domain.AuditChainEntry, error) {
@@ -1374,6 +1422,7 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		VEXImportReports:      map[string]domain.VEXImportReport{},
 		ReleaseCandidates:     map[string]domain.ReleaseCandidate{},
 		Decisions:             map[string]domain.VulnerabilityDecision{},
+		Exceptions:            map[string]domain.Exception{},
 		ControlFrameworks:     map[string]domain.ControlFramework{},
 		SecurityControls:      map[string]domain.SecurityControl{},
 		ControlEvidence:       map[string]domain.ControlEvidence{},
@@ -1466,6 +1515,9 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.Decisions, err = cloneMemoryMap(snapshot.Decisions); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.Exceptions, err = cloneMemoryMap(snapshot.Exceptions); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.ControlFrameworks, err = cloneMemoryMap(snapshot.ControlFrameworks); err != nil {

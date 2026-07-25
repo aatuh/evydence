@@ -880,6 +880,52 @@ func (r decisions) SupersedeAndInsert(ctx context.Context, decision domain.Vulne
 	return r.InsertVulnerabilityDecision(ctx, decision)
 }
 
+func (r decisions) InsertException(ctx context.Context, exception domain.Exception) error {
+	if exception.ID == "" || exception.TenantID == "" || exception.ReleaseID == "" || exception.Reason == "" || exception.Owner == "" || !exception.ExpiresAt.After(exception.CreatedAt) || exception.CreatedAt.IsZero() || exception.Approved || exception.ApprovedBy != "" || exception.ApprovedAt != nil {
+		return app.ErrValidation
+	}
+	if err := requireOptionalRelease(ctx, r.tx, exception.TenantID, exception.ReleaseID); err != nil {
+		return err
+	}
+	if exception.ControlID != "" {
+		if err := requireRow(ctx, r.tx, `SELECT 1 FROM security_controls WHERE id = $1 AND tenant_id = $2`, exception.ControlID, exception.TenantID); err != nil {
+			return err
+		}
+	}
+	_, err := r.tx.Exec(ctx, `
+		INSERT INTO exceptions (
+			id, tenant_id, release_id, finding_id, control_id, reason, owner,
+			expires_at, approved, approved_by, approved_at, created_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, NULL, NULL, $9)
+	`, exception.ID, exception.TenantID, exception.ReleaseID, nullableString(exception.FindingID), nullableString(exception.ControlID), exception.Reason, exception.Owner, exception.ExpiresAt, exception.CreatedAt)
+	return writeError("insert exception", err)
+}
+
+func (r decisions) ApproveException(ctx context.Context, exception domain.Exception) error {
+	if exception.ID == "" || exception.TenantID == "" || !exception.Approved || exception.ApprovedBy == "" || exception.ApprovedAt == nil || !exception.ExpiresAt.After(*exception.ApprovedAt) {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, exception.TenantID); err != nil {
+		return err
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM exceptions WHERE id = $1 AND tenant_id = $2`, exception.ID, exception.TenantID); err != nil {
+		return err
+	}
+	result, err := r.tx.Exec(ctx, `
+		UPDATE exceptions
+		SET approved = true, approved_by = $3, approved_at = $4
+		WHERE id = $1 AND tenant_id = $2 AND approved = false AND expires_at > $4
+	`, exception.ID, exception.TenantID, exception.ApprovedBy, *exception.ApprovedAt)
+	if err != nil {
+		return writeError("approve exception", err)
+	}
+	if result.RowsAffected() != 1 {
+		return app.ErrConflict
+	}
+	return nil
+}
+
 type audit struct{ tx pgx.Tx }
 
 func (r audit) Append(ctx context.Context, entry domain.AuditChainEntry) (domain.AuditChainEntry, error) {

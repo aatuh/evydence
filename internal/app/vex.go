@@ -797,6 +797,22 @@ func (s releaseEvidenceService) CreateException(ctx context.Context, actor domai
 		Approved:  false,
 		CreatedAt: l.now(),
 	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Decisions.InsertException(ctx, exception); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(exception.CreatedAt, actor.TenantID, "exception.created", "exception", exception.ID, "api_key", actor.KeyID, "", ""))
+			return err
+		}); err != nil {
+			return domain.Exception{}, err
+		}
+		l.exceptions[exception.ID] = exception
+		l.publishCommittedAuditEntryLocked(entry)
+		return exception, nil
+	}
 	l.exceptions[exception.ID] = exception
 	_, _ = l.appendChainLocked(actor.TenantID, "exception.created", "exception", exception.ID, "api_key", actor.KeyID, "", "")
 	if err := l.persistLocked(ctx); err != nil {
@@ -859,6 +875,22 @@ func (s releaseEvidenceService) ApproveException(ctx context.Context, actor doma
 	exception.Approved = true
 	exception.ApprovedBy = actor.KeyID
 	exception.ApprovedAt = &now
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Decisions.ApproveException(ctx, exception); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, actor.TenantID, "exception.approved", "exception", exception.ID, "api_key", actor.KeyID, "", ""))
+			return err
+		}); err != nil {
+			return domain.Exception{}, err
+		}
+		l.exceptions[exception.ID] = exception
+		l.publishCommittedAuditEntryLocked(entry)
+		return exception, nil
+	}
 	l.exceptions[exception.ID] = exception
 	_, _ = l.appendChainLocked(actor.TenantID, "exception.approved", "exception", exception.ID, "api_key", actor.KeyID, "", "")
 	if err := l.persistLocked(ctx); err != nil {
