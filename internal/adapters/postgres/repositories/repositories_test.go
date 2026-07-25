@@ -101,6 +101,13 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.ReleaseCatalog.InsertProject(ctx, project); err != nil {
 		t.Fatalf("insert project: %v", err)
 	}
+	sourceRepository := domain.SourceRepository{ID: "repo_repository", TenantID: tenant.ID, ProjectID: project.ID, Provider: "github", FullName: "example/repository", SchemaVersion: domain.SourceRepositorySchemaVersion, CreatedAt: now}
+	if err := repositories.Source.InsertSourceRepository(ctx, sourceRepository); err != nil {
+		t.Fatalf("insert source repository: %v", err)
+	}
+	if err := repositories.Source.InsertSourceCommit(ctx, domain.SourceCommit{ID: "commit_repository", TenantID: tenant.ID, RepositoryID: sourceRepository.ID, SHA: "0123456789abcdef0123456789abcdef01234567", CommittedAt: now, SchemaVersion: domain.SourceCommitSchemaVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert source commit: %v", err)
+	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO customer_security_packages (
 			id, tenant_id, product_id, redaction_profile_id, title, state, manifest,
@@ -384,6 +391,8 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"build attestation", repositories.Builds.InsertBuildAttestation(ctx, domain.BuildAttestation{})},
 		{"container image", repositories.SupplyChain.InsertContainerImage(ctx, domain.ContainerImage{})},
 		{"artifact signature", repositories.SupplyChain.InsertArtifactSignature(ctx, domain.ArtifactSignature{})},
+		{"source repository", repositories.Source.InsertSourceRepository(ctx, domain.SourceRepository{})},
+		{"source commit", repositories.Source.InsertSourceCommit(ctx, domain.SourceCommit{})},
 		{"product", repositories.ReleaseCatalog.InsertProduct(ctx, domain.Product{})},
 		{"project", repositories.ReleaseCatalog.InsertProject(ctx, domain.Project{})},
 		{"release", repositories.ReleaseCatalog.InsertRelease(ctx, domain.Release{})},

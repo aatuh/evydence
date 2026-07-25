@@ -31,6 +31,7 @@ func New(tx pgx.Tx) app.Repositories {
 		Governance:     governance{tx: tx},
 		Builds:         builds{tx: tx},
 		SupplyChain:    supplyChain{tx: tx},
+		Source:         source{tx: tx},
 		Packages:       packages{tx: tx},
 		Signatures:     signatures{tx: tx},
 		Verification:   verification{tx: tx},
@@ -1428,6 +1429,42 @@ func (r builds) InsertBuildAttestation(ctx context.Context, attestation domain.B
 }
 
 type packages struct{ tx pgx.Tx }
+
+type source struct{ tx pgx.Tx }
+
+func (r source) InsertSourceRepository(ctx context.Context, repository domain.SourceRepository) error {
+	if repository.ID == "" || repository.TenantID == "" || repository.Provider == "" || repository.FullName == "" || repository.SchemaVersion == "" || repository.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, repository.TenantID); err != nil {
+		return err
+	}
+	if err := requireOptionalProject(ctx, r.tx, repository.TenantID, repository.ProjectID); err != nil {
+		return err
+	}
+	_, err := r.tx.Exec(ctx, `
+		INSERT INTO source_repositories (id, tenant_id, project_id, provider, full_name, clone_url, default_branch, schema_version, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`, repository.ID, repository.TenantID, nullableString(repository.ProjectID), repository.Provider, repository.FullName, nullableString(repository.CloneURL), nullableString(repository.DefaultBranch), repository.SchemaVersion, repository.CreatedAt)
+	return writeError("insert source repository", err)
+}
+
+func (r source) InsertSourceCommit(ctx context.Context, commit domain.SourceCommit) error {
+	if commit.ID == "" || commit.TenantID == "" || commit.RepositoryID == "" || commit.SHA == "" || commit.CommittedAt.IsZero() || commit.SchemaVersion == "" || commit.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, commit.TenantID); err != nil {
+		return err
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM source_repositories WHERE id = $1 AND tenant_id = $2`, commit.RepositoryID, commit.TenantID); err != nil {
+		return err
+	}
+	_, err := r.tx.Exec(ctx, `
+		INSERT INTO source_commits (id, tenant_id, repository_id, sha, author, message_hash, committed_at, schema_version, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`, commit.ID, commit.TenantID, commit.RepositoryID, commit.SHA, nullableString(commit.Author), nullableString(commit.MessageHash), commit.CommittedAt, commit.SchemaVersion, commit.CreatedAt)
+	return writeError("insert source commit", err)
+}
 
 type supplyChain struct{ tx pgx.Tx }
 

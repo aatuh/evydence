@@ -52,6 +52,8 @@ type MemoryUnitOfWorkSnapshot struct {
 	CollectorReleases     map[string]domain.CollectorRelease
 	ContainerImages       map[string]domain.ContainerImage
 	ArtifactSignatures    map[string]domain.ArtifactSignature
+	SourceRepositories    map[string]domain.SourceRepository
+	SourceCommits         map[string]domain.SourceCommit
 	ControlFrameworks     map[string]domain.ControlFramework
 	SecurityControls      map[string]domain.SecurityControl
 	ControlEvidence       map[string]domain.ControlEvidence
@@ -114,6 +116,7 @@ func (u *memoryUnitOfWork) Repositories() Repositories {
 		Governance:     memoryGovernanceRepository{uow: u},
 		Builds:         memoryBuildRepository{uow: u},
 		SupplyChain:    memorySupplyChainRepository{uow: u},
+		Source:         memorySourceRepository{uow: u},
 		Packages:       memoryPackageRepository{uow: u},
 		Signatures:     memorySignatureRepository{uow: u},
 		Verification:   memoryVerificationRepository{uow: u},
@@ -1516,6 +1519,64 @@ func (r memoryBuildRepository) InsertBuildAttestation(ctx context.Context, attes
 
 type memoryPackageRepository struct{ uow *memoryUnitOfWork }
 
+type memorySourceRepository struct{ uow *memoryUnitOfWork }
+
+func (r memorySourceRepository) InsertSourceRepository(ctx context.Context, repository domain.SourceRepository) error {
+	cloned, err := cloneMemoryJSON(repository)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.Provider == "" || cloned.FullName == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.ProjectID, cloned.TenantID, state.Projects) {
+			return ErrNotFound
+		}
+		if _, exists := state.SourceRepositories[cloned.ID]; exists {
+			return ErrConflict
+		}
+		for _, existing := range state.SourceRepositories {
+			if existing.TenantID == cloned.TenantID && existing.Provider == cloned.Provider && existing.FullName == cloned.FullName {
+				return ErrConflict
+			}
+		}
+		state.SourceRepositories[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memorySourceRepository) InsertSourceCommit(ctx context.Context, commit domain.SourceCommit) error {
+	cloned, err := cloneMemoryJSON(commit)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.RepositoryID == "" || cloned.SHA == "" || cloned.CommittedAt.IsZero() || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.RepositoryID, cloned.TenantID, state.SourceRepositories) {
+			return ErrNotFound
+		}
+		if _, exists := state.SourceCommits[cloned.ID]; exists {
+			return ErrConflict
+		}
+		for _, existing := range state.SourceCommits {
+			if existing.TenantID == cloned.TenantID && existing.RepositoryID == cloned.RepositoryID && existing.SHA == cloned.SHA {
+				return ErrConflict
+			}
+		}
+		state.SourceCommits[cloned.ID] = cloned
+		return nil
+	})
+}
+
 type memorySupplyChainRepository struct{ uow *memoryUnitOfWork }
 
 func (r memorySupplyChainRepository) InsertContainerImage(ctx context.Context, image domain.ContainerImage) error {
@@ -1699,6 +1760,8 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		CollectorReleases:     map[string]domain.CollectorRelease{},
 		ContainerImages:       map[string]domain.ContainerImage{},
 		ArtifactSignatures:    map[string]domain.ArtifactSignature{},
+		SourceRepositories:    map[string]domain.SourceRepository{},
+		SourceCommits:         map[string]domain.SourceCommit{},
 		ControlFrameworks:     map[string]domain.ControlFramework{},
 		SecurityControls:      map[string]domain.SecurityControl{},
 		ControlEvidence:       map[string]domain.ControlEvidence{},
@@ -1811,6 +1874,12 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.ArtifactSignatures, err = cloneMemoryMap(snapshot.ArtifactSignatures); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.SourceRepositories, err = cloneMemoryMap(snapshot.SourceRepositories); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.SourceCommits, err = cloneMemoryMap(snapshot.SourceCommits); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.ControlFrameworks, err = cloneMemoryMap(snapshot.ControlFrameworks); err != nil {
@@ -1965,6 +2034,8 @@ func memoryResourceTenantID(resource any) string {
 	case domain.Collector:
 		return value.TenantID
 	case domain.BuildRun:
+		return value.TenantID
+	case domain.SourceRepository:
 		return value.TenantID
 	case domain.SSOProvider:
 		return value.TenantID

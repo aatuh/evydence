@@ -12,6 +12,8 @@ type failingBuildRepository struct{ BuildRepository }
 
 type failingSupplyChainRepository struct{ SupplyChainRepository }
 
+type failingSourceRepository struct{ SourceRepository }
+
 func (failingBuildRepository) InsertBuildRun(context.Context, domain.BuildRun) error {
 	return errInjectedRepositoryFailure
 }
@@ -33,6 +35,14 @@ func (failingSupplyChainRepository) InsertContainerImage(context.Context, domain
 }
 
 func (failingSupplyChainRepository) InsertArtifactSignature(context.Context, domain.ArtifactSignature) error {
+	return errInjectedRepositoryFailure
+}
+
+func (failingSourceRepository) InsertSourceRepository(context.Context, domain.SourceRepository) error {
+	return errInjectedRepositoryFailure
+}
+
+func (failingSourceRepository) InsertSourceCommit(context.Context, domain.SourceCommit) error {
 	return errInjectedRepositoryFailure
 }
 
@@ -386,5 +396,87 @@ func TestSupplyChainWritesUseUnitOfWorkAndPublishOnlyAfterCommit(t *testing.T) {
 	}
 	if len(after.ContainerImages) != len(before.ContainerImages) || len(after.ArtifactSignatures) != len(before.ArtifactSignatures) || len(after.AuditEntries[actor.TenantID]) != len(before.AuditEntries[actor.TenantID]) || len(ledger.images) != 1 || len(ledger.artifactSigs) != 1 {
 		t.Fatalf("failed supply-chain write published state: before=%#v after=%#v", before, after)
+	}
+}
+
+func TestSourceWritesUseUnitOfWorkAndPublishOnlyAfterCommit(t *testing.T) {
+	ctx := context.Background()
+	memory := NewMemoryUnitOfWorkFactory()
+	ledger, _, actor := newReleaseEvidenceUnitOfWorkFixture(t, memory)
+	product, err := ledger.CreateProduct(ctx, actor, "Source API", "source-api")
+	if err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	project, err := ledger.CreateProject(ctx, actor, product.ID, "API")
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	repository, err := ledger.CreateSourceRepository(ctx, actor, CreateRepositoryInput{ProjectID: project.ID, Provider: "github", FullName: "example/api"})
+	if err != nil {
+		t.Fatalf("create source repository: %v", err)
+	}
+	commit, err := ledger.RecordSourceCommit(ctx, actor, RecordCommitInput{RepositoryID: repository.ID, SHA: "0123456789abcdef0123456789abcdef01234567", CommittedAt: fixedNow()})
+	if err != nil {
+		t.Fatalf("record source commit: %v", err)
+	}
+	snapshot, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	if snapshot.SourceRepositories[repository.ID].ProjectID != project.ID || snapshot.SourceCommits[commit.ID].RepositoryID != repository.ID {
+		t.Fatalf("source writes not committed: %#v", snapshot)
+	}
+	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
+		return repositories.Source.InsertSourceRepository(ctx, domain.SourceRepository{})
+	}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("invalid source repository err=%v, want validation", err)
+	}
+	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
+		missingProject := repository
+		missingProject.ID = "repo_missing_project"
+		missingProject.FullName = "example/missing-project"
+		missingProject.ProjectID = "proj_missing"
+		return repositories.Source.InsertSourceRepository(ctx, missingProject)
+	}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("source repository missing project err=%v, want not found", err)
+	}
+	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
+		return repositories.Source.InsertSourceRepository(ctx, repository)
+	}); !errors.Is(err, ErrConflict) {
+		t.Fatalf("duplicate source repository err=%v, want conflict", err)
+	}
+	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
+		missingRepository := commit
+		missingRepository.ID = "commit_missing_repository"
+		missingRepository.RepositoryID = "repo_missing"
+		return repositories.Source.InsertSourceCommit(ctx, missingRepository)
+	}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("source commit missing repository err=%v, want not found", err)
+	}
+	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
+		return repositories.Source.InsertSourceCommit(ctx, commit)
+	}); !errors.Is(err, ErrConflict) {
+		t.Fatalf("duplicate source commit err=%v, want conflict", err)
+	}
+	ledger.unitOfWork = repositoryFailingUnitOfWorkFactory{inner: memory, decorate: func(repositories Repositories) Repositories {
+		repositories.Source = failingSourceRepository{SourceRepository: repositories.Source}
+		return repositories
+	}}
+	before, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot before failures: %v", err)
+	}
+	if _, err := ledger.CreateSourceRepository(ctx, actor, CreateRepositoryInput{ProjectID: project.ID, Provider: "github", FullName: "example/failing"}); !errors.Is(err, errInjectedRepositoryFailure) {
+		t.Fatalf("failed source repository err=%v", err)
+	}
+	if _, err := ledger.RecordSourceCommit(ctx, actor, RecordCommitInput{RepositoryID: repository.ID, SHA: "1123456789abcdef0123456789abcdef01234567", CommittedAt: fixedNow()}); !errors.Is(err, errInjectedRepositoryFailure) {
+		t.Fatalf("failed source commit err=%v", err)
+	}
+	after, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot after failures: %v", err)
+	}
+	if len(after.SourceRepositories) != len(before.SourceRepositories) || len(after.SourceCommits) != len(before.SourceCommits) || len(after.AuditEntries[actor.TenantID]) != len(before.AuditEntries[actor.TenantID]) || len(ledger.repositories) != 1 || len(ledger.commits) != 1 {
+		t.Fatalf("failed source write published state: before=%#v after=%#v", before, after)
 	}
 }

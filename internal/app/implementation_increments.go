@@ -643,6 +643,22 @@ func (l *Ledger) CreateSourceRepository(ctx context.Context, actor domain.Actor,
 		SchemaVersion: domain.SourceRepositorySchemaVersion,
 		CreatedAt:     l.now(),
 	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Source.InsertSourceRepository(ctx, repo); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(repo.CreatedAt, actor.TenantID, "source_repository.created", "source_repository", repo.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.SourceRepository{}, err
+		}
+		l.repositories[repo.ID] = repo
+		l.publishCommittedAuditEntryLocked(entry)
+		return repo, nil
+	}
 	l.repositories[repo.ID] = repo
 	_, _ = l.appendChainLocked(actor.TenantID, "source_repository.created", "source_repository", repo.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {
@@ -693,6 +709,22 @@ func (l *Ledger) RecordSourceCommit(ctx context.Context, actor domain.Actor, in 
 		CommittedAt:   in.CommittedAt.UTC(),
 		SchemaVersion: domain.SourceCommitSchemaVersion,
 		CreatedAt:     l.now(),
+	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Source.InsertSourceCommit(ctx, commit); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(commit.CreatedAt, actor.TenantID, "source_commit.recorded", "source_commit", commit.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.SourceCommit{}, err
+		}
+		l.commits[commit.ID] = commit
+		l.publishCommittedAuditEntryLocked(entry)
+		return commit, nil
 	}
 	l.commits[commit.ID] = commit
 	_, _ = l.appendChainLocked(actor.TenantID, "source_commit.recorded", "source_commit", commit.ID, actorType(actor), actorID(actor), "", "")
