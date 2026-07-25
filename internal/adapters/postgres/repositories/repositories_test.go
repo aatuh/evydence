@@ -147,6 +147,18 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.ReleaseCatalog.InsertArtifact(ctx, artifact); err != nil {
 		t.Fatalf("insert artifact: %v", err)
 	}
+	if err := repositories.SupplyChain.InsertContainerImage(ctx, domain.ContainerImage{ID: "img_repository", TenantID: tenant.ID, ArtifactID: artifact.ID, Repository: "registry.example.test/repository", Digest: artifact.Digest, SchemaVersion: domain.ContainerImageSchemaVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert container image: %v", err)
+	}
+	if err := repositories.SupplyChain.InsertArtifactSignature(ctx, domain.ArtifactSignature{ID: "artsig_repository_port", TenantID: tenant.ID, ArtifactID: artifact.ID, SubjectDigest: artifact.Digest, Algorithm: "cosign", Signature: "signature", VerificationStatus: "recorded", SchemaVersion: domain.ArtifactSignatureSchemaVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert artifact signature: %v", err)
+	}
+	if err := repositories.SupplyChain.InsertContainerImage(ctx, domain.ContainerImage{ID: "img_repository_bad_digest", TenantID: tenant.ID, ArtifactID: artifact.ID, Repository: "registry.example.test/repository-bad", Digest: "sha256:wrong", SchemaVersion: domain.ContainerImageSchemaVersion, CreatedAt: now}); !errors.Is(err, app.ErrValidation) {
+		t.Fatalf("mismatched image digest err=%v, want validation", err)
+	}
+	if err := repositories.SupplyChain.InsertArtifactSignature(ctx, domain.ArtifactSignature{ID: "artsig_repository_bad_digest", TenantID: tenant.ID, ArtifactID: artifact.ID, SubjectDigest: "sha256:wrong", Algorithm: "cosign", Signature: "signature", VerificationStatus: "recorded", SchemaVersion: domain.ArtifactSignatureSchemaVersion, CreatedAt: now}); !errors.Is(err, app.ErrValidation) {
+		t.Fatalf("mismatched signature digest err=%v, want validation", err)
+	}
 	evidence := domain.EvidenceItem{
 		ID: "evi_repository", TenantID: tenant.ID, ProductID: product.ID, ProjectID: project.ID, ReleaseID: release.ID,
 		Type: "sbom", Title: "Repository SBOM", SourceSystem: "test", ObservedAt: now, EvidenceVersion: 1,
@@ -370,6 +382,8 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"collector release", repositories.Builds.InsertCollectorRelease(ctx, domain.CollectorRelease{})},
 		{"build run", repositories.Builds.InsertBuildRun(ctx, domain.BuildRun{})},
 		{"build attestation", repositories.Builds.InsertBuildAttestation(ctx, domain.BuildAttestation{})},
+		{"container image", repositories.SupplyChain.InsertContainerImage(ctx, domain.ContainerImage{})},
+		{"artifact signature", repositories.SupplyChain.InsertArtifactSignature(ctx, domain.ArtifactSignature{})},
 		{"product", repositories.ReleaseCatalog.InsertProduct(ctx, domain.Product{})},
 		{"project", repositories.ReleaseCatalog.InsertProject(ctx, domain.Project{})},
 		{"release", repositories.ReleaseCatalog.InsertRelease(ctx, domain.Release{})},

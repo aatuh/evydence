@@ -10,6 +10,8 @@ import (
 
 type failingBuildRepository struct{ BuildRepository }
 
+type failingSupplyChainRepository struct{ SupplyChainRepository }
+
 func (failingBuildRepository) InsertBuildRun(context.Context, domain.BuildRun) error {
 	return errInjectedRepositoryFailure
 }
@@ -23,6 +25,14 @@ func (failingBuildRepository) InsertCollectorRelease(context.Context, domain.Col
 }
 
 func (failingBuildRepository) InsertBuildAttestation(context.Context, domain.BuildAttestation) error {
+	return errInjectedRepositoryFailure
+}
+
+func (failingSupplyChainRepository) InsertContainerImage(context.Context, domain.ContainerImage) error {
+	return errInjectedRepositoryFailure
+}
+
+func (failingSupplyChainRepository) InsertArtifactSignature(context.Context, domain.ArtifactSignature) error {
 	return errInjectedRepositoryFailure
 }
 
@@ -277,5 +287,104 @@ func TestBuildAttestationUsesUnitOfWorkAndPublishesOnlyAfterCommit(t *testing.T)
 	}
 	if len(after.Evidence) != len(before.Evidence) || len(after.BuildAttestations) != len(before.BuildAttestations) || len(after.OutboxJobs) != len(before.OutboxJobs) || len(after.AuditEntries[actor.TenantID]) != len(before.AuditEntries[actor.TenantID]) || len(ledger.attestations) != 1 {
 		t.Fatalf("failed attestation published state: before=%#v after=%#v", before, after)
+	}
+}
+
+func TestSupplyChainWritesUseUnitOfWorkAndPublishOnlyAfterCommit(t *testing.T) {
+	ctx := context.Background()
+	memory := NewMemoryUnitOfWorkFactory()
+	ledger, _, actor := newReleaseEvidenceUnitOfWorkFixture(t, memory)
+	artifact, err := ledger.RegisterArtifact(ctx, actor, "api.tar.gz", "application/gzip", sampleDigest("supply-chain-uow"), 1)
+	if err != nil {
+		t.Fatalf("register artifact: %v", err)
+	}
+	image, err := ledger.RegisterContainerImage(ctx, actor, RegisterContainerImageInput{ArtifactID: artifact.ID, Repository: "registry.example.test/api", Digest: artifact.Digest})
+	if err != nil {
+		t.Fatalf("register image: %v", err)
+	}
+	signature, err := ledger.CreateArtifactSignature(ctx, actor, CreateArtifactSignatureInput{ArtifactID: artifact.ID, Algorithm: "cosign", Signature: "signature"})
+	if err != nil {
+		t.Fatalf("create signature: %v", err)
+	}
+	snapshot, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	if snapshot.ContainerImages[image.ID].ArtifactID != artifact.ID || snapshot.ArtifactSignatures[signature.ID].SubjectDigest != artifact.Digest {
+		t.Fatalf("supply-chain writes not committed: %#v", snapshot)
+	}
+	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
+		return repositories.SupplyChain.InsertContainerImage(ctx, domain.ContainerImage{})
+	}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("invalid image err=%v, want validation", err)
+	}
+	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
+		return repositories.SupplyChain.InsertArtifactSignature(ctx, domain.ArtifactSignature{})
+	}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("invalid signature err=%v, want validation", err)
+	}
+	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
+		missingArtifact := image
+		missingArtifact.ID = "img_missing_artifact"
+		missingArtifact.ArtifactID = "art_missing"
+		return repositories.SupplyChain.InsertContainerImage(ctx, missingArtifact)
+	}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("image missing artifact err=%v, want not found", err)
+	}
+	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
+		mismatchedDigest := image
+		mismatchedDigest.ID = "img_mismatched_digest"
+		mismatchedDigest.Digest = "sha256:other-image"
+		return repositories.SupplyChain.InsertContainerImage(ctx, mismatchedDigest)
+	}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("image mismatched digest err=%v, want validation", err)
+	}
+	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
+		return repositories.SupplyChain.InsertContainerImage(ctx, image)
+	}); !errors.Is(err, ErrConflict) {
+		t.Fatalf("duplicate image err=%v, want conflict", err)
+	}
+	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
+		missingArtifact := signature
+		missingArtifact.ID = "artsig_missing_artifact"
+		missingArtifact.ArtifactID = "art_missing"
+		return repositories.SupplyChain.InsertArtifactSignature(ctx, missingArtifact)
+	}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("signature missing artifact err=%v, want not found", err)
+	}
+	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
+		mismatchedDigest := signature
+		mismatchedDigest.ID = "artsig_mismatched_digest"
+		mismatchedDigest.SubjectDigest = "sha256:other-signature"
+		return repositories.SupplyChain.InsertArtifactSignature(ctx, mismatchedDigest)
+	}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("signature mismatched digest err=%v, want validation", err)
+	}
+	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
+		return repositories.SupplyChain.InsertArtifactSignature(ctx, signature)
+	}); !errors.Is(err, ErrConflict) {
+		t.Fatalf("duplicate signature err=%v, want conflict", err)
+	}
+
+	ledger.unitOfWork = repositoryFailingUnitOfWorkFactory{inner: memory, decorate: func(repositories Repositories) Repositories {
+		repositories.SupplyChain = failingSupplyChainRepository{SupplyChainRepository: repositories.SupplyChain}
+		return repositories
+	}}
+	before, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot before failures: %v", err)
+	}
+	if _, err := ledger.RegisterContainerImage(ctx, actor, RegisterContainerImageInput{ArtifactID: artifact.ID, Repository: "registry.example.test/api-failed", Digest: artifact.Digest}); !errors.Is(err, errInjectedRepositoryFailure) {
+		t.Fatalf("failed image err=%v, want injected repository failure", err)
+	}
+	if _, err := ledger.CreateArtifactSignature(ctx, actor, CreateArtifactSignatureInput{ArtifactID: artifact.ID, Algorithm: "cosign", Signature: "failed-signature"}); !errors.Is(err, errInjectedRepositoryFailure) {
+		t.Fatalf("failed signature err=%v, want injected repository failure", err)
+	}
+	after, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot after failures: %v", err)
+	}
+	if len(after.ContainerImages) != len(before.ContainerImages) || len(after.ArtifactSignatures) != len(before.ArtifactSignatures) || len(after.AuditEntries[actor.TenantID]) != len(before.AuditEntries[actor.TenantID]) || len(ledger.images) != 1 || len(ledger.artifactSigs) != 1 {
+		t.Fatalf("failed supply-chain write published state: before=%#v after=%#v", before, after)
 	}
 }

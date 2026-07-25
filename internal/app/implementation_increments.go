@@ -465,6 +465,22 @@ func (l *Ledger) RegisterContainerImage(ctx context.Context, actor domain.Actor,
 		SchemaVersion: domain.ContainerImageSchemaVersion,
 		CreatedAt:     l.now(),
 	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.SupplyChain.InsertContainerImage(ctx, image); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(image.CreatedAt, actor.TenantID, "container_image.created", "container_image", image.ID, "api_key", actor.KeyID, image.Digest, ""))
+			return err
+		}); err != nil {
+			return domain.ContainerImage{}, err
+		}
+		l.images[image.ID] = image
+		l.publishCommittedAuditEntryLocked(entry)
+		return image, nil
+	}
 	l.images[image.ID] = image
 	_, _ = l.appendChainLocked(actor.TenantID, "container_image.created", "container_image", image.ID, "api_key", actor.KeyID, image.Digest, "")
 	if err := l.persistLocked(ctx); err != nil {
@@ -519,6 +535,22 @@ func (l *Ledger) CreateArtifactSignature(ctx context.Context, actor domain.Actor
 		VerificationStatus: "recorded",
 		SchemaVersion:      domain.ArtifactSignatureSchemaVersion,
 		CreatedAt:          l.now(),
+	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.SupplyChain.InsertArtifactSignature(ctx, sig); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(sig.CreatedAt, actor.TenantID, "artifact_signature.created", "artifact_signature", sig.ID, "api_key", actor.KeyID, artifact.Digest, ""))
+			return err
+		}); err != nil {
+			return domain.ArtifactSignature{}, err
+		}
+		l.artifactSigs[sig.ID] = sig
+		l.publishCommittedAuditEntryLocked(entry)
+		return sig, nil
 	}
 	l.artifactSigs[sig.ID] = sig
 	_, _ = l.appendChainLocked(actor.TenantID, "artifact_signature.created", "artifact_signature", sig.ID, "api_key", actor.KeyID, artifact.Digest, "")

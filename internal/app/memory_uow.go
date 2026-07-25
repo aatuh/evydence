@@ -50,6 +50,8 @@ type MemoryUnitOfWorkSnapshot struct {
 	BuildRuns             map[string]domain.BuildRun
 	BuildAttestations     map[string]domain.BuildAttestation
 	CollectorReleases     map[string]domain.CollectorRelease
+	ContainerImages       map[string]domain.ContainerImage
+	ArtifactSignatures    map[string]domain.ArtifactSignature
 	ControlFrameworks     map[string]domain.ControlFramework
 	SecurityControls      map[string]domain.SecurityControl
 	ControlEvidence       map[string]domain.ControlEvidence
@@ -111,6 +113,7 @@ func (u *memoryUnitOfWork) Repositories() Repositories {
 		Controls:       memoryControlRepository{uow: u},
 		Governance:     memoryGovernanceRepository{uow: u},
 		Builds:         memoryBuildRepository{uow: u},
+		SupplyChain:    memorySupplyChainRepository{uow: u},
 		Packages:       memoryPackageRepository{uow: u},
 		Signatures:     memorySignatureRepository{uow: u},
 		Verification:   memoryVerificationRepository{uow: u},
@@ -1513,6 +1516,69 @@ func (r memoryBuildRepository) InsertBuildAttestation(ctx context.Context, attes
 
 type memoryPackageRepository struct{ uow *memoryUnitOfWork }
 
+type memorySupplyChainRepository struct{ uow *memoryUnitOfWork }
+
+func (r memorySupplyChainRepository) InsertContainerImage(ctx context.Context, image domain.ContainerImage) error {
+	cloned, err := cloneMemoryJSON(image)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.Repository == "" || cloned.Digest == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if cloned.ArtifactID != "" {
+			artifact, ok := state.Artifacts[cloned.ArtifactID]
+			if !ok || artifact.TenantID != cloned.TenantID {
+				return ErrNotFound
+			}
+			if artifact.Digest != cloned.Digest {
+				return ErrValidation
+			}
+		}
+		if _, exists := state.ContainerImages[cloned.ID]; exists {
+			return ErrConflict
+		}
+		for _, existing := range state.ContainerImages {
+			if existing.TenantID == cloned.TenantID && existing.Repository == cloned.Repository && existing.Digest == cloned.Digest {
+				return ErrConflict
+			}
+		}
+		state.ContainerImages[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memorySupplyChainRepository) InsertArtifactSignature(ctx context.Context, signature domain.ArtifactSignature) error {
+	cloned, err := cloneMemoryJSON(signature)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.ArtifactID == "" || cloned.SubjectDigest == "" || cloned.Algorithm == "" || cloned.Signature == "" || cloned.VerificationStatus == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		artifact, ok := state.Artifacts[cloned.ArtifactID]
+		if !ok || artifact.TenantID != cloned.TenantID {
+			return ErrNotFound
+		}
+		if artifact.Digest != cloned.SubjectDigest {
+			return ErrValidation
+		}
+		if _, exists := state.ArtifactSignatures[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.ArtifactSignatures[cloned.ID] = cloned
+		return nil
+	})
+}
+
 func (r memoryPackageRepository) InsertReleaseBundle(ctx context.Context, bundle domain.ReleaseBundle) error {
 	cloned, err := cloneMemoryJSON(bundle)
 	if err != nil {
@@ -1631,6 +1697,8 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		BuildRuns:             map[string]domain.BuildRun{},
 		BuildAttestations:     map[string]domain.BuildAttestation{},
 		CollectorReleases:     map[string]domain.CollectorRelease{},
+		ContainerImages:       map[string]domain.ContainerImage{},
+		ArtifactSignatures:    map[string]domain.ArtifactSignature{},
 		ControlFrameworks:     map[string]domain.ControlFramework{},
 		SecurityControls:      map[string]domain.SecurityControl{},
 		ControlEvidence:       map[string]domain.ControlEvidence{},
@@ -1737,6 +1805,12 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.CollectorReleases, err = cloneMemoryMap(snapshot.CollectorReleases); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.ContainerImages, err = cloneMemoryMap(snapshot.ContainerImages); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.ArtifactSignatures, err = cloneMemoryMap(snapshot.ArtifactSignatures); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.ControlFrameworks, err = cloneMemoryMap(snapshot.ControlFrameworks); err != nil {

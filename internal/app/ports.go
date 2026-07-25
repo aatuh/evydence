@@ -108,6 +108,7 @@ type Repositories struct {
 	Controls       ControlRepository
 	Governance     GovernanceRepository
 	Builds         BuildRepository
+	SupplyChain    SupplyChainRepository
 	Packages       PackageRepository
 	Signatures     SignatureRepository
 	Verification   VerificationRepository
@@ -194,6 +195,11 @@ type BuildRepository interface {
 	InsertCollectorRelease(context.Context, domain.CollectorRelease) error
 	InsertBuildRun(context.Context, domain.BuildRun) error
 	InsertBuildAttestation(context.Context, domain.BuildAttestation) error
+}
+
+type SupplyChainRepository interface {
+	InsertContainerImage(context.Context, domain.ContainerImage) error
+	InsertArtifactSignature(context.Context, domain.ArtifactSignature) error
 }
 
 type PackageRepository interface {

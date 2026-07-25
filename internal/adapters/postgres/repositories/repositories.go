@@ -30,6 +30,7 @@ func New(tx pgx.Tx) app.Repositories {
 		Controls:       controls{tx: tx},
 		Governance:     governance{tx: tx},
 		Builds:         builds{tx: tx},
+		SupplyChain:    supplyChain{tx: tx},
 		Packages:       packages{tx: tx},
 		Signatures:     signatures{tx: tx},
 		Verification:   verification{tx: tx},
@@ -1427,6 +1428,64 @@ func (r builds) InsertBuildAttestation(ctx context.Context, attestation domain.B
 }
 
 type packages struct{ tx pgx.Tx }
+
+type supplyChain struct{ tx pgx.Tx }
+
+func (r supplyChain) InsertContainerImage(ctx context.Context, image domain.ContainerImage) error {
+	if image.ID == "" || image.TenantID == "" || image.Repository == "" || image.Digest == "" || image.SchemaVersion == "" || image.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, image.TenantID); err != nil {
+		return err
+	}
+	if image.ArtifactID != "" {
+		var digest string
+		if err := r.tx.QueryRow(ctx, `SELECT digest FROM artifacts WHERE id = $1 AND tenant_id = $2`, image.ArtifactID, image.TenantID).Scan(&digest); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return app.ErrNotFound
+			}
+			return writeError("read image artifact", err)
+		}
+		if digest != image.Digest {
+			return app.ErrValidation
+		}
+	}
+	_, err := r.tx.Exec(ctx, `
+		INSERT INTO container_images (id, tenant_id, artifact_id, repository, tag, digest, platform, schema_version, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`, image.ID, image.TenantID, nullableString(image.ArtifactID), image.Repository, nullableString(image.Tag), image.Digest, nullableString(image.Platform), image.SchemaVersion, image.CreatedAt)
+	return writeError("insert container image", err)
+}
+
+func (r supplyChain) InsertArtifactSignature(ctx context.Context, signature domain.ArtifactSignature) error {
+	if signature.ID == "" || signature.TenantID == "" || signature.ArtifactID == "" || signature.SubjectDigest == "" || signature.Algorithm == "" || signature.Signature == "" || signature.VerificationStatus == "" || signature.SchemaVersion == "" || signature.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, signature.TenantID); err != nil {
+		return err
+	}
+	var digest string
+	if err := r.tx.QueryRow(ctx, `SELECT digest FROM artifacts WHERE id = $1 AND tenant_id = $2`, signature.ArtifactID, signature.TenantID).Scan(&digest); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return app.ErrNotFound
+		}
+		return writeError("read signature artifact", err)
+	}
+	if digest != signature.SubjectDigest {
+		return app.ErrValidation
+	}
+	_, err := r.tx.Exec(ctx, `
+		INSERT INTO artifact_signatures (
+			id, tenant_id, artifact_id, subject_digest, algorithm, key_id,
+			signature, payload_ref, payload_hash, verification_status,
+			schema_version, created_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+	`, signature.ID, signature.TenantID, signature.ArtifactID, signature.SubjectDigest, signature.Algorithm, nullableString(signature.KeyID),
+		signature.Signature, nullableString(signature.PayloadRef), nullableString(signature.PayloadHash), signature.VerificationStatus,
+		signature.SchemaVersion, signature.CreatedAt)
+	return writeError("insert artifact signature", err)
+}
 
 func (r packages) InsertReleaseBundle(ctx context.Context, bundle domain.ReleaseBundle) error {
 	if bundle.ID == "" || bundle.TenantID == "" || bundle.ReleaseID == "" || bundle.State == "" || bundle.ManifestHash == "" || bundle.CreatedAt.IsZero() {
