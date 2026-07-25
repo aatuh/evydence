@@ -48,6 +48,7 @@ type MemoryUnitOfWorkSnapshot struct {
 	Decisions             map[string]domain.VulnerabilityDecision
 	Exceptions            map[string]domain.Exception
 	BuildRuns             map[string]domain.BuildRun
+	BuildAttestations     map[string]domain.BuildAttestation
 	CollectorReleases     map[string]domain.CollectorRelease
 	ControlFrameworks     map[string]domain.ControlFramework
 	SecurityControls      map[string]domain.SecurityControl
@@ -1480,6 +1481,36 @@ func (r memoryBuildRepository) InsertBuildRun(ctx context.Context, build domain.
 	})
 }
 
+func (r memoryBuildRepository) InsertBuildAttestation(ctx context.Context, attestation domain.BuildAttestation) error {
+	cloned, err := cloneMemoryJSON(attestation)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.BuildID == "" || cloned.EvidenceID == "" || cloned.PayloadHash == "" || cloned.PayloadSize < 0 || cloned.VerificationStatus == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.BuildID, cloned.TenantID, state.BuildRuns) {
+			return ErrNotFound
+		}
+		evidence, ok := state.Evidence[cloned.EvidenceID]
+		if !ok || evidence.TenantID != cloned.TenantID {
+			return ErrNotFound
+		}
+		if evidence.BuildID != cloned.BuildID {
+			return ErrValidation
+		}
+		if _, exists := state.BuildAttestations[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.BuildAttestations[cloned.ID] = cloned
+		return nil
+	})
+}
+
 type memoryPackageRepository struct{ uow *memoryUnitOfWork }
 
 func (r memoryPackageRepository) InsertReleaseBundle(ctx context.Context, bundle domain.ReleaseBundle) error {
@@ -1598,6 +1629,7 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		Decisions:             map[string]domain.VulnerabilityDecision{},
 		Exceptions:            map[string]domain.Exception{},
 		BuildRuns:             map[string]domain.BuildRun{},
+		BuildAttestations:     map[string]domain.BuildAttestation{},
 		CollectorReleases:     map[string]domain.CollectorRelease{},
 		ControlFrameworks:     map[string]domain.ControlFramework{},
 		SecurityControls:      map[string]domain.SecurityControl{},
@@ -1699,6 +1731,9 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.BuildRuns, err = cloneMemoryMap(snapshot.BuildRuns); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.BuildAttestations, err = cloneMemoryMap(snapshot.BuildAttestations); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.CollectorReleases, err = cloneMemoryMap(snapshot.CollectorReleases); err != nil {
@@ -1854,6 +1889,8 @@ func memoryResourceTenantID(resource any) string {
 	case domain.HumanUser:
 		return value.TenantID
 	case domain.Collector:
+		return value.TenantID
+	case domain.BuildRun:
 		return value.TenantID
 	case domain.SSOProvider:
 		return value.TenantID

@@ -193,6 +193,7 @@ type BuildRepository interface {
 	InsertCollector(context.Context, domain.Collector) error
 	InsertCollectorRelease(context.Context, domain.CollectorRelease) error
 	InsertBuildRun(context.Context, domain.BuildRun) error
+	InsertBuildAttestation(context.Context, domain.BuildAttestation) error
 }
 
 type PackageRepository interface {

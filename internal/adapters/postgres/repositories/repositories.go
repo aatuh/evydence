@@ -1382,6 +1382,50 @@ func (r builds) InsertBuildRun(ctx context.Context, build domain.BuildRun) error
 	return writeError("insert build run", err)
 }
 
+func (r builds) InsertBuildAttestation(ctx context.Context, attestation domain.BuildAttestation) error {
+	if attestation.ID == "" || attestation.TenantID == "" || attestation.BuildID == "" || attestation.EvidenceID == "" || attestation.PayloadHash == "" || attestation.PayloadSize < 0 || attestation.VerificationStatus == "" || attestation.SchemaVersion == "" || attestation.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, attestation.TenantID); err != nil {
+		return err
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM build_runs WHERE id = $1 AND tenant_id = $2`, attestation.BuildID, attestation.TenantID); err != nil {
+		return err
+	}
+	var evidenceBuildID string
+	if err := r.tx.QueryRow(ctx, `SELECT build_id FROM evidence_items WHERE id = $1 AND tenant_id = $2`, attestation.EvidenceID, attestation.TenantID).Scan(&evidenceBuildID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return app.ErrNotFound
+		}
+		return writeError("read attestation evidence", err)
+	}
+	if evidenceBuildID != attestation.BuildID {
+		return app.ErrValidation
+	}
+	subjectDigests, err := json.Marshal(attestation.SubjectDigests)
+	if err != nil {
+		return fmt.Errorf("encode attestation subject digests: %w", err)
+	}
+	_, err = r.tx.Exec(ctx, `
+		INSERT INTO build_attestations (
+			id, tenant_id, build_id, evidence_id, payload_ref, payload_hash,
+			payload_size, payload_type, predicate_type, subject_digests,
+			builder_id, build_type, materials_count, signature_count,
+			verification_status, schema_version, created_at
+		)
+		VALUES (
+			$1, $2, $3, $4, $5, $6,
+			$7, $8, $9, $10,
+			$11, $12, $13, $14,
+			$15, $16, $17
+		)
+	`, attestation.ID, attestation.TenantID, attestation.BuildID, attestation.EvidenceID, nullableString(attestation.PayloadRef), attestation.PayloadHash,
+		attestation.PayloadSize, attestation.PayloadType, attestation.PredicateType, subjectDigests,
+		nullableString(attestation.BuilderID), nullableString(attestation.BuildType), attestation.MaterialsCount, attestation.SignatureCount,
+		attestation.VerificationStatus, attestation.SchemaVersion, attestation.CreatedAt)
+	return writeError("insert build attestation", err)
+}
+
 type packages struct{ tx pgx.Tx }
 
 func (r packages) InsertReleaseBundle(ctx context.Context, bundle domain.ReleaseBundle) error {

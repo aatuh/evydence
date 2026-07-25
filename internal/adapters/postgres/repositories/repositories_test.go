@@ -160,6 +160,17 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Builds.InsertBuildRun(ctx, domain.BuildRun{ID: "build_repository", TenantID: tenant.ID, ProjectID: project.ID, ReleaseID: release.ID, Provider: "generic_ci", CommitSHA: "0123456789abcdef0123456789abcdef01234567", Status: "passed", StartedAt: now, Outputs: []domain.BuildOutput{{ArtifactID: artifact.ID, Digest: artifact.Digest}}, SourceIdentity: map[string]any{"source": "repository-test"}, SchemaVersion: domain.BuildRunSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert build run: %v", err)
 	}
+	attestationEvidence := evidence
+	attestationEvidence.ID = "evi_repository_attestation"
+	attestationEvidence.BuildID = "build_repository"
+	attestationEvidence.PayloadHash = "sha256:attestation-payload"
+	attestationEvidence.CanonicalHash = "sha256:attestation-canonical"
+	if err := repositories.Evidence.InsertEvidence(ctx, attestationEvidence); err != nil {
+		t.Fatalf("insert attestation evidence: %v", err)
+	}
+	if err := repositories.Builds.InsertBuildAttestation(ctx, domain.BuildAttestation{ID: "att_repository", TenantID: tenant.ID, BuildID: "build_repository", EvidenceID: attestationEvidence.ID, PayloadHash: attestationEvidence.PayloadHash, PayloadSize: 42, PayloadType: "application/vnd.in-toto+json", PredicateType: "https://slsa.dev/provenance/v1", SubjectDigests: []string{artifact.Digest}, VerificationStatus: "structurally_valid", SchemaVersion: domain.BuildAttestationSchemaVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert build attestation: %v", err)
+	}
 	if err := repositories.Controls.InsertControlEvidence(ctx, domain.ControlEvidence{ID: "ce_repository", TenantID: tenant.ID, ControlID: control.ID, EvidenceType: "sbom", SubjectType: "evidence", SubjectID: evidence.ID, ProductID: product.ID, ReleaseID: release.ID, Confidence: "high", SchemaVersion: domain.ControlEvidenceSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert control evidence: %v", err)
 	}
@@ -358,6 +369,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"collector", repositories.Builds.InsertCollector(ctx, domain.Collector{})},
 		{"collector release", repositories.Builds.InsertCollectorRelease(ctx, domain.CollectorRelease{})},
 		{"build run", repositories.Builds.InsertBuildRun(ctx, domain.BuildRun{})},
+		{"build attestation", repositories.Builds.InsertBuildAttestation(ctx, domain.BuildAttestation{})},
 		{"product", repositories.ReleaseCatalog.InsertProduct(ctx, domain.Product{})},
 		{"project", repositories.ReleaseCatalog.InsertProject(ctx, domain.Project{})},
 		{"release", repositories.ReleaseCatalog.InsertRelease(ctx, domain.Release{})},

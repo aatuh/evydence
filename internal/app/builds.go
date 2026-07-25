@@ -465,7 +465,7 @@ func (l *Ledger) UploadBuildAttestation(ctx context.Context, actor domain.Actor,
 	if err != nil {
 		return domain.BuildAttestation{}, err
 	}
-	item, err := l.CreateEvidence(ctx, actor, CreateEvidenceInput{
+	evidenceInput := CreateEvidenceInput{
 		ProjectID:        build.ProjectID,
 		ReleaseID:        build.ReleaseID,
 		BuildID:          build.ID,
@@ -487,18 +487,14 @@ func (l *Ledger) UploadBuildAttestation(ctx context.Context, actor domain.Actor,
 			"signature_count": parsed.SignatureCount,
 		},
 		Limitations: []string{"DSSE and in-toto structure was parsed; cryptographic trust-root verification is not performed in this slice."},
-	})
-	if err != nil {
-		return domain.BuildAttestation{}, err
 	}
 
 	l.mu.Lock()
-	defer l.mu.Unlock()
 	attestation := domain.BuildAttestation{
 		ID:                 newID("att"),
 		TenantID:           actor.TenantID,
 		BuildID:            build.ID,
-		EvidenceID:         item.ID,
+		EvidenceID:         "",
 		PayloadRef:         payloadRef,
 		PayloadHash:        payloadHash,
 		PayloadSize:        int64(len(raw)),
@@ -526,6 +522,52 @@ func (l *Ledger) UploadBuildAttestation(ctx context.Context, actor domain.Actor,
 		persistedAttestation.VerificationStatus = "accepted"
 		chainAction = "build_attestation.accepted"
 	}
+	if l.unitOfWork != nil {
+		defer l.mu.Unlock()
+		item, err := l.releaseEvidenceService().newEvidenceItemLocked(actor, evidenceInput)
+		if err != nil {
+			return domain.BuildAttestation{}, err
+		}
+		attestation.EvidenceID = item.ID
+		persistedAttestation.EvidenceID = item.ID
+		job := l.newOutboxJob(actor.TenantID, "verify_attestation", "build_attestation", attestation.ID, map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionDSSEInTotoJSON})
+		var evidenceEntry, attestationEntry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			var err error
+			evidenceEntry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(item.CreatedAt, actor.TenantID, "evidence.created", "evidence_item", item.ID, "api_key", actor.KeyID, item.PayloadHash, ""))
+			if err != nil {
+				return err
+			}
+			item.ChainEntryID = evidenceEntry.ID
+			if err := repos.Evidence.InsertEvidence(ctx, item); err != nil {
+				return err
+			}
+			attestationEntry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(attestation.CreatedAt, actor.TenantID, chainAction, "build_attestation", attestation.ID, "api_key", actor.KeyID, payloadHash, ""))
+			if err != nil {
+				return err
+			}
+			if err := repos.Builds.InsertBuildAttestation(ctx, persistedAttestation); err != nil {
+				return err
+			}
+			return repos.Outbox.Enqueue(ctx, job)
+		}); err != nil {
+			return domain.BuildAttestation{}, err
+		}
+		l.evidence[item.ID] = item
+		l.attestations[attestation.ID] = persistedAttestation
+		l.publishCommittedAuditEntryLocked(evidenceEntry)
+		l.publishCommittedAuditEntryLocked(attestationEntry)
+		return attestation, nil
+	}
+	l.mu.Unlock()
+	item, err := l.CreateEvidence(ctx, actor, evidenceInput)
+	if err != nil {
+		return domain.BuildAttestation{}, err
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	attestation.EvidenceID = item.ID
+	persistedAttestation.EvidenceID = item.ID
 	l.attestations[attestation.ID] = persistedAttestation
 	_, _ = l.appendChainLocked(actor.TenantID, chainAction, "build_attestation", attestation.ID, actorType(actor), actorID(actor), payloadHash, "")
 	if err := l.enqueue(ctx, actor.TenantID, "verify_attestation", "build_attestation", attestation.ID, map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionDSSEInTotoJSON}); err != nil {

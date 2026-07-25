@@ -22,6 +22,10 @@ func (failingBuildRepository) InsertCollectorRelease(context.Context, domain.Col
 	return errInjectedRepositoryFailure
 }
 
+func (failingBuildRepository) InsertBuildAttestation(context.Context, domain.BuildAttestation) error {
+	return errInjectedRepositoryFailure
+}
+
 func TestCollectorCredentialCommitsOnlyAfterUnitOfWorkCommit(t *testing.T) {
 	ctx := context.Background()
 	memory := NewMemoryUnitOfWorkFactory()
@@ -199,5 +203,79 @@ func TestBuildRunWritesUseUnitOfWorkAndPublishOnlyAfterCommit(t *testing.T) {
 	}
 	if len(after.BuildRuns) != len(before.BuildRuns) || len(after.AuditEntries[actor.TenantID]) != len(before.AuditEntries[actor.TenantID]) {
 		t.Fatalf("build repository failure published state: before=%#v after=%#v", before, after)
+	}
+}
+
+func TestBuildAttestationUsesUnitOfWorkAndPublishesOnlyAfterCommit(t *testing.T) {
+	ctx := context.Background()
+	memory := NewMemoryUnitOfWorkFactory()
+	ledger, _, actor := newReleaseEvidenceUnitOfWorkFixture(t, memory)
+	product, err := ledger.CreateProduct(ctx, actor, "Attestation API", "attestation-api")
+	if err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	project, err := ledger.CreateProject(ctx, actor, product.ID, "API")
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	release, err := ledger.CreateRelease(ctx, actor, product.ID, "1.0.0")
+	if err != nil {
+		t.Fatalf("create release: %v", err)
+	}
+	artifact, err := ledger.RegisterArtifact(ctx, actor, "api.tar.gz", "application/gzip", sampleDigest("attestation-uow"), 1)
+	if err != nil {
+		t.Fatalf("register artifact: %v", err)
+	}
+	build, err := ledger.CreateBuildRun(ctx, actor, CreateBuildRunInput{ProjectID: project.ID, ReleaseID: release.ID, Provider: "generic_ci", CommitSHA: "0123456789abcdef0123456789abcdef01234567", Status: "passed", StartedAt: fixedNow(), Outputs: []domain.BuildOutput{{ArtifactID: artifact.ID, Digest: artifact.Digest}}})
+	if err != nil {
+		t.Fatalf("create build: %v", err)
+	}
+	attestation, err := ledger.UploadBuildAttestation(ctx, actor, build.ID, dsseForDigest(t, artifact.Digest))
+	if err != nil {
+		t.Fatalf("upload build attestation: %v", err)
+	}
+	snapshot, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	if _, ok := snapshot.Evidence[attestation.EvidenceID]; !ok || snapshot.BuildAttestations[attestation.ID].EvidenceID != attestation.EvidenceID || len(snapshot.OutboxJobs) != 1 || len(snapshot.AuditEntries[actor.TenantID]) < 2 {
+		t.Fatalf("attestation command did not commit all durable effects: %#v", snapshot)
+	}
+	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
+		return repositories.Builds.InsertBuildAttestation(ctx, domain.BuildAttestation{})
+	}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("invalid attestation err=%v, want validation", err)
+	}
+	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
+		missingEvidence := attestation
+		missingEvidence.ID = "att_missing_evidence"
+		missingEvidence.EvidenceID = "ev_missing"
+		return repositories.Builds.InsertBuildAttestation(ctx, missingEvidence)
+	}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing attestation evidence err=%v, want not found", err)
+	}
+	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
+		return repositories.Builds.InsertBuildAttestation(ctx, attestation)
+	}); !errors.Is(err, ErrConflict) {
+		t.Fatalf("duplicate attestation err=%v, want conflict", err)
+	}
+
+	ledger.unitOfWork = repositoryFailingUnitOfWorkFactory{inner: memory, decorate: func(repositories Repositories) Repositories {
+		repositories.Builds = failingBuildRepository{BuildRepository: repositories.Builds}
+		return repositories
+	}}
+	before, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot before failed attestation: %v", err)
+	}
+	if _, err := ledger.UploadBuildAttestation(ctx, actor, build.ID, dsseForDigest(t, artifact.Digest)); !errors.Is(err, errInjectedRepositoryFailure) {
+		t.Fatalf("failed attestation err=%v, want injected repository failure", err)
+	}
+	after, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot after failed attestation: %v", err)
+	}
+	if len(after.Evidence) != len(before.Evidence) || len(after.BuildAttestations) != len(before.BuildAttestations) || len(after.OutboxJobs) != len(before.OutboxJobs) || len(after.AuditEntries[actor.TenantID]) != len(before.AuditEntries[actor.TenantID]) || len(ledger.attestations) != 1 {
+		t.Fatalf("failed attestation published state: before=%#v after=%#v", before, after)
 	}
 }

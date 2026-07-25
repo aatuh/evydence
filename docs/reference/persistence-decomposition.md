@@ -60,7 +60,6 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 
 | Family | File | Function | Call |
 | --- | --- | --- | --- |
-| build provenance | `internal/app/builds.go` | `UploadBuildAttestation` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateCommercialCollectorDefinition` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateQuestionnaireAnswerLibraryEntry` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateQuestionnairePackage` | `persistLocked` |
@@ -132,6 +131,7 @@ These commands commit through focused repositories whenever `UnitOfWorkFactory` 
 | build provenance | `internal/app/builds.go` | `CreateBuildRun` | `persistLocked` |
 | build provenance | `internal/app/builds.go` | `CreateCollector` | `persistLocked` |
 | build provenance | `internal/app/builds.go` | `RecordCollectorRelease` | `persistLocked` |
+| build provenance | `internal/app/builds.go` | `UploadBuildAttestation` | `persistLocked` |
 | controls | `internal/app/controls.go` | `CreateControlFramework` | `persistLocked` |
 | controls | `internal/app/controls.go` | `CreateSecurityControl` | `persistLocked` |
 | controls | `internal/app/controls.go` | `LinkControlEvidence` | `persistLocked` |
