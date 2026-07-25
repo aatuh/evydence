@@ -159,6 +159,28 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Controls.InsertControlEvidence(ctx, domain.ControlEvidence{ID: "ce_repository", TenantID: tenant.ID, ControlID: control.ID, EvidenceType: "sbom", SubjectType: "evidence", SubjectID: evidence.ID, ProductID: product.ID, ReleaseID: release.ID, Confidence: "high", SchemaVersion: domain.ControlEvidenceSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert control evidence: %v", err)
 	}
+	waiver := domain.Waiver{ID: "wv_repository", TenantID: tenant.ID, ScopeType: "release", ScopeID: release.ID, ControlID: control.ID, Owner: "security", Risk: "accepted temporarily", Reason: "repository test", ExpiresAt: now.Add(time.Hour), SchemaVersion: domain.WaiverSchemaVersion, CreatedAt: now}
+	if err := repositories.Governance.InsertWaiver(ctx, waiver); err != nil {
+		t.Fatalf("insert waiver: %v", err)
+	}
+	waiver.Approved = true
+	waiver.ApprovedBy = apiKey.ID
+	waiver.ApprovedAt = &now
+	if err := repositories.Governance.ApproveWaiver(ctx, waiver); err != nil {
+		t.Fatalf("approve waiver: %v", err)
+	}
+	replacementWaiver := domain.Waiver{ID: "wv_repository_replacement", TenantID: tenant.ID, ScopeType: "release", ScopeID: release.ID, Owner: "security", Risk: "accepted temporarily", Reason: "replacement", ExpiresAt: now.Add(2 * time.Hour), Supersedes: waiver.ID, SchemaVersion: domain.WaiverSchemaVersion, CreatedAt: now}
+	if err := repositories.Governance.InsertWaiver(ctx, replacementWaiver); err != nil {
+		t.Fatalf("supersede waiver: %v", err)
+	}
+	approval := domain.ApprovalRecord{ID: "apr_repository", TenantID: tenant.ID, SubjectType: "release", SubjectID: release.ID, Decision: "approved", Reason: "repository test", ApproverID: apiKey.ID, EvidenceID: evidence.ID, SchemaVersion: domain.ApprovalRecordSchemaVersion, CreatedAt: now}
+	if err := repositories.Governance.InsertApprovalRecord(ctx, approval); err != nil {
+		t.Fatalf("insert approval record: %v", err)
+	}
+	profile := domain.RedactionProfile{ID: "rp_repository", TenantID: tenant.ID, Name: "Repository", AllowedTypes: []string{"sbom"}, ExcludedFields: []string{"payload"}, SchemaVersion: domain.RedactionProfileSchemaVersion, CreatedAt: now}
+	if err := repositories.Governance.InsertRedactionProfile(ctx, profile); err != nil {
+		t.Fatalf("insert redaction profile: %v", err)
+	}
 	replacementEvidence := evidence
 	replacementEvidence.ID = "evi_repository_replacement"
 	replacementEvidence.Title = "Repository replacement SBOM"
@@ -293,6 +315,10 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"control framework", repositories.Controls.InsertControlFramework(ctx, domain.ControlFramework{})},
 		{"security control", repositories.Controls.InsertSecurityControl(ctx, domain.SecurityControl{})},
 		{"control evidence", repositories.Controls.InsertControlEvidence(ctx, domain.ControlEvidence{})},
+		{"waiver", repositories.Governance.InsertWaiver(ctx, domain.Waiver{})},
+		{"waiver approval", repositories.Governance.ApproveWaiver(ctx, domain.Waiver{})},
+		{"approval record", repositories.Governance.InsertApprovalRecord(ctx, domain.ApprovalRecord{})},
+		{"redaction profile", repositories.Governance.InsertRedactionProfile(ctx, domain.RedactionProfile{})},
 		{"product", repositories.ReleaseCatalog.InsertProduct(ctx, domain.Product{})},
 		{"project", repositories.ReleaseCatalog.InsertProject(ctx, domain.Project{})},
 		{"release", repositories.ReleaseCatalog.InsertRelease(ctx, domain.Release{})},
@@ -378,6 +404,10 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 	if err := repositories.Controls.InsertSecurityControl(ctx, controlA); err != nil {
 		t.Fatalf("insert tenant A security control: %v", err)
 	}
+	waiverA := domain.Waiver{ID: "wv_repository_a", TenantID: "ten_repository_a", ScopeType: "release", ScopeID: releaseA.ID, ControlID: controlA.ID, Owner: "security", Risk: "accepted temporarily", Reason: "A waiver", ExpiresAt: now.Add(time.Hour), SchemaVersion: domain.WaiverSchemaVersion, CreatedAt: now}
+	if err := repositories.Governance.InsertWaiver(ctx, waiverA); err != nil {
+		t.Fatalf("insert tenant A waiver: %v", err)
+	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO customer_security_packages (
 			id, tenant_id, product_id, redaction_profile_id, title, state, manifest,
@@ -399,6 +429,9 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"customer portal access", repositories.Identity.InsertCustomerPortalAccess(ctx, domain.CustomerPortalAccess{ID: "cpa_repository_b", TenantID: "ten_repository_b", PackageID: "pkg_repository_a", CustomerName: "B customer", Prefix: "evycp_b", Hash: "portal-hash-b", ExpiresAt: now.Add(time.Hour), SchemaVersion: domain.CustomerPortalAccessVersion, CreatedAt: now})},
 		{"security control framework", repositories.Controls.InsertSecurityControl(ctx, domain.SecurityControl{ID: "ctrl_repository_b", TenantID: "ten_repository_b", FrameworkID: frameworkA.ID, Code: "CTRL-B", Title: "B control", Objective: "Record B evidence", SchemaVersion: domain.SecurityControlSchemaVersion, CreatedAt: now})},
 		{"control evidence", repositories.Controls.InsertControlEvidence(ctx, domain.ControlEvidence{ID: "ce_repository_b", TenantID: "ten_repository_b", ControlID: controlA.ID, EvidenceType: "sbom", SubjectType: "evidence", SubjectID: evidenceA.ID, Confidence: "high", SchemaVersion: domain.ControlEvidenceSchemaVersion, CreatedAt: now})},
+		{"waiver control", repositories.Governance.InsertWaiver(ctx, domain.Waiver{ID: "wv_repository_b", TenantID: "ten_repository_b", ScopeType: "release", ScopeID: "rel_repository_b", ControlID: controlA.ID, Owner: "security", Risk: "accepted temporarily", Reason: "B waiver", ExpiresAt: now.Add(time.Hour), SchemaVersion: domain.WaiverSchemaVersion, CreatedAt: now})},
+		{"waiver approval", repositories.Governance.ApproveWaiver(ctx, domain.Waiver{ID: waiverA.ID, TenantID: "ten_repository_b", Approved: true, ApprovedBy: "key_repository_b", ApprovedAt: &now, ExpiresAt: now.Add(time.Hour)})},
+		{"approval evidence", repositories.Governance.InsertApprovalRecord(ctx, domain.ApprovalRecord{ID: "apr_repository_b", TenantID: "ten_repository_b", SubjectType: "release", SubjectID: "rel_repository_b", Decision: "approved", Reason: "B approval", ApproverID: "key_repository_b", EvidenceID: evidenceA.ID, SchemaVersion: domain.ApprovalRecordSchemaVersion, CreatedAt: now})},
 		{"candidate release", repositories.ReleaseCatalog.InsertReleaseCandidate(ctx, domain.ReleaseCandidate{ID: "rc_repository_b", TenantID: "ten_repository_b", ReleaseID: releaseA.ID, Name: "B candidate", State: "open", SnapshotHash: "sha256:candidate-b", SchemaVersion: domain.ReleaseCandidateSchemaVersion, CreatedAt: now})},
 		{"evidence link product", repositories.Evidence.UpdateEvidenceLinks(ctx, domain.EvidenceItem{ID: evidenceA.ID, TenantID: "ten_repository_b", ProductID: "prod_repository_a"})},
 		{"SBOM evidence", repositories.Evidence.InsertSBOM(ctx, domain.SBOM{ID: "sbom_repository_b", TenantID: "ten_repository_b", EvidenceID: evidenceA.ID, ReleaseID: releaseA.ID, ArtifactID: artifactA.ID, Format: "cyclonedx", CreatedAt: now})},
@@ -634,6 +667,18 @@ func TestRepositoriesPropagateClosedTransactionFailures(t *testing.T) {
 		}},
 		{"control evidence", func() error {
 			return repositories.Controls.InsertControlEvidence(ctx, domain.ControlEvidence{ID: "ce_closed", TenantID: tenantID, ControlID: "ctrl_closed", EvidenceType: "sbom", SubjectType: "evidence", SubjectID: evidence.ID, Confidence: "high", SchemaVersion: domain.ControlEvidenceSchemaVersion, CreatedAt: now})
+		}},
+		{"waiver", func() error {
+			return repositories.Governance.InsertWaiver(ctx, domain.Waiver{ID: "wv_closed", TenantID: tenantID, ScopeType: "release", ScopeID: release.ID, Owner: "security", Risk: "closed", Reason: "closed", ExpiresAt: now.Add(time.Hour), SchemaVersion: domain.WaiverSchemaVersion, CreatedAt: now})
+		}},
+		{"waiver approval", func() error {
+			return repositories.Governance.ApproveWaiver(ctx, domain.Waiver{ID: "wv_closed", TenantID: tenantID, Approved: true, ApprovedBy: "key_closed", ApprovedAt: &now, ExpiresAt: now.Add(time.Hour)})
+		}},
+		{"approval record", func() error {
+			return repositories.Governance.InsertApprovalRecord(ctx, domain.ApprovalRecord{ID: "apr_closed", TenantID: tenantID, SubjectType: "release", SubjectID: release.ID, Decision: "approved", Reason: "closed", ApproverID: "key_closed", SchemaVersion: domain.ApprovalRecordSchemaVersion, CreatedAt: now})
+		}},
+		{"redaction profile", func() error {
+			return repositories.Governance.InsertRedactionProfile(ctx, domain.RedactionProfile{ID: "rp_closed", TenantID: tenantID, Name: "Closed", AllowedTypes: []string{"sbom"}, SchemaVersion: domain.RedactionProfileSchemaVersion, CreatedAt: now})
 		}},
 		{"product", func() error {
 			return repositories.ReleaseCatalog.InsertProduct(ctx, domain.Product{ID: "prod_closed", TenantID: tenantID, Name: "Closed", Slug: "closed", CreatedAt: now})

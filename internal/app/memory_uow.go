@@ -49,6 +49,9 @@ type MemoryUnitOfWorkSnapshot struct {
 	ControlFrameworks     map[string]domain.ControlFramework
 	SecurityControls      map[string]domain.SecurityControl
 	ControlEvidence       map[string]domain.ControlEvidence
+	Waivers               map[string]domain.Waiver
+	Approvals             map[string]domain.ApprovalRecord
+	RedactionProfiles     map[string]domain.RedactionProfile
 	AuditEntries          map[string][]domain.AuditChainEntry
 	Idempotency           map[IdempotencyRecordKey]IdempotencyRecord
 	OutboxJobs            map[string]OutboxJob
@@ -100,6 +103,7 @@ func (u *memoryUnitOfWork) Repositories() Repositories {
 		Idempotency:    memoryIdempotencyRepository{uow: u},
 		Outbox:         memoryOutboxRepository{uow: u},
 		Controls:       memoryControlRepository{uow: u},
+		Governance:     memoryGovernanceRepository{uow: u},
 		Packages:       memoryPackageRepository{uow: u},
 		Signatures:     memorySignatureRepository{uow: u},
 		Verification:   memoryVerificationRepository{uow: u},
@@ -1154,6 +1158,106 @@ func (r memoryControlRepository) InsertControlEvidence(ctx context.Context, evid
 	})
 }
 
+type memoryGovernanceRepository struct{ uow *memoryUnitOfWork }
+
+func (r memoryGovernanceRepository) InsertWaiver(ctx context.Context, waiver domain.Waiver) error {
+	cloned, err := cloneMemoryJSON(waiver)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.ScopeType == "" || cloned.ScopeID == "" || cloned.Owner == "" || cloned.Risk == "" || cloned.Reason == "" || !cloned.ExpiresAt.After(cloned.CreatedAt) || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if cloned.ControlID != "" && !memoryResourceBelongsToTenant(cloned.ControlID, cloned.TenantID, state.SecurityControls) {
+			return ErrNotFound
+		}
+		if _, exists := state.Waivers[cloned.ID]; exists {
+			return ErrConflict
+		}
+		if cloned.Supersedes != "" {
+			previous, ok := state.Waivers[cloned.Supersedes]
+			if !ok || previous.TenantID != cloned.TenantID {
+				return ErrNotFound
+			}
+			if previous.SupersededBy != "" {
+				return ErrConflict
+			}
+			previous.SupersededBy = cloned.ID
+			state.Waivers[previous.ID] = previous
+		}
+		state.Waivers[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryGovernanceRepository) ApproveWaiver(ctx context.Context, waiver domain.Waiver) error {
+	cloned, err := cloneMemoryJSON(waiver)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		stored, ok := state.Waivers[cloned.ID]
+		if !ok || stored.TenantID != cloned.TenantID {
+			return ErrNotFound
+		}
+		if stored.Approved || !cloned.Approved || cloned.ApprovedAt == nil || cloned.ApprovedBy == "" || !cloned.ExpiresAt.After(*cloned.ApprovedAt) {
+			return ErrConflict
+		}
+		state.Waivers[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryGovernanceRepository) InsertApprovalRecord(ctx context.Context, approval domain.ApprovalRecord) error {
+	cloned, err := cloneMemoryJSON(approval)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.SubjectType == "" || cloned.SubjectID == "" || cloned.Decision == "" || cloned.Reason == "" || cloned.ApproverID == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if cloned.EvidenceID != "" && !memoryResourceBelongsToTenant(cloned.EvidenceID, cloned.TenantID, state.Evidence) {
+			return ErrNotFound
+		}
+		if _, exists := state.Approvals[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.Approvals[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryGovernanceRepository) InsertRedactionProfile(ctx context.Context, profile domain.RedactionProfile) error {
+	cloned, err := cloneMemoryJSON(profile)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.Name == "" || len(cloned.AllowedTypes) == 0 || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if _, exists := state.RedactionProfiles[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.RedactionProfiles[cloned.ID] = cloned
+		return nil
+	})
+}
+
 type memoryPackageRepository struct{ uow *memoryUnitOfWork }
 
 func (r memoryPackageRepository) InsertReleaseBundle(ctx context.Context, bundle domain.ReleaseBundle) error {
@@ -1273,6 +1377,9 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		ControlFrameworks:     map[string]domain.ControlFramework{},
 		SecurityControls:      map[string]domain.SecurityControl{},
 		ControlEvidence:       map[string]domain.ControlEvidence{},
+		Waivers:               map[string]domain.Waiver{},
+		Approvals:             map[string]domain.ApprovalRecord{},
+		RedactionProfiles:     map[string]domain.RedactionProfile{},
 		AuditEntries:          map[string][]domain.AuditChainEntry{},
 		Idempotency:           map[IdempotencyRecordKey]IdempotencyRecord{},
 		OutboxJobs:            map[string]OutboxJob{},
@@ -1368,6 +1475,15 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.ControlEvidence, err = cloneMemoryMap(snapshot.ControlEvidence); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.Waivers, err = cloneMemoryMap(snapshot.Waivers); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.Approvals, err = cloneMemoryMap(snapshot.Approvals); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.RedactionProfiles, err = cloneMemoryMap(snapshot.RedactionProfiles); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.AuditEntries, err = cloneMemoryJSON(snapshot.AuditEntries); err != nil {

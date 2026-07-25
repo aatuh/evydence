@@ -106,6 +106,7 @@ type Repositories struct {
 	Idempotency    IdempotencyRepository
 	Outbox         OutboxRepository
 	Controls       ControlRepository
+	Governance     GovernanceRepository
 	Packages       PackageRepository
 	Signatures     SignatureRepository
 	Verification   VerificationRepository
@@ -174,6 +175,13 @@ type ControlRepository interface {
 	InsertControlFramework(context.Context, domain.ControlFramework) error
 	InsertSecurityControl(context.Context, domain.SecurityControl) error
 	InsertControlEvidence(context.Context, domain.ControlEvidence) error
+}
+
+type GovernanceRepository interface {
+	InsertWaiver(context.Context, domain.Waiver) error
+	ApproveWaiver(context.Context, domain.Waiver) error
+	InsertApprovalRecord(context.Context, domain.ApprovalRecord) error
+	InsertRedactionProfile(context.Context, domain.RedactionProfile) error
 }
 
 type PackageRepository interface {

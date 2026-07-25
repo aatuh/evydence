@@ -240,6 +240,27 @@ func (l *Ledger) CreateWaiver(ctx context.Context, actor domain.Actor, in Create
 		SchemaVersion: domain.WaiverSchemaVersion,
 		CreatedAt:     l.now(),
 	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Governance.InsertWaiver(ctx, waiver); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(waiver.CreatedAt, actor.TenantID, "waiver.created", "waiver", waiver.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.Waiver{}, err
+		}
+		if waiver.Supersedes != "" {
+			previous := l.waivers[waiver.Supersedes]
+			previous.SupersededBy = waiver.ID
+			l.waivers[previous.ID] = previous
+		}
+		l.waivers[waiver.ID] = waiver
+		l.publishCommittedAuditEntryLocked(entry)
+		return waiver, nil
+	}
 	if waiver.Supersedes != "" {
 		prev := l.waivers[waiver.Supersedes]
 		prev.SupersededBy = waiver.ID
@@ -273,6 +294,22 @@ func (l *Ledger) ApproveWaiver(ctx context.Context, actor domain.Actor, id strin
 	waiver.Approved = true
 	waiver.ApprovedBy = actorID(actor)
 	waiver.ApprovedAt = &now
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Governance.ApproveWaiver(ctx, waiver); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, actor.TenantID, "waiver.approved", "waiver", waiver.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.Waiver{}, err
+		}
+		l.waivers[waiver.ID] = waiver
+		l.publishCommittedAuditEntryLocked(entry)
+		return waiver, nil
+	}
 	l.waivers[waiver.ID] = waiver
 	_, _ = l.appendChainLocked(actor.TenantID, "waiver.approved", "waiver", waiver.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {
@@ -305,6 +342,22 @@ func (l *Ledger) CreateApprovalRecord(ctx context.Context, actor domain.Actor, i
 		}
 	}
 	approval := domain.ApprovalRecord{ID: newID("apr"), TenantID: actor.TenantID, SubjectType: in.SubjectType, SubjectID: in.SubjectID, Decision: in.Decision, Reason: in.Reason, ApproverID: actorID(actor), EvidenceID: strings.TrimSpace(in.EvidenceID), SchemaVersion: domain.ApprovalRecordSchemaVersion, CreatedAt: l.now()}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Governance.InsertApprovalRecord(ctx, approval); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(approval.CreatedAt, actor.TenantID, "approval.created", "approval", approval.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.ApprovalRecord{}, err
+		}
+		l.approvals[approval.ID] = approval
+		l.publishCommittedAuditEntryLocked(entry)
+		return approval, nil
+	}
 	l.approvals[approval.ID] = approval
 	_, _ = l.appendChainLocked(actor.TenantID, "approval.created", "approval", approval.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {
@@ -341,6 +394,22 @@ func (s packageReportService) CreateRedactionProfile(ctx context.Context, actor 
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	profile := domain.RedactionProfile{ID: newID("rp"), TenantID: actor.TenantID, Name: in.Name, Description: strings.TrimSpace(in.Description), AllowedTypes: sortedStrings(in.AllowedTypes), ExcludedFields: sortedStrings(in.ExcludedFields), SchemaVersion: domain.RedactionProfileSchemaVersion, CreatedAt: l.now()}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Governance.InsertRedactionProfile(ctx, profile); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(profile.CreatedAt, actor.TenantID, "redaction_profile.created", "redaction_profile", profile.ID, "api_key", actor.KeyID, "", ""))
+			return err
+		}); err != nil {
+			return domain.RedactionProfile{}, err
+		}
+		l.redactions[profile.ID] = profile
+		l.publishCommittedAuditEntryLocked(entry)
+		return profile, nil
+	}
 	l.redactions[profile.ID] = profile
 	_, _ = l.appendChainLocked(actor.TenantID, "redaction_profile.created", "redaction_profile", profile.ID, "api_key", actor.KeyID, "", "")
 	if err := l.persistLocked(ctx); err != nil {

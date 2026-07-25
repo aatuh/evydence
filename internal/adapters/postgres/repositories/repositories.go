@@ -28,6 +28,7 @@ func New(tx pgx.Tx) app.Repositories {
 		Idempotency:    idempotency{tx: tx},
 		Outbox:         outbox{tx: tx},
 		Controls:       controls{tx: tx},
+		Governance:     governance{tx: tx},
 		Packages:       packages{tx: tx},
 		Signatures:     signatures{tx: tx},
 		Verification:   verification{tx: tx},
@@ -1058,6 +1059,113 @@ func (r controls) InsertControlEvidence(ctx context.Context, evidence domain.Con
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 	`, evidence.ID, evidence.TenantID, evidence.ControlID, evidence.EvidenceType, evidence.SubjectType, evidence.SubjectID, nullableString(evidence.ProductID), nullableString(evidence.ReleaseID), evidence.Confidence, nullableString(evidence.Notes), evidence.SchemaVersion, evidence.CreatedAt)
 	return writeError("insert control evidence", err)
+}
+
+type governance struct{ tx pgx.Tx }
+
+func (r governance) InsertWaiver(ctx context.Context, waiver domain.Waiver) error {
+	if waiver.ID == "" || waiver.TenantID == "" || waiver.ScopeType == "" || waiver.ScopeID == "" || waiver.Owner == "" || waiver.Risk == "" || waiver.Reason == "" || !waiver.ExpiresAt.After(waiver.CreatedAt) || waiver.SchemaVersion == "" || waiver.CreatedAt.IsZero() || waiver.Approved || waiver.ApprovedBy != "" || waiver.ApprovedAt != nil || waiver.SupersededBy != "" {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, waiver.TenantID); err != nil {
+		return err
+	}
+	if waiver.ControlID != "" {
+		if err := requireRow(ctx, r.tx, `SELECT 1 FROM security_controls WHERE id = $1 AND tenant_id = $2`, waiver.ControlID, waiver.TenantID); err != nil {
+			return err
+		}
+	}
+	if waiver.PolicyID != "" {
+		if err := requireRow(ctx, r.tx, `SELECT 1 FROM custom_policies WHERE id = $1 AND tenant_id = $2`, waiver.PolicyID, waiver.TenantID); err != nil {
+			return err
+		}
+	}
+	if waiver.Supersedes != "" {
+		if err := requireRow(ctx, r.tx, `SELECT 1 FROM waivers WHERE id = $1 AND tenant_id = $2`, waiver.Supersedes, waiver.TenantID); err != nil {
+			return err
+		}
+		result, err := r.tx.Exec(ctx, `
+			UPDATE waivers
+			SET superseded_by = $3
+			WHERE id = $1 AND tenant_id = $2 AND superseded_by IS NULL
+		`, waiver.Supersedes, waiver.TenantID, waiver.ID)
+		if err != nil {
+			return writeError("supersede waiver", err)
+		}
+		if result.RowsAffected() != 1 {
+			return app.ErrConflict
+		}
+	}
+	_, err := r.tx.Exec(ctx, `
+		INSERT INTO waivers (
+			id, tenant_id, scope_type, scope_id, control_id, policy_id, owner,
+			risk, reason, expires_at, approved, approved_by, approved_at,
+			supersedes, superseded_by, schema_version, created_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+	`, waiver.ID, waiver.TenantID, waiver.ScopeType, waiver.ScopeID, nullableString(waiver.ControlID), nullableString(waiver.PolicyID), waiver.Owner, waiver.Risk, waiver.Reason, waiver.ExpiresAt, waiver.Approved, nullableString(waiver.ApprovedBy), waiver.ApprovedAt, nullableString(waiver.Supersedes), nullableString(waiver.SupersededBy), waiver.SchemaVersion, waiver.CreatedAt)
+	return writeError("insert waiver", err)
+}
+
+func (r governance) ApproveWaiver(ctx context.Context, waiver domain.Waiver) error {
+	if waiver.ID == "" || waiver.TenantID == "" || !waiver.Approved || waiver.ApprovedBy == "" || waiver.ApprovedAt == nil || !waiver.ExpiresAt.After(*waiver.ApprovedAt) {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, waiver.TenantID); err != nil {
+		return err
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM waivers WHERE id = $1 AND tenant_id = $2`, waiver.ID, waiver.TenantID); err != nil {
+		return err
+	}
+	result, err := r.tx.Exec(ctx, `
+		UPDATE waivers
+		SET approved = true, approved_by = $3, approved_at = $4
+		WHERE id = $1 AND tenant_id = $2 AND approved = false AND expires_at > $4
+	`, waiver.ID, waiver.TenantID, waiver.ApprovedBy, *waiver.ApprovedAt)
+	if err != nil {
+		return writeError("approve waiver", err)
+	}
+	if result.RowsAffected() != 1 {
+		return app.ErrConflict
+	}
+	return nil
+}
+
+func (r governance) InsertApprovalRecord(ctx context.Context, approval domain.ApprovalRecord) error {
+	if approval.ID == "" || approval.TenantID == "" || approval.SubjectType == "" || approval.SubjectID == "" || approval.Decision == "" || approval.Reason == "" || approval.ApproverID == "" || approval.SchemaVersion == "" || approval.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, approval.TenantID); err != nil {
+		return err
+	}
+	if err := requireOptionalOwnedEvidence(ctx, r.tx, approval.TenantID, approval.EvidenceID); err != nil {
+		return err
+	}
+	_, err := r.tx.Exec(ctx, `
+		INSERT INTO approval_records (
+			id, tenant_id, subject_type, subject_id, decision, reason,
+			approver_id, evidence_id, schema_version, created_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	`, approval.ID, approval.TenantID, approval.SubjectType, approval.SubjectID, approval.Decision, approval.Reason, approval.ApproverID, nullableString(approval.EvidenceID), approval.SchemaVersion, approval.CreatedAt)
+	return writeError("insert approval record", err)
+}
+
+func (r governance) InsertRedactionProfile(ctx context.Context, profile domain.RedactionProfile) error {
+	if profile.ID == "" || profile.TenantID == "" || profile.Name == "" || len(profile.AllowedTypes) == 0 || profile.SchemaVersion == "" || profile.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, profile.TenantID); err != nil {
+		return err
+	}
+	_, err := r.tx.Exec(ctx, `
+		INSERT INTO redaction_profiles (
+			id, tenant_id, name, description, allowed_types, excluded_fields,
+			schema_version, created_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	`, profile.ID, profile.TenantID, profile.Name, nullableString(profile.Description), profile.AllowedTypes, profile.ExcludedFields, profile.SchemaVersion, profile.CreatedAt)
+	return writeError("insert redaction profile", err)
 }
 
 type packages struct{ tx pgx.Tx }
