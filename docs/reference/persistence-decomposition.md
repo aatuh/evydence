@@ -11,7 +11,8 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 - Production writes do not create or update the compatibility `ledger_state` snapshot row.
 - `persistCriticalLocked` writes high-risk identity, key, idempotency, signing, verification, bundle, provider-verification, decision, audit-chain, and outbox state through focused PostgreSQL transactions when the store supports them.
 - `persistReleaseLedgerLocked` and `persistReleaseLedgerWithOutboxLocked` write release-ledger and evidence-core state through focused PostgreSQL transactions when the store supports them.
-- Remaining direct `persistLocked` call sites use `SaveRelationalState` with the PostgreSQL store, not `SaveState`; compatibility `SaveState` remains for memory/local/demo/import paths.
+- A `persistLocked` fallback in a command that first returns through `ExecuteUnitOfWork` is compatibility-only: PostgreSQL startup configures a unit of work, so production cannot reach that fallback. The inventory lists those fallbacks separately instead of counting them as production broad writes.
+- Remaining production broad writes are commands with no focused unit-of-work path. They continue to use `SaveRelationalState`, not `SaveState`, until their bounded repository writes are introduced or the command is disabled in production.
 - One API writer replica remains the supported production candidate topology until every write family has focused repository paths or a reviewed optimistic-concurrency design.
 
 ## Focused Critical Mutations
@@ -59,30 +60,16 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 
 | Family | File | Function | Call |
 | --- | --- | --- | --- |
-| VEX and vulnerability decisions | `internal/app/vex.go` | `ApproveException` | `persistLocked` |
-| VEX and vulnerability decisions | `internal/app/vex.go` | `CreateException` | `persistLocked` |
 | build provenance | `internal/app/builds.go` | `CreateBuildRun` | `persistLocked` |
 | build provenance | `internal/app/builds.go` | `CreateCollector` | `persistLocked` |
 | build provenance | `internal/app/builds.go` | `RecordCollectorRelease` | `persistLocked` |
 | build provenance | `internal/app/builds.go` | `UploadBuildAttestation` | `persistLocked` |
-| controls | `internal/app/controls.go` | `CreateControlFramework` | `persistLocked` |
-| controls | `internal/app/controls.go` | `CreateSecurityControl` | `persistLocked` |
-| controls | `internal/app/controls.go` | `LinkControlEvidence` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateCommercialCollectorDefinition` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateLegalHold` | `persistLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `CreateOrganization` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateQuestionnaireAnswerLibraryEntry` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateQuestionnairePackage` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateQuestionnaireTemplate` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateRetentionOverride` | `persistLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `CreateRoleBinding` | `persistLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `CreateSSOProvider` | `persistLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `CreateUser` | `persistLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `DeactivateUser` | `persistLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `LinkSSOIdentity` | `persistLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `RefreshSSOProviderOIDCTrustMaterial` | `persistLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `UpdateSSOProviderTrustMaterial` | `persistLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `persistProviderVerificationLocked` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `CreateEvidenceSummary` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `CreateGraphSnapshot` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `CreateMarketplaceCollector` | `persistLocked` |
@@ -96,14 +83,10 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 | future extensions and generated reports | `internal/app/future_extensions.go` | `VerifyProviderIdentity` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `VerifyPublicTransparencyLogEntry` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `AccessCustomerSecurityPackage` | `persistLocked` |
-| governance, packages, and package reports | `internal/app/governance_packages.go` | `ApproveWaiver` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `CRAReadinessHTMLPackage` | `persistLocked` |
-| governance, packages, and package reports | `internal/app/governance_packages.go` | `CreateApprovalRecord` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `CreateCustomReportTemplate` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `CreateCustomerSecurityPackage` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `CreateDSSETrustRoot` | `persistLocked` |
-| governance, packages, and package reports | `internal/app/governance_packages.go` | `CreateRedactionProfile` | `persistLocked` |
-| governance, packages, and package reports | `internal/app/governance_packages.go` | `CreateWaiver` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `ExportEvidenceBundle` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `ImportEvidenceBundle` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `InstallControlFrameworkTemplatePack` | `persistLocked` |
@@ -121,13 +104,11 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 | integrity and operations | `internal/app/integrity_runtime.go` | `VerifyObjectRetentionPolicy` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `CreateArtifactSignature` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `CreateDeploymentEnvironment` | `persistLocked` |
-| release extensions, source, and deployment | `internal/app/implementation_increments.go` | `CreateReleaseCandidate` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `CreateSourceRepository` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `RecordDeployment` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `RecordPullRequest` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `RecordSourceCommit` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `RegisterContainerImage` | `persistLocked` |
-| release extensions, source, and deployment | `internal/app/implementation_increments.go` | `UpdateReleaseCandidateState` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `UpsertSourceBranch` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `UpsertSourceBranch` | `persistLocked` |
 | release ledger and signing | `internal/app/ledger.go` | `EvaluateRelease` | `persistLocked` |
@@ -144,6 +125,33 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 | risk and security workflows | `internal/app/risk_workflows.go` | `RecordVulnerabilityWorkflow` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `UploadManualSecurityDocument` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `uploadSecurityScan` | `persistLocked` |
+
+## Compatibility-Only Broad Fallbacks
+
+These commands commit through focused repositories whenever `UnitOfWorkFactory` is configured. The listed fallback supports memory/local compatibility only and is not a production PostgreSQL write path.
+
+| Family | File | Function | Call |
+| --- | --- | --- | --- |
+| VEX and vulnerability decisions | `internal/app/vex.go` | `ApproveException` | `persistLocked` |
+| VEX and vulnerability decisions | `internal/app/vex.go` | `CreateException` | `persistLocked` |
+| controls | `internal/app/controls.go` | `CreateControlFramework` | `persistLocked` |
+| controls | `internal/app/controls.go` | `CreateSecurityControl` | `persistLocked` |
+| controls | `internal/app/controls.go` | `LinkControlEvidence` | `persistLocked` |
+| enterprise identity and retention | `internal/app/enterprise.go` | `CreateOrganization` | `persistLocked` |
+| enterprise identity and retention | `internal/app/enterprise.go` | `CreateRoleBinding` | `persistLocked` |
+| enterprise identity and retention | `internal/app/enterprise.go` | `CreateSSOProvider` | `persistLocked` |
+| enterprise identity and retention | `internal/app/enterprise.go` | `CreateUser` | `persistLocked` |
+| enterprise identity and retention | `internal/app/enterprise.go` | `DeactivateUser` | `persistLocked` |
+| enterprise identity and retention | `internal/app/enterprise.go` | `LinkSSOIdentity` | `persistLocked` |
+| enterprise identity and retention | `internal/app/enterprise.go` | `RefreshSSOProviderOIDCTrustMaterial` | `persistLocked` |
+| enterprise identity and retention | `internal/app/enterprise.go` | `UpdateSSOProviderTrustMaterial` | `persistLocked` |
+| enterprise identity and retention | `internal/app/enterprise.go` | `persistProviderVerificationLocked` | `persistLocked` |
+| governance, packages, and package reports | `internal/app/governance_packages.go` | `ApproveWaiver` | `persistLocked` |
+| governance, packages, and package reports | `internal/app/governance_packages.go` | `CreateApprovalRecord` | `persistLocked` |
+| governance, packages, and package reports | `internal/app/governance_packages.go` | `CreateRedactionProfile` | `persistLocked` |
+| governance, packages, and package reports | `internal/app/governance_packages.go` | `CreateWaiver` | `persistLocked` |
+| release extensions, source, and deployment | `internal/app/implementation_increments.go` | `CreateReleaseCandidate` | `persistLocked` |
+| release extensions, source, and deployment | `internal/app/implementation_increments.go` | `UpdateReleaseCandidateState` | `persistLocked` |
 
 ## Next Decomposition Order
 

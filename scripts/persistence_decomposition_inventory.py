@@ -31,6 +31,7 @@ class PersistCall:
     file: str
     function: str
     call: str
+    production: bool
 
 
 FAMILY_BY_FILE = {
@@ -54,15 +55,23 @@ def collect_calls() -> list[PersistCall]:
     for path in sorted(APP_ROOT.glob("*.go")):
         if path.name.endswith("_test.go") or path.name == "state.go":
             continue
+        functions: list[tuple[str, list[str]]] = []
         current = "package-scope"
+        body: list[str] = []
         for line in path.read_text(encoding="utf-8").splitlines():
             match = FUNC_RE.match(line)
             if match:
-                current = match.group(1)
+                functions.append((current, body))
+                current, body = match.group(1), []
                 continue
-            for call in PERSISTENCE_CALLS:
-                if f".{call}(ctx" in line or f" {call}(ctx" in line:
-                    calls.append(PersistCall(path.name, current, call))
+            body.append(line)
+        functions.append((current, body))
+        for function, body in functions:
+            focused_uow = "l.unitOfWork != nil" in "\n".join(body) and "l.ExecuteUnitOfWork" in "\n".join(body)
+            for line in body:
+                for call in PERSISTENCE_CALLS:
+                    if f".{call}(ctx" in line or f" {call}(ctx" in line:
+                        calls.append(PersistCall(path.name, function, call, call not in BROAD_CALLS or not focused_uow))
     return calls
 
 
@@ -89,7 +98,8 @@ def render_table(calls: list[PersistCall]) -> list[str]:
 def render(calls: list[PersistCall]) -> str:
     critical = [c for c in calls if c.call in CRITICAL_CALLS]
     release = [c for c in calls if c.call in RELEASE_CALLS]
-    broad = [c for c in calls if c.call in BROAD_CALLS]
+    broad = [c for c in calls if c.call in BROAD_CALLS and c.production]
+    compatibility_broad = [c for c in calls if c.call in BROAD_CALLS and not c.production]
     lines: list[str] = [
         "# Persistence Decomposition Inventory",
         "",
@@ -104,7 +114,8 @@ def render(calls: list[PersistCall]) -> str:
         "- Production writes do not create or update the compatibility `ledger_state` snapshot row.",
         "- `persistCriticalLocked` writes high-risk identity, key, idempotency, signing, verification, bundle, provider-verification, decision, audit-chain, and outbox state through focused PostgreSQL transactions when the store supports them.",
         "- `persistReleaseLedgerLocked` and `persistReleaseLedgerWithOutboxLocked` write release-ledger and evidence-core state through focused PostgreSQL transactions when the store supports them.",
-        "- Remaining direct `persistLocked` call sites use `SaveRelationalState` with the PostgreSQL store, not `SaveState`; compatibility `SaveState` remains for memory/local/demo/import paths.",
+        "- A `persistLocked` fallback in a command that first returns through `ExecuteUnitOfWork` is compatibility-only: PostgreSQL startup configures a unit of work, so production cannot reach that fallback. The inventory lists those fallbacks separately instead of counting them as production broad writes.",
+        "- Remaining production broad writes are commands with no focused unit-of-work path. They continue to use `SaveRelationalState`, not `SaveState`, until their bounded repository writes are introduced or the command is disabled in production.",
         "- One API writer replica remains the supported production candidate topology until every write family has focused repository paths or a reviewed optimistic-concurrency design.",
         "",
         "## Focused Critical Mutations",
@@ -118,6 +129,12 @@ def render(calls: list[PersistCall]) -> str:
         "## Remaining Broad Relational-State Mutations",
         "",
         *render_table(broad),
+        "",
+        "## Compatibility-Only Broad Fallbacks",
+        "",
+        "These commands commit through focused repositories whenever `UnitOfWorkFactory` is configured. The listed fallback supports memory/local compatibility only and is not a production PostgreSQL write path.",
+        "",
+        *render_table(compatibility_broad),
         "",
         "## Next Decomposition Order",
         "",
