@@ -156,6 +156,9 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Evidence.InsertEvidence(ctx, evidence); err != nil {
 		t.Fatalf("insert evidence: %v", err)
 	}
+	if err := repositories.Builds.InsertBuildRun(ctx, domain.BuildRun{ID: "build_repository", TenantID: tenant.ID, ProjectID: project.ID, ReleaseID: release.ID, Provider: "generic_ci", CommitSHA: "0123456789abcdef0123456789abcdef01234567", Status: "passed", StartedAt: now, Outputs: []domain.BuildOutput{{ArtifactID: artifact.ID, Digest: artifact.Digest}}, SourceIdentity: map[string]any{"source": "repository-test"}, SchemaVersion: domain.BuildRunSchemaVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert build run: %v", err)
+	}
 	if err := repositories.Controls.InsertControlEvidence(ctx, domain.ControlEvidence{ID: "ce_repository", TenantID: tenant.ID, ControlID: control.ID, EvidenceType: "sbom", SubjectType: "evidence", SubjectID: evidence.ID, ProductID: product.ID, ReleaseID: release.ID, Confidence: "high", SchemaVersion: domain.ControlEvidenceSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert control evidence: %v", err)
 	}
@@ -339,6 +342,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"exception approval", repositories.Decisions.ApproveException(ctx, domain.Exception{})},
 		{"legal hold", repositories.Governance.InsertLegalHold(ctx, domain.LegalHold{})},
 		{"retention override", repositories.Governance.InsertRetentionOverride(ctx, domain.RetentionOverride{})},
+		{"build run", repositories.Builds.InsertBuildRun(ctx, domain.BuildRun{})},
 		{"product", repositories.ReleaseCatalog.InsertProduct(ctx, domain.Product{})},
 		{"project", repositories.ReleaseCatalog.InsertProject(ctx, domain.Project{})},
 		{"release", repositories.ReleaseCatalog.InsertRelease(ctx, domain.Release{})},
@@ -455,6 +459,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"exception release", repositories.Decisions.InsertException(ctx, domain.Exception{ID: "ex_repository_b", TenantID: "ten_repository_b", ReleaseID: releaseA.ID, Reason: "B exception", Owner: "security", ExpiresAt: now.Add(time.Hour), CreatedAt: now})},
 		{"legal hold release", repositories.Governance.InsertLegalHold(ctx, domain.LegalHold{ID: "lh_repository_b", TenantID: "ten_repository_b", ScopeType: "release", ScopeID: releaseA.ID, Reason: "B hold", Owner: "legal", SchemaVersion: domain.LegalHoldSchemaVersion, CreatedAt: now})},
 		{"retention override evidence", repositories.Governance.InsertRetentionOverride(ctx, domain.RetentionOverride{ID: "ro_repository_b", TenantID: "ten_repository_b", ScopeType: "evidence", ScopeID: evidenceA.ID, RetentionUntil: now.Add(time.Hour), Reason: "B override", Owner: "security", SchemaVersion: domain.RetentionOverrideSchemaVersion, CreatedAt: now})},
+		{"build run project", repositories.Builds.InsertBuildRun(ctx, domain.BuildRun{ID: "build_repository_b", TenantID: "ten_repository_b", ProjectID: "proj_repository_b", ReleaseID: releaseA.ID, Provider: "generic_ci", CommitSHA: "0123456789abcdef0123456789abcdef01234567", Status: "passed", StartedAt: now, SchemaVersion: domain.BuildRunSchemaVersion, CreatedAt: now})},
 		{"candidate release", repositories.ReleaseCatalog.InsertReleaseCandidate(ctx, domain.ReleaseCandidate{ID: "rc_repository_b", TenantID: "ten_repository_b", ReleaseID: releaseA.ID, Name: "B candidate", State: "open", SnapshotHash: "sha256:candidate-b", SchemaVersion: domain.ReleaseCandidateSchemaVersion, CreatedAt: now})},
 		{"evidence link product", repositories.Evidence.UpdateEvidenceLinks(ctx, domain.EvidenceItem{ID: evidenceA.ID, TenantID: "ten_repository_b", ProductID: "prod_repository_a"})},
 		{"SBOM evidence", repositories.Evidence.InsertSBOM(ctx, domain.SBOM{ID: "sbom_repository_b", TenantID: "ten_repository_b", EvidenceID: evidenceA.ID, ReleaseID: releaseA.ID, ArtifactID: artifactA.ID, Format: "cyclonedx", CreatedAt: now})},
@@ -574,6 +579,20 @@ func TestRepositoriesRejectStaleStateTransitionsAndRepeatedSupersession(t *testi
 	release := domain.Release{ID: "rel_repository_conflicts", TenantID: tenant.ID, ProductID: product.ID, Version: "1.0.0", State: "draft", CreatedAt: now}
 	if err := repositories.ReleaseCatalog.InsertRelease(ctx, release); err != nil {
 		t.Fatalf("insert release: %v", err)
+	}
+	project := domain.Project{ID: "proj_repository_conflicts", TenantID: tenant.ID, ProductID: product.ID, Name: "Conflicts project", CreatedAt: now}
+	if err := repositories.ReleaseCatalog.InsertProject(ctx, project); err != nil {
+		t.Fatalf("insert project: %v", err)
+	}
+	build := domain.BuildRun{ID: "build_repository_conflicts", TenantID: tenant.ID, ProjectID: project.ID, ReleaseID: release.ID, Provider: "generic_ci", CommitSHA: "0123456789abcdef0123456789abcdef01234567", Status: "passed", StartedAt: now, SchemaVersion: domain.BuildRunSchemaVersion, CreatedAt: now}
+	if err := repositories.Builds.InsertBuildRun(ctx, build); err != nil {
+		t.Fatalf("insert build: %v", err)
+	}
+	badBuild := build
+	badBuild.ID = "build_repository_bad"
+	badBuild.SourceIdentity = map[string]any{"not_json": math.NaN()}
+	if err := repositories.Builds.InsertBuildRun(ctx, badBuild); err == nil {
+		t.Fatal("expected build source identity encoding failure")
 	}
 	if err := repositories.ReleaseCatalog.UpdateReleaseState(ctx, domain.Release{ID: release.ID, TenantID: tenant.ID, ProductID: product.ID, State: "approved"}, "frozen"); !errors.Is(err, app.ErrConflict) {
 		t.Fatalf("stale release transition err=%v, want conflict", err)
@@ -714,6 +733,9 @@ func TestRepositoriesPropagateClosedTransactionFailures(t *testing.T) {
 		}},
 		{"retention override", func() error {
 			return repositories.Governance.InsertRetentionOverride(ctx, domain.RetentionOverride{ID: "ro_closed", TenantID: tenantID, ScopeType: "release", ScopeID: release.ID, RetentionUntil: now.Add(time.Hour), Reason: "closed", Owner: "security", SchemaVersion: domain.RetentionOverrideSchemaVersion, CreatedAt: now})
+		}},
+		{"build run", func() error {
+			return repositories.Builds.InsertBuildRun(ctx, domain.BuildRun{ID: "build_closed", TenantID: tenantID, ProjectID: "proj_closed", ReleaseID: release.ID, Provider: "generic_ci", CommitSHA: "0123456789abcdef0123456789abcdef01234567", Status: "passed", StartedAt: now, SchemaVersion: domain.BuildRunSchemaVersion, CreatedAt: now})
 		}},
 		{"product", func() error {
 			return repositories.ReleaseCatalog.InsertProduct(ctx, domain.Product{ID: "prod_closed", TenantID: tenantID, Name: "Closed", Slug: "closed", CreatedAt: now})

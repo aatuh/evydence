@@ -332,6 +332,22 @@ func (l *Ledger) CreateBuildRun(ctx context.Context, actor domain.Actor, in Crea
 	build.SchemaVersion = domain.BuildRunSchemaVersion
 	build.CreatedAt = l.now()
 	build.SourceIdentity = buildSourceIdentity(build, actor)
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Builds.InsertBuildRun(ctx, build); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(build.CreatedAt, actor.TenantID, "build.created", "build_run", build.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.BuildRun{}, err
+		}
+		l.buildRuns[build.ID] = build
+		l.publishCommittedAuditEntryLocked(entry)
+		return build, nil
+	}
 	l.buildRuns[build.ID] = build
 	_, _ = l.appendChainLocked(actor.TenantID, "build.created", "build_run", build.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {

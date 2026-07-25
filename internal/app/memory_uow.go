@@ -47,6 +47,7 @@ type MemoryUnitOfWorkSnapshot struct {
 	ReleaseCandidates     map[string]domain.ReleaseCandidate
 	Decisions             map[string]domain.VulnerabilityDecision
 	Exceptions            map[string]domain.Exception
+	BuildRuns             map[string]domain.BuildRun
 	ControlFrameworks     map[string]domain.ControlFramework
 	SecurityControls      map[string]domain.SecurityControl
 	ControlEvidence       map[string]domain.ControlEvidence
@@ -107,6 +108,7 @@ func (u *memoryUnitOfWork) Repositories() Repositories {
 		Outbox:         memoryOutboxRepository{uow: u},
 		Controls:       memoryControlRepository{uow: u},
 		Governance:     memoryGovernanceRepository{uow: u},
+		Builds:         memoryBuildRepository{uow: u},
 		Packages:       memoryPackageRepository{uow: u},
 		Signatures:     memorySignatureRepository{uow: u},
 		Verification:   memoryVerificationRepository{uow: u},
@@ -1372,6 +1374,46 @@ func (r memoryGovernanceRepository) InsertRetentionOverride(ctx context.Context,
 	})
 }
 
+type memoryBuildRepository struct{ uow *memoryUnitOfWork }
+
+func (r memoryBuildRepository) InsertBuildRun(ctx context.Context, build domain.BuildRun) error {
+	cloned, err := cloneMemoryJSON(build)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.ProjectID == "" || cloned.ReleaseID == "" || cloned.Provider == "" || cloned.CommitSHA == "" || cloned.Status == "" || cloned.StartedAt.IsZero() || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.ProjectID, cloned.TenantID, state.Projects) || !memoryResourceBelongsToTenant(cloned.ReleaseID, cloned.TenantID, state.Releases) {
+			return ErrNotFound
+		}
+		if cloned.CollectorID != "" && !memoryResourceBelongsToTenant(cloned.CollectorID, cloned.TenantID, state.Collectors) {
+			return ErrNotFound
+		}
+		for _, output := range cloned.Outputs {
+			if output.Digest == "" {
+				return ErrValidation
+			}
+			if output.ArtifactID == "" {
+				continue
+			}
+			artifact, ok := state.Artifacts[output.ArtifactID]
+			if !ok || artifact.TenantID != cloned.TenantID || artifact.Digest != output.Digest {
+				return ErrNotFound
+			}
+		}
+		if _, exists := state.BuildRuns[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.BuildRuns[cloned.ID] = cloned
+		return nil
+	})
+}
+
 type memoryPackageRepository struct{ uow *memoryUnitOfWork }
 
 func (r memoryPackageRepository) InsertReleaseBundle(ctx context.Context, bundle domain.ReleaseBundle) error {
@@ -1489,6 +1531,7 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		ReleaseCandidates:     map[string]domain.ReleaseCandidate{},
 		Decisions:             map[string]domain.VulnerabilityDecision{},
 		Exceptions:            map[string]domain.Exception{},
+		BuildRuns:             map[string]domain.BuildRun{},
 		ControlFrameworks:     map[string]domain.ControlFramework{},
 		SecurityControls:      map[string]domain.SecurityControl{},
 		ControlEvidence:       map[string]domain.ControlEvidence{},
@@ -1586,6 +1629,9 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.Exceptions, err = cloneMemoryMap(snapshot.Exceptions); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.BuildRuns, err = cloneMemoryMap(snapshot.BuildRuns); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.ControlFrameworks, err = cloneMemoryMap(snapshot.ControlFrameworks); err != nil {

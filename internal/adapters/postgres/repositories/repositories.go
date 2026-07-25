@@ -29,6 +29,7 @@ func New(tx pgx.Tx) app.Repositories {
 		Outbox:         outbox{tx: tx},
 		Controls:       controls{tx: tx},
 		Governance:     governance{tx: tx},
+		Builds:         builds{tx: tx},
 		Packages:       packages{tx: tx},
 		Signatures:     signatures{tx: tx},
 		Verification:   verification{tx: tx},
@@ -1246,6 +1247,74 @@ func (r governance) InsertRetentionOverride(ctx context.Context, override domain
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`, override.ID, override.TenantID, override.ScopeType, override.ScopeID, override.RetentionUntil, override.Reason, override.Owner, override.SchemaVersion, override.CreatedAt)
 	return writeError("insert retention override", err)
+}
+
+type builds struct{ tx pgx.Tx }
+
+func (r builds) InsertBuildRun(ctx context.Context, build domain.BuildRun) error {
+	if build.ID == "" || build.TenantID == "" || build.ProjectID == "" || build.ReleaseID == "" || build.Provider == "" || build.CommitSHA == "" || build.Status == "" || build.StartedAt.IsZero() || build.SchemaVersion == "" || build.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, build.TenantID); err != nil {
+		return err
+	}
+	if err := requireOptionalProject(ctx, r.tx, build.TenantID, build.ProjectID); err != nil {
+		return err
+	}
+	if err := requireOptionalRelease(ctx, r.tx, build.TenantID, build.ReleaseID); err != nil {
+		return err
+	}
+	if build.CollectorID != "" {
+		if err := requireRow(ctx, r.tx, `SELECT 1 FROM collectors WHERE id = $1 AND tenant_id = $2`, build.CollectorID, build.TenantID); err != nil {
+			return err
+		}
+	}
+	for _, output := range build.Outputs {
+		if output.Digest == "" {
+			return app.ErrValidation
+		}
+		if output.ArtifactID == "" {
+			continue
+		}
+		var digest string
+		err := r.tx.QueryRow(ctx, `SELECT digest FROM artifacts WHERE id = $1 AND tenant_id = $2`, output.ArtifactID, build.TenantID).Scan(&digest)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return app.ErrNotFound
+		}
+		if err != nil {
+			return writeError("read build output artifact", err)
+		}
+		if digest != output.Digest {
+			return app.ErrValidation
+		}
+	}
+	sourceIdentity, err := json.Marshal(build.SourceIdentity)
+	if err != nil {
+		return fmt.Errorf("encode build source identity: %w", err)
+	}
+	outputs, err := json.Marshal(build.Outputs)
+	if err != nil {
+		return fmt.Errorf("encode build outputs: %w", err)
+	}
+	_, err = r.tx.Exec(ctx, `
+		INSERT INTO build_runs (
+			id, tenant_id, project_id, release_id, collector_id, provider,
+			commit_sha, repository, workflow_ref, run_id, run_attempt, job_id,
+			actor, ref, oidc_subject, status, started_at, finished_at,
+			parameters_hash, environment_hash, source_identity, outputs,
+			schema_version, created_at
+		)
+		VALUES (
+			$1, $2, $3, $4, $5, $6,
+			$7, $8, $9, $10, $11, $12,
+			$13, $14, $15, $16, $17, $18,
+			$19, $20, $21, $22, $23, $24
+		)
+	`, build.ID, build.TenantID, build.ProjectID, build.ReleaseID, nullableString(build.CollectorID), build.Provider,
+		build.CommitSHA, nullableString(build.Repository), nullableString(build.WorkflowRef), nullableString(build.RunID), nullableInt64(int64(build.RunAttempt)), nullableString(build.JobID),
+		nullableString(build.Actor), nullableString(build.Ref), nullableString(build.OIDCSubject), build.Status, build.StartedAt, build.FinishedAt,
+		nullableString(build.ParametersHash), nullableString(build.EnvironmentHash), sourceIdentity, outputs, build.SchemaVersion, build.CreatedAt)
+	return writeError("insert build run", err)
 }
 
 type packages struct{ tx pgx.Tx }

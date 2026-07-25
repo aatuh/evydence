@@ -60,7 +60,6 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 
 | Family | File | Function | Call |
 | --- | --- | --- | --- |
-| build provenance | `internal/app/builds.go` | `CreateBuildRun` | `persistLocked` |
 | build provenance | `internal/app/builds.go` | `CreateCollector` | `persistLocked` |
 | build provenance | `internal/app/builds.go` | `RecordCollectorRelease` | `persistLocked` |
 | build provenance | `internal/app/builds.go` | `UploadBuildAttestation` | `persistLocked` |
@@ -132,6 +131,7 @@ These commands commit through focused repositories whenever `UnitOfWorkFactory` 
 | --- | --- | --- | --- |
 | VEX and vulnerability decisions | `internal/app/vex.go` | `ApproveException` | `persistLocked` |
 | VEX and vulnerability decisions | `internal/app/vex.go` | `CreateException` | `persistLocked` |
+| build provenance | `internal/app/builds.go` | `CreateBuildRun` | `persistLocked` |
 | controls | `internal/app/controls.go` | `CreateControlFramework` | `persistLocked` |
 | controls | `internal/app/controls.go` | `CreateSecurityControl` | `persistLocked` |
 | controls | `internal/app/controls.go` | `LinkControlEvidence` | `persistLocked` |

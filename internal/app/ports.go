@@ -107,6 +107,7 @@ type Repositories struct {
 	Outbox         OutboxRepository
 	Controls       ControlRepository
 	Governance     GovernanceRepository
+	Builds         BuildRepository
 	Packages       PackageRepository
 	Signatures     SignatureRepository
 	Verification   VerificationRepository
@@ -186,6 +187,10 @@ type GovernanceRepository interface {
 	InsertRedactionProfile(context.Context, domain.RedactionProfile) error
 	InsertLegalHold(context.Context, domain.LegalHold) error
 	InsertRetentionOverride(context.Context, domain.RetentionOverride) error
+}
+
+type BuildRepository interface {
+	InsertBuildRun(context.Context, domain.BuildRun) error
 }
 
 type PackageRepository interface {
