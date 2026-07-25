@@ -1214,6 +1214,40 @@ func (r governance) InsertRedactionProfile(ctx context.Context, profile domain.R
 	return writeError("insert redaction profile", err)
 }
 
+func (r governance) InsertLegalHold(ctx context.Context, hold domain.LegalHold) error {
+	if hold.ID == "" || hold.TenantID == "" || hold.ScopeType == "" || hold.ScopeID == "" || hold.Reason == "" || hold.Owner == "" || hold.ReleasedAt != nil || hold.SchemaVersion == "" || hold.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireRetentionScope(ctx, r.tx, hold.TenantID, hold.ScopeType, hold.ScopeID); err != nil {
+		return err
+	}
+	_, err := r.tx.Exec(ctx, `
+		INSERT INTO legal_holds (
+			id, tenant_id, scope_type, scope_id, reason, owner,
+			schema_version, created_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	`, hold.ID, hold.TenantID, hold.ScopeType, hold.ScopeID, hold.Reason, hold.Owner, hold.SchemaVersion, hold.CreatedAt)
+	return writeError("insert legal hold", err)
+}
+
+func (r governance) InsertRetentionOverride(ctx context.Context, override domain.RetentionOverride) error {
+	if override.ID == "" || override.TenantID == "" || override.ScopeType == "" || override.ScopeID == "" || !override.RetentionUntil.After(override.CreatedAt) || override.Reason == "" || override.Owner == "" || override.SchemaVersion == "" || override.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireRetentionScope(ctx, r.tx, override.TenantID, override.ScopeType, override.ScopeID); err != nil {
+		return err
+	}
+	_, err := r.tx.Exec(ctx, `
+		INSERT INTO retention_overrides (
+			id, tenant_id, scope_type, scope_id, retention_until, reason,
+			owner, schema_version, created_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`, override.ID, override.TenantID, override.ScopeType, override.ScopeID, override.RetentionUntil, override.Reason, override.Owner, override.SchemaVersion, override.CreatedAt)
+	return writeError("insert retention override", err)
+}
+
 type packages struct{ tx pgx.Tx }
 
 func (r packages) InsertReleaseBundle(ctx context.Context, bundle domain.ReleaseBundle) error {
@@ -1299,6 +1333,29 @@ func requireTenant(ctx context.Context, tx pgx.Tx, tenantID string) error {
 		return app.ErrValidation
 	}
 	return requireRow(ctx, tx, `SELECT 1 FROM tenants WHERE id = $1`, tenantID)
+}
+
+func requireRetentionScope(ctx context.Context, tx pgx.Tx, tenantID, scopeType, scopeID string) error {
+	if tenantID == "" || scopeID == "" {
+		return app.ErrValidation
+	}
+	switch scopeType {
+	case "tenant":
+		if scopeID != tenantID {
+			return app.ErrNotFound
+		}
+		return requireTenant(ctx, tx, tenantID)
+	case "product":
+		return requireOptionalProduct(ctx, tx, tenantID, scopeID)
+	case "project":
+		return requireOptionalProject(ctx, tx, tenantID, scopeID)
+	case "release":
+		return requireOptionalRelease(ctx, tx, tenantID, scopeID)
+	case "evidence":
+		return requireOwnedEvidence(ctx, tx, tenantID, scopeID)
+	default:
+		return app.ErrValidation
+	}
 }
 
 func requireOptionalOrganization(ctx context.Context, tx pgx.Tx, tenantID, organizationID string) error {

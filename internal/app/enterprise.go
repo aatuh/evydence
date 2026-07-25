@@ -952,6 +952,22 @@ func (l *Ledger) CreateLegalHold(ctx context.Context, actor domain.Actor, in Cre
 		return domain.LegalHold{}, err
 	}
 	hold := domain.LegalHold{ID: newID("lh"), TenantID: actor.TenantID, ScopeType: in.ScopeType, ScopeID: in.ScopeID, Reason: in.Reason, Owner: in.Owner, SchemaVersion: domain.LegalHoldSchemaVersion, CreatedAt: l.now()}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Governance.InsertLegalHold(ctx, hold); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(hold.CreatedAt, actor.TenantID, "legal_hold.created", in.ScopeType, in.ScopeID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.LegalHold{}, err
+		}
+		l.legalHolds[hold.ID] = hold
+		l.publishCommittedAuditEntryLocked(entry)
+		return hold, nil
+	}
 	l.legalHolds[hold.ID] = hold
 	_, _ = l.appendChainLocked(actor.TenantID, "legal_hold.created", in.ScopeType, in.ScopeID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {
@@ -977,6 +993,22 @@ func (l *Ledger) CreateRetentionOverride(ctx context.Context, actor domain.Actor
 		return domain.RetentionOverride{}, err
 	}
 	override := domain.RetentionOverride{ID: newID("ro"), TenantID: actor.TenantID, ScopeType: in.ScopeType, ScopeID: in.ScopeID, RetentionUntil: in.RetentionUntil.UTC(), Reason: in.Reason, Owner: in.Owner, SchemaVersion: domain.RetentionOverrideSchemaVersion, CreatedAt: l.now()}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Governance.InsertRetentionOverride(ctx, override); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(override.CreatedAt, actor.TenantID, "retention_override.created", in.ScopeType, in.ScopeID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.RetentionOverride{}, err
+		}
+		l.retentionOverrides[override.ID] = override
+		l.publishCommittedAuditEntryLocked(entry)
+		return override, nil
+	}
 	l.retentionOverrides[override.ID] = override
 	_, _ = l.appendChainLocked(actor.TenantID, "retention_override.created", in.ScopeType, in.ScopeID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {

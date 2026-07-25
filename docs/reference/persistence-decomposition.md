@@ -65,11 +65,9 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 | build provenance | `internal/app/builds.go` | `RecordCollectorRelease` | `persistLocked` |
 | build provenance | `internal/app/builds.go` | `UploadBuildAttestation` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateCommercialCollectorDefinition` | `persistLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `CreateLegalHold` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateQuestionnaireAnswerLibraryEntry` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateQuestionnairePackage` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateQuestionnaireTemplate` | `persistLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `CreateRetentionOverride` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `CreateEvidenceSummary` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `CreateGraphSnapshot` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `CreateMarketplaceCollector` | `persistLocked` |
@@ -137,7 +135,9 @@ These commands commit through focused repositories whenever `UnitOfWorkFactory` 
 | controls | `internal/app/controls.go` | `CreateControlFramework` | `persistLocked` |
 | controls | `internal/app/controls.go` | `CreateSecurityControl` | `persistLocked` |
 | controls | `internal/app/controls.go` | `LinkControlEvidence` | `persistLocked` |
+| enterprise identity and retention | `internal/app/enterprise.go` | `CreateLegalHold` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateOrganization` | `persistLocked` |
+| enterprise identity and retention | `internal/app/enterprise.go` | `CreateRetentionOverride` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateRoleBinding` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateSSOProvider` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateUser` | `persistLocked` |

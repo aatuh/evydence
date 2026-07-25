@@ -184,6 +184,8 @@ type GovernanceRepository interface {
 	ApproveWaiver(context.Context, domain.Waiver) error
 	InsertApprovalRecord(context.Context, domain.ApprovalRecord) error
 	InsertRedactionProfile(context.Context, domain.RedactionProfile) error
+	InsertLegalHold(context.Context, domain.LegalHold) error
+	InsertRetentionOverride(context.Context, domain.RetentionOverride) error
 }
 
 type PackageRepository interface {

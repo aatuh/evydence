@@ -191,6 +191,12 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Decisions.ApproveException(ctx, exception); err != nil {
 		t.Fatalf("approve exception: %v", err)
 	}
+	if err := repositories.Governance.InsertLegalHold(ctx, domain.LegalHold{ID: "lh_repository", TenantID: tenant.ID, ScopeType: "release", ScopeID: release.ID, Reason: "repository test", Owner: "legal", SchemaVersion: domain.LegalHoldSchemaVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert legal hold: %v", err)
+	}
+	if err := repositories.Governance.InsertRetentionOverride(ctx, domain.RetentionOverride{ID: "ro_repository", TenantID: tenant.ID, ScopeType: "evidence", ScopeID: evidence.ID, RetentionUntil: now.Add(time.Hour), Reason: "repository test", Owner: "security", SchemaVersion: domain.RetentionOverrideSchemaVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert retention override: %v", err)
+	}
 	replacementEvidence := evidence
 	replacementEvidence.ID = "evi_repository_replacement"
 	replacementEvidence.Title = "Repository replacement SBOM"
@@ -331,6 +337,8 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"redaction profile", repositories.Governance.InsertRedactionProfile(ctx, domain.RedactionProfile{})},
 		{"exception", repositories.Decisions.InsertException(ctx, domain.Exception{})},
 		{"exception approval", repositories.Decisions.ApproveException(ctx, domain.Exception{})},
+		{"legal hold", repositories.Governance.InsertLegalHold(ctx, domain.LegalHold{})},
+		{"retention override", repositories.Governance.InsertRetentionOverride(ctx, domain.RetentionOverride{})},
 		{"product", repositories.ReleaseCatalog.InsertProduct(ctx, domain.Product{})},
 		{"project", repositories.ReleaseCatalog.InsertProject(ctx, domain.Project{})},
 		{"release", repositories.ReleaseCatalog.InsertRelease(ctx, domain.Release{})},
@@ -445,6 +453,8 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"waiver approval", repositories.Governance.ApproveWaiver(ctx, domain.Waiver{ID: waiverA.ID, TenantID: "ten_repository_b", Approved: true, ApprovedBy: "key_repository_b", ApprovedAt: &now, ExpiresAt: now.Add(time.Hour)})},
 		{"approval evidence", repositories.Governance.InsertApprovalRecord(ctx, domain.ApprovalRecord{ID: "apr_repository_b", TenantID: "ten_repository_b", SubjectType: "release", SubjectID: "rel_repository_b", Decision: "approved", Reason: "B approval", ApproverID: "key_repository_b", EvidenceID: evidenceA.ID, SchemaVersion: domain.ApprovalRecordSchemaVersion, CreatedAt: now})},
 		{"exception release", repositories.Decisions.InsertException(ctx, domain.Exception{ID: "ex_repository_b", TenantID: "ten_repository_b", ReleaseID: releaseA.ID, Reason: "B exception", Owner: "security", ExpiresAt: now.Add(time.Hour), CreatedAt: now})},
+		{"legal hold release", repositories.Governance.InsertLegalHold(ctx, domain.LegalHold{ID: "lh_repository_b", TenantID: "ten_repository_b", ScopeType: "release", ScopeID: releaseA.ID, Reason: "B hold", Owner: "legal", SchemaVersion: domain.LegalHoldSchemaVersion, CreatedAt: now})},
+		{"retention override evidence", repositories.Governance.InsertRetentionOverride(ctx, domain.RetentionOverride{ID: "ro_repository_b", TenantID: "ten_repository_b", ScopeType: "evidence", ScopeID: evidenceA.ID, RetentionUntil: now.Add(time.Hour), Reason: "B override", Owner: "security", SchemaVersion: domain.RetentionOverrideSchemaVersion, CreatedAt: now})},
 		{"candidate release", repositories.ReleaseCatalog.InsertReleaseCandidate(ctx, domain.ReleaseCandidate{ID: "rc_repository_b", TenantID: "ten_repository_b", ReleaseID: releaseA.ID, Name: "B candidate", State: "open", SnapshotHash: "sha256:candidate-b", SchemaVersion: domain.ReleaseCandidateSchemaVersion, CreatedAt: now})},
 		{"evidence link product", repositories.Evidence.UpdateEvidenceLinks(ctx, domain.EvidenceItem{ID: evidenceA.ID, TenantID: "ten_repository_b", ProductID: "prod_repository_a"})},
 		{"SBOM evidence", repositories.Evidence.InsertSBOM(ctx, domain.SBOM{ID: "sbom_repository_b", TenantID: "ten_repository_b", EvidenceID: evidenceA.ID, ReleaseID: releaseA.ID, ArtifactID: artifactA.ID, Format: "cyclonedx", CreatedAt: now})},
@@ -698,6 +708,12 @@ func TestRepositoriesPropagateClosedTransactionFailures(t *testing.T) {
 		}},
 		{"exception approval", func() error {
 			return repositories.Decisions.ApproveException(ctx, domain.Exception{ID: "ex_closed", TenantID: tenantID, Approved: true, ApprovedBy: "key_closed", ApprovedAt: &now, ExpiresAt: now.Add(time.Hour)})
+		}},
+		{"legal hold", func() error {
+			return repositories.Governance.InsertLegalHold(ctx, domain.LegalHold{ID: "lh_closed", TenantID: tenantID, ScopeType: "release", ScopeID: release.ID, Reason: "closed", Owner: "legal", SchemaVersion: domain.LegalHoldSchemaVersion, CreatedAt: now})
+		}},
+		{"retention override", func() error {
+			return repositories.Governance.InsertRetentionOverride(ctx, domain.RetentionOverride{ID: "ro_closed", TenantID: tenantID, ScopeType: "release", ScopeID: release.ID, RetentionUntil: now.Add(time.Hour), Reason: "closed", Owner: "security", SchemaVersion: domain.RetentionOverrideSchemaVersion, CreatedAt: now})
 		}},
 		{"product", func() error {
 			return repositories.ReleaseCatalog.InsertProduct(ctx, domain.Product{ID: "prod_closed", TenantID: tenantID, Name: "Closed", Slug: "closed", CreatedAt: now})

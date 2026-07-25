@@ -53,6 +53,8 @@ type MemoryUnitOfWorkSnapshot struct {
 	Waivers               map[string]domain.Waiver
 	Approvals             map[string]domain.ApprovalRecord
 	RedactionProfiles     map[string]domain.RedactionProfile
+	LegalHolds            map[string]domain.LegalHold
+	RetentionOverrides    map[string]domain.RetentionOverride
 	AuditEntries          map[string][]domain.AuditChainEntry
 	Idempotency           map[IdempotencyRecordKey]IdempotencyRecord
 	OutboxJobs            map[string]OutboxJob
@@ -562,6 +564,24 @@ func memoryRoleResourceBelongsToTenant(state MemoryUnitOfWorkSnapshot, tenantID,
 		return memoryResourceBelongsToTenant(resourceID, tenantID, state.Projects)
 	case "release":
 		return memoryResourceBelongsToTenant(resourceID, tenantID, state.Releases)
+	default:
+		return false
+	}
+}
+
+func memoryRetentionScopeBelongsToTenant(state MemoryUnitOfWorkSnapshot, tenantID, scopeType, scopeID string) bool {
+	switch scopeType {
+	case "tenant":
+		_, ok := state.Tenants[scopeID]
+		return ok && scopeID == tenantID
+	case "product":
+		return memoryResourceBelongsToTenant(scopeID, tenantID, state.Products)
+	case "project":
+		return memoryResourceBelongsToTenant(scopeID, tenantID, state.Projects)
+	case "release":
+		return memoryResourceBelongsToTenant(scopeID, tenantID, state.Releases)
+	case "evidence":
+		return memoryResourceBelongsToTenant(scopeID, tenantID, state.Evidence)
 	default:
 		return false
 	}
@@ -1306,6 +1326,52 @@ func (r memoryGovernanceRepository) InsertRedactionProfile(ctx context.Context, 
 	})
 }
 
+func (r memoryGovernanceRepository) InsertLegalHold(ctx context.Context, hold domain.LegalHold) error {
+	cloned, err := cloneMemoryJSON(hold)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.ScopeType == "" || cloned.ScopeID == "" || cloned.Reason == "" || cloned.Owner == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() || cloned.ReleasedAt != nil {
+			return ErrValidation
+		}
+		if !memoryRetentionScopeBelongsToTenant(*state, cloned.TenantID, cloned.ScopeType, cloned.ScopeID) {
+			return ErrNotFound
+		}
+		if _, exists := state.LegalHolds[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.LegalHolds[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryGovernanceRepository) InsertRetentionOverride(ctx context.Context, override domain.RetentionOverride) error {
+	cloned, err := cloneMemoryJSON(override)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.ScopeType == "" || cloned.ScopeID == "" || !cloned.RetentionUntil.After(cloned.CreatedAt) || cloned.Reason == "" || cloned.Owner == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryRetentionScopeBelongsToTenant(*state, cloned.TenantID, cloned.ScopeType, cloned.ScopeID) {
+			return ErrNotFound
+		}
+		if _, exists := state.RetentionOverrides[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.RetentionOverrides[cloned.ID] = cloned
+		return nil
+	})
+}
+
 type memoryPackageRepository struct{ uow *memoryUnitOfWork }
 
 func (r memoryPackageRepository) InsertReleaseBundle(ctx context.Context, bundle domain.ReleaseBundle) error {
@@ -1429,6 +1495,8 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		Waivers:               map[string]domain.Waiver{},
 		Approvals:             map[string]domain.ApprovalRecord{},
 		RedactionProfiles:     map[string]domain.RedactionProfile{},
+		LegalHolds:            map[string]domain.LegalHold{},
+		RetentionOverrides:    map[string]domain.RetentionOverride{},
 		AuditEntries:          map[string][]domain.AuditChainEntry{},
 		Idempotency:           map[IdempotencyRecordKey]IdempotencyRecord{},
 		OutboxJobs:            map[string]OutboxJob{},
@@ -1536,6 +1604,12 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.RedactionProfiles, err = cloneMemoryMap(snapshot.RedactionProfiles); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.LegalHolds, err = cloneMemoryMap(snapshot.LegalHolds); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.RetentionOverrides, err = cloneMemoryMap(snapshot.RetentionOverrides); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.AuditEntries, err = cloneMemoryJSON(snapshot.AuditEntries); err != nil {
