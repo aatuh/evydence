@@ -54,6 +54,8 @@ type MemoryUnitOfWorkSnapshot struct {
 	ArtifactSignatures    map[string]domain.ArtifactSignature
 	SourceRepositories    map[string]domain.SourceRepository
 	SourceCommits         map[string]domain.SourceCommit
+	SourceBranches        map[string]domain.SourceBranch
+	PullRequests          map[string]domain.PullRequest
 	ControlFrameworks     map[string]domain.ControlFramework
 	SecurityControls      map[string]domain.SecurityControl
 	ControlEvidence       map[string]domain.ControlEvidence
@@ -1577,6 +1579,93 @@ func (r memorySourceRepository) InsertSourceCommit(ctx context.Context, commit d
 	})
 }
 
+func (r memorySourceRepository) InsertSourceBranch(ctx context.Context, branch domain.SourceBranch) error {
+	cloned, err := cloneMemoryJSON(branch)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.RepositoryID == "" || cloned.Name == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.RepositoryID, cloned.TenantID, state.SourceRepositories) {
+			return ErrNotFound
+		}
+		if cloned.HeadCommitID != "" {
+			commit, ok := state.SourceCommits[cloned.HeadCommitID]
+			if !ok || commit.TenantID != cloned.TenantID || commit.RepositoryID != cloned.RepositoryID {
+				return ErrNotFound
+			}
+		}
+		if _, exists := state.SourceBranches[cloned.ID]; exists {
+			return ErrConflict
+		}
+		for _, existing := range state.SourceBranches {
+			if existing.TenantID == cloned.TenantID && existing.RepositoryID == cloned.RepositoryID && existing.Name == cloned.Name {
+				return ErrConflict
+			}
+		}
+		state.SourceBranches[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memorySourceRepository) UpdateSourceBranch(ctx context.Context, branch domain.SourceBranch) error {
+	cloned, err := cloneMemoryJSON(branch)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		stored, ok := state.SourceBranches[cloned.ID]
+		if !ok || stored.TenantID != cloned.TenantID || stored.RepositoryID != cloned.RepositoryID || stored.Name != cloned.Name {
+			return ErrConflict
+		}
+		if cloned.HeadCommitID != "" {
+			commit, ok := state.SourceCommits[cloned.HeadCommitID]
+			if !ok || commit.TenantID != cloned.TenantID || commit.RepositoryID != cloned.RepositoryID {
+				return ErrNotFound
+			}
+		}
+		state.SourceBranches[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memorySourceRepository) InsertPullRequest(ctx context.Context, pr domain.PullRequest) error {
+	cloned, err := cloneMemoryJSON(pr)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.RepositoryID == "" || cloned.Provider == "" || cloned.ProviderID == "" || cloned.Title == "" || cloned.State == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.RepositoryID, cloned.TenantID, state.SourceRepositories) {
+			return ErrNotFound
+		}
+		if cloned.HeadCommitID != "" {
+			commit, ok := state.SourceCommits[cloned.HeadCommitID]
+			if !ok || commit.TenantID != cloned.TenantID || commit.RepositoryID != cloned.RepositoryID {
+				return ErrNotFound
+			}
+		}
+		if _, exists := state.PullRequests[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.PullRequests[cloned.ID] = cloned
+		return nil
+	})
+}
+
 type memorySupplyChainRepository struct{ uow *memoryUnitOfWork }
 
 func (r memorySupplyChainRepository) InsertContainerImage(ctx context.Context, image domain.ContainerImage) error {
@@ -1762,6 +1851,8 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		ArtifactSignatures:    map[string]domain.ArtifactSignature{},
 		SourceRepositories:    map[string]domain.SourceRepository{},
 		SourceCommits:         map[string]domain.SourceCommit{},
+		SourceBranches:        map[string]domain.SourceBranch{},
+		PullRequests:          map[string]domain.PullRequest{},
 		ControlFrameworks:     map[string]domain.ControlFramework{},
 		SecurityControls:      map[string]domain.SecurityControl{},
 		ControlEvidence:       map[string]domain.ControlEvidence{},
@@ -1880,6 +1971,12 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.SourceCommits, err = cloneMemoryMap(snapshot.SourceCommits); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.SourceBranches, err = cloneMemoryMap(snapshot.SourceBranches); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.PullRequests, err = cloneMemoryMap(snapshot.PullRequests); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.ControlFrameworks, err = cloneMemoryMap(snapshot.ControlFrameworks); err != nil {

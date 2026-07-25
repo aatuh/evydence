@@ -1466,6 +1466,63 @@ func (r source) InsertSourceCommit(ctx context.Context, commit domain.SourceComm
 	return writeError("insert source commit", err)
 }
 
+func (r source) InsertSourceBranch(ctx context.Context, branch domain.SourceBranch) error {
+	if branch.ID == "" || branch.TenantID == "" || branch.RepositoryID == "" || branch.Name == "" || branch.SchemaVersion == "" || branch.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, branch.TenantID); err != nil {
+		return err
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM source_repositories WHERE id = $1 AND tenant_id = $2`, branch.RepositoryID, branch.TenantID); err != nil {
+		return err
+	}
+	if branch.HeadCommitID != "" {
+		if err := requireRow(ctx, r.tx, `SELECT 1 FROM source_commits WHERE id = $1 AND tenant_id = $2 AND repository_id = $3`, branch.HeadCommitID, branch.TenantID, branch.RepositoryID); err != nil {
+			return err
+		}
+	}
+	_, err := r.tx.Exec(ctx, `INSERT INTO source_branches (id, tenant_id, repository_id, name, head_commit_id, protected, protection_hash, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, branch.ID, branch.TenantID, branch.RepositoryID, branch.Name, nullableString(branch.HeadCommitID), branch.Protected, nullableString(branch.ProtectionHash), branch.SchemaVersion, branch.CreatedAt)
+	return writeError("insert source branch", err)
+}
+
+func (r source) UpdateSourceBranch(ctx context.Context, branch domain.SourceBranch) error {
+	if branch.ID == "" || branch.TenantID == "" || branch.RepositoryID == "" || branch.Name == "" {
+		return app.ErrValidation
+	}
+	if branch.HeadCommitID != "" {
+		if err := requireRow(ctx, r.tx, `SELECT 1 FROM source_commits WHERE id = $1 AND tenant_id = $2 AND repository_id = $3`, branch.HeadCommitID, branch.TenantID, branch.RepositoryID); err != nil {
+			return err
+		}
+	}
+	result, err := r.tx.Exec(ctx, `UPDATE source_branches SET head_commit_id = $4, protected = $5, protection_hash = $6 WHERE id = $1 AND tenant_id = $2 AND repository_id = $3 AND name = $7`, branch.ID, branch.TenantID, branch.RepositoryID, nullableString(branch.HeadCommitID), branch.Protected, nullableString(branch.ProtectionHash), branch.Name)
+	if err != nil {
+		return writeError("update source branch", err)
+	}
+	if result.RowsAffected() != 1 {
+		return app.ErrConflict
+	}
+	return nil
+}
+
+func (r source) InsertPullRequest(ctx context.Context, pr domain.PullRequest) error {
+	if pr.ID == "" || pr.TenantID == "" || pr.RepositoryID == "" || pr.Provider == "" || pr.ProviderID == "" || pr.Title == "" || pr.State == "" || pr.SchemaVersion == "" || pr.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, pr.TenantID); err != nil {
+		return err
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM source_repositories WHERE id = $1 AND tenant_id = $2`, pr.RepositoryID, pr.TenantID); err != nil {
+		return err
+	}
+	if pr.HeadCommitID != "" {
+		if err := requireRow(ctx, r.tx, `SELECT 1 FROM source_commits WHERE id = $1 AND tenant_id = $2 AND repository_id = $3`, pr.HeadCommitID, pr.TenantID, pr.RepositoryID); err != nil {
+			return err
+		}
+	}
+	_, err := r.tx.Exec(ctx, `INSERT INTO pull_requests (id, tenant_id, repository_id, provider, provider_id, title, state, source_branch, target_branch, head_commit_id, review_decision, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`, pr.ID, pr.TenantID, pr.RepositoryID, pr.Provider, pr.ProviderID, pr.Title, pr.State, nullableString(pr.SourceBranch), nullableString(pr.TargetBranch), nullableString(pr.HeadCommitID), nullableString(pr.ReviewDecision), pr.SchemaVersion, pr.CreatedAt)
+	return writeError("insert pull request", err)
+}
+
 type supplyChain struct{ tx pgx.Tx }
 
 func (r supplyChain) InsertContainerImage(ctx context.Context, image domain.ContainerImage) error {

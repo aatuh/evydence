@@ -105,8 +105,21 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Source.InsertSourceRepository(ctx, sourceRepository); err != nil {
 		t.Fatalf("insert source repository: %v", err)
 	}
-	if err := repositories.Source.InsertSourceCommit(ctx, domain.SourceCommit{ID: "commit_repository", TenantID: tenant.ID, RepositoryID: sourceRepository.ID, SHA: "0123456789abcdef0123456789abcdef01234567", CommittedAt: now, SchemaVersion: domain.SourceCommitSchemaVersion, CreatedAt: now}); err != nil {
+	sourceCommit := domain.SourceCommit{ID: "commit_repository", TenantID: tenant.ID, RepositoryID: sourceRepository.ID, SHA: "0123456789abcdef0123456789abcdef01234567", CommittedAt: now, SchemaVersion: domain.SourceCommitSchemaVersion, CreatedAt: now}
+	if err := repositories.Source.InsertSourceCommit(ctx, sourceCommit); err != nil {
 		t.Fatalf("insert source commit: %v", err)
+	}
+	branch := domain.SourceBranch{ID: "branch_repository", TenantID: tenant.ID, RepositoryID: sourceRepository.ID, Name: "main", HeadCommitID: sourceCommit.ID, Protected: true, SchemaVersion: domain.SourceBranchSchemaVersion, CreatedAt: now}
+	if err := repositories.Source.InsertSourceBranch(ctx, branch); err != nil {
+		t.Fatalf("insert source branch: %v", err)
+	}
+	branch.Protected = false
+	branch.ProtectionHash = "sha256:branch"
+	if err := repositories.Source.UpdateSourceBranch(ctx, branch); err != nil {
+		t.Fatalf("update source branch: %v", err)
+	}
+	if err := repositories.Source.InsertPullRequest(ctx, domain.PullRequest{ID: "pr_repository", TenantID: tenant.ID, RepositoryID: sourceRepository.ID, Provider: "github", ProviderID: "17", Title: "Repository change", State: "merged", HeadCommitID: sourceCommit.ID, SchemaVersion: domain.PullRequestSchemaVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert pull request: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO customer_security_packages (
@@ -393,6 +406,9 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"artifact signature", repositories.SupplyChain.InsertArtifactSignature(ctx, domain.ArtifactSignature{})},
 		{"source repository", repositories.Source.InsertSourceRepository(ctx, domain.SourceRepository{})},
 		{"source commit", repositories.Source.InsertSourceCommit(ctx, domain.SourceCommit{})},
+		{"source branch", repositories.Source.InsertSourceBranch(ctx, domain.SourceBranch{})},
+		{"source branch update", repositories.Source.UpdateSourceBranch(ctx, domain.SourceBranch{})},
+		{"pull request", repositories.Source.InsertPullRequest(ctx, domain.PullRequest{})},
 		{"product", repositories.ReleaseCatalog.InsertProduct(ctx, domain.Product{})},
 		{"project", repositories.ReleaseCatalog.InsertProject(ctx, domain.Project{})},
 		{"release", repositories.ReleaseCatalog.InsertRelease(ctx, domain.Release{})},

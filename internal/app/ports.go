@@ -206,6 +206,9 @@ type SupplyChainRepository interface {
 type SourceRepository interface {
 	InsertSourceRepository(context.Context, domain.SourceRepository) error
 	InsertSourceCommit(context.Context, domain.SourceCommit) error
+	InsertSourceBranch(context.Context, domain.SourceBranch) error
+	UpdateSourceBranch(context.Context, domain.SourceBranch) error
+	InsertPullRequest(context.Context, domain.PullRequest) error
 }
 
 type PackageRepository interface {

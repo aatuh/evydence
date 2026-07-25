@@ -765,6 +765,22 @@ func (l *Ledger) UpsertSourceBranch(ctx context.Context, actor domain.Actor, in 
 			existing.HeadCommitID = strings.TrimSpace(in.HeadCommitID)
 			existing.Protected = in.Protected
 			existing.ProtectionHash = strings.TrimSpace(in.ProtectionHash)
+			if l.unitOfWork != nil {
+				var entry domain.AuditChainEntry
+				if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+					if err := repos.Source.UpdateSourceBranch(ctx, existing); err != nil {
+						return err
+					}
+					var err error
+					entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(l.now(), actor.TenantID, "source_branch.updated", "source_branch", existing.ID, actorType(actor), actorID(actor), existing.ProtectionHash, ""))
+					return err
+				}); err != nil {
+					return domain.SourceBranch{}, err
+				}
+				l.branches[id] = existing
+				l.publishCommittedAuditEntryLocked(entry)
+				return existing, nil
+			}
 			l.branches[id] = existing
 			_, _ = l.appendChainLocked(actor.TenantID, "source_branch.updated", "source_branch", existing.ID, actorType(actor), actorID(actor), existing.ProtectionHash, "")
 			if err := l.persistLocked(ctx); err != nil {
@@ -783,6 +799,22 @@ func (l *Ledger) UpsertSourceBranch(ctx context.Context, actor domain.Actor, in 
 		ProtectionHash: strings.TrimSpace(in.ProtectionHash),
 		SchemaVersion:  domain.SourceBranchSchemaVersion,
 		CreatedAt:      l.now(),
+	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Source.InsertSourceBranch(ctx, branch); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(branch.CreatedAt, actor.TenantID, "source_branch.created", "source_branch", branch.ID, actorType(actor), actorID(actor), branch.ProtectionHash, ""))
+			return err
+		}); err != nil {
+			return domain.SourceBranch{}, err
+		}
+		l.branches[branch.ID] = branch
+		l.publishCommittedAuditEntryLocked(entry)
+		return branch, nil
 	}
 	l.branches[branch.ID] = branch
 	_, _ = l.appendChainLocked(actor.TenantID, "source_branch.created", "source_branch", branch.ID, actorType(actor), actorID(actor), branch.ProtectionHash, "")
@@ -832,6 +864,22 @@ func (l *Ledger) RecordPullRequest(ctx context.Context, actor domain.Actor, in R
 		ReviewDecision: strings.TrimSpace(in.ReviewDecision),
 		SchemaVersion:  domain.PullRequestSchemaVersion,
 		CreatedAt:      l.now(),
+	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Source.InsertPullRequest(ctx, pr); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(pr.CreatedAt, actor.TenantID, "pull_request.recorded", "pull_request", pr.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.PullRequest{}, err
+		}
+		l.pullRequests[pr.ID] = pr
+		l.publishCommittedAuditEntryLocked(entry)
+		return pr, nil
 	}
 	l.pullRequests[pr.ID] = pr
 	_, _ = l.appendChainLocked(actor.TenantID, "pull_request.recorded", "pull_request", pr.ID, actorType(actor), actorID(actor), "", "")

@@ -46,6 +46,18 @@ func (failingSourceRepository) InsertSourceCommit(context.Context, domain.Source
 	return errInjectedRepositoryFailure
 }
 
+func (failingSourceRepository) InsertSourceBranch(context.Context, domain.SourceBranch) error {
+	return errInjectedRepositoryFailure
+}
+
+func (failingSourceRepository) UpdateSourceBranch(context.Context, domain.SourceBranch) error {
+	return errInjectedRepositoryFailure
+}
+
+func (failingSourceRepository) InsertPullRequest(context.Context, domain.PullRequest) error {
+	return errInjectedRepositoryFailure
+}
+
 func TestCollectorCredentialCommitsOnlyAfterUnitOfWorkCommit(t *testing.T) {
 	ctx := context.Background()
 	memory := NewMemoryUnitOfWorkFactory()
@@ -419,11 +431,23 @@ func TestSourceWritesUseUnitOfWorkAndPublishOnlyAfterCommit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("record source commit: %v", err)
 	}
+	branch, err := ledger.UpsertSourceBranch(ctx, actor, UpsertBranchInput{RepositoryID: repository.ID, Name: "main", HeadCommitID: commit.ID, Protected: true})
+	if err != nil {
+		t.Fatalf("create source branch: %v", err)
+	}
+	branch, err = ledger.UpsertSourceBranch(ctx, actor, UpsertBranchInput{RepositoryID: repository.ID, Name: "main", HeadCommitID: commit.ID, ProtectionHash: sampleDigest("branch-protection")})
+	if err != nil {
+		t.Fatalf("update source branch: %v", err)
+	}
+	pr, err := ledger.RecordPullRequest(ctx, actor, RecordPullRequestInput{RepositoryID: repository.ID, ProviderID: "17", Title: "Source change", State: "merged", HeadCommitID: commit.ID})
+	if err != nil {
+		t.Fatalf("record pull request: %v", err)
+	}
 	snapshot, err := memory.Snapshot()
 	if err != nil {
 		t.Fatalf("snapshot: %v", err)
 	}
-	if snapshot.SourceRepositories[repository.ID].ProjectID != project.ID || snapshot.SourceCommits[commit.ID].RepositoryID != repository.ID {
+	if snapshot.SourceRepositories[repository.ID].ProjectID != project.ID || snapshot.SourceCommits[commit.ID].RepositoryID != repository.ID || snapshot.SourceBranches[branch.ID].ProtectionHash == "" || snapshot.PullRequests[pr.ID].HeadCommitID != commit.ID {
 		t.Fatalf("source writes not committed: %#v", snapshot)
 	}
 	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
@@ -458,6 +482,43 @@ func TestSourceWritesUseUnitOfWorkAndPublishOnlyAfterCommit(t *testing.T) {
 	}); !errors.Is(err, ErrConflict) {
 		t.Fatalf("duplicate source commit err=%v, want conflict", err)
 	}
+	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
+		return repositories.Source.InsertSourceBranch(ctx, domain.SourceBranch{})
+	}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("invalid branch err=%v, want validation", err)
+	}
+	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
+		missingCommit := branch
+		missingCommit.ID = "branch_missing_commit"
+		missingCommit.Name = "missing-commit"
+		missingCommit.HeadCommitID = "commit_missing"
+		return repositories.Source.InsertSourceBranch(ctx, missingCommit)
+	}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("branch missing commit err=%v, want not found", err)
+	}
+	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
+		return repositories.Source.InsertSourceBranch(ctx, branch)
+	}); !errors.Is(err, ErrConflict) {
+		t.Fatalf("duplicate branch err=%v, want conflict", err)
+	}
+	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
+		return repositories.Source.InsertPullRequest(ctx, domain.PullRequest{})
+	}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("invalid pull request err=%v, want validation", err)
+	}
+	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
+		missingCommit := pr
+		missingCommit.ID = "pr_missing_commit"
+		missingCommit.HeadCommitID = "commit_missing"
+		return repositories.Source.InsertPullRequest(ctx, missingCommit)
+	}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("pull request missing commit err=%v, want not found", err)
+	}
+	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
+		return repositories.Source.InsertPullRequest(ctx, pr)
+	}); !errors.Is(err, ErrConflict) {
+		t.Fatalf("duplicate pull request err=%v, want conflict", err)
+	}
 	ledger.unitOfWork = repositoryFailingUnitOfWorkFactory{inner: memory, decorate: func(repositories Repositories) Repositories {
 		repositories.Source = failingSourceRepository{SourceRepository: repositories.Source}
 		return repositories
@@ -472,11 +533,17 @@ func TestSourceWritesUseUnitOfWorkAndPublishOnlyAfterCommit(t *testing.T) {
 	if _, err := ledger.RecordSourceCommit(ctx, actor, RecordCommitInput{RepositoryID: repository.ID, SHA: "1123456789abcdef0123456789abcdef01234567", CommittedAt: fixedNow()}); !errors.Is(err, errInjectedRepositoryFailure) {
 		t.Fatalf("failed source commit err=%v", err)
 	}
+	if _, err := ledger.UpsertSourceBranch(ctx, actor, UpsertBranchInput{RepositoryID: repository.ID, Name: "failed", HeadCommitID: commit.ID}); !errors.Is(err, errInjectedRepositoryFailure) {
+		t.Fatalf("failed source branch err=%v", err)
+	}
+	if _, err := ledger.RecordPullRequest(ctx, actor, RecordPullRequestInput{RepositoryID: repository.ID, ProviderID: "18", Title: "Failed change", State: "open", HeadCommitID: commit.ID}); !errors.Is(err, errInjectedRepositoryFailure) {
+		t.Fatalf("failed pull request err=%v", err)
+	}
 	after, err := memory.Snapshot()
 	if err != nil {
-		t.Fatalf("snapshot after failures: %v", err)
+		t.Fatalf("snapshot after branch and pull request failures: %v", err)
 	}
-	if len(after.SourceRepositories) != len(before.SourceRepositories) || len(after.SourceCommits) != len(before.SourceCommits) || len(after.AuditEntries[actor.TenantID]) != len(before.AuditEntries[actor.TenantID]) || len(ledger.repositories) != 1 || len(ledger.commits) != 1 {
+	if len(after.SourceRepositories) != len(before.SourceRepositories) || len(after.SourceCommits) != len(before.SourceCommits) || len(after.SourceBranches) != len(before.SourceBranches) || len(after.PullRequests) != len(before.PullRequests) || len(after.AuditEntries[actor.TenantID]) != len(before.AuditEntries[actor.TenantID]) || len(ledger.repositories) != 1 || len(ledger.commits) != 1 || len(ledger.branches) != 1 || len(ledger.pullRequests) != 1 {
 		t.Fatalf("failed source write published state: before=%#v after=%#v", before, after)
 	}
 }
