@@ -95,6 +95,22 @@ func (l *Ledger) CreateControlFramework(ctx context.Context, actor domain.Actor,
 		SchemaVersion: domain.ControlFrameworkSchemaVersion,
 		CreatedAt:     l.now(),
 	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Controls.InsertControlFramework(ctx, framework); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(framework.CreatedAt, actor.TenantID, "control_framework.created", "control_framework", framework.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.ControlFramework{}, err
+		}
+		l.frameworks[framework.ID] = framework
+		l.publishCommittedAuditEntryLocked(entry)
+		return framework, nil
+	}
 	l.frameworks[framework.ID] = framework
 	_, _ = l.appendChainLocked(actor.TenantID, "control_framework.created", "control_framework", framework.ID, "api_key", actor.KeyID, "", "")
 	if err := l.persistLocked(ctx); err != nil {
@@ -168,6 +184,22 @@ func (l *Ledger) CreateSecurityControl(ctx context.Context, actor domain.Actor, 
 		Limitations:          cleanStrings(in.Limitations),
 		SchemaVersion:        domain.SecurityControlSchemaVersion,
 		CreatedAt:            l.now(),
+	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Controls.InsertSecurityControl(ctx, control); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(control.CreatedAt, actor.TenantID, "security_control.created", "security_control", control.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.SecurityControl{}, err
+		}
+		l.controls[control.ID] = control
+		l.publishCommittedAuditEntryLocked(entry)
+		return control, nil
 	}
 	l.controls[control.ID] = control
 	_, _ = l.appendChainLocked(actor.TenantID, "security_control.created", "security_control", control.ID, "api_key", actor.KeyID, "", "")
@@ -244,6 +276,22 @@ func (l *Ledger) LinkControlEvidence(ctx context.Context, actor domain.Actor, co
 		Notes:         strings.TrimSpace(in.Notes),
 		SchemaVersion: domain.ControlEvidenceSchemaVersion,
 		CreatedAt:     l.now(),
+	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Controls.InsertControlEvidence(ctx, link); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(link.CreatedAt, actor.TenantID, "control_evidence.linked", "control_evidence", link.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.ControlEvidence{}, err
+		}
+		l.controlLinks[link.ID] = link
+		l.publishCommittedAuditEntryLocked(entry)
+		return link, nil
 	}
 	l.controlLinks[link.ID] = link
 	_, _ = l.appendChainLocked(actor.TenantID, "control_evidence.linked", "control_evidence", link.ID, "api_key", actor.KeyID, "", "")

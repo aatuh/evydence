@@ -51,6 +51,14 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Identity.UpdateCollectorLastSeen(ctx, collector); err != nil {
 		t.Fatalf("update collector last seen: %v", err)
 	}
+	framework := domain.ControlFramework{ID: "fw_repository", TenantID: tenant.ID, Name: "Repository controls", Slug: "repository-controls", Version: "1", Status: "active", SchemaVersion: domain.ControlFrameworkSchemaVersion, CreatedAt: now}
+	if err := repositories.Controls.InsertControlFramework(ctx, framework); err != nil {
+		t.Fatalf("insert control framework: %v", err)
+	}
+	control := domain.SecurityControl{ID: "ctrl_repository", TenantID: tenant.ID, FrameworkID: framework.ID, Code: "CTRL-1", Title: "Repository control", Objective: "Record evidence", EvidenceRequirements: []domain.ControlEvidenceRequirement{{Type: "sbom", Required: true}}, SchemaVersion: domain.SecurityControlSchemaVersion, CreatedAt: now}
+	if err := repositories.Controls.InsertSecurityControl(ctx, control); err != nil {
+		t.Fatalf("insert security control: %v", err)
+	}
 	organization := domain.Organization{ID: "org_repository", TenantID: tenant.ID, Name: "Repository organization", Slug: "repository-org", Status: "active", SchemaVersion: domain.OrganizationSchemaVersion, CreatedAt: now}
 	if err := repositories.Identity.InsertOrganization(ctx, organization); err != nil {
 		t.Fatalf("insert organization: %v", err)
@@ -147,6 +155,9 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	}
 	if err := repositories.Evidence.InsertEvidence(ctx, evidence); err != nil {
 		t.Fatalf("insert evidence: %v", err)
+	}
+	if err := repositories.Controls.InsertControlEvidence(ctx, domain.ControlEvidence{ID: "ce_repository", TenantID: tenant.ID, ControlID: control.ID, EvidenceType: "sbom", SubjectType: "evidence", SubjectID: evidence.ID, ProductID: product.ID, ReleaseID: release.ID, Confidence: "high", SchemaVersion: domain.ControlEvidenceSchemaVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert control evidence: %v", err)
 	}
 	replacementEvidence := evidence
 	replacementEvidence.ID = "evi_repository_replacement"
@@ -279,6 +290,9 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"SSO session revocation", repositories.Identity.RevokeSSOSession(ctx, domain.SSOSession{})},
 		{"customer portal access", repositories.Identity.InsertCustomerPortalAccess(ctx, domain.CustomerPortalAccess{})},
 		{"customer portal access update", repositories.Identity.UpdateCustomerPortalAccess(ctx, domain.CustomerPortalAccess{}, domain.CustomerPortalAccess{})},
+		{"control framework", repositories.Controls.InsertControlFramework(ctx, domain.ControlFramework{})},
+		{"security control", repositories.Controls.InsertSecurityControl(ctx, domain.SecurityControl{})},
+		{"control evidence", repositories.Controls.InsertControlEvidence(ctx, domain.ControlEvidence{})},
 		{"product", repositories.ReleaseCatalog.InsertProduct(ctx, domain.Product{})},
 		{"project", repositories.ReleaseCatalog.InsertProject(ctx, domain.Project{})},
 		{"release", repositories.ReleaseCatalog.InsertRelease(ctx, domain.Release{})},
@@ -356,6 +370,14 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 	if err := repositories.Identity.InsertSSOProvider(ctx, providerA); err != nil {
 		t.Fatalf("insert tenant A provider: %v", err)
 	}
+	frameworkA := domain.ControlFramework{ID: "fw_repository_a", TenantID: "ten_repository_a", Name: "A controls", Slug: "a-controls", Version: "1", Status: "active", SchemaVersion: domain.ControlFrameworkSchemaVersion, CreatedAt: now}
+	if err := repositories.Controls.InsertControlFramework(ctx, frameworkA); err != nil {
+		t.Fatalf("insert tenant A control framework: %v", err)
+	}
+	controlA := domain.SecurityControl{ID: "ctrl_repository_a", TenantID: "ten_repository_a", FrameworkID: frameworkA.ID, Code: "CTRL-A", Title: "A control", Objective: "Record A evidence", SchemaVersion: domain.SecurityControlSchemaVersion, CreatedAt: now}
+	if err := repositories.Controls.InsertSecurityControl(ctx, controlA); err != nil {
+		t.Fatalf("insert tenant A security control: %v", err)
+	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO customer_security_packages (
 			id, tenant_id, product_id, redaction_profile_id, title, state, manifest,
@@ -375,6 +397,8 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"provider verification", repositories.Identity.InsertProviderVerification(ctx, domain.ProviderVerification{ID: "pvr_repository_b", TenantID: "ten_repository_b", ProviderType: "oidc", ProviderID: providerA.ID, Subject: "b-subject", Result: "failed", SchemaVersion: domain.ProviderVerificationVersion, CreatedAt: now})},
 		{"SSO session", repositories.Identity.InsertSSOSession(ctx, domain.SSOSession{ID: "sess_repository_b", TenantID: "ten_repository_b", UserID: userA.ID, ProviderID: providerA.ID, Prefix: "evysso_b", Hash: "hash-b", ExpiresAt: now.Add(time.Hour), SchemaVersion: domain.SSOSessionSchemaVersion, CreatedAt: now})},
 		{"customer portal access", repositories.Identity.InsertCustomerPortalAccess(ctx, domain.CustomerPortalAccess{ID: "cpa_repository_b", TenantID: "ten_repository_b", PackageID: "pkg_repository_a", CustomerName: "B customer", Prefix: "evycp_b", Hash: "portal-hash-b", ExpiresAt: now.Add(time.Hour), SchemaVersion: domain.CustomerPortalAccessVersion, CreatedAt: now})},
+		{"security control framework", repositories.Controls.InsertSecurityControl(ctx, domain.SecurityControl{ID: "ctrl_repository_b", TenantID: "ten_repository_b", FrameworkID: frameworkA.ID, Code: "CTRL-B", Title: "B control", Objective: "Record B evidence", SchemaVersion: domain.SecurityControlSchemaVersion, CreatedAt: now})},
+		{"control evidence", repositories.Controls.InsertControlEvidence(ctx, domain.ControlEvidence{ID: "ce_repository_b", TenantID: "ten_repository_b", ControlID: controlA.ID, EvidenceType: "sbom", SubjectType: "evidence", SubjectID: evidenceA.ID, Confidence: "high", SchemaVersion: domain.ControlEvidenceSchemaVersion, CreatedAt: now})},
 		{"candidate release", repositories.ReleaseCatalog.InsertReleaseCandidate(ctx, domain.ReleaseCandidate{ID: "rc_repository_b", TenantID: "ten_repository_b", ReleaseID: releaseA.ID, Name: "B candidate", State: "open", SnapshotHash: "sha256:candidate-b", SchemaVersion: domain.ReleaseCandidateSchemaVersion, CreatedAt: now})},
 		{"evidence link product", repositories.Evidence.UpdateEvidenceLinks(ctx, domain.EvidenceItem{ID: evidenceA.ID, TenantID: "ten_repository_b", ProductID: "prod_repository_a"})},
 		{"SBOM evidence", repositories.Evidence.InsertSBOM(ctx, domain.SBOM{ID: "sbom_repository_b", TenantID: "ten_repository_b", EvidenceID: evidenceA.ID, ReleaseID: releaseA.ID, ArtifactID: artifactA.ID, Format: "cyclonedx", CreatedAt: now})},
@@ -601,6 +625,15 @@ func TestRepositoriesPropagateClosedTransactionFailures(t *testing.T) {
 		{"customer portal access update", func() error {
 			access := domain.CustomerPortalAccess{ID: "cpa_closed", TenantID: tenantID, Prefix: "evycp_closed", Hash: "hash"}
 			return repositories.Identity.UpdateCustomerPortalAccess(ctx, access, access)
+		}},
+		{"control framework", func() error {
+			return repositories.Controls.InsertControlFramework(ctx, domain.ControlFramework{ID: "fw_closed", TenantID: tenantID, Name: "Closed controls", Slug: "closed-controls", Version: "1", Status: "active", SchemaVersion: domain.ControlFrameworkSchemaVersion, CreatedAt: now})
+		}},
+		{"security control", func() error {
+			return repositories.Controls.InsertSecurityControl(ctx, domain.SecurityControl{ID: "ctrl_closed", TenantID: tenantID, FrameworkID: "fw_closed", Code: "CTRL-CLOSED", Title: "Closed", Objective: "Closed", SchemaVersion: domain.SecurityControlSchemaVersion, CreatedAt: now})
+		}},
+		{"control evidence", func() error {
+			return repositories.Controls.InsertControlEvidence(ctx, domain.ControlEvidence{ID: "ce_closed", TenantID: tenantID, ControlID: "ctrl_closed", EvidenceType: "sbom", SubjectType: "evidence", SubjectID: evidence.ID, Confidence: "high", SchemaVersion: domain.ControlEvidenceSchemaVersion, CreatedAt: now})
 		}},
 		{"product", func() error {
 			return repositories.ReleaseCatalog.InsertProduct(ctx, domain.Product{ID: "prod_closed", TenantID: tenantID, Name: "Closed", Slug: "closed", CreatedAt: now})

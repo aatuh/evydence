@@ -105,6 +105,7 @@ type Repositories struct {
 	Audit          AuditRepository
 	Idempotency    IdempotencyRepository
 	Outbox         OutboxRepository
+	Controls       ControlRepository
 	Packages       PackageRepository
 	Signatures     SignatureRepository
 	Verification   VerificationRepository
@@ -167,6 +168,12 @@ type IdempotencyRepository interface {
 
 type OutboxRepository interface {
 	Enqueue(context.Context, OutboxJob) error
+}
+
+type ControlRepository interface {
+	InsertControlFramework(context.Context, domain.ControlFramework) error
+	InsertSecurityControl(context.Context, domain.SecurityControl) error
+	InsertControlEvidence(context.Context, domain.ControlEvidence) error
 }
 
 type PackageRepository interface {

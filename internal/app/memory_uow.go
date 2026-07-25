@@ -46,6 +46,9 @@ type MemoryUnitOfWorkSnapshot struct {
 	VEXImportReports      map[string]domain.VEXImportReport
 	ReleaseCandidates     map[string]domain.ReleaseCandidate
 	Decisions             map[string]domain.VulnerabilityDecision
+	ControlFrameworks     map[string]domain.ControlFramework
+	SecurityControls      map[string]domain.SecurityControl
+	ControlEvidence       map[string]domain.ControlEvidence
 	AuditEntries          map[string][]domain.AuditChainEntry
 	Idempotency           map[IdempotencyRecordKey]IdempotencyRecord
 	OutboxJobs            map[string]OutboxJob
@@ -96,6 +99,7 @@ func (u *memoryUnitOfWork) Repositories() Repositories {
 		Audit:          memoryAuditRepository{uow: u},
 		Idempotency:    memoryIdempotencyRepository{uow: u},
 		Outbox:         memoryOutboxRepository{uow: u},
+		Controls:       memoryControlRepository{uow: u},
 		Packages:       memoryPackageRepository{uow: u},
 		Signatures:     memorySignatureRepository{uow: u},
 		Verification:   memoryVerificationRepository{uow: u},
@@ -1065,6 +1069,91 @@ func (r memoryOutboxRepository) Enqueue(ctx context.Context, job OutboxJob) erro
 	})
 }
 
+type memoryControlRepository struct{ uow *memoryUnitOfWork }
+
+func (r memoryControlRepository) InsertControlFramework(ctx context.Context, framework domain.ControlFramework) error {
+	cloned, err := cloneMemoryJSON(framework)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.Name == "" || cloned.Slug == "" || cloned.Version == "" || cloned.Status == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if _, exists := state.ControlFrameworks[cloned.ID]; exists {
+			return ErrConflict
+		}
+		for _, existing := range state.ControlFrameworks {
+			if existing.TenantID == cloned.TenantID && existing.Slug == cloned.Slug && existing.Version == cloned.Version {
+				return ErrConflict
+			}
+		}
+		state.ControlFrameworks[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryControlRepository) InsertSecurityControl(ctx context.Context, control domain.SecurityControl) error {
+	cloned, err := cloneMemoryJSON(control)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.FrameworkID == "" || cloned.Code == "" || cloned.Title == "" || cloned.Objective == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		framework, ok := state.ControlFrameworks[cloned.FrameworkID]
+		if !ok || framework.TenantID != cloned.TenantID {
+			return ErrNotFound
+		}
+		if _, exists := state.SecurityControls[cloned.ID]; exists {
+			return ErrConflict
+		}
+		for _, existing := range state.SecurityControls {
+			if existing.TenantID == cloned.TenantID && existing.FrameworkID == cloned.FrameworkID && existing.Code == cloned.Code {
+				return ErrConflict
+			}
+		}
+		state.SecurityControls[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryControlRepository) InsertControlEvidence(ctx context.Context, evidence domain.ControlEvidence) error {
+	cloned, err := cloneMemoryJSON(evidence)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.ControlID == "" || cloned.EvidenceType == "" || cloned.SubjectType == "" || cloned.SubjectID == "" || cloned.Confidence == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		control, ok := state.SecurityControls[cloned.ControlID]
+		if !ok || control.TenantID != cloned.TenantID {
+			return ErrNotFound
+		}
+		if _, exists := state.ControlEvidence[cloned.ID]; exists {
+			return ErrConflict
+		}
+		for _, existing := range state.ControlEvidence {
+			if existing.TenantID == cloned.TenantID && existing.ControlID == cloned.ControlID && existing.EvidenceType == cloned.EvidenceType && existing.SubjectType == cloned.SubjectType && existing.SubjectID == cloned.SubjectID && existing.ProductID == cloned.ProductID && existing.ReleaseID == cloned.ReleaseID {
+				return ErrConflict
+			}
+		}
+		state.ControlEvidence[cloned.ID] = cloned
+		return nil
+	})
+}
+
 type memoryPackageRepository struct{ uow *memoryUnitOfWork }
 
 func (r memoryPackageRepository) InsertReleaseBundle(ctx context.Context, bundle domain.ReleaseBundle) error {
@@ -1181,6 +1270,9 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		VEXImportReports:      map[string]domain.VEXImportReport{},
 		ReleaseCandidates:     map[string]domain.ReleaseCandidate{},
 		Decisions:             map[string]domain.VulnerabilityDecision{},
+		ControlFrameworks:     map[string]domain.ControlFramework{},
+		SecurityControls:      map[string]domain.SecurityControl{},
+		ControlEvidence:       map[string]domain.ControlEvidence{},
 		AuditEntries:          map[string][]domain.AuditChainEntry{},
 		Idempotency:           map[IdempotencyRecordKey]IdempotencyRecord{},
 		OutboxJobs:            map[string]OutboxJob{},
@@ -1267,6 +1359,15 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.Decisions, err = cloneMemoryMap(snapshot.Decisions); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.ControlFrameworks, err = cloneMemoryMap(snapshot.ControlFrameworks); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.SecurityControls, err = cloneMemoryMap(snapshot.SecurityControls); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.ControlEvidence, err = cloneMemoryMap(snapshot.ControlEvidence); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.AuditEntries, err = cloneMemoryJSON(snapshot.AuditEntries); err != nil {

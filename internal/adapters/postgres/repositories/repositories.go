@@ -27,6 +27,7 @@ func New(tx pgx.Tx) app.Repositories {
 		Audit:          audit{tx: tx},
 		Idempotency:    idempotency{tx: tx},
 		Outbox:         outbox{tx: tx},
+		Controls:       controls{tx: tx},
 		Packages:       packages{tx: tx},
 		Signatures:     signatures{tx: tx},
 		Verification:   verification{tx: tx},
@@ -986,6 +987,77 @@ func (r outbox) Enqueue(ctx context.Context, job app.OutboxJob) error {
 		VALUES ($1, $2, $3, $4, $5, $6, 'queued', 0, 5, now(), $7, now())
 	`, job.ID, job.TenantID, job.Kind, job.SubjectType, job.SubjectID, payload, job.CreatedAt)
 	return writeError("enqueue outbox job", err)
+}
+
+type controls struct{ tx pgx.Tx }
+
+func (r controls) InsertControlFramework(ctx context.Context, framework domain.ControlFramework) error {
+	if framework.ID == "" || framework.TenantID == "" || framework.Name == "" || framework.Slug == "" || framework.Version == "" || framework.Status == "" || framework.SchemaVersion == "" || framework.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, framework.TenantID); err != nil {
+		return err
+	}
+	_, err := r.tx.Exec(ctx, `
+		INSERT INTO control_frameworks (
+			id, tenant_id, name, slug, version, description, status,
+			schema_version, created_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`, framework.ID, framework.TenantID, framework.Name, framework.Slug, framework.Version, nullableString(framework.Description), framework.Status, framework.SchemaVersion, framework.CreatedAt)
+	return writeError("insert control framework", err)
+}
+
+func (r controls) InsertSecurityControl(ctx context.Context, control domain.SecurityControl) error {
+	if control.ID == "" || control.TenantID == "" || control.FrameworkID == "" || control.Code == "" || control.Title == "" || control.Objective == "" || control.SchemaVersion == "" || control.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, control.TenantID); err != nil {
+		return err
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM control_frameworks WHERE id = $1 AND tenant_id = $2`, control.FrameworkID, control.TenantID); err != nil {
+		return err
+	}
+	requirements, err := json.Marshal(control.EvidenceRequirements)
+	if err != nil {
+		return fmt.Errorf("encode control evidence requirements: %w", err)
+	}
+	applicability, err := json.Marshal(control.Applicability)
+	if err != nil {
+		return fmt.Errorf("encode control applicability: %w", err)
+	}
+	limitations, err := json.Marshal(control.Limitations)
+	if err != nil {
+		return fmt.Errorf("encode control limitations: %w", err)
+	}
+	_, err = r.tx.Exec(ctx, `
+		INSERT INTO security_controls (
+			id, tenant_id, framework_id, code, title, objective,
+			evidence_requirements, applicability, limitations, schema_version, created_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+	`, control.ID, control.TenantID, control.FrameworkID, control.Code, control.Title, control.Objective, requirements, applicability, limitations, control.SchemaVersion, control.CreatedAt)
+	return writeError("insert security control", err)
+}
+
+func (r controls) InsertControlEvidence(ctx context.Context, evidence domain.ControlEvidence) error {
+	if evidence.ID == "" || evidence.TenantID == "" || evidence.ControlID == "" || evidence.EvidenceType == "" || evidence.SubjectType == "" || evidence.SubjectID == "" || evidence.Confidence == "" || evidence.SchemaVersion == "" || evidence.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, evidence.TenantID); err != nil {
+		return err
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM security_controls WHERE id = $1 AND tenant_id = $2`, evidence.ControlID, evidence.TenantID); err != nil {
+		return err
+	}
+	_, err := r.tx.Exec(ctx, `
+		INSERT INTO control_evidence (
+			id, tenant_id, control_id, evidence_type, subject_type, subject_id,
+			product_id, release_id, confidence, notes, schema_version, created_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+	`, evidence.ID, evidence.TenantID, evidence.ControlID, evidence.EvidenceType, evidence.SubjectType, evidence.SubjectID, nullableString(evidence.ProductID), nullableString(evidence.ReleaseID), evidence.Confidence, nullableString(evidence.Notes), evidence.SchemaVersion, evidence.CreatedAt)
+	return writeError("insert control evidence", err)
 }
 
 type packages struct{ tx pgx.Tx }
