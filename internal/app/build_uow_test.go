@@ -18,6 +18,10 @@ func (failingBuildRepository) InsertCollector(context.Context, domain.Collector)
 	return errInjectedRepositoryFailure
 }
 
+func (failingBuildRepository) InsertCollectorRelease(context.Context, domain.CollectorRelease) error {
+	return errInjectedRepositoryFailure
+}
+
 func TestCollectorCredentialCommitsOnlyAfterUnitOfWorkCommit(t *testing.T) {
 	ctx := context.Background()
 	memory := NewMemoryUnitOfWorkFactory()
@@ -54,6 +58,72 @@ func TestCollectorCredentialCommitsOnlyAfterUnitOfWorkCommit(t *testing.T) {
 	}
 	if len(after.Collectors) != len(before.Collectors) || len(after.APIKeys) != len(before.APIKeys) || len(after.AuditEntries[actor.TenantID]) != len(before.AuditEntries[actor.TenantID]) {
 		t.Fatalf("collector failure published state: before=%#v after=%#v", before, after)
+	}
+}
+
+func TestCollectorReleaseUsesUnitOfWorkAndPublishesPinnedStateAfterCommit(t *testing.T) {
+	ctx := context.Background()
+	memory := NewMemoryUnitOfWorkFactory()
+	ledger, _, actor := newReleaseEvidenceUnitOfWorkFixture(t, memory)
+	collector, _, _, err := ledger.CreateCollector(ctx, actor, CreateCollectorInput{Name: "release-collector", Type: collectorTypeGenericCI, Version: "1.0.0"})
+	if err != nil {
+		t.Fatalf("create collector: %v", err)
+	}
+	release, err := ledger.RecordCollectorRelease(ctx, actor, RecordCollectorReleaseInput{CollectorID: collector.ID, Version: "1.0.0", ArtifactDigest: sampleDigest("collector-release"), Pinned: true})
+	if err != nil {
+		t.Fatalf("record collector release: %v", err)
+	}
+	snapshot, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	if stored, ok := snapshot.CollectorReleases[release.ID]; !ok || !stored.Pinned {
+		t.Fatalf("collector release is not committed: %#v", snapshot)
+	}
+	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
+		return repositories.Builds.InsertCollectorRelease(ctx, domain.CollectorRelease{ID: "colrel_invalid", TenantID: actor.TenantID, CollectorID: collector.ID, ArtifactDigest: sampleDigest("collector-release-invalid"), VerificationStatus: "recorded", HealthStatus: "needs_evidence", SchemaVersion: domain.CollectorReleaseSchemaVersion, CreatedAt: fixedNow()})
+	}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("invalid collector release err=%v, want validation", err)
+	}
+	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
+		return repositories.Builds.InsertCollectorRelease(ctx, domain.CollectorRelease{ID: "colrel_missing", TenantID: actor.TenantID, CollectorID: "col_missing", Version: "1.0.0", ArtifactDigest: sampleDigest("collector-release-missing"), VerificationStatus: "recorded", HealthStatus: "needs_evidence", SchemaVersion: domain.CollectorReleaseSchemaVersion, CreatedAt: fixedNow()})
+	}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing collector release err=%v, want not found", err)
+	}
+	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
+		return repositories.Builds.InsertCollectorRelease(ctx, release)
+	}); !errors.Is(err, ErrConflict) {
+		t.Fatalf("duplicate collector release err=%v, want conflict", err)
+	}
+	replacement, err := ledger.RecordCollectorRelease(ctx, actor, RecordCollectorReleaseInput{CollectorID: collector.ID, Version: "1.1.0", ArtifactDigest: sampleDigest("collector-release-replacement"), Pinned: true})
+	if err != nil {
+		t.Fatalf("replace pinned collector release: %v", err)
+	}
+	snapshot, err = memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot after pin replacement: %v", err)
+	}
+	if snapshot.CollectorReleases[release.ID].Pinned || !snapshot.CollectorReleases[replacement.ID].Pinned || ledger.collectorReleases[release.ID].Pinned {
+		t.Fatalf("pinned collector state did not atomically move: %#v", snapshot.CollectorReleases)
+	}
+
+	ledger.unitOfWork = repositoryFailingUnitOfWorkFactory{inner: memory, decorate: func(repositories Repositories) Repositories {
+		repositories.Builds = failingBuildRepository{BuildRepository: repositories.Builds}
+		return repositories
+	}}
+	before, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot before failed release: %v", err)
+	}
+	if _, err := ledger.RecordCollectorRelease(ctx, actor, RecordCollectorReleaseInput{CollectorID: collector.ID, Version: "2.0.0", ArtifactDigest: sampleDigest("collector-release-failed"), Pinned: true}); !errors.Is(err, errInjectedRepositoryFailure) {
+		t.Fatalf("failed collector release err=%v", err)
+	}
+	after, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot after failed release: %v", err)
+	}
+	if len(after.CollectorReleases) != len(before.CollectorReleases) || len(after.AuditEntries[actor.TenantID]) != len(before.AuditEntries[actor.TenantID]) || !ledger.collectorReleases[replacement.ID].Pinned {
+		t.Fatalf("collector release failure published state: before=%#v after=%#v", before, after)
 	}
 }
 

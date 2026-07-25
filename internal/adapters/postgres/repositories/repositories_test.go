@@ -49,6 +49,9 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Identity.UpdateCollectorLastSeen(ctx, collector); err != nil {
 		t.Fatalf("update collector last seen: %v", err)
 	}
+	if err := repositories.Builds.InsertCollectorRelease(ctx, domain.CollectorRelease{ID: "colrel_repository", TenantID: tenant.ID, CollectorID: collector.ID, Version: "1.0.0", ArtifactDigest: "sha256:collector-release", Pinned: true, VerificationStatus: "recorded", HealthStatus: "needs_evidence", SchemaVersion: domain.CollectorReleaseSchemaVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert collector release: %v", err)
+	}
 	framework := domain.ControlFramework{ID: "fw_repository", TenantID: tenant.ID, Name: "Repository controls", Slug: "repository-controls", Version: "1", Status: "active", SchemaVersion: domain.ControlFrameworkSchemaVersion, CreatedAt: now}
 	if err := repositories.Controls.InsertControlFramework(ctx, framework); err != nil {
 		t.Fatalf("insert control framework: %v", err)
@@ -226,6 +229,18 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Evidence.InsertVulnerabilityScan(ctx, scan); err != nil {
 		t.Fatalf("insert vulnerability scan: %v", err)
 	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO artifact_signatures (
+			id, tenant_id, artifact_id, subject_digest, algorithm, signature,
+			verification_status, schema_version, created_at
+		)
+		VALUES ('artsig_repository', $1, $2, $3, 'Ed25519', 'signature', 'recorded', 'artifact-signature.v1.0.0', $4)
+	`, tenant.ID, artifact.ID, artifact.Digest, now); err != nil {
+		t.Fatalf("seed artifact signature: %v", err)
+	}
+	if err := repositories.Builds.InsertCollectorRelease(ctx, domain.CollectorRelease{ID: "colrel_repository_complete", TenantID: tenant.ID, CollectorID: collector.ID, Version: "1.1.0", ArtifactDigest: artifact.Digest, SignatureID: "artsig_repository", SBOMID: "sbom_repository", ScanID: scan.ID, Pinned: true, VerificationStatus: "evidence_complete", HealthStatus: "healthy", Limitations: []string{"test"}, SchemaVersion: domain.CollectorReleaseSchemaVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert complete collector release: %v", err)
+	}
 	if err := repositories.Evidence.InsertOpenAPIContract(ctx, domain.OpenAPIContract{ID: "oas_repository", TenantID: tenant.ID, ProductID: product.ID, ReleaseID: release.ID, Version: "v1", Hash: "sha256:openapi", PathCount: 1, Operations: []domain.OpenAPIOperation{}, EvidenceID: evidence.ID, CreatedAt: now}); err != nil {
 		t.Fatalf("insert OpenAPI contract: %v", err)
 	}
@@ -341,6 +356,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"legal hold", repositories.Governance.InsertLegalHold(ctx, domain.LegalHold{})},
 		{"retention override", repositories.Governance.InsertRetentionOverride(ctx, domain.RetentionOverride{})},
 		{"collector", repositories.Builds.InsertCollector(ctx, domain.Collector{})},
+		{"collector release", repositories.Builds.InsertCollectorRelease(ctx, domain.CollectorRelease{})},
 		{"build run", repositories.Builds.InsertBuildRun(ctx, domain.BuildRun{})},
 		{"product", repositories.ReleaseCatalog.InsertProduct(ctx, domain.Product{})},
 		{"project", repositories.ReleaseCatalog.InsertProject(ctx, domain.Project{})},

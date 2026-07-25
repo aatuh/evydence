@@ -1275,6 +1275,47 @@ func (r builds) InsertCollector(ctx context.Context, collector domain.Collector)
 	return writeError("insert collector", err)
 }
 
+func (r builds) InsertCollectorRelease(ctx context.Context, release domain.CollectorRelease) error {
+	if release.ID == "" || release.TenantID == "" || release.CollectorID == "" || release.Version == "" || release.ArtifactDigest == "" || release.VerificationStatus == "" || release.HealthStatus == "" || release.SchemaVersion == "" || release.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, release.TenantID); err != nil {
+		return err
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM collectors WHERE id = $1 AND tenant_id = $2`, release.CollectorID, release.TenantID); err != nil {
+		return err
+	}
+	if release.SignatureID != "" {
+		if err := requireRow(ctx, r.tx, `SELECT 1 FROM artifact_signatures WHERE id = $1 AND tenant_id = $2 AND subject_digest = $3`, release.SignatureID, release.TenantID, release.ArtifactDigest); err != nil {
+			return err
+		}
+	}
+	if release.SBOMID != "" {
+		if err := requireRow(ctx, r.tx, `SELECT 1 FROM sboms WHERE id = $1 AND tenant_id = $2`, release.SBOMID, release.TenantID); err != nil {
+			return err
+		}
+	}
+	if release.ScanID != "" {
+		if err := requireRow(ctx, r.tx, `SELECT 1 FROM vulnerability_scans WHERE id = $1 AND tenant_id = $2`, release.ScanID, release.TenantID); err != nil {
+			return err
+		}
+	}
+	if release.Pinned {
+		if _, err := r.tx.Exec(ctx, `UPDATE collector_releases SET pinned = false WHERE tenant_id = $1 AND collector_id = $2 AND pinned = true`, release.TenantID, release.CollectorID); err != nil {
+			return writeError("unpin collector releases", err)
+		}
+	}
+	_, err := r.tx.Exec(ctx, `
+		INSERT INTO collector_releases (
+			id, tenant_id, collector_id, version, artifact_digest, signature_id,
+			sbom_id, scan_id, pinned, verification_status, health_status,
+			limitations, schema_version, created_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+	`, release.ID, release.TenantID, release.CollectorID, release.Version, release.ArtifactDigest, nullableString(release.SignatureID), nullableString(release.SBOMID), nullableString(release.ScanID), release.Pinned, release.VerificationStatus, release.HealthStatus, textArray(release.Limitations), release.SchemaVersion, release.CreatedAt)
+	return writeError("insert collector release", err)
+}
+
 func (r builds) InsertBuildRun(ctx context.Context, build domain.BuildRun) error {
 	if build.ID == "" || build.TenantID == "" || build.ProjectID == "" || build.ReleaseID == "" || build.Provider == "" || build.CommitSHA == "" || build.Status == "" || build.StartedAt.IsZero() || build.SchemaVersion == "" || build.CreatedAt.IsZero() {
 		return app.ErrValidation

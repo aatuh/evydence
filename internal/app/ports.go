@@ -191,6 +191,7 @@ type GovernanceRepository interface {
 
 type BuildRepository interface {
 	InsertCollector(context.Context, domain.Collector) error
+	InsertCollectorRelease(context.Context, domain.CollectorRelease) error
 	InsertBuildRun(context.Context, domain.BuildRun) error
 }
 

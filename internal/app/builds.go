@@ -204,14 +204,6 @@ func (l *Ledger) RecordCollectorRelease(ctx context.Context, actor domain.Actor,
 			return domain.CollectorRelease{}, ErrNotFound
 		}
 	}
-	if in.Pinned {
-		for id, existing := range l.collectorReleases {
-			if existing.TenantID == actor.TenantID && existing.CollectorID == collector.ID && existing.Pinned {
-				existing.Pinned = false
-				l.collectorReleases[id] = existing
-			}
-		}
-	}
 	status := "recorded"
 	health := "needs_evidence"
 	if in.SignatureID != "" && in.SBOMID != "" && in.ScanID != "" {
@@ -233,6 +225,38 @@ func (l *Ledger) RecordCollectorRelease(ctx context.Context, actor domain.Actor,
 		Limitations:        []string{"Collector supply-chain status reflects evidence recorded in Evydence and does not prove collector runtime safety."},
 		SchemaVersion:      domain.CollectorReleaseSchemaVersion,
 		CreatedAt:          l.now(),
+	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Builds.InsertCollectorRelease(ctx, release); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(release.CreatedAt, actor.TenantID, "collector_release.recorded", "collector", collector.ID, actorType(actor), actorID(actor), release.ArtifactDigest, ""))
+			return err
+		}); err != nil {
+			return domain.CollectorRelease{}, err
+		}
+		if release.Pinned {
+			for id, existing := range l.collectorReleases {
+				if existing.TenantID == actor.TenantID && existing.CollectorID == collector.ID && existing.Pinned {
+					existing.Pinned = false
+					l.collectorReleases[id] = existing
+				}
+			}
+		}
+		l.collectorReleases[release.ID] = release
+		l.publishCommittedAuditEntryLocked(entry)
+		return release, nil
+	}
+	if in.Pinned {
+		for id, existing := range l.collectorReleases {
+			if existing.TenantID == actor.TenantID && existing.CollectorID == collector.ID && existing.Pinned {
+				existing.Pinned = false
+				l.collectorReleases[id] = existing
+			}
+		}
 	}
 	l.collectorReleases[release.ID] = release
 	_, _ = l.appendChainLocked(actor.TenantID, "collector_release.recorded", "collector", collector.ID, actorType(actor), actorID(actor), release.ArtifactDigest, "")
