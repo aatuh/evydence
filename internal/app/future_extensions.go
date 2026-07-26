@@ -1504,6 +1504,25 @@ func (l *Ledger) VerifyProviderIdentity(ctx context.Context, actor domain.Actor,
 	record := domain.ProviderVerification{ID: newID("pvr"), TenantID: actor.TenantID, ProviderType: providerType, ProviderID: providerID, Subject: subject, Result: result, Checks: checks, Profile: profile, Limitations: limitations, SchemaVersion: domain.ProviderVerificationVersion, CreatedAt: l.now()}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Identity.InsertProviderVerification(ctx, record); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(record.CreatedAt, actor.TenantID, "provider_identity.verified", "provider_identity", record.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.ProviderVerification{}, err
+		}
+		l.providerVerifications[record.ID] = record
+		l.publishCommittedAuditEntryLocked(entry)
+		if verificationReturnsFailure(result) {
+			return record, ErrVerificationFailed
+		}
+		return record, nil
+	}
 	l.providerVerifications[record.ID] = record
 	_, _ = l.appendChainLocked(actor.TenantID, "provider_identity.verified", "provider_identity", record.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {

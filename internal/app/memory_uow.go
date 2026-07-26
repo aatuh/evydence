@@ -476,7 +476,8 @@ func (r memoryIdentityRepository) InsertProviderVerification(ctx context.Context
 		if cloned.ID == "" || cloned.ProviderType == "" || cloned.ProviderID == "" || cloned.Subject == "" || cloned.Result == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
 			return ErrValidation
 		}
-		if !memoryResourceBelongsToTenant(cloned.ProviderID, cloned.TenantID, state.SSOProviders) {
+		provider, exists := state.SSOProviders[cloned.ProviderID]
+		if !exists || provider.TenantID != cloned.TenantID || provider.Type != cloned.ProviderType {
 			return ErrNotFound
 		}
 		if _, exists := state.ProviderVerifications[cloned.ID]; exists {

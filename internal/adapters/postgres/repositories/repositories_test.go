@@ -83,8 +83,18 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Identity.InsertUserIdentityLink(ctx, domain.UserIdentityLink{ID: "link_repository", TenantID: tenant.ID, UserID: user.ID, ProviderID: provider.ID, Subject: "repository-subject", Email: user.Email, Verified: true, SchemaVersion: "user-identity-link.v1.0.0", CreatedAt: now}); err != nil {
 		t.Fatalf("insert identity link: %v", err)
 	}
-	if err := repositories.Identity.InsertProviderVerification(ctx, domain.ProviderVerification{ID: "pvr_repository", TenantID: tenant.ID, ProviderType: provider.Type, ProviderID: provider.ID, Subject: "repository-subject", Result: "passed", Checks: []domain.VerifyCheck{{Name: "signature", Result: "passed"}}, SchemaVersion: domain.ProviderVerificationVersion, CreatedAt: now}); err != nil {
+	if err := repositories.Identity.InsertProviderVerification(ctx, domain.ProviderVerification{ID: "pvr_repository", TenantID: tenant.ID, ProviderType: provider.Type, ProviderID: provider.ID, Subject: "repository-subject", Result: "passed", Checks: []domain.VerifyCheck{{Name: "signature", Result: "passed"}}, Profile: domain.VerificationProfile{ID: "repository-provider-profile", Version: domain.VerificationProfileSchemaVersion, RequiredChecks: []string{"signature"}, Limitations: []string{"repository test"}}, SchemaVersion: domain.ProviderVerificationVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert provider verification: %v", err)
+	}
+	var profileID string
+	if err := tx.QueryRow(ctx, `SELECT assurance_profile ->> 'id' FROM provider_verifications WHERE id = 'pvr_repository' AND tenant_id = $1`, tenant.ID).Scan(&profileID); err != nil {
+		t.Fatalf("read provider verification assurance profile: %v", err)
+	}
+	if profileID != "repository-provider-profile" {
+		t.Fatalf("provider verification assurance profile = %q, want repository-provider-profile", profileID)
+	}
+	if err := repositories.Identity.InsertProviderVerification(ctx, domain.ProviderVerification{ID: "pvr_repository_wrong_type", TenantID: tenant.ID, ProviderType: "saml", ProviderID: provider.ID, Subject: "repository-subject", Result: "passed", Checks: []domain.VerifyCheck{{Name: "signature", Result: "passed"}}, SchemaVersion: domain.ProviderVerificationVersion, CreatedAt: now}); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("provider verification type mismatch err=%v, want not found", err)
 	}
 	session := domain.SSOSession{ID: "sess_repository", TenantID: tenant.ID, UserID: user.ID, ProviderID: provider.ID, Prefix: "evysso_repo", Hash: "session-hash", Groups: []string{"security"}, ExpiresAt: now.Add(time.Hour), SchemaVersion: domain.SSOSessionSchemaVersion, CreatedAt: now}
 	if err := repositories.Identity.InsertSSOSession(ctx, session); err != nil {

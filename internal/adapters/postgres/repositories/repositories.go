@@ -268,20 +268,31 @@ func (r identity) InsertProviderVerification(ctx context.Context, verification d
 	if verification.ID == "" || verification.TenantID == "" || verification.ProviderType == "" || verification.ProviderID == "" || verification.Subject == "" || verification.Result == "" || verification.SchemaVersion == "" || verification.CreatedAt.IsZero() {
 		return app.ErrValidation
 	}
-	if err := requireOwnedSSOProvider(ctx, r.tx, verification.TenantID, verification.ProviderID); err != nil {
-		return err
+	var providerType string
+	if err := r.tx.QueryRow(ctx, `SELECT type FROM sso_providers WHERE id = $1 AND tenant_id = $2`, verification.ProviderID, verification.TenantID).Scan(&providerType); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return app.ErrNotFound
+		}
+		return writeError("read provider verification provider", err)
+	}
+	if providerType != verification.ProviderType {
+		return app.ErrNotFound
 	}
 	checks, err := json.Marshal(verification.Checks)
 	if err != nil {
 		return fmt.Errorf("encode provider verification checks: %w", err)
 	}
+	profile, err := json.Marshal(verification.Profile)
+	if err != nil {
+		return fmt.Errorf("encode provider verification profile: %w", err)
+	}
 	_, err = r.tx.Exec(ctx, `
 		INSERT INTO provider_verifications (
 			id, tenant_id, provider_type, provider_id, subject, result, checks,
-			limitations, schema_version, created_at
+			assurance_profile, limitations, schema_version, created_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-	`, verification.ID, verification.TenantID, verification.ProviderType, verification.ProviderID, verification.Subject, verification.Result, checks, textArray(verification.Limitations), verification.SchemaVersion, verification.CreatedAt)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+	`, verification.ID, verification.TenantID, verification.ProviderType, verification.ProviderID, verification.Subject, verification.Result, checks, profile, textArray(verification.Limitations), verification.SchemaVersion, verification.CreatedAt)
 	return writeError("insert provider verification", err)
 }
 
