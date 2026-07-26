@@ -1713,6 +1713,27 @@ func (r verification) InsertVerificationResult(ctx context.Context, result domai
 	return writeError("insert verification result", err)
 }
 
+func (r verification) InsertPolicyEvaluation(ctx context.Context, evaluation domain.PolicyEvaluation) error {
+	if evaluation.ID == "" || evaluation.TenantID == "" || evaluation.ReleaseID == "" || evaluation.Result == "" || evaluation.PolicySet == "" || evaluation.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, evaluation.TenantID); err != nil {
+		return err
+	}
+	if err := requireOptionalRelease(ctx, r.tx, evaluation.TenantID, evaluation.ReleaseID); err != nil {
+		return err
+	}
+	checks, err := json.Marshal(evaluation.Checks)
+	if err != nil {
+		return fmt.Errorf("encode policy evaluation checks: %w", err)
+	}
+	_, err = r.tx.Exec(ctx, `
+		INSERT INTO policy_evaluations (id, tenant_id, release_id, result, policy_set, checks, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`, evaluation.ID, evaluation.TenantID, evaluation.ReleaseID, evaluation.Result, evaluation.PolicySet, checks, evaluation.CreatedAt)
+	return writeError("insert policy evaluation", err)
+}
+
 func requireTenant(ctx context.Context, tx pgx.Tx, tenantID string) error {
 	if tenantID == "" {
 		return app.ErrValidation

@@ -379,6 +379,9 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Verification.InsertVerificationResult(ctx, domain.VerificationResult{ID: "verify_repository", TenantID: tenant.ID, SubjectType: "evidence_item", SubjectID: evidence.ID, Result: "limited", Checks: []domain.VerifyCheck{{Name: "recorded", Result: "passed"}}, VerifiedAt: now}); err != nil {
 		t.Fatalf("insert verification result: %v", err)
 	}
+	if err := repositories.Verification.InsertPolicyEvaluation(ctx, domain.PolicyEvaluation{ID: "policy_repository", TenantID: tenant.ID, ReleaseID: release.ID, Result: "passed", PolicySet: domain.PolicySetVersion, Checks: []domain.PolicyCheck{{Name: "recorded", Result: "passed", Severity: "low", Explanation: "test"}}, CreatedAt: now}); err != nil {
+		t.Fatalf("insert policy evaluation: %v", err)
+	}
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatalf("commit repository writes: %v", err)
 	}
@@ -471,6 +474,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"signing key", repositories.Signatures.InsertSigningKey(ctx, domain.SigningKey{})},
 		{"signature", repositories.Signatures.InsertSignature(ctx, domain.Signature{})},
 		{"verification", repositories.Verification.InsertVerificationResult(ctx, domain.VerificationResult{})},
+		{"policy evaluation", repositories.Verification.InsertPolicyEvaluation(ctx, domain.PolicyEvaluation{})},
 	}
 	for _, check := range checks {
 		if !errors.Is(check.err, app.ErrValidation) {
@@ -494,6 +498,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"OpenAPI product", repositories.Evidence.InsertOpenAPIContract(ctx, domain.OpenAPIContract{ID: "missing-contract", TenantID: "ten_repository_a", ProductID: "missing-product", EvidenceID: "missing-evidence", Version: "v1", Hash: "sha256:missing", CreatedAt: now}), app.ErrNotFound},
 		{"VEX evidence", repositories.Evidence.InsertVEXDocument(ctx, domain.VEXDocument{ID: "missing-vex", TenantID: "ten_repository_a", EvidenceID: "missing-evidence", ReleaseID: "missing-release", Format: "openvex", SchemaVersion: domain.VEXDocumentSchemaVersion, CreatedAt: now}), app.ErrNotFound},
 		{"VEX report", repositories.Evidence.InsertVEXImportReport(ctx, domain.VEXImportReport{ID: "missing-vex-report", TenantID: "ten_repository_a", VEXDocumentID: "missing-vex", EvidenceID: "missing-evidence", ParserVersion: app.ParserVersionOpenVEXJSON, Status: "parsed", SchemaVersion: domain.VEXImportReportSchemaVersion, CreatedAt: now, UpdatedAt: now}), app.ErrNotFound},
+		{"policy evaluation release", repositories.Verification.InsertPolicyEvaluation(ctx, domain.PolicyEvaluation{ID: "policy_missing_release", TenantID: "ten_repository_a", ReleaseID: "missing-release", Result: "passed", PolicySet: domain.PolicySetVersion, CreatedAt: now}), app.ErrNotFound},
 	}
 	for _, check := range missingReferenceChecks {
 		if !errors.Is(check.err, check.want) {
@@ -571,6 +576,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"OpenAPI product", repositories.Evidence.InsertOpenAPIContract(ctx, domain.OpenAPIContract{ID: "oas_repository_b", TenantID: "ten_repository_b", ProductID: "prod_repository_a", ReleaseID: releaseA.ID, Version: "v1", Hash: "sha256:openapi-b", EvidenceID: evidenceA.ID, CreatedAt: now})},
 		{"VEX evidence", repositories.Evidence.InsertVEXDocument(ctx, domain.VEXDocument{ID: "vex_repository_b", TenantID: "ten_repository_b", EvidenceID: evidenceA.ID, ReleaseID: releaseA.ID, ArtifactID: artifactA.ID, Format: "openvex", SchemaVersion: domain.VEXDocumentSchemaVersion, CreatedAt: now})},
 		{"decision scan", repositories.Decisions.SupersedeAndInsert(ctx, domain.VulnerabilityDecision{ID: "dec_repository_b", TenantID: "ten_repository_b", FindingID: "finding-b", ScanID: "scan_repository_b", ReleaseID: releaseA.ID, Vulnerability: "CVE-2026-0001", Status: "not_affected", Justification: "test", Source: "test", SchemaVersion: domain.VulnerabilityDecisionVersion, CreatedAt: now}, nil)},
+		{"policy evaluation release", repositories.Verification.InsertPolicyEvaluation(ctx, domain.PolicyEvaluation{ID: "policy_repository_b", TenantID: "ten_repository_b", ReleaseID: releaseA.ID, Result: "passed", PolicySet: domain.PolicySetVersion, CreatedAt: now})},
 	}
 	for _, check := range foreignReferenceChecks {
 		if !errors.Is(check.err, app.ErrNotFound) {

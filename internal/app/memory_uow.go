@@ -73,6 +73,7 @@ type MemoryUnitOfWorkSnapshot struct {
 	SigningKeys            map[string]domain.SigningKey
 	Signatures             map[string]domain.Signature
 	VerificationResults    map[string]domain.VerificationResult
+	PolicyEvaluations      map[string]domain.PolicyEvaluation
 }
 
 func NewMemoryUnitOfWorkFactory() *MemoryUnitOfWorkFactory {
@@ -1893,6 +1894,29 @@ func (r memoryVerificationRepository) InsertVerificationResult(ctx context.Conte
 	})
 }
 
+func (r memoryVerificationRepository) InsertPolicyEvaluation(ctx context.Context, evaluation domain.PolicyEvaluation) error {
+	cloned, err := cloneMemoryJSON(evaluation)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.ReleaseID == "" || cloned.Result == "" || cloned.PolicySet == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.ReleaseID, cloned.TenantID, state.Releases) {
+			return ErrNotFound
+		}
+		if _, exists := state.PolicyEvaluations[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.PolicyEvaluations[cloned.ID] = cloned
+		return nil
+	})
+}
+
 func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 	return MemoryUnitOfWorkSnapshot{
 		Tenants:                map[string]domain.Tenant{},
@@ -1946,6 +1970,7 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		SigningKeys:            map[string]domain.SigningKey{},
 		Signatures:             map[string]domain.Signature{},
 		VerificationResults:    map[string]domain.VerificationResult{},
+		PolicyEvaluations:      map[string]domain.PolicyEvaluation{},
 	}
 }
 
@@ -2112,6 +2137,9 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.VerificationResults, err = cloneMemoryMap(snapshot.VerificationResults); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.PolicyEvaluations, err = cloneMemoryMap(snapshot.PolicyEvaluations); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	return cloned, nil

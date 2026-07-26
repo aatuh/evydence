@@ -231,6 +231,9 @@ func TestMemoryUnitOfWorkCommitsEveryFocusedRepository(t *testing.T) {
 	if err := repositories.Verification.InsertVerificationResult(context.Background(), domain.VerificationResult{ID: "verify_all_repositories", TenantID: tenant.ID, SubjectType: "evidence_item", SubjectID: evidence.ID, Result: "limited", VerifiedAt: now, Checks: []domain.VerifyCheck{{Name: "recorded", Result: "passed"}}}); err != nil {
 		t.Fatalf("insert verification result: %v", err)
 	}
+	if err := repositories.Verification.InsertPolicyEvaluation(context.Background(), domain.PolicyEvaluation{ID: "policy_all_repositories", TenantID: tenant.ID, ReleaseID: release.ID, Result: "passed", PolicySet: domain.PolicySetVersion, Checks: []domain.PolicyCheck{{Name: "recorded", Result: "passed", Severity: "low", Explanation: "test"}}, CreatedAt: now}); err != nil {
+		t.Fatalf("insert policy evaluation: %v", err)
+	}
 	if err := uow.Commit(context.Background()); err != nil {
 		t.Fatalf("commit all repositories: %v", err)
 	}
@@ -238,7 +241,7 @@ func TestMemoryUnitOfWorkCommitsEveryFocusedRepository(t *testing.T) {
 	if err != nil {
 		t.Fatalf("snapshot: %v", err)
 	}
-	if len(snapshot.APIKeys) != 1 || len(snapshot.Projects) != 1 || len(snapshot.Releases) != 1 || len(snapshot.Artifacts) != 1 || len(snapshot.Evidence) != 1 || len(snapshot.EvidenceLifecycle) != 1 || len(snapshot.Decisions) != 1 || len(snapshot.AuditEntries[tenant.ID]) != 1 || len(snapshot.Idempotency) != 1 || len(snapshot.OutboxJobs) != 1 || len(snapshot.ReleaseBundles) != 1 || len(snapshot.SigningKeys) != 1 || len(snapshot.Signatures) != 1 || len(snapshot.VerificationResults) != 1 {
+	if len(snapshot.APIKeys) != 1 || len(snapshot.Projects) != 1 || len(snapshot.Releases) != 1 || len(snapshot.Artifacts) != 1 || len(snapshot.Evidence) != 1 || len(snapshot.EvidenceLifecycle) != 1 || len(snapshot.Decisions) != 1 || len(snapshot.AuditEntries[tenant.ID]) != 1 || len(snapshot.Idempotency) != 1 || len(snapshot.OutboxJobs) != 1 || len(snapshot.ReleaseBundles) != 1 || len(snapshot.SigningKeys) != 1 || len(snapshot.Signatures) != 1 || len(snapshot.VerificationResults) != 1 || len(snapshot.PolicyEvaluations) != 1 {
 		t.Fatalf("focused repositories did not commit together: %#v", snapshot)
 	}
 }
@@ -270,6 +273,7 @@ func TestMemoryUnitOfWorkRejectsInvalidFocusedRepositoryRecords(t *testing.T) {
 		{"signing key", repositories.Signatures.InsertSigningKey(context.Background(), domain.SigningKey{})},
 		{"signature", repositories.Signatures.InsertSignature(context.Background(), domain.Signature{})},
 		{"verification", repositories.Verification.InsertVerificationResult(context.Background(), domain.VerificationResult{})},
+		{"policy evaluation", repositories.Verification.InsertPolicyEvaluation(context.Background(), domain.PolicyEvaluation{})},
 	}
 	for _, check := range checks {
 		if !errors.Is(check.err, ErrValidation) {

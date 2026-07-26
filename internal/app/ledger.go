@@ -1561,6 +1561,22 @@ func (l *Ledger) EvaluateRelease(ctx context.Context, actor domain.Actor, releas
 	checks := l.releasePolicyChecksLocked(actor.TenantID, release.ID)
 	result := releasePolicyResult(checks)
 	eval := domain.PolicyEvaluation{ID: newID("pe"), TenantID: actor.TenantID, ReleaseID: release.ID, Result: result, PolicySet: domain.PolicySetVersion, Checks: checks, CreatedAt: l.now()}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Verification.InsertPolicyEvaluation(ctx, eval); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(eval.CreatedAt, actor.TenantID, "policy.evaluated", "policy_evaluation", eval.ID, "api_key", actor.KeyID, "", ""))
+			return err
+		}); err != nil {
+			return domain.PolicyEvaluation{}, err
+		}
+		l.policies[eval.ID] = eval
+		l.publishCommittedAuditEntryLocked(entry)
+		return eval, nil
+	}
 	l.policies[eval.ID] = eval
 	_, _ = l.appendChainLocked(actor.TenantID, "policy.evaluated", "policy_evaluation", eval.ID, "api_key", actor.KeyID, "", "")
 	if err := l.persistLocked(ctx); err != nil {

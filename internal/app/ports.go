@@ -228,6 +228,7 @@ type SignatureRepository interface {
 
 type VerificationRepository interface {
 	InsertVerificationResult(context.Context, domain.VerificationResult) error
+	InsertPolicyEvaluation(context.Context, domain.PolicyEvaluation) error
 }
 
 type SigningRequest struct {

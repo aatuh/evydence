@@ -96,7 +96,6 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 | integrity and operations | `internal/app/integrity_runtime.go` | `VerifyCosignSignature` | `persistLocked` |
 | integrity and operations | `internal/app/integrity_runtime.go` | `VerifyMerkleBatch` | `persistLocked` |
 | integrity and operations | `internal/app/integrity_runtime.go` | `VerifyObjectRetentionPolicy` | `persistLocked` |
-| release ledger and signing | `internal/app/ledger.go` | `EvaluateRelease` | `persistLocked` |
 | release ledger and signing | `internal/app/ledger.go` | `RotateSigningKey` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `CreateContractDiff` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `CreateCustomPolicy` | `persistLocked` |
@@ -152,6 +151,7 @@ These commands commit through focused repositories whenever `UnitOfWorkFactory` 
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `UpdateReleaseCandidateState` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `UpsertSourceBranch` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `UpsertSourceBranch` | `persistLocked` |
+| release ledger and signing | `internal/app/ledger.go` | `EvaluateRelease` | `persistLocked` |
 
 ## Next Decomposition Order
 
