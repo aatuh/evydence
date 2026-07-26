@@ -446,8 +446,8 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Future.InsertMarketplaceCollector(ctx, domain.MarketplaceCollector{ID: "marketplace_repository", TenantID: tenant.ID, Name: "Repository", Provider: "scanner", Version: "1.0.0", Publisher: "vendor", ManifestHash: "sha256:manifest", State: "registered", SchemaVersion: domain.MarketplaceCollectorVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert marketplace collector: %v", err)
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO questionnaire_templates (id, tenant_id, name, version, questions, schema_version, created_at) VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7)`, "template_repository", tenant.ID, "Repository", "1", `[{"id":"q1","prompt":"Is evidence available?"}]`, domain.QuestionnaireTemplateVersion, now); err != nil {
-		t.Fatalf("seed questionnaire template: %v", err)
+	if err := repositories.Enterprise.InsertQuestionnaireTemplate(ctx, domain.QuestionnaireTemplate{ID: "template_repository", TenantID: tenant.ID, Name: "Repository", Version: "1", Questions: []domain.QuestionnaireQuestion{{ID: "q1", Prompt: "Is evidence available?"}}, SchemaVersion: domain.QuestionnaireTemplateVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert questionnaire template: %v", err)
 	}
 	if err := repositories.Future.InsertPDFReportPackage(ctx, domain.PDFReportPackage{ID: "pdf_repository", TenantID: tenant.ID, ReportType: "release_readiness", ProductID: product.ID, ReleaseID: release.ID, Title: "Repository report", PayloadHash: "sha256:report", PayloadSize: 1, SchemaVersion: domain.PDFReportPackageVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert PDF report package: %v", err)
@@ -621,6 +621,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"verification", repositories.Verification.InsertVerificationResult(ctx, domain.VerificationResult{})},
 		{"policy evaluation", repositories.Verification.InsertPolicyEvaluation(ctx, domain.PolicyEvaluation{})},
 		{"commercial collector", repositories.Enterprise.InsertCommercialCollectorDefinition(ctx, domain.CommercialCollectorDefinition{})},
+		{"questionnaire template", repositories.Enterprise.InsertQuestionnaireTemplate(ctx, domain.QuestionnaireTemplate{})},
 	}
 	for _, check := range checks {
 		if !errors.Is(check.err, app.ErrValidation) {

@@ -1934,6 +1934,33 @@ func (r enterprise) InsertCommercialCollectorDefinition(ctx context.Context, col
 	return writeError("insert commercial collector", err)
 }
 
+func (r enterprise) InsertQuestionnaireTemplate(ctx context.Context, template domain.QuestionnaireTemplate) error {
+	if err := validateQuestionnaireTemplate(template); err != nil {
+		return err
+	}
+	if err := requireTenant(ctx, r.tx, template.TenantID); err != nil {
+		return err
+	}
+	questions, err := json.Marshal(template.Questions)
+	if err != nil {
+		return fmt.Errorf("encode questionnaire template questions: %w", err)
+	}
+	_, err = r.tx.Exec(ctx, `INSERT INTO questionnaire_templates (id, tenant_id, name, version, questions, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`, template.ID, template.TenantID, template.Name, template.Version, questions, template.SchemaVersion, template.CreatedAt)
+	return writeError("insert questionnaire template", err)
+}
+
+func validateQuestionnaireTemplate(template domain.QuestionnaireTemplate) error {
+	if template.ID == "" || template.TenantID == "" || template.Name == "" || template.Version == "" || len(template.Questions) == 0 || template.SchemaVersion == "" || template.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	for _, question := range template.Questions {
+		if question.ID == "" || question.Prompt == "" {
+			return app.ErrValidation
+		}
+	}
+	return nil
+}
+
 func validCollectorScopes(scopes []string) bool {
 	if len(scopes) == 0 {
 		return false

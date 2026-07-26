@@ -247,6 +247,7 @@ type VerificationRepository interface {
 
 type EnterpriseRepository interface {
 	InsertCommercialCollectorDefinition(context.Context, domain.CommercialCollectorDefinition) error
+	InsertQuestionnaireTemplate(context.Context, domain.QuestionnaireTemplate) error
 }
 
 type FutureExtensionsRepository interface {

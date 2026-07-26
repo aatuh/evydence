@@ -62,7 +62,6 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 | --- | --- | --- | --- |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateQuestionnaireAnswerLibraryEntry` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateQuestionnairePackage` | `persistLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `CreateQuestionnaireTemplate` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `AccessCustomerSecurityPackage` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `CRAReadinessHTMLPackage` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `CreateCustomReportTemplate` | `persistLocked` |
@@ -104,6 +103,7 @@ These commands commit through focused repositories whenever `UnitOfWorkFactory` 
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateCommercialCollectorDefinition` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateLegalHold` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateOrganization` | `persistLocked` |
+| enterprise identity and retention | `internal/app/enterprise.go` | `CreateQuestionnaireTemplate` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateRetentionOverride` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateRoleBinding` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateSSOProvider` | `persistLocked` |

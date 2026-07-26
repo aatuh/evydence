@@ -82,6 +82,7 @@ type MemoryUnitOfWorkSnapshot struct {
 	VerificationResults       map[string]domain.VerificationResult
 	PolicyEvaluations         map[string]domain.PolicyEvaluation
 	CommercialCollectors      map[string]domain.CommercialCollectorDefinition
+	QuestionnaireTemplates    map[string]domain.QuestionnaireTemplate
 	PublicTransparencyLogs    map[string]domain.PublicTransparencyLog
 	PublicTransparencyEntries map[string]domain.PublicTransparencyLogEntry
 	EvidenceSummaries         map[string]domain.EvidenceSummary
@@ -2141,6 +2142,43 @@ func (r memoryEnterpriseRepository) InsertCommercialCollectorDefinition(ctx cont
 	})
 }
 
+func (r memoryEnterpriseRepository) InsertQuestionnaireTemplate(ctx context.Context, template domain.QuestionnaireTemplate) error {
+	cloned, err := cloneMemoryJSON(template)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if err := validateMemoryQuestionnaireTemplate(cloned); err != nil {
+			return err
+		}
+		if _, exists := state.QuestionnaireTemplates[cloned.ID]; exists {
+			return ErrConflict
+		}
+		for _, existing := range state.QuestionnaireTemplates {
+			if existing.TenantID == cloned.TenantID && existing.Name == cloned.Name && existing.Version == cloned.Version {
+				return ErrConflict
+			}
+		}
+		state.QuestionnaireTemplates[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func validateMemoryQuestionnaireTemplate(template domain.QuestionnaireTemplate) error {
+	if template.ID == "" || template.Name == "" || template.Version == "" || len(template.Questions) == 0 || template.SchemaVersion == "" || template.CreatedAt.IsZero() {
+		return ErrValidation
+	}
+	for _, question := range template.Questions {
+		if question.ID == "" || question.Prompt == "" {
+			return ErrValidation
+		}
+	}
+	return nil
+}
+
 func (r memoryVerificationRepository) InsertPolicyEvaluation(ctx context.Context, evaluation domain.PolicyEvaluation) error {
 	cloned, err := cloneMemoryJSON(evaluation)
 	if err != nil {
@@ -2402,6 +2440,10 @@ func (r memoryFutureExtensionsRepository) InsertQuestionnaireDraft(ctx context.C
 		if cloned.ID == "" || cloned.TemplateID == "" || cloned.Responses == nil || cloned.ManifestHash == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
 			return ErrValidation
 		}
+		template, ok := state.QuestionnaireTemplates[cloned.TemplateID]
+		if !ok || template.TenantID != cloned.TenantID {
+			return ErrNotFound
+		}
 		if !memoryResourceBelongsToTenant(cloned.ProductID, cloned.TenantID, state.Products) || !memoryResourceBelongsToTenant(cloned.ReleaseID, cloned.TenantID, state.Releases) {
 			return ErrNotFound
 		}
@@ -2409,8 +2451,15 @@ func (r memoryFutureExtensionsRepository) InsertQuestionnaireDraft(ctx context.C
 			return ErrValidation
 		}
 		responseIDs := make(map[string]struct{}, len(cloned.Responses))
+		questionIDs := make(map[string]struct{}, len(template.Questions))
+		for _, question := range template.Questions {
+			questionIDs[question.ID] = struct{}{}
+		}
 		for _, response := range cloned.Responses {
 			if response.QuestionID == "" || response.Answer == "" {
+				return ErrValidation
+			}
+			if _, exists := questionIDs[response.QuestionID]; !exists {
 				return ErrValidation
 			}
 			if _, duplicate := responseIDs[response.QuestionID]; duplicate {
@@ -2422,6 +2471,9 @@ func (r memoryFutureExtensionsRepository) InsertQuestionnaireDraft(ctx context.C
 				}
 			}
 			responseIDs[response.QuestionID] = struct{}{}
+		}
+		if len(responseIDs) != len(questionIDs) {
+			return ErrValidation
 		}
 		if _, exists := state.QuestionnaireDrafts[cloned.ID]; exists {
 			return ErrConflict
@@ -2600,6 +2652,7 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		VerificationResults:       map[string]domain.VerificationResult{},
 		PolicyEvaluations:         map[string]domain.PolicyEvaluation{},
 		CommercialCollectors:      map[string]domain.CommercialCollectorDefinition{},
+		QuestionnaireTemplates:    map[string]domain.QuestionnaireTemplate{},
 		PublicTransparencyLogs:    map[string]domain.PublicTransparencyLog{},
 		PublicTransparencyEntries: map[string]domain.PublicTransparencyLogEntry{},
 		EvidenceSummaries:         map[string]domain.EvidenceSummary{},
@@ -2800,6 +2853,9 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.CommercialCollectors, err = cloneMemoryMap(snapshot.CommercialCollectors); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.QuestionnaireTemplates, err = cloneMemoryMap(snapshot.QuestionnaireTemplates); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.PublicTransparencyLogs, err = cloneMemoryMap(snapshot.PublicTransparencyLogs); err != nil {

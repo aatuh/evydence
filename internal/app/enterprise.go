@@ -1341,6 +1341,22 @@ func (s packageReportService) CreateQuestionnaireTemplate(ctx context.Context, a
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	tpl := domain.QuestionnaireTemplate{ID: newID("qt"), TenantID: actor.TenantID, Name: in.Name, Version: in.Version, Questions: questions, SchemaVersion: domain.QuestionnaireTemplateVersion, CreatedAt: l.now()}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Enterprise.InsertQuestionnaireTemplate(ctx, tpl); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(tpl.CreatedAt, actor.TenantID, "questionnaire_template.created", "questionnaire_template", tpl.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.QuestionnaireTemplate{}, err
+		}
+		l.questionTemplates[tpl.ID] = tpl
+		l.publishCommittedAuditEntryLocked(entry)
+		return tpl, nil
+	}
 	l.questionTemplates[tpl.ID] = tpl
 	_, _ = l.appendChainLocked(actor.TenantID, "questionnaire_template.created", "questionnaire_template", tpl.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {
