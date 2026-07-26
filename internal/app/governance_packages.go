@@ -2117,6 +2117,31 @@ func (s packageReportService) ExportEvidenceBundle(ctx context.Context, actor do
 		return domain.EvidenceBundle{}, err
 	}
 	bundleID := newID("eb")
+	if l.unitOfWork != nil {
+		sig, err := l.newEvidenceBundleSignatureLocked(actor.TenantID, bundleID, []byte(hash))
+		if err != nil {
+			return domain.EvidenceBundle{}, err
+		}
+		bundle := domain.EvidenceBundle{ID: bundleID, TenantID: actor.TenantID, ReleaseID: releaseID, EvidenceIDs: ids, Manifest: manifest, ManifestHash: hash, SignatureRefs: []string{sig.ID}, VerificationText: "Verify manifest_hash over manifest canonical JSON and signature references with tenant public keys.", SchemaVersion: domain.EvidenceBundleSchemaVersion, CreatedAt: l.now()}
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Signatures.InsertSignature(ctx, sig); err != nil {
+				return err
+			}
+			if err := repos.Packages.InsertEvidenceBundle(ctx, bundle); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(bundle.CreatedAt, actor.TenantID, "evidence_bundle.exported", "evidence_bundle", bundle.ID, "api_key", actor.KeyID, hash, sig.ID))
+			return err
+		}); err != nil {
+			return domain.EvidenceBundle{}, err
+		}
+		l.signatures[sig.ID] = sig
+		l.evidenceBundles[bundle.ID] = bundle
+		l.publishCommittedAuditEntryLocked(entry)
+		return bundle, nil
+	}
 	sig, err := l.signLocked(actor.TenantID, "evidence_bundle", bundleID, []byte(hash))
 	if err != nil {
 		return domain.EvidenceBundle{}, err
@@ -2128,6 +2153,16 @@ func (s packageReportService) ExportEvidenceBundle(ctx context.Context, actor do
 		return domain.EvidenceBundle{}, err
 	}
 	return bundle, nil
+}
+
+func (l *Ledger) newEvidenceBundleSignatureLocked(tenantID, bundleID string, payload []byte) (domain.Signature, error) {
+	for _, key := range l.signingKeys {
+		if key.TenantID == tenantID && key.Status == "active" && len(key.Private) == ed25519.PrivateKeySize {
+			value := ed25519.Sign(ed25519.PrivateKey(key.Private), payload)
+			return domain.Signature{ID: newID("sig"), TenantID: tenantID, SubjectType: "evidence_bundle", SubjectID: bundleID, KeyID: key.ID, Algorithm: "Ed25519", Value: base64.RawStdEncoding.EncodeToString(value), CreatedAt: l.now()}, nil
+		}
+	}
+	return domain.Signature{}, ErrConflict
 }
 
 func (s packageReportService) ImportEvidenceBundle(ctx context.Context, actor domain.Actor, bundle domain.EvidenceBundle) (domain.EvidenceBundleImport, error) {

@@ -60,7 +60,7 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 
 | Family | File | Function | Call |
 | --- | --- | --- | --- |
-| governance, packages, and package reports | `internal/app/governance_packages.go` | `ExportEvidenceBundle` | `persistLocked` |
+| none | none | none | none |
 
 ## Compatibility-Only Broad Fallbacks
 
@@ -113,6 +113,7 @@ These commands commit through focused repositories whenever `UnitOfWorkFactory` 
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `CreateDSSETrustRoot` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `CreateRedactionProfile` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `CreateWaiver` | `persistLocked` |
+| governance, packages, and package reports | `internal/app/governance_packages.go` | `ExportEvidenceBundle` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `ImportEvidenceBundle` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `InstallControlFrameworkTemplatePack` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `RenderCustomReport` | `persistLocked` |

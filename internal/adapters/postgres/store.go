@@ -3217,6 +3217,23 @@ func syncReleaseLedgerCore(ctx context.Context, tx pgx.Tx, state app.PersistedSt
 			return fmt.Errorf("upsert signing key row: %w", err)
 		}
 	}
+	// Provider receipts reference signing_providers, so providers must be
+	// present before the signature loop records external-provider receipts.
+	for _, provider := range state.SigningProviders {
+		if provider.ID == "" || provider.TenantID == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO signing_providers (
+				id, tenant_id, name, type, status, key_ref, encrypted,
+				schema_version, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, key_ref = EXCLUDED.key_ref, encrypted = EXCLUDED.encrypted, schema_version = EXCLUDED.schema_version
+		`, provider.ID, provider.TenantID, provider.Name, provider.Type, provider.Status, provider.KeyRef, provider.Encrypted, provider.SchemaVersion, nonZeroTime(provider.CreatedAt)); err != nil {
+			return fmt.Errorf("upsert signing provider row: %w", err)
+		}
+	}
 	for _, signature := range state.Signatures {
 		if signature.ID == "" || signature.TenantID == "" || signature.KeyID == "" {
 			continue
@@ -4251,21 +4268,6 @@ func syncIntegrityProviderRows(ctx context.Context, tx pgx.Tx, state app.Persist
 			nullableString(verification.CertificateIssuer), verification.Result, checks, profile, textArray(verification.Limitations), verification.SchemaVersion,
 			nonZeroTime(verification.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert cosign verification row: %w", err)
-		}
-	}
-	for _, provider := range state.SigningProviders {
-		if provider.ID == "" || provider.TenantID == "" {
-			continue
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO signing_providers (
-				id, tenant_id, name, type, status, key_ref, encrypted,
-				schema_version, created_at
-			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-			ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, key_ref = EXCLUDED.key_ref, encrypted = EXCLUDED.encrypted, schema_version = EXCLUDED.schema_version
-		`, provider.ID, provider.TenantID, provider.Name, provider.Type, provider.Status, provider.KeyRef, provider.Encrypted, provider.SchemaVersion, nonZeroTime(provider.CreatedAt)); err != nil {
-			return fmt.Errorf("upsert signing provider row: %w", err)
 		}
 	}
 	for _, batch := range state.MerkleBatches {

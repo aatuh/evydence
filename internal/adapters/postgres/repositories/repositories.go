@@ -1695,6 +1695,46 @@ func (r packages) InsertReleaseBundle(ctx context.Context, bundle domain.Release
 	return writeError("insert release bundle", err)
 }
 
+func (r packages) InsertEvidenceBundle(ctx context.Context, bundle domain.EvidenceBundle) error {
+	if bundle.ID == "" || bundle.TenantID == "" || bundle.EvidenceIDs == nil || bundle.Manifest == nil || !validSHA256Digest(bundle.ManifestHash) || len(bundle.SignatureRefs) == 0 || bundle.VerificationText == "" || bundle.SchemaVersion == "" || bundle.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, bundle.TenantID); err != nil {
+		return err
+	}
+	if err := requireOptionalRelease(ctx, r.tx, bundle.TenantID, bundle.ReleaseID); err != nil {
+		return err
+	}
+	for _, evidenceID := range bundle.EvidenceIDs {
+		if evidenceID == "" {
+			return app.ErrValidation
+		}
+		query := `SELECT 1 FROM evidence_items WHERE id = $1 AND tenant_id = $2`
+		arguments := []any{evidenceID, bundle.TenantID}
+		if bundle.ReleaseID != "" {
+			query += ` AND release_id = $3`
+			arguments = append(arguments, bundle.ReleaseID)
+		}
+		if err := requireRow(ctx, r.tx, query, arguments...); err != nil {
+			return err
+		}
+	}
+	for _, signatureID := range bundle.SignatureRefs {
+		if signatureID == "" {
+			return app.ErrValidation
+		}
+		if err := requireRow(ctx, r.tx, `SELECT 1 FROM signatures WHERE id = $1 AND tenant_id = $2 AND subject_type = 'evidence_bundle' AND subject_id = $3`, signatureID, bundle.TenantID, bundle.ID); err != nil {
+			return err
+		}
+	}
+	manifest, err := json.Marshal(bundle.Manifest)
+	if err != nil {
+		return fmt.Errorf("encode evidence bundle manifest: %w", err)
+	}
+	_, err = r.tx.Exec(ctx, `INSERT INTO evidence_bundles (id, tenant_id, release_id, evidence_ids, manifest, manifest_hash, signature_refs, verification_text, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, bundle.ID, bundle.TenantID, nullableString(bundle.ReleaseID), textArray(bundle.EvidenceIDs), manifest, bundle.ManifestHash, textArray(bundle.SignatureRefs), bundle.VerificationText, bundle.SchemaVersion, bundle.CreatedAt)
+	return writeError("insert evidence bundle", err)
+}
+
 func (r packages) InsertCustomerSecurityPackage(ctx context.Context, pkg domain.CustomerSecurityPackage) error {
 	if pkg.ID == "" || pkg.TenantID == "" || pkg.ProductID == "" || pkg.RedactionProfileID == "" || pkg.Title == "" || pkg.State == "" || pkg.Manifest == nil || !validSHA256Digest(pkg.ManifestHash) || !pkg.ExpiresAt.After(pkg.CreatedAt) || pkg.SchemaVersion == "" || pkg.CreatedAt.IsZero() {
 		return app.ErrValidation

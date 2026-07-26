@@ -72,6 +72,7 @@ type MemoryUnitOfWorkSnapshot struct {
 	Idempotency               map[IdempotencyRecordKey]IdempotencyRecord
 	OutboxJobs                map[string]OutboxJob
 	ReleaseBundles            map[string]domain.ReleaseBundle
+	EvidenceBundles           map[string]domain.EvidenceBundle
 	CustomerPackages          map[string]domain.CustomerSecurityPackage
 	BundleImports             map[string]domain.EvidenceBundleImport
 	CustomPolicies            map[string]domain.CustomPolicy
@@ -2257,6 +2258,41 @@ func (r memoryPackageRepository) InsertReleaseBundle(ctx context.Context, bundle
 	})
 }
 
+func (r memoryPackageRepository) InsertEvidenceBundle(ctx context.Context, bundle domain.EvidenceBundle) error {
+	cloned, err := cloneMemoryJSON(bundle)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.EvidenceIDs == nil || cloned.Manifest == nil || !validDigest(cloned.ManifestHash) || len(cloned.SignatureRefs) == 0 || cloned.VerificationText == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.ReleaseID, cloned.TenantID, state.Releases) {
+			return ErrNotFound
+		}
+		for _, evidenceID := range cloned.EvidenceIDs {
+			item, ok := state.Evidence[evidenceID]
+			if !ok || item.TenantID != cloned.TenantID || (cloned.ReleaseID != "" && item.ReleaseID != cloned.ReleaseID) {
+				return ErrNotFound
+			}
+		}
+		for _, signatureID := range cloned.SignatureRefs {
+			signature, ok := state.Signatures[signatureID]
+			if !ok || signature.TenantID != cloned.TenantID || signature.SubjectType != "evidence_bundle" || signature.SubjectID != cloned.ID {
+				return ErrNotFound
+			}
+		}
+		if _, exists := state.EvidenceBundles[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.EvidenceBundles[cloned.ID] = cloned
+		return nil
+	})
+}
+
 func (r memoryPackageRepository) InsertCustomerSecurityPackage(ctx context.Context, pkg domain.CustomerSecurityPackage) error {
 	cloned, err := cloneMemoryJSON(pkg)
 	if err != nil {
@@ -3303,6 +3339,7 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		Idempotency:               map[IdempotencyRecordKey]IdempotencyRecord{},
 		OutboxJobs:                map[string]OutboxJob{},
 		ReleaseBundles:            map[string]domain.ReleaseBundle{},
+		EvidenceBundles:           map[string]domain.EvidenceBundle{},
 		CustomerPackages:          map[string]domain.CustomerSecurityPackage{},
 		BundleImports:             map[string]domain.EvidenceBundleImport{},
 		CustomPolicies:            map[string]domain.CustomPolicy{},
@@ -3504,6 +3541,9 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.ReleaseBundles, err = cloneMemoryMap(snapshot.ReleaseBundles); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.EvidenceBundles, err = cloneMemoryMap(snapshot.EvidenceBundles); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.CustomerPackages, err = cloneMemoryMap(snapshot.CustomerPackages); err != nil {

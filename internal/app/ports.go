@@ -224,6 +224,7 @@ type DeploymentRepository interface {
 
 type PackageRepository interface {
 	InsertReleaseBundle(context.Context, domain.ReleaseBundle) error
+	InsertEvidenceBundle(context.Context, domain.EvidenceBundle) error
 	InsertCustomerSecurityPackage(context.Context, domain.CustomerSecurityPackage) error
 	UpdateCustomerSecurityPackageAccess(context.Context, domain.CustomerSecurityPackage, domain.CustomerSecurityPackage) error
 	InsertEvidenceBundleImport(context.Context, domain.EvidenceBundleImport) error

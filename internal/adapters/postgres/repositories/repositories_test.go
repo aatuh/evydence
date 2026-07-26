@@ -460,6 +460,12 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Signatures.InsertSignature(ctx, domain.Signature{ID: "sig_repository", TenantID: tenant.ID, SubjectType: "evidence_item", SubjectID: evidence.ID, KeyID: signingKey.ID, Algorithm: "Ed25519", Value: "signature", CreatedAt: now}); err != nil {
 		t.Fatalf("insert signature: %v", err)
 	}
+	if err := repositories.Signatures.InsertSignature(ctx, domain.Signature{ID: "sig_evidence_bundle_repository", TenantID: tenant.ID, SubjectType: "evidence_bundle", SubjectID: "evidence_bundle_repository", KeyID: signingKey.ID, Algorithm: "Ed25519", Value: "signature", CreatedAt: now}); err != nil {
+		t.Fatalf("insert evidence bundle signature: %v", err)
+	}
+	if err := repositories.Packages.InsertEvidenceBundle(ctx, domain.EvidenceBundle{ID: "evidence_bundle_repository", TenantID: tenant.ID, ReleaseID: release.ID, EvidenceIDs: []string{evidence.ID}, Manifest: map[string]any{"release_id": release.ID}, ManifestHash: "sha256:" + strings.Repeat("b", 64), SignatureRefs: []string{"sig_evidence_bundle_repository"}, VerificationText: "verify locally", SchemaVersion: domain.EvidenceBundleSchemaVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert evidence bundle: %v", err)
+	}
 	if err := repositories.Integrity.InsertSigningProvider(ctx, domain.SigningProvider{ID: "provider_repository", TenantID: tenant.ID, Name: "Repository KMS", Type: "aws_kms", Status: "active", KeyRef: "arn:aws:kms:example", Encrypted: true, SchemaVersion: domain.SigningProviderSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert signing provider: %v", err)
 	}
@@ -715,6 +721,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"customer security package", repositories.Packages.InsertCustomerSecurityPackage(ctx, domain.CustomerSecurityPackage{})},
 		{"customer security package access", repositories.Packages.UpdateCustomerSecurityPackageAccess(ctx, domain.CustomerSecurityPackage{}, domain.CustomerSecurityPackage{})},
 		{"evidence bundle import", repositories.Packages.InsertEvidenceBundleImport(ctx, domain.EvidenceBundleImport{})},
+		{"evidence bundle", repositories.Packages.InsertEvidenceBundle(ctx, domain.EvidenceBundle{})},
 		{"custom policy", repositories.Risk.InsertCustomPolicy(ctx, domain.CustomPolicy{})},
 		{"custom policy evaluation", repositories.Risk.InsertCustomPolicyEvaluation(ctx, domain.CustomPolicyEvaluation{})},
 		{"contract diff", repositories.Risk.InsertContractDiff(ctx, domain.ContractDiff{})},
