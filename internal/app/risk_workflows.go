@@ -1148,6 +1148,22 @@ func (l *Ledger) RecordVulnerabilityWorkflow(ctx context.Context, actor domain.A
 		return domain.VulnerabilityWorkflowRecord{}, err
 	}
 	record := domain.VulnerabilityWorkflowRecord{ID: newID("vw"), TenantID: actor.TenantID, FindingID: in.FindingID, ReleaseID: scan.ReleaseID, Action: in.Action, Reason: in.Reason, ActorID: actorID(actor), SchemaVersion: "vulnerability-workflow.v1.0.0", CreatedAt: l.now()}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Risk.InsertVulnerabilityWorkflow(ctx, record); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(record.CreatedAt, actor.TenantID, "vulnerability_workflow."+record.Action, "vulnerability_finding", record.FindingID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.VulnerabilityWorkflowRecord{}, err
+		}
+		l.vulnWorkflow[record.ID] = record
+		l.publishCommittedAuditEntryLocked(entry)
+		return record, nil
+	}
 	l.vulnWorkflow[record.ID] = record
 	_, _ = l.appendChainLocked(actor.TenantID, "vulnerability_workflow."+record.Action, "vulnerability_finding", in.FindingID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {

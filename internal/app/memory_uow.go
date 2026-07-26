@@ -79,6 +79,7 @@ type MemoryUnitOfWorkSnapshot struct {
 	ContractDiffs             map[string]domain.ContractDiff
 	SBOMDiffs                 map[string]domain.SBOMDiff
 	DependencyChanges         map[string]domain.DependencyChange
+	VulnerabilityWorkflow     map[string]domain.VulnerabilityWorkflowRecord
 	HTMLReports               map[string]domain.HTMLReportPackage
 	ReportTemplates           map[string]domain.CustomReportTemplate
 	RenderedReports           map[string]domain.RenderedCustomReport
@@ -1710,6 +1711,41 @@ func (r memoryRiskRepository) InsertSBOMDiff(ctx context.Context, diff domain.SB
 	})
 }
 
+func (r memoryRiskRepository) InsertVulnerabilityWorkflow(ctx context.Context, record domain.VulnerabilityWorkflowRecord) error {
+	cloned, err := cloneMemoryJSON(record)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.FindingID == "" || !validVulnWorkflowAction(cloned.Action) || cloned.Reason == "" || cloned.ActorID == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		found := false
+		for _, scan := range state.VulnerabilityScans {
+			if scan.TenantID != cloned.TenantID || scan.ReleaseID != cloned.ReleaseID {
+				continue
+			}
+			for _, finding := range scan.Findings {
+				if finding.ID == cloned.FindingID {
+					found = true
+					break
+				}
+			}
+		}
+		if !found {
+			return ErrNotFound
+		}
+		if _, exists := state.VulnerabilityWorkflow[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.VulnerabilityWorkflow[cloned.ID] = cloned
+		return nil
+	})
+}
+
 type memorySourceRepository struct{ uow *memoryUnitOfWork }
 
 type memoryDeploymentRepository struct{ uow *memoryUnitOfWork }
@@ -3067,6 +3103,7 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		ContractDiffs:             map[string]domain.ContractDiff{},
 		SBOMDiffs:                 map[string]domain.SBOMDiff{},
 		DependencyChanges:         map[string]domain.DependencyChange{},
+		VulnerabilityWorkflow:     map[string]domain.VulnerabilityWorkflowRecord{},
 		HTMLReports:               map[string]domain.HTMLReportPackage{},
 		ReportTemplates:           map[string]domain.CustomReportTemplate{},
 		RenderedReports:           map[string]domain.RenderedCustomReport{},
@@ -3276,6 +3313,9 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 	if cloned.DependencyChanges, err = cloneMemoryMap(snapshot.DependencyChanges); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
+	if cloned.VulnerabilityWorkflow, err = cloneMemoryMap(snapshot.VulnerabilityWorkflow); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
 	if cloned.HTMLReports, err = cloneMemoryMap(snapshot.HTMLReports); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
@@ -3455,6 +3495,8 @@ func memoryResourceTenantID(resource any) string {
 	case domain.EvidenceItem:
 		return value.TenantID
 	case domain.SBOM:
+		return value.TenantID
+	case domain.VulnerabilityScan:
 		return value.TenantID
 	case domain.APIKey:
 		return value.TenantID

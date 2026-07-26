@@ -345,9 +345,12 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Evidence.InsertSBOM(ctx, domain.SBOM{ID: "sbom_repository", TenantID: tenant.ID, EvidenceID: evidence.ID, ReleaseID: release.ID, ArtifactID: artifact.ID, Format: "cyclonedx", SpecVersion: "1.6", ComponentCount: 1, Components: []domain.SBOMComponent{{Name: "repository"}}, CreatedAt: now}); err != nil {
 		t.Fatalf("insert SBOM: %v", err)
 	}
-	scan := domain.VulnerabilityScan{ID: "scan_repository", TenantID: tenant.ID, EvidenceID: evidence.ID, ReleaseID: release.ID, Scanner: "test", TargetRef: "pkg:oci/repository", Summary: map[string]int{}, Findings: []domain.VulnerabilityFinding{}, CreatedAt: now}
+	scan := domain.VulnerabilityScan{ID: "scan_repository", TenantID: tenant.ID, EvidenceID: evidence.ID, ReleaseID: release.ID, Scanner: "test", TargetRef: "pkg:oci/repository", Summary: map[string]int{}, Findings: []domain.VulnerabilityFinding{{ID: "finding_repository", Vulnerability: "CVE-2026-0001", Severity: "high", State: "open"}}, CreatedAt: now}
 	if err := repositories.Evidence.InsertVulnerabilityScan(ctx, scan); err != nil {
 		t.Fatalf("insert vulnerability scan: %v", err)
+	}
+	if err := repositories.Risk.InsertVulnerabilityWorkflow(ctx, domain.VulnerabilityWorkflowRecord{ID: "vulnwf_repository", TenantID: tenant.ID, FindingID: "finding_repository", ReleaseID: release.ID, Action: "scanner_metadata", Reason: "scanner version captured", ActorID: apiKey.ID, SchemaVersion: "vulnerability-workflow.v1.0.0", CreatedAt: now}); err != nil {
+		t.Fatalf("insert vulnerability workflow: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO artifact_signatures (
@@ -690,6 +693,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"custom policy evaluation", repositories.Risk.InsertCustomPolicyEvaluation(ctx, domain.CustomPolicyEvaluation{})},
 		{"contract diff", repositories.Risk.InsertContractDiff(ctx, domain.ContractDiff{})},
 		{"SBOM diff", repositories.Risk.InsertSBOMDiff(ctx, domain.SBOMDiff{})},
+		{"vulnerability workflow", repositories.Risk.InsertVulnerabilityWorkflow(ctx, domain.VulnerabilityWorkflowRecord{})},
 		{"HTML report package", repositories.Packages.InsertHTMLReportPackage(ctx, domain.HTMLReportPackage{})},
 		{"custom report template", repositories.Packages.InsertCustomReportTemplate(ctx, domain.CustomReportTemplate{})},
 		{"rendered custom report", repositories.Packages.InsertRenderedCustomReport(ctx, domain.RenderedCustomReport{})},

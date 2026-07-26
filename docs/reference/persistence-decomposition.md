@@ -66,7 +66,6 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 | risk and security workflows | `internal/app/risk_workflows.go` | `CreateRemediationTask` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `HandleIncidentWebhook` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `RecordIncidentTimelineEvent` | `persistLocked` |
-| risk and security workflows | `internal/app/risk_workflows.go` | `RecordVulnerabilityWorkflow` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `UploadManualSecurityDocument` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `uploadSecurityScan` | `persistLocked` |
 
@@ -152,6 +151,7 @@ These commands commit through focused repositories whenever `UnitOfWorkFactory` 
 | risk and security workflows | `internal/app/risk_workflows.go` | `CreateCustomPolicy` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `CreateSBOMDiff` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `EvaluateCustomPolicy` | `persistLocked` |
+| risk and security workflows | `internal/app/risk_workflows.go` | `RecordVulnerabilityWorkflow` | `persistLocked` |
 
 ## Next Decomposition Order
 

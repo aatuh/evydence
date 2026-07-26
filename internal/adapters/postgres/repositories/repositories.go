@@ -1901,6 +1901,23 @@ func (r risk) InsertSBOMDiff(ctx context.Context, diff domain.SBOMDiff) error {
 	return nil
 }
 
+func (r risk) InsertVulnerabilityWorkflow(ctx context.Context, record domain.VulnerabilityWorkflowRecord) error {
+	if record.ID == "" || record.TenantID == "" || record.FindingID == "" || !validVulnerabilityWorkflowAction(record.Action) || record.Reason == "" || record.ActorID == "" || record.SchemaVersion == "" || record.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, record.TenantID); err != nil {
+		return err
+	}
+	if err := requireOptionalRelease(ctx, r.tx, record.TenantID, record.ReleaseID); err != nil {
+		return err
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM vulnerability_scans WHERE tenant_id = $1 AND COALESCE(release_id, '') = $2 AND findings @> jsonb_build_array(jsonb_build_object('id', $3::text))`, record.TenantID, record.ReleaseID, record.FindingID); err != nil {
+		return err
+	}
+	_, err := r.tx.Exec(ctx, `INSERT INTO vulnerability_workflow_records (id, tenant_id, finding_id, release_id, action, reason, actor_id, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, record.ID, record.TenantID, record.FindingID, nullableString(record.ReleaseID), record.Action, record.Reason, record.ActorID, record.SchemaVersion, record.CreatedAt)
+	return writeError("insert vulnerability workflow", err)
+}
+
 type signatures struct{ tx pgx.Tx }
 
 func (r signatures) InsertSigningKey(ctx context.Context, key domain.SigningKey) error {
@@ -2883,6 +2900,15 @@ func validPolicyEvidenceType(value string) bool {
 func validContractDiffResult(value string) bool {
 	switch value {
 	case "unchanged", "changed", "breaking":
+		return true
+	default:
+		return false
+	}
+}
+
+func validVulnerabilityWorkflowAction(value string) bool {
+	switch value {
+	case "scanner_metadata", "sla_set", "scanner_disagreement", "superseded", "reopened":
 		return true
 	default:
 		return false
