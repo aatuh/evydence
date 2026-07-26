@@ -77,6 +77,8 @@ type MemoryUnitOfWorkSnapshot struct {
 	CustomPolicies            map[string]domain.CustomPolicy
 	CustomPolicyEvaluations   map[string]domain.CustomPolicyEvaluation
 	ContractDiffs             map[string]domain.ContractDiff
+	SBOMDiffs                 map[string]domain.SBOMDiff
+	DependencyChanges         map[string]domain.DependencyChange
 	HTMLReports               map[string]domain.HTMLReportPackage
 	ReportTemplates           map[string]domain.CustomReportTemplate
 	RenderedReports           map[string]domain.RenderedCustomReport
@@ -1674,6 +1676,40 @@ func (r memoryRiskRepository) InsertContractDiff(ctx context.Context, diff domai
 	})
 }
 
+func (r memoryRiskRepository) InsertSBOMDiff(ctx context.Context, diff domain.SBOMDiff) error {
+	cloned, err := cloneMemoryJSON(diff)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.BaseSBOMID == "" || cloned.TargetSBOMID == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.BaseSBOMID, cloned.TenantID, state.SBOMs) || !memoryResourceBelongsToTenant(cloned.TargetSBOMID, cloned.TenantID, state.SBOMs) || !memoryResourceBelongsToTenant(cloned.ReleaseID, cloned.TenantID, state.Releases) {
+			return ErrNotFound
+		}
+		if _, exists := state.SBOMDiffs[cloned.ID]; exists {
+			return ErrConflict
+		}
+		for _, change := range cloned.DependencyChanges {
+			if change.ID == "" || change.TenantID != cloned.TenantID || change.SBOMDiffID != cloned.ID || (change.ChangeType != "added" && change.ChangeType != "removed") || change.Component.Name == "" || change.SchemaVersion == "" || change.CreatedAt.IsZero() {
+				return ErrValidation
+			}
+			if _, exists := state.DependencyChanges[change.ID]; exists {
+				return ErrConflict
+			}
+		}
+		state.SBOMDiffs[cloned.ID] = cloned
+		for _, change := range cloned.DependencyChanges {
+			state.DependencyChanges[change.ID] = change
+		}
+		return nil
+	})
+}
+
 type memorySourceRepository struct{ uow *memoryUnitOfWork }
 
 type memoryDeploymentRepository struct{ uow *memoryUnitOfWork }
@@ -3029,6 +3065,8 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		CustomPolicies:            map[string]domain.CustomPolicy{},
 		CustomPolicyEvaluations:   map[string]domain.CustomPolicyEvaluation{},
 		ContractDiffs:             map[string]domain.ContractDiff{},
+		SBOMDiffs:                 map[string]domain.SBOMDiff{},
+		DependencyChanges:         map[string]domain.DependencyChange{},
 		HTMLReports:               map[string]domain.HTMLReportPackage{},
 		ReportTemplates:           map[string]domain.CustomReportTemplate{},
 		RenderedReports:           map[string]domain.RenderedCustomReport{},
@@ -3232,6 +3270,12 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 	if cloned.ContractDiffs, err = cloneMemoryMap(snapshot.ContractDiffs); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
+	if cloned.SBOMDiffs, err = cloneMemoryMap(snapshot.SBOMDiffs); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.DependencyChanges, err = cloneMemoryMap(snapshot.DependencyChanges); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
 	if cloned.HTMLReports, err = cloneMemoryMap(snapshot.HTMLReports); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
@@ -3409,6 +3453,8 @@ func memoryResourceTenantID(resource any) string {
 	case domain.ContainerImage:
 		return value.TenantID
 	case domain.EvidenceItem:
+		return value.TenantID
+	case domain.SBOM:
 		return value.TenantID
 	case domain.APIKey:
 		return value.TenantID

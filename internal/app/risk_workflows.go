@@ -813,13 +813,33 @@ func (l *Ledger) CreateSBOMDiff(ctx context.Context, actor domain.Actor, in Crea
 	}
 	for _, component := range added {
 		change := domain.DependencyChange{ID: newID("depchg"), TenantID: actor.TenantID, SBOMDiffID: diff.ID, ChangeType: "added", Component: component, SchemaVersion: domain.DependencyChangeSchemaVersion, CreatedAt: l.now()}
-		l.depChanges[change.ID] = change
 		diff.DependencyChanges = append(diff.DependencyChanges, change)
 	}
 	for _, component := range removed {
 		change := domain.DependencyChange{ID: newID("depchg"), TenantID: actor.TenantID, SBOMDiffID: diff.ID, ChangeType: "removed", Component: component, SchemaVersion: domain.DependencyChangeSchemaVersion, CreatedAt: l.now()}
-		l.depChanges[change.ID] = change
 		diff.DependencyChanges = append(diff.DependencyChanges, change)
+	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Risk.InsertSBOMDiff(ctx, diff); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(diff.CreatedAt, actor.TenantID, "sbom.diffed", "sbom_diff", diff.ID, "api_key", actor.KeyID, "", ""))
+			return err
+		}); err != nil {
+			return domain.SBOMDiff{}, err
+		}
+		l.sbomDiffs[diff.ID] = diff
+		for _, change := range diff.DependencyChanges {
+			l.depChanges[change.ID] = change
+		}
+		l.publishCommittedAuditEntryLocked(entry)
+		return diff, nil
+	}
+	for _, change := range diff.DependencyChanges {
+		l.depChanges[change.ID] = change
 	}
 	l.sbomDiffs[diff.ID] = diff
 	_, _ = l.appendChainLocked(actor.TenantID, "sbom.diffed", "sbom_diff", diff.ID, "api_key", actor.KeyID, "", "")

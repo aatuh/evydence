@@ -367,6 +367,12 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Evidence.InsertOpenAPIContract(ctx, domain.OpenAPIContract{ID: "oas_repository_target", TenantID: tenant.ID, ProductID: product.ID, ReleaseID: release.ID, Version: "v2", Hash: "sha256:openapi-target", PathCount: 2, Operations: []domain.OpenAPIOperation{}, EvidenceID: evidence.ID, CreatedAt: now}); err != nil {
 		t.Fatalf("insert target OpenAPI contract: %v", err)
 	}
+	if err := repositories.Evidence.InsertSBOM(ctx, domain.SBOM{ID: "sbom_repository_target", TenantID: tenant.ID, EvidenceID: evidence.ID, ReleaseID: release.ID, ArtifactID: artifact.ID, Format: "cyclonedx", SpecVersion: "1.6", ComponentCount: 1, Components: []domain.SBOMComponent{{Name: "target"}}, CreatedAt: now}); err != nil {
+		t.Fatalf("insert target SBOM: %v", err)
+	}
+	if err := repositories.Risk.InsertSBOMDiff(ctx, domain.SBOMDiff{ID: "sbomdiff_repository", TenantID: tenant.ID, BaseSBOMID: "sbom_repository", TargetSBOMID: "sbom_repository_target", ReleaseID: release.ID, AddedComponents: []domain.SBOMComponent{{Name: "target"}}, DependencyChanges: []domain.DependencyChange{{ID: "depchange_repository", TenantID: tenant.ID, SBOMDiffID: "sbomdiff_repository", ChangeType: "added", Component: domain.SBOMComponent{Name: "target"}, SchemaVersion: domain.DependencyChangeSchemaVersion, CreatedAt: now}}, SchemaVersion: domain.SBOMDiffSchemaVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert SBOM diff: %v", err)
+	}
 	if err := repositories.Risk.InsertContractDiff(ctx, domain.ContractDiff{ID: "contractdiff_repository", TenantID: tenant.ID, BaseContractID: "oas_repository", TargetContractID: "oas_repository_target", ProductID: product.ID, ReleaseID: release.ID, Result: "changed", BreakingChanges: []string{}, NonBreakingChanges: []string{"path added"}, SchemaVersion: domain.ContractDiffSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert contract diff: %v", err)
 	}
@@ -683,6 +689,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"custom policy", repositories.Risk.InsertCustomPolicy(ctx, domain.CustomPolicy{})},
 		{"custom policy evaluation", repositories.Risk.InsertCustomPolicyEvaluation(ctx, domain.CustomPolicyEvaluation{})},
 		{"contract diff", repositories.Risk.InsertContractDiff(ctx, domain.ContractDiff{})},
+		{"SBOM diff", repositories.Risk.InsertSBOMDiff(ctx, domain.SBOMDiff{})},
 		{"HTML report package", repositories.Packages.InsertHTMLReportPackage(ctx, domain.HTMLReportPackage{})},
 		{"custom report template", repositories.Packages.InsertCustomReportTemplate(ctx, domain.CustomReportTemplate{})},
 		{"rendered custom report", repositories.Packages.InsertRenderedCustomReport(ctx, domain.RenderedCustomReport{})},

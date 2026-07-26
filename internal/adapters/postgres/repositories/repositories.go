@@ -1861,6 +1861,46 @@ func (r risk) InsertContractDiff(ctx context.Context, diff domain.ContractDiff) 
 	return writeError("insert contract diff", err)
 }
 
+func (r risk) InsertSBOMDiff(ctx context.Context, diff domain.SBOMDiff) error {
+	if diff.ID == "" || diff.TenantID == "" || diff.BaseSBOMID == "" || diff.TargetSBOMID == "" || diff.SchemaVersion == "" || diff.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, diff.TenantID); err != nil {
+		return err
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM sboms WHERE id = $1 AND tenant_id = $2`, diff.BaseSBOMID, diff.TenantID); err != nil {
+		return err
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM sboms WHERE id = $1 AND tenant_id = $2`, diff.TargetSBOMID, diff.TenantID); err != nil {
+		return err
+	}
+	if err := requireOptionalRelease(ctx, r.tx, diff.TenantID, diff.ReleaseID); err != nil {
+		return err
+	}
+	for _, change := range diff.DependencyChanges {
+		if change.ID == "" || change.TenantID != diff.TenantID || change.SBOMDiffID != diff.ID || (change.ChangeType != "added" && change.ChangeType != "removed") || change.Component.Name == "" || change.SchemaVersion == "" || change.CreatedAt.IsZero() {
+			return app.ErrValidation
+		}
+	}
+	document, err := json.Marshal(diff)
+	if err != nil {
+		return fmt.Errorf("encode sbom diff document: %w", err)
+	}
+	if _, err := r.tx.Exec(ctx, `INSERT INTO sbom_diffs (id, tenant_id, base_sbom_id, target_sbom_id, release_id, document, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`, diff.ID, diff.TenantID, diff.BaseSBOMID, diff.TargetSBOMID, nullableString(diff.ReleaseID), document, diff.SchemaVersion, diff.CreatedAt); err != nil {
+		return writeError("insert sbom diff", err)
+	}
+	for _, change := range diff.DependencyChanges {
+		component, err := json.Marshal(change.Component)
+		if err != nil {
+			return fmt.Errorf("encode dependency change component: %w", err)
+		}
+		if _, err := r.tx.Exec(ctx, `INSERT INTO dependency_changes (id, tenant_id, sbom_diff_id, change_type, component, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`, change.ID, change.TenantID, change.SBOMDiffID, change.ChangeType, component, change.SchemaVersion, change.CreatedAt); err != nil {
+			return writeError("insert dependency change", err)
+		}
+	}
+	return nil
+}
+
 type signatures struct{ tx pgx.Tx }
 
 func (r signatures) InsertSigningKey(ctx context.Context, key domain.SigningKey) error {
