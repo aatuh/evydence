@@ -1715,6 +1715,53 @@ func (r signatures) InsertSignature(ctx context.Context, signature domain.Signat
 
 type integrity struct{ tx pgx.Tx }
 
+func (r integrity) InsertCosignVerification(ctx context.Context, verification domain.CosignVerification) error {
+	if verification.ID == "" || verification.TenantID == "" || verification.ArtifactID == "" || verification.ArtifactSignatureID == "" || verification.SubjectDigest == "" || verification.Result == "" || verification.Checks == nil || verification.SchemaVersion == "" || verification.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, verification.TenantID); err != nil {
+		return err
+	}
+	var signatureArtifactID, signatureDigest string
+	if err := r.tx.QueryRow(ctx, `SELECT artifact_id, subject_digest FROM artifact_signatures WHERE id = $1 AND tenant_id = $2`, verification.ArtifactSignatureID, verification.TenantID).Scan(&signatureArtifactID, &signatureDigest); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return app.ErrNotFound
+		}
+		return writeError("read Cosign artifact signature", err)
+	}
+	if signatureArtifactID != verification.ArtifactID || signatureDigest != verification.SubjectDigest {
+		return app.ErrValidation
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM artifacts WHERE id = $1 AND tenant_id = $2 AND digest = $3`, verification.ArtifactID, verification.TenantID, verification.SubjectDigest); err != nil {
+		return err
+	}
+	if verification.ContainerImageID != "" {
+		if err := requireRow(ctx, r.tx, `SELECT 1 FROM container_images WHERE id = $1 AND tenant_id = $2 AND artifact_id = $3 AND digest = $4`, verification.ContainerImageID, verification.TenantID, verification.ArtifactID, verification.SubjectDigest); err != nil {
+			return err
+		}
+	}
+	checks, err := json.Marshal(verification.Checks)
+	if err != nil {
+		return fmt.Errorf("encode Cosign verification checks: %w", err)
+	}
+	profile, err := json.Marshal(domain.NormalizeVerificationProfile(verification.Profile))
+	if err != nil {
+		return fmt.Errorf("encode Cosign verification profile: %w", err)
+	}
+	_, err = r.tx.Exec(ctx, `
+		INSERT INTO cosign_verifications (
+			id, tenant_id, artifact_id, container_image_id, artifact_signature_id,
+			subject_digest, rekor_uuid, rekor_log_index, certificate_identity,
+			certificate_issuer, result, checks, assurance_profile, limitations,
+			schema_version, created_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+	`, verification.ID, verification.TenantID, verification.ArtifactID, nullableString(verification.ContainerImageID), verification.ArtifactSignatureID,
+		verification.SubjectDigest, nullableString(verification.RekorUUID), nullableString(verification.RekorLogIndex), nullableString(verification.CertificateIdentity),
+		nullableString(verification.CertificateIssuer), verification.Result, checks, profile, textArray(verification.Limitations), verification.SchemaVersion, verification.CreatedAt)
+	return writeError("insert Cosign verification", err)
+}
+
 func (r integrity) InsertSigningProvider(ctx context.Context, provider domain.SigningProvider) error {
 	if provider.ID == "" || provider.TenantID == "" || provider.Name == "" || !validSigningProviderType(provider.Type) || provider.Status == "" || provider.KeyRef == "" || provider.SchemaVersion == "" || provider.CreatedAt.IsZero() {
 		return app.ErrValidation

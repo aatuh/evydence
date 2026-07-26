@@ -121,8 +121,35 @@ func (l *Ledger) VerifyCosignSignature(ctx context.Context, actor domain.Actor, 
 		SchemaVersion:       domain.CosignVerificationSchemaVersion,
 		CreatedAt:           l.now(),
 	}
+	verification := verificationResult(record.ID, actor.TenantID, "artifact_signature", sig.ID, checks, profile, record.CreatedAt)
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Integrity.InsertCosignVerification(ctx, record); err != nil {
+				return err
+			}
+			if err := repos.Verification.InsertVerificationResult(ctx, verification); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(record.CreatedAt, actor.TenantID, "cosign_signature.verified", "artifact_signature", sig.ID, actorType(actor), actorID(actor), sig.SubjectDigest, ""))
+			return err
+		}); err != nil {
+			return domain.CosignVerification{}, err
+		}
+		l.cosignVerifs[record.ID] = record
+		l.verifications[record.ID] = verification
+		l.publishCommittedAuditEntryLocked(entry)
+		if verificationReturnsFailure(result) {
+			return record, ErrVerificationFailed
+		}
+		if in.RequireFullVerification {
+			return record, ErrFullVerificationUnavailable
+		}
+		return record, nil
+	}
 	l.cosignVerifs[record.ID] = record
-	l.verifications[record.ID] = verificationResult(record.ID, actor.TenantID, "artifact_signature", sig.ID, checks, profile, record.CreatedAt)
+	l.verifications[record.ID] = verification
 	_, _ = l.appendChainLocked(actor.TenantID, "cosign_signature.verified", "artifact_signature", sig.ID, actorType(actor), actorID(actor), sig.SubjectDigest, "")
 	if err := l.persistLocked(ctx); err != nil {
 		return domain.CosignVerification{}, err

@@ -383,6 +383,9 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Integrity.InsertSigningProvider(ctx, domain.SigningProvider{ID: "provider_repository", TenantID: tenant.ID, Name: "Repository KMS", Type: "aws_kms", Status: "active", KeyRef: "arn:aws:kms:example", Encrypted: true, SchemaVersion: domain.SigningProviderSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert signing provider: %v", err)
 	}
+	if err := repositories.Integrity.InsertCosignVerification(ctx, domain.CosignVerification{ID: "cosign_repository", TenantID: tenant.ID, ArtifactID: artifact.ID, ContainerImageID: "img_repository", ArtifactSignatureID: "artsig_repository_port", SubjectDigest: artifact.Digest, Result: "limited", Checks: []domain.VerifyCheck{{Name: "recorded", Result: "passed"}}, SchemaVersion: domain.CosignVerificationSchemaVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert Cosign verification: %v", err)
+	}
 	if err := repositories.Integrity.InsertSigningProvider(ctx, domain.SigningProvider{ID: "provider_repository_secret", TenantID: tenant.ID, Name: "Secret native provider", Type: "native_pkcs11_hsm", Status: "active", KeyRef: "pkcs11:token=release;object=key;pin-value=secret", Encrypted: true, SchemaVersion: domain.SigningProviderSchemaVersion, CreatedAt: now}); !errors.Is(err, app.ErrValidation) {
 		t.Fatalf("secret-bearing signing provider err=%v, want validation", err)
 	}
@@ -512,6 +515,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"signing key update", repositories.Signatures.UpdateSigningKey(ctx, domain.SigningKey{}, "")},
 		{"signature", repositories.Signatures.InsertSignature(ctx, domain.Signature{})},
 		{"signing provider", repositories.Integrity.InsertSigningProvider(ctx, domain.SigningProvider{})},
+		{"Cosign verification", repositories.Integrity.InsertCosignVerification(ctx, domain.CosignVerification{})},
 		{"object retention policy", repositories.Integrity.InsertObjectRetentionPolicy(ctx, domain.ObjectRetentionPolicy{})},
 		{"object retention policy update", repositories.Integrity.UpdateObjectRetentionPolicy(ctx, domain.ObjectRetentionPolicy{}, "")},
 		{"backup manifest", repositories.Integrity.InsertBackupManifest(ctx, domain.BackupManifest{})},
@@ -542,6 +546,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"OpenAPI product", repositories.Evidence.InsertOpenAPIContract(ctx, domain.OpenAPIContract{ID: "missing-contract", TenantID: "ten_repository_a", ProductID: "missing-product", EvidenceID: "missing-evidence", Version: "v1", Hash: "sha256:missing", CreatedAt: now}), app.ErrNotFound},
 		{"VEX evidence", repositories.Evidence.InsertVEXDocument(ctx, domain.VEXDocument{ID: "missing-vex", TenantID: "ten_repository_a", EvidenceID: "missing-evidence", ReleaseID: "missing-release", Format: "openvex", SchemaVersion: domain.VEXDocumentSchemaVersion, CreatedAt: now}), app.ErrNotFound},
 		{"VEX report", repositories.Evidence.InsertVEXImportReport(ctx, domain.VEXImportReport{ID: "missing-vex-report", TenantID: "ten_repository_a", VEXDocumentID: "missing-vex", EvidenceID: "missing-evidence", ParserVersion: app.ParserVersionOpenVEXJSON, Status: "parsed", SchemaVersion: domain.VEXImportReportSchemaVersion, CreatedAt: now, UpdatedAt: now}), app.ErrNotFound},
+		{"Cosign signature", repositories.Integrity.InsertCosignVerification(ctx, domain.CosignVerification{ID: "cosign_missing_signature", TenantID: "ten_repository_a", ArtifactID: "missing-artifact", ArtifactSignatureID: "missing-signature", SubjectDigest: "sha256:missing", Result: "limited", Checks: []domain.VerifyCheck{}, SchemaVersion: domain.CosignVerificationSchemaVersion, CreatedAt: now}), app.ErrNotFound},
 		{"transparency checkpoint batch", repositories.Integrity.InsertTransparencyCheckpoint(ctx, domain.TransparencyCheckpoint{ID: "checkpoint_missing_batch", TenantID: "ten_repository_a", BatchID: "missing-batch", Provider: "rfc3161", ExternalID: "checkpoint", TimestampHash: "sha256:checkpoint", State: "recorded", SchemaVersion: domain.TransparencyCheckpointVersion, CreatedAt: now}), app.ErrNotFound},
 		{"policy evaluation release", repositories.Verification.InsertPolicyEvaluation(ctx, domain.PolicyEvaluation{ID: "policy_missing_release", TenantID: "ten_repository_a", ReleaseID: "missing-release", Result: "passed", PolicySet: domain.PolicySetVersion, CreatedAt: now}), app.ErrNotFound},
 	}
@@ -561,6 +566,9 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 	evidenceA := domain.EvidenceItem{ID: "evi_repository_a", TenantID: "ten_repository_a", ProductID: "prod_repository_a", ReleaseID: releaseA.ID, Type: "note", Title: "A evidence", SourceSystem: "test", ObservedAt: now, SchemaVersion: domain.EvidenceItemSchemaVersion, PayloadHash: "sha256:evidence-a", CanonicalHash: "sha256:evidence-a", Canonicalization: domain.CanonicalizationProfileVersion, TrustLevel: "untrusted", VerificationStatus: "not_verified", CreatedAt: now}
 	if err := repositories.Evidence.InsertEvidence(ctx, evidenceA); err != nil {
 		t.Fatalf("insert tenant A evidence: %v", err)
+	}
+	if err := repositories.SupplyChain.InsertArtifactSignature(ctx, domain.ArtifactSignature{ID: "artsig_repository_a", TenantID: "ten_repository_a", ArtifactID: artifactA.ID, SubjectDigest: artifactA.Digest, Algorithm: "cosign", Signature: "signature", VerificationStatus: "recorded", SchemaVersion: domain.ArtifactSignatureSchemaVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert tenant A artifact signature: %v", err)
 	}
 	merkleBatchA := domain.MerkleBatch{ID: "merkle_repository_a", TenantID: "ten_repository_a", FromSequence: 1, ToSequence: 1, EntryCount: 1, LeafHashes: []string{"sha256:leaf-a"}, RootHash: "sha256:root-a", SchemaVersion: domain.MerkleBatchSchemaVersion, CreatedAt: now}
 	if err := repositories.Integrity.InsertMerkleBatch(ctx, merkleBatchA); err != nil {
@@ -624,6 +632,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"scan evidence", repositories.Evidence.InsertVulnerabilityScan(ctx, domain.VulnerabilityScan{ID: "scan_repository_b", TenantID: "ten_repository_b", EvidenceID: evidenceA.ID, ReleaseID: releaseA.ID, Scanner: "test", TargetRef: "target", CreatedAt: now})},
 		{"OpenAPI product", repositories.Evidence.InsertOpenAPIContract(ctx, domain.OpenAPIContract{ID: "oas_repository_b", TenantID: "ten_repository_b", ProductID: "prod_repository_a", ReleaseID: releaseA.ID, Version: "v1", Hash: "sha256:openapi-b", EvidenceID: evidenceA.ID, CreatedAt: now})},
 		{"VEX evidence", repositories.Evidence.InsertVEXDocument(ctx, domain.VEXDocument{ID: "vex_repository_b", TenantID: "ten_repository_b", EvidenceID: evidenceA.ID, ReleaseID: releaseA.ID, ArtifactID: artifactA.ID, Format: "openvex", SchemaVersion: domain.VEXDocumentSchemaVersion, CreatedAt: now})},
+		{"Cosign signature", repositories.Integrity.InsertCosignVerification(ctx, domain.CosignVerification{ID: "cosign_repository_b", TenantID: "ten_repository_b", ArtifactID: artifactA.ID, ArtifactSignatureID: "artsig_repository_a", SubjectDigest: artifactA.Digest, Result: "limited", Checks: []domain.VerifyCheck{}, SchemaVersion: domain.CosignVerificationSchemaVersion, CreatedAt: now})},
 		{"transparency checkpoint batch", repositories.Integrity.InsertTransparencyCheckpoint(ctx, domain.TransparencyCheckpoint{ID: "checkpoint_repository_b", TenantID: "ten_repository_b", BatchID: merkleBatchA.ID, Provider: "rfc3161", ExternalID: "checkpoint", TimestampHash: "sha256:checkpoint-b", State: "recorded", SchemaVersion: domain.TransparencyCheckpointVersion, CreatedAt: now})},
 		{"decision scan", repositories.Decisions.SupersedeAndInsert(ctx, domain.VulnerabilityDecision{ID: "dec_repository_b", TenantID: "ten_repository_b", FindingID: "finding-b", ScanID: "scan_repository_b", ReleaseID: releaseA.ID, Vulnerability: "CVE-2026-0001", Status: "not_affected", Justification: "test", Source: "test", SchemaVersion: domain.VulnerabilityDecisionVersion, CreatedAt: now}, nil)},
 		{"policy evaluation release", repositories.Verification.InsertPolicyEvaluation(ctx, domain.PolicyEvaluation{ID: "policy_repository_b", TenantID: "ten_repository_b", ReleaseID: releaseA.ID, Result: "passed", PolicySet: domain.PolicySetVersion, CreatedAt: now})},

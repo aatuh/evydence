@@ -196,8 +196,17 @@ func TestMemoryUnitOfWorkCommitsEveryFocusedRepository(t *testing.T) {
 	if err := repositories.ReleaseCatalog.InsertRelease(context.Background(), release); err != nil {
 		t.Fatalf("insert release: %v", err)
 	}
-	if err := repositories.ReleaseCatalog.InsertArtifact(context.Background(), domain.Artifact{ID: "art_all_repositories", TenantID: tenant.ID, Name: "all.tgz", MediaType: "application/gzip", Digest: "sha256:all", Size: 1, CreatedAt: now}); err != nil {
+	artifact := domain.Artifact{ID: "art_all_repositories", TenantID: tenant.ID, Name: "all.tgz", MediaType: "application/gzip", Digest: "sha256:all", Size: 1, CreatedAt: now}
+	if err := repositories.ReleaseCatalog.InsertArtifact(context.Background(), artifact); err != nil {
 		t.Fatalf("insert artifact: %v", err)
+	}
+	image := domain.ContainerImage{ID: "image_all_repositories", TenantID: tenant.ID, ArtifactID: artifact.ID, Repository: "registry.example.test/all", Digest: artifact.Digest, SchemaVersion: domain.ContainerImageSchemaVersion, CreatedAt: now}
+	if err := repositories.SupplyChain.InsertContainerImage(context.Background(), image); err != nil {
+		t.Fatalf("insert container image: %v", err)
+	}
+	artifactSignature := domain.ArtifactSignature{ID: "artifact_signature_all_repositories", TenantID: tenant.ID, ArtifactID: artifact.ID, SubjectDigest: artifact.Digest, Algorithm: "cosign", Signature: "signature", VerificationStatus: "recorded", SchemaVersion: domain.ArtifactSignatureSchemaVersion, CreatedAt: now}
+	if err := repositories.SupplyChain.InsertArtifactSignature(context.Background(), artifactSignature); err != nil {
+		t.Fatalf("insert artifact signature: %v", err)
 	}
 	evidence := domain.EvidenceItem{ID: "evi_all_repositories", TenantID: tenant.ID, ProductID: product.ID, ProjectID: project.ID, ReleaseID: release.ID, Type: "sbom", Title: "All SBOM", PayloadHash: "sha256:payload", CanonicalHash: "sha256:canonical", CreatedAt: now, Metadata: map[string]any{"source": "test"}}
 	if err := repositories.Evidence.InsertEvidence(context.Background(), evidence); err != nil {
@@ -227,6 +236,9 @@ func TestMemoryUnitOfWorkCommitsEveryFocusedRepository(t *testing.T) {
 	}
 	if err := repositories.Integrity.InsertSigningProvider(context.Background(), domain.SigningProvider{ID: "provider_all_repositories", TenantID: tenant.ID, Name: "All repositories KMS", Type: "aws_kms", Status: "active", KeyRef: "arn:aws:kms:example", Encrypted: true, SchemaVersion: domain.SigningProviderSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert signing provider: %v", err)
+	}
+	if err := repositories.Integrity.InsertCosignVerification(context.Background(), domain.CosignVerification{ID: "cosign_all_repositories", TenantID: tenant.ID, ArtifactID: artifact.ID, ContainerImageID: image.ID, ArtifactSignatureID: artifactSignature.ID, SubjectDigest: artifact.Digest, Result: "limited", Checks: []domain.VerifyCheck{{Name: "recorded", Result: "passed"}}, SchemaVersion: domain.CosignVerificationSchemaVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert Cosign verification: %v", err)
 	}
 	retentionPolicy := domain.ObjectRetentionPolicy{ID: "retention_all_repositories", TenantID: tenant.ID, Name: "All repository retention", ObjectPrefix: "tenants/" + tenant.ID + "/", ObjectKey: "tenants/" + tenant.ID + "/raw/evidence.json", Mode: "governance", RetentionDays: 30, MaxVerificationAgeHours: 24, Status: "configured", SchemaVersion: domain.ObjectRetentionPolicyVersion, CreatedAt: now}
 	if err := repositories.Integrity.InsertObjectRetentionPolicy(context.Background(), retentionPolicy); err != nil {
@@ -265,7 +277,7 @@ func TestMemoryUnitOfWorkCommitsEveryFocusedRepository(t *testing.T) {
 	if err != nil {
 		t.Fatalf("snapshot: %v", err)
 	}
-	if len(snapshot.APIKeys) != 1 || len(snapshot.Projects) != 1 || len(snapshot.Releases) != 1 || len(snapshot.Artifacts) != 1 || len(snapshot.Evidence) != 1 || len(snapshot.EvidenceLifecycle) != 1 || len(snapshot.Decisions) != 1 || len(snapshot.AuditEntries[tenant.ID]) != 1 || len(snapshot.Idempotency) != 1 || len(snapshot.OutboxJobs) != 1 || len(snapshot.ReleaseBundles) != 1 || len(snapshot.SigningKeys) != 1 || len(snapshot.Signatures) != 1 || len(snapshot.SigningProviders) != 1 || len(snapshot.ObjectRetentionPolicies) != 1 || len(snapshot.BackupManifests) != 1 || len(snapshot.MerkleBatches) != 1 || len(snapshot.TransparencyCheckpoints) != 1 || len(snapshot.VerificationResults) != 1 || len(snapshot.PolicyEvaluations) != 1 {
+	if len(snapshot.APIKeys) != 1 || len(snapshot.Projects) != 1 || len(snapshot.Releases) != 1 || len(snapshot.Artifacts) != 1 || len(snapshot.ContainerImages) != 1 || len(snapshot.ArtifactSignatures) != 1 || len(snapshot.Evidence) != 1 || len(snapshot.EvidenceLifecycle) != 1 || len(snapshot.Decisions) != 1 || len(snapshot.AuditEntries[tenant.ID]) != 1 || len(snapshot.Idempotency) != 1 || len(snapshot.OutboxJobs) != 1 || len(snapshot.ReleaseBundles) != 1 || len(snapshot.SigningKeys) != 1 || len(snapshot.Signatures) != 1 || len(snapshot.SigningProviders) != 1 || len(snapshot.CosignVerifications) != 1 || len(snapshot.ObjectRetentionPolicies) != 1 || len(snapshot.BackupManifests) != 1 || len(snapshot.MerkleBatches) != 1 || len(snapshot.TransparencyCheckpoints) != 1 || len(snapshot.VerificationResults) != 1 || len(snapshot.PolicyEvaluations) != 1 {
 		t.Fatalf("focused repositories did not commit together: %#v", snapshot)
 	}
 }
@@ -298,6 +310,7 @@ func TestMemoryUnitOfWorkRejectsInvalidFocusedRepositoryRecords(t *testing.T) {
 		{"signing key update", repositories.Signatures.UpdateSigningKey(context.Background(), domain.SigningKey{}, "")},
 		{"signature", repositories.Signatures.InsertSignature(context.Background(), domain.Signature{})},
 		{"signing provider", repositories.Integrity.InsertSigningProvider(context.Background(), domain.SigningProvider{})},
+		{"Cosign verification", repositories.Integrity.InsertCosignVerification(context.Background(), domain.CosignVerification{})},
 		{"object retention policy", repositories.Integrity.InsertObjectRetentionPolicy(context.Background(), domain.ObjectRetentionPolicy{})},
 		{"object retention policy update", repositories.Integrity.UpdateObjectRetentionPolicy(context.Background(), domain.ObjectRetentionPolicy{}, "")},
 		{"backup manifest", repositories.Integrity.InsertBackupManifest(context.Background(), domain.BackupManifest{})},

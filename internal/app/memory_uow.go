@@ -74,6 +74,7 @@ type MemoryUnitOfWorkSnapshot struct {
 	SigningKeys             map[string]domain.SigningKey
 	Signatures              map[string]domain.Signature
 	SigningProviders        map[string]domain.SigningProvider
+	CosignVerifications     map[string]domain.CosignVerification
 	ObjectRetentionPolicies map[string]domain.ObjectRetentionPolicy
 	BackupManifests         map[string]domain.BackupManifest
 	MerkleBatches           map[string]domain.MerkleBatch
@@ -1904,6 +1905,42 @@ func (r memorySignatureRepository) InsertSignature(ctx context.Context, signatur
 
 type memoryIntegrityRepository struct{ uow *memoryUnitOfWork }
 
+func (r memoryIntegrityRepository) InsertCosignVerification(ctx context.Context, verification domain.CosignVerification) error {
+	cloned, err := cloneMemoryJSON(verification)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.ArtifactID == "" || cloned.ArtifactSignatureID == "" || cloned.SubjectDigest == "" || cloned.Result == "" || cloned.Checks == nil || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.ArtifactID, cloned.TenantID, state.Artifacts) || !memoryResourceBelongsToTenant(cloned.ArtifactSignatureID, cloned.TenantID, state.ArtifactSignatures) {
+			return ErrNotFound
+		}
+		signature := state.ArtifactSignatures[cloned.ArtifactSignatureID]
+		if signature.ArtifactID != cloned.ArtifactID || signature.SubjectDigest != cloned.SubjectDigest {
+			return ErrValidation
+		}
+		if cloned.ContainerImageID != "" {
+			if !memoryResourceBelongsToTenant(cloned.ContainerImageID, cloned.TenantID, state.ContainerImages) {
+				return ErrNotFound
+			}
+			image := state.ContainerImages[cloned.ContainerImageID]
+			if image.ArtifactID != cloned.ArtifactID || image.Digest != cloned.SubjectDigest {
+				return ErrValidation
+			}
+		}
+		if _, exists := state.CosignVerifications[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.CosignVerifications[cloned.ID] = cloned
+		return nil
+	})
+}
+
 func (r memoryIntegrityRepository) InsertSigningProvider(ctx context.Context, provider domain.SigningProvider) error {
 	cloned, err := cloneMemoryJSON(provider)
 	if err != nil {
@@ -2139,6 +2176,7 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		SigningKeys:             map[string]domain.SigningKey{},
 		Signatures:              map[string]domain.Signature{},
 		SigningProviders:        map[string]domain.SigningProvider{},
+		CosignVerifications:     map[string]domain.CosignVerification{},
 		ObjectRetentionPolicies: map[string]domain.ObjectRetentionPolicy{},
 		BackupManifests:         map[string]domain.BackupManifest{},
 		MerkleBatches:           map[string]domain.MerkleBatch{},
@@ -2313,6 +2351,9 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 	if cloned.SigningProviders, err = cloneMemoryMap(snapshot.SigningProviders); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
+	if cloned.CosignVerifications, err = cloneMemoryMap(snapshot.CosignVerifications); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
 	if cloned.ObjectRetentionPolicies, err = cloneMemoryMap(snapshot.ObjectRetentionPolicies); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
@@ -2420,6 +2461,10 @@ func memoryResourceTenantID(resource any) string {
 	case domain.Release:
 		return value.TenantID
 	case domain.Artifact:
+		return value.TenantID
+	case domain.ArtifactSignature:
+		return value.TenantID
+	case domain.ContainerImage:
 		return value.TenantID
 	case domain.EvidenceItem:
 		return value.TenantID

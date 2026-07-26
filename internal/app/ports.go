@@ -229,6 +229,7 @@ type SignatureRepository interface {
 }
 
 type IntegrityRepository interface {
+	InsertCosignVerification(context.Context, domain.CosignVerification) error
 	InsertSigningProvider(context.Context, domain.SigningProvider) error
 	InsertObjectRetentionPolicy(context.Context, domain.ObjectRetentionPolicy) error
 	UpdateObjectRetentionPolicy(context.Context, domain.ObjectRetentionPolicy, string) error
