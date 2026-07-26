@@ -23,65 +23,66 @@ type MemoryUnitOfWorkFactory struct {
 // It is intended for deterministic tests and must not be used as a production
 // persistence contract.
 type MemoryUnitOfWorkSnapshot struct {
-	Tenants                 map[string]domain.Tenant
-	APIKeys                 map[string]domain.APIKey
-	Collectors              map[string]domain.Collector
-	Organizations           map[string]domain.Organization
-	Users                   map[string]domain.HumanUser
-	RoleBindings            map[string]domain.RoleBinding
-	SSOProviders            map[string]domain.SSOProvider
-	IdentityLinks           map[string]domain.UserIdentityLink
-	ProviderVerifications   map[string]domain.ProviderVerification
-	SSOSessions             map[string]domain.SSOSession
-	CustomerPortalAccess    map[string]domain.CustomerPortalAccess
-	Products                map[string]domain.Product
-	Projects                map[string]domain.Project
-	Releases                map[string]domain.Release
-	Artifacts               map[string]domain.Artifact
-	Evidence                map[string]domain.EvidenceItem
-	EvidenceLifecycle       map[string]domain.EvidenceLifecycleEvent
-	SBOMs                   map[string]domain.SBOM
-	VulnerabilityScans      map[string]domain.VulnerabilityScan
-	OpenAPIContracts        map[string]domain.OpenAPIContract
-	VEXDocuments            map[string]domain.VEXDocument
-	VEXImportReports        map[string]domain.VEXImportReport
-	ReleaseCandidates       map[string]domain.ReleaseCandidate
-	Decisions               map[string]domain.VulnerabilityDecision
-	Exceptions              map[string]domain.Exception
-	BuildRuns               map[string]domain.BuildRun
-	BuildAttestations       map[string]domain.BuildAttestation
-	CollectorReleases       map[string]domain.CollectorRelease
-	ContainerImages         map[string]domain.ContainerImage
-	ArtifactSignatures      map[string]domain.ArtifactSignature
-	SourceRepositories      map[string]domain.SourceRepository
-	SourceCommits           map[string]domain.SourceCommit
-	SourceBranches          map[string]domain.SourceBranch
-	PullRequests            map[string]domain.PullRequest
-	DeploymentEnvironments  map[string]domain.DeploymentEnvironment
-	DeploymentEvents        map[string]domain.DeploymentEvent
-	ControlFrameworks       map[string]domain.ControlFramework
-	SecurityControls        map[string]domain.SecurityControl
-	ControlEvidence         map[string]domain.ControlEvidence
-	Waivers                 map[string]domain.Waiver
-	Approvals               map[string]domain.ApprovalRecord
-	RedactionProfiles       map[string]domain.RedactionProfile
-	LegalHolds              map[string]domain.LegalHold
-	RetentionOverrides      map[string]domain.RetentionOverride
-	AuditEntries            map[string][]domain.AuditChainEntry
-	Idempotency             map[IdempotencyRecordKey]IdempotencyRecord
-	OutboxJobs              map[string]OutboxJob
-	ReleaseBundles          map[string]domain.ReleaseBundle
-	SigningKeys             map[string]domain.SigningKey
-	Signatures              map[string]domain.Signature
-	SigningProviders        map[string]domain.SigningProvider
-	CosignVerifications     map[string]domain.CosignVerification
-	ObjectRetentionPolicies map[string]domain.ObjectRetentionPolicy
-	BackupManifests         map[string]domain.BackupManifest
-	MerkleBatches           map[string]domain.MerkleBatch
-	TransparencyCheckpoints map[string]domain.TransparencyCheckpoint
-	VerificationResults     map[string]domain.VerificationResult
-	PolicyEvaluations       map[string]domain.PolicyEvaluation
-	PublicTransparencyLogs  map[string]domain.PublicTransparencyLog
+	Tenants                   map[string]domain.Tenant
+	APIKeys                   map[string]domain.APIKey
+	Collectors                map[string]domain.Collector
+	Organizations             map[string]domain.Organization
+	Users                     map[string]domain.HumanUser
+	RoleBindings              map[string]domain.RoleBinding
+	SSOProviders              map[string]domain.SSOProvider
+	IdentityLinks             map[string]domain.UserIdentityLink
+	ProviderVerifications     map[string]domain.ProviderVerification
+	SSOSessions               map[string]domain.SSOSession
+	CustomerPortalAccess      map[string]domain.CustomerPortalAccess
+	Products                  map[string]domain.Product
+	Projects                  map[string]domain.Project
+	Releases                  map[string]domain.Release
+	Artifacts                 map[string]domain.Artifact
+	Evidence                  map[string]domain.EvidenceItem
+	EvidenceLifecycle         map[string]domain.EvidenceLifecycleEvent
+	SBOMs                     map[string]domain.SBOM
+	VulnerabilityScans        map[string]domain.VulnerabilityScan
+	OpenAPIContracts          map[string]domain.OpenAPIContract
+	VEXDocuments              map[string]domain.VEXDocument
+	VEXImportReports          map[string]domain.VEXImportReport
+	ReleaseCandidates         map[string]domain.ReleaseCandidate
+	Decisions                 map[string]domain.VulnerabilityDecision
+	Exceptions                map[string]domain.Exception
+	BuildRuns                 map[string]domain.BuildRun
+	BuildAttestations         map[string]domain.BuildAttestation
+	CollectorReleases         map[string]domain.CollectorRelease
+	ContainerImages           map[string]domain.ContainerImage
+	ArtifactSignatures        map[string]domain.ArtifactSignature
+	SourceRepositories        map[string]domain.SourceRepository
+	SourceCommits             map[string]domain.SourceCommit
+	SourceBranches            map[string]domain.SourceBranch
+	PullRequests              map[string]domain.PullRequest
+	DeploymentEnvironments    map[string]domain.DeploymentEnvironment
+	DeploymentEvents          map[string]domain.DeploymentEvent
+	ControlFrameworks         map[string]domain.ControlFramework
+	SecurityControls          map[string]domain.SecurityControl
+	ControlEvidence           map[string]domain.ControlEvidence
+	Waivers                   map[string]domain.Waiver
+	Approvals                 map[string]domain.ApprovalRecord
+	RedactionProfiles         map[string]domain.RedactionProfile
+	LegalHolds                map[string]domain.LegalHold
+	RetentionOverrides        map[string]domain.RetentionOverride
+	AuditEntries              map[string][]domain.AuditChainEntry
+	Idempotency               map[IdempotencyRecordKey]IdempotencyRecord
+	OutboxJobs                map[string]OutboxJob
+	ReleaseBundles            map[string]domain.ReleaseBundle
+	SigningKeys               map[string]domain.SigningKey
+	Signatures                map[string]domain.Signature
+	SigningProviders          map[string]domain.SigningProvider
+	CosignVerifications       map[string]domain.CosignVerification
+	ObjectRetentionPolicies   map[string]domain.ObjectRetentionPolicy
+	BackupManifests           map[string]domain.BackupManifest
+	MerkleBatches             map[string]domain.MerkleBatch
+	TransparencyCheckpoints   map[string]domain.TransparencyCheckpoint
+	VerificationResults       map[string]domain.VerificationResult
+	PolicyEvaluations         map[string]domain.PolicyEvaluation
+	PublicTransparencyLogs    map[string]domain.PublicTransparencyLog
+	PublicTransparencyEntries map[string]domain.PublicTransparencyLogEntry
 }
 
 func NewMemoryUnitOfWorkFactory() *MemoryUnitOfWorkFactory {
@@ -2147,67 +2148,94 @@ func (r memoryFutureExtensionsRepository) InsertPublicTransparencyLog(ctx contex
 	})
 }
 
+func (r memoryFutureExtensionsRepository) InsertPublicTransparencyLogEntry(ctx context.Context, entry domain.PublicTransparencyLogEntry) error {
+	cloned, err := cloneMemoryJSON(entry)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.LogID == "" || cloned.CheckpointID == "" || cloned.MerkleBatchID == "" || cloned.ExternalID == "" || cloned.EntryHash == "" || cloned.State != "published" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.LogID, cloned.TenantID, state.PublicTransparencyLogs) || !memoryResourceBelongsToTenant(cloned.CheckpointID, cloned.TenantID, state.TransparencyCheckpoints) || !memoryResourceBelongsToTenant(cloned.MerkleBatchID, cloned.TenantID, state.MerkleBatches) {
+			return ErrNotFound
+		}
+		if state.TransparencyCheckpoints[cloned.CheckpointID].BatchID != cloned.MerkleBatchID {
+			return ErrValidation
+		}
+		if _, exists := state.PublicTransparencyEntries[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.PublicTransparencyEntries[cloned.ID] = cloned
+		return nil
+	})
+}
+
 func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 	return MemoryUnitOfWorkSnapshot{
-		Tenants:                 map[string]domain.Tenant{},
-		APIKeys:                 map[string]domain.APIKey{},
-		Collectors:              map[string]domain.Collector{},
-		Organizations:           map[string]domain.Organization{},
-		Users:                   map[string]domain.HumanUser{},
-		RoleBindings:            map[string]domain.RoleBinding{},
-		SSOProviders:            map[string]domain.SSOProvider{},
-		IdentityLinks:           map[string]domain.UserIdentityLink{},
-		ProviderVerifications:   map[string]domain.ProviderVerification{},
-		SSOSessions:             map[string]domain.SSOSession{},
-		CustomerPortalAccess:    map[string]domain.CustomerPortalAccess{},
-		Products:                map[string]domain.Product{},
-		Projects:                map[string]domain.Project{},
-		Releases:                map[string]domain.Release{},
-		Artifacts:               map[string]domain.Artifact{},
-		Evidence:                map[string]domain.EvidenceItem{},
-		EvidenceLifecycle:       map[string]domain.EvidenceLifecycleEvent{},
-		SBOMs:                   map[string]domain.SBOM{},
-		VulnerabilityScans:      map[string]domain.VulnerabilityScan{},
-		OpenAPIContracts:        map[string]domain.OpenAPIContract{},
-		VEXDocuments:            map[string]domain.VEXDocument{},
-		VEXImportReports:        map[string]domain.VEXImportReport{},
-		ReleaseCandidates:       map[string]domain.ReleaseCandidate{},
-		Decisions:               map[string]domain.VulnerabilityDecision{},
-		Exceptions:              map[string]domain.Exception{},
-		BuildRuns:               map[string]domain.BuildRun{},
-		BuildAttestations:       map[string]domain.BuildAttestation{},
-		CollectorReleases:       map[string]domain.CollectorRelease{},
-		ContainerImages:         map[string]domain.ContainerImage{},
-		ArtifactSignatures:      map[string]domain.ArtifactSignature{},
-		SourceRepositories:      map[string]domain.SourceRepository{},
-		SourceCommits:           map[string]domain.SourceCommit{},
-		SourceBranches:          map[string]domain.SourceBranch{},
-		PullRequests:            map[string]domain.PullRequest{},
-		DeploymentEnvironments:  map[string]domain.DeploymentEnvironment{},
-		DeploymentEvents:        map[string]domain.DeploymentEvent{},
-		ControlFrameworks:       map[string]domain.ControlFramework{},
-		SecurityControls:        map[string]domain.SecurityControl{},
-		ControlEvidence:         map[string]domain.ControlEvidence{},
-		Waivers:                 map[string]domain.Waiver{},
-		Approvals:               map[string]domain.ApprovalRecord{},
-		RedactionProfiles:       map[string]domain.RedactionProfile{},
-		LegalHolds:              map[string]domain.LegalHold{},
-		RetentionOverrides:      map[string]domain.RetentionOverride{},
-		AuditEntries:            map[string][]domain.AuditChainEntry{},
-		Idempotency:             map[IdempotencyRecordKey]IdempotencyRecord{},
-		OutboxJobs:              map[string]OutboxJob{},
-		ReleaseBundles:          map[string]domain.ReleaseBundle{},
-		SigningKeys:             map[string]domain.SigningKey{},
-		Signatures:              map[string]domain.Signature{},
-		SigningProviders:        map[string]domain.SigningProvider{},
-		CosignVerifications:     map[string]domain.CosignVerification{},
-		ObjectRetentionPolicies: map[string]domain.ObjectRetentionPolicy{},
-		BackupManifests:         map[string]domain.BackupManifest{},
-		MerkleBatches:           map[string]domain.MerkleBatch{},
-		TransparencyCheckpoints: map[string]domain.TransparencyCheckpoint{},
-		VerificationResults:     map[string]domain.VerificationResult{},
-		PolicyEvaluations:       map[string]domain.PolicyEvaluation{},
-		PublicTransparencyLogs:  map[string]domain.PublicTransparencyLog{},
+		Tenants:                   map[string]domain.Tenant{},
+		APIKeys:                   map[string]domain.APIKey{},
+		Collectors:                map[string]domain.Collector{},
+		Organizations:             map[string]domain.Organization{},
+		Users:                     map[string]domain.HumanUser{},
+		RoleBindings:              map[string]domain.RoleBinding{},
+		SSOProviders:              map[string]domain.SSOProvider{},
+		IdentityLinks:             map[string]domain.UserIdentityLink{},
+		ProviderVerifications:     map[string]domain.ProviderVerification{},
+		SSOSessions:               map[string]domain.SSOSession{},
+		CustomerPortalAccess:      map[string]domain.CustomerPortalAccess{},
+		Products:                  map[string]domain.Product{},
+		Projects:                  map[string]domain.Project{},
+		Releases:                  map[string]domain.Release{},
+		Artifacts:                 map[string]domain.Artifact{},
+		Evidence:                  map[string]domain.EvidenceItem{},
+		EvidenceLifecycle:         map[string]domain.EvidenceLifecycleEvent{},
+		SBOMs:                     map[string]domain.SBOM{},
+		VulnerabilityScans:        map[string]domain.VulnerabilityScan{},
+		OpenAPIContracts:          map[string]domain.OpenAPIContract{},
+		VEXDocuments:              map[string]domain.VEXDocument{},
+		VEXImportReports:          map[string]domain.VEXImportReport{},
+		ReleaseCandidates:         map[string]domain.ReleaseCandidate{},
+		Decisions:                 map[string]domain.VulnerabilityDecision{},
+		Exceptions:                map[string]domain.Exception{},
+		BuildRuns:                 map[string]domain.BuildRun{},
+		BuildAttestations:         map[string]domain.BuildAttestation{},
+		CollectorReleases:         map[string]domain.CollectorRelease{},
+		ContainerImages:           map[string]domain.ContainerImage{},
+		ArtifactSignatures:        map[string]domain.ArtifactSignature{},
+		SourceRepositories:        map[string]domain.SourceRepository{},
+		SourceCommits:             map[string]domain.SourceCommit{},
+		SourceBranches:            map[string]domain.SourceBranch{},
+		PullRequests:              map[string]domain.PullRequest{},
+		DeploymentEnvironments:    map[string]domain.DeploymentEnvironment{},
+		DeploymentEvents:          map[string]domain.DeploymentEvent{},
+		ControlFrameworks:         map[string]domain.ControlFramework{},
+		SecurityControls:          map[string]domain.SecurityControl{},
+		ControlEvidence:           map[string]domain.ControlEvidence{},
+		Waivers:                   map[string]domain.Waiver{},
+		Approvals:                 map[string]domain.ApprovalRecord{},
+		RedactionProfiles:         map[string]domain.RedactionProfile{},
+		LegalHolds:                map[string]domain.LegalHold{},
+		RetentionOverrides:        map[string]domain.RetentionOverride{},
+		AuditEntries:              map[string][]domain.AuditChainEntry{},
+		Idempotency:               map[IdempotencyRecordKey]IdempotencyRecord{},
+		OutboxJobs:                map[string]OutboxJob{},
+		ReleaseBundles:            map[string]domain.ReleaseBundle{},
+		SigningKeys:               map[string]domain.SigningKey{},
+		Signatures:                map[string]domain.Signature{},
+		SigningProviders:          map[string]domain.SigningProvider{},
+		CosignVerifications:       map[string]domain.CosignVerification{},
+		ObjectRetentionPolicies:   map[string]domain.ObjectRetentionPolicy{},
+		BackupManifests:           map[string]domain.BackupManifest{},
+		MerkleBatches:             map[string]domain.MerkleBatch{},
+		TransparencyCheckpoints:   map[string]domain.TransparencyCheckpoint{},
+		VerificationResults:       map[string]domain.VerificationResult{},
+		PolicyEvaluations:         map[string]domain.PolicyEvaluation{},
+		PublicTransparencyLogs:    map[string]domain.PublicTransparencyLog{},
+		PublicTransparencyEntries: map[string]domain.PublicTransparencyLogEntry{},
 	}
 }
 
@@ -2400,6 +2428,9 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 	if cloned.PublicTransparencyLogs, err = cloneMemoryMap(snapshot.PublicTransparencyLogs); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
+	if cloned.PublicTransparencyEntries, err = cloneMemoryMap(snapshot.PublicTransparencyEntries); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
 	return cloned, nil
 }
 
@@ -2513,6 +2544,8 @@ func memoryResourceTenantID(resource any) string {
 	case domain.MerkleBatch:
 		return value.TenantID
 	case domain.TransparencyCheckpoint:
+		return value.TenantID
+	case domain.PublicTransparencyLog:
 		return value.TenantID
 	default:
 		return ""

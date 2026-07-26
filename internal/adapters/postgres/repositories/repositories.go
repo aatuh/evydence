@@ -1948,6 +1948,26 @@ func (r futureExtensions) InsertPublicTransparencyLog(ctx context.Context, log d
 	return writeError("insert public transparency log", err)
 }
 
+func (r futureExtensions) InsertPublicTransparencyLogEntry(ctx context.Context, entry domain.PublicTransparencyLogEntry) error {
+	if entry.ID == "" || entry.TenantID == "" || entry.LogID == "" || entry.CheckpointID == "" || entry.MerkleBatchID == "" || entry.ExternalID == "" || entry.EntryHash == "" || entry.State != "published" || entry.SchemaVersion == "" || entry.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, entry.TenantID); err != nil {
+		return err
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM public_transparency_logs WHERE id = $1 AND tenant_id = $2`, entry.LogID, entry.TenantID); err != nil {
+		return err
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM transparency_checkpoints WHERE id = $1 AND tenant_id = $2 AND batch_id = $3`, entry.CheckpointID, entry.TenantID, entry.MerkleBatchID); err != nil {
+		return err
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM merkle_batches WHERE id = $1 AND tenant_id = $2`, entry.MerkleBatchID, entry.TenantID); err != nil {
+		return err
+	}
+	_, err := r.tx.Exec(ctx, `INSERT INTO public_transparency_log_entries (id, tenant_id, log_id, checkpoint_id, merkle_batch_id, external_id, entry_hash, state, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, entry.ID, entry.TenantID, entry.LogID, entry.CheckpointID, entry.MerkleBatchID, entry.ExternalID, entry.EntryHash, entry.State, entry.SchemaVersion, entry.CreatedAt)
+	return writeError("insert public transparency log entry", err)
+}
+
 func requireTenant(ctx context.Context, tx pgx.Tx, tenantID string) error {
 	if tenantID == "" {
 		return app.ErrValidation

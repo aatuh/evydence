@@ -410,6 +410,22 @@ func (l *Ledger) PublishPublicTransparencyLogEntry(ctx context.Context, actor do
 		return domain.PublicTransparencyLogEntry{}, err
 	}
 	entry := domain.PublicTransparencyLogEntry{ID: newID("pte"), TenantID: actor.TenantID, LogID: logRecord.ID, CheckpointID: checkpoint.ID, MerkleBatchID: batch.ID, ExternalID: externalID, EntryHash: entryHash, State: "published", SchemaVersion: domain.PublicTransparencyEntryVersion, CreatedAt: l.now()}
+	if l.unitOfWork != nil {
+		var auditEntry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Future.InsertPublicTransparencyLogEntry(ctx, entry); err != nil {
+				return err
+			}
+			var err error
+			auditEntry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(entry.CreatedAt, actor.TenantID, "public_transparency_log_entry.published", "public_transparency_log_entry", entry.ID, actorType(actor), actorID(actor), entryHash, ""))
+			return err
+		}); err != nil {
+			return domain.PublicTransparencyLogEntry{}, err
+		}
+		l.publicLogEntries[entry.ID] = entry
+		l.publishCommittedAuditEntryLocked(auditEntry)
+		return entry, nil
+	}
 	l.publicLogEntries[entry.ID] = entry
 	_, _ = l.appendChainLocked(actor.TenantID, "public_transparency_log_entry.published", "public_transparency_log_entry", entry.ID, actorType(actor), actorID(actor), entryHash, "")
 	if err := l.persistLocked(ctx); err != nil {

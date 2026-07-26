@@ -419,6 +419,9 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Integrity.InsertTransparencyCheckpoint(ctx, domain.TransparencyCheckpoint{ID: "checkpoint_repository", TenantID: tenant.ID, BatchID: merkleBatch.ID, Provider: "rfc3161", ExternalID: "checkpoint", TimestampHash: "sha256:checkpoint", State: "recorded", SchemaVersion: domain.TransparencyCheckpointVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert transparency checkpoint: %v", err)
 	}
+	if err := repositories.Future.InsertPublicTransparencyLogEntry(ctx, domain.PublicTransparencyLogEntry{ID: "public_entry_repository", TenantID: tenant.ID, LogID: "public_log_repository", CheckpointID: "checkpoint_repository", MerkleBatchID: merkleBatch.ID, ExternalID: "entry", EntryHash: "sha256:entry", State: "published", SchemaVersion: domain.PublicTransparencyEntryVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert public transparency entry: %v", err)
+	}
 	if err := repositories.Packages.InsertReleaseBundle(ctx, domain.ReleaseBundle{ID: "bundle_repository", TenantID: tenant.ID, ReleaseID: release.ID, State: "generated", Manifest: map[string]any{"release_id": release.ID}, ManifestHash: "sha256:manifest", SignatureRefs: []string{"sig_repository"}, CreatedAt: now}); err != nil {
 		t.Fatalf("insert release bundle: %v", err)
 	}
@@ -528,6 +531,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"Merkle batch", repositories.Integrity.InsertMerkleBatch(ctx, domain.MerkleBatch{})},
 		{"transparency checkpoint", repositories.Integrity.InsertTransparencyCheckpoint(ctx, domain.TransparencyCheckpoint{})},
 		{"public transparency log", repositories.Future.InsertPublicTransparencyLog(ctx, domain.PublicTransparencyLog{})},
+		{"public transparency entry", repositories.Future.InsertPublicTransparencyLogEntry(ctx, domain.PublicTransparencyLogEntry{})},
 		{"verification", repositories.Verification.InsertVerificationResult(ctx, domain.VerificationResult{})},
 		{"policy evaluation", repositories.Verification.InsertPolicyEvaluation(ctx, domain.PolicyEvaluation{})},
 	}
