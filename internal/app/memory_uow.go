@@ -85,6 +85,7 @@ type MemoryUnitOfWorkSnapshot struct {
 	PublicTransparencyEntries map[string]domain.PublicTransparencyLogEntry
 	EvidenceSummaries         map[string]domain.EvidenceSummary
 	EvidenceGraphSnapshots    map[string]domain.EvidenceGraphSnapshot
+	SaaSEditionProfiles       map[string]domain.SaaSEditionProfile
 }
 
 func NewMemoryUnitOfWorkFactory() *MemoryUnitOfWorkFactory {
@@ -2277,6 +2278,29 @@ func (r memoryFutureExtensionsRepository) InsertEvidenceGraphSnapshot(ctx contex
 	})
 }
 
+func (r memoryFutureExtensionsRepository) InsertSaaSEditionProfile(ctx context.Context, profile domain.SaaSEditionProfile) error {
+	cloned, err := cloneMemoryJSON(profile)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.Name == "" || cloned.Region == "" || cloned.AdminTenantID == "" || cloned.IsolationModel == "" || cloned.Status != "proposed" || cloned.ConfigHash == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if _, ok := state.Tenants[cloned.AdminTenantID]; !ok {
+			return ErrNotFound
+		}
+		if _, exists := state.SaaSEditionProfiles[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.SaaSEditionProfiles[cloned.ID] = cloned
+		return nil
+	})
+}
+
 func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 	return MemoryUnitOfWorkSnapshot{
 		Tenants:                   map[string]domain.Tenant{},
@@ -2341,6 +2365,7 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		PublicTransparencyEntries: map[string]domain.PublicTransparencyLogEntry{},
 		EvidenceSummaries:         map[string]domain.EvidenceSummary{},
 		EvidenceGraphSnapshots:    map[string]domain.EvidenceGraphSnapshot{},
+		SaaSEditionProfiles:       map[string]domain.SaaSEditionProfile{},
 	}
 }
 
@@ -2540,6 +2565,9 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.EvidenceGraphSnapshots, err = cloneMemoryMap(snapshot.EvidenceGraphSnapshots); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.SaaSEditionProfiles, err = cloneMemoryMap(snapshot.SaaSEditionProfiles); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	return cloned, nil

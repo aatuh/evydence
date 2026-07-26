@@ -2072,6 +2072,20 @@ func (r futureExtensions) InsertEvidenceGraphSnapshot(ctx context.Context, graph
 	return writeError("insert evidence graph snapshot", err)
 }
 
+func (r futureExtensions) InsertSaaSEditionProfile(ctx context.Context, profile domain.SaaSEditionProfile) error {
+	if profile.ID == "" || profile.TenantID == "" || profile.Name == "" || profile.Region == "" || profile.AdminTenantID == "" || profile.IsolationModel == "" || profile.Status != "proposed" || profile.ConfigHash == "" || profile.SchemaVersion == "" || profile.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, profile.TenantID); err != nil {
+		return err
+	}
+	if err := requireTenant(ctx, r.tx, profile.AdminTenantID); err != nil {
+		return err
+	}
+	_, err := r.tx.Exec(ctx, `INSERT INTO saas_edition_profiles (id, tenant_id, name, region, admin_tenant_id, isolation_model, status, config_hash, limitations, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, profile.ID, profile.TenantID, profile.Name, profile.Region, profile.AdminTenantID, profile.IsolationModel, profile.Status, profile.ConfigHash, textArray(profile.Limitations), profile.SchemaVersion, profile.CreatedAt)
+	return writeError("insert SaaS edition profile", err)
+}
+
 func requireTenant(ctx context.Context, tx pgx.Tx, tenantID string) error {
 	if tenantID == "" {
 		return app.ErrValidation

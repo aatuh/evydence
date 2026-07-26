@@ -250,6 +250,7 @@ type FutureExtensionsRepository interface {
 	UpdatePublicTransparencyLogEntry(context.Context, domain.PublicTransparencyLogEntry, string) error
 	InsertEvidenceSummary(context.Context, domain.EvidenceSummary) error
 	InsertEvidenceGraphSnapshot(context.Context, domain.EvidenceGraphSnapshot) error
+	InsertSaaSEditionProfile(context.Context, domain.SaaSEditionProfile) error
 }
 
 type SigningRequest struct {

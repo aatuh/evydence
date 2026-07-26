@@ -361,6 +361,22 @@ func (l *Ledger) CreateSaaSEditionProfile(ctx context.Context, actor domain.Acto
 		SchemaVersion:  domain.SaaSEditionProfileVersion,
 		CreatedAt:      l.now(),
 	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Future.InsertSaaSEditionProfile(ctx, profile); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(profile.CreatedAt, actor.TenantID, "saas_profile.created", "saas_profile", profile.ID, actorType(actor), actorID(actor), cfgHash, ""))
+			return err
+		}); err != nil {
+			return domain.SaaSEditionProfile{}, err
+		}
+		l.saasProfiles[profile.ID] = profile
+		l.publishCommittedAuditEntryLocked(entry)
+		return profile, nil
+	}
 	l.saasProfiles[profile.ID] = profile
 	_, _ = l.appendChainLocked(actor.TenantID, "saas_profile.created", "saas_profile", profile.ID, actorType(actor), actorID(actor), cfgHash, "")
 	if err := l.persistLocked(ctx); err != nil {

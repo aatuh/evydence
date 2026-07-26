@@ -392,6 +392,9 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Future.InsertEvidenceGraphSnapshot(ctx, domain.EvidenceGraphSnapshot{ID: "graph_repository", TenantID: tenant.ID, ProductID: product.ID, ReleaseID: release.ID, Nodes: []domain.GraphNode{}, Edges: []domain.GraphEdge{}, GraphHash: "sha256:graph", SchemaVersion: domain.EvidenceGraphSnapshotVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert evidence graph snapshot: %v", err)
 	}
+	if err := repositories.Future.InsertSaaSEditionProfile(ctx, domain.SaaSEditionProfile{ID: "saas_repository", TenantID: tenant.ID, Name: "Repository", Region: "eu", AdminTenantID: tenant.ID, IsolationModel: "shared-control-plane", Status: "proposed", ConfigHash: "sha256:config", SchemaVersion: domain.SaaSEditionProfileVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert SaaS edition profile: %v", err)
+	}
 	if err := repositories.Future.InsertPublicTransparencyLog(ctx, domain.PublicTransparencyLog{ID: "public_log_repository_http", TenantID: tenant.ID, Name: "Repository insecure log", Endpoint: "http://transparency.example.test", PublicKey: "public-key", State: "configured", SchemaVersion: domain.PublicTransparencyLogVersion, CreatedAt: now}); !errors.Is(err, app.ErrValidation) {
 		t.Fatalf("insecure public transparency log err=%v, want validation", err)
 	}
@@ -549,6 +552,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"public transparency entry update", repositories.Future.UpdatePublicTransparencyLogEntry(ctx, domain.PublicTransparencyLogEntry{}, "")},
 		{"evidence summary", repositories.Future.InsertEvidenceSummary(ctx, domain.EvidenceSummary{})},
 		{"evidence graph snapshot", repositories.Future.InsertEvidenceGraphSnapshot(ctx, domain.EvidenceGraphSnapshot{})},
+		{"SaaS edition profile", repositories.Future.InsertSaaSEditionProfile(ctx, domain.SaaSEditionProfile{})},
 		{"verification", repositories.Verification.InsertVerificationResult(ctx, domain.VerificationResult{})},
 		{"policy evaluation", repositories.Verification.InsertPolicyEvaluation(ctx, domain.PolicyEvaluation{})},
 	}
