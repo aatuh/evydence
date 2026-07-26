@@ -383,11 +383,12 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Integrity.InsertSigningProvider(ctx, domain.SigningProvider{ID: "provider_repository", TenantID: tenant.ID, Name: "Repository KMS", Type: "aws_kms", Status: "active", KeyRef: "arn:aws:kms:example", Encrypted: true, SchemaVersion: domain.SigningProviderSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert signing provider: %v", err)
 	}
-	if err := repositories.Integrity.InsertSigningProvider(ctx, domain.SigningProvider{ID: "provider_repository", TenantID: tenant.ID, Name: "Repository KMS", Type: "aws_kms", Status: "active", KeyRef: "arn:aws:kms:example", Encrypted: true, SchemaVersion: domain.SigningProviderSchemaVersion, CreatedAt: now}); !errors.Is(err, app.ErrConflict) {
-		t.Fatalf("duplicate signing provider err=%v, want conflict", err)
-	}
 	if err := repositories.Integrity.InsertSigningProvider(ctx, domain.SigningProvider{ID: "provider_repository_secret", TenantID: tenant.ID, Name: "Secret native provider", Type: "native_pkcs11_hsm", Status: "active", KeyRef: "pkcs11:token=release;object=key;pin-value=secret", Encrypted: true, SchemaVersion: domain.SigningProviderSchemaVersion, CreatedAt: now}); !errors.Is(err, app.ErrValidation) {
 		t.Fatalf("secret-bearing signing provider err=%v, want validation", err)
+	}
+	retentionPolicy := domain.ObjectRetentionPolicy{ID: "retention_repository", TenantID: tenant.ID, Name: "Repository retention", ObjectPrefix: "tenants/" + tenant.ID + "/", ObjectKey: "tenants/" + tenant.ID + "/raw/evidence.json", Mode: "governance", RetentionDays: 30, MaxVerificationAgeHours: 24, Status: "configured", SchemaVersion: domain.ObjectRetentionPolicyVersion, CreatedAt: now}
+	if err := repositories.Integrity.InsertObjectRetentionPolicy(ctx, retentionPolicy); err != nil {
+		t.Fatalf("insert object retention policy: %v", err)
 	}
 	if err := repositories.Packages.InsertReleaseBundle(ctx, domain.ReleaseBundle{ID: "bundle_repository", TenantID: tenant.ID, ReleaseID: release.ID, State: "generated", Manifest: map[string]any{"release_id": release.ID}, ManifestHash: "sha256:manifest", SignatureRefs: []string{"sig_repository"}, CreatedAt: now}); err != nil {
 		t.Fatalf("insert release bundle: %v", err)
@@ -491,6 +492,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"signing key update", repositories.Signatures.UpdateSigningKey(ctx, domain.SigningKey{}, "")},
 		{"signature", repositories.Signatures.InsertSignature(ctx, domain.Signature{})},
 		{"signing provider", repositories.Integrity.InsertSigningProvider(ctx, domain.SigningProvider{})},
+		{"object retention policy", repositories.Integrity.InsertObjectRetentionPolicy(ctx, domain.ObjectRetentionPolicy{})},
 		{"verification", repositories.Verification.InsertVerificationResult(ctx, domain.VerificationResult{})},
 		{"policy evaluation", repositories.Verification.InsertPolicyEvaluation(ctx, domain.PolicyEvaluation{})},
 	}

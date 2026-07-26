@@ -1738,6 +1738,29 @@ func (r integrity) InsertSigningProvider(ctx context.Context, provider domain.Si
 	return writeError("insert signing provider", err)
 }
 
+func (r integrity) InsertObjectRetentionPolicy(ctx context.Context, policy domain.ObjectRetentionPolicy) error {
+	if policy.ID == "" || policy.TenantID == "" || policy.Name == "" || policy.ObjectPrefix == "" || (policy.Mode != "governance" && policy.Mode != "compliance") || policy.RetentionDays <= 0 || policy.MaxVerificationAgeHours < 1 || policy.Status != "configured" || policy.SchemaVersion == "" || policy.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	expectedPrefix := "tenants/" + policy.TenantID + "/"
+	if !strings.HasPrefix(policy.ObjectPrefix, expectedPrefix) || (policy.ObjectKey != "" && (!strings.HasPrefix(policy.ObjectKey, expectedPrefix) || !strings.HasPrefix(policy.ObjectKey, policy.ObjectPrefix))) || (policy.RequireLegalHold && policy.ObjectKey == "") {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, policy.TenantID); err != nil {
+		return err
+	}
+	_, err := r.tx.Exec(ctx, `
+		INSERT INTO object_retention_policies (
+			id, tenant_id, name, object_prefix, object_key, require_legal_hold,
+			mode, retention_days, max_verification_age_hours, status,
+			schema_version, created_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+	`, policy.ID, policy.TenantID, policy.Name, policy.ObjectPrefix, policy.ObjectKey, policy.RequireLegalHold,
+		policy.Mode, policy.RetentionDays, policy.MaxVerificationAgeHours, policy.Status, policy.SchemaVersion, policy.CreatedAt)
+	return writeError("insert object retention policy", err)
+}
+
 type verification struct{ tx pgx.Tx }
 
 func (r verification) InsertVerificationResult(ctx context.Context, result domain.VerificationResult) error {

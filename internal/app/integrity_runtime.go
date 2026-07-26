@@ -375,6 +375,22 @@ func (l *Ledger) CreateObjectRetentionPolicy(ctx context.Context, actor domain.A
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	policy := domain.ObjectRetentionPolicy{ID: newID("orp"), TenantID: actor.TenantID, Name: in.Name, ObjectPrefix: in.ObjectPrefix, ObjectKey: in.ObjectKey, RequireLegalHold: in.RequireLegalHold, Mode: in.Mode, RetentionDays: in.RetentionDays, MaxVerificationAgeHours: in.MaxVerificationAgeHours, Status: "configured", SchemaVersion: domain.ObjectRetentionPolicyVersion, CreatedAt: l.now()}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Integrity.InsertObjectRetentionPolicy(ctx, policy); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(policy.CreatedAt, actor.TenantID, "object_retention_policy.created", "object_retention_policy", policy.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.ObjectRetentionPolicy{}, err
+		}
+		l.retentionPolicies[policy.ID] = policy
+		l.publishCommittedAuditEntryLocked(entry)
+		return policy, nil
+	}
 	l.retentionPolicies[policy.ID] = policy
 	_, _ = l.appendChainLocked(actor.TenantID, "object_retention_policy.created", "object_retention_policy", policy.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {
