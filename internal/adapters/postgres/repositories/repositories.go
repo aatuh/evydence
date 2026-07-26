@@ -2003,6 +2003,65 @@ func (r risk) InsertRemediationTask(ctx context.Context, task domain.Remediation
 	return writeError("insert remediation task", err)
 }
 
+func (r risk) InsertSecurityScan(ctx context.Context, scan domain.SecurityScan) error {
+	if scan.ID == "" || scan.TenantID == "" || !validSecurityScanCategoryValue(scan.Category) || scan.Format == "" || scan.Scanner == "" || scan.TargetRef == "" || scan.EvidenceID == "" || !validSHA256Digest(scan.PayloadHash) || scan.FindingCount < 0 || scan.Summary == nil || scan.SchemaVersion == "" || scan.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, scan.TenantID); err != nil {
+		return err
+	}
+	if err := requireOptionalProduct(ctx, r.tx, scan.TenantID, scan.ProductID); err != nil {
+		return err
+	}
+	if scan.ReleaseID != "" {
+		if scan.ProductID != "" {
+			if err := requireRow(ctx, r.tx, `SELECT 1 FROM releases WHERE id = $1 AND tenant_id = $2 AND product_id = $3`, scan.ReleaseID, scan.TenantID, scan.ProductID); err != nil {
+				return err
+			}
+		} else if err := requireOptionalRelease(ctx, r.tx, scan.TenantID, scan.ReleaseID); err != nil {
+			return err
+		}
+	}
+	if err := requireOptionalArtifact(ctx, r.tx, scan.TenantID, scan.ArtifactID); err != nil {
+		return err
+	}
+	if err := requireOwnedEvidence(ctx, r.tx, scan.TenantID, scan.EvidenceID); err != nil {
+		return err
+	}
+	summary, err := json.Marshal(scan.Summary)
+	if err != nil {
+		return fmt.Errorf("encode security scan summary: %w", err)
+	}
+	_, err = r.tx.Exec(ctx, `INSERT INTO security_scans (id, tenant_id, product_id, release_id, artifact_id, category, format, scanner, target_ref, evidence_id, payload_ref, payload_hash, finding_count, summary, redacted, quarantined, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`, scan.ID, scan.TenantID, nullableString(scan.ProductID), nullableString(scan.ReleaseID), nullableString(scan.ArtifactID), scan.Category, scan.Format, scan.Scanner, scan.TargetRef, scan.EvidenceID, nullableString(scan.PayloadRef), scan.PayloadHash, scan.FindingCount, summary, scan.Redacted, scan.Quarantined, scan.SchemaVersion, scan.CreatedAt)
+	return writeError("insert security scan", err)
+}
+
+func (r risk) InsertManualSecurityDocument(ctx context.Context, document domain.ManualSecurityDocument) error {
+	if document.ID == "" || document.TenantID == "" || !validManualSecurityDocumentType(document.DocumentType) || document.Title == "" || !validManualSecurityDocumentSensitivity(document.Sensitivity) || document.EvidenceID == "" || !validSHA256Digest(document.PayloadHash) || document.SchemaVersion == "" || document.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, document.TenantID); err != nil {
+		return err
+	}
+	if err := requireOptionalProduct(ctx, r.tx, document.TenantID, document.ProductID); err != nil {
+		return err
+	}
+	if document.ReleaseID != "" {
+		if document.ProductID != "" {
+			if err := requireRow(ctx, r.tx, `SELECT 1 FROM releases WHERE id = $1 AND tenant_id = $2 AND product_id = $3`, document.ReleaseID, document.TenantID, document.ProductID); err != nil {
+				return err
+			}
+		} else if err := requireOptionalRelease(ctx, r.tx, document.TenantID, document.ReleaseID); err != nil {
+			return err
+		}
+	}
+	if err := requireOwnedEvidence(ctx, r.tx, document.TenantID, document.EvidenceID); err != nil {
+		return err
+	}
+	_, err := r.tx.Exec(ctx, `INSERT INTO manual_security_documents (id, tenant_id, product_id, release_id, document_type, title, sensitivity, evidence_id, payload_ref, payload_hash, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, document.ID, document.TenantID, nullableString(document.ProductID), nullableString(document.ReleaseID), document.DocumentType, document.Title, document.Sensitivity, document.EvidenceID, nullableString(document.PayloadRef), document.PayloadHash, document.SchemaVersion, document.CreatedAt)
+	return writeError("insert manual security document", err)
+}
+
 func (r risk) validateIncidentTimelineEvent(ctx context.Context, event domain.IncidentTimelineEvent) error {
 	if event.ID == "" || event.TenantID == "" || event.IncidentID == "" || event.EventType == "" || event.Summary == "" || event.OccurredAt.IsZero() || event.SchemaVersion == "" || event.CreatedAt.IsZero() {
 		return app.ErrValidation
@@ -3023,6 +3082,33 @@ func validVulnerabilityWorkflowAction(value string) bool {
 func validRiskSeverity(value string) bool {
 	switch value {
 	case "low", "medium", "high", "critical":
+		return true
+	default:
+		return false
+	}
+}
+
+func validSecurityScanCategoryValue(value string) bool {
+	switch value {
+	case "sast", "dast", "secret_scan", "license_scan", "api_security":
+		return true
+	default:
+		return false
+	}
+}
+
+func validManualSecurityDocumentType(value string) bool {
+	switch value {
+	case "threat_model", "security_review", "pen_test_report":
+		return true
+	default:
+		return false
+	}
+}
+
+func validManualSecurityDocumentSensitivity(value string) bool {
+	switch value {
+	case "internal", "confidential", "restricted":
 		return true
 	default:
 		return false

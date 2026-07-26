@@ -85,6 +85,8 @@ type MemoryUnitOfWorkSnapshot struct {
 	IncidentWebhookReceivers  map[string]domain.IncidentWebhookReceiver
 	IncidentWebhookEvents     map[string]domain.IncidentWebhookEvent
 	RemediationTasks          map[string]domain.RemediationTask
+	SecurityScans             map[string]domain.SecurityScan
+	ManualSecurityDocuments   map[string]domain.ManualSecurityDocument
 	HTMLReports               map[string]domain.HTMLReportPackage
 	ReportTemplates           map[string]domain.CustomReportTemplate
 	RenderedReports           map[string]domain.RenderedCustomReport
@@ -1880,6 +1882,64 @@ func (r memoryRiskRepository) InsertRemediationTask(ctx context.Context, task do
 	})
 }
 
+func (r memoryRiskRepository) InsertSecurityScan(ctx context.Context, scan domain.SecurityScan) error {
+	cloned, err := cloneMemoryJSON(scan)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || !validSecurityScanCategory(cloned.Category) || cloned.Format == "" || cloned.Scanner == "" || cloned.TargetRef == "" || cloned.EvidenceID == "" || !validDigest(cloned.PayloadHash) || cloned.FindingCount < 0 || cloned.Summary == nil || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.ProductID, cloned.TenantID, state.Products) || !memoryResourceBelongsToTenant(cloned.ArtifactID, cloned.TenantID, state.Artifacts) || !memoryResourceBelongsToTenant(cloned.EvidenceID, cloned.TenantID, state.Evidence) {
+			return ErrNotFound
+		}
+		if cloned.ReleaseID != "" {
+			release, ok := state.Releases[cloned.ReleaseID]
+			if !ok || release.TenantID != cloned.TenantID || (cloned.ProductID != "" && release.ProductID != cloned.ProductID) {
+				return ErrNotFound
+			}
+		}
+		if _, exists := state.SecurityScans[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.SecurityScans[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryRiskRepository) InsertManualSecurityDocument(ctx context.Context, document domain.ManualSecurityDocument) error {
+	cloned, err := cloneMemoryJSON(document)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || !validManualDocType(cloned.DocumentType) || cloned.Title == "" || !validSensitivity(cloned.Sensitivity) || cloned.EvidenceID == "" || !validDigest(cloned.PayloadHash) || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.ProductID, cloned.TenantID, state.Products) || !memoryResourceBelongsToTenant(cloned.EvidenceID, cloned.TenantID, state.Evidence) {
+			return ErrNotFound
+		}
+		if cloned.ReleaseID != "" {
+			release, ok := state.Releases[cloned.ReleaseID]
+			if !ok || release.TenantID != cloned.TenantID || (cloned.ProductID != "" && release.ProductID != cloned.ProductID) {
+				return ErrNotFound
+			}
+		}
+		if _, exists := state.ManualSecurityDocuments[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.ManualSecurityDocuments[cloned.ID] = cloned
+		return nil
+	})
+}
+
 func validateMemoryIncidentTimelineEvent(state MemoryUnitOfWorkSnapshot, event domain.IncidentTimelineEvent) error {
 	if err := requireMemoryTenant(state, event.TenantID); err != nil {
 		return err
@@ -3256,6 +3316,8 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		IncidentWebhookReceivers:  map[string]domain.IncidentWebhookReceiver{},
 		IncidentWebhookEvents:     map[string]domain.IncidentWebhookEvent{},
 		RemediationTasks:          map[string]domain.RemediationTask{},
+		SecurityScans:             map[string]domain.SecurityScan{},
+		ManualSecurityDocuments:   map[string]domain.ManualSecurityDocument{},
 		HTMLReports:               map[string]domain.HTMLReportPackage{},
 		ReportTemplates:           map[string]domain.CustomReportTemplate{},
 		RenderedReports:           map[string]domain.RenderedCustomReport{},
@@ -3481,6 +3543,12 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.RemediationTasks, err = cloneMemoryMap(snapshot.RemediationTasks); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.SecurityScans, err = cloneMemoryMap(snapshot.SecurityScans); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.ManualSecurityDocuments, err = cloneMemoryMap(snapshot.ManualSecurityDocuments); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.HTMLReports, err = cloneMemoryMap(snapshot.HTMLReports); err != nil {

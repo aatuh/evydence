@@ -695,6 +695,22 @@ func (l *Ledger) uploadSecurityScan(ctx context.Context, actor domain.Actor, in 
 		SchemaVersion: domain.SecurityScanSchemaVersion,
 		CreatedAt:     l.now(),
 	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Risk.InsertSecurityScan(ctx, scan); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(scan.CreatedAt, actor.TenantID, "security_scan.uploaded", "security_scan", scan.ID, actorType(actor), actorID(actor), payloadHash, ""))
+			return err
+		}); err != nil {
+			return domain.SecurityScan{}, err
+		}
+		l.securityScans[scan.ID] = scan
+		l.publishCommittedAuditEntryLocked(entry)
+		return scan, nil
+	}
 	l.securityScans[scan.ID] = scan
 	_, _ = l.appendChainLocked(actor.TenantID, "security_scan.uploaded", "security_scan", scan.ID, actorType(actor), actorID(actor), payloadHash, "")
 	if err := l.persistLocked(ctx); err != nil {
@@ -768,6 +784,22 @@ func (l *Ledger) UploadManualSecurityDocument(ctx context.Context, actor domain.
 		PayloadHash:   payloadHash,
 		SchemaVersion: domain.ManualSecurityDocSchemaVersion,
 		CreatedAt:     l.now(),
+	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Risk.InsertManualSecurityDocument(ctx, doc); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(doc.CreatedAt, actor.TenantID, "manual_security_document.uploaded", "manual_security_document", doc.ID, actorType(actor), actorID(actor), payloadHash, ""))
+			return err
+		}); err != nil {
+			return domain.ManualSecurityDocument{}, err
+		}
+		l.manualDocs[doc.ID] = doc
+		l.publishCommittedAuditEntryLocked(entry)
+		return doc, nil
 	}
 	l.manualDocs[doc.ID] = doc
 	_, _ = l.appendChainLocked(actor.TenantID, "manual_security_document.uploaded", "manual_security_document", doc.ID, actorType(actor), actorID(actor), payloadHash, "")

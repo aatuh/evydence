@@ -322,6 +322,12 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Risk.InsertRemediationTask(ctx, domain.RemediationTask{ID: "task_repository", TenantID: tenant.ID, IncidentID: incident.ID, ReleaseID: release.ID, Title: "Patch", Owner: "security", Status: "open", EvidenceID: evidence.ID, SchemaVersion: domain.RemediationTaskSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert remediation task: %v", err)
 	}
+	if err := repositories.Risk.InsertSecurityScan(ctx, domain.SecurityScan{ID: "security_scan_repository", TenantID: tenant.ID, ProductID: product.ID, ReleaseID: release.ID, ArtifactID: artifact.ID, Category: "sast", Format: "sarif", Scanner: "codeql", TargetRef: "git:main", EvidenceID: evidence.ID, PayloadHash: "sha256:" + strings.Repeat("9", 64), FindingCount: 1, Summary: map[string]int{"high": 1}, SchemaVersion: domain.SecurityScanSchemaVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert security scan: %v", err)
+	}
+	if err := repositories.Risk.InsertManualSecurityDocument(ctx, domain.ManualSecurityDocument{ID: "manual_security_document_repository", TenantID: tenant.ID, ProductID: product.ID, ReleaseID: release.ID, DocumentType: "security_review", Title: "Repository review", Sensitivity: "restricted", EvidenceID: evidence.ID, PayloadHash: "sha256:" + strings.Repeat("a", 64), SchemaVersion: domain.ManualSecurityDocSchemaVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert manual security document: %v", err)
+	}
 	if err := repositories.Governance.InsertDSSETrustRoot(ctx, domain.DSSETrustRoot{ID: "dtr_repository", TenantID: tenant.ID, Name: "Repository root", KeyID: "repository-root", Algorithm: "Ed25519", PublicKey: strings.Repeat("A", 43) + "=", Status: "active", SchemaVersion: domain.DSSETrustRootSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert DSSE trust root: %v", err)
 	}
@@ -719,6 +725,8 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"incident webhook receiver", repositories.Risk.InsertIncidentWebhookReceiver(ctx, domain.IncidentWebhookReceiver{})},
 		{"incident webhook event", repositories.Risk.InsertIncidentWebhookEvent(ctx, domain.IncidentWebhookEvent{}, domain.IncidentTimelineEvent{})},
 		{"remediation task", repositories.Risk.InsertRemediationTask(ctx, domain.RemediationTask{})},
+		{"security scan", repositories.Risk.InsertSecurityScan(ctx, domain.SecurityScan{})},
+		{"manual security document", repositories.Risk.InsertManualSecurityDocument(ctx, domain.ManualSecurityDocument{})},
 		{"HTML report package", repositories.Packages.InsertHTMLReportPackage(ctx, domain.HTMLReportPackage{})},
 		{"custom report template", repositories.Packages.InsertCustomReportTemplate(ctx, domain.CustomReportTemplate{})},
 		{"rendered custom report", repositories.Packages.InsertRenderedCustomReport(ctx, domain.RenderedCustomReport{})},

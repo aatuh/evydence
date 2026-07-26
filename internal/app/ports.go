@@ -243,6 +243,8 @@ type RiskRepository interface {
 	InsertIncidentWebhookReceiver(context.Context, domain.IncidentWebhookReceiver) error
 	InsertIncidentWebhookEvent(context.Context, domain.IncidentWebhookEvent, domain.IncidentTimelineEvent) error
 	InsertRemediationTask(context.Context, domain.RemediationTask) error
+	InsertSecurityScan(context.Context, domain.SecurityScan) error
+	InsertManualSecurityDocument(context.Context, domain.ManualSecurityDocument) error
 }
 
 type SignatureRepository interface {
