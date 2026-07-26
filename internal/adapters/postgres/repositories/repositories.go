@@ -1761,6 +1761,31 @@ func (r integrity) InsertObjectRetentionPolicy(ctx context.Context, policy domai
 	return writeError("insert object retention policy", err)
 }
 
+func (r integrity) InsertBackupManifest(ctx context.Context, manifest domain.BackupManifest) error {
+	if manifest.ID == "" || manifest.TenantID == "" || manifest.StateHash == "" || manifest.ResourceCounts == nil || manifest.ConsistencyChecks == nil || manifest.SchemaVersion == "" || manifest.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, manifest.TenantID); err != nil {
+		return err
+	}
+	counts, err := json.Marshal(manifest.ResourceCounts)
+	if err != nil {
+		return fmt.Errorf("encode backup manifest resource counts: %w", err)
+	}
+	checks, err := json.Marshal(manifest.ConsistencyChecks)
+	if err != nil {
+		return fmt.Errorf("encode backup manifest checks: %w", err)
+	}
+	_, err = r.tx.Exec(ctx, `
+		INSERT INTO backup_manifests (
+			id, tenant_id, state_hash, resource_counts, consistency_checks,
+			limitations, schema_version, created_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	`, manifest.ID, manifest.TenantID, manifest.StateHash, counts, checks, textArray(manifest.Limitations), manifest.SchemaVersion, manifest.CreatedAt)
+	return writeError("insert backup manifest", err)
+}
+
 type verification struct{ tx pgx.Tx }
 
 func (r verification) InsertVerificationResult(ctx context.Context, result domain.VerificationResult) error {

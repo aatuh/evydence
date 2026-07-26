@@ -720,6 +720,22 @@ func (l *Ledger) GenerateBackupManifest(ctx context.Context, actor domain.Actor)
 		SchemaVersion:     domain.BackupManifestSchemaVersion,
 		CreatedAt:         l.now(),
 	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Integrity.InsertBackupManifest(ctx, manifest); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(manifest.CreatedAt, actor.TenantID, "backup_manifest.generated", "backup_manifest", manifest.ID, actorType(actor), actorID(actor), hash, ""))
+			return err
+		}); err != nil {
+			return domain.BackupManifest{}, err
+		}
+		l.backupManifests[manifest.ID] = manifest
+		l.publishCommittedAuditEntryLocked(entry)
+		return manifest, nil
+	}
 	l.backupManifests[manifest.ID] = manifest
 	_, _ = l.appendChainLocked(actor.TenantID, "backup_manifest.generated", "backup_manifest", manifest.ID, actorType(actor), actorID(actor), hash, "")
 	if err := l.persistLocked(ctx); err != nil {

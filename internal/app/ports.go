@@ -231,6 +231,7 @@ type SignatureRepository interface {
 type IntegrityRepository interface {
 	InsertSigningProvider(context.Context, domain.SigningProvider) error
 	InsertObjectRetentionPolicy(context.Context, domain.ObjectRetentionPolicy) error
+	InsertBackupManifest(context.Context, domain.BackupManifest) error
 }
 
 type VerificationRepository interface {

@@ -75,6 +75,7 @@ type MemoryUnitOfWorkSnapshot struct {
 	Signatures              map[string]domain.Signature
 	SigningProviders        map[string]domain.SigningProvider
 	ObjectRetentionPolicies map[string]domain.ObjectRetentionPolicy
+	BackupManifests         map[string]domain.BackupManifest
 	VerificationResults     map[string]domain.VerificationResult
 	PolicyEvaluations       map[string]domain.PolicyEvaluation
 }
@@ -1951,6 +1952,26 @@ func (r memoryIntegrityRepository) InsertObjectRetentionPolicy(ctx context.Conte
 	})
 }
 
+func (r memoryIntegrityRepository) InsertBackupManifest(ctx context.Context, manifest domain.BackupManifest) error {
+	cloned, err := cloneMemoryJSON(manifest)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.StateHash == "" || cloned.ResourceCounts == nil || cloned.ConsistencyChecks == nil || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if _, exists := state.BackupManifests[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.BackupManifests[cloned.ID] = cloned
+		return nil
+	})
+}
+
 type memoryVerificationRepository struct{ uow *memoryUnitOfWork }
 
 func (r memoryVerificationRepository) InsertVerificationResult(ctx context.Context, result domain.VerificationResult) error {
@@ -2050,6 +2071,7 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		Signatures:              map[string]domain.Signature{},
 		SigningProviders:        map[string]domain.SigningProvider{},
 		ObjectRetentionPolicies: map[string]domain.ObjectRetentionPolicy{},
+		BackupManifests:         map[string]domain.BackupManifest{},
 		VerificationResults:     map[string]domain.VerificationResult{},
 		PolicyEvaluations:       map[string]domain.PolicyEvaluation{},
 	}
@@ -2221,6 +2243,9 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.ObjectRetentionPolicies, err = cloneMemoryMap(snapshot.ObjectRetentionPolicies); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.BackupManifests, err = cloneMemoryMap(snapshot.BackupManifests); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.VerificationResults, err = cloneMemoryMap(snapshot.VerificationResults); err != nil {
