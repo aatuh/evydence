@@ -86,6 +86,7 @@ type MemoryUnitOfWorkSnapshot struct {
 	EvidenceSummaries         map[string]domain.EvidenceSummary
 	EvidenceGraphSnapshots    map[string]domain.EvidenceGraphSnapshot
 	SaaSEditionProfiles       map[string]domain.SaaSEditionProfile
+	MarketplaceCollectors     map[string]domain.MarketplaceCollector
 }
 
 func NewMemoryUnitOfWorkFactory() *MemoryUnitOfWorkFactory {
@@ -2301,6 +2302,34 @@ func (r memoryFutureExtensionsRepository) InsertSaaSEditionProfile(ctx context.C
 	})
 }
 
+func (r memoryFutureExtensionsRepository) InsertMarketplaceCollector(ctx context.Context, collector domain.MarketplaceCollector) error {
+	cloned, err := cloneMemoryJSON(collector)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.Name == "" || cloned.Provider == "" || cloned.Version == "" || cloned.Publisher == "" || cloned.ManifestHash == "" || cloned.State != "registered" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.SignatureID, cloned.TenantID, state.Signatures) || !memoryResourceBelongsToTenant(cloned.SBOMID, cloned.TenantID, state.SBOMs) || !memoryResourceBelongsToTenant(cloned.ScanID, cloned.TenantID, state.VulnerabilityScans) {
+			return ErrNotFound
+		}
+		if _, exists := state.MarketplaceCollectors[cloned.ID]; exists {
+			return ErrConflict
+		}
+		for _, existing := range state.MarketplaceCollectors {
+			if existing.TenantID == cloned.TenantID && existing.Provider == cloned.Provider && existing.Name == cloned.Name && existing.Version == cloned.Version {
+				return ErrConflict
+			}
+		}
+		state.MarketplaceCollectors[cloned.ID] = cloned
+		return nil
+	})
+}
+
 func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 	return MemoryUnitOfWorkSnapshot{
 		Tenants:                   map[string]domain.Tenant{},
@@ -2366,6 +2395,7 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		EvidenceSummaries:         map[string]domain.EvidenceSummary{},
 		EvidenceGraphSnapshots:    map[string]domain.EvidenceGraphSnapshot{},
 		SaaSEditionProfiles:       map[string]domain.SaaSEditionProfile{},
+		MarketplaceCollectors:     map[string]domain.MarketplaceCollector{},
 	}
 }
 
@@ -2568,6 +2598,9 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.SaaSEditionProfiles, err = cloneMemoryMap(snapshot.SaaSEditionProfiles); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.MarketplaceCollectors, err = cloneMemoryMap(snapshot.MarketplaceCollectors); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	return cloned, nil

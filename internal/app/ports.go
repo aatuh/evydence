@@ -251,6 +251,7 @@ type FutureExtensionsRepository interface {
 	InsertEvidenceSummary(context.Context, domain.EvidenceSummary) error
 	InsertEvidenceGraphSnapshot(context.Context, domain.EvidenceGraphSnapshot) error
 	InsertSaaSEditionProfile(context.Context, domain.SaaSEditionProfile) error
+	InsertMarketplaceCollector(context.Context, domain.MarketplaceCollector) error
 }
 
 type SigningRequest struct {

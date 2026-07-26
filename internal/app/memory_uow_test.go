@@ -249,6 +249,9 @@ func TestMemoryUnitOfWorkCommitsEveryFocusedRepository(t *testing.T) {
 	if err := repositories.Future.InsertSaaSEditionProfile(context.Background(), domain.SaaSEditionProfile{ID: "saas_all_repositories", TenantID: tenant.ID, Name: "All repositories", Region: "eu", AdminTenantID: tenant.ID, IsolationModel: "shared-control-plane", Status: "proposed", ConfigHash: "sha256:config", SchemaVersion: domain.SaaSEditionProfileVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert SaaS edition profile: %v", err)
 	}
+	if err := repositories.Future.InsertMarketplaceCollector(context.Background(), domain.MarketplaceCollector{ID: "marketplace_all_repositories", TenantID: tenant.ID, Name: "All repositories", Provider: "scanner", Version: "1.0.0", Publisher: "vendor", ManifestHash: "sha256:manifest", State: "registered", SchemaVersion: domain.MarketplaceCollectorVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert marketplace collector: %v", err)
+	}
 	if err := repositories.Integrity.InsertCosignVerification(context.Background(), domain.CosignVerification{ID: "cosign_all_repositories", TenantID: tenant.ID, ArtifactID: artifact.ID, ContainerImageID: image.ID, ArtifactSignatureID: artifactSignature.ID, SubjectDigest: artifact.Digest, Result: "limited", Checks: []domain.VerifyCheck{{Name: "recorded", Result: "passed"}}, SchemaVersion: domain.CosignVerificationSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert Cosign verification: %v", err)
 	}
@@ -296,7 +299,7 @@ func TestMemoryUnitOfWorkCommitsEveryFocusedRepository(t *testing.T) {
 	if err != nil {
 		t.Fatalf("snapshot: %v", err)
 	}
-	if len(snapshot.APIKeys) != 1 || len(snapshot.Projects) != 1 || len(snapshot.Releases) != 1 || len(snapshot.Artifacts) != 1 || len(snapshot.ContainerImages) != 1 || len(snapshot.ArtifactSignatures) != 1 || len(snapshot.Evidence) != 1 || len(snapshot.EvidenceLifecycle) != 1 || len(snapshot.Decisions) != 1 || len(snapshot.AuditEntries[tenant.ID]) != 1 || len(snapshot.Idempotency) != 1 || len(snapshot.OutboxJobs) != 1 || len(snapshot.ReleaseBundles) != 1 || len(snapshot.SigningKeys) != 1 || len(snapshot.Signatures) != 1 || len(snapshot.SigningProviders) != 1 || len(snapshot.CosignVerifications) != 1 || len(snapshot.ObjectRetentionPolicies) != 1 || len(snapshot.BackupManifests) != 1 || len(snapshot.MerkleBatches) != 1 || len(snapshot.TransparencyCheckpoints) != 1 || len(snapshot.VerificationResults) != 1 || len(snapshot.PolicyEvaluations) != 1 || len(snapshot.PublicTransparencyLogs) != 1 || len(snapshot.PublicTransparencyEntries) != 1 || len(snapshot.EvidenceSummaries) != 1 || len(snapshot.EvidenceGraphSnapshots) != 1 || len(snapshot.SaaSEditionProfiles) != 1 {
+	if len(snapshot.APIKeys) != 1 || len(snapshot.Projects) != 1 || len(snapshot.Releases) != 1 || len(snapshot.Artifacts) != 1 || len(snapshot.ContainerImages) != 1 || len(snapshot.ArtifactSignatures) != 1 || len(snapshot.Evidence) != 1 || len(snapshot.EvidenceLifecycle) != 1 || len(snapshot.Decisions) != 1 || len(snapshot.AuditEntries[tenant.ID]) != 1 || len(snapshot.Idempotency) != 1 || len(snapshot.OutboxJobs) != 1 || len(snapshot.ReleaseBundles) != 1 || len(snapshot.SigningKeys) != 1 || len(snapshot.Signatures) != 1 || len(snapshot.SigningProviders) != 1 || len(snapshot.CosignVerifications) != 1 || len(snapshot.ObjectRetentionPolicies) != 1 || len(snapshot.BackupManifests) != 1 || len(snapshot.MerkleBatches) != 1 || len(snapshot.TransparencyCheckpoints) != 1 || len(snapshot.VerificationResults) != 1 || len(snapshot.PolicyEvaluations) != 1 || len(snapshot.PublicTransparencyLogs) != 1 || len(snapshot.PublicTransparencyEntries) != 1 || len(snapshot.EvidenceSummaries) != 1 || len(snapshot.EvidenceGraphSnapshots) != 1 || len(snapshot.SaaSEditionProfiles) != 1 || len(snapshot.MarketplaceCollectors) != 1 {
 		t.Fatalf("focused repositories did not commit together: %#v", snapshot)
 	}
 }
@@ -341,6 +344,7 @@ func TestMemoryUnitOfWorkRejectsInvalidFocusedRepositoryRecords(t *testing.T) {
 		{"evidence summary", repositories.Future.InsertEvidenceSummary(context.Background(), domain.EvidenceSummary{})},
 		{"evidence graph snapshot", repositories.Future.InsertEvidenceGraphSnapshot(context.Background(), domain.EvidenceGraphSnapshot{})},
 		{"SaaS edition profile", repositories.Future.InsertSaaSEditionProfile(context.Background(), domain.SaaSEditionProfile{})},
+		{"marketplace collector", repositories.Future.InsertMarketplaceCollector(context.Background(), domain.MarketplaceCollector{})},
 		{"verification", repositories.Verification.InsertVerificationResult(context.Background(), domain.VerificationResult{})},
 		{"policy evaluation", repositories.Verification.InsertPolicyEvaluation(context.Background(), domain.PolicyEvaluation{})},
 	}

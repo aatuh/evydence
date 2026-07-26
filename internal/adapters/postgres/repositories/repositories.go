@@ -2086,6 +2086,32 @@ func (r futureExtensions) InsertSaaSEditionProfile(ctx context.Context, profile 
 	return writeError("insert SaaS edition profile", err)
 }
 
+func (r futureExtensions) InsertMarketplaceCollector(ctx context.Context, collector domain.MarketplaceCollector) error {
+	if collector.ID == "" || collector.TenantID == "" || collector.Name == "" || collector.Provider == "" || collector.Version == "" || collector.Publisher == "" || collector.ManifestHash == "" || collector.State != "registered" || collector.SchemaVersion == "" || collector.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, collector.TenantID); err != nil {
+		return err
+	}
+	if collector.SignatureID != "" {
+		if err := requireRow(ctx, r.tx, `SELECT 1 FROM signatures WHERE id = $1 AND tenant_id = $2`, collector.SignatureID, collector.TenantID); err != nil {
+			return err
+		}
+	}
+	if collector.SBOMID != "" {
+		if err := requireRow(ctx, r.tx, `SELECT 1 FROM sboms WHERE id = $1 AND tenant_id = $2`, collector.SBOMID, collector.TenantID); err != nil {
+			return err
+		}
+	}
+	if collector.ScanID != "" {
+		if err := requireRow(ctx, r.tx, `SELECT 1 FROM vulnerability_scans WHERE id = $1 AND tenant_id = $2`, collector.ScanID, collector.TenantID); err != nil {
+			return err
+		}
+	}
+	_, err := r.tx.Exec(ctx, `INSERT INTO marketplace_collectors (id, tenant_id, name, provider, version, publisher, manifest_hash, signature_id, sbom_id, scan_id, state, limitations, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`, collector.ID, collector.TenantID, collector.Name, collector.Provider, collector.Version, collector.Publisher, collector.ManifestHash, nullableString(collector.SignatureID), nullableString(collector.SBOMID), nullableString(collector.ScanID), collector.State, textArray(collector.Limitations), collector.SchemaVersion, collector.CreatedAt)
+	return writeError("insert marketplace collector", err)
+}
+
 func requireTenant(ctx context.Context, tx pgx.Tx, tenantID string) error {
 	if tenantID == "" {
 		return app.ErrValidation

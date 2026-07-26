@@ -773,6 +773,22 @@ func (l *Ledger) CreateMarketplaceCollector(ctx context.Context, actor domain.Ac
 		SchemaVersion: domain.MarketplaceCollectorVersion,
 		CreatedAt:     l.now(),
 	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Future.InsertMarketplaceCollector(ctx, collector); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(collector.CreatedAt, actor.TenantID, "marketplace_collector.created", "marketplace_collector", collector.ID, actorType(actor), actorID(actor), collector.ManifestHash, ""))
+			return err
+		}); err != nil {
+			return domain.MarketplaceCollector{}, err
+		}
+		l.marketplaceCollectors[collector.ID] = collector
+		l.publishCommittedAuditEntryLocked(entry)
+		return collector, nil
+	}
 	l.marketplaceCollectors[collector.ID] = collector
 	_, _ = l.appendChainLocked(actor.TenantID, "marketplace_collector.created", "marketplace_collector", collector.ID, actorType(actor), actorID(actor), collector.ManifestHash, "")
 	if err := l.persistLocked(ctx); err != nil {

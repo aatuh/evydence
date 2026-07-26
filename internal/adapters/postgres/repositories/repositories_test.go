@@ -395,6 +395,9 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Future.InsertSaaSEditionProfile(ctx, domain.SaaSEditionProfile{ID: "saas_repository", TenantID: tenant.ID, Name: "Repository", Region: "eu", AdminTenantID: tenant.ID, IsolationModel: "shared-control-plane", Status: "proposed", ConfigHash: "sha256:config", SchemaVersion: domain.SaaSEditionProfileVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert SaaS edition profile: %v", err)
 	}
+	if err := repositories.Future.InsertMarketplaceCollector(ctx, domain.MarketplaceCollector{ID: "marketplace_repository", TenantID: tenant.ID, Name: "Repository", Provider: "scanner", Version: "1.0.0", Publisher: "vendor", ManifestHash: "sha256:manifest", State: "registered", SchemaVersion: domain.MarketplaceCollectorVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert marketplace collector: %v", err)
+	}
 	if err := repositories.Future.InsertPublicTransparencyLog(ctx, domain.PublicTransparencyLog{ID: "public_log_repository_http", TenantID: tenant.ID, Name: "Repository insecure log", Endpoint: "http://transparency.example.test", PublicKey: "public-key", State: "configured", SchemaVersion: domain.PublicTransparencyLogVersion, CreatedAt: now}); !errors.Is(err, app.ErrValidation) {
 		t.Fatalf("insecure public transparency log err=%v, want validation", err)
 	}
@@ -553,6 +556,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"evidence summary", repositories.Future.InsertEvidenceSummary(ctx, domain.EvidenceSummary{})},
 		{"evidence graph snapshot", repositories.Future.InsertEvidenceGraphSnapshot(ctx, domain.EvidenceGraphSnapshot{})},
 		{"SaaS edition profile", repositories.Future.InsertSaaSEditionProfile(ctx, domain.SaaSEditionProfile{})},
+		{"marketplace collector", repositories.Future.InsertMarketplaceCollector(ctx, domain.MarketplaceCollector{})},
 		{"verification", repositories.Verification.InsertVerificationResult(ctx, domain.VerificationResult{})},
 		{"policy evaluation", repositories.Verification.InsertPolicyEvaluation(ctx, domain.PolicyEvaluation{})},
 	}
@@ -580,6 +584,9 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"VEX report", repositories.Evidence.InsertVEXImportReport(ctx, domain.VEXImportReport{ID: "missing-vex-report", TenantID: "ten_repository_a", VEXDocumentID: "missing-vex", EvidenceID: "missing-evidence", ParserVersion: app.ParserVersionOpenVEXJSON, Status: "parsed", SchemaVersion: domain.VEXImportReportSchemaVersion, CreatedAt: now, UpdatedAt: now}), app.ErrNotFound},
 		{"Cosign signature", repositories.Integrity.InsertCosignVerification(ctx, domain.CosignVerification{ID: "cosign_missing_signature", TenantID: "ten_repository_a", ArtifactID: "missing-artifact", ArtifactSignatureID: "missing-signature", SubjectDigest: "sha256:missing", Result: "limited", Checks: []domain.VerifyCheck{}, SchemaVersion: domain.CosignVerificationSchemaVersion, CreatedAt: now}), app.ErrNotFound},
 		{"transparency checkpoint batch", repositories.Integrity.InsertTransparencyCheckpoint(ctx, domain.TransparencyCheckpoint{ID: "checkpoint_missing_batch", TenantID: "ten_repository_a", BatchID: "missing-batch", Provider: "rfc3161", ExternalID: "checkpoint", TimestampHash: "sha256:checkpoint", State: "recorded", SchemaVersion: domain.TransparencyCheckpointVersion, CreatedAt: now}), app.ErrNotFound},
+		{"marketplace collector signature", repositories.Future.InsertMarketplaceCollector(ctx, domain.MarketplaceCollector{ID: "marketplace_missing_signature", TenantID: "ten_repository_a", Name: "Missing signature", Provider: "scanner", Version: "1.0.0", Publisher: "vendor", ManifestHash: "sha256:marketplace", SignatureID: "missing-signature", State: "registered", SchemaVersion: domain.MarketplaceCollectorVersion, CreatedAt: now}), app.ErrNotFound},
+		{"marketplace collector SBOM", repositories.Future.InsertMarketplaceCollector(ctx, domain.MarketplaceCollector{ID: "marketplace_missing_sbom", TenantID: "ten_repository_a", Name: "Missing SBOM", Provider: "scanner", Version: "1.0.0", Publisher: "vendor", ManifestHash: "sha256:marketplace", SBOMID: "missing-sbom", State: "registered", SchemaVersion: domain.MarketplaceCollectorVersion, CreatedAt: now}), app.ErrNotFound},
+		{"marketplace collector scan", repositories.Future.InsertMarketplaceCollector(ctx, domain.MarketplaceCollector{ID: "marketplace_missing_scan", TenantID: "ten_repository_a", Name: "Missing scan", Provider: "scanner", Version: "1.0.0", Publisher: "vendor", ManifestHash: "sha256:marketplace", ScanID: "missing-scan", State: "registered", SchemaVersion: domain.MarketplaceCollectorVersion, CreatedAt: now}), app.ErrNotFound},
 		{"policy evaluation release", repositories.Verification.InsertPolicyEvaluation(ctx, domain.PolicyEvaluation{ID: "policy_missing_release", TenantID: "ten_repository_a", ReleaseID: "missing-release", Result: "passed", PolicySet: domain.PolicySetVersion, CreatedAt: now}), app.ErrNotFound},
 	}
 	for _, check := range missingReferenceChecks {
@@ -598,6 +605,13 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 	evidenceA := domain.EvidenceItem{ID: "evi_repository_a", TenantID: "ten_repository_a", ProductID: "prod_repository_a", ReleaseID: releaseA.ID, Type: "note", Title: "A evidence", SourceSystem: "test", ObservedAt: now, SchemaVersion: domain.EvidenceItemSchemaVersion, PayloadHash: "sha256:evidence-a", CanonicalHash: "sha256:evidence-a", Canonicalization: domain.CanonicalizationProfileVersion, TrustLevel: "untrusted", VerificationStatus: "not_verified", CreatedAt: now}
 	if err := repositories.Evidence.InsertEvidence(ctx, evidenceA); err != nil {
 		t.Fatalf("insert tenant A evidence: %v", err)
+	}
+	signingKeyA := domain.SigningKey{ID: "sigkey_repository_a", TenantID: "ten_repository_a", KID: "a-key", Algorithm: "Ed25519", Status: "active", PublicKey: "public-key", CreatedAt: now}
+	if err := repositories.Signatures.InsertSigningKey(ctx, signingKeyA); err != nil {
+		t.Fatalf("insert tenant A signing key: %v", err)
+	}
+	if err := repositories.Signatures.InsertSignature(ctx, domain.Signature{ID: "sig_repository_a", TenantID: "ten_repository_a", SubjectType: "evidence_item", SubjectID: evidenceA.ID, KeyID: signingKeyA.ID, Algorithm: "Ed25519", Value: "signature", CreatedAt: now}); err != nil {
+		t.Fatalf("insert tenant A signature: %v", err)
 	}
 	if err := repositories.SupplyChain.InsertArtifactSignature(ctx, domain.ArtifactSignature{ID: "artsig_repository_a", TenantID: "ten_repository_a", ArtifactID: artifactA.ID, SubjectDigest: artifactA.Digest, Algorithm: "cosign", Signature: "signature", VerificationStatus: "recorded", SchemaVersion: domain.ArtifactSignatureSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert tenant A artifact signature: %v", err)
@@ -666,6 +680,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"VEX evidence", repositories.Evidence.InsertVEXDocument(ctx, domain.VEXDocument{ID: "vex_repository_b", TenantID: "ten_repository_b", EvidenceID: evidenceA.ID, ReleaseID: releaseA.ID, ArtifactID: artifactA.ID, Format: "openvex", SchemaVersion: domain.VEXDocumentSchemaVersion, CreatedAt: now})},
 		{"Cosign signature", repositories.Integrity.InsertCosignVerification(ctx, domain.CosignVerification{ID: "cosign_repository_b", TenantID: "ten_repository_b", ArtifactID: artifactA.ID, ArtifactSignatureID: "artsig_repository_a", SubjectDigest: artifactA.Digest, Result: "limited", Checks: []domain.VerifyCheck{}, SchemaVersion: domain.CosignVerificationSchemaVersion, CreatedAt: now})},
 		{"transparency checkpoint batch", repositories.Integrity.InsertTransparencyCheckpoint(ctx, domain.TransparencyCheckpoint{ID: "checkpoint_repository_b", TenantID: "ten_repository_b", BatchID: merkleBatchA.ID, Provider: "rfc3161", ExternalID: "checkpoint", TimestampHash: "sha256:checkpoint-b", State: "recorded", SchemaVersion: domain.TransparencyCheckpointVersion, CreatedAt: now})},
+		{"marketplace collector signature", repositories.Future.InsertMarketplaceCollector(ctx, domain.MarketplaceCollector{ID: "marketplace_repository_b", TenantID: "ten_repository_b", Name: "Foreign signature", Provider: "scanner", Version: "1.0.0", Publisher: "vendor", ManifestHash: "sha256:marketplace-b", SignatureID: "sig_repository_a", State: "registered", SchemaVersion: domain.MarketplaceCollectorVersion, CreatedAt: now})},
 		{"decision scan", repositories.Decisions.SupersedeAndInsert(ctx, domain.VulnerabilityDecision{ID: "dec_repository_b", TenantID: "ten_repository_b", FindingID: "finding-b", ScanID: "scan_repository_b", ReleaseID: releaseA.ID, Vulnerability: "CVE-2026-0001", Status: "not_affected", Justification: "test", Source: "test", SchemaVersion: domain.VulnerabilityDecisionVersion, CreatedAt: now}, nil)},
 		{"policy evaluation release", repositories.Verification.InsertPolicyEvaluation(ctx, domain.PolicyEvaluation{ID: "policy_repository_b", TenantID: "ten_repository_b", ReleaseID: releaseA.ID, Result: "passed", PolicySet: domain.PolicySetVersion, CreatedAt: now})},
 	}
