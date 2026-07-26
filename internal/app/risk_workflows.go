@@ -155,6 +155,22 @@ func (l *Ledger) CreateIncident(ctx context.Context, actor domain.Actor, in Crea
 		SchemaVersion: domain.IncidentSchemaVersion,
 		CreatedAt:     l.now(),
 	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Risk.InsertIncident(ctx, incident); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(incident.CreatedAt, actor.TenantID, "incident.created", "incident", incident.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.Incident{}, err
+		}
+		l.incidents[incident.ID] = incident
+		l.publishCommittedAuditEntryLocked(entry)
+		return incident, nil
+	}
 	l.incidents[incident.ID] = incident
 	_, _ = l.appendChainLocked(actor.TenantID, "incident.created", "incident", incident.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {
@@ -206,6 +222,22 @@ func (l *Ledger) RecordIncidentTimelineEvent(ctx context.Context, actor domain.A
 		SchemaVersion: domain.IncidentTimelineSchemaVersion,
 		CreatedAt:     l.now(),
 	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Risk.InsertIncidentTimelineEvent(ctx, event); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(event.CreatedAt, actor.TenantID, "incident.timeline_recorded", "incident", incident.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.IncidentTimelineEvent{}, err
+		}
+		l.timeline[event.ID] = event
+		l.publishCommittedAuditEntryLocked(entry)
+		return event, nil
+	}
 	l.timeline[event.ID] = event
 	_, _ = l.appendChainLocked(actor.TenantID, "incident.timeline_recorded", "incident", incident.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {
@@ -248,6 +280,22 @@ func (l *Ledger) CreateIncidentWebhookReceiver(ctx context.Context, actor domain
 		Status:        "active",
 		SchemaVersion: domain.IncidentWebhookReceiverVersion,
 		CreatedAt:     l.now(),
+	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Risk.InsertIncidentWebhookReceiver(ctx, receiver); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(receiver.CreatedAt, actor.TenantID, "incident_webhook_receiver.created", "incident_webhook_receiver", receiver.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.IncidentWebhookReceiver{}, err
+		}
+		l.webhookReceivers[receiver.ID] = receiver
+		l.publishCommittedAuditEntryLocked(entry)
+		return receiver, nil
 	}
 	l.webhookReceivers[receiver.ID] = receiver
 	_, _ = l.appendChainLocked(actor.TenantID, "incident_webhook_receiver.created", "incident_webhook_receiver", receiver.ID, actorType(actor), actorID(actor), "", "")
@@ -358,6 +406,23 @@ func (l *Ledger) HandleIncidentWebhook(ctx context.Context, in HandleIncidentWeb
 		SchemaVersion:   domain.IncidentWebhookEventVersion,
 		CreatedAt:       now,
 	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Risk.InsertIncidentWebhookEvent(ctx, record, timeline); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(record.CreatedAt, receiver.TenantID, "incident.webhook_timeline_recorded", "incident", incident.ID, "webhook", receiver.ID, payloadHash, ""))
+			return err
+		}); err != nil {
+			return domain.IncidentWebhookEvent{}, domain.IncidentTimelineEvent{}, err
+		}
+		l.timeline[timeline.ID] = timeline
+		l.webhookEvents[record.ID] = record
+		l.publishCommittedAuditEntryLocked(entry)
+		return record, timeline, nil
+	}
 	l.timeline[timeline.ID] = timeline
 	l.webhookEvents[record.ID] = record
 	_, _ = l.appendChainLocked(receiver.TenantID, "incident.webhook_timeline_recorded", "incident", incident.ID, "webhook", receiver.ID, payloadHash, "")
@@ -450,6 +515,22 @@ func (l *Ledger) CreateRemediationTask(ctx context.Context, actor domain.Actor, 
 		EvidenceID:    strings.TrimSpace(in.EvidenceID),
 		SchemaVersion: domain.RemediationTaskSchemaVersion,
 		CreatedAt:     l.now(),
+	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Risk.InsertRemediationTask(ctx, task); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(task.CreatedAt, actor.TenantID, "remediation_task.created", "remediation_task", task.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.RemediationTask{}, err
+		}
+		l.tasks[task.ID] = task
+		l.publishCommittedAuditEntryLocked(entry)
+		return task, nil
 	}
 	l.tasks[task.ID] = task
 	_, _ = l.appendChainLocked(actor.TenantID, "remediation_task.created", "remediation_task", task.ID, actorType(actor), actorID(actor), "", "")

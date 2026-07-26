@@ -1918,6 +1918,104 @@ func (r risk) InsertVulnerabilityWorkflow(ctx context.Context, record domain.Vul
 	return writeError("insert vulnerability workflow", err)
 }
 
+func (r risk) InsertIncident(ctx context.Context, incident domain.Incident) error {
+	if incident.ID == "" || incident.TenantID == "" || incident.ProductID == "" || incident.Title == "" || !validRiskSeverity(incident.Severity) || incident.Status != "open" || incident.OpenedAt.IsZero() || incident.SchemaVersion == "" || incident.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, incident.TenantID); err != nil {
+		return err
+	}
+	if err := requireOptionalProduct(ctx, r.tx, incident.TenantID, incident.ProductID); err != nil {
+		return err
+	}
+	if incident.ReleaseID != "" {
+		if err := requireRow(ctx, r.tx, `SELECT 1 FROM releases WHERE id = $1 AND tenant_id = $2 AND product_id = $3`, incident.ReleaseID, incident.TenantID, incident.ProductID); err != nil {
+			return err
+		}
+	}
+	_, err := r.tx.Exec(ctx, `INSERT INTO incidents (id, tenant_id, product_id, release_id, title, severity, status, opened_at, closed_at, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, incident.ID, incident.TenantID, incident.ProductID, nullableString(incident.ReleaseID), incident.Title, incident.Severity, incident.Status, incident.OpenedAt, incident.ClosedAt, incident.SchemaVersion, incident.CreatedAt)
+	return writeError("insert incident", err)
+}
+
+func (r risk) InsertIncidentTimelineEvent(ctx context.Context, event domain.IncidentTimelineEvent) error {
+	if err := r.validateIncidentTimelineEvent(ctx, event); err != nil {
+		return err
+	}
+	_, err := r.tx.Exec(ctx, `INSERT INTO incident_timeline_events (id, tenant_id, incident_id, event_type, summary, evidence_id, occurred_at, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, event.ID, event.TenantID, event.IncidentID, event.EventType, event.Summary, nullableString(event.EvidenceID), event.OccurredAt, event.SchemaVersion, event.CreatedAt)
+	return writeError("insert incident timeline event", err)
+}
+
+func (r risk) InsertIncidentWebhookReceiver(ctx context.Context, receiver domain.IncidentWebhookReceiver) error {
+	if receiver.ID == "" || receiver.TenantID == "" || receiver.IncidentID == "" || receiver.Name == "" || receiver.Provider == "" || receiver.PublicKey == "" || receiver.Status != "active" || receiver.SchemaVersion == "" || receiver.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	publicKey, err := base64.RawStdEncoding.DecodeString(receiver.PublicKey)
+	if err != nil || len(publicKey) != ed25519.PublicKeySize {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, receiver.TenantID); err != nil {
+		return err
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM incidents WHERE id = $1 AND tenant_id = $2`, receiver.IncidentID, receiver.TenantID); err != nil {
+		return err
+	}
+	_, err = r.tx.Exec(ctx, `INSERT INTO incident_webhook_receivers (id, tenant_id, incident_id, name, provider, public_key, status, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, receiver.ID, receiver.TenantID, receiver.IncidentID, receiver.Name, receiver.Provider, receiver.PublicKey, receiver.Status, receiver.SchemaVersion, receiver.CreatedAt)
+	return writeError("insert incident webhook receiver", err)
+}
+
+func (r risk) InsertIncidentWebhookEvent(ctx context.Context, record domain.IncidentWebhookEvent, timeline domain.IncidentTimelineEvent) error {
+	if record.ID == "" || record.TenantID == "" || record.ReceiverID == "" || record.IncidentID == "" || record.Provider == "" || record.EventID == "" || !validSHA256Digest(record.PayloadHash) || !validSHA256Digest(record.SignatureHash) || record.TimelineEventID != timeline.ID || record.Result != "accepted" || record.SchemaVersion == "" || record.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := r.validateIncidentTimelineEvent(ctx, timeline); err != nil {
+		return err
+	}
+	if timeline.TenantID != record.TenantID || timeline.IncidentID != record.IncidentID {
+		return app.ErrValidation
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM incident_webhook_receivers WHERE id = $1 AND tenant_id = $2 AND incident_id = $3 AND provider = $4 AND status = 'active'`, record.ReceiverID, record.TenantID, record.IncidentID, record.Provider); err != nil {
+		return err
+	}
+	if _, err := r.tx.Exec(ctx, `INSERT INTO incident_timeline_events (id, tenant_id, incident_id, event_type, summary, evidence_id, occurred_at, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, timeline.ID, timeline.TenantID, timeline.IncidentID, timeline.EventType, timeline.Summary, nullableString(timeline.EvidenceID), timeline.OccurredAt, timeline.SchemaVersion, timeline.CreatedAt); err != nil {
+		return writeError("insert webhook incident timeline event", err)
+	}
+	_, err := r.tx.Exec(ctx, `INSERT INTO incident_webhook_events (id, tenant_id, receiver_id, incident_id, provider, event_id, payload_hash, signature_hash, timeline_event_id, result, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, record.ID, record.TenantID, record.ReceiverID, record.IncidentID, record.Provider, record.EventID, record.PayloadHash, record.SignatureHash, record.TimelineEventID, record.Result, record.SchemaVersion, record.CreatedAt)
+	return writeError("insert incident webhook event", err)
+}
+
+func (r risk) InsertRemediationTask(ctx context.Context, task domain.RemediationTask) error {
+	if task.ID == "" || task.TenantID == "" || (task.IncidentID == "" && task.ReleaseID == "") || task.Title == "" || task.Owner == "" || task.Status != "open" || task.SchemaVersion == "" || task.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, task.TenantID); err != nil {
+		return err
+	}
+	if err := requireOptionalIncident(ctx, r.tx, task.TenantID, task.IncidentID); err != nil {
+		return err
+	}
+	if err := requireOptionalRelease(ctx, r.tx, task.TenantID, task.ReleaseID); err != nil {
+		return err
+	}
+	if err := requireOptionalOwnedEvidence(ctx, r.tx, task.TenantID, task.EvidenceID); err != nil {
+		return err
+	}
+	_, err := r.tx.Exec(ctx, `INSERT INTO remediation_tasks (id, tenant_id, incident_id, release_id, title, owner, status, due_at, evidence_id, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, task.ID, task.TenantID, nullableString(task.IncidentID), nullableString(task.ReleaseID), task.Title, task.Owner, task.Status, task.DueAt, nullableString(task.EvidenceID), task.SchemaVersion, task.CreatedAt)
+	return writeError("insert remediation task", err)
+}
+
+func (r risk) validateIncidentTimelineEvent(ctx context.Context, event domain.IncidentTimelineEvent) error {
+	if event.ID == "" || event.TenantID == "" || event.IncidentID == "" || event.EventType == "" || event.Summary == "" || event.OccurredAt.IsZero() || event.SchemaVersion == "" || event.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, event.TenantID); err != nil {
+		return err
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM incidents WHERE id = $1 AND tenant_id = $2`, event.IncidentID, event.TenantID); err != nil {
+		return err
+	}
+	return requireOptionalOwnedEvidence(ctx, r.tx, event.TenantID, event.EvidenceID)
+}
+
 type signatures struct{ tx pgx.Tx }
 
 func (r signatures) InsertSigningKey(ctx context.Context, key domain.SigningKey) error {
@@ -2846,6 +2944,13 @@ func requireOptionalRelease(ctx context.Context, tx pgx.Tx, tenantID, releaseID 
 	return requireRow(ctx, tx, `SELECT 1 FROM releases WHERE id = $1 AND tenant_id = $2`, releaseID, tenantID)
 }
 
+func requireOptionalIncident(ctx context.Context, tx pgx.Tx, tenantID, incidentID string) error {
+	if incidentID == "" {
+		return nil
+	}
+	return requireRow(ctx, tx, `SELECT 1 FROM incidents WHERE id = $1 AND tenant_id = $2`, incidentID, tenantID)
+}
+
 func requireOptionalArtifact(ctx context.Context, tx pgx.Tx, tenantID, artifactID string) error {
 	if artifactID == "" {
 		return nil
@@ -2909,6 +3014,15 @@ func validContractDiffResult(value string) bool {
 func validVulnerabilityWorkflowAction(value string) bool {
 	switch value {
 	case "scanner_metadata", "sla_set", "scanner_disagreement", "superseded", "reopened":
+		return true
+	default:
+		return false
+	}
+}
+
+func validRiskSeverity(value string) bool {
+	switch value {
+	case "low", "medium", "high", "critical":
 		return true
 	default:
 		return false

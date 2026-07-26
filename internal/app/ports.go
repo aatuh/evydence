@@ -238,6 +238,11 @@ type RiskRepository interface {
 	InsertContractDiff(context.Context, domain.ContractDiff) error
 	InsertSBOMDiff(context.Context, domain.SBOMDiff) error
 	InsertVulnerabilityWorkflow(context.Context, domain.VulnerabilityWorkflowRecord) error
+	InsertIncident(context.Context, domain.Incident) error
+	InsertIncidentTimelineEvent(context.Context, domain.IncidentTimelineEvent) error
+	InsertIncidentWebhookReceiver(context.Context, domain.IncidentWebhookReceiver) error
+	InsertIncidentWebhookEvent(context.Context, domain.IncidentWebhookEvent, domain.IncidentTimelineEvent) error
+	InsertRemediationTask(context.Context, domain.RemediationTask) error
 }
 
 type SignatureRepository interface {

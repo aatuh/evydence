@@ -80,6 +80,11 @@ type MemoryUnitOfWorkSnapshot struct {
 	SBOMDiffs                 map[string]domain.SBOMDiff
 	DependencyChanges         map[string]domain.DependencyChange
 	VulnerabilityWorkflow     map[string]domain.VulnerabilityWorkflowRecord
+	Incidents                 map[string]domain.Incident
+	IncidentTimelineEvents    map[string]domain.IncidentTimelineEvent
+	IncidentWebhookReceivers  map[string]domain.IncidentWebhookReceiver
+	IncidentWebhookEvents     map[string]domain.IncidentWebhookEvent
+	RemediationTasks          map[string]domain.RemediationTask
 	HTMLReports               map[string]domain.HTMLReportPackage
 	ReportTemplates           map[string]domain.CustomReportTemplate
 	RenderedReports           map[string]domain.RenderedCustomReport
@@ -1746,6 +1751,148 @@ func (r memoryRiskRepository) InsertVulnerabilityWorkflow(ctx context.Context, r
 	})
 }
 
+func (r memoryRiskRepository) InsertIncident(ctx context.Context, incident domain.Incident) error {
+	cloned, err := cloneMemoryJSON(incident)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.ProductID == "" || cloned.Title == "" || !validSeverity(cloned.Severity) || cloned.Status != "open" || cloned.OpenedAt.IsZero() || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.ProductID, cloned.TenantID, state.Products) {
+			return ErrNotFound
+		}
+		if cloned.ReleaseID != "" {
+			release, ok := state.Releases[cloned.ReleaseID]
+			if !ok || release.TenantID != cloned.TenantID || release.ProductID != cloned.ProductID {
+				return ErrNotFound
+			}
+		}
+		if _, exists := state.Incidents[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.Incidents[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryRiskRepository) InsertIncidentTimelineEvent(ctx context.Context, event domain.IncidentTimelineEvent) error {
+	cloned, err := cloneMemoryJSON(event)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := validateMemoryIncidentTimelineEvent(*state, cloned); err != nil {
+			return err
+		}
+		if _, exists := state.IncidentTimelineEvents[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.IncidentTimelineEvents[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryRiskRepository) InsertIncidentWebhookReceiver(ctx context.Context, receiver domain.IncidentWebhookReceiver) error {
+	cloned, err := cloneMemoryJSON(receiver)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.IncidentID == "" || cloned.Name == "" || cloned.Provider == "" || cloned.PublicKey == "" || cloned.Status != "active" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.IncidentID, cloned.TenantID, state.Incidents) {
+			return ErrNotFound
+		}
+		if _, exists := state.IncidentWebhookReceivers[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.IncidentWebhookReceivers[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryRiskRepository) InsertIncidentWebhookEvent(ctx context.Context, record domain.IncidentWebhookEvent, timeline domain.IncidentTimelineEvent) error {
+	clonedRecord, err := cloneMemoryJSON(record)
+	if err != nil {
+		return err
+	}
+	clonedTimeline, err := cloneMemoryJSON(timeline)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := validateMemoryIncidentTimelineEvent(*state, clonedTimeline); err != nil {
+			return err
+		}
+		if clonedRecord.ID == "" || clonedRecord.TenantID == "" || clonedRecord.ReceiverID == "" || clonedRecord.IncidentID == "" || clonedRecord.Provider == "" || clonedRecord.EventID == "" || !validDigest(clonedRecord.PayloadHash) || !validDigest(clonedRecord.SignatureHash) || clonedRecord.TimelineEventID != clonedTimeline.ID || clonedRecord.Result != "accepted" || clonedRecord.SchemaVersion == "" || clonedRecord.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		receiver, ok := state.IncidentWebhookReceivers[clonedRecord.ReceiverID]
+		if !ok || receiver.TenantID != clonedRecord.TenantID || receiver.IncidentID != clonedRecord.IncidentID || receiver.Provider != clonedRecord.Provider || receiver.Status != "active" || clonedTimeline.TenantID != clonedRecord.TenantID || clonedTimeline.IncidentID != clonedRecord.IncidentID {
+			return ErrNotFound
+		}
+		if _, exists := state.IncidentTimelineEvents[clonedTimeline.ID]; exists {
+			return ErrConflict
+		}
+		if _, exists := state.IncidentWebhookEvents[clonedRecord.ID]; exists {
+			return ErrConflict
+		}
+		for _, existing := range state.IncidentWebhookEvents {
+			if existing.TenantID == clonedRecord.TenantID && existing.ReceiverID == clonedRecord.ReceiverID && existing.EventID == clonedRecord.EventID {
+				return ErrConflict
+			}
+		}
+		state.IncidentTimelineEvents[clonedTimeline.ID] = clonedTimeline
+		state.IncidentWebhookEvents[clonedRecord.ID] = clonedRecord
+		return nil
+	})
+}
+
+func (r memoryRiskRepository) InsertRemediationTask(ctx context.Context, task domain.RemediationTask) error {
+	cloned, err := cloneMemoryJSON(task)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || (cloned.IncidentID == "" && cloned.ReleaseID == "") || cloned.Title == "" || cloned.Owner == "" || cloned.Status != "open" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.IncidentID, cloned.TenantID, state.Incidents) || !memoryResourceBelongsToTenant(cloned.ReleaseID, cloned.TenantID, state.Releases) || !memoryResourceBelongsToTenant(cloned.EvidenceID, cloned.TenantID, state.Evidence) {
+			return ErrNotFound
+		}
+		if _, exists := state.RemediationTasks[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.RemediationTasks[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func validateMemoryIncidentTimelineEvent(state MemoryUnitOfWorkSnapshot, event domain.IncidentTimelineEvent) error {
+	if err := requireMemoryTenant(state, event.TenantID); err != nil {
+		return err
+	}
+	if event.ID == "" || event.IncidentID == "" || event.EventType == "" || event.Summary == "" || event.OccurredAt.IsZero() || event.SchemaVersion == "" || event.CreatedAt.IsZero() {
+		return ErrValidation
+	}
+	if !memoryResourceBelongsToTenant(event.IncidentID, event.TenantID, state.Incidents) || !memoryResourceBelongsToTenant(event.EvidenceID, event.TenantID, state.Evidence) {
+		return ErrNotFound
+	}
+	return nil
+}
+
 type memorySourceRepository struct{ uow *memoryUnitOfWork }
 
 type memoryDeploymentRepository struct{ uow *memoryUnitOfWork }
@@ -3104,6 +3251,11 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		SBOMDiffs:                 map[string]domain.SBOMDiff{},
 		DependencyChanges:         map[string]domain.DependencyChange{},
 		VulnerabilityWorkflow:     map[string]domain.VulnerabilityWorkflowRecord{},
+		Incidents:                 map[string]domain.Incident{},
+		IncidentTimelineEvents:    map[string]domain.IncidentTimelineEvent{},
+		IncidentWebhookReceivers:  map[string]domain.IncidentWebhookReceiver{},
+		IncidentWebhookEvents:     map[string]domain.IncidentWebhookEvent{},
+		RemediationTasks:          map[string]domain.RemediationTask{},
 		HTMLReports:               map[string]domain.HTMLReportPackage{},
 		ReportTemplates:           map[string]domain.CustomReportTemplate{},
 		RenderedReports:           map[string]domain.RenderedCustomReport{},
@@ -3316,6 +3468,21 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 	if cloned.VulnerabilityWorkflow, err = cloneMemoryMap(snapshot.VulnerabilityWorkflow); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
+	if cloned.Incidents, err = cloneMemoryMap(snapshot.Incidents); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.IncidentTimelineEvents, err = cloneMemoryMap(snapshot.IncidentTimelineEvents); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.IncidentWebhookReceivers, err = cloneMemoryMap(snapshot.IncidentWebhookReceivers); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.IncidentWebhookEvents, err = cloneMemoryMap(snapshot.IncidentWebhookEvents); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.RemediationTasks, err = cloneMemoryMap(snapshot.RemediationTasks); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
 	if cloned.HTMLReports, err = cloneMemoryMap(snapshot.HTMLReports); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
@@ -3497,6 +3664,8 @@ func memoryResourceTenantID(resource any) string {
 	case domain.SBOM:
 		return value.TenantID
 	case domain.VulnerabilityScan:
+		return value.TenantID
+	case domain.Incident:
 		return value.TenantID
 	case domain.APIKey:
 		return value.TenantID

@@ -302,6 +302,26 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Risk.InsertCustomPolicyEvaluation(ctx, domain.CustomPolicyEvaluation{ID: "custom_policy_evaluation_repository", TenantID: tenant.ID, PolicyID: policy.ID, ReleaseID: release.ID, Result: "passed", Checks: []domain.PolicyCheck{{Name: "SBOM", Result: "passed", Severity: "high"}}, InputHash: "sha256:" + strings.Repeat("6", 64), SchemaVersion: domain.CustomPolicyEvalSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert custom policy evaluation: %v", err)
 	}
+	incident := domain.Incident{ID: "incident_repository", TenantID: tenant.ID, ProductID: product.ID, ReleaseID: release.ID, Title: "Repository incident", Severity: "high", Status: "open", OpenedAt: now, SchemaVersion: domain.IncidentSchemaVersion, CreatedAt: now}
+	if err := repositories.Risk.InsertIncident(ctx, incident); err != nil {
+		t.Fatalf("insert incident: %v", err)
+	}
+	timeline := domain.IncidentTimelineEvent{ID: "timeline_repository", TenantID: tenant.ID, IncidentID: incident.ID, EventType: "detected", Summary: "repository incident detected", EvidenceID: evidence.ID, OccurredAt: now, SchemaVersion: domain.IncidentTimelineSchemaVersion, CreatedAt: now}
+	if err := repositories.Risk.InsertIncidentTimelineEvent(ctx, timeline); err != nil {
+		t.Fatalf("insert incident timeline event: %v", err)
+	}
+	receiver := domain.IncidentWebhookReceiver{ID: "receiver_repository", TenantID: tenant.ID, IncidentID: incident.ID, Name: "Repository pager", Provider: "pager", PublicKey: strings.Repeat("A", 43), Status: "active", SchemaVersion: domain.IncidentWebhookReceiverVersion, CreatedAt: now}
+	if err := repositories.Risk.InsertIncidentWebhookReceiver(ctx, receiver); err != nil {
+		t.Fatalf("insert incident webhook receiver: %v", err)
+	}
+	webhookTimeline := domain.IncidentTimelineEvent{ID: "timeline_webhook_repository", TenantID: tenant.ID, IncidentID: incident.ID, EventType: "acknowledged", Summary: "repository webhook acknowledged", OccurredAt: now, SchemaVersion: domain.IncidentTimelineSchemaVersion, CreatedAt: now}
+	webhook := domain.IncidentWebhookEvent{ID: "webhook_repository", TenantID: tenant.ID, ReceiverID: receiver.ID, IncidentID: incident.ID, Provider: receiver.Provider, EventID: "evt-repository", PayloadHash: "sha256:" + strings.Repeat("7", 64), SignatureHash: "sha256:" + strings.Repeat("8", 64), TimelineEventID: webhookTimeline.ID, Result: "accepted", SchemaVersion: domain.IncidentWebhookEventVersion, CreatedAt: now}
+	if err := repositories.Risk.InsertIncidentWebhookEvent(ctx, webhook, webhookTimeline); err != nil {
+		t.Fatalf("insert incident webhook event: %v", err)
+	}
+	if err := repositories.Risk.InsertRemediationTask(ctx, domain.RemediationTask{ID: "task_repository", TenantID: tenant.ID, IncidentID: incident.ID, ReleaseID: release.ID, Title: "Patch", Owner: "security", Status: "open", EvidenceID: evidence.ID, SchemaVersion: domain.RemediationTaskSchemaVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert remediation task: %v", err)
+	}
 	if err := repositories.Governance.InsertDSSETrustRoot(ctx, domain.DSSETrustRoot{ID: "dtr_repository", TenantID: tenant.ID, Name: "Repository root", KeyID: "repository-root", Algorithm: "Ed25519", PublicKey: strings.Repeat("A", 43) + "=", Status: "active", SchemaVersion: domain.DSSETrustRootSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert DSSE trust root: %v", err)
 	}
@@ -694,6 +714,11 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"contract diff", repositories.Risk.InsertContractDiff(ctx, domain.ContractDiff{})},
 		{"SBOM diff", repositories.Risk.InsertSBOMDiff(ctx, domain.SBOMDiff{})},
 		{"vulnerability workflow", repositories.Risk.InsertVulnerabilityWorkflow(ctx, domain.VulnerabilityWorkflowRecord{})},
+		{"incident", repositories.Risk.InsertIncident(ctx, domain.Incident{})},
+		{"incident timeline event", repositories.Risk.InsertIncidentTimelineEvent(ctx, domain.IncidentTimelineEvent{})},
+		{"incident webhook receiver", repositories.Risk.InsertIncidentWebhookReceiver(ctx, domain.IncidentWebhookReceiver{})},
+		{"incident webhook event", repositories.Risk.InsertIncidentWebhookEvent(ctx, domain.IncidentWebhookEvent{}, domain.IncidentTimelineEvent{})},
+		{"remediation task", repositories.Risk.InsertRemediationTask(ctx, domain.RemediationTask{})},
 		{"HTML report package", repositories.Packages.InsertHTMLReportPackage(ctx, domain.HTMLReportPackage{})},
 		{"custom report template", repositories.Packages.InsertCustomReportTemplate(ctx, domain.CustomReportTemplate{})},
 		{"rendered custom report", repositories.Packages.InsertRenderedCustomReport(ctx, domain.RenderedCustomReport{})},
