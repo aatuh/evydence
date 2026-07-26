@@ -2112,6 +2112,29 @@ func (r futureExtensions) InsertMarketplaceCollector(ctx context.Context, collec
 	return writeError("insert marketplace collector", err)
 }
 
+func (r futureExtensions) InsertPDFReportPackage(ctx context.Context, report domain.PDFReportPackage) error {
+	if report.ID == "" || report.TenantID == "" || report.ReportType == "" || (report.ProductID == "" && report.ReleaseID == "") || report.Title == "" || report.PayloadHash == "" || report.PayloadSize <= 0 || report.SchemaVersion == "" || report.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, report.TenantID); err != nil {
+		return err
+	}
+	if err := requireOptionalProduct(ctx, r.tx, report.TenantID, report.ProductID); err != nil {
+		return err
+	}
+	if report.ReleaseID != "" {
+		if report.ProductID != "" {
+			if err := requireRow(ctx, r.tx, `SELECT 1 FROM releases WHERE id = $1 AND tenant_id = $2 AND product_id = $3`, report.ReleaseID, report.TenantID, report.ProductID); err != nil {
+				return err
+			}
+		} else if err := requireOptionalRelease(ctx, r.tx, report.TenantID, report.ReleaseID); err != nil {
+			return err
+		}
+	}
+	_, err := r.tx.Exec(ctx, `INSERT INTO pdf_report_packages (id, tenant_id, report_type, product_id, release_id, title, payload_ref, payload_hash, payload_size, limitations, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, report.ID, report.TenantID, report.ReportType, nullableString(report.ProductID), nullableString(report.ReleaseID), report.Title, nullableString(report.PayloadRef), report.PayloadHash, report.PayloadSize, textArray(report.Limitations), report.SchemaVersion, report.CreatedAt)
+	return writeError("insert PDF report package", err)
+}
+
 func requireTenant(ctx context.Context, tx pgx.Tx, tenantID string) error {
 	if tenantID == "" {
 		return app.ErrValidation

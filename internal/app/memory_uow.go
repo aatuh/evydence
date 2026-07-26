@@ -87,6 +87,7 @@ type MemoryUnitOfWorkSnapshot struct {
 	EvidenceGraphSnapshots    map[string]domain.EvidenceGraphSnapshot
 	SaaSEditionProfiles       map[string]domain.SaaSEditionProfile
 	MarketplaceCollectors     map[string]domain.MarketplaceCollector
+	PDFReports                map[string]domain.PDFReportPackage
 }
 
 func NewMemoryUnitOfWorkFactory() *MemoryUnitOfWorkFactory {
@@ -2330,6 +2331,32 @@ func (r memoryFutureExtensionsRepository) InsertMarketplaceCollector(ctx context
 	})
 }
 
+func (r memoryFutureExtensionsRepository) InsertPDFReportPackage(ctx context.Context, report domain.PDFReportPackage) error {
+	cloned, err := cloneMemoryJSON(report)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.ReportType == "" || (cloned.ProductID == "" && cloned.ReleaseID == "") || cloned.Title == "" || cloned.PayloadHash == "" || cloned.PayloadSize <= 0 || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.ProductID, cloned.TenantID, state.Products) || !memoryResourceBelongsToTenant(cloned.ReleaseID, cloned.TenantID, state.Releases) {
+			return ErrNotFound
+		}
+		if cloned.ProductID != "" && cloned.ReleaseID != "" && state.Releases[cloned.ReleaseID].ProductID != cloned.ProductID {
+			return ErrValidation
+		}
+		if _, exists := state.PDFReports[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.PDFReports[cloned.ID] = cloned
+		return nil
+	})
+}
+
 func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 	return MemoryUnitOfWorkSnapshot{
 		Tenants:                   map[string]domain.Tenant{},
@@ -2396,6 +2423,7 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		EvidenceGraphSnapshots:    map[string]domain.EvidenceGraphSnapshot{},
 		SaaSEditionProfiles:       map[string]domain.SaaSEditionProfile{},
 		MarketplaceCollectors:     map[string]domain.MarketplaceCollector{},
+		PDFReports:                map[string]domain.PDFReportPackage{},
 	}
 }
 
@@ -2601,6 +2629,9 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.MarketplaceCollectors, err = cloneMemoryMap(snapshot.MarketplaceCollectors); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.PDFReports, err = cloneMemoryMap(snapshot.PDFReports); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	return cloned, nil

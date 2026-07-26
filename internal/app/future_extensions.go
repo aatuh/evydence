@@ -1191,6 +1191,22 @@ func (s packageReportService) CreatePDFReportPackage(ctx context.Context, actor 
 		return domain.PDFReportPackage{}, err
 	}
 	record := domain.PDFReportPackage{ID: newID("pdf"), TenantID: actor.TenantID, ReportType: reportType, ProductID: productID, ReleaseID: releaseID, Title: title, PayloadRef: ref, PayloadHash: digest, PayloadSize: int64(len(body)), Limitations: []string{"PDF output is reproducible report packaging and does not provide legal compliance or security certification."}, SchemaVersion: domain.PDFReportPackageVersion, CreatedAt: l.now()}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Future.InsertPDFReportPackage(ctx, record); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(record.CreatedAt, actor.TenantID, "pdf_report.created", "pdf_report", record.ID, actorType(actor), actorID(actor), digest, ""))
+			return err
+		}); err != nil {
+			return domain.PDFReportPackage{}, err
+		}
+		l.pdfReports[record.ID] = record
+		l.publishCommittedAuditEntryLocked(entry)
+		return record, nil
+	}
 	l.pdfReports[record.ID] = record
 	_, _ = l.appendChainLocked(actor.TenantID, "pdf_report.created", "pdf_report", record.ID, actorType(actor), actorID(actor), digest, "")
 	if err := l.persistLocked(ctx); err != nil {
