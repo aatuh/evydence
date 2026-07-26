@@ -1968,6 +1968,30 @@ func (r futureExtensions) InsertPublicTransparencyLogEntry(ctx context.Context, 
 	return writeError("insert public transparency log entry", err)
 }
 
+func (r futureExtensions) UpdatePublicTransparencyLogEntry(ctx context.Context, entry domain.PublicTransparencyLogEntry, expectedState string) error {
+	if entry.ID == "" || entry.TenantID == "" || expectedState == "" || entry.State == "published" || entry.InclusionRootHash == "" || entry.InclusionProofHash == "" || entry.InclusionVerifiedAt == nil || entry.VerificationChecks == nil || entry.SchemaVersion == "" {
+		return app.ErrValidation
+	}
+	checks, err := json.Marshal(entry.VerificationChecks)
+	if err != nil {
+		return fmt.Errorf("encode public transparency verification checks: %w", err)
+	}
+	result, err := r.tx.Exec(ctx, `
+		UPDATE public_transparency_log_entries
+		SET inclusion_root_hash = $3, inclusion_proof_hash = $4, inclusion_verified_at = $5,
+			verification_checks = $6, verification_limitations = $7, state = $8
+		WHERE id = $1 AND tenant_id = $2 AND state = $9
+	`, entry.ID, entry.TenantID, entry.InclusionRootHash, entry.InclusionProofHash, entry.InclusionVerifiedAt,
+		checks, textArray(entry.VerificationLimitations), entry.State, expectedState)
+	if err != nil {
+		return writeError("update public transparency log entry", err)
+	}
+	if result.RowsAffected() != 1 {
+		return app.ErrConflict
+	}
+	return nil
+}
+
 func requireTenant(ctx context.Context, tx pgx.Tx, tenantID string) error {
 	if tenantID == "" {
 		return app.ErrValidation

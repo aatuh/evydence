@@ -73,7 +73,6 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 | future extensions and generated reports | `internal/app/future_extensions.go` | `CreateSigningOperation` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `GenerateAnomalyReport` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `VerifyProviderIdentity` | `persistLocked` |
-| future extensions and generated reports | `internal/app/future_extensions.go` | `VerifyPublicTransparencyLogEntry` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `AccessCustomerSecurityPackage` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `CRAReadinessHTMLPackage` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `CreateCustomReportTemplate` | `persistLocked` |
@@ -125,6 +124,7 @@ These commands commit through focused repositories whenever `UnitOfWorkFactory` 
 | enterprise identity and retention | `internal/app/enterprise.go` | `persistProviderVerificationLocked` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `CreatePublicTransparencyLog` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `PublishPublicTransparencyLogEntry` | `persistLocked` |
+| future extensions and generated reports | `internal/app/future_extensions.go` | `VerifyPublicTransparencyLogEntry` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `ApproveWaiver` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `CreateApprovalRecord` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `CreateRedactionProfile` | `persistLocked` |

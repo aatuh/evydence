@@ -267,6 +267,10 @@ func TestMemoryUnitOfWorkCommitsEveryFocusedRepository(t *testing.T) {
 	if err := repositories.Future.InsertPublicTransparencyLogEntry(context.Background(), domain.PublicTransparencyLogEntry{ID: "public_entry_all_repositories", TenantID: tenant.ID, LogID: "public_log_all_repositories", CheckpointID: "checkpoint_all_repositories", MerkleBatchID: merkleBatch.ID, ExternalID: "entry", EntryHash: "sha256:entry", State: "published", SchemaVersion: domain.PublicTransparencyEntryVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert public transparency entry: %v", err)
 	}
+	verifiedPublicEntry := domain.PublicTransparencyLogEntry{ID: "public_entry_all_repositories", TenantID: tenant.ID, LogID: "public_log_all_repositories", CheckpointID: "checkpoint_all_repositories", MerkleBatchID: merkleBatch.ID, ExternalID: "entry", EntryHash: "sha256:entry", State: "inclusion_verified", InclusionRootHash: "sha256:root", InclusionProofHash: "sha256:proof", InclusionVerifiedAt: &now, VerificationChecks: []domain.VerifyCheck{{Name: "proof", Result: "passed"}}, SchemaVersion: domain.PublicTransparencyEntryVersion, CreatedAt: now}
+	if err := repositories.Future.UpdatePublicTransparencyLogEntry(context.Background(), verifiedPublicEntry, "published"); err != nil {
+		t.Fatalf("update public transparency entry: %v", err)
+	}
 	if err := repositories.Packages.InsertReleaseBundle(context.Background(), domain.ReleaseBundle{ID: "bundle_all_repositories", TenantID: tenant.ID, ReleaseID: release.ID, State: "generated", Manifest: map[string]any{"release_id": release.ID}, ManifestHash: "sha256:manifest", CreatedAt: now}); err != nil {
 		t.Fatalf("insert release bundle: %v", err)
 	}
@@ -324,6 +328,7 @@ func TestMemoryUnitOfWorkRejectsInvalidFocusedRepositoryRecords(t *testing.T) {
 		{"transparency checkpoint", repositories.Integrity.InsertTransparencyCheckpoint(context.Background(), domain.TransparencyCheckpoint{})},
 		{"public transparency log", repositories.Future.InsertPublicTransparencyLog(context.Background(), domain.PublicTransparencyLog{})},
 		{"public transparency entry", repositories.Future.InsertPublicTransparencyLogEntry(context.Background(), domain.PublicTransparencyLogEntry{})},
+		{"public transparency entry update", repositories.Future.UpdatePublicTransparencyLogEntry(context.Background(), domain.PublicTransparencyLogEntry{}, "")},
 		{"verification", repositories.Verification.InsertVerificationResult(context.Background(), domain.VerificationResult{})},
 		{"policy evaluation", repositories.Verification.InsertPolicyEvaluation(context.Background(), domain.PolicyEvaluation{})},
 	}

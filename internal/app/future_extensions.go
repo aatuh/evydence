@@ -478,6 +478,7 @@ func (l *Ledger) VerifyPublicTransparencyLogEntry(ctx context.Context, actor dom
 		l.mu.Unlock()
 		return domain.PublicTransparencyLogEntry{}, ErrNotFound
 	}
+	expectedState := entry.State
 	l.mu.Unlock()
 
 	leafBound := leafHash == entry.EntryHash
@@ -529,11 +530,34 @@ func (l *Ledger) VerifyPublicTransparencyLogEntry(ctx context.Context, actor dom
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.publicLogEntries[entry.ID] = entry
+	current, ok := l.publicLogEntries[entry.ID]
+	if !ok || current.TenantID != actor.TenantID {
+		return domain.PublicTransparencyLogEntry{}, ErrNotFound
+	}
+	if current.State != expectedState {
+		return domain.PublicTransparencyLogEntry{}, ErrConflict
+	}
 	eventType := "public_transparency_log_entry.inclusion_verified"
 	if !proofOK {
 		eventType = "public_transparency_log_entry.inclusion_not_verified"
 	}
+	if l.unitOfWork != nil {
+		var auditEntry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Future.UpdatePublicTransparencyLogEntry(ctx, entry, expectedState); err != nil {
+				return err
+			}
+			var err error
+			auditEntry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, actor.TenantID, eventType, "public_transparency_log_entry", entry.ID, actorType(actor), actorID(actor), proofHash, ""))
+			return err
+		}); err != nil {
+			return domain.PublicTransparencyLogEntry{}, err
+		}
+		l.publicLogEntries[entry.ID] = entry
+		l.publishCommittedAuditEntryLocked(auditEntry)
+		return entry, nil
+	}
+	l.publicLogEntries[entry.ID] = entry
 	_, _ = l.appendChainLocked(actor.TenantID, eventType, "public_transparency_log_entry", entry.ID, actorType(actor), actorID(actor), proofHash, "")
 	if err := l.persistLocked(ctx); err != nil {
 		return domain.PublicTransparencyLogEntry{}, err

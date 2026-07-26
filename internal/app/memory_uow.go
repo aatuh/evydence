@@ -2174,6 +2174,33 @@ func (r memoryFutureExtensionsRepository) InsertPublicTransparencyLogEntry(ctx c
 	})
 }
 
+func (r memoryFutureExtensionsRepository) UpdatePublicTransparencyLogEntry(ctx context.Context, entry domain.PublicTransparencyLogEntry, expectedState string) error {
+	cloned, err := cloneMemoryJSON(entry)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.LogID == "" || cloned.CheckpointID == "" || cloned.MerkleBatchID == "" || cloned.ExternalID == "" || cloned.EntryHash == "" || expectedState == "" || cloned.State == "published" || cloned.InclusionRootHash == "" || cloned.InclusionProofHash == "" || cloned.InclusionVerifiedAt == nil || cloned.VerificationChecks == nil || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		existing, ok := state.PublicTransparencyEntries[cloned.ID]
+		if !ok || existing.TenantID != cloned.TenantID {
+			return ErrNotFound
+		}
+		if existing.State != expectedState {
+			return ErrConflict
+		}
+		if existing.LogID != cloned.LogID || existing.CheckpointID != cloned.CheckpointID || existing.MerkleBatchID != cloned.MerkleBatchID || existing.ExternalID != cloned.ExternalID || existing.EntryHash != cloned.EntryHash || existing.SchemaVersion != cloned.SchemaVersion || !existing.CreatedAt.Equal(cloned.CreatedAt) {
+			return ErrValidation
+		}
+		state.PublicTransparencyEntries[cloned.ID] = cloned
+		return nil
+	})
+}
+
 func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 	return MemoryUnitOfWorkSnapshot{
 		Tenants:                   map[string]domain.Tenant{},
