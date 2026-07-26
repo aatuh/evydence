@@ -380,6 +380,15 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Signatures.InsertSignature(ctx, domain.Signature{ID: "sig_repository", TenantID: tenant.ID, SubjectType: "evidence_item", SubjectID: evidence.ID, KeyID: signingKey.ID, Algorithm: "Ed25519", Value: "signature", CreatedAt: now}); err != nil {
 		t.Fatalf("insert signature: %v", err)
 	}
+	if err := repositories.Integrity.InsertSigningProvider(ctx, domain.SigningProvider{ID: "provider_repository", TenantID: tenant.ID, Name: "Repository KMS", Type: "aws_kms", Status: "active", KeyRef: "arn:aws:kms:example", Encrypted: true, SchemaVersion: domain.SigningProviderSchemaVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert signing provider: %v", err)
+	}
+	if err := repositories.Integrity.InsertSigningProvider(ctx, domain.SigningProvider{ID: "provider_repository", TenantID: tenant.ID, Name: "Repository KMS", Type: "aws_kms", Status: "active", KeyRef: "arn:aws:kms:example", Encrypted: true, SchemaVersion: domain.SigningProviderSchemaVersion, CreatedAt: now}); !errors.Is(err, app.ErrConflict) {
+		t.Fatalf("duplicate signing provider err=%v, want conflict", err)
+	}
+	if err := repositories.Integrity.InsertSigningProvider(ctx, domain.SigningProvider{ID: "provider_repository_secret", TenantID: tenant.ID, Name: "Secret native provider", Type: "native_pkcs11_hsm", Status: "active", KeyRef: "pkcs11:token=release;object=key;pin-value=secret", Encrypted: true, SchemaVersion: domain.SigningProviderSchemaVersion, CreatedAt: now}); !errors.Is(err, app.ErrValidation) {
+		t.Fatalf("secret-bearing signing provider err=%v, want validation", err)
+	}
 	if err := repositories.Packages.InsertReleaseBundle(ctx, domain.ReleaseBundle{ID: "bundle_repository", TenantID: tenant.ID, ReleaseID: release.ID, State: "generated", Manifest: map[string]any{"release_id": release.ID}, ManifestHash: "sha256:manifest", SignatureRefs: []string{"sig_repository"}, CreatedAt: now}); err != nil {
 		t.Fatalf("insert release bundle: %v", err)
 	}
@@ -481,6 +490,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"signing key", repositories.Signatures.InsertSigningKey(ctx, domain.SigningKey{})},
 		{"signing key update", repositories.Signatures.UpdateSigningKey(ctx, domain.SigningKey{}, "")},
 		{"signature", repositories.Signatures.InsertSignature(ctx, domain.Signature{})},
+		{"signing provider", repositories.Integrity.InsertSigningProvider(ctx, domain.SigningProvider{})},
 		{"verification", repositories.Verification.InsertVerificationResult(ctx, domain.VerificationResult{})},
 		{"policy evaluation", repositories.Verification.InsertPolicyEvaluation(ctx, domain.PolicyEvaluation{})},
 	}

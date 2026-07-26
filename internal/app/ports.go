@@ -113,6 +113,7 @@ type Repositories struct {
 	Deployments    DeploymentRepository
 	Packages       PackageRepository
 	Signatures     SignatureRepository
+	Integrity      IntegrityRepository
 	Verification   VerificationRepository
 }
 
@@ -225,6 +226,10 @@ type SignatureRepository interface {
 	InsertSigningKey(context.Context, domain.SigningKey) error
 	UpdateSigningKey(context.Context, domain.SigningKey, string) error
 	InsertSignature(context.Context, domain.Signature) error
+}
+
+type IntegrityRepository interface {
+	InsertSigningProvider(context.Context, domain.SigningProvider) error
 }
 
 type VerificationRepository interface {

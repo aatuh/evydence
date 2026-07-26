@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"sync"
 	"time"
 
@@ -72,6 +73,7 @@ type MemoryUnitOfWorkSnapshot struct {
 	ReleaseBundles         map[string]domain.ReleaseBundle
 	SigningKeys            map[string]domain.SigningKey
 	Signatures             map[string]domain.Signature
+	SigningProviders       map[string]domain.SigningProvider
 	VerificationResults    map[string]domain.VerificationResult
 	PolicyEvaluations      map[string]domain.PolicyEvaluation
 }
@@ -125,6 +127,7 @@ func (u *memoryUnitOfWork) Repositories() Repositories {
 		Deployments:    memoryDeploymentRepository{uow: u},
 		Packages:       memoryPackageRepository{uow: u},
 		Signatures:     memorySignatureRepository{uow: u},
+		Integrity:      memoryIntegrityRepository{uow: u},
 		Verification:   memoryVerificationRepository{uow: u},
 	}
 }
@@ -1895,6 +1898,34 @@ func (r memorySignatureRepository) InsertSignature(ctx context.Context, signatur
 	})
 }
 
+type memoryIntegrityRepository struct{ uow *memoryUnitOfWork }
+
+func (r memoryIntegrityRepository) InsertSigningProvider(ctx context.Context, provider domain.SigningProvider) error {
+	cloned, err := cloneMemoryJSON(provider)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.Name == "" || !validSigningProviderType(cloned.Type) || cloned.Status == "" || cloned.KeyRef == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if cloned.Type == "local_encrypted_dev" && !cloned.Encrypted {
+			return ErrValidation
+		}
+		if cloned.Type == "native_pkcs11_hsm" && (!cloned.Encrypted || !strings.HasPrefix(cloned.KeyRef, "pkcs11:") || signingProviderRefContainsSecret(cloned.KeyRef)) {
+			return ErrValidation
+		}
+		if _, exists := state.SigningProviders[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.SigningProviders[cloned.ID] = cloned
+		return nil
+	})
+}
+
 type memoryVerificationRepository struct{ uow *memoryUnitOfWork }
 
 func (r memoryVerificationRepository) InsertVerificationResult(ctx context.Context, result domain.VerificationResult) error {
@@ -1992,6 +2023,7 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		ReleaseBundles:         map[string]domain.ReleaseBundle{},
 		SigningKeys:            map[string]domain.SigningKey{},
 		Signatures:             map[string]domain.Signature{},
+		SigningProviders:       map[string]domain.SigningProvider{},
 		VerificationResults:    map[string]domain.VerificationResult{},
 		PolicyEvaluations:      map[string]domain.PolicyEvaluation{},
 	}
@@ -2157,6 +2189,9 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		cloned.SigningKeys[id] = cloneMemorySigningKey(key)
 	}
 	if cloned.Signatures, err = cloneMemoryMap(snapshot.Signatures); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.SigningProviders, err = cloneMemoryMap(snapshot.SigningProviders); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.VerificationResults, err = cloneMemoryMap(snapshot.VerificationResults); err != nil {

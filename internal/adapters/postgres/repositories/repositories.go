@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -35,6 +36,7 @@ func New(tx pgx.Tx) app.Repositories {
 		Deployments:    deployments{tx: tx},
 		Packages:       packages{tx: tx},
 		Signatures:     signatures{tx: tx},
+		Integrity:      integrity{tx: tx},
 		Verification:   verification{tx: tx},
 	}
 }
@@ -1711,6 +1713,31 @@ func (r signatures) InsertSignature(ctx context.Context, signature domain.Signat
 	return writeError("insert signature", err)
 }
 
+type integrity struct{ tx pgx.Tx }
+
+func (r integrity) InsertSigningProvider(ctx context.Context, provider domain.SigningProvider) error {
+	if provider.ID == "" || provider.TenantID == "" || provider.Name == "" || !validSigningProviderType(provider.Type) || provider.Status == "" || provider.KeyRef == "" || provider.SchemaVersion == "" || provider.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if provider.Type == "local_encrypted_dev" && !provider.Encrypted {
+		return app.ErrValidation
+	}
+	if provider.Type == "native_pkcs11_hsm" && (!provider.Encrypted || !strings.HasPrefix(provider.KeyRef, "pkcs11:") || signingProviderRefContainsSecret(provider.KeyRef)) {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, provider.TenantID); err != nil {
+		return err
+	}
+	_, err := r.tx.Exec(ctx, `
+		INSERT INTO signing_providers (
+			id, tenant_id, name, type, status, key_ref, encrypted,
+			schema_version, created_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`, provider.ID, provider.TenantID, provider.Name, provider.Type, provider.Status, provider.KeyRef, provider.Encrypted, provider.SchemaVersion, provider.CreatedAt)
+	return writeError("insert signing provider", err)
+}
+
 type verification struct{ tx pgx.Tx }
 
 func (r verification) InsertVerificationResult(ctx context.Context, result domain.VerificationResult) error {
@@ -1913,6 +1940,25 @@ func requireOwnedVEXDocument(ctx context.Context, tx pgx.Tx, tenantID, vexDocume
 
 func requireOwnedSigningKey(ctx context.Context, tx pgx.Tx, tenantID, keyID string) error {
 	return requireRow(ctx, tx, `SELECT 1 FROM signing_keys WHERE id = $1 AND tenant_id = $2`, keyID, tenantID)
+}
+
+func validSigningProviderType(value string) bool {
+	switch value {
+	case "local_encrypted_dev", "aws_kms", "gcp_kms", "azure_key_vault", "pkcs11_hsm", "native_pkcs11_hsm":
+		return true
+	default:
+		return false
+	}
+}
+
+func signingProviderRefContainsSecret(value string) bool {
+	lowered := strings.ToLower(value)
+	for _, marker := range []string{"pin-value=", "pin-source=", "password=", "secret=", "token=" + "secret"} {
+		if strings.Contains(lowered, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func requireRow(ctx context.Context, tx pgx.Tx, query string, arguments ...any) error {

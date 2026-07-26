@@ -207,6 +207,22 @@ func (l *Ledger) CreateSigningProvider(ctx context.Context, actor domain.Actor, 
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	provider := domain.SigningProvider{ID: newID("sp"), TenantID: actor.TenantID, Name: in.Name, Type: in.Type, Status: "active", KeyRef: in.KeyRef, Encrypted: in.Encrypted, SchemaVersion: domain.SigningProviderSchemaVersion, CreatedAt: l.now()}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Integrity.InsertSigningProvider(ctx, provider); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(provider.CreatedAt, actor.TenantID, "signing_provider.created", "signing_provider", provider.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.SigningProvider{}, err
+		}
+		l.signingProviders[provider.ID] = provider
+		l.publishCommittedAuditEntryLocked(entry)
+		return provider, nil
+	}
 	l.signingProviders[provider.ID] = provider
 	_, _ = l.appendChainLocked(actor.TenantID, "signing_provider.created", "signing_provider", provider.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {
