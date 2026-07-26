@@ -280,6 +280,9 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Governance.InsertRedactionProfile(ctx, profile); err != nil {
 		t.Fatalf("insert redaction profile: %v", err)
 	}
+	if err := repositories.Governance.InsertDSSETrustRoot(ctx, domain.DSSETrustRoot{ID: "dtr_repository", TenantID: tenant.ID, Name: "Repository root", KeyID: "repository-root", Algorithm: "Ed25519", PublicKey: strings.Repeat("A", 43) + "=", Status: "active", SchemaVersion: domain.DSSETrustRootSchemaVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert DSSE trust root: %v", err)
+	}
 	exception := domain.Exception{ID: "ex_repository", TenantID: tenant.ID, ReleaseID: release.ID, ControlID: control.ID, Reason: "repository test", Owner: "security", ExpiresAt: now.Add(time.Hour), CreatedAt: now}
 	if err := repositories.Decisions.InsertException(ctx, exception); err != nil {
 		t.Fatalf("insert exception: %v", err)
@@ -529,8 +532,16 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Packages.InsertReleaseBundle(ctx, domain.ReleaseBundle{ID: "bundle_repository", TenantID: tenant.ID, ReleaseID: release.ID, State: "generated", Manifest: map[string]any{"release_id": release.ID}, ManifestHash: "sha256:manifest", SignatureRefs: []string{"sig_repository"}, CreatedAt: now}); err != nil {
 		t.Fatalf("insert release bundle: %v", err)
 	}
-	if err := repositories.Verification.InsertVerificationResult(ctx, domain.VerificationResult{ID: "verify_repository", TenantID: tenant.ID, SubjectType: "evidence_item", SubjectID: evidence.ID, Result: "limited", Checks: []domain.VerifyCheck{{Name: "recorded", Result: "passed"}}, VerifiedAt: now}); err != nil {
+	verification := domain.VerificationResult{ID: "verify_repository", TenantID: tenant.ID, SubjectType: "evidence_item", SubjectID: evidence.ID, Result: "limited", Checks: []domain.VerifyCheck{{Name: "recorded", Result: "passed"}}, Profile: domain.VerificationProfile{ID: "repository-verification-profile", Version: domain.VerificationProfileSchemaVersion, RequiredChecks: []string{"recorded"}, Limitations: []string{"repository test"}}, Limitations: []string{"repository test"}, SchemaVersion: domain.VerificationResultSchemaVersion, VerifiedAt: now}
+	if err := repositories.Verification.InsertVerificationResult(ctx, verification); err != nil {
 		t.Fatalf("insert verification result: %v", err)
+	}
+	var verificationProfileID string
+	if err := tx.QueryRow(ctx, `SELECT assurance_profile ->> 'id' FROM verification_results WHERE id = $1 AND tenant_id = $2`, verification.ID, tenant.ID).Scan(&verificationProfileID); err != nil {
+		t.Fatalf("read verification assurance profile: %v", err)
+	}
+	if verificationProfileID != verification.Profile.ID {
+		t.Fatalf("verification assurance profile id = %q, want %q", verificationProfileID, verification.Profile.ID)
 	}
 	if err := repositories.Verification.InsertPolicyEvaluation(ctx, domain.PolicyEvaluation{ID: "policy_repository", TenantID: tenant.ID, ReleaseID: release.ID, Result: "passed", PolicySet: domain.PolicySetVersion, Checks: []domain.PolicyCheck{{Name: "recorded", Result: "passed", Severity: "low", Explanation: "test"}}, CreatedAt: now}); err != nil {
 		t.Fatalf("insert policy evaluation: %v", err)
@@ -588,6 +599,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"waiver approval", repositories.Governance.ApproveWaiver(ctx, domain.Waiver{})},
 		{"approval record", repositories.Governance.InsertApprovalRecord(ctx, domain.ApprovalRecord{})},
 		{"redaction profile", repositories.Governance.InsertRedactionProfile(ctx, domain.RedactionProfile{})},
+		{"DSSE trust root", repositories.Governance.InsertDSSETrustRoot(ctx, domain.DSSETrustRoot{})},
 		{"exception", repositories.Decisions.InsertException(ctx, domain.Exception{})},
 		{"exception approval", repositories.Decisions.ApproveException(ctx, domain.Exception{})},
 		{"legal hold", repositories.Governance.InsertLegalHold(ctx, domain.LegalHold{})},

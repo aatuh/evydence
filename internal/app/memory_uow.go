@@ -67,6 +67,7 @@ type MemoryUnitOfWorkSnapshot struct {
 	RedactionProfiles         map[string]domain.RedactionProfile
 	LegalHolds                map[string]domain.LegalHold
 	RetentionOverrides        map[string]domain.RetentionOverride
+	DSSETrustRoots            map[string]domain.DSSETrustRoot
 	AuditEntries              map[string][]domain.AuditChainEntry
 	Idempotency               map[IdempotencyRecordKey]IdempotencyRecord
 	OutboxJobs                map[string]OutboxJob
@@ -1413,6 +1414,31 @@ func (r memoryGovernanceRepository) InsertRetentionOverride(ctx context.Context,
 	})
 }
 
+func (r memoryGovernanceRepository) InsertDSSETrustRoot(ctx context.Context, root domain.DSSETrustRoot) error {
+	cloned, err := cloneMemoryJSON(root)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if !validDSSETrustRoot(cloned) {
+			return ErrValidation
+		}
+		if _, exists := state.DSSETrustRoots[cloned.ID]; exists {
+			return ErrConflict
+		}
+		for _, existing := range state.DSSETrustRoots {
+			if existing.TenantID == cloned.TenantID && existing.KeyID == cloned.KeyID {
+				return ErrConflict
+			}
+		}
+		state.DSSETrustRoots[cloned.ID] = cloned
+		return nil
+	})
+}
+
 type memoryBuildRepository struct{ uow *memoryUnitOfWork }
 
 func (r memoryBuildRepository) InsertCollector(ctx context.Context, collector domain.Collector) error {
@@ -2742,6 +2768,7 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		RedactionProfiles:         map[string]domain.RedactionProfile{},
 		LegalHolds:                map[string]domain.LegalHold{},
 		RetentionOverrides:        map[string]domain.RetentionOverride{},
+		DSSETrustRoots:            map[string]domain.DSSETrustRoot{},
 		AuditEntries:              map[string][]domain.AuditChainEntry{},
 		Idempotency:               map[IdempotencyRecordKey]IdempotencyRecord{},
 		OutboxJobs:                map[string]OutboxJob{},
@@ -2909,6 +2936,9 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.RetentionOverrides, err = cloneMemoryMap(snapshot.RetentionOverrides); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.DSSETrustRoots, err = cloneMemoryMap(snapshot.DSSETrustRoots); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.AuditEntries, err = cloneMemoryJSON(snapshot.AuditEntries); err != nil {

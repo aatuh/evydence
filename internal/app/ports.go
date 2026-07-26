@@ -193,6 +193,7 @@ type GovernanceRepository interface {
 	InsertRedactionProfile(context.Context, domain.RedactionProfile) error
 	InsertLegalHold(context.Context, domain.LegalHold) error
 	InsertRetentionOverride(context.Context, domain.RetentionOverride) error
+	InsertDSSETrustRoot(context.Context, domain.DSSETrustRoot) error
 }
 
 type BuildRepository interface {

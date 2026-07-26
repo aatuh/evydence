@@ -4,6 +4,8 @@ package repositories
 
 import (
 	"context"
+	"crypto/ed25519"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1267,6 +1269,21 @@ func (r governance) InsertRetentionOverride(ctx context.Context, override domain
 	return writeError("insert retention override", err)
 }
 
+func (r governance) InsertDSSETrustRoot(ctx context.Context, root domain.DSSETrustRoot) error {
+	if root.ID == "" || root.TenantID == "" || root.Name == "" || root.KeyID == "" || root.Algorithm != "Ed25519" || root.Status != "active" || root.SchemaVersion == "" || root.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	publicKey, err := base64.StdEncoding.DecodeString(root.PublicKey)
+	if err != nil || len(publicKey) != ed25519.PublicKeySize {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, root.TenantID); err != nil {
+		return err
+	}
+	_, err = r.tx.Exec(ctx, `INSERT INTO dsse_trust_roots (id, tenant_id, name, key_id, algorithm, public_key, status, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, root.ID, root.TenantID, root.Name, root.KeyID, root.Algorithm, root.PublicKey, root.Status, root.SchemaVersion, root.CreatedAt)
+	return writeError("insert DSSE trust root", err)
+}
+
 type builds struct{ tx pgx.Tx }
 
 func (r builds) InsertCollector(ctx context.Context, collector domain.Collector) error {
@@ -1914,10 +1931,18 @@ func (r verification) InsertVerificationResult(ctx context.Context, result domai
 	if err != nil {
 		return fmt.Errorf("encode verification checks: %w", err)
 	}
+	profile, err := json.Marshal(result.Profile)
+	if err != nil {
+		return fmt.Errorf("encode verification assurance profile: %w", err)
+	}
+	schemaVersion := result.SchemaVersion
+	if schemaVersion == "" {
+		schemaVersion = domain.VerificationResultSchemaVersion
+	}
 	_, err = r.tx.Exec(ctx, `
-		INSERT INTO verification_results (id, tenant_id, subject_type, subject_id, result, checks, verified_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-	`, result.ID, result.TenantID, result.SubjectType, result.SubjectID, result.Result, checks, result.VerifiedAt)
+		INSERT INTO verification_results (id, tenant_id, subject_type, subject_id, result, checks, assurance_profile, limitations, schema_version, verified_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	`, result.ID, result.TenantID, result.SubjectType, result.SubjectID, result.Result, checks, profile, textArray(result.Limitations), schemaVersion, result.VerifiedAt)
 	return writeError("insert verification result", err)
 }
 

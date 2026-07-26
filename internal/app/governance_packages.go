@@ -2090,12 +2090,36 @@ func (l *Ledger) CreateDSSETrustRoot(ctx context.Context, actor domain.Actor, in
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	root := domain.DSSETrustRoot{ID: newID("dtr"), TenantID: actor.TenantID, Name: in.Name, KeyID: in.KeyID, Algorithm: in.Algorithm, PublicKey: in.PublicKey, Status: "active", SchemaVersion: domain.DSSETrustRootSchemaVersion, CreatedAt: l.now()}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Governance.InsertDSSETrustRoot(ctx, root); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(root.CreatedAt, actor.TenantID, "dsse_trust_root.created", "dsse_trust_root", root.ID, "api_key", actor.KeyID, "", ""))
+			return err
+		}); err != nil {
+			return domain.DSSETrustRoot{}, err
+		}
+		l.dsseTrustRoots[root.ID] = root
+		l.publishCommittedAuditEntryLocked(entry)
+		return root, nil
+	}
 	l.dsseTrustRoots[root.ID] = root
 	_, _ = l.appendChainLocked(actor.TenantID, "dsse_trust_root.created", "dsse_trust_root", root.ID, "api_key", actor.KeyID, "", "")
 	if err := l.persistLocked(ctx); err != nil {
 		return domain.DSSETrustRoot{}, err
 	}
 	return root, nil
+}
+
+func validDSSETrustRoot(root domain.DSSETrustRoot) bool {
+	if root.ID == "" || root.TenantID == "" || root.Name == "" || root.KeyID == "" || root.Algorithm != "Ed25519" || root.Status != "active" || root.SchemaVersion == "" || root.CreatedAt.IsZero() {
+		return false
+	}
+	publicKey, err := base64.StdEncoding.DecodeString(root.PublicKey)
+	return err == nil && len(publicKey) == ed25519.PublicKeySize
 }
 
 func (l *Ledger) VerifyDSSEAttestationSignature(ctx context.Context, actor domain.Actor, attestationID string) (domain.VerificationResult, error) {
@@ -2155,6 +2179,18 @@ func (l *Ledger) VerifyDSSEAttestationSignature(ctx context.Context, actor domai
 	defer l.mu.Unlock()
 	profile := assuranceProfile("dsse-attestation-signature.v1", []string{"dsse_signature"}, []string{"active tenant DSSE Ed25519 trust roots"}, "DSSE key identifier matches configured trust root", "not_evaluated", "raw DSSE attestation bytes", att.PayloadHash, []string{"DSSE signature verification does not verify builder identity, provenance completeness, or external transparency inclusion."})
 	vr := verificationResult(newID("vr"), actor.TenantID, "build_attestation", att.ID, checks, profile, l.now())
+	if l.unitOfWork != nil {
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			return repos.Verification.InsertVerificationResult(ctx, vr)
+		}); err != nil {
+			return domain.VerificationResult{}, err
+		}
+		l.verifications[vr.ID] = vr
+		if verificationReturnsFailure(vr.Result) {
+			return vr, ErrVerificationFailed
+		}
+		return vr, nil
+	}
 	l.verifications[vr.ID] = vr
 	if err := l.persistLocked(ctx); err != nil {
 		return domain.VerificationResult{}, err
