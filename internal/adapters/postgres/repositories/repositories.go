@@ -2041,6 +2041,37 @@ func (r futureExtensions) InsertEvidenceSummary(ctx context.Context, summary dom
 	return writeError("insert evidence summary", err)
 }
 
+func (r futureExtensions) InsertEvidenceGraphSnapshot(ctx context.Context, graph domain.EvidenceGraphSnapshot) error {
+	if graph.ID == "" || graph.TenantID == "" || (graph.ProductID == "" && graph.ReleaseID == "") || graph.Nodes == nil || graph.Edges == nil || graph.GraphHash == "" || graph.SchemaVersion == "" || graph.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, graph.TenantID); err != nil {
+		return err
+	}
+	if err := requireOptionalProduct(ctx, r.tx, graph.TenantID, graph.ProductID); err != nil {
+		return err
+	}
+	if graph.ReleaseID != "" {
+		if graph.ProductID != "" {
+			if err := requireRow(ctx, r.tx, `SELECT 1 FROM releases WHERE id = $1 AND tenant_id = $2 AND product_id = $3`, graph.ReleaseID, graph.TenantID, graph.ProductID); err != nil {
+				return err
+			}
+		} else if err := requireOptionalRelease(ctx, r.tx, graph.TenantID, graph.ReleaseID); err != nil {
+			return err
+		}
+	}
+	nodes, err := json.Marshal(graph.Nodes)
+	if err != nil {
+		return fmt.Errorf("encode evidence graph nodes: %w", err)
+	}
+	edges, err := json.Marshal(graph.Edges)
+	if err != nil {
+		return fmt.Errorf("encode evidence graph edges: %w", err)
+	}
+	_, err = r.tx.Exec(ctx, `INSERT INTO evidence_graph_snapshots (id, tenant_id, product_id, release_id, nodes, edges, graph_hash, limitations, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, graph.ID, graph.TenantID, nullableString(graph.ProductID), nullableString(graph.ReleaseID), nodes, edges, graph.GraphHash, textArray(graph.Limitations), graph.SchemaVersion, graph.CreatedAt)
+	return writeError("insert evidence graph snapshot", err)
+}
+
 func requireTenant(ctx context.Context, tx pgx.Tx, tenantID string) error {
 	if tenantID == "" {
 		return app.ErrValidation

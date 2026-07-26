@@ -84,6 +84,7 @@ type MemoryUnitOfWorkSnapshot struct {
 	PublicTransparencyLogs    map[string]domain.PublicTransparencyLog
 	PublicTransparencyEntries map[string]domain.PublicTransparencyLogEntry
 	EvidenceSummaries         map[string]domain.EvidenceSummary
+	EvidenceGraphSnapshots    map[string]domain.EvidenceGraphSnapshot
 }
 
 func NewMemoryUnitOfWorkFactory() *MemoryUnitOfWorkFactory {
@@ -2250,6 +2251,32 @@ func (r memoryFutureExtensionsRepository) InsertEvidenceSummary(ctx context.Cont
 	})
 }
 
+func (r memoryFutureExtensionsRepository) InsertEvidenceGraphSnapshot(ctx context.Context, graph domain.EvidenceGraphSnapshot) error {
+	cloned, err := cloneMemoryJSON(graph)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || (cloned.ProductID == "" && cloned.ReleaseID == "") || cloned.Nodes == nil || cloned.Edges == nil || cloned.GraphHash == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.ProductID, cloned.TenantID, state.Products) || !memoryResourceBelongsToTenant(cloned.ReleaseID, cloned.TenantID, state.Releases) {
+			return ErrNotFound
+		}
+		if cloned.ProductID != "" && cloned.ReleaseID != "" && state.Releases[cloned.ReleaseID].ProductID != cloned.ProductID {
+			return ErrValidation
+		}
+		if _, exists := state.EvidenceGraphSnapshots[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.EvidenceGraphSnapshots[cloned.ID] = cloned
+		return nil
+	})
+}
+
 func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 	return MemoryUnitOfWorkSnapshot{
 		Tenants:                   map[string]domain.Tenant{},
@@ -2313,6 +2340,7 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		PublicTransparencyLogs:    map[string]domain.PublicTransparencyLog{},
 		PublicTransparencyEntries: map[string]domain.PublicTransparencyLogEntry{},
 		EvidenceSummaries:         map[string]domain.EvidenceSummary{},
+		EvidenceGraphSnapshots:    map[string]domain.EvidenceGraphSnapshot{},
 	}
 }
 
@@ -2509,6 +2537,9 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.EvidenceSummaries, err = cloneMemoryMap(snapshot.EvidenceSummaries); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.EvidenceGraphSnapshots, err = cloneMemoryMap(snapshot.EvidenceGraphSnapshots); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	return cloned, nil

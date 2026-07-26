@@ -304,6 +304,22 @@ func (l *Ledger) CreateGraphSnapshot(ctx context.Context, actor domain.Actor, in
 		SchemaVersion: domain.EvidenceGraphSnapshotVersion,
 		CreatedAt:     l.now(),
 	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Future.InsertEvidenceGraphSnapshot(ctx, graph); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(graph.CreatedAt, actor.TenantID, "evidence_graph_snapshot.created", "evidence_graph_snapshot", graph.ID, actorType(actor), actorID(actor), hash, ""))
+			return err
+		}); err != nil {
+			return domain.EvidenceGraphSnapshot{}, err
+		}
+		l.graphSnapshots[graph.ID] = graph
+		l.publishCommittedAuditEntryLocked(entry)
+		return graph, nil
+	}
 	l.graphSnapshots[graph.ID] = graph
 	_, _ = l.appendChainLocked(actor.TenantID, "evidence_graph_snapshot.created", "evidence_graph_snapshot", graph.ID, actorType(actor), actorID(actor), hash, "")
 	if err := l.persistLocked(ctx); err != nil {
