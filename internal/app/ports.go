@@ -223,6 +223,7 @@ type PackageRepository interface {
 
 type SignatureRepository interface {
 	InsertSigningKey(context.Context, domain.SigningKey) error
+	UpdateSigningKey(context.Context, domain.SigningKey, string) error
 	InsertSignature(context.Context, domain.Signature) error
 }
 

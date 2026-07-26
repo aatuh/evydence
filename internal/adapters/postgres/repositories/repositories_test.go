@@ -370,6 +370,13 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Signatures.InsertSigningKey(ctx, signingKey); err != nil {
 		t.Fatalf("insert signing key: %v", err)
 	}
+	signingKey.Status = "retiring"
+	if err := repositories.Signatures.UpdateSigningKey(ctx, signingKey, "active"); err != nil {
+		t.Fatalf("update signing key: %v", err)
+	}
+	if err := repositories.Signatures.UpdateSigningKey(ctx, signingKey, "active"); !errors.Is(err, app.ErrConflict) {
+		t.Fatalf("stale signing key update err=%v, want conflict", err)
+	}
 	if err := repositories.Signatures.InsertSignature(ctx, domain.Signature{ID: "sig_repository", TenantID: tenant.ID, SubjectType: "evidence_item", SubjectID: evidence.ID, KeyID: signingKey.ID, Algorithm: "Ed25519", Value: "signature", CreatedAt: now}); err != nil {
 		t.Fatalf("insert signature: %v", err)
 	}
@@ -472,6 +479,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"outbox", repositories.Outbox.Enqueue(ctx, app.OutboxJob{})},
 		{"package", repositories.Packages.InsertReleaseBundle(ctx, domain.ReleaseBundle{})},
 		{"signing key", repositories.Signatures.InsertSigningKey(ctx, domain.SigningKey{})},
+		{"signing key update", repositories.Signatures.UpdateSigningKey(ctx, domain.SigningKey{}, "")},
 		{"signature", repositories.Signatures.InsertSignature(ctx, domain.Signature{})},
 		{"verification", repositories.Verification.InsertVerificationResult(ctx, domain.VerificationResult{})},
 		{"policy evaluation", repositories.Verification.InsertPolicyEvaluation(ctx, domain.PolicyEvaluation{})},

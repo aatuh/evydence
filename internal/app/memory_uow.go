@@ -1848,6 +1848,29 @@ func (r memorySignatureRepository) InsertSigningKey(ctx context.Context, key dom
 	})
 }
 
+func (r memorySignatureRepository) UpdateSigningKey(ctx context.Context, key domain.SigningKey, expectedStatus string) error {
+	cloned := cloneMemorySigningKey(key)
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.Status == "" || expectedStatus == "" {
+			return ErrValidation
+		}
+		existing, ok := state.SigningKeys[cloned.ID]
+		if !ok || existing.TenantID != cloned.TenantID {
+			return ErrNotFound
+		}
+		if existing.Status != expectedStatus {
+			return ErrConflict
+		}
+		existing.Status = cloned.Status
+		existing.RevokedAt = cloned.RevokedAt
+		state.SigningKeys[existing.ID] = existing
+		return nil
+	})
+}
+
 func (r memorySignatureRepository) InsertSignature(ctx context.Context, signature domain.Signature) error {
 	cloned, err := cloneMemoryJSON(signature)
 	if err != nil {

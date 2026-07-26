@@ -152,9 +152,28 @@ func (l *Ledger) RevokeSigningKey(ctx context.Context, actor domain.Actor, keyID
 	if key.Status == "revoked" {
 		return domain.SigningKey{}, ErrConflict
 	}
+	previousStatus := key.Status
 	now := l.now()
 	key.Status = "revoked"
 	key.RevokedAt = &now
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Signatures.UpdateSigningKey(ctx, key, previousStatus); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, actor.TenantID, "signing_key.revoked", "signing_key", key.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.SigningKey{}, err
+		}
+		l.signingKeys[key.ID] = key
+		l.publishCommittedAuditEntryLocked(entry)
+		key.Private = nil
+		_ = reason
+		return key, nil
+	}
 	l.signingKeys[key.ID] = key
 	_, _ = l.appendChainLocked(actor.TenantID, "signing_key.revoked", "signing_key", key.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {

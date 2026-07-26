@@ -1986,6 +1986,35 @@ func (l *Ledger) RotateSigningKey(ctx context.Context, actor domain.Actor, reaso
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if l.unitOfWork != nil {
+		key, retiring, err := l.planSigningKeyRotationLocked(actor.TenantID)
+		if err != nil {
+			return domain.SigningKey{}, err
+		}
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			for _, prior := range retiring {
+				if err := repos.Signatures.UpdateSigningKey(ctx, prior, "active"); err != nil {
+					return err
+				}
+			}
+			if err := repos.Signatures.InsertSigningKey(ctx, key); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(key.CreatedAt, actor.TenantID, "signing_key.rotated", "signing_key", key.ID, "api_key", actor.KeyID, "", ""))
+			return err
+		}); err != nil {
+			return domain.SigningKey{}, err
+		}
+		for _, prior := range retiring {
+			l.signingKeys[prior.ID] = prior
+		}
+		l.signingKeys[key.ID] = key
+		l.publishCommittedAuditEntryLocked(entry)
+		key.Private = nil
+		return key, nil
+	}
 	key, err := l.rotateSigningKeyLocked(actor.TenantID, reason)
 	if err != nil {
 		return domain.SigningKey{}, err
@@ -2279,20 +2308,33 @@ func (l *Ledger) verifyChainLocked(tenantID string) []domain.VerifyCheck {
 }
 
 func (l *Ledger) rotateSigningKeyLocked(tenantID, _ string) (domain.SigningKey, error) {
-	for id, key := range l.signingKeys {
-		if key.TenantID == tenantID && key.Status == "active" {
-			key.Status = "retiring"
-			l.signingKeys[id] = key
-		}
-	}
-	key, err := l.newSigningKey(tenantID)
+	key, retiring, err := l.planSigningKeyRotationLocked(tenantID)
 	if err != nil {
 		return domain.SigningKey{}, err
+	}
+	for _, prior := range retiring {
+		l.signingKeys[prior.ID] = prior
 	}
 	l.signingKeys[key.ID] = key
 	public := key
 	public.Private = nil
 	return public, nil
+}
+
+func (l *Ledger) planSigningKeyRotationLocked(tenantID string) (domain.SigningKey, []domain.SigningKey, error) {
+	retiring := make([]domain.SigningKey, 0)
+	for _, key := range l.signingKeys {
+		if key.TenantID == tenantID && key.Status == "active" {
+			key.Status = "retiring"
+			retiring = append(retiring, key)
+		}
+	}
+	sort.Slice(retiring, func(i, j int) bool { return retiring[i].ID < retiring[j].ID })
+	key, err := l.newSigningKey(tenantID)
+	if err != nil {
+		return domain.SigningKey{}, nil, err
+	}
+	return key, retiring, nil
 }
 
 // newSigningKey creates private material without publishing it. Callers must

@@ -1679,6 +1679,24 @@ func (r signatures) InsertSigningKey(ctx context.Context, key domain.SigningKey)
 	return writeError("insert signing key", err)
 }
 
+func (r signatures) UpdateSigningKey(ctx context.Context, key domain.SigningKey, expectedStatus string) error {
+	if key.ID == "" || key.TenantID == "" || key.Status == "" || expectedStatus == "" {
+		return app.ErrValidation
+	}
+	result, err := r.tx.Exec(ctx, `
+		UPDATE signing_keys
+		SET status = $3, revoked_at = $4
+		WHERE id = $1 AND tenant_id = $2 AND status = $5
+	`, key.ID, key.TenantID, key.Status, key.RevokedAt, expectedStatus)
+	if err != nil {
+		return writeError("update signing key", err)
+	}
+	if result.RowsAffected() != 1 {
+		return app.ErrConflict
+	}
+	return nil
+}
+
 func (r signatures) InsertSignature(ctx context.Context, signature domain.Signature) error {
 	if signature.ID == "" || signature.TenantID == "" || signature.SubjectType == "" || signature.SubjectID == "" || signature.KeyID == "" || signature.Algorithm == "" || signature.Value == "" || signature.CreatedAt.IsZero() {
 		return app.ErrValidation

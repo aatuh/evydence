@@ -271,6 +271,7 @@ func TestMemoryUnitOfWorkRejectsInvalidFocusedRepositoryRecords(t *testing.T) {
 		{"outbox", repositories.Outbox.Enqueue(context.Background(), OutboxJob{})},
 		{"package", repositories.Packages.InsertReleaseBundle(context.Background(), domain.ReleaseBundle{})},
 		{"signing key", repositories.Signatures.InsertSigningKey(context.Background(), domain.SigningKey{})},
+		{"signing key update", repositories.Signatures.UpdateSigningKey(context.Background(), domain.SigningKey{}, "")},
 		{"signature", repositories.Signatures.InsertSignature(context.Background(), domain.Signature{})},
 		{"verification", repositories.Verification.InsertVerificationResult(context.Background(), domain.VerificationResult{})},
 		{"policy evaluation", repositories.Verification.InsertPolicyEvaluation(context.Background(), domain.PolicyEvaluation{})},
