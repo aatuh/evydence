@@ -64,6 +64,10 @@ func (failingDeploymentRepository) InsertDeploymentEnvironment(context.Context, 
 	return errInjectedRepositoryFailure
 }
 
+func (failingDeploymentRepository) InsertDeploymentEvent(context.Context, domain.DeploymentEvent) error {
+	return errInjectedRepositoryFailure
+}
+
 func TestCollectorCredentialCommitsOnlyAfterUnitOfWorkCommit(t *testing.T) {
 	ctx := context.Background()
 	memory := NewMemoryUnitOfWorkFactory()
@@ -590,5 +594,90 @@ func TestDeploymentEnvironmentUsesUnitOfWorkAndPublishesOnlyAfterCommit(t *testi
 	}
 	if len(after.DeploymentEnvironments) != len(before.DeploymentEnvironments) || len(after.AuditEntries[actor.TenantID]) != len(before.AuditEntries[actor.TenantID]) || len(ledger.environments) != 1 {
 		t.Fatalf("failed environment published state: before=%#v after=%#v", before, after)
+	}
+}
+
+func TestDeploymentEventUsesUnitOfWorkAndPublishesOnlyAfterCommit(t *testing.T) {
+	ctx := context.Background()
+	memory := NewMemoryUnitOfWorkFactory()
+	ledger, _, actor := newReleaseEvidenceUnitOfWorkFixture(t, memory)
+	product, err := ledger.CreateProduct(ctx, actor, "Deployment event API", "deployment-event-api")
+	if err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	release, err := ledger.CreateRelease(ctx, actor, product.ID, "1.0.0")
+	if err != nil {
+		t.Fatalf("create release: %v", err)
+	}
+	artifact, err := ledger.RegisterArtifact(ctx, actor, "api.tar.gz", "application/gzip", sampleDigest("deployment-event"), 1)
+	if err != nil {
+		t.Fatalf("register artifact: %v", err)
+	}
+	env, err := ledger.CreateDeploymentEnvironment(ctx, actor, CreateEnvironmentInput{ProductID: product.ID, Name: "production", Kind: "production"})
+	if err != nil {
+		t.Fatalf("create environment: %v", err)
+	}
+	deployment, err := ledger.RecordDeployment(ctx, actor, RecordDeploymentInput{EnvironmentID: env.ID, ReleaseID: release.ID, ArtifactIDs: []string{artifact.ID}, Status: "succeeded", StartedAt: fixedNow()})
+	if err != nil {
+		t.Fatalf("record deployment: %v", err)
+	}
+	snapshot, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	if snapshot.DeploymentEvents[deployment.ID].EvidenceID == "" || snapshot.Evidence[deployment.EvidenceID].DeploymentID != deployment.ID {
+		t.Fatalf("deployment state not committed atomically: %#v", snapshot)
+	}
+	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
+		return repositories.Deployments.InsertDeploymentEvent(ctx, domain.DeploymentEvent{})
+	}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("invalid deployment err=%v, want validation", err)
+	}
+	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
+		missingEvidence := deployment
+		missingEvidence.ID = "dep_missing_evidence"
+		missingEvidence.EvidenceID = "ev_missing"
+		return repositories.Deployments.InsertDeploymentEvent(ctx, missingEvidence)
+	}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("deployment missing evidence err=%v, want not found", err)
+	}
+	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
+		return repositories.Deployments.InsertDeploymentEvent(ctx, deployment)
+	}); !errors.Is(err, ErrConflict) {
+		t.Fatalf("duplicate deployment err=%v, want conflict", err)
+	}
+	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
+		missingArtifact := deployment
+		missingArtifact.ID = "dep_missing_artifact"
+		evidence := snapshot.Evidence[deployment.EvidenceID]
+		evidence.ID = "ev_missing_artifact"
+		evidence.DeploymentID = missingArtifact.ID
+		evidence.ChainEntryID = ""
+		if err := repositories.Evidence.InsertEvidence(ctx, evidence); err != nil {
+			return err
+		}
+		missingArtifact.EvidenceID = evidence.ID
+		missingArtifact.ArtifactIDs = []string{"art_missing"}
+		return repositories.Deployments.InsertDeploymentEvent(ctx, missingArtifact)
+	}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("deployment missing artifact err=%v, want not found", err)
+	}
+	ledger.unitOfWork = repositoryFailingUnitOfWorkFactory{inner: memory, decorate: func(repositories Repositories) Repositories {
+		repositories.Deployments = failingDeploymentRepository{DeploymentRepository: repositories.Deployments}
+		return repositories
+	}}
+	before, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot before failure: %v", err)
+	}
+	if _, err := ledger.RecordDeployment(ctx, actor, RecordDeploymentInput{EnvironmentID: env.ID, ReleaseID: release.ID, ArtifactIDs: []string{artifact.ID}, Status: "succeeded", StartedAt: fixedNow()}); !errors.Is(err, errInjectedRepositoryFailure) {
+		t.Fatalf("failed deployment err=%v", err)
+	}
+	after, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot after failure: %v", err)
+	}
+	if len(after.Evidence) != len(before.Evidence) || len(after.DeploymentEvents) != len(before.DeploymentEvents) || len(after.AuditEntries[actor.TenantID]) != len(before.AuditEntries[actor.TenantID]) || len(ledger.evidence) != 1 || len(ledger.deployments) != 1 {
+		t.Fatalf("failed deployment published state: before=%#v after=%#v", before, after)
 	}
 }

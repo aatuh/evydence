@@ -214,6 +214,7 @@ type SourceRepository interface {
 
 type DeploymentRepository interface {
 	InsertDeploymentEnvironment(context.Context, domain.DeploymentEnvironment) error
+	InsertDeploymentEvent(context.Context, domain.DeploymentEvent) error
 }
 
 type PackageRepository interface {

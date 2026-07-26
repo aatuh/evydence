@@ -1022,7 +1022,7 @@ func (l *Ledger) RecordDeployment(ctx context.Context, actor domain.Actor, in Re
 	for _, artifactID := range sortedStrings(in.ArtifactIDs) {
 		refs = append(refs, domain.SubjectRef{Type: "artifact", ID: artifactID})
 	}
-	item, err := l.CreateEvidence(ctx, actor, CreateEvidenceInput{
+	evidenceInput := CreateEvidenceInput{
 		ProductID:    env.ProductID,
 		ReleaseID:    release.ID,
 		DeploymentID: deploymentID,
@@ -1035,12 +1035,7 @@ func (l *Ledger) RecordDeployment(ctx context.Context, actor domain.Actor, in Re
 		SubjectRefs:  refs,
 		Metadata:     map[string]any{"environment_id": env.ID, "status": in.Status},
 		Limitations:  []string{"Deployment evidence records the supplied deployment metadata; it does not prove runtime security or availability."},
-	})
-	if err != nil {
-		return domain.DeploymentEvent{}, err
 	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
 	deployment := domain.DeploymentEvent{
 		ID:            deploymentID,
 		TenantID:      actor.TenantID,
@@ -1051,10 +1046,50 @@ func (l *Ledger) RecordDeployment(ctx context.Context, actor domain.Actor, in Re
 		StartedAt:     in.StartedAt.UTC(),
 		FinishedAt:    in.FinishedAt,
 		RollbackOf:    strings.TrimSpace(in.RollbackOf),
-		EvidenceID:    item.ID,
+		EvidenceID:    "",
 		SchemaVersion: domain.DeploymentEventSchemaVersion,
 		CreatedAt:     l.now(),
 	}
+	if l.unitOfWork != nil {
+		l.mu.Lock()
+		defer l.mu.Unlock()
+		item, err := l.releaseEvidenceService().newEvidenceItemLocked(actor, evidenceInput)
+		if err != nil {
+			return domain.DeploymentEvent{}, err
+		}
+		deployment.EvidenceID = item.ID
+		var evidenceEntry, deploymentEntry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			var err error
+			evidenceEntry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(item.CreatedAt, actor.TenantID, "evidence.created", "evidence_item", item.ID, actorType(actor), actorID(actor), item.PayloadHash, ""))
+			if err != nil {
+				return err
+			}
+			item.ChainEntryID = evidenceEntry.ID
+			if err := repos.Evidence.InsertEvidence(ctx, item); err != nil {
+				return err
+			}
+			deploymentEntry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(deployment.CreatedAt, actor.TenantID, "deployment.recorded", "deployment", deployment.ID, actorType(actor), actorID(actor), "", ""))
+			if err != nil {
+				return err
+			}
+			return repos.Deployments.InsertDeploymentEvent(ctx, deployment)
+		}); err != nil {
+			return domain.DeploymentEvent{}, err
+		}
+		l.evidence[item.ID] = item
+		l.deployments[deployment.ID] = deployment
+		l.publishCommittedAuditEntryLocked(evidenceEntry)
+		l.publishCommittedAuditEntryLocked(deploymentEntry)
+		return deployment, nil
+	}
+	item, err := l.CreateEvidence(ctx, actor, evidenceInput)
+	if err != nil {
+		return domain.DeploymentEvent{}, err
+	}
+	deployment.EvidenceID = item.ID
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	l.deployments[deployment.ID] = deployment
 	_, _ = l.appendChainLocked(actor.TenantID, "deployment.recorded", "deployment", deployment.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {

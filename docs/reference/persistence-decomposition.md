@@ -96,7 +96,6 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 | integrity and operations | `internal/app/integrity_runtime.go` | `VerifyCosignSignature` | `persistLocked` |
 | integrity and operations | `internal/app/integrity_runtime.go` | `VerifyMerkleBatch` | `persistLocked` |
 | integrity and operations | `internal/app/integrity_runtime.go` | `VerifyObjectRetentionPolicy` | `persistLocked` |
-| release extensions, source, and deployment | `internal/app/implementation_increments.go` | `RecordDeployment` | `persistLocked` |
 | release ledger and signing | `internal/app/ledger.go` | `EvaluateRelease` | `persistLocked` |
 | release ledger and signing | `internal/app/ledger.go` | `RotateSigningKey` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `CreateContractDiff` | `persistLocked` |
@@ -146,6 +145,7 @@ These commands commit through focused repositories whenever `UnitOfWorkFactory` 
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `CreateDeploymentEnvironment` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `CreateReleaseCandidate` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `CreateSourceRepository` | `persistLocked` |
+| release extensions, source, and deployment | `internal/app/implementation_increments.go` | `RecordDeployment` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `RecordPullRequest` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `RecordSourceCommit` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `RegisterContainerImage` | `persistLocked` |

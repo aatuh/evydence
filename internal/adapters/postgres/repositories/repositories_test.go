@@ -192,6 +192,41 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Evidence.InsertEvidence(ctx, evidence); err != nil {
 		t.Fatalf("insert evidence: %v", err)
 	}
+	deploymentEvidence := evidence
+	deploymentEvidence.ID = "evi_repository_deployment"
+	deploymentEvidence.DeploymentID = "dep_repository"
+	deploymentEvidence.PayloadHash = "sha256:deployment-payload"
+	deploymentEvidence.CanonicalHash = "sha256:deployment-canonical"
+	if err := repositories.Evidence.InsertEvidence(ctx, deploymentEvidence); err != nil {
+		t.Fatalf("insert deployment evidence: %v", err)
+	}
+	if err := repositories.Deployments.InsertDeploymentEvent(ctx, domain.DeploymentEvent{ID: "dep_repository", TenantID: tenant.ID, EnvironmentID: "env_repository", ReleaseID: release.ID, ArtifactIDs: []string{artifact.ID}, Status: "succeeded", StartedAt: now, EvidenceID: deploymentEvidence.ID, SchemaVersion: domain.DeploymentEventSchemaVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert deployment event: %v", err)
+	}
+	if err := repositories.Deployments.InsertDeploymentEvent(ctx, domain.DeploymentEvent{ID: "dep_repository_missing_env", TenantID: tenant.ID, EnvironmentID: "env_missing", ReleaseID: release.ID, Status: "succeeded", StartedAt: now, EvidenceID: deploymentEvidence.ID, SchemaVersion: domain.DeploymentEventSchemaVersion, CreatedAt: now}); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("missing deployment environment err=%v, want not found", err)
+	}
+	if err := repositories.Deployments.InsertDeploymentEvent(ctx, domain.DeploymentEvent{ID: "dep_repository_missing_evidence", TenantID: tenant.ID, EnvironmentID: "env_repository", ReleaseID: release.ID, Status: "succeeded", StartedAt: now, EvidenceID: "evi_missing", SchemaVersion: domain.DeploymentEventSchemaVersion, CreatedAt: now}); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("missing deployment evidence err=%v, want not found", err)
+	}
+	missingArtifactEvidence := deploymentEvidence
+	missingArtifactEvidence.ID = "evi_repository_missing_artifact"
+	missingArtifactEvidence.DeploymentID = "dep_repository_missing_artifact"
+	if err := repositories.Evidence.InsertEvidence(ctx, missingArtifactEvidence); err != nil {
+		t.Fatalf("insert missing-artifact deployment evidence: %v", err)
+	}
+	if err := repositories.Deployments.InsertDeploymentEvent(ctx, domain.DeploymentEvent{ID: "dep_repository_missing_artifact", TenantID: tenant.ID, EnvironmentID: "env_repository", ReleaseID: release.ID, ArtifactIDs: []string{"art_missing"}, Status: "succeeded", StartedAt: now, EvidenceID: missingArtifactEvidence.ID, SchemaVersion: domain.DeploymentEventSchemaVersion, CreatedAt: now}); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("missing deployment artifact err=%v, want not found", err)
+	}
+	rollbackEvidence := deploymentEvidence
+	rollbackEvidence.ID = "evi_repository_missing_rollback"
+	rollbackEvidence.DeploymentID = "dep_repository_missing_rollback"
+	if err := repositories.Evidence.InsertEvidence(ctx, rollbackEvidence); err != nil {
+		t.Fatalf("insert rollback deployment evidence: %v", err)
+	}
+	if err := repositories.Deployments.InsertDeploymentEvent(ctx, domain.DeploymentEvent{ID: "dep_repository_missing_rollback", TenantID: tenant.ID, EnvironmentID: "env_repository", ReleaseID: release.ID, Status: "rolled_back", StartedAt: now, EvidenceID: rollbackEvidence.ID, RollbackOf: "dep_missing", SchemaVersion: domain.DeploymentEventSchemaVersion, CreatedAt: now}); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("missing rollback deployment err=%v, want not found", err)
+	}
 	if err := repositories.Builds.InsertBuildRun(ctx, domain.BuildRun{ID: "build_repository", TenantID: tenant.ID, ProjectID: project.ID, ReleaseID: release.ID, Provider: "generic_ci", CommitSHA: "0123456789abcdef0123456789abcdef01234567", Status: "passed", StartedAt: now, Outputs: []domain.BuildOutput{{ArtifactID: artifact.ID, Digest: artifact.Digest}}, SourceIdentity: map[string]any{"source": "repository-test"}, SchemaVersion: domain.BuildRunSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert build run: %v", err)
 	}

@@ -1452,6 +1452,40 @@ func (r deployments) InsertDeploymentEnvironment(ctx context.Context, env domain
 	return writeError("insert deployment environment", err)
 }
 
+func (r deployments) InsertDeploymentEvent(ctx context.Context, deployment domain.DeploymentEvent) error {
+	if deployment.ID == "" || deployment.TenantID == "" || deployment.EnvironmentID == "" || deployment.ReleaseID == "" || deployment.Status == "" || deployment.StartedAt.IsZero() || deployment.EvidenceID == "" || deployment.SchemaVersion == "" || deployment.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, deployment.TenantID); err != nil {
+		return err
+	}
+	var productID string
+	if err := r.tx.QueryRow(ctx, `SELECT product_id FROM deployment_environments WHERE id = $1 AND tenant_id = $2`, deployment.EnvironmentID, deployment.TenantID).Scan(&productID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return app.ErrNotFound
+		}
+		return writeError("read deployment environment", err)
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM releases WHERE id = $1 AND tenant_id = $2 AND product_id = $3`, deployment.ReleaseID, deployment.TenantID, productID); err != nil {
+		return err
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM evidence_items WHERE id = $1 AND tenant_id = $2 AND deployment_id = $3`, deployment.EvidenceID, deployment.TenantID, deployment.ID); err != nil {
+		return err
+	}
+	for _, artifactID := range deployment.ArtifactIDs {
+		if err := requireRow(ctx, r.tx, `SELECT 1 FROM artifacts WHERE id = $1 AND tenant_id = $2`, artifactID, deployment.TenantID); err != nil {
+			return err
+		}
+	}
+	if deployment.RollbackOf != "" {
+		if err := requireRow(ctx, r.tx, `SELECT 1 FROM deployment_events WHERE id = $1 AND tenant_id = $2 AND environment_id = $3`, deployment.RollbackOf, deployment.TenantID, deployment.EnvironmentID); err != nil {
+			return err
+		}
+	}
+	_, err := r.tx.Exec(ctx, `INSERT INTO deployment_events (id, tenant_id, environment_id, release_id, artifact_ids, status, started_at, finished_at, rollback_of, evidence_id, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, deployment.ID, deployment.TenantID, deployment.EnvironmentID, deployment.ReleaseID, deployment.ArtifactIDs, deployment.Status, deployment.StartedAt, deployment.FinishedAt, nullableString(deployment.RollbackOf), deployment.EvidenceID, deployment.SchemaVersion, deployment.CreatedAt)
+	return writeError("insert deployment event", err)
+}
+
 func (r source) InsertSourceRepository(ctx context.Context, repository domain.SourceRepository) error {
 	if repository.ID == "" || repository.TenantID == "" || repository.Provider == "" || repository.FullName == "" || repository.SchemaVersion == "" || repository.CreatedAt.IsZero() {
 		return app.ErrValidation

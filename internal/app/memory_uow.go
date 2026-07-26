@@ -57,6 +57,7 @@ type MemoryUnitOfWorkSnapshot struct {
 	SourceBranches         map[string]domain.SourceBranch
 	PullRequests           map[string]domain.PullRequest
 	DeploymentEnvironments map[string]domain.DeploymentEnvironment
+	DeploymentEvents       map[string]domain.DeploymentEvent
 	ControlFrameworks      map[string]domain.ControlFramework
 	SecurityControls       map[string]domain.SecurityControl
 	ControlEvidence        map[string]domain.ControlEvidence
@@ -1555,6 +1556,49 @@ func (r memoryDeploymentRepository) InsertDeploymentEnvironment(ctx context.Cont
 	})
 }
 
+func (r memoryDeploymentRepository) InsertDeploymentEvent(ctx context.Context, deployment domain.DeploymentEvent) error {
+	cloned, err := cloneMemoryJSON(deployment)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.EnvironmentID == "" || cloned.ReleaseID == "" || cloned.Status == "" || cloned.StartedAt.IsZero() || cloned.EvidenceID == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		env, ok := state.DeploymentEnvironments[cloned.EnvironmentID]
+		if !ok || env.TenantID != cloned.TenantID {
+			return ErrNotFound
+		}
+		release, ok := state.Releases[cloned.ReleaseID]
+		if !ok || release.TenantID != cloned.TenantID || release.ProductID != env.ProductID {
+			return ErrNotFound
+		}
+		evidence, ok := state.Evidence[cloned.EvidenceID]
+		if !ok || evidence.TenantID != cloned.TenantID || evidence.DeploymentID != cloned.ID {
+			return ErrNotFound
+		}
+		for _, artifactID := range cloned.ArtifactIDs {
+			if !memoryResourceBelongsToTenant(artifactID, cloned.TenantID, state.Artifacts) {
+				return ErrNotFound
+			}
+		}
+		if cloned.RollbackOf != "" {
+			previous, ok := state.DeploymentEvents[cloned.RollbackOf]
+			if !ok || previous.TenantID != cloned.TenantID || previous.EnvironmentID != cloned.EnvironmentID {
+				return ErrNotFound
+			}
+		}
+		if _, exists := state.DeploymentEvents[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.DeploymentEvents[cloned.ID] = cloned
+		return nil
+	})
+}
+
 func (r memorySourceRepository) InsertSourceRepository(ctx context.Context, repository domain.SourceRepository) error {
 	cloned, err := cloneMemoryJSON(repository)
 	if err != nil {
@@ -1886,6 +1930,7 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		SourceBranches:         map[string]domain.SourceBranch{},
 		PullRequests:           map[string]domain.PullRequest{},
 		DeploymentEnvironments: map[string]domain.DeploymentEnvironment{},
+		DeploymentEvents:       map[string]domain.DeploymentEvent{},
 		ControlFrameworks:      map[string]domain.ControlFramework{},
 		SecurityControls:       map[string]domain.SecurityControl{},
 		ControlEvidence:        map[string]domain.ControlEvidence{},
@@ -2013,6 +2058,9 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.DeploymentEnvironments, err = cloneMemoryMap(snapshot.DeploymentEnvironments); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.DeploymentEvents, err = cloneMemoryMap(snapshot.DeploymentEvents); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.ControlFrameworks, err = cloneMemoryMap(snapshot.ControlFrameworks); err != nil {
