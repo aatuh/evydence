@@ -255,6 +255,9 @@ func TestMemoryUnitOfWorkCommitsEveryFocusedRepository(t *testing.T) {
 	if err := repositories.Future.InsertPDFReportPackage(context.Background(), domain.PDFReportPackage{ID: "pdf_all_repositories", TenantID: tenant.ID, ReportType: "release_readiness", ProductID: product.ID, ReleaseID: release.ID, Title: "All repositories", PayloadHash: "sha256:report", PayloadSize: 1, SchemaVersion: domain.PDFReportPackageVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert PDF report package: %v", err)
 	}
+	if err := repositories.Future.InsertQuestionnaireDraft(context.Background(), domain.QuestionnaireDraft{ID: "draft_all_repositories", TenantID: tenant.ID, TemplateID: "template_all_repositories", ProductID: product.ID, ReleaseID: release.ID, Responses: []domain.QuestionnaireResponse{{QuestionID: "q1", Answer: "Evidence is available.", EvidenceIDs: []string{evidence.ID}}}, ManifestHash: "sha256:draft", SchemaVersion: domain.QuestionnaireDraftVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert questionnaire draft: %v", err)
+	}
 	if err := repositories.Integrity.InsertCosignVerification(context.Background(), domain.CosignVerification{ID: "cosign_all_repositories", TenantID: tenant.ID, ArtifactID: artifact.ID, ContainerImageID: image.ID, ArtifactSignatureID: artifactSignature.ID, SubjectDigest: artifact.Digest, Result: "limited", Checks: []domain.VerifyCheck{{Name: "recorded", Result: "passed"}}, SchemaVersion: domain.CosignVerificationSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert Cosign verification: %v", err)
 	}
@@ -302,7 +305,7 @@ func TestMemoryUnitOfWorkCommitsEveryFocusedRepository(t *testing.T) {
 	if err != nil {
 		t.Fatalf("snapshot: %v", err)
 	}
-	if len(snapshot.APIKeys) != 1 || len(snapshot.Projects) != 1 || len(snapshot.Releases) != 1 || len(snapshot.Artifacts) != 1 || len(snapshot.ContainerImages) != 1 || len(snapshot.ArtifactSignatures) != 1 || len(snapshot.Evidence) != 1 || len(snapshot.EvidenceLifecycle) != 1 || len(snapshot.Decisions) != 1 || len(snapshot.AuditEntries[tenant.ID]) != 1 || len(snapshot.Idempotency) != 1 || len(snapshot.OutboxJobs) != 1 || len(snapshot.ReleaseBundles) != 1 || len(snapshot.SigningKeys) != 1 || len(snapshot.Signatures) != 1 || len(snapshot.SigningProviders) != 1 || len(snapshot.CosignVerifications) != 1 || len(snapshot.ObjectRetentionPolicies) != 1 || len(snapshot.BackupManifests) != 1 || len(snapshot.MerkleBatches) != 1 || len(snapshot.TransparencyCheckpoints) != 1 || len(snapshot.VerificationResults) != 1 || len(snapshot.PolicyEvaluations) != 1 || len(snapshot.PublicTransparencyLogs) != 1 || len(snapshot.PublicTransparencyEntries) != 1 || len(snapshot.EvidenceSummaries) != 1 || len(snapshot.EvidenceGraphSnapshots) != 1 || len(snapshot.SaaSEditionProfiles) != 1 || len(snapshot.MarketplaceCollectors) != 1 || len(snapshot.PDFReports) != 1 {
+	if len(snapshot.APIKeys) != 1 || len(snapshot.Projects) != 1 || len(snapshot.Releases) != 1 || len(snapshot.Artifacts) != 1 || len(snapshot.ContainerImages) != 1 || len(snapshot.ArtifactSignatures) != 1 || len(snapshot.Evidence) != 1 || len(snapshot.EvidenceLifecycle) != 1 || len(snapshot.Decisions) != 1 || len(snapshot.AuditEntries[tenant.ID]) != 1 || len(snapshot.Idempotency) != 1 || len(snapshot.OutboxJobs) != 1 || len(snapshot.ReleaseBundles) != 1 || len(snapshot.SigningKeys) != 1 || len(snapshot.Signatures) != 1 || len(snapshot.SigningProviders) != 1 || len(snapshot.CosignVerifications) != 1 || len(snapshot.ObjectRetentionPolicies) != 1 || len(snapshot.BackupManifests) != 1 || len(snapshot.MerkleBatches) != 1 || len(snapshot.TransparencyCheckpoints) != 1 || len(snapshot.VerificationResults) != 1 || len(snapshot.PolicyEvaluations) != 1 || len(snapshot.PublicTransparencyLogs) != 1 || len(snapshot.PublicTransparencyEntries) != 1 || len(snapshot.EvidenceSummaries) != 1 || len(snapshot.EvidenceGraphSnapshots) != 1 || len(snapshot.SaaSEditionProfiles) != 1 || len(snapshot.MarketplaceCollectors) != 1 || len(snapshot.PDFReports) != 1 || len(snapshot.QuestionnaireDrafts) != 1 {
 		t.Fatalf("focused repositories did not commit together: %#v", snapshot)
 	}
 }
@@ -349,6 +352,7 @@ func TestMemoryUnitOfWorkRejectsInvalidFocusedRepositoryRecords(t *testing.T) {
 		{"SaaS edition profile", repositories.Future.InsertSaaSEditionProfile(context.Background(), domain.SaaSEditionProfile{})},
 		{"marketplace collector", repositories.Future.InsertMarketplaceCollector(context.Background(), domain.MarketplaceCollector{})},
 		{"PDF report package", repositories.Future.InsertPDFReportPackage(context.Background(), domain.PDFReportPackage{})},
+		{"questionnaire draft", repositories.Future.InsertQuestionnaireDraft(context.Background(), domain.QuestionnaireDraft{})},
 		{"verification", repositories.Verification.InsertVerificationResult(context.Background(), domain.VerificationResult{})},
 		{"policy evaluation", repositories.Verification.InsertPolicyEvaluation(context.Background(), domain.PolicyEvaluation{})},
 	}

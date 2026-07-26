@@ -88,6 +88,7 @@ type MemoryUnitOfWorkSnapshot struct {
 	SaaSEditionProfiles       map[string]domain.SaaSEditionProfile
 	MarketplaceCollectors     map[string]domain.MarketplaceCollector
 	PDFReports                map[string]domain.PDFReportPackage
+	QuestionnaireDrafts       map[string]domain.QuestionnaireDraft
 }
 
 func NewMemoryUnitOfWorkFactory() *MemoryUnitOfWorkFactory {
@@ -2357,6 +2358,47 @@ func (r memoryFutureExtensionsRepository) InsertPDFReportPackage(ctx context.Con
 	})
 }
 
+func (r memoryFutureExtensionsRepository) InsertQuestionnaireDraft(ctx context.Context, draft domain.QuestionnaireDraft) error {
+	cloned, err := cloneMemoryJSON(draft)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.TemplateID == "" || cloned.Responses == nil || cloned.ManifestHash == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.ProductID, cloned.TenantID, state.Products) || !memoryResourceBelongsToTenant(cloned.ReleaseID, cloned.TenantID, state.Releases) {
+			return ErrNotFound
+		}
+		if cloned.ProductID != "" && cloned.ReleaseID != "" && state.Releases[cloned.ReleaseID].ProductID != cloned.ProductID {
+			return ErrValidation
+		}
+		responseIDs := make(map[string]struct{}, len(cloned.Responses))
+		for _, response := range cloned.Responses {
+			if response.QuestionID == "" || response.Answer == "" {
+				return ErrValidation
+			}
+			if _, duplicate := responseIDs[response.QuestionID]; duplicate {
+				return ErrValidation
+			}
+			for _, evidenceID := range response.EvidenceIDs {
+				if !memoryResourceBelongsToTenant(evidenceID, cloned.TenantID, state.Evidence) {
+					return ErrNotFound
+				}
+			}
+			responseIDs[response.QuestionID] = struct{}{}
+		}
+		if _, exists := state.QuestionnaireDrafts[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.QuestionnaireDrafts[cloned.ID] = cloned
+		return nil
+	})
+}
+
 func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 	return MemoryUnitOfWorkSnapshot{
 		Tenants:                   map[string]domain.Tenant{},
@@ -2424,6 +2466,7 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		SaaSEditionProfiles:       map[string]domain.SaaSEditionProfile{},
 		MarketplaceCollectors:     map[string]domain.MarketplaceCollector{},
 		PDFReports:                map[string]domain.PDFReportPackage{},
+		QuestionnaireDrafts:       map[string]domain.QuestionnaireDraft{},
 	}
 }
 
@@ -2632,6 +2675,9 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.PDFReports, err = cloneMemoryMap(snapshot.PDFReports); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.QuestionnaireDrafts, err = cloneMemoryMap(snapshot.QuestionnaireDrafts); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	return cloned, nil

@@ -398,8 +398,14 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Future.InsertMarketplaceCollector(ctx, domain.MarketplaceCollector{ID: "marketplace_repository", TenantID: tenant.ID, Name: "Repository", Provider: "scanner", Version: "1.0.0", Publisher: "vendor", ManifestHash: "sha256:manifest", State: "registered", SchemaVersion: domain.MarketplaceCollectorVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert marketplace collector: %v", err)
 	}
+	if _, err := tx.Exec(ctx, `INSERT INTO questionnaire_templates (id, tenant_id, name, version, questions, schema_version, created_at) VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7)`, "template_repository", tenant.ID, "Repository", "1", `[{"id":"q1","prompt":"Is evidence available?"}]`, domain.QuestionnaireTemplateVersion, now); err != nil {
+		t.Fatalf("seed questionnaire template: %v", err)
+	}
 	if err := repositories.Future.InsertPDFReportPackage(ctx, domain.PDFReportPackage{ID: "pdf_repository", TenantID: tenant.ID, ReportType: "release_readiness", ProductID: product.ID, ReleaseID: release.ID, Title: "Repository report", PayloadHash: "sha256:report", PayloadSize: 1, SchemaVersion: domain.PDFReportPackageVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert PDF report package: %v", err)
+	}
+	if err := repositories.Future.InsertQuestionnaireDraft(ctx, domain.QuestionnaireDraft{ID: "draft_repository", TenantID: tenant.ID, TemplateID: "template_repository", ProductID: product.ID, ReleaseID: release.ID, Responses: []domain.QuestionnaireResponse{{QuestionID: "q1", Answer: "Evidence is available.", EvidenceIDs: []string{evidence.ID}}}, ManifestHash: "sha256:draft", SchemaVersion: domain.QuestionnaireDraftVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert questionnaire draft: %v", err)
 	}
 	if err := repositories.Future.InsertPublicTransparencyLog(ctx, domain.PublicTransparencyLog{ID: "public_log_repository_http", TenantID: tenant.ID, Name: "Repository insecure log", Endpoint: "http://transparency.example.test", PublicKey: "public-key", State: "configured", SchemaVersion: domain.PublicTransparencyLogVersion, CreatedAt: now}); !errors.Is(err, app.ErrValidation) {
 		t.Fatalf("insecure public transparency log err=%v, want validation", err)
@@ -561,6 +567,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"SaaS edition profile", repositories.Future.InsertSaaSEditionProfile(ctx, domain.SaaSEditionProfile{})},
 		{"marketplace collector", repositories.Future.InsertMarketplaceCollector(ctx, domain.MarketplaceCollector{})},
 		{"PDF report package", repositories.Future.InsertPDFReportPackage(ctx, domain.PDFReportPackage{})},
+		{"questionnaire draft", repositories.Future.InsertQuestionnaireDraft(ctx, domain.QuestionnaireDraft{})},
 		{"verification", repositories.Verification.InsertVerificationResult(ctx, domain.VerificationResult{})},
 		{"policy evaluation", repositories.Verification.InsertPolicyEvaluation(ctx, domain.PolicyEvaluation{})},
 	}
@@ -593,6 +600,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"marketplace collector scan", repositories.Future.InsertMarketplaceCollector(ctx, domain.MarketplaceCollector{ID: "marketplace_missing_scan", TenantID: "ten_repository_a", Name: "Missing scan", Provider: "scanner", Version: "1.0.0", Publisher: "vendor", ManifestHash: "sha256:marketplace", ScanID: "missing-scan", State: "registered", SchemaVersion: domain.MarketplaceCollectorVersion, CreatedAt: now}), app.ErrNotFound},
 		{"PDF report product", repositories.Future.InsertPDFReportPackage(ctx, domain.PDFReportPackage{ID: "pdf_missing_product", TenantID: "ten_repository_a", ReportType: "release_readiness", ProductID: "missing-product", Title: "Missing product", PayloadHash: "sha256:report", PayloadSize: 1, SchemaVersion: domain.PDFReportPackageVersion, CreatedAt: now}), app.ErrNotFound},
 		{"PDF report release", repositories.Future.InsertPDFReportPackage(ctx, domain.PDFReportPackage{ID: "pdf_missing_release", TenantID: "ten_repository_a", ReportType: "release_readiness", ReleaseID: "missing-release", Title: "Missing release", PayloadHash: "sha256:report", PayloadSize: 1, SchemaVersion: domain.PDFReportPackageVersion, CreatedAt: now}), app.ErrNotFound},
+		{"questionnaire draft template", repositories.Future.InsertQuestionnaireDraft(ctx, domain.QuestionnaireDraft{ID: "draft_missing_template", TenantID: "ten_repository_a", TemplateID: "missing-template", Responses: []domain.QuestionnaireResponse{{QuestionID: "q1", Answer: "No evidence."}}, ManifestHash: "sha256:draft", SchemaVersion: domain.QuestionnaireDraftVersion, CreatedAt: now}), app.ErrNotFound},
 		{"policy evaluation release", repositories.Verification.InsertPolicyEvaluation(ctx, domain.PolicyEvaluation{ID: "policy_missing_release", TenantID: "ten_repository_a", ReleaseID: "missing-release", Result: "passed", PolicySet: domain.PolicySetVersion, CreatedAt: now}), app.ErrNotFound},
 	}
 	for _, check := range missingReferenceChecks {
@@ -611,6 +619,9 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 	evidenceA := domain.EvidenceItem{ID: "evi_repository_a", TenantID: "ten_repository_a", ProductID: "prod_repository_a", ReleaseID: releaseA.ID, Type: "note", Title: "A evidence", SourceSystem: "test", ObservedAt: now, SchemaVersion: domain.EvidenceItemSchemaVersion, PayloadHash: "sha256:evidence-a", CanonicalHash: "sha256:evidence-a", Canonicalization: domain.CanonicalizationProfileVersion, TrustLevel: "untrusted", VerificationStatus: "not_verified", CreatedAt: now}
 	if err := repositories.Evidence.InsertEvidence(ctx, evidenceA); err != nil {
 		t.Fatalf("insert tenant A evidence: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO questionnaire_templates (id, tenant_id, name, version, questions, schema_version, created_at) VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7)`, "template_repository_a", "ten_repository_a", "A template", "1", `[{"id":"q1","prompt":"Is evidence available?"}]`, domain.QuestionnaireTemplateVersion, now); err != nil {
+		t.Fatalf("seed tenant A questionnaire template: %v", err)
 	}
 	signingKeyA := domain.SigningKey{ID: "sigkey_repository_a", TenantID: "ten_repository_a", KID: "a-key", Algorithm: "Ed25519", Status: "active", PublicKey: "public-key", CreatedAt: now}
 	if err := repositories.Signatures.InsertSigningKey(ctx, signingKeyA); err != nil {
@@ -688,6 +699,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"transparency checkpoint batch", repositories.Integrity.InsertTransparencyCheckpoint(ctx, domain.TransparencyCheckpoint{ID: "checkpoint_repository_b", TenantID: "ten_repository_b", BatchID: merkleBatchA.ID, Provider: "rfc3161", ExternalID: "checkpoint", TimestampHash: "sha256:checkpoint-b", State: "recorded", SchemaVersion: domain.TransparencyCheckpointVersion, CreatedAt: now})},
 		{"marketplace collector signature", repositories.Future.InsertMarketplaceCollector(ctx, domain.MarketplaceCollector{ID: "marketplace_repository_b", TenantID: "ten_repository_b", Name: "Foreign signature", Provider: "scanner", Version: "1.0.0", Publisher: "vendor", ManifestHash: "sha256:marketplace-b", SignatureID: "sig_repository_a", State: "registered", SchemaVersion: domain.MarketplaceCollectorVersion, CreatedAt: now})},
 		{"PDF report product", repositories.Future.InsertPDFReportPackage(ctx, domain.PDFReportPackage{ID: "pdf_repository_b", TenantID: "ten_repository_b", ReportType: "release_readiness", ProductID: "prod_repository_a", Title: "Foreign product", PayloadHash: "sha256:report-b", PayloadSize: 1, SchemaVersion: domain.PDFReportPackageVersion, CreatedAt: now})},
+		{"questionnaire draft template", repositories.Future.InsertQuestionnaireDraft(ctx, domain.QuestionnaireDraft{ID: "draft_repository_b", TenantID: "ten_repository_b", TemplateID: "template_repository_a", Responses: []domain.QuestionnaireResponse{{QuestionID: "q1", Answer: "Foreign template."}}, ManifestHash: "sha256:draft-b", SchemaVersion: domain.QuestionnaireDraftVersion, CreatedAt: now})},
 		{"decision scan", repositories.Decisions.SupersedeAndInsert(ctx, domain.VulnerabilityDecision{ID: "dec_repository_b", TenantID: "ten_repository_b", FindingID: "finding-b", ScanID: "scan_repository_b", ReleaseID: releaseA.ID, Vulnerability: "CVE-2026-0001", Status: "not_affected", Justification: "test", Source: "test", SchemaVersion: domain.VulnerabilityDecisionVersion, CreatedAt: now}, nil)},
 		{"policy evaluation release", repositories.Verification.InsertPolicyEvaluation(ctx, domain.PolicyEvaluation{ID: "policy_repository_b", TenantID: "ten_repository_b", ReleaseID: releaseA.ID, Result: "passed", PolicySet: domain.PolicySetVersion, CreatedAt: now})},
 	}

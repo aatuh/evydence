@@ -2135,6 +2135,82 @@ func (r futureExtensions) InsertPDFReportPackage(ctx context.Context, report dom
 	return writeError("insert PDF report package", err)
 }
 
+func (r futureExtensions) InsertQuestionnaireDraft(ctx context.Context, draft domain.QuestionnaireDraft) error {
+	if draft.ID == "" || draft.TenantID == "" || draft.TemplateID == "" || draft.Responses == nil || draft.ManifestHash == "" || draft.SchemaVersion == "" || draft.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, draft.TenantID); err != nil {
+		return err
+	}
+	var templateQuestions []byte
+	if err := r.tx.QueryRow(ctx, `SELECT questions FROM questionnaire_templates WHERE id = $1 AND tenant_id = $2`, draft.TemplateID, draft.TenantID).Scan(&templateQuestions); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return app.ErrNotFound
+		}
+		return fmt.Errorf("load questionnaire template: %w", err)
+	}
+	var questions []domain.QuestionnaireQuestion
+	if err := json.Unmarshal(templateQuestions, &questions); err != nil {
+		return fmt.Errorf("decode questionnaire template questions: %w", err)
+	}
+	if err := validateQuestionnaireDraftResponses(ctx, r.tx, draft.TenantID, questions, draft.Responses); err != nil {
+		return err
+	}
+	if err := requireOptionalProduct(ctx, r.tx, draft.TenantID, draft.ProductID); err != nil {
+		return err
+	}
+	if draft.ReleaseID != "" {
+		if draft.ProductID != "" {
+			if err := requireRow(ctx, r.tx, `SELECT 1 FROM releases WHERE id = $1 AND tenant_id = $2 AND product_id = $3`, draft.ReleaseID, draft.TenantID, draft.ProductID); err != nil {
+				return err
+			}
+		} else if err := requireOptionalRelease(ctx, r.tx, draft.TenantID, draft.ReleaseID); err != nil {
+			return err
+		}
+	}
+	responses, err := json.Marshal(draft.Responses)
+	if err != nil {
+		return fmt.Errorf("encode questionnaire draft responses: %w", err)
+	}
+	_, err = r.tx.Exec(ctx, `INSERT INTO questionnaire_drafts (id, tenant_id, template_id, product_id, release_id, responses, manifest_hash, limitations, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, draft.ID, draft.TenantID, draft.TemplateID, nullableString(draft.ProductID), nullableString(draft.ReleaseID), responses, draft.ManifestHash, textArray(draft.Limitations), draft.SchemaVersion, draft.CreatedAt)
+	return writeError("insert questionnaire draft", err)
+}
+
+func validateQuestionnaireDraftResponses(ctx context.Context, tx pgx.Tx, tenantID string, questions []domain.QuestionnaireQuestion, responses []domain.QuestionnaireResponse) error {
+	if len(questions) == 0 || len(responses) != len(questions) {
+		return app.ErrValidation
+	}
+	questionIDs := make(map[string]struct{}, len(questions))
+	for _, question := range questions {
+		if question.ID == "" {
+			return app.ErrValidation
+		}
+		if _, duplicate := questionIDs[question.ID]; duplicate {
+			return app.ErrValidation
+		}
+		questionIDs[question.ID] = struct{}{}
+	}
+	responseIDs := make(map[string]struct{}, len(responses))
+	for _, response := range responses {
+		if response.QuestionID == "" || response.Answer == "" {
+			return app.ErrValidation
+		}
+		if _, expected := questionIDs[response.QuestionID]; !expected {
+			return app.ErrValidation
+		}
+		if _, duplicate := responseIDs[response.QuestionID]; duplicate {
+			return app.ErrValidation
+		}
+		for _, evidenceID := range response.EvidenceIDs {
+			if err := requireOwnedEvidence(ctx, tx, tenantID, evidenceID); err != nil {
+				return err
+			}
+		}
+		responseIDs[response.QuestionID] = struct{}{}
+	}
+	return nil
+}
+
 func requireTenant(ctx context.Context, tx pgx.Tx, tenantID string) error {
 	if tenantID == "" {
 		return app.ErrValidation

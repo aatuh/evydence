@@ -253,6 +253,7 @@ type FutureExtensionsRepository interface {
 	InsertSaaSEditionProfile(context.Context, domain.SaaSEditionProfile) error
 	InsertMarketplaceCollector(context.Context, domain.MarketplaceCollector) error
 	InsertPDFReportPackage(context.Context, domain.PDFReportPackage) error
+	InsertQuestionnaireDraft(context.Context, domain.QuestionnaireDraft) error
 }
 
 type SigningRequest struct {

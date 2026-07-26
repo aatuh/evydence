@@ -230,6 +230,22 @@ func (s packageReportService) CreateQuestionnaireDraft(ctx context.Context, acto
 		SchemaVersion: domain.QuestionnaireDraftVersion,
 		CreatedAt:     l.now(),
 	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Future.InsertQuestionnaireDraft(ctx, draft); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(draft.CreatedAt, actor.TenantID, "questionnaire_draft.created", "questionnaire_draft", draft.ID, actorType(actor), actorID(actor), hash, ""))
+			return err
+		}); err != nil {
+			return domain.QuestionnaireDraft{}, err
+		}
+		l.questionDrafts[draft.ID] = draft
+		l.publishCommittedAuditEntryLocked(entry)
+		return draft, nil
+	}
 	l.questionDrafts[draft.ID] = draft
 	_, _ = l.appendChainLocked(actor.TenantID, "questionnaire_draft.created", "questionnaire_draft", draft.ID, actorType(actor), actorID(actor), hash, "")
 	if err := l.persistLocked(ctx); err != nil {
