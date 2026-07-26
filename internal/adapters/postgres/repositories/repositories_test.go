@@ -292,6 +292,9 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Packages.UpdateCustomerSecurityPackageAccess(ctx, customerPackage, accessedCustomerPackage); !errors.Is(err, app.ErrConflict) {
 		t.Fatalf("stale customer security package access err=%v, want conflict", err)
 	}
+	if err := repositories.Packages.InsertEvidenceBundleImport(ctx, domain.EvidenceBundleImport{ID: "bundle_import_repository", TenantID: tenant.ID, BundleHash: "sha256:" + strings.Repeat("5", 64), Result: "accepted", ImportedCount: 1, SchemaVersion: domain.EvidenceBundleImportVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert evidence bundle import: %v", err)
+	}
 	if err := repositories.Governance.InsertDSSETrustRoot(ctx, domain.DSSETrustRoot{ID: "dtr_repository", TenantID: tenant.ID, Name: "Repository root", KeyID: "repository-root", Algorithm: "Ed25519", PublicKey: strings.Repeat("A", 43) + "=", Status: "active", SchemaVersion: domain.DSSETrustRootSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert DSSE trust root: %v", err)
 	}
@@ -663,6 +666,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"package", repositories.Packages.InsertReleaseBundle(ctx, domain.ReleaseBundle{})},
 		{"customer security package", repositories.Packages.InsertCustomerSecurityPackage(ctx, domain.CustomerSecurityPackage{})},
 		{"customer security package access", repositories.Packages.UpdateCustomerSecurityPackageAccess(ctx, domain.CustomerSecurityPackage{}, domain.CustomerSecurityPackage{})},
+		{"evidence bundle import", repositories.Packages.InsertEvidenceBundleImport(ctx, domain.EvidenceBundleImport{})},
 		{"HTML report package", repositories.Packages.InsertHTMLReportPackage(ctx, domain.HTMLReportPackage{})},
 		{"custom report template", repositories.Packages.InsertCustomReportTemplate(ctx, domain.CustomReportTemplate{})},
 		{"rendered custom report", repositories.Packages.InsertRenderedCustomReport(ctx, domain.RenderedCustomReport{})},

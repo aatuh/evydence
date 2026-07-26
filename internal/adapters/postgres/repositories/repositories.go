@@ -1732,6 +1732,17 @@ func (r packages) UpdateCustomerSecurityPackageAccess(ctx context.Context, previ
 	return nil
 }
 
+func (r packages) InsertEvidenceBundleImport(ctx context.Context, record domain.EvidenceBundleImport) error {
+	if record.ID == "" || record.TenantID == "" || !validSHA256Digest(record.BundleHash) || record.Result != "accepted" || record.ImportedCount < 0 || record.SchemaVersion == "" || record.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, record.TenantID); err != nil {
+		return err
+	}
+	_, err := r.tx.Exec(ctx, `INSERT INTO evidence_bundle_imports (id, tenant_id, bundle_hash, result, imported_count, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`, record.ID, record.TenantID, record.BundleHash, record.Result, record.ImportedCount, record.SchemaVersion, record.CreatedAt)
+	return writeError("insert evidence bundle import", err)
+}
+
 func (r packages) InsertHTMLReportPackage(ctx context.Context, report domain.HTMLReportPackage) error {
 	if report.ID == "" || report.TenantID == "" || report.ReportType == "" || report.ProductID == "" || report.HTML == "" || !validSHA256Digest(report.Hash) || report.SchemaVersion == "" || report.CreatedAt.IsZero() {
 		return app.ErrValidation

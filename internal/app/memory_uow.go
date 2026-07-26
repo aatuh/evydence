@@ -73,6 +73,7 @@ type MemoryUnitOfWorkSnapshot struct {
 	OutboxJobs                map[string]OutboxJob
 	ReleaseBundles            map[string]domain.ReleaseBundle
 	CustomerPackages          map[string]domain.CustomerSecurityPackage
+	BundleImports             map[string]domain.EvidenceBundleImport
 	HTMLReports               map[string]domain.HTMLReportPackage
 	ReportTemplates           map[string]domain.CustomReportTemplate
 	RenderedReports           map[string]domain.RenderedCustomReport
@@ -1937,6 +1938,26 @@ func (r memoryPackageRepository) UpdateCustomerSecurityPackageAccess(ctx context
 	})
 }
 
+func (r memoryPackageRepository) InsertEvidenceBundleImport(ctx context.Context, record domain.EvidenceBundleImport) error {
+	cloned, err := cloneMemoryJSON(record)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || !validDigest(cloned.BundleHash) || cloned.Result != "accepted" || cloned.ImportedCount < 0 || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if _, exists := state.BundleImports[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.BundleImports[cloned.ID] = cloned
+		return nil
+	})
+}
+
 func (r memoryPackageRepository) InsertHTMLReportPackage(ctx context.Context, report domain.HTMLReportPackage) error {
 	cloned, err := cloneMemoryJSON(report)
 	if err != nil {
@@ -2911,6 +2932,7 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		OutboxJobs:                map[string]OutboxJob{},
 		ReleaseBundles:            map[string]domain.ReleaseBundle{},
 		CustomerPackages:          map[string]domain.CustomerSecurityPackage{},
+		BundleImports:             map[string]domain.EvidenceBundleImport{},
 		HTMLReports:               map[string]domain.HTMLReportPackage{},
 		ReportTemplates:           map[string]domain.CustomReportTemplate{},
 		RenderedReports:           map[string]domain.RenderedCustomReport{},
@@ -3100,6 +3122,9 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.CustomerPackages, err = cloneMemoryMap(snapshot.CustomerPackages); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.BundleImports, err = cloneMemoryMap(snapshot.BundleImports); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.HTMLReports, err = cloneMemoryMap(snapshot.HTMLReports); err != nil {

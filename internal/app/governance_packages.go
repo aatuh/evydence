@@ -2145,6 +2145,22 @@ func (s packageReportService) ImportEvidenceBundle(ctx context.Context, actor do
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	record := domain.EvidenceBundleImport{ID: newID("ebi"), TenantID: actor.TenantID, BundleHash: bundle.ManifestHash, Result: "accepted", ImportedCount: len(bundle.EvidenceIDs), SchemaVersion: domain.EvidenceBundleImportVersion, CreatedAt: l.now()}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Packages.InsertEvidenceBundleImport(ctx, record); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(record.CreatedAt, actor.TenantID, "evidence_bundle.imported", "evidence_bundle_import", record.ID, "api_key", actor.KeyID, bundle.ManifestHash, ""))
+			return err
+		}); err != nil {
+			return domain.EvidenceBundleImport{}, err
+		}
+		l.bundleImports[record.ID] = record
+		l.publishCommittedAuditEntryLocked(entry)
+		return record, nil
+	}
 	l.bundleImports[record.ID] = record
 	_, _ = l.appendChainLocked(actor.TenantID, "evidence_bundle.imported", "evidence_bundle_import", record.ID, "api_key", actor.KeyID, bundle.ManifestHash, "")
 	if err := l.persistLocked(ctx); err != nil {
