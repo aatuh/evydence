@@ -452,6 +452,22 @@ func (s packageReportService) CreateCustomerSecurityPackage(ctx context.Context,
 		return domain.CustomerSecurityPackage{}, err
 	}
 	pkg := domain.CustomerSecurityPackage{ID: packageID, TenantID: actor.TenantID, ProductID: in.ProductID, ReleaseID: in.ReleaseID, RedactionProfileID: profile.ID, Title: in.Title, State: "generated", Manifest: manifest, ManifestHash: hash, ExpiresAt: in.ExpiresAt.UTC(), SchemaVersion: domain.CustomerPackageSchemaVersion, CreatedAt: generatedAt}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Packages.InsertCustomerSecurityPackage(ctx, pkg); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(pkg.CreatedAt, actor.TenantID, "customer_package.generated", "customer_security_package", pkg.ID, "api_key", actor.KeyID, hash, ""))
+			return err
+		}); err != nil {
+			return domain.CustomerSecurityPackage{}, err
+		}
+		l.customerPackages[pkg.ID] = pkg
+		l.publishCommittedAuditEntryLocked(entry)
+		return pkg, nil
+	}
 	l.customerPackages[pkg.ID] = pkg
 	_, _ = l.appendChainLocked(actor.TenantID, "customer_package.generated", "customer_security_package", pkg.ID, "api_key", actor.KeyID, hash, "")
 	if err := l.persistLocked(ctx); err != nil {
@@ -1342,7 +1358,24 @@ func (s packageReportService) AccessCustomerSecurityPackage(ctx context.Context,
 	if !pkg.ExpiresAt.After(l.now()) {
 		return domain.CustomerSecurityPackage{}, ErrConflict
 	}
+	previous := pkg
 	pkg.AccessCount++
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Packages.UpdateCustomerSecurityPackageAccess(ctx, previous, pkg); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(l.now(), actor.TenantID, "customer_package.accessed", "customer_security_package", pkg.ID, actorType(actor), actorID(actor), pkg.ManifestHash, ""))
+			return err
+		}); err != nil {
+			return domain.CustomerSecurityPackage{}, err
+		}
+		l.customerPackages[pkg.ID] = pkg
+		l.publishCommittedAuditEntryLocked(entry)
+		return pkg, nil
+	}
 	l.customerPackages[pkg.ID] = pkg
 	_, _ = l.appendChainLocked(actor.TenantID, "customer_package.accessed", "customer_security_package", pkg.ID, actorType(actor), actorID(actor), pkg.ManifestHash, "")
 	if err := l.persistLocked(ctx); err != nil {

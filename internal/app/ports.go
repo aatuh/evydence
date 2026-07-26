@@ -223,6 +223,8 @@ type DeploymentRepository interface {
 
 type PackageRepository interface {
 	InsertReleaseBundle(context.Context, domain.ReleaseBundle) error
+	InsertCustomerSecurityPackage(context.Context, domain.CustomerSecurityPackage) error
+	UpdateCustomerSecurityPackageAccess(context.Context, domain.CustomerSecurityPackage, domain.CustomerSecurityPackage) error
 	InsertHTMLReportPackage(context.Context, domain.HTMLReportPackage) error
 	InsertCustomReportTemplate(context.Context, domain.CustomReportTemplate) error
 	InsertRenderedCustomReport(context.Context, domain.RenderedCustomReport) error

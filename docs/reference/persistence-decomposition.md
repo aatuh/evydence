@@ -60,8 +60,6 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 
 | Family | File | Function | Call |
 | --- | --- | --- | --- |
-| governance, packages, and package reports | `internal/app/governance_packages.go` | `AccessCustomerSecurityPackage` | `persistLocked` |
-| governance, packages, and package reports | `internal/app/governance_packages.go` | `CreateCustomerSecurityPackage` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `ExportEvidenceBundle` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `ImportEvidenceBundle` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `CreateContractDiff` | `persistLocked` |
@@ -119,10 +117,12 @@ These commands commit through focused repositories whenever `UnitOfWorkFactory` 
 | future extensions and generated reports | `internal/app/future_extensions.go` | `PublishPublicTransparencyLogEntry` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `VerifyProviderIdentity` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `VerifyPublicTransparencyLogEntry` | `persistLocked` |
+| governance, packages, and package reports | `internal/app/governance_packages.go` | `AccessCustomerSecurityPackage` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `ApproveWaiver` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `CRAReadinessHTMLPackage` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `CreateApprovalRecord` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `CreateCustomReportTemplate` | `persistLocked` |
+| governance, packages, and package reports | `internal/app/governance_packages.go` | `CreateCustomerSecurityPackage` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `CreateDSSETrustRoot` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `CreateRedactionProfile` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `CreateWaiver` | `persistLocked` |

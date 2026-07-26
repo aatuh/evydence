@@ -1692,6 +1692,46 @@ func (r packages) InsertReleaseBundle(ctx context.Context, bundle domain.Release
 	return writeError("insert release bundle", err)
 }
 
+func (r packages) InsertCustomerSecurityPackage(ctx context.Context, pkg domain.CustomerSecurityPackage) error {
+	if pkg.ID == "" || pkg.TenantID == "" || pkg.ProductID == "" || pkg.RedactionProfileID == "" || pkg.Title == "" || pkg.State == "" || pkg.Manifest == nil || !validSHA256Digest(pkg.ManifestHash) || !pkg.ExpiresAt.After(pkg.CreatedAt) || pkg.SchemaVersion == "" || pkg.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, pkg.TenantID); err != nil {
+		return err
+	}
+	if err := requireOptionalProduct(ctx, r.tx, pkg.TenantID, pkg.ProductID); err != nil {
+		return err
+	}
+	if pkg.ReleaseID != "" {
+		if err := requireRow(ctx, r.tx, `SELECT 1 FROM releases WHERE id = $1 AND tenant_id = $2 AND product_id = $3`, pkg.ReleaseID, pkg.TenantID, pkg.ProductID); err != nil {
+			return err
+		}
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM redaction_profiles WHERE id = $1 AND tenant_id = $2`, pkg.RedactionProfileID, pkg.TenantID); err != nil {
+		return err
+	}
+	manifest, err := json.Marshal(pkg.Manifest)
+	if err != nil {
+		return fmt.Errorf("encode customer security package manifest: %w", err)
+	}
+	_, err = r.tx.Exec(ctx, `INSERT INTO customer_security_packages (id, tenant_id, product_id, release_id, redaction_profile_id, title, state, manifest, manifest_hash, expires_at, access_count, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`, pkg.ID, pkg.TenantID, pkg.ProductID, nullableString(pkg.ReleaseID), pkg.RedactionProfileID, pkg.Title, pkg.State, manifest, pkg.ManifestHash, pkg.ExpiresAt, pkg.AccessCount, pkg.SchemaVersion, pkg.CreatedAt)
+	return writeError("insert customer security package", err)
+}
+
+func (r packages) UpdateCustomerSecurityPackageAccess(ctx context.Context, previous, current domain.CustomerSecurityPackage) error {
+	if current.ID == "" || current.TenantID == "" || previous.ID != current.ID || previous.TenantID != current.TenantID || current.AccessCount != previous.AccessCount+1 {
+		return app.ErrValidation
+	}
+	result, err := r.tx.Exec(ctx, `UPDATE customer_security_packages SET access_count = $3 WHERE id = $1 AND tenant_id = $2 AND access_count = $4 AND expires_at > CURRENT_TIMESTAMP`, current.ID, current.TenantID, current.AccessCount, previous.AccessCount)
+	if err != nil {
+		return writeError("record customer security package access", err)
+	}
+	if result.RowsAffected() != 1 {
+		return app.ErrConflict
+	}
+	return nil
+}
+
 func (r packages) InsertHTMLReportPackage(ctx context.Context, report domain.HTMLReportPackage) error {
 	if report.ID == "" || report.TenantID == "" || report.ReportType == "" || report.ProductID == "" || report.HTML == "" || !validSHA256Digest(report.Hash) || report.SchemaVersion == "" || report.CreatedAt.IsZero() {
 		return app.ErrValidation

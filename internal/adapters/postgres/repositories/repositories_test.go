@@ -280,6 +280,18 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Governance.InsertRedactionProfile(ctx, profile); err != nil {
 		t.Fatalf("insert redaction profile: %v", err)
 	}
+	customerPackage := domain.CustomerSecurityPackage{ID: "customer_package_repository_port", TenantID: tenant.ID, ProductID: product.ID, ReleaseID: release.ID, RedactionProfileID: profile.ID, Title: "Repository customer package", State: "generated", Manifest: map[string]any{"release_id": release.ID}, ManifestHash: "sha256:" + strings.Repeat("4", 64), ExpiresAt: now.Add(time.Hour), SchemaVersion: domain.CustomerPackageSchemaVersion, CreatedAt: now}
+	if err := repositories.Packages.InsertCustomerSecurityPackage(ctx, customerPackage); err != nil {
+		t.Fatalf("insert customer security package: %v", err)
+	}
+	accessedCustomerPackage := customerPackage
+	accessedCustomerPackage.AccessCount++
+	if err := repositories.Packages.UpdateCustomerSecurityPackageAccess(ctx, customerPackage, accessedCustomerPackage); err != nil {
+		t.Fatalf("record customer security package access: %v", err)
+	}
+	if err := repositories.Packages.UpdateCustomerSecurityPackageAccess(ctx, customerPackage, accessedCustomerPackage); !errors.Is(err, app.ErrConflict) {
+		t.Fatalf("stale customer security package access err=%v, want conflict", err)
+	}
 	if err := repositories.Governance.InsertDSSETrustRoot(ctx, domain.DSSETrustRoot{ID: "dtr_repository", TenantID: tenant.ID, Name: "Repository root", KeyID: "repository-root", Algorithm: "Ed25519", PublicKey: strings.Repeat("A", 43) + "=", Status: "active", SchemaVersion: domain.DSSETrustRootSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert DSSE trust root: %v", err)
 	}
@@ -649,6 +661,8 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"idempotency", repositories.Idempotency.Insert(ctx, app.IdempotencyRecordKey{}, app.IdempotencyRecord{})},
 		{"outbox", repositories.Outbox.Enqueue(ctx, app.OutboxJob{})},
 		{"package", repositories.Packages.InsertReleaseBundle(ctx, domain.ReleaseBundle{})},
+		{"customer security package", repositories.Packages.InsertCustomerSecurityPackage(ctx, domain.CustomerSecurityPackage{})},
+		{"customer security package access", repositories.Packages.UpdateCustomerSecurityPackageAccess(ctx, domain.CustomerSecurityPackage{}, domain.CustomerSecurityPackage{})},
 		{"HTML report package", repositories.Packages.InsertHTMLReportPackage(ctx, domain.HTMLReportPackage{})},
 		{"custom report template", repositories.Packages.InsertCustomReportTemplate(ctx, domain.CustomReportTemplate{})},
 		{"rendered custom report", repositories.Packages.InsertRenderedCustomReport(ctx, domain.RenderedCustomReport{})},
