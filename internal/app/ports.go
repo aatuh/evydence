@@ -233,6 +233,8 @@ type IntegrityRepository interface {
 	InsertObjectRetentionPolicy(context.Context, domain.ObjectRetentionPolicy) error
 	UpdateObjectRetentionPolicy(context.Context, domain.ObjectRetentionPolicy, string) error
 	InsertBackupManifest(context.Context, domain.BackupManifest) error
+	InsertMerkleBatch(context.Context, domain.MerkleBatch) error
+	InsertTransparencyCheckpoint(context.Context, domain.TransparencyCheckpoint) error
 }
 
 type VerificationRepository interface {

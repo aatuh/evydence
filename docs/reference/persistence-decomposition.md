@@ -87,7 +87,6 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `RenderCustomReport` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `VerifyDSSEAttestationSignature` | `persistLocked` |
 | integrity and operations | `internal/app/integrity_runtime.go` | `CreateMerkleBatch` | `persistLocked` |
-| integrity and operations | `internal/app/integrity_runtime.go` | `CreateTransparencyCheckpoint` | `persistLocked` |
 | integrity and operations | `internal/app/integrity_runtime.go` | `VerifyCosignSignature` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `CreateContractDiff` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `CreateCustomPolicy` | `persistLocked` |
@@ -134,6 +133,7 @@ These commands commit through focused repositories whenever `UnitOfWorkFactory` 
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `CreateWaiver` | `persistLocked` |
 | integrity and operations | `internal/app/integrity_runtime.go` | `CreateObjectRetentionPolicy` | `persistLocked` |
 | integrity and operations | `internal/app/integrity_runtime.go` | `CreateSigningProvider` | `persistLocked` |
+| integrity and operations | `internal/app/integrity_runtime.go` | `CreateTransparencyCheckpoint` | `persistLocked` |
 | integrity and operations | `internal/app/integrity_runtime.go` | `GenerateBackupManifest` | `persistLocked` |
 | integrity and operations | `internal/app/integrity_runtime.go` | `RevokeSigningKey` | `persistLocked` |
 | integrity and operations | `internal/app/integrity_runtime.go` | `VerifyBackupManifest` | `persistLocked` |

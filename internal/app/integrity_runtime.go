@@ -346,6 +346,22 @@ func (l *Ledger) CreateTransparencyCheckpoint(ctx context.Context, actor domain.
 		return domain.TransparencyCheckpoint{}, err
 	}
 	checkpoint := domain.TransparencyCheckpoint{ID: newID("tcp"), TenantID: actor.TenantID, BatchID: batch.ID, Provider: in.Provider, ExternalURL: in.ExternalURL, ExternalID: in.ExternalID, TimestampHash: timestampHash, State: "recorded", SchemaVersion: domain.TransparencyCheckpointVersion, CreatedAt: l.now()}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Integrity.InsertTransparencyCheckpoint(ctx, checkpoint); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(checkpoint.CreatedAt, actor.TenantID, "transparency_checkpoint.recorded", "transparency_checkpoint", checkpoint.ID, actorType(actor), actorID(actor), timestampHash, ""))
+			return err
+		}); err != nil {
+			return domain.TransparencyCheckpoint{}, err
+		}
+		l.transparency[checkpoint.ID] = checkpoint
+		l.publishCommittedAuditEntryLocked(entry)
+		return checkpoint, nil
+	}
 	l.transparency[checkpoint.ID] = checkpoint
 	_, _ = l.appendChainLocked(actor.TenantID, "transparency_checkpoint.recorded", "transparency_checkpoint", checkpoint.ID, actorType(actor), actorID(actor), timestampHash, "")
 	if err := l.persistLocked(ctx); err != nil {

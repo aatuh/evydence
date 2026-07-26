@@ -76,6 +76,8 @@ type MemoryUnitOfWorkSnapshot struct {
 	SigningProviders        map[string]domain.SigningProvider
 	ObjectRetentionPolicies map[string]domain.ObjectRetentionPolicy
 	BackupManifests         map[string]domain.BackupManifest
+	MerkleBatches           map[string]domain.MerkleBatch
+	TransparencyCheckpoints map[string]domain.TransparencyCheckpoint
 	VerificationResults     map[string]domain.VerificationResult
 	PolicyEvaluations       map[string]domain.PolicyEvaluation
 }
@@ -1996,6 +1998,49 @@ func (r memoryIntegrityRepository) InsertBackupManifest(ctx context.Context, man
 	})
 }
 
+func (r memoryIntegrityRepository) InsertMerkleBatch(ctx context.Context, batch domain.MerkleBatch) error {
+	cloned, err := cloneMemoryJSON(batch)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.FromSequence < 1 || cloned.ToSequence < cloned.FromSequence || cloned.EntryCount != len(cloned.LeafHashes) || cloned.EntryCount < 1 || cloned.RootHash == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if _, exists := state.MerkleBatches[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.MerkleBatches[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryIntegrityRepository) InsertTransparencyCheckpoint(ctx context.Context, checkpoint domain.TransparencyCheckpoint) error {
+	cloned, err := cloneMemoryJSON(checkpoint)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.BatchID == "" || cloned.Provider == "" || (cloned.ExternalURL == "" && cloned.ExternalID == "") || cloned.TimestampHash == "" || cloned.State == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.BatchID, cloned.TenantID, state.MerkleBatches) {
+			return ErrNotFound
+		}
+		if _, exists := state.TransparencyCheckpoints[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.TransparencyCheckpoints[cloned.ID] = cloned
+		return nil
+	})
+}
+
 type memoryVerificationRepository struct{ uow *memoryUnitOfWork }
 
 func (r memoryVerificationRepository) InsertVerificationResult(ctx context.Context, result domain.VerificationResult) error {
@@ -2096,6 +2141,8 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		SigningProviders:        map[string]domain.SigningProvider{},
 		ObjectRetentionPolicies: map[string]domain.ObjectRetentionPolicy{},
 		BackupManifests:         map[string]domain.BackupManifest{},
+		MerkleBatches:           map[string]domain.MerkleBatch{},
+		TransparencyCheckpoints: map[string]domain.TransparencyCheckpoint{},
 		VerificationResults:     map[string]domain.VerificationResult{},
 		PolicyEvaluations:       map[string]domain.PolicyEvaluation{},
 	}
@@ -2272,6 +2319,12 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 	if cloned.BackupManifests, err = cloneMemoryMap(snapshot.BackupManifests); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
+	if cloned.MerkleBatches, err = cloneMemoryMap(snapshot.MerkleBatches); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.TransparencyCheckpoints, err = cloneMemoryMap(snapshot.TransparencyCheckpoints); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
 	if cloned.VerificationResults, err = cloneMemoryMap(snapshot.VerificationResults); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
@@ -2383,6 +2436,10 @@ func memoryResourceTenantID(resource any) string {
 	case domain.SourceRepository:
 		return value.TenantID
 	case domain.SSOProvider:
+		return value.TenantID
+	case domain.MerkleBatch:
+		return value.TenantID
+	case domain.TransparencyCheckpoint:
 		return value.TenantID
 	default:
 		return ""

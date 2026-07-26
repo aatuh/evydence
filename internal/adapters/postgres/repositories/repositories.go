@@ -1816,6 +1816,31 @@ func (r integrity) InsertBackupManifest(ctx context.Context, manifest domain.Bac
 	return writeError("insert backup manifest", err)
 }
 
+func (r integrity) InsertMerkleBatch(ctx context.Context, batch domain.MerkleBatch) error {
+	if batch.ID == "" || batch.TenantID == "" || batch.FromSequence < 1 || batch.ToSequence < batch.FromSequence || batch.EntryCount != len(batch.LeafHashes) || batch.EntryCount < 1 || batch.RootHash == "" || batch.SchemaVersion == "" || batch.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, batch.TenantID); err != nil {
+		return err
+	}
+	_, err := r.tx.Exec(ctx, `INSERT INTO merkle_batches (id, tenant_id, from_sequence, to_sequence, entry_count, leaf_hashes, root_hash, signature_refs, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, batch.ID, batch.TenantID, batch.FromSequence, batch.ToSequence, batch.EntryCount, batch.LeafHashes, batch.RootHash, textArray(batch.SignatureRefs), batch.SchemaVersion, batch.CreatedAt)
+	return writeError("insert Merkle batch", err)
+}
+
+func (r integrity) InsertTransparencyCheckpoint(ctx context.Context, checkpoint domain.TransparencyCheckpoint) error {
+	if checkpoint.ID == "" || checkpoint.TenantID == "" || checkpoint.BatchID == "" || checkpoint.Provider == "" || (checkpoint.ExternalURL == "" && checkpoint.ExternalID == "") || checkpoint.TimestampHash == "" || checkpoint.State == "" || checkpoint.SchemaVersion == "" || checkpoint.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, checkpoint.TenantID); err != nil {
+		return err
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM merkle_batches WHERE id = $1 AND tenant_id = $2`, checkpoint.BatchID, checkpoint.TenantID); err != nil {
+		return err
+	}
+	_, err := r.tx.Exec(ctx, `INSERT INTO transparency_checkpoints (id, tenant_id, batch_id, provider, external_url, external_id, timestamp_hash, state, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, checkpoint.ID, checkpoint.TenantID, checkpoint.BatchID, checkpoint.Provider, nullableString(checkpoint.ExternalURL), nullableString(checkpoint.ExternalID), checkpoint.TimestampHash, checkpoint.State, checkpoint.SchemaVersion, checkpoint.CreatedAt)
+	return writeError("insert transparency checkpoint", err)
+}
+
 type verification struct{ tx pgx.Tx }
 
 func (r verification) InsertVerificationResult(ctx context.Context, result domain.VerificationResult) error {
