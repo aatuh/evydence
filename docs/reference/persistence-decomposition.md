@@ -31,9 +31,12 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 | identity | `internal/app/identity_service.go` | `Authenticate` | `persistCriticalStateLocked` |
 | identity | `internal/app/identity_service.go` | `BootstrapTenant` | `persistCriticalStateLocked` |
 | identity | `internal/app/identity_service.go` | `CreateAPIKey` | `persistCriticalStateLocked` |
+| identity and idempotency | `internal/app/idempotency.go` | `completeInMemoryIdempotency` | `persistCriticalStateLocked` |
+| identity and idempotency | `internal/app/idempotency.go` | `failInMemoryIdempotency` | `persistCriticalStateLocked` |
+| identity and idempotency | `internal/app/idempotency.go` | `reserveInMemoryIdempotency` | `persistCriticalStateLocked` |
+| identity and idempotency | `internal/app/idempotency.go` | `reserveInMemoryIdempotency` | `persistCriticalStateLocked` |
 | release ledger and signing | `internal/app/ledger.go` | `CreateReleaseBundle` | `persistCriticalLocked` |
 | release ledger and signing | `internal/app/ledger.go` | `VerifySubject` | `persistCriticalLocked` |
-| release ledger and signing | `internal/app/ledger.go` | `WithIdempotency` | `persistCriticalStateLocked` |
 
 ## Focused Release And Evidence Mutations
 

@@ -85,8 +85,18 @@ func TestCriticalMutationStoreAvoidsAggregateSaveForMigratedFlows(t *testing.T) 
 	if err != nil || status != 201 || response == nil {
 		t.Fatalf("idempotency status=%d response=%#v err=%v", status, response, err)
 	}
-	if store.saveCalls != 0 || store.criticalCalls != 1 || len(store.mutations[0].Idempotency) != 1 {
+	if store.saveCalls != 0 || store.criticalCalls != 2 || len(store.mutations) != 2 || len(store.mutations[0].Idempotency) != 1 || len(store.mutations[1].Idempotency) != 1 {
 		t.Fatalf("idempotency save=%d critical=%d mutation=%#v", store.saveCalls, store.criticalCalls, store.mutations)
+	}
+	for _, record := range store.mutations[0].Idempotency {
+		if record.State != IdempotencyPending || !validDigest(record.OwnerTokenHash) || record.Response != nil {
+			t.Fatalf("reservation mutation omitted a hashed lease owner or persisted a response: %#v", record)
+		}
+	}
+	for _, record := range store.mutations[1].Idempotency {
+		if record.State != IdempotencyCompleted || record.Status != 201 || record.OwnerTokenHash != "" {
+			t.Fatalf("completion mutation did not preserve the terminal state: %#v", record)
+		}
 	}
 }
 

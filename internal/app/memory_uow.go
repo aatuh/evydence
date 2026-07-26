@@ -1162,7 +1162,14 @@ func (r memoryAuditRepository) Append(ctx context.Context, entry domain.AuditCha
 type memoryIdempotencyRepository struct{ uow *memoryUnitOfWork }
 
 func (r memoryIdempotencyRepository) Insert(ctx context.Context, key IdempotencyRecordKey, record IdempotencyRecord) error {
-	cloned, err := cloneMemoryIdempotencyRecord(record)
+	if err := validateIdempotencyKey(key); err != nil {
+		return err
+	}
+	normalized, err := normalizeLegacyIdempotencyRecord(record)
+	if err != nil {
+		return err
+	}
+	cloned, err := cloneMemoryIdempotencyRecord(normalized)
 	if err != nil {
 		return err
 	}
@@ -1170,15 +1177,134 @@ func (r memoryIdempotencyRepository) Insert(ctx context.Context, key Idempotency
 		if err := requireMemoryTenant(*state, key.TenantID); err != nil {
 			return err
 		}
-		if key.ActorID == "" || key.Method == "" || key.Path == "" || key.IdempotencyKey == "" || cloned.RequestHash == "" || cloned.CreatedAt.IsZero() {
-			return ErrValidation
-		}
 		if _, exists := state.Idempotency[key]; exists {
 			return ErrConflict
 		}
 		state.Idempotency[key] = cloned
 		return nil
 	})
+}
+
+func (r memoryIdempotencyRepository) Reserve(ctx context.Context, reservation IdempotencyReservation) (IdempotencyReservationResult, error) {
+	if err := validateIdempotencyReservation(reservation); err != nil {
+		return IdempotencyReservationResult{}, err
+	}
+	var result IdempotencyReservationResult
+	err := r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, reservation.Key.TenantID); err != nil {
+			return err
+		}
+		record, exists := state.Idempotency[reservation.Key]
+		if exists {
+			if record.State == "" {
+				var err error
+				record, err = normalizeLegacyIdempotencyRecord(record)
+				if err != nil {
+					return err
+				}
+			}
+			if record.ExpiresAt.After(reservation.Now) {
+				if record.RequestHash != reservation.RequestHash {
+					return ErrIdempotencyConflict
+				}
+				switch record.State {
+				case IdempotencyCompleted:
+					cloned, err := cloneMemoryIdempotencyRecord(record)
+					if err != nil {
+						return err
+					}
+					result = IdempotencyReservationResult{Outcome: IdempotencyReservationReplay, Record: cloned}
+					return nil
+				case IdempotencyFailed:
+					result = IdempotencyReservationResult{Outcome: IdempotencyReservationFailure, Record: record}
+					return nil
+				case IdempotencyPending:
+					if record.LeaseExpiresAt != nil && record.LeaseExpiresAt.After(reservation.Now) {
+						result = IdempotencyReservationResult{Outcome: IdempotencyReservationPending, Record: record}
+						return nil
+					}
+					recovered := recoveredPendingIdempotencyRecord(record, reservation)
+					state.Idempotency[reservation.Key] = recovered
+					result = IdempotencyReservationResult{Outcome: IdempotencyReservationRecovered, Record: recovered}
+					return nil
+				default:
+					return ErrValidation
+				}
+			}
+		}
+		pending := pendingIdempotencyRecord(reservation)
+		state.Idempotency[reservation.Key] = pending
+		result = IdempotencyReservationResult{Outcome: IdempotencyReservationAcquired, Record: pending}
+		return nil
+	})
+	return result, err
+}
+
+func (r memoryIdempotencyRepository) Complete(ctx context.Context, key IdempotencyRecordKey, ownerTokenHash string, status int, response any, now time.Time) error {
+	if err := validateIdempotencyKey(key); err != nil || ownerTokenHash == "" || status < 100 || status > 599 || now.IsZero() {
+		return ErrValidation
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, key.TenantID); err != nil {
+			return err
+		}
+		record, exists := state.Idempotency[key]
+		if !exists || record.State != IdempotencyPending || record.OwnerTokenHash != ownerTokenHash {
+			return ErrConflict
+		}
+		record.State = IdempotencyCompleted
+		record.OwnerTokenHash = ""
+		record.Status = status
+		record.Response = response
+		record.UpdatedAt = now.UTC()
+		record.LeaseExpiresAt = nil
+		record.CompletedAt = &record.UpdatedAt
+		record.FailedAt = nil
+		state.Idempotency[key] = record
+		return nil
+	})
+}
+
+func (r memoryIdempotencyRepository) Fail(ctx context.Context, key IdempotencyRecordKey, ownerTokenHash string, now time.Time) error {
+	if err := validateIdempotencyKey(key); err != nil || ownerTokenHash == "" || now.IsZero() {
+		return ErrValidation
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, key.TenantID); err != nil {
+			return err
+		}
+		record, exists := state.Idempotency[key]
+		if !exists || record.State != IdempotencyPending || record.OwnerTokenHash != ownerTokenHash {
+			return ErrConflict
+		}
+		record.State = IdempotencyFailed
+		record.OwnerTokenHash = ""
+		record.Status = 0
+		record.Response = nil
+		record.UpdatedAt = now.UTC()
+		record.LeaseExpiresAt = nil
+		record.CompletedAt = nil
+		record.FailedAt = &record.UpdatedAt
+		state.Idempotency[key] = record
+		return nil
+	})
+}
+
+func (r memoryIdempotencyRepository) DeleteExpired(ctx context.Context, now time.Time) (int64, error) {
+	if now.IsZero() {
+		return 0, ErrValidation
+	}
+	var deleted int64
+	err := r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		for key, record := range state.Idempotency {
+			if !record.ExpiresAt.IsZero() && !record.ExpiresAt.After(now) {
+				delete(state.Idempotency, key)
+				deleted++
+			}
+		}
+		return nil
+	})
+	return deleted, err
 }
 
 type memoryOutboxRepository struct{ uow *memoryUnitOfWork }

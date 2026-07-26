@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/aatuh/evydence/internal/adapters/postgres"
@@ -18,6 +19,14 @@ import (
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 )
+
+var errIdempotencyWrite = errors.New("forced idempotency database write failure")
+
+type failingIdempotencyWriteTx struct{ pgx.Tx }
+
+func (failingIdempotencyWriteTx) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {
+	return pgconn.CommandTag{}, errIdempotencyWrite
+}
 
 func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	ctx, pool := openRepositoryTestPool(t)
@@ -1312,6 +1321,265 @@ func TestRepositoriesRejectMalformedJSONAndRollBackPartialSupersession(t *testin
 	}
 	if persisted != 0 {
 		t.Fatalf("partial transaction persisted %d evidence records", persisted)
+	}
+}
+
+func TestIdempotencyReservationSerializesOwnersAndRecoversExpiredLease(t *testing.T) {
+	ctx, pool := openRepositoryTestPool(t)
+	defer pool.Close()
+	now := time.Now().UTC().Round(0)
+	key := app.IdempotencyRecordKey{TenantID: "ten_idempotency_state", ActorID: "api_key:key_idempotency_state", Method: "POST", Path: "/v1/products", IdempotencyKey: "product-create"}
+	if _, err := pool.Exec(ctx, `INSERT INTO tenants (id, name, created_at) VALUES ($1, $2, $3)`, key.TenantID, "Idempotency state tenant", now); err != nil {
+		t.Fatalf("insert tenant: %v", err)
+	}
+	first := app.IdempotencyReservation{
+		Key:            key,
+		RequestHash:    "sha256:request-a",
+		OwnerTokenHash: "sha256:owner-a",
+		Now:            now,
+		LeaseExpiresAt: now.Add(time.Minute),
+		ExpiresAt:      now.Add(24 * time.Hour),
+	}
+	second := first
+	second.OwnerTokenHash = "sha256:owner-b"
+
+	firstTx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		t.Fatalf("begin first transaction: %v", err)
+	}
+	defer func() { _ = firstTx.Rollback(context.Background()) }()
+	firstResult, err := postgresrepositories.New(firstTx).Idempotency.Reserve(ctx, first)
+	if err != nil || firstResult.Outcome != app.IdempotencyReservationAcquired {
+		t.Fatalf("first reserve result=%#v err=%v, want acquired", firstResult, err)
+	}
+
+	secondTx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		t.Fatalf("begin second transaction: %v", err)
+	}
+	defer func() { _ = secondTx.Rollback(context.Background()) }()
+	type reservationResult struct {
+		result app.IdempotencyReservationResult
+		err    error
+	}
+	secondResultCh := make(chan reservationResult, 1)
+	go func() {
+		result, err := postgresrepositories.New(secondTx).Idempotency.Reserve(ctx, second)
+		secondResultCh <- reservationResult{result: result, err: err}
+	}()
+	select {
+	case result := <-secondResultCh:
+		t.Fatalf("second reservation returned before the first transaction committed: %#v", result)
+	case <-time.After(100 * time.Millisecond):
+	}
+	if err := firstTx.Commit(ctx); err != nil {
+		t.Fatalf("commit first reservation: %v", err)
+	}
+	secondResult := <-secondResultCh
+	if secondResult.err != nil || secondResult.result.Outcome != app.IdempotencyReservationPending {
+		t.Fatalf("second reserve result=%#v err=%v, want pending", secondResult.result, secondResult.err)
+	}
+	if err := secondTx.Commit(ctx); err != nil {
+		t.Fatalf("commit second reservation: %v", err)
+	}
+
+	recovery := second
+	recovery.OwnerTokenHash = "sha256:owner-recovered"
+	recovery.Now = now.Add(2 * time.Minute)
+	recovery.LeaseExpiresAt = recovery.Now.Add(time.Minute)
+	recoveryTx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		t.Fatalf("begin recovery transaction: %v", err)
+	}
+	defer func() { _ = recoveryTx.Rollback(context.Background()) }()
+	recoveryRepositories := postgresrepositories.New(recoveryTx)
+	recovered, err := recoveryRepositories.Idempotency.Reserve(ctx, recovery)
+	if err != nil || recovered.Outcome != app.IdempotencyReservationRecovered {
+		t.Fatalf("recovery result=%#v err=%v, want recovered", recovered, err)
+	}
+	if err := recoveryRepositories.Idempotency.Complete(ctx, key, first.OwnerTokenHash, 201, map[string]any{"id": "old-owner"}, recovery.Now); !errors.Is(err, app.ErrConflict) {
+		t.Fatalf("stale owner completion err=%v, want conflict", err)
+	}
+	if err := recoveryRepositories.Idempotency.Complete(ctx, key, recovery.OwnerTokenHash, 201, map[string]any{"id": "new-owner"}, recovery.Now); err != nil {
+		t.Fatalf("complete recovered owner: %v", err)
+	}
+	if err := recoveryTx.Commit(ctx); err != nil {
+		t.Fatalf("commit recovered completion: %v", err)
+	}
+
+	replayTx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		t.Fatalf("begin replay transaction: %v", err)
+	}
+	defer func() { _ = replayTx.Rollback(context.Background()) }()
+	replay, err := postgresrepositories.New(replayTx).Idempotency.Reserve(ctx, recovery)
+	if err != nil || replay.Outcome != app.IdempotencyReservationReplay || replay.Record.Status != 201 {
+		t.Fatalf("replay result=%#v err=%v, want completed replay", replay, err)
+	}
+	if response, ok := replay.Record.Response.(map[string]any); !ok || response["id"] != "new-owner" {
+		t.Fatalf("replay response=%#v, want completed response from recovered owner", replay.Record.Response)
+	}
+	if _, err := postgresrepositories.New(replayTx).Idempotency.Reserve(ctx, app.IdempotencyReservation{Key: key, RequestHash: "sha256:request-b", OwnerTokenHash: "sha256:owner-mismatch", Now: recovery.Now, LeaseExpiresAt: recovery.Now.Add(time.Minute), ExpiresAt: recovery.Now.Add(24 * time.Hour)}); !errors.Is(err, app.ErrIdempotencyConflict) {
+		t.Fatalf("hash mismatch err=%v, want idempotency conflict", err)
+	}
+	if err := replayTx.Rollback(ctx); err != nil {
+		t.Fatalf("rollback replay transaction: %v", err)
+	}
+	cleanupTx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		t.Fatalf("begin cleanup transaction: %v", err)
+	}
+	defer func() { _ = cleanupTx.Rollback(context.Background()) }()
+	deleted, err := postgresrepositories.New(cleanupTx).Idempotency.DeleteExpired(ctx, recovery.Now.Add(25*time.Hour))
+	if err != nil || deleted != 1 {
+		t.Fatalf("cleanup deleted=%d err=%v, want one expired record", deleted, err)
+	}
+	if err := cleanupTx.Commit(ctx); err != nil {
+		t.Fatalf("commit cleanup: %v", err)
+	}
+	var remaining int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM idempotency_records WHERE tenant_id = $1`, key.TenantID).Scan(&remaining); err != nil {
+		t.Fatalf("count cleaned records: %v", err)
+	}
+	if remaining != 0 {
+		t.Fatalf("remaining idempotency records=%d, want 0 after retention cleanup", remaining)
+	}
+
+	failedKey := key
+	failedKey.IdempotencyKey = "failed"
+	failed := first
+	failed.Key = failedKey
+	failed.RequestHash = "sha256:failed"
+	failed.OwnerTokenHash = "sha256:owner-failed"
+	failedTx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		t.Fatalf("begin failed transaction: %v", err)
+	}
+	defer func() { _ = failedTx.Rollback(context.Background()) }()
+	failedRepositories := postgresrepositories.New(failedTx)
+	if result, err := failedRepositories.Idempotency.Reserve(ctx, failed); err != nil || result.Outcome != app.IdempotencyReservationAcquired {
+		t.Fatalf("failed reserve result=%#v err=%v, want acquired", result, err)
+	}
+	if err := failedRepositories.Idempotency.Fail(ctx, failedKey, failed.OwnerTokenHash, now); err != nil {
+		t.Fatalf("mark failed reservation: %v", err)
+	}
+	if err := failedTx.Commit(ctx); err != nil {
+		t.Fatalf("commit failed reservation: %v", err)
+	}
+	failedReplayTx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		t.Fatalf("begin failed replay transaction: %v", err)
+	}
+	defer func() { _ = failedReplayTx.Rollback(context.Background()) }()
+	if result, err := postgresrepositories.New(failedReplayTx).Idempotency.Reserve(ctx, failed); err != nil || result.Outcome != app.IdempotencyReservationFailure || result.Record.Response != nil {
+		t.Fatalf("failed reservation result=%#v err=%v, want safe failed state", result, err)
+	}
+	if err := failedReplayTx.Rollback(ctx); err != nil {
+		t.Fatalf("rollback failed replay: %v", err)
+	}
+
+	expiredKey := key
+	expiredKey.IdempotencyKey = "expired"
+	expiredTx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		t.Fatalf("begin expired insert transaction: %v", err)
+	}
+	defer func() { _ = expiredTx.Rollback(context.Background()) }()
+	if err := postgresrepositories.New(expiredTx).Idempotency.Insert(ctx, expiredKey, app.IdempotencyRecord{RequestHash: "sha256:expired-old", Status: 201, Response: map[string]any{"id": "old"}, CreatedAt: now.Add(-48 * time.Hour)}); err != nil {
+		t.Fatalf("insert expired record: %v", err)
+	}
+	if err := expiredTx.Commit(ctx); err != nil {
+		t.Fatalf("commit expired record: %v", err)
+	}
+	replaceTx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		t.Fatalf("begin expired replacement transaction: %v", err)
+	}
+	defer func() { _ = replaceTx.Rollback(context.Background()) }()
+	replacement := first
+	replacement.Key = expiredKey
+	replacement.RequestHash = "sha256:expired-new"
+	replacement.OwnerTokenHash = "sha256:owner-expired"
+	if result, err := postgresrepositories.New(replaceTx).Idempotency.Reserve(ctx, replacement); err != nil || result.Outcome != app.IdempotencyReservationAcquired || result.Record.RequestHash != replacement.RequestHash {
+		t.Fatalf("expired replacement result=%#v err=%v, want new acquisition", result, err)
+	}
+}
+
+func TestIdempotencyRepositoryRejectsInvalidAndStaleTransitions(t *testing.T) {
+	ctx, pool := openRepositoryTestPool(t)
+	defer pool.Close()
+	now := time.Now().UTC().Round(0)
+	key := app.IdempotencyRecordKey{TenantID: "ten_idempotency_invalid", ActorID: "api_key:key_invalid", Method: "POST", Path: "/v1/products", IdempotencyKey: "invalid"}
+	if _, err := pool.Exec(ctx, `INSERT INTO tenants (id, name, created_at) VALUES ($1, $2, $3)`, key.TenantID, "Idempotency invalid tenant", now); err != nil {
+		t.Fatalf("insert tenant: %v", err)
+	}
+	tx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		t.Fatalf("begin invalid transition transaction: %v", err)
+	}
+	defer func() { _ = tx.Rollback(context.Background()) }()
+	repositories := postgresrepositories.New(tx)
+	if _, err := repositories.Idempotency.Reserve(ctx, app.IdempotencyReservation{}); !errors.Is(err, app.ErrValidation) {
+		t.Fatalf("empty reservation err=%v, want validation", err)
+	}
+	missingTenant := app.IdempotencyReservation{Key: app.IdempotencyRecordKey{TenantID: "ten_missing", ActorID: "api_key:key_missing", Method: "POST", Path: "/v1/products", IdempotencyKey: "missing"}, RequestHash: "sha256:missing", OwnerTokenHash: "sha256:owner-missing", Now: now, LeaseExpiresAt: now.Add(time.Minute), ExpiresAt: now.Add(time.Hour)}
+	if _, err := repositories.Idempotency.Reserve(ctx, missingTenant); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("missing tenant reserve err=%v, want not found", err)
+	}
+	if err := repositories.Idempotency.Insert(ctx, app.IdempotencyRecordKey{}, app.IdempotencyRecord{}); !errors.Is(err, app.ErrValidation) {
+		t.Fatalf("invalid legacy insert err=%v, want validation", err)
+	}
+	if err := repositories.Idempotency.Insert(ctx, key, app.IdempotencyRecord{RequestHash: "sha256:invalid-status", Status: 700, CreatedAt: now}); !errors.Is(err, app.ErrValidation) {
+		t.Fatalf("invalid legacy status err=%v, want validation", err)
+	}
+	if err := repositories.Idempotency.Insert(ctx, missingTenant.Key, app.IdempotencyRecord{RequestHash: "sha256:missing-tenant", Status: 201, CreatedAt: now}); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("missing tenant legacy insert err=%v, want not found", err)
+	}
+	marshalKey := key
+	marshalKey.IdempotencyKey = "marshal"
+	if err := repositories.Idempotency.Insert(ctx, marshalKey, app.IdempotencyRecord{RequestHash: "sha256:marshal", Status: 201, Response: math.Inf(1), CreatedAt: now}); err == nil {
+		t.Fatal("expected legacy response encoding failure")
+	}
+	if err := repositories.Idempotency.Complete(ctx, app.IdempotencyRecordKey{}, "", 0, nil, time.Time{}); !errors.Is(err, app.ErrValidation) {
+		t.Fatalf("invalid completion err=%v, want validation", err)
+	}
+	if err := repositories.Idempotency.Fail(ctx, app.IdempotencyRecordKey{}, "", time.Time{}); !errors.Is(err, app.ErrValidation) {
+		t.Fatalf("invalid failure err=%v, want validation", err)
+	}
+	if _, err := repositories.Idempotency.DeleteExpired(ctx, time.Time{}); !errors.Is(err, app.ErrValidation) {
+		t.Fatalf("invalid cleanup err=%v, want validation", err)
+	}
+	reservation := app.IdempotencyReservation{Key: key, RequestHash: "sha256:invalid", OwnerTokenHash: "sha256:owner-invalid", Now: now, LeaseExpiresAt: now.Add(time.Minute), ExpiresAt: now.Add(time.Hour)}
+	if result, err := repositories.Idempotency.Reserve(ctx, reservation); err != nil || result.Outcome != app.IdempotencyReservationAcquired {
+		t.Fatalf("reserve stale transition record=%#v err=%v", result, err)
+	}
+	if err := repositories.Idempotency.Complete(ctx, missingTenant.Key, "sha256:owner-missing", 201, nil, now); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("missing tenant completion err=%v, want not found", err)
+	}
+	if err := repositories.Idempotency.Fail(ctx, missingTenant.Key, "sha256:owner-missing", now); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("missing tenant failure err=%v, want not found", err)
+	}
+	if err := repositories.Idempotency.Complete(ctx, key, reservation.OwnerTokenHash, 201, math.Inf(1), now); err == nil {
+		t.Fatal("expected completed response encoding failure")
+	}
+	if err := repositories.Idempotency.Complete(ctx, key, "sha256:wrong-owner", 201, map[string]any{"id": "stale"}, now); !errors.Is(err, app.ErrConflict) {
+		t.Fatalf("stale completion err=%v, want conflict", err)
+	}
+	if err := repositories.Idempotency.Fail(ctx, key, "sha256:wrong-owner", now); !errors.Is(err, app.ErrConflict) {
+		t.Fatalf("stale failure err=%v, want conflict", err)
+	}
+
+	failingWrites := postgresrepositories.New(failingIdempotencyWriteTx{Tx: tx}).Idempotency
+	writeKey := key
+	writeKey.IdempotencyKey = "write-failure"
+	if err := failingWrites.Insert(ctx, writeKey, app.IdempotencyRecord{RequestHash: "sha256:write-failure", Status: 201, Response: map[string]any{"id": "write-failure"}, CreatedAt: now}); !errors.Is(err, errIdempotencyWrite) {
+		t.Fatalf("legacy insert write error=%v, want injected error", err)
+	}
+	if err := failingWrites.Complete(ctx, key, reservation.OwnerTokenHash, 201, map[string]any{"id": "write-failure"}, now); !errors.Is(err, errIdempotencyWrite) {
+		t.Fatalf("completion write error=%v, want injected error", err)
+	}
+	if err := failingWrites.Fail(ctx, key, reservation.OwnerTokenHash, now); !errors.Is(err, errIdempotencyWrite) {
+		t.Fatalf("failure write error=%v, want injected error", err)
 	}
 }
 

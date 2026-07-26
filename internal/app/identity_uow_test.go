@@ -157,8 +157,8 @@ func (failingIdentityRepository) UpdateCustomerPortalAccess(context.Context, dom
 
 type failingIdempotencyRepository struct{ IdempotencyRepository }
 
-func (failingIdempotencyRepository) Insert(context.Context, IdempotencyRecordKey, IdempotencyRecord) error {
-	return errInjectedRepositoryFailure
+func (failingIdempotencyRepository) Reserve(context.Context, IdempotencyReservation) (IdempotencyReservationResult, error) {
+	return IdempotencyReservationResult{}, errInjectedRepositoryFailure
 }
 
 func TestIdentityWritesCommitCredentialSecretsBeforePublication(t *testing.T) {

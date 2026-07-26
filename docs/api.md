@@ -26,7 +26,30 @@ Content-Type: application/json
 Accept: application/json
 ```
 
-Create and action endpoints require `Idempotency-Key`. Reusing the same key with the same request returns the original response. Reusing the same key with different request content returns `409` with `IDEMPOTENCY_KEY_REUSED`.
+Create and action endpoints require `Idempotency-Key`. A key is scoped to the
+authenticated tenant, actor, HTTP method, and path. The service stores a
+request digest, not the raw request body, and uses an internal hashed lease
+owner while a command is pending.
+
+For 24 hours after reservation:
+
+- Reusing a completed key with the same request returns the original safe
+  response.
+- Reusing a key with a different request returns `409` with
+  `IDEMPOTENCY_KEY_REUSED`; the original body is not disclosed.
+- Reusing an actively leased key returns `409` with
+  `IDEMPOTENCY_IN_PROGRESS`; clients should retry the same key after a short
+  delay rather than issue the command again.
+- A pending lease that expires without completion may be recovered by one
+  later request using the same key and request digest. The transition is
+  conditional, so only one recovery owner is recorded.
+- A failed key returns `409` with `IDEMPOTENCY_REQUEST_FAILED`. Its original
+  error and any partial response are not stored or replayed. The safe failure
+  replay policy is defined with atomic command execution work.
+
+After retention expires, the key is eligible for cleanup and is no longer a
+replay guarantee. Clients that require a retry must keep the same key and
+request bytes within that window.
 
 Successful JSON responses use a `data` envelope. Errors use RFC 9457 Problem Details with stable `code` and `request_id` fields. Clients may send `X-Request-ID`; otherwise the API generates one and returns it in the response header and Problem Details body.
 

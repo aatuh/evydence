@@ -213,7 +213,7 @@ func TestAppListAndScopeHelperGaps(t *testing.T) {
 	if (domain.Actor{Scopes: []string{"evidence:read"}}).HasScope("evidence:write") {
 		t.Fatal("read-only actor should not satisfy write scope")
 	}
-	for _, err := range []error{ErrValidation, ErrUnauthorized, ErrForbidden, ErrNotFound, ErrConflict, ErrIdempotencyConflict, ErrVerificationFailed, errors.New("raw sql detail")} {
+	for _, err := range []error{ErrValidation, ErrUnauthorized, ErrForbidden, ErrNotFound, ErrConflict, ErrIdempotencyConflict, ErrIdempotencyInProgress, ErrIdempotencyFailed, ErrVerificationFailed, errors.New("raw sql detail")} {
 		if ProblemCode(err) == "" || StatusCode(err) == 0 || SafeErrorDetail(err) == "" {
 			t.Fatalf("problem mapping incomplete for %v", err)
 		}

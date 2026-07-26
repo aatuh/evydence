@@ -1005,36 +1005,6 @@ func (r audit) Append(ctx context.Context, entry domain.AuditChainEntry) (domain
 	return entry, nil
 }
 
-type idempotency struct{ tx pgx.Tx }
-
-func (r idempotency) Insert(ctx context.Context, key app.IdempotencyRecordKey, record app.IdempotencyRecord) error {
-	if key.TenantID == "" || key.ActorID == "" || key.Method == "" || key.Path == "" || key.IdempotencyKey == "" || record.RequestHash == "" || record.CreatedAt.IsZero() {
-		return app.ErrValidation
-	}
-	if err := requireTenant(ctx, r.tx, key.TenantID); err != nil {
-		return err
-	}
-	response, err := json.Marshal(record.Response)
-	if err != nil {
-		return fmt.Errorf("encode idempotency response: %w", err)
-	}
-	result, err := r.tx.Exec(ctx, `
-		INSERT INTO idempotency_records (
-			tenant_id, actor_key_id, method, path, idempotency_key,
-			request_hash, status, response, created_at
-		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		ON CONFLICT DO NOTHING
-	`, key.TenantID, key.ActorID, key.Method, key.Path, key.IdempotencyKey, record.RequestHash, record.Status, response, record.CreatedAt)
-	if err != nil {
-		return writeError("insert idempotency record", err)
-	}
-	if result.RowsAffected() != 1 {
-		return app.ErrConflict
-	}
-	return nil
-}
-
 type outbox struct{ tx pgx.Tx }
 
 func (r outbox) Enqueue(ctx context.Context, job app.OutboxJob) error {

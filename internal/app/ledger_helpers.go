@@ -167,6 +167,10 @@ func ProblemCode(err error) string {
 		return "EVIDENCE_IMMUTABLE"
 	case errors.Is(err, ErrIdempotencyConflict):
 		return "IDEMPOTENCY_KEY_REUSED"
+	case errors.Is(err, ErrIdempotencyInProgress):
+		return "IDEMPOTENCY_IN_PROGRESS"
+	case errors.Is(err, ErrIdempotencyFailed):
+		return "IDEMPOTENCY_REQUEST_FAILED"
 	case errors.Is(err, ErrFullVerificationUnavailable):
 		return "COSIGN_FULL_VERIFICATION_UNAVAILABLE"
 	case errors.Is(err, ErrVerificationFailed):
@@ -188,7 +192,7 @@ func StatusCode(err error) int {
 		return 403
 	case errors.Is(err, ErrNotFound):
 		return 404
-	case errors.Is(err, ErrConflict), errors.Is(err, ErrImmutable), errors.Is(err, ErrIdempotencyConflict):
+	case errors.Is(err, ErrConflict), errors.Is(err, ErrImmutable), errors.Is(err, ErrIdempotencyConflict), errors.Is(err, ErrIdempotencyInProgress), errors.Is(err, ErrIdempotencyFailed):
 		return 409
 	case errors.Is(err, ErrValidation):
 		return 400

@@ -2073,45 +2073,19 @@ func (l *Ledger) WithIdempotency(ctx context.Context, actor domain.Actor, method
 		return 0, nil, err
 	}
 	key = strings.TrimSpace(key)
-	if key == "" {
+	if key == "" || run == nil {
 		return 0, nil, ErrValidation
 	}
 	requestHash := hashBytes(append([]byte(method+"\n"+path+"\n"), body...))
-	storeKey := NewIdempotencyRecordKey(actor.TenantID, idempotencyActorID(actor), method, path, key)
-	l.mu.Lock()
-	record, ok := l.idempotency[storeKey]
-	l.mu.Unlock()
-	if ok {
-		if record.RequestHash != requestHash {
-			return 0, nil, ErrIdempotencyConflict
-		}
-		return record.Status, record.Response, nil
-	}
-	status, response, err := run()
+	persistenceKey := IdempotencyRecordKey{TenantID: actor.TenantID, ActorID: idempotencyActorID(actor), Method: method, Path: path, IdempotencyKey: key}
+	reservation, err := newIdempotencyReservation(persistenceKey, requestHash, l.now())
 	if err != nil {
-		return status, response, err
-	}
-	l.mu.Lock()
-	record = IdempotencyRecord{RequestHash: requestHash, Status: status, Response: response, CreatedAt: l.now()}
-	if l.unitOfWork != nil {
-		persistenceKey := IdempotencyRecordKey{TenantID: actor.TenantID, ActorID: idempotencyActorID(actor), Method: method, Path: path, IdempotencyKey: key}
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			return repos.Idempotency.Insert(ctx, persistenceKey, record)
-		}); err != nil {
-			l.mu.Unlock()
-			return 0, nil, err
-		}
-		l.idempotency[storeKey] = record
-		l.mu.Unlock()
-		return status, response, nil
-	}
-	l.idempotency[storeKey] = record
-	if err := l.persistCriticalStateLocked(ctx); err != nil {
-		l.mu.Unlock()
 		return 0, nil, err
 	}
-	l.mu.Unlock()
-	return status, response, nil
+	if l.unitOfWork != nil {
+		return l.withDurableIdempotency(ctx, reservation, run)
+	}
+	return l.withInMemoryIdempotency(ctx, reservation, run)
 }
 
 func idempotencyActorID(actor domain.Actor) string {

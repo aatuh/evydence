@@ -175,6 +175,10 @@ type AuditRepository interface {
 
 type IdempotencyRepository interface {
 	Insert(context.Context, IdempotencyRecordKey, IdempotencyRecord) error
+	Reserve(context.Context, IdempotencyReservation) (IdempotencyReservationResult, error)
+	Complete(context.Context, IdempotencyRecordKey, string, int, any, time.Time) error
+	Fail(context.Context, IdempotencyRecordKey, string, time.Time) error
+	DeleteExpired(context.Context, time.Time) (int64, error)
 }
 
 type OutboxRepository interface {
@@ -505,21 +509,6 @@ func AppendPersistedChainEntry(state *PersistedState, now time.Time, tenantID, e
 	}
 	state.Chain[tenantID] = append(entries, entry)
 	return entry, nil
-}
-
-type IdempotencyRecord struct {
-	RequestHash string    `json:"request_hash"`
-	Status      int       `json:"status"`
-	Response    any       `json:"response"`
-	CreatedAt   time.Time `json:"created_at"`
-}
-
-type IdempotencyRecordKey struct {
-	TenantID       string
-	ActorID        string
-	Method         string
-	Path           string
-	IdempotencyKey string
 }
 
 type Object struct {

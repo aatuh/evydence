@@ -41,6 +41,7 @@ FAMILY_BY_FILE = {
     "future_extensions.go": "future extensions and generated reports",
     "governance_packages.go": "governance, packages, and package reports",
     "identity_service.go": "identity",
+    "idempotency.go": "identity and idempotency",
     "implementation_increments.go": "release extensions, source, and deployment",
     "integrity_runtime.go": "integrity and operations",
     "ledger.go": "release ledger and signing",

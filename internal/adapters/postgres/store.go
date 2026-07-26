@@ -2656,7 +2656,12 @@ func (s *Store) loadRelationalFutureExtensionRows(ctx context.Context, state *ap
 }
 
 func (s *Store) loadRelationalIdempotency(ctx context.Context, state *app.PersistedState, loaded *bool) error {
-	rows, err := s.pool.Query(ctx, `SELECT tenant_id, actor_key_id, method, path, idempotency_key, request_hash, status, response, created_at FROM idempotency_records`)
+	rows, err := s.pool.Query(ctx, `
+		SELECT tenant_id, actor_key_id, method, path, idempotency_key,
+		       request_hash, state, owner_token_hash, status, response,
+		       created_at, updated_at, lease_expires_at, completed_at, failed_at, expires_at
+		FROM idempotency_records
+	`)
 	if err != nil {
 		return fmt.Errorf("load relational idempotency records: %w", err)
 	}
@@ -2665,11 +2670,17 @@ func (s *Store) loadRelationalIdempotency(ctx context.Context, state *app.Persis
 		var tenantID, actorID, method, path, idempotencyKey string
 		var record app.IdempotencyRecord
 		var response []byte
-		if err := rows.Scan(&tenantID, &actorID, &method, &path, &idempotencyKey, &record.RequestHash, &record.Status, &response, &record.CreatedAt); err != nil {
+		var recordState string
+		if err := rows.Scan(&tenantID, &actorID, &method, &path, &idempotencyKey,
+			&record.RequestHash, &recordState, &record.OwnerTokenHash, &record.Status, &response,
+			&record.CreatedAt, &record.UpdatedAt, &record.LeaseExpiresAt, &record.CompletedAt, &record.FailedAt, &record.ExpiresAt); err != nil {
 			return fmt.Errorf("scan relational idempotency record: %w", err)
 		}
-		if err := decodeJSON(response, &record.Response); err != nil {
-			return fmt.Errorf("decode relational idempotency response: %w", err)
+		record.State = app.IdempotencyState(recordState)
+		if string(response) != "null" && len(response) > 0 {
+			if err := decodeJSON(response, &record.Response); err != nil {
+				return fmt.Errorf("decode relational idempotency response: %w", err)
+			}
 		}
 		key := app.NewIdempotencyRecordKey(tenantID, actorID, method, path, idempotencyKey)
 		state.Idempotency[key] = record
@@ -5088,6 +5099,13 @@ func syncIdentityAndIdempotency(ctx context.Context, tx pgx.Tx, state app.Persis
 		if !ok {
 			continue
 		}
+		if record.State == "" {
+			var err error
+			record, err = app.NormalizeLegacyIdempotencyRecord(record)
+			if err != nil {
+				return fmt.Errorf("normalize idempotency record: %w", err)
+			}
+		}
 		response, err := json.Marshal(record.Response)
 		if err != nil {
 			return fmt.Errorf("encode idempotency response: %w", err)
@@ -5095,10 +5113,13 @@ func syncIdentityAndIdempotency(ctx context.Context, tx pgx.Tx, state app.Persis
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO idempotency_records (
 				tenant_id, actor_key_id, method, path, idempotency_key,
-				request_hash, status, response, created_at
+				request_hash, state, owner_token_hash, status, response,
+				created_at, updated_at, lease_expires_at, completed_at, failed_at, expires_at
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		`, parts.TenantID, parts.ActorID, parts.Method, parts.Path, parts.IdempotencyKey, record.RequestHash, record.Status, response, nonZeroTime(record.CreatedAt)); err != nil {
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+		`, parts.TenantID, parts.ActorID, parts.Method, parts.Path, parts.IdempotencyKey,
+			record.RequestHash, record.State, record.OwnerTokenHash, record.Status, response,
+			nonZeroTime(record.CreatedAt), nonZeroTime(record.UpdatedAt), record.LeaseExpiresAt, record.CompletedAt, record.FailedAt, nonZeroTime(record.ExpiresAt)); err != nil {
 			return fmt.Errorf("insert idempotency record row: %w", err)
 		}
 	}
@@ -5219,6 +5240,13 @@ func syncCriticalIdentityAndIdempotency(ctx context.Context, tx pgx.Tx, mutation
 		if !ok {
 			continue
 		}
+		if record.State == "" {
+			var err error
+			record, err = app.NormalizeLegacyIdempotencyRecord(record)
+			if err != nil {
+				return fmt.Errorf("normalize critical idempotency record: %w", err)
+			}
+		}
 		response, err := json.Marshal(record.Response)
 		if err != nil {
 			return fmt.Errorf("encode critical idempotency response: %w", err)
@@ -5226,14 +5254,24 @@ func syncCriticalIdentityAndIdempotency(ctx context.Context, tx pgx.Tx, mutation
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO idempotency_records (
 				tenant_id, actor_key_id, method, path, idempotency_key,
-				request_hash, status, response, created_at
+				request_hash, state, owner_token_hash, status, response,
+				created_at, updated_at, lease_expires_at, completed_at, failed_at, expires_at
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 			ON CONFLICT (tenant_id, actor_key_id, method, path, idempotency_key)
 			DO UPDATE SET request_hash = EXCLUDED.request_hash,
+			              state = EXCLUDED.state,
+			              owner_token_hash = EXCLUDED.owner_token_hash,
 			              status = EXCLUDED.status,
-			              response = EXCLUDED.response
-		`, parts.TenantID, parts.ActorID, parts.Method, parts.Path, parts.IdempotencyKey, record.RequestHash, record.Status, response, nonZeroTime(record.CreatedAt)); err != nil {
+			              response = EXCLUDED.response,
+			              updated_at = EXCLUDED.updated_at,
+			              lease_expires_at = EXCLUDED.lease_expires_at,
+			              completed_at = EXCLUDED.completed_at,
+			              failed_at = EXCLUDED.failed_at,
+			              expires_at = EXCLUDED.expires_at
+		`, parts.TenantID, parts.ActorID, parts.Method, parts.Path, parts.IdempotencyKey,
+			record.RequestHash, record.State, record.OwnerTokenHash, record.Status, response,
+			nonZeroTime(record.CreatedAt), nonZeroTime(record.UpdatedAt), record.LeaseExpiresAt, record.CompletedAt, record.FailedAt, nonZeroTime(record.ExpiresAt)); err != nil {
 			return fmt.Errorf("upsert critical idempotency record row: %w", err)
 		}
 	}

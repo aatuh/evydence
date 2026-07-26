@@ -14,6 +14,9 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	postgresrepositories "github.com/aatuh/evydence/internal/adapters/postgres/repositories"
+	"github.com/aatuh/evydence/internal/app"
 )
 
 func TestMigrationCompatibilityFromEveryCommittedState(t *testing.T) {
@@ -82,6 +85,88 @@ func TestMigrationCompatibilityFromEveryCommittedState(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestIdempotencyStateMachineMigratesLegacyReplayRecords(t *testing.T) {
+	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
+	if strings.TrimSpace(databaseURL) == "" {
+		t.Skip("EVYDENCE_TEST_DATABASE_URL is not set")
+	}
+	const stateMachineMigration = "20260726000200_idempotency_state_machine.up.sql"
+	names := migrationFileNames(t, "../../../migrations")
+	stateMachineIndex := -1
+	for i, name := range names {
+		if name == stateMachineMigration {
+			stateMachineIndex = i
+			break
+		}
+	}
+	if stateMachineIndex < 0 {
+		t.Fatalf("migration %q not found", stateMachineMigration)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	basePool, err := pgxpool.New(ctx, databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer basePool.Close()
+	schema := fmt.Sprintf("evydence_idempotency_legacy_%d", time.Now().UnixNano())
+	quotedSchema := pgx.Identifier{schema}.Sanitize()
+	if _, err := basePool.Exec(ctx, "CREATE SCHEMA "+quotedSchema); err != nil {
+		t.Fatal(err)
+	}
+	defer func(cleanupCtx context.Context) {
+		_, _ = basePool.Exec(cleanupCtx, "DROP SCHEMA "+quotedSchema+" CASCADE")
+	}(context.WithoutCancel(ctx))
+	store, err := Open(ctx, databaseURLWithSearchPath(t, databaseURL, schema))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	applyMigrationPrefix(t, ctx, store, "../../../migrations", names[:stateMachineIndex])
+	now := time.Now().UTC().Round(0)
+	if _, err := store.pool.Exec(ctx, `INSERT INTO tenants (id, name, created_at) VALUES ('ten_legacy_idempotency', 'Legacy idempotency', $1)`, now); err != nil {
+		t.Fatalf("insert legacy tenant: %v", err)
+	}
+	if _, err := store.pool.Exec(ctx, `INSERT INTO api_keys (id, tenant_id, name, prefix, hash, scopes, created_at) VALUES ('key_legacy_idempotency', 'ten_legacy_idempotency', 'Legacy key', 'legacy', 'hash', '[]'::jsonb, $1)`, now); err != nil {
+		t.Fatalf("insert legacy API key: %v", err)
+	}
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO idempotency_records (
+			tenant_id, actor_key_id, method, path, idempotency_key, request_hash, status, response, created_at
+		) VALUES ('ten_legacy_idempotency', 'key_legacy_idempotency', 'POST', '/v1/products', 'legacy-key', 'sha256:legacy-request', 201, '{"id":"prod_legacy"}'::jsonb, $1)
+	`, now); err != nil {
+		t.Fatalf("insert legacy idempotency record: %v", err)
+	}
+	if _, err := store.ApplyMigrations(ctx, "../../../migrations"); err != nil {
+		t.Fatalf("apply state machine migration: %v", err)
+	}
+
+	tx, err := store.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		t.Fatalf("begin replay transaction: %v", err)
+	}
+	defer func() { _ = tx.Rollback(context.Background()) }()
+	reservation := app.IdempotencyReservation{
+		Key:            app.IdempotencyRecordKey{TenantID: "ten_legacy_idempotency", ActorID: "api_key:key_legacy_idempotency", Method: "POST", Path: "/v1/products", IdempotencyKey: "legacy-key"},
+		RequestHash:    "sha256:legacy-request",
+		OwnerTokenHash: "sha256:new-owner",
+		Now:            now.Add(time.Hour),
+		LeaseExpiresAt: now.Add(2 * time.Hour),
+		ExpiresAt:      now.Add(25 * time.Hour),
+	}
+	result, err := postgresrepositories.New(tx).Idempotency.Reserve(ctx, reservation)
+	if err != nil || result.Outcome != app.IdempotencyReservationReplay || result.Record.Status != 201 {
+		t.Fatalf("legacy replay result=%#v err=%v, want completed replay", result, err)
+	}
+	response, ok := result.Record.Response.(map[string]any)
+	if !ok || response["id"] != "prod_legacy" {
+		t.Fatalf("legacy replay response=%#v, want original response", result.Record.Response)
+	}
+	if result.Record.State != app.IdempotencyCompleted || result.Record.CompletedAt == nil || result.Record.ExpiresAt.Before(now.Add(23*time.Hour)) {
+		t.Fatalf("legacy record was not upgraded with completed retention metadata: %#v", result.Record)
 	}
 }
 
