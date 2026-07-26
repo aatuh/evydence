@@ -83,6 +83,7 @@ type MemoryUnitOfWorkSnapshot struct {
 	PolicyEvaluations         map[string]domain.PolicyEvaluation
 	CommercialCollectors      map[string]domain.CommercialCollectorDefinition
 	QuestionnaireTemplates    map[string]domain.QuestionnaireTemplate
+	AnswerLibrary             map[string]domain.QuestionnaireAnswerLibraryEntry
 	PublicTransparencyLogs    map[string]domain.PublicTransparencyLog
 	PublicTransparencyEntries map[string]domain.PublicTransparencyLogEntry
 	EvidenceSummaries         map[string]domain.EvidenceSummary
@@ -2167,6 +2168,41 @@ func (r memoryEnterpriseRepository) InsertQuestionnaireTemplate(ctx context.Cont
 	})
 }
 
+func (r memoryEnterpriseRepository) InsertQuestionnaireAnswerLibraryEntry(ctx context.Context, entry domain.QuestionnaireAnswerLibraryEntry) error {
+	cloned, err := cloneMemoryJSON(entry)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.Answer == "" || (cloned.QuestionID == "" && cloned.EvidenceType == "" && cloned.ControlID == "") || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.ProductID, cloned.TenantID, state.Products) || !memoryResourceBelongsToTenant(cloned.ReleaseID, cloned.TenantID, state.Releases) {
+			return ErrNotFound
+		}
+		if cloned.ProductID != "" && cloned.ReleaseID != "" && state.Releases[cloned.ReleaseID].ProductID != cloned.ProductID {
+			return ErrValidation
+		}
+		if cloned.ControlID != "" && !memoryResourceBelongsToTenant(cloned.ControlID, cloned.TenantID, state.SecurityControls) {
+			return ErrNotFound
+		}
+		for _, evidenceID := range cloned.EvidenceIDs {
+			item, ok := state.Evidence[evidenceID]
+			if !ok || item.TenantID != cloned.TenantID || (cloned.ProductID != "" && item.ProductID != cloned.ProductID) || (cloned.ReleaseID != "" && item.ReleaseID != cloned.ReleaseID) {
+				return ErrNotFound
+			}
+		}
+		if _, exists := state.AnswerLibrary[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.AnswerLibrary[cloned.ID] = cloned
+		return nil
+	})
+}
+
 func validateMemoryQuestionnaireTemplate(template domain.QuestionnaireTemplate) error {
 	if template.ID == "" || template.Name == "" || template.Version == "" || len(template.Questions) == 0 || template.SchemaVersion == "" || template.CreatedAt.IsZero() {
 		return ErrValidation
@@ -2653,6 +2689,7 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		PolicyEvaluations:         map[string]domain.PolicyEvaluation{},
 		CommercialCollectors:      map[string]domain.CommercialCollectorDefinition{},
 		QuestionnaireTemplates:    map[string]domain.QuestionnaireTemplate{},
+		AnswerLibrary:             map[string]domain.QuestionnaireAnswerLibraryEntry{},
 		PublicTransparencyLogs:    map[string]domain.PublicTransparencyLog{},
 		PublicTransparencyEntries: map[string]domain.PublicTransparencyLogEntry{},
 		EvidenceSummaries:         map[string]domain.EvidenceSummary{},
@@ -2856,6 +2893,9 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.QuestionnaireTemplates, err = cloneMemoryMap(snapshot.QuestionnaireTemplates); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.AnswerLibrary, err = cloneMemoryMap(snapshot.AnswerLibrary); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.PublicTransparencyLogs, err = cloneMemoryMap(snapshot.PublicTransparencyLogs); err != nil {

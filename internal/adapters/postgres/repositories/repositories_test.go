@@ -449,6 +449,12 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Enterprise.InsertQuestionnaireTemplate(ctx, domain.QuestionnaireTemplate{ID: "template_repository", TenantID: tenant.ID, Name: "Repository", Version: "1", Questions: []domain.QuestionnaireQuestion{{ID: "q1", Prompt: "Is evidence available?"}}, SchemaVersion: domain.QuestionnaireTemplateVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert questionnaire template: %v", err)
 	}
+	if err := repositories.Enterprise.InsertQuestionnaireAnswerLibraryEntry(ctx, domain.QuestionnaireAnswerLibraryEntry{ID: "answer_repository", TenantID: tenant.ID, QuestionID: "q1", EvidenceType: evidence.Type, ControlID: control.ID, ProductID: product.ID, ReleaseID: release.ID, Answer: "Evidence is available.", EvidenceIDs: []string{evidence.ID}, Limitations: []string{"human review required"}, SchemaVersion: domain.QuestionnaireAnswerLibraryVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert questionnaire answer library entry: %v", err)
+	}
+	if err := repositories.Enterprise.InsertQuestionnaireAnswerLibraryEntry(ctx, domain.QuestionnaireAnswerLibraryEntry{ID: "answer_repository_release_only", TenantID: tenant.ID, QuestionID: "q2", ReleaseID: release.ID, Answer: "Release-scoped evidence is available.", Limitations: []string{"human review required"}, SchemaVersion: domain.QuestionnaireAnswerLibraryVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert release-only questionnaire answer library entry: %v", err)
+	}
 	if err := repositories.Future.InsertPDFReportPackage(ctx, domain.PDFReportPackage{ID: "pdf_repository", TenantID: tenant.ID, ReportType: "release_readiness", ProductID: product.ID, ReleaseID: release.ID, Title: "Repository report", PayloadHash: "sha256:report", PayloadSize: 1, SchemaVersion: domain.PDFReportPackageVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert PDF report package: %v", err)
 	}
@@ -622,6 +628,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"policy evaluation", repositories.Verification.InsertPolicyEvaluation(ctx, domain.PolicyEvaluation{})},
 		{"commercial collector", repositories.Enterprise.InsertCommercialCollectorDefinition(ctx, domain.CommercialCollectorDefinition{})},
 		{"questionnaire template", repositories.Enterprise.InsertQuestionnaireTemplate(ctx, domain.QuestionnaireTemplate{})},
+		{"questionnaire answer library", repositories.Enterprise.InsertQuestionnaireAnswerLibraryEntry(ctx, domain.QuestionnaireAnswerLibraryEntry{})},
 	}
 	for _, check := range checks {
 		if !errors.Is(check.err, app.ErrValidation) {

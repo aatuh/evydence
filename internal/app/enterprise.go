@@ -1463,6 +1463,22 @@ func (s packageReportService) CreateQuestionnaireAnswerLibraryEntry(ctx context.
 	if len(entry.Limitations) == 0 {
 		entry.Limitations = []string{"Answer library entries are reusable drafts and require human review before external use."}
 	}
+	if l.unitOfWork != nil {
+		var auditEntry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Enterprise.InsertQuestionnaireAnswerLibraryEntry(ctx, entry); err != nil {
+				return err
+			}
+			var err error
+			auditEntry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(entry.CreatedAt, actor.TenantID, "questionnaire_answer_library.created", "questionnaire_answer_library", entry.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.QuestionnaireAnswerLibraryEntry{}, err
+		}
+		l.answerLibrary[entry.ID] = entry
+		l.publishCommittedAuditEntryLocked(auditEntry)
+		return entry, nil
+	}
 	l.answerLibrary[entry.ID] = entry
 	_, _ = l.appendChainLocked(actor.TenantID, "questionnaire_answer_library.created", "questionnaire_answer_library", entry.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {

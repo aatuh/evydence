@@ -1949,6 +1949,46 @@ func (r enterprise) InsertQuestionnaireTemplate(ctx context.Context, template do
 	return writeError("insert questionnaire template", err)
 }
 
+func (r enterprise) InsertQuestionnaireAnswerLibraryEntry(ctx context.Context, entry domain.QuestionnaireAnswerLibraryEntry) error {
+	if entry.ID == "" || entry.TenantID == "" || entry.Answer == "" || (entry.QuestionID == "" && entry.EvidenceType == "" && entry.ControlID == "") || entry.SchemaVersion == "" || entry.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, entry.TenantID); err != nil {
+		return err
+	}
+	if err := requireOptionalProduct(ctx, r.tx, entry.TenantID, entry.ProductID); err != nil {
+		return err
+	}
+	if entry.ReleaseID != "" {
+		if entry.ProductID != "" {
+			if err := requireRow(ctx, r.tx, `SELECT 1 FROM releases WHERE id = $1 AND tenant_id = $2 AND product_id = $3`, entry.ReleaseID, entry.TenantID, entry.ProductID); err != nil {
+				return err
+			}
+		} else if err := requireOptionalRelease(ctx, r.tx, entry.TenantID, entry.ReleaseID); err != nil {
+			return err
+		}
+	}
+	if entry.ControlID != "" {
+		if err := requireRow(ctx, r.tx, `SELECT 1 FROM security_controls WHERE id = $1 AND tenant_id = $2`, entry.ControlID, entry.TenantID); err != nil {
+			return err
+		}
+	}
+	for _, evidenceID := range entry.EvidenceIDs {
+		var productID, releaseID *string
+		if err := r.tx.QueryRow(ctx, `SELECT product_id, release_id FROM evidence_items WHERE id = $1 AND tenant_id = $2`, evidenceID, entry.TenantID).Scan(&productID, &releaseID); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return app.ErrNotFound
+			}
+			return writeError("read questionnaire answer evidence", err)
+		}
+		if entry.ProductID != "" && (productID == nil || *productID != entry.ProductID) || entry.ReleaseID != "" && (releaseID == nil || *releaseID != entry.ReleaseID) {
+			return app.ErrNotFound
+		}
+	}
+	_, err := r.tx.Exec(ctx, `INSERT INTO questionnaire_answer_library (id, tenant_id, question_id, evidence_type, control_id, product_id, release_id, answer, evidence_ids, limitations, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, entry.ID, entry.TenantID, nullableString(entry.QuestionID), nullableString(entry.EvidenceType), nullableString(entry.ControlID), nullableString(entry.ProductID), nullableString(entry.ReleaseID), entry.Answer, textArray(entry.EvidenceIDs), textArray(entry.Limitations), entry.SchemaVersion, entry.CreatedAt)
+	return writeError("insert questionnaire answer library entry", err)
+}
+
 func validateQuestionnaireTemplate(template domain.QuestionnaireTemplate) error {
 	if template.ID == "" || template.TenantID == "" || template.Name == "" || template.Version == "" || len(template.Questions) == 0 || template.SchemaVersion == "" || template.CreatedAt.IsZero() {
 		return app.ErrValidation
