@@ -294,6 +294,22 @@ func (l *Ledger) CreateMerkleBatch(ctx context.Context, actor domain.Actor, in C
 		return domain.MerkleBatch{}, err
 	}
 	batch := domain.MerkleBatch{ID: batchID, TenantID: actor.TenantID, FromSequence: from, ToSequence: to, EntryCount: len(leaves), LeafHashes: leaves, RootHash: root, SignatureRefs: []string{sig.ID}, SchemaVersion: domain.MerkleBatchSchemaVersion, CreatedAt: l.now()}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Integrity.InsertMerkleBatch(ctx, batch); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(batch.CreatedAt, actor.TenantID, "merkle_batch.created", "merkle_batch", batch.ID, actorType(actor), actorID(actor), root, sig.ID))
+			return err
+		}); err != nil {
+			return domain.MerkleBatch{}, err
+		}
+		l.merkleBatches[batch.ID] = batch
+		l.publishCommittedAuditEntryLocked(entry)
+		return batch, nil
+	}
 	l.merkleBatches[batch.ID] = batch
 	_, _ = l.appendChainLocked(actor.TenantID, "merkle_batch.created", "merkle_batch", batch.ID, actorType(actor), actorID(actor), root, sig.ID)
 	if err := l.persistLocked(ctx); err != nil {

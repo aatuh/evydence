@@ -22,11 +22,6 @@ func TestTransparencyCheckpointUsesUnitOfWorkAndPublishesOnlyAfterCommit(t *test
 	if err != nil {
 		t.Fatalf("create Merkle batch: %v", err)
 	}
-	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
-		return repositories.Integrity.InsertMerkleBatch(ctx, batch)
-	}); err != nil {
-		t.Fatalf("seed Merkle batch: %v", err)
-	}
 	chainEntriesBefore := len(ledger.chain[actor.TenantID])
 	checkpoint, err := ledger.CreateTransparencyCheckpoint(ctx, actor, CreateTransparencyCheckpointInput{BatchID: batch.ID, Provider: "internal-rfc3161", ExternalID: "checkpoint-1"})
 	if err != nil {
