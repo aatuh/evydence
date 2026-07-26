@@ -38,6 +38,7 @@ func New(tx pgx.Tx) app.Repositories {
 		Signatures:     signatures{tx: tx},
 		Integrity:      integrity{tx: tx},
 		Verification:   verification{tx: tx},
+		Future:         futureExtensions{tx: tx},
 	}
 }
 
@@ -1927,6 +1928,24 @@ func (r verification) InsertPolicyEvaluation(ctx context.Context, evaluation dom
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`, evaluation.ID, evaluation.TenantID, evaluation.ReleaseID, evaluation.Result, evaluation.PolicySet, checks, evaluation.CreatedAt)
 	return writeError("insert policy evaluation", err)
+}
+
+type futureExtensions struct{ tx pgx.Tx }
+
+func (r futureExtensions) InsertPublicTransparencyLog(ctx context.Context, log domain.PublicTransparencyLog) error {
+	if log.ID == "" || log.TenantID == "" || log.Name == "" || !strings.HasPrefix(log.Endpoint, "https://") || log.PublicKey == "" || log.State != "configured" || log.SchemaVersion == "" || log.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, log.TenantID); err != nil {
+		return err
+	}
+	_, err := r.tx.Exec(ctx, `
+		INSERT INTO public_transparency_logs (
+			id, tenant_id, name, endpoint, public_key, state, schema_version, created_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	`, log.ID, log.TenantID, log.Name, log.Endpoint, log.PublicKey, log.State, log.SchemaVersion, log.CreatedAt)
+	return writeError("insert public transparency log", err)
 }
 
 func requireTenant(ctx context.Context, tx pgx.Tx, tenantID string) error {

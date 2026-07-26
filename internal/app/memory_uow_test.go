@@ -237,6 +237,9 @@ func TestMemoryUnitOfWorkCommitsEveryFocusedRepository(t *testing.T) {
 	if err := repositories.Integrity.InsertSigningProvider(context.Background(), domain.SigningProvider{ID: "provider_all_repositories", TenantID: tenant.ID, Name: "All repositories KMS", Type: "aws_kms", Status: "active", KeyRef: "arn:aws:kms:example", Encrypted: true, SchemaVersion: domain.SigningProviderSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert signing provider: %v", err)
 	}
+	if err := repositories.Future.InsertPublicTransparencyLog(context.Background(), domain.PublicTransparencyLog{ID: "public_log_all_repositories", TenantID: tenant.ID, Name: "All repositories log", Endpoint: "https://transparency.example.test", PublicKey: "public-key", State: "configured", SchemaVersion: domain.PublicTransparencyLogVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert public transparency log: %v", err)
+	}
 	if err := repositories.Integrity.InsertCosignVerification(context.Background(), domain.CosignVerification{ID: "cosign_all_repositories", TenantID: tenant.ID, ArtifactID: artifact.ID, ContainerImageID: image.ID, ArtifactSignatureID: artifactSignature.ID, SubjectDigest: artifact.Digest, Result: "limited", Checks: []domain.VerifyCheck{{Name: "recorded", Result: "passed"}}, SchemaVersion: domain.CosignVerificationSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert Cosign verification: %v", err)
 	}
@@ -277,7 +280,7 @@ func TestMemoryUnitOfWorkCommitsEveryFocusedRepository(t *testing.T) {
 	if err != nil {
 		t.Fatalf("snapshot: %v", err)
 	}
-	if len(snapshot.APIKeys) != 1 || len(snapshot.Projects) != 1 || len(snapshot.Releases) != 1 || len(snapshot.Artifacts) != 1 || len(snapshot.ContainerImages) != 1 || len(snapshot.ArtifactSignatures) != 1 || len(snapshot.Evidence) != 1 || len(snapshot.EvidenceLifecycle) != 1 || len(snapshot.Decisions) != 1 || len(snapshot.AuditEntries[tenant.ID]) != 1 || len(snapshot.Idempotency) != 1 || len(snapshot.OutboxJobs) != 1 || len(snapshot.ReleaseBundles) != 1 || len(snapshot.SigningKeys) != 1 || len(snapshot.Signatures) != 1 || len(snapshot.SigningProviders) != 1 || len(snapshot.CosignVerifications) != 1 || len(snapshot.ObjectRetentionPolicies) != 1 || len(snapshot.BackupManifests) != 1 || len(snapshot.MerkleBatches) != 1 || len(snapshot.TransparencyCheckpoints) != 1 || len(snapshot.VerificationResults) != 1 || len(snapshot.PolicyEvaluations) != 1 {
+	if len(snapshot.APIKeys) != 1 || len(snapshot.Projects) != 1 || len(snapshot.Releases) != 1 || len(snapshot.Artifacts) != 1 || len(snapshot.ContainerImages) != 1 || len(snapshot.ArtifactSignatures) != 1 || len(snapshot.Evidence) != 1 || len(snapshot.EvidenceLifecycle) != 1 || len(snapshot.Decisions) != 1 || len(snapshot.AuditEntries[tenant.ID]) != 1 || len(snapshot.Idempotency) != 1 || len(snapshot.OutboxJobs) != 1 || len(snapshot.ReleaseBundles) != 1 || len(snapshot.SigningKeys) != 1 || len(snapshot.Signatures) != 1 || len(snapshot.SigningProviders) != 1 || len(snapshot.CosignVerifications) != 1 || len(snapshot.ObjectRetentionPolicies) != 1 || len(snapshot.BackupManifests) != 1 || len(snapshot.MerkleBatches) != 1 || len(snapshot.TransparencyCheckpoints) != 1 || len(snapshot.VerificationResults) != 1 || len(snapshot.PolicyEvaluations) != 1 || len(snapshot.PublicTransparencyLogs) != 1 {
 		t.Fatalf("focused repositories did not commit together: %#v", snapshot)
 	}
 }
@@ -316,6 +319,7 @@ func TestMemoryUnitOfWorkRejectsInvalidFocusedRepositoryRecords(t *testing.T) {
 		{"backup manifest", repositories.Integrity.InsertBackupManifest(context.Background(), domain.BackupManifest{})},
 		{"Merkle batch", repositories.Integrity.InsertMerkleBatch(context.Background(), domain.MerkleBatch{})},
 		{"transparency checkpoint", repositories.Integrity.InsertTransparencyCheckpoint(context.Background(), domain.TransparencyCheckpoint{})},
+		{"public transparency log", repositories.Future.InsertPublicTransparencyLog(context.Background(), domain.PublicTransparencyLog{})},
 		{"verification", repositories.Verification.InsertVerificationResult(context.Background(), domain.VerificationResult{})},
 		{"policy evaluation", repositories.Verification.InsertPolicyEvaluation(context.Background(), domain.PolicyEvaluation{})},
 	}

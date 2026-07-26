@@ -115,6 +115,7 @@ type Repositories struct {
 	Signatures     SignatureRepository
 	Integrity      IntegrityRepository
 	Verification   VerificationRepository
+	Future         FutureExtensionsRepository
 }
 
 type IdentityRepository interface {
@@ -241,6 +242,10 @@ type IntegrityRepository interface {
 type VerificationRepository interface {
 	InsertVerificationResult(context.Context, domain.VerificationResult) error
 	InsertPolicyEvaluation(context.Context, domain.PolicyEvaluation) error
+}
+
+type FutureExtensionsRepository interface {
+	InsertPublicTransparencyLog(context.Context, domain.PublicTransparencyLog) error
 }
 
 type SigningRequest struct {

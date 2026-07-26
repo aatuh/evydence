@@ -383,6 +383,12 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Integrity.InsertSigningProvider(ctx, domain.SigningProvider{ID: "provider_repository", TenantID: tenant.ID, Name: "Repository KMS", Type: "aws_kms", Status: "active", KeyRef: "arn:aws:kms:example", Encrypted: true, SchemaVersion: domain.SigningProviderSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert signing provider: %v", err)
 	}
+	if err := repositories.Future.InsertPublicTransparencyLog(ctx, domain.PublicTransparencyLog{ID: "public_log_repository", TenantID: tenant.ID, Name: "Repository log", Endpoint: "https://transparency.example.test", PublicKey: "public-key", State: "configured", SchemaVersion: domain.PublicTransparencyLogVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert public transparency log: %v", err)
+	}
+	if err := repositories.Future.InsertPublicTransparencyLog(ctx, domain.PublicTransparencyLog{ID: "public_log_repository_http", TenantID: tenant.ID, Name: "Repository insecure log", Endpoint: "http://transparency.example.test", PublicKey: "public-key", State: "configured", SchemaVersion: domain.PublicTransparencyLogVersion, CreatedAt: now}); !errors.Is(err, app.ErrValidation) {
+		t.Fatalf("insecure public transparency log err=%v, want validation", err)
+	}
 	if err := repositories.Integrity.InsertCosignVerification(ctx, domain.CosignVerification{ID: "cosign_repository", TenantID: tenant.ID, ArtifactID: artifact.ID, ContainerImageID: "img_repository", ArtifactSignatureID: "artsig_repository_port", SubjectDigest: artifact.Digest, Result: "limited", Checks: []domain.VerifyCheck{{Name: "recorded", Result: "passed"}}, SchemaVersion: domain.CosignVerificationSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert Cosign verification: %v", err)
 	}
@@ -521,6 +527,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"backup manifest", repositories.Integrity.InsertBackupManifest(ctx, domain.BackupManifest{})},
 		{"Merkle batch", repositories.Integrity.InsertMerkleBatch(ctx, domain.MerkleBatch{})},
 		{"transparency checkpoint", repositories.Integrity.InsertTransparencyCheckpoint(ctx, domain.TransparencyCheckpoint{})},
+		{"public transparency log", repositories.Future.InsertPublicTransparencyLog(ctx, domain.PublicTransparencyLog{})},
 		{"verification", repositories.Verification.InsertVerificationResult(ctx, domain.VerificationResult{})},
 		{"policy evaluation", repositories.Verification.InsertPolicyEvaluation(ctx, domain.PolicyEvaluation{})},
 	}

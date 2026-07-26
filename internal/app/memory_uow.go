@@ -81,6 +81,7 @@ type MemoryUnitOfWorkSnapshot struct {
 	TransparencyCheckpoints map[string]domain.TransparencyCheckpoint
 	VerificationResults     map[string]domain.VerificationResult
 	PolicyEvaluations       map[string]domain.PolicyEvaluation
+	PublicTransparencyLogs  map[string]domain.PublicTransparencyLog
 }
 
 func NewMemoryUnitOfWorkFactory() *MemoryUnitOfWorkFactory {
@@ -134,6 +135,7 @@ func (u *memoryUnitOfWork) Repositories() Repositories {
 		Signatures:     memorySignatureRepository{uow: u},
 		Integrity:      memoryIntegrityRepository{uow: u},
 		Verification:   memoryVerificationRepository{uow: u},
+		Future:         memoryFutureExtensionsRepository{uow: u},
 	}
 }
 
@@ -2123,6 +2125,28 @@ func (r memoryVerificationRepository) InsertPolicyEvaluation(ctx context.Context
 	})
 }
 
+type memoryFutureExtensionsRepository struct{ uow *memoryUnitOfWork }
+
+func (r memoryFutureExtensionsRepository) InsertPublicTransparencyLog(ctx context.Context, log domain.PublicTransparencyLog) error {
+	cloned, err := cloneMemoryJSON(log)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.Name == "" || !strings.HasPrefix(cloned.Endpoint, "https://") || cloned.PublicKey == "" || cloned.State != "configured" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if _, exists := state.PublicTransparencyLogs[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.PublicTransparencyLogs[cloned.ID] = cloned
+		return nil
+	})
+}
+
 func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 	return MemoryUnitOfWorkSnapshot{
 		Tenants:                 map[string]domain.Tenant{},
@@ -2183,6 +2207,7 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		TransparencyCheckpoints: map[string]domain.TransparencyCheckpoint{},
 		VerificationResults:     map[string]domain.VerificationResult{},
 		PolicyEvaluations:       map[string]domain.PolicyEvaluation{},
+		PublicTransparencyLogs:  map[string]domain.PublicTransparencyLog{},
 	}
 }
 
@@ -2370,6 +2395,9 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.PolicyEvaluations, err = cloneMemoryMap(snapshot.PolicyEvaluations); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.PublicTransparencyLogs, err = cloneMemoryMap(snapshot.PublicTransparencyLogs); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	return cloned, nil

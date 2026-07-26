@@ -351,6 +351,22 @@ func (l *Ledger) CreatePublicTransparencyLog(ctx context.Context, actor domain.A
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	record := domain.PublicTransparencyLog{ID: newID("ptl"), TenantID: actor.TenantID, Name: name, Endpoint: endpoint, PublicKey: publicKey, State: "configured", SchemaVersion: domain.PublicTransparencyLogVersion, CreatedAt: l.now()}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Future.InsertPublicTransparencyLog(ctx, record); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(record.CreatedAt, actor.TenantID, "public_transparency_log.created", "public_transparency_log", record.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.PublicTransparencyLog{}, err
+		}
+		l.publicLogs[record.ID] = record
+		l.publishCommittedAuditEntryLocked(entry)
+		return record, nil
+	}
 	l.publicLogs[record.ID] = record
 	_, _ = l.appendChainLocked(actor.TenantID, "public_transparency_log.created", "public_transparency_log", record.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {
