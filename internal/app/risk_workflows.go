@@ -1210,6 +1210,22 @@ func (l *Ledger) CreateContractDiff(ctx context.Context, actor domain.Actor, in 
 		}
 	}
 	diff := domain.ContractDiff{ID: newID("cdiff"), TenantID: actor.TenantID, BaseContractID: base.ID, TargetContractID: target.ID, ProductID: base.ProductID, ReleaseID: strings.TrimSpace(in.ReleaseID), Result: result, BreakingChanges: breaking, NonBreakingChanges: nonBreaking, SchemaVersion: domain.ContractDiffSchemaVersion, CreatedAt: l.now()}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Risk.InsertContractDiff(ctx, diff); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(diff.CreatedAt, actor.TenantID, "openapi_contract.diffed", "contract_diff", diff.ID, "api_key", actor.KeyID, "", ""))
+			return err
+		}); err != nil {
+			return domain.ContractDiff{}, err
+		}
+		l.contractDiffs[diff.ID] = diff
+		l.publishCommittedAuditEntryLocked(entry)
+		return diff, nil
+	}
 	l.contractDiffs[diff.ID] = diff
 	_, _ = l.appendChainLocked(actor.TenantID, "openapi_contract.diffed", "contract_diff", diff.ID, "api_key", actor.KeyID, "", "")
 	if err := l.persistLocked(ctx); err != nil {
@@ -1576,6 +1592,15 @@ func validVulnWorkflowAction(action string) bool {
 func validPolicyEvidenceType(typ string) bool {
 	switch typ {
 	case "sbom", "vulnerability_scan", "vex", "vulnerability_decision", "artifact", "build", "build_attestation", "openapi_contract", "release_bundle", "exception", "sast", "dast", "secret_scan", "license_scan", "api_security", "deployment", "threat_model", "security_review", "pen_test_report":
+		return true
+	default:
+		return false
+	}
+}
+
+func validContractDiffResult(result string) bool {
+	switch result {
+	case "unchanged", "changed", "breaking":
 		return true
 	default:
 		return false

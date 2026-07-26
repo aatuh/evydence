@@ -235,6 +235,7 @@ type PackageRepository interface {
 type RiskRepository interface {
 	InsertCustomPolicy(context.Context, domain.CustomPolicy) error
 	InsertCustomPolicyEvaluation(context.Context, domain.CustomPolicyEvaluation) error
+	InsertContractDiff(context.Context, domain.ContractDiff) error
 }
 
 type SignatureRepository interface {

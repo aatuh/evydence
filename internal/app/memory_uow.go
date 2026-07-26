@@ -76,6 +76,7 @@ type MemoryUnitOfWorkSnapshot struct {
 	BundleImports             map[string]domain.EvidenceBundleImport
 	CustomPolicies            map[string]domain.CustomPolicy
 	CustomPolicyEvaluations   map[string]domain.CustomPolicyEvaluation
+	ContractDiffs             map[string]domain.ContractDiff
 	HTMLReports               map[string]domain.HTMLReportPackage
 	ReportTemplates           map[string]domain.CustomReportTemplate
 	RenderedReports           map[string]domain.RenderedCustomReport
@@ -1639,6 +1640,40 @@ func (r memoryRiskRepository) InsertCustomPolicyEvaluation(ctx context.Context, 
 	})
 }
 
+func (r memoryRiskRepository) InsertContractDiff(ctx context.Context, diff domain.ContractDiff) error {
+	cloned, err := cloneMemoryJSON(diff)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.BaseContractID == "" || cloned.TargetContractID == "" || cloned.ProductID == "" || !validContractDiffResult(cloned.Result) || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		base, ok := state.OpenAPIContracts[cloned.BaseContractID]
+		if !ok || base.TenantID != cloned.TenantID || base.ProductID != cloned.ProductID {
+			return ErrNotFound
+		}
+		target, ok := state.OpenAPIContracts[cloned.TargetContractID]
+		if !ok || target.TenantID != cloned.TenantID || target.ProductID != cloned.ProductID {
+			return ErrNotFound
+		}
+		if cloned.ReleaseID != "" {
+			release, ok := state.Releases[cloned.ReleaseID]
+			if !ok || release.TenantID != cloned.TenantID || release.ProductID != cloned.ProductID {
+				return ErrNotFound
+			}
+		}
+		if _, exists := state.ContractDiffs[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.ContractDiffs[cloned.ID] = cloned
+		return nil
+	})
+}
+
 type memorySourceRepository struct{ uow *memoryUnitOfWork }
 
 type memoryDeploymentRepository struct{ uow *memoryUnitOfWork }
@@ -2993,6 +3028,7 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		BundleImports:             map[string]domain.EvidenceBundleImport{},
 		CustomPolicies:            map[string]domain.CustomPolicy{},
 		CustomPolicyEvaluations:   map[string]domain.CustomPolicyEvaluation{},
+		ContractDiffs:             map[string]domain.ContractDiff{},
 		HTMLReports:               map[string]domain.HTMLReportPackage{},
 		ReportTemplates:           map[string]domain.CustomReportTemplate{},
 		RenderedReports:           map[string]domain.RenderedCustomReport{},
@@ -3191,6 +3227,9 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.CustomPolicyEvaluations, err = cloneMemoryMap(snapshot.CustomPolicyEvaluations); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.ContractDiffs, err = cloneMemoryMap(snapshot.ContractDiffs); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.HTMLReports, err = cloneMemoryMap(snapshot.HTMLReports); err != nil {

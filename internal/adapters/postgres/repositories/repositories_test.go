@@ -364,6 +364,12 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Evidence.InsertOpenAPIContract(ctx, domain.OpenAPIContract{ID: "oas_repository", TenantID: tenant.ID, ProductID: product.ID, ReleaseID: release.ID, Version: "v1", Hash: "sha256:openapi", PathCount: 1, Operations: []domain.OpenAPIOperation{}, EvidenceID: evidence.ID, CreatedAt: now}); err != nil {
 		t.Fatalf("insert OpenAPI contract: %v", err)
 	}
+	if err := repositories.Evidence.InsertOpenAPIContract(ctx, domain.OpenAPIContract{ID: "oas_repository_target", TenantID: tenant.ID, ProductID: product.ID, ReleaseID: release.ID, Version: "v2", Hash: "sha256:openapi-target", PathCount: 2, Operations: []domain.OpenAPIOperation{}, EvidenceID: evidence.ID, CreatedAt: now}); err != nil {
+		t.Fatalf("insert target OpenAPI contract: %v", err)
+	}
+	if err := repositories.Risk.InsertContractDiff(ctx, domain.ContractDiff{ID: "contractdiff_repository", TenantID: tenant.ID, BaseContractID: "oas_repository", TargetContractID: "oas_repository_target", ProductID: product.ID, ReleaseID: release.ID, Result: "changed", BreakingChanges: []string{}, NonBreakingChanges: []string{"path added"}, SchemaVersion: domain.ContractDiffSchemaVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert contract diff: %v", err)
+	}
 	candidate := domain.ReleaseCandidate{ID: "rc_repository", TenantID: tenant.ID, ReleaseID: release.ID, Name: "Repository candidate", State: "open", SnapshotHash: "sha256:candidate", SchemaVersion: domain.ReleaseCandidateSchemaVersion, CreatedAt: now}
 	if err := repositories.ReleaseCatalog.InsertReleaseCandidate(ctx, candidate); err != nil {
 		t.Fatalf("insert release candidate: %v", err)
@@ -676,6 +682,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"evidence bundle import", repositories.Packages.InsertEvidenceBundleImport(ctx, domain.EvidenceBundleImport{})},
 		{"custom policy", repositories.Risk.InsertCustomPolicy(ctx, domain.CustomPolicy{})},
 		{"custom policy evaluation", repositories.Risk.InsertCustomPolicyEvaluation(ctx, domain.CustomPolicyEvaluation{})},
+		{"contract diff", repositories.Risk.InsertContractDiff(ctx, domain.ContractDiff{})},
 		{"HTML report package", repositories.Packages.InsertHTMLReportPackage(ctx, domain.HTMLReportPackage{})},
 		{"custom report template", repositories.Packages.InsertCustomReportTemplate(ctx, domain.CustomReportTemplate{})},
 		{"rendered custom report", repositories.Packages.InsertRenderedCustomReport(ctx, domain.RenderedCustomReport{})},

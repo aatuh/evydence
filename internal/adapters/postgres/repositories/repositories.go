@@ -1835,6 +1835,32 @@ func (r risk) InsertCustomPolicyEvaluation(ctx context.Context, evaluation domai
 	return writeError("insert custom policy evaluation", err)
 }
 
+func (r risk) InsertContractDiff(ctx context.Context, diff domain.ContractDiff) error {
+	if diff.ID == "" || diff.TenantID == "" || diff.BaseContractID == "" || diff.TargetContractID == "" || diff.ProductID == "" || !validContractDiffResult(diff.Result) || diff.SchemaVersion == "" || diff.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, diff.TenantID); err != nil {
+		return err
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM openapi_contracts WHERE id = $1 AND tenant_id = $2 AND product_id = $3`, diff.BaseContractID, diff.TenantID, diff.ProductID); err != nil {
+		return err
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM openapi_contracts WHERE id = $1 AND tenant_id = $2 AND product_id = $3`, diff.TargetContractID, diff.TenantID, diff.ProductID); err != nil {
+		return err
+	}
+	if diff.ReleaseID != "" {
+		if err := requireRow(ctx, r.tx, `SELECT 1 FROM releases WHERE id = $1 AND tenant_id = $2 AND product_id = $3`, diff.ReleaseID, diff.TenantID, diff.ProductID); err != nil {
+			return err
+		}
+	}
+	document, err := json.Marshal(diff)
+	if err != nil {
+		return fmt.Errorf("encode contract diff document: %w", err)
+	}
+	_, err = r.tx.Exec(ctx, `INSERT INTO contract_diffs (id, tenant_id, base_contract_id, target_contract_id, product_id, release_id, result, document, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, diff.ID, diff.TenantID, diff.BaseContractID, diff.TargetContractID, diff.ProductID, nullableString(diff.ReleaseID), diff.Result, document, diff.SchemaVersion, diff.CreatedAt)
+	return writeError("insert contract diff", err)
+}
+
 type signatures struct{ tx pgx.Tx }
 
 func (r signatures) InsertSigningKey(ctx context.Context, key domain.SigningKey) error {
@@ -2808,6 +2834,15 @@ func validSigningProviderType(value string) bool {
 func validPolicyEvidenceType(value string) bool {
 	switch value {
 	case "sbom", "vulnerability_scan", "vex", "vulnerability_decision", "artifact", "build", "build_attestation", "openapi_contract", "release_bundle", "exception", "sast", "dast", "secret_scan", "license_scan", "api_security", "deployment", "threat_model", "security_review", "pen_test_report":
+		return true
+	default:
+		return false
+	}
+}
+
+func validContractDiffResult(value string) bool {
+	switch value {
+	case "unchanged", "changed", "breaking":
 		return true
 	default:
 		return false
