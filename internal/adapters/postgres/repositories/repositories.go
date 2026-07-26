@@ -1992,6 +1992,55 @@ func (r futureExtensions) UpdatePublicTransparencyLogEntry(ctx context.Context, 
 	return nil
 }
 
+func (r futureExtensions) InsertEvidenceSummary(ctx context.Context, summary domain.EvidenceSummary) error {
+	if summary.ID == "" || summary.TenantID == "" || summary.SubjectType == "" || summary.SubjectID == "" || len(summary.EvidenceIDs) == 0 || summary.Summary == "" || summary.Citations == nil || summary.SchemaVersion == "" || summary.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, summary.TenantID); err != nil {
+		return err
+	}
+	evidenceIDs := make(map[string]struct{}, len(summary.EvidenceIDs))
+	for _, evidenceID := range summary.EvidenceIDs {
+		if evidenceID == "" {
+			return app.ErrValidation
+		}
+		if _, duplicate := evidenceIDs[evidenceID]; duplicate {
+			return app.ErrValidation
+		}
+		if err := requireRow(ctx, r.tx, `SELECT 1 FROM evidence_items WHERE id = $1 AND tenant_id = $2`, evidenceID, summary.TenantID); err != nil {
+			return err
+		}
+		evidenceIDs[evidenceID] = struct{}{}
+	}
+	citationsByEvidence := make(map[string]struct{}, len(summary.Citations))
+	for _, citation := range summary.Citations {
+		if citation.EvidenceID == "" || citation.Type == "" || citation.Title == "" || citation.CanonicalHash == "" {
+			return app.ErrValidation
+		}
+		if _, listed := evidenceIDs[citation.EvidenceID]; !listed {
+			return app.ErrValidation
+		}
+		if _, duplicate := citationsByEvidence[citation.EvidenceID]; duplicate {
+			return app.ErrValidation
+		}
+		if err := requireRow(ctx, r.tx, `SELECT 1 FROM evidence_items WHERE id = $1 AND tenant_id = $2`, citation.EvidenceID, summary.TenantID); err != nil {
+			return err
+		}
+		citationsByEvidence[citation.EvidenceID] = struct{}{}
+	}
+	for evidenceID := range evidenceIDs {
+		if _, cited := citationsByEvidence[evidenceID]; !cited {
+			return app.ErrValidation
+		}
+	}
+	citations, err := json.Marshal(summary.Citations)
+	if err != nil {
+		return fmt.Errorf("encode evidence summary citations: %w", err)
+	}
+	_, err = r.tx.Exec(ctx, `INSERT INTO evidence_summaries (id, tenant_id, subject_type, subject_id, evidence_ids, summary, citations, assumptions, limitations, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, summary.ID, summary.TenantID, summary.SubjectType, summary.SubjectID, summary.EvidenceIDs, summary.Summary, citations, textArray(summary.Assumptions), textArray(summary.Limitations), summary.SchemaVersion, summary.CreatedAt)
+	return writeError("insert evidence summary", err)
+}
+
 func requireTenant(ctx context.Context, tx pgx.Tx, tenantID string) error {
 	if tenantID == "" {
 		return app.ErrValidation

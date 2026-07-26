@@ -163,6 +163,22 @@ func (s packageReportService) CreateEvidenceSummary(ctx context.Context, actor d
 		SchemaVersion: domain.EvidenceSummaryVersion,
 		CreatedAt:     l.now(),
 	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Future.InsertEvidenceSummary(ctx, summary); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(summary.CreatedAt, actor.TenantID, "evidence_summary.created", "evidence_summary", summary.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.EvidenceSummary{}, err
+		}
+		l.evidenceSummaries[summary.ID] = summary
+		l.publishCommittedAuditEntryLocked(entry)
+		return summary, nil
+	}
 	l.evidenceSummaries[summary.ID] = summary
 	_, _ = l.appendChainLocked(actor.TenantID, "evidence_summary.created", "evidence_summary", summary.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {

@@ -83,6 +83,7 @@ type MemoryUnitOfWorkSnapshot struct {
 	PolicyEvaluations         map[string]domain.PolicyEvaluation
 	PublicTransparencyLogs    map[string]domain.PublicTransparencyLog
 	PublicTransparencyEntries map[string]domain.PublicTransparencyLogEntry
+	EvidenceSummaries         map[string]domain.EvidenceSummary
 }
 
 func NewMemoryUnitOfWorkFactory() *MemoryUnitOfWorkFactory {
@@ -2201,6 +2202,54 @@ func (r memoryFutureExtensionsRepository) UpdatePublicTransparencyLogEntry(ctx c
 	})
 }
 
+func (r memoryFutureExtensionsRepository) InsertEvidenceSummary(ctx context.Context, summary domain.EvidenceSummary) error {
+	cloned, err := cloneMemoryJSON(summary)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.SubjectType == "" || cloned.SubjectID == "" || len(cloned.EvidenceIDs) == 0 || cloned.Summary == "" || cloned.Citations == nil || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		evidenceIDs := make(map[string]struct{}, len(cloned.EvidenceIDs))
+		for _, evidenceID := range cloned.EvidenceIDs {
+			if evidenceID == "" || !memoryResourceBelongsToTenant(evidenceID, cloned.TenantID, state.Evidence) {
+				return ErrNotFound
+			}
+			if _, duplicate := evidenceIDs[evidenceID]; duplicate {
+				return ErrValidation
+			}
+			evidenceIDs[evidenceID] = struct{}{}
+		}
+		citations := make(map[string]struct{}, len(cloned.Citations))
+		for _, citation := range cloned.Citations {
+			if citation.EvidenceID == "" || citation.Type == "" || citation.Title == "" || citation.CanonicalHash == "" || !memoryResourceBelongsToTenant(citation.EvidenceID, cloned.TenantID, state.Evidence) {
+				return ErrNotFound
+			}
+			if _, listed := evidenceIDs[citation.EvidenceID]; !listed {
+				return ErrValidation
+			}
+			if _, duplicate := citations[citation.EvidenceID]; duplicate {
+				return ErrValidation
+			}
+			citations[citation.EvidenceID] = struct{}{}
+		}
+		for evidenceID := range evidenceIDs {
+			if _, ok := citations[evidenceID]; !ok {
+				return ErrValidation
+			}
+		}
+		if _, exists := state.EvidenceSummaries[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.EvidenceSummaries[cloned.ID] = cloned
+		return nil
+	})
+}
+
 func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 	return MemoryUnitOfWorkSnapshot{
 		Tenants:                   map[string]domain.Tenant{},
@@ -2263,6 +2312,7 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		PolicyEvaluations:         map[string]domain.PolicyEvaluation{},
 		PublicTransparencyLogs:    map[string]domain.PublicTransparencyLog{},
 		PublicTransparencyEntries: map[string]domain.PublicTransparencyLogEntry{},
+		EvidenceSummaries:         map[string]domain.EvidenceSummary{},
 	}
 }
 
@@ -2456,6 +2506,9 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.PublicTransparencyEntries, err = cloneMemoryMap(snapshot.PublicTransparencyEntries); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.EvidenceSummaries, err = cloneMemoryMap(snapshot.EvidenceSummaries); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	return cloned, nil

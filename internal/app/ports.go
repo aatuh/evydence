@@ -248,6 +248,7 @@ type FutureExtensionsRepository interface {
 	InsertPublicTransparencyLog(context.Context, domain.PublicTransparencyLog) error
 	InsertPublicTransparencyLogEntry(context.Context, domain.PublicTransparencyLogEntry) error
 	UpdatePublicTransparencyLogEntry(context.Context, domain.PublicTransparencyLogEntry, string) error
+	InsertEvidenceSummary(context.Context, domain.EvidenceSummary) error
 }
 
 type SigningRequest struct {
