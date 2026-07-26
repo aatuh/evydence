@@ -14,6 +14,12 @@ func (failingBackupManifestRepository) InsertBackupManifest(context.Context, dom
 	return errInjectedRepositoryFailure
 }
 
+type failingBackupVerificationRepository struct{ VerificationRepository }
+
+func (failingBackupVerificationRepository) InsertVerificationResult(context.Context, domain.VerificationResult) error {
+	return errInjectedRepositoryFailure
+}
+
 func TestBackupManifestUsesUnitOfWorkAndPublishesOnlyAfterCommit(t *testing.T) {
 	ctx := context.Background()
 	memory := NewMemoryUnitOfWorkFactory()
@@ -56,5 +62,45 @@ func TestBackupManifestUsesUnitOfWorkAndPublishesOnlyAfterCommit(t *testing.T) {
 	}
 	if len(after.BackupManifests) != len(before.BackupManifests) || len(after.AuditEntries[actor.TenantID]) != len(before.AuditEntries[actor.TenantID]) || len(ledger.backupManifests) != len(before.BackupManifests) {
 		t.Fatalf("failed backup manifest published state: before=%#v after=%#v", before, after)
+	}
+}
+
+func TestBackupManifestVerificationUsesUnitOfWorkAndPublishesOnlyAfterCommit(t *testing.T) {
+	ctx := context.Background()
+	memory := NewMemoryUnitOfWorkFactory()
+	ledger, _, actor := newReleaseEvidenceUnitOfWorkFixture(t, memory)
+	manifest, err := ledger.GenerateBackupManifest(ctx, actor)
+	if err != nil {
+		t.Fatalf("generate backup manifest: %v", err)
+	}
+	verification, err := ledger.VerifyBackupManifest(ctx, actor, manifest.ID)
+	if err != nil {
+		t.Fatalf("verify backup manifest: %v", err)
+	}
+	snapshot, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	if got, ok := snapshot.VerificationResults[verification.ID]; !ok || got.SubjectID != manifest.ID || got.TenantID != actor.TenantID {
+		t.Fatalf("backup verification not committed: %#v", snapshot.VerificationResults)
+	}
+	ledger.unitOfWork = repositoryFailingUnitOfWorkFactory{inner: memory, decorate: func(repositories Repositories) Repositories {
+		repositories.Verification = failingBackupVerificationRepository{VerificationRepository: repositories.Verification}
+		return repositories
+	}}
+	before, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot before failure: %v", err)
+	}
+	beforeVerifications := len(ledger.verifications)
+	if _, err := ledger.VerifyBackupManifest(ctx, actor, manifest.ID); !errors.Is(err, errInjectedRepositoryFailure) {
+		t.Fatalf("failed backup verification err=%v", err)
+	}
+	after, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot after failure: %v", err)
+	}
+	if len(after.VerificationResults) != len(before.VerificationResults) || len(ledger.verifications) != beforeVerifications {
+		t.Fatalf("failed backup verification published state: before=%#v after=%#v", before, after)
 	}
 }

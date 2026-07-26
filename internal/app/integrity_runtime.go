@@ -761,6 +761,18 @@ func (l *Ledger) VerifyBackupManifest(ctx context.Context, actor domain.Actor, i
 	checks = append(checks, domain.VerifyCheck{Name: "backup_manifest_present", Result: "passed", Detail: manifest.StateHash})
 	profile := assuranceProfile("backup-manifest-consistency.v1", requiredCheckNames(checks), []string{"backup manifest canonical hash"}, "tenant-scoped verification authorization", "not_evaluated", "backup manifest consistency counts and state hash", manifest.StateHash, []string{"Backup manifest verification does not prove an external backup can be restored or meets an operator's retention policy."})
 	vr := verificationResult(newID("vr"), actor.TenantID, "backup_manifest", manifest.ID, checks, profile, l.now())
+	if l.unitOfWork != nil {
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			return repos.Verification.InsertVerificationResult(ctx, vr)
+		}); err != nil {
+			return domain.VerificationResult{}, err
+		}
+		l.verifications[vr.ID] = vr
+		if verificationReturnsFailure(vr.Result) {
+			return vr, ErrVerificationFailed
+		}
+		return vr, nil
+	}
 	l.verifications[vr.ID] = vr
 	if err := l.persistLocked(ctx); err != nil {
 		return domain.VerificationResult{}, err
