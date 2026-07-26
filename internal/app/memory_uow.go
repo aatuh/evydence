@@ -72,6 +72,9 @@ type MemoryUnitOfWorkSnapshot struct {
 	Idempotency               map[IdempotencyRecordKey]IdempotencyRecord
 	OutboxJobs                map[string]OutboxJob
 	ReleaseBundles            map[string]domain.ReleaseBundle
+	HTMLReports               map[string]domain.HTMLReportPackage
+	ReportTemplates           map[string]domain.CustomReportTemplate
+	RenderedReports           map[string]domain.RenderedCustomReport
 	SigningKeys               map[string]domain.SigningKey
 	Signatures                map[string]domain.Signature
 	SigningProviders          map[string]domain.SigningProvider
@@ -1880,6 +1883,83 @@ func (r memoryPackageRepository) InsertReleaseBundle(ctx context.Context, bundle
 	})
 }
 
+func (r memoryPackageRepository) InsertHTMLReportPackage(ctx context.Context, report domain.HTMLReportPackage) error {
+	cloned, err := cloneMemoryJSON(report)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.ReportType == "" || cloned.ProductID == "" || cloned.HTML == "" || !validDigest(cloned.Hash) || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.ProductID, cloned.TenantID, state.Products) {
+			return ErrNotFound
+		}
+		if cloned.ReleaseID != "" {
+			release, ok := state.Releases[cloned.ReleaseID]
+			if !ok || release.TenantID != cloned.TenantID || release.ProductID != cloned.ProductID {
+				return ErrNotFound
+			}
+		}
+		if _, exists := state.HTMLReports[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.HTMLReports[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryPackageRepository) InsertCustomReportTemplate(ctx context.Context, template domain.CustomReportTemplate) error {
+	cloned, err := cloneMemoryJSON(template)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.Name == "" || cloned.Version == "" || cloned.ReportType == "" || len(cloned.AllowedFields) == 0 || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if _, exists := state.ReportTemplates[cloned.ID]; exists {
+			return ErrConflict
+		}
+		for _, existing := range state.ReportTemplates {
+			if existing.TenantID == cloned.TenantID && existing.Name == cloned.Name && existing.Version == cloned.Version {
+				return ErrConflict
+			}
+		}
+		state.ReportTemplates[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryPackageRepository) InsertRenderedCustomReport(ctx context.Context, report domain.RenderedCustomReport) error {
+	cloned, err := cloneMemoryJSON(report)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.TemplateID == "" || cloned.SubjectType == "" || cloned.SubjectID == "" || cloned.Output == nil || !validDigest(cloned.Hash) || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.TemplateID, cloned.TenantID, state.ReportTemplates) {
+			return ErrNotFound
+		}
+		if _, exists := state.RenderedReports[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.RenderedReports[cloned.ID] = cloned
+		return nil
+	})
+}
+
 type memorySignatureRepository struct{ uow *memoryUnitOfWork }
 
 func (r memorySignatureRepository) InsertSigningKey(ctx context.Context, key domain.SigningKey) error {
@@ -2773,6 +2853,9 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		Idempotency:               map[IdempotencyRecordKey]IdempotencyRecord{},
 		OutboxJobs:                map[string]OutboxJob{},
 		ReleaseBundles:            map[string]domain.ReleaseBundle{},
+		HTMLReports:               map[string]domain.HTMLReportPackage{},
+		ReportTemplates:           map[string]domain.CustomReportTemplate{},
+		RenderedReports:           map[string]domain.RenderedCustomReport{},
 		SigningKeys:               map[string]domain.SigningKey{},
 		Signatures:                map[string]domain.Signature{},
 		SigningProviders:          map[string]domain.SigningProvider{},
@@ -2956,6 +3039,15 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.ReleaseBundles, err = cloneMemoryMap(snapshot.ReleaseBundles); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.HTMLReports, err = cloneMemoryMap(snapshot.HTMLReports); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.ReportTemplates, err = cloneMemoryMap(snapshot.ReportTemplates); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.RenderedReports, err = cloneMemoryMap(snapshot.RenderedReports); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	cloned.SigningKeys = make(map[string]domain.SigningKey, len(snapshot.SigningKeys))
@@ -3146,6 +3238,8 @@ func memoryResourceTenantID(resource any) string {
 	case domain.TransparencyCheckpoint:
 		return value.TenantID
 	case domain.PublicTransparencyLog:
+		return value.TenantID
+	case domain.CustomReportTemplate:
 		return value.TenantID
 	default:
 		return ""

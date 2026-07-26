@@ -1836,6 +1836,22 @@ func (s packageReportService) CRAReadinessHTMLPackage(ctx context.Context, actor
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	pkg := domain.HTMLReportPackage{ID: newID("html"), TenantID: actor.TenantID, ReportType: "cra_readiness", ProductID: productID, ReleaseID: releaseID, HTML: htmlBody, Hash: hash, SchemaVersion: "html-report-package.v1.0.0", CreatedAt: l.now()}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Packages.InsertHTMLReportPackage(ctx, pkg); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(pkg.CreatedAt, actor.TenantID, "html_report.generated", "html_report", pkg.ID, "api_key", actor.KeyID, hash, ""))
+			return err
+		}); err != nil {
+			return domain.HTMLReportPackage{}, err
+		}
+		l.htmlReports[pkg.ID] = pkg
+		l.publishCommittedAuditEntryLocked(entry)
+		return pkg, nil
+	}
 	l.htmlReports[pkg.ID] = pkg
 	_, _ = l.appendChainLocked(actor.TenantID, "html_report.generated", "html_report", pkg.ID, "api_key", actor.KeyID, hash, "")
 	if err := l.persistLocked(ctx); err != nil {
@@ -1934,6 +1950,22 @@ func (s packageReportService) CreateCustomReportTemplate(ctx context.Context, ac
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	tpl := domain.CustomReportTemplate{ID: newID("rptpl"), TenantID: actor.TenantID, Name: in.Name, Version: in.Version, ReportType: in.ReportType, AllowedFields: sortedStrings(in.AllowedFields), Template: strings.TrimSpace(in.Template), SchemaVersion: domain.ReportTemplateSchemaVersion, CreatedAt: l.now()}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Packages.InsertCustomReportTemplate(ctx, tpl); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(tpl.CreatedAt, actor.TenantID, "report_template.created", "report_template", tpl.ID, "api_key", actor.KeyID, "", ""))
+			return err
+		}); err != nil {
+			return domain.CustomReportTemplate{}, err
+		}
+		l.reportTemplates[tpl.ID] = tpl
+		l.publishCommittedAuditEntryLocked(entry)
+		return tpl, nil
+	}
 	l.reportTemplates[tpl.ID] = tpl
 	_, _ = l.appendChainLocked(actor.TenantID, "report_template.created", "report_template", tpl.ID, "api_key", actor.KeyID, "", "")
 	if err := l.persistLocked(ctx); err != nil {
@@ -1968,6 +2000,22 @@ func (s packageReportService) RenderCustomReport(ctx context.Context, actor doma
 		return domain.RenderedCustomReport{}, err
 	}
 	rendered := domain.RenderedCustomReport{ID: newID("rr"), TenantID: actor.TenantID, TemplateID: tpl.ID, SubjectType: strings.TrimSpace(in.SubjectType), SubjectID: strings.TrimSpace(in.SubjectID), Output: output, Hash: hash, SchemaVersion: "rendered-report.v1.0.0", CreatedAt: l.now()}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Packages.InsertRenderedCustomReport(ctx, rendered); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(rendered.CreatedAt, actor.TenantID, "report_template.rendered", "rendered_report", rendered.ID, "api_key", actor.KeyID, hash, ""))
+			return err
+		}); err != nil {
+			return domain.RenderedCustomReport{}, err
+		}
+		l.renderedReports[rendered.ID] = rendered
+		l.publishCommittedAuditEntryLocked(entry)
+		return rendered, nil
+	}
 	l.renderedReports[rendered.ID] = rendered
 	_, _ = l.appendChainLocked(actor.TenantID, "report_template.rendered", "rendered_report", rendered.ID, "api_key", actor.KeyID, hash, "")
 	if err := l.persistLocked(ctx); err != nil {

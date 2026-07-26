@@ -324,6 +324,15 @@ func TestMemoryUnitOfWorkCommitsEveryFocusedRepository(t *testing.T) {
 	if err := repositories.Packages.InsertReleaseBundle(context.Background(), domain.ReleaseBundle{ID: "bundle_all_repositories", TenantID: tenant.ID, ReleaseID: release.ID, State: "generated", Manifest: map[string]any{"release_id": release.ID}, ManifestHash: "sha256:manifest", CreatedAt: now}); err != nil {
 		t.Fatalf("insert release bundle: %v", err)
 	}
+	if err := repositories.Packages.InsertHTMLReportPackage(context.Background(), domain.HTMLReportPackage{ID: "html_all_repositories", TenantID: tenant.ID, ReportType: "cra_readiness", ProductID: product.ID, ReleaseID: release.ID, HTML: "<html></html>", Hash: sampleDigest("html-report"), SchemaVersion: "html-report-package.v1.0.0", CreatedAt: now}); err != nil {
+		t.Fatalf("insert HTML report package: %v", err)
+	}
+	if err := repositories.Packages.InsertCustomReportTemplate(context.Background(), domain.CustomReportTemplate{ID: "report_template_all_repositories", TenantID: tenant.ID, Name: "All repositories", Version: "1", ReportType: "evidence", AllowedFields: []string{"subject_id"}, Template: "json", SchemaVersion: domain.ReportTemplateSchemaVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert custom report template: %v", err)
+	}
+	if err := repositories.Packages.InsertRenderedCustomReport(context.Background(), domain.RenderedCustomReport{ID: "rendered_report_all_repositories", TenantID: tenant.ID, TemplateID: "report_template_all_repositories", SubjectType: "release", SubjectID: release.ID, Output: map[string]any{"subject_id": release.ID}, Hash: sampleDigest("rendered-report"), SchemaVersion: "rendered-report.v1.0.0", CreatedAt: now}); err != nil {
+		t.Fatalf("insert rendered custom report: %v", err)
+	}
 	if err := repositories.Verification.InsertVerificationResult(context.Background(), domain.VerificationResult{ID: "verify_all_repositories", TenantID: tenant.ID, SubjectType: "evidence_item", SubjectID: evidence.ID, Result: "limited", VerifiedAt: now, Checks: []domain.VerifyCheck{{Name: "recorded", Result: "passed"}}}); err != nil {
 		t.Fatalf("insert verification result: %v", err)
 	}
@@ -337,7 +346,7 @@ func TestMemoryUnitOfWorkCommitsEveryFocusedRepository(t *testing.T) {
 	if err != nil {
 		t.Fatalf("snapshot: %v", err)
 	}
-	if len(snapshot.APIKeys) != 1 || len(snapshot.Projects) != 1 || len(snapshot.Releases) != 1 || len(snapshot.Artifacts) != 1 || len(snapshot.ContainerImages) != 1 || len(snapshot.ArtifactSignatures) != 1 || len(snapshot.Evidence) != 1 || len(snapshot.EvidenceLifecycle) != 1 || len(snapshot.Decisions) != 1 || len(snapshot.AuditEntries[tenant.ID]) != 1 || len(snapshot.Idempotency) != 1 || len(snapshot.OutboxJobs) != 1 || len(snapshot.ReleaseBundles) != 1 || len(snapshot.SigningKeys) != 1 || len(snapshot.Signatures) != 5 || len(snapshot.SigningProviders) != 1 || len(snapshot.SigningOperations) != 4 || len(snapshot.AnomalyReports) != 1 || len(snapshot.CommercialCollectors) != 1 || len(snapshot.QuestionnaireTemplates) != 1 || len(snapshot.AnswerLibrary) != 1 || len(snapshot.QuestionnairePackages) != 1 || len(snapshot.CosignVerifications) != 1 || len(snapshot.ObjectRetentionPolicies) != 1 || len(snapshot.BackupManifests) != 1 || len(snapshot.MerkleBatches) != 1 || len(snapshot.TransparencyCheckpoints) != 1 || len(snapshot.VerificationResults) != 1 || len(snapshot.PolicyEvaluations) != 1 || len(snapshot.PublicTransparencyLogs) != 1 || len(snapshot.PublicTransparencyEntries) != 1 || len(snapshot.EvidenceSummaries) != 1 || len(snapshot.EvidenceGraphSnapshots) != 1 || len(snapshot.SaaSEditionProfiles) != 1 || len(snapshot.MarketplaceCollectors) != 1 || len(snapshot.PDFReports) != 1 || len(snapshot.QuestionnaireDrafts) != 1 {
+	if len(snapshot.APIKeys) != 1 || len(snapshot.Projects) != 1 || len(snapshot.Releases) != 1 || len(snapshot.Artifacts) != 1 || len(snapshot.ContainerImages) != 1 || len(snapshot.ArtifactSignatures) != 1 || len(snapshot.Evidence) != 1 || len(snapshot.EvidenceLifecycle) != 1 || len(snapshot.Decisions) != 1 || len(snapshot.AuditEntries[tenant.ID]) != 1 || len(snapshot.Idempotency) != 1 || len(snapshot.OutboxJobs) != 1 || len(snapshot.ReleaseBundles) != 1 || len(snapshot.HTMLReports) != 1 || len(snapshot.ReportTemplates) != 1 || len(snapshot.RenderedReports) != 1 || len(snapshot.SigningKeys) != 1 || len(snapshot.Signatures) != 5 || len(snapshot.SigningProviders) != 1 || len(snapshot.SigningOperations) != 4 || len(snapshot.AnomalyReports) != 1 || len(snapshot.CommercialCollectors) != 1 || len(snapshot.QuestionnaireTemplates) != 1 || len(snapshot.AnswerLibrary) != 1 || len(snapshot.QuestionnairePackages) != 1 || len(snapshot.CosignVerifications) != 1 || len(snapshot.ObjectRetentionPolicies) != 1 || len(snapshot.BackupManifests) != 1 || len(snapshot.MerkleBatches) != 1 || len(snapshot.TransparencyCheckpoints) != 1 || len(snapshot.VerificationResults) != 1 || len(snapshot.PolicyEvaluations) != 1 || len(snapshot.PublicTransparencyLogs) != 1 || len(snapshot.PublicTransparencyEntries) != 1 || len(snapshot.EvidenceSummaries) != 1 || len(snapshot.EvidenceGraphSnapshots) != 1 || len(snapshot.SaaSEditionProfiles) != 1 || len(snapshot.MarketplaceCollectors) != 1 || len(snapshot.PDFReports) != 1 || len(snapshot.QuestionnaireDrafts) != 1 {
 		t.Fatalf("focused repositories did not commit together: %#v", snapshot)
 	}
 }
@@ -366,6 +375,9 @@ func TestMemoryUnitOfWorkRejectsInvalidFocusedRepositoryRecords(t *testing.T) {
 		{"idempotency", repositories.Idempotency.Insert(context.Background(), IdempotencyRecordKey{}, IdempotencyRecord{})},
 		{"outbox", repositories.Outbox.Enqueue(context.Background(), OutboxJob{})},
 		{"package", repositories.Packages.InsertReleaseBundle(context.Background(), domain.ReleaseBundle{})},
+		{"HTML report package", repositories.Packages.InsertHTMLReportPackage(context.Background(), domain.HTMLReportPackage{})},
+		{"custom report template", repositories.Packages.InsertCustomReportTemplate(context.Background(), domain.CustomReportTemplate{})},
+		{"rendered custom report", repositories.Packages.InsertRenderedCustomReport(context.Background(), domain.RenderedCustomReport{})},
 		{"signing key", repositories.Signatures.InsertSigningKey(context.Background(), domain.SigningKey{})},
 		{"signing key update", repositories.Signatures.UpdateSigningKey(context.Background(), domain.SigningKey{}, "")},
 		{"signature", repositories.Signatures.InsertSignature(context.Background(), domain.Signature{})},

@@ -1692,6 +1692,54 @@ func (r packages) InsertReleaseBundle(ctx context.Context, bundle domain.Release
 	return writeError("insert release bundle", err)
 }
 
+func (r packages) InsertHTMLReportPackage(ctx context.Context, report domain.HTMLReportPackage) error {
+	if report.ID == "" || report.TenantID == "" || report.ReportType == "" || report.ProductID == "" || report.HTML == "" || !validSHA256Digest(report.Hash) || report.SchemaVersion == "" || report.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, report.TenantID); err != nil {
+		return err
+	}
+	if err := requireOptionalProduct(ctx, r.tx, report.TenantID, report.ProductID); err != nil {
+		return err
+	}
+	if report.ReleaseID != "" {
+		if err := requireRow(ctx, r.tx, `SELECT 1 FROM releases WHERE id = $1 AND tenant_id = $2 AND product_id = $3`, report.ReleaseID, report.TenantID, report.ProductID); err != nil {
+			return err
+		}
+	}
+	_, err := r.tx.Exec(ctx, `INSERT INTO html_report_packages (id, tenant_id, report_type, product_id, release_id, html, hash, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, report.ID, report.TenantID, report.ReportType, report.ProductID, nullableString(report.ReleaseID), report.HTML, report.Hash, report.SchemaVersion, report.CreatedAt)
+	return writeError("insert HTML report package", err)
+}
+
+func (r packages) InsertCustomReportTemplate(ctx context.Context, template domain.CustomReportTemplate) error {
+	if template.ID == "" || template.TenantID == "" || template.Name == "" || template.Version == "" || template.ReportType == "" || len(template.AllowedFields) == 0 || template.SchemaVersion == "" || template.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, template.TenantID); err != nil {
+		return err
+	}
+	_, err := r.tx.Exec(ctx, `INSERT INTO report_templates (id, tenant_id, name, version, report_type, allowed_fields, template, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, template.ID, template.TenantID, template.Name, template.Version, template.ReportType, textArray(template.AllowedFields), template.Template, template.SchemaVersion, template.CreatedAt)
+	return writeError("insert custom report template", err)
+}
+
+func (r packages) InsertRenderedCustomReport(ctx context.Context, report domain.RenderedCustomReport) error {
+	if report.ID == "" || report.TenantID == "" || report.TemplateID == "" || report.SubjectType == "" || report.SubjectID == "" || report.Output == nil || !validSHA256Digest(report.Hash) || report.SchemaVersion == "" || report.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, report.TenantID); err != nil {
+		return err
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM report_templates WHERE id = $1 AND tenant_id = $2`, report.TemplateID, report.TenantID); err != nil {
+		return err
+	}
+	output, err := json.Marshal(report.Output)
+	if err != nil {
+		return fmt.Errorf("encode rendered custom report output: %w", err)
+	}
+	_, err = r.tx.Exec(ctx, `INSERT INTO rendered_reports (id, tenant_id, template_id, subject_type, subject_id, output, hash, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, report.ID, report.TenantID, report.TemplateID, report.SubjectType, report.SubjectID, output, report.Hash, report.SchemaVersion, report.CreatedAt)
+	return writeError("insert rendered custom report", err)
+}
+
 type signatures struct{ tx pgx.Tx }
 
 func (r signatures) InsertSigningKey(ctx context.Context, key domain.SigningKey) error {

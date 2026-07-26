@@ -532,6 +532,19 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Packages.InsertReleaseBundle(ctx, domain.ReleaseBundle{ID: "bundle_repository", TenantID: tenant.ID, ReleaseID: release.ID, State: "generated", Manifest: map[string]any{"release_id": release.ID}, ManifestHash: "sha256:manifest", SignatureRefs: []string{"sig_repository"}, CreatedAt: now}); err != nil {
 		t.Fatalf("insert release bundle: %v", err)
 	}
+	if err := repositories.Packages.InsertHTMLReportPackage(ctx, domain.HTMLReportPackage{ID: "html_repository", TenantID: tenant.ID, ReportType: "cra_readiness", ProductID: product.ID, ReleaseID: release.ID, HTML: "<html></html>", Hash: "sha256:" + strings.Repeat("1", 64), SchemaVersion: "html-report-package.v1.0.0", CreatedAt: now}); err != nil {
+		t.Fatalf("insert HTML report package: %v", err)
+	}
+	template := domain.CustomReportTemplate{ID: "report_template_repository", TenantID: tenant.ID, Name: "Repository", Version: "1", ReportType: "evidence", AllowedFields: []string{"subject_id"}, Template: "json", SchemaVersion: domain.ReportTemplateSchemaVersion, CreatedAt: now}
+	if err := repositories.Packages.InsertCustomReportTemplate(ctx, template); err != nil {
+		t.Fatalf("insert custom report template: %v", err)
+	}
+	if err := repositories.Packages.InsertRenderedCustomReport(ctx, domain.RenderedCustomReport{ID: "rendered_report_repository", TenantID: tenant.ID, TemplateID: template.ID, SubjectType: "release", SubjectID: release.ID, Output: map[string]any{"subject_id": release.ID}, Hash: "sha256:" + strings.Repeat("2", 64), SchemaVersion: "rendered-report.v1.0.0", CreatedAt: now}); err != nil {
+		t.Fatalf("insert rendered custom report: %v", err)
+	}
+	if err := repositories.Packages.InsertRenderedCustomReport(ctx, domain.RenderedCustomReport{ID: "rendered_report_repository_missing_template", TenantID: tenant.ID, TemplateID: "missing-template", SubjectType: "release", SubjectID: release.ID, Output: map[string]any{}, Hash: "sha256:" + strings.Repeat("3", 64), SchemaVersion: "rendered-report.v1.0.0", CreatedAt: now}); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("missing custom report template err=%v, want not found", err)
+	}
 	verification := domain.VerificationResult{ID: "verify_repository", TenantID: tenant.ID, SubjectType: "evidence_item", SubjectID: evidence.ID, Result: "limited", Checks: []domain.VerifyCheck{{Name: "recorded", Result: "passed"}}, Profile: domain.VerificationProfile{ID: "repository-verification-profile", Version: domain.VerificationProfileSchemaVersion, RequiredChecks: []string{"recorded"}, Limitations: []string{"repository test"}}, Limitations: []string{"repository test"}, SchemaVersion: domain.VerificationResultSchemaVersion, VerifiedAt: now}
 	if err := repositories.Verification.InsertVerificationResult(ctx, verification); err != nil {
 		t.Fatalf("insert verification result: %v", err)
@@ -636,6 +649,9 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"idempotency", repositories.Idempotency.Insert(ctx, app.IdempotencyRecordKey{}, app.IdempotencyRecord{})},
 		{"outbox", repositories.Outbox.Enqueue(ctx, app.OutboxJob{})},
 		{"package", repositories.Packages.InsertReleaseBundle(ctx, domain.ReleaseBundle{})},
+		{"HTML report package", repositories.Packages.InsertHTMLReportPackage(ctx, domain.HTMLReportPackage{})},
+		{"custom report template", repositories.Packages.InsertCustomReportTemplate(ctx, domain.CustomReportTemplate{})},
+		{"rendered custom report", repositories.Packages.InsertRenderedCustomReport(ctx, domain.RenderedCustomReport{})},
 		{"signing key", repositories.Signatures.InsertSigningKey(ctx, domain.SigningKey{})},
 		{"signing key update", repositories.Signatures.UpdateSigningKey(ctx, domain.SigningKey{}, "")},
 		{"signature", repositories.Signatures.InsertSignature(ctx, domain.Signature{})},
