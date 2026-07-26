@@ -237,6 +237,23 @@ func TestMemoryUnitOfWorkCommitsEveryFocusedRepository(t *testing.T) {
 	if err := repositories.Integrity.InsertSigningProvider(context.Background(), domain.SigningProvider{ID: "provider_all_repositories", TenantID: tenant.ID, Name: "All repositories KMS", Type: "aws_kms", Status: "active", KeyRef: "arn:aws:kms:example", Encrypted: true, SchemaVersion: domain.SigningProviderSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert signing provider: %v", err)
 	}
+	if err := repositories.Future.InsertSigningOperation(context.Background(), domain.Signature{ID: "provider_signature_all_repositories", TenantID: tenant.ID, SubjectType: "release", SubjectID: release.ID, KeyID: "provider_all_repositories", Algorithm: "external-aws_kms", Value: "provider-receipt", CreatedAt: now}, domain.SigningOperation{ID: "signing_operation_all_repositories", TenantID: tenant.ID, ProviderID: "provider_all_repositories", SubjectType: "release", SubjectID: release.ID, PayloadHash: sampleDigest("signing-operation"), SignatureRef: "provider_signature_all_repositories", Result: "passed", Checks: []domain.VerifyCheck{{Name: "provider_active", Result: "passed"}}, SchemaVersion: domain.SigningOperationVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert signing operation: %v", err)
+	}
+	for _, subject := range []struct {
+		typeName string
+		id       string
+	}{
+		{typeName: "tenant", id: tenant.ID},
+		{typeName: "product", id: product.ID},
+		{typeName: "evidence", id: evidence.ID},
+	} {
+		signatureID := "provider_signature_all_" + subject.typeName
+		operationID := "signing_operation_all_" + subject.typeName
+		if err := repositories.Future.InsertSigningOperation(context.Background(), domain.Signature{ID: signatureID, TenantID: tenant.ID, SubjectType: subject.typeName, SubjectID: subject.id, KeyID: "provider_all_repositories", Algorithm: "external-aws_kms", Value: "provider-receipt", CreatedAt: now}, domain.SigningOperation{ID: operationID, TenantID: tenant.ID, ProviderID: "provider_all_repositories", SubjectType: subject.typeName, SubjectID: subject.id, PayloadHash: sampleDigest("signing-operation-" + subject.typeName), SignatureRef: signatureID, Result: "passed", Checks: []domain.VerifyCheck{{Name: "provider_active", Result: "passed"}}, SchemaVersion: domain.SigningOperationVersion, CreatedAt: now}); err != nil {
+			t.Fatalf("insert %s signing operation: %v", subject.typeName, err)
+		}
+	}
 	if err := repositories.Future.InsertPublicTransparencyLog(context.Background(), domain.PublicTransparencyLog{ID: "public_log_all_repositories", TenantID: tenant.ID, Name: "All repositories log", Endpoint: "https://transparency.example.test", PublicKey: "public-key", State: "configured", SchemaVersion: domain.PublicTransparencyLogVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert public transparency log: %v", err)
 	}
@@ -305,7 +322,7 @@ func TestMemoryUnitOfWorkCommitsEveryFocusedRepository(t *testing.T) {
 	if err != nil {
 		t.Fatalf("snapshot: %v", err)
 	}
-	if len(snapshot.APIKeys) != 1 || len(snapshot.Projects) != 1 || len(snapshot.Releases) != 1 || len(snapshot.Artifacts) != 1 || len(snapshot.ContainerImages) != 1 || len(snapshot.ArtifactSignatures) != 1 || len(snapshot.Evidence) != 1 || len(snapshot.EvidenceLifecycle) != 1 || len(snapshot.Decisions) != 1 || len(snapshot.AuditEntries[tenant.ID]) != 1 || len(snapshot.Idempotency) != 1 || len(snapshot.OutboxJobs) != 1 || len(snapshot.ReleaseBundles) != 1 || len(snapshot.SigningKeys) != 1 || len(snapshot.Signatures) != 1 || len(snapshot.SigningProviders) != 1 || len(snapshot.CosignVerifications) != 1 || len(snapshot.ObjectRetentionPolicies) != 1 || len(snapshot.BackupManifests) != 1 || len(snapshot.MerkleBatches) != 1 || len(snapshot.TransparencyCheckpoints) != 1 || len(snapshot.VerificationResults) != 1 || len(snapshot.PolicyEvaluations) != 1 || len(snapshot.PublicTransparencyLogs) != 1 || len(snapshot.PublicTransparencyEntries) != 1 || len(snapshot.EvidenceSummaries) != 1 || len(snapshot.EvidenceGraphSnapshots) != 1 || len(snapshot.SaaSEditionProfiles) != 1 || len(snapshot.MarketplaceCollectors) != 1 || len(snapshot.PDFReports) != 1 || len(snapshot.QuestionnaireDrafts) != 1 {
+	if len(snapshot.APIKeys) != 1 || len(snapshot.Projects) != 1 || len(snapshot.Releases) != 1 || len(snapshot.Artifacts) != 1 || len(snapshot.ContainerImages) != 1 || len(snapshot.ArtifactSignatures) != 1 || len(snapshot.Evidence) != 1 || len(snapshot.EvidenceLifecycle) != 1 || len(snapshot.Decisions) != 1 || len(snapshot.AuditEntries[tenant.ID]) != 1 || len(snapshot.Idempotency) != 1 || len(snapshot.OutboxJobs) != 1 || len(snapshot.ReleaseBundles) != 1 || len(snapshot.SigningKeys) != 1 || len(snapshot.Signatures) != 5 || len(snapshot.SigningProviders) != 1 || len(snapshot.SigningOperations) != 4 || len(snapshot.CosignVerifications) != 1 || len(snapshot.ObjectRetentionPolicies) != 1 || len(snapshot.BackupManifests) != 1 || len(snapshot.MerkleBatches) != 1 || len(snapshot.TransparencyCheckpoints) != 1 || len(snapshot.VerificationResults) != 1 || len(snapshot.PolicyEvaluations) != 1 || len(snapshot.PublicTransparencyLogs) != 1 || len(snapshot.PublicTransparencyEntries) != 1 || len(snapshot.EvidenceSummaries) != 1 || len(snapshot.EvidenceGraphSnapshots) != 1 || len(snapshot.SaaSEditionProfiles) != 1 || len(snapshot.MarketplaceCollectors) != 1 || len(snapshot.PDFReports) != 1 || len(snapshot.QuestionnaireDrafts) != 1 {
 		t.Fatalf("focused repositories did not commit together: %#v", snapshot)
 	}
 }
@@ -353,6 +370,7 @@ func TestMemoryUnitOfWorkRejectsInvalidFocusedRepositoryRecords(t *testing.T) {
 		{"marketplace collector", repositories.Future.InsertMarketplaceCollector(context.Background(), domain.MarketplaceCollector{})},
 		{"PDF report package", repositories.Future.InsertPDFReportPackage(context.Background(), domain.PDFReportPackage{})},
 		{"questionnaire draft", repositories.Future.InsertQuestionnaireDraft(context.Background(), domain.QuestionnaireDraft{})},
+		{"signing operation", repositories.Future.InsertSigningOperation(context.Background(), domain.Signature{}, domain.SigningOperation{})},
 		{"verification", repositories.Verification.InsertVerificationResult(context.Background(), domain.VerificationResult{})},
 		{"policy evaluation", repositories.Verification.InsertPolicyEvaluation(context.Background(), domain.PolicyEvaluation{})},
 	}
@@ -363,6 +381,64 @@ func TestMemoryUnitOfWorkRejectsInvalidFocusedRepositoryRecords(t *testing.T) {
 	}
 	if _, err := repositories.Audit.Append(context.Background(), domain.AuditChainEntry{}); !errors.Is(err, ErrValidation) {
 		t.Fatalf("audit err=%v, want validation", err)
+	}
+}
+
+func TestMemorySigningOperationsRejectInvalidProviderAndSubjectReferences(t *testing.T) {
+	factory := NewMemoryUnitOfWorkFactory()
+	uow, err := factory.BeginUnitOfWork(context.Background())
+	if err != nil {
+		t.Fatalf("begin unit of work: %v", err)
+	}
+	defer func() { _ = uow.Rollback(context.Background()) }()
+	repositories := uow.Repositories()
+	now := fixedNow()
+	tenant := domain.Tenant{ID: "ten_signing_operation", Name: "Signing operation", CreatedAt: now}
+	if err := repositories.Identity.InsertTenant(context.Background(), tenant); err != nil {
+		t.Fatalf("insert tenant: %v", err)
+	}
+	product := domain.Product{ID: "prod_signing_operation", TenantID: tenant.ID, Name: "Signing operation", Slug: "signing-operation", CreatedAt: now}
+	if err := repositories.ReleaseCatalog.InsertProduct(context.Background(), product); err != nil {
+		t.Fatalf("insert product: %v", err)
+	}
+	release := domain.Release{ID: "rel_signing_operation", TenantID: tenant.ID, ProductID: product.ID, Version: "1.0.0", State: "draft", CreatedAt: now}
+	if err := repositories.ReleaseCatalog.InsertRelease(context.Background(), release); err != nil {
+		t.Fatalf("insert release: %v", err)
+	}
+	active := domain.SigningProvider{ID: "provider_signing_active", TenantID: tenant.ID, Name: "Active", Type: "aws_kms", Status: "active", KeyRef: "arn:aws:kms:active", Encrypted: true, SchemaVersion: domain.SigningProviderSchemaVersion, CreatedAt: now}
+	if err := repositories.Integrity.InsertSigningProvider(context.Background(), active); err != nil {
+		t.Fatalf("insert active provider: %v", err)
+	}
+	inactive := domain.SigningProvider{ID: "provider_signing_inactive", TenantID: tenant.ID, Name: "Inactive", Type: "aws_kms", Status: "inactive", KeyRef: "arn:aws:kms:inactive", Encrypted: true, SchemaVersion: domain.SigningProviderSchemaVersion, CreatedAt: now}
+	if err := repositories.Integrity.InsertSigningProvider(context.Background(), inactive); err != nil {
+		t.Fatalf("insert inactive provider: %v", err)
+	}
+	operation := func(id, providerID, subjectType, subjectID, result string) (domain.Signature, domain.SigningOperation) {
+		signature := domain.Signature{ID: "sig_" + id, TenantID: tenant.ID, SubjectType: subjectType, SubjectID: subjectID, KeyID: providerID, Algorithm: "external-aws_kms", Value: "receipt", CreatedAt: now}
+		return signature, domain.SigningOperation{ID: "op_" + id, TenantID: tenant.ID, ProviderID: providerID, SubjectType: subjectType, SubjectID: subjectID, PayloadHash: sampleDigest(id), SignatureRef: signature.ID, Result: result, Checks: []domain.VerifyCheck{{Name: "provider_active", Result: "passed"}}, SchemaVersion: domain.SigningOperationVersion, CreatedAt: now}
+	}
+	signature, record := operation("valid", active.ID, "release", release.ID, "passed")
+	if err := repositories.Future.InsertSigningOperation(context.Background(), signature, record); err != nil {
+		t.Fatalf("insert valid signing operation: %v", err)
+	}
+	if err := repositories.Future.InsertSigningOperation(context.Background(), signature, record); !errors.Is(err, ErrConflict) {
+		t.Fatalf("duplicate signing operation err=%v, want conflict", err)
+	}
+	signature, record = operation("inactive", inactive.ID, "release", release.ID, "passed")
+	if err := repositories.Future.InsertSigningOperation(context.Background(), signature, record); !errors.Is(err, ErrValidation) {
+		t.Fatalf("inactive signing operation err=%v, want validation", err)
+	}
+	signature, record = operation("provider_missing", "provider_missing", "release", release.ID, "passed")
+	if err := repositories.Future.InsertSigningOperation(context.Background(), signature, record); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing signing provider err=%v, want not found", err)
+	}
+	signature, record = operation("subject_missing", active.ID, "release", "release_missing", "passed")
+	if err := repositories.Future.InsertSigningOperation(context.Background(), signature, record); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing signing subject err=%v, want not found", err)
+	}
+	signature, record = operation("subject_unsupported", active.ID, "unknown", "subject", "passed")
+	if err := repositories.Future.InsertSigningOperation(context.Background(), signature, record); !errors.Is(err, ErrValidation) {
+		t.Fatalf("unsupported signing subject err=%v, want validation", err)
 	}
 }
 

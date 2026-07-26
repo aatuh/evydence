@@ -254,6 +254,7 @@ type FutureExtensionsRepository interface {
 	InsertMarketplaceCollector(context.Context, domain.MarketplaceCollector) error
 	InsertPDFReportPackage(context.Context, domain.PDFReportPackage) error
 	InsertQuestionnaireDraft(context.Context, domain.QuestionnaireDraft) error
+	InsertSigningOperation(context.Context, domain.Signature, domain.SigningOperation) error
 }
 
 type SigningRequest struct {

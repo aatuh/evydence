@@ -1359,8 +1359,28 @@ func (l *Ledger) CreateSigningOperation(ctx context.Context, actor domain.Actor,
 		return domain.SigningOperation{}, err
 	}
 	signature := domain.Signature{ID: newID("sig"), TenantID: actor.TenantID, SubjectType: subjectType, SubjectID: subjectID, KeyID: provider.ID, Algorithm: signatureAlgorithm, Value: signatureValue, CreatedAt: l.now()}
-	l.signatures[signature.ID] = signature
 	op := domain.SigningOperation{ID: newID("sop"), TenantID: actor.TenantID, ProviderID: provider.ID, SubjectType: subjectType, SubjectID: subjectID, PayloadHash: payloadHash, SignatureRef: signature.ID, Result: result, Checks: checks, SchemaVersion: domain.SigningOperationVersion, CreatedAt: l.now()}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Future.InsertSigningOperation(ctx, signature, op); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(op.CreatedAt, actor.TenantID, "signing_operation.created", "signing_operation", op.ID, actorType(actor), actorID(actor), op.PayloadHash, signature.ID))
+			return err
+		}); err != nil {
+			return domain.SigningOperation{}, err
+		}
+		l.signatures[signature.ID] = signature
+		l.signingOperations[op.ID] = op
+		l.publishCommittedAuditEntryLocked(entry)
+		if result != "passed" {
+			return op, ErrVerificationFailed
+		}
+		return op, nil
+	}
+	l.signatures[signature.ID] = signature
 	l.signingOperations[op.ID] = op
 	_, _ = l.appendChainLocked(actor.TenantID, "signing_operation.created", "signing_operation", op.ID, actorType(actor), actorID(actor), op.PayloadHash, signature.ID)
 	if err := l.persistLocked(ctx); err != nil {

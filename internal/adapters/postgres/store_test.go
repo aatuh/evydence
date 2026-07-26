@@ -494,7 +494,8 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 		},
 		SigningKeyPrivate: map[string][]byte{"sigkey_test": []byte("dev-private-key")},
 		Signatures: map[string]domain.Signature{
-			"sig_test": {ID: "sig_test", TenantID: "ten_test", SubjectType: "release_bundle", SubjectID: "bundle_test", KeyID: "sigkey_test", Algorithm: "Ed25519", Value: "signature", CreatedAt: time.Now().UTC()},
+			"sig_test":              {ID: "sig_test", TenantID: "ten_test", SubjectType: "release_bundle", SubjectID: "bundle_test", KeyID: "sigkey_test", Algorithm: "Ed25519", Value: "signature", CreatedAt: time.Now().UTC()},
+			"provider_receipt_test": {ID: "provider_receipt_test", TenantID: "ten_test", SubjectType: "release", SubjectID: "rel_test", KeyID: "sign_provider_test", Algorithm: "external-aws_kms", Value: "provider-receipt", CreatedAt: time.Now().UTC()},
 		},
 		SBOMs: map[string]domain.SBOM{
 			"sbom_test": {ID: "sbom_test", TenantID: "ten_test", EvidenceID: "ev_test", ReleaseID: "rel_test", ArtifactID: "art_test", Format: "cyclonedx", SpecVersion: "1.5", ComponentCount: 1, Components: []domain.SBOMComponent{{Name: "lib", Version: "1.0.0"}}, CreatedAt: time.Now().UTC()},
@@ -608,7 +609,7 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 			"provider_verification_test": {ID: "provider_verification_test", TenantID: "ten_test", ProviderType: "oidc", ProviderID: "sso_test", Subject: "sub", Result: "verified", Checks: []domain.VerifyCheck{{Name: "subject", Result: "passed"}}, Limitations: []string{"static trust material"}, SchemaVersion: domain.ProviderVerificationVersion, CreatedAt: time.Now().UTC()},
 		},
 		SigningOperations: map[string]domain.SigningOperation{
-			"signing_operation_test": {ID: "signing_operation_test", TenantID: "ten_test", ProviderID: "sign_provider_test", SubjectType: "release", SubjectID: "rel_test", PayloadHash: "sha256:" + strings.Repeat("2", 64), SignatureRef: "sig_test", Result: "signed", Checks: []domain.VerifyCheck{{Name: "provider", Result: "passed"}}, SchemaVersion: domain.SigningOperationVersion, CreatedAt: time.Now().UTC()},
+			"signing_operation_test": {ID: "signing_operation_test", TenantID: "ten_test", ProviderID: "sign_provider_test", SubjectType: "release", SubjectID: "rel_test", PayloadHash: "sha256:" + strings.Repeat("2", 64), SignatureRef: "provider_receipt_test", Result: "signed", Checks: []domain.VerifyCheck{{Name: "provider", Result: "passed"}}, SchemaVersion: domain.SigningOperationVersion, CreatedAt: time.Now().UTC()},
 		},
 		Idempotency: map[string]app.IdempotencyRecord{
 			app.NewIdempotencyRecordKey("ten_test", "user:user_test", "POST", "/v1/products", "idem"): {RequestHash: "sha256:request", Status: 201, Response: map[string]any{"ok": true}, CreatedAt: time.Now().UTC()},
@@ -731,6 +732,7 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 		{name: "audit chain", query: `SELECT count(*) FROM audit_chain_entries WHERE tenant_id = 'ten_test' AND sequence = 1`},
 		{name: "signing key", query: `SELECT count(*) FROM signing_keys WHERE tenant_id = 'ten_test' AND id = 'sigkey_test' AND encrypted_private_key IS NOT NULL`},
 		{name: "signature", query: `SELECT count(*) FROM signatures WHERE tenant_id = 'ten_test' AND id = 'sig_test'`},
+		{name: "provider signature receipt", query: `SELECT count(*) FROM provider_signature_receipts WHERE tenant_id = 'ten_test' AND id = 'provider_receipt_test' AND provider_id = 'sign_provider_test'`},
 		{name: "sbom", query: `SELECT count(*) FROM sboms WHERE tenant_id = 'ten_test' AND release_id = 'rel_test' AND component_count = 1`},
 		{name: "scan", query: `SELECT count(*) FROM vulnerability_scans WHERE tenant_id = 'ten_test' AND release_id = 'rel_test'`},
 		{name: "vex", query: `SELECT count(*) FROM vex_documents WHERE tenant_id = 'ten_test' AND id = 'vex_test' AND statement_count = 1`},
@@ -768,7 +770,7 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 		{name: "pdf report", query: `SELECT count(*) FROM pdf_report_packages WHERE tenant_id = 'ten_test' AND id = 'pdf_test'`},
 		{name: "anomaly report", query: `SELECT count(*) FROM anomaly_reports WHERE tenant_id = 'ten_test' AND id = 'anom_test'`},
 		{name: "provider verification", query: `SELECT count(*) FROM provider_verifications WHERE tenant_id = 'ten_test' AND id = 'provider_verification_test' AND checks <> '[]'::jsonb`},
-		{name: "signing operation", query: `SELECT count(*) FROM signing_operations WHERE tenant_id = 'ten_test' AND id = 'signing_operation_test' AND signature_ref = 'sig_test'`},
+		{name: "signing operation", query: `SELECT count(*) FROM signing_operations WHERE tenant_id = 'ten_test' AND id = 'signing_operation_test' AND signature_ref = 'provider_receipt_test'`},
 	}
 	for _, check := range coreChecks {
 		var rows int
@@ -906,7 +908,7 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	if relational.MarketplaceCollectors["market_collector_test"].State != "published" || relational.ProviderVerifications["provider_verification_test"].Result != "verified" {
 		t.Fatalf("relational marketplace/provider rows missing: market=%#v provider=%#v", relational.MarketplaceCollectors["market_collector_test"], relational.ProviderVerifications["provider_verification_test"])
 	}
-	if relational.SigningOperations["signing_operation_test"].SignatureRef != "sig_test" || len(relational.SigningOperations["signing_operation_test"].Checks) != 1 {
+	if relational.SigningOperations["signing_operation_test"].SignatureRef != "provider_receipt_test" || len(relational.SigningOperations["signing_operation_test"].Checks) != 1 {
 		t.Fatalf("relational signing operation missing: operation=%#v", relational.SigningOperations["signing_operation_test"])
 	}
 	if relational.PDFReports["pdf_test"].PayloadHash == "" || relational.AnomalyReports["anom_test"].Result != "review" {

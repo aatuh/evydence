@@ -383,6 +383,37 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Integrity.InsertSigningProvider(ctx, domain.SigningProvider{ID: "provider_repository", TenantID: tenant.ID, Name: "Repository KMS", Type: "aws_kms", Status: "active", KeyRef: "arn:aws:kms:example", Encrypted: true, SchemaVersion: domain.SigningProviderSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert signing provider: %v", err)
 	}
+	if err := repositories.Future.InsertSigningOperation(ctx, domain.Signature{ID: "provider_signature_repository", TenantID: tenant.ID, SubjectType: "release", SubjectID: release.ID, KeyID: "provider_repository", Algorithm: "external-aws_kms", Value: "provider-receipt", CreatedAt: now}, domain.SigningOperation{ID: "signing_operation_repository", TenantID: tenant.ID, ProviderID: "provider_repository", SubjectType: "release", SubjectID: release.ID, PayloadHash: "sha256:" + strings.Repeat("A", 64), SignatureRef: "provider_signature_repository", Result: "passed", Checks: []domain.VerifyCheck{{Name: "provider_active", Result: "passed"}}, SchemaVersion: domain.SigningOperationVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert signing operation: %v", err)
+	}
+	for _, subject := range []struct {
+		typeName string
+		id       string
+	}{
+		{typeName: "tenant", id: tenant.ID},
+		{typeName: "product", id: product.ID},
+		{typeName: "evidence", id: evidence.ID},
+		{typeName: "build", id: "build_repository"},
+		{typeName: "customer_package", id: "pkg_repository"},
+	} {
+		signatureID := "provider_signature_" + subject.typeName
+		operationID := "signing_operation_" + subject.typeName
+		if err := repositories.Future.InsertSigningOperation(ctx, domain.Signature{ID: signatureID, TenantID: tenant.ID, SubjectType: subject.typeName, SubjectID: subject.id, KeyID: "provider_repository", Algorithm: "external-aws_kms", Value: "provider-receipt", CreatedAt: now}, domain.SigningOperation{ID: operationID, TenantID: tenant.ID, ProviderID: "provider_repository", SubjectType: subject.typeName, SubjectID: subject.id, PayloadHash: "sha256:" + strings.Repeat("d", 64), SignatureRef: signatureID, Result: "passed", Checks: []domain.VerifyCheck{{Name: "provider_active", Result: "passed"}}, SchemaVersion: domain.SigningOperationVersion, CreatedAt: now}); err != nil {
+			t.Fatalf("insert %s signing operation: %v", subject.typeName, err)
+		}
+	}
+	if err := repositories.Integrity.InsertSigningProvider(ctx, domain.SigningProvider{ID: "provider_repository_inactive", TenantID: tenant.ID, Name: "Repository inactive KMS", Type: "aws_kms", Status: "inactive", KeyRef: "arn:aws:kms:inactive", Encrypted: true, SchemaVersion: domain.SigningProviderSchemaVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert inactive signing provider: %v", err)
+	}
+	if err := repositories.Future.InsertSigningOperation(ctx, domain.Signature{ID: "provider_signature_inactive", TenantID: tenant.ID, SubjectType: "release", SubjectID: release.ID, KeyID: "provider_repository_inactive", Algorithm: "external-aws_kms", Value: "provider-receipt", CreatedAt: now}, domain.SigningOperation{ID: "signing_operation_inactive", TenantID: tenant.ID, ProviderID: "provider_repository_inactive", SubjectType: "release", SubjectID: release.ID, PayloadHash: "sha256:" + strings.Repeat("b", 64), SignatureRef: "provider_signature_inactive", Result: "passed", Checks: []domain.VerifyCheck{{Name: "provider_active", Result: "passed"}}, SchemaVersion: domain.SigningOperationVersion, CreatedAt: now}); !errors.Is(err, app.ErrValidation) {
+		t.Fatalf("inactive signing operation err=%v, want validation", err)
+	}
+	if err := repositories.Future.InsertSigningOperation(ctx, domain.Signature{ID: "provider_signature_bad_digest", TenantID: tenant.ID, SubjectType: "release", SubjectID: release.ID, KeyID: "provider_repository", Algorithm: "external-aws_kms", Value: "provider-receipt", CreatedAt: now}, domain.SigningOperation{ID: "signing_operation_bad_digest", TenantID: tenant.ID, ProviderID: "provider_repository", SubjectType: "release", SubjectID: release.ID, PayloadHash: "sha256:not-a-digest", SignatureRef: "provider_signature_bad_digest", Result: "passed", Checks: []domain.VerifyCheck{{Name: "provider_active", Result: "passed"}}, SchemaVersion: domain.SigningOperationVersion, CreatedAt: now}); !errors.Is(err, app.ErrValidation) {
+		t.Fatalf("malformed signing operation digest err=%v, want validation", err)
+	}
+	if err := repositories.Future.InsertSigningOperation(ctx, domain.Signature{ID: "provider_signature_missing_subject", TenantID: tenant.ID, SubjectType: "release", SubjectID: "missing-release", KeyID: "provider_repository", Algorithm: "external-aws_kms", Value: "provider-receipt", CreatedAt: now}, domain.SigningOperation{ID: "signing_operation_missing_subject", TenantID: tenant.ID, ProviderID: "provider_repository", SubjectType: "release", SubjectID: "missing-release", PayloadHash: "sha256:" + strings.Repeat("c", 64), SignatureRef: "provider_signature_missing_subject", Result: "passed", Checks: []domain.VerifyCheck{{Name: "provider_active", Result: "passed"}}, SchemaVersion: domain.SigningOperationVersion, CreatedAt: now}); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("missing signing operation subject err=%v, want not found", err)
+	}
 	if err := repositories.Future.InsertPublicTransparencyLog(ctx, domain.PublicTransparencyLog{ID: "public_log_repository", TenantID: tenant.ID, Name: "Repository log", Endpoint: "https://transparency.example.test", PublicKey: "public-key", State: "configured", SchemaVersion: domain.PublicTransparencyLogVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert public transparency log: %v", err)
 	}
@@ -568,6 +599,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"marketplace collector", repositories.Future.InsertMarketplaceCollector(ctx, domain.MarketplaceCollector{})},
 		{"PDF report package", repositories.Future.InsertPDFReportPackage(ctx, domain.PDFReportPackage{})},
 		{"questionnaire draft", repositories.Future.InsertQuestionnaireDraft(ctx, domain.QuestionnaireDraft{})},
+		{"signing operation", repositories.Future.InsertSigningOperation(ctx, domain.Signature{}, domain.SigningOperation{})},
 		{"verification", repositories.Verification.InsertVerificationResult(ctx, domain.VerificationResult{})},
 		{"policy evaluation", repositories.Verification.InsertPolicyEvaluation(ctx, domain.PolicyEvaluation{})},
 	}
@@ -601,6 +633,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"PDF report product", repositories.Future.InsertPDFReportPackage(ctx, domain.PDFReportPackage{ID: "pdf_missing_product", TenantID: "ten_repository_a", ReportType: "release_readiness", ProductID: "missing-product", Title: "Missing product", PayloadHash: "sha256:report", PayloadSize: 1, SchemaVersion: domain.PDFReportPackageVersion, CreatedAt: now}), app.ErrNotFound},
 		{"PDF report release", repositories.Future.InsertPDFReportPackage(ctx, domain.PDFReportPackage{ID: "pdf_missing_release", TenantID: "ten_repository_a", ReportType: "release_readiness", ReleaseID: "missing-release", Title: "Missing release", PayloadHash: "sha256:report", PayloadSize: 1, SchemaVersion: domain.PDFReportPackageVersion, CreatedAt: now}), app.ErrNotFound},
 		{"questionnaire draft template", repositories.Future.InsertQuestionnaireDraft(ctx, domain.QuestionnaireDraft{ID: "draft_missing_template", TenantID: "ten_repository_a", TemplateID: "missing-template", Responses: []domain.QuestionnaireResponse{{QuestionID: "q1", Answer: "No evidence."}}, ManifestHash: "sha256:draft", SchemaVersion: domain.QuestionnaireDraftVersion, CreatedAt: now}), app.ErrNotFound},
+		{"signing operation provider", repositories.Future.InsertSigningOperation(ctx, domain.Signature{ID: "provider_signature_missing", TenantID: "ten_repository_a", SubjectType: "release", SubjectID: "missing-release", KeyID: "missing-provider", Algorithm: "external-aws_kms", Value: "receipt", CreatedAt: now}, domain.SigningOperation{ID: "signing_operation_missing", TenantID: "ten_repository_a", ProviderID: "missing-provider", SubjectType: "release", SubjectID: "missing-release", PayloadHash: "sha256:" + strings.Repeat("c", 64), SignatureRef: "provider_signature_missing", Result: "passed", Checks: []domain.VerifyCheck{{Name: "provider_active", Result: "passed"}}, SchemaVersion: domain.SigningOperationVersion, CreatedAt: now}), app.ErrNotFound},
 		{"policy evaluation release", repositories.Verification.InsertPolicyEvaluation(ctx, domain.PolicyEvaluation{ID: "policy_missing_release", TenantID: "ten_repository_a", ReleaseID: "missing-release", Result: "passed", PolicySet: domain.PolicySetVersion, CreatedAt: now}), app.ErrNotFound},
 	}
 	for _, check := range missingReferenceChecks {
@@ -629,6 +662,9 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 	}
 	if err := repositories.Signatures.InsertSignature(ctx, domain.Signature{ID: "sig_repository_a", TenantID: "ten_repository_a", SubjectType: "evidence_item", SubjectID: evidenceA.ID, KeyID: signingKeyA.ID, Algorithm: "Ed25519", Value: "signature", CreatedAt: now}); err != nil {
 		t.Fatalf("insert tenant A signature: %v", err)
+	}
+	if err := repositories.Integrity.InsertSigningProvider(ctx, domain.SigningProvider{ID: "provider_repository_a", TenantID: "ten_repository_a", Name: "A KMS", Type: "aws_kms", Status: "active", KeyRef: "arn:aws:kms:a", Encrypted: true, SchemaVersion: domain.SigningProviderSchemaVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert tenant A signing provider: %v", err)
 	}
 	if err := repositories.SupplyChain.InsertArtifactSignature(ctx, domain.ArtifactSignature{ID: "artsig_repository_a", TenantID: "ten_repository_a", ArtifactID: artifactA.ID, SubjectDigest: artifactA.Digest, Algorithm: "cosign", Signature: "signature", VerificationStatus: "recorded", SchemaVersion: domain.ArtifactSignatureSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert tenant A artifact signature: %v", err)
@@ -700,6 +736,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"marketplace collector signature", repositories.Future.InsertMarketplaceCollector(ctx, domain.MarketplaceCollector{ID: "marketplace_repository_b", TenantID: "ten_repository_b", Name: "Foreign signature", Provider: "scanner", Version: "1.0.0", Publisher: "vendor", ManifestHash: "sha256:marketplace-b", SignatureID: "sig_repository_a", State: "registered", SchemaVersion: domain.MarketplaceCollectorVersion, CreatedAt: now})},
 		{"PDF report product", repositories.Future.InsertPDFReportPackage(ctx, domain.PDFReportPackage{ID: "pdf_repository_b", TenantID: "ten_repository_b", ReportType: "release_readiness", ProductID: "prod_repository_a", Title: "Foreign product", PayloadHash: "sha256:report-b", PayloadSize: 1, SchemaVersion: domain.PDFReportPackageVersion, CreatedAt: now})},
 		{"questionnaire draft template", repositories.Future.InsertQuestionnaireDraft(ctx, domain.QuestionnaireDraft{ID: "draft_repository_b", TenantID: "ten_repository_b", TemplateID: "template_repository_a", Responses: []domain.QuestionnaireResponse{{QuestionID: "q1", Answer: "Foreign template."}}, ManifestHash: "sha256:draft-b", SchemaVersion: domain.QuestionnaireDraftVersion, CreatedAt: now})},
+		{"signing operation provider", repositories.Future.InsertSigningOperation(ctx, domain.Signature{ID: "provider_signature_repository_b", TenantID: "ten_repository_b", SubjectType: "release", SubjectID: "rel_repository_b", KeyID: "provider_repository_a", Algorithm: "external-aws_kms", Value: "receipt", CreatedAt: now}, domain.SigningOperation{ID: "signing_operation_repository_b", TenantID: "ten_repository_b", ProviderID: "provider_repository_a", SubjectType: "release", SubjectID: "rel_repository_b", PayloadHash: "sha256:" + strings.Repeat("d", 64), SignatureRef: "provider_signature_repository_b", Result: "passed", Checks: []domain.VerifyCheck{{Name: "provider_active", Result: "passed"}}, SchemaVersion: domain.SigningOperationVersion, CreatedAt: now})},
 		{"decision scan", repositories.Decisions.SupersedeAndInsert(ctx, domain.VulnerabilityDecision{ID: "dec_repository_b", TenantID: "ten_repository_b", FindingID: "finding-b", ScanID: "scan_repository_b", ReleaseID: releaseA.ID, Vulnerability: "CVE-2026-0001", Status: "not_affected", Justification: "test", Source: "test", SchemaVersion: domain.VulnerabilityDecisionVersion, CreatedAt: now}, nil)},
 		{"policy evaluation release", repositories.Verification.InsertPolicyEvaluation(ctx, domain.PolicyEvaluation{ID: "policy_repository_b", TenantID: "ten_repository_b", ReleaseID: releaseA.ID, Result: "passed", PolicySet: domain.PolicySetVersion, CreatedAt: now})},
 	}

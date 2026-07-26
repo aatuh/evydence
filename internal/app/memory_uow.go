@@ -89,6 +89,7 @@ type MemoryUnitOfWorkSnapshot struct {
 	MarketplaceCollectors     map[string]domain.MarketplaceCollector
 	PDFReports                map[string]domain.PDFReportPackage
 	QuestionnaireDrafts       map[string]domain.QuestionnaireDraft
+	SigningOperations         map[string]domain.SigningOperation
 }
 
 func NewMemoryUnitOfWorkFactory() *MemoryUnitOfWorkFactory {
@@ -2399,6 +2400,76 @@ func (r memoryFutureExtensionsRepository) InsertQuestionnaireDraft(ctx context.C
 	})
 }
 
+func (r memoryFutureExtensionsRepository) InsertSigningOperation(ctx context.Context, signature domain.Signature, operation domain.SigningOperation) error {
+	clonedSignature, err := cloneMemoryJSON(signature)
+	if err != nil {
+		return err
+	}
+	clonedOperation, err := cloneMemoryJSON(operation)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, clonedOperation.TenantID); err != nil {
+			return err
+		}
+		if clonedSignature.ID == "" || clonedSignature.TenantID != clonedOperation.TenantID || clonedSignature.SubjectType != clonedOperation.SubjectType || clonedSignature.SubjectID != clonedOperation.SubjectID || clonedSignature.KeyID != clonedOperation.ProviderID || clonedSignature.Algorithm == "" || clonedSignature.Value == "" || len(clonedSignature.Value) > 32768 || clonedSignature.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if clonedOperation.ID == "" || clonedOperation.ProviderID == "" || clonedOperation.SubjectType == "" || clonedOperation.SubjectID == "" || !validDigest(clonedOperation.PayloadHash) || clonedOperation.SignatureRef != clonedSignature.ID || (clonedOperation.Result != "passed" && clonedOperation.Result != "failed") || clonedOperation.Checks == nil || clonedOperation.SchemaVersion == "" || clonedOperation.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		provider, ok := state.SigningProviders[clonedOperation.ProviderID]
+		if !ok || provider.TenantID != clonedOperation.TenantID {
+			return ErrNotFound
+		}
+		if clonedOperation.Result == "passed" && provider.Status != "active" {
+			return ErrValidation
+		}
+		if err := requireMemorySigningOperationSubject(*state, clonedOperation); err != nil {
+			return err
+		}
+		if _, exists := state.Signatures[clonedSignature.ID]; exists {
+			return ErrConflict
+		}
+		if _, exists := state.SigningOperations[clonedOperation.ID]; exists {
+			return ErrConflict
+		}
+		state.Signatures[clonedSignature.ID] = clonedSignature
+		state.SigningOperations[clonedOperation.ID] = clonedOperation
+		return nil
+	})
+}
+
+func requireMemorySigningOperationSubject(state MemoryUnitOfWorkSnapshot, operation domain.SigningOperation) error {
+	switch operation.SubjectType {
+	case "tenant":
+		if operation.SubjectID != operation.TenantID {
+			return ErrNotFound
+		}
+		return nil
+	case "product":
+		if !memoryResourceBelongsToTenant(operation.SubjectID, operation.TenantID, state.Products) {
+			return ErrNotFound
+		}
+	case "release":
+		if !memoryResourceBelongsToTenant(operation.SubjectID, operation.TenantID, state.Releases) {
+			return ErrNotFound
+		}
+	case "evidence":
+		if !memoryResourceBelongsToTenant(operation.SubjectID, operation.TenantID, state.Evidence) {
+			return ErrNotFound
+		}
+	case "build":
+		if !memoryResourceBelongsToTenant(operation.SubjectID, operation.TenantID, state.BuildRuns) {
+			return ErrNotFound
+		}
+	default:
+		return ErrValidation
+	}
+	return nil
+}
+
 func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 	return MemoryUnitOfWorkSnapshot{
 		Tenants:                   map[string]domain.Tenant{},
@@ -2467,6 +2538,7 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		MarketplaceCollectors:     map[string]domain.MarketplaceCollector{},
 		PDFReports:                map[string]domain.PDFReportPackage{},
 		QuestionnaireDrafts:       map[string]domain.QuestionnaireDraft{},
+		SigningOperations:         map[string]domain.SigningOperation{},
 	}
 }
 
@@ -2678,6 +2750,9 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.QuestionnaireDrafts, err = cloneMemoryMap(snapshot.QuestionnaireDrafts); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.SigningOperations, err = cloneMemoryMap(snapshot.SigningOperations); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	return cloned, nil

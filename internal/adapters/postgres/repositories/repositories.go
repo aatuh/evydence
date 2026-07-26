@@ -2176,6 +2176,75 @@ func (r futureExtensions) InsertQuestionnaireDraft(ctx context.Context, draft do
 	return writeError("insert questionnaire draft", err)
 }
 
+func (r futureExtensions) InsertSigningOperation(ctx context.Context, signature domain.Signature, operation domain.SigningOperation) error {
+	if signature.ID == "" || signature.TenantID != operation.TenantID || signature.SubjectType != operation.SubjectType || signature.SubjectID != operation.SubjectID || signature.KeyID != operation.ProviderID || signature.Algorithm == "" || signature.Value == "" || len(signature.Value) > 32768 || signature.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if operation.ID == "" || operation.TenantID == "" || operation.ProviderID == "" || operation.SubjectType == "" || operation.SubjectID == "" || !validSHA256Digest(operation.PayloadHash) || operation.SignatureRef != signature.ID || (operation.Result != "passed" && operation.Result != "failed") || operation.Checks == nil || operation.SchemaVersion == "" || operation.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, operation.TenantID); err != nil {
+		return err
+	}
+	var providerStatus string
+	if err := r.tx.QueryRow(ctx, `SELECT status FROM signing_providers WHERE id = $1 AND tenant_id = $2`, operation.ProviderID, operation.TenantID).Scan(&providerStatus); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return app.ErrNotFound
+		}
+		return writeError("read signing provider", err)
+	}
+	if operation.Result == "passed" && providerStatus != "active" {
+		return app.ErrValidation
+	}
+	if err := requireSigningOperationSubject(ctx, r.tx, operation.TenantID, operation.SubjectType, operation.SubjectID); err != nil {
+		return err
+	}
+	checks, err := json.Marshal(operation.Checks)
+	if err != nil {
+		return fmt.Errorf("encode signing operation checks: %w", err)
+	}
+	_, err = r.tx.Exec(ctx, `INSERT INTO provider_signature_receipts (id, tenant_id, provider_id, subject_type, subject_id, algorithm, value, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`, signature.ID, signature.TenantID, signature.KeyID, signature.SubjectType, signature.SubjectID, signature.Algorithm, signature.Value, signature.CreatedAt)
+	if err != nil {
+		return writeError("insert provider signature receipt", err)
+	}
+	_, err = r.tx.Exec(ctx, `INSERT INTO signing_operations (id, tenant_id, provider_id, subject_type, subject_id, payload_hash, signature_ref, result, checks, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, operation.ID, operation.TenantID, operation.ProviderID, operation.SubjectType, operation.SubjectID, operation.PayloadHash, operation.SignatureRef, operation.Result, checks, operation.SchemaVersion, operation.CreatedAt)
+	return writeError("insert signing operation", err)
+}
+
+func requireSigningOperationSubject(ctx context.Context, tx pgx.Tx, tenantID, subjectType, subjectID string) error {
+	switch subjectType {
+	case "tenant":
+		if subjectID != tenantID {
+			return app.ErrNotFound
+		}
+		return nil
+	case "product":
+		return requireOptionalProduct(ctx, tx, tenantID, subjectID)
+	case "release":
+		return requireOptionalRelease(ctx, tx, tenantID, subjectID)
+	case "evidence":
+		return requireOwnedEvidence(ctx, tx, tenantID, subjectID)
+	case "build":
+		return requireRow(ctx, tx, `SELECT 1 FROM build_runs WHERE id = $1 AND tenant_id = $2`, subjectID, tenantID)
+	case "customer_package":
+		return requireOwnedCustomerPackage(ctx, tx, tenantID, subjectID)
+	default:
+		return app.ErrValidation
+	}
+}
+
+func validSHA256Digest(value string) bool {
+	if !strings.HasPrefix(value, "sha256:") || len(value) != len("sha256:")+64 {
+		return false
+	}
+	for _, character := range value[len("sha256:"):] {
+		if (character < '0' || character > '9') && (character < 'a' || character > 'f') && (character < 'A' || character > 'F') {
+			return false
+		}
+	}
+	return true
+}
+
 func validateQuestionnaireDraftResponses(ctx context.Context, tx pgx.Tx, tenantID string, questions []domain.QuestionnaireQuestion, responses []domain.QuestionnaireResponse) error {
 	if len(questions) == 0 || len(responses) != len(questions) {
 		return app.ErrValidation

@@ -862,7 +862,27 @@ func (s *Store) loadRelationalSigning(ctx context.Context, state *app.PersistedS
 		state.Signatures[signature.ID] = signature
 		*loaded = true
 	}
-	return sigRows.Err()
+	if err := sigRows.Err(); err != nil {
+		return err
+	}
+
+	receiptRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, provider_id, subject_type, subject_id, algorithm, value, created_at FROM provider_signature_receipts`)
+	if err != nil {
+		return fmt.Errorf("load relational provider signature receipts: %w", err)
+	}
+	defer receiptRows.Close()
+	for receiptRows.Next() {
+		var receipt domain.Signature
+		if err := receiptRows.Scan(&receipt.ID, &receipt.TenantID, &receipt.KeyID, &receipt.SubjectType, &receipt.SubjectID, &receipt.Algorithm, &receipt.Value, &receipt.CreatedAt); err != nil {
+			return fmt.Errorf("scan relational provider signature receipt: %w", err)
+		}
+		if _, exists := state.Signatures[receipt.ID]; exists {
+			return fmt.Errorf("duplicate signature and provider receipt id %q", receipt.ID)
+		}
+		state.Signatures[receipt.ID] = receipt
+		*loaded = true
+	}
+	return receiptRows.Err()
 }
 
 func (s *Store) loadRelationalParsedResources(ctx context.Context, state *app.PersistedState, loaded *bool) error {
@@ -3201,15 +3221,31 @@ func syncReleaseLedgerCore(ctx context.Context, tx pgx.Tx, state app.PersistedSt
 		if signature.ID == "" || signature.TenantID == "" || signature.KeyID == "" {
 			continue
 		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO signatures (
-				id, tenant_id, subject_type, subject_id, key_id, algorithm, value, created_at
-			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-			ON CONFLICT (id) DO NOTHING
-		`, signature.ID, signature.TenantID, signature.SubjectType, signature.SubjectID, signature.KeyID, signature.Algorithm, signature.Value, nonZeroTime(signature.CreatedAt)); err != nil {
-			return fmt.Errorf("insert signature row: %w", err)
+		if key, ok := state.SigningKeys[signature.KeyID]; ok && key.TenantID == signature.TenantID {
+			if _, err := tx.Exec(ctx, `
+				INSERT INTO signatures (
+					id, tenant_id, subject_type, subject_id, key_id, algorithm, value, created_at
+				)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+				ON CONFLICT (id) DO NOTHING
+			`, signature.ID, signature.TenantID, signature.SubjectType, signature.SubjectID, signature.KeyID, signature.Algorithm, signature.Value, nonZeroTime(signature.CreatedAt)); err != nil {
+				return fmt.Errorf("insert signature row: %w", err)
+			}
+			continue
 		}
+		if provider, ok := state.SigningProviders[signature.KeyID]; ok && provider.TenantID == signature.TenantID {
+			if _, err := tx.Exec(ctx, `
+				INSERT INTO provider_signature_receipts (
+					id, tenant_id, provider_id, subject_type, subject_id, algorithm, value, created_at
+				)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+				ON CONFLICT (id) DO NOTHING
+			`, signature.ID, signature.TenantID, signature.KeyID, signature.SubjectType, signature.SubjectID, signature.Algorithm, signature.Value, nonZeroTime(signature.CreatedAt)); err != nil {
+				return fmt.Errorf("insert provider signature receipt row: %w", err)
+			}
+			continue
+		}
+		return fmt.Errorf("signature %q references an unknown tenant signer", signature.ID)
 	}
 	for _, sbom := range state.SBOMs {
 		if sbom.ID == "" || sbom.TenantID == "" || sbom.EvidenceID == "" {
