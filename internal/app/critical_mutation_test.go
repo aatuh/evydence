@@ -79,7 +79,7 @@ func TestCriticalMutationStoreAvoidsAggregateSaveForMigratedFlows(t *testing.T) 
 	}
 
 	store.reset()
-	status, response, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/products", "idem-key", []byte(`{"name":"x"}`), func() (int, any, error) {
+	status, response, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/products", "idem-key", []byte(`{"name":"x"}`), func(context.Context, *Ledger) (int, any, error) {
 		return 201, map[string]any{"ok": true}, nil
 	})
 	if err != nil || status != 201 || response == nil {

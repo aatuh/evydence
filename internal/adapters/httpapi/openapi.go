@@ -1502,8 +1502,8 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	registry.RegisterSchema("SSOSessionEnvelope", dataEnvelopeSchema("#/components/schemas/SSOSession"))
 	registry.RegisterSchema("SSOSessionCreateResponse", objectSchema(map[string]any{
 		"session": map[string]any{"$ref": "#/components/schemas/SSOSession"},
-		"secret":  map[string]any{"type": "string", "description": "One-time SSO session bearer secret; not returned by list/read operations."},
-	}, "session", "secret"))
+		"secret":  map[string]any{"type": "string", "description": "One-time SSO session bearer secret; not returned by list/read operations. Present only in the initial successful response and omitted from idempotency replays."},
+	}, "session"))
 	registry.RegisterSchema("SSOSessionCreateEnvelope", dataEnvelopeSchema("#/components/schemas/SSOSessionCreateResponse"))
 	registry.RegisterSchema("SSOCredentialExchangeResponse", objectSchema(map[string]any{
 		"verification": map[string]any{"$ref": "#/components/schemas/ProviderVerification"},
@@ -1529,8 +1529,8 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "id", "tenant_id", "name", "prefix", "scopes", "created_at"))
 	registry.RegisterSchema("APIKeyCreateResponse", objectSchema(map[string]any{
 		"api_key": map[string]any{"$ref": "#/components/schemas/APIKey"},
-		"secret":  map[string]any{"type": "string", "description": "One-time API key secret; stored only as a peppered HMAC hash."},
-	}, "api_key", "secret"))
+		"secret":  map[string]any{"type": "string", "description": "One-time API key secret; stored only as a peppered HMAC hash. Present only in the initial successful response and omitted from idempotency replays."},
+	}, "api_key"))
 	registry.RegisterSchema("APIKeyCreateEnvelope", dataEnvelopeSchema("#/components/schemas/APIKeyCreateResponse"))
 	registry.RegisterSchema("APIKeyListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/APIKey"))
 	registry.RegisterSchema("CreateCollectorRequest", objectSchema(map[string]any{
@@ -1555,8 +1555,8 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	registry.RegisterSchema("CollectorCreateResponse", objectSchema(map[string]any{
 		"collector": map[string]any{"$ref": "#/components/schemas/Collector"},
 		"api_key":   map[string]any{"$ref": "#/components/schemas/APIKey"},
-		"secret":    map[string]any{"type": "string", "description": "One-time collector API key secret; stored only as a peppered HMAC hash."},
-	}, "collector", "api_key", "secret"))
+		"secret":    map[string]any{"type": "string", "description": "One-time collector API key secret; stored only as a peppered HMAC hash. Present only in the initial successful response and omitted from idempotency replays."},
+	}, "collector", "api_key"))
 	registry.RegisterSchema("CollectorCreateEnvelope", dataEnvelopeSchema("#/components/schemas/CollectorCreateResponse"))
 	registry.RegisterSchema("CollectorListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/Collector"))
 	registry.RegisterSchema("CreateControlFrameworkRequest", objectSchema(map[string]any{
@@ -2506,8 +2506,8 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "id", "tenant_id", "package_id", "customer_name", "prefix", "expires_at", "access_count", "failed_access_count", "schema_version", "created_at"))
 	registry.RegisterSchema("CustomerPortalAccessCreateResponse", objectSchema(map[string]any{
 		"access": map[string]any{"$ref": "#/components/schemas/CustomerPortalAccess"},
-		"secret": map[string]any{"type": "string", "description": "One-time portal token; stored only as a HMAC hash."},
-	}, "access", "secret"))
+		"secret": map[string]any{"type": "string", "description": "One-time portal token; stored only as a HMAC hash. Present only in the initial successful response and omitted from idempotency replays."},
+	}, "access"))
 	registry.RegisterSchema("CustomerPortalAccessCreateEnvelope", dataEnvelopeSchema("#/components/schemas/CustomerPortalAccessCreateResponse"))
 	registry.RegisterSchema("CustomerPortalAccessEnvelope", dataEnvelopeSchema("#/components/schemas/CustomerPortalAccess"))
 	registry.RegisterSchema("CustomerPortalAccessListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/CustomerPortalAccess"))

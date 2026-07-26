@@ -2,7 +2,9 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -11,6 +13,17 @@ import (
 )
 
 type idempotencyPersistenceFailureStore struct{ err error }
+
+type idempotencyReloadStore struct {
+	state PersistedState
+	ok    bool
+}
+
+func (s *idempotencyReloadStore) LoadState(context.Context) (PersistedState, bool, error) {
+	return s.state, s.ok, nil
+}
+
+func (*idempotencyReloadStore) SaveState(context.Context, PersistedState) error { return nil }
 
 type failingIdempotencyCompletionRepository struct{ IdempotencyRepository }
 
@@ -30,6 +43,37 @@ func (s idempotencyPersistenceFailureStore) ApplyCriticalMutation(context.Contex
 	return s.err
 }
 
+func TestPublishCommittedIdempotencyCommandReloadsDurableCache(t *testing.T) {
+	seed := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	seed.mu.Lock()
+	state, err := seed.snapshotLocked()
+	seed.mu.Unlock()
+	if err != nil {
+		t.Fatalf("snapshot seed ledger: %v", err)
+	}
+	store := &idempotencyReloadStore{state: state, ok: true}
+	ledger, err := NewLedgerWithContext(context.Background(), Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
+	if err != nil {
+		t.Fatalf("create durable ledger: %v", err)
+	}
+
+	// Model an outbox worker appending durable state after the API process took
+	// the command snapshot. The durable state, rather than the stale command
+	// clone, must win when publishing after commit.
+	store.state.Products["prod_worker"] = domain.Product{ID: "prod_worker", TenantID: "tenant-idempotency", Name: "Worker product", Slug: "worker-product", CreatedAt: fixedNow()}
+	command := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	command.products["prod_command"] = domain.Product{ID: "prod_command", TenantID: "tenant-idempotency", Name: "Command product", Slug: "command-product", CreatedAt: fixedNow()}
+	if err := ledger.publishCommittedIdempotencyCommand(context.Background(), command); err != nil {
+		t.Fatalf("publish durable idempotency command: %v", err)
+	}
+	if _, ok := ledger.products["prod_worker"]; !ok {
+		t.Fatal("durable cache refresh discarded state committed by another process")
+	}
+	if _, ok := ledger.products["prod_command"]; ok {
+		t.Fatal("durable cache refresh applied stale command snapshot over durable state")
+	}
+}
+
 func TestWithIdempotencyDoesNotExecuteConcurrentPendingRequest(t *testing.T) {
 	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	actor := domain.Actor{TenantID: "tenant-idempotency", KeyID: "key-idempotency"}
@@ -39,7 +83,7 @@ func TestWithIdempotencyDoesNotExecuteConcurrentPendingRequest(t *testing.T) {
 
 	go func() {
 		defer close(firstDone)
-		status, _, err := ledger.WithIdempotency(context.Background(), actor, "POST", "/v1/products", "concurrent-key", []byte(`{"name":"Payments"}`), func() (int, any, error) {
+		status, _, err := ledger.WithIdempotency(context.Background(), actor, "POST", "/v1/products", "concurrent-key", []byte(`{"name":"Payments"}`), func(context.Context, *Ledger) (int, any, error) {
 			close(started)
 			<-release
 			return 201, map[string]any{"id": "prod-first"}, nil
@@ -51,7 +95,7 @@ func TestWithIdempotencyDoesNotExecuteConcurrentPendingRequest(t *testing.T) {
 	<-started
 
 	var secondRan atomic.Bool
-	status, response, err := ledger.WithIdempotency(context.Background(), actor, "POST", "/v1/products", "concurrent-key", []byte(`{"name":"Payments"}`), func() (int, any, error) {
+	status, response, err := ledger.WithIdempotency(context.Background(), actor, "POST", "/v1/products", "concurrent-key", []byte(`{"name":"Payments"}`), func(context.Context, *Ledger) (int, any, error) {
 		secondRan.Store(true)
 		return 201, map[string]any{"id": "prod-second"}, nil
 	})
@@ -65,7 +109,7 @@ func TestWithIdempotencyDoesNotExecuteConcurrentPendingRequest(t *testing.T) {
 	close(release)
 	<-firstDone
 
-	status, response, err = ledger.WithIdempotency(context.Background(), actor, "POST", "/v1/products", "concurrent-key", []byte(`{"name":"Payments"}`), func() (int, any, error) {
+	status, response, err = ledger.WithIdempotency(context.Background(), actor, "POST", "/v1/products", "concurrent-key", []byte(`{"name":"Payments"}`), func(context.Context, *Ledger) (int, any, error) {
 		t.Fatal("completed idempotency record must replay without executing the command")
 		return 0, nil, nil
 	})
@@ -74,6 +118,101 @@ func TestWithIdempotencyDoesNotExecuteConcurrentPendingRequest(t *testing.T) {
 	}
 	if got, ok := response.(map[string]any); !ok || got["id"] != "prod-first" {
 		t.Fatalf("completed replay response=%#v, want original response", response)
+	}
+}
+
+func TestWithIdempotencyCommitsCommandAndReplayTogether(t *testing.T) {
+	ctx := context.Background()
+	memory := NewMemoryUnitOfWorkFactory()
+	ledger, _, actor := newReleaseEvidenceUnitOfWorkFixture(t, memory)
+	var commandRuns atomic.Int32
+	status, response, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/products", "atomic-product", []byte(`{"name":"Atomic","slug":"atomic"}`), func(ctx context.Context, commandLedger *Ledger) (int, any, error) {
+		commandRuns.Add(1)
+		product, err := commandLedger.CreateProduct(ctx, actor, "Atomic", "atomic")
+		return 201, product, err
+	})
+	if err != nil || status != 201 {
+		t.Fatalf("atomic command status=%d response=%#v err=%v", status, response, err)
+	}
+	snapshot, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot after atomic command: %v", err)
+	}
+	if len(snapshot.Products) != 1 || len(snapshot.Idempotency) != 1 {
+		t.Fatalf("atomic command did not commit product and replay record together: %#v", snapshot)
+	}
+	for _, record := range snapshot.Idempotency {
+		if record.State != IdempotencyCompleted || record.Response == nil {
+			t.Fatalf("atomic command record=%#v, want completed safe replay", record)
+		}
+	}
+	status, replay, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/products", "atomic-product", []byte(`{"name":"Atomic","slug":"atomic"}`), func(context.Context, *Ledger) (int, any, error) {
+		t.Fatal("completed atomic command must replay without re-executing")
+		return 0, nil, nil
+	})
+	if err != nil || status != 201 || commandRuns.Load() != 1 || replay == nil {
+		t.Fatalf("atomic replay status=%d response=%#v runs=%d err=%v", status, replay, commandRuns.Load(), err)
+	}
+}
+
+func TestWithIdempotencyRollsBackCommandWhenItFails(t *testing.T) {
+	ctx := context.Background()
+	memory := NewMemoryUnitOfWorkFactory()
+	ledger, _, actor := newReleaseEvidenceUnitOfWorkFixture(t, memory)
+	commandErr := errors.New("command rejected after staging write")
+	if _, _, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/products", "atomic-rollback", []byte(`{"name":"Rollback","slug":"rollback"}`), func(ctx context.Context, commandLedger *Ledger) (int, any, error) {
+		if _, err := commandLedger.CreateProduct(ctx, actor, "Rollback", "rollback"); err != nil {
+			return 0, nil, err
+		}
+		return 500, nil, commandErr
+	}); !errors.Is(err, commandErr) {
+		t.Fatalf("failed command err=%v, want command error", err)
+	}
+	snapshot, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot after rollback: %v", err)
+	}
+	if len(snapshot.Products) != 0 {
+		t.Fatalf("failed command committed a product: %#v", snapshot.Products)
+	}
+	for _, record := range snapshot.Idempotency {
+		if record.State != IdempotencyFailed || record.Response != nil {
+			t.Fatalf("failed command replay record=%#v", record)
+		}
+	}
+	if _, _, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/products", "atomic-rollback", []byte(`{"name":"Rollback","slug":"rollback"}`), func(context.Context, *Ledger) (int, any, error) {
+		t.Fatal("failed command must not be retried with the same key")
+		return 0, nil, nil
+	}); !errors.Is(err, ErrIdempotencyFailed) {
+		t.Fatalf("failed command replay err=%v, want idempotency failed", err)
+	}
+}
+
+func TestWithIdempotencyStoresNoOneTimeSecretInReplay(t *testing.T) {
+	ctx := context.Background()
+	memory := NewMemoryUnitOfWorkFactory()
+	ledger, _, actor := newReleaseEvidenceUnitOfWorkFixture(t, memory)
+	status, first, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/api-keys", "one-time-secret", []byte(`{"name":"automation"}`), func(context.Context, *Ledger) (int, any, error) {
+		return 201, map[string]any{"api_key": map[string]any{"id": "key-one-time"}, "secret": "evy_sensitive_one_time_secret"}, nil
+	})
+	if err != nil || status != 201 || first.(map[string]any)["secret"] != "evy_sensitive_one_time_secret" {
+		t.Fatalf("first one-time response status=%d response=%#v err=%v", status, first, err)
+	}
+	snapshot, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot one-time response: %v", err)
+	}
+	for _, record := range snapshot.Idempotency {
+		if encoded, err := json.Marshal(record.Response); err != nil || strings.Contains(string(encoded), "evy_sensitive_one_time_secret") || strings.Contains(string(encoded), `"secret"`) {
+			t.Fatalf("replay record retained one-time secret: response=%#v encoded=%q err=%v", record.Response, encoded, err)
+		}
+	}
+	_, replay, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/api-keys", "one-time-secret", []byte(`{"name":"automation"}`), func(context.Context, *Ledger) (int, any, error) {
+		t.Fatal("one-time secret request must replay without command execution")
+		return 0, nil, nil
+	})
+	if err != nil || replay.(map[string]any)["secret"] != nil {
+		t.Fatalf("one-time replay response=%#v err=%v", replay, err)
 	}
 }
 
@@ -182,13 +321,13 @@ func TestWithIdempotencyStoresOnlySafeFailedState(t *testing.T) {
 	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	actor := domain.Actor{TenantID: "tenant-idempotency-failure", KeyID: "key-idempotency-failure"}
 	runErr := errors.New("upstream secret response must not be replayed")
-	if _, _, err := ledger.WithIdempotency(context.Background(), actor, "POST", "/v1/products", "failed-key", []byte(`{"name":"Payments"}`), func() (int, any, error) {
+	if _, _, err := ledger.WithIdempotency(context.Background(), actor, "POST", "/v1/products", "failed-key", []byte(`{"name":"Payments"}`), func(context.Context, *Ledger) (int, any, error) {
 		return 502, map[string]any{"token": "must-not-store"}, runErr
 	}); !errors.Is(err, runErr) {
 		t.Fatalf("first failed request err=%v, want original error", err)
 	}
 	ranAgain := false
-	status, response, err := ledger.WithIdempotency(context.Background(), actor, "POST", "/v1/products", "failed-key", []byte(`{"name":"Payments"}`), func() (int, any, error) {
+	status, response, err := ledger.WithIdempotency(context.Background(), actor, "POST", "/v1/products", "failed-key", []byte(`{"name":"Payments"}`), func(context.Context, *Ledger) (int, any, error) {
 		ranAgain = true
 		return 201, map[string]any{"id": "must-not-create"}, nil
 	})
@@ -207,12 +346,12 @@ func TestWithIdempotencyReplaysLegacyRecordsAndReplacesExpiredKeys(t *testing.T)
 	actor := domain.Actor{TenantID: "tenant-idempotency-legacy", KeyID: "key-idempotency-legacy"}
 	legacyBody := []byte(`{"name":"Legacy"}`)
 	key := NewIdempotencyRecordKey(actor.TenantID, idempotencyActorID(actor), "POST", "/v1/products", "legacy-key")
-	ledger.idempotency[key] = IdempotencyRecord{RequestHash: hashBytes(append([]byte("POST\n/v1/products\n"), legacyBody...)), Status: 201, Response: map[string]any{"id": "prod-legacy"}, CreatedAt: fixedNow()}
-	status, response, err := ledger.WithIdempotency(context.Background(), actor, "POST", "/v1/products", "legacy-key", legacyBody, func() (int, any, error) {
+	ledger.idempotency[key] = IdempotencyRecord{RequestHash: hashBytes(append([]byte("POST\n/v1/products\n"), legacyBody...)), Status: 201, Response: map[string]any{"id": "prod-legacy", "secret": "legacy-one-time-secret"}, CreatedAt: fixedNow()}
+	status, response, err := ledger.WithIdempotency(context.Background(), actor, "POST", "/v1/products", "legacy-key", legacyBody, func(context.Context, *Ledger) (int, any, error) {
 		t.Fatal("legacy completed record must replay without execution")
 		return 0, nil, nil
 	})
-	if err != nil || status != 201 || response.(map[string]any)["id"] != "prod-legacy" {
+	if err != nil || status != 201 || response.(map[string]any)["id"] != "prod-legacy" || response.(map[string]any)["secret"] != nil {
 		t.Fatalf("legacy replay status=%d response=%#v err=%v", status, response, err)
 	}
 
@@ -220,7 +359,7 @@ func TestWithIdempotencyReplaysLegacyRecordsAndReplacesExpiredKeys(t *testing.T)
 	expired.ExpiresAt = fixedNow().Add(-time.Second)
 	ledger.idempotency[key] = expired
 	runCount := 0
-	status, response, err = ledger.WithIdempotency(context.Background(), actor, "POST", "/v1/products", "legacy-key", []byte(`{"name":"Replacement"}`), func() (int, any, error) {
+	status, response, err = ledger.WithIdempotency(context.Background(), actor, "POST", "/v1/products", "legacy-key", []byte(`{"name":"Replacement"}`), func(context.Context, *Ledger) (int, any, error) {
 		runCount++
 		return 201, map[string]any{"id": "prod-replacement"}, nil
 	})
@@ -263,7 +402,7 @@ func TestWithIdempotencyDurablyMarksFailedReservations(t *testing.T) {
 	}
 	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, UnitOfWork: factory})
 	runErr := errors.New("durable command failure")
-	if _, _, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/products", "durable-failed", []byte(`{"name":"Payments"}`), func() (int, any, error) {
+	if _, _, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/products", "durable-failed", []byte(`{"name":"Payments"}`), func(context.Context, *Ledger) (int, any, error) {
 		return 503, nil, runErr
 	}); !errors.Is(err, runErr) {
 		t.Fatalf("durable failure err=%v, want command error", err)
@@ -300,7 +439,7 @@ func TestWithIdempotencyReturnsDurableCompletionFailure(t *testing.T) {
 			return repositories
 		}},
 	})
-	if status, response, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/products", "completion-fails", []byte(`{"name":"Payments"}`), func() (int, any, error) {
+	if status, response, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/products", "completion-fails", []byte(`{"name":"Payments"}`), func(context.Context, *Ledger) (int, any, error) {
 		return 201, map[string]any{"id": "prod-completion-failure"}, nil
 	}); !errors.Is(err, errInjectedRepositoryFailure) || status != 0 || response != nil {
 		t.Fatalf("durable completion failure status=%d response=%#v err=%v", status, response, err)
@@ -309,13 +448,9 @@ func TestWithIdempotencyReturnsDurableCompletionFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("snapshot completion failure: %v", err)
 	}
-	for _, record := range snapshot.Idempotency {
-		if record.State != IdempotencyPending || record.OwnerTokenHash == "" {
-			t.Fatalf("completion failure must retain recoverable pending record: %#v", record)
-		}
-		return
+	if len(snapshot.Idempotency) != 0 {
+		t.Fatalf("completion failure committed a replay record: %#v", snapshot.Idempotency)
 	}
-	t.Fatal("completion failure did not persist its reservation")
 }
 
 func TestIdempotencyInternalGuardsAndLeaseRecovery(t *testing.T) {

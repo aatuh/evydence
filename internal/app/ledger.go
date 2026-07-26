@@ -80,7 +80,8 @@ type Config struct {
 }
 
 type Ledger struct {
-	mu sync.Mutex
+	mu              sync.Mutex
+	transactionGate sync.RWMutex
 
 	pepper             []byte
 	now                func() time.Time
@@ -1666,11 +1667,45 @@ func (l *Ledger) CreateReleaseBundle(ctx context.Context, actor domain.Actor, re
 	if err != nil {
 		return domain.ReleaseBundle{}, err
 	}
+	var stateBeforeUnitOfWork PersistedState
+	if l.unitOfWork != nil {
+		stateBeforeUnitOfWork, err = l.snapshotLocked()
+		if err != nil {
+			return domain.ReleaseBundle{}, err
+		}
+	}
 	sig, err := l.signLocked(actor.TenantID, "release_bundle", bundleID, []byte(manifestHash))
 	if err != nil {
+		if l.unitOfWork != nil {
+			_ = l.applyState(stateBeforeUnitOfWork)
+		}
 		return domain.ReleaseBundle{}, err
 	}
 	bundle := domain.ReleaseBundle{ID: bundleID, TenantID: actor.TenantID, ReleaseID: release.ID, State: "generated", Manifest: manifest, ManifestHash: manifestHash, SignatureRefs: []string{sig.ID}, CreatedAt: l.now()}
+	if l.unitOfWork != nil {
+		job := l.newOutboxJob(actor.TenantID, "sign_bundle", "release_bundle", bundle.ID, map[string]any{"manifest_hash": manifestHash})
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Signatures.InsertSignature(ctx, sig); err != nil {
+				return err
+			}
+			if err := repos.Packages.InsertReleaseBundle(ctx, bundle); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(bundle.CreatedAt, actor.TenantID, "bundle.generated", "release_bundle", bundle.ID, "api_key", actor.KeyID, manifestHash, sig.ID))
+			if err != nil {
+				return err
+			}
+			return repos.Outbox.Enqueue(ctx, job)
+		}); err != nil {
+			_ = l.applyState(stateBeforeUnitOfWork)
+			return domain.ReleaseBundle{}, err
+		}
+		l.bundles[bundle.ID] = bundle
+		l.publishCommittedAuditEntryLocked(entry)
+		return bundle, nil
+	}
 	l.bundles[bundle.ID] = bundle
 	_, _ = l.appendChainLocked(actor.TenantID, "bundle.generated", "release_bundle", bundle.ID, "api_key", actor.KeyID, manifestHash, sig.ID)
 	job := l.newOutboxJob(actor.TenantID, "sign_bundle", "release_bundle", bundle.ID, map[string]any{"manifest_hash": manifestHash})
@@ -1956,6 +1991,29 @@ func (l *Ledger) VerifySubject(ctx context.Context, actor domain.Actor, subjectT
 		return domain.VerificationResult{}, ErrValidation
 	}
 	vr := verificationResult(newID("vr"), actor.TenantID, subjectType, subjectID, checks, profile, l.now())
+	if l.unitOfWork != nil {
+		job := l.newOutboxJob(actor.TenantID, "verify_subject", subjectType, subjectID, map[string]any{"result_id": vr.ID})
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Verification.InsertVerificationResult(ctx, vr); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(vr.VerifiedAt, actor.TenantID, "subject.verified", "verification_result", vr.ID, actorType(actor), actorID(actor), "", ""))
+			if err != nil {
+				return err
+			}
+			return repos.Outbox.Enqueue(ctx, job)
+		}); err != nil {
+			return domain.VerificationResult{}, err
+		}
+		l.verifications[vr.ID] = vr
+		l.publishCommittedAuditEntryLocked(entry)
+		if verificationReturnsFailure(vr.Result) {
+			return vr, ErrVerificationFailed
+		}
+		return vr, nil
+	}
 	l.verifications[vr.ID] = vr
 	job := l.newOutboxJob(actor.TenantID, "verify_subject", subjectType, subjectID, map[string]any{"result_id": vr.ID})
 	mutation, err := l.criticalMutationLocked()
@@ -2068,7 +2126,12 @@ func (s packageReportService) MissingEvidenceReport(ctx context.Context, actor d
 	}, nil
 }
 
-func (l *Ledger) WithIdempotency(ctx context.Context, actor domain.Actor, method, path, key string, body []byte, run func() (int, any, error)) (int, any, error) {
+// IdempotencyCommand runs application writes using the isolated ledger view
+// bound to the idempotency transaction. It must use the provided context and
+// ledger rather than retaining either after it returns.
+type IdempotencyCommand func(context.Context, *Ledger) (int, any, error)
+
+func (l *Ledger) WithIdempotency(ctx context.Context, actor domain.Actor, method, path, key string, body []byte, run IdempotencyCommand) (int, any, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, nil, err
 	}

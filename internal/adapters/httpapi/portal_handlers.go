@@ -26,7 +26,7 @@ func (s *Server) createCustomerPortalAccess(w http.ResponseWriter, r *http.Reque
 		Watermark     string    `json:"watermark"`
 		ExpiresAt     time.Time `json:"expires_at"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -49,7 +49,7 @@ func (s *Server) listCustomerPortalAccess(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) revokeCustomerPortalAccess(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
 		access, err := s.ledger.RevokeCustomerPortalAccess(ctx, actor, r.PathValue("id"))
 		return http.StatusOK, access, err
 	})
@@ -430,7 +430,7 @@ func (s *Server) createQuestionnaireTemplate(w http.ResponseWriter, r *http.Requ
 		Version   string                         `json:"version"`
 		Questions []domain.QuestionnaireQuestion `json:"questions"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -446,7 +446,7 @@ func (s *Server) createQuestionnairePackage(w http.ResponseWriter, r *http.Reque
 		ProductID  string `json:"product_id"`
 		ReleaseID  string `json:"release_id"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -466,7 +466,7 @@ func (s *Server) createQuestionnaireAnswerLibraryEntry(w http.ResponseWriter, r 
 		EvidenceIDs  []string `json:"evidence_ids"`
 		Limitations  []string `json:"limitations"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}

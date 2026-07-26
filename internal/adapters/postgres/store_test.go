@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -246,6 +247,92 @@ func TestStoreCanDisableSnapshotWritesAndLoadRelationalState(t *testing.T) {
 	}
 	if loaded.Products["prod_snapshot_disabled"].Name != "Relational Product" {
 		t.Fatalf("loaded products = %#v", loaded.Products)
+	}
+}
+
+func TestStoreCommitsIdempotentCommandAndReplayAtomically(t *testing.T) {
+	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("EVYDENCE_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	admin, err := Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close()
+	schema := "evydence_idempotency_atomic_" + strings.ReplaceAll(strings.ToLower(time.Now().Format("20060102150405.000000000")), ".", "_")
+	quotedSchema := pgx.Identifier{schema}.Sanitize()
+	if _, err := admin.pool.Exec(ctx, "CREATE SCHEMA "+quotedSchema); err != nil {
+		t.Fatal(err)
+	}
+	defer func(cleanupCtx context.Context) {
+		_, _ = admin.pool.Exec(cleanupCtx, "DROP SCHEMA "+quotedSchema+" CASCADE")
+	}(context.WithoutCancel(ctx))
+	store, err := OpenWithOptions(ctx, databaseURLWithSearchPath(t, databaseURL, schema), StoreOptions{LoadMode: LoadModeRelationalOnly, DisableSnapshotWrites: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if _, err := store.ApplyMigrations(ctx, "../../../migrations"); err != nil {
+		t.Fatal(err)
+	}
+	ledger, err := app.NewLedgerWithContext(ctx, app.Config{APIKeyPepper: "test-pepper", Store: store})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, secret, err := ledger.BootstrapTenant(ctx, "Atomic idempotency", "admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap tenant: %v", err)
+	}
+	actor, err := ledger.Authenticate(ctx, secret)
+	if err != nil {
+		t.Fatalf("authenticate actor: %v", err)
+	}
+
+	commandErr := errors.New("force transactional rollback")
+	if _, _, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/products", "rollback", []byte(`{"name":"Rollback","slug":"rollback"}`), func(ctx context.Context, commandLedger *app.Ledger) (int, any, error) {
+		if _, err := commandLedger.CreateProduct(ctx, actor, "Rollback", "rollback"); err != nil {
+			return 0, nil, err
+		}
+		return 500, nil, commandErr
+	}); !errors.Is(err, commandErr) {
+		t.Fatalf("rollback command err=%v, want command error", err)
+	}
+	var products int
+	if err := store.pool.QueryRow(ctx, `SELECT count(*) FROM products WHERE tenant_id = $1`, actor.TenantID).Scan(&products); err != nil {
+		t.Fatalf("count rolled-back products: %v", err)
+	}
+	if products != 0 {
+		t.Fatalf("rolled-back command created %d product rows", products)
+	}
+	var failed int
+	if err := store.pool.QueryRow(ctx, `SELECT count(*) FROM idempotency_records WHERE tenant_id = $1 AND state = 'failed'`, actor.TenantID).Scan(&failed); err != nil {
+		t.Fatalf("count failed idempotency records: %v", err)
+	}
+	if failed != 1 {
+		t.Fatalf("failed idempotency records=%d, want 1", failed)
+	}
+
+	status, _, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/products", "commit", []byte(`{"name":"Committed","slug":"committed"}`), func(ctx context.Context, commandLedger *app.Ledger) (int, any, error) {
+		product, err := commandLedger.CreateProduct(ctx, actor, "Committed", "committed")
+		return 201, product, err
+	})
+	if err != nil || status != 201 {
+		t.Fatalf("commit command status=%d err=%v", status, err)
+	}
+	if status, _, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/products", "commit", []byte(`{"name":"Committed","slug":"committed"}`), func(context.Context, *app.Ledger) (int, any, error) {
+		t.Fatal("committed request must replay after a lost client response")
+		return 0, nil, nil
+	}); err != nil || status != 201 {
+		t.Fatalf("committed replay status=%d err=%v", status, err)
+	}
+	if err := store.pool.QueryRow(ctx, `SELECT count(*) FROM products WHERE tenant_id = $1`, actor.TenantID).Scan(&products); err != nil {
+		t.Fatalf("count committed products: %v", err)
+	}
+	if products != 1 {
+		t.Fatalf("committed replay created %d product rows, want 1", products)
 	}
 }
 

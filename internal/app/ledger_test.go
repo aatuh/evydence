@@ -601,14 +601,14 @@ func TestIdempotencyReplayAndConflict(t *testing.T) {
 		t.Fatalf("auth: %v", err)
 	}
 	calls := 0
-	status, response, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/products", "idem-1", []byte(`{"name":"A"}`), func() (int, any, error) {
+	status, response, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/products", "idem-1", []byte(`{"name":"A"}`), func(context.Context, *Ledger) (int, any, error) {
 		calls++
 		return 201, map[string]string{"id": "prod_1"}, nil
 	})
 	if err != nil || status != 201 || response == nil {
 		t.Fatalf("first idempotent call status=%d response=%v err=%v", status, response, err)
 	}
-	status, response, err = ledger.WithIdempotency(ctx, actor, "POST", "/v1/products", "idem-1", []byte(`{"name":"A"}`), func() (int, any, error) {
+	status, response, err = ledger.WithIdempotency(ctx, actor, "POST", "/v1/products", "idem-1", []byte(`{"name":"A"}`), func(context.Context, *Ledger) (int, any, error) {
 		calls++
 		return 201, map[string]string{"id": "prod_2"}, nil
 	})
@@ -618,7 +618,7 @@ func TestIdempotencyReplayAndConflict(t *testing.T) {
 	if calls != 1 {
 		t.Fatalf("calls = %d, want 1", calls)
 	}
-	_, _, err = ledger.WithIdempotency(ctx, actor, "POST", "/v1/products", "idem-1", []byte(`{"name":"B"}`), func() (int, any, error) {
+	_, _, err = ledger.WithIdempotency(ctx, actor, "POST", "/v1/products", "idem-1", []byte(`{"name":"B"}`), func(context.Context, *Ledger) (int, any, error) {
 		return 201, nil, nil
 	})
 	if !errors.Is(err, ErrIdempotencyConflict) {
@@ -674,7 +674,7 @@ func TestIdempotencyIsScopedByHumanSessionActor(t *testing.T) {
 	if err != nil {
 		t.Fatalf("auth b: %v", err)
 	}
-	if _, _, err := ledger.WithIdempotency(ctx, actorA, "POST", "/v1/products", "shared", []byte(`{"name":"A"}`), func() (int, any, error) {
+	if _, _, err := ledger.WithIdempotency(ctx, actorA, "POST", "/v1/products", "shared", []byte(`{"name":"A"}`), func(context.Context, *Ledger) (int, any, error) {
 		return 201, map[string]any{"actor": "a"}, nil
 	}); err != nil {
 		t.Fatalf("idempotency a: %v", err)
@@ -687,7 +687,7 @@ func TestIdempotencyIsScopedByHumanSessionActor(t *testing.T) {
 			t.Fatalf("idempotency key did not parse: %q parsed=%#v ok=%v", key, parsed, ok)
 		}
 	}
-	status, response, err := ledger.WithIdempotency(ctx, actorB, "POST", "/v1/products", "shared", []byte(`{"name":"B"}`), func() (int, any, error) {
+	status, response, err := ledger.WithIdempotency(ctx, actorB, "POST", "/v1/products", "shared", []byte(`{"name":"B"}`), func(context.Context, *Ledger) (int, any, error) {
 		return 201, map[string]any{"actor": "b"}, nil
 	})
 	if err != nil {

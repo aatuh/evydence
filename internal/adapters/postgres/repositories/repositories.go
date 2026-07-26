@@ -1008,7 +1008,7 @@ func (r audit) Append(ctx context.Context, entry domain.AuditChainEntry) (domain
 type outbox struct{ tx pgx.Tx }
 
 func (r outbox) Enqueue(ctx context.Context, job app.OutboxJob) error {
-	if job.ID == "" || job.TenantID == "" || job.Kind == "" || job.SubjectType == "" || job.SubjectID == "" || job.CreatedAt.IsZero() {
+	if job.ID == "" || job.TenantID == "" || job.Kind == "" || job.SubjectType == "" || (job.SubjectID == "" && (job.Kind != "verify_subject" || job.SubjectType != "audit_chain")) || job.CreatedAt.IsZero() {
 		return app.ErrValidation
 	}
 	if err := requireTenant(ctx, r.tx, job.TenantID); err != nil {
@@ -2314,7 +2314,7 @@ func (r integrity) InsertTransparencyCheckpoint(ctx context.Context, checkpoint 
 type verification struct{ tx pgx.Tx }
 
 func (r verification) InsertVerificationResult(ctx context.Context, result domain.VerificationResult) error {
-	if result.ID == "" || result.TenantID == "" || result.SubjectType == "" || result.SubjectID == "" || result.Result == "" || result.VerifiedAt.IsZero() {
+	if result.ID == "" || result.TenantID == "" || result.SubjectType == "" || (result.SubjectID == "" && result.SubjectType != "audit_chain") || result.Result == "" || result.VerifiedAt.IsZero() {
 		return app.ErrValidation
 	}
 	if err := requireTenant(ctx, r.tx, result.TenantID); err != nil {

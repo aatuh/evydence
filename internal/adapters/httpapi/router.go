@@ -86,7 +86,7 @@ func (s *Server) createCollector(w http.ResponseWriter, r *http.Request) {
 		Version string   `json:"version"`
 		Scopes  []string `json:"scopes"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -122,7 +122,7 @@ func (s *Server) recordCollectorRelease(w http.ResponseWriter, r *http.Request) 
 		ScanID         string `json:"scan_id"`
 		Pinned         bool   `json:"pinned"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -159,7 +159,7 @@ func (s *Server) createControlFramework(w http.ResponseWriter, r *http.Request) 
 		Version     string `json:"version"`
 		Description string `json:"description"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -200,7 +200,7 @@ func (s *Server) listControlFrameworkTemplatePacks(w http.ResponseWriter, r *htt
 }
 
 func (s *Server) installControlFrameworkTemplatePack(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
 		framework, err := s.ledger.InstallControlFrameworkTemplatePack(ctx, actor, r.PathValue("slug"))
 		return http.StatusCreated, framework, err
 	})
@@ -216,7 +216,7 @@ func (s *Server) createSecurityControl(w http.ResponseWriter, r *http.Request) {
 		Applicability        []string                            `json:"applicability"`
 		Limitations          []string                            `json:"limitations"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -256,7 +256,7 @@ func (s *Server) linkControlEvidence(w http.ResponseWriter, r *http.Request) {
 		Confidence   string `json:"confidence"`
 		Notes        string `json:"notes"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -288,7 +288,7 @@ func (s *Server) listControlEvidence(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) createProduct(w http.ResponseWriter, r *http.Request) {
 	var req struct{ Name, Slug string }
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -328,7 +328,7 @@ func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
 		ProductID string `json:"product_id"`
 		Name      string `json:"name"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -355,7 +355,7 @@ func (s *Server) createRelease(w http.ResponseWriter, r *http.Request) {
 		ProductID string `json:"product_id"`
 		Version   string `json:"version"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -404,14 +404,14 @@ func (s *Server) releaseSecuritySummary(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) freezeRelease(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
 		release, err := s.ledger.FreezeRelease(ctx, actor, r.PathValue("id"))
 		return http.StatusOK, release, err
 	})
 }
 
 func (s *Server) approveRelease(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
 		release, err := s.ledger.ApproveRelease(ctx, actor, r.PathValue("id"))
 		return http.StatusOK, release, err
 	})
@@ -429,7 +429,7 @@ func (s *Server) createReleaseCandidate(w http.ResponseWriter, r *http.Request) 
 		ContractIDs []string `json:"contract_ids"`
 		BundleIDs   []string `json:"bundle_ids"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -479,7 +479,7 @@ func (s *Server) transitionReleaseCandidate(w http.ResponseWriter, r *http.Reque
 	var req struct {
 		Reason string `json:"reason"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -495,7 +495,7 @@ func (s *Server) registerArtifact(w http.ResponseWriter, r *http.Request) {
 		Digest    string `json:"digest"`
 		Size      int64  `json:"size"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -525,7 +525,7 @@ func (s *Server) registerContainerImage(w http.ResponseWriter, r *http.Request) 
 		Digest     string `json:"digest"`
 		Platform   string `json:"platform"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -545,7 +545,7 @@ func (s *Server) createArtifactSignature(w http.ResponseWriter, r *http.Request)
 		Payload          json.RawMessage `json:"payload"`
 		PayloadMediaType string          `json:"payload_media_type"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -578,7 +578,7 @@ func (s *Server) verifyCosignSignature(w http.ResponseWriter, r *http.Request) {
 		CertificateIssuer       string `json:"certificate_issuer"`
 		RequireFullVerification bool   `json:"require_full_verification"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -616,7 +616,7 @@ func (s *Server) createBuild(w http.ResponseWriter, r *http.Request) {
 		ProviderMetadata map[string]any       `json:"provider_metadata"`
 		Outputs          []domain.BuildOutput `json:"outputs"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -659,14 +659,14 @@ func (s *Server) getBuild(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) uploadBuildAttestation(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		attestation, err := s.ledger.UploadBuildAttestation(ctx, actor, r.PathValue("id"), body)
 		return http.StatusCreated, attestation, err
 	})
 }
 
 func (s *Server) verifyBuildAttestationSignature(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
 		result, err := s.ledger.VerifyDSSEAttestationSignature(ctx, actor, r.PathValue("id"))
 		return http.StatusOK, result, err
 	})
@@ -679,7 +679,7 @@ func (s *Server) createDSSETrustRoot(w http.ResponseWriter, r *http.Request) {
 		Algorithm string `json:"algorithm"`
 		PublicKey string `json:"public_key"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -696,7 +696,7 @@ func (s *Server) createSourceRepository(w http.ResponseWriter, r *http.Request) 
 		CloneURL      string `json:"clone_url"`
 		DefaultBranch string `json:"default_branch"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -728,7 +728,7 @@ func (s *Server) recordSourceCommit(w http.ResponseWriter, r *http.Request) {
 		Message      string    `json:"message"`
 		CommittedAt  time.Time `json:"committed_at"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -747,7 +747,7 @@ func (s *Server) upsertSourceBranch(w http.ResponseWriter, r *http.Request) {
 		Protected      bool   `json:"protected"`
 		ProtectionHash string `json:"protection_hash"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -770,7 +770,7 @@ func (s *Server) recordPullRequest(w http.ResponseWriter, r *http.Request) {
 		HeadCommitID   string `json:"head_commit_id"`
 		ReviewDecision string `json:"review_decision"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -783,14 +783,14 @@ func (s *Server) recordPullRequest(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) uploadGitHubSourceSnapshot(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		result, err := s.ledger.UploadGitHubSourceSnapshot(ctx, actor, body)
 		return http.StatusCreated, result, err
 	})
 }
 
 func (s *Server) uploadGitLabSourceSnapshot(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		result, err := s.ledger.UploadGitLabSourceSnapshot(ctx, actor, body)
 		return http.StatusCreated, result, err
 	})
@@ -802,7 +802,7 @@ func (s *Server) createDeploymentEnvironment(w http.ResponseWriter, r *http.Requ
 		Name      string `json:"name"`
 		Kind      string `json:"kind"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -834,7 +834,7 @@ func (s *Server) recordDeployment(w http.ResponseWriter, r *http.Request) {
 		FinishedAt    *time.Time `json:"finished_at"`
 		RollbackOf    string     `json:"rollback_of"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -880,7 +880,7 @@ func (s *Server) createIncident(w http.ResponseWriter, r *http.Request) {
 		Severity  string    `json:"severity"`
 		OpenedAt  time.Time `json:"opened_at"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -896,7 +896,7 @@ func (s *Server) recordIncidentTimeline(w http.ResponseWriter, r *http.Request) 
 		EvidenceID string    `json:"evidence_id"`
 		OccurredAt time.Time `json:"occurred_at"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -911,7 +911,7 @@ func (s *Server) createIncidentWebhookReceiver(w http.ResponseWriter, r *http.Re
 		Provider  string `json:"provider"`
 		PublicKey string `json:"public_key"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -954,7 +954,7 @@ func (s *Server) createRemediationTask(w http.ResponseWriter, r *http.Request) {
 		DueAt      *time.Time `json:"due_at"`
 		EvidenceID string     `json:"evidence_id"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -987,7 +987,7 @@ func (s *Server) uploadSecurityScan(w http.ResponseWriter, r *http.Request) {
 		TargetRef  string          `json:"target_ref"`
 		Payload    json.RawMessage `json:"payload"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -1006,7 +1006,7 @@ func (s *Server) uploadAPISecurityScan(w http.ResponseWriter, r *http.Request) {
 		TargetRef  string          `json:"target_ref"`
 		Payload    json.RawMessage `json:"payload"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -1025,7 +1025,7 @@ func (s *Server) uploadManualSecurityDocument(w http.ResponseWriter, r *http.Req
 		MediaType    string          `json:"media_type"`
 		Payload      json.RawMessage `json:"payload"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -1046,7 +1046,7 @@ func (s *Server) createWaiver(w http.ResponseWriter, r *http.Request) {
 		ExpiresAt  time.Time `json:"expires_at"`
 		Supersedes string    `json:"supersedes"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -1056,7 +1056,7 @@ func (s *Server) createWaiver(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) approveWaiver(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
 		waiver, err := s.ledger.ApproveWaiver(ctx, actor, r.PathValue("id"))
 		return http.StatusOK, waiver, err
 	})
@@ -1070,7 +1070,7 @@ func (s *Server) createApproval(w http.ResponseWriter, r *http.Request) {
 		Reason      string `json:"reason"`
 		EvidenceID  string `json:"evidence_id"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -1087,7 +1087,7 @@ func (s *Server) createRedactionProfile(w http.ResponseWriter, r *http.Request) 
 		AllowedTypes   []string `json:"allowed_types"`
 		ExcludedFields []string `json:"excluded_fields"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -1104,7 +1104,7 @@ func (s *Server) createCustomerPackage(w http.ResponseWriter, r *http.Request) {
 		Title              string    `json:"title"`
 		ExpiresAt          time.Time `json:"expires_at"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -1173,7 +1173,7 @@ func (s *Server) createReportTemplate(w http.ResponseWriter, r *http.Request) {
 		AllowedFields []string `json:"allowed_fields"`
 		Template      string   `json:"template"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -1187,7 +1187,7 @@ func (s *Server) renderReportTemplate(w http.ResponseWriter, r *http.Request) {
 		SubjectType string `json:"subject_type"`
 		SubjectID   string `json:"subject_id"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -1201,7 +1201,7 @@ func (s *Server) exportEvidenceBundle(w http.ResponseWriter, r *http.Request) {
 		ReleaseID   string   `json:"release_id"`
 		EvidenceIDs []string `json:"evidence_ids"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -1212,7 +1212,7 @@ func (s *Server) exportEvidenceBundle(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) importEvidenceBundle(w http.ResponseWriter, r *http.Request) {
 	var req domain.EvidenceBundle
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -1227,7 +1227,7 @@ func (s *Server) uploadSPDXSBOM(w http.ResponseWriter, r *http.Request) {
 		ArtifactID string          `json:"artifact_id"`
 		Payload    json.RawMessage `json:"payload"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -1242,7 +1242,7 @@ func (s *Server) createSBOMDiff(w http.ResponseWriter, r *http.Request) {
 		TargetSBOMID string `json:"target_sbom_id"`
 		ReleaseID    string `json:"release_id"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -1272,7 +1272,7 @@ func (s *Server) createEvidence(w http.ResponseWriter, r *http.Request) {
 		Tags             []string            `json:"tags"`
 		Limitations      []string            `json:"limitations"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -1367,7 +1367,7 @@ func (s *Server) supersedeEvidence(w http.ResponseWriter, r *http.Request) {
 		ReplacementEvidenceID string `json:"replacement_evidence_id"`
 		Reason                string `json:"reason"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -1381,7 +1381,7 @@ func (s *Server) linkEvidence(w http.ResponseWriter, r *http.Request) {
 		TargetType string `json:"target_type"`
 		TargetID   string `json:"target_id"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -1397,7 +1397,7 @@ func (s *Server) recordEvidenceLifecycleEvent(w http.ResponseWriter, r *http.Req
 		Details       map[string]any `json:"details"`
 		ReplacementID string         `json:"replacement_id"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -1427,7 +1427,7 @@ func (s *Server) uploadSBOM(w http.ResponseWriter, r *http.Request) {
 		ArtifactID string          `json:"artifact_id"`
 		Payload    json.RawMessage `json:"payload"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -1485,7 +1485,7 @@ func (s *Server) uploadVEX(w http.ResponseWriter, r *http.Request) {
 		ArtifactID string          `json:"artifact_id"`
 		Payload    json.RawMessage `json:"payload"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -1553,7 +1553,7 @@ func (s *Server) uploadCycloneDXVEX(w http.ResponseWriter, r *http.Request) {
 		ArtifactID string          `json:"artifact_id"`
 		Payload    json.RawMessage `json:"payload"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -1590,7 +1590,7 @@ func (s *Server) previewCycloneDXVEXImport(w http.ResponseWriter, r *http.Reques
 }
 
 func (s *Server) uploadVulnerabilityScan(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		scan, err := s.ledger.UploadVulnerabilityScan(ctx, actor, body)
 		return http.StatusCreated, scan, err
 	})
@@ -1623,7 +1623,7 @@ func (s *Server) createVulnerabilityDecision(w http.ResponseWriter, r *http.Requ
 		ReviewedAt      *time.Time          `json:"reviewed_at"`
 		ReviewDueAt     *time.Time          `json:"review_due_at"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -1679,7 +1679,7 @@ func (s *Server) recordVulnerabilityWorkflow(w http.ResponseWriter, r *http.Requ
 		Action string `json:"action"`
 		Reason string `json:"reason"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -1721,7 +1721,7 @@ func (s *Server) uploadOpenAPIContract(w http.ResponseWriter, r *http.Request) {
 		Version   string          `json:"version"`
 		Spec      json.RawMessage `json:"spec"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -1749,7 +1749,7 @@ func (s *Server) createOpenAPIDiff(w http.ResponseWriter, r *http.Request) {
 		TargetContractID string `json:"target_contract_id"`
 		ReleaseID        string `json:"release_id"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -1762,7 +1762,7 @@ func (s *Server) evaluatePolicy(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ReleaseID string `json:"release_id"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -1778,7 +1778,7 @@ func (s *Server) createCustomPolicy(w http.ResponseWriter, r *http.Request) {
 		Description string              `json:"description"`
 		Rules       []domain.PolicyRule `json:"rules"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -1791,7 +1791,7 @@ func (s *Server) evaluateCustomPolicy(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ReleaseID string `json:"release_id"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -1822,7 +1822,7 @@ func (s *Server) createException(w http.ResponseWriter, r *http.Request) {
 		Owner     string    `json:"owner"`
 		ExpiresAt time.Time `json:"expires_at"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -1852,7 +1852,7 @@ func (s *Server) listExceptions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) approveException(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
 		exception, err := s.ledger.ApproveException(ctx, actor, r.PathValue("id"))
 		return http.StatusOK, exception, err
 	})
@@ -1934,7 +1934,7 @@ func (s *Server) createReleaseBundle(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ReleaseID string `json:"release_id"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -2036,7 +2036,7 @@ func (s *Server) createMerkleBatch(w http.ResponseWriter, r *http.Request) {
 		FromSequence int64 `json:"from_sequence"`
 		ToSequence   int64 `json:"to_sequence"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -2065,7 +2065,7 @@ func (s *Server) createTransparencyCheckpoint(w http.ResponseWriter, r *http.Req
 		ExternalURL string `json:"external_url"`
 		ExternalID  string `json:"external_id"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -2084,7 +2084,7 @@ func (s *Server) createObjectRetentionPolicy(w http.ResponseWriter, r *http.Requ
 		RetentionDays           int    `json:"retention_days"`
 		MaxVerificationAgeHours int    `json:"max_verification_age_hours"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -2094,7 +2094,7 @@ func (s *Server) createObjectRetentionPolicy(w http.ResponseWriter, r *http.Requ
 }
 
 func (s *Server) verifyObjectRetentionPolicy(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
 		policy, err := s.ledger.VerifyObjectRetentionPolicy(ctx, actor, r.PathValue("id"))
 		return http.StatusOK, policy, err
 	})
@@ -2114,7 +2114,7 @@ func (s *Server) signingCustodyReviewReport(w http.ResponseWriter, r *http.Reque
 }
 
 func (s *Server) generateBackupManifest(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
 		manifest, err := s.ledger.GenerateBackupManifest(ctx, actor)
 		return http.StatusCreated, manifest, err
 	})
@@ -2150,7 +2150,7 @@ func (s *Server) rotateSigningKey(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Reason string `json:"reason"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if len(bytes.TrimSpace(body)) > 0 {
 			if err := decodeJSON(body, &req); err != nil {
 				return 0, nil, err
@@ -2165,7 +2165,7 @@ func (s *Server) revokeSigningKey(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Reason string `json:"reason"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if len(bytes.TrimSpace(body)) > 0 {
 			if err := decodeJSON(body, &req); err != nil {
 				return 0, nil, err
@@ -2183,7 +2183,7 @@ func (s *Server) createSigningProvider(w http.ResponseWriter, r *http.Request) {
 		KeyRef    string `json:"key_ref"`
 		Encrypted bool   `json:"encrypted"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -2200,7 +2200,7 @@ func (s *Server) createCommercialCollector(w http.ResponseWriter, r *http.Reques
 		ManifestHash  string   `json:"manifest_hash"`
 		AllowedScopes []string `json:"allowed_scopes"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -2233,7 +2233,7 @@ func (s *Server) verifySubject(w http.ResponseWriter, r *http.Request) {
 		SubjectType string `json:"subject_type"`
 		SubjectID   string `json:"subject_id"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -2248,7 +2248,7 @@ func (s *Server) createAPIKey(w http.ResponseWriter, r *http.Request) {
 		Scopes    []string   `json:"scopes"`
 		ExpiresAt *time.Time `json:"expires_at"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -2270,7 +2270,7 @@ func (s *Server) listAPIKeys(w http.ResponseWriter, r *http.Request) {
 	writeData(w, http.StatusOK, keys)
 }
 
-func (s *Server) create(w http.ResponseWriter, r *http.Request, run func(requestContext, domain.Actor, []byte) (int, any, error)) {
+func (s *Server) create(w http.ResponseWriter, r *http.Request, run func(*Server, requestContext, domain.Actor, []byte) (int, any, error)) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
 		return
@@ -2281,8 +2281,10 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request, run func(request
 		writeProblem(w, r, err)
 		return
 	}
-	status, response, err := s.ledger.WithIdempotency(ctx, actor, r.Method, r.URL.Path, r.Header.Get("Idempotency-Key"), body, func() (int, any, error) {
-		return run(ctx, actor, body)
+	status, response, err := s.ledger.WithIdempotency(ctx, actor, r.Method, r.URL.Path, r.Header.Get("Idempotency-Key"), body, func(commandCtx context.Context, commandLedger *app.Ledger) (int, any, error) {
+		commandServer := *s
+		commandServer.ledger = commandLedger
+		return run(&commandServer, commandCtx, actor, body)
 	})
 	if err != nil {
 		writeProblem(w, r, err)

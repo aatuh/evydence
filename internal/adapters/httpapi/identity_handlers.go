@@ -28,7 +28,7 @@ func (s *Server) createOrganization(w http.ResponseWriter, r *http.Request) {
 		Name string `json:"name"`
 		Slug string `json:"slug"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -43,7 +43,7 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 		Email          string `json:"email"`
 		DisplayName    string `json:"display_name"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -53,7 +53,7 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) deactivateUser(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
 		user, err := s.ledger.DeactivateUser(ctx, actor, r.PathValue("id"))
 		return http.StatusOK, user, err
 	})
@@ -67,7 +67,7 @@ func (s *Server) createRoleBinding(w http.ResponseWriter, r *http.Request) {
 		ResourceType string `json:"resource_type"`
 		ResourceID   string `json:"resource_id"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -100,7 +100,7 @@ func (s *Server) createSSOProvider(w http.ResponseWriter, r *http.Request) {
 		JWKS                    map[string]any    `json:"jwks"`
 		SAMLSigningCertificates []string          `json:"saml_signing_certificates"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -114,7 +114,7 @@ func (s *Server) updateSSOProviderTrustMaterial(w http.ResponseWriter, r *http.R
 		JWKS                    map[string]any `json:"jwks"`
 		SAMLSigningCertificates []string       `json:"saml_signing_certificates"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -124,7 +124,7 @@ func (s *Server) updateSSOProviderTrustMaterial(w http.ResponseWriter, r *http.R
 }
 
 func (s *Server) refreshSSOProviderOIDCTrustMaterial(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
 		provider, err := s.ledger.RefreshSSOProviderOIDCTrustMaterial(ctx, actor, r.PathValue("id"))
 		return http.StatusOK, provider, err
 	})
@@ -138,7 +138,7 @@ func (s *Server) linkSSOIdentity(w http.ResponseWriter, r *http.Request) {
 		Email      string `json:"email"`
 		Verified   bool   `json:"verified"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -153,7 +153,7 @@ func (s *Server) createSSOSession(w http.ResponseWriter, r *http.Request) {
 		ProviderID string    `json:"provider_id"`
 		ExpiresAt  time.Time `json:"expires_at"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -189,14 +189,14 @@ func (s *Server) exchangeSSOCredential(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) revokeSSOSession(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
 		session, err := s.ledger.RevokeSSOSession(ctx, actor, r.PathValue("id"))
 		return http.StatusOK, session, err
 	})
 }
 
 func (s *Server) logoutSSOSession(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
 		session, err := s.ledger.RevokeCurrentSSOSession(ctx, actor)
 		if err == nil {
 			clearSSOSessionCookie(w)

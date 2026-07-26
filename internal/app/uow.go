@@ -12,12 +12,32 @@ import (
 // It must not retain them after returning.
 type UnitOfWorkCommand func(context.Context, Repositories) error
 
+type activeUnitOfWorkContextKey struct{}
+
+type activeUnitOfWork struct {
+	repositories Repositories
+}
+
+func activeRepositories(ctx context.Context) (Repositories, bool) {
+	active, ok := ctx.Value(activeUnitOfWorkContextKey{}).(activeUnitOfWork)
+	return active.repositories, ok
+}
+
+func withActiveRepositories(ctx context.Context, repositories Repositories) context.Context {
+	return context.WithValue(ctx, activeUnitOfWorkContextKey{}, activeUnitOfWork{repositories: repositories})
+}
+
 // ExecuteUnitOfWork runs a transaction-backed application command using this
 // ledger's configured persistence factory.
 func (l *Ledger) ExecuteUnitOfWork(ctx context.Context, command UnitOfWorkCommand) error {
 	if l == nil || l.unitOfWork == nil {
 		return ErrValidation
 	}
+	if repositories, ok := activeRepositories(ctx); ok {
+		return command(ctx, repositories)
+	}
+	l.transactionGate.RLock()
+	defer l.transactionGate.RUnlock()
 	return ExecuteUnitOfWork(ctx, l.unitOfWork, command)
 }
 
@@ -55,6 +75,9 @@ func ExecuteUnitOfWork(ctx context.Context, factory UnitOfWorkFactory, command U
 	}
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	if repositories, ok := activeRepositories(ctx); ok {
+		return command(ctx, repositories)
 	}
 	uow, err := factory.BeginUnitOfWork(ctx)
 	if err != nil {

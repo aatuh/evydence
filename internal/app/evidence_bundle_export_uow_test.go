@@ -14,6 +14,57 @@ func (failingEvidenceBundleRepository) InsertEvidenceBundle(context.Context, dom
 	return errInjectedRepositoryFailure
 }
 
+type failingReleaseBundleRepository struct{ PackageRepository }
+
+func (failingReleaseBundleRepository) InsertReleaseBundle(context.Context, domain.ReleaseBundle) error {
+	return errInjectedRepositoryFailure
+}
+
+func TestReleaseBundleUsesUnitOfWorkAndPublishesOnlyAfterCommit(t *testing.T) {
+	ctx := context.Background()
+	memory := NewMemoryUnitOfWorkFactory()
+	ledger, _, actor := newReleaseEvidenceUnitOfWorkFixture(t, memory)
+	product, err := ledger.CreateProduct(ctx, actor, "Release bundle", "release-bundle")
+	if err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	release, err := ledger.CreateRelease(ctx, actor, product.ID, "1.0.0")
+	if err != nil {
+		t.Fatalf("create release: %v", err)
+	}
+	beforeAudit := len(ledger.chain[actor.TenantID])
+	bundle, err := ledger.CreateReleaseBundle(ctx, actor, release.ID)
+	if err != nil {
+		t.Fatalf("create release bundle: %v", err)
+	}
+	snapshot, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot after release bundle: %v", err)
+	}
+	if snapshot.ReleaseBundles[bundle.ID].ID != bundle.ID || len(bundle.SignatureRefs) != 1 || snapshot.Signatures[bundle.SignatureRefs[0]].ID != bundle.SignatureRefs[0] || len(snapshot.AuditEntries[actor.TenantID]) != beforeAudit+1 || len(snapshot.OutboxJobs) != 1 {
+		t.Fatalf("release bundle was not committed atomically: %#v", snapshot)
+	}
+
+	ledger.unitOfWork = repositoryFailingUnitOfWorkFactory{inner: memory, decorate: func(repositories Repositories) Repositories {
+		repositories.Packages = failingReleaseBundleRepository{PackageRepository: repositories.Packages}
+		return repositories
+	}}
+	beforeBundles, beforeSignatures, beforeAudit := len(ledger.bundles), len(ledger.signatures), len(ledger.chain[actor.TenantID])
+	if _, err := ledger.CreateReleaseBundle(ctx, actor, release.ID); !errors.Is(err, errInjectedRepositoryFailure) {
+		t.Fatalf("failed release bundle err=%v, want injected repository failure", err)
+	}
+	if len(ledger.bundles) != beforeBundles || len(ledger.signatures) != beforeSignatures || len(ledger.chain[actor.TenantID]) != beforeAudit {
+		t.Fatal("failed release bundle published cached state")
+	}
+	after, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot after failed release bundle: %v", err)
+	}
+	if len(after.ReleaseBundles) != len(snapshot.ReleaseBundles) || len(after.Signatures) != len(snapshot.Signatures) || len(after.AuditEntries[actor.TenantID]) != len(snapshot.AuditEntries[actor.TenantID]) || len(after.OutboxJobs) != len(snapshot.OutboxJobs) {
+		t.Fatalf("failed release bundle published durable state: before=%#v after=%#v", snapshot, after)
+	}
+}
+
 func TestEvidenceBundleExportUsesUnitOfWorkAndPublishesOnlyAfterCommit(t *testing.T) {
 	ctx := context.Background()
 	memory := NewMemoryUnitOfWorkFactory()

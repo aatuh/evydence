@@ -44,8 +44,13 @@ For 24 hours after reservation:
   later request using the same key and request digest. The transition is
   conditional, so only one recovery owner is recorded.
 - A failed key returns `409` with `IDEMPOTENCY_REQUEST_FAILED`. Its original
-  error and any partial response are not stored or replayed. The safe failure
-  replay policy is defined with atomic command execution work.
+  error and any partial response are not stored or replayed.
+
+For create endpoints that issue a one-time credential, such as an API key or
+collector key, the initial response includes the raw credential once. The
+durable replay envelope deliberately omits that field. A retry after a
+transport failure returns the created public resource but cannot recover the
+credential; create a replacement credential through the normal rotation flow.
 
 After retention expires, the key is eligible for cleanup and is no longer a
 replay guarantee. Clients that require a retry must keep the same key and

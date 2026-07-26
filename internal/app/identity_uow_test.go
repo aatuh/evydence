@@ -223,7 +223,7 @@ func TestIdentityWritesCommitCredentialSecretsBeforePublication(t *testing.T) {
 	if revoked, err := ledger.RevokeCustomerPortalAccess(ctx, actor, portalAccess.ID); err != nil || revoked.RevokedAt == nil || revoked.Hash != "" {
 		t.Fatalf("revoke portal access result=%#v err=%v", revoked, err)
 	}
-	if status, _, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/test", "identity-uow", []byte(`{"kind":"identity"}`), func() (int, any, error) { return 201, map[string]any{"created": true}, nil }); err != nil || status != 201 {
+	if status, _, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/test", "identity-uow", []byte(`{"kind":"identity"}`), func(context.Context, *Ledger) (int, any, error) { return 201, map[string]any{"created": true}, nil }); err != nil || status != 201 {
 		t.Fatalf("persist idempotency record status=%d err=%v", status, err)
 	}
 	snapshot, err = memory.Snapshot()
@@ -266,7 +266,7 @@ func TestIdentityWritesCommitCredentialSecretsBeforePublication(t *testing.T) {
 		repositories.Idempotency = failingIdempotencyRepository{IdempotencyRepository: repositories.Idempotency}
 		return repositories
 	}}
-	if _, _, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/test", "idempotency-failed", []byte(`{"kind":"identity"}`), func() (int, any, error) { return 201, map[string]any{"created": true}, nil }); !errors.Is(err, errInjectedRepositoryFailure) {
+	if _, _, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/test", "idempotency-failed", []byte(`{"kind":"identity"}`), func(context.Context, *Ledger) (int, any, error) { return 201, map[string]any{"created": true}, nil }); !errors.Is(err, errInjectedRepositoryFailure) {
 		t.Fatalf("failed idempotency persistence err=%v", err)
 	}
 	afterIdempotencyFailure, err := memory.Snapshot()

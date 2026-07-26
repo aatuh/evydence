@@ -136,7 +136,7 @@ func TestIdempotencyStateMachineMigratesLegacyReplayRecords(t *testing.T) {
 	if _, err := store.pool.Exec(ctx, `
 		INSERT INTO idempotency_records (
 			tenant_id, actor_key_id, method, path, idempotency_key, request_hash, status, response, created_at
-		) VALUES ('ten_legacy_idempotency', 'key_legacy_idempotency', 'POST', '/v1/products', 'legacy-key', 'sha256:legacy-request', 201, '{"id":"prod_legacy"}'::jsonb, $1)
+		) VALUES ('ten_legacy_idempotency', 'key_legacy_idempotency', 'POST', '/v1/products', 'legacy-key', 'sha256:legacy-request', 201, '{"id":"prod_legacy","secret":"legacy-one-time-secret"}'::jsonb, $1)
 	`, now); err != nil {
 		t.Fatalf("insert legacy idempotency record: %v", err)
 	}
@@ -162,8 +162,8 @@ func TestIdempotencyStateMachineMigratesLegacyReplayRecords(t *testing.T) {
 		t.Fatalf("legacy replay result=%#v err=%v, want completed replay", result, err)
 	}
 	response, ok := result.Record.Response.(map[string]any)
-	if !ok || response["id"] != "prod_legacy" {
-		t.Fatalf("legacy replay response=%#v, want original response", result.Record.Response)
+	if !ok || response["id"] != "prod_legacy" || response["secret"] != nil {
+		t.Fatalf("legacy replay response=%#v, want redacted resource response", result.Record.Response)
 	}
 	if result.Record.State != app.IdempotencyCompleted || result.Record.CompletedAt == nil || result.Record.ExpiresAt.Before(now.Add(23*time.Hour)) {
 		t.Fatalf("legacy record was not upgraded with completed retention metadata: %#v", result.Record)

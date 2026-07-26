@@ -1318,7 +1318,7 @@ func (r memoryOutboxRepository) Enqueue(ctx context.Context, job OutboxJob) erro
 		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
 			return err
 		}
-		if cloned.ID == "" || cloned.Kind == "" || cloned.SubjectType == "" || cloned.SubjectID == "" || cloned.CreatedAt.IsZero() {
+		if cloned.ID == "" || cloned.Kind == "" || cloned.SubjectType == "" || (cloned.SubjectID == "" && (cloned.Kind != "verify_subject" || cloned.SubjectType != "audit_chain")) || cloned.CreatedAt.IsZero() {
 			return ErrValidation
 		}
 		if _, exists := state.OutboxJobs[cloned.ID]; exists {
@@ -2821,7 +2821,7 @@ func (r memoryVerificationRepository) InsertVerificationResult(ctx context.Conte
 		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
 			return err
 		}
-		if cloned.ID == "" || cloned.SubjectType == "" || cloned.SubjectID == "" || cloned.Result == "" || cloned.VerifiedAt.IsZero() {
+		if cloned.ID == "" || cloned.SubjectType == "" || (cloned.SubjectID == "" && cloned.SubjectType != "audit_chain") || cloned.Result == "" || cloned.VerifiedAt.IsZero() {
 			return ErrValidation
 		}
 		if _, exists := state.VerificationResults[cloned.ID]; exists {

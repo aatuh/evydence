@@ -15,7 +15,7 @@ func (s *Server) createLegalHold(w http.ResponseWriter, r *http.Request) {
 		Reason    string `json:"reason"`
 		Owner     string `json:"owner"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -32,7 +32,7 @@ func (s *Server) createRetentionOverride(w http.ResponseWriter, r *http.Request)
 		Reason         string    `json:"reason"`
 		Owner          string    `json:"owner"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}

@@ -562,6 +562,24 @@ func TestCreateProductRequiresAuthAndIdempotency(t *testing.T) {
 	}
 }
 
+func TestIdempotencyReplayOmitsOneTimeAPIKeySecret(t *testing.T) {
+	server, secret := testServer(t)
+	payload := map[string]any{"name": "automation", "scopes": []string{"evidence:read"}}
+	first := postJSON(t, server, secret, "/v1/api-keys", "one-time-api-key", payload, http.StatusCreated)
+	oneTimeSecret := nestedDataField(t, first, "secret")
+	if oneTimeSecret == "" {
+		t.Fatalf("first API key response did not include its one-time secret: %s", first)
+	}
+	replay := postJSON(t, server, secret, "/v1/api-keys", "one-time-api-key", payload, http.StatusCreated)
+	if strings.Contains(replay, oneTimeSecret) || strings.Contains(replay, `"secret"`) {
+		t.Fatalf("idempotency replay leaked one-time API key secret: %s", replay)
+	}
+	keys := getJSON(t, server, secret, "/v1/api-keys", http.StatusOK)
+	if strings.Count(keys, `"name":"automation"`) != 1 {
+		t.Fatalf("idempotency replay created duplicate API keys: %s", keys)
+	}
+}
+
 func TestProductProjectArtifactReadEndpoints(t *testing.T) {
 	server, secret := testServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "ci-read-product", map[string]any{"name": "Payments", "slug": "ci-read-payments"}, http.StatusCreated)

@@ -13,7 +13,7 @@ func (s *Server) createEvidenceSummary(w http.ResponseWriter, r *http.Request) {
 		SubjectID   string   `json:"subject_id"`
 		EvidenceIDs []string `json:"evidence_ids"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -28,7 +28,7 @@ func (s *Server) createQuestionnaireDraft(w http.ResponseWriter, r *http.Request
 		ProductID  string `json:"product_id"`
 		ReleaseID  string `json:"release_id"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -42,7 +42,7 @@ func (s *Server) createGraphSnapshot(w http.ResponseWriter, r *http.Request) {
 		ProductID string `json:"product_id"`
 		ReleaseID string `json:"release_id"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -58,7 +58,7 @@ func (s *Server) createSaaSEditionProfile(w http.ResponseWriter, r *http.Request
 		AdminTenantID  string `json:"admin_tenant_id"`
 		IsolationModel string `json:"isolation_model"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -73,7 +73,7 @@ func (s *Server) createPublicTransparencyLog(w http.ResponseWriter, r *http.Requ
 		Endpoint  string `json:"endpoint"`
 		PublicKey string `json:"public_key"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -88,7 +88,7 @@ func (s *Server) publishPublicTransparencyLogEntry(w http.ResponseWriter, r *htt
 		CheckpointID string `json:"checkpoint_id"`
 		ExternalID   string `json:"external_id"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -105,7 +105,7 @@ func (s *Server) verifyPublicTransparencyLogEntry(w http.ResponseWriter, r *http
 		TreeSize       int      `json:"tree_size"`
 		InclusionProof []string `json:"inclusion_proof"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -121,7 +121,7 @@ func (s *Server) verifyPublicTransparencyLogEntry(w http.ResponseWriter, r *http
 }
 
 func (s *Server) fetchPublicTransparencyLogEntryProof(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
 		entry, err := s.ledger.FetchAndVerifyPublicTransparencyLogEntry(ctx, actor, r.PathValue("id"))
 		return http.StatusOK, entry, err
 	})
@@ -138,7 +138,7 @@ func (s *Server) createMarketplaceCollector(w http.ResponseWriter, r *http.Reque
 		SBOMID       string `json:"sbom_id"`
 		ScanID       string `json:"scan_id"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -180,7 +180,7 @@ func (s *Server) createPDFReportPackage(w http.ResponseWriter, r *http.Request) 
 		ReleaseID  string `json:"release_id"`
 		Title      string `json:"title"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -194,7 +194,7 @@ func (s *Server) generateAnomalyReport(w http.ResponseWriter, r *http.Request) {
 		SubjectType string `json:"subject_type"`
 		SubjectID   string `json:"subject_id"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -211,7 +211,7 @@ func (s *Server) createSigningOperation(w http.ResponseWriter, r *http.Request) 
 		PayloadHash       string `json:"payload_hash"`
 		ExternalSignature string `json:"external_signature"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -229,7 +229,7 @@ func (s *Server) verifyProviderIdentity(w http.ResponseWriter, r *http.Request) 
 		SAMLAssertion string `json:"saml_assertion"`
 		AccessToken   string `json:"access_token"`
 	}
-	s.create(w, r, func(ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
