@@ -295,6 +295,13 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Packages.InsertEvidenceBundleImport(ctx, domain.EvidenceBundleImport{ID: "bundle_import_repository", TenantID: tenant.ID, BundleHash: "sha256:" + strings.Repeat("5", 64), Result: "accepted", ImportedCount: 1, SchemaVersion: domain.EvidenceBundleImportVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert evidence bundle import: %v", err)
 	}
+	policy := domain.CustomPolicy{ID: "custom_policy_repository", TenantID: tenant.ID, Name: "Repository policy", Version: "1", Rules: []domain.PolicyRule{{Name: "SBOM", EvidenceType: "sbom", Severity: "high", Required: true}}, SchemaVersion: domain.CustomPolicySchemaVersion, CreatedAt: now}
+	if err := repositories.Risk.InsertCustomPolicy(ctx, policy); err != nil {
+		t.Fatalf("insert custom policy: %v", err)
+	}
+	if err := repositories.Risk.InsertCustomPolicyEvaluation(ctx, domain.CustomPolicyEvaluation{ID: "custom_policy_evaluation_repository", TenantID: tenant.ID, PolicyID: policy.ID, ReleaseID: release.ID, Result: "passed", Checks: []domain.PolicyCheck{{Name: "SBOM", Result: "passed", Severity: "high"}}, InputHash: "sha256:" + strings.Repeat("6", 64), SchemaVersion: domain.CustomPolicyEvalSchemaVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert custom policy evaluation: %v", err)
+	}
 	if err := repositories.Governance.InsertDSSETrustRoot(ctx, domain.DSSETrustRoot{ID: "dtr_repository", TenantID: tenant.ID, Name: "Repository root", KeyID: "repository-root", Algorithm: "Ed25519", PublicKey: strings.Repeat("A", 43) + "=", Status: "active", SchemaVersion: domain.DSSETrustRootSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert DSSE trust root: %v", err)
 	}
@@ -667,6 +674,8 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"customer security package", repositories.Packages.InsertCustomerSecurityPackage(ctx, domain.CustomerSecurityPackage{})},
 		{"customer security package access", repositories.Packages.UpdateCustomerSecurityPackageAccess(ctx, domain.CustomerSecurityPackage{}, domain.CustomerSecurityPackage{})},
 		{"evidence bundle import", repositories.Packages.InsertEvidenceBundleImport(ctx, domain.EvidenceBundleImport{})},
+		{"custom policy", repositories.Risk.InsertCustomPolicy(ctx, domain.CustomPolicy{})},
+		{"custom policy evaluation", repositories.Risk.InsertCustomPolicyEvaluation(ctx, domain.CustomPolicyEvaluation{})},
 		{"HTML report package", repositories.Packages.InsertHTMLReportPackage(ctx, domain.HTMLReportPackage{})},
 		{"custom report template", repositories.Packages.InsertCustomReportTemplate(ctx, domain.CustomReportTemplate{})},
 		{"rendered custom report", repositories.Packages.InsertRenderedCustomReport(ctx, domain.RenderedCustomReport{})},

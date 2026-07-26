@@ -74,6 +74,8 @@ type MemoryUnitOfWorkSnapshot struct {
 	ReleaseBundles            map[string]domain.ReleaseBundle
 	CustomerPackages          map[string]domain.CustomerSecurityPackage
 	BundleImports             map[string]domain.EvidenceBundleImport
+	CustomPolicies            map[string]domain.CustomPolicy
+	CustomPolicyEvaluations   map[string]domain.CustomPolicyEvaluation
 	HTMLReports               map[string]domain.HTMLReportPackage
 	ReportTemplates           map[string]domain.CustomReportTemplate
 	RenderedReports           map[string]domain.RenderedCustomReport
@@ -151,6 +153,7 @@ func (u *memoryUnitOfWork) Repositories() Repositories {
 		Source:         memorySourceRepository{uow: u},
 		Deployments:    memoryDeploymentRepository{uow: u},
 		Packages:       memoryPackageRepository{uow: u},
+		Risk:           memoryRiskRepository{uow: u},
 		Signatures:     memorySignatureRepository{uow: u},
 		Integrity:      memoryIntegrityRepository{uow: u},
 		Verification:   memoryVerificationRepository{uow: u},
@@ -1581,6 +1584,61 @@ func (r memoryBuildRepository) InsertBuildAttestation(ctx context.Context, attes
 
 type memoryPackageRepository struct{ uow *memoryUnitOfWork }
 
+type memoryRiskRepository struct{ uow *memoryUnitOfWork }
+
+func (r memoryRiskRepository) InsertCustomPolicy(ctx context.Context, policy domain.CustomPolicy) error {
+	cloned, err := cloneMemoryJSON(policy)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.Name == "" || cloned.Version == "" || len(cloned.Rules) == 0 || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		for _, rule := range cloned.Rules {
+			if rule.Name == "" || rule.Severity == "" || (rule.EvidenceType != "" && !validPolicyEvidenceType(rule.EvidenceType)) {
+				return ErrValidation
+			}
+		}
+		if _, exists := state.CustomPolicies[cloned.ID]; exists {
+			return ErrConflict
+		}
+		for _, existing := range state.CustomPolicies {
+			if existing.TenantID == cloned.TenantID && existing.Name == cloned.Name && existing.Version == cloned.Version {
+				return ErrConflict
+			}
+		}
+		state.CustomPolicies[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func (r memoryRiskRepository) InsertCustomPolicyEvaluation(ctx context.Context, evaluation domain.CustomPolicyEvaluation) error {
+	cloned, err := cloneMemoryJSON(evaluation)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.PolicyID == "" || cloned.ReleaseID == "" || cloned.Result == "" || cloned.Checks == nil || !validDigest(cloned.InputHash) || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if !memoryResourceBelongsToTenant(cloned.PolicyID, cloned.TenantID, state.CustomPolicies) || !memoryResourceBelongsToTenant(cloned.ReleaseID, cloned.TenantID, state.Releases) {
+			return ErrNotFound
+		}
+		if _, exists := state.CustomPolicyEvaluations[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.CustomPolicyEvaluations[cloned.ID] = cloned
+		return nil
+	})
+}
+
 type memorySourceRepository struct{ uow *memoryUnitOfWork }
 
 type memoryDeploymentRepository struct{ uow *memoryUnitOfWork }
@@ -2933,6 +2991,8 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		ReleaseBundles:            map[string]domain.ReleaseBundle{},
 		CustomerPackages:          map[string]domain.CustomerSecurityPackage{},
 		BundleImports:             map[string]domain.EvidenceBundleImport{},
+		CustomPolicies:            map[string]domain.CustomPolicy{},
+		CustomPolicyEvaluations:   map[string]domain.CustomPolicyEvaluation{},
 		HTMLReports:               map[string]domain.HTMLReportPackage{},
 		ReportTemplates:           map[string]domain.CustomReportTemplate{},
 		RenderedReports:           map[string]domain.RenderedCustomReport{},
@@ -3125,6 +3185,12 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.BundleImports, err = cloneMemoryMap(snapshot.BundleImports); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.CustomPolicies, err = cloneMemoryMap(snapshot.CustomPolicies); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.CustomPolicyEvaluations, err = cloneMemoryMap(snapshot.CustomPolicyEvaluations); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.HTMLReports, err = cloneMemoryMap(snapshot.HTMLReports); err != nil {
@@ -3330,6 +3396,8 @@ func memoryResourceTenantID(resource any) string {
 	case domain.CustomerSecurityPackage:
 		return value.TenantID
 	case domain.RedactionProfile:
+		return value.TenantID
+	case domain.CustomPolicy:
 		return value.TenantID
 	default:
 		return ""

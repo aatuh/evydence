@@ -62,12 +62,10 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 | --- | --- | --- | --- |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `ExportEvidenceBundle` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `CreateContractDiff` | `persistLocked` |
-| risk and security workflows | `internal/app/risk_workflows.go` | `CreateCustomPolicy` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `CreateIncident` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `CreateIncidentWebhookReceiver` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `CreateRemediationTask` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `CreateSBOMDiff` | `persistLocked` |
-| risk and security workflows | `internal/app/risk_workflows.go` | `EvaluateCustomPolicy` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `HandleIncidentWebhook` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `RecordIncidentTimelineEvent` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `RecordVulnerabilityWorkflow` | `persistLocked` |
@@ -152,6 +150,8 @@ These commands commit through focused repositories whenever `UnitOfWorkFactory` 
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `UpsertSourceBranch` | `persistLocked` |
 | release ledger and signing | `internal/app/ledger.go` | `EvaluateRelease` | `persistLocked` |
 | release ledger and signing | `internal/app/ledger.go` | `RotateSigningKey` | `persistLocked` |
+| risk and security workflows | `internal/app/risk_workflows.go` | `CreateCustomPolicy` | `persistLocked` |
+| risk and security workflows | `internal/app/risk_workflows.go` | `EvaluateCustomPolicy` | `persistLocked` |
 
 ## Next Decomposition Order
 

@@ -37,6 +37,7 @@ func New(tx pgx.Tx) app.Repositories {
 		Source:         source{tx: tx},
 		Deployments:    deployments{tx: tx},
 		Packages:       packages{tx: tx},
+		Risk:           risk{tx: tx},
 		Signatures:     signatures{tx: tx},
 		Integrity:      integrity{tx: tx},
 		Verification:   verification{tx: tx},
@@ -1463,6 +1464,8 @@ func (r builds) InsertBuildAttestation(ctx context.Context, attestation domain.B
 
 type packages struct{ tx pgx.Tx }
 
+type risk struct{ tx pgx.Tx }
+
 type source struct{ tx pgx.Tx }
 
 type deployments struct{ tx pgx.Tx }
@@ -1789,6 +1792,47 @@ func (r packages) InsertRenderedCustomReport(ctx context.Context, report domain.
 	}
 	_, err = r.tx.Exec(ctx, `INSERT INTO rendered_reports (id, tenant_id, template_id, subject_type, subject_id, output, hash, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, report.ID, report.TenantID, report.TemplateID, report.SubjectType, report.SubjectID, output, report.Hash, report.SchemaVersion, report.CreatedAt)
 	return writeError("insert rendered custom report", err)
+}
+
+func (r risk) InsertCustomPolicy(ctx context.Context, policy domain.CustomPolicy) error {
+	if policy.ID == "" || policy.TenantID == "" || policy.Name == "" || policy.Version == "" || len(policy.Rules) == 0 || policy.SchemaVersion == "" || policy.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	for _, rule := range policy.Rules {
+		if rule.Name == "" || rule.Severity == "" || (rule.EvidenceType != "" && !validPolicyEvidenceType(rule.EvidenceType)) {
+			return app.ErrValidation
+		}
+	}
+	if err := requireTenant(ctx, r.tx, policy.TenantID); err != nil {
+		return err
+	}
+	rules, err := json.Marshal(policy.Rules)
+	if err != nil {
+		return fmt.Errorf("encode custom policy rules: %w", err)
+	}
+	_, err = r.tx.Exec(ctx, `INSERT INTO custom_policies (id, tenant_id, name, version, description, rules, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`, policy.ID, policy.TenantID, policy.Name, policy.Version, nullableString(policy.Description), rules, policy.SchemaVersion, policy.CreatedAt)
+	return writeError("insert custom policy", err)
+}
+
+func (r risk) InsertCustomPolicyEvaluation(ctx context.Context, evaluation domain.CustomPolicyEvaluation) error {
+	if evaluation.ID == "" || evaluation.TenantID == "" || evaluation.PolicyID == "" || evaluation.ReleaseID == "" || evaluation.Result == "" || evaluation.Checks == nil || !validSHA256Digest(evaluation.InputHash) || evaluation.SchemaVersion == "" || evaluation.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, evaluation.TenantID); err != nil {
+		return err
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM custom_policies WHERE id = $1 AND tenant_id = $2`, evaluation.PolicyID, evaluation.TenantID); err != nil {
+		return err
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM releases WHERE id = $1 AND tenant_id = $2`, evaluation.ReleaseID, evaluation.TenantID); err != nil {
+		return err
+	}
+	checks, err := json.Marshal(evaluation.Checks)
+	if err != nil {
+		return fmt.Errorf("encode custom policy evaluation checks: %w", err)
+	}
+	_, err = r.tx.Exec(ctx, `INSERT INTO custom_policy_evaluations (id, tenant_id, policy_id, release_id, result, checks, input_hash, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, evaluation.ID, evaluation.TenantID, evaluation.PolicyID, evaluation.ReleaseID, evaluation.Result, checks, evaluation.InputHash, evaluation.SchemaVersion, evaluation.CreatedAt)
+	return writeError("insert custom policy evaluation", err)
 }
 
 type signatures struct{ tx pgx.Tx }
@@ -2755,6 +2799,15 @@ func requireOwnedSigningKey(ctx context.Context, tx pgx.Tx, tenantID, keyID stri
 func validSigningProviderType(value string) bool {
 	switch value {
 	case "local_encrypted_dev", "aws_kms", "gcp_kms", "azure_key_vault", "pkcs11_hsm", "native_pkcs11_hsm":
+		return true
+	default:
+		return false
+	}
+}
+
+func validPolicyEvidenceType(value string) bool {
+	switch value {
+	case "sbom", "vulnerability_scan", "vex", "vulnerability_decision", "artifact", "build", "build_attestation", "openapi_contract", "release_bundle", "exception", "sast", "dast", "secret_scan", "license_scan", "api_security", "deployment", "threat_model", "security_review", "pen_test_report":
 		return true
 	default:
 		return false

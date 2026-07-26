@@ -112,6 +112,7 @@ type Repositories struct {
 	Source         SourceRepository
 	Deployments    DeploymentRepository
 	Packages       PackageRepository
+	Risk           RiskRepository
 	Signatures     SignatureRepository
 	Integrity      IntegrityRepository
 	Verification   VerificationRepository
@@ -229,6 +230,11 @@ type PackageRepository interface {
 	InsertHTMLReportPackage(context.Context, domain.HTMLReportPackage) error
 	InsertCustomReportTemplate(context.Context, domain.CustomReportTemplate) error
 	InsertRenderedCustomReport(context.Context, domain.RenderedCustomReport) error
+}
+
+type RiskRepository interface {
+	InsertCustomPolicy(context.Context, domain.CustomPolicy) error
+	InsertCustomPolicyEvaluation(context.Context, domain.CustomPolicyEvaluation) error
 }
 
 type SignatureRepository interface {
