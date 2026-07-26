@@ -81,6 +81,7 @@ type MemoryUnitOfWorkSnapshot struct {
 	TransparencyCheckpoints   map[string]domain.TransparencyCheckpoint
 	VerificationResults       map[string]domain.VerificationResult
 	PolicyEvaluations         map[string]domain.PolicyEvaluation
+	CommercialCollectors      map[string]domain.CommercialCollectorDefinition
 	PublicTransparencyLogs    map[string]domain.PublicTransparencyLog
 	PublicTransparencyEntries map[string]domain.PublicTransparencyLogEntry
 	EvidenceSummaries         map[string]domain.EvidenceSummary
@@ -144,6 +145,7 @@ func (u *memoryUnitOfWork) Repositories() Repositories {
 		Signatures:     memorySignatureRepository{uow: u},
 		Integrity:      memoryIntegrityRepository{uow: u},
 		Verification:   memoryVerificationRepository{uow: u},
+		Enterprise:     memoryEnterpriseRepository{uow: u},
 		Future:         memoryFutureExtensionsRepository{uow: u},
 	}
 }
@@ -2112,6 +2114,33 @@ func (r memoryVerificationRepository) InsertVerificationResult(ctx context.Conte
 	})
 }
 
+type memoryEnterpriseRepository struct{ uow *memoryUnitOfWork }
+
+func (r memoryEnterpriseRepository) InsertCommercialCollectorDefinition(ctx context.Context, collector domain.CommercialCollectorDefinition) error {
+	cloned, err := cloneMemoryJSON(collector)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.Name == "" || cloned.Provider == "" || cloned.Version == "" || !validDigest(cloned.ManifestHash) || !validCollectorScopes(cloned.AllowedScopes) || cloned.Status != "available" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+			return ErrValidation
+		}
+		if _, exists := state.CommercialCollectors[cloned.ID]; exists {
+			return ErrConflict
+		}
+		for _, existing := range state.CommercialCollectors {
+			if existing.TenantID == cloned.TenantID && existing.Name == cloned.Name && existing.Provider == cloned.Provider && existing.Version == cloned.Version {
+				return ErrConflict
+			}
+		}
+		state.CommercialCollectors[cloned.ID] = cloned
+		return nil
+	})
+}
+
 func (r memoryVerificationRepository) InsertPolicyEvaluation(ctx context.Context, evaluation domain.PolicyEvaluation) error {
 	cloned, err := cloneMemoryJSON(evaluation)
 	if err != nil {
@@ -2570,6 +2599,7 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		TransparencyCheckpoints:   map[string]domain.TransparencyCheckpoint{},
 		VerificationResults:       map[string]domain.VerificationResult{},
 		PolicyEvaluations:         map[string]domain.PolicyEvaluation{},
+		CommercialCollectors:      map[string]domain.CommercialCollectorDefinition{},
 		PublicTransparencyLogs:    map[string]domain.PublicTransparencyLog{},
 		PublicTransparencyEntries: map[string]domain.PublicTransparencyLogEntry{},
 		EvidenceSummaries:         map[string]domain.EvidenceSummary{},
@@ -2767,6 +2797,9 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.PolicyEvaluations, err = cloneMemoryMap(snapshot.PolicyEvaluations); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.CommercialCollectors, err = cloneMemoryMap(snapshot.CommercialCollectors); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.PublicTransparencyLogs, err = cloneMemoryMap(snapshot.PublicTransparencyLogs); err != nil {

@@ -96,6 +96,10 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Identity.InsertProviderVerification(ctx, domain.ProviderVerification{ID: "pvr_repository_wrong_type", TenantID: tenant.ID, ProviderType: "saml", ProviderID: provider.ID, Subject: "repository-subject", Result: "passed", Checks: []domain.VerifyCheck{{Name: "signature", Result: "passed"}}, SchemaVersion: domain.ProviderVerificationVersion, CreatedAt: now}); !errors.Is(err, app.ErrNotFound) {
 		t.Fatalf("provider verification type mismatch err=%v, want not found", err)
 	}
+	commercial := domain.CommercialCollectorDefinition{ID: "commercial_repository", TenantID: tenant.ID, Name: "Repository collector", Provider: "scanner", Version: "1.0.0", ManifestHash: "sha256:" + strings.Repeat("c", 64), AllowedScopes: []string{app.ScopeEvidenceWrite}, Status: "available", SchemaVersion: domain.CommercialCollectorVersion, CreatedAt: now}
+	if err := repositories.Enterprise.InsertCommercialCollectorDefinition(ctx, commercial); err != nil {
+		t.Fatalf("insert commercial collector: %v", err)
+	}
 	session := domain.SSOSession{ID: "sess_repository", TenantID: tenant.ID, UserID: user.ID, ProviderID: provider.ID, Prefix: "evysso_repo", Hash: "session-hash", Groups: []string{"security"}, ExpiresAt: now.Add(time.Hour), SchemaVersion: domain.SSOSessionSchemaVersion, CreatedAt: now}
 	if err := repositories.Identity.InsertSSOSession(ctx, session); err != nil {
 		t.Fatalf("insert SSO session: %v", err)
@@ -616,6 +620,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"signing operation", repositories.Future.InsertSigningOperation(ctx, domain.Signature{}, domain.SigningOperation{})},
 		{"verification", repositories.Verification.InsertVerificationResult(ctx, domain.VerificationResult{})},
 		{"policy evaluation", repositories.Verification.InsertPolicyEvaluation(ctx, domain.PolicyEvaluation{})},
+		{"commercial collector", repositories.Enterprise.InsertCommercialCollectorDefinition(ctx, domain.CommercialCollectorDefinition{})},
 	}
 	for _, check := range checks {
 		if !errors.Is(check.err, app.ErrValidation) {

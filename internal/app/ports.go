@@ -115,6 +115,7 @@ type Repositories struct {
 	Signatures     SignatureRepository
 	Integrity      IntegrityRepository
 	Verification   VerificationRepository
+	Enterprise     EnterpriseRepository
 	Future         FutureExtensionsRepository
 }
 
@@ -242,6 +243,10 @@ type IntegrityRepository interface {
 type VerificationRepository interface {
 	InsertVerificationResult(context.Context, domain.VerificationResult) error
 	InsertPolicyEvaluation(context.Context, domain.PolicyEvaluation) error
+}
+
+type EnterpriseRepository interface {
+	InsertCommercialCollectorDefinition(context.Context, domain.CommercialCollectorDefinition) error
 }
 
 type FutureExtensionsRepository interface {

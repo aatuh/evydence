@@ -38,6 +38,7 @@ func New(tx pgx.Tx) app.Repositories {
 		Signatures:     signatures{tx: tx},
 		Integrity:      integrity{tx: tx},
 		Verification:   verification{tx: tx},
+		Enterprise:     enterprise{tx: tx},
 		Future:         futureExtensions{tx: tx},
 	}
 }
@@ -1918,6 +1919,33 @@ func (r verification) InsertVerificationResult(ctx context.Context, result domai
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`, result.ID, result.TenantID, result.SubjectType, result.SubjectID, result.Result, checks, result.VerifiedAt)
 	return writeError("insert verification result", err)
+}
+
+type enterprise struct{ tx pgx.Tx }
+
+func (r enterprise) InsertCommercialCollectorDefinition(ctx context.Context, collector domain.CommercialCollectorDefinition) error {
+	if collector.ID == "" || collector.TenantID == "" || collector.Name == "" || collector.Provider == "" || collector.Version == "" || !validSHA256Digest(collector.ManifestHash) || !validCollectorScopes(collector.AllowedScopes) || collector.Status != "available" || collector.SchemaVersion == "" || collector.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, collector.TenantID); err != nil {
+		return err
+	}
+	_, err := r.tx.Exec(ctx, `INSERT INTO commercial_collectors (id, tenant_id, name, provider, version, manifest_hash, allowed_scopes, status, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, collector.ID, collector.TenantID, collector.Name, collector.Provider, collector.Version, collector.ManifestHash, textArray(collector.AllowedScopes), collector.Status, collector.SchemaVersion, collector.CreatedAt)
+	return writeError("insert commercial collector", err)
+}
+
+func validCollectorScopes(scopes []string) bool {
+	if len(scopes) == 0 {
+		return false
+	}
+	for _, scope := range scopes {
+		switch strings.TrimSpace(scope) {
+		case app.ScopeBuildWrite, app.ScopeBuildRead, app.ScopeEvidenceWrite, app.ScopeEvidenceRead, app.ScopeSourceWrite, app.ScopeSourceRead, app.ScopeBundleWrite, app.ScopeBundleRead:
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func (r verification) InsertPolicyEvaluation(ctx context.Context, evaluation domain.PolicyEvaluation) error {

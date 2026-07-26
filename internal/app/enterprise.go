@@ -1513,6 +1513,22 @@ func (l *Ledger) CreateCommercialCollectorDefinition(ctx context.Context, actor 
 		}
 	}
 	def := domain.CommercialCollectorDefinition{ID: newID("ccol"), TenantID: actor.TenantID, Name: in.Name, Provider: in.Provider, Version: in.Version, ManifestHash: in.ManifestHash, AllowedScopes: sortedStrings(in.AllowedScopes), Status: "available", SchemaVersion: domain.CommercialCollectorVersion, CreatedAt: l.now()}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Enterprise.InsertCommercialCollectorDefinition(ctx, def); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(def.CreatedAt, actor.TenantID, "commercial_collector.created", "commercial_collector", def.ID, actorType(actor), actorID(actor), in.ManifestHash, ""))
+			return err
+		}); err != nil {
+			return domain.CommercialCollectorDefinition{}, err
+		}
+		l.commercialCollectors[def.ID] = def
+		l.publishCommittedAuditEntryLocked(entry)
+		return def, nil
+	}
 	l.commercialCollectors[def.ID] = def
 	_, _ = l.appendChainLocked(actor.TenantID, "commercial_collector.created", "commercial_collector", def.ID, actorType(actor), actorID(actor), in.ManifestHash, "")
 	if err := l.persistLocked(ctx); err != nil {
