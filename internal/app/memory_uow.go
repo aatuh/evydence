@@ -1952,6 +1952,30 @@ func (r memoryIntegrityRepository) InsertObjectRetentionPolicy(ctx context.Conte
 	})
 }
 
+func (r memoryIntegrityRepository) UpdateObjectRetentionPolicy(ctx context.Context, policy domain.ObjectRetentionPolicy, expectedStatus string) error {
+	cloned, err := cloneMemoryJSON(policy)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if cloned.ID == "" || cloned.Status == "" || expectedStatus == "" || cloned.MaxVerificationAgeHours < 1 || cloned.VerifiedAt == nil || cloned.VerificationHash == "" || cloned.VerificationChecks == nil || cloned.SchemaVersion == "" {
+			return ErrValidation
+		}
+		existing, ok := state.ObjectRetentionPolicies[cloned.ID]
+		if !ok || existing.TenantID != cloned.TenantID {
+			return ErrNotFound
+		}
+		if existing.Status != expectedStatus {
+			return ErrConflict
+		}
+		state.ObjectRetentionPolicies[cloned.ID] = cloned
+		return nil
+	})
+}
+
 func (r memoryIntegrityRepository) InsertBackupManifest(ctx context.Context, manifest domain.BackupManifest) error {
 	cloned, err := cloneMemoryJSON(manifest)
 	if err != nil {

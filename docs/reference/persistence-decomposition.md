@@ -90,7 +90,6 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 | integrity and operations | `internal/app/integrity_runtime.go` | `CreateTransparencyCheckpoint` | `persistLocked` |
 | integrity and operations | `internal/app/integrity_runtime.go` | `VerifyCosignSignature` | `persistLocked` |
 | integrity and operations | `internal/app/integrity_runtime.go` | `VerifyMerkleBatch` | `persistLocked` |
-| integrity and operations | `internal/app/integrity_runtime.go` | `VerifyObjectRetentionPolicy` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `CreateContractDiff` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `CreateCustomPolicy` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `CreateIncident` | `persistLocked` |
@@ -139,6 +138,7 @@ These commands commit through focused repositories whenever `UnitOfWorkFactory` 
 | integrity and operations | `internal/app/integrity_runtime.go` | `GenerateBackupManifest` | `persistLocked` |
 | integrity and operations | `internal/app/integrity_runtime.go` | `RevokeSigningKey` | `persistLocked` |
 | integrity and operations | `internal/app/integrity_runtime.go` | `VerifyBackupManifest` | `persistLocked` |
+| integrity and operations | `internal/app/integrity_runtime.go` | `VerifyObjectRetentionPolicy` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `CreateArtifactSignature` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `CreateDeploymentEnvironment` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `CreateReleaseCandidate` | `persistLocked` |

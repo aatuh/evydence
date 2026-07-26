@@ -416,6 +416,7 @@ func (l *Ledger) VerifyObjectRetentionPolicy(ctx context.Context, actor domain.A
 	if policy.MaxVerificationAgeHours == 0 {
 		policy.MaxVerificationAgeHours = defaultRetentionVerificationAgeHours
 	}
+	expectedStatus := policy.Status
 	verifier := l.retention
 	l.mu.Unlock()
 
@@ -516,11 +517,34 @@ func (l *Ledger) VerifyObjectRetentionPolicy(ctx context.Context, actor domain.A
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.retentionPolicies[policy.ID] = policy
+	current, ok := l.retentionPolicies[policy.ID]
+	if !ok || current.TenantID != actor.TenantID {
+		return domain.ObjectRetentionPolicy{}, ErrNotFound
+	}
+	if current.Status != expectedStatus {
+		return domain.ObjectRetentionPolicy{}, ErrConflict
+	}
 	entryType := "object_retention_policy.verified"
 	if policy.Status != "verified" {
 		entryType = "object_retention_policy.verification_failed"
 	}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Integrity.UpdateObjectRetentionPolicy(ctx, policy, expectedStatus); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, actor.TenantID, entryType, "object_retention_policy", policy.ID, actorType(actor), actorID(actor), policy.VerificationHash, ""))
+			return err
+		}); err != nil {
+			return domain.ObjectRetentionPolicy{}, err
+		}
+		l.retentionPolicies[policy.ID] = policy
+		l.publishCommittedAuditEntryLocked(entry)
+		return policy, nil
+	}
+	l.retentionPolicies[policy.ID] = policy
 	_, _ = l.appendChainLocked(actor.TenantID, entryType, "object_retention_policy", policy.ID, actorType(actor), actorID(actor), policy.VerificationHash, "")
 	if err := l.persistLocked(ctx); err != nil {
 		return domain.ObjectRetentionPolicy{}, err

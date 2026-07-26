@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/aatuh/evydence/internal/domain"
@@ -11,6 +12,12 @@ import (
 type failingRetentionPolicyRepository struct{ IntegrityRepository }
 
 func (failingRetentionPolicyRepository) InsertObjectRetentionPolicy(context.Context, domain.ObjectRetentionPolicy) error {
+	return errInjectedRepositoryFailure
+}
+
+type failingRetentionVerificationRepository struct{ IntegrityRepository }
+
+func (failingRetentionVerificationRepository) UpdateObjectRetentionPolicy(context.Context, domain.ObjectRetentionPolicy, string) error {
 	return errInjectedRepositoryFailure
 }
 
@@ -65,5 +72,44 @@ func TestObjectRetentionPolicyUsesUnitOfWorkAndPublishesOnlyAfterCommit(t *testi
 	}
 	if len(after.ObjectRetentionPolicies) != len(before.ObjectRetentionPolicies) || len(after.AuditEntries[actor.TenantID]) != len(before.AuditEntries[actor.TenantID]) || len(ledger.retentionPolicies) != len(before.ObjectRetentionPolicies) {
 		t.Fatalf("failed object retention policy published state: before=%#v after=%#v", before, after)
+	}
+}
+
+func TestObjectRetentionVerificationUsesUnitOfWorkAndPublishesOnlyAfterCommit(t *testing.T) {
+	ctx := context.Background()
+	memory := NewMemoryUnitOfWorkFactory()
+	ledger, _, actor := newReleaseEvidenceUnitOfWorkFixture(t, memory)
+	policy, err := ledger.CreateObjectRetentionPolicy(ctx, actor, CreateObjectRetentionPolicyInput{Name: "Retention verification", ObjectKey: "tenants/" + actor.TenantID + "/raw/evidence.json", Mode: "governance", RetentionDays: 30})
+	if err != nil {
+		t.Fatalf("create object retention policy: %v", err)
+	}
+	verified, err := ledger.VerifyObjectRetentionPolicy(ctx, actor, policy.ID)
+	if err != nil {
+		t.Fatalf("verify object retention policy: %v", err)
+	}
+	snapshot, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	if got := snapshot.ObjectRetentionPolicies[policy.ID]; got.VerifiedAt == nil || got.VerificationHash == "" || got.Status != verified.Status {
+		t.Fatalf("object retention verification not committed: %#v", got)
+	}
+	ledger.unitOfWork = repositoryFailingUnitOfWorkFactory{inner: memory, decorate: func(repositories Repositories) Repositories {
+		repositories.Integrity = failingRetentionVerificationRepository{IntegrityRepository: repositories.Integrity}
+		return repositories
+	}}
+	before, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot before failure: %v", err)
+	}
+	if _, err := ledger.VerifyObjectRetentionPolicy(ctx, actor, policy.ID); !errors.Is(err, errInjectedRepositoryFailure) {
+		t.Fatalf("failed object retention verification err=%v", err)
+	}
+	after, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot after failure: %v", err)
+	}
+	if !reflect.DeepEqual(after.ObjectRetentionPolicies[policy.ID], before.ObjectRetentionPolicies[policy.ID]) || len(after.AuditEntries[actor.TenantID]) != len(before.AuditEntries[actor.TenantID]) || !reflect.DeepEqual(ledger.retentionPolicies[policy.ID], before.ObjectRetentionPolicies[policy.ID]) {
+		t.Fatalf("failed object retention verification published state: before=%#v after=%#v", before, after)
 	}
 }

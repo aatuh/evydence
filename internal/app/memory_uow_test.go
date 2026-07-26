@@ -228,8 +228,16 @@ func TestMemoryUnitOfWorkCommitsEveryFocusedRepository(t *testing.T) {
 	if err := repositories.Integrity.InsertSigningProvider(context.Background(), domain.SigningProvider{ID: "provider_all_repositories", TenantID: tenant.ID, Name: "All repositories KMS", Type: "aws_kms", Status: "active", KeyRef: "arn:aws:kms:example", Encrypted: true, SchemaVersion: domain.SigningProviderSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert signing provider: %v", err)
 	}
-	if err := repositories.Integrity.InsertObjectRetentionPolicy(context.Background(), domain.ObjectRetentionPolicy{ID: "retention_all_repositories", TenantID: tenant.ID, Name: "All repository retention", ObjectPrefix: "tenants/" + tenant.ID + "/", ObjectKey: "tenants/" + tenant.ID + "/raw/evidence.json", Mode: "governance", RetentionDays: 30, MaxVerificationAgeHours: 24, Status: "configured", SchemaVersion: domain.ObjectRetentionPolicyVersion, CreatedAt: now}); err != nil {
+	retentionPolicy := domain.ObjectRetentionPolicy{ID: "retention_all_repositories", TenantID: tenant.ID, Name: "All repository retention", ObjectPrefix: "tenants/" + tenant.ID + "/", ObjectKey: "tenants/" + tenant.ID + "/raw/evidence.json", Mode: "governance", RetentionDays: 30, MaxVerificationAgeHours: 24, Status: "configured", SchemaVersion: domain.ObjectRetentionPolicyVersion, CreatedAt: now}
+	if err := repositories.Integrity.InsertObjectRetentionPolicy(context.Background(), retentionPolicy); err != nil {
 		t.Fatalf("insert object retention policy: %v", err)
+	}
+	retentionPolicy.Status = "not_verified"
+	retentionPolicy.VerifiedAt = &now
+	retentionPolicy.VerificationHash = "sha256:retention"
+	retentionPolicy.VerificationChecks = []domain.VerifyCheck{{Name: "recorded", Result: "passed"}}
+	if err := repositories.Integrity.UpdateObjectRetentionPolicy(context.Background(), retentionPolicy, "configured"); err != nil {
+		t.Fatalf("update object retention policy: %v", err)
 	}
 	if err := repositories.Integrity.InsertBackupManifest(context.Background(), domain.BackupManifest{ID: "backup_all_repositories", TenantID: tenant.ID, StateHash: "sha256:backup", ResourceCounts: map[string]int{"evidence": 1}, ConsistencyChecks: []domain.VerifyCheck{{Name: "chain", Result: "passed"}}, SchemaVersion: domain.BackupManifestSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert backup manifest: %v", err)
@@ -284,6 +292,7 @@ func TestMemoryUnitOfWorkRejectsInvalidFocusedRepositoryRecords(t *testing.T) {
 		{"signature", repositories.Signatures.InsertSignature(context.Background(), domain.Signature{})},
 		{"signing provider", repositories.Integrity.InsertSigningProvider(context.Background(), domain.SigningProvider{})},
 		{"object retention policy", repositories.Integrity.InsertObjectRetentionPolicy(context.Background(), domain.ObjectRetentionPolicy{})},
+		{"object retention policy update", repositories.Integrity.UpdateObjectRetentionPolicy(context.Background(), domain.ObjectRetentionPolicy{}, "")},
 		{"backup manifest", repositories.Integrity.InsertBackupManifest(context.Background(), domain.BackupManifest{})},
 		{"verification", repositories.Verification.InsertVerificationResult(context.Background(), domain.VerificationResult{})},
 		{"policy evaluation", repositories.Verification.InsertPolicyEvaluation(context.Background(), domain.PolicyEvaluation{})},

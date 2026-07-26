@@ -390,6 +390,16 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Integrity.InsertObjectRetentionPolicy(ctx, retentionPolicy); err != nil {
 		t.Fatalf("insert object retention policy: %v", err)
 	}
+	retentionPolicy.Status = "not_verified"
+	retentionPolicy.VerifiedAt = &now
+	retentionPolicy.VerificationHash = "sha256:retention"
+	retentionPolicy.VerificationChecks = []domain.VerifyCheck{{Name: "recorded", Result: "passed"}}
+	if err := repositories.Integrity.UpdateObjectRetentionPolicy(ctx, retentionPolicy, "configured"); err != nil {
+		t.Fatalf("update object retention policy: %v", err)
+	}
+	if err := repositories.Integrity.UpdateObjectRetentionPolicy(ctx, retentionPolicy, "configured"); !errors.Is(err, app.ErrConflict) {
+		t.Fatalf("stale object retention policy update err=%v, want conflict", err)
+	}
 	if err := repositories.Integrity.InsertBackupManifest(ctx, domain.BackupManifest{ID: "backup_repository", TenantID: tenant.ID, StateHash: "sha256:backup", ResourceCounts: map[string]int{"evidence": 1}, ConsistencyChecks: []domain.VerifyCheck{{Name: "chain", Result: "passed"}}, SchemaVersion: domain.BackupManifestSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert backup manifest: %v", err)
 	}
@@ -496,6 +506,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"signature", repositories.Signatures.InsertSignature(ctx, domain.Signature{})},
 		{"signing provider", repositories.Integrity.InsertSigningProvider(ctx, domain.SigningProvider{})},
 		{"object retention policy", repositories.Integrity.InsertObjectRetentionPolicy(ctx, domain.ObjectRetentionPolicy{})},
+		{"object retention policy update", repositories.Integrity.UpdateObjectRetentionPolicy(ctx, domain.ObjectRetentionPolicy{}, "")},
 		{"backup manifest", repositories.Integrity.InsertBackupManifest(ctx, domain.BackupManifest{})},
 		{"verification", repositories.Verification.InsertVerificationResult(ctx, domain.VerificationResult{})},
 		{"policy evaluation", repositories.Verification.InsertPolicyEvaluation(ctx, domain.PolicyEvaluation{})},

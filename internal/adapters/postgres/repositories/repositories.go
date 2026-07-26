@@ -1761,6 +1761,36 @@ func (r integrity) InsertObjectRetentionPolicy(ctx context.Context, policy domai
 	return writeError("insert object retention policy", err)
 }
 
+func (r integrity) UpdateObjectRetentionPolicy(ctx context.Context, policy domain.ObjectRetentionPolicy, expectedStatus string) error {
+	if policy.ID == "" || policy.TenantID == "" || policy.Status == "" || expectedStatus == "" || policy.MaxVerificationAgeHours < 1 || policy.VerifiedAt == nil || policy.VerificationHash == "" || policy.VerificationChecks == nil || policy.SchemaVersion == "" {
+		return app.ErrValidation
+	}
+	checks, err := json.Marshal(policy.VerificationChecks)
+	if err != nil {
+		return fmt.Errorf("encode object retention verification checks: %w", err)
+	}
+	result, err := r.tx.Exec(ctx, `
+		UPDATE object_retention_policies
+		SET max_verification_age_hours = $3, status = $4, verified_at = $5,
+			verification_hash = $6, verification_checks = $7, verification_limitations = $8,
+			verification_provider = $9, verification_bucket = $10, verification_mode = $11,
+			verification_retention_days = $12, verification_legal_hold = $13,
+			verification_observed_at = $14, verification_expires_at = $15, schema_version = $16
+		WHERE id = $1 AND tenant_id = $2 AND status = $17
+	`, policy.ID, policy.TenantID, policy.MaxVerificationAgeHours, policy.Status, policy.VerifiedAt,
+		policy.VerificationHash, checks, textArray(policy.VerificationLimitations), policy.VerificationProvider,
+		policy.VerificationBucket, policy.VerificationMode, policy.VerificationRetentionDays,
+		nullableBool(policy.VerificationLegalHold), policy.VerificationObservedAt, policy.VerificationExpiresAt,
+		policy.SchemaVersion, expectedStatus)
+	if err != nil {
+		return writeError("update object retention policy", err)
+	}
+	if result.RowsAffected() != 1 {
+		return app.ErrConflict
+	}
+	return nil
+}
+
 func (r integrity) InsertBackupManifest(ctx context.Context, manifest domain.BackupManifest) error {
 	if manifest.ID == "" || manifest.TenantID == "" || manifest.StateHash == "" || manifest.ResourceCounts == nil || manifest.ConsistencyChecks == nil || manifest.SchemaVersion == "" || manifest.CreatedAt.IsZero() {
 		return app.ErrValidation
@@ -2056,6 +2086,13 @@ func nullableBytes(value []byte) any {
 		return nil
 	}
 	return value
+}
+
+func nullableBool(value *bool) any {
+	if value == nil {
+		return nil
+	}
+	return *value
 }
 
 func nonZeroInt(value, fallback int) int {
