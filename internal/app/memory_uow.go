@@ -89,6 +89,7 @@ type MemoryUnitOfWorkSnapshot struct {
 	MarketplaceCollectors     map[string]domain.MarketplaceCollector
 	PDFReports                map[string]domain.PDFReportPackage
 	QuestionnaireDrafts       map[string]domain.QuestionnaireDraft
+	AnomalyReports            map[string]domain.AnomalyReport
 	SigningOperations         map[string]domain.SigningOperation
 }
 
@@ -2400,6 +2401,44 @@ func (r memoryFutureExtensionsRepository) InsertQuestionnaireDraft(ctx context.C
 	})
 }
 
+func (r memoryFutureExtensionsRepository) InsertAnomalyReport(ctx context.Context, report domain.AnomalyReport) error {
+	cloned, err := cloneMemoryJSON(report)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if err := validateMemoryAnomalyReport(cloned); err != nil {
+			return err
+		}
+		if err := requireMemoryFutureExtensionSubject(*state, cloned.TenantID, cloned.SubjectType, cloned.SubjectID); err != nil {
+			return err
+		}
+		if _, exists := state.AnomalyReports[cloned.ID]; exists {
+			return ErrConflict
+		}
+		state.AnomalyReports[cloned.ID] = cloned
+		return nil
+	})
+}
+
+func validateMemoryAnomalyReport(report domain.AnomalyReport) error {
+	if report.ID == "" || report.TenantID == "" || report.SubjectType == "" || report.SubjectID == "" || (report.Result != "clear" && report.Result != "attention_required") || report.Signals == nil || report.Assumptions == nil || report.Limitations == nil || report.SchemaVersion == "" || report.CreatedAt.IsZero() {
+		return ErrValidation
+	}
+	if report.Result == "clear" && len(report.Signals) != 0 || report.Result == "attention_required" && len(report.Signals) == 0 {
+		return ErrValidation
+	}
+	for _, signal := range report.Signals {
+		if signal.Name == "" || signal.Detail == "" || (signal.Severity != "low" && signal.Severity != "medium" && signal.Severity != "high") {
+			return ErrValidation
+		}
+	}
+	return nil
+}
+
 func (r memoryFutureExtensionsRepository) InsertSigningOperation(ctx context.Context, signature domain.Signature, operation domain.SigningOperation) error {
 	clonedSignature, err := cloneMemoryJSON(signature)
 	if err != nil {
@@ -2426,7 +2465,7 @@ func (r memoryFutureExtensionsRepository) InsertSigningOperation(ctx context.Con
 		if clonedOperation.Result == "passed" && provider.Status != "active" {
 			return ErrValidation
 		}
-		if err := requireMemorySigningOperationSubject(*state, clonedOperation); err != nil {
+		if err := requireMemoryFutureExtensionSubject(*state, clonedOperation.TenantID, clonedOperation.SubjectType, clonedOperation.SubjectID); err != nil {
 			return err
 		}
 		if _, exists := state.Signatures[clonedSignature.ID]; exists {
@@ -2441,27 +2480,27 @@ func (r memoryFutureExtensionsRepository) InsertSigningOperation(ctx context.Con
 	})
 }
 
-func requireMemorySigningOperationSubject(state MemoryUnitOfWorkSnapshot, operation domain.SigningOperation) error {
-	switch operation.SubjectType {
+func requireMemoryFutureExtensionSubject(state MemoryUnitOfWorkSnapshot, tenantID, subjectType, subjectID string) error {
+	switch subjectType {
 	case "tenant":
-		if operation.SubjectID != operation.TenantID {
+		if subjectID != tenantID {
 			return ErrNotFound
 		}
 		return nil
 	case "product":
-		if !memoryResourceBelongsToTenant(operation.SubjectID, operation.TenantID, state.Products) {
+		if !memoryResourceBelongsToTenant(subjectID, tenantID, state.Products) {
 			return ErrNotFound
 		}
 	case "release":
-		if !memoryResourceBelongsToTenant(operation.SubjectID, operation.TenantID, state.Releases) {
+		if !memoryResourceBelongsToTenant(subjectID, tenantID, state.Releases) {
 			return ErrNotFound
 		}
 	case "evidence":
-		if !memoryResourceBelongsToTenant(operation.SubjectID, operation.TenantID, state.Evidence) {
+		if !memoryResourceBelongsToTenant(subjectID, tenantID, state.Evidence) {
 			return ErrNotFound
 		}
 	case "build":
-		if !memoryResourceBelongsToTenant(operation.SubjectID, operation.TenantID, state.BuildRuns) {
+		if !memoryResourceBelongsToTenant(subjectID, tenantID, state.BuildRuns) {
 			return ErrNotFound
 		}
 	default:
@@ -2538,6 +2577,7 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		MarketplaceCollectors:     map[string]domain.MarketplaceCollector{},
 		PDFReports:                map[string]domain.PDFReportPackage{},
 		QuestionnaireDrafts:       map[string]domain.QuestionnaireDraft{},
+		AnomalyReports:            map[string]domain.AnomalyReport{},
 		SigningOperations:         map[string]domain.SigningOperation{},
 	}
 }
@@ -2750,6 +2790,9 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.QuestionnaireDrafts, err = cloneMemoryMap(snapshot.QuestionnaireDrafts); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.AnomalyReports, err = cloneMemoryMap(snapshot.AnomalyReports); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.SigningOperations, err = cloneMemoryMap(snapshot.SigningOperations); err != nil {

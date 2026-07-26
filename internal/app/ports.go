@@ -254,6 +254,7 @@ type FutureExtensionsRepository interface {
 	InsertMarketplaceCollector(context.Context, domain.MarketplaceCollector) error
 	InsertPDFReportPackage(context.Context, domain.PDFReportPackage) error
 	InsertQuestionnaireDraft(context.Context, domain.QuestionnaireDraft) error
+	InsertAnomalyReport(context.Context, domain.AnomalyReport) error
 	InsertSigningOperation(context.Context, domain.Signature, domain.SigningOperation) error
 }
 

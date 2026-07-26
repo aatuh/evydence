@@ -1269,6 +1269,22 @@ func (s packageReportService) GenerateAnomalyReport(ctx context.Context, actor d
 		result = "attention_required"
 	}
 	report := domain.AnomalyReport{ID: newID("ano"), TenantID: actor.TenantID, SubjectType: subjectType, SubjectID: subjectID, Result: result, Signals: signals, Assumptions: []string{"Signals are deterministic checks over stored Evydence records."}, Limitations: []string{"This report identifies evidence anomalies only and does not infer malicious behavior or release security."}, SchemaVersion: domain.AnomalyReportVersion, CreatedAt: l.now()}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Future.InsertAnomalyReport(ctx, report); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(report.CreatedAt, actor.TenantID, "anomaly_report.created", "anomaly_report", report.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.AnomalyReport{}, err
+		}
+		l.anomalyReports[report.ID] = report
+		l.publishCommittedAuditEntryLocked(entry)
+		return report, nil
+	}
 	l.anomalyReports[report.ID] = report
 	_, _ = l.appendChainLocked(actor.TenantID, "anomaly_report.created", "anomaly_report", report.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {

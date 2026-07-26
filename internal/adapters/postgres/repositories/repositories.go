@@ -2176,6 +2176,24 @@ func (r futureExtensions) InsertQuestionnaireDraft(ctx context.Context, draft do
 	return writeError("insert questionnaire draft", err)
 }
 
+func (r futureExtensions) InsertAnomalyReport(ctx context.Context, report domain.AnomalyReport) error {
+	if err := validateAnomalyReport(report); err != nil {
+		return err
+	}
+	if err := requireTenant(ctx, r.tx, report.TenantID); err != nil {
+		return err
+	}
+	if err := requireFutureExtensionSubject(ctx, r.tx, report.TenantID, report.SubjectType, report.SubjectID); err != nil {
+		return err
+	}
+	signals, err := json.Marshal(report.Signals)
+	if err != nil {
+		return fmt.Errorf("encode anomaly report signals: %w", err)
+	}
+	_, err = r.tx.Exec(ctx, `INSERT INTO anomaly_reports (id, tenant_id, subject_type, subject_id, result, signals, assumptions, limitations, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, report.ID, report.TenantID, report.SubjectType, report.SubjectID, report.Result, signals, textArray(report.Assumptions), textArray(report.Limitations), report.SchemaVersion, report.CreatedAt)
+	return writeError("insert anomaly report", err)
+}
+
 func (r futureExtensions) InsertSigningOperation(ctx context.Context, signature domain.Signature, operation domain.SigningOperation) error {
 	if signature.ID == "" || signature.TenantID != operation.TenantID || signature.SubjectType != operation.SubjectType || signature.SubjectID != operation.SubjectID || signature.KeyID != operation.ProviderID || signature.Algorithm == "" || signature.Value == "" || len(signature.Value) > 32768 || signature.CreatedAt.IsZero() {
 		return app.ErrValidation
@@ -2196,7 +2214,7 @@ func (r futureExtensions) InsertSigningOperation(ctx context.Context, signature 
 	if operation.Result == "passed" && providerStatus != "active" {
 		return app.ErrValidation
 	}
-	if err := requireSigningOperationSubject(ctx, r.tx, operation.TenantID, operation.SubjectType, operation.SubjectID); err != nil {
+	if err := requireFutureExtensionSubject(ctx, r.tx, operation.TenantID, operation.SubjectType, operation.SubjectID); err != nil {
 		return err
 	}
 	checks, err := json.Marshal(operation.Checks)
@@ -2211,7 +2229,7 @@ func (r futureExtensions) InsertSigningOperation(ctx context.Context, signature 
 	return writeError("insert signing operation", err)
 }
 
-func requireSigningOperationSubject(ctx context.Context, tx pgx.Tx, tenantID, subjectType, subjectID string) error {
+func requireFutureExtensionSubject(ctx context.Context, tx pgx.Tx, tenantID, subjectType, subjectID string) error {
 	switch subjectType {
 	case "tenant":
 		if subjectID != tenantID {
@@ -2231,6 +2249,21 @@ func requireSigningOperationSubject(ctx context.Context, tx pgx.Tx, tenantID, su
 	default:
 		return app.ErrValidation
 	}
+}
+
+func validateAnomalyReport(report domain.AnomalyReport) error {
+	if report.ID == "" || report.TenantID == "" || report.SubjectType == "" || report.SubjectID == "" || (report.Result != "clear" && report.Result != "attention_required") || report.Signals == nil || report.Assumptions == nil || report.Limitations == nil || report.SchemaVersion == "" || report.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if report.Result == "clear" && len(report.Signals) != 0 || report.Result == "attention_required" && len(report.Signals) == 0 {
+		return app.ErrValidation
+	}
+	for _, signal := range report.Signals {
+		if signal.Name == "" || signal.Detail == "" || (signal.Severity != "low" && signal.Severity != "medium" && signal.Severity != "high") {
+			return app.ErrValidation
+		}
+	}
+	return nil
 }
 
 func validSHA256Digest(value string) bool {
