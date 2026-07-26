@@ -1989,6 +1989,52 @@ func (r enterprise) InsertQuestionnaireAnswerLibraryEntry(ctx context.Context, e
 	return writeError("insert questionnaire answer library entry", err)
 }
 
+func (r enterprise) InsertQuestionnairePackage(ctx context.Context, pkg domain.QuestionnairePackage) error {
+	if pkg.ID == "" || pkg.TenantID == "" || pkg.TemplateID == "" || pkg.Responses == nil || !validSHA256Digest(pkg.ManifestHash) || pkg.SchemaVersion == "" || pkg.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, pkg.TenantID); err != nil {
+		return err
+	}
+	var templateQuestions []byte
+	if err := r.tx.QueryRow(ctx, `SELECT questions FROM questionnaire_templates WHERE id = $1 AND tenant_id = $2`, pkg.TemplateID, pkg.TenantID).Scan(&templateQuestions); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return app.ErrNotFound
+		}
+		return writeError("read questionnaire package template", err)
+	}
+	var questions []domain.QuestionnaireQuestion
+	if err := json.Unmarshal(templateQuestions, &questions); err != nil {
+		return fmt.Errorf("decode questionnaire package template questions: %w", err)
+	}
+	if err := validateQuestionnaireDraftResponses(ctx, r.tx, pkg.TenantID, questions, pkg.Responses); err != nil {
+		return err
+	}
+	if pkg.PackageID != "" {
+		if err := requireOwnedCustomerPackage(ctx, r.tx, pkg.TenantID, pkg.PackageID); err != nil {
+			return err
+		}
+	}
+	if err := requireOptionalProduct(ctx, r.tx, pkg.TenantID, pkg.ProductID); err != nil {
+		return err
+	}
+	if pkg.ReleaseID != "" {
+		if pkg.ProductID != "" {
+			if err := requireRow(ctx, r.tx, `SELECT 1 FROM releases WHERE id = $1 AND tenant_id = $2 AND product_id = $3`, pkg.ReleaseID, pkg.TenantID, pkg.ProductID); err != nil {
+				return err
+			}
+		} else if err := requireOptionalRelease(ctx, r.tx, pkg.TenantID, pkg.ReleaseID); err != nil {
+			return err
+		}
+	}
+	responses, err := json.Marshal(pkg.Responses)
+	if err != nil {
+		return fmt.Errorf("encode questionnaire package responses: %w", err)
+	}
+	_, err = r.tx.Exec(ctx, `INSERT INTO questionnaire_packages (id, tenant_id, template_id, package_id, product_id, release_id, responses, manifest_hash, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, pkg.ID, pkg.TenantID, pkg.TemplateID, nullableString(pkg.PackageID), nullableString(pkg.ProductID), nullableString(pkg.ReleaseID), responses, pkg.ManifestHash, pkg.SchemaVersion, pkg.CreatedAt)
+	return writeError("insert questionnaire package", err)
+}
+
 func validateQuestionnaireTemplate(template domain.QuestionnaireTemplate) error {
 	if template.ID == "" || template.TenantID == "" || template.Name == "" || template.Version == "" || len(template.Questions) == 0 || template.SchemaVersion == "" || template.CreatedAt.IsZero() {
 		return app.ErrValidation

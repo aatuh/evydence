@@ -252,6 +252,9 @@ func TestMemoryUnitOfWorkCommitsEveryFocusedRepository(t *testing.T) {
 	if err := repositories.Enterprise.InsertQuestionnaireAnswerLibraryEntry(context.Background(), domain.QuestionnaireAnswerLibraryEntry{ID: "answer_all_repositories", TenantID: tenant.ID, QuestionID: "q1", EvidenceType: evidence.Type, ProductID: product.ID, ReleaseID: release.ID, Answer: "Evidence is available.", EvidenceIDs: []string{evidence.ID}, Limitations: []string{"human review required"}, SchemaVersion: domain.QuestionnaireAnswerLibraryVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert questionnaire answer library entry: %v", err)
 	}
+	if err := repositories.Enterprise.InsertQuestionnairePackage(context.Background(), domain.QuestionnairePackage{ID: "questionnaire_package_all_repositories", TenantID: tenant.ID, TemplateID: "template_all_repositories", ProductID: product.ID, ReleaseID: release.ID, Responses: []domain.QuestionnaireResponse{{QuestionID: "q1", Answer: "Evidence is available.", EvidenceIDs: []string{evidence.ID}}}, ManifestHash: sampleDigest("questionnaire-package"), SchemaVersion: domain.QuestionnairePackageVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert questionnaire package: %v", err)
+	}
 	for _, subject := range []struct {
 		typeName string
 		id       string
@@ -334,7 +337,7 @@ func TestMemoryUnitOfWorkCommitsEveryFocusedRepository(t *testing.T) {
 	if err != nil {
 		t.Fatalf("snapshot: %v", err)
 	}
-	if len(snapshot.APIKeys) != 1 || len(snapshot.Projects) != 1 || len(snapshot.Releases) != 1 || len(snapshot.Artifacts) != 1 || len(snapshot.ContainerImages) != 1 || len(snapshot.ArtifactSignatures) != 1 || len(snapshot.Evidence) != 1 || len(snapshot.EvidenceLifecycle) != 1 || len(snapshot.Decisions) != 1 || len(snapshot.AuditEntries[tenant.ID]) != 1 || len(snapshot.Idempotency) != 1 || len(snapshot.OutboxJobs) != 1 || len(snapshot.ReleaseBundles) != 1 || len(snapshot.SigningKeys) != 1 || len(snapshot.Signatures) != 5 || len(snapshot.SigningProviders) != 1 || len(snapshot.SigningOperations) != 4 || len(snapshot.AnomalyReports) != 1 || len(snapshot.CommercialCollectors) != 1 || len(snapshot.QuestionnaireTemplates) != 1 || len(snapshot.AnswerLibrary) != 1 || len(snapshot.CosignVerifications) != 1 || len(snapshot.ObjectRetentionPolicies) != 1 || len(snapshot.BackupManifests) != 1 || len(snapshot.MerkleBatches) != 1 || len(snapshot.TransparencyCheckpoints) != 1 || len(snapshot.VerificationResults) != 1 || len(snapshot.PolicyEvaluations) != 1 || len(snapshot.PublicTransparencyLogs) != 1 || len(snapshot.PublicTransparencyEntries) != 1 || len(snapshot.EvidenceSummaries) != 1 || len(snapshot.EvidenceGraphSnapshots) != 1 || len(snapshot.SaaSEditionProfiles) != 1 || len(snapshot.MarketplaceCollectors) != 1 || len(snapshot.PDFReports) != 1 || len(snapshot.QuestionnaireDrafts) != 1 {
+	if len(snapshot.APIKeys) != 1 || len(snapshot.Projects) != 1 || len(snapshot.Releases) != 1 || len(snapshot.Artifacts) != 1 || len(snapshot.ContainerImages) != 1 || len(snapshot.ArtifactSignatures) != 1 || len(snapshot.Evidence) != 1 || len(snapshot.EvidenceLifecycle) != 1 || len(snapshot.Decisions) != 1 || len(snapshot.AuditEntries[tenant.ID]) != 1 || len(snapshot.Idempotency) != 1 || len(snapshot.OutboxJobs) != 1 || len(snapshot.ReleaseBundles) != 1 || len(snapshot.SigningKeys) != 1 || len(snapshot.Signatures) != 5 || len(snapshot.SigningProviders) != 1 || len(snapshot.SigningOperations) != 4 || len(snapshot.AnomalyReports) != 1 || len(snapshot.CommercialCollectors) != 1 || len(snapshot.QuestionnaireTemplates) != 1 || len(snapshot.AnswerLibrary) != 1 || len(snapshot.QuestionnairePackages) != 1 || len(snapshot.CosignVerifications) != 1 || len(snapshot.ObjectRetentionPolicies) != 1 || len(snapshot.BackupManifests) != 1 || len(snapshot.MerkleBatches) != 1 || len(snapshot.TransparencyCheckpoints) != 1 || len(snapshot.VerificationResults) != 1 || len(snapshot.PolicyEvaluations) != 1 || len(snapshot.PublicTransparencyLogs) != 1 || len(snapshot.PublicTransparencyEntries) != 1 || len(snapshot.EvidenceSummaries) != 1 || len(snapshot.EvidenceGraphSnapshots) != 1 || len(snapshot.SaaSEditionProfiles) != 1 || len(snapshot.MarketplaceCollectors) != 1 || len(snapshot.PDFReports) != 1 || len(snapshot.QuestionnaireDrafts) != 1 {
 		t.Fatalf("focused repositories did not commit together: %#v", snapshot)
 	}
 }
@@ -389,6 +392,7 @@ func TestMemoryUnitOfWorkRejectsInvalidFocusedRepositoryRecords(t *testing.T) {
 		{"commercial collector", repositories.Enterprise.InsertCommercialCollectorDefinition(context.Background(), domain.CommercialCollectorDefinition{})},
 		{"questionnaire template", repositories.Enterprise.InsertQuestionnaireTemplate(context.Background(), domain.QuestionnaireTemplate{})},
 		{"questionnaire answer library", repositories.Enterprise.InsertQuestionnaireAnswerLibraryEntry(context.Background(), domain.QuestionnaireAnswerLibraryEntry{})},
+		{"questionnaire package", repositories.Enterprise.InsertQuestionnairePackage(context.Background(), domain.QuestionnairePackage{})},
 	}
 	for _, check := range checks {
 		if !errors.Is(check.err, ErrValidation) {

@@ -1401,6 +1401,22 @@ func (s packageReportService) CreateQuestionnairePackage(ctx context.Context, ac
 		return domain.QuestionnairePackage{}, err
 	}
 	pkg := domain.QuestionnairePackage{ID: newID("qp"), TenantID: actor.TenantID, TemplateID: tpl.ID, PackageID: in.PackageID, ProductID: in.ProductID, ReleaseID: in.ReleaseID, Responses: responses, ManifestHash: hash, SchemaVersion: domain.QuestionnairePackageVersion, CreatedAt: l.now()}
+	if l.unitOfWork != nil {
+		var entry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Enterprise.InsertQuestionnairePackage(ctx, pkg); err != nil {
+				return err
+			}
+			var err error
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(pkg.CreatedAt, actor.TenantID, "questionnaire_package.generated", "questionnaire_package", pkg.ID, actorType(actor), actorID(actor), hash, ""))
+			return err
+		}); err != nil {
+			return domain.QuestionnairePackage{}, err
+		}
+		l.questionPackages[pkg.ID] = pkg
+		l.publishCommittedAuditEntryLocked(entry)
+		return pkg, nil
+	}
 	l.questionPackages[pkg.ID] = pkg
 	_, _ = l.appendChainLocked(actor.TenantID, "questionnaire_package.generated", "questionnaire_package", pkg.ID, actorType(actor), actorID(actor), hash, "")
 	if err := l.persistLocked(ctx); err != nil {

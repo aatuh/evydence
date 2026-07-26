@@ -452,6 +452,27 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Enterprise.InsertQuestionnaireAnswerLibraryEntry(ctx, domain.QuestionnaireAnswerLibraryEntry{ID: "answer_repository", TenantID: tenant.ID, QuestionID: "q1", EvidenceType: evidence.Type, ControlID: control.ID, ProductID: product.ID, ReleaseID: release.ID, Answer: "Evidence is available.", EvidenceIDs: []string{evidence.ID}, Limitations: []string{"human review required"}, SchemaVersion: domain.QuestionnaireAnswerLibraryVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert questionnaire answer library entry: %v", err)
 	}
+	if err := repositories.Enterprise.InsertQuestionnairePackage(ctx, domain.QuestionnairePackage{ID: "questionnaire_package_repository", TenantID: tenant.ID, TemplateID: "template_repository", PackageID: "pkg_repository", ProductID: product.ID, ReleaseID: release.ID, Responses: []domain.QuestionnaireResponse{{QuestionID: "q1", Answer: "Evidence is available.", EvidenceIDs: []string{evidence.ID}}}, ManifestHash: "sha256:" + strings.Repeat("a", 64), SchemaVersion: domain.QuestionnairePackageVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert questionnaire package: %v", err)
+	}
+	if err := repositories.Enterprise.InsertQuestionnairePackage(ctx, domain.QuestionnairePackage{ID: "questionnaire_package_repository_unscoped", TenantID: tenant.ID, TemplateID: "template_repository", Responses: []domain.QuestionnaireResponse{{QuestionID: "q1", Answer: "Evidence has not been scoped."}}, ManifestHash: "sha256:" + strings.Repeat("b", 64), SchemaVersion: domain.QuestionnairePackageVersion, CreatedAt: now}); err != nil {
+		t.Fatalf("insert unscoped questionnaire package: %v", err)
+	}
+	if err := repositories.Enterprise.InsertQuestionnairePackage(ctx, domain.QuestionnairePackage{ID: "questionnaire_package_repository_missing_package", TenantID: tenant.ID, TemplateID: "template_repository", PackageID: "missing-package", Responses: []domain.QuestionnaireResponse{{QuestionID: "q1", Answer: "Evidence has not been scoped."}}, ManifestHash: "sha256:" + strings.Repeat("c", 64), SchemaVersion: domain.QuestionnairePackageVersion, CreatedAt: now}); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("missing questionnaire customer package err=%v, want not found", err)
+	}
+	if err := repositories.Enterprise.InsertQuestionnairePackage(ctx, domain.QuestionnairePackage{ID: "questionnaire_package_repository_missing_template", TenantID: tenant.ID, TemplateID: "missing-template", Responses: []domain.QuestionnaireResponse{{QuestionID: "q1", Answer: "Evidence has not been scoped."}}, ManifestHash: "sha256:" + strings.Repeat("d", 64), SchemaVersion: domain.QuestionnairePackageVersion, CreatedAt: now}); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("missing questionnaire template err=%v, want not found", err)
+	}
+	if err := repositories.Enterprise.InsertQuestionnairePackage(ctx, domain.QuestionnairePackage{ID: "questionnaire_package_repository_missing_product", TenantID: tenant.ID, TemplateID: "template_repository", ProductID: "missing-product", Responses: []domain.QuestionnaireResponse{{QuestionID: "q1", Answer: "Evidence has not been scoped."}}, ManifestHash: "sha256:" + strings.Repeat("e", 64), SchemaVersion: domain.QuestionnairePackageVersion, CreatedAt: now}); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("missing questionnaire product err=%v, want not found", err)
+	}
+	if err := repositories.Enterprise.InsertQuestionnairePackage(ctx, domain.QuestionnairePackage{ID: "questionnaire_package_repository_missing_release", TenantID: tenant.ID, TemplateID: "template_repository", ProductID: product.ID, ReleaseID: "missing-release", Responses: []domain.QuestionnaireResponse{{QuestionID: "q1", Answer: "Evidence has not been scoped."}}, ManifestHash: "sha256:" + strings.Repeat("f", 64), SchemaVersion: domain.QuestionnairePackageVersion, CreatedAt: now}); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("missing questionnaire release err=%v, want not found", err)
+	}
+	if err := repositories.Enterprise.InsertQuestionnairePackage(ctx, domain.QuestionnairePackage{ID: "questionnaire_package_repository_missing_evidence", TenantID: tenant.ID, TemplateID: "template_repository", Responses: []domain.QuestionnaireResponse{{QuestionID: "q1", Answer: "Evidence is unavailable.", EvidenceIDs: []string{"missing-evidence"}}}, ManifestHash: "sha256:" + strings.Repeat("0", 64), SchemaVersion: domain.QuestionnairePackageVersion, CreatedAt: now}); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("missing questionnaire evidence err=%v, want not found", err)
+	}
 	if err := repositories.Enterprise.InsertQuestionnaireAnswerLibraryEntry(ctx, domain.QuestionnaireAnswerLibraryEntry{ID: "answer_repository_release_only", TenantID: tenant.ID, QuestionID: "q2", ReleaseID: release.ID, Answer: "Release-scoped evidence is available.", Limitations: []string{"human review required"}, SchemaVersion: domain.QuestionnaireAnswerLibraryVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert release-only questionnaire answer library entry: %v", err)
 	}
@@ -629,6 +650,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"commercial collector", repositories.Enterprise.InsertCommercialCollectorDefinition(ctx, domain.CommercialCollectorDefinition{})},
 		{"questionnaire template", repositories.Enterprise.InsertQuestionnaireTemplate(ctx, domain.QuestionnaireTemplate{})},
 		{"questionnaire answer library", repositories.Enterprise.InsertQuestionnaireAnswerLibraryEntry(ctx, domain.QuestionnaireAnswerLibraryEntry{})},
+		{"questionnaire package", repositories.Enterprise.InsertQuestionnairePackage(ctx, domain.QuestionnairePackage{})},
 	}
 	for _, check := range checks {
 		if !errors.Is(check.err, app.ErrValidation) {
