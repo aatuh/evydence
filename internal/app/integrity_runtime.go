@@ -301,6 +301,18 @@ func (l *Ledger) VerifyMerkleBatch(ctx context.Context, actor domain.Actor, id s
 	}
 	profile := assuranceProfile("merkle-checkpoint.v1", []string{"merkle_root", "checkpoint_signature"}, []string{"tenant signing keys"}, "tenant-scoped verification authorization", "not_evaluated", "Merkle batch leaf hashes and signed root", batch.RootHash, []string{"Merkle checkpoint verification does not establish external transparency-log inclusion."})
 	vr := verificationResult(newID("vr"), actor.TenantID, "merkle_batch", batch.ID, checks, profile, l.now())
+	if l.unitOfWork != nil {
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			return repos.Verification.InsertVerificationResult(ctx, vr)
+		}); err != nil {
+			return domain.VerificationResult{}, err
+		}
+		l.verifications[vr.ID] = vr
+		if verificationReturnsFailure(vr.Result) {
+			return vr, ErrVerificationFailed
+		}
+		return vr, nil
+	}
 	l.verifications[vr.ID] = vr
 	if err := l.persistLocked(ctx); err != nil {
 		return domain.VerificationResult{}, err
