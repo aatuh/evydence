@@ -18,6 +18,12 @@ func NewSpecRegistry() *specs.Registry {
 			"detail":   map[string]any{"type": "string"},
 			"instance": map[string]any{"type": "string"},
 			"code":     map[string]any{"type": "string"},
+			"current_revision": map[string]any{
+				"type":        "integer",
+				"format":      "int64",
+				"minimum":     1,
+				"description": "Current resource revision included with VERSION_CONFLICT responses.",
+			},
 			"request_id": map[string]any{
 				"type":        "string",
 				"description": "Request identifier mirrored from the X-Request-ID response header.",
@@ -464,6 +470,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"id":             map[string]any{"type": "string"},
 		"tenant_id":      map[string]any{"type": "string"},
 		"name":           map[string]any{"type": "string"},
+		"revision":       map[string]any{"type": "integer", "format": "int64", "minimum": 1},
 		"version":        map[string]any{"type": "string"},
 		"description":    map[string]any{"type": "string"},
 		"rules":          map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/PolicyRule"}},
@@ -782,7 +789,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"created_at":     map[string]any{"type": "string", "format": "date-time"},
 		"promoted_at":    map[string]any{"type": "string", "format": "date-time"},
 		"rejected_at":    map[string]any{"type": "string", "format": "date-time"},
-	}, "id", "tenant_id", "release_id", "name", "state", "snapshot_hash", "schema_version", "created_at"))
+	}, "id", "tenant_id", "release_id", "name", "revision", "state", "snapshot_hash", "schema_version", "created_at"))
 	registry.RegisterSchema("ReleaseCandidateEnvelope", dataEnvelopeSchema("#/components/schemas/ReleaseCandidate"))
 	registry.RegisterSchema("ReleaseCandidateListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/ReleaseCandidate"))
 	registry.RegisterSchema("SupersedeEvidenceRequest", objectSchema(map[string]any{
@@ -982,6 +989,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"name":           map[string]any{"type": "string"},
 		"provider":       map[string]any{"type": "string"},
 		"version":        map[string]any{"type": "string"},
+		"revision":       map[string]any{"type": "integer", "format": "int64", "minimum": 1},
 		"manifest_hash":  map[string]any{"type": "string", "pattern": "^sha256:"},
 		"allowed_scopes": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 	}, "name", "provider", "version", "manifest_hash"))
@@ -1676,7 +1684,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"created_at":     map[string]any{"type": "string", "format": "date-time"},
 		"frozen_at":      map[string]any{"type": "string", "format": "date-time"},
 		"approved_at":    map[string]any{"type": "string", "format": "date-time"},
-	}, "id", "tenant_id", "product_id", "version", "status", "schema_version", "created_at"))
+	}, "id", "tenant_id", "product_id", "version", "revision", "status", "schema_version", "created_at"))
 	registry.RegisterSchema("ReleaseEnvelope", dataEnvelopeSchema("#/components/schemas/Release"))
 	registry.RegisterSchema("ReleaseEvidenceFlowStep", objectSchema(map[string]any{
 		"id":                   map[string]any{"type": "string"},

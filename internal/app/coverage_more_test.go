@@ -73,7 +73,7 @@ func TestImplementationIncrementReadListAndHelperBranches(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reject candidate: %v", err)
 	}
-	if rejected, err := ledger.UpdateReleaseCandidateState(ctx, actor, reject.ID, candidateRejected, "bad build"); err != nil || rejected.RejectedAt == nil {
+	if rejected, err := ledger.UpdateReleaseCandidateState(ctx, actor, reject.ID, candidateRejected, "bad build", reject.Revision); err != nil || rejected.RejectedAt == nil {
 		t.Fatalf("rejected candidate=%#v err=%v", rejected, err)
 	}
 	if _, err := ledger.CreateReleaseCandidate(ctx, actor, CreateReleaseCandidateInput{ReleaseID: release.ID, Name: "bad", BuildIDs: []string{"missing"}}); !errors.Is(err, ErrNotFound) {

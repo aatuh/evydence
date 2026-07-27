@@ -30,8 +30,8 @@ func TestLedgerOperationsHonorCanceledContextBeforeWork(t *testing.T) {
 		{"CreateProject", func() error { _, err := ledger.CreateProject(ctx, actor, "prod", "api"); return err }},
 		{"CreateRelease", func() error { _, err := ledger.CreateRelease(ctx, actor, "prod", "1.0.0"); return err }},
 		{"GetRelease", func() error { _, err := ledger.GetRelease(ctx, actor, "rel"); return err }},
-		{"FreezeRelease", func() error { _, err := ledger.FreezeRelease(ctx, actor, "rel"); return err }},
-		{"ApproveRelease", func() error { _, err := ledger.ApproveRelease(ctx, actor, "rel"); return err }},
+		{"FreezeRelease", func() error { _, err := ledger.FreezeRelease(ctx, actor, "rel", 1); return err }},
+		{"ApproveRelease", func() error { _, err := ledger.ApproveRelease(ctx, actor, "rel", 1); return err }},
 		{"RegisterArtifact", func() error {
 			_, err := ledger.RegisterArtifact(ctx, actor, "artifact", "application/octet-stream", sampleDigest("artifact"), 1)
 			return err
@@ -74,7 +74,7 @@ func TestLedgerOperationsHonorCanceledContextBeforeWork(t *testing.T) {
 		{"GetReleaseCandidate", func() error { _, err := ledger.GetReleaseCandidate(ctx, actor, "rc"); return err }},
 		{"ListReleaseCandidates", func() error { _, err := ledger.ListReleaseCandidates(ctx, actor, "rel"); return err }},
 		{"UpdateReleaseCandidateState", func() error {
-			_, err := ledger.UpdateReleaseCandidateState(ctx, actor, "rc", "promoted", "reason")
+			_, err := ledger.UpdateReleaseCandidateState(ctx, actor, "rc", "promoted", "reason", 1)
 			return err
 		}},
 		{"RegisterContainerImage", func() error {
@@ -422,8 +422,8 @@ func TestLedgerOperationsRejectActorsWithoutRequiredScopesBeforeResourceWork(t *
 		{"CreateProject", func() error { _, err := ledger.CreateProject(ctx, actor, "prod", "api"); return err }},
 		{"CreateRelease", func() error { _, err := ledger.CreateRelease(ctx, actor, "prod", "1.0.0"); return err }},
 		{"GetRelease", func() error { _, err := ledger.GetRelease(ctx, actor, "rel"); return err }},
-		{"FreezeRelease", func() error { _, err := ledger.FreezeRelease(ctx, actor, "rel"); return err }},
-		{"ApproveRelease", func() error { _, err := ledger.ApproveRelease(ctx, actor, "rel"); return err }},
+		{"FreezeRelease", func() error { _, err := ledger.FreezeRelease(ctx, actor, "rel", 1); return err }},
+		{"ApproveRelease", func() error { _, err := ledger.ApproveRelease(ctx, actor, "rel", 1); return err }},
 		{"RegisterArtifact", func() error {
 			_, err := ledger.RegisterArtifact(ctx, actor, "artifact", "application/octet-stream", sampleDigest("artifact"), 1)
 			return err
@@ -466,7 +466,7 @@ func TestLedgerOperationsRejectActorsWithoutRequiredScopesBeforeResourceWork(t *
 		{"GetReleaseCandidate", func() error { _, err := ledger.GetReleaseCandidate(ctx, actor, "rc"); return err }},
 		{"ListReleaseCandidates", func() error { _, err := ledger.ListReleaseCandidates(ctx, actor, "rel"); return err }},
 		{"UpdateReleaseCandidateState", func() error {
-			_, err := ledger.UpdateReleaseCandidateState(ctx, actor, "rc", "promoted", "reason")
+			_, err := ledger.UpdateReleaseCandidateState(ctx, actor, "rc", "promoted", "reason", 1)
 			return err
 		}},
 		{"RegisterContainerImage", func() error {

@@ -551,7 +551,7 @@ func (s releaseEvidenceService) CreateRelease(ctx context.Context, actor domain.
 			return domain.Release{}, ErrConflict
 		}
 	}
-	release := domain.Release{ID: newID("rel"), TenantID: actor.TenantID, ProductID: productID, Version: version, State: "draft", CreatedAt: l.now()}
+	release := domain.Release{ID: newID("rel"), TenantID: actor.TenantID, ProductID: productID, Version: version, Revision: 1, State: "draft", CreatedAt: l.now()}
 	if l.unitOfWork != nil {
 		var entry domain.AuditChainEntry
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
@@ -596,13 +596,16 @@ func (s releaseEvidenceService) GetRelease(ctx context.Context, actor domain.Act
 	return release, nil
 }
 
-func (s releaseEvidenceService) FreezeRelease(ctx context.Context, actor domain.Actor, releaseID string) (domain.Release, error) {
+func (s releaseEvidenceService) FreezeRelease(ctx context.Context, actor domain.Actor, releaseID string, expectedRevision int64) (domain.Release, error) {
 	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.Release{}, err
 	}
 	if err := require(actor, ScopeReleaseWrite); err != nil {
 		return domain.Release{}, err
+	}
+	if expectedRevision < 1 {
+		return domain.Release{}, ErrValidation
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -613,11 +616,15 @@ func (s releaseEvidenceService) FreezeRelease(ctx context.Context, actor domain.
 	if err := l.authorizeResourceLocked(actor, ScopeReleaseWrite, resourceRefs{ReleaseID: release.ID}); err != nil {
 		return domain.Release{}, err
 	}
+	if release.Revision != expectedRevision {
+		return domain.Release{}, NewVersionConflict(release.Revision)
+	}
 	if release.State != "draft" {
 		return domain.Release{}, ErrConflict
 	}
 	now := l.now()
 	release.State = "frozen"
+	release.Revision++
 	release.FrozenAt = &now
 	if l.unitOfWork != nil {
 		var entry domain.AuditChainEntry
@@ -643,13 +650,16 @@ func (s releaseEvidenceService) FreezeRelease(ctx context.Context, actor domain.
 	return release, nil
 }
 
-func (s releaseEvidenceService) ApproveRelease(ctx context.Context, actor domain.Actor, releaseID string) (domain.Release, error) {
+func (s releaseEvidenceService) ApproveRelease(ctx context.Context, actor domain.Actor, releaseID string, expectedRevision int64) (domain.Release, error) {
 	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.Release{}, err
 	}
 	if err := require(actor, ScopeReleaseWrite); err != nil {
 		return domain.Release{}, err
+	}
+	if expectedRevision < 1 {
+		return domain.Release{}, ErrValidation
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -660,11 +670,15 @@ func (s releaseEvidenceService) ApproveRelease(ctx context.Context, actor domain
 	if err := l.authorizeResourceLocked(actor, ScopeReleaseWrite, resourceRefs{ReleaseID: release.ID}); err != nil {
 		return domain.Release{}, err
 	}
+	if release.Revision != expectedRevision {
+		return domain.Release{}, NewVersionConflict(release.Revision)
+	}
 	if release.State != "frozen" {
 		return domain.Release{}, ErrConflict
 	}
 	now := l.now()
 	release.State = "approved"
+	release.Revision++
 	release.ApprovedAt = &now
 	if l.unitOfWork != nil {
 		var entry domain.AuditChainEntry

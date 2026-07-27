@@ -82,14 +82,14 @@ func TestReleaseCandidateContainerImageAndArtifactSignature(t *testing.T) {
 	if candidate.SnapshotHash == "" || candidate.State != candidateOpen {
 		t.Fatalf("candidate = %#v, want open with snapshot hash", candidate)
 	}
-	promoted, err := ledger.UpdateReleaseCandidateState(ctx, actor, candidate.ID, candidatePromoted, "release accepted")
+	promoted, err := ledger.UpdateReleaseCandidateState(ctx, actor, candidate.ID, candidatePromoted, "release accepted", candidate.Revision)
 	if err != nil {
 		t.Fatalf("promote candidate: %v", err)
 	}
 	if promoted.PromotedAt == nil || promoted.State != candidatePromoted {
 		t.Fatalf("promoted = %#v, want promoted timestamp", promoted)
 	}
-	if _, err := ledger.UpdateReleaseCandidateState(ctx, actor, candidate.ID, candidateRejected, "late rejection"); !errors.Is(err, ErrConflict) {
+	if _, err := ledger.UpdateReleaseCandidateState(ctx, actor, candidate.ID, candidateRejected, "late rejection", promoted.Revision); !errors.Is(err, ErrConflict) {
 		t.Fatalf("second candidate transition err=%v, want conflict", err)
 	}
 	image, err := ledger.RegisterContainerImage(ctx, actor, RegisterContainerImageInput{

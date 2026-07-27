@@ -446,18 +446,21 @@ func (r releaseCatalog) InsertProject(ctx context.Context, project domain.Projec
 }
 
 func (r releaseCatalog) InsertRelease(ctx context.Context, release domain.Release) error {
-	if release.ID == "" || release.TenantID == "" || release.ProductID == "" || release.Version == "" || release.State == "" || release.CreatedAt.IsZero() {
+	if release.Revision == 0 {
+		release.Revision = 1
+	}
+	if release.ID == "" || release.TenantID == "" || release.ProductID == "" || release.Version == "" || release.Revision < 1 || release.State == "" || release.CreatedAt.IsZero() {
 		return app.ErrValidation
 	}
 	if err := requireTenant(ctx, r.tx, release.TenantID); err != nil {
 		return err
 	}
 	result, err := r.tx.Exec(ctx, `
-		INSERT INTO releases (id, tenant_id, product_id, version, state, frozen_at, approved_at, created_at)
-		SELECT $1, $2, product.id, $4, $5, $6, $7, $8
+		INSERT INTO releases (id, tenant_id, product_id, version, state, frozen_at, approved_at, revision, created_at)
+		SELECT $1, $2, product.id, $4, $5, $6, $7, $8, $9
 		FROM products product
 		WHERE product.id = $3 AND product.tenant_id = $2
-	`, release.ID, release.TenantID, release.ProductID, release.Version, release.State, release.FrozenAt, release.ApprovedAt, release.CreatedAt)
+	`, release.ID, release.TenantID, release.ProductID, release.Version, release.State, release.FrozenAt, release.ApprovedAt, release.Revision, release.CreatedAt)
 	if err != nil {
 		return writeError("insert release", err)
 	}
@@ -468,19 +471,22 @@ func (r releaseCatalog) InsertRelease(ctx context.Context, release domain.Releas
 }
 
 func (r releaseCatalog) UpdateReleaseState(ctx context.Context, release domain.Release, expectedState string) error {
-	if release.ID == "" || release.TenantID == "" || release.ProductID == "" || release.State == "" || expectedState == "" {
+	if release.ID == "" || release.TenantID == "" || release.ProductID == "" || release.Revision < 2 || release.State == "" || expectedState == "" {
 		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, release.TenantID); err != nil {
+		return err
 	}
 	result, err := r.tx.Exec(ctx, `
 		UPDATE releases
-		SET state = $4, frozen_at = $5, approved_at = $6
-		WHERE id = $1 AND tenant_id = $2 AND product_id = $3 AND state = $7
-	`, release.ID, release.TenantID, release.ProductID, release.State, release.FrozenAt, release.ApprovedAt, expectedState)
+		SET state = $4, frozen_at = $5, approved_at = $6, revision = $7
+		WHERE id = $1 AND tenant_id = $2 AND product_id = $3 AND state = $8 AND revision = $9
+	`, release.ID, release.TenantID, release.ProductID, release.State, release.FrozenAt, release.ApprovedAt, release.Revision, expectedState, release.Revision-1)
 	if err != nil {
 		return writeError("update release state", err)
 	}
 	if result.RowsAffected() != 1 {
-		return app.ErrConflict
+		return r.releaseRevisionConflict(ctx, release)
 	}
 	return nil
 }
@@ -500,7 +506,10 @@ func (r releaseCatalog) InsertArtifact(ctx context.Context, artifact domain.Arti
 }
 
 func (r releaseCatalog) InsertReleaseCandidate(ctx context.Context, candidate domain.ReleaseCandidate) error {
-	if candidate.ID == "" || candidate.TenantID == "" || candidate.ReleaseID == "" || candidate.Name == "" || candidate.State == "" || candidate.SnapshotHash == "" || candidate.SchemaVersion == "" || candidate.CreatedAt.IsZero() {
+	if candidate.Revision == 0 {
+		candidate.Revision = 1
+	}
+	if candidate.ID == "" || candidate.TenantID == "" || candidate.ReleaseID == "" || candidate.Name == "" || candidate.Revision < 1 || candidate.State == "" || candidate.SnapshotHash == "" || candidate.SchemaVersion == "" || candidate.CreatedAt.IsZero() {
 		return app.ErrValidation
 	}
 	if err := requireOptionalRelease(ctx, r.tx, candidate.TenantID, candidate.ReleaseID); err != nil {
@@ -511,15 +520,18 @@ func (r releaseCatalog) InsertReleaseCandidate(ctx context.Context, candidate do
 		return fmt.Errorf("encode release candidate document: %w", err)
 	}
 	_, err = r.tx.Exec(ctx, `
-		INSERT INTO release_candidates (id, tenant_id, release_id, name, state, snapshot_hash, document, schema_version, created_at, promoted_at, rejected_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-	`, candidate.ID, candidate.TenantID, candidate.ReleaseID, candidate.Name, candidate.State, candidate.SnapshotHash, document, candidate.SchemaVersion, candidate.CreatedAt, candidate.PromotedAt, candidate.RejectedAt)
+		INSERT INTO release_candidates (id, tenant_id, release_id, name, state, snapshot_hash, document, schema_version, revision, created_at, promoted_at, rejected_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+	`, candidate.ID, candidate.TenantID, candidate.ReleaseID, candidate.Name, candidate.State, candidate.SnapshotHash, document, candidate.SchemaVersion, candidate.Revision, candidate.CreatedAt, candidate.PromotedAt, candidate.RejectedAt)
 	return writeError("insert release candidate", err)
 }
 
 func (r releaseCatalog) UpdateReleaseCandidateState(ctx context.Context, candidate domain.ReleaseCandidate, expectedState string) error {
-	if candidate.ID == "" || candidate.TenantID == "" || candidate.ReleaseID == "" || candidate.State == "" || expectedState == "" {
+	if candidate.ID == "" || candidate.TenantID == "" || candidate.ReleaseID == "" || candidate.Revision < 2 || candidate.State == "" || expectedState == "" {
 		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, candidate.TenantID); err != nil {
+		return err
 	}
 	document, err := json.Marshal(candidate)
 	if err != nil {
@@ -527,16 +539,40 @@ func (r releaseCatalog) UpdateReleaseCandidateState(ctx context.Context, candida
 	}
 	result, err := r.tx.Exec(ctx, `
 		UPDATE release_candidates
-		SET state = $4, document = $5, promoted_at = $6, rejected_at = $7
-		WHERE id = $1 AND tenant_id = $2 AND release_id = $3 AND state = $8
-	`, candidate.ID, candidate.TenantID, candidate.ReleaseID, candidate.State, document, candidate.PromotedAt, candidate.RejectedAt, expectedState)
+		SET state = $4, document = $5, promoted_at = $6, rejected_at = $7, revision = $8
+		WHERE id = $1 AND tenant_id = $2 AND release_id = $3 AND state = $9 AND revision = $10
+	`, candidate.ID, candidate.TenantID, candidate.ReleaseID, candidate.State, document, candidate.PromotedAt, candidate.RejectedAt, candidate.Revision, expectedState, candidate.Revision-1)
 	if err != nil {
 		return writeError("update release candidate state", err)
 	}
 	if result.RowsAffected() != 1 {
-		return app.ErrConflict
+		return r.releaseCandidateRevisionConflict(ctx, candidate)
 	}
 	return nil
+}
+
+func (r releaseCatalog) releaseRevisionConflict(ctx context.Context, release domain.Release) error {
+	var revision int64
+	err := r.tx.QueryRow(ctx, `SELECT revision FROM releases WHERE id = $1 AND tenant_id = $2 AND product_id = $3`, release.ID, release.TenantID, release.ProductID).Scan(&revision)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return app.ErrConflict
+	}
+	if err != nil {
+		return writeError("load current release revision", err)
+	}
+	return app.NewVersionConflict(revision)
+}
+
+func (r releaseCatalog) releaseCandidateRevisionConflict(ctx context.Context, candidate domain.ReleaseCandidate) error {
+	var revision int64
+	err := r.tx.QueryRow(ctx, `SELECT revision FROM release_candidates WHERE id = $1 AND tenant_id = $2 AND release_id = $3`, candidate.ID, candidate.TenantID, candidate.ReleaseID).Scan(&revision)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return app.ErrConflict
+	}
+	if err != nil {
+		return writeError("load current release candidate revision", err)
+	}
+	return app.NewVersionConflict(revision)
 }
 
 type evidence struct{ tx pgx.Tx }
@@ -957,25 +993,37 @@ func (r audit) Append(ctx context.Context, entry domain.AuditChainEntry) (domain
 	if err := requireTenant(ctx, r.tx, entry.TenantID); err != nil {
 		return domain.AuditChainEntry{}, err
 	}
+	// Legacy state reconciliation uses the same per-tenant transaction lock.
+	// Keep it while moving sequence allocation to the durable row below so a
+	// reconciliation transaction cannot race an incremental append.
 	if _, err := r.tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, entry.TenantID); err != nil {
 		return domain.AuditChainEntry{}, writeError("lock tenant audit chain", err)
 	}
 	var sequence int64
-	var previous string
-	err := r.tx.QueryRow(ctx, `
-		SELECT sequence, entry_hash
-		FROM audit_chain_entries
-		WHERE tenant_id = $1
-		ORDER BY sequence DESC
-		LIMIT 1
-		FOR UPDATE
-	`, entry.TenantID).Scan(&sequence, &previous)
-	if errors.Is(err, pgx.ErrNoRows) {
-		sequence, previous = 0, ""
-	} else if err != nil {
-		return domain.AuditChainEntry{}, writeError("load audit chain head", err)
+	if err := r.tx.QueryRow(ctx, `
+		INSERT INTO tenant_audit_sequences (tenant_id, next_sequence)
+		VALUES ($1, 2)
+		ON CONFLICT (tenant_id) DO UPDATE
+		SET next_sequence = tenant_audit_sequences.next_sequence + 1
+		RETURNING next_sequence - 1
+	`, entry.TenantID).Scan(&sequence); err != nil {
+		return domain.AuditChainEntry{}, writeError("allocate tenant audit sequence", err)
 	}
-	entry.Sequence = sequence + 1
+	var previous string
+	if sequence > 1 {
+		err := r.tx.QueryRow(ctx, `
+		SELECT entry_hash
+		FROM audit_chain_entries
+		WHERE tenant_id = $1 AND sequence = $2
+	`, entry.TenantID, sequence-1).Scan(&previous)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.AuditChainEntry{}, app.ErrConflict
+		}
+		if err != nil {
+			return domain.AuditChainEntry{}, writeError("load audit chain predecessor", err)
+		}
+	}
+	entry.Sequence = sequence
 	entry.PreviousEntryHash = previous
 	if entry.SchemaVersion == "" {
 		entry.SchemaVersion = domain.AuditChainEntrySchemaVersion

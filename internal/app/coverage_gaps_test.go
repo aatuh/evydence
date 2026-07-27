@@ -17,24 +17,24 @@ func TestAppReadListLifecycleAndReportGaps(t *testing.T) {
 	if !ledger.HasTenants() {
 		t.Fatal("bootstrap fixture should create a tenant")
 	}
-	if _, err := ledger.ApproveRelease(ctx, actor, release.ID); !errors.Is(err, ErrConflict) {
+	if _, err := ledger.ApproveRelease(ctx, actor, release.ID, release.Revision); !errors.Is(err, ErrConflict) {
 		t.Fatalf("approve draft release err=%v, want conflict", err)
 	}
-	frozen, err := ledger.FreezeRelease(ctx, actor, release.ID)
+	frozen, err := ledger.FreezeRelease(ctx, actor, release.ID, release.Revision)
 	if err != nil {
 		t.Fatalf("freeze release: %v", err)
 	}
 	if frozen.State != "frozen" || frozen.FrozenAt == nil {
 		t.Fatalf("frozen release = %#v", frozen)
 	}
-	approved, err := ledger.ApproveRelease(ctx, actor, release.ID)
+	approved, err := ledger.ApproveRelease(ctx, actor, release.ID, frozen.Revision)
 	if err != nil {
 		t.Fatalf("approve release: %v", err)
 	}
 	if approved.State != "approved" || approved.ApprovedAt == nil {
 		t.Fatalf("approved release = %#v", approved)
 	}
-	if _, err := ledger.FreezeRelease(ctx, actor, release.ID); !errors.Is(err, ErrConflict) {
+	if _, err := ledger.FreezeRelease(ctx, actor, release.ID, approved.Revision); !errors.Is(err, ErrConflict) {
 		t.Fatalf("freeze approved release err=%v, want conflict", err)
 	}
 

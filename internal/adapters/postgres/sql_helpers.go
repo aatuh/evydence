@@ -78,6 +78,13 @@ func nonZeroInt(value, fallback int) int {
 	return value
 }
 
+func nonZeroInt64(value, fallback int64) int64 {
+	if value == 0 {
+		return fallback
+	}
+	return value
+}
+
 func nullableBytes(value []byte) any {
 	if len(value) == 0 {
 		return nil

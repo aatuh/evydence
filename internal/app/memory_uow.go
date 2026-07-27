@@ -701,6 +701,9 @@ func (r memoryReleaseCatalogRepository) InsertProject(ctx context.Context, proje
 }
 
 func (r memoryReleaseCatalogRepository) InsertRelease(ctx context.Context, release domain.Release) error {
+	if release.Revision == 0 {
+		release.Revision = 1
+	}
 	cloned, err := cloneMemoryJSON(release)
 	if err != nil {
 		return err
@@ -713,7 +716,7 @@ func (r memoryReleaseCatalogRepository) InsertRelease(ctx context.Context, relea
 		if !ok || product.TenantID != cloned.TenantID {
 			return ErrNotFound
 		}
-		if cloned.ID == "" || cloned.Version == "" || cloned.State == "" || cloned.CreatedAt.IsZero() {
+		if cloned.ID == "" || cloned.Version == "" || cloned.Revision < 1 || cloned.State == "" || cloned.CreatedAt.IsZero() {
 			return ErrValidation
 		}
 		if _, exists := state.Releases[cloned.ID]; exists {
@@ -738,12 +741,15 @@ func (r memoryReleaseCatalogRepository) UpdateReleaseState(ctx context.Context, 
 		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
 			return err
 		}
-		if cloned.ID == "" || cloned.ProductID == "" || cloned.State == "" || expectedState == "" {
+		if cloned.ID == "" || cloned.ProductID == "" || cloned.Revision < 2 || cloned.State == "" || expectedState == "" {
 			return ErrValidation
 		}
 		stored, ok := state.Releases[cloned.ID]
 		if !ok || stored.TenantID != cloned.TenantID || stored.ProductID != cloned.ProductID {
 			return ErrNotFound
+		}
+		if stored.Revision+1 != cloned.Revision {
+			return NewVersionConflict(stored.Revision)
 		}
 		if stored.State != expectedState {
 			return ErrConflict
@@ -779,6 +785,9 @@ func (r memoryReleaseCatalogRepository) InsertArtifact(ctx context.Context, arti
 }
 
 func (r memoryReleaseCatalogRepository) InsertReleaseCandidate(ctx context.Context, candidate domain.ReleaseCandidate) error {
+	if candidate.Revision == 0 {
+		candidate.Revision = 1
+	}
 	cloned, err := cloneMemoryJSON(candidate)
 	if err != nil {
 		return err
@@ -787,7 +796,7 @@ func (r memoryReleaseCatalogRepository) InsertReleaseCandidate(ctx context.Conte
 		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
 			return err
 		}
-		if cloned.ID == "" || cloned.ReleaseID == "" || cloned.Name == "" || cloned.State == "" || cloned.SnapshotHash == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+		if cloned.ID == "" || cloned.ReleaseID == "" || cloned.Name == "" || cloned.Revision < 1 || cloned.State == "" || cloned.SnapshotHash == "" || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
 			return ErrValidation
 		}
 		if !memoryResourceBelongsToTenant(cloned.ReleaseID, cloned.TenantID, state.Releases) {
@@ -813,6 +822,12 @@ func (r memoryReleaseCatalogRepository) UpdateReleaseCandidateState(ctx context.
 		stored, ok := state.ReleaseCandidates[cloned.ID]
 		if !ok || stored.TenantID != cloned.TenantID || stored.ReleaseID != cloned.ReleaseID {
 			return ErrNotFound
+		}
+		if cloned.Revision < 2 {
+			return ErrValidation
+		}
+		if stored.Revision+1 != cloned.Revision {
+			return NewVersionConflict(stored.Revision)
 		}
 		if expectedState == "" || stored.State != expectedState {
 			return ErrConflict

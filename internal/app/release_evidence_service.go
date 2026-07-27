@@ -42,12 +42,12 @@ func (l *Ledger) GetRelease(ctx context.Context, actor domain.Actor, releaseID s
 	return l.releaseEvidenceService().GetRelease(ctx, actor, releaseID)
 }
 
-func (l *Ledger) FreezeRelease(ctx context.Context, actor domain.Actor, releaseID string) (domain.Release, error) {
-	return l.releaseEvidenceService().FreezeRelease(ctx, actor, releaseID)
+func (l *Ledger) FreezeRelease(ctx context.Context, actor domain.Actor, releaseID string, expectedRevision int64) (domain.Release, error) {
+	return l.releaseEvidenceService().FreezeRelease(ctx, actor, releaseID, expectedRevision)
 }
 
-func (l *Ledger) ApproveRelease(ctx context.Context, actor domain.Actor, releaseID string) (domain.Release, error) {
-	return l.releaseEvidenceService().ApproveRelease(ctx, actor, releaseID)
+func (l *Ledger) ApproveRelease(ctx context.Context, actor domain.Actor, releaseID string, expectedRevision int64) (domain.Release, error) {
+	return l.releaseEvidenceService().ApproveRelease(ctx, actor, releaseID, expectedRevision)
 }
 
 func (l *Ledger) RegisterArtifact(ctx context.Context, actor domain.Actor, name, mediaType, digest string, size int64) (domain.Artifact, error) {

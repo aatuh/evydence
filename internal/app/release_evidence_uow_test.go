@@ -287,13 +287,13 @@ func TestReleaseEvidenceRepositoryFailuresRollbackEveryReleaseEvidenceFamily(t *
 	mustFail("create project", err)
 	_, err = ledger.CreateRelease(ctx, actor, product.ID, "2.0.0")
 	mustFail("create release", err)
-	_, err = ledger.FreezeRelease(ctx, actor, release.ID)
+	_, err = ledger.FreezeRelease(ctx, actor, release.ID, release.Revision)
 	mustFail("freeze release", err)
 	_, err = ledger.RegisterArtifact(ctx, actor, "failed", "application/json", sampleDigest("x"), 1)
 	mustFail("register artifact", err)
 	_, err = ledger.CreateReleaseCandidate(ctx, actor, CreateReleaseCandidateInput{ReleaseID: release.ID, Name: "failed candidate"})
 	mustFail("create release candidate", err)
-	_, err = ledger.UpdateReleaseCandidateState(ctx, actor, candidate.ID, candidatePromoted, "promote")
+	_, err = ledger.UpdateReleaseCandidateState(ctx, actor, candidate.ID, candidatePromoted, "promote", candidate.Revision)
 	mustFail("update release candidate", err)
 
 	ledger.unitOfWork = repositoryFailingUnitOfWorkFactory{inner: memory, decorate: failEvidence}
@@ -330,10 +330,11 @@ func TestReleaseEvidenceReleaseTransitionsUseUnitOfWork(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create release: %v", err)
 	}
-	if _, err := ledger.FreezeRelease(ctx, actor, release.ID); err != nil {
+	frozen, err := ledger.FreezeRelease(ctx, actor, release.ID, release.Revision)
+	if err != nil {
 		t.Fatalf("freeze release: %v", err)
 	}
-	approved, err := ledger.ApproveRelease(ctx, actor, release.ID)
+	approved, err := ledger.ApproveRelease(ctx, actor, release.ID, frozen.Revision)
 	if err != nil {
 		t.Fatalf("approve release: %v", err)
 	}
@@ -521,7 +522,7 @@ func TestReleaseEvidenceReleaseCandidateUsesUnitOfWork(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create release candidate: %v", err)
 	}
-	promoted, err := ledger.UpdateReleaseCandidateState(ctx, actor, candidate.ID, candidatePromoted, "approved for promotion")
+	promoted, err := ledger.UpdateReleaseCandidateState(ctx, actor, candidate.ID, candidatePromoted, "approved for promotion", candidate.Revision)
 	if err != nil {
 		t.Fatalf("promote release candidate: %v", err)
 	}

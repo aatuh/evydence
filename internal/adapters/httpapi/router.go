@@ -405,14 +405,22 @@ func (s *Server) releaseSecuritySummary(w http.ResponseWriter, r *http.Request) 
 
 func (s *Server) freezeRelease(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
-		release, err := s.ledger.FreezeRelease(ctx, actor, r.PathValue("id"))
+		expectedRevision, err := expectedRevisionFromIfMatch(r)
+		if err != nil {
+			return 0, nil, err
+		}
+		release, err := s.ledger.FreezeRelease(ctx, actor, r.PathValue("id"), expectedRevision)
 		return http.StatusOK, release, err
 	})
 }
 
 func (s *Server) approveRelease(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
-		release, err := s.ledger.ApproveRelease(ctx, actor, r.PathValue("id"))
+		expectedRevision, err := expectedRevisionFromIfMatch(r)
+		if err != nil {
+			return 0, nil, err
+		}
+		release, err := s.ledger.ApproveRelease(ctx, actor, r.PathValue("id"), expectedRevision)
 		return http.StatusOK, release, err
 	})
 }
@@ -483,7 +491,11 @@ func (s *Server) transitionReleaseCandidate(w http.ResponseWriter, r *http.Reque
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		candidate, err := s.ledger.UpdateReleaseCandidateState(ctx, actor, r.PathValue("id"), state, req.Reason)
+		expectedRevision, err := expectedRevisionFromIfMatch(r)
+		if err != nil {
+			return 0, nil, err
+		}
+		candidate, err := s.ledger.UpdateReleaseCandidateState(ctx, actor, r.PathValue("id"), state, req.Reason, expectedRevision)
 		return http.StatusOK, candidate, err
 	})
 }
@@ -2350,6 +2362,22 @@ func parseOptionalRFC3339(value string) (time.Time, error) {
 	return parsed, nil
 }
 
+func expectedRevisionFromIfMatch(r *http.Request) (int64, error) {
+	if r == nil || len(r.Header.Values("If-Match")) != 1 {
+		return 0, app.ErrValidation
+	}
+	raw := strings.TrimSpace(r.Header.Get("If-Match"))
+	if len(raw) < 3 || raw[0] != '"' || raw[len(raw)-1] != '"' {
+		return 0, app.ErrValidation
+	}
+	value := raw[1 : len(raw)-1]
+	revision, err := strconv.ParseInt(value, 10, 64)
+	if err != nil || revision < 1 || strconv.FormatInt(revision, 10) != value {
+		return 0, app.ErrValidation
+	}
+	return revision, nil
+}
+
 func writeData(w http.ResponseWriter, status int, data any) {
 	httpx.WriteJSON(w, status, map[string]any{"data": data, "meta": map[string]string{"api_version": "v1"}})
 }
@@ -2374,6 +2402,9 @@ func writeProblem(w http.ResponseWriter, r *http.Request, err error) {
 			"code":       app.ProblemCode(err),
 			"request_id": requestID,
 		},
+	}
+	if revision, ok := app.CurrentRevision(err); ok {
+		problem.Ext["current_revision"] = revision
 	}
 	if r != nil {
 		problem.Instance = r.URL.Path

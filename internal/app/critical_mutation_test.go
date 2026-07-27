@@ -227,10 +227,11 @@ func TestReleaseLedgerMutationStoreAvoidsAggregateSaveForCoreFlows(t *testing.T)
 	if err != nil {
 		t.Fatalf("create release: %v", err)
 	}
-	if _, err := ledger.FreezeRelease(ctx, actor, release.ID); err != nil {
+	frozen, err := ledger.FreezeRelease(ctx, actor, release.ID, release.Revision)
+	if err != nil {
 		t.Fatalf("freeze release: %v", err)
 	}
-	if _, err := ledger.ApproveRelease(ctx, actor, release.ID); err != nil {
+	if _, err := ledger.ApproveRelease(ctx, actor, release.ID, frozen.Revision); err != nil {
 		t.Fatalf("approve release: %v", err)
 	}
 	if store.saveCalls != 0 || store.releaseCalls != 4 {

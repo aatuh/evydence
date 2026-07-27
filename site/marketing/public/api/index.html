@@ -2098,13 +2098,13 @@
               <div><dt>Responses</dt><dd>200 application/json: ReleaseCandidateEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/release-candidates/{id}/promote promote release candidate records a release-candidate lifecycle transition without mutating the original snapshot. promotereleasecandidate evydence release:write">
+          <article class="operation" data-operation data-search="post /v1/release-candidates/{id}/promote promote release candidate records a release-candidate lifecycle transition without mutating the original snapshot. supply the current revision as a strong decimal etag in if-match. promotereleasecandidate evydence release:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/release-candidates/{id}/promote</code>
             </div>
             <h3>Promote release candidate</h3>
-            <p>Records a release-candidate lifecycle transition without mutating the original snapshot.</p>
+            <p>Records a release-candidate lifecycle transition without mutating the original snapshot. Supply the current revision as a strong decimal ETag in If-Match.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>promoteReleaseCandidate</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2115,13 +2115,13 @@
               <div><dt>Responses</dt><dd>200 application/json: ReleaseCandidateEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/release-candidates/{id}/reject reject release candidate records a release-candidate lifecycle transition without mutating the original snapshot. rejectreleasecandidate evydence release:write">
+          <article class="operation" data-operation data-search="post /v1/release-candidates/{id}/reject reject release candidate records a release-candidate lifecycle transition without mutating the original snapshot. supply the current revision as a strong decimal etag in if-match. rejectreleasecandidate evydence release:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/release-candidates/{id}/reject</code>
             </div>
             <h3>Reject release candidate</h3>
-            <p>Records a release-candidate lifecycle transition without mutating the original snapshot.</p>
+            <p>Records a release-candidate lifecycle transition without mutating the original snapshot. Supply the current revision as a strong decimal ETag in If-Match.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>rejectReleaseCandidate</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2166,13 +2166,13 @@
               <div><dt>Responses</dt><dd>200 application/json: ReleaseEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/releases/{id}/approve approve release approves a release as an append-only transition. approverelease evydence release:write">
+          <article class="operation" data-operation data-search="post /v1/releases/{id}/approve approve release approves a release as an append-only transition. supply the current revision as a strong decimal etag in if-match. approverelease evydence release:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/releases/{id}/approve</code>
             </div>
             <h3>Approve release</h3>
-            <p>Approves a release as an append-only transition.</p>
+            <p>Approves a release as an append-only transition. Supply the current revision as a strong decimal ETag in If-Match.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>approveRelease</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2200,13 +2200,13 @@
               <div><dt>Responses</dt><dd>200 application/json: ReleaseEvidenceFlowEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/releases/{id}/freeze freeze release freezes a release as an append-only transition. freezerelease evydence release:write">
+          <article class="operation" data-operation data-search="post /v1/releases/{id}/freeze freeze release freezes a release as an append-only transition. supply the current revision as a strong decimal etag in if-match. freezerelease evydence release:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/releases/{id}/freeze</code>
             </div>
             <h3>Freeze release</h3>
-            <p>Freezes a release as an append-only transition.</p>
+            <p>Freezes a release as an append-only transition. Supply the current revision as a strong decimal ETag in If-Match.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>freezeRelease</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -4604,7 +4604,7 @@
           <tr>
             <td><code>Release</code></td>
             <td>object</td>
-            <td>id, tenant_id, product_id, version, status, schema_version, created_at</td>
+            <td>id, tenant_id, product_id, version, revision, status, schema_version, created_at</td>
           </tr>
           <tr>
             <td><code>ReleaseBundle</code></td>
@@ -4639,7 +4639,7 @@
           <tr>
             <td><code>ReleaseCandidate</code></td>
             <td>object</td>
-            <td>id, tenant_id, release_id, name, state, snapshot_hash, schema_version, created_at</td>
+            <td>id, tenant_id, release_id, name, revision, state, snapshot_hash, schema_version, created_at</td>
           </tr>
           <tr>
             <td><code>ReleaseCandidateEnvelope</code></td>

@@ -161,6 +161,8 @@ func ProblemCode(err error) string {
 		return "FORBIDDEN"
 	case errors.Is(err, ErrNotFound):
 		return "NOT_FOUND"
+	case CurrentVersionConflict(err):
+		return "VERSION_CONFLICT"
 	case errors.Is(err, ErrConflict):
 		return "CONFLICT"
 	case errors.Is(err, ErrImmutable):
@@ -182,6 +184,11 @@ func ProblemCode(err error) string {
 	default:
 		return "INTERNAL_ERROR"
 	}
+}
+
+func CurrentVersionConflict(err error) bool {
+	_, ok := CurrentRevision(err)
+	return ok
 }
 
 func StatusCode(err error) int {

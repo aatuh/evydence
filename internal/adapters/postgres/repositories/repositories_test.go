@@ -185,6 +185,7 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 		t.Fatalf("insert release: %v", err)
 	}
 	release.State = "frozen"
+	release.Revision = 2
 	release.FrozenAt = &now
 	if err := repositories.ReleaseCatalog.UpdateReleaseState(ctx, release, "draft"); err != nil {
 		t.Fatalf("update release state: %v", err)
@@ -419,6 +420,7 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 		t.Fatalf("insert release candidate: %v", err)
 	}
 	candidate.State = "promoted"
+	candidate.Revision = 2
 	candidate.PromotedAt = &now
 	if err := repositories.ReleaseCatalog.UpdateReleaseCandidateState(ctx, candidate, "open"); err != nil {
 		t.Fatalf("update release candidate state: %v", err)
@@ -787,9 +789,9 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		err  error
 		want error
 	}{
-		{"release state", repositories.ReleaseCatalog.UpdateReleaseState(ctx, domain.Release{ID: "missing-release", TenantID: "ten_repository_a", ProductID: "prod_repository_a", State: "frozen"}, "draft"), app.ErrConflict},
+		{"release state", repositories.ReleaseCatalog.UpdateReleaseState(ctx, domain.Release{ID: "missing-release", TenantID: "ten_repository_a", ProductID: "prod_repository_a", Revision: 2, State: "frozen"}, "draft"), app.ErrConflict},
 		{"candidate insert", repositories.ReleaseCatalog.InsertReleaseCandidate(ctx, domain.ReleaseCandidate{ID: "missing-candidate", TenantID: "ten_repository_a", ReleaseID: "missing-release", Name: "Missing", State: "open", SnapshotHash: "sha256:missing", SchemaVersion: domain.ReleaseCandidateSchemaVersion, CreatedAt: now}), app.ErrNotFound},
-		{"candidate state", repositories.ReleaseCatalog.UpdateReleaseCandidateState(ctx, domain.ReleaseCandidate{ID: "missing-candidate", TenantID: "ten_repository_a", ReleaseID: "missing-release", State: "promoted"}, "open"), app.ErrConflict},
+		{"candidate state", repositories.ReleaseCatalog.UpdateReleaseCandidateState(ctx, domain.ReleaseCandidate{ID: "missing-candidate", TenantID: "ten_repository_a", ReleaseID: "missing-release", Revision: 2, State: "promoted"}, "open"), app.ErrConflict},
 		{"evidence links", repositories.Evidence.UpdateEvidenceLinks(ctx, domain.EvidenceItem{ID: "missing-evidence", TenantID: "ten_repository_a"}), app.ErrNotFound},
 		{"SBOM evidence", repositories.Evidence.InsertSBOM(ctx, domain.SBOM{ID: "missing-sbom", TenantID: "ten_repository_a", EvidenceID: "missing-evidence", Format: "cyclonedx", CreatedAt: now}), app.ErrNotFound},
 		{"scan evidence", repositories.Evidence.InsertVulnerabilityScan(ctx, domain.VulnerabilityScan{ID: "missing-scan", TenantID: "ten_repository_a", EvidenceID: "missing-evidence", Scanner: "test", TargetRef: "target", CreatedAt: now}), app.ErrNotFound},
@@ -1039,7 +1041,7 @@ func TestRepositoriesRejectStaleStateTransitionsAndRepeatedSupersession(t *testi
 	if err := repositories.Builds.InsertBuildRun(ctx, badBuild); err == nil {
 		t.Fatal("expected build source identity encoding failure")
 	}
-	if err := repositories.ReleaseCatalog.UpdateReleaseState(ctx, domain.Release{ID: release.ID, TenantID: tenant.ID, ProductID: product.ID, State: "approved"}, "frozen"); !errors.Is(err, app.ErrConflict) {
+	if err := repositories.ReleaseCatalog.UpdateReleaseState(ctx, domain.Release{ID: release.ID, TenantID: tenant.ID, ProductID: product.ID, Revision: 2, State: "approved"}, "frozen"); !errors.Is(err, app.ErrConflict) {
 		t.Fatalf("stale release transition err=%v, want conflict", err)
 	}
 	candidate := domain.ReleaseCandidate{ID: "rc_repository_conflicts", TenantID: tenant.ID, ReleaseID: release.ID, Name: "Conflicts candidate", State: "open", SnapshotHash: "sha256:candidate", SchemaVersion: domain.ReleaseCandidateSchemaVersion, CreatedAt: now}
@@ -1047,6 +1049,7 @@ func TestRepositoriesRejectStaleStateTransitionsAndRepeatedSupersession(t *testi
 		t.Fatalf("insert candidate: %v", err)
 	}
 	candidate.State = "promoted"
+	candidate.Revision = 2
 	candidate.PromotedAt = &now
 	if err := repositories.ReleaseCatalog.UpdateReleaseCandidateState(ctx, candidate, "rejected"); !errors.Is(err, app.ErrConflict) {
 		t.Fatalf("stale candidate transition err=%v, want conflict", err)

@@ -70,6 +70,26 @@ Example validation problem:
 }
 ```
 
+## Conditional Release Transitions
+
+Releases and release candidates include a positive integer `revision` in their
+read and create responses. Their state transitions require the exact current
+revision in a strong `If-Match` ETag so a stale client cannot silently replace
+another actor's transition.
+
+```http
+POST /v1/releases/rel_.../freeze
+If-Match: "1"
+Idempotency-Key: release-freeze-rel_...-r1
+```
+
+Use the returned `revision` for the next transition. The same requirement
+applies to release-candidate promotion and rejection. Missing, weak, combined,
+or non-positive tags return `400 VALIDATION_FAILED`. A stale tag returns `409`
+with `VERSION_CONFLICT` and a safe `current_revision` value in Problem Details;
+read the resource again before deciding whether to retry. These transitions
+append audit history and do not alter immutable evidence records.
+
 ## Minimal Release Evidence Workflow
 
 The getting-started tutorial has a runnable curl flow. This section is the compact API shape for client implementers.
@@ -390,8 +410,8 @@ Current SSO endpoints model admin-managed provider, identity-link, trust-materia
 | `GET` | `/v1/releases/{id}` | Read release. |
 | `POST` | `/v1/releases/{id}/evidence-flow/start` | Read high-level release evidence workflow plan. |
 | `GET` | `/v1/releases/{id}/security-summary` | Read customer-safe release security summary status. |
-| `POST` | `/v1/releases/{id}/freeze` | Append freeze transition. |
-| `POST` | `/v1/releases/{id}/approve` | Append approval transition. |
+| `POST` | `/v1/releases/{id}/freeze` | Append freeze transition; requires `If-Match` with current revision. |
+| `POST` | `/v1/releases/{id}/approve` | Append approval transition; requires `If-Match` with current revision. |
 | `POST` | `/v1/artifacts` | Register artifact digest metadata. |
 | `GET` | `/v1/artifacts/{id}` | Read artifact digest metadata. |
 | `POST` | `/v1/evidence` | Create immutable evidence metadata. |
@@ -422,8 +442,8 @@ Current SSO endpoints model admin-managed provider, identity-link, trust-materia
 | `POST` | `/v1/release-candidates` | Create release candidate. |
 | `GET` | `/v1/release-candidates` | List release candidates. |
 | `GET` | `/v1/release-candidates/{id}` | Read release candidate. |
-| `POST` | `/v1/release-candidates/{id}/promote` | Promote release candidate. |
-| `POST` | `/v1/release-candidates/{id}/reject` | Reject release candidate. |
+| `POST` | `/v1/release-candidates/{id}/promote` | Promote release candidate; requires `If-Match` with current revision. |
+| `POST` | `/v1/release-candidates/{id}/reject` | Reject release candidate; requires `If-Match` with current revision. |
 | `POST` | `/v1/remediation-tasks` | Create remediation task. |
 
 ### CI, Source, Deployment, And Collectors

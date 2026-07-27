@@ -214,13 +214,13 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Release id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Release security summary envelope.", "#/components/schemas/ReleaseSecuritySummaryEnvelope")
 	case "freezeRelease":
-		operation.Description = "Freezes a release as an append-only transition."
-		operation.Parameters = append(operation.Parameters, pathParam("id", "Release id."))
+		operation.Description = "Freezes a release as an append-only transition. Supply the current revision as a strong decimal ETag in If-Match."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Release id."), revisionIfMatchParam())
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Frozen release envelope.", "#/components/schemas/ReleaseEnvelope")
 	case "approveRelease":
-		operation.Description = "Approves a release as an append-only transition."
-		operation.Parameters = append(operation.Parameters, pathParam("id", "Release id."))
+		operation.Description = "Approves a release as an append-only transition. Supply the current revision as a strong decimal ETag in If-Match."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Release id."), revisionIfMatchParam())
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Approved release envelope.", "#/components/schemas/ReleaseEnvelope")
 	case "registerArtifact":
@@ -579,8 +579,8 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Release candidate id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Release candidate envelope.", "#/components/schemas/ReleaseCandidateEnvelope")
 	case "promoteReleaseCandidate", "rejectReleaseCandidate":
-		operation.Description = "Records a release-candidate lifecycle transition without mutating the original snapshot."
-		operation.Parameters = append(operation.Parameters, pathParam("id", "Release candidate id."))
+		operation.Description = "Records a release-candidate lifecycle transition without mutating the original snapshot. Supply the current revision as a strong decimal ETag in If-Match."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Release candidate id."), revisionIfMatchParam())
 		operation.RequestBody = jsonRequest("Release candidate transition request.", "#/components/schemas/ReleaseCandidateTransitionRequest")
 		operation.Responses[http.StatusOK] = jsonResponse("Transitioned release candidate envelope.", "#/components/schemas/ReleaseCandidateEnvelope")
 	case "supersedeEvidence":
@@ -1151,4 +1151,14 @@ func pathParam(name, description string) specs.Parameter {
 
 func headerParam(name, description string) specs.Parameter {
 	return specs.Parameter{Name: name, In: "header", Description: description, Required: true, Schema: map[string]any{"type": "string"}}
+}
+
+func revisionIfMatchParam() specs.Parameter {
+	return specs.Parameter{
+		Name:        "If-Match",
+		In:          "header",
+		Required:    true,
+		Description: `Current resource revision as a strong decimal ETag, for example "1". Stale revisions return VERSION_CONFLICT with current_revision.`,
+		Schema:      map[string]any{"type": "string", "pattern": `^"[1-9][0-9]*"$`},
+	}
 }

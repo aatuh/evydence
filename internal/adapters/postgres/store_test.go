@@ -896,7 +896,7 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	if !relational.CollectorReleases["collector_release_test"].Pinned || relational.CollectorReleases["collector_release_test"].HealthStatus != "healthy" {
 		t.Fatalf("relational collector release missing: release=%#v", relational.CollectorReleases["collector_release_test"])
 	}
-	if relational.EvidenceLifecycle["life_test"].Details["field"] != "metadata" || len(relational.ReleaseCandidates["rc_test"].BuildIDs) != 1 {
+	if relational.EvidenceLifecycle["life_test"].Details["field"] != "metadata" || len(relational.ReleaseCandidates["rc_test"].BuildIDs) != 1 || relational.Releases["rel_test"].Revision != 1 || relational.ReleaseCandidates["rc_test"].Revision != 1 {
 		t.Fatalf("relational lifecycle/candidate rows missing: lifecycle=%#v candidate=%#v", relational.EvidenceLifecycle["life_test"], relational.ReleaseCandidates["rc_test"])
 	}
 	if relational.ContainerImages["image_test"].Repository == "" || relational.ArtifactSignatures["artsig_test"].VerificationStatus != "verified" {

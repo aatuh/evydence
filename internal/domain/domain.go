@@ -274,6 +274,7 @@ type Release struct {
 	TenantID   string     `json:"tenant_id"`
 	ProductID  string     `json:"product_id"`
 	Version    string     `json:"version"`
+	Revision   int64      `json:"revision"`
 	State      string     `json:"state"`
 	CreatedAt  time.Time  `json:"created_at"`
 	FrozenAt   *time.Time `json:"frozen_at,omitempty"`
@@ -494,6 +495,7 @@ type ReleaseCandidate struct {
 	TenantID      string     `json:"tenant_id"`
 	ReleaseID     string     `json:"release_id"`
 	Name          string     `json:"name"`
+	Revision      int64      `json:"revision"`
 	State         string     `json:"state"`
 	BuildIDs      []string   `json:"build_ids,omitempty"`
 	ArtifactIDs   []string   `json:"artifact_ids,omitempty"`

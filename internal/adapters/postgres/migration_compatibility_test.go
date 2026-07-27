@@ -88,6 +88,85 @@ func TestMigrationCompatibilityFromEveryCommittedState(t *testing.T) {
 	}
 }
 
+func TestSequenceAndRevisionMigrationPreservesExistingRecords(t *testing.T) {
+	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
+	if strings.TrimSpace(databaseURL) == "" {
+		t.Skip("EVYDENCE_TEST_DATABASE_URL is not set")
+	}
+	const migration = "20260727000400_audit_sequences_and_resource_revisions.up.sql"
+	names := migrationFileNames(t, "../../../migrations")
+	index := -1
+	for i, name := range names {
+		if name == migration {
+			index = i
+			break
+		}
+	}
+	if index < 0 {
+		t.Fatalf("migration %q not found", migration)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	basePool, err := pgxpool.New(ctx, databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer basePool.Close()
+	schema := fmt.Sprintf("evydence_sequence_revision_legacy_%d", time.Now().UnixNano())
+	quotedSchema := pgx.Identifier{schema}.Sanitize()
+	if _, err := basePool.Exec(ctx, "CREATE SCHEMA "+quotedSchema); err != nil {
+		t.Fatal(err)
+	}
+	defer func(cleanupCtx context.Context) {
+		_, _ = basePool.Exec(cleanupCtx, "DROP SCHEMA "+quotedSchema+" CASCADE")
+	}(context.WithoutCancel(ctx))
+
+	store, err := Open(ctx, databaseURLWithSearchPath(t, databaseURL, schema))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	applyMigrationPrefix(t, ctx, store, "../../../migrations", names[:index])
+	now := time.Now().UTC().Round(0)
+	if _, err := store.pool.Exec(ctx, `INSERT INTO tenants (id, name, created_at) VALUES ('ten_legacy_revision', 'Legacy revisions', $1)`, now); err != nil {
+		t.Fatalf("insert tenant: %v", err)
+	}
+	if _, err := store.pool.Exec(ctx, `INSERT INTO products (id, tenant_id, name, slug, created_at) VALUES ('prod_legacy_revision', 'ten_legacy_revision', 'Legacy product', 'legacy-product', $1)`, now); err != nil {
+		t.Fatalf("insert product: %v", err)
+	}
+	if _, err := store.pool.Exec(ctx, `INSERT INTO releases (id, tenant_id, product_id, version, state, created_at) VALUES ('rel_legacy_revision', 'ten_legacy_revision', 'prod_legacy_revision', '1.0.0', 'draft', $1)`, now); err != nil {
+		t.Fatalf("insert release: %v", err)
+	}
+	if _, err := store.pool.Exec(ctx, `INSERT INTO release_candidates (id, tenant_id, release_id, name, state, snapshot_hash, document, schema_version, created_at) VALUES ('rc_legacy_revision', 'ten_legacy_revision', 'rel_legacy_revision', 'legacy', 'open', 'sha256:legacy', '{}'::jsonb, 'release-candidate.v1.0.0', $1)`, now); err != nil {
+		t.Fatalf("insert release candidate: %v", err)
+	}
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO audit_chain_entries (
+			id, tenant_id, sequence, entry_type, subject_type, subject_id,
+			actor_type, actor_id, occurred_at, request_id, idempotency_key,
+			canonical_entry_hash, previous_entry_hash, entry_hash, metadata, schema_version
+		) VALUES ('ace_legacy_revision', 'ten_legacy_revision', 7, 'legacy', 'release', 'rel_legacy_revision', 'system', 'migration-test', $1, '', '', 'canonical', 'previous', 'entry', '{}'::jsonb, 'audit-chain-entry.v1.0.0')
+	`, now); err != nil {
+		t.Fatalf("insert audit entry: %v", err)
+	}
+	if _, err := store.ApplyMigrations(ctx, "../../../migrations"); err != nil {
+		t.Fatalf("apply sequence and revision migration: %v", err)
+	}
+	var releaseRevision, candidateRevision, nextSequence int64
+	if err := store.pool.QueryRow(ctx, `SELECT revision FROM releases WHERE id = 'rel_legacy_revision'`).Scan(&releaseRevision); err != nil {
+		t.Fatalf("load release revision: %v", err)
+	}
+	if err := store.pool.QueryRow(ctx, `SELECT revision FROM release_candidates WHERE id = 'rc_legacy_revision'`).Scan(&candidateRevision); err != nil {
+		t.Fatalf("load candidate revision: %v", err)
+	}
+	if err := store.pool.QueryRow(ctx, `SELECT next_sequence FROM tenant_audit_sequences WHERE tenant_id = 'ten_legacy_revision'`).Scan(&nextSequence); err != nil {
+		t.Fatalf("load audit sequence: %v", err)
+	}
+	if releaseRevision != 1 || candidateRevision != 1 || nextSequence != 8 {
+		t.Fatalf("legacy migration revisions=%d/%d next_sequence=%d, want 1/1/8", releaseRevision, candidateRevision, nextSequence)
+	}
+}
+
 func TestIdempotencyStateMachineMigratesLegacyReplayRecords(t *testing.T) {
 	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
 	if strings.TrimSpace(databaseURL) == "" {

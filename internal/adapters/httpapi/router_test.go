@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -1291,9 +1292,9 @@ func TestEvidenceLifecycleSourceDeploymentHTTPFlow(t *testing.T) {
 	rcID := dataField(t, rcBody, "id")
 	getJSON(t, server, secret, "/v1/release-candidates/"+rcID, http.StatusOK)
 	getJSON(t, server, secret, "/v1/release-candidates?release_id="+releaseID, http.StatusOK)
-	postJSON(t, server, secret, "/v1/release-candidates/"+rcID+"/promote", "inc-rc-promote", map[string]any{"reason": "accepted"}, http.StatusOK)
+	postJSONWithIfMatch(t, server, secret, "/v1/release-candidates/"+rcID+"/promote", "inc-rc-promote", 1, map[string]any{"reason": "accepted"}, http.StatusOK)
 	rejectedRCBody := postJSON(t, server, secret, "/v1/release-candidates", "inc-rc-reject", map[string]any{"release_id": releaseID, "name": "rc.reject", "artifact_ids": []string{artifactID}}, http.StatusCreated)
-	postJSON(t, server, secret, "/v1/release-candidates/"+dataField(t, rejectedRCBody, "id")+"/reject", "inc-rc-reject-transition", map[string]any{"reason": "superseded"}, http.StatusOK)
+	postJSONWithIfMatch(t, server, secret, "/v1/release-candidates/"+dataField(t, rejectedRCBody, "id")+"/reject", "inc-rc-reject-transition", 1, map[string]any{"reason": "superseded"}, http.StatusOK)
 	postJSON(t, server, secret, "/v1/container-images", "inc-image", map[string]any{"artifact_id": artifactID, "repository": "ghcr.io/example/api", "tag": "3.0.0", "digest": digest, "platform": "linux/amd64"}, http.StatusCreated)
 	sigBody := postJSON(t, server, secret, "/v1/artifact-signatures", "inc-sig", map[string]any{"artifact_id": artifactID, "algorithm": "cosign", "key_id": "test", "signature": "c2ln", "payload": map[string]any{"sig": "c2ln"}}, http.StatusCreated)
 	sigID := dataField(t, sigBody, "id")
@@ -1652,8 +1653,8 @@ func TestFutureExtensionAndReadAdminHTTPGaps(t *testing.T) {
 	releaseBody := postJSON(t, server, secret, "/v1/releases", "future-release", map[string]any{"product_id": productID, "version": "9.0.0"}, http.StatusCreated)
 	releaseID := dataField(t, releaseBody, "id")
 	getJSON(t, server, secret, "/v1/releases/"+releaseID, http.StatusOK)
-	postJSON(t, server, secret, "/v1/releases/"+releaseID+"/freeze", "future-freeze", map[string]any{}, http.StatusOK)
-	postJSON(t, server, secret, "/v1/releases/"+releaseID+"/approve", "future-approve", map[string]any{}, http.StatusOK)
+	postJSONWithIfMatch(t, server, secret, "/v1/releases/"+releaseID+"/freeze", "future-freeze", 1, map[string]any{}, http.StatusOK)
+	postJSONWithIfMatch(t, server, secret, "/v1/releases/"+releaseID+"/approve", "future-approve", 2, map[string]any{}, http.StatusOK)
 
 	digest := "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb"
 	artifactBody := postJSON(t, server, secret, "/v1/artifacts", "future-artifact", map[string]any{"name": "api.tar.gz", "media_type": "application/gzip", "digest": digest, "size": 42}, http.StatusCreated)
@@ -1885,6 +1886,24 @@ func TestRuntimeSystemEndpointsExposeIdentityAndSafeDependencyReadiness(t *testi
 	}
 }
 
+func TestReleaseTransitionsRequireIfMatchAndReportCurrentRevision(t *testing.T) {
+	server, secret := testServer(t)
+	product := postJSON(t, server, secret, "/v1/products", "revision-product", map[string]any{"name": "Revision product", "slug": "revision-product"}, http.StatusCreated)
+	release := postJSON(t, server, secret, "/v1/releases", "revision-release", map[string]any{"product_id": dataField(t, product, "id"), "version": "1.0.0"}, http.StatusCreated)
+	releaseID := dataField(t, release, "id")
+
+	postJSON(t, server, secret, "/v1/releases/"+releaseID+"/freeze", "revision-missing-if-match", map[string]any{}, http.StatusBadRequest)
+	frozen := postJSONWithIfMatch(t, server, secret, "/v1/releases/"+releaseID+"/freeze", "revision-freeze", 1, map[string]any{}, http.StatusOK)
+	if revision, ok := dataMap(t, frozen)["revision"].(float64); !ok || revision != 2 {
+		t.Fatalf("frozen release revision=%#v, want 2: %s", dataMap(t, frozen)["revision"], frozen)
+	}
+	stale := postJSONWithIfMatch(t, server, secret, "/v1/releases/"+releaseID+"/approve", "revision-stale-approve", 1, map[string]any{}, http.StatusConflict)
+	if !strings.Contains(stale, `"code":"VERSION_CONFLICT"`) || !strings.Contains(stale, `"current_revision":2`) {
+		t.Fatalf("stale revision response=%s, want VERSION_CONFLICT with current revision", stale)
+	}
+	postJSONWithIfMatch(t, server, secret, "/v1/releases/"+releaseID+"/approve", "revision-approve", 2, map[string]any{}, http.StatusOK)
+}
+
 func testServer(t *testing.T) (*Server, string) {
 	t.Helper()
 	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
@@ -1938,6 +1957,25 @@ func postJSON(t *testing.T, server *Server, secret, path, idem string, payload a
 	req.Header.Set("Authorization", "Bearer "+secret)
 	req.Header.Set("Idempotency-Key", idem)
 	req.Header.Set("Content-Type", "application/json")
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != want {
+		t.Fatalf("POST %s status=%d want=%d body=%s", path, rec.Code, want, rec.Body.String())
+	}
+	return rec.Body.String()
+}
+
+func postJSONWithIfMatch(t *testing.T, server *Server, secret, path, idem string, revision int64, payload any, want int) string {
+	t.Helper()
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+secret)
+	req.Header.Set("Idempotency-Key", idem)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("If-Match", `"`+strconv.FormatInt(revision, 10)+`"`)
 	server.Handler().ServeHTTP(rec, req)
 	if rec.Code != want {
 		t.Fatalf("POST %s status=%d want=%d body=%s", path, rec.Code, want, rec.Body.String())

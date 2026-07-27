@@ -121,13 +121,13 @@ Generated from 187 operations: 187 precise, 0 broad.
 | GET | /v1/release-candidates | listReleaseCandidates | Bearer | release:read | - | query:release_id | - | 200:application/json:ReleaseCandidateListEnvelope | precise | experimental |
 | POST | /v1/release-candidates | createReleaseCandidate | Bearer | release:write | required | - | application/json:CreateReleaseCandidateRequest | 201:application/json:ReleaseCandidateEnvelope | precise | experimental |
 | GET | /v1/release-candidates/{id} | getReleaseCandidate | Bearer | release:read | - | path:id | - | 200:application/json:ReleaseCandidateEnvelope | precise | experimental |
-| POST | /v1/release-candidates/{id}/promote | promoteReleaseCandidate | Bearer | release:write | required | path:id | application/json:ReleaseCandidateTransitionRequest | 200:application/json:ReleaseCandidateEnvelope | precise | experimental |
-| POST | /v1/release-candidates/{id}/reject | rejectReleaseCandidate | Bearer | release:write | required | path:id | application/json:ReleaseCandidateTransitionRequest | 200:application/json:ReleaseCandidateEnvelope | precise | experimental |
+| POST | /v1/release-candidates/{id}/promote | promoteReleaseCandidate | Bearer | release:write | required | header:If-Match, path:id | application/json:ReleaseCandidateTransitionRequest | 200:application/json:ReleaseCandidateEnvelope | precise | experimental |
+| POST | /v1/release-candidates/{id}/reject | rejectReleaseCandidate | Bearer | release:write | required | header:If-Match, path:id | application/json:ReleaseCandidateTransitionRequest | 200:application/json:ReleaseCandidateEnvelope | precise | experimental |
 | POST | /v1/releases | createRelease | Bearer | release:write | required | - | application/json:CreateReleaseRequest | 201:application/json:ReleaseEnvelope | precise | core |
 | GET | /v1/releases/{id} | getRelease | Bearer | release:read | - | path:id | - | 200:application/json:ReleaseEnvelope | precise | core |
-| POST | /v1/releases/{id}/approve | approveRelease | Bearer | release:write | required | path:id | application/json:EmptyObject | 200:application/json:ReleaseEnvelope | precise | core |
+| POST | /v1/releases/{id}/approve | approveRelease | Bearer | release:write | required | header:If-Match, path:id | application/json:EmptyObject | 200:application/json:ReleaseEnvelope | precise | core |
 | POST | /v1/releases/{id}/evidence-flow/start | startReleaseEvidenceFlow | Bearer | release:read | required | path:id | - | 200:application/json:ReleaseEvidenceFlowEnvelope | precise | core |
-| POST | /v1/releases/{id}/freeze | freezeRelease | Bearer | release:write | required | path:id | application/json:EmptyObject | 200:application/json:ReleaseEnvelope | precise | core |
+| POST | /v1/releases/{id}/freeze | freezeRelease | Bearer | release:write | required | header:If-Match, path:id | application/json:EmptyObject | 200:application/json:ReleaseEnvelope | precise | core |
 | GET | /v1/releases/{id}/security-summary | releaseSecuritySummary | Bearer | report:read | - | path:id | - | 200:application/json:ReleaseSecuritySummaryEnvelope | precise | core |
 | POST | /v1/remediation-tasks | createRemediationTask | Bearer | incident:write | required | - | application/json:CreateRemediationTaskRequest | 201:application/json:RemediationTaskEnvelope | precise | experimental |
 | POST | /v1/report-templates | createReportTemplate | Bearer | report:read | required | - | application/json:CreateReportTemplateRequest | 201:application/json:CustomReportTemplateEnvelope | precise | experimental |

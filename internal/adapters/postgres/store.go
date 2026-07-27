@@ -670,7 +670,7 @@ func (s *Store) loadRelationalProjects(ctx context.Context, state *app.Persisted
 }
 
 func (s *Store) loadRelationalReleases(ctx context.Context, state *app.PersistedState, loaded *bool) error {
-	rows, err := s.pool.Query(ctx, `SELECT id, tenant_id, product_id, version, state, frozen_at, approved_at, created_at FROM releases`)
+	rows, err := s.pool.Query(ctx, `SELECT id, tenant_id, product_id, version, state, frozen_at, approved_at, revision, created_at FROM releases`)
 	if err != nil {
 		return fmt.Errorf("load relational releases: %w", err)
 	}
@@ -678,7 +678,7 @@ func (s *Store) loadRelationalReleases(ctx context.Context, state *app.Persisted
 	for rows.Next() {
 		var release domain.Release
 		var frozenAt, approvedAt sql.NullTime
-		if err := rows.Scan(&release.ID, &release.TenantID, &release.ProductID, &release.Version, &release.State, &frozenAt, &approvedAt, &release.CreatedAt); err != nil {
+		if err := rows.Scan(&release.ID, &release.TenantID, &release.ProductID, &release.Version, &release.State, &frozenAt, &approvedAt, &release.Revision, &release.CreatedAt); err != nil {
 			return fmt.Errorf("scan relational release: %w", err)
 		}
 		release.FrozenAt = nullableSQLTime(frozenAt)
@@ -1424,7 +1424,7 @@ func (s *Store) loadRelationalLifecycleAndCandidates(ctx context.Context, state 
 		return err
 	}
 
-	candidateRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, release_id, name, state, snapshot_hash, document, schema_version, created_at, promoted_at, rejected_at FROM release_candidates`)
+	candidateRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, release_id, name, state, snapshot_hash, document, schema_version, revision, created_at, promoted_at, rejected_at FROM release_candidates`)
 	if err != nil {
 		return fmt.Errorf("load relational release candidates: %w", err)
 	}
@@ -1433,7 +1433,7 @@ func (s *Store) loadRelationalLifecycleAndCandidates(ctx context.Context, state 
 		var candidate domain.ReleaseCandidate
 		var document []byte
 		var promotedAt, rejectedAt sql.NullTime
-		if err := candidateRows.Scan(&candidate.ID, &candidate.TenantID, &candidate.ReleaseID, &candidate.Name, &candidate.State, &candidate.SnapshotHash, &document, &candidate.SchemaVersion, &candidate.CreatedAt, &promotedAt, &rejectedAt); err != nil {
+		if err := candidateRows.Scan(&candidate.ID, &candidate.TenantID, &candidate.ReleaseID, &candidate.Name, &candidate.State, &candidate.SnapshotHash, &document, &candidate.SchemaVersion, &candidate.Revision, &candidate.CreatedAt, &promotedAt, &rejectedAt); err != nil {
 			return fmt.Errorf("scan relational release candidate: %w", err)
 		}
 		var embedded domain.ReleaseCandidate
@@ -2754,6 +2754,9 @@ func (s *Store) saveState(ctx context.Context, state app.PersistedState, writeSn
 	if err := syncFutureExtensionRows(ctx, tx, state); err != nil {
 		return nil, err
 	}
+	if err := syncAuditSequenceRows(ctx, tx, state); err != nil {
+		return nil, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("commit save ledger state transaction: %w", err)
 	}
@@ -2800,6 +2803,9 @@ func (s *Store) applyCriticalMutation(ctx context.Context, mutation app.Critical
 	if err := syncCriticalResourceIndex(ctx, tx, state); err != nil {
 		return nil, err
 	}
+	if err := syncAuditSequenceRows(ctx, tx, state); err != nil {
+		return nil, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("commit critical mutation transaction: %w", err)
 	}
@@ -2841,6 +2847,9 @@ func (s *Store) applyReleaseLedgerMutation(ctx context.Context, mutation app.Rel
 		}
 	}
 	if err := syncCriticalResourceIndex(ctx, tx, state); err != nil {
+		return nil, err
+	}
+	if err := syncAuditSequenceRows(ctx, tx, state); err != nil {
 		return nil, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -3007,6 +3016,28 @@ func reconcileAuditChainSequences(ctx context.Context, tx pgx.Tx, state app.Pers
 	return state, nil
 }
 
+func syncAuditSequenceRows(ctx context.Context, tx pgx.Tx, state app.PersistedState) error {
+	tenantIDs := make([]string, 0, len(state.Chain))
+	for tenantID := range state.Chain {
+		if tenantID != "" {
+			tenantIDs = append(tenantIDs, tenantID)
+		}
+	}
+	sort.Strings(tenantIDs)
+	for _, tenantID := range tenantIDs {
+		nextSequence := int64(len(state.Chain[tenantID]) + 1)
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO tenant_audit_sequences (tenant_id, next_sequence)
+			VALUES ($1, $2)
+			ON CONFLICT (tenant_id) DO UPDATE
+			SET next_sequence = GREATEST(tenant_audit_sequences.next_sequence, EXCLUDED.next_sequence)
+		`, tenantID, nextSequence); err != nil {
+			return fmt.Errorf("synchronize audit sequence for tenant %q: %w", tenantID, err)
+		}
+	}
+	return nil
+}
+
 func loadAuditChainEntriesForTenant(ctx context.Context, tx pgx.Tx, tenantID string) ([]domain.AuditChainEntry, error) {
 	rows, err := tx.Query(ctx, `
 		SELECT id, tenant_id, sequence, entry_type, subject_type, subject_id,
@@ -3079,13 +3110,15 @@ func syncReleaseLedgerCore(ctx context.Context, tx pgx.Tx, state app.PersistedSt
 			continue
 		}
 		if _, err := tx.Exec(ctx, `
-			INSERT INTO releases (id, tenant_id, product_id, version, state, frozen_at, approved_at, created_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			INSERT INTO releases (id, tenant_id, product_id, version, state, frozen_at, approved_at, revision, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 			ON CONFLICT (id) DO UPDATE SET
 				state = EXCLUDED.state,
 				frozen_at = EXCLUDED.frozen_at,
-				approved_at = EXCLUDED.approved_at
-		`, release.ID, release.TenantID, release.ProductID, release.Version, release.State, nullableTime(release.FrozenAt), nullableTime(release.ApprovedAt), nonZeroTime(release.CreatedAt)); err != nil {
+				approved_at = EXCLUDED.approved_at,
+				revision = EXCLUDED.revision
+			WHERE releases.revision <= EXCLUDED.revision
+		`, release.ID, release.TenantID, release.ProductID, release.Version, release.State, nullableTime(release.FrozenAt), nullableTime(release.ApprovedAt), nonZeroInt64(release.Revision, 1), nonZeroTime(release.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert release row: %w", err)
 		}
 	}
@@ -3768,16 +3801,18 @@ func syncSourceDeploymentLifecycleRows(ctx context.Context, tx pgx.Tx, state app
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO release_candidates (
 				id, tenant_id, release_id, name, state, snapshot_hash,
-				document, schema_version, created_at, promoted_at, rejected_at
+				document, schema_version, revision, created_at, promoted_at, rejected_at
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 			ON CONFLICT (id) DO UPDATE SET
 				state = EXCLUDED.state,
 				document = EXCLUDED.document,
 				promoted_at = EXCLUDED.promoted_at,
-				rejected_at = EXCLUDED.rejected_at
+				rejected_at = EXCLUDED.rejected_at,
+				revision = EXCLUDED.revision
+			WHERE release_candidates.revision <= EXCLUDED.revision
 		`, candidate.ID, candidate.TenantID, candidate.ReleaseID, candidate.Name, candidate.State, candidate.SnapshotHash,
-			document, candidate.SchemaVersion, nonZeroTime(candidate.CreatedAt), nullableTime(candidate.PromotedAt), nullableTime(candidate.RejectedAt)); err != nil {
+			document, candidate.SchemaVersion, nonZeroInt64(candidate.Revision, 1), nonZeroTime(candidate.CreatedAt), nullableTime(candidate.PromotedAt), nullableTime(candidate.RejectedAt)); err != nil {
 			return fmt.Errorf("upsert release candidate row: %w", err)
 		}
 	}

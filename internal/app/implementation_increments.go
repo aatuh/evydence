@@ -288,6 +288,7 @@ func (l *Ledger) CreateReleaseCandidate(ctx context.Context, actor domain.Actor,
 		TenantID:      actor.TenantID,
 		ReleaseID:     release.ID,
 		Name:          strings.TrimSpace(in.Name),
+		Revision:      1,
 		State:         candidateOpen,
 		BuildIDs:      sortedStrings(in.BuildIDs),
 		ArtifactIDs:   sortedStrings(in.ArtifactIDs),
@@ -373,7 +374,7 @@ func (l *Ledger) ListReleaseCandidates(ctx context.Context, actor domain.Actor, 
 	return out, nil
 }
 
-func (l *Ledger) UpdateReleaseCandidateState(ctx context.Context, actor domain.Actor, id, state, reason string) (domain.ReleaseCandidate, error) {
+func (l *Ledger) UpdateReleaseCandidateState(ctx context.Context, actor domain.Actor, id, state, reason string, expectedRevision int64) (domain.ReleaseCandidate, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.ReleaseCandidate{}, err
 	}
@@ -384,20 +385,27 @@ func (l *Ledger) UpdateReleaseCandidateState(ctx context.Context, actor domain.A
 	if reason == "" || (state != candidatePromoted && state != candidateRejected) {
 		return domain.ReleaseCandidate{}, ErrValidation
 	}
+	if expectedRevision < 1 {
+		return domain.ReleaseCandidate{}, ErrValidation
+	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	candidate, ok := l.candidates[strings.TrimSpace(id)]
 	if !ok || candidate.TenantID != actor.TenantID {
 		return domain.ReleaseCandidate{}, ErrNotFound
 	}
-	if candidate.State != candidateOpen {
-		return domain.ReleaseCandidate{}, ErrConflict
-	}
 	if err := l.authorizeResourceLocked(actor, ScopeReleaseWrite, resourceRefs{ReleaseID: candidate.ReleaseID}); err != nil {
 		return domain.ReleaseCandidate{}, err
 	}
+	if candidate.Revision != expectedRevision {
+		return domain.ReleaseCandidate{}, NewVersionConflict(candidate.Revision)
+	}
+	if candidate.State != candidateOpen {
+		return domain.ReleaseCandidate{}, ErrConflict
+	}
 	now := l.now()
 	candidate.State = state
+	candidate.Revision++
 	if state == candidatePromoted {
 		candidate.PromotedAt = &now
 	} else {

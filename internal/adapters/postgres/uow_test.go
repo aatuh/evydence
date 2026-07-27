@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -13,6 +14,224 @@ import (
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 )
+
+func TestPostgresAuditRepositoryAllocatesStrictConcurrentSequences(t *testing.T) {
+	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("EVYDENCE_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	admin, err := Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close()
+	schema := "evydence_audit_repository_sequence_" + strings.ReplaceAll(time.Now().UTC().Format("20060102150405.000000000"), ".", "_")
+	quotedSchema := pgx.Identifier{schema}.Sanitize()
+	if _, err := admin.pool.Exec(ctx, "CREATE SCHEMA "+quotedSchema); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _, _ = admin.pool.Exec(context.Background(), "DROP SCHEMA "+quotedSchema+" CASCADE") }()
+	store, err := OpenWithOptions(ctx, databaseURLWithSearchPath(t, databaseURL, schema), StoreOptions{LoadMode: LoadModeRelationalOnly, DisableSnapshotWrites: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if _, err := store.ApplyMigrations(ctx, "../../../migrations"); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
+	now := time.Now().UTC().Round(0)
+	seed, err := store.BeginUnitOfWork(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := seed.Repositories().Identity.InsertTenant(ctx, domain.Tenant{ID: "ten_audit_sequence", Name: "Audit sequence", CreatedAt: now}); err != nil {
+		t.Fatalf("insert tenant: %v", err)
+	}
+	if err := seed.Commit(ctx); err != nil {
+		t.Fatalf("commit tenant: %v", err)
+	}
+
+	const writers = 16
+	ready := make(chan struct{}, writers)
+	start := make(chan struct{})
+	errs := make(chan error, writers)
+	for i := 0; i < writers; i++ {
+		i := i
+		go func() {
+			ready <- struct{}{}
+			<-start
+			uow, err := store.BeginUnitOfWork(ctx)
+			if err != nil {
+				errs <- err
+				return
+			}
+			_, err = uow.Repositories().Audit.Append(ctx, domain.AuditChainEntry{
+				ID:          fmt.Sprintf("ace_audit_sequence_%02d", i),
+				TenantID:    "ten_audit_sequence",
+				EntryType:   "test.concurrent",
+				SubjectType: "test",
+				SubjectID:   fmt.Sprintf("subject-%02d", i),
+				ActorType:   "system",
+				ActorID:     "test",
+				OccurredAt:  now,
+			})
+			if err == nil {
+				err = uow.Commit(ctx)
+			} else {
+				_ = uow.Rollback(ctx)
+			}
+			errs <- err
+		}()
+	}
+	for range writers {
+		<-ready
+	}
+	close(start)
+	for range writers {
+		if err := <-errs; err != nil {
+			t.Fatalf("concurrent audit append: %v", err)
+		}
+	}
+	rows, err := store.pool.Query(ctx, `SELECT sequence, previous_entry_hash, entry_hash FROM audit_chain_entries WHERE tenant_id = 'ten_audit_sequence' ORDER BY sequence`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	previous := ""
+	count := 0
+	for rows.Next() {
+		var sequence int64
+		var previousHash, entryHash string
+		if err := rows.Scan(&sequence, &previousHash, &entryHash); err != nil {
+			t.Fatal(err)
+		}
+		if sequence != int64(count+1) || previousHash != previous || entryHash == "" {
+			t.Fatalf("audit sequence %d has previous=%q entry=%q, want contiguous chain after %q", sequence, previousHash, entryHash, previous)
+		}
+		previous = entryHash
+		count++
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if count != writers {
+		t.Fatalf("audit entries=%d, want %d", count, writers)
+	}
+	var nextSequence int64
+	if err := store.pool.QueryRow(ctx, `SELECT next_sequence FROM tenant_audit_sequences WHERE tenant_id = 'ten_audit_sequence'`).Scan(&nextSequence); err != nil {
+		t.Fatal(err)
+	}
+	if nextSequence != writers+1 {
+		t.Fatalf("next sequence=%d, want %d", nextSequence, writers+1)
+	}
+}
+
+func TestPostgresReleaseRepositoryRejectsStaleConcurrentRevision(t *testing.T) {
+	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("EVYDENCE_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	admin, err := Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close()
+	schema := "evydence_release_revision_" + strings.ReplaceAll(time.Now().UTC().Format("20060102150405.000000000"), ".", "_")
+	quotedSchema := pgx.Identifier{schema}.Sanitize()
+	if _, err := admin.pool.Exec(ctx, "CREATE SCHEMA "+quotedSchema); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _, _ = admin.pool.Exec(context.Background(), "DROP SCHEMA "+quotedSchema+" CASCADE") }()
+	store, err := OpenWithOptions(ctx, databaseURLWithSearchPath(t, databaseURL, schema), StoreOptions{LoadMode: LoadModeRelationalOnly, DisableSnapshotWrites: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if _, err := store.ApplyMigrations(ctx, "../../../migrations"); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
+	now := time.Now().UTC().Round(0)
+	seed, err := store.BeginUnitOfWork(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	repositories := seed.Repositories()
+	tenant := domain.Tenant{ID: "ten_release_revision", Name: "Release revision", CreatedAt: now}
+	product := domain.Product{ID: "prod_release_revision", TenantID: tenant.ID, Name: "Revision product", Slug: "revision-product", CreatedAt: now}
+	release := domain.Release{ID: "rel_release_revision", TenantID: tenant.ID, ProductID: product.ID, Version: "1.0.0", Revision: 1, State: "draft", CreatedAt: now}
+	if err := repositories.Identity.InsertTenant(ctx, tenant); err != nil {
+		t.Fatalf("insert tenant: %v", err)
+	}
+	if err := repositories.ReleaseCatalog.InsertProduct(ctx, product); err != nil {
+		t.Fatalf("insert product: %v", err)
+	}
+	if err := repositories.ReleaseCatalog.InsertRelease(ctx, release); err != nil {
+		t.Fatalf("insert release: %v", err)
+	}
+	if err := seed.Commit(ctx); err != nil {
+		t.Fatalf("commit setup: %v", err)
+	}
+
+	const writers = 8
+	ready := make(chan struct{}, writers)
+	start := make(chan struct{})
+	errs := make(chan error, writers)
+	for range writers {
+		go func() {
+			ready <- struct{}{}
+			<-start
+			uow, err := store.BeginUnitOfWork(ctx)
+			if err != nil {
+				errs <- err
+				return
+			}
+			frozenAt := now
+			update := release
+			update.State = "frozen"
+			update.Revision = 2
+			update.FrozenAt = &frozenAt
+			err = uow.Repositories().ReleaseCatalog.UpdateReleaseState(ctx, update, "draft")
+			if err == nil {
+				err = uow.Commit(ctx)
+			} else {
+				_ = uow.Rollback(ctx)
+			}
+			errs <- err
+		}()
+	}
+	for range writers {
+		<-ready
+	}
+	close(start)
+	successes := 0
+	for range writers {
+		err := <-errs
+		if err == nil {
+			successes++
+			continue
+		}
+		if revision, ok := app.CurrentRevision(err); !ok || revision != 2 {
+			t.Fatalf("stale release update err=%v, want current revision 2", err)
+		}
+	}
+	if successes != 1 {
+		t.Fatalf("successful release updates=%d, want one", successes)
+	}
+	var state string
+	var revision int64
+	if err := store.pool.QueryRow(ctx, `SELECT state, revision FROM releases WHERE id = 'rel_release_revision'`).Scan(&state, &revision); err != nil {
+		t.Fatal(err)
+	}
+	if state != "frozen" || revision != 2 {
+		t.Fatalf("stored release state=%q revision=%d, want frozen/2", state, revision)
+	}
+}
 
 func TestPostgresUnitOfWorkCommitsAndRollsBackFocusedRepositoriesTogether(t *testing.T) {
 	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
