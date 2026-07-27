@@ -141,9 +141,9 @@
       <p>This page is generated from <code>openapi.yaml</code>. It is a human-readable companion to the committed contract and does not replace route-contract tests.</p>
       <div class="summary-grid">
         <div class="summary-card"><strong>3.1.0</strong><span>OpenAPI version</span></div>
-        <div class="summary-card"><strong>170</strong><span>registered paths</span></div>
-        <div class="summary-card"><strong>187</strong><span>operations</span></div>
-        <div class="summary-card"><strong>378</strong><span>schemas</span></div>
+        <div class="summary-card"><strong>172</strong><span>registered paths</span></div>
+        <div class="summary-card"><strong>189</strong><span>operations</span></div>
+        <div class="summary-card"><strong>382</strong><span>schemas</span></div>
       </div>
     </header>
     <main>
@@ -175,6 +175,40 @@
               <div><dt>Idempotency</dt><dd>not required</dd></div>
               <div><dt>Request</dt><dd>none</dd></div>
               <div><dt>Responses</dt><dd>200 application/json: InstanceAdminSnapshotEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
+            </dl>
+          </article>
+          <article class="operation" data-operation data-search="get /v1/admin/outbox outbox operator diagnostics returns aggregate outbox backlog, running, and terminal-job counts without tenant ids, payloads, or raw failure details. requires the explicit instance:admin scope. outboxoperatordiagnostics evydence instance:admin">
+            <div class="operation-heading">
+              <span class="method method-get">GET</span>
+              <code>/v1/admin/outbox</code>
+            </div>
+            <h3>Outbox operator diagnostics</h3>
+            <p>Returns aggregate outbox backlog, running, and terminal-job counts without tenant IDs, payloads, or raw failure details. Requires the explicit instance:admin scope.</p>
+            <dl>
+              <div><dt>Operation ID</dt><dd><code>outboxOperatorDiagnostics</code></dd></div>
+              <div><dt>Tags</dt><dd>evydence</dd></div>
+              <div><dt>Auth</dt><dd>BearerAuth</dd></div>
+              <div><dt>Scopes</dt><dd>instance:admin</dd></div>
+              <div><dt>Idempotency</dt><dd>not required</dd></div>
+              <div><dt>Request</dt><dd>none</dd></div>
+              <div><dt>Responses</dt><dd>200 application/json: OutboxDiagnosticsEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
+            </dl>
+          </article>
+          <article class="operation" data-operation data-search="post /v1/admin/outbox/{id}/replay replay terminal outbox job requeues one dead-letter outbox job and appends an audit record. requires the explicit instance:admin scope and an idempotency key; raw payload and failure details are never returned. replayterminaloutboxjob evydence instance:admin">
+            <div class="operation-heading">
+              <span class="method method-post">POST</span>
+              <code>/v1/admin/outbox/{id}/replay</code>
+            </div>
+            <h3>Replay terminal outbox job</h3>
+            <p>Requeues one dead-letter outbox job and appends an audit record. Requires the explicit instance:admin scope and an idempotency key; raw payload and failure details are never returned.</p>
+            <dl>
+              <div><dt>Operation ID</dt><dd><code>replayTerminalOutboxJob</code></dd></div>
+              <div><dt>Tags</dt><dd>evydence</dd></div>
+              <div><dt>Auth</dt><dd>BearerAuth</dd></div>
+              <div><dt>Scopes</dt><dd>instance:admin</dd></div>
+              <div><dt>Idempotency</dt><dd>Idempotency-Key</dd></div>
+              <div><dt>Request</dt><dd>application/json: EmptyObject</dd></div>
+              <div><dt>Responses</dt><dd>200 application/json: OutboxReplayEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
           <article class="operation" data-operation data-search="get /v1/admin/readiness readiness diagnostics returns vetted per-dependency readiness diagnostics. requires the explicit instance:admin scope; raw dependency errors, credentials, paths, and tenant data are excluded. readinessdiagnostics evydence instance:admin">
@@ -1537,13 +1571,13 @@
               <div><dt>Responses</dt><dd>200 application/json: VerificationResultEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/metrics safe tenant metrics returns safe tenant-scoped resource metrics for admin actors. a prometheus text response is also available when requested with accept: text/plain. metrics evydence admin">
+          <article class="operation" data-operation data-search="get /v1/metrics safe tenant metrics returns safe tenant-scoped resource metrics for admin actors. an explicit instance:admin actor also receives bounded aggregate outbox gauges without tenant labels, payloads, or failure details. a prometheus text response is available when requested with accept: text/plain. metrics evydence admin">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/metrics</code>
             </div>
             <h3>Safe tenant metrics</h3>
-            <p>Returns safe tenant-scoped resource metrics for admin actors. A Prometheus text response is also available when requested with Accept: text/plain.</p>
+            <p>Returns safe tenant-scoped resource metrics for admin actors. An explicit instance:admin actor also receives bounded aggregate outbox gauges without tenant labels, payloads, or failure details. A Prometheus text response is available when requested with Accept: text/plain.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>metrics</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -4353,6 +4387,26 @@
           </tr>
           <tr>
             <td><code>OrganizationEnvelope</code></td>
+            <td>object</td>
+            <td>data, meta</td>
+          </tr>
+          <tr>
+            <td><code>OutboxDiagnostics</code></td>
+            <td>object</td>
+            <td>pending_jobs, running_jobs, terminal_jobs</td>
+          </tr>
+          <tr>
+            <td><code>OutboxDiagnosticsEnvelope</code></td>
+            <td>object</td>
+            <td>data, meta</td>
+          </tr>
+          <tr>
+            <td><code>OutboxReplay</code></td>
+            <td>object</td>
+            <td>job_id, status, replayed_at</td>
+          </tr>
+          <tr>
+            <td><code>OutboxReplayEnvelope</code></td>
             <td>object</td>
             <td>data, meta</td>
           </tr>

@@ -1,5 +1,5 @@
 {
-  "route_count": 187,
+  "route_count": 189,
   "routes": [
     {
       "idempotency_key_required": false,
@@ -9,6 +9,42 @@
       "request_schema": "",
       "response_schemas": [
         "#/components/schemas/InstanceAdminSnapshotEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "instance:admin"
+      ],
+      "stability": "experimental",
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "outboxOperatorDiagnostics",
+      "path": "/v1/admin/outbox",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/OutboxDiagnosticsEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "instance:admin"
+      ],
+      "stability": "experimental",
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "replayTerminalOutboxJob",
+      "path": "/v1/admin/outbox/{id}/replay",
+      "request_schema": "#/components/schemas/EmptyObject",
+      "response_schemas": [
+        "#/components/schemas/OutboxReplayEnvelope",
         "#/components/schemas/Problem"
       ],
       "scopes": [

@@ -101,7 +101,7 @@ func runWithArgs(args []string) error {
 		}
 		jobs, err := store.ClaimJobs(ctx, batchSize)
 		if err != nil {
-			log.Printf("outbox claim failed: %v", err)
+			log.Printf("outbox claim failed")
 			time.Sleep(pollInterval)
 			continue
 		}
@@ -112,16 +112,37 @@ func runWithArgs(args []string) error {
 		for _, job := range jobs {
 			log.Printf("processing outbox job id=%s kind=%s subject_type=%s subject_id=%s attempt=%d", job.ID, job.Kind, job.SubjectType, job.SubjectID, job.Attempts)
 			if err := processJobWithObjects(ctx, store, objectStore, job); err != nil {
-				log.Printf("outbox job failed id=%s kind=%s: %v", job.ID, job.Kind, err)
-				if failErr := store.FailJob(ctx, job.ID, err); failErr != nil {
-					log.Printf("record outbox failure failed id=%s: %v", job.ID, failErr)
+				failure := classifyWorkerFailure(err)
+				log.Printf("outbox job failed id=%s kind=%s class=%s code=%s", job.ID, job.Kind, failure.Class, failure.Code)
+				if failErr := store.FailJob(ctx, job.ID, job.LeaseToken, failure); failErr != nil {
+					log.Printf("record outbox failure failed id=%s", job.ID)
 				}
 				continue
 			}
-			if err := store.CompleteJob(ctx, job.ID); err != nil {
-				log.Printf("complete outbox job failed id=%s: %v", job.ID, err)
+			if err := store.CompleteJob(ctx, job.ID, job.LeaseToken); err != nil {
+				log.Printf("complete outbox job failed id=%s", job.ID)
 			}
 		}
+	}
+}
+
+func classifyWorkerFailure(err error) postgres.JobFailure {
+	if err == nil {
+		return postgres.JobFailure{Class: postgres.JobFailureTransient, Code: "worker_processing_failed"}
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return postgres.JobFailure{Class: postgres.JobFailureTransient, Code: "worker_interrupted"}
+	}
+	message := err.Error()
+	switch {
+	case strings.Contains(message, "unsupported outbox job kind"), strings.Contains(message, "unsupported outbox parser version"), strings.Contains(message, "tenant-prefixed"), strings.Contains(message, "tenant mismatch"), strings.Contains(message, "digest mismatch"), strings.Contains(message, "payload hash"), strings.Contains(message, "durable state"), strings.Contains(message, "not available"), strings.Contains(message, "payload is invalid"):
+		return postgres.JobFailure{Class: postgres.JobFailurePoisoned, Code: "payload_invariant_failed"}
+	case strings.Contains(message, "object store is not configured"), strings.Contains(message, "read outbox payload object"):
+		return postgres.JobFailure{Class: postgres.JobFailureTransient, Code: "payload_store_unavailable"}
+	case strings.Contains(message, "size limit"):
+		return postgres.JobFailure{Class: postgres.JobFailurePermanent, Code: "payload_too_large"}
+	default:
+		return postgres.JobFailure{Class: postgres.JobFailureTransient, Code: "worker_processing_failed"}
 	}
 }
 

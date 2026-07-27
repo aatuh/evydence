@@ -784,6 +784,55 @@ func TestInstanceAdminHTTPRequiresExplicitScope(t *testing.T) {
 	getJSON(t, server, instanceSecret, "/v1/admin/instance", http.StatusOK)
 }
 
+type fakeOutboxAdminHTTP struct {
+	jobID  string
+	actor  string
+	replay app.OutboxReplay
+	diag   app.OutboxDiagnostics
+}
+
+func (f *fakeOutboxAdminHTTP) ReplayTerminalJob(_ context.Context, jobID, actorID string) (app.OutboxReplay, error) {
+	f.jobID, f.actor = jobID, actorID
+	return f.replay, nil
+}
+
+func (f *fakeOutboxAdminHTTP) OutboxDiagnostics(context.Context) (app.OutboxDiagnostics, error) {
+	return f.diag, nil
+}
+
+func TestOutboxOperatorHTTPRequiresInstanceAdminAndOmitsPayloads(t *testing.T) {
+	operator := &fakeOutboxAdminHTTP{
+		replay: app.OutboxReplay{JobID: "job_terminal", Status: "queued", ReplayedAt: time.Now().UTC()},
+		diag:   app.OutboxDiagnostics{PendingJobs: 2, RunningJobs: 1, TerminalJobs: 3, OldestPendingCreatedAt: time.Now().UTC()},
+	}
+	ledger := app.NewLedger(app.Config{APIKeyPepper: "test", OutboxAdmin: operator})
+	_, _, tenantSecret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "tenant-admin", []string{"*"})
+	if err != nil {
+		t.Fatalf("bootstrap tenant: %v", err)
+	}
+	_, _, instanceSecret, err := ledger.BootstrapTenant(t.Context(), "Instance", "instance-admin", []string{app.ScopeInstanceAdmin})
+	if err != nil {
+		t.Fatalf("bootstrap instance: %v", err)
+	}
+	server, err := NewServer(ledger)
+	if err != nil {
+		t.Fatalf("server: %v", err)
+	}
+	getJSON(t, server, tenantSecret, "/v1/admin/outbox", http.StatusForbidden)
+	diagnostics := getJSON(t, server, instanceSecret, "/v1/admin/outbox", http.StatusOK)
+	if !strings.Contains(diagnostics, `"pending_jobs":2`) || strings.Contains(diagnostics, "payload") || strings.Contains(diagnostics, "failure_detail") {
+		t.Fatalf("outbox diagnostics=%s", diagnostics)
+	}
+	replay := postJSON(t, server, instanceSecret, "/v1/admin/outbox/job_terminal/replay", "outbox-replay", map[string]any{}, http.StatusOK)
+	if !strings.Contains(replay, `"job_id":"job_terminal"`) || operator.jobID != "job_terminal" || operator.actor == "" || strings.Contains(replay, "payload") {
+		t.Fatalf("outbox replay=%s operator=%#v", replay, operator)
+	}
+	metrics := getRawWithAccept(t, server, instanceSecret, "/v1/metrics", "text/plain", http.StatusOK)
+	if body := metrics.Body.String(); !strings.Contains(body, "evydence_outbox_terminal_jobs 3") || strings.Contains(body, "payload") || strings.Contains(body, "failure_detail") {
+		t.Fatalf("instance outbox metrics=%s", body)
+	}
+}
+
 func TestReleaseBundleVerifyFlow(t *testing.T) {
 	server, secret := testServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "prod", map[string]any{"name": "Payments", "slug": "payments"}, http.StatusCreated)

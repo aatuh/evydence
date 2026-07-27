@@ -861,6 +861,31 @@ func TestOpenObjectStoreRejectsIncompleteS3ConfigurationWithoutSecretsInError(t 
 	}
 }
 
+func TestClassifyWorkerFailureUsesStableSafeCodes(t *testing.T) {
+	tests := []struct {
+		name  string
+		err   error
+		class postgres.JobFailureClass
+		code  string
+	}{
+		{name: "interrupted", err: context.Canceled, class: postgres.JobFailureTransient, code: "worker_interrupted"},
+		{name: "unsupported parser", err: errors.New("unsupported outbox parser version secret-value"), class: postgres.JobFailurePoisoned, code: "payload_invariant_failed"},
+		{name: "object unavailable", err: errors.New("read outbox payload object: https://secret.example.test/token"), class: postgres.JobFailureTransient, code: "payload_store_unavailable"},
+		{name: "unknown", err: errors.New("postgres://user:super-secret@database.internal failed"), class: postgres.JobFailureTransient, code: "worker_processing_failed"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			failure := classifyWorkerFailure(tt.err)
+			if failure.Class != tt.class || failure.Code != tt.code {
+				t.Fatalf("failure=%#v, want class=%q code=%q", failure, tt.class, tt.code)
+			}
+			if strings.Contains(failure.Code, "secret") || strings.Contains(failure.Code, "database") {
+				t.Fatalf("failure code leaked source error: %#v", failure)
+			}
+		})
+	}
+}
+
 func dsseEnvelopeForTest(t *testing.T, digest string) []byte {
 	t.Helper()
 	statement, err := json.Marshal(map[string]any{

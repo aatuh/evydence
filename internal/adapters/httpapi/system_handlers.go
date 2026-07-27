@@ -92,6 +92,20 @@ func prometheusMetrics(metrics map[string]any) string {
 	b.WriteString("# HELP evydence_customer_portal_revoked_access_count Tenant-scoped revoked customer portal access records.\n")
 	b.WriteString("# TYPE evydence_customer_portal_revoked_access_count gauge\n")
 	fmt.Fprintf(&b, "evydence_customer_portal_revoked_access_count %d\n", metricInt(metrics["customer_portal_revoked_access_count"]))
+	if _, ok := metrics["outbox_pending_jobs"]; ok {
+		b.WriteString("# HELP evydence_outbox_pending_jobs Instance-wide queued or retrying outbox jobs.\n")
+		b.WriteString("# TYPE evydence_outbox_pending_jobs gauge\n")
+		fmt.Fprintf(&b, "evydence_outbox_pending_jobs %d\n", metricInt(metrics["outbox_pending_jobs"]))
+		b.WriteString("# HELP evydence_outbox_running_jobs Instance-wide leased outbox jobs.\n")
+		b.WriteString("# TYPE evydence_outbox_running_jobs gauge\n")
+		fmt.Fprintf(&b, "evydence_outbox_running_jobs %d\n", metricInt(metrics["outbox_running_jobs"]))
+		b.WriteString("# HELP evydence_outbox_terminal_jobs Instance-wide dead-letter outbox jobs.\n")
+		b.WriteString("# TYPE evydence_outbox_terminal_jobs gauge\n")
+		fmt.Fprintf(&b, "evydence_outbox_terminal_jobs %d\n", metricInt(metrics["outbox_terminal_jobs"]))
+		b.WriteString("# HELP evydence_outbox_oldest_pending_age_seconds Age of the oldest queued or retrying outbox job.\n")
+		b.WriteString("# TYPE evydence_outbox_oldest_pending_age_seconds gauge\n")
+		fmt.Fprintf(&b, "evydence_outbox_oldest_pending_age_seconds %d\n", metricInt(metrics["outbox_oldest_pending_age_seconds"]))
+	}
 	return b.String()
 }
 

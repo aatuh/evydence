@@ -1062,17 +1062,21 @@ func (r outbox) Enqueue(ctx context.Context, job app.OutboxJob) error {
 	if err := requireTenant(ctx, r.tx, job.TenantID); err != nil {
 		return err
 	}
+	if err := app.EnsureOutboxDeduplicationKey(&job); err != nil {
+		return err
+	}
 	payload, err := json.Marshal(job.Payload)
 	if err != nil {
 		return fmt.Errorf("encode outbox payload: %w", err)
 	}
 	_, err = r.tx.Exec(ctx, `
 		INSERT INTO outbox_jobs (
-			id, tenant_id, kind, subject_type, subject_id, payload, status,
+			id, tenant_id, kind, subject_type, subject_id, deduplication_key, payload, status,
 			attempts, max_attempts, run_after, created_at, updated_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, 'queued', 0, 5, now(), $7, now())
-	`, job.ID, job.TenantID, job.Kind, job.SubjectType, job.SubjectID, payload, job.CreatedAt)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, 'queued', 0, 5, now(), $8, now())
+		ON CONFLICT (tenant_id, deduplication_key) DO NOTHING
+	`, job.ID, job.TenantID, job.Kind, job.SubjectType, job.SubjectID, job.DeduplicationKey, payload, job.CreatedAt)
 	return writeError("enqueue outbox job", err)
 }
 

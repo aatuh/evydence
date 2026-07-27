@@ -446,6 +446,13 @@ Current SSO endpoints model admin-managed provider, identity-link, trust-materia
 | `POST` | `/v1/release-candidates/{id}/reject` | Reject release candidate; requires `If-Match` with current revision. |
 | `POST` | `/v1/remediation-tasks` | Create remediation task. |
 
+### Instance Outbox Operations
+
+| Method | Path | Notes |
+|--------|------|-------|
+| `GET` | `/v1/admin/outbox` | Payload-free outbox backlog and terminal-job diagnostics; requires explicit `instance:admin`. |
+| `POST` | `/v1/admin/outbox/{id}/replay` | Replay one terminal outbox job with `Idempotency-Key`; requires explicit `instance:admin` and appends an audit record. |
+
 ### CI, Source, Deployment, And Collectors
 
 | Method | Path | Notes |

@@ -29,7 +29,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Description = "Returns vetted per-dependency readiness diagnostics. Requires the explicit instance:admin scope; raw dependency errors, credentials, paths, and tenant data are excluded."
 		operation.Responses[http.StatusOK] = jsonResponse("Instance readiness diagnostics envelope.", "#/components/schemas/ReadinessDiagnosticsEnvelope")
 	case "metrics":
-		operation.Description = "Returns safe tenant-scoped resource metrics for admin actors. A Prometheus text response is also available when requested with Accept: text/plain."
+		operation.Description = "Returns safe tenant-scoped resource metrics for admin actors. An explicit instance:admin actor also receives bounded aggregate outbox gauges without tenant labels, payloads, or failure details. A Prometheus text response is available when requested with Accept: text/plain."
 		operation.Responses[http.StatusOK] = specs.Response{
 			Description:  "Tenant metrics envelope or Prometheus text metrics.",
 			ContentTypes: []string{"application/json", "text/plain"},
@@ -46,6 +46,15 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 	case "instanceAdminSnapshot":
 		operation.Description = "Returns instance-level diagnostic counts. Requires the explicit instance:admin scope; tenant admin and ordinary wildcard tenant keys are insufficient."
 		operation.Responses[http.StatusOK] = jsonResponse("Instance admin snapshot envelope.", "#/components/schemas/InstanceAdminSnapshotEnvelope")
+	case "outboxOperatorDiagnostics":
+		operation.Description = "Returns aggregate outbox backlog, running, and terminal-job counts without tenant IDs, payloads, or raw failure details. Requires the explicit instance:admin scope."
+		operation.Responses[http.StatusOK] = jsonResponse("Outbox operator diagnostics envelope.", "#/components/schemas/OutboxDiagnosticsEnvelope")
+	case "replayTerminalOutboxJob":
+		operation.Description = "Requeues one dead-letter outbox job and appends an audit record. Requires the explicit instance:admin scope and an idempotency key; raw payload and failure details are never returned."
+		operation.Parameters = append(operation.Parameters, pathParam("id", "Terminal outbox job id."))
+		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
+		delete(operation.Responses, http.StatusCreated)
+		operation.Responses[http.StatusOK] = jsonResponse("Requeued outbox job envelope.", "#/components/schemas/OutboxReplayEnvelope")
 	case "createOrganization":
 		operation.Description = "Creates a tenant-scoped organization record for human identity grouping."
 		operation.RequestBody = jsonRequest("Organization creation request.", "#/components/schemas/CreateOrganizationRequest")

@@ -404,6 +404,80 @@ func TestObjectRetentionVerificationTruthMigratesLegacyRecordsConservatively(t *
 	}
 }
 
+func TestOutboxDeadLetterMigrationSanitizesLegacyFailures(t *testing.T) {
+	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
+	if strings.TrimSpace(databaseURL) == "" {
+		t.Skip("EVYDENCE_TEST_DATABASE_URL is not set")
+	}
+	const migration = "20260727000500_outbox_dead_letter_controls.up.sql"
+	names := migrationFileNames(t, "../../../migrations")
+	index := -1
+	for i, name := range names {
+		if name == migration {
+			index = i
+			break
+		}
+	}
+	if index < 0 {
+		t.Fatalf("migration %q not found", migration)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	basePool, err := pgxpool.New(ctx, databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer basePool.Close()
+	schema := fmt.Sprintf("evydence_outbox_legacy_%d", time.Now().UnixNano())
+	quotedSchema := pgx.Identifier{schema}.Sanitize()
+	if _, err := basePool.Exec(ctx, "CREATE SCHEMA "+quotedSchema); err != nil {
+		t.Fatal(err)
+	}
+	defer func(cleanupCtx context.Context) {
+		_, _ = basePool.Exec(cleanupCtx, "DROP SCHEMA "+quotedSchema+" CASCADE")
+	}(context.WithoutCancel(ctx))
+
+	store, err := Open(ctx, databaseURLWithSearchPath(t, databaseURL, schema))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	applyMigrationPrefix(t, ctx, store, "../../../migrations", names[:index])
+	now := time.Now().UTC().Round(0)
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO outbox_jobs (id, tenant_id, kind, subject_type, subject_id, status, attempts, max_attempts, last_error, created_at, updated_at)
+		VALUES
+			('job_legacy_failed', 'ten_legacy_outbox', 'parse_sbom', 'sbom', 'sbom_legacy_failed', 'failed', 5, 5, 'postgres://user:secret@example.test/db', $1, $1),
+			('job_legacy_retrying', 'ten_legacy_outbox', 'parse_sbom', 'sbom', 'sbom_legacy_retrying', 'retrying', 1, 5, 'object store read token=secret', $1, $1)
+	`, now); err != nil {
+		t.Fatalf("insert legacy outbox jobs: %v", err)
+	}
+	if _, err := store.ApplyMigrations(ctx, "../../../migrations"); err != nil {
+		t.Fatalf("apply outbox lifecycle migration: %v", err)
+	}
+
+	for _, check := range []struct {
+		id, status, failureClass, failureCode, dedupe string
+		terminal                                      bool
+	}{
+		{"job_legacy_failed", "dead_letter", "permanent", "legacy_failed", "legacy:job_legacy_failed", true},
+		{"job_legacy_retrying", "retrying", "transient", "legacy_retry_failed", "legacy:job_legacy_retrying", false},
+	} {
+		var status, failureClass, failureCode, lastError, dedupe string
+		var terminalAt sql.NullTime
+		if err := store.pool.QueryRow(ctx, `
+			SELECT status, failure_class, failure_code, last_error, deduplication_key, terminal_at
+			FROM outbox_jobs WHERE id = $1
+		`, check.id).Scan(&status, &failureClass, &failureCode, &lastError, &dedupe, &terminalAt); err != nil {
+			t.Fatalf("load migrated outbox job %s: %v", check.id, err)
+		}
+		if status != check.status || failureClass != check.failureClass || failureCode != check.failureCode || lastError != check.failureCode || dedupe != check.dedupe || terminalAt.Valid != check.terminal {
+			t.Fatalf("migrated outbox job %s = status:%q class:%q code:%q last_error:%q dedupe:%q terminal:%v", check.id, status, failureClass, failureCode, lastError, dedupe, terminalAt.Valid)
+		}
+	}
+}
+
 func assertLegacyVerificationResult(t *testing.T, ctx context.Context, pool *pgxpool.Pool, id, wantResult, wantProfile, wantVersion string) {
 	t.Helper()
 	var result, profileID, schemaVersion string

@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"strings"
 
@@ -544,7 +546,7 @@ func (l *Ledger) enqueue(ctx context.Context, tenantID, kind, subjectType, subje
 }
 
 func (l *Ledger) newOutboxJob(tenantID, kind, subjectType, subjectID string, payload map[string]any) OutboxJob {
-	return OutboxJob{
+	job := OutboxJob{
 		ID:          newID("job"),
 		TenantID:    tenantID,
 		Kind:        kind,
@@ -553,6 +555,38 @@ func (l *Ledger) newOutboxJob(tenantID, kind, subjectType, subjectID string, pay
 		Payload:     cloneMap(payload),
 		CreatedAt:   l.now(),
 	}
+	_ = EnsureOutboxDeduplicationKey(&job)
+	return job
+}
+
+// EnsureOutboxDeduplicationKey derives a stable key for one logical worker
+// operation. The random job id and creation time are deliberately excluded so
+// retried command paths resolve to the same durable job instead of producing
+// duplicate worker effects.
+func EnsureOutboxDeduplicationKey(job *OutboxJob) error {
+	if job == nil {
+		return ErrValidation
+	}
+	if strings.TrimSpace(job.DeduplicationKey) != "" {
+		job.DeduplicationKey = strings.TrimSpace(job.DeduplicationKey)
+		return nil
+	}
+	canonical, err := json.Marshal(struct {
+		TenantID    string         `json:"tenant_id"`
+		Kind        string         `json:"kind"`
+		SubjectType string         `json:"subject_type"`
+		SubjectID   string         `json:"subject_id"`
+		Payload     map[string]any `json:"payload"`
+	}{
+		TenantID: strings.TrimSpace(job.TenantID), Kind: strings.TrimSpace(job.Kind),
+		SubjectType: strings.TrimSpace(job.SubjectType), SubjectID: strings.TrimSpace(job.SubjectID), Payload: job.Payload,
+	})
+	if err != nil {
+		return ErrValidation
+	}
+	digest := sha256.Sum256(canonical)
+	job.DeduplicationKey = "outbox:" + hex.EncodeToString(digest[:])
+	return nil
 }
 
 func (l *Ledger) enqueueJob(ctx context.Context, job OutboxJob) error {

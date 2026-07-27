@@ -23,6 +23,26 @@ func (s *Server) instanceAdminSnapshot(w http.ResponseWriter, r *http.Request) {
 	writeData(w, http.StatusOK, snapshot)
 }
 
+func (s *Server) outboxOperatorDiagnostics(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	diagnostics, err := s.ledger.OutboxOperatorDiagnostics(r.Context(), actor)
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, diagnostics)
+}
+
+func (s *Server) replayTerminalOutboxJob(w http.ResponseWriter, r *http.Request) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
+		replay, err := s.ledger.ReplayTerminalOutboxJob(ctx, actor, r.PathValue("id"))
+		return http.StatusOK, replay, err
+	})
+}
+
 func (s *Server) createOrganization(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name string `json:"name"`

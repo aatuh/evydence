@@ -37,7 +37,7 @@ curl -sS \
   "$EVYDENCE_API_URL/v1/metrics"
 ```
 
-Expected result: metric names such as `evydence_resource_count`, `evydence_customer_portal_failed_access_count`, and `evydence_customer_portal_revoked_access_count`. The response omits API keys, portal tokens, raw evidence payloads, signing-key private material, customer names, and email addresses.
+Expected result: metric names such as `evydence_resource_count`, `evydence_customer_portal_failed_access_count`, and `evydence_customer_portal_revoked_access_count`. An API key with the explicit `instance:admin` scope additionally receives bounded instance-wide `evydence_outbox_pending_jobs`, `evydence_outbox_running_jobs`, `evydence_outbox_terminal_jobs`, and `evydence_outbox_oldest_pending_age_seconds` gauges. These outbox metrics have no tenant labels and disclose no job IDs, payloads, or failure details. The response omits API keys, portal tokens, raw evidence payloads, signing-key private material, customer names, and email addresses.
 
 ## Deployment Artifacts
 
@@ -52,6 +52,6 @@ The Prometheus rules assume a scrape job named `evydence-api` and an authenticat
 
 ## Limitations
 
-- `/v1/metrics` is tenant-scoped to the authenticating admin actor; instance-wide metrics require separate operator aggregation.
+- `/v1/metrics` is tenant-scoped to ordinary admin actors. The explicit `instance:admin` scope adds only aggregate, unlabeled outbox gauges; it does not expose tenant evidence or job details.
 - The starter alert rules are examples and need production routing, silence, and escalation policy review.
 - OpenTelemetry tracing/exporter wiring is deployment-specific and not required for the local self-hosted runtime.

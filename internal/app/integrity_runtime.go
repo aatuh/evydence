@@ -949,11 +949,15 @@ func (l *Ledger) Metrics(ctx context.Context, actor domain.Actor) (map[string]an
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if err := require(actor, ScopeAdmin); err != nil {
+	instanceAdmin := actorHasExactScope(actor, ScopeInstanceAdmin)
+	if instanceAdmin {
+		if err := require(actor, ScopeInstanceAdmin); err != nil {
+			return nil, err
+		}
+	} else if err := require(actor, ScopeAdmin); err != nil {
 		return nil, err
 	}
 	l.mu.Lock()
-	defer l.mu.Unlock()
 	portalFailures := 0
 	portalRevoked := 0
 	for _, access := range l.portalAccess {
@@ -964,7 +968,28 @@ func (l *Ledger) Metrics(ctx context.Context, actor domain.Actor) (map[string]an
 			}
 		}
 	}
-	return map[string]any{"tenant_id": actor.TenantID, "resource_counts": l.resourceCountsLocked(actor.TenantID), "customer_portal_failed_access_count": portalFailures, "customer_portal_revoked_access_count": portalRevoked}, nil
+	metrics := map[string]any{"tenant_id": actor.TenantID, "resource_counts": l.resourceCountsLocked(actor.TenantID), "customer_portal_failed_access_count": portalFailures, "customer_portal_revoked_access_count": portalRevoked}
+	operator := l.outboxAdmin
+	l.mu.Unlock()
+	if !instanceAdmin || operator == nil {
+		return metrics, nil
+	}
+	diagnostics, err := operator.OutboxDiagnostics(ctx)
+	if err != nil {
+		return nil, err
+	}
+	metrics["outbox_pending_jobs"] = diagnostics.PendingJobs
+	metrics["outbox_running_jobs"] = diagnostics.RunningJobs
+	metrics["outbox_terminal_jobs"] = diagnostics.TerminalJobs
+	oldestAgeSeconds := 0
+	if !diagnostics.OldestPendingCreatedAt.IsZero() {
+		oldestAgeSeconds = int(time.Since(diagnostics.OldestPendingCreatedAt).Seconds())
+		if oldestAgeSeconds < 0 {
+			oldestAgeSeconds = 0
+		}
+	}
+	metrics["outbox_oldest_pending_age_seconds"] = oldestAgeSeconds
+	return metrics, nil
 }
 
 func (l *Ledger) ListAuditLog(ctx context.Context, actor domain.Actor, filter AuditLogFilter) ([]domain.AuditChainEntry, error) {

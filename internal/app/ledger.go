@@ -73,6 +73,7 @@ type Config struct {
 	ProviderAPI     ProviderIdentityValidator
 	Transparency    TransparencyProofFetcher
 	Outbox          Outbox
+	OutboxAdmin     OutboxAdmin
 	ReadinessChecks []ReadinessCheck
 	// WorkerOwnedParserSideEffects stores accepted parser records first and
 	// lets outbox workers populate parser-derived fields from raw payloads.
@@ -94,6 +95,7 @@ type Ledger struct {
 	providerAPI        ProviderIdentityValidator
 	transparencyProofs TransparencyProofFetcher
 	outbox             Outbox
+	outboxAdmin        OutboxAdmin
 	readinessChecks    []ReadinessCheck
 	workerOwnedParsers bool
 
@@ -241,6 +243,7 @@ func NewLedgerWithContext(ctx context.Context, cfg Config) (*Ledger, error) {
 		providerAPI:           cfg.ProviderAPI,
 		transparencyProofs:    cfg.Transparency,
 		outbox:                cfg.Outbox,
+		outboxAdmin:           cfg.OutboxAdmin,
 		readinessChecks:       normalizedReadinessChecks(cfg.ReadinessChecks),
 		workerOwnedParsers:    cfg.WorkerOwnedParserSideEffects,
 		tenants:               map[string]domain.Tenant{},

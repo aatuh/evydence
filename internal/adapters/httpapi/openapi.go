@@ -60,6 +60,10 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"resource_counts":                      map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "integer"}},
 		"customer_portal_failed_access_count":  map[string]any{"type": "integer"},
 		"customer_portal_revoked_access_count": map[string]any{"type": "integer"},
+		"outbox_pending_jobs":                  map[string]any{"type": "integer", "minimum": 0, "description": "Instance-wide queued or retrying jobs; returned only to explicit instance administrators."},
+		"outbox_running_jobs":                  map[string]any{"type": "integer", "minimum": 0, "description": "Instance-wide leased jobs; returned only to explicit instance administrators."},
+		"outbox_terminal_jobs":                 map[string]any{"type": "integer", "minimum": 0, "description": "Instance-wide dead-letter jobs; returned only to explicit instance administrators."},
+		"outbox_oldest_pending_age_seconds":    map[string]any{"type": "integer", "minimum": 0, "description": "Age of the oldest queued or retrying job; returned only to explicit instance administrators."},
 	}, "tenant_id", "resource_counts", "customer_portal_failed_access_count", "customer_portal_revoked_access_count"))
 	registry.RegisterSchema("MetricsSnapshotEnvelope", dataEnvelopeSchema("#/components/schemas/MetricsSnapshot"))
 	registry.RegisterSchema("OpenAPIDocument", map[string]any{
@@ -81,6 +85,19 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"generated_at":    map[string]any{"type": "string", "format": "date-time"},
 	}, "report_type", "tenant_count", "resource_counts", "limitations", "generated_at"))
 	registry.RegisterSchema("InstanceAdminSnapshotEnvelope", dataEnvelopeSchema("#/components/schemas/InstanceAdminSnapshot"))
+	registry.RegisterSchema("OutboxDiagnostics", objectSchema(map[string]any{
+		"pending_jobs":              map[string]any{"type": "integer", "minimum": 0},
+		"running_jobs":              map[string]any{"type": "integer", "minimum": 0},
+		"terminal_jobs":             map[string]any{"type": "integer", "minimum": 0},
+		"oldest_pending_created_at": map[string]any{"type": "string", "format": "date-time"},
+	}, "pending_jobs", "running_jobs", "terminal_jobs"))
+	registry.RegisterSchema("OutboxDiagnosticsEnvelope", dataEnvelopeSchema("#/components/schemas/OutboxDiagnostics"))
+	registry.RegisterSchema("OutboxReplay", objectSchema(map[string]any{
+		"job_id":      map[string]any{"type": "string"},
+		"status":      map[string]any{"type": "string", "enum": []string{"queued"}},
+		"replayed_at": map[string]any{"type": "string", "format": "date-time"},
+	}, "job_id", "status", "replayed_at"))
+	registry.RegisterSchema("OutboxReplayEnvelope", dataEnvelopeSchema("#/components/schemas/OutboxReplay"))
 	registry.RegisterSchema("CreateSSOSessionRequest", objectSchema(map[string]any{
 		"user_id":     map[string]any{"type": "string"},
 		"provider_id": map[string]any{"type": "string"},

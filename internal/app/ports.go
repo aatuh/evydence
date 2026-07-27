@@ -78,6 +78,13 @@ type Outbox interface {
 	Enqueue(context.Context, OutboxJob) error
 }
 
+// OutboxAdmin exposes bounded operator controls. Implementations must not
+// return raw job payloads, provider errors, or tenant evidence in these views.
+type OutboxAdmin interface {
+	ReplayTerminalJob(context.Context, string, string) (OutboxReplay, error)
+	OutboxDiagnostics(context.Context) (OutboxDiagnostics, error)
+}
+
 // UnitOfWorkFactory begins a single command transaction. Application commands
 // use its focused repositories rather than aggregating and saving the full
 // persisted ledger state.
@@ -521,13 +528,31 @@ type Object struct {
 }
 
 type OutboxJob struct {
-	ID          string         `json:"id"`
-	TenantID    string         `json:"tenant_id"`
-	Kind        string         `json:"kind"`
-	SubjectType string         `json:"subject_type"`
-	SubjectID   string         `json:"subject_id"`
-	Payload     map[string]any `json:"payload,omitempty"`
-	CreatedAt   time.Time      `json:"created_at"`
+	ID               string         `json:"id"`
+	TenantID         string         `json:"tenant_id"`
+	Kind             string         `json:"kind"`
+	SubjectType      string         `json:"subject_type"`
+	SubjectID        string         `json:"subject_id"`
+	DeduplicationKey string         `json:"deduplication_key"`
+	Payload          map[string]any `json:"payload,omitempty"`
+	CreatedAt        time.Time      `json:"created_at"`
+}
+
+// OutboxReplay is safe operator feedback for a terminal-job replay request.
+// It intentionally excludes the original payload, error detail, and tenant ID.
+type OutboxReplay struct {
+	JobID      string    `json:"job_id"`
+	Status     string    `json:"status"`
+	ReplayedAt time.Time `json:"replayed_at"`
+}
+
+// OutboxDiagnostics supplies bounded operational counts without tenant labels
+// or raw failure details.
+type OutboxDiagnostics struct {
+	PendingJobs            int       `json:"pending_jobs"`
+	RunningJobs            int       `json:"running_jobs"`
+	TerminalJobs           int       `json:"terminal_jobs"`
+	OldestPendingCreatedAt time.Time `json:"oldest_pending_created_at,omitempty"`
 }
 
 type CriticalMutation struct {

@@ -1001,7 +1001,8 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	if relational.PDFReports["pdf_test"].PayloadHash == "" || relational.AnomalyReports["anom_test"].Result != "review" {
 		t.Fatalf("relational generated report rows missing: pdf=%#v anomaly=%#v", relational.PDFReports["pdf_test"], relational.AnomalyReports["anom_test"])
 	}
-	job := app.OutboxJob{ID: "job_test_" + time.Now().Format("150405.000000000"), TenantID: "ten_test", Kind: "verify_subject", SubjectType: "audit_chain", SubjectID: "audit_chain", CreatedAt: time.Now().UTC()}
+	jobSuffix := time.Now().UTC().Format("20060102150405.000000000")
+	job := app.OutboxJob{ID: "job_test_" + jobSuffix, TenantID: "ten_test", Kind: "verify_subject", SubjectType: "audit_chain", SubjectID: "audit_chain", Payload: map[string]any{"result_id": "verify_test_" + jobSuffix}, CreatedAt: time.Now().UTC()}
 	if err := store.Enqueue(ctx, job); err != nil {
 		t.Fatal(err)
 	}
@@ -1012,11 +1013,11 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	if len(jobs) == 0 {
 		t.Fatal("expected claimed job")
 	}
-	if err := store.CompleteJob(ctx, jobs[0].ID); err != nil {
+	if err := store.CompleteJob(ctx, jobs[0].ID, jobs[0].LeaseToken); err != nil {
 		t.Fatal(err)
 	}
 
-	retryJob := app.OutboxJob{ID: "job_retry_" + time.Now().Format("150405.000000000"), TenantID: "ten_test", Kind: "parse_sbom", SubjectType: "sbom", SubjectID: "sbom_test", CreatedAt: time.Now().UTC()}
+	retryJob := app.OutboxJob{ID: "job_retry_" + jobSuffix, TenantID: "ten_test", Kind: "parse_sbom", SubjectType: "sbom", SubjectID: "sbom_test", Payload: map[string]any{"payload_hash": "sha256:" + jobSuffix}, CreatedAt: time.Now().UTC()}
 	if err := store.Enqueue(ctx, retryJob); err != nil {
 		t.Fatal(err)
 	}
@@ -1032,7 +1033,7 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	if len(claimed) == 0 {
 		t.Fatal("expected retry job claim")
 	}
-	if err := store.FailJob(ctx, claimed[0].ID, context.Canceled); err != nil {
+	if err := store.FailJob(ctx, claimed[0].ID, claimed[0].LeaseToken, JobFailure{Class: JobFailureTransient, Code: "worker_interrupted"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.Now(ctx); err != nil {
