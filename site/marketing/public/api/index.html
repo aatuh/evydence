@@ -1622,20 +1622,20 @@
               <div><dt>Responses</dt><dd>200 application/json: ObjectRetentionPolicyEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/openapi-contracts upload openapi contract uploads an openapi 3.1 contract, stores raw bytes as evidence, and records normalized operation metadata. uploadopenapicontract evydence evidence:write">
+          <article class="operation" data-operation data-search="post /v1/openapi-contracts upload openapi contract uploads an openapi 3.1 contract, stores raw bytes as evidence, and records normalized operation metadata. use application/vnd.oai.openapi+json with the explicit metadata headers for streaming uploads up to 20 mib; the json envelope remains limited to small requests. uploadopenapicontract evydence evidence:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/openapi-contracts</code>
             </div>
             <h3>Upload OpenAPI contract</h3>
-            <p>Uploads an OpenAPI 3.1 contract, stores raw bytes as evidence, and records normalized operation metadata.</p>
+            <p>Uploads an OpenAPI 3.1 contract, stores raw bytes as evidence, and records normalized operation metadata. Use application/vnd.oai.openapi+json with the explicit metadata headers for streaming uploads up to 20 MiB; the JSON envelope remains limited to small requests.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>uploadOpenAPIContract</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
               <div><dt>Auth</dt><dd>BearerAuth</dd></div>
               <div><dt>Scopes</dt><dd>evidence:write</dd></div>
               <div><dt>Idempotency</dt><dd>Idempotency-Key</dd></div>
-              <div><dt>Request</dt><dd>application/json: UploadOpenAPIContractRequest</dd></div>
+              <div><dt>Request</dt><dd>application/json: UploadOpenAPIContractRequest; application/vnd.oai.openapi+json: string</dd></div>
               <div><dt>Responses</dt><dd>201 application/json: OpenAPIContractEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
@@ -2676,20 +2676,20 @@
               <div><dt>Responses</dt><dd>201 application/json: SBOMDiffEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/sboms upload cyclonedx sbom uploads a cyclonedx sbom payload, stores raw bytes in object storage, and records normalized sbom metadata. uploadsbom evydence evidence:write">
+          <article class="operation" data-operation data-search="post /v1/sboms upload cyclonedx sbom uploads a cyclonedx sbom payload, stores raw bytes in object storage, and records normalized sbom metadata. use application/vnd.cyclonedx+json with the explicit metadata headers for streaming uploads up to 20 mib; the json envelope remains limited to small requests. uploadsbom evydence evidence:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/sboms</code>
             </div>
             <h3>Upload CycloneDX SBOM</h3>
-            <p>Uploads a CycloneDX SBOM payload, stores raw bytes in object storage, and records normalized SBOM metadata.</p>
+            <p>Uploads a CycloneDX SBOM payload, stores raw bytes in object storage, and records normalized SBOM metadata. Use application/vnd.cyclonedx+json with the explicit metadata headers for streaming uploads up to 20 MiB; the JSON envelope remains limited to small requests.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>uploadSBOM</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
               <div><dt>Auth</dt><dd>BearerAuth</dd></div>
               <div><dt>Scopes</dt><dd>evidence:write</dd></div>
               <div><dt>Idempotency</dt><dd>Idempotency-Key</dd></div>
-              <div><dt>Request</dt><dd>application/json: EvidenceUploadRequest</dd></div>
+              <div><dt>Request</dt><dd>application/json: EvidenceUploadRequest; application/vnd.cyclonedx+json: string</dd></div>
               <div><dt>Responses</dt><dd>201 application/json: SBOMEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
@@ -3152,20 +3152,20 @@
               <div><dt>Responses</dt><dd>200 application/json: VersionInfoEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/vex upload openvex document uploads vex payload bytes, stores raw evidence in object storage, and records normalized vex metadata and decisions where applicable. uploadvex evydence evidence:write">
+          <article class="operation" data-operation data-search="post /v1/vex upload openvex document uploads vex payload bytes, stores raw evidence in object storage, and records normalized vex metadata and decisions where applicable. use application/vnd.openvex+json with the explicit metadata headers for streaming uploads up to 20 mib; the json envelope remains limited to small requests. uploadvex evydence evidence:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/vex</code>
             </div>
             <h3>Upload OpenVEX document</h3>
-            <p>Uploads VEX payload bytes, stores raw evidence in object storage, and records normalized VEX metadata and decisions where applicable.</p>
+            <p>Uploads VEX payload bytes, stores raw evidence in object storage, and records normalized VEX metadata and decisions where applicable. Use application/vnd.openvex+json with the explicit metadata headers for streaming uploads up to 20 MiB; the JSON envelope remains limited to small requests.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>uploadVEX</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
               <div><dt>Auth</dt><dd>BearerAuth</dd></div>
               <div><dt>Scopes</dt><dd>evidence:write</dd></div>
               <div><dt>Idempotency</dt><dd>Idempotency-Key</dd></div>
-              <div><dt>Request</dt><dd>application/json: EvidenceUploadRequest</dd></div>
+              <div><dt>Request</dt><dd>application/json: EvidenceUploadRequest; application/vnd.openvex+json: string</dd></div>
               <div><dt>Responses</dt><dd>201 application/json: VEXDocumentEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
@@ -3305,13 +3305,13 @@
               <div><dt>Responses</dt><dd>201 application/json: VulnerabilityWorkflowRecordEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/vulnerability-scans upload vulnerability scan uploads a generic vulnerability scan json payload and records normalized findings. uploadvulnerabilityscan evydence evidence:write">
+          <article class="operation" data-operation data-search="post /v1/vulnerability-scans upload vulnerability scan uploads a generic vulnerability scan json payload and records normalized findings. the request is streamed to a private temporary file while hashing and is limited to 20 mib. uploadvulnerabilityscan evydence evidence:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/vulnerability-scans</code>
             </div>
             <h3>Upload vulnerability scan</h3>
-            <p>Uploads a generic vulnerability scan JSON payload and records normalized findings.</p>
+            <p>Uploads a generic vulnerability scan JSON payload and records normalized findings. The request is streamed to a private temporary file while hashing and is limited to 20 MiB.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>uploadVulnerabilityScan</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

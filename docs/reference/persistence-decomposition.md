@@ -42,7 +42,7 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 
 | Family | File | Function | Call |
 | --- | --- | --- | --- |
-| VEX and vulnerability decisions | `internal/app/vex.go` | `UploadVEX` | `persistReleaseLedgerWithOutboxLocked` |
+| VEX and vulnerability decisions | `internal/app/vex.go` | `UploadVEXPayload` | `persistReleaseLedgerWithOutboxLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `RecordEvidenceLifecycleEvent` | `persistReleaseLedgerStateLocked` |
 | release ledger and signing | `internal/app/ledger.go` | `ApproveRelease` | `persistReleaseLedgerStateLocked` |
 | release ledger and signing | `internal/app/ledger.go` | `CreateEvidence` | `persistReleaseLedgerStateLocked` |
@@ -53,9 +53,9 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 | release ledger and signing | `internal/app/ledger.go` | `LinkEvidence` | `persistReleaseLedgerStateLocked` |
 | release ledger and signing | `internal/app/ledger.go` | `RegisterArtifact` | `persistReleaseLedgerStateLocked` |
 | release ledger and signing | `internal/app/ledger.go` | `SupersedeEvidence` | `persistReleaseLedgerStateLocked` |
-| release ledger and signing | `internal/app/ledger.go` | `UploadOpenAPIContract` | `persistReleaseLedgerWithOutboxLocked` |
-| release ledger and signing | `internal/app/ledger.go` | `UploadSBOM` | `persistReleaseLedgerWithOutboxLocked` |
-| release ledger and signing | `internal/app/ledger.go` | `UploadVulnerabilityScan` | `persistReleaseLedgerWithOutboxLocked` |
+| release ledger and signing | `internal/app/ledger.go` | `UploadOpenAPIContractPayload` | `persistReleaseLedgerWithOutboxLocked` |
+| release ledger and signing | `internal/app/ledger.go` | `UploadSBOMPayload` | `persistReleaseLedgerWithOutboxLocked` |
+| release ledger and signing | `internal/app/ledger.go` | `UploadVulnerabilityScanPayload` | `persistReleaseLedgerWithOutboxLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `UploadCycloneDXVEX` | `persistReleaseLedgerWithOutboxLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `UploadSPDXSBOM` | `persistReleaseLedgerStateLocked` |
 

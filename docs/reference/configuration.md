@@ -88,6 +88,28 @@ process, or equivalent deployment control.
 | `EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_ALLOW_INSECURE_LOCALHOST` | Local only | `false` | Allows an HTTP localhost transparency proof gateway for tests. Do not use for production. |
 | `EVYDENCE_TEST_DATABASE_URL` | Live tests | `.test.env.example` value | Used by `make live-postgres-check`, `make postgres-integration-test`, and `make release-check`. |
 
+## Request-Body Limits
+
+The application constants in `internal/app/payload_limits.go` are the single
+source of truth for request-body limits. HTTP handlers import those constants;
+do not create separate proxy-specific limits in application configuration.
+
+| Request class | Effective application limit | Current API behavior |
+|---|---:|---|
+| Small JSON commands, credentials, and administrative requests | 65,536 bytes | Buffered only within this small bound. This includes JSON evidence envelopes. |
+| Native SBOM, OpenVEX, OpenAPI, and vulnerability-scan documents | 20 MiB (20,971,520 bytes) | Native streaming paths hash and spool the request to a private temporary file before validation and object-store staging. `POST /v1/vulnerability-scans` streams `application/json`; `POST /v1/sboms`, `POST /v1/vex`, and `POST /v1/openapi-contracts` also accept their documented native media types with required `X-Evydence-*` metadata headers. |
+| Evidence archive transport budget | 128 MiB (134,217,728 bytes) | Reserved for archive transport. Current evidence-bundle import is a small JSON manifest rather than a raw archive-upload endpoint. |
+| Report-template creation | 1 MiB (1,048,576 bytes) | Enforced both by the HTTP handler and application service. |
+
+Configure a reverse proxy, ingress, or WAF with route-specific limits at least
+as large as the corresponding application limit. In particular, the native
+document routes must allow 20 MiB plus ordinary HTTP framing, while credential
+and administrative routes should remain at the 64 KiB small-JSON limit. A
+proxy limit lower than the table will reject a valid request before Evydence
+can return its RFC 9457 problem response; a higher proxy limit does not weaken
+the application limit. Keep any proxy configuration derived from this table
+and review it when `payload_limits.go` changes.
+
 ## Production Rejection Checks
 
 When `ENV=production`, the API refuses to start unless:

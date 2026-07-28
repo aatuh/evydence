@@ -4,6 +4,8 @@ import (
 	"net/http"
 
 	"github.com/aatuh/api-toolkit/v3/specs"
+
+	"github.com/aatuh/evydence/internal/app"
 )
 
 func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
@@ -257,8 +259,10 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("GitLab source snapshot upload request.", "#/components/schemas/SourceSnapshotRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created source snapshot resources envelope.", "#/components/schemas/SourceSnapshotEnvelope")
 	case "uploadSBOM":
-		operation.Description = "Uploads a CycloneDX SBOM payload, stores raw bytes in object storage, and records normalized SBOM metadata."
-		operation.RequestBody = jsonRequest("CycloneDX SBOM upload request.", "#/components/schemas/EvidenceUploadRequest")
+		operation.Description = "Uploads a CycloneDX SBOM payload, stores raw bytes in object storage, and records normalized SBOM metadata. Use application/vnd.cyclonedx+json with the explicit metadata headers for streaming uploads up to 20 MiB; the JSON envelope remains limited to small requests."
+		operation.RequestBody = streamingDocumentRequest("CycloneDX SBOM upload request.", "#/components/schemas/EvidenceUploadRequest", "application/vnd.cyclonedx+json", app.EvidenceDocumentLimit)
+		operation.Parameters = append(operation.Parameters, optionalHeaderParam("X-Evydence-Release-ID", "Required for a native CycloneDX document upload."), optionalHeaderParam("X-Evydence-Artifact-ID", "Optional artifact id for a native CycloneDX document upload."))
+		setRequestBodyLimit(&operation, app.EvidenceDocumentLimit)
 		addJSONRequestExamples(operation.RequestBody, map[string]any{
 			"cyclonedx-release-sbom": specs.Example{
 				Summary: "Upload a CycloneDX SBOM linked to the release artifact",
@@ -271,8 +275,10 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "SBOM id."))
 		operation.Responses[http.StatusOK] = jsonResponse("SBOM envelope.", "#/components/schemas/SBOMEnvelope")
 	case "uploadVEX":
-		operation.Description = "Uploads VEX payload bytes, stores raw evidence in object storage, and records normalized VEX metadata and decisions where applicable."
-		operation.RequestBody = jsonRequest("OpenVEX upload request.", "#/components/schemas/EvidenceUploadRequest")
+		operation.Description = "Uploads VEX payload bytes, stores raw evidence in object storage, and records normalized VEX metadata and decisions where applicable. Use application/vnd.openvex+json with the explicit metadata headers for streaming uploads up to 20 MiB; the JSON envelope remains limited to small requests."
+		operation.RequestBody = streamingDocumentRequest("OpenVEX upload request.", "#/components/schemas/EvidenceUploadRequest", "application/vnd.openvex+json", app.EvidenceDocumentLimit)
+		operation.Parameters = append(operation.Parameters, optionalHeaderParam("X-Evydence-Release-ID", "Required for a native OpenVEX document upload."), optionalHeaderParam("X-Evydence-Artifact-ID", "Optional artifact id for a native OpenVEX document upload."))
+		setRequestBodyLimit(&operation, app.EvidenceDocumentLimit)
 		operation.RequestBody.Content["application/json"] = specs.MediaType{
 			SchemaRef: "#/components/schemas/EvidenceUploadRequest",
 			Examples: map[string]any{
@@ -304,8 +310,9 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "VEX document id."))
 		operation.Responses[http.StatusOK] = jsonResponse("VEX import report envelope.", "#/components/schemas/VEXImportReportEnvelope")
 	case "uploadVulnerabilityScan":
-		operation.Description = "Uploads a generic vulnerability scan JSON payload and records normalized findings."
+		operation.Description = "Uploads a generic vulnerability scan JSON payload and records normalized findings. The request is streamed to a private temporary file while hashing and is limited to 20 MiB."
 		operation.RequestBody = jsonRequest("Vulnerability scan upload payload.", "#/components/schemas/UploadVulnerabilityScanRequest")
+		setRequestBodyLimit(&operation, app.EvidenceDocumentLimit)
 		addJSONRequestExamples(operation.RequestBody, map[string]any{
 			"generic-critical-finding": specs.Example{
 				Summary: "Upload a generic scanner finding for release triage",
@@ -516,8 +523,10 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Approval creation request.", "#/components/schemas/CreateApprovalRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created approval envelope.", "#/components/schemas/ApprovalRecordEnvelope")
 	case "uploadOpenAPIContract":
-		operation.Description = "Uploads an OpenAPI 3.1 contract, stores raw bytes as evidence, and records normalized operation metadata."
-		operation.RequestBody = jsonRequest("OpenAPI contract upload request.", "#/components/schemas/UploadOpenAPIContractRequest")
+		operation.Description = "Uploads an OpenAPI 3.1 contract, stores raw bytes as evidence, and records normalized operation metadata. Use application/vnd.oai.openapi+json with the explicit metadata headers for streaming uploads up to 20 MiB; the JSON envelope remains limited to small requests."
+		operation.RequestBody = streamingDocumentRequest("OpenAPI contract upload request.", "#/components/schemas/UploadOpenAPIContractRequest", "application/vnd.oai.openapi+json", app.EvidenceDocumentLimit)
+		operation.Parameters = append(operation.Parameters, optionalHeaderParam("X-Evydence-Product-ID", "Required for a native OpenAPI document upload."), optionalHeaderParam("X-Evydence-Release-ID", "Required for a native OpenAPI document upload."), optionalHeaderParam("X-Evydence-Version", "Required for a native OpenAPI document upload."))
+		setRequestBodyLimit(&operation, app.EvidenceDocumentLimit)
 		operation.Responses[http.StatusCreated] = jsonResponse("Created OpenAPI contract envelope.", "#/components/schemas/OpenAPIContractEnvelope")
 	case "getOpenAPIContract":
 		operation.Description = "Returns a tenant-scoped OpenAPI contract metadata record by id."
@@ -889,6 +898,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 	case "createReportTemplate":
 		operation.Description = "Creates a tenant-defined deterministic report template with an explicit allowed-field list."
 		operation.RequestBody = jsonRequest("Report template creation request.", "#/components/schemas/CreateReportTemplateRequest")
+		setRequestBodyLimit(&operation, app.ReportTemplateRequestLimit)
 		operation.Responses[http.StatusCreated] = jsonResponse("Created report template envelope.", "#/components/schemas/CustomReportTemplateEnvelope")
 	case "renderReportTemplate":
 		operation.Description = "Renders a tenant report template for a scoped subject using allowed fields only."
@@ -954,6 +964,24 @@ func jsonRequest(description, schemaRef string) *specs.RequestBody {
 			"application/json": {SchemaRef: schemaRef},
 		},
 	}
+}
+
+func streamingDocumentRequest(description, envelopeSchemaRef, mediaType string, limit int64) *specs.RequestBody {
+	body := jsonRequest(description, envelopeSchemaRef)
+	body.ContentTypes = append(body.ContentTypes, mediaType)
+	body.Content[mediaType] = specs.MediaType{Schema: map[string]any{"type": "string", "format": "binary", "maxLength": limit}}
+	return body
+}
+
+func setRequestBodyLimit(operation *specs.Operation, limit int64) {
+	if operation.Extensions == nil {
+		operation.Extensions = map[string]any{}
+	}
+	operation.Extensions["x-evydence-request-body-limit-bytes"] = limit
+}
+
+func optionalHeaderParam(name, description string) specs.Parameter {
+	return specs.Parameter{Name: name, In: "header", Description: description, Required: false, Schema: map[string]any{"type": "string", "minLength": 1}}
 }
 
 func formRequest(description, schemaRef string) *specs.RequestBody {

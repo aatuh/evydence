@@ -436,7 +436,7 @@ func (l *Ledger) UploadBuildAttestation(ctx context.Context, actor domain.Actor,
 	if err := require(actor, ScopeBuildWrite); err != nil {
 		return domain.BuildAttestation{}, err
 	}
-	if len(raw) == 0 || len(raw) > 20<<20 {
+	if !ValidPayloadSize(int64(len(raw)), EvidenceDocumentLimit) {
 		return domain.BuildAttestation{}, ErrValidation
 	}
 	parsed, err := parseDSSEAttestation(raw)

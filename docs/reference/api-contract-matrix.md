@@ -93,7 +93,7 @@ Generated from 189 operations: 189 precise, 0 broad.
 | GET | /v1/metrics | metrics | Bearer | admin | - | - | - | 200:application/json:MetricsSnapshotEnvelope,text/plain:string | precise | supported |
 | POST | /v1/object-retention-policies | createObjectRetentionPolicy | Bearer | admin | required | - | application/json:CreateObjectRetentionPolicyRequest | 201:application/json:ObjectRetentionPolicyEnvelope | precise | experimental |
 | POST | /v1/object-retention-policies/{id}/verify | verifyObjectRetentionPolicy | Bearer | verify:read | required | path:id | application/json:EmptyObject | 200:application/json:ObjectRetentionPolicyEnvelope | precise | experimental |
-| POST | /v1/openapi-contracts | uploadOpenAPIContract | Bearer | evidence:write | required | - | application/json:UploadOpenAPIContractRequest | 201:application/json:OpenAPIContractEnvelope | precise | experimental |
+| POST | /v1/openapi-contracts | uploadOpenAPIContract | Bearer | evidence:write | required | header:X-Evydence-Product-ID, header:X-Evydence-Release-ID, header:X-Evydence-Version | application/json:UploadOpenAPIContractRequest, application/vnd.oai.openapi+json:string/binary | 201:application/json:OpenAPIContractEnvelope | precise | experimental |
 | GET | /v1/openapi-contracts/{id} | getOpenAPIContract | Bearer | evidence:read | - | path:id | - | 200:application/json:OpenAPIContractEnvelope | precise | experimental |
 | POST | /v1/openapi-diffs | createOpenAPIDiff | Bearer | evidence:read | required | - | application/json:CreateOpenAPIDiffRequest | 201:application/json:ContractDiffEnvelope | precise | experimental |
 | GET | /v1/openapi.json | openapi | public | - | - | - | - | 200:application/json:OpenAPIDocument | precise | supported |
@@ -155,7 +155,7 @@ Generated from 189 operations: 189 precise, 0 broad.
 | POST | /v1/saas/profiles | createSaaSEditionProfile | Bearer | instance:admin | required | - | application/json:CreateSaaSEditionProfileRequest | 201:application/json:SaaSEditionProfileEnvelope | precise | experimental |
 | GET | /v1/sbom-components | listSBOMComponents | Bearer | evidence:read | - | query:artifact_id, query:limit, query:purl, query:query, query:release_id, query:sbom_id | - | 200:application/json:SBOMComponentRecordListEnvelope | precise | core |
 | POST | /v1/sbom-diffs | createSBOMDiff | Bearer | evidence:read | required | - | application/json:CreateSBOMDiffRequest | 201:application/json:SBOMDiffEnvelope | precise | experimental |
-| POST | /v1/sboms | uploadSBOM | Bearer | evidence:write | required | - | application/json:EvidenceUploadRequest | 201:application/json:SBOMEnvelope | precise | core |
+| POST | /v1/sboms | uploadSBOM | Bearer | evidence:write | required | header:X-Evydence-Artifact-ID, header:X-Evydence-Release-ID | application/json:EvidenceUploadRequest, application/vnd.cyclonedx+json:string/binary | 201:application/json:SBOMEnvelope | precise | core |
 | POST | /v1/sboms/spdx | uploadSPDXSBOM | Bearer | evidence:write | required | - | application/json:UploadSPDXSBOMRequest | 201:application/json:SBOMEnvelope | precise | core |
 | GET | /v1/sboms/{id} | getSBOM | Bearer | evidence:read | - | path:id | - | 200:application/json:SBOMEnvelope | precise | core |
 | POST | /v1/security-documents | uploadManualSecurityDocument | Bearer | security:write | required | - | application/json:UploadManualSecurityDocumentRequest | 201:application/json:ManualSecurityDocumentEnvelope | precise | experimental |
@@ -183,7 +183,7 @@ Generated from 189 operations: 189 precise, 0 broad.
 | POST | /v1/users/{id}/deactivate | deactivateUser | Bearer | identity:admin | required | path:id | application/json:EmptyObject | 200:application/json:HumanUserEnvelope | precise | experimental |
 | POST | /v1/verify | verify | Bearer | verify:read | required | - | application/json:VerifySubjectRequest | 200:application/json:VerificationResultEnvelope | precise | core |
 | GET | /v1/version | version | public | - | - | - | - | 200:application/json:VersionInfoEnvelope | precise | supported |
-| POST | /v1/vex | uploadVEX | Bearer | evidence:write | required | - | application/json:EvidenceUploadRequest | 201:application/json:VEXDocumentEnvelope | precise | core |
+| POST | /v1/vex | uploadVEX | Bearer | evidence:write | required | header:X-Evydence-Artifact-ID, header:X-Evydence-Release-ID | application/json:EvidenceUploadRequest, application/vnd.openvex+json:string/binary | 201:application/json:VEXDocumentEnvelope | precise | core |
 | POST | /v1/vex/cyclonedx | uploadCycloneDXVEX | Bearer | evidence:write | required | - | application/json:EvidenceUploadRequest | 201:application/json:VEXDocumentEnvelope | precise | core |
 | POST | /v1/vex/cyclonedx/preview | previewCycloneDXVEXImport | Bearer | evidence:read | not required | - | application/json:EvidenceUploadRequest | 200:application/json:VEXImportPreviewEnvelope | precise | experimental |
 | POST | /v1/vex/preview | previewVEXImport | Bearer | evidence:read | not required | - | application/json:EvidenceUploadRequest | 200:application/json:VEXImportPreviewEnvelope | precise | experimental |

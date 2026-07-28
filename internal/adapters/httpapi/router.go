@@ -27,7 +27,6 @@ import (
 
 type requestContext = context.Context
 
-const maxJSONBody = 2 << 20
 const requestIDHeader = "X-Request-ID"
 
 type Server struct {
@@ -1185,7 +1184,7 @@ func (s *Server) createReportTemplate(w http.ResponseWriter, r *http.Request) {
 		AllowedFields []string `json:"allowed_fields"`
 		Template      string   `json:"template"`
 	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.createWithLimit(w, r, app.ReportTemplateRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -1434,6 +1433,23 @@ func (s *Server) listEvidenceLifecycleEvents(w http.ResponseWriter, r *http.Requ
 }
 
 func (s *Server) uploadSBOM(w http.ResponseWriter, r *http.Request) {
+	if requestMediaType(r) == "application/vnd.cyclonedx+json" {
+		releaseID, err := requiredSingleHeader(r, "X-Evydence-Release-ID")
+		if err != nil {
+			writeProblem(w, r, app.ErrValidation)
+			return
+		}
+		artifactID, err := optionalSingleHeader(r, "X-Evydence-Artifact-ID")
+		if err != nil {
+			writeProblem(w, r, app.ErrValidation)
+			return
+		}
+		s.createStreamedEvidence(w, r, app.EvidenceDocumentLimit, func(s *Server, ctx requestContext, actor domain.Actor, source app.PayloadSource) (int, any, error) {
+			sbom, err := s.ledger.UploadSBOMPayload(ctx, actor, releaseID, artifactID, source)
+			return http.StatusCreated, sbom, err
+		})
+		return
+	}
 	var req struct {
 		ReleaseID  string          `json:"release_id"`
 		ArtifactID string          `json:"artifact_id"`
@@ -1492,6 +1508,23 @@ func (s *Server) listSBOMComponents(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) uploadVEX(w http.ResponseWriter, r *http.Request) {
+	if requestMediaType(r) == "application/vnd.openvex+json" {
+		releaseID, err := requiredSingleHeader(r, "X-Evydence-Release-ID")
+		if err != nil {
+			writeProblem(w, r, app.ErrValidation)
+			return
+		}
+		artifactID, err := optionalSingleHeader(r, "X-Evydence-Artifact-ID")
+		if err != nil {
+			writeProblem(w, r, app.ErrValidation)
+			return
+		}
+		s.createStreamedEvidence(w, r, app.EvidenceDocumentLimit, func(s *Server, ctx requestContext, actor domain.Actor, source app.PayloadSource) (int, any, error) {
+			vex, err := s.ledger.UploadVEXPayload(ctx, actor, releaseID, artifactID, source)
+			return http.StatusCreated, vex, err
+		})
+		return
+	}
 	var req struct {
 		ReleaseID  string          `json:"release_id"`
 		ArtifactID string          `json:"artifact_id"`
@@ -1602,8 +1635,8 @@ func (s *Server) previewCycloneDXVEXImport(w http.ResponseWriter, r *http.Reques
 }
 
 func (s *Server) uploadVulnerabilityScan(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		scan, err := s.ledger.UploadVulnerabilityScan(ctx, actor, body)
+	s.createStreamedEvidence(w, r, app.EvidenceDocumentLimit, func(s *Server, ctx requestContext, actor domain.Actor, source app.PayloadSource) (int, any, error) {
+		scan, err := s.ledger.UploadVulnerabilityScanPayload(ctx, actor, source)
 		return http.StatusCreated, scan, err
 	})
 }
@@ -1727,6 +1760,28 @@ func (s *Server) vulnerabilityDecisionSummaryReport(w http.ResponseWriter, r *ht
 }
 
 func (s *Server) uploadOpenAPIContract(w http.ResponseWriter, r *http.Request) {
+	if requestMediaType(r) == "application/vnd.oai.openapi+json" {
+		productID, err := requiredSingleHeader(r, "X-Evydence-Product-ID")
+		if err != nil {
+			writeProblem(w, r, app.ErrValidation)
+			return
+		}
+		releaseID, err := requiredSingleHeader(r, "X-Evydence-Release-ID")
+		if err != nil {
+			writeProblem(w, r, app.ErrValidation)
+			return
+		}
+		version, err := requiredSingleHeader(r, "X-Evydence-Version")
+		if err != nil {
+			writeProblem(w, r, app.ErrValidation)
+			return
+		}
+		s.createStreamedEvidence(w, r, app.EvidenceDocumentLimit, func(s *Server, ctx requestContext, actor domain.Actor, source app.PayloadSource) (int, any, error) {
+			contract, err := s.ledger.UploadOpenAPIContractPayload(ctx, actor, productID, releaseID, version, source)
+			return http.StatusCreated, contract, err
+		})
+		return
+	}
 	var req struct {
 		ProductID string          `json:"product_id"`
 		ReleaseID string          `json:"release_id"`
@@ -2283,12 +2338,16 @@ func (s *Server) listAPIKeys(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) create(w http.ResponseWriter, r *http.Request, run func(*Server, requestContext, domain.Actor, []byte) (int, any, error)) {
+	s.createWithLimit(w, r, app.SmallJSONRequestLimit, run)
+}
+
+func (s *Server) createWithLimit(w http.ResponseWriter, r *http.Request, limit int64, run func(*Server, requestContext, domain.Actor, []byte) (int, any, error)) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
 		return
 	}
 	ctx := r.Context()
-	body, err := readBody(r)
+	body, err := readBodyLimit(r, limit)
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -2325,11 +2384,18 @@ func (s *Server) authenticate(w http.ResponseWriter, r *http.Request) (domain.Ac
 }
 
 func readBody(r *http.Request) ([]byte, error) {
-	body, err := io.ReadAll(io.LimitReader(r.Body, maxJSONBody+1))
+	return readBodyLimit(r, app.SmallJSONRequestLimit)
+}
+
+func readBodyLimit(r *http.Request, limit int64) ([]byte, error) {
+	if r == nil || r.Body == nil || limit <= 0 || r.ContentLength > limit {
+		return nil, app.ErrValidation
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, limit+1))
 	if err != nil {
 		return nil, app.ErrValidation
 	}
-	if len(body) > maxJSONBody {
+	if int64(len(body)) > limit {
 		return nil, app.ErrValidation
 	}
 	return body, nil

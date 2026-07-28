@@ -1,7 +1,6 @@
 package app
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"strings"
@@ -14,7 +13,21 @@ import (
 // domain record. Legacy in-memory paths finalize immediately because they do
 // not have a transactional payload repository.
 func (l *Ledger) stagePayload(ctx context.Context, tenantID, mediaType, digest string, raw []byte) (ObjectPayload, error) {
+	source := BytesPayloadSource(raw)
+	if source.Digest != digest {
+		return ObjectPayload{}, ErrValidation
+	}
+	return l.stagePayloadSource(ctx, tenantID, mediaType, source)
+}
+
+// stagePayloadSource stages a repeatable payload source after its transport
+// has streamed, counted, and hashed it. The object-store adapter performs its
+// own digest and byte-count verification before staged metadata is trusted.
+func (l *Ledger) stagePayloadSource(ctx context.Context, tenantID, mediaType string, source PayloadSource) (ObjectPayload, error) {
 	if err := ctx.Err(); err != nil {
+		return ObjectPayload{}, err
+	}
+	if err := validatePayloadSource(source, EvidenceDocumentLimit); err != nil {
 		return ObjectPayload{}, err
 	}
 	if l.objects == nil {
@@ -24,15 +37,20 @@ func (l *Ledger) stagePayload(ctx context.Context, tenantID, mediaType, digest s
 	if !ok {
 		return ObjectPayload{}, ErrConflict
 	}
-	payload, err := newStagedObjectPayload(tenantID, mediaType, digest, l.now())
+	payload, err := newStagedObjectPayload(tenantID, mediaType, source.Digest, l.now())
 	if err != nil {
 		return ObjectPayload{}, err
 	}
-	payload, err = stager.StagePayload(ctx, payload, bytes.NewReader(raw))
+	reader, err := source.Open()
 	if err != nil {
 		return ObjectPayload{}, err
 	}
-	if payload.Size != int64(len(raw)) || payload.Digest != digest || payload.Status != ObjectPayloadStaged {
+	defer reader.Close()
+	payload, err = stager.StagePayload(ctx, payload, reader)
+	if err != nil {
+		return ObjectPayload{}, err
+	}
+	if payload.Size != source.Size || payload.Digest != source.Digest || payload.Status != ObjectPayloadStaged {
 		return ObjectPayload{}, ErrValidation
 	}
 	if l.unitOfWork != nil {

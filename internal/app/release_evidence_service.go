@@ -82,12 +82,30 @@ func (l *Ledger) UploadSBOM(ctx context.Context, actor domain.Actor, releaseID, 
 	return l.releaseEvidenceService().UploadSBOM(ctx, actor, releaseID, artifactID, raw)
 }
 
+// UploadSBOMPayload accepts a repeatable pre-hashed payload source for
+// streaming HTTP ingestion.
+func (l *Ledger) UploadSBOMPayload(ctx context.Context, actor domain.Actor, releaseID, artifactID string, source PayloadSource) (domain.SBOM, error) {
+	return l.releaseEvidenceService().UploadSBOMPayload(ctx, actor, releaseID, artifactID, source)
+}
+
 func (l *Ledger) UploadVulnerabilityScan(ctx context.Context, actor domain.Actor, raw []byte) (domain.VulnerabilityScan, error) {
 	return l.releaseEvidenceService().UploadVulnerabilityScan(ctx, actor, raw)
 }
 
+// UploadVulnerabilityScanPayload accepts a repeatable pre-hashed payload
+// source for streaming HTTP ingestion.
+func (l *Ledger) UploadVulnerabilityScanPayload(ctx context.Context, actor domain.Actor, source PayloadSource) (domain.VulnerabilityScan, error) {
+	return l.releaseEvidenceService().UploadVulnerabilityScanPayload(ctx, actor, source)
+}
+
 func (l *Ledger) UploadOpenAPIContract(ctx context.Context, actor domain.Actor, productID, releaseID, version string, raw []byte) (domain.OpenAPIContract, error) {
 	return l.releaseEvidenceService().UploadOpenAPIContract(ctx, actor, productID, releaseID, version, raw)
+}
+
+// UploadOpenAPIContractPayload accepts a repeatable pre-hashed payload source
+// for streaming HTTP ingestion.
+func (l *Ledger) UploadOpenAPIContractPayload(ctx context.Context, actor domain.Actor, productID, releaseID, version string, source PayloadSource) (domain.OpenAPIContract, error) {
+	return l.releaseEvidenceService().UploadOpenAPIContractPayload(ctx, actor, productID, releaseID, version, source)
 }
 
 func (l *Ledger) GetSBOM(ctx context.Context, actor domain.Actor, id string) (domain.SBOM, error) {
@@ -108,6 +126,12 @@ func (l *Ledger) GetOpenAPIContract(ctx context.Context, actor domain.Actor, id 
 
 func (l *Ledger) UploadVEX(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.VEXDocument, error) {
 	return l.releaseEvidenceService().UploadVEX(ctx, actor, releaseID, artifactID, raw)
+}
+
+// UploadVEXPayload accepts a repeatable pre-hashed payload source for
+// streaming HTTP ingestion.
+func (l *Ledger) UploadVEXPayload(ctx context.Context, actor domain.Actor, releaseID, artifactID string, source PayloadSource) (domain.VEXDocument, error) {
+	return l.releaseEvidenceService().UploadVEXPayload(ctx, actor, releaseID, artifactID, source)
 }
 
 func (l *Ledger) PreviewVEXImport(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.VEXImportPreview, error) {

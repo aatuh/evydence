@@ -614,7 +614,7 @@ func (l *Ledger) uploadSecurityScan(ctx context.Context, actor domain.Actor, in 
 	}
 	in.Category, in.Format = strings.TrimSpace(in.Category), strings.TrimSpace(in.Format)
 	in.Scanner, in.TargetRef = strings.TrimSpace(in.Scanner), strings.TrimSpace(in.TargetRef)
-	if len(in.Raw) == 0 || len(in.Raw) > 20<<20 || !validSecurityScanCategory(in.Category) || in.Scanner == "" || in.TargetRef == "" {
+	if !ValidPayloadSize(int64(len(in.Raw)), EvidenceDocumentLimit) || !validSecurityScanCategory(in.Category) || in.Scanner == "" || in.TargetRef == "" {
 		return domain.SecurityScan{}, ErrValidation
 	}
 	parsed, err := parseSecurityScan(in.Format, in.Raw)
@@ -729,7 +729,7 @@ func (l *Ledger) UploadManualSecurityDocument(ctx context.Context, actor domain.
 		return domain.ManualSecurityDocument{}, err
 	}
 	in.DocumentType, in.Title, in.Sensitivity = strings.TrimSpace(in.DocumentType), strings.TrimSpace(in.Title), strings.TrimSpace(in.Sensitivity)
-	if len(in.Raw) == 0 || len(in.Raw) > 20<<20 || !validManualDocType(in.DocumentType) || in.Title == "" || !validSensitivity(in.Sensitivity) {
+	if !ValidPayloadSize(int64(len(in.Raw)), EvidenceDocumentLimit) || !validManualDocType(in.DocumentType) || in.Title == "" || !validSensitivity(in.Sensitivity) {
 		return domain.ManualSecurityDocument{}, ErrValidation
 	}
 	l.mu.Lock()
@@ -820,7 +820,7 @@ func (l *Ledger) UploadSPDXSBOM(ctx context.Context, actor domain.Actor, release
 	if err := require(actor, ScopeEvidenceWrite); err != nil {
 		return domain.SBOM{}, err
 	}
-	if len(raw) == 0 || len(raw) > 20<<20 {
+	if !ValidPayloadSize(int64(len(raw)), EvidenceDocumentLimit) {
 		return domain.SBOM{}, ErrValidation
 	}
 	var doc struct {
@@ -975,7 +975,7 @@ func (l *Ledger) UploadCycloneDXVEX(ctx context.Context, actor domain.Actor, rel
 	if err := require(actor, ScopeEvidenceWrite); err != nil {
 		return domain.VEXDocument{}, err
 	}
-	if len(raw) == 0 || len(raw) > 20<<20 {
+	if !ValidPayloadSize(int64(len(raw)), EvidenceDocumentLimit) {
 		return domain.VEXDocument{}, ErrValidation
 	}
 	var doc cycloneDXVEXDocument
@@ -1111,7 +1111,7 @@ func (l *Ledger) PreviewCycloneDXVEXImport(ctx context.Context, actor domain.Act
 	if err := require(actor, ScopeEvidenceRead); err != nil {
 		return domain.VEXImportPreview{}, err
 	}
-	if len(raw) == 0 || len(raw) > 20<<20 {
+	if !ValidPayloadSize(int64(len(raw)), EvidenceDocumentLimit) {
 		return domain.VEXImportPreview{}, ErrValidation
 	}
 	var doc cycloneDXVEXDocument

@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 	"sync"
@@ -1090,6 +1091,12 @@ func (s releaseEvidenceService) LinkEvidence(ctx context.Context, actor domain.A
 }
 
 func (s releaseEvidenceService) UploadSBOM(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.SBOM, error) {
+	return s.UploadSBOMPayload(ctx, actor, releaseID, artifactID, BytesPayloadSource(raw))
+}
+
+// UploadSBOMPayload accepts a file-backed or in-memory source so CycloneDX
+// documents can be decoded and staged without duplicating their raw bytes.
+func (s releaseEvidenceService) UploadSBOMPayload(ctx context.Context, actor domain.Actor, releaseID, artifactID string, source PayloadSource) (domain.SBOM, error) {
 	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.SBOM{}, err
@@ -1097,7 +1104,7 @@ func (s releaseEvidenceService) UploadSBOM(ctx context.Context, actor domain.Act
 	if err := require(actor, ScopeEvidenceWrite); err != nil {
 		return domain.SBOM{}, err
 	}
-	if len(raw) == 0 || len(raw) > 20<<20 {
+	if err := validatePayloadSource(source, EvidenceDocumentLimit); err != nil {
 		return domain.SBOM{}, ErrValidation
 	}
 	var doc struct {
@@ -1110,9 +1117,14 @@ func (s releaseEvidenceService) UploadSBOM(ctx context.Context, actor domain.Act
 			PURL    string `json:"purl"`
 		} `json:"components"`
 	}
-	dec := json.NewDecoder(strings.NewReader(string(raw)))
+	reader, err := source.Open()
+	if err != nil {
+		return domain.SBOM{}, ErrValidation
+	}
+	defer reader.Close()
+	dec := json.NewDecoder(reader)
 	dec.DisallowUnknownFields()
-	if err := dec.Decode(&doc); err != nil || strings.ToLower(doc.BOMFormat) != "cyclonedx" {
+	if err := dec.Decode(&doc); err != nil || dec.Decode(&struct{}{}) != io.EOF || strings.ToLower(doc.BOMFormat) != "cyclonedx" {
 		return domain.SBOM{}, ErrValidation
 	}
 	components := make([]domain.SBOMComponent, 0, len(doc.Components))
@@ -1132,8 +1144,8 @@ func (s releaseEvidenceService) UploadSBOM(ctx context.Context, actor domain.Act
 		return domain.SBOM{}, err
 	}
 	l.mu.Unlock()
-	payloadHash := hashBytes(raw)
-	stagedPayload, err := l.stagePayload(ctx, actor.TenantID, "application/vnd.cyclonedx+json", payloadHash, raw)
+	payloadHash := source.Digest
+	stagedPayload, err := l.stagePayloadSource(ctx, actor.TenantID, "application/vnd.cyclonedx+json", source)
 	if err != nil {
 		return domain.SBOM{}, err
 	}
@@ -1148,7 +1160,7 @@ func (s releaseEvidenceService) UploadSBOM(ctx context.Context, actor domain.Act
 		PayloadRef:       payloadRef,
 		PayloadHash:      payloadHash,
 		PayloadMediaType: "application/vnd.cyclonedx+json",
-		PayloadSize:      int64(len(raw)),
+		PayloadSize:      source.Size,
 		SubjectRefs:      subjectForArtifact(artifactID),
 		Metadata: map[string]any{
 			"sbom_format":       "cyclonedx",
@@ -1229,6 +1241,13 @@ func (s releaseEvidenceService) UploadSBOM(ctx context.Context, actor domain.Act
 }
 
 func (s releaseEvidenceService) UploadVulnerabilityScan(ctx context.Context, actor domain.Actor, raw []byte) (domain.VulnerabilityScan, error) {
+	return s.UploadVulnerabilityScanPayload(ctx, actor, BytesPayloadSource(raw))
+}
+
+// UploadVulnerabilityScanPayload validates and stages a repeatable streamed
+// payload. HTTP ingestion supplies a file-backed source so this service does
+// not require a second raw-document allocation.
+func (s releaseEvidenceService) UploadVulnerabilityScanPayload(ctx context.Context, actor domain.Actor, source PayloadSource) (domain.VulnerabilityScan, error) {
 	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.VulnerabilityScan{}, err
@@ -1236,7 +1255,7 @@ func (s releaseEvidenceService) UploadVulnerabilityScan(ctx context.Context, act
 	if err := require(actor, ScopeEvidenceWrite); err != nil {
 		return domain.VulnerabilityScan{}, err
 	}
-	if len(raw) == 0 || len(raw) > 20<<20 {
+	if err := validatePayloadSource(source, EvidenceDocumentLimit); err != nil {
 		return domain.VulnerabilityScan{}, ErrValidation
 	}
 	var doc struct {
@@ -1250,9 +1269,14 @@ func (s releaseEvidenceService) UploadVulnerabilityScan(ctx context.Context, act
 		} `json:"findings"`
 		ReleaseID string `json:"release_id"`
 	}
-	dec := json.NewDecoder(strings.NewReader(string(raw)))
+	reader, err := source.Open()
+	if err != nil {
+		return domain.VulnerabilityScan{}, ErrValidation
+	}
+	defer reader.Close()
+	dec := json.NewDecoder(reader)
 	dec.DisallowUnknownFields()
-	if err := dec.Decode(&doc); err != nil || strings.TrimSpace(doc.Scanner) == "" || strings.TrimSpace(doc.TargetRef) == "" {
+	if err := dec.Decode(&doc); err != nil || dec.Decode(&struct{}{}) != io.EOF || strings.TrimSpace(doc.Scanner) == "" || strings.TrimSpace(doc.TargetRef) == "" {
 		return domain.VulnerabilityScan{}, ErrValidation
 	}
 	if doc.ReleaseID == "" {
@@ -1281,8 +1305,8 @@ func (s releaseEvidenceService) UploadVulnerabilityScan(ctx context.Context, act
 		state := nonEmpty(finding.State, "open")
 		findings = append(findings, domain.VulnerabilityFinding{ID: fmt.Sprintf("%s:finding:%d", scanID, i+1), Vulnerability: finding.Vulnerability, Component: finding.Component, Severity: severity, State: state})
 	}
-	payloadHash := hashBytes(raw)
-	stagedPayload, err := l.stagePayload(ctx, actor.TenantID, "application/json", payloadHash, raw)
+	payloadHash := source.Digest
+	stagedPayload, err := l.stagePayloadSource(ctx, actor.TenantID, "application/json", source)
 	if err != nil {
 		return domain.VulnerabilityScan{}, err
 	}
@@ -1297,7 +1321,7 @@ func (s releaseEvidenceService) UploadVulnerabilityScan(ctx context.Context, act
 		PayloadRef:       payloadRef,
 		PayloadHash:      payloadHash,
 		PayloadMediaType: "application/json",
-		PayloadSize:      int64(len(raw)),
+		PayloadSize:      source.Size,
 		Metadata:         map[string]any{"scanner": doc.Scanner, "target_ref": doc.TargetRef},
 	}
 	if l.unitOfWork != nil {
@@ -1375,6 +1399,12 @@ func (s releaseEvidenceService) UploadVulnerabilityScan(ctx context.Context, act
 }
 
 func (s releaseEvidenceService) UploadOpenAPIContract(ctx context.Context, actor domain.Actor, productID, releaseID, version string, raw []byte) (domain.OpenAPIContract, error) {
+	return s.UploadOpenAPIContractPayload(ctx, actor, productID, releaseID, version, BytesPayloadSource(raw))
+}
+
+// UploadOpenAPIContractPayload loads a repeatable source directly so streamed
+// contracts do not need to be materialized as an additional byte slice.
+func (s releaseEvidenceService) UploadOpenAPIContractPayload(ctx context.Context, actor domain.Actor, productID, releaseID, version string, source PayloadSource) (domain.OpenAPIContract, error) {
 	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.OpenAPIContract{}, err
@@ -1382,8 +1412,16 @@ func (s releaseEvidenceService) UploadOpenAPIContract(ctx context.Context, actor
 	if err := require(actor, ScopeEvidenceWrite); err != nil {
 		return domain.OpenAPIContract{}, err
 	}
+	if err := validatePayloadSource(source, EvidenceDocumentLimit); err != nil {
+		return domain.OpenAPIContract{}, ErrValidation
+	}
+	reader, err := source.Open()
+	if err != nil {
+		return domain.OpenAPIContract{}, ErrValidation
+	}
+	defer reader.Close()
 	loader := openapi3.NewLoader()
-	doc, err := loader.LoadFromData(raw)
+	doc, err := loader.LoadFromIoReader(reader)
 	if err != nil {
 		return domain.OpenAPIContract{}, ErrValidation
 	}
@@ -1401,8 +1439,8 @@ func (s releaseEvidenceService) UploadOpenAPIContract(ctx context.Context, actor
 		return domain.OpenAPIContract{}, err
 	}
 	l.mu.Unlock()
-	payloadHash := hashBytes(raw)
-	stagedPayload, err := l.stagePayload(ctx, actor.TenantID, "application/vnd.oai.openapi+json", payloadHash, raw)
+	payloadHash := source.Digest
+	stagedPayload, err := l.stagePayloadSource(ctx, actor.TenantID, "application/vnd.oai.openapi+json", source)
 	if err != nil {
 		return domain.OpenAPIContract{}, err
 	}
@@ -1418,7 +1456,7 @@ func (s releaseEvidenceService) UploadOpenAPIContract(ctx context.Context, actor
 		PayloadRef:       payloadRef,
 		PayloadHash:      payloadHash,
 		PayloadMediaType: "application/vnd.oai.openapi+json",
-		PayloadSize:      int64(len(raw)),
+		PayloadSize:      source.Size,
 		Metadata:         map[string]any{"version": version, "path_count": len(doc.Paths.Map())},
 	}
 	if l.unitOfWork != nil {
@@ -2173,14 +2211,27 @@ func (s packageReportService) MissingEvidenceReport(ctx context.Context, actor d
 type IdempotencyCommand func(context.Context, *Ledger) (int, any, error)
 
 func (l *Ledger) WithIdempotency(ctx context.Context, actor domain.Actor, method, path, key string, body []byte, run IdempotencyCommand) (int, any, error) {
+	return l.withIdempotencyRequestHash(ctx, actor, method, path, key, hashBytes(append([]byte(method+"\n"+path+"\n"), body...)), run)
+}
+
+// WithIdempotencyRequestHash permits streaming transports to retain only a
+// request digest. The supplied digest must cover the complete request body;
+// the method and path remain part of the persisted idempotency fingerprint.
+func (l *Ledger) WithIdempotencyRequestHash(ctx context.Context, actor domain.Actor, method, path, key, bodyDigest string, run IdempotencyCommand) (int, any, error) {
+	if !validDigest(bodyDigest) {
+		return 0, nil, ErrValidation
+	}
+	return l.withIdempotencyRequestHash(ctx, actor, method, path, key, hashBytes([]byte(method+"\n"+path+"\n"+bodyDigest)), run)
+}
+
+func (l *Ledger) withIdempotencyRequestHash(ctx context.Context, actor domain.Actor, method, path, key, requestHash string, run IdempotencyCommand) (int, any, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, nil, err
 	}
 	key = strings.TrimSpace(key)
-	if key == "" || run == nil {
+	if key == "" || run == nil || !validDigest(requestHash) {
 		return 0, nil, ErrValidation
 	}
-	requestHash := hashBytes(append([]byte(method+"\n"+path+"\n"), body...))
 	persistenceKey := IdempotencyRecordKey{TenantID: actor.TenantID, ActorID: idempotencyActorID(actor), Method: method, Path: path, IdempotencyKey: key}
 	reservation, err := newIdempotencyReservation(persistenceKey, requestHash, l.now())
 	if err != nil {

@@ -1977,7 +1977,7 @@ func (s packageReportService) CreateCustomReportTemplate(ctx context.Context, ac
 		return domain.CustomReportTemplate{}, err
 	}
 	in.Name, in.Version, in.ReportType = strings.TrimSpace(in.Name), strings.TrimSpace(in.Version), strings.TrimSpace(in.ReportType)
-	if in.Name == "" || in.Version == "" || in.ReportType == "" || len(in.AllowedFields) == 0 {
+	if in.Name == "" || in.Version == "" || in.ReportType == "" || len(in.AllowedFields) == 0 || int64(len(in.Template)) > ReportTemplateRequestLimit {
 		return domain.CustomReportTemplate{}, ErrValidation
 	}
 	l.mu.Lock()

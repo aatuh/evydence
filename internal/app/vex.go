@@ -88,6 +88,13 @@ type openVEXProduct struct {
 }
 
 func (s releaseEvidenceService) UploadVEX(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.VEXDocument, error) {
+	return s.UploadVEXPayload(ctx, actor, releaseID, artifactID, BytesPayloadSource(raw))
+}
+
+// UploadVEXPayload parses and stages a repeatable source. Streaming HTTP
+// ingestion supplies a file-backed source, avoiding a second full raw-document
+// allocation in the application service.
+func (s releaseEvidenceService) UploadVEXPayload(ctx context.Context, actor domain.Actor, releaseID, artifactID string, source PayloadSource) (domain.VEXDocument, error) {
 	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.VEXDocument{}, err
@@ -95,10 +102,15 @@ func (s releaseEvidenceService) UploadVEX(ctx context.Context, actor domain.Acto
 	if err := require(actor, ScopeEvidenceWrite); err != nil {
 		return domain.VEXDocument{}, err
 	}
-	if len(raw) == 0 || len(raw) > 20<<20 {
+	if err := validatePayloadSource(source, EvidenceDocumentLimit); err != nil {
 		return domain.VEXDocument{}, ErrValidation
 	}
-	doc, err := parseOpenVEX(raw)
+	reader, err := source.Open()
+	if err != nil {
+		return domain.VEXDocument{}, ErrValidation
+	}
+	defer reader.Close()
+	doc, err := parseOpenVEXReader(reader)
 	if err != nil {
 		return domain.VEXDocument{}, err
 	}
@@ -125,8 +137,8 @@ func (s releaseEvidenceService) UploadVEX(ctx context.Context, actor domain.Acto
 	}
 	l.mu.Unlock()
 
-	payloadHash := hashBytes(raw)
-	stagedPayload, err := l.stagePayload(ctx, actor.TenantID, "application/vnd.openvex+json", payloadHash, raw)
+	payloadHash := source.Digest
+	stagedPayload, err := l.stagePayloadSource(ctx, actor.TenantID, "application/vnd.openvex+json", source)
 	if err != nil {
 		return domain.VEXDocument{}, err
 	}
@@ -141,7 +153,7 @@ func (s releaseEvidenceService) UploadVEX(ctx context.Context, actor domain.Acto
 		PayloadRef:       payloadRef,
 		PayloadHash:      payloadHash,
 		PayloadMediaType: "application/vnd.openvex+json",
-		PayloadSize:      int64(len(raw)),
+		PayloadSize:      source.Size,
 		SubjectRefs:      subjectForArtifact(artifactID),
 		Metadata: map[string]any{
 			"format":          "openvex",
@@ -398,7 +410,7 @@ func (s releaseEvidenceService) PreviewVEXImport(ctx context.Context, actor doma
 	if err := require(actor, ScopeEvidenceRead); err != nil {
 		return domain.VEXImportPreview{}, err
 	}
-	if len(raw) == 0 || len(raw) > 20<<20 {
+	if !ValidPayloadSize(int64(len(raw)), EvidenceDocumentLimit) {
 		return domain.VEXImportPreview{}, ErrValidation
 	}
 	doc, err := parseOpenVEX(raw)
@@ -1217,8 +1229,12 @@ func redactionProfileExcludesPackageSensitiveFields(profile domain.RedactionProf
 }
 
 func parseOpenVEX(raw []byte) (openVEXDocument, error) {
+	return parseOpenVEXReader(bytes.NewReader(raw))
+}
+
+func parseOpenVEXReader(reader io.Reader) (openVEXDocument, error) {
 	var doc openVEXDocument
-	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec := json.NewDecoder(reader)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&doc); err != nil {
 		return openVEXDocument{}, vexValidationError("openvex JSON is malformed or contains unsupported fields")
