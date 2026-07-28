@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"io"
 	"time"
 
 	"github.com/aatuh/evydence/internal/domain"
@@ -41,6 +42,55 @@ type AuditChainReleaseLedgerMutationStore interface {
 type ObjectStore interface {
 	Put(context.Context, Object) error
 	Get(context.Context, string) (Object, error)
+}
+
+const PayloadLifecycleVersion = "object-payload.v1"
+
+type ObjectPayloadStatus string
+
+const (
+	ObjectPayloadStaged    ObjectPayloadStatus = "staged"
+	ObjectPayloadFinalized ObjectPayloadStatus = "finalized"
+	ObjectPayloadFailed    ObjectPayloadStatus = "failed"
+	ObjectPayloadOrphaned  ObjectPayloadStatus = "orphaned"
+)
+
+// ObjectPayload is durable, tenant-scoped metadata for raw evidence bytes.
+// It never contains the payload bytes themselves or an unsanitized provider
+// error. A record becomes usable only after finalization verified its digest.
+type ObjectPayload struct {
+	TenantID    string              `json:"tenant_id"`
+	Digest      string              `json:"digest"`
+	Size        int64               `json:"size"`
+	MediaType   string              `json:"media_type"`
+	StagingKey  string              `json:"staging_key"`
+	FinalKey    string              `json:"final_key"`
+	Status      ObjectPayloadStatus `json:"status"`
+	FailureCode string              `json:"failure_code,omitempty"`
+	CreatedAt   time.Time           `json:"created_at"`
+	UpdatedAt   time.Time           `json:"updated_at"`
+	FinalizedAt *time.Time          `json:"finalized_at,omitempty"`
+	FailedAt    *time.Time          `json:"failed_at,omitempty"`
+	OrphanedAt  *time.Time          `json:"orphaned_at,omitempty"`
+}
+
+// PayloadObjectStore stages raw bytes before finalization. StagePayload must
+// hash and count the provided stream; FinalizePayload must be safe to repeat
+// after a crash and return the verified final object metadata.
+type PayloadObjectStore interface {
+	ObjectStore
+	StagePayload(context.Context, ObjectPayload, io.Reader) (ObjectPayload, error)
+	FinalizePayload(context.Context, ObjectPayload) (Object, error)
+}
+
+// ObjectPayloadLifecycleStore is the worker-facing, database-authoritative
+// lifecycle state. Every method scopes the lookup or transition by tenant and
+// digest so a valid object reference cannot cross tenant boundaries.
+type ObjectPayloadLifecycleStore interface {
+	GetObjectPayload(context.Context, string, string) (ObjectPayload, error)
+	MarkObjectPayloadFinalized(context.Context, ObjectPayload) error
+	MarkObjectPayloadFailed(context.Context, ObjectPayload, string) error
+	MarkObjectPayloadOrphaned(context.Context, ObjectPayload) error
 }
 
 // ReadinessCheck is a bounded, process-level dependency probe. Check must
@@ -112,6 +162,7 @@ type Repositories struct {
 	Audit          AuditRepository
 	Idempotency    IdempotencyRepository
 	Outbox         OutboxRepository
+	Payloads       ObjectPayloadRepository
 	Controls       ControlRepository
 	Governance     GovernanceRepository
 	Builds         BuildRepository
@@ -190,6 +241,12 @@ type IdempotencyRepository interface {
 
 type OutboxRepository interface {
 	Enqueue(context.Context, OutboxJob) error
+}
+
+// ObjectPayloadRepository records a staged object in the same transaction as
+// the domain object and its finalization outbox job.
+type ObjectPayloadRepository interface {
+	RecordStagedObjectPayload(context.Context, ObjectPayload) error
 }
 
 type ControlRepository interface {

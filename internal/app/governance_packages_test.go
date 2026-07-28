@@ -560,3 +560,30 @@ func (s *testObjectStore) Get(_ context.Context, key string) (Object, error) {
 	}
 	return object, nil
 }
+
+func (s *testObjectStore) StagePayload(_ context.Context, payload ObjectPayload, reader io.Reader) (ObjectPayload, error) {
+	body, err := io.ReadAll(reader)
+	if err != nil {
+		return ObjectPayload{}, err
+	}
+	if hashBytes(body) != payload.Digest {
+		return ObjectPayload{}, ErrValidation
+	}
+	payload.Size = int64(len(body))
+	s.objects[payload.StagingKey] = Object{Key: payload.StagingKey, TenantID: payload.TenantID, MediaType: payload.MediaType, Digest: payload.Digest, Bytes: body, CreatedAt: payload.CreatedAt}
+	return payload, nil
+}
+
+func (s *testObjectStore) FinalizePayload(_ context.Context, payload ObjectPayload) (Object, error) {
+	if existing, ok := s.objects[payload.FinalKey]; ok {
+		return existing, nil
+	}
+	staged, ok := s.objects[payload.StagingKey]
+	if !ok {
+		return Object{}, ErrNotFound
+	}
+	staged.Key = payload.FinalKey
+	s.objects[payload.FinalKey] = staged
+	delete(s.objects, payload.StagingKey)
+	return staged, nil
+}

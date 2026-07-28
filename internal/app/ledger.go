@@ -788,6 +788,7 @@ type CreateEvidenceInput struct {
 	PayloadHash      string
 	PayloadMediaType string
 	PayloadSize      int64
+	StagedPayload    ObjectPayload
 	SubjectRefs      []domain.SubjectRef
 	Metadata         map[string]any
 	Tags             []string
@@ -864,6 +865,14 @@ func (s releaseEvidenceService) CreateEvidence(ctx context.Context, actor domain
 	if in.ObservedAt.IsZero() {
 		in.ObservedAt = l.now()
 	}
+	if in.StagedPayload.present() {
+		if err := validateObjectPayload(in.StagedPayload); err != nil || in.StagedPayload.TenantID != actor.TenantID || in.StagedPayload.Digest != in.PayloadHash || in.StagedPayload.Reference() != in.PayloadRef || in.StagedPayload.Size != in.PayloadSize || in.StagedPayload.MediaType != in.PayloadMediaType {
+			return domain.EvidenceItem{}, ErrValidation
+		}
+		if (l.unitOfWork != nil && in.StagedPayload.Status != ObjectPayloadStaged) || (l.unitOfWork == nil && in.StagedPayload.Status != ObjectPayloadFinalized) {
+			return domain.EvidenceItem{}, ErrValidation
+		}
+	}
 	if actor.CollectorID != "" {
 		in.CollectorID = actor.CollectorID
 	}
@@ -876,6 +885,9 @@ func (s releaseEvidenceService) CreateEvidence(ctx context.Context, actor domain
 	if l.unitOfWork != nil {
 		var entry domain.AuditChainEntry
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := l.persistStagedObjectPayload(ctx, repos, in.StagedPayload); err != nil {
+				return err
+			}
 			var err error
 			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(item.CreatedAt, actor.TenantID, "evidence.created", "evidence_item", item.ID, "api_key", actor.KeyID, item.PayloadHash, ""))
 			if err != nil {
@@ -1121,10 +1133,11 @@ func (s releaseEvidenceService) UploadSBOM(ctx context.Context, actor domain.Act
 	}
 	l.mu.Unlock()
 	payloadHash := hashBytes(raw)
-	payloadRef, err := l.storePayload(ctx, actor.TenantID, "sbom", "application/vnd.cyclonedx+json", payloadHash, raw)
+	stagedPayload, err := l.stagePayload(ctx, actor.TenantID, "application/vnd.cyclonedx+json", payloadHash, raw)
 	if err != nil {
 		return domain.SBOM{}, err
 	}
+	payloadRef := stagedPayload.Reference()
 	evidenceInput := CreateEvidenceInput{
 		ReleaseID:        releaseID,
 		Type:             "sbom",
@@ -1159,9 +1172,12 @@ func (s releaseEvidenceService) UploadSBOM(ctx context.Context, actor domain.Act
 			persistedSBOM.Components = nil
 			chainAction = "sbom.accepted"
 		}
-		job := l.newOutboxJob(actor.TenantID, "parse_sbom", "sbom", sbom.ID, map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionCycloneDXJSON})
+		job := l.newOutboxJob(actor.TenantID, "parse_sbom", "sbom", sbom.ID, addPayloadLifecycle(map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionCycloneDXJSON}, stagedPayload))
 		var evidenceEntry, sbomEntry domain.AuditChainEntry
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := l.persistStagedObjectPayload(ctx, repos, stagedPayload); err != nil {
+				return err
+			}
 			var err error
 			evidenceEntry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(item.CreatedAt, actor.TenantID, "evidence.created", "evidence_item", item.ID, "api_key", actor.KeyID, item.PayloadHash, ""))
 			if err != nil {
@@ -1205,7 +1221,7 @@ func (s releaseEvidenceService) UploadSBOM(ctx context.Context, actor domain.Act
 	}
 	l.sboms[sbom.ID] = persistedSBOM
 	_, _ = l.appendChainLocked(actor.TenantID, chainAction, "sbom", sbom.ID, "api_key", actor.KeyID, payloadHash, "")
-	job := l.newOutboxJob(actor.TenantID, "parse_sbom", "sbom", sbom.ID, map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionCycloneDXJSON})
+	job := l.newOutboxJob(actor.TenantID, "parse_sbom", "sbom", sbom.ID, addPayloadLifecycle(map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionCycloneDXJSON}, stagedPayload))
 	if err := l.persistReleaseLedgerWithOutboxLocked(ctx, job); err != nil {
 		return domain.SBOM{}, err
 	}
@@ -1266,10 +1282,11 @@ func (s releaseEvidenceService) UploadVulnerabilityScan(ctx context.Context, act
 		findings = append(findings, domain.VulnerabilityFinding{ID: fmt.Sprintf("%s:finding:%d", scanID, i+1), Vulnerability: finding.Vulnerability, Component: finding.Component, Severity: severity, State: state})
 	}
 	payloadHash := hashBytes(raw)
-	payloadRef, err := l.storePayload(ctx, actor.TenantID, "vulnerability-scan", "application/json", payloadHash, raw)
+	stagedPayload, err := l.stagePayload(ctx, actor.TenantID, "application/json", payloadHash, raw)
 	if err != nil {
 		return domain.VulnerabilityScan{}, err
 	}
+	payloadRef := stagedPayload.Reference()
 	evidenceInput := CreateEvidenceInput{
 		ReleaseID:        doc.ReleaseID,
 		Type:             "vulnerability_scan",
@@ -1300,9 +1317,12 @@ func (s releaseEvidenceService) UploadVulnerabilityScan(ctx context.Context, act
 			persistedScan.Findings = nil
 			chainAction = "vulnerability_scan.accepted"
 		}
-		job := l.newOutboxJob(actor.TenantID, "parse_vulnerability_scan", "vulnerability_scan", scan.ID, map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionGenericVulnerabilityJSON})
+		job := l.newOutboxJob(actor.TenantID, "parse_vulnerability_scan", "vulnerability_scan", scan.ID, addPayloadLifecycle(map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionGenericVulnerabilityJSON}, stagedPayload))
 		var evidenceEntry, scanEntry domain.AuditChainEntry
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := l.persistStagedObjectPayload(ctx, repos, stagedPayload); err != nil {
+				return err
+			}
 			var err error
 			evidenceEntry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(item.CreatedAt, actor.TenantID, "evidence.created", "evidence_item", item.ID, "api_key", actor.KeyID, item.PayloadHash, ""))
 			if err != nil {
@@ -1347,7 +1367,7 @@ func (s releaseEvidenceService) UploadVulnerabilityScan(ctx context.Context, act
 	}
 	l.scans[scan.ID] = persistedScan
 	_, _ = l.appendChainLocked(actor.TenantID, chainAction, "vulnerability_scan", scan.ID, "api_key", actor.KeyID, payloadHash, "")
-	job := l.newOutboxJob(actor.TenantID, "parse_vulnerability_scan", "vulnerability_scan", scan.ID, map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionGenericVulnerabilityJSON})
+	job := l.newOutboxJob(actor.TenantID, "parse_vulnerability_scan", "vulnerability_scan", scan.ID, addPayloadLifecycle(map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionGenericVulnerabilityJSON}, stagedPayload))
 	if err := l.persistReleaseLedgerWithOutboxLocked(ctx, job); err != nil {
 		return domain.VulnerabilityScan{}, err
 	}
@@ -1382,10 +1402,11 @@ func (s releaseEvidenceService) UploadOpenAPIContract(ctx context.Context, actor
 	}
 	l.mu.Unlock()
 	payloadHash := hashBytes(raw)
-	payloadRef, err := l.storePayload(ctx, actor.TenantID, "openapi-contract", "application/vnd.oai.openapi+json", payloadHash, raw)
+	stagedPayload, err := l.stagePayload(ctx, actor.TenantID, "application/vnd.oai.openapi+json", payloadHash, raw)
 	if err != nil {
 		return domain.OpenAPIContract{}, err
 	}
+	payloadRef := stagedPayload.Reference()
 	evidenceInput := CreateEvidenceInput{
 		ProductID:        productID,
 		ReleaseID:        releaseID,
@@ -1415,9 +1436,12 @@ func (s releaseEvidenceService) UploadOpenAPIContract(ctx context.Context, actor
 			persistedContract.Operations = nil
 			chainAction = "openapi_contract.accepted"
 		}
-		job := l.newOutboxJob(actor.TenantID, "parse_openapi_contract", "openapi_contract", contract.ID, map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionOpenAPIJSON})
+		job := l.newOutboxJob(actor.TenantID, "parse_openapi_contract", "openapi_contract", contract.ID, addPayloadLifecycle(map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionOpenAPIJSON}, stagedPayload))
 		var evidenceEntry, contractEntry domain.AuditChainEntry
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := l.persistStagedObjectPayload(ctx, repos, stagedPayload); err != nil {
+				return err
+			}
 			var err error
 			evidenceEntry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(item.CreatedAt, actor.TenantID, "evidence.created", "evidence_item", item.ID, "api_key", actor.KeyID, item.PayloadHash, ""))
 			if err != nil {
@@ -1460,7 +1484,7 @@ func (s releaseEvidenceService) UploadOpenAPIContract(ctx context.Context, actor
 	}
 	l.contracts[contract.ID] = persistedContract
 	_, _ = l.appendChainLocked(actor.TenantID, chainAction, "openapi_contract", contract.ID, "api_key", actor.KeyID, contract.Hash, "")
-	job := l.newOutboxJob(actor.TenantID, "parse_openapi_contract", "openapi_contract", contract.ID, map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionOpenAPIJSON})
+	job := l.newOutboxJob(actor.TenantID, "parse_openapi_contract", "openapi_contract", contract.ID, addPayloadLifecycle(map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionOpenAPIJSON}, stagedPayload))
 	if err := l.persistReleaseLedgerWithOutboxLocked(ctx, job); err != nil {
 		return domain.OpenAPIContract{}, err
 	}

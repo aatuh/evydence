@@ -126,10 +126,11 @@ func (s releaseEvidenceService) UploadVEX(ctx context.Context, actor domain.Acto
 	l.mu.Unlock()
 
 	payloadHash := hashBytes(raw)
-	payloadRef, err := l.storePayload(ctx, actor.TenantID, "vex", "application/vnd.openvex+json", payloadHash, raw)
+	stagedPayload, err := l.stagePayload(ctx, actor.TenantID, "application/vnd.openvex+json", payloadHash, raw)
 	if err != nil {
 		return domain.VEXDocument{}, err
 	}
+	payloadRef := stagedPayload.Reference()
 	evidenceInput := CreateEvidenceInput{
 		ReleaseID:        releaseID,
 		Type:             "vex",
@@ -207,7 +208,7 @@ func (s releaseEvidenceService) UploadVEX(ctx context.Context, actor domain.Acto
 		}
 		now := l.now()
 		report := domain.VEXImportReport{ID: newID("vexrep"), TenantID: actor.TenantID, VEXDocumentID: vex.ID, EvidenceID: item.ID, ReleaseID: releaseID, ArtifactID: artifactID, ParserVersion: ParserVersionOpenVEXJSON, Status: ternary(l.workerOwnedParsers, "accepted", "parsed"), StatementCount: len(doc.Statements), DecisionsCreated: createdDecisions, DecisionsSuperseded: supersededDecisions, UnsupportedFields: []string{}, Warnings: warnings, MappingFailures: mappingFailures, SchemaVersion: domain.VEXImportReportSchemaVersion, CreatedAt: now, UpdatedAt: now}
-		jobPayload := map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionOpenVEXJSON, "decisions_created": createdDecisions, "import_report_id": report.ID}
+		jobPayload := addPayloadLifecycle(map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionOpenVEXJSON, "decisions_created": createdDecisions, "import_report_id": report.ID}, stagedPayload)
 		if l.workerOwnedParsers {
 			jobPayload["worker_create_decisions"] = true
 			jobPayload["actor_type"] = actorType(actor)
@@ -217,6 +218,9 @@ func (s releaseEvidenceService) UploadVEX(ctx context.Context, actor domain.Acto
 		job := l.newOutboxJob(actor.TenantID, "parse_vex", "vex_document", vex.ID, jobPayload)
 		entries := []domain.AuditChainEntry{}
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := l.persistStagedObjectPayload(ctx, repos, stagedPayload); err != nil {
+				return err
+			}
 			appendAudit := func(entryType, subjectType, subjectID, payload string) error {
 				entry, err := repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, actor.TenantID, entryType, subjectType, subjectID, actorType(actor), actorID(actor), payload, ""))
 				if err == nil {
@@ -372,7 +376,7 @@ func (s releaseEvidenceService) UploadVEX(ctx context.Context, actor domain.Acto
 	}
 	l.vexImportReports[report.ID] = report
 	_, _ = l.appendChainLocked(actor.TenantID, chainAction, "vex_document", vex.ID, actorType(actor), actorID(actor), payloadHash, "")
-	jobPayload := map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionOpenVEXJSON, "decisions_created": createdDecisions, "import_report_id": report.ID}
+	jobPayload := addPayloadLifecycle(map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionOpenVEXJSON, "decisions_created": createdDecisions, "import_report_id": report.ID}, stagedPayload)
 	if l.workerOwnedParsers {
 		jobPayload["worker_create_decisions"] = true
 		jobPayload["actor_type"] = actorType(actor)

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -107,6 +108,9 @@ func (s *Store) Get(ctx context.Context, key string) (app.Object, error) {
 	}
 	body, err := os.ReadFile(path) // #nosec G304 -- path is constrained under Store.root by safePath.
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return app.Object{}, app.ErrNotFound
+		}
 		return app.Object{}, fmt.Errorf("read object: %w", err)
 	}
 	var meta metadata
@@ -123,6 +127,94 @@ func (s *Store) Get(ctx context.Context, key string) (app.Object, error) {
 		Bytes:     body,
 		CreatedAt: meta.CreatedAt,
 	}, nil
+}
+
+// StagePayload streams bytes into an isolated tenant staging key while
+// independently calculating the digest and size. The caller's digest is never
+// trusted until it matches the exact staged byte stream.
+func (s *Store) StagePayload(ctx context.Context, payload app.ObjectPayload, reader io.Reader) (app.ObjectPayload, error) {
+	if err := ctx.Err(); err != nil {
+		return app.ObjectPayload{}, err
+	}
+	if reader == nil || app.ValidateObjectPayloadForRepository(payload) != nil || payload.Status != app.ObjectPayloadStaged {
+		return app.ObjectPayload{}, app.ErrValidation
+	}
+	path, err := s.safePath(payload.StagingKey)
+	if err != nil {
+		return app.ObjectPayload{}, err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return app.ObjectPayload{}, fmt.Errorf("create staged object directory: %w", err)
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".stage-*")
+	if err != nil {
+		return app.ObjectPayload{}, fmt.Errorf("create staged object temp file: %w", err)
+	}
+	tmpName := tmp.Name()
+	defer func() { _ = os.Remove(tmpName) }()
+	hash := sha256.New()
+	size, err := copyWithContext(ctx, io.MultiWriter(tmp, hash), reader)
+	if err != nil {
+		_ = tmp.Close()
+		return app.ObjectPayload{}, fmt.Errorf("write staged object: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return app.ObjectPayload{}, fmt.Errorf("close staged object: %w", err)
+	}
+	actualDigest := "sha256:" + hex.EncodeToString(hash.Sum(nil))
+	if actualDigest != payload.Digest {
+		return app.ObjectPayload{}, app.ErrValidation
+	}
+	if err := os.Rename(tmpName, path); err != nil {
+		return app.ObjectPayload{}, fmt.Errorf("commit staged object: %w", err)
+	}
+	now := time.Now().UTC()
+	payload.Size = size
+	payload.UpdatedAt = now
+	if payload.CreatedAt.IsZero() {
+		payload.CreatedAt = now
+	}
+	if err := s.writeMetadata(path, metadata{Key: payload.StagingKey, TenantID: payload.TenantID, MediaType: payload.MediaType, Digest: payload.Digest, Size: payload.Size, CreatedAt: payload.CreatedAt}); err != nil {
+		return app.ObjectPayload{}, err
+	}
+	return payload, nil
+}
+
+// FinalizePayload copies a verified staged object to its immutable final key.
+// If a prior worker already copied it before crashing, the final copy is
+// verified and returned instead of being overwritten.
+func (s *Store) FinalizePayload(ctx context.Context, payload app.ObjectPayload) (app.Object, error) {
+	if err := ctx.Err(); err != nil {
+		return app.Object{}, err
+	}
+	if app.ValidateObjectPayloadForRepository(payload) != nil {
+		return app.Object{}, app.ErrValidation
+	}
+	if existing, err := s.Get(ctx, payload.FinalKey); err == nil {
+		if err := verifyPayloadObject(payload, existing, payload.FinalKey); err != nil {
+			return app.Object{}, err
+		}
+		_ = s.remove(payload.StagingKey)
+		return existing, nil
+	} else if !errors.Is(err, app.ErrNotFound) {
+		return app.Object{}, err
+	}
+	staged, err := s.Get(ctx, payload.StagingKey)
+	if err != nil {
+		return app.Object{}, err
+	}
+	if err := verifyPayloadObject(payload, staged, payload.StagingKey); err != nil {
+		return app.Object{}, err
+	}
+	final := staged
+	final.Key = payload.FinalKey
+	if err := s.Put(ctx, final); err != nil {
+		return app.Object{}, err
+	}
+	if err := s.remove(payload.StagingKey); err != nil {
+		return app.Object{}, err
+	}
+	return s.Get(ctx, payload.FinalKey)
 }
 
 // CheckReadiness verifies that the configured object-store root is available
@@ -172,6 +264,64 @@ func (s *Store) safePath(key string) (string, error) {
 		return "", fmt.Errorf("invalid object key")
 	}
 	return path, nil
+}
+
+func (s *Store) writeMetadata(path string, meta metadata) error {
+	body, err := json.MarshalIndent(meta, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal object metadata: %w", err)
+	}
+	if err := os.WriteFile(path+".json", append(body, '\n'), 0o600); err != nil {
+		return fmt.Errorf("write object metadata: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) remove(key string) error {
+	path, err := s.safePath(key)
+	if err != nil {
+		return err
+	}
+	for _, target := range []string{path, path + ".json"} {
+		if err := os.Remove(target); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("remove staged object: %w", err)
+		}
+	}
+	return nil
+}
+
+func copyWithContext(ctx context.Context, dst io.Writer, src io.Reader) (int64, error) {
+	buffer := make([]byte, 32<<10)
+	var written int64
+	for {
+		if err := ctx.Err(); err != nil {
+			return written, err
+		}
+		read, readErr := src.Read(buffer)
+		if read > 0 {
+			count, writeErr := dst.Write(buffer[:read])
+			written += int64(count)
+			if writeErr != nil {
+				return written, writeErr
+			}
+			if count != read {
+				return written, io.ErrShortWrite
+			}
+		}
+		if errors.Is(readErr, io.EOF) {
+			return written, nil
+		}
+		if readErr != nil {
+			return written, readErr
+		}
+	}
+}
+
+func verifyPayloadObject(payload app.ObjectPayload, object app.Object, key string) error {
+	if object.Key != key || object.TenantID != payload.TenantID || object.Digest != payload.Digest || int64(len(object.Bytes)) != payload.Size {
+		return app.ErrValidation
+	}
+	return nil
 }
 
 func validateObject(object app.Object) error {

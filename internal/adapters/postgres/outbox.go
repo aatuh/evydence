@@ -127,7 +127,7 @@ func (s *Store) ClaimJobs(ctx context.Context, limit int) ([]ClaimedJob, error) 
 			FROM outbox_jobs
 			WHERE (status IN ('queued', 'retrying') AND run_after <= now())
 			   OR (status = 'running' AND locked_at <= now() - $2 * interval '1 second' AND attempts < max_attempts)
-			ORDER BY run_after, created_at
+			ORDER BY run_after, CASE WHEN kind = 'finalize_payload' THEN 0 ELSE 1 END, created_at
 			LIMIT $1
 			FOR UPDATE SKIP LOCKED
 		)

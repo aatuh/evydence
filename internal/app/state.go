@@ -518,29 +518,6 @@ func criticalMutationFromState(state PersistedState) CriticalMutation {
 	return mutation
 }
 
-func (l *Ledger) storePayload(ctx context.Context, tenantID, kind, mediaType, digest string, raw []byte) (string, error) {
-	if l.objects == nil {
-		return "", nil
-	}
-	if tenantID == "" || !validDigest(digest) {
-		return "", ErrValidation
-	}
-	digestPart := strings.TrimPrefix(digest, "sha256:")
-	key := "tenants/" + tenantID + "/payloads/" + strings.TrimSpace(kind) + "/" + digestPart
-	object := Object{
-		Key:       key,
-		TenantID:  tenantID,
-		MediaType: mediaType,
-		Digest:    digest,
-		Bytes:     append([]byte(nil), raw...),
-		CreatedAt: l.now(),
-	}
-	if err := l.objects.Put(ctx, object); err != nil {
-		return "", err
-	}
-	return "object://" + key, nil
-}
-
 func (l *Ledger) enqueue(ctx context.Context, tenantID, kind, subjectType, subjectID string, payload map[string]any) error {
 	return l.enqueueJob(ctx, l.newOutboxJob(tenantID, kind, subjectType, subjectID, payload))
 }

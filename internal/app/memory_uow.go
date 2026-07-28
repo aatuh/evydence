@@ -71,6 +71,7 @@ type MemoryUnitOfWorkSnapshot struct {
 	AuditEntries              map[string][]domain.AuditChainEntry
 	Idempotency               map[IdempotencyRecordKey]IdempotencyRecord
 	OutboxJobs                map[string]OutboxJob
+	ObjectPayloads            map[string]ObjectPayload
 	ReleaseBundles            map[string]domain.ReleaseBundle
 	EvidenceBundles           map[string]domain.EvidenceBundle
 	CustomerPackages          map[string]domain.CustomerSecurityPackage
@@ -158,6 +159,7 @@ func (u *memoryUnitOfWork) Repositories() Repositories {
 		Audit:          memoryAuditRepository{uow: u},
 		Idempotency:    memoryIdempotencyRepository{uow: u},
 		Outbox:         memoryOutboxRepository{uow: u},
+		Payloads:       memoryObjectPayloadRepository{uow: u},
 		Controls:       memoryControlRepository{uow: u},
 		Governance:     memoryGovernanceRepository{uow: u},
 		Builds:         memoryBuildRepository{uow: u},
@@ -1342,6 +1344,33 @@ func (r memoryOutboxRepository) Enqueue(ctx context.Context, job OutboxJob) erro
 		state.OutboxJobs[cloned.ID] = cloned
 		return nil
 	})
+}
+
+type memoryObjectPayloadRepository struct{ uow *memoryUnitOfWork }
+
+func (r memoryObjectPayloadRepository) RecordStagedObjectPayload(ctx context.Context, payload ObjectPayload) error {
+	cloned, err := cloneMemoryJSON(payload)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
+			return err
+		}
+		if err := validateObjectPayload(cloned); err != nil || cloned.Status != ObjectPayloadStaged {
+			return ErrValidation
+		}
+		key := memoryObjectPayloadKey(cloned.TenantID, cloned.Digest)
+		if existing, ok := state.ObjectPayloads[key]; ok && existing.Status == ObjectPayloadFinalized {
+			return nil
+		}
+		state.ObjectPayloads[key] = cloned
+		return nil
+	})
+}
+
+func memoryObjectPayloadKey(tenantID, digest string) string {
+	return tenantID + "\x00" + digest
 }
 
 type memoryControlRepository struct{ uow *memoryUnitOfWork }
@@ -3479,6 +3508,7 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		AuditEntries:              map[string][]domain.AuditChainEntry{},
 		Idempotency:               map[IdempotencyRecordKey]IdempotencyRecord{},
 		OutboxJobs:                map[string]OutboxJob{},
+		ObjectPayloads:            map[string]ObjectPayload{},
 		ReleaseBundles:            map[string]domain.ReleaseBundle{},
 		EvidenceBundles:           map[string]domain.EvidenceBundle{},
 		CustomerPackages:          map[string]domain.CustomerSecurityPackage{},
@@ -3679,6 +3709,9 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 		cloned.Idempotency[key] = clonedRecord
 	}
 	if cloned.OutboxJobs, err = cloneMemoryMap(snapshot.OutboxJobs); err != nil {
+		return MemoryUnitOfWorkSnapshot{}, err
+	}
+	if cloned.ObjectPayloads, err = cloneMemoryMap(snapshot.ObjectPayloads); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	if cloned.ReleaseBundles, err = cloneMemoryMap(snapshot.ReleaseBundles); err != nil {

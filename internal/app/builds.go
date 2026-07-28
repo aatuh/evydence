@@ -461,10 +461,11 @@ func (l *Ledger) UploadBuildAttestation(ctx context.Context, actor domain.Actor,
 	l.mu.Unlock()
 
 	payloadHash := hashBytes(raw)
-	payloadRef, err := l.storePayload(ctx, actor.TenantID, "build-attestation", "application/vnd.dsse.envelope+json", payloadHash, raw)
+	stagedPayload, err := l.stagePayload(ctx, actor.TenantID, "application/vnd.dsse.envelope+json", payloadHash, raw)
 	if err != nil {
 		return domain.BuildAttestation{}, err
 	}
+	payloadRef := stagedPayload.Reference()
 	evidenceInput := CreateEvidenceInput{
 		ProjectID:        build.ProjectID,
 		ReleaseID:        build.ReleaseID,
@@ -530,9 +531,12 @@ func (l *Ledger) UploadBuildAttestation(ctx context.Context, actor domain.Actor,
 		}
 		attestation.EvidenceID = item.ID
 		persistedAttestation.EvidenceID = item.ID
-		job := l.newOutboxJob(actor.TenantID, "verify_attestation", "build_attestation", attestation.ID, map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionDSSEInTotoJSON})
+		job := l.newOutboxJob(actor.TenantID, "verify_attestation", "build_attestation", attestation.ID, addPayloadLifecycle(map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionDSSEInTotoJSON}, stagedPayload))
 		var evidenceEntry, attestationEntry domain.AuditChainEntry
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := l.persistStagedObjectPayload(ctx, repos, stagedPayload); err != nil {
+				return err
+			}
 			var err error
 			evidenceEntry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(item.CreatedAt, actor.TenantID, "evidence.created", "evidence_item", item.ID, "api_key", actor.KeyID, item.PayloadHash, ""))
 			if err != nil {
@@ -570,7 +574,7 @@ func (l *Ledger) UploadBuildAttestation(ctx context.Context, actor domain.Actor,
 	persistedAttestation.EvidenceID = item.ID
 	l.attestations[attestation.ID] = persistedAttestation
 	_, _ = l.appendChainLocked(actor.TenantID, chainAction, "build_attestation", attestation.ID, actorType(actor), actorID(actor), payloadHash, "")
-	if err := l.enqueue(ctx, actor.TenantID, "verify_attestation", "build_attestation", attestation.ID, map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionDSSEInTotoJSON}); err != nil {
+	if err := l.enqueue(ctx, actor.TenantID, "verify_attestation", "build_attestation", attestation.ID, addPayloadLifecycle(map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionDSSEInTotoJSON}, stagedPayload)); err != nil {
 		return domain.BuildAttestation{}, err
 	}
 	if err := l.persistLocked(ctx); err != nil {

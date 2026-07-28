@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -70,6 +71,84 @@ type fakeObjectGetter struct {
 	object  app.Object
 	err     error
 	wantKey string
+}
+
+type fakePayloadLifecycleState struct {
+	fakeStateLoader
+	payload app.ObjectPayload
+}
+
+func (f *fakePayloadLifecycleState) GetObjectPayload(_ context.Context, tenantID, digest string) (app.ObjectPayload, error) {
+	if f.payload.TenantID != tenantID || f.payload.Digest != digest {
+		return app.ObjectPayload{}, app.ErrNotFound
+	}
+	return f.payload, nil
+}
+
+func (f *fakePayloadLifecycleState) MarkObjectPayloadFinalized(_ context.Context, payload app.ObjectPayload) error {
+	if f.payload.TenantID != payload.TenantID || f.payload.Digest != payload.Digest || f.payload.FinalKey != payload.FinalKey {
+		return app.ErrConflict
+	}
+	f.payload.Status = app.ObjectPayloadFinalized
+	return nil
+}
+
+func (f *fakePayloadLifecycleState) MarkObjectPayloadFailed(_ context.Context, payload app.ObjectPayload, code string) error {
+	if f.payload.TenantID != payload.TenantID || f.payload.Digest != payload.Digest {
+		return app.ErrConflict
+	}
+	f.payload.Status = app.ObjectPayloadFailed
+	f.payload.FailureCode = code
+	return nil
+}
+
+func (f *fakePayloadLifecycleState) MarkObjectPayloadOrphaned(_ context.Context, payload app.ObjectPayload) error {
+	if f.payload.TenantID != payload.TenantID || f.payload.Digest != payload.Digest {
+		return app.ErrConflict
+	}
+	f.payload.Status = app.ObjectPayloadOrphaned
+	return nil
+}
+
+type fakePayloadFinalizer struct {
+	objects map[string]app.Object
+}
+
+func (f *fakePayloadFinalizer) Put(_ context.Context, object app.Object) error {
+	f.objects[object.Key] = object
+	return nil
+}
+
+func (f *fakePayloadFinalizer) Get(_ context.Context, key string) (app.Object, error) {
+	object, ok := f.objects[key]
+	if !ok {
+		return app.Object{}, app.ErrNotFound
+	}
+	return object, nil
+}
+
+func (f *fakePayloadFinalizer) StagePayload(_ context.Context, payload app.ObjectPayload, reader io.Reader) (app.ObjectPayload, error) {
+	body, err := io.ReadAll(reader)
+	if err != nil {
+		return app.ObjectPayload{}, err
+	}
+	payload.Size = int64(len(body))
+	f.objects[payload.StagingKey] = app.Object{Key: payload.StagingKey, TenantID: payload.TenantID, Digest: payload.Digest, Bytes: body}
+	return payload, nil
+}
+
+func (f *fakePayloadFinalizer) FinalizePayload(_ context.Context, payload app.ObjectPayload) (app.Object, error) {
+	if object, ok := f.objects[payload.FinalKey]; ok {
+		return object, nil
+	}
+	object, ok := f.objects[payload.StagingKey]
+	if !ok {
+		return app.Object{}, app.ErrNotFound
+	}
+	delete(f.objects, payload.StagingKey)
+	object.Key = payload.FinalKey
+	f.objects[payload.FinalKey] = object
+	return object, nil
 }
 
 func (f fakeObjectGetter) Get(_ context.Context, key string) (app.Object, error) {
@@ -203,6 +282,75 @@ func TestProcessJobWithObjectsVerifiesTenantPrefixedPayload(t *testing.T) {
 	object := app.Object{Key: "tenants/ten_test/payloads/sbom.json", TenantID: "ten_test", Digest: hash, Bytes: body}
 	if err := processJobWithObjects(context.Background(), fakeStateLoader{state: state, ok: true}, fakeObjectGetter{object: object, wantKey: "tenants/ten_test/payloads/sbom.json"}, job); err != nil {
 		t.Fatalf("process object-backed job: %v", err)
+	}
+}
+
+func TestProcessJobWithObjectsRejectsPayloadUntilLifecycleFinalization(t *testing.T) {
+	body := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[]}`)
+	digest := digestBytes(body)
+	payload := app.ObjectPayload{
+		TenantID:   "ten_test",
+		Digest:     digest,
+		Size:       int64(len(body)),
+		StagingKey: "tenants/ten_test/staging/sha256/" + strings.TrimPrefix(digest, "sha256:"),
+		FinalKey:   "tenants/ten_test/payloads/sha256/" + strings.TrimPrefix(digest, "sha256:"),
+		Status:     app.ObjectPayloadStaged,
+		CreatedAt:  time.Now().UTC(),
+		UpdatedAt:  time.Now().UTC(),
+	}
+	job := postgres.ClaimedJob{
+		TenantID:  "ten_test",
+		Kind:      "parse_sbom",
+		SubjectID: "sbom_test",
+		Payload: map[string]any{
+			"payload_ref":       "object://" + payload.FinalKey,
+			"payload_hash":      digest,
+			"payload_lifecycle": app.PayloadLifecycleVersion,
+			"payload_digest":    digest,
+		},
+	}
+	state := &fakePayloadLifecycleState{fakeStateLoader: fakeStateLoader{ok: true, state: app.PersistedState{SBOMs: map[string]domain.SBOM{
+		"sbom_test": {ID: "sbom_test", TenantID: "ten_test"},
+	}}}, payload: payload}
+	err := processJobWithObjects(context.Background(), state, fakeObjectGetter{object: app.Object{Key: payload.FinalKey, TenantID: payload.TenantID, Digest: digest, Bytes: body}}, job)
+	if err == nil || !strings.Contains(err.Error(), "payload finalization pending") {
+		t.Fatalf("staged payload parser error=%v", err)
+	}
+	failure := classifyWorkerFailure(err)
+	if failure.Class != postgres.JobFailureTransient || failure.Code != "payload_finalization_pending" {
+		t.Fatalf("staged payload worker failure=%#v", failure)
+	}
+}
+
+func TestProcessJobFinalizesStagedPayloadIdempotently(t *testing.T) {
+	body := []byte("worker finalization payload")
+	digest := digestBytes(body)
+	payload := app.ObjectPayload{
+		TenantID:   "ten_test",
+		Digest:     digest,
+		Size:       int64(len(body)),
+		StagingKey: "tenants/ten_test/staging/sha256/" + strings.TrimPrefix(digest, "sha256:"),
+		FinalKey:   "tenants/ten_test/payloads/sha256/" + strings.TrimPrefix(digest, "sha256:"),
+		Status:     app.ObjectPayloadStaged,
+		CreatedAt:  time.Now().UTC(),
+		UpdatedAt:  time.Now().UTC(),
+	}
+	state := &fakePayloadLifecycleState{fakeStateLoader: fakeStateLoader{ok: true}, payload: payload}
+	objects := &fakePayloadFinalizer{objects: map[string]app.Object{
+		payload.StagingKey: {Key: payload.StagingKey, TenantID: payload.TenantID, Digest: payload.Digest, Bytes: body},
+	}}
+	job := postgres.ClaimedJob{TenantID: payload.TenantID, Kind: "finalize_payload", SubjectType: "object_payload", SubjectID: payload.Digest, Payload: map[string]any{"payload_digest": payload.Digest, "payload_lifecycle": app.PayloadLifecycleVersion}}
+	if err := processJobWithObjects(context.Background(), state, objects, job); err != nil {
+		t.Fatalf("finalize staged payload: %v", err)
+	}
+	if state.payload.Status != app.ObjectPayloadFinalized {
+		t.Fatalf("payload status after finalization=%q", state.payload.Status)
+	}
+	if _, err := objects.Get(context.Background(), payload.FinalKey); err != nil {
+		t.Fatalf("final object: %v", err)
+	}
+	if err := processJobWithObjects(context.Background(), state, objects, job); err != nil {
+		t.Fatalf("repeat finalization after crash boundary: %v", err)
 	}
 }
 
@@ -883,6 +1031,21 @@ func TestClassifyWorkerFailureUsesStableSafeCodes(t *testing.T) {
 				t.Fatalf("failure code leaked source error: %#v", failure)
 			}
 		})
+	}
+}
+
+func TestPrioritizePayloadFinalizationKeepsOtherJobsStable(t *testing.T) {
+	jobs := []postgres.ClaimedJob{
+		{ID: "parse-first", Kind: "parse_sbom"},
+		{ID: "finalize-first", Kind: "finalize_payload"},
+		{ID: "parse-second", Kind: "parse_vulnerability_scan"},
+		{ID: "finalize-second", Kind: "finalize_payload"},
+	}
+	prioritizePayloadFinalization(jobs)
+	got := []string{jobs[0].ID, jobs[1].ID, jobs[2].ID, jobs[3].ID}
+	want := []string{"finalize-first", "finalize-second", "parse-first", "parse-second"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("prioritized jobs=%v, want %v", got, want)
 	}
 }
 

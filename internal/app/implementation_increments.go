@@ -520,13 +520,15 @@ func (l *Ledger) CreateArtifactSignature(ctx context.Context, actor domain.Actor
 	}
 	l.mu.Unlock()
 	payloadHash, payloadRef := "", ""
+	var stagedPayload ObjectPayload
 	if len(in.RawPayload) > 0 {
 		payloadHash = hashBytes(in.RawPayload)
-		ref, err := l.storePayload(ctx, actor.TenantID, "artifact-signature", nonEmpty(in.PayloadMediaType, "application/octet-stream"), payloadHash, in.RawPayload)
+		var err error
+		stagedPayload, err = l.stagePayload(ctx, actor.TenantID, nonEmpty(in.PayloadMediaType, "application/octet-stream"), payloadHash, in.RawPayload)
 		if err != nil {
 			return domain.ArtifactSignature{}, err
 		}
-		payloadRef = ref
+		payloadRef = stagedPayload.Reference()
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -547,6 +549,9 @@ func (l *Ledger) CreateArtifactSignature(ctx context.Context, actor domain.Actor
 	if l.unitOfWork != nil {
 		var entry domain.AuditChainEntry
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := l.persistStagedObjectPayload(ctx, repos, stagedPayload); err != nil {
+				return err
+			}
 			if err := repos.SupplyChain.InsertArtifactSignature(ctx, sig); err != nil {
 				return err
 			}

@@ -109,6 +109,7 @@ func runWithArgs(args []string) error {
 			time.Sleep(pollInterval)
 			continue
 		}
+		prioritizePayloadFinalization(jobs)
 		for _, job := range jobs {
 			log.Printf("processing outbox job id=%s kind=%s subject_type=%s subject_id=%s attempt=%d", job.ID, job.Kind, job.SubjectType, job.SubjectID, job.Attempts)
 			if err := processJobWithObjects(ctx, store, objectStore, job); err != nil {
@@ -126,6 +127,12 @@ func runWithArgs(args []string) error {
 	}
 }
 
+func prioritizePayloadFinalization(jobs []postgres.ClaimedJob) {
+	sort.SliceStable(jobs, func(i, j int) bool {
+		return jobs[i].Kind == "finalize_payload" && jobs[j].Kind != "finalize_payload"
+	})
+}
+
 func classifyWorkerFailure(err error) postgres.JobFailure {
 	if err == nil {
 		return postgres.JobFailure{Class: postgres.JobFailureTransient, Code: "worker_processing_failed"}
@@ -133,10 +140,15 @@ func classifyWorkerFailure(err error) postgres.JobFailure {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return postgres.JobFailure{Class: postgres.JobFailureTransient, Code: "worker_interrupted"}
 	}
+	if errors.Is(err, app.ErrNotFound) {
+		return postgres.JobFailure{Class: postgres.JobFailurePermanent, Code: "payload_orphaned"}
+	}
 	message := err.Error()
 	switch {
-	case strings.Contains(message, "unsupported outbox job kind"), strings.Contains(message, "unsupported outbox parser version"), strings.Contains(message, "tenant-prefixed"), strings.Contains(message, "tenant mismatch"), strings.Contains(message, "digest mismatch"), strings.Contains(message, "payload hash"), strings.Contains(message, "durable state"), strings.Contains(message, "not available"), strings.Contains(message, "payload is invalid"):
+	case strings.Contains(message, "unsupported outbox job kind"), strings.Contains(message, "unsupported outbox parser version"), strings.Contains(message, "unsupported payload lifecycle version"), strings.Contains(message, "tenant-prefixed"), strings.Contains(message, "tenant mismatch"), strings.Contains(message, "digest mismatch"), strings.Contains(message, "payload hash"), strings.Contains(message, "durable state"), strings.Contains(message, "payload lifecycle state is not available"), strings.Contains(message, "payload is invalid"):
 		return postgres.JobFailure{Class: postgres.JobFailurePoisoned, Code: "payload_invariant_failed"}
+	case strings.Contains(message, "payload finalization pending"):
+		return postgres.JobFailure{Class: postgres.JobFailureTransient, Code: "payload_finalization_pending"}
 	case strings.Contains(message, "object store is not configured"), strings.Contains(message, "read outbox payload object"):
 		return postgres.JobFailure{Class: postgres.JobFailureTransient, Code: "payload_store_unavailable"}
 	case strings.Contains(message, "size limit"):
@@ -164,6 +176,10 @@ type jobObjectGetter interface {
 	Get(context.Context, string) (app.Object, error)
 }
 
+type payloadFinalizer interface {
+	app.PayloadObjectStore
+}
+
 func processJob(ctx context.Context, state jobStateLoader, job postgres.ClaimedJob) error {
 	return processJobInternal(ctx, state, nil, job, false)
 }
@@ -179,10 +195,24 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 	if state == nil {
 		return errors.New("outbox job handler requires durable state")
 	}
+	if job.Kind == "finalize_payload" {
+		lifecycle, ok := state.(app.ObjectPayloadLifecycleStore)
+		if !ok {
+			return errors.New("payload lifecycle state is not available")
+		}
+		finalizer, ok := objects.(payloadFinalizer)
+		if !ok {
+			return errors.New("payload object store is not configured")
+		}
+		if err := app.FinalizeStagedObjectPayload(ctx, lifecycle, finalizer, job.TenantID, payloadString(job, "payload_digest")); err != nil {
+			return err
+		}
+		return nil
+	}
 	var replayed app.Object
 	var hasReplayedObject bool
 	if requireObjectReplay {
-		object, ok, err := verifyJobObject(ctx, objects, job)
+		object, ok, err := verifyJobObject(ctx, state, objects, job)
 		if err != nil {
 			recordVEXImportReportFailure(ctx, state, job, err)
 			return err
@@ -401,7 +431,7 @@ func requireParserVersion(job postgres.ClaimedJob) error {
 	return nil
 }
 
-func verifyJobObject(ctx context.Context, objects jobObjectGetter, job postgres.ClaimedJob) (app.Object, bool, error) {
+func verifyJobObject(ctx context.Context, state jobStateLoader, objects jobObjectGetter, job postgres.ClaimedJob) (app.Object, bool, error) {
 	key := payloadObjectKey(job)
 	if key == "" {
 		return app.Object{}, false, nil
@@ -411,6 +441,21 @@ func verifyJobObject(ctx context.Context, objects jobObjectGetter, job postgres.
 	}
 	if objects == nil {
 		return app.Object{}, false, errors.New("outbox object store is not configured")
+	}
+	if lifecycleVersion := payloadString(job, "payload_lifecycle"); lifecycleVersion != "" {
+		if lifecycleVersion != app.PayloadLifecycleVersion {
+			return app.Object{}, false, errors.New("unsupported payload lifecycle version")
+		}
+		lifecycle, ok := state.(app.ObjectPayloadLifecycleStore)
+		if !ok {
+			return app.Object{}, false, errors.New("payload lifecycle state is not available")
+		}
+		if err := app.RequireFinalizedObjectPayload(ctx, lifecycle, job.TenantID, payloadString(job, "payload_digest"), key); err != nil {
+			if errors.Is(err, app.ErrConflict) {
+				return app.Object{}, false, errors.New("payload finalization pending")
+			}
+			return app.Object{}, false, err
+		}
 	}
 	object, err := objects.Get(ctx, key)
 	if err != nil {

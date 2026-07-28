@@ -3,6 +3,8 @@ package s3
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -86,6 +88,9 @@ func (s *Store) Get(ctx context.Context, key string) (app.Object, error) {
 	defer obj.Close()
 	info, err := obj.Stat()
 	if err != nil {
+		if s3ObjectMissing(err) {
+			return app.Object{}, app.ErrNotFound
+		}
 		return app.Object{}, fmt.Errorf("stat s3 object: %w", err)
 	}
 	body, err := io.ReadAll(obj)
@@ -100,6 +105,81 @@ func (s *Store) Get(ctx context.Context, key string) (app.Object, error) {
 		Bytes:     body,
 		CreatedAt: info.LastModified,
 	}, nil
+}
+
+// StagePayload streams a raw payload to its tenant-scoped staging key while
+// independently counting and hashing bytes. The payload is not eligible for a
+// domain reader until FinalizePayload has copied and verified it.
+func (s *Store) StagePayload(ctx context.Context, payload app.ObjectPayload, reader io.Reader) (app.ObjectPayload, error) {
+	if s == nil || s.client == nil || reader == nil || app.ValidateObjectPayloadForRepository(payload) != nil || payload.Status != app.ObjectPayloadStaged {
+		return app.ObjectPayload{}, app.ErrValidation
+	}
+	hash := sha256.New()
+	count := &countingWriter{}
+	stream := io.TeeReader(reader, io.MultiWriter(hash, count))
+	_, err := s.client.PutObject(ctx, s.bucket, payload.StagingKey, stream, -1, minio.PutObjectOptions{
+		ContentType: strings.TrimSpace(payload.MediaType),
+		PartSize:    5 << 20,
+		UserMetadata: map[string]string{
+			"evydence-tenant-id": payload.TenantID,
+			"evydence-digest":    payload.Digest,
+		},
+	})
+	actualDigest := "sha256:" + hex.EncodeToString(hash.Sum(nil))
+	if err != nil {
+		return app.ObjectPayload{}, fmt.Errorf("stage s3 object: %w", err)
+	}
+	if actualDigest != payload.Digest {
+		_ = s.client.RemoveObject(context.WithoutCancel(ctx), s.bucket, payload.StagingKey, minio.RemoveObjectOptions{})
+		return app.ObjectPayload{}, app.ErrValidation
+	}
+	payload.Size = count.n
+	payload.UpdatedAt = time.Now().UTC()
+	if payload.CreatedAt.IsZero() {
+		payload.CreatedAt = payload.UpdatedAt
+	}
+	return payload, nil
+}
+
+// FinalizePayload performs a server-side copy. Existing final objects are
+// verified first, making the operation safe after a worker crash between copy
+// and lifecycle-state transition.
+func (s *Store) FinalizePayload(ctx context.Context, payload app.ObjectPayload) (app.Object, error) {
+	if s == nil || s.client == nil || app.ValidateObjectPayloadForRepository(payload) != nil {
+		return app.Object{}, app.ErrValidation
+	}
+	if existing, err := s.Get(ctx, payload.FinalKey); err == nil {
+		if err := verifyPayloadObject(payload, existing, payload.FinalKey); err != nil {
+			return app.Object{}, err
+		}
+		_ = s.client.RemoveObject(context.WithoutCancel(ctx), s.bucket, payload.StagingKey, minio.RemoveObjectOptions{})
+		return existing, nil
+	} else if !errors.Is(err, app.ErrNotFound) {
+		return app.Object{}, err
+	}
+	if _, err := s.client.CopyObject(ctx, minio.CopyDestOptions{
+		Bucket:          s.bucket,
+		Object:          payload.FinalKey,
+		ContentType:     strings.TrimSpace(payload.MediaType),
+		UserMetadata:    map[string]string{"evydence-tenant-id": payload.TenantID, "evydence-digest": payload.Digest},
+		ReplaceMetadata: true,
+	}, minio.CopySrcOptions{Bucket: s.bucket, Object: payload.StagingKey}); err != nil {
+		if s3ObjectMissing(err) {
+			return app.Object{}, app.ErrNotFound
+		}
+		return app.Object{}, fmt.Errorf("finalize s3 object: %w", err)
+	}
+	object, err := s.Get(ctx, payload.FinalKey)
+	if err != nil {
+		return app.Object{}, err
+	}
+	if err := verifyPayloadObject(payload, object, payload.FinalKey); err != nil {
+		return app.Object{}, err
+	}
+	if err := s.client.RemoveObject(ctx, s.bucket, payload.StagingKey, minio.RemoveObjectOptions{}); err != nil {
+		return app.Object{}, fmt.Errorf("remove staged s3 object: %w", err)
+	}
+	return object, nil
 }
 
 // CheckReadiness verifies bucket access using the configured S3 client.
@@ -161,8 +241,32 @@ func metadataValue(metadata map[string]string, keys ...string) string {
 		if value := metadata[key]; value != "" {
 			return value
 		}
+		for candidate, value := range metadata {
+			if strings.EqualFold(candidate, key) && value != "" {
+				return value
+			}
+		}
 	}
 	return ""
+}
+
+type countingWriter struct{ n int64 }
+
+func (w *countingWriter) Write(value []byte) (int, error) {
+	w.n += int64(len(value))
+	return len(value), nil
+}
+
+func verifyPayloadObject(payload app.ObjectPayload, object app.Object, key string) error {
+	if object.Key != key || object.TenantID != payload.TenantID || object.Digest != payload.Digest || int64(len(object.Bytes)) != payload.Size {
+		return app.ErrValidation
+	}
+	return nil
+}
+
+func s3ObjectMissing(err error) bool {
+	response := minio.ToErrorResponse(err)
+	return response.Code == "NoSuchKey" || response.Code == "NoSuchObject" || response.Code == "NotFound"
 }
 
 func objectLockConfigMissing(err error) bool {

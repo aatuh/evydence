@@ -2,6 +2,8 @@ package postgres
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"os"
 	"strings"
@@ -1628,9 +1630,14 @@ func TestPostgresBackupRestoreRehearsalPreservesLedgerAndObjects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api","purl":"pkg:oci/api"}]}`))
+	rawSBOM := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api","purl":"pkg:oci/api"}]}`)
+	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, rawSBOM)
 	if err != nil {
 		t.Fatal(err)
+	}
+	sum := sha256.Sum256(rawSBOM)
+	if err := app.FinalizeStagedObjectPayload(ctx, sourceStore, sourceObjects, actor.TenantID, "sha256:"+hex.EncodeToString(sum[:])); err != nil {
+		t.Fatalf("finalize staged source payload: %v", err)
 	}
 	bundle, err := ledger.CreateReleaseBundle(ctx, actor, release.ID)
 	if err != nil {

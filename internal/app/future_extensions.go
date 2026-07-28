@@ -1202,14 +1202,18 @@ func (s packageReportService) CreatePDFReportPackage(ctx context.Context, actor 
 	}
 	body := []byte("%PDF-1.4\n% Evydence reproducible report\n1 0 obj << /Type /Catalog >> endobj\n% " + title + "\n% compliance readiness evidence only\n%%EOF\n")
 	digest := hashBytes(body)
-	ref, err := l.storePayload(ctx, actor.TenantID, "pdf_report", "application/pdf", digest, body)
+	stagedPayload, err := l.stagePayload(ctx, actor.TenantID, "application/pdf", digest, body)
 	if err != nil {
 		return domain.PDFReportPackage{}, err
 	}
+	ref := stagedPayload.Reference()
 	record := domain.PDFReportPackage{ID: newID("pdf"), TenantID: actor.TenantID, ReportType: reportType, ProductID: productID, ReleaseID: releaseID, Title: title, PayloadRef: ref, PayloadHash: digest, PayloadSize: int64(len(body)), Limitations: []string{"PDF output is reproducible report packaging and does not provide legal compliance or security certification."}, SchemaVersion: domain.PDFReportPackageVersion, CreatedAt: l.now()}
 	if l.unitOfWork != nil {
 		var entry domain.AuditChainEntry
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := l.persistStagedObjectPayload(ctx, repos, stagedPayload); err != nil {
+				return err
+			}
 			if err := repos.Future.InsertPDFReportPackage(ctx, record); err != nil {
 				return err
 			}

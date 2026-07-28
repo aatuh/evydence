@@ -635,10 +635,11 @@ func (l *Ledger) uploadSecurityScan(ctx context.Context, actor domain.Actor, in 
 	}
 	l.mu.Unlock()
 	payloadHash := hashBytes(in.Raw)
-	payloadRef, err := l.storePayload(ctx, actor.TenantID, "security-scan", "application/json", payloadHash, in.Raw)
+	stagedPayload, err := l.stagePayload(ctx, actor.TenantID, "application/json", payloadHash, in.Raw)
 	if err != nil {
 		return domain.SecurityScan{}, err
 	}
+	payloadRef := stagedPayload.Reference()
 	item, err := l.CreateEvidence(ctx, actor, CreateEvidenceInput{
 		ProductID:        in.ProductID,
 		ReleaseID:        in.ReleaseID,
@@ -651,6 +652,7 @@ func (l *Ledger) uploadSecurityScan(ctx context.Context, actor domain.Actor, in 
 		PayloadHash:      payloadHash,
 		PayloadMediaType: "application/json",
 		PayloadSize:      int64(len(in.Raw)),
+		StagedPayload:    stagedPayload,
 		SubjectRefs:      subjectForArtifact(in.ArtifactID),
 		Metadata:         map[string]any{"scanner": in.Scanner, "target_ref": in.TargetRef, "finding_count": parsed.FindingCount},
 		Limitations:      []string{"Scanner output is recorded as technical evidence; Evydence does not treat scanner findings as authoritative."},
@@ -741,10 +743,11 @@ func (l *Ledger) UploadManualSecurityDocument(ctx context.Context, actor domain.
 	}
 	l.mu.Unlock()
 	payloadHash := hashBytes(in.Raw)
-	payloadRef, err := l.storePayload(ctx, actor.TenantID, "manual-security-document", nonEmpty(in.MediaType, "application/octet-stream"), payloadHash, in.Raw)
+	stagedPayload, err := l.stagePayload(ctx, actor.TenantID, nonEmpty(in.MediaType, "application/octet-stream"), payloadHash, in.Raw)
 	if err != nil {
 		return domain.ManualSecurityDocument{}, err
 	}
+	payloadRef := stagedPayload.Reference()
 	item, err := l.CreateEvidence(ctx, actor, CreateEvidenceInput{
 		ProductID:        in.ProductID,
 		ReleaseID:        in.ReleaseID,
@@ -757,6 +760,7 @@ func (l *Ledger) UploadManualSecurityDocument(ctx context.Context, actor domain.
 		PayloadHash:      payloadHash,
 		PayloadMediaType: nonEmpty(in.MediaType, "application/octet-stream"),
 		PayloadSize:      int64(len(in.Raw)),
+		StagedPayload:    stagedPayload,
 		Metadata:         map[string]any{"sensitivity": in.Sensitivity},
 		Limitations:      []string{"Manual security evidence is lower default trust and requires human review."},
 	})
@@ -858,10 +862,11 @@ func (l *Ledger) UploadSPDXSBOM(ctx context.Context, actor domain.Actor, release
 	}
 	l.mu.Unlock()
 	payloadHash := hashBytes(raw)
-	payloadRef, err := l.storePayload(ctx, actor.TenantID, "sbom-spdx", "application/spdx+json", payloadHash, raw)
+	stagedPayload, err := l.stagePayload(ctx, actor.TenantID, "application/spdx+json", payloadHash, raw)
 	if err != nil {
 		return domain.SBOM{}, err
 	}
+	payloadRef := stagedPayload.Reference()
 	item, err := l.CreateEvidence(ctx, actor, CreateEvidenceInput{
 		ReleaseID:        releaseID,
 		Type:             "sbom",
@@ -873,6 +878,7 @@ func (l *Ledger) UploadSPDXSBOM(ctx context.Context, actor domain.Actor, release
 		PayloadHash:      payloadHash,
 		PayloadMediaType: "application/spdx+json",
 		PayloadSize:      int64(len(raw)),
+		StagedPayload:    stagedPayload,
 		SubjectRefs:      subjectForArtifact(artifactID),
 		Metadata:         map[string]any{"sbom_format": "spdx", "sbom_spec_version": doc.SPDXVersion, "component_count": len(components), "parser_version": "spdx-json.v1"},
 		Limitations:      []string{"SBOM ingestion validates document shape but does not prove SBOM completeness."},
@@ -993,13 +999,14 @@ func (l *Ledger) UploadCycloneDXVEX(ctx context.Context, actor domain.Actor, rel
 	}
 	l.mu.Unlock()
 	payloadHash := hashBytes(raw)
-	payloadRef, err := l.storePayload(ctx, actor.TenantID, "vex-cyclonedx", "application/vnd.cyclonedx+json", payloadHash, raw)
+	stagedPayload, err := l.stagePayload(ctx, actor.TenantID, "application/vnd.cyclonedx+json", payloadHash, raw)
 	if err != nil {
 		return domain.VEXDocument{}, err
 	}
+	payloadRef := stagedPayload.Reference()
 	item, err := l.CreateEvidence(ctx, actor, CreateEvidenceInput{
 		ReleaseID: releaseID, Type: "vex", Subtype: "cyclonedx", Title: "CycloneDX VEX", SourceSystem: "api", ObservedAt: l.now(),
-		PayloadRef: payloadRef, PayloadHash: payloadHash, PayloadMediaType: "application/vnd.cyclonedx+json", PayloadSize: int64(len(raw)),
+		PayloadRef: payloadRef, PayloadHash: payloadHash, PayloadMediaType: "application/vnd.cyclonedx+json", PayloadSize: int64(len(raw)), StagedPayload: stagedPayload,
 		SubjectRefs: subjectForArtifact(artifactID), Metadata: map[string]any{"format": "cyclonedx", "spec_version": doc.SpecVersion},
 	})
 	if err != nil {
@@ -1083,7 +1090,7 @@ func (l *Ledger) UploadCycloneDXVEX(ctx context.Context, actor domain.Actor, rel
 	}
 	l.vexImportReports[report.ID] = report
 	_, _ = l.appendChainLocked(actor.TenantID, chainAction, "vex_document", vex.ID, "api_key", actor.KeyID, payloadHash, "")
-	jobPayload := map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionCycloneDXVEXJSON, "decisions_created": createdDecisions, "import_report_id": report.ID}
+	jobPayload := addPayloadLifecycle(map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionCycloneDXVEXJSON, "decisions_created": createdDecisions, "import_report_id": report.ID}, stagedPayload)
 	if l.workerOwnedParsers {
 		jobPayload["worker_create_decisions"] = true
 		jobPayload["actor_type"] = "api_key"

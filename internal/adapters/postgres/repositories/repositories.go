@@ -30,6 +30,7 @@ func New(tx pgx.Tx) app.Repositories {
 		Audit:          audit{tx: tx},
 		Idempotency:    idempotency{tx: tx},
 		Outbox:         outbox{tx: tx},
+		Payloads:       objectPayloads{tx: tx},
 		Controls:       controls{tx: tx},
 		Governance:     governance{tx: tx},
 		Builds:         builds{tx: tx},
@@ -1051,6 +1052,39 @@ func (r audit) Append(ctx context.Context, entry domain.AuditChainEntry) (domain
 		return domain.AuditChainEntry{}, writeError("append audit chain entry", err)
 	}
 	return entry, nil
+}
+
+type objectPayloads struct{ tx pgx.Tx }
+
+func (r objectPayloads) RecordStagedObjectPayload(ctx context.Context, payload app.ObjectPayload) error {
+	if err := app.ValidateObjectPayloadForRepository(payload); err != nil || payload.Status != app.ObjectPayloadStaged {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, payload.TenantID); err != nil {
+		return err
+	}
+	_, err := r.tx.Exec(ctx, `
+		INSERT INTO object_payloads (
+			tenant_id, object_key, digest, media_type, size, staging_key, final_key,
+			status, failure_code, created_at, updated_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, 'staged', NULL, $8, $9)
+		ON CONFLICT (object_key) DO UPDATE
+		SET digest = CASE WHEN object_payloads.status = 'finalized' THEN object_payloads.digest ELSE EXCLUDED.digest END,
+			media_type = CASE WHEN object_payloads.status = 'finalized' THEN object_payloads.media_type ELSE EXCLUDED.media_type END,
+			size = CASE WHEN object_payloads.status = 'finalized' THEN object_payloads.size ELSE EXCLUDED.size END,
+			staging_key = CASE WHEN object_payloads.status = 'finalized' THEN object_payloads.staging_key ELSE EXCLUDED.staging_key END,
+			final_key = CASE WHEN object_payloads.status = 'finalized' THEN object_payloads.final_key ELSE EXCLUDED.final_key END,
+			status = CASE WHEN object_payloads.status = 'finalized' THEN 'finalized' ELSE 'staged' END,
+			failure_code = CASE WHEN object_payloads.status = 'finalized' THEN object_payloads.failure_code ELSE NULL END,
+			finalized_at = CASE WHEN object_payloads.status = 'finalized' THEN object_payloads.finalized_at ELSE NULL END,
+			failed_at = CASE WHEN object_payloads.status = 'finalized' THEN object_payloads.failed_at ELSE NULL END,
+			orphaned_at = CASE WHEN object_payloads.status = 'finalized' THEN object_payloads.orphaned_at ELSE NULL END,
+			updated_at = EXCLUDED.updated_at
+		WHERE object_payloads.tenant_id = EXCLUDED.tenant_id
+		  AND (object_payloads.digest = EXCLUDED.digest OR object_payloads.status = 'orphaned')
+	`, payload.TenantID, payload.FinalKey, payload.Digest, nullableString(payload.MediaType), payload.Size, payload.StagingKey, payload.FinalKey, payload.CreatedAt, payload.UpdatedAt)
+	return writeError("record staged object payload", err)
 }
 
 type outbox struct{ tx pgx.Tx }

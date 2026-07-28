@@ -2277,7 +2277,13 @@ func (l *Ledger) VerifyDSSEAttestationSignature(ctx context.Context, actor domai
 	if l.objects == nil || att.PayloadRef == "" {
 		return domain.VerificationResult{}, ErrValidation
 	}
-	object, err := l.objects.Get(ctx, strings.TrimPrefix(att.PayloadRef, "object://"))
+	objectKey := strings.TrimPrefix(att.PayloadRef, "object://")
+	if lifecycle, ok := l.store.(ObjectPayloadLifecycleStore); ok {
+		if err := RequireFinalizedObjectPayload(ctx, lifecycle, actor.TenantID, att.PayloadHash, objectKey); err != nil {
+			return domain.VerificationResult{}, err
+		}
+	}
+	object, err := l.objects.Get(ctx, objectKey)
 	if err != nil {
 		return domain.VerificationResult{}, err
 	}
