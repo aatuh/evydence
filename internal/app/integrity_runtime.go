@@ -970,7 +970,29 @@ func (l *Ledger) Metrics(ctx context.Context, actor domain.Actor) (map[string]an
 	}
 	metrics := map[string]any{"tenant_id": actor.TenantID, "resource_counts": l.resourceCountsLocked(actor.TenantID), "customer_portal_failed_access_count": portalFailures, "customer_portal_revoked_access_count": portalRevoked}
 	operator := l.outboxAdmin
+	reconciliationMetrics := l.reconciliationMetrics
 	l.mu.Unlock()
+	if reconciliationMetrics != nil {
+		reconciliation, err := reconciliationMetrics.ObjectReconciliationMetrics(ctx, actor.TenantID)
+		if err != nil {
+			return nil, err
+		}
+		metrics["object_reconciliation_runs"] = reconciliation.Runs
+		metrics["object_reconciliation_scanned_payloads"] = reconciliation.ScannedPayloads
+		metrics["object_reconciliation_missing_final_objects"] = reconciliation.MissingFinalObjects
+		metrics["object_reconciliation_missing_staged_objects"] = reconciliation.MissingStagedObjects
+		metrics["object_reconciliation_digest_mismatches"] = reconciliation.DigestMismatches
+		metrics["object_reconciliation_provider_orphans"] = reconciliation.ProviderOrphans
+		metrics["object_reconciliation_quarantined_payloads"] = reconciliation.QuarantinedPayloads
+		lastRunAgeSeconds := 0
+		if !reconciliation.LastRunAt.IsZero() {
+			lastRunAgeSeconds = int(time.Since(reconciliation.LastRunAt).Seconds())
+			if lastRunAgeSeconds < 0 {
+				lastRunAgeSeconds = 0
+			}
+		}
+		metrics["object_reconciliation_last_run_age_seconds"] = lastRunAgeSeconds
+	}
 	if !instanceAdmin || operator == nil {
 		return metrics, nil
 	}

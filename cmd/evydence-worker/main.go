@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -52,6 +53,8 @@ func runWithArgs(args []string) error {
 		switch args[0] {
 		case "healthcheck", "--healthcheck":
 			return nil
+		case "reconcile":
+			return runObjectReconciliation(args[1:])
 		default:
 			return fmt.Errorf("unsupported worker command %q", args[0])
 		}
@@ -125,6 +128,89 @@ func runWithArgs(args []string) error {
 			}
 		}
 	}
+}
+
+// runObjectReconciliation performs a bounded, tenant-scoped reconciliation
+// command. It is dry-run by default. --apply only changes lifecycle metadata
+// after an explicit abandoned-staging threshold; it never deletes a provider
+// object. The printed receipt contains safe counters and opaque numeric
+// cursors, not object keys, digests, payload bytes, or provider errors.
+func runObjectReconciliation(args []string) error {
+	request, err := parseObjectReconciliationArgs(args)
+	if err != nil {
+		return err
+	}
+	production := strings.EqualFold(os.Getenv("ENV"), "production")
+	databaseURL := strings.TrimSpace(os.Getenv("EVYDENCE_DATABASE_URL"))
+	if databaseURL == "" {
+		return errors.New("reconcile requires EVYDENCE_DATABASE_URL")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), durationEnv("EVYDENCE_RECONCILIATION_TIMEOUT", 10*time.Minute))
+	defer cancel()
+	loadMode, err := postgres.ResolveLoadMode(os.Getenv("EVYDENCE_POSTGRES_LOAD_MODE"), production)
+	if err != nil {
+		return err
+	}
+	if production {
+		if err := postgres.ValidateProductionLoadMode(loadMode); err != nil {
+			return err
+		}
+	}
+	store, err := postgres.OpenWithOptions(ctx, databaseURL, postgres.StoreOptions{LoadMode: loadMode, DisableSnapshotWrites: production})
+	if err != nil {
+		return errors.New("reconcile could not open durable storage")
+	}
+	defer store.Close()
+	migrationsDir := envDefault("EVYDENCE_MIGRATIONS_DIR", "migrations")
+	if !strings.EqualFold(os.Getenv("EVYDENCE_SKIP_MIGRATIONS"), "true") {
+		if _, err := store.ApplyMigrations(ctx, migrationsDir); err != nil {
+			return errors.New("reconcile could not apply migrations")
+		}
+	} else if err := store.RequireNoPendingMigrations(ctx, migrationsDir); err != nil {
+		return errors.New("reconcile requires current migrations")
+	}
+	objects, _, err := openObjectStore(ctx)
+	if err != nil {
+		return errors.New("reconcile could not open object storage")
+	}
+	receipt, err := app.ReconcileObjectPayloads(ctx, store, store, objects, request)
+	if err != nil {
+		return errors.New("payload reconciliation failed")
+	}
+	if err := json.NewEncoder(os.Stdout).Encode(receipt); err != nil {
+		return errors.New("write reconciliation receipt")
+	}
+	return nil
+}
+
+func parseObjectReconciliationArgs(args []string) (app.ObjectReconciliationRequest, error) {
+	flags := flag.NewFlagSet("reconcile", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	tenantID := flags.String("tenant", "", "tenant ID")
+	metadataCursor := flags.Int("metadata-cursor", 0, "metadata cursor")
+	providerCursor := flags.Int("provider-cursor", 0, "provider cursor")
+	limit := flags.Int("limit", 0, "metadata page limit")
+	providerLimit := flags.Int("provider-limit", 0, "provider inventory page limit")
+	apply := flags.Bool("apply", false, "apply lifecycle quarantine and recovery")
+	orphanStagedAfter := flags.Duration("orphan-staged-after", 0, "minimum staging age before quarantine")
+	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
+		return app.ObjectReconciliationRequest{}, errors.New("invalid reconcile command")
+	}
+	if strings.TrimSpace(*tenantID) == "" {
+		return app.ObjectReconciliationRequest{}, errors.New("reconcile requires --tenant")
+	}
+	if *apply && *orphanStagedAfter < time.Hour {
+		return app.ObjectReconciliationRequest{}, errors.New("reconcile --apply requires --orphan-staged-after of at least 1h")
+	}
+	return app.ObjectReconciliationRequest{
+		TenantID:               strings.TrimSpace(*tenantID),
+		MetadataCursor:         *metadataCursor,
+		ProviderCursor:         *providerCursor,
+		Limit:                  *limit,
+		ProviderInventoryLimit: *providerLimit,
+		Apply:                  *apply,
+		OrphanStagedAfter:      *orphanStagedAfter,
+	}, nil
 }
 
 func prioritizePayloadFinalization(jobs []postgres.ClaimedJob) {

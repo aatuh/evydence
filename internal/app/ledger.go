@@ -63,19 +63,20 @@ const (
 const customerPortalFailedAccessLimit = 5
 
 type Config struct {
-	APIKeyPepper    string
-	Now             func() time.Time
-	Store           Store
-	UnitOfWork      UnitOfWorkFactory
-	ObjectStore     ObjectStore
-	Retention       ObjectRetentionVerifier
-	Signer          SigningExecutor
-	OIDC            OIDCDiscoveryClient
-	ProviderAPI     ProviderIdentityValidator
-	Transparency    TransparencyProofFetcher
-	Outbox          Outbox
-	OutboxAdmin     OutboxAdmin
-	ReadinessChecks []ReadinessCheck
+	APIKeyPepper          string
+	Now                   func() time.Time
+	Store                 Store
+	UnitOfWork            UnitOfWorkFactory
+	ObjectStore           ObjectStore
+	Retention             ObjectRetentionVerifier
+	Signer                SigningExecutor
+	OIDC                  OIDCDiscoveryClient
+	ProviderAPI           ProviderIdentityValidator
+	Transparency          TransparencyProofFetcher
+	Outbox                Outbox
+	OutboxAdmin           OutboxAdmin
+	ReconciliationMetrics ObjectReconciliationMetricsStore
+	ReadinessChecks       []ReadinessCheck
 	// WorkerOwnedParserSideEffects stores accepted parser records first and
 	// lets outbox workers populate parser-derived fields from raw payloads.
 	WorkerOwnedParserSideEffects bool
@@ -85,20 +86,21 @@ type Ledger struct {
 	mu              sync.Mutex
 	transactionGate sync.RWMutex
 
-	pepper             []byte
-	now                func() time.Time
-	store              Store
-	unitOfWork         UnitOfWorkFactory
-	objects            ObjectStore
-	retention          ObjectRetentionVerifier
-	signer             SigningExecutor
-	oidc               OIDCDiscoveryClient
-	providerAPI        ProviderIdentityValidator
-	transparencyProofs TransparencyProofFetcher
-	outbox             Outbox
-	outboxAdmin        OutboxAdmin
-	readinessChecks    []ReadinessCheck
-	workerOwnedParsers bool
+	pepper                []byte
+	now                   func() time.Time
+	store                 Store
+	unitOfWork            UnitOfWorkFactory
+	objects               ObjectStore
+	retention             ObjectRetentionVerifier
+	signer                SigningExecutor
+	oidc                  OIDCDiscoveryClient
+	providerAPI           ProviderIdentityValidator
+	transparencyProofs    TransparencyProofFetcher
+	outbox                Outbox
+	outboxAdmin           OutboxAdmin
+	reconciliationMetrics ObjectReconciliationMetricsStore
+	readinessChecks       []ReadinessCheck
+	workerOwnedParsers    bool
 
 	tenants               map[string]domain.Tenant
 	organizations         map[string]domain.Organization
@@ -245,6 +247,7 @@ func NewLedgerWithContext(ctx context.Context, cfg Config) (*Ledger, error) {
 		transparencyProofs:    cfg.Transparency,
 		outbox:                cfg.Outbox,
 		outboxAdmin:           cfg.OutboxAdmin,
+		reconciliationMetrics: cfg.ReconciliationMetrics,
 		readinessChecks:       normalizedReadinessChecks(cfg.ReadinessChecks),
 		workerOwnedParsers:    cfg.WorkerOwnedParserSideEffects,
 		tenants:               map[string]domain.Tenant{},

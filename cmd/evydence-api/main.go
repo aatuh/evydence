@@ -123,6 +123,7 @@ func run() error {
 		cfg.UnitOfWork = pgStore
 		cfg.Outbox = pgStore
 		cfg.OutboxAdmin = pgStore
+		cfg.ReconciliationMetrics = pgStore
 		cfg.ObjectStore = objectStore
 		cfg.ReadinessChecks = append(cfg.ReadinessChecks,
 			app.ReadinessCheck{Name: "postgres", Timeout: runtimeReadinessTimeout, FailureDetail: "database connectivity is unavailable", Check: pgStore.CheckReadiness},

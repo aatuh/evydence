@@ -106,6 +106,32 @@ func prometheusMetrics(metrics map[string]any) string {
 		b.WriteString("# TYPE evydence_outbox_oldest_pending_age_seconds gauge\n")
 		fmt.Fprintf(&b, "evydence_outbox_oldest_pending_age_seconds %d\n", metricInt(metrics["outbox_oldest_pending_age_seconds"]))
 	}
+	if _, ok := metrics["object_reconciliation_runs"]; ok {
+		b.WriteString("# HELP evydence_object_reconciliation_runs Tenant-scoped completed object reconciliation runs.\n")
+		b.WriteString("# TYPE evydence_object_reconciliation_runs counter\n")
+		fmt.Fprintf(&b, "evydence_object_reconciliation_runs %d\n", metricInt(metrics["object_reconciliation_runs"]))
+		b.WriteString("# HELP evydence_object_reconciliation_scanned_payloads Tenant-scoped payload metadata records scanned by reconciliation.\n")
+		b.WriteString("# TYPE evydence_object_reconciliation_scanned_payloads counter\n")
+		fmt.Fprintf(&b, "evydence_object_reconciliation_scanned_payloads %d\n", metricInt(metrics["object_reconciliation_scanned_payloads"]))
+		b.WriteString("# HELP evydence_object_reconciliation_missing_final_objects Tenant-scoped missing final-object findings.\n")
+		b.WriteString("# TYPE evydence_object_reconciliation_missing_final_objects counter\n")
+		fmt.Fprintf(&b, "evydence_object_reconciliation_missing_final_objects %d\n", metricInt(metrics["object_reconciliation_missing_final_objects"]))
+		b.WriteString("# HELP evydence_object_reconciliation_missing_staged_objects Tenant-scoped missing staging-object findings.\n")
+		b.WriteString("# TYPE evydence_object_reconciliation_missing_staged_objects counter\n")
+		fmt.Fprintf(&b, "evydence_object_reconciliation_missing_staged_objects %d\n", metricInt(metrics["object_reconciliation_missing_staged_objects"]))
+		b.WriteString("# HELP evydence_object_reconciliation_digest_mismatches Tenant-scoped object digest or metadata mismatch findings.\n")
+		b.WriteString("# TYPE evydence_object_reconciliation_digest_mismatches counter\n")
+		fmt.Fprintf(&b, "evydence_object_reconciliation_digest_mismatches %d\n", metricInt(metrics["object_reconciliation_digest_mismatches"]))
+		b.WriteString("# HELP evydence_object_reconciliation_provider_orphans Tenant-scoped provider objects without database ownership observed by advisory inventory.\n")
+		b.WriteString("# TYPE evydence_object_reconciliation_provider_orphans counter\n")
+		fmt.Fprintf(&b, "evydence_object_reconciliation_provider_orphans %d\n", metricInt(metrics["object_reconciliation_provider_orphans"]))
+		b.WriteString("# HELP evydence_object_reconciliation_quarantined_payloads Tenant-scoped lifecycle records quarantined without deleting provider objects.\n")
+		b.WriteString("# TYPE evydence_object_reconciliation_quarantined_payloads counter\n")
+		fmt.Fprintf(&b, "evydence_object_reconciliation_quarantined_payloads %d\n", metricInt(metrics["object_reconciliation_quarantined_payloads"]))
+		b.WriteString("# HELP evydence_object_reconciliation_last_run_age_seconds Age of the latest tenant-scoped reconciliation receipt.\n")
+		b.WriteString("# TYPE evydence_object_reconciliation_last_run_age_seconds gauge\n")
+		fmt.Fprintf(&b, "evydence_object_reconciliation_last_run_age_seconds %d\n", metricInt(metrics["object_reconciliation_last_run_age_seconds"]))
+	}
 	return b.String()
 }
 

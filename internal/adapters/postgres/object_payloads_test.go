@@ -92,6 +92,13 @@ func TestStoreObjectPayloadLifecycleIsTenantScopedAndDeduplicated(t *testing.T) 
 	if err := store.MarkObjectPayloadFailed(ctx, payload, "finalization_failed"); !errors.Is(err, app.ErrConflict) {
 		t.Fatalf("finalized payload failure transition err=%v, want conflict", err)
 	}
+	if err := store.MarkObjectPayloadFailed(ctx, payload, "reconciliation_mismatch"); err != nil {
+		t.Fatalf("reconciliation mismatch must quarantine a finalized payload: %v", err)
+	}
+	stored, err = store.GetObjectPayload(ctx, payload.TenantID, payload.Digest)
+	if err != nil || stored.Status != app.ObjectPayloadFailed || stored.FailureCode != "reconciliation_mismatch" {
+		t.Fatalf("reconciliation failure transition=%#v err=%v", stored, err)
+	}
 
 	duplicate := payload
 	duplicate.StagingKey = "tenants/ten_payload/staging/sha256/duplicate"
@@ -113,5 +120,33 @@ func TestStoreObjectPayloadLifecycleIsTenantScopedAndDeduplicated(t *testing.T) 
 	}
 	if _, err := store.GetObjectPayload(ctx, payload.TenantID, payload.Digest); !errors.Is(err, app.ErrNotFound) {
 		t.Fatalf("orphaned payload reader gate err=%v, want not found", err)
+	}
+	page, next, err := store.ListObjectPayloads(ctx, payload.TenantID, 0, 10)
+	if err != nil || next != 0 || len(page) != 1 || page[0].Status != app.ObjectPayloadOrphaned {
+		t.Fatalf("reconciliation payload page=%#v next=%d err=%v", page, next, err)
+	}
+	owned, err := store.ObjectPayloadOwnsObject(ctx, payload.TenantID, payload.FinalKey)
+	if err != nil || !owned {
+		t.Fatalf("orphaned payload ownership=%t err=%v", owned, err)
+	}
+	receipt := app.ObjectReconciliationReceipt{
+		ID:                  "rec_payload_lifecycle_test",
+		SchemaVersion:       app.ObjectReconciliationReceiptSchemaVersion,
+		TenantID:            payload.TenantID,
+		DryRun:              true,
+		ScannedPayloads:     1,
+		MissingFinalObjects: 1,
+		CreatedAt:           now,
+	}
+	if err := store.RecordObjectReconciliationReceipt(ctx, receipt); err != nil {
+		t.Fatalf("record reconciliation receipt: %v", err)
+	}
+	metrics, err := store.ObjectReconciliationMetrics(ctx, payload.TenantID)
+	if err != nil || metrics.Runs != 1 || metrics.ScannedPayloads != 1 || metrics.MissingFinalObjects != 1 || metrics.LastRunAt.IsZero() {
+		t.Fatalf("reconciliation metrics=%#v err=%v", metrics, err)
+	}
+	var auditCount int
+	if err := store.pool.QueryRow(ctx, `SELECT COUNT(*) FROM audit_chain_entries WHERE tenant_id = $1 AND entry_type = 'object_payload.reconciled'`, payload.TenantID).Scan(&auditCount); err != nil || auditCount != 1 {
+		t.Fatalf("reconciliation audit count=%d err=%v", auditCount, err)
 	}
 }

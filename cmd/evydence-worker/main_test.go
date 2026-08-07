@@ -976,6 +976,26 @@ func TestRunRequiresDatabaseURLAndWrapsOpenFailure(t *testing.T) {
 	}
 }
 
+func TestParseObjectReconciliationArgsDefaultsToDryRunAndRequiresSafeApplyThreshold(t *testing.T) {
+	request, err := parseObjectReconciliationArgs([]string{"--tenant", "ten_reconcile", "--metadata-cursor", "2", "--provider-cursor", "3", "--limit", "10", "--provider-limit", "20"})
+	if err != nil || request.Apply || request.TenantID != "ten_reconcile" || request.MetadataCursor != 2 || request.ProviderCursor != 3 || request.Limit != 10 || request.ProviderInventoryLimit != 20 {
+		t.Fatalf("dry-run reconciliation request=%#v err=%v", request, err)
+	}
+	request, err = parseObjectReconciliationArgs([]string{"--tenant", "ten_reconcile", "--apply", "--orphan-staged-after", "2h"})
+	if err != nil || !request.Apply || request.OrphanStagedAfter != 2*time.Hour {
+		t.Fatalf("apply reconciliation request=%#v err=%v", request, err)
+	}
+	for _, args := range [][]string{
+		{},
+		{"--tenant", "ten_reconcile", "--apply"},
+		{"--tenant", "ten_reconcile", "--unknown"},
+	} {
+		if _, err := parseObjectReconciliationArgs(args); err == nil {
+			t.Fatalf("unsafe reconciliation args %q were accepted", args)
+		}
+	}
+}
+
 func TestOpenObjectStoreSelectsFilesystemAndRejectsUnsupportedBackend(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("EVYDENCE_OBJECT_STORE", "filesystem")

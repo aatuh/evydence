@@ -56,14 +56,22 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "version", "commit", "build_time", "dirty", "go_version", "release_manifest_digest"))
 	registry.RegisterSchema("VersionInfoEnvelope", dataEnvelopeSchema("#/components/schemas/VersionInfo"))
 	registry.RegisterSchema("MetricsSnapshot", objectSchema(map[string]any{
-		"tenant_id":                            map[string]any{"type": "string"},
-		"resource_counts":                      map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "integer"}},
-		"customer_portal_failed_access_count":  map[string]any{"type": "integer"},
-		"customer_portal_revoked_access_count": map[string]any{"type": "integer"},
-		"outbox_pending_jobs":                  map[string]any{"type": "integer", "minimum": 0, "description": "Instance-wide queued or retrying jobs; returned only to explicit instance administrators."},
-		"outbox_running_jobs":                  map[string]any{"type": "integer", "minimum": 0, "description": "Instance-wide leased jobs; returned only to explicit instance administrators."},
-		"outbox_terminal_jobs":                 map[string]any{"type": "integer", "minimum": 0, "description": "Instance-wide dead-letter jobs; returned only to explicit instance administrators."},
-		"outbox_oldest_pending_age_seconds":    map[string]any{"type": "integer", "minimum": 0, "description": "Age of the oldest queued or retrying job; returned only to explicit instance administrators."},
+		"tenant_id":                                    map[string]any{"type": "string"},
+		"resource_counts":                              map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "integer"}},
+		"customer_portal_failed_access_count":          map[string]any{"type": "integer"},
+		"customer_portal_revoked_access_count":         map[string]any{"type": "integer"},
+		"outbox_pending_jobs":                          map[string]any{"type": "integer", "minimum": 0, "description": "Instance-wide queued or retrying jobs; returned only to explicit instance administrators."},
+		"outbox_running_jobs":                          map[string]any{"type": "integer", "minimum": 0, "description": "Instance-wide leased jobs; returned only to explicit instance administrators."},
+		"outbox_terminal_jobs":                         map[string]any{"type": "integer", "minimum": 0, "description": "Instance-wide dead-letter jobs; returned only to explicit instance administrators."},
+		"outbox_oldest_pending_age_seconds":            map[string]any{"type": "integer", "minimum": 0, "description": "Age of the oldest queued or retrying job; returned only to explicit instance administrators."},
+		"object_reconciliation_runs":                   map[string]any{"type": "integer", "minimum": 0, "description": "Tenant-scoped completed object reconciliation runs; returned when receipt metrics are configured."},
+		"object_reconciliation_scanned_payloads":       map[string]any{"type": "integer", "minimum": 0, "description": "Tenant-scoped payload metadata records scanned by reconciliation."},
+		"object_reconciliation_missing_final_objects":  map[string]any{"type": "integer", "minimum": 0, "description": "Tenant-scoped missing final-object findings."},
+		"object_reconciliation_missing_staged_objects": map[string]any{"type": "integer", "minimum": 0, "description": "Tenant-scoped missing staging-object findings."},
+		"object_reconciliation_digest_mismatches":      map[string]any{"type": "integer", "minimum": 0, "description": "Tenant-scoped object digest or metadata mismatch findings."},
+		"object_reconciliation_provider_orphans":       map[string]any{"type": "integer", "minimum": 0, "description": "Tenant-scoped advisory inventory objects without database ownership."},
+		"object_reconciliation_quarantined_payloads":   map[string]any{"type": "integer", "minimum": 0, "description": "Tenant-scoped lifecycle records quarantined without provider-object deletion."},
+		"object_reconciliation_last_run_age_seconds":   map[string]any{"type": "integer", "minimum": 0, "description": "Age of the latest tenant-scoped reconciliation receipt."},
 	}, "tenant_id", "resource_counts", "customer_portal_failed_access_count", "customer_portal_revoked_access_count"))
 	registry.RegisterSchema("MetricsSnapshotEnvelope", dataEnvelopeSchema("#/components/schemas/MetricsSnapshot"))
 	registry.RegisterSchema("OpenAPIDocument", map[string]any{

@@ -107,6 +107,47 @@ func (s *Store) Get(ctx context.Context, key string) (app.Object, error) {
 	}, nil
 }
 
+// ListObjectInventory returns provider object metadata under one tenant
+// prefix. It never reads payload bytes and never deletes objects. The numeric
+// cursor intentionally avoids placing a key or digest in reconciliation
+// receipts; because listing can be eventually consistent, callers must not
+// use omission from this result as evidence that an expected object is gone.
+func (s *Store) ListObjectInventory(ctx context.Context, tenantID string, cursor, limit int) (app.ObjectInventoryPage, error) {
+	tenantID = strings.TrimSpace(tenantID)
+	if s == nil || s.client == nil || s.bucket == "" || !validInventoryTenantID(tenantID) || cursor < 0 || limit < 1 || limit > 10_000 {
+		return app.ObjectInventoryPage{}, app.ErrValidation
+	}
+	listCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	prefix := "tenants/" + tenantID + "/"
+	page := app.ObjectInventoryPage{Objects: make([]app.ObjectInventoryItem, 0, limit)}
+	matched := 0
+	for item := range s.client.ListObjects(listCtx, s.bucket, minio.ListObjectsOptions{Prefix: prefix, Recursive: true}) {
+		if item.Err != nil {
+			return app.ObjectInventoryPage{}, fmt.Errorf("list s3 object inventory: %w", item.Err)
+		}
+		if !strings.HasPrefix(item.Key, prefix) {
+			return app.ObjectInventoryPage{}, app.ErrValidation
+		}
+		if matched < cursor {
+			matched++
+			continue
+		}
+		if len(page.Objects) == limit {
+			page.NextCursor = cursor + limit
+			break
+		}
+		page.Objects = append(page.Objects, app.ObjectInventoryItem{
+			TenantID:  tenantID,
+			Key:       item.Key,
+			Size:      item.Size,
+			CreatedAt: item.LastModified.UTC(),
+		})
+		matched++
+	}
+	return page, nil
+}
+
 // StagePayload streams a raw payload to its tenant-scoped staging key while
 // independently counting and hashing bytes. The payload is not eligible for a
 // domain reader until FinalizePayload has copied and verified it.
@@ -248,6 +289,10 @@ func metadataValue(metadata map[string]string, keys ...string) string {
 		}
 	}
 	return ""
+}
+
+func validInventoryTenantID(tenantID string) bool {
+	return tenantID != "" && !strings.ContainsAny(tenantID, "/\\\x00") && tenantID != "." && tenantID != ".."
 }
 
 type countingWriter struct{ n int64 }

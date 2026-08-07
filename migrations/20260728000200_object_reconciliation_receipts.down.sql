@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS object_reconciliation_receipts_tenant_created_idx;
+DROP TABLE IF EXISTS object_reconciliation_receipts;

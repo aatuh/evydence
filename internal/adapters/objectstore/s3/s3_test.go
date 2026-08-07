@@ -5,11 +5,13 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/xml"
 	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -47,13 +49,35 @@ func newFakeS3Store(t *testing.T) *Store {
 }
 
 func (s *fakeS3Server) handle(w http.ResponseWriter, r *http.Request) {
-	if r.URL.EscapedPath() == "/evidence" || r.URL.EscapedPath() == "/evidence/" {
+	if (r.URL.EscapedPath() == "/evidence" || r.URL.EscapedPath() == "/evidence/") && r.URL.Query().Get("list-type") != "2" {
 		if _, ok := r.URL.Query()["location"]; ok {
 			w.Header().Set("Content-Type", "application/xml")
 			_, _ = io.WriteString(w, `<LocationConstraint xmlns="http://s3.amazonaws.com/doc/2006-03-01/">us-east-1</LocationConstraint>`)
 			return
 		}
 		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if r.Method == http.MethodGet && (r.URL.EscapedPath() == "/evidence" || r.URL.EscapedPath() == "/evidence/") && r.URL.Query().Get("list-type") == "2" {
+		prefix := r.URL.Query().Get("prefix")
+		s.mu.Lock()
+		keys := make([]string, 0, len(s.objects))
+		for key := range s.objects {
+			if strings.HasPrefix(key, prefix) {
+				keys = append(keys, key)
+			}
+		}
+		s.mu.Unlock()
+		sort.Strings(keys)
+		w.Header().Set("Content-Type", "application/xml")
+		_, _ = io.WriteString(w, `<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>evidence</Name><Prefix>`+escapeFakeS3XML(prefix)+`</Prefix><KeyCount>`+strconv.Itoa(len(keys))+`</KeyCount><MaxKeys>1000</MaxKeys><IsTruncated>false</IsTruncated>`)
+		for _, key := range keys {
+			s.mu.Lock()
+			object := s.objects[key]
+			s.mu.Unlock()
+			_, _ = io.WriteString(w, `<Contents><Key>`+escapeFakeS3XML(key)+`</Key><LastModified>2026-07-28T08:00:00.000Z</LastModified><ETag>"etag"</ETag><Size>`+strconv.Itoa(len(object.body))+`</Size><StorageClass>STANDARD</StorageClass></Contents>`)
+		}
+		_, _ = io.WriteString(w, `</ListBucketResult>`)
 		return
 	}
 	key := strings.TrimPrefix(r.URL.EscapedPath(), "/evidence/")
@@ -142,6 +166,12 @@ func (s *fakeS3Server) handle(w http.ResponseWriter, r *http.Request) {
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
+}
+
+func escapeFakeS3XML(value string) string {
+	var body bytes.Buffer
+	_ = xml.EscapeText(&body, []byte(value))
+	return body.String()
 }
 
 func decodeFakeS3Body(body []byte) []byte {
@@ -253,6 +283,35 @@ func TestStorePutGetAndFinalizePayloadAgainstS3Protocol(t *testing.T) {
 	if _, err := (*Store)(nil).FinalizePayload(context.Background(), payload); !errors.Is(err, app.ErrValidation) {
 		t.Fatalf("nil finalizer error=%v, want validation", err)
 	}
+}
+
+func TestStoreListsTenantObjectInventory(t *testing.T) {
+	store := newFakeS3Store(t)
+	for _, object := range []app.Object{
+		s3InventoryObject("ten_1", "tenants/ten_1/payloads/sha256/001", []byte("one")),
+		s3InventoryObject("ten_1", "tenants/ten_1/staging/sha256/002", []byte("two")),
+		s3InventoryObject("ten_2", "tenants/ten_2/payloads/sha256/003", []byte("three")),
+	} {
+		if err := store.Put(t.Context(), object); err != nil {
+			t.Fatal(err)
+		}
+	}
+	page, err := store.ListObjectInventory(t.Context(), "ten_1", 0, 1)
+	if err != nil || len(page.Objects) != 1 || page.NextCursor != 1 || page.Objects[0].TenantID != "ten_1" {
+		t.Fatalf("first s3 inventory page=%#v err=%v", page, err)
+	}
+	page, err = store.ListObjectInventory(t.Context(), "ten_1", page.NextCursor, 1)
+	if err != nil || len(page.Objects) != 1 || page.NextCursor != 0 {
+		t.Fatalf("second s3 inventory page=%#v err=%v", page, err)
+	}
+	if _, err := store.ListObjectInventory(t.Context(), "../ten_2", 0, 1); !errors.Is(err, app.ErrValidation) {
+		t.Fatalf("unsafe tenant inventory err=%v, want validation", err)
+	}
+}
+
+func s3InventoryObject(tenantID, key string, body []byte) app.Object {
+	sum := sha256.Sum256(body)
+	return app.Object{Key: key, TenantID: tenantID, Digest: "sha256:" + hex.EncodeToString(sum[:]), Bytes: body, CreatedAt: time.Now().UTC()}
 }
 
 func TestS3PayloadHelpersRejectMismatchedObject(t *testing.T) {

@@ -43,6 +43,65 @@ regional availability.
 7. Record object-store backup ID, database backup ID, restored prefixes,
    verification results, failed objects, and limitations.
 
+## Payload Reconciliation
+
+Run reconciliation after a restore, an object-store incident, a provider
+migration, or an unexpected payload verification failure. It checks one tenant
+at a time. PostgreSQL payload metadata is checked with direct object reads;
+provider listing is used only to report candidate provider objects without a
+database owner. A listing omission is never treated as proof that a final or
+staged object is missing.
+
+Set the normal worker database and object-store environment first, then start
+with the non-mutating command:
+
+```sh
+go run ./cmd/evydence-worker reconcile \
+  --tenant tenant-id \
+  --limit 100 \
+  --provider-limit 1000
+```
+
+The command prints one receipt containing counters and numeric resume cursors;
+it does not print object keys, digests, payload bytes, or provider error text.
+Retain that receipt and its linked `object_payload.reconciled` audit entry with
+the recovery record. When either `next_metadata_cursor` or
+`next_provider_cursor` is non-zero, repeat the command with the corresponding
+`--metadata-cursor` or `--provider-cursor` value. Repeating a page is safe:
+the reconciliation actions are idempotent and no provider-object deletion is
+available through this command.
+
+By default, a dry run reports final-object absence, staging-object absence,
+digest/metadata mismatch, recoverable finalization, old staging, and advisory
+provider-orphan candidates. A staged record is reported as old after 24 hours
+unless a different `--orphan-staged-after` value is supplied. Review provider
+access failures separately; do not treat an incomplete list as a clean result.
+
+After reviewing the dry-run receipt, an operator may apply lifecycle-only
+quarantine and recovery. The age threshold is required explicitly and must be
+at least one hour:
+
+```sh
+go run ./cmd/evydence-worker reconcile \
+  --tenant tenant-id \
+  --apply \
+  --orphan-staged-after 24h
+```
+
+`--apply` never deletes provider data. A missing final object or missing/old
+staging object is marked `orphaned`; a digest or metadata mismatch is marked
+`failed`; a verified final object for a previously staged record is marked
+`finalized`. Failed and orphaned payload metadata is rejected by package and
+verification readers until an operator restores valid bytes and runs the
+appropriate recovery/reconciliation flow. Provider-only candidates remain
+reported for review or separately governed cleanup; they are not deleted by
+Evydence merely because a provider listing showed them.
+
+The authenticated `/v1/metrics` endpoint also exposes tenant-scoped
+reconciliation receipt counters when PostgreSQL receipt metrics are configured.
+Those metrics contain counters and receipt age only, never object identifiers
+or raw evidence.
+
 ## Retention Observation Review
 
 After the object store is available, run the retention verification endpoint for

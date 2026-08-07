@@ -1571,13 +1571,13 @@
               <div><dt>Responses</dt><dd>200 application/json: VerificationResultEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/metrics safe tenant metrics returns safe tenant-scoped resource metrics for admin actors. an explicit instance:admin actor also receives bounded aggregate outbox gauges without tenant labels, payloads, or failure details. a prometheus text response is available when requested with accept: text/plain. metrics evydence admin">
+          <article class="operation" data-operation data-search="get /v1/metrics safe tenant metrics returns safe tenant-scoped resource and object-reconciliation metrics for admin actors. reconciliation metrics contain counters only: no object keys, digests, raw payloads, or provider errors. an explicit instance:admin actor also receives bounded aggregate outbox gauges without tenant labels, payloads, or failure details. a prometheus text response is available when requested with accept: text/plain. metrics evydence admin">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/metrics</code>
             </div>
             <h3>Safe tenant metrics</h3>
-            <p>Returns safe tenant-scoped resource metrics for admin actors. An explicit instance:admin actor also receives bounded aggregate outbox gauges without tenant labels, payloads, or failure details. A Prometheus text response is available when requested with Accept: text/plain.</p>
+            <p>Returns safe tenant-scoped resource and object-reconciliation metrics for admin actors. Reconciliation metrics contain counters only: no object keys, digests, raw payloads, or provider errors. An explicit instance:admin actor also receives bounded aggregate outbox gauges without tenant labels, payloads, or failure details. A Prometheus text response is available when requested with Accept: text/plain.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>metrics</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

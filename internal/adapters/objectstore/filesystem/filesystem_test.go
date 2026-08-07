@@ -197,3 +197,38 @@ func TestStoreReadinessChecksConfiguredRootAccess(t *testing.T) {
 		t.Fatalf("readiness marker was not removed: %#v", entries)
 	}
 }
+
+func TestStoreListsTenantObjectInventoryWithoutMetadataSidecars(t *testing.T) {
+	store, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, object := range []app.Object{
+		inventoryObject("ten_1", "tenants/ten_1/payloads/sha256/001", []byte("one")),
+		inventoryObject("ten_1", "tenants/ten_1/staging/sha256/002", []byte("two")),
+		inventoryObject("ten_2", "tenants/ten_2/payloads/sha256/003", []byte("three")),
+	} {
+		if err := store.Put(t.Context(), object); err != nil {
+			t.Fatal(err)
+		}
+	}
+	page, err := store.ListObjectInventory(t.Context(), "ten_1", 0, 1)
+	if err != nil || len(page.Objects) != 1 || page.NextCursor != 1 {
+		t.Fatalf("first inventory page=%#v err=%v", page, err)
+	}
+	if page.Objects[0].TenantID != "ten_1" || strings.HasSuffix(page.Objects[0].Key, ".json") {
+		t.Fatalf("unsafe inventory item=%#v", page.Objects[0])
+	}
+	page, err = store.ListObjectInventory(t.Context(), "ten_1", page.NextCursor, 1)
+	if err != nil || len(page.Objects) != 1 || page.NextCursor != 0 {
+		t.Fatalf("second inventory page=%#v err=%v", page, err)
+	}
+	if _, err := store.ListObjectInventory(t.Context(), "../ten_2", 0, 1); err == nil {
+		t.Fatal("unsafe inventory tenant was accepted")
+	}
+}
+
+func inventoryObject(tenantID, key string, body []byte) app.Object {
+	sum := sha256.Sum256(body)
+	return app.Object{Key: key, TenantID: tenantID, Digest: "sha256:" + hex.EncodeToString(sum[:]), Bytes: body, CreatedAt: time.Now().UTC()}
+}
