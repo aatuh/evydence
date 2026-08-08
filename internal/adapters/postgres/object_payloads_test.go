@@ -100,20 +100,31 @@ func TestStoreObjectPayloadLifecycleIsTenantScopedAndDeduplicated(t *testing.T) 
 		t.Fatalf("reconciliation failure transition=%#v err=%v", stored, err)
 	}
 
+	// Canonical object identity makes staging/final keys deterministic for a
+	// tenant+digest pair. Re-inserting the same canonical identity must therefore
+	// exercise the idempotent tenant+digest deduplication path without inventing
+	// non-canonical keys that validation correctly rejects.
 	duplicate := payload
-	duplicate.StagingKey = "tenants/ten_payload/staging/sha256/duplicate"
-	duplicate.FinalKey = "tenants/ten_payload/payloads/sha256/duplicate"
 	write, err = store.BeginUnitOfWork(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	err = write.Repositories().Payloads.RecordStagedObjectPayload(ctx, duplicate)
-	if !errors.Is(err, app.ErrConflict) {
+	if err != nil {
 		_ = write.Rollback(ctx)
-		t.Fatalf("same-tenant digest dedup error=%v, want conflict", err)
+		t.Fatalf("same canonical payload replay error=%v, want idempotent success", err)
 	}
-	if err := write.Rollback(ctx); err != nil {
+	if err := write.Commit(ctx); err != nil {
 		t.Fatal(err)
+	}
+	var payloadCount int
+	if err := store.pool.QueryRow(ctx, `
+		SELECT COUNT(*) FROM object_payloads WHERE tenant_id = $1 AND digest = $2
+	`, payload.TenantID, payload.Digest).Scan(&payloadCount); err != nil {
+		t.Fatal(err)
+	}
+	if payloadCount != 1 {
+		t.Fatalf("same canonical payload replay produced %d rows, want 1", payloadCount)
 	}
 	if err := store.MarkObjectPayloadOrphaned(ctx, payload); err != nil {
 		t.Fatalf("mark orphaned: %v", err)
