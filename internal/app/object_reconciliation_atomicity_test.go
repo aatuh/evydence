@@ -8,7 +8,7 @@ import (
 )
 
 func (f *reconciliationFixture) ApplyObjectReconciliation(
-	_ context.Context,
+	ctx context.Context,
 	receipt ObjectReconciliationReceipt,
 	actions []ObjectPayloadReconciliationAction,
 ) error {
@@ -18,11 +18,11 @@ func (f *reconciliationFixture) ApplyObjectReconciliation(
 		var err error
 		switch action.Status {
 		case ObjectPayloadFinalized:
-			err = copyFixture.MarkObjectPayloadFinalized(context.Background(), action.Payload)
+			err = copyFixture.MarkObjectPayloadFinalized(ctx, action.Payload)
 		case ObjectPayloadFailed:
-			err = copyFixture.MarkObjectPayloadFailed(context.Background(), action.Payload, action.FailureCode)
+			err = copyFixture.MarkObjectPayloadFailed(ctx, action.Payload, action.FailureCode)
 		case ObjectPayloadOrphaned:
-			err = copyFixture.MarkObjectPayloadOrphaned(context.Background(), action.Payload)
+			err = copyFixture.MarkObjectPayloadOrphaned(ctx, action.Payload)
 		default:
 			err = ErrValidation
 		}
