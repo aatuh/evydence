@@ -46,7 +46,12 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Install QA tools
+      - name: Install system QA tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ripgrep
+
+      - name: Install Go QA tools
         run: make tools
 
       - name: Run production check with live PostgreSQL
