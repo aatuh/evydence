@@ -1,0 +1,114 @@
+package cyclonedx
+
+import (
+	"errors"
+	"strings"
+	"testing"
+)
+
+func TestParseBoundedAcceptsStandardFieldsWithoutNormalizingThem(t *testing.T) {
+	raw := []byte(`{
+		"bomFormat":"CycloneDX","specVersion":"1.6","version":1,
+		"metadata":{"timestamp":"2026-08-08T12:00:00Z"},
+		"components":[{
+			"bom-ref":"pkg:oci/api@1.0.0","type":"container","name":"api","version":"1.0.0","purl":"pkg:oci/api@1.0.0",
+			"hashes":[{"alg":"SHA-256","content":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}],
+			"licenses":[{"license":{"id":"Apache-2.0"}}],
+			"properties":[{"name":"syft:package:foundBy","value":"go-module-cataloger"}]
+		}],
+		"dependencies":[{"ref":"pkg:oci/api@1.0.0","dependsOn":["pkg:golang/example.org/lib@1.2.3"]}],
+		"services":[{"bom-ref":"service:api","name":"API"}],
+		"compositions":[{"aggregate":"complete","assemblies":["pkg:oci/api@1.0.0"]}]
+	}`)
+	got, err := ParseBounded(raw, DefaultLimits(1<<20))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.SpecVersion != "1.6" || len(got.Components) != 1 || len(got.Dependencies) != 1 {
+		t.Fatalf("result=%#v", got)
+	}
+	component := got.Components[0]
+	if component.Identity != "purl:pkg:oci/api@1.0.0" || component.BOMRef != "pkg:oci/api@1.0.0" || component.Name != "api" {
+		t.Fatalf("component=%#v", component)
+	}
+	if strings.Join(got.Dependencies[0].DependsOn, ",") != "pkg:golang/example.org/lib@1.2.3" {
+		t.Fatalf("dependency=%#v", got.Dependencies[0])
+	}
+	warnings := strings.Join(got.Warnings, "\n")
+	for _, want := range []string{"components[].hashes", "components[].licenses", "components[].properties", "services", "compositions"} {
+		if !strings.Contains(warnings, want) {
+			t.Fatalf("warnings=%q missing %q", warnings, want)
+		}
+	}
+}
+
+func TestParseBoundedNormalizesDependencyOrdering(t *testing.T) {
+	raw := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"lib"}],"dependencies":[{"ref":"z","dependsOn":["b","a"]},{"ref":"a"}]}`)
+	got, err := ParseBounded(raw, DefaultLimits(1<<20))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Components[0].Identity != "component:library:lib@" {
+		t.Fatalf("identity=%q", got.Components[0].Identity)
+	}
+	if got.Dependencies[0].Ref != "a" || got.Dependencies[1].Ref != "z" || strings.Join(got.Dependencies[1].DependsOn, ",") != "a,b" {
+		t.Fatalf("dependencies=%#v", got.Dependencies)
+	}
+}
+
+func TestParseBoundedRejectsUnsupportedVersionAndMalformedCore(t *testing.T) {
+	for name, raw := range map[string]string{
+		"wrong format":   `{"bomFormat":"SPDX","specVersion":"1.6"}`,
+		"wrong version":  `{"bomFormat":"CycloneDX","specVersion":"1.5"}`,
+		"missing type":   `{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"x"}]}`,
+		"missing name":   `{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library"}]}`,
+		"bad dependency": `{"bomFormat":"CycloneDX","specVersion":"1.6","dependencies":[{"ref":""}]}`,
+		"trailing json":  `{"bomFormat":"CycloneDX","specVersion":"1.6"}{}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := ParseBounded([]byte(raw), DefaultLimits(1<<20)); !errors.Is(err, ErrInvalid) {
+				t.Fatalf("err=%v, want invalid", err)
+			}
+		})
+	}
+}
+
+func TestParseBoundedEnforcesResourceLimits(t *testing.T) {
+	base := DefaultLimits(1 << 20)
+	tests := []struct {
+		name   string
+		raw    string
+		limits Limits
+	}{
+		{name: "bytes", raw: `{"bomFormat":"CycloneDX","specVersion":"1.6"}`, limits: DefaultLimits(8)},
+		{name: "depth", raw: `{"bomFormat":"CycloneDX","specVersion":"1.6","metadata":{"a":{"b":{"c":1}}}}`, limits: func() Limits { v := base; v.MaxDepth = 3; return v }()},
+		{name: "components", raw: `{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"a"},{"type":"library","name":"b"}]}`, limits: func() Limits { v := base; v.MaxComponents = 1; return v }()},
+		{name: "dependencies", raw: `{"bomFormat":"CycloneDX","specVersion":"1.6","dependencies":[{"ref":"a"},{"ref":"b"}]}`, limits: func() Limits { v := base; v.MaxDependencies = 1; return v }()},
+		{name: "string", raw: `{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"123456789"}]}`, limits: func() Limits { v := base; v.MaxStringBytes = 8; return v }()},
+		{name: "values", raw: `{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"a"}]}`, limits: func() Limits { v := base; v.MaxValues = 4; return v }()},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := ParseBounded([]byte(test.raw), test.limits); !errors.Is(err, ErrInvalid) {
+				t.Fatalf("err=%v, want invalid", err)
+			}
+		})
+	}
+}
+
+func FuzzCycloneDX(f *testing.F) {
+	for _, seed := range [][]byte{
+		[]byte(`{"bomFormat":"CycloneDX","specVersion":"1.6"}`),
+		[]byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"x"}]}`),
+		[]byte(`{}`),
+	} {
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, raw []byte) {
+		limits := DefaultLimits(256 << 10)
+		limits.MaxComponents = 1024
+		limits.MaxDependencies = 2048
+		limits.MaxValues = 8192
+		_, _ = ParseBounded(raw, limits)
+	})
+}
