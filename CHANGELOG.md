@@ -15,6 +15,7 @@ release artifacts.
 
 ### Added
 
+- Recovery tooling now pairs PostgreSQL and object-store backup generations with deterministic preflight manifests, native `pg_dump`/`pg_restore` rehearsal, mismatch detection before normal startup, and crash-boundary recovery tests.
 - Object payload reconciliation now provides a tenant-scoped, resumable worker
   command with dry-run reporting, conservative lifecycle quarantine/recovery,
   auditable receipts, and bounded reconciliation metrics. Provider-only objects
