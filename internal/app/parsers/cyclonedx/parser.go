@@ -256,8 +256,8 @@ func stringValue(value any) string {
 func unsupportedPaths(root map[string]any) []string {
 	var paths []string
 	for _, key := range []string{
-		"annotations", "compositions", "declarations", "externalReferences",
-		"formulation", "services", "signature", "vulnerabilities",
+		"annotations", "compositions", "declarations", "definitions", "externalReferences",
+		"formulation", "metadata", "services", "signature", "vulnerabilities",
 	} {
 		if value, ok := root[key]; ok && value != nil {
 			paths = append(paths, key)

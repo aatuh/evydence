@@ -5,6 +5,7 @@ import (
 
 	"errors"
 	"io"
+	"os"
 	"strings"
 	"testing"
 )
@@ -56,6 +57,37 @@ func TestParseBoundedNormalizesDependencyOrdering(t *testing.T) {
 	}
 	if got.Dependencies[0].Ref != "a" || got.Dependencies[1].Ref != "z" || strings.Join(got.Dependencies[1].DependsOn, ",") != "a,b" {
 		t.Fatalf("dependencies=%#v", got.Dependencies)
+	}
+}
+
+func TestOfficialCycloneDX16FixturesAreAccepted(t *testing.T) {
+	tests := []struct {
+		name             string
+		components       int
+		dependencies     int
+		warningSubstring string
+	}{
+		{name: "valid-dependency-1.6.json", components: 3, dependencies: 2},
+		{name: "valid-properties-1.6.json", components: 1, warningSubstring: "components[].properties"},
+		{name: "valid-standard-1.6.json", warningSubstring: "definitions"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			raw, err := os.ReadFile("testdata/official/" + test.name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := ParseBounded(raw, DefaultLimits(1<<20))
+			if err != nil {
+				t.Fatalf("official fixture rejected: %v", err)
+			}
+			if len(got.Components) != test.components || len(got.Dependencies) != test.dependencies {
+				t.Fatalf("components/dependencies=%d/%d want=%d/%d", len(got.Components), len(got.Dependencies), test.components, test.dependencies)
+			}
+			if test.warningSubstring != "" && !strings.Contains(strings.Join(got.Warnings, "\n"), test.warningSubstring) {
+				t.Fatalf("warnings=%#v missing %q", got.Warnings, test.warningSubstring)
+			}
+		})
 	}
 }
 
