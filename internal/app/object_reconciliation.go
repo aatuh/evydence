@@ -62,6 +62,24 @@ type ObjectPayloadReconciliationStore interface {
 	RecordObjectReconciliationReceipt(context.Context, ObjectReconciliationReceipt) error
 }
 
+// ObjectPayloadReconciliationAction is one lifecycle transition planned after
+// object verification. Apply-mode stores must commit every action together
+// with the receipt and audit entry so no cleanup mutation can exist without its
+// durable evidence.
+type ObjectPayloadReconciliationAction struct {
+	Payload     ObjectPayload
+	Status      ObjectPayloadStatus
+	FailureCode string
+}
+
+// ObjectPayloadReconciliationApplyStore atomically applies lifecycle changes
+// and records the corresponding receipt/audit evidence. Object-store reads are
+// completed before this transaction begins; provider calls are never made
+// while holding the database transaction.
+type ObjectPayloadReconciliationApplyStore interface {
+	ApplyObjectReconciliation(context.Context, ObjectReconciliationReceipt, []ObjectPayloadReconciliationAction) error
+}
+
 // ObjectReconciliationRequest bounds and resumes one tenant-only scan. Apply
 // is deliberately opt-in; the zero value is a non-mutating dry run. Applying
 // reconciliation requires an explicit abandoned-staging threshold even though
@@ -124,8 +142,9 @@ type ObjectReconciliationMetricsStore interface {
 // Provider inventory is only used to report candidate unowned objects. A
 // missing item from ListObjectInventory never changes lifecycle state, so
 // eventual-consistency or provider list failures cannot cause data deletion or
-// a false quarantine. Applying a result only updates lifecycle metadata; it
-// does not delete raw storage objects.
+// a false quarantine. Apply mode plans lifecycle mutations during the scan and
+// commits all of them with the receipt/audit evidence only after every object
+// read succeeds. It never deletes raw storage objects.
 func ReconcileObjectPayloads(ctx context.Context, lifecycle ObjectPayloadLifecycleStore, metadata ObjectPayloadReconciliationStore, objects objectPayloadGetter, request ObjectReconciliationRequest) (ObjectReconciliationReceipt, error) {
 	request, now, err := normalizeObjectReconciliationRequest(request)
 	if err != nil {
@@ -151,6 +170,7 @@ func ReconcileObjectPayloads(ctx context.Context, lifecycle ObjectPayloadLifecyc
 		ProviderCursor:     request.ProviderCursor,
 		CreatedAt:          now,
 	}
+	actions := make([]ObjectPayloadReconciliationAction, 0)
 	for _, payload := range payloads {
 		if err := ctx.Err(); err != nil {
 			return ObjectReconciliationReceipt{}, err
@@ -159,7 +179,7 @@ func ReconcileObjectPayloads(ctx context.Context, lifecycle ObjectPayloadLifecyc
 			return ObjectReconciliationReceipt{}, errors.New("payload reconciliation metadata is invalid")
 		}
 		receipt.ScannedPayloads++
-		if err := reconcileOneObjectPayload(ctx, lifecycle, objects, payload, request, now, &receipt); err != nil {
+		if err := reconcileOneObjectPayload(ctx, objects, payload, request, now, &receipt, &actions); err != nil {
 			return ObjectReconciliationReceipt{}, err
 		}
 	}
@@ -184,6 +204,16 @@ func ReconcileObjectPayloads(ctx context.Context, lifecycle ObjectPayloadLifecyc
 				receipt.ProviderOrphans++
 			}
 		}
+	}
+	if request.Apply {
+		applyStore, ok := metadata.(ObjectPayloadReconciliationApplyStore)
+		if !ok {
+			return ObjectReconciliationReceipt{}, errors.New("payload reconciliation atomic apply is unavailable")
+		}
+		if err := applyStore.ApplyObjectReconciliation(ctx, receipt, actions); err != nil {
+			return ObjectReconciliationReceipt{}, errors.New("apply payload reconciliation failed")
+		}
+		return receipt, nil
 	}
 	if err := metadata.RecordObjectReconciliationReceipt(ctx, receipt); err != nil {
 		return ObjectReconciliationReceipt{}, errors.New("record payload reconciliation receipt failed")
@@ -224,7 +254,7 @@ func normalizeObjectReconciliationRequest(request ObjectReconciliationRequest) (
 	return request, now, nil
 }
 
-func reconcileOneObjectPayload(ctx context.Context, lifecycle ObjectPayloadLifecycleStore, objects objectPayloadGetter, payload ObjectPayload, request ObjectReconciliationRequest, now time.Time, receipt *ObjectReconciliationReceipt) error {
+func reconcileOneObjectPayload(ctx context.Context, objects objectPayloadGetter, payload ObjectPayload, request ObjectReconciliationRequest, now time.Time, receipt *ObjectReconciliationReceipt, actions *[]ObjectPayloadReconciliationAction) error {
 	switch payload.Status {
 	case ObjectPayloadFinalized:
 		state, err := reconciliationObjectState(ctx, objects, payload, payload.FinalKey)
@@ -236,10 +266,10 @@ func reconcileOneObjectPayload(ctx context.Context, lifecycle ObjectPayloadLifec
 			receipt.HealthyPayloads++
 		case reconciliationObjectMissing:
 			receipt.MissingFinalObjects++
-			return quarantineObjectPayload(ctx, lifecycle, payload, request.Apply, receipt, false)
+			planObjectPayloadQuarantine(payload, request.Apply, receipt, actions, false)
 		case reconciliationObjectMismatch:
 			receipt.DigestMismatches++
-			return quarantineObjectPayload(ctx, lifecycle, payload, request.Apply, receipt, true)
+			planObjectPayloadQuarantine(payload, request.Apply, receipt, actions, true)
 		}
 	case ObjectPayloadStaged:
 		finalState, err := reconciliationObjectState(ctx, objects, payload, payload.FinalKey)
@@ -250,14 +280,13 @@ func reconcileOneObjectPayload(ctx context.Context, lifecycle ObjectPayloadLifec
 		case reconciliationObjectHealthy:
 			receipt.RecoveredFinalizations++
 			if request.Apply {
-				if err := lifecycle.MarkObjectPayloadFinalized(ctx, payload); err != nil {
-					return errors.New("update payload reconciliation lifecycle failed")
-				}
+				*actions = append(*actions, ObjectPayloadReconciliationAction{Payload: payload, Status: ObjectPayloadFinalized})
 			}
 			return nil
 		case reconciliationObjectMismatch:
 			receipt.DigestMismatches++
-			return quarantineObjectPayload(ctx, lifecycle, payload, request.Apply, receipt, true)
+			planObjectPayloadQuarantine(payload, request.Apply, receipt, actions, true)
+			return nil
 		}
 		stagedState, err := reconciliationObjectState(ctx, objects, payload, payload.StagingKey)
 		if err != nil {
@@ -267,15 +296,16 @@ func reconcileOneObjectPayload(ctx context.Context, lifecycle ObjectPayloadLifec
 		case reconciliationObjectHealthy:
 			if !payload.CreatedAt.After(now.Add(-request.OrphanStagedAfter)) {
 				receipt.AbandonedStaging++
-				return quarantineObjectPayload(ctx, lifecycle, payload, request.Apply, receipt, false)
+				planObjectPayloadQuarantine(payload, request.Apply, receipt, actions, false)
+				return nil
 			}
 			receipt.HealthyPayloads++
 		case reconciliationObjectMissing:
 			receipt.MissingStagedObjects++
-			return quarantineObjectPayload(ctx, lifecycle, payload, request.Apply, receipt, false)
+			planObjectPayloadQuarantine(payload, request.Apply, receipt, actions, false)
 		case reconciliationObjectMismatch:
 			receipt.DigestMismatches++
-			return quarantineObjectPayload(ctx, lifecycle, payload, request.Apply, receipt, true)
+			planObjectPayloadQuarantine(payload, request.Apply, receipt, actions, true)
 		}
 	case ObjectPayloadFailed, ObjectPayloadOrphaned:
 		// Terminal states are already prevented from package and verification
@@ -312,21 +342,17 @@ func reconciliationObjectState(ctx context.Context, objects objectPayloadGetter,
 	return reconciliationObjectHealthy, nil
 }
 
-func quarantineObjectPayload(ctx context.Context, lifecycle ObjectPayloadLifecycleStore, payload ObjectPayload, apply bool, receipt *ObjectReconciliationReceipt, mismatch bool) error {
+func planObjectPayloadQuarantine(payload ObjectPayload, apply bool, receipt *ObjectReconciliationReceipt, actions *[]ObjectPayloadReconciliationAction, mismatch bool) {
 	if !apply {
-		return nil
+		return
 	}
-	var err error
+	action := ObjectPayloadReconciliationAction{Payload: payload, Status: ObjectPayloadOrphaned}
 	if mismatch {
-		err = lifecycle.MarkObjectPayloadFailed(ctx, payload, "reconciliation_mismatch")
-	} else {
-		err = lifecycle.MarkObjectPayloadOrphaned(ctx, payload)
+		action.Status = ObjectPayloadFailed
+		action.FailureCode = "reconciliation_mismatch"
 	}
-	if err != nil {
-		return errors.New("update payload reconciliation lifecycle failed")
-	}
+	*actions = append(*actions, action)
 	receipt.QuarantinedPayloads++
-	return nil
 }
 
 func newObjectReconciliationReceiptID() string {
