@@ -129,4 +129,53 @@ func TestApplyObjectReconciliationRollsBackLifecycleWhenReceiptInsertFails(t *te
 	if receiptCount != 1 || auditCount != 1 {
 		t.Fatalf("failed atomic apply receipt_count=%d audit_count=%d, want 1/1", receiptCount, auditCount)
 	}
+
+	successReceipt := applyReceipt
+	successReceipt.ID = "rec_atomic_success"
+	successReceipt.CreatedAt = now.Add(time.Second)
+	if err := store.ApplyObjectReconciliation(
+		ctx,
+		successReceipt,
+		[]app.ObjectPayloadReconciliationAction{{
+			Payload: payload,
+			Status:  app.ObjectPayloadOrphaned,
+		}},
+	); err != nil {
+		t.Fatalf("apply successful reconciliation: %v", err)
+	}
+	var status, failureCode string
+	if err := store.pool.QueryRow(ctx, `
+		SELECT status, COALESCE(failure_code, '')
+		FROM object_payloads
+		WHERE tenant_id = $1 AND digest = $2
+	`, payload.TenantID, payload.Digest).Scan(&status, &failureCode); err != nil {
+		t.Fatal(err)
+	}
+	if status != string(app.ObjectPayloadOrphaned) || failureCode != "object_missing" {
+		t.Fatalf("successful atomic apply status=%q failure_code=%q", status, failureCode)
+	}
+	var actionAuditCount int
+	var actionMetadata string
+	if err := store.pool.QueryRow(ctx, `
+		SELECT COUNT(*), COALESCE(MAX(metadata::text), '')
+		FROM audit_chain_entries
+		WHERE tenant_id = $1
+		  AND entry_type = 'object_payload.reconciliation_action'
+		  AND subject_type = 'object_payload'
+		  AND subject_id = $2
+		  AND metadata->>'receipt_id' = $3
+		  AND metadata->>'target_status' = 'orphaned'
+	`, payload.TenantID, payload.Digest, successReceipt.ID).Scan(
+		&actionAuditCount, &actionMetadata,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if actionAuditCount != 1 {
+		t.Fatalf("reconciliation action audit count=%d, want 1", actionAuditCount)
+	}
+	for _, forbidden := range []string{payload.StagingKey, payload.FinalKey, "payload_bytes"} {
+		if strings.Contains(actionMetadata, forbidden) {
+			t.Fatalf("reconciliation action audit leaked forbidden value %q", forbidden)
+		}
+	}
 }
