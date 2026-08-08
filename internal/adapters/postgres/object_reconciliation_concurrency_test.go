@@ -91,14 +91,14 @@ func TestApplyObjectReconciliationRejectsStaleLifecycleSnapshot(t *testing.T) {
 	}
 
 	receipt := app.ObjectReconciliationReceipt{
-		ID:                     "rec_stale_snapshot",
-		SchemaVersion:          app.ObjectReconciliationReceiptSchemaVersion,
-		TenantID:               payload.TenantID,
-		DryRun:                 false,
-		ScannedPayloads:        1,
-		MissingStagedObjects:   1,
-		QuarantinedPayloads:    1,
-		CreatedAt:              now.Add(time.Minute),
+		ID:                   "rec_stale_snapshot",
+		SchemaVersion:        app.ObjectReconciliationReceiptSchemaVersion,
+		TenantID:             payload.TenantID,
+		DryRun:               false,
+		ScannedPayloads:      1,
+		MissingStagedObjects: 1,
+		QuarantinedPayloads:  1,
+		CreatedAt:            now.Add(time.Minute),
 	}
 	err = store.ApplyObjectReconciliation(
 		ctx,
