@@ -59,20 +59,30 @@ type Result struct {
 	UnsupportedPaths []string
 }
 
-// ParseBounded parses the supported CycloneDX JSON profile without rejecting
-// standard fields that Evydence does not normalize. Official-schema validation
-// is layered on top of this bounded structural pass by the package validator.
+// ParseBounded parses an in-memory CycloneDX JSON document. Upload and worker
+// paths should prefer ParseBoundedReader so file-backed payloads do not require
+// an additional raw-byte copy before parsing.
 func ParseBounded(raw []byte, limits Limits) (Result, error) {
-	if err := validateLimits(limits); err != nil || int64(len(raw)) > limits.MaxBytes {
+	return ParseBoundedReader(bytes.NewReader(raw), limits)
+}
+
+// ParseBoundedReader parses the supported CycloneDX JSON profile without
+// rejecting standard fields that Evydence does not normalize. The limited
+// reader gives the parser a hard byte boundary even when the caller supplies an
+// unbounded stream. Official-schema validation is layered on top of this
+// bounded structural pass by the package validator.
+func ParseBoundedReader(reader io.Reader, limits Limits) (Result, error) {
+	if reader == nil || validateLimits(limits) != nil {
 		return Result{}, ErrInvalid
 	}
-	dec := json.NewDecoder(bytes.NewReader(raw))
+	limited := &io.LimitedReader{R: reader, N: limits.MaxBytes + 1}
+	dec := json.NewDecoder(limited)
 	dec.UseNumber()
 	var value any
 	if err := dec.Decode(&value); err != nil {
 		return Result{}, ErrInvalid
 	}
-	if err := requireEOF(dec); err != nil {
+	if err := requireEOF(dec); err != nil || limited.N == 0 {
 		return Result{}, ErrInvalid
 	}
 	count := 0

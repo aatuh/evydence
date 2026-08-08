@@ -1,7 +1,10 @@
 package cyclonedx
 
 import (
+	"bytes"
+
 	"errors"
+	"io"
 	"strings"
 	"testing"
 )
@@ -55,6 +58,38 @@ func TestParseBoundedNormalizesDependencyOrdering(t *testing.T) {
 		t.Fatalf("dependencies=%#v", got.Dependencies)
 	}
 }
+
+func TestParseBoundedReaderStreamsWithinHardByteLimit(t *testing.T) {
+	raw := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"reader"}]}`)
+	limits := DefaultLimits(int64(len(raw)))
+	got, err := ParseBoundedReader(bytes.NewReader(raw), limits)
+	if err != nil || len(got.Components) != 1 || got.Components[0].Name != "reader" {
+		t.Fatalf("reader result=%#v err=%v", got, err)
+	}
+
+	oversized := append(append([]byte(nil), raw...), ' ')
+	if _, err := ParseBoundedReader(bytes.NewReader(oversized), limits); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("oversized reader err=%v, want invalid", err)
+	}
+	if _, err := ParseBoundedReader(nil, limits); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("nil reader err=%v, want invalid", err)
+	}
+}
+
+func TestParseBoundedReaderFailsClosedOnSourceError(t *testing.T) {
+	limits := DefaultLimits(1 << 20)
+	reader := io.MultiReader(
+		strings.NewReader(`{"bomFormat":"CycloneDX","specVersion":"1.6",`),
+		errReader{err: errors.New("source failed")},
+	)
+	if _, err := ParseBoundedReader(reader, limits); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("source error=%v, want invalid", err)
+	}
+}
+
+type errReader struct{ err error }
+
+func (r errReader) Read([]byte) (int, error) { return 0, r.err }
 
 func TestParseBoundedRejectsUnsupportedVersionAndMalformedCore(t *testing.T) {
 	for name, raw := range map[string]string{
