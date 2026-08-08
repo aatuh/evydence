@@ -55,6 +55,9 @@ func (s *Store) ApplyObjectReconciliation(
 	if err := appendObjectReconciliationAudit(ctx, tx, receipt); err != nil {
 		return err
 	}
+	if err := appendObjectReconciliationActionAudits(ctx, tx, receipt, actions); err != nil {
+		return err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit object reconciliation apply transaction: %w", err)
 	}
@@ -188,6 +191,45 @@ func appendObjectReconciliationAudit(
 	})
 	if err != nil {
 		return fmt.Errorf("append object reconciliation audit entry: %w", err)
+	}
+	return nil
+}
+
+// appendObjectReconciliationActionAudits links every apply-mode mutation to
+// its run receipt without persisting object keys, raw payload bytes, media
+// contents, or provider error text. The digest is the existing tenant-scoped
+// payload identity already stored in PostgreSQL and is sufficient to attribute
+// the lifecycle transition.
+func appendObjectReconciliationActionAudits(
+	ctx context.Context,
+	tx pgx.Tx,
+	receipt app.ObjectReconciliationReceipt,
+	actions []app.ObjectPayloadReconciliationAction,
+) error {
+	auditRepository := repositories.New(tx).Audit
+	for index, action := range actions {
+		metadata := map[string]any{
+			"receipt_id":    receipt.ID,
+			"source_status": string(action.Payload.Status),
+			"target_status": string(action.Status),
+		}
+		if action.FailureCode != "" {
+			metadata["failure_code"] = action.FailureCode
+		}
+		_, err := auditRepository.Append(ctx, domain.AuditChainEntry{
+			ID:          fmt.Sprintf("ace_%s_action_%d", receipt.ID, index+1),
+			TenantID:    receipt.TenantID,
+			EntryType:   "object_payload.reconciliation_action",
+			SubjectType: "object_payload",
+			SubjectID:   action.Payload.Digest,
+			ActorType:   "worker",
+			ActorID:     "evydence-worker",
+			OccurredAt:  receipt.CreatedAt.UTC(),
+			Metadata:    metadata,
+		})
+		if err != nil {
+			return fmt.Errorf("append object reconciliation action audit: %w", err)
+		}
 	}
 	return nil
 }
