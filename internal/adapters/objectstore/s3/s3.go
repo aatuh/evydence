@@ -8,8 +8,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -33,15 +37,18 @@ type Store struct {
 }
 
 func New(ctx context.Context, cfg Config) (*Store, error) {
-	endpoint := strings.TrimSpace(cfg.Endpoint)
+	endpoint, region, err := validateEndpointPolicy(cfg.Endpoint, cfg.Region, cfg.UseSSL)
+	if err != nil {
+		return nil, err
+	}
 	bucket := strings.TrimSpace(cfg.Bucket)
-	if endpoint == "" || bucket == "" || strings.TrimSpace(cfg.AccessKeyID) == "" || strings.TrimSpace(cfg.SecretAccessKey) == "" {
+	if bucket == "" || strings.TrimSpace(cfg.AccessKeyID) == "" || strings.TrimSpace(cfg.SecretAccessKey) == "" {
 		return nil, app.ErrValidation
 	}
 	client, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(cfg.AccessKeyID, cfg.SecretAccessKey, ""),
 		Secure: cfg.UseSSL,
-		Region: strings.TrimSpace(cfg.Region),
+		Region: region,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create s3 client: %w", err)
@@ -57,10 +64,7 @@ func New(ctx context.Context, cfg Config) (*Store, error) {
 }
 
 func (s *Store) Put(ctx context.Context, object app.Object) error {
-	if s == nil || s.client == nil {
-		return app.ErrValidation
-	}
-	if object.Key == "" || object.TenantID == "" || !strings.HasPrefix(object.Key, "tenants/"+object.TenantID+"/") {
+	if s == nil || s.client == nil || validateObjectForWrite(object) != nil {
 		return app.ErrValidation
 	}
 	opts := minio.PutObjectOptions{
@@ -78,10 +82,14 @@ func (s *Store) Put(ctx context.Context, object app.Object) error {
 }
 
 func (s *Store) Get(ctx context.Context, key string) (app.Object, error) {
-	if s == nil || s.client == nil || strings.TrimSpace(key) == "" {
+	if s == nil || s.client == nil {
 		return app.Object{}, app.ErrValidation
 	}
-	obj, err := s.client.GetObject(ctx, s.bucket, strings.TrimSpace(key), minio.GetObjectOptions{})
+	tenantID, err := app.TenantIDFromObjectKey(key)
+	if err != nil {
+		return app.Object{}, app.ErrValidation
+	}
+	obj, err := s.client.GetObject(ctx, s.bucket, key, minio.GetObjectOptions{})
 	if err != nil {
 		return app.Object{}, fmt.Errorf("get s3 object: %w", err)
 	}
@@ -97,14 +105,18 @@ func (s *Store) Get(ctx context.Context, key string) (app.Object, error) {
 	if err != nil {
 		return app.Object{}, fmt.Errorf("read s3 object: %w", err)
 	}
-	return app.Object{
+	object := app.Object{
 		Key:       key,
 		TenantID:  metadataValue(info.UserMetadata, "X-Amz-Meta-Evydence-Tenant-Id", "evydence-tenant-id"),
 		MediaType: info.ContentType,
 		Digest:    metadataValue(info.UserMetadata, "X-Amz-Meta-Evydence-Digest", "evydence-digest"),
 		Bytes:     body,
-		CreatedAt: info.LastModified,
-	}, nil
+		CreatedAt: info.LastModified.UTC(),
+	}
+	if err := validateObjectRead(tenantID, info.Size, object); err != nil {
+		return app.Object{}, err
+	}
+	return object, nil
 }
 
 // ListObjectInventory returns provider object metadata under one tenant
@@ -113,20 +125,22 @@ func (s *Store) Get(ctx context.Context, key string) (app.Object, error) {
 // receipts; because listing can be eventually consistent, callers must not
 // use omission from this result as evidence that an expected object is gone.
 func (s *Store) ListObjectInventory(ctx context.Context, tenantID string, cursor, limit int) (app.ObjectInventoryPage, error) {
-	tenantID = strings.TrimSpace(tenantID)
-	if s == nil || s.client == nil || s.bucket == "" || !validInventoryTenantID(tenantID) || cursor < 0 || limit < 1 || limit > 10_000 {
+	if s == nil || s.client == nil || s.bucket == "" || app.ValidateObjectTenantID(tenantID) != nil || cursor < 0 || limit < 1 || limit > 10_000 {
 		return app.ObjectInventoryPage{}, app.ErrValidation
 	}
 	listCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	prefix := "tenants/" + tenantID + "/"
+	prefix, err := app.TenantObjectPrefix(tenantID)
+	if err != nil {
+		return app.ObjectInventoryPage{}, err
+	}
 	page := app.ObjectInventoryPage{Objects: make([]app.ObjectInventoryItem, 0, limit)}
 	matched := 0
 	for item := range s.client.ListObjects(listCtx, s.bucket, minio.ListObjectsOptions{Prefix: prefix, Recursive: true}) {
 		if item.Err != nil {
 			return app.ObjectInventoryPage{}, fmt.Errorf("list s3 object inventory: %w", item.Err)
 		}
-		if !strings.HasPrefix(item.Key, prefix) {
+		if !strings.HasPrefix(item.Key, prefix) || app.ValidateTenantObjectKey(tenantID, item.Key) != nil {
 			return app.ObjectInventoryPage{}, app.ErrValidation
 		}
 		if matched < cursor {
@@ -198,6 +212,13 @@ func (s *Store) FinalizePayload(ctx context.Context, payload app.ObjectPayload) 
 	} else if !errors.Is(err, app.ErrNotFound) {
 		return app.Object{}, err
 	}
+	staged, err := s.Get(ctx, payload.StagingKey)
+	if err != nil {
+		return app.Object{}, err
+	}
+	if err := verifyPayloadObject(payload, staged, payload.StagingKey); err != nil {
+		return app.Object{}, err
+	}
 	if _, err := s.client.CopyObject(ctx, minio.CopyDestOptions{
 		Bucket:          s.bucket,
 		Object:          payload.FinalKey,
@@ -242,13 +263,16 @@ func (s *Store) VerifyObjectRetention(ctx context.Context, req app.ObjectRetenti
 	if s == nil || s.client == nil {
 		return app.ObjectRetentionResult{}, app.ErrValidation
 	}
-	tenantPrefix := "tenants/" + strings.TrimSpace(req.TenantID) + "/"
-	objectPrefix := strings.TrimSpace(req.ObjectPrefix)
-	objectKey := strings.TrimSpace(req.ObjectKey)
-	if strings.TrimSpace(req.TenantID) == "" || !strings.HasPrefix(objectPrefix, tenantPrefix) {
+	tenantPrefix, err := app.TenantObjectPrefix(req.TenantID)
+	if err != nil {
 		return app.ObjectRetentionResult{}, app.ErrValidation
 	}
-	if objectKey != "" && (!strings.HasPrefix(objectKey, tenantPrefix) || !strings.HasPrefix(objectKey, objectPrefix)) {
+	objectPrefix := strings.TrimSpace(req.ObjectPrefix)
+	objectKey := strings.TrimSpace(req.ObjectKey)
+	if !validTenantObjectPrefix(req.TenantID, objectPrefix) || !strings.HasPrefix(objectPrefix, tenantPrefix) {
+		return app.ObjectRetentionResult{}, app.ErrValidation
+	}
+	if objectKey != "" && (app.ValidateTenantObjectKey(req.TenantID, objectKey) != nil || !strings.HasPrefix(objectKey, objectPrefix)) {
 		return app.ObjectRetentionResult{}, app.ErrValidation
 	}
 	versioning, err := s.client.GetBucketVersioning(ctx, s.bucket)
@@ -277,6 +301,109 @@ func (s *Store) VerifyObjectRetention(ctx context.Context, req app.ObjectRetenti
 	return result, nil
 }
 
+func validateEndpointPolicy(endpoint, region string, useSSL bool) (string, string, error) {
+	endpoint = strings.TrimSpace(endpoint)
+	region = strings.TrimSpace(region)
+	if endpoint == "" || strings.Contains(endpoint, "://") || strings.ContainsAny(endpoint, "/?#") {
+		return "", "", app.ErrValidation
+	}
+	for _, r := range endpoint {
+		if unicode.IsSpace(r) || unicode.IsControl(r) {
+			return "", "", app.ErrValidation
+		}
+	}
+	parsed, err := url.Parse("//" + endpoint)
+	if err != nil || parsed.Host == "" || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return "", "", app.ErrValidation
+	}
+	host := strings.TrimSuffix(strings.ToLower(parsed.Hostname()), ".")
+	if host == "" || strings.Contains(host, "%") {
+		return "", "", app.ErrValidation
+	}
+	if port := parsed.Port(); port != "" {
+		value, err := strconv.Atoi(port)
+		if err != nil || value < 1 || value > 65535 {
+			return "", "", app.ErrValidation
+		}
+	}
+	if region != "" && !validS3Region(region) {
+		return "", "", app.ErrValidation
+	}
+	if isAWSS3Endpoint(host) {
+		if !useSSL || region == "" {
+			return "", "", app.ErrValidation
+		}
+	}
+	if !useSSL && !insecureS3EndpointAllowed(host) {
+		return "", "", app.ErrValidation
+	}
+	return endpoint, region, nil
+}
+
+func validS3Region(region string) bool {
+	if region == "" || len(region) > 63 || region != strings.TrimSpace(region) {
+		return false
+	}
+	for index, r := range region {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' {
+			if index == 0 && (r == '-' || r == '_' || r == '.') {
+				return false
+			}
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func isAWSS3Endpoint(host string) bool {
+	return host == "s3.amazonaws.com" || strings.HasSuffix(host, ".amazonaws.com") || strings.HasSuffix(host, ".amazonaws.com.cn")
+}
+
+func insecureS3EndpointAllowed(host string) bool {
+	if host == "localhost" || strings.HasSuffix(host, ".localhost") || !strings.Contains(host, ".") {
+		return true
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback() || ip.IsPrivate()
+	}
+	for _, suffix := range []string{".local", ".internal", ".svc", ".svc.cluster.local"} {
+		if strings.HasSuffix(host, suffix) {
+			return true
+		}
+	}
+	return false
+}
+
+func validateObjectForWrite(object app.Object) error {
+	if err := app.ValidateTenantObjectKey(object.TenantID, object.Key); err != nil {
+		return app.ErrValidation
+	}
+	if err := app.ValidateObjectMediaType(object.MediaType); err != nil {
+		return app.ErrValidation
+	}
+	if err := app.VerifyObjectDigestBytes(object.Digest, object.Bytes); err != nil {
+		return app.ErrValidation
+	}
+	return nil
+}
+
+func validateObjectRead(keyTenantID string, providerSize int64, object app.Object) error {
+	if providerSize < 0 || providerSize != int64(len(object.Bytes)) || object.TenantID != keyTenantID || object.CreatedAt.IsZero() {
+		return app.ErrValidation
+	}
+	return validateObjectForWrite(object)
+}
+
+func validTenantObjectPrefix(tenantID, prefix string) bool {
+	tenantPrefix, err := app.TenantObjectPrefix(tenantID)
+	if err != nil || prefix == "" || prefix != strings.TrimSpace(prefix) || !strings.HasPrefix(prefix, tenantPrefix) {
+		return false
+	}
+	candidate := strings.TrimSuffix(prefix, "/") + "/prefix-check"
+	return app.ValidateTenantObjectKey(tenantID, candidate) == nil
+}
+
 func metadataValue(metadata map[string]string, keys ...string) string {
 	for _, key := range keys {
 		if value := metadata[key]; value != "" {
@@ -291,10 +418,6 @@ func metadataValue(metadata map[string]string, keys ...string) string {
 	return ""
 }
 
-func validInventoryTenantID(tenantID string) bool {
-	return tenantID != "" && !strings.ContainsAny(tenantID, "/\\\x00") && tenantID != "." && tenantID != ".."
-}
-
 type countingWriter struct{ n int64 }
 
 func (w *countingWriter) Write(value []byte) (int, error) {
@@ -303,10 +426,7 @@ func (w *countingWriter) Write(value []byte) (int, error) {
 }
 
 func verifyPayloadObject(payload app.ObjectPayload, object app.Object, key string) error {
-	if object.Key != key || object.TenantID != payload.TenantID || object.Digest != payload.Digest || int64(len(object.Bytes)) != payload.Size {
-		return app.ErrValidation
-	}
-	return nil
+	return app.VerifyObjectPayloadRead(payload, object, key)
 }
 
 func s3ObjectMissing(err error) bool {
@@ -320,10 +440,10 @@ func objectLockConfigMissing(err error) bool {
 }
 
 func evaluateObjectRetention(req app.ObjectRetentionRequest, versioningEnabled bool, mode *minio.RetentionMode, validity *uint, unit *minio.ValidityUnit, objectMode *minio.RetentionMode, retainUntil *time.Time, legalHold *minio.LegalHoldStatus, now time.Time) app.ObjectRetentionResult {
-	expectedPrefix := "tenants/" + strings.TrimSpace(req.TenantID) + "/"
-	prefixOK := strings.HasPrefix(strings.TrimSpace(req.ObjectPrefix), expectedPrefix)
+	objectPrefix := strings.TrimSpace(req.ObjectPrefix)
+	prefixOK := validTenantObjectPrefix(req.TenantID, objectPrefix)
 	objectKey := strings.TrimSpace(req.ObjectKey)
-	objectKeyOK := objectKey == "" || (strings.HasPrefix(objectKey, expectedPrefix) && strings.HasPrefix(objectKey, strings.TrimSpace(req.ObjectPrefix)))
+	objectKeyOK := objectKey == "" || (app.ValidateTenantObjectKey(req.TenantID, objectKey) == nil && strings.HasPrefix(objectKey, objectPrefix))
 	expectedMode := retentionMode(req.Mode)
 	actualMode := ""
 	if mode != nil {
