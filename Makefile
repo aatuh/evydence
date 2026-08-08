@@ -73,6 +73,7 @@ rendered-openapi-check: ## Validate generated static OpenAPI docs
 	@scripts/render_openapi_docs.py --check
 
 meta-check: ## Validate root legal, governance, support, and release-evidence metadata
+	@test -f AGENTS.md
 	@test -f LICENSE
 	@test -f COMMERCIAL.md
 	@test -f GOVERNANCE.md
@@ -101,6 +102,10 @@ meta-check: ## Validate root legal, governance, support, and release-evidence me
 	@test -x scripts/release_candidate_validate.sh
 	@test -x scripts/release_asset_smoke_check.sh
 	@test -x scripts/release_evidence_metadata.py
+	@grep -F 'means incomplete; `[x]` means complete only after' AGENTS.md >/dev/null
+	@grep -F 'Use Conventional Commits and include the ticket ID' AGENTS.md >/dev/null
+	@grep -F 'Work one backlog ticket at a time.' AGENTS.md >/dev/null
+	@grep -F 'Update `.EVYDENCE_CODEX_BACKLOG.md` only after' AGENTS.md >/dev/null
 	@grep -F 'GNU AFFERO GENERAL PUBLIC LICENSE' LICENSE >/dev/null
 	@grep -F 'AGPL-3.0-only' COMMERCIAL.md >/dev/null
 	@grep -F 'Commercial license exceptions' COMMERCIAL.md >/dev/null
