@@ -30,6 +30,7 @@ product-boundary language across the docs.
 | Backlog issue labels | `docs/reference/issue-labels.md` | Use these labels and the backlog ticket template when creating maintainable issue records. |
 | 9/10 evidence scorecard | `docs/reference/quality-scorecard.md` | Current repository and external evidence are deliberately separate. Do not raise the score from prose or local checks alone. |
 | Backup/restore | `docs/runbooks/backup-restore.md` and `docs/runbooks/object-store-recovery.md` | Operator rehearsal steps, object-store recovery, and evidence to keep. |
+| Evidence-format compatibility | `docs/reference/evidence-format-compatibility.md` | Tested input shapes, parser identities, resource bounds, unsupported encodings, and compatibility limits. |
 | Upgrade | `docs/runbooks/upgrade.md` and `docs/reference/upgrade-compatibility-policy.md` | Migration, release artifact verification, supported paths, and API compatibility. |
 | Incident response | `docs/runbooks/incident-response.md` | Secrets, tenant, object-store, signing, provider, and package boundaries. |
 | Key rotation | `docs/runbooks/key-rotation.md` | Credential and signing-provider rotation boundaries. |
