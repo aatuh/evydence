@@ -56,6 +56,7 @@ release artifacts.
 
 ### Fixed
 
+- Object payload storage now enforces the versioned canonical tenant/digest key layout, confines filesystem operations beneath the configured root even across symlinks, and verifies tenant, digest bytes, byte count, and media type before filesystem or S3 content is trusted. S3 public/custom remote endpoints require TLS and AWS S3 endpoints require an explicit region.
 - Object-retention verification no longer treats a local policy record as
   provider enforcement. Positive results now retain bounded provider-observation
   metadata; unavailable, incomplete, failed, and stale observations remain
