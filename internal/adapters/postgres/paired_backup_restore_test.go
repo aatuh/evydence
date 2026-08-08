@@ -157,8 +157,7 @@ func TestPostgresPairedBackupRestoreUsesNativeDumpAndFilesystemGeneration(t *tes
 	)
 	runPairedPreflight(t, ctx, manifestPath, databaseDump, backupObjects, releaseCommit, false)
 
-	mismatchedDump := filepath.Join(t.TempDir(), "database.dump")
-	copyFile(t, databaseDump, mismatchedDump)
+	mismatchedDump := copyRecoveryFileToTemp(t, databaseDump)
 	file, err := os.OpenFile(mismatchedDump, os.O_APPEND|os.O_WRONLY, 0)
 	if err != nil {
 		t.Fatal(err)
@@ -263,8 +262,23 @@ func pairedBackupDatabaseURL(t *testing.T, rawURL, database string) string {
 
 func runRecoveryCommand(t *testing.T, ctx context.Context, name string, args ...string) string {
 	t.Helper()
-	// #nosec G204 -- test-only execution of fixed PostgreSQL, Python, and Git tools with generated local arguments.
-	command := exec.CommandContext(ctx, name, args...)
+	var command *exec.Cmd
+	switch name {
+	case "pg_dump":
+		// #nosec G702 -- fixed test-only executable; args are generated backup paths and the configured test database URL.
+		command = exec.CommandContext(ctx, "pg_dump", args...)
+	case "pg_restore":
+		// #nosec G702 -- fixed test-only executable; args are generated backup paths and the configured test database URL.
+		command = exec.CommandContext(ctx, "pg_restore", args...)
+	case "python3":
+		// #nosec G702 -- fixed repository-owned script runner with generated local backup arguments.
+		command = exec.CommandContext(ctx, "python3", args...)
+	case "git":
+		// #nosec G702 -- fixed test-only executable used for repository HEAD identity.
+		command = exec.CommandContext(ctx, "git", args...)
+	default:
+		t.Fatalf("unsupported recovery command %q", name)
+	}
 	output, err := command.CombinedOutput()
 	if err != nil {
 		t.Fatalf("%s %s: %v\n%s", name, strings.Join(args, " "), err, output)
@@ -294,13 +308,27 @@ func runPairedPreflight(t *testing.T, ctx context.Context, manifestPath, databas
 	}
 }
 
-func copyFile(t *testing.T, source, target string) {
+func copyRecoveryFileToTemp(t *testing.T, source string) string {
 	t.Helper()
 	body, err := os.ReadFile(source) // #nosec G304 -- test-owned temporary backup path.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(target, body, 0o600); err != nil {
+	file, err := os.CreateTemp(t.TempDir(), "database-*.dump")
+	if err != nil {
 		t.Fatal(err)
 	}
+	name := file.Name()
+	if err := file.Chmod(0o600); err != nil {
+		_ = file.Close()
+		t.Fatal(err)
+	}
+	if _, err := file.Write(body); err != nil {
+		_ = file.Close()
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return name
 }
