@@ -331,10 +331,14 @@ func reconciliationObjectState(ctx context.Context, objects objectPayloadGetter,
 	if err != nil {
 		return 0, errors.New("payload reconciliation object lookup failed")
 	}
-	if err := VerifyObjectPayloadRead(payload, object, key); err != nil {
+	if !objectPayloadReadMatches(payload, object, key) {
 		return reconciliationObjectMismatch, nil
 	}
 	return reconciliationObjectHealthy, nil
+}
+
+func objectPayloadReadMatches(payload ObjectPayload, object Object, key string) bool {
+	return VerifyObjectPayloadRead(payload, object, key) == nil
 }
 
 func planObjectPayloadQuarantine(payload ObjectPayload, apply bool, receipt *ObjectReconciliationReceipt, actions *[]ObjectPayloadReconciliationAction, mismatch bool) {

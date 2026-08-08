@@ -29,7 +29,7 @@ func TestCanonicalObjectPayloadIdentityRoundTrip(t *testing.T) {
 
 func TestObjectIdentityRejectsAmbiguousTenantKeyAndDigestForms(t *testing.T) {
 	canonicalDigest := "sha256:" + strings.Repeat("a", 64)
-	for _, tenantID := range []string{"", ".", "..", " ten_1", "ten_1 ", "ten/other", `ten\\other`, "ten\nother"} {
+	for _, tenantID := range []string{"", ".", "..", " ten_1", "ten_1 ", "ten/other", `tenant\\segment`, "ten\ninvalid"} {
 		if err := ValidateObjectTenantID(tenantID); !errors.Is(err, ErrValidation) {
 			t.Fatalf("tenant %q err=%v, want validation", tenantID, err)
 		}
