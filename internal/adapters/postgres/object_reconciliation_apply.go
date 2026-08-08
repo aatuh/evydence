@@ -66,10 +66,17 @@ func (s *Store) ApplyObjectReconciliation(
 
 func validObjectReconciliationAction(action app.ObjectPayloadReconciliationAction) bool {
 	switch action.Status {
-	case app.ObjectPayloadFinalized, app.ObjectPayloadOrphaned:
-		return action.FailureCode == ""
+	case app.ObjectPayloadFinalized:
+		return action.FailureCode == "" &&
+			action.Payload.Status == app.ObjectPayloadStaged
+	case app.ObjectPayloadOrphaned:
+		return action.FailureCode == "" &&
+			(action.Payload.Status == app.ObjectPayloadStaged ||
+				action.Payload.Status == app.ObjectPayloadFinalized)
 	case app.ObjectPayloadFailed:
-		return action.FailureCode == "reconciliation_mismatch"
+		return action.FailureCode == "reconciliation_mismatch" &&
+			(action.Payload.Status == app.ObjectPayloadStaged ||
+				action.Payload.Status == app.ObjectPayloadFinalized)
 	default:
 		return false
 	}
@@ -85,6 +92,7 @@ func applyObjectReconciliationAction(
 		result pgconnCommandTag
 		err    error
 	)
+	expectedUpdatedAt := action.Payload.UpdatedAt.UTC()
 	switch action.Status {
 	case app.ObjectPayloadFinalized:
 		result, err = tx.Exec(ctx, `
@@ -92,28 +100,30 @@ func applyObjectReconciliationAction(
 			SET status = 'finalized', failure_code = NULL, finalized_at = $4,
 				failed_at = NULL, orphaned_at = NULL, updated_at = $4
 			WHERE tenant_id = $1 AND digest = $2 AND final_key = $3
-			  AND status IN ('staged', 'finalized')
+			  AND status = $5 AND updated_at = $6
 		`, action.Payload.TenantID, action.Payload.Digest,
-			action.Payload.FinalKey, receipt.CreatedAt.UTC())
+			action.Payload.FinalKey, receipt.CreatedAt.UTC(),
+			string(action.Payload.Status), expectedUpdatedAt)
 	case app.ObjectPayloadFailed:
 		result, err = tx.Exec(ctx, `
 			UPDATE object_payloads
 			SET status = 'failed', failure_code = $4, failed_at = $5,
 				updated_at = $5
 			WHERE tenant_id = $1 AND digest = $2 AND final_key = $3
-			  AND (status IN ('staged', 'failed') OR
-			       (status = 'finalized' AND $4 = 'reconciliation_mismatch'))
+			  AND status = $6 AND updated_at = $7
 		`, action.Payload.TenantID, action.Payload.Digest,
-			action.Payload.FinalKey, action.FailureCode, receipt.CreatedAt.UTC())
+			action.Payload.FinalKey, action.FailureCode, receipt.CreatedAt.UTC(),
+			string(action.Payload.Status), expectedUpdatedAt)
 	case app.ObjectPayloadOrphaned:
 		result, err = tx.Exec(ctx, `
 			UPDATE object_payloads
 			SET status = 'orphaned', failure_code = 'object_missing',
 				orphaned_at = $4, updated_at = $4
 			WHERE tenant_id = $1 AND digest = $2 AND final_key = $3
-			  AND status IN ('staged', 'finalized', 'orphaned')
+			  AND status = $5 AND updated_at = $6
 		`, action.Payload.TenantID, action.Payload.Digest,
-			action.Payload.FinalKey, receipt.CreatedAt.UTC())
+			action.Payload.FinalKey, receipt.CreatedAt.UTC(),
+			string(action.Payload.Status), expectedUpdatedAt)
 	default:
 		return app.ErrValidation
 	}
