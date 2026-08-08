@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -332,11 +331,7 @@ func reconciliationObjectState(ctx context.Context, objects objectPayloadGetter,
 	if err != nil {
 		return 0, errors.New("payload reconciliation object lookup failed")
 	}
-	if object.Key != key || object.TenantID != payload.TenantID || object.Digest != payload.Digest || int64(len(object.Bytes)) != payload.Size {
-		return reconciliationObjectMismatch, nil
-	}
-	sum := sha256.Sum256(object.Bytes)
-	if "sha256:"+hex.EncodeToString(sum[:]) != payload.Digest {
+	if err := VerifyObjectPayloadRead(payload, object, key); err != nil {
 		return reconciliationObjectMismatch, nil
 	}
 	return reconciliationObjectHealthy, nil
