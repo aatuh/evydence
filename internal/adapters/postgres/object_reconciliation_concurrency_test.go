@@ -86,8 +86,18 @@ func TestApplyObjectReconciliationRejectsStaleLifecycleSnapshot(t *testing.T) {
 
 	// Model a worker finalizing the payload after reconciliation scanned the
 	// staged row but before it attempted to apply its stale orphan decision.
-	if err := store.MarkObjectPayloadFinalized(ctx, payload); err != nil {
+	concurrentUpdatedAt := now.Add(time.Second)
+	result, err := store.pool.Exec(ctx, `
+		UPDATE object_payloads
+		SET status = 'finalized', finalized_at = $4, updated_at = $4
+		WHERE tenant_id = $1 AND digest = $2 AND final_key = $3
+		  AND status = 'staged'
+	`, payload.TenantID, payload.Digest, payload.FinalKey, concurrentUpdatedAt)
+	if err != nil {
 		t.Fatalf("concurrent finalization: %v", err)
+	}
+	if result.RowsAffected() != 1 {
+		t.Fatalf("concurrent finalization affected %d rows", result.RowsAffected())
 	}
 
 	receipt := app.ObjectReconciliationReceipt{
@@ -98,7 +108,7 @@ func TestApplyObjectReconciliationRejectsStaleLifecycleSnapshot(t *testing.T) {
 		ScannedPayloads:      1,
 		MissingStagedObjects: 1,
 		QuarantinedPayloads:  1,
-		CreatedAt:            now.Add(time.Minute),
+		CreatedAt:            now.Add(2 * time.Second),
 	}
 	err = store.ApplyObjectReconciliation(
 		ctx,
