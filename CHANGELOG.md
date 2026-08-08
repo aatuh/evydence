@@ -15,6 +15,7 @@ release artifacts.
 
 ### Added
 
+- Added a canonical evidence-format compatibility matrix that distinguishes tested reduced CycloneDX, SPDX, OpenVEX, CycloneDX VEX, DSSE/in-toto, and scanner JSON contracts from incidental parser acceptance, with parser identities, effective limits, fixture evidence, and unsupported-format guidance.
 - Recovery tooling now pairs PostgreSQL and object-store backup generations with deterministic preflight manifests, native `pg_dump`/`pg_restore` rehearsal, mismatch detection before normal startup, and crash-boundary recovery tests.
 - Object payload reconciliation now provides a tenant-scoped, resumable worker
   command with dry-run reporting, conservative lifecycle quarantine/recovery,
