@@ -25,6 +25,7 @@ product-boundary language across the docs.
 | Design-partner pilot checklist | `docs/how-to/pilot-deployment-checklist.md` | Narrow copy-paste checklist for one controlled self-hosted pilot profile. |
 | Maintainer review ownership | `CODEOWNERS` and `docs/reference/maintainer-review-policy.md` | Branch protection or repository rules must enforce this before it is a merge gate. |
 | Roadmap and cadence | `docs/reference/roadmap.md` | Public roadmap, supported release line, and cadence expectations. |
+| Agent execution policy | `AGENTS.md` | Canonical repository-local execution contract for agents, including backlog status, commit, validation, evidence, and safety rules. |
 | 9/10 implementation tracking | `docs/reference/world-class-backlog.md` and `.EVYDENCE_CODEX_BACKLOG.md` | The reference page explains tracking; the root backlog holds ticket state. Neither is a production claim or evidence of external completion. |
 | Backlog issue labels | `docs/reference/issue-labels.md` | Use these labels and the backlog ticket template when creating maintainable issue records. |
 | 9/10 evidence scorecard | `docs/reference/quality-scorecard.md` | Current repository and external evidence are deliberately separate. Do not raise the score from prose or local checks alone. |
