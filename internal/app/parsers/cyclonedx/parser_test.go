@@ -2,10 +2,10 @@ package cyclonedx
 
 import (
 	"bytes"
-
 	"errors"
 	"io"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -167,7 +167,10 @@ func FuzzCycloneDX(f *testing.F) {
 	for _, seed := range [][]byte{
 		[]byte(`{"bomFormat":"CycloneDX","specVersion":"1.6"}`),
 		[]byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"x"}]}`),
+		[]byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","metadata":{"timestamp":"2026-08-09T00:00:00Z"},"components":[{"type":"application","name":"root","components":[{"type":"library","name":"nested"}]}],"dependencies":[{"ref":"root","dependsOn":["nested"]}],"properties":[{"name":"source","value":"fuzz-seed"}]}`),
+		[]byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","dependencies":[{"ref":"root","provides":["virtual"]}]}`),
 		[]byte(`{}`),
+		[]byte(`{"bomFormat":"CycloneDX","specVersion":"1.6"}{}`),
 	} {
 		f.Add(seed)
 	}
@@ -176,6 +179,43 @@ func FuzzCycloneDX(f *testing.F) {
 		limits.MaxComponents = 1024
 		limits.MaxDependencies = 2048
 		limits.MaxValues = 8192
-		_, _ = ParseBounded(raw, limits)
+		first, err := ParseBounded(raw, limits)
+		if err != nil {
+			if !errors.Is(err, ErrInvalid) {
+				t.Fatalf("unexpected parser error: %v", err)
+			}
+			return
+		}
+		second, err := ParseBounded(raw, limits)
+		if err != nil {
+			t.Fatalf("successful parse was not repeatable: %v", err)
+		}
+		if !reflect.DeepEqual(first, second) {
+			t.Fatalf("non-deterministic parse:\nfirst=%#v\nsecond=%#v", first, second)
+		}
+		if first.SpecVersion != SupportedSpecVersion {
+			t.Fatalf("specVersion=%q", first.SpecVersion)
+		}
+		if len(first.Warnings) != len(first.UnsupportedPaths) {
+			t.Fatalf("warnings=%d unsupportedPaths=%d", len(first.Warnings), len(first.UnsupportedPaths))
+		}
+		for _, component := range first.Components {
+			if component.Identity == "" || component.Identity != componentIdentity(component) {
+				t.Fatalf("unstable component identity: %#v", component)
+			}
+		}
+		for i, dependency := range first.Dependencies {
+			if dependency.Ref == "" {
+				t.Fatalf("empty dependency ref")
+			}
+			if i > 0 && first.Dependencies[i-1].Ref > dependency.Ref {
+				t.Fatalf("dependency order is not canonical: %#v", first.Dependencies)
+			}
+			for j := 1; j < len(dependency.DependsOn); j++ {
+				if dependency.DependsOn[j-1] > dependency.DependsOn[j] {
+					t.Fatalf("dependsOn order is not canonical: %#v", dependency.DependsOn)
+				}
+			}
+		}
 	})
 }
