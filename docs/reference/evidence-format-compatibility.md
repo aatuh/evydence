@@ -23,7 +23,7 @@ the broader conformance, fixture-corpus, replay, and parser-version work.
 
 | Input | Stability | Tested contract | Retained parser identity | Public HTTP form / effective limit |
 | --- | --- | --- | --- | --- |
-| CycloneDX SBOM JSON | `core` | Reduced shape; fixtures use `specVersion: 1.6` | `cyclonedx-json.v1.0.0` on durable `parse_sbom` job | Native `application/vnd.cyclonedx+json`: 20 MiB; JSON envelope: 64 KiB |
+| CycloneDX SBOM JSON | `core` | Public route remains reduced; shared EVY-502 parser fixtures use `specVersion: 1.6` | `cyclonedx-json.v1.3.3` on durable `parse_sbom` job | Native `application/vnd.cyclonedx+json`: 20 MiB; JSON envelope: 64 KiB |
 | SPDX SBOM JSON | `core` | Reduced shape; fixtures use `SPDX-2.3` | `spdx-json.v1` in evidence metadata | JSON envelope: 64 KiB |
 | OpenVEX JSON | `core` | Reduced shape; fixtures use `https://openvex.dev/ns/v0.2.0` | `openvex-json.v1.0.0` on import report and `parse_vex` job | Native `application/vnd.openvex+json`: 20 MiB; JSON envelope: 64 KiB |
 | CycloneDX VEX JSON | `core` | Reduced shape; fixtures use `specVersion: 1.6` | `cyclonedx-vex-json.v1.0.0` on import report and `parse_vex` job | JSON envelope: 64 KiB |
@@ -41,19 +41,32 @@ until EVY-505 adds versioned adapters.
 
 ### CycloneDX SBOM JSON
 
-`POST /v1/sboms` currently reads `bomFormat`, `specVersion`, and
-`components[].{type,name,version,purl}`. `bomFormat` must be CycloneDX and every
-component needs a name. Raw bytes are preserved; normalized components retain
-name/version/purl. Unknown fields are rejected, so hashes, licenses,
-dependencies, services, properties, compositions, and normal extension fields
-are **not** part of the current reduced contract. `specVersion` is recorded but
-not allowlisted; only the tested 1.6 reduced shape is claimed.
+`POST /v1/sboms` still exposes the legacy reduced public contract while EVY-502
+is being activated end to end. That route reads `bomFormat`, `specVersion`, and
+`components[].{type,name,version,purl}` and rejects unknown fields. Raw bytes are
+preserved and normalized components retain name/version/purl.
 
-Evidence: `internal/app/ledger.go` (`UploadSBOMPayload`),
-`internal/app/parser_versions.go`, and tests
-`TestUploadSBOMEnqueuesParserVersion`,
-`TestUploadSBOMCanDeferParserSideEffectsToWorker`, and
-`TestParsersRejectMalformedInputs`.
+The shared EVY-502 CycloneDX parser is broader and separately tested with
+CycloneDX 1.6 official fixtures plus Syft/Trivy fixture shapes. It accepts
+standard fields that Evydence does not normalize, records those omitted paths as
+warnings/limitations, normalizes dependencies and deterministic component
+identities, and requires component `type` and `name` at nested component
+locations as well as the root `components` array. This shared parser currently
+identifies its interpretation as `cyclonedx-json.v1.3.3`.
+
+The conformant upload transaction also binds schema validation and
+normalization to the same bounded byte stream and verifies the source's declared
+size and SHA-256 before normalized data is trusted. The production public-route
+switch remains pending until the pinned official CycloneDX 1.6 root schema is
+embedded and verified. Worker `parse_sbom` replay also still has a legacy
+reduced decoder; `internal/app/cyclonedx_replay.go` now provides the shared
+projection that will replace it. These pending activation steps are why this
+matrix does not yet advertise full CycloneDX 1.6 public compatibility.
+
+Evidence: `internal/app/parsers/cyclonedx`,
+`internal/app/cyclonedx_ingestion.go`, `internal/app/cyclonedx_upload.go`,
+`internal/app/cyclonedx_replay.go`, `internal/app/parser_versions.go`, and the
+CycloneDX parser/ingestion/upload/replay tests.
 
 ### SPDX SBOM JSON
 
@@ -154,25 +167,34 @@ visible in import reports/previews.
 
 ## Resource bounds
 
-`internal/app/payload_limits.go` is the source of truth. The effective HTTP
-limit is the smaller transport/application limit:
+`internal/app/payload_limits.go` is the transport/application source of truth.
+The effective HTTP limit is the smaller transport/application limit:
 
 - small JSON requests: 65,536 bytes;
 - evidence documents: 20,971,520 bytes (20 MiB).
 
-There are currently no independent maximum JSON-depth, component-count,
-package-count, statement-count, subject-count, or finding-count limits for these
-families. Format-specific conformance tickets must add those bounds before
-broader standards-support claims are made.
+The EVY-502 CycloneDX parser additionally enforces format-specific defaults of
+64 JSON levels, 100,000 semantic component objects, 200,000 dependency rows or
+aggregate dependency/provision edges, 1 MiB per JSON string/key, and 1,000,000
+visited JSON values. These limits apply to the shared parser path; the public
+compatibility claim remains reduced until the conformant route is activated.
+
+Other evidence families listed here do not yet have equivalent independent
+maximum JSON-depth, component/package/statement/subject/finding-count limits
+unless their format-specific implementation states otherwise. Broader support
+claims must remain tied to the bounds actually enforced by each parser.
 
 ## Parser version and compatibility
 
 OpenVEX/CycloneDX VEX persist parser version on import reports and parser jobs;
 SPDX stores `spdx-json.v1` in evidence metadata; CycloneDX SBOM, generic scan,
 and DSSE/in-toto store parser version on durable subject-linked outbox jobs.
-The worker rejects parser jobs whose version it does not know. This identifies
-current interpretation but is not yet the full EVY-506 replay/migration model.
-Raw bytes remain historical source evidence.
+CycloneDX SBOM jobs now carry `cyclonedx-json.v1.3.3`. The worker rejects parser
+jobs whose version it does not know, but CycloneDX worker replay still needs to
+switch from its legacy reduced decoder to the shared replay projection before
+EVY-502 can claim end-to-end interpretation parity. This identifies current
+interpretation but is not yet the full EVY-506 replay/migration model. Raw bytes
+remain historical source evidence.
 
 The current public release is prerelease. Correctness/security fixes may still
 change documented parser behavior, but must update this matrix, fixtures,
