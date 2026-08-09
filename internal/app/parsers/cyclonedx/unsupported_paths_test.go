@@ -2,6 +2,7 @@ package cyclonedx
 
 import (
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -18,5 +19,19 @@ func TestParseBoundedReportsEveryPreservedStandardConstructItDoesNotNormalize(t 
 	}
 	if len(got.Warnings) != len(got.UnsupportedPaths) {
 		t.Fatalf("warnings=%d paths=%d", len(got.Warnings), len(got.UnsupportedPaths))
+	}
+}
+
+func TestParserVersionTracksWarningSemanticChange(t *testing.T) {
+	if ParserVersion != "cyclonedx-json.v1.2.0" {
+		t.Fatalf("ParserVersion=%q", ParserVersion)
+	}
+	raw := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","serialNumber":"urn:uuid:3e671687-395b-41f5-a30f-a58921a69b79"}`)
+	got, err := ParseBounded(raw, DefaultLimits(1<<20))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Warnings) != 1 || !strings.Contains(got.Warnings[0], ParserVersion) {
+		t.Fatalf("warnings=%#v", got.Warnings)
 	}
 }

@@ -12,7 +12,7 @@ import (
 
 const (
 	SupportedSpecVersion = "1.6"
-	ParserVersion        = "cyclonedx-json.v1.1.0"
+	ParserVersion        = "cyclonedx-json.v1.2.0"
 )
 
 var ErrInvalid = errors.New("invalid CycloneDX document")
