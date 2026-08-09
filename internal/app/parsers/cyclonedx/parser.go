@@ -92,6 +92,7 @@ func ParseBoundedReader(reader io.Reader, limits Limits) (Result, error) {
 }
 func preflightJSONDepth(reader io.Reader, maxDepth int) error {
 	dec := json.NewDecoder(reader)
+	dec.UseNumber()
 	depth := 0
 	for {
 		token, err := dec.Token()
