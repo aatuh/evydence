@@ -22,10 +22,10 @@ func TestNewSchemaValidatorWithEmbeddedCompanionsResolvesPinnedReferencesOffline
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := validator.Validate([]byte(`{"license":"Apache-2.0"}`), 1<<20); err != nil {
+	if err := validator.ValidateReader(strings.NewReader(`{"license":"Apache-2.0"}`), 1<<20); err != nil {
 		t.Fatalf("valid SPDX companion reference rejected: %v", err)
 	}
-	if err := validator.Validate([]byte(`{"license":"definitely-not-an-spdx-id"}`), 1<<20); !errors.Is(err, ErrInvalid) {
+	if err := validator.ValidateReader(strings.NewReader(`{"license":"definitely-not-an-spdx-id"}`), 1<<20); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("invalid SPDX identifier err=%v, want invalid", err)
 	}
 }
