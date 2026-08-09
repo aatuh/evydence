@@ -12,7 +12,7 @@ import (
 
 const (
 	SupportedSpecVersion = "1.6"
-	ParserVersion        = "cyclonedx-json.v1.3.3"
+	ParserVersion        = "cyclonedx-json.v1.3.4"
 )
 
 var ErrInvalid = errors.New("invalid CycloneDX document")
@@ -47,7 +47,7 @@ func ParseBoundedReader(reader io.Reader, limits Limits) (Result, error) {
 	}
 	limited := &io.LimitedReader{R: reader, N: limits.MaxBytes + 1}
 	var raw bytes.Buffer
-	if err := preflightJSONDepth(io.TeeReader(limited, &raw), limits.MaxDepth); err != nil || limited.N == 0 {
+	if err := preflightJSONBounds(io.TeeReader(limited, &raw), limits); err != nil || limited.N == 0 {
 		return Result{}, ErrInvalid
 	}
 	dec := json.NewDecoder(bytes.NewReader(raw.Bytes()))
@@ -90,39 +90,89 @@ func ParseBoundedReader(reader io.Reader, limits Limits) (Result, error) {
 	}
 	return result, nil
 }
-func preflightJSONDepth(reader io.Reader, maxDepth int) error {
+func preflightJSONBounds(reader io.Reader, limits Limits) error {
 	dec := json.NewDecoder(reader)
 	dec.UseNumber()
-	depth := 0
-	for {
-		token, err := dec.Token()
-		if errors.Is(err, io.EOF) {
-			if depth != 0 {
-				return ErrInvalid
-			}
-			return nil
-		}
-		if err != nil {
+	token, err := dec.Token()
+	if err != nil {
+		return ErrInvalid
+	}
+	count := 0
+	if err := scanJSONValue(dec, token, 1, limits, &count); err != nil {
+		return err
+	}
+	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
+		return ErrInvalid
+	}
+	return nil
+}
+
+func scanJSONValue(dec *json.Decoder, token json.Token, depth int, limits Limits, count *int) error {
+	(*count)++
+	if *count > limits.MaxValues || depth > limits.MaxDepth {
+		return ErrInvalid
+	}
+	switch typed := token.(type) {
+	case string:
+		if len(typed) > limits.MaxStringBytes {
 			return ErrInvalid
 		}
-		delim, ok := token.(json.Delim)
-		if !ok {
-			continue
-		}
-		switch delim {
-		case '{', '[':
-			depth++
-			if depth > maxDepth {
+	case json.Delim:
+		switch typed {
+		case '{':
+			seen := make(map[string]struct{})
+			for dec.More() {
+				keyToken, err := dec.Token()
+				if err != nil {
+					return ErrInvalid
+				}
+				key, ok := keyToken.(string)
+				if !ok || len(key) > limits.MaxStringBytes {
+					return ErrInvalid
+				}
+				if _, duplicate := seen[key]; duplicate {
+					return ErrInvalid
+				}
+				seen[key] = struct{}{}
+				if depth >= limits.MaxDepth || *count >= limits.MaxValues {
+					return ErrInvalid
+				}
+				valueToken, err := dec.Token()
+				if err != nil {
+					return ErrInvalid
+				}
+				if err := scanJSONValue(dec, valueToken, depth+1, limits, count); err != nil {
+					return err
+				}
+			}
+			end, err := dec.Token()
+			if err != nil || end != json.Delim('}') {
 				return ErrInvalid
 			}
-		case '}', ']':
-			depth--
-			if depth < 0 {
+		case '[':
+			for dec.More() {
+				if depth >= limits.MaxDepth || *count >= limits.MaxValues {
+					return ErrInvalid
+				}
+				valueToken, err := dec.Token()
+				if err != nil {
+					return ErrInvalid
+				}
+				if err := scanJSONValue(dec, valueToken, depth+1, limits, count); err != nil {
+					return err
+				}
+			}
+			end, err := dec.Token()
+			if err != nil || end != json.Delim(']') {
 				return ErrInvalid
 			}
+		default:
+			return ErrInvalid
 		}
 	}
+	return nil
 }
+
 func validateLimits(l Limits) error {
 	if l.MaxBytes < 1 || l.MaxDepth < 1 || l.MaxComponents < 1 || l.MaxDependencies < 1 || l.MaxStringBytes < 1 || l.MaxValues < 1 {
 		return ErrInvalid
