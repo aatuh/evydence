@@ -2,6 +2,10 @@ package cyclonedx
 
 import (
 	"errors"
+	"fmt"
+	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -78,6 +82,18 @@ func TestSchemaValidatorEnforcesInputAndSchemaBounds(t *testing.T) {
 	}
 	if _, err := NewSchemaValidator(nil, strings.NewReader(testSPDXSchema), strings.NewReader(testJSFSchema)); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("nil schema err=%v, want invalid", err)
+	}
+}
+
+func TestSchemaValidatorRejectsUnregisteredFilesystemReferences(t *testing.T) {
+	external := filepath.Join(t.TempDir(), "external.schema.json")
+	if err := os.WriteFile(external, []byte(`{"$schema":"http://json-schema.org/draft-07/schema#","type":"object"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ref := (&url.URL{Scheme: "file", Path: external}).String()
+	bom := fmt.Sprintf(`{"$schema":"http://json-schema.org/draft-07/schema#","$id":"%s","$ref":%q}`, BOMSchemaURL, ref)
+	if _, err := NewSchemaValidator(strings.NewReader(bom), strings.NewReader(testSPDXSchema), strings.NewReader(testJSFSchema)); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("filesystem reference err=%v, want invalid", err)
 	}
 }
 

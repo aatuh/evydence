@@ -14,6 +14,14 @@ const (
 	JSFSchemaURL  = "http://cyclonedx.org/schema/jsf-0.82.schema.json"
 )
 
+var errExternalSchemaResource = errors.New("external schema resources disabled")
+
+type denySchemaResourceLoader struct{}
+
+func (denySchemaResourceLoader) Load(string) (any, error) {
+	return nil, errExternalSchemaResource
+}
+
 // SchemaValidator validates CycloneDX documents with an explicitly supplied,
 // offline schema set. Production construction uses the pinned official 1.6
 // schema resources; accepting readers here keeps schema provenance and loading
@@ -28,6 +36,7 @@ func NewSchemaValidator(bom, spdx, jsf io.Reader) (*SchemaValidator, error) {
 	}
 	compiler := jsonschema.NewCompiler()
 	compiler.DefaultDraft(jsonschema.Draft7)
+	compiler.UseLoader(denySchemaResourceLoader{})
 	for _, resource := range []struct {
 		url    string
 		reader io.Reader
