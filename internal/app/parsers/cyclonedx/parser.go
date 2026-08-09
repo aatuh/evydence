@@ -207,6 +207,7 @@ func parseDependencies(value any, limits Limits) ([]Dependency, error) {
 		return nil, ErrInvalid
 	}
 	deps := make([]Dependency, 0, len(rows))
+	edgeCount := 0
 	for _, row := range rows {
 		item, ok := row.(map[string]any)
 		if !ok {
@@ -219,6 +220,14 @@ func parseDependencies(value any, limits Limits) ([]Dependency, error) {
 		dependsOn, err := stringArray(item["dependsOn"], limits.MaxDependencies)
 		if err != nil {
 			return nil, err
+		}
+		provides, err := stringArray(item["provides"], limits.MaxDependencies)
+		if err != nil {
+			return nil, err
+		}
+		edgeCount += len(dependsOn) + len(provides)
+		if edgeCount > limits.MaxDependencies {
+			return nil, ErrInvalid
 		}
 		sort.Strings(dependsOn)
 		deps = append(deps, Dependency{ref, dependsOn})
