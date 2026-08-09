@@ -46,7 +46,11 @@ func ParseBoundedReader(reader io.Reader, limits Limits) (Result, error) {
 		return Result{}, ErrInvalid
 	}
 	limited := &io.LimitedReader{R: reader, N: limits.MaxBytes + 1}
-	dec := json.NewDecoder(limited)
+	var raw bytes.Buffer
+	if err := preflightJSONDepth(io.TeeReader(limited, &raw), limits.MaxDepth); err != nil || limited.N == 0 {
+		return Result{}, ErrInvalid
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw.Bytes()))
 	dec.UseNumber()
 	var value any
 	if err := dec.Decode(&value); err != nil {
@@ -85,6 +89,38 @@ func ParseBoundedReader(reader io.Reader, limits Limits) (Result, error) {
 		result.Warnings = append(result.Warnings, fmt.Sprintf("%s is preserved in raw evidence but is not normalized by parser %s", path, ParserVersion))
 	}
 	return result, nil
+}
+func preflightJSONDepth(reader io.Reader, maxDepth int) error {
+	dec := json.NewDecoder(reader)
+	depth := 0
+	for {
+		token, err := dec.Token()
+		if errors.Is(err, io.EOF) {
+			if depth != 0 {
+				return ErrInvalid
+			}
+			return nil
+		}
+		if err != nil {
+			return ErrInvalid
+		}
+		delim, ok := token.(json.Delim)
+		if !ok {
+			continue
+		}
+		switch delim {
+		case '{', '[':
+			depth++
+			if depth > maxDepth {
+				return ErrInvalid
+			}
+		case '}', ']':
+			depth--
+			if depth < 0 {
+				return ErrInvalid
+			}
+		}
+	}
 }
 func validateLimits(l Limits) error {
 	if l.MaxBytes < 1 || l.MaxDepth < 1 || l.MaxComponents < 1 || l.MaxDependencies < 1 || l.MaxStringBytes < 1 || l.MaxValues < 1 {
