@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"io"
 	"strings"
 	"testing"
 
@@ -121,5 +122,35 @@ func TestValidatedCycloneDXUploadRejectsSchemaInvalidBeforePublication(t *testin
 	}
 	if after := len(afterItems); after != before {
 		t.Fatalf("invalid upload published evidence: before=%d after=%d", before, after)
+	}
+}
+
+func TestValidatedCycloneDXUploadRejectsUnknownTargetBeforeOpeningPayload(t *testing.T) {
+	ctx := context.Background()
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor, err := ledger.Authenticate(ctx, secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	raw := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[]}`)
+	source := BytesPayloadSource(raw)
+	openCount := 0
+	source.Open = func() (io.ReadCloser, error) {
+		openCount++
+		return io.NopCloser(strings.NewReader(string(raw))), nil
+	}
+
+	if _, err := ledger.releaseEvidenceService().uploadValidatedCycloneDXSBOMPayload(
+		ctx, actor, "missing-release", "", source, uploadCycloneDXValidator(t),
+	); err == nil {
+		t.Fatal("missing release unexpectedly accepted")
+	}
+	if openCount != 0 {
+		t.Fatalf("payload opened %d times before target authorization", openCount)
 	}
 }

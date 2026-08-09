@@ -25,10 +25,6 @@ func (s releaseEvidenceService) uploadValidatedCycloneDXSBOMPayload(
 	if err := require(actor, ScopeEvidenceWrite); err != nil {
 		return domain.SBOM{}, err
 	}
-	normalized, err := validateAndNormalizeCycloneDXSource(source, validator)
-	if err != nil {
-		return domain.SBOM{}, err
-	}
 
 	releaseID = strings.TrimSpace(releaseID)
 	artifactID = strings.TrimSpace(artifactID)
@@ -49,6 +45,14 @@ func (s releaseEvidenceService) uploadValidatedCycloneDXSBOMPayload(
 		return domain.SBOM{}, err
 	}
 	l.mu.Unlock()
+
+	// Authorize the target before opening or parsing attacker-controlled payload
+	// bytes. The validator still binds normalization to the declared source
+	// digest, and object staging independently verifies those bytes again.
+	normalized, err := validateAndNormalizeCycloneDXSource(source, validator)
+	if err != nil {
+		return domain.SBOM{}, err
+	}
 
 	payloadHash := source.Digest
 	stagedPayload, err := l.stagePayloadSource(ctx, actor.TenantID, "application/vnd.cyclonedx+json", source)
