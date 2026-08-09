@@ -22,8 +22,8 @@ func TestParseBoundedReportsEveryPreservedStandardConstructItDoesNotNormalize(t 
 	}
 }
 
-func TestParserVersionTracksWarningSemanticChange(t *testing.T) {
-	if ParserVersion != "cyclonedx-json.v1.2.0" {
+func TestParserVersionTracksNormalizationSemanticChange(t *testing.T) {
+	if ParserVersion != "cyclonedx-json.v1.3.0" {
 		t.Fatalf("ParserVersion=%q", ParserVersion)
 	}
 	raw := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","serialNumber":"urn:uuid:3e671687-395b-41f5-a30f-a58921a69b79"}`)

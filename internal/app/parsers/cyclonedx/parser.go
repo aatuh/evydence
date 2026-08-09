@@ -12,7 +12,7 @@ import (
 
 const (
 	SupportedSpecVersion = "1.6"
-	ParserVersion        = "cyclonedx-json.v1.2.0"
+	ParserVersion        = "cyclonedx-json.v1.3.0"
 )
 
 var ErrInvalid = errors.New("invalid CycloneDX document")
@@ -187,6 +187,25 @@ func parseComponents(value any, limits Limits) ([]Component, error) {
 		c.Identity = componentIdentity(c)
 		components = append(components, c)
 	}
+	sort.Slice(components, func(i, j int) bool {
+		left, right := components[i], components[j]
+		if left.Identity != right.Identity {
+			return left.Identity < right.Identity
+		}
+		if left.BOMRef != right.BOMRef {
+			return left.BOMRef < right.BOMRef
+		}
+		if left.Type != right.Type {
+			return left.Type < right.Type
+		}
+		if left.Name != right.Name {
+			return left.Name < right.Name
+		}
+		if left.Version != right.Version {
+			return left.Version < right.Version
+		}
+		return left.PURL < right.PURL
+	})
 	return components, nil
 }
 func componentIdentity(c Component) string {
