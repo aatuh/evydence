@@ -9,6 +9,8 @@ import (
 )
 
 const (
+	maxSchemaResourceBytes int64 = 4 << 20
+
 	BOMSchemaURL  = "http://cyclonedx.org/schema/bom-1.6.schema.json"
 	SPDXSchemaURL = "http://cyclonedx.org/schema/spdx.schema.json"
 	JSFSchemaURL  = "http://cyclonedx.org/schema/jsf-0.82.schema.json"
@@ -45,7 +47,7 @@ func NewSchemaValidator(bom, spdx, jsf io.Reader) (*SchemaValidator, error) {
 		{url: SPDXSchemaURL, reader: spdx},
 		{url: JSFSchemaURL, reader: jsf},
 	} {
-		doc, err := jsonschema.UnmarshalJSON(resource.reader)
+		doc, err := unmarshalBoundedSchemaResource(resource.reader)
 		if err != nil {
 			return nil, errors.Join(ErrInvalid, err)
 		}
@@ -58,6 +60,18 @@ func NewSchemaValidator(bom, spdx, jsf io.Reader) (*SchemaValidator, error) {
 		return nil, errors.Join(ErrInvalid, err)
 	}
 	return &SchemaValidator{schema: schema}, nil
+}
+
+func unmarshalBoundedSchemaResource(reader io.Reader) (any, error) {
+	if reader == nil {
+		return nil, ErrInvalid
+	}
+	limited := &io.LimitedReader{R: reader, N: maxSchemaResourceBytes + 1}
+	doc, err := jsonschema.UnmarshalJSON(limited)
+	if err != nil || limited.N == 0 {
+		return nil, ErrInvalid
+	}
+	return doc, nil
 }
 
 // ValidateReader validates one JSON document under a hard byte limit. Schema
