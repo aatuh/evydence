@@ -80,3 +80,30 @@ func TestSchemaValidatorEnforcesInputAndSchemaBounds(t *testing.T) {
 		t.Fatalf("nil schema err=%v, want invalid", err)
 	}
 }
+
+func TestSchemaValidatorValidatesAndParsesTheSameBoundedBytes(t *testing.T) {
+	validator := newTestSchemaValidator(t)
+	limits := DefaultLimits(1 << 20)
+	valid := `{"bomFormat":"CycloneDX","specVersion":"1.6","license":"Apache-2.0","signature":{"algorithm":"ES256"}}`
+	got, err := validator.ValidateAndParseReader(strings.NewReader(valid), limits)
+	if err != nil {
+		t.Fatalf("valid document rejected: %v", err)
+	}
+	if got.SpecVersion != SupportedSpecVersion {
+		t.Fatalf("specVersion=%q", got.SpecVersion)
+	}
+
+	invalid := `{"bomFormat":"CycloneDX","specVersion":"1.6","license":"MIT","signature":{"algorithm":"ES256"}}`
+	if _, err := validator.ValidateAndParseReader(strings.NewReader(invalid), limits); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("schema-invalid err=%v, want invalid", err)
+	}
+
+	tiny := limits
+	tiny.MaxBytes = int64(len(valid) - 1)
+	if _, err := validator.ValidateAndParseReader(strings.NewReader(valid), tiny); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("oversized err=%v, want invalid", err)
+	}
+	if _, err := validator.ValidateAndParseReader(nil, limits); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("nil reader err=%v, want invalid", err)
+	}
+}

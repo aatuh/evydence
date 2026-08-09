@@ -1,6 +1,7 @@
 package cyclonedx
 
 import (
+	"bytes"
 	"errors"
 	"io"
 
@@ -66,4 +67,23 @@ func (v *SchemaValidator) ValidateReader(reader io.Reader, maxBytes int64) error
 		return ErrInvalid
 	}
 	return nil
+}
+
+// ValidateAndParseReader validates and normalizes the exact same bounded input
+// bytes. This avoids a time-of-check/time-of-use split between schema
+// validation and normalization when callers provide a reopenable or otherwise
+// mutable source.
+func (v *SchemaValidator) ValidateAndParseReader(reader io.Reader, limits Limits) (Result, error) {
+	if v == nil || v.schema == nil || reader == nil || validateLimits(limits) != nil {
+		return Result{}, ErrInvalid
+	}
+	limited := &io.LimitedReader{R: reader, N: limits.MaxBytes + 1}
+	raw, err := io.ReadAll(limited)
+	if err != nil || int64(len(raw)) > limits.MaxBytes {
+		return Result{}, ErrInvalid
+	}
+	if err := v.ValidateReader(bytes.NewReader(raw), limits.MaxBytes); err != nil {
+		return Result{}, ErrInvalid
+	}
+	return ParseBounded(raw, limits)
 }
