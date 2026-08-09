@@ -12,7 +12,7 @@ import (
 
 const (
 	SupportedSpecVersion = "1.6"
-	ParserVersion        = "cyclonedx-json.v1.3.0"
+	ParserVersion        = "cyclonedx-json.v1.3.1"
 )
 
 var ErrInvalid = errors.New("invalid CycloneDX document")
@@ -251,8 +251,34 @@ func parseDependencies(value any, limits Limits) ([]Dependency, error) {
 		sort.Strings(dependsOn)
 		deps = append(deps, Dependency{ref, dependsOn})
 	}
-	sort.Slice(deps, func(i, j int) bool { return deps[i].Ref < deps[j].Ref })
+	sort.Slice(deps, func(i, j int) bool {
+		if deps[i].Ref != deps[j].Ref {
+			return deps[i].Ref < deps[j].Ref
+		}
+		return compareStringSlices(deps[i].DependsOn, deps[j].DependsOn) < 0
+	})
 	return deps, nil
+}
+func compareStringSlices(left, right []string) int {
+	limit := len(left)
+	if len(right) < limit {
+		limit = len(right)
+	}
+	for i := 0; i < limit; i++ {
+		if left[i] < right[i] {
+			return -1
+		}
+		if left[i] > right[i] {
+			return 1
+		}
+	}
+	if len(left) < len(right) {
+		return -1
+	}
+	if len(left) > len(right) {
+		return 1
+	}
+	return 0
 }
 func stringArray(value any, limit int) ([]string, error) {
 	if value == nil {
