@@ -12,7 +12,7 @@ import (
 
 const (
 	SupportedSpecVersion = "1.6"
-	ParserVersion        = "cyclonedx-json.v1.3.2"
+	ParserVersion        = "cyclonedx-json.v1.3.3"
 )
 
 var ErrInvalid = errors.New("invalid CycloneDX document")
@@ -129,6 +129,17 @@ func checkValueBounds(value any, depth int, limits Limits, count *int) error {
 }
 func checkComponentCount(value any, limit int) error {
 	count := 0
+	validateComponent := func(value any) error {
+		component, ok := value.(map[string]any)
+		if !ok || strings.TrimSpace(stringValue(component["type"])) == "" || strings.TrimSpace(stringValue(component["name"])) == "" {
+			return ErrInvalid
+		}
+		count++
+		if count > limit {
+			return ErrInvalid
+		}
+		return nil
+	}
 	var walk func(any) error
 	walk = func(current any) error {
 		switch typed := current.(type) {
@@ -146,15 +157,15 @@ func checkComponentCount(value any, limit int) error {
 					if !ok {
 						return ErrInvalid
 					}
-					count += len(rows)
-				case "component":
-					if _, ok := item.(map[string]any); !ok {
-						return ErrInvalid
+					for _, row := range rows {
+						if err := validateComponent(row); err != nil {
+							return err
+						}
 					}
-					count++
-				}
-				if count > limit {
-					return ErrInvalid
+				case "component":
+					if err := validateComponent(item); err != nil {
+						return err
+					}
 				}
 				if err := walk(item); err != nil {
 					return err
