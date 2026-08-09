@@ -41,7 +41,7 @@ func testCycloneDXValidator(t *testing.T) *cyclonedxparser.SchemaValidator {
 	return validator
 }
 
-func TestValidateAndNormalizeCycloneDXSourceUsesRepeatableBoundedPasses(t *testing.T) {
+func TestValidateAndNormalizeCycloneDXSourceUsesOneDigestBoundedPass(t *testing.T) {
 	raw := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api","version":"1.0.0","purl":"pkg:generic/api@1.0.0"}]}`)
 	source := BytesPayloadSource(raw)
 	openCount := 0
@@ -55,8 +55,29 @@ func TestValidateAndNormalizeCycloneDXSourceUsesRepeatableBoundedPasses(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	if openCount != 2 || got.SpecVersion != "1.6" || len(got.Components) != 1 || got.Components[0].PURL != "pkg:generic/api@1.0.0" {
+	if openCount != 1 || got.SpecVersion != "1.6" || len(got.Components) != 1 || got.Components[0].PURL != "pkg:generic/api@1.0.0" {
 		t.Fatalf("open_count=%d normalization=%#v", openCount, got)
+	}
+}
+
+func TestValidateAndNormalizeCycloneDXSourceBindsValidationToDeclaredPayload(t *testing.T) {
+	validated := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api"}]}`)
+	declared := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","metadata":{},"components":[{"type":"library","name":"api"}]}`)
+	source := BytesPayloadSource(declared)
+	openCount := 0
+	source.Open = func() (io.ReadCloser, error) {
+		openCount++
+		if openCount == 1 {
+			return io.NopCloser(strings.NewReader(string(validated))), nil
+		}
+		return io.NopCloser(strings.NewReader(string(declared))), nil
+	}
+
+	if _, err := validateAndNormalizeCycloneDXSource(source, testCycloneDXValidator(t)); !errors.Is(err, ErrValidation) {
+		t.Fatalf("mutable source err=%v, want validation", err)
+	}
+	if openCount != 1 {
+		t.Fatalf("open_count=%d, want 1", openCount)
 	}
 }
 

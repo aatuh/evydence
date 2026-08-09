@@ -26,6 +26,10 @@ func parseCycloneDXReader(reader io.Reader, maxBytes int64) (cyclonedxNormalizat
 		}
 		return cyclonedxNormalization{}, err
 	}
+	return normalizeCycloneDXResult(parsed), nil
+}
+
+func normalizeCycloneDXResult(parsed cyclonedxparser.Result) cyclonedxNormalization {
 	components := make([]domain.SBOMComponent, 0, len(parsed.Components))
 	for _, component := range parsed.Components {
 		components = append(components, domain.SBOMComponent{
@@ -41,7 +45,7 @@ func parseCycloneDXReader(reader io.Reader, maxBytes int64) (cyclonedxNormalizat
 		ParserVersion:    cyclonedxparser.ParserVersion,
 		Warnings:         append([]string(nil), parsed.Warnings...),
 		UnsupportedPaths: append([]string(nil), parsed.UnsupportedPaths...),
-	}, nil
+	}
 }
 
 func (n cyclonedxNormalization) evidenceMetadata() map[string]any {
