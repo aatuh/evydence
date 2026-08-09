@@ -256,8 +256,8 @@ func stringValue(value any) string {
 func unsupportedPaths(root map[string]any) []string {
 	var paths []string
 	for _, key := range []string{
-		"annotations", "compositions", "declarations", "definitions", "externalReferences",
-		"formulation", "metadata", "services", "signature", "vulnerabilities",
+		"$schema", "annotations", "compositions", "declarations", "definitions", "externalReferences",
+		"formulation", "metadata", "properties", "serialNumber", "services", "signature", "version", "vulnerabilities",
 	} {
 		if value, ok := root[key]; ok && value != nil {
 			paths = append(paths, key)
@@ -269,16 +269,30 @@ func unsupportedPaths(root map[string]any) []string {
 			if !ok {
 				continue
 			}
-			for _, key := range []string{"evidence", "externalReferences", "hashes", "licenses", "pedigree", "properties"} {
+			for _, key := range []string{
+				"author", "authors", "components", "copyright", "cpe", "cryptoProperties", "data", "description",
+				"evidence", "externalReferences", "group", "hashes", "licenses", "manufacturer", "modelCard", "omniborId",
+				"pedigree", "properties", "publisher", "releaseNotes", "scope", "signature", "supplier", "swhid", "swid", "tags",
+			} {
 				if value, ok := item[key]; ok && value != nil {
 					paths = append(paths, "components[]."+key)
 				}
 			}
 		}
 	}
+	if rows, ok := root["dependencies"].([]any); ok {
+		for _, row := range rows {
+			item, ok := row.(map[string]any)
+			if !ok {
+				continue
+			}
+			if value, ok := item["provides"]; ok && value != nil {
+				paths = append(paths, "dependencies[].provides")
+			}
+		}
+	}
 	sort.Strings(paths)
-	paths = compactStrings(paths)
-	return paths
+	return compactStrings(paths)
 }
 
 func compactStrings(values []string) []string {
