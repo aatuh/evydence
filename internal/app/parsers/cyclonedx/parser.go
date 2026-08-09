@@ -12,7 +12,7 @@ import (
 
 const (
 	SupportedSpecVersion = "1.6"
-	ParserVersion        = "cyclonedx-json.v1.3.1"
+	ParserVersion        = "cyclonedx-json.v1.3.2"
 )
 
 var ErrInvalid = errors.New("invalid CycloneDX document")
@@ -312,7 +312,7 @@ func unsupportedPaths(root map[string]any) []string {
 			if !ok {
 				continue
 			}
-			for _, key := range []string{"author", "authors", "components", "copyright", "cpe", "cryptoProperties", "data", "description", "evidence", "externalReferences", "group", "hashes", "licenses", "manufacturer", "modelCard", "omniborId", "pedigree", "properties", "publisher", "releaseNotes", "scope", "signature", "supplier", "swhid", "swid", "tags"} {
+			for _, key := range []string{"author", "authors", "components", "copyright", "cpe", "cryptoProperties", "data", "description", "evidence", "externalReferences", "group", "hashes", "licenses", "manufacturer", "mime-type", "modelCard", "modified", "omniborId", "pedigree", "properties", "publisher", "releaseNotes", "scope", "signature", "supplier", "swhid", "swid", "tags"} {
 				if value, ok := item[key]; ok && value != nil {
 					paths = append(paths, "components[]."+key)
 				}
