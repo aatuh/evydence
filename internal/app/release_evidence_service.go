@@ -79,13 +79,18 @@ func (l *Ledger) LinkEvidence(ctx context.Context, actor domain.Actor, id, targe
 }
 
 func (l *Ledger) UploadSBOM(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.SBOM, error) {
-	return l.releaseEvidenceService().UploadSBOM(ctx, actor, releaseID, artifactID, raw)
+	return l.UploadSBOMPayload(ctx, actor, releaseID, artifactID, BytesPayloadSource(raw))
 }
 
 // UploadSBOMPayload accepts a repeatable pre-hashed payload source for
-// streaming HTTP ingestion.
+// streaming HTTP ingestion. CycloneDX 1.6 schema validation and normalization
+// use the same bounded bytes before any evidence or object-store side effect.
 func (l *Ledger) UploadSBOMPayload(ctx context.Context, actor domain.Actor, releaseID, artifactID string, source PayloadSource) (domain.SBOM, error) {
-	return l.releaseEvidenceService().UploadSBOMPayload(ctx, actor, releaseID, artifactID, source)
+	validator, err := productionCycloneDXValidator()
+	if err != nil {
+		return domain.SBOM{}, err
+	}
+	return l.releaseEvidenceService().uploadValidatedCycloneDXSBOMPayload(ctx, actor, releaseID, artifactID, source, validator)
 }
 
 func (l *Ledger) UploadVulnerabilityScan(ctx context.Context, actor domain.Actor, raw []byte) (domain.VulnerabilityScan, error) {
