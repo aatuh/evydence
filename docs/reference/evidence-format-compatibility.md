@@ -66,17 +66,20 @@ only after schema validation and normalization succeed. Accepted source bytes
 remain byte-for-byte raw evidence; fields outside the normalized subset are not
 silently represented as trusted normalized data.
 
-Worker `parse_sbom` replay still has a legacy reduced decoder;
-`internal/app/cyclonedx_replay.go` provides the shared projection intended to
-replace it under the replay/version migration work. Public CycloneDX 1.6
-**ingestion** compatibility therefore does not imply historical worker replay
-parity or migration of already-enqueued jobs.
+Current-version `parse_sbom` worker replay uses
+`internal/app/cyclonedx_replay.go` and the same shared bounded parser, so
+schema-valid metadata, services, properties, and other raw-preserved fields do
+not fail merely because the worker does not normalize them. EVY-506 still owns
+historical parser-version migration, compatibility windows for already-enqueued
+jobs, and the broader replay/conformance corpus; current-version replay parity is
+not a claim that older parser versions have been migrated.
 
 Evidence: `internal/app/parsers/cyclonedx`,
 `internal/app/cyclonedx_ingestion.go`, `internal/app/cyclonedx_upload.go`,
 `internal/app/cyclonedx_validator.go`, `internal/app/release_evidence_service.go`,
-`internal/app/cyclonedx_replay.go`, `internal/app/parser_versions.go`, and the
-CycloneDX parser/ingestion/upload/replay tests.
+`internal/app/cyclonedx_replay.go`, `internal/app/parser_versions.go`,
+`cmd/evydence-worker/main.go`, and the CycloneDX parser/ingestion/upload/replay
+tests.
 
 ### SPDX SBOM JSON
 
@@ -189,8 +192,8 @@ aggregate dependency/provision edges, 1 MiB per JSON string/key, and 1,000,000
 visited JSON values. Depth, value-count, string/key bounds, and duplicate-key
 rejection are applied by the streaming token preflight before full JSON-tree
 materialization; structural checks are repeated on the decoded representation.
-These parser limits apply to the public CycloneDX ingestion path in addition to
-the transport/application byte limit.
+These parser limits apply to public ingestion and current-version worker replay
+in addition to the transport/worker byte limits.
 
 Other evidence families listed here do not yet have equivalent independent
 maximum JSON-depth, component/package/statement/subject/finding-count limits
@@ -202,11 +205,12 @@ claims must remain tied to the bounds actually enforced by each parser.
 OpenVEX/CycloneDX VEX persist parser version on import reports and parser jobs;
 SPDX stores `spdx-json.v1` in evidence metadata; CycloneDX SBOM, generic scan,
 and DSSE/in-toto store parser version on durable subject-linked outbox jobs.
-CycloneDX SBOM evidence and jobs carry `cyclonedx-json.v1.3.4`. The worker rejects
-parser jobs whose version it does not know, but CycloneDX worker replay still
-needs to switch from its legacy reduced decoder to the shared replay projection
-before EVY-506 can claim end-to-end interpretation parity. Raw bytes remain
-historical source evidence and are the basis for future replay/migration.
+CycloneDX SBOM evidence and jobs carry `cyclonedx-json.v1.3.4`, and current
+`parse_sbom` worker replay uses that shared parser projection. The worker rejects
+parser jobs whose version it does not know. EVY-506 still needs to define and
+test historical parser-version compatibility/migration policy rather than
+silently replaying older jobs under the current interpretation. Raw bytes remain
+historical source evidence and are the basis for those future migrations.
 
 The current public release is prerelease. Correctness/security fixes may still
 change documented parser behavior, but must update this matrix, fixtures,

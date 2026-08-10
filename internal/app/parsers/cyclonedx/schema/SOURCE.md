@@ -37,9 +37,11 @@ supplied roots.
 The exported `Ledger.UploadSBOM` and `Ledger.UploadSBOMPayload` paths now use a
 process-cached `NewEmbeddedPinnedSchemaValidator` and the conformant CycloneDX
 transaction. Validation and normalization are performed on the same bounded
-bytes before evidence publication or object-store staging. The worker replay
-path remains separately versioned work and is not made conformant by this
-schema activation.
+bytes before evidence publication or object-store staging. Current-version
+`parse_sbom` worker replay uses `ParseCycloneDXReplayProjection`, which applies
+the same shared bounded parser to immutable raw evidence. Historical parser-
+version migration, replay-policy compatibility windows, and broader replay
+corpus gates remain separate replay/versioning work.
 
 The CycloneDX BOM and JSF schemas state Apache-2.0 terms in their schema
 comments; the upstream CycloneDX specification repository is Apache-2.0. The
@@ -53,5 +55,6 @@ schema resource at 4 MiB, and disables external schema resolution while
 processing evidence.
 
 Do not mark EVY-502 complete or broaden compatibility claims beyond the tested
-public CycloneDX 1.6 ingestion contract until the ticket's required local
-validation gates pass. Worker replay parity remains owned by the replay work.
+CycloneDX 1.6 ingestion/current-version replay contract until the ticket's
+required local validation gates pass. Historical replay/version migration
+remains owned by the replay work.
