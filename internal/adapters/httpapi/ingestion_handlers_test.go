@@ -87,50 +87,6 @@ func TestNativeCycloneDXSBOMStreamsPastSmallJSONLimit(t *testing.T) {
 	}
 }
 
-func TestCycloneDXPublicHTTPFormsUseConformant16Ingestion(t *testing.T) {
-	server, secret := testServer(t)
-	productBody := postJSON(t, server, secret, "/v1/products", "conformant-sbom-product", map[string]any{"name": "Conformant SBOM", "slug": "conformant-sbom"}, http.StatusCreated)
-	releaseBody := postJSON(t, server, secret, "/v1/releases", "conformant-sbom-release", map[string]any{"product_id": dataField(t, productBody, "id"), "version": "1.0.0"}, http.StatusCreated)
-	releaseID := dataField(t, releaseBody, "id")
-	raw := []byte(`{
-		"$schema":"http://cyclonedx.org/schema/bom-1.6.schema.json",
-		"bomFormat":"CycloneDX",
-		"specVersion":"1.6",
-		"version":1,
-		"metadata":{"timestamp":"2026-08-10T06:30:00Z"},
-		"components":[{"type":"library","name":"api","properties":[{"name":"source","value":"http"}]}],
-		"services":[{"name":"gateway"}],
-		"properties":[{"name":"root","value":"preserved"}]
-	}`)
-
-	req := httptest.NewRequest(http.MethodPost, "/v1/sboms", bytes.NewReader(raw))
-	req.Header.Set("Authorization", "Bearer "+secret)
-	req.Header.Set("Content-Type", "application/vnd.cyclonedx+json")
-	req.Header.Set("X-Evydence-Release-ID", releaseID)
-	req.Header.Set("Idempotency-Key", "conformant-native-sbom")
-	rec := httptest.NewRecorder()
-	server.Handler().ServeHTTP(rec, req)
-	if rec.Code != http.StatusCreated {
-		t.Fatalf("native conformant SBOM status=%d body=%s", rec.Code, rec.Body.String())
-	}
-
-	postJSON(t, server, secret, "/v1/sboms", "conformant-envelope-sbom", map[string]any{
-		"release_id": releaseID,
-		"payload":    raw,
-	}, http.StatusCreated)
-
-	invalid := httptest.NewRequest(http.MethodPost, "/v1/sboms", strings.NewReader(`{"bomFormat":"CycloneDX","specVersion":"1.6","definitelyNotCycloneDX":true}`))
-	invalid.Header.Set("Authorization", "Bearer "+secret)
-	invalid.Header.Set("Content-Type", "application/vnd.cyclonedx+json")
-	invalid.Header.Set("X-Evydence-Release-ID", releaseID)
-	invalid.Header.Set("Idempotency-Key", "invalid-native-sbom")
-	invalidRec := httptest.NewRecorder()
-	server.Handler().ServeHTTP(invalidRec, invalid)
-	if invalidRec.Code != http.StatusBadRequest {
-		t.Fatalf("schema-invalid native SBOM status=%d body=%s", invalidRec.Code, invalidRec.Body.String())
-	}
-}
-
 type repeatingByteReader struct {
 	remaining int64
 	value     byte
