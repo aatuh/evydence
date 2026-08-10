@@ -1,0 +1,250 @@
+                "description": "An optional identifier which can be used to reference the license elsewhere in the BOM. Every bom-ref must be unique within the BOM.\nValue SHOULD not start with the BOM-Link intro 'urn:cdx:' to avoid conflicts with BOM-Links."
+              }
+            }
+          }]
+        }
+      ]
+    },
+    "commit": {
+      "type": "object",
+      "title": "Commit",
+      "description": "Specifies an individual commit",
+      "additionalProperties": false,
+      "properties": {
+        "uid": {
+          "type": "string",
+          "title": "UID",
+          "description": "A unique identifier of the commit. This may be version control specific. For example, Subversion uses revision numbers whereas git uses commit hashes."
+        },
+        "url": {
+          "type": "string",
+          "title": "URL",
+          "description": "The URL to the commit. This URL will typically point to a commit in a version control system.",
+          "format": "iri-reference"
+        },
+        "author": {
+          "title": "Author",
+          "description": "The author who created the changes in the commit",
+          "$ref": "#/definitions/identifiableAction"
+        },
+        "committer": {
+          "title": "Committer",
+          "description": "The person who committed or pushed the commit",
+          "$ref": "#/definitions/identifiableAction"
+        },
+        "message": {
+          "type": "string",
+          "title": "Message",
+          "description": "The text description of the contents of the commit"
+        }
+      }
+    },
+    "patch": {
+      "type": "object",
+      "title": "Patch",
+      "description": "Specifies an individual patch",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "unofficial",
+            "monkey",
+            "backport",
+            "cherry-pick"
+          ],
+          "meta:enum": {
+            "unofficial": "A patch which is not developed by the creators or maintainers of the software being patched. Refer to [https://en.wikipedia.org/wiki/Unofficial_patch](https://en.wikipedia.org/wiki/Unofficial_patch).",
+            "monkey": "A patch which dynamically modifies runtime behavior. Refer to [https://en.wikipedia.org/wiki/Monkey_patch](https://en.wikipedia.org/wiki/Monkey_patch).",
+            "backport": "A patch which takes code from a newer version of the software and applies it to older versions of the same software. Refer to [https://en.wikipedia.org/wiki/Backporting](https://en.wikipedia.org/wiki/Backporting).",
+            "cherry-pick": "A patch created by selectively applying commits from other versions or branches of the same software."
+          },
+          "title": "Patch Type",
+          "description": "Specifies the purpose for the patch including the resolution of defects, security issues, or new behavior or functionality."
+        },
+        "diff": {
+          "title": "Diff",
+          "description": "The patch file (or diff) that shows changes. Refer to [https://en.wikipedia.org/wiki/Diff](https://en.wikipedia.org/wiki/Diff)",
+          "$ref": "#/definitions/diff"
+        },
+        "resolves": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/issue"},
+          "title": "Resolves",
+          "description": "A collection of issues the patch resolves"
+        }
+      }
+    },
+    "diff": {
+      "type": "object",
+      "title": "Diff",
+      "description": "The patch file (or diff) that shows changes. Refer to https://en.wikipedia.org/wiki/Diff",
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "title": "Diff text",
+          "description": "Specifies the optional text of the diff",
+          "$ref": "#/definitions/attachment"
+        },
+        "url": {
+          "type": "string",
+          "title": "URL",
+          "description": "Specifies the URL to the diff",
+          "format": "iri-reference"
+        }
+      }
+    },
+    "issue": {
+      "type": "object",
+      "title": "Issue",
+      "description": "An individual issue that has been resolved.",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "defect",
+            "enhancement",
+            "security"
+          ],
+          "meta:enum": {
+            "defect": "A fault, flaw, or bug in software.",
+            "enhancement": "A new feature or behavior in software.",
+            "security": "A special type of defect which impacts security."
+          },
+          "title": "Issue Type",
+          "description": "Specifies the type of issue"
+        },
+        "id": {
+          "type": "string",
+          "title": "Issue ID",
+          "description": "The identifier of the issue assigned by the source of the issue"
+        },
+        "name": {
+          "type": "string",
+          "title": "Issue Name",
+          "description": "The name of the issue"
+        },
+        "description": {
+          "type": "string",
+          "title": "Issue Description",
+          "description": "A description of the issue"
+        },
+        "source": {
+          "type": "object",
+          "title": "Source",
+          "description": "The source of the issue where it is documented",
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string",
+              "title": "Name",
+              "description": "The name of the source.",
+              "examples": [
+                "National Vulnerability Database",
+                "NVD",
+                "Apache"
+              ]
+            },
+            "url": {
+              "type": "string",
+              "title": "URL",
+              "description": "The url of the issue documentation as provided by the source",
+              "format": "iri-reference"
+            }
+          }
+        },
+        "references": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "iri-reference"
+          },
+          "title": "References",
+          "description": "A collection of URL's for reference. Multiple URLs are allowed.",
+          "examples": ["https://example.com"]
+        }
+      }
+    },
+    "identifiableAction": {
+      "type": "object",
+      "title": "Identifiable Action",
+      "description": "Specifies an individual commit",
+      "additionalProperties": false,
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "title": "Timestamp",
+          "description": "The timestamp in which the action occurred"
+        },
+        "name": {
+          "type": "string",
+          "title": "Name",
+          "description": "The name of the individual who performed the action"
+        },
+        "email": {
+          "type": "string",
+          "format": "idn-email",
+          "title": "E-mail",
+          "description": "The email address of the individual who performed the action"
+        }
+      }
+    },
+    "externalReference": {
+      "type": "object",
+      "title": "External Reference",
+      "description": "External references provide a way to document systems, sites, and information that may be relevant but are not included with the BOM. They may also establish specific relationships within or external to the BOM.",
+      "required": [
+        "url",
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "anyOf": [
+            {
+              "title": "URL",
+              "type": "string",
+              "format": "iri-reference"
+            },
+            {
+              "title": "BOM-Link",
+              "$ref": "#/definitions/bomLink"
+            }
+          ],
+          "title": "URL",
+          "description": "The URI (URL or URN) to the external reference. External references are URIs and therefore can accept any URL scheme including https ([RFC-7230](https://www.ietf.org/rfc/rfc7230.txt)), mailto ([RFC-2368](https://www.ietf.org/rfc/rfc2368.txt)), tel ([RFC-3966](https://www.ietf.org/rfc/rfc3966.txt)), and dns ([RFC-4501](https://www.ietf.org/rfc/rfc4501.txt)). External references may also include formally registered URNs such as [CycloneDX BOM-Link](https://cyclonedx.org/capabilities/bomlink/) to reference CycloneDX BOMs or any object within a BOM. BOM-Link transforms applicable external references into relationships that can be expressed in a BOM or across BOMs."
+        },
+        "comment": {
+          "type": "string",
+          "title": "Comment",
+          "description": "An optional comment describing the external reference"
+        },
+        "type": {
+          "type": "string",
+          "title": "Type",
+          "description": "Specifies the type of external reference.",
+          "enum": [
+            "vcs",
+            "issue-tracker",
+            "website",
+            "advisories",
+            "bom",
+            "mailing-list",
+            "social",
+            "chat",
+            "documentation",
+            "support",
+            "source-distribution",
+            "distribution",
+            "distribution-intake",
+            "license",
+            "build-meta",
+            "build-system"

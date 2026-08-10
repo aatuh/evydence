@@ -1,0 +1,250 @@
+            "biofuel",
+            "unknown",
+            "other"
+          ],
+          "meta:enum": {
+            "coal": "Energy produced by types of coal.",
+            "oil": "Petroleum products (primarily crude oil and its derivative fuel oils).",
+            "natural-gas": "Hydrocarbon gas liquids (HGL) that occur as gases at atmospheric pressure and as liquids under higher pressures including Natural gas (C5H12 and heavier), Ethane (C2H6), Propane (C3H8), etc.",
+            "nuclear": "Energy produced from the cores of atoms (i.e., through nuclear fission or fusion).",
+            "wind": "Energy produced from moving air.",
+            "solar": "Energy produced from the sun (i.e., solar radiation).",
+            "geothermal": "Energy produced from heat within the earth.",
+            "hydropower": "Energy produced from flowing water.",
+            "biofuel": "Liquid fuels produced from biomass feedstocks (i.e., organic materials such as plants or animals).",
+            "unknown": "The energy source is unknown.",
+            "other": "An energy source that is not listed."
+          },
+          "title": "Energy Source",
+          "description": "The energy source for the energy provider."
+        },
+        "energyProvided": {
+          "$ref": "#/definitions/energyMeasure",
+          "title": "Energy Provided",
+          "description": "The energy provided by the energy source for an associated activity."
+        },
+        "externalReferences": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/externalReference"},
+          "title": "External References",
+          "description": "External references provide a way to document systems, sites, and information that may be relevant but are not included with the BOM. They may also establish specific relationships within or external to the BOM."
+        }
+      }
+    },
+    "postalAddress": {
+      "type": "object",
+      "title": "Postal address",
+      "description": "An address used to identify a contactable location.",
+      "additionalProperties": false,
+      "properties": {
+        "bom-ref": {
+          "title": "BOM Reference",
+          "description": "An optional identifier which can be used to reference the address elsewhere in the BOM. Every bom-ref must be unique within the BOM.\nValue SHOULD not start with the BOM-Link intro 'urn:cdx:' to avoid conflicts with BOM-Links.",
+          "$ref": "#/definitions/refType"
+        },
+        "country": {
+          "type": "string",
+          "title": "Country",
+          "description": "The country name or the two-letter ISO 3166-1 country code."
+        },
+        "region": {
+          "type": "string",
+          "title": "Region",
+          "description": "The region or state in the country.",
+          "examples": [ "Texas" ]
+        },
+        "locality": {
+          "type": "string",
+          "title": "Locality",
+          "description": "The locality or city within the country.",
+          "examples": [ "Austin" ]
+        },
+        "postOfficeBoxNumber": {
+          "type": "string",
+          "title": "Post Office Box Number",
+          "description": "The post office box number.",
+          "examples": [ "901" ]
+        },
+        "postalCode": {
+          "type": "string",
+          "title": "Postal Code",
+          "description": "The postal code.",
+          "examples": [ "78758" ]
+        },
+        "streetAddress": {
+          "type": "string",
+          "title": "Street Address",
+          "description": "The street address.",
+          "examples": [ "100 Main Street" ]
+        }
+      }
+    },
+    "formula": {
+      "title": "Formula",
+      "description": "Describes workflows and resources that captures rules and other aspects of how the associated BOM component or service was formed.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bom-ref": {
+          "title": "BOM Reference",
+          "description": "An optional identifier which can be used to reference the formula elsewhere in the BOM. Every bom-ref must be unique within the BOM.\nValue SHOULD not start with the BOM-Link intro 'urn:cdx:' to avoid conflicts with BOM-Links.",
+          "$ref": "#/definitions/refType"
+        },
+        "components": {
+          "title": "Components",
+          "description": "Transient components that are used in tasks that constitute one or more of this formula's workflows",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/component"
+          },
+          "uniqueItems": true
+        },
+        "services": {
+          "title": "Services",
+          "description": "Transient services that are used in tasks that constitute one or more of this formula's workflows",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/service"
+          },
+          "uniqueItems": true
+        },
+        "workflows": {
+          "title": "Workflows",
+          "description": "List of workflows that can be declared to accomplish specific orchestrated goals and independently triggered.",
+          "$comment": "Different workflows can be designed to work together to perform end-to-end CI/CD builds and deployments.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/workflow"
+          },
+          "uniqueItems": true
+        },
+        "properties": {
+          "type": "array",
+          "title": "Properties",
+          "description": "Provides the ability to document properties in a name-value store. This provides flexibility to include data not officially supported in the standard without having to use additional namespaces or create extensions. Unlike key-value stores, properties support duplicate names, each potentially having different values. Property names of interest to the general public are encouraged to be registered in the [CycloneDX Property Taxonomy](https://github.com/CycloneDX/cyclonedx-property-taxonomy). Formal registration is optional.",
+          "items": {
+            "$ref": "#/definitions/property"
+          }
+        }
+      }
+    },
+    "workflow": {
+      "title": "Workflow",
+      "description": "A specialized orchestration task.",
+      "$comment": "Workflow are as task themselves and can trigger other workflow tasks.  These relationships can be modeled in the taskDependencies graph.",
+      "type": "object",
+      "required": [
+        "bom-ref",
+        "uid",
+        "taskTypes"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "bom-ref": {
+          "title": "BOM Reference",
+          "description": "An optional identifier which can be used to reference the workflow elsewhere in the BOM. Every bom-ref must be unique within the BOM.\nValue SHOULD not start with the BOM-Link intro 'urn:cdx:' to avoid conflicts with BOM-Links.",
+          "$ref": "#/definitions/refType"
+        },
+        "uid": {
+          "title": "Unique Identifier (UID)",
+          "description": "The unique identifier for the resource instance within its deployment context.",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "description": "The name of the resource instance.",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "description": "A description of the resource instance.",
+          "type": "string"
+        },
+        "resourceReferences": {
+          "title": "Resource references",
+          "description": "References to component or service resources that are used to realize the resource instance.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/definitions/resourceReferenceChoice"
+          }
+        },
+        "tasks": {
+          "title": "Tasks",
+          "description": "The tasks that comprise the workflow.",
+          "$comment": "Note that tasks can appear more than once as different instances (by name or UID).",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/definitions/task"
+          }
+        },
+        "taskDependencies": {
+          "title": "Task dependency graph",
+          "description": "The graph of dependencies between tasks within the workflow.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/definitions/dependency"
+          }
+        },
+        "taskTypes": {
+          "title": "Task types",
+          "description": "Indicates the types of activities performed by the set of workflow tasks.",
+          "$comment": "Currently, these types reflect common CI/CD actions.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/taskType"
+          }
+        },
+        "trigger": {
+          "title": "Trigger",
+          "description": "The trigger that initiated the task.",
+          "$ref": "#/definitions/trigger"
+        },
+        "steps": {
+          "title": "Steps",
+          "description": "The sequence of steps for the task.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/step"
+          },
+          "uniqueItems": true
+        },
+        "inputs": {
+          "title": "Inputs",
+          "description": "Represents resources and data brought into a task at runtime by executor or task commands",
+          "examples": ["a `configuration` file which was declared as a local `component` or `externalReference`"],
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/inputType"
+          },
+          "uniqueItems": true
+        },
+        "outputs": {
+          "title": "Outputs",
+          "description": "Represents resources and data output from a task at runtime by executor or task commands",
+          "examples": ["a log file or metrics data produced by the task"],
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/outputType"
+          },
+          "uniqueItems": true
+        },
+        "timeStart": {
+          "title": "Time start",
+          "description": "The date and time (timestamp) when the task started.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "timeEnd": {
+          "title": "Time end",
+          "description": "The date and time (timestamp) when the task ended.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "workspaces": {
+          "title": "Workspaces",
+          "description": "A set of named filesystem or data resource shareable by workflow tasks.",
+          "type": "array",
+          "uniqueItems": true,

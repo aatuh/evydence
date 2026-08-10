@@ -1,0 +1,250 @@
+              "description": "What are the known technical limitations of the model? E.g. What kind(s) of data should the model be expected not to perform well on? What are the factors that might degrade model performance?",
+              "items": {
+                "type": "string"
+              }
+            },
+            "performanceTradeoffs": {
+              "type": "array",
+              "title": "Performance Tradeoffs",
+              "description": "What are the known tradeoffs in accuracy/performance of the model?",
+              "items": {
+                "type": "string"
+              }
+            },
+            "ethicalConsiderations": {
+              "type": "array",
+              "title": "Ethical Considerations",
+              "description": "What are the ethical risks involved in the application of this model?",
+              "items": { "$ref": "#/definitions/risk" }
+            },
+            "environmentalConsiderations":{
+              "$ref": "#/definitions/environmentalConsiderations",
+              "title": "Environmental Considerations",
+              "description": "What are the various environmental impacts the corresponding machine learning model has exhibited across its lifecycle?"
+            },
+            "fairnessAssessments": {
+              "type": "array",
+              "title": "Fairness Assessments",
+              "description": "How does the model affect groups at risk of being systematically disadvantaged? What are the harms and benefits to the various affected groups?",
+              "items": {
+                "$ref": "#/definitions/fairnessAssessment"
+              }
+            }
+          }
+        },
+        "properties": {
+          "type": "array",
+          "title": "Properties",
+          "description": "Provides the ability to document properties in a name-value store. This provides flexibility to include data not officially supported in the standard without having to use additional namespaces or create extensions. Unlike key-value stores, properties support duplicate names, each potentially having different values. Property names of interest to the general public are encouraged to be registered in the [CycloneDX Property Taxonomy](https://github.com/CycloneDX/cyclonedx-property-taxonomy). Formal registration is optional.",
+          "items": {"$ref": "#/definitions/property"}
+        }
+      }
+    },
+    "inputOutputMLParameters": {
+      "type": "object",
+      "title": "Input and Output Parameters",
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "title": "Input/Output Format",
+          "description": "The data format for input/output to the model.",
+          "type": "string",
+          "examples": [ "string", "image", "time-series"]
+        }
+      }
+    },
+    "componentData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "bom-ref": {
+          "$ref": "#/definitions/refType",
+          "title": "BOM Reference",
+          "description": "An optional identifier which can be used to reference the dataset elsewhere in the BOM. Every bom-ref must be unique within the BOM.\nValue SHOULD not start with the BOM-Link intro 'urn:cdx:' to avoid conflicts with BOM-Links."
+        },
+        "type": {
+          "type": "string",
+          "title": "Type of Data",
+          "description": "The general theme or subject matter of the data being specified.",
+          "enum": [
+            "source-code",
+            "configuration",
+            "dataset",
+            "definition",
+            "other"
+          ],
+          "meta:enum": {
+            "source-code": "Any type of code, code snippet, or data-as-code.",
+            "configuration": "Parameters or settings that may be used by other components.",
+            "dataset": "A collection of data.",
+            "definition": "Data that can be used to create new instances of what the definition defines.",
+            "other": "Any other type of data that does not fit into existing definitions."
+          }
+        },
+        "name": {
+          "title": "Dataset Name",
+          "description": "The name of the dataset.",
+          "type": "string"
+        },
+        "contents": {
+          "type": "object",
+          "title": "Data Contents",
+          "description": "The contents or references to the contents of the data being described.",
+          "additionalProperties": false,
+          "properties": {
+            "attachment": {
+              "title": "Data Attachment",
+              "description": "An optional way to include textual or encoded data.",
+              "$ref": "#/definitions/attachment"
+            },
+            "url": {
+              "type": "string",
+              "title": "Data URL",
+              "description": "The URL to where the data can be retrieved.",
+              "format": "iri-reference"
+            },
+            "properties": {
+              "type": "array",
+              "title": "Configuration Properties",
+              "description": "Provides the ability to document name-value parameters used for configuration.",
+              "items": {
+                "$ref": "#/definitions/property"
+              }
+            }
+          }
+        },
+        "classification": {
+          "$ref": "#/definitions/dataClassification"
+        },
+        "sensitiveData": {
+          "type": "array",
+          "title": "Sensitive Data",
+          "description": "A description of any sensitive data in a dataset.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "graphics": { "$ref": "#/definitions/graphicsCollection" },
+        "description": {
+          "title": "Dataset Description",
+          "description": "A description of the dataset. Can describe size of dataset, whether it's used for source code, training, testing, or validation, etc.",
+          "type": "string"
+        },
+        "governance": {
+          "title": "Data Governance",
+          "$ref": "#/definitions/dataGovernance"
+        }
+      }
+    },
+    "dataGovernance": {
+      "type": "object",
+      "title": "Data Governance",
+      "description": "Data governance captures information regarding data ownership, stewardship, and custodianship, providing insights into the individuals or entities responsible for managing, overseeing, and safeguarding the data throughout its lifecycle.",
+      "additionalProperties": false,
+      "properties": {
+        "custodians": {
+          "type": "array",
+          "title": "Data Custodians",
+          "description": "Data custodians are responsible for the safe custody, transport, and storage of data.",
+          "items": { "$ref": "#/definitions/dataGovernanceResponsibleParty" }
+        },
+        "stewards": {
+          "type": "array",
+          "title": "Data Stewards",
+          "description": "Data stewards are responsible for data content, context, and associated business rules.",
+          "items": { "$ref": "#/definitions/dataGovernanceResponsibleParty" }
+        },
+        "owners": {
+          "type": "array",
+          "title": "Data Owners",
+          "description": "Data owners are concerned with risk and appropriate access to data.",
+          "items": { "$ref": "#/definitions/dataGovernanceResponsibleParty" }
+        }
+      }
+    },
+    "dataGovernanceResponsibleParty": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "organization": {
+          "title": "Organization",
+          "description": "The organization that is responsible for specific data governance role(s).",
+          "$ref": "#/definitions/organizationalEntity"
+        },
+        "contact": {
+          "title": "Individual",
+          "description": "The individual that is responsible for specific data governance role(s).",
+          "$ref": "#/definitions/organizationalContact"
+        }
+      },
+      "oneOf":[
+        {
+          "required": ["organization"]
+        },
+        {
+          "required": ["contact"]
+        }
+      ]
+    },
+    "graphicsCollection": {
+      "type": "object",
+      "title": "Graphics Collection",
+      "description": "A collection of graphics that represent various measurements.",
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "title": "Description",
+          "description": "A description of this collection of graphics.",
+          "type": "string"
+        },
+        "collection": {
+          "title": "Collection",
+          "description": "A collection of graphics.",
+          "type": "array",
+          "items": { "$ref": "#/definitions/graphic" }
+        }
+      }
+    },
+    "graphic": {
+      "type": "object",
+      "title": "Graphic",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "description": "The name of the graphic.",
+          "type": "string"
+        },
+        "image": {
+          "title": "Graphic Image",
+          "description": "The graphic (vector or raster). Base64 encoding must be specified for binary images.",
+          "$ref": "#/definitions/attachment"
+        }
+      }
+    },
+    "performanceMetric": {
+      "type": "object",
+      "title": "Performance Metric",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "title": "Type",
+          "description": "The type of performance metric.",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "description": "The value of the performance metric.",
+          "type": "string"
+        },
+        "slice": {
+          "title": "Slice",
+          "description": "The name of the slice this metric was computed on. By default, assume this metric is not sliced.",
+          "type": "string"
+        },
+        "confidenceInterval": {
+          "title": "Confidence Interval",
+          "description": "The confidence interval of the metric.",

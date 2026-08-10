@@ -1,0 +1,250 @@
+      "$ref": "#/definitions/versionRange"
+    },
+    "annotations": {
+      "type": "object",
+      "title": "Annotations",
+      "description": "A comment, note, explanation, or similar textual content which provides additional context to the object(s) being annotated.",
+      "required": [
+        "subjects",
+        "annotator",
+        "timestamp",
+        "text"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "bom-ref": {
+          "$ref": "#/definitions/refType",
+          "title": "BOM Reference",
+          "description": "An optional identifier which can be used to reference the annotation elsewhere in the BOM. Every bom-ref must be unique within the BOM.\nValue SHOULD not start with the BOM-Link intro 'urn:cdx:' to avoid conflicts with BOM-Links."
+        },
+        "subjects": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "anyOf": [
+              {
+                "title": "Ref",
+                "$ref": "#/definitions/refLinkType"
+              },
+              {
+                "title": "BOM-Link Element",
+                "$ref": "#/definitions/bomLinkElementType"
+              }
+            ]
+          },
+          "title": "Subjects",
+          "description": "The object in the BOM identified by its bom-ref. This is often a component or service, but may be any object type supporting bom-refs."
+        },
+        "annotator": {
+          "type": "object",
+          "title": "Annotator",
+          "description": "The organization, person, component, or service which created the textual content of the annotation.",
+          "oneOf": [
+            {
+              "required": [
+                "organization"
+              ]
+            },
+            {
+              "required": [
+                "individual"
+              ]
+            },
+            {
+              "required": [
+                "component"
+              ]
+            },
+            {
+              "required": [
+                "service"
+              ]
+            }
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "organization": {
+              "description": "The organization that created the annotation",
+              "$ref": "#/definitions/organizationalEntity"
+            },
+            "individual": {
+              "description": "The person that created the annotation",
+              "$ref": "#/definitions/organizationalContact"
+            },
+            "component": {
+              "description": "The tool or component that created the annotation",
+              "$ref": "#/definitions/component"
+            },
+            "service": {
+              "description": "The service that created the annotation",
+              "$ref": "#/definitions/service"
+            }
+          }
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "title": "Timestamp",
+          "description": "The date and time (timestamp) when the annotation was created."
+        },
+        "text": {
+          "type": "string",
+          "title": "Text",
+          "description": "The textual content of the annotation."
+        },
+        "signature": {
+          "$ref": "#/definitions/signature",
+          "title": "Signature",
+          "description": "Enveloped signature in [JSON Signature Format (JSF)](https://cyberphone.github.io/doc/security/jsf.html)."
+        }
+      }
+    },
+    "modelCard": {
+      "$comment": "Model card support in CycloneDX is derived from TensorFlow Model Card Toolkit released under the Apache 2.0 license and available from https://github.com/tensorflow/model-card-toolkit/blob/main/model_card_toolkit/schema/v0.0.2/model_card.schema.json. In addition, CycloneDX model card support includes portions of VerifyML, also released under the Apache 2.0 license and available from https://github.com/cylynx/verifyml/blob/main/verifyml/model_card_toolkit/schema/v0.0.4/model_card.schema.json.",
+      "type": "object",
+      "title": "Model Card",
+      "description": "A model card describes the intended uses of a machine learning model and potential limitations, including biases and ethical considerations. Model cards typically contain the training parameters, which datasets were used to train the model, performance metrics, and other relevant data useful for ML transparency. This object SHOULD be specified for any component of type `machine-learning-model` and must not be specified for other component types.",
+      "additionalProperties": false,
+      "properties": {
+        "bom-ref": {
+          "$ref": "#/definitions/refType",
+          "title": "BOM Reference",
+          "description": "An optional identifier which can be used to reference the model card elsewhere in the BOM. Every bom-ref must be unique within the BOM.\nValue SHOULD not start with the BOM-Link intro 'urn:cdx:' to avoid conflicts with BOM-Links."
+        },
+        "modelParameters": {
+          "type": "object",
+          "title": "Model Parameters",
+          "description": "Hyper-parameters for construction of the model.",
+          "additionalProperties": false,
+          "properties": {
+            "approach": {
+              "type": "object",
+              "title": "Approach",
+              "description": "The overall approach to learning used by the model for problem solving.",
+              "additionalProperties": false,
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "title": "Learning Type",
+                  "description": "Learning types describing the learning problem or hybrid learning problem.",
+                  "enum": [
+                    "supervised",
+                    "unsupervised",
+                    "reinforcement-learning",
+                    "semi-supervised",
+                    "self-supervised"
+                  ],
+                  "meta:enum": {
+                    "supervised": "Supervised machine learning involves training an algorithm on labeled data to predict or classify new data based on the patterns learned from the labeled examples.",
+                    "unsupervised": "Unsupervised machine learning involves training algorithms on unlabeled data to discover patterns, structures, or relationships without explicit guidance, allowing the model to identify inherent structures or clusters within the data.",
+                    "reinforcement-learning": "Reinforcement learning is a type of machine learning where an agent learns to make decisions by interacting with an environment to maximize cumulative rewards, through trial and error.",
+                    "semi-supervised": "Semi-supervised machine learning utilizes a combination of labeled and unlabeled data during training to improve model performance, leveraging the benefits of both supervised and unsupervised learning techniques.",
+                    "self-supervised": "Self-supervised machine learning involves training models to predict parts of the input data from other parts of the same data, without requiring external labels, enabling learning from large amounts of unlabeled data."
+                  }
+                }
+              }
+            },
+            "task": {
+              "type": "string",
+              "title": "Task",
+              "description": "Directly influences the input and/or output. Examples include classification, regression, clustering, etc."
+            },
+            "architectureFamily": {
+              "type": "string",
+              "title": "Architecture Family",
+              "description": "The model architecture family such as transformer network, convolutional neural network, residual neural network, LSTM neural network, etc."
+            },
+            "modelArchitecture": {
+              "type": "string",
+              "title": "Model Architecture",
+              "description": "The specific architecture of the model such as GPT-1, ResNet-50, YOLOv3, etc."
+            },
+            "datasets": {
+              "type": "array",
+              "title": "Datasets",
+              "description": "The datasets used to train and evaluate the model.",
+              "items" : {
+                "oneOf" : [
+                  {
+                    "title": "Inline Data Information",
+                    "$ref": "#/definitions/componentData"
+                  },
+                  {
+                    "type": "object",
+                    "title": "Data Reference",
+                    "additionalProperties": false,
+                    "properties": {
+                      "ref": {
+                        "anyOf": [
+                          {
+                            "title": "Ref",
+                            "$ref": "#/definitions/refLinkType"
+                          },
+                          {
+                            "title": "BOM-Link Element",
+                            "$ref": "#/definitions/bomLinkElementType"
+                          }
+                        ],
+                        "title": "Reference",
+                        "type": "string",
+                        "description": "References a data component by the components bom-ref attribute"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "inputs": {
+              "type": "array",
+              "title": "Inputs",
+              "description": "The input format(s) of the model",
+              "items": { "$ref": "#/definitions/inputOutputMLParameters" }
+            },
+            "outputs": {
+              "type": "array",
+              "title": "Outputs",
+              "description": "The output format(s) from the model",
+              "items": { "$ref": "#/definitions/inputOutputMLParameters" }
+            }
+          }
+        },
+        "quantitativeAnalysis": {
+          "type": "object",
+          "title": "Quantitative Analysis",
+          "description": "A quantitative analysis of the model",
+          "additionalProperties": false,
+          "properties": {
+            "performanceMetrics": {
+              "type": "array",
+              "title": "Performance Metrics",
+              "description": "The model performance metrics being reported. Examples may include accuracy, F1 score, precision, top-3 error rates, MSC, etc.",
+              "items": { "$ref": "#/definitions/performanceMetric" }
+            },
+            "graphics": { "$ref": "#/definitions/graphicsCollection" }
+          }
+        },
+        "considerations": {
+          "type": "object",
+          "title": "Considerations",
+          "description": "What considerations should be taken into account regarding the model's construction, training, and application?",
+          "additionalProperties": false,
+          "properties": {
+            "users": {
+              "type": "array",
+              "title": "Users",
+              "description": "Who are the intended users of the model?",
+              "items": {
+                "type": "string"
+              }
+            },
+            "useCases": {
+              "type": "array",
+              "title": "Use Cases",
+              "description": "What are the intended use cases of the model?",
+              "items": {
+                "type": "string"
+              }
+            },
+            "technicalLimitations": {
+              "type": "array",
+              "title": "Technical Limitations",
