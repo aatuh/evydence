@@ -635,26 +635,15 @@ func mergeReplayedSBOM(sbom domain.SBOM, parsed replayedSBOM) (domain.SBOM, bool
 }
 
 func parseReplayedSBOM(raw []byte) (replayedSBOM, error) {
-	var doc struct {
-		BOMFormat   string `json:"bomFormat"`
-		SpecVersion string `json:"specVersion"`
-		Components  []struct {
-			Name    string `json:"name"`
-			Version string `json:"version"`
-			PURL    string `json:"purl"`
-		} `json:"components"`
-	}
-	if err := strictDecodeWorker(raw, &doc); err != nil || strings.ToLower(strings.TrimSpace(doc.BOMFormat)) != "cyclonedx" {
+	parsed, err := app.ParseCycloneDXReplayProjection(raw, defaultMaxWorkerPayloadBytes)
+	if err != nil {
 		return replayedSBOM{}, errors.New("replayed sbom payload is invalid")
 	}
-	components := make([]domain.SBOMComponent, 0, len(doc.Components))
-	for _, component := range doc.Components {
-		if strings.TrimSpace(component.Name) == "" {
-			return replayedSBOM{}, errors.New("replayed sbom payload is invalid")
-		}
-		components = append(components, domain.SBOMComponent{Name: strings.TrimSpace(component.Name), Version: strings.TrimSpace(component.Version), PURL: strings.TrimSpace(component.PURL)})
-	}
-	return replayedSBOM{SpecVersion: strings.TrimSpace(doc.SpecVersion), ComponentCount: len(doc.Components), Components: components}, nil
+	return replayedSBOM{
+		SpecVersion:    parsed.SpecVersion,
+		ComponentCount: len(parsed.Components),
+		Components:     append([]domain.SBOMComponent(nil), parsed.Components...),
+	}, nil
 }
 
 type replayedVulnerabilityScan struct {
