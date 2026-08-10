@@ -31,6 +31,13 @@ It is not used as a general authenticity or application-signing primitive. The
 same provenance guard is therefore enforced for both embedded and explicitly
 supplied roots.
 
+The exported `Ledger.UploadSBOM` and `Ledger.UploadSBOMPayload` paths now use a
+process-cached `NewEmbeddedPinnedSchemaValidator` and the conformant CycloneDX
+transaction. Validation and normalization are performed on the same bounded
+bytes before evidence publication or object-store staging. The worker replay
+path remains separately versioned work and is not made conformant by this
+schema activation.
+
 The CycloneDX BOM and JSF schemas state Apache-2.0 terms in their schema
 comments; the upstream CycloneDX specification repository is Apache-2.0. The
 SPDX helper schema is vendored only as a referenced validation resource from the
@@ -42,5 +49,6 @@ LICENSE is Apache-2.0. The validator loads schema resources locally, caps each
 schema resource at 4 MiB, and disables external schema resolution while
 processing evidence.
 
-Do not switch the public CycloneDX upload path or claim complete CycloneDX 1.6
-schema conformance until the ticket's required local validation gates pass.
+Do not mark EVY-502 complete or broaden compatibility claims beyond the tested
+public CycloneDX 1.6 ingestion contract until the ticket's required local
+validation gates pass. Worker replay parity remains owned by the replay work.
