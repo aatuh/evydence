@@ -6,16 +6,19 @@ The CycloneDX validator is pinned to these three files from
 
 | Local representation | Upstream path | Expected upstream Git blob | Repository state |
 | --- | --- | --- | --- |
-| `bom-1.6.part-001.json` ... `bom-1.6.part-023.json` | `schema/bom-1.6.schema.json` | `b6c096a999d6ee9e408a9c3ae6c6227d6981c9ba` | Vendored as exact line-preserving fragments and embedded |
+| `bom-1.6.part-001.fragment` ... `bom-1.6.part-023.fragment` | `schema/bom-1.6.schema.json` | `b6c096a999d6ee9e408a9c3ae6c6227d6981c9ba` | Vendored as exact line-preserving non-JSON fragments and embedded |
 | `spdx.schema.json` | `schema/spdx.schema.json` | `2dccc87e3cb3c3438d3f1623a3483657ee8d4189` | Vendored and embedded |
 | `jsf-0.82.schema.json` | `schema/jsf-0.82.schema.json` | `f46bfb1e52731ad1280123ff3e2bd29bd18d4bc2` | Vendored and embedded |
 
 The root BOM schema is split only as a repository transport representation. The
 23 fragments preserve upstream lines 1-5699 in order and omit the line-ending
-byte after each fragment. `embeddedPinnedBOMSchema` appends exactly one `\n`
-after every fragment, reconstructing the upstream 262,666-byte file before any
-schema compiler sees it. Reconstruction fails closed unless the part count, byte
-length, and Git blob object ID all match the pinned values above.
+byte after each fragment. They intentionally use a `.fragment` suffix rather
+than `.json` because an individual fragment is not a standalone JSON document
+and must not be picked up by generic JSON-file validation tooling.
+`embeddedPinnedBOMSchema` appends exactly one `\n` after every fragment,
+reconstructing the upstream 262,666-byte file before any schema compiler sees
+it. Reconstruction fails closed unless the part count, byte length, and Git blob
+object ID all match the pinned values above.
 
 `schema_provenance_test.go` verifies the committed SPDX and JSF resources by
 recomputing their Git blob object IDs. `pinned_root_test.go` independently

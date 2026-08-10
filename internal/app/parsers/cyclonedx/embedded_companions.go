@@ -22,7 +22,7 @@ const (
 // schema/SOURCE.md. The root schema is split only to make exact-byte vendoring
 // practical; it is reconstructed and verified before it can be compiled.
 //
-//go:embed schema/spdx.schema.json schema/jsf-0.82.schema.json schema/bom-1.6.part-*.json
+//go:embed schema/spdx.schema.json schema/jsf-0.82.schema.json schema/bom-1.6.part-*.fragment
 var pinnedSchemaFS embed.FS
 
 // NewSchemaValidatorWithEmbeddedCompanions compiles a CycloneDX validator from
@@ -57,7 +57,7 @@ func NewEmbeddedPinnedSchemaValidator() (*SchemaValidator, error) {
 }
 
 func embeddedPinnedBOMSchema() ([]byte, error) {
-	names, err := fs.Glob(pinnedSchemaFS, "schema/bom-1.6.part-*.json")
+	names, err := fs.Glob(pinnedSchemaFS, "schema/bom-1.6.part-*.fragment")
 	if err != nil || len(names) != pinnedBOMSchemaPartCount {
 		return nil, ErrInvalid
 	}
