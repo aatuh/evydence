@@ -49,14 +49,21 @@ func normalizeCycloneDXResult(parsed cyclonedxparser.Result) cyclonedxNormalizat
 }
 
 func (n cyclonedxNormalization) evidenceMetadata() map[string]any {
+	warnings := append([]string(nil), n.Warnings...)
+	unsupported := append([]string(nil), n.UnsupportedPaths...)
 	return map[string]any{
 		"sbom_format":               "cyclonedx",
 		"sbom_spec_version":         n.SpecVersion,
 		"component_count":           len(n.Components),
 		"dependency_count":          n.DependencyCount,
 		"parser_version":            n.ParserVersion,
-		"normalization_warnings":    append([]string(nil), n.Warnings...),
-		"unsupported_normalization": append([]string(nil), n.UnsupportedPaths...),
+		"normalization_warnings":    warnings,
+		"unsupported_normalization": unsupported,
+		"import_report": map[string]any{
+			"parser_version":         n.ParserVersion,
+			"warnings":               append([]string(nil), warnings...),
+			"unsupported_constructs": append([]string(nil), unsupported...),
+		},
 	}
 }
 
