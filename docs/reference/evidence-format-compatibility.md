@@ -23,7 +23,7 @@ the broader conformance, fixture-corpus, replay, and parser-version work.
 
 | Input | Stability | Tested contract | Retained parser identity | Public HTTP form / effective limit |
 | --- | --- | --- | --- | --- |
-| CycloneDX SBOM JSON | `core` | CycloneDX 1.6 official JSON schema plus the shared bounded parser; unnormalized standard fields remain raw-preserved with explicit limitations | `cyclonedx-json.v1.3.4` on evidence metadata and durable `parse_sbom` job | Native `application/vnd.cyclonedx+json`: 20 MiB; JSON envelope: 64 KiB |
+| CycloneDX SBOM JSON | `core` | Public route remains reduced while EVY-502 repairs the exact pinned 1.6 root; the shared bounded parser/validator corpus targets official CycloneDX 1.6 | `cyclonedx-json.v1.3.4` on durable `parse_sbom` jobs and conformant-parser metadata | Native `application/vnd.cyclonedx+json`: 20 MiB; JSON envelope: 64 KiB |
 | SPDX SBOM JSON | `core` | Reduced shape; fixtures use `SPDX-2.3` | `spdx-json.v1` in evidence metadata | JSON envelope: 64 KiB |
 | OpenVEX JSON | `core` | Reduced shape; fixtures use `https://openvex.dev/ns/v0.2.0` | `openvex-json.v1.0.0` on import report and `parse_vex` job | Native `application/vnd.openvex+json`: 20 MiB; JSON envelope: 64 KiB |
 | CycloneDX VEX JSON | `core` | Reduced shape; fixtures use `specVersion: 1.6` | `cyclonedx-vex-json.v1.0.0` on import report and `parse_vex` job | JSON envelope: 64 KiB |
@@ -35,28 +35,36 @@ The parser-version strings identify Evydence behavior, not external scanner
 versions. `scanner: "grype"` is metadata and does not select a Grype parser.
 Native Grype, Trivy, OSV-Scanner, Dependency-Track, and similar exports are not
 currently supported; convert them to the generic vulnerability-scan schema
-until EVY-505 adds versioned adapters. A tool's CycloneDX 1.6 output is instead
-handled by the CycloneDX contract above when it conforms to the official schema.
+until EVY-505 adds versioned adapters. Syft/Trivy CycloneDX 1.6 outputs are used
+as EVY-502 interoperability fixtures, but that parser evidence does not broaden
+the public route while schema activation is pending.
 
 ## Format details and current limitations
 
 ### CycloneDX SBOM JSON
 
-`POST /v1/sboms` routes both the native streamed form and the JSON-envelope form
-through the repository-pinned official CycloneDX 1.6 JSON schema and the shared
-bounded parser. The root schema is reconstructed from exact vendored fragments
-and must match the pinned 262,666-byte Git object before it can be compiled;
-SPDX-license and JSF references are resolved only from the pinned embedded
-companions. External schema resolution is disabled.
+`POST /v1/sboms` currently remains on the last known-working reduced public
+contract while EVY-502 repairs the pinned root-schema representation. The public
+route reads the historical reduced CycloneDX shape and must not be advertised as
+full official-schema ingestion yet.
+
+The conformant EVY-502 implementation exists separately and is covered by parser
+and app tests. It pins CycloneDX 1.6 plus the SPDX/JSF companion schemas,
+disables external schema resolution, and refuses to compile a root unless the
+reconstructed bytes match the recorded upstream Git object. The current
+line-oriented root fragments reconstruct to 262,663 bytes instead of the pinned
+262,666 bytes, so the constructor correctly fails closed and public activation is
+deferred until those exact bytes are repaired.
 
 The shared parser is tested with CycloneDX 1.6 official fixtures plus Syft/Trivy
 CycloneDX fixture shapes. It accepts standard fields that Evydence does not
-normalize, records those omitted paths as warnings/limitations, normalizes
-dependencies and deterministic component identities, and requires component
-`type` and `name` at nested component locations as well as the root `components`
-array. It also rejects duplicate JSON object keys before normalization so
-interpretation cannot depend on last-value-wins decoder behavior. This shared
-parser identifies its interpretation as `cyclonedx-json.v1.3.4`.
+normalize, records those omitted paths as warnings/limitations/import-report
+metadata, normalizes dependencies and deterministic component identities, and
+requires component `type` and `name` at nested component locations as well as
+the root `components` array. It rejects duplicate JSON object keys before
+normalization so interpretation cannot depend on last-value-wins decoder
+behavior. This shared parser identifies its interpretation as
+`cyclonedx-json.v1.3.4`.
 
 The conformant upload transaction binds schema validation and normalization to
 the same bounded byte stream and verifies the source's declared size and SHA-256
@@ -67,12 +75,12 @@ remain byte-for-byte raw evidence; fields outside the normalized subset are not
 silently represented as trusted normalized data.
 
 Current-version `parse_sbom` worker replay uses
-`internal/app/cyclonedx_replay.go` and the same shared bounded parser, so
-schema-valid metadata, services, properties, and other raw-preserved fields do
-not fail merely because the worker does not normalize them. EVY-506 still owns
-historical parser-version migration, compatibility windows for already-enqueued
-jobs, and the broader replay/conformance corpus; current-version replay parity is
-not a claim that older parser versions have been migrated.
+`internal/app/cyclonedx_replay.go` and the same shared bounded parser, so a
+current `v1.3.4` replay does not maintain a second reduced JSON interpretation.
+EVY-506 still owns historical parser-version migration, compatibility windows
+for already-enqueued jobs, and the broader replay/conformance corpus; current-
+version replay parity is not a claim that older parser versions have been
+migrated.
 
 Evidence: `internal/app/parsers/cyclonedx`,
 `internal/app/cyclonedx_ingestion.go`, `internal/app/cyclonedx_upload.go`,
@@ -192,8 +200,9 @@ aggregate dependency/provision edges, 1 MiB per JSON string/key, and 1,000,000
 visited JSON values. Depth, value-count, string/key bounds, and duplicate-key
 rejection are applied by the streaming token preflight before full JSON-tree
 materialization; structural checks are repeated on the decoded representation.
-These parser limits apply to public ingestion and current-version worker replay
-in addition to the transport/worker byte limits.
+These parser limits apply to the shared conformant path and current-version
+worker replay. They do not broaden the reduced public route while exact schema
+activation is pending.
 
 Other evidence families listed here do not yet have equivalent independent
 maximum JSON-depth, component/package/statement/subject/finding-count limits
@@ -205,12 +214,12 @@ claims must remain tied to the bounds actually enforced by each parser.
 OpenVEX/CycloneDX VEX persist parser version on import reports and parser jobs;
 SPDX stores `spdx-json.v1` in evidence metadata; CycloneDX SBOM, generic scan,
 and DSSE/in-toto store parser version on durable subject-linked outbox jobs.
-CycloneDX SBOM evidence and jobs carry `cyclonedx-json.v1.3.4`, and current
-`parse_sbom` worker replay uses that shared parser projection. The worker rejects
-parser jobs whose version it does not know. EVY-506 still needs to define and
-test historical parser-version compatibility/migration policy rather than
-silently replaying older jobs under the current interpretation. Raw bytes remain
-historical source evidence and are the basis for those future migrations.
+CycloneDX `parse_sbom` jobs use `cyclonedx-json.v1.3.4`, and current worker replay
+uses that shared parser projection. The worker rejects parser jobs whose version
+it does not know. EVY-506 still needs to define and test historical parser-
+version compatibility/migration policy rather than silently replaying older jobs
+under the current interpretation. Raw bytes remain historical source evidence
+and are the basis for those future migrations.
 
 The current public release is prerelease. Correctness/security fixes may still
 change documented parser behavior, but must update this matrix, fixtures,
