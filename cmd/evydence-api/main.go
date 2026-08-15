@@ -217,12 +217,11 @@ func openSigningExecutor() (app.SigningExecutor, error) {
 		}
 		return executor, nil
 	}
-	if mode == "gcp_kms" && strings.TrimSpace(os.Getenv("EVYDENCE_GCP_KMS_ACCESS_TOKEN")) != "" {
-		executor, err := gcpkms.New(gcpkms.Config{
-			Endpoint:    os.Getenv("EVYDENCE_GCP_KMS_ENDPOINT"),
-			AccessToken: os.Getenv("EVYDENCE_GCP_KMS_ACCESS_TOKEN"),
-			KeyName:     os.Getenv("EVYDENCE_GCP_KMS_KEY_NAME"),
-			Timeout:     time.Duration(intEnv("EVYDENCE_GCP_KMS_TIMEOUT_SECONDS", 10)) * time.Second,
+	if mode == "gcp_kms" {
+		executor, err := gcpkms.New(context.Background(), gcpkms.Config{
+			Endpoint: os.Getenv("EVYDENCE_GCP_KMS_ENDPOINT"),
+			KeyName:  os.Getenv("EVYDENCE_GCP_KMS_KEY_NAME"),
+			Timeout:  time.Duration(intEnv("EVYDENCE_GCP_KMS_TIMEOUT_SECONDS", 10)) * time.Second,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("configure GCP KMS signing executor: %w", err)

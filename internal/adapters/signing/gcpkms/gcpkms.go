@@ -16,6 +16,8 @@ import (
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 )
 
 const (
@@ -25,15 +27,15 @@ const (
 
 type Config struct {
 	Endpoint    string
-	AccessToken string
 	KeyName     string
 	Timeout     time.Duration
 	Client      *http.Client
+	TokenSource oauth2.TokenSource
 }
 
 type Executor struct {
 	endpoint    string
-	accessToken string
+	tokenSource oauth2.TokenSource
 	keyName     string
 	client      *http.Client
 }
@@ -51,7 +53,18 @@ type signResponse struct {
 	Name      string `json:"name,omitempty"`
 }
 
-func New(cfg Config) (*Executor, error) {
+func New(ctx context.Context, cfg Config) (*Executor, error) {
+	if cfg.TokenSource == nil {
+		credentials, err := google.FindDefaultCredentials(ctx, "https://www.googleapis.com/auth/cloud-platform")
+		if err != nil {
+			return nil, errors.New("load GCP application default credentials")
+		}
+		cfg.TokenSource = credentials.TokenSource
+	}
+	return NewWithTokenSource(cfg)
+}
+
+func NewWithTokenSource(cfg Config) (*Executor, error) {
 	endpoint := strings.TrimRight(strings.TrimSpace(cfg.Endpoint), "/")
 	if endpoint == "" {
 		endpoint = defaultEndpoint
@@ -60,8 +73,8 @@ func New(cfg Config) (*Executor, error) {
 	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil {
 		return nil, app.ErrValidation
 	}
-	if strings.TrimSpace(cfg.AccessToken) == "" {
-		return nil, errors.New("configure GCP KMS access token")
+	if cfg.TokenSource == nil {
+		return nil, app.ErrValidation
 	}
 	timeout := cfg.Timeout
 	if timeout <= 0 {
@@ -73,7 +86,7 @@ func New(cfg Config) (*Executor, error) {
 	}
 	return &Executor{
 		endpoint:    endpoint,
-		accessToken: strings.TrimSpace(cfg.AccessToken),
+		tokenSource: cfg.TokenSource,
 		keyName:     strings.TrimSpace(cfg.KeyName),
 		client:      client,
 	}, nil
@@ -108,7 +121,11 @@ func (e *Executor) Sign(ctx context.Context, req app.SigningRequest) (app.Signin
 	}
 	httpReq.Header.Set("Accept", "application/json")
 	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+e.accessToken)
+	token, err := e.tokenSource.Token()
+	if err != nil || strings.TrimSpace(token.AccessToken) == "" {
+		return app.SigningResult{}, errors.New("obtain GCP KMS access token")
+	}
+	httpReq.Header.Set("Authorization", "Bearer "+token.AccessToken)
 	resp, err := e.client.Do(httpReq)
 	if err != nil {
 		return app.SigningResult{}, errors.New("execute GCP KMS signing request")

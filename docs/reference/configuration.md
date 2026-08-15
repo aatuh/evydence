@@ -75,7 +75,6 @@ process, or equivalent deployment control.
 | `EVYDENCE_AWS_KMS_ENDPOINT` | No | unset | Optional AWS KMS-compatible endpoint for tests or controlled private endpoints. |
 | `EVYDENCE_AWS_KMS_SIGNING_ALGORITHM` | No | `ECDSA_SHA_256` | Supported values are `ECDSA_SHA_256`, `RSASSA_PSS_SHA_256`, and `RSASSA_PKCS1_V1_5_SHA_256` because Evydence signs stored SHA-256 payload hashes. |
 | `EVYDENCE_AWS_KMS_TIMEOUT_SECONDS` | No | `10` | Timeout for AWS KMS signing requests. |
-| `EVYDENCE_GCP_KMS_ACCESS_TOKEN` | GCP KMS mode | unset | Bearer token used by the direct GCP Cloud KMS executor. Store outside source control and logs. If unset, `gcp-kms` requires `EVYDENCE_SIGNING_EXECUTOR_URL`. |
 | `EVYDENCE_GCP_KMS_KEY_NAME` | GCP KMS mode | unset | Default GCP Cloud KMS key version resource name. A signing provider `key_ref` can override it. |
 | `EVYDENCE_GCP_KMS_ENDPOINT` | No | `https://cloudkms.googleapis.com` | Optional GCP KMS endpoint for tests or controlled private endpoints. |
 | `EVYDENCE_GCP_KMS_TIMEOUT_SECONDS` | No | `10` | Timeout for GCP KMS signing requests. |
@@ -123,7 +122,7 @@ When `ENV=production`, the API refuses to start unless:
 - `EVYDENCE_SIGNING_KEY_MODE` is `external`, `aws-kms`, `gcp-kms`,
   `azure-key-vault`, or `pkcs11-hsm`. `external` and `pkcs11-hsm` require
   `EVYDENCE_SIGNING_EXECUTOR_URL`; `gcp-kms` and `azure-key-vault` require
-  either their direct provider credentials or `EVYDENCE_SIGNING_EXECUTOR_URL`.
+  Application Default Credentials or `EVYDENCE_SIGNING_EXECUTOR_URL`.
 - `EVYDENCE_PRINT_BOOTSTRAP_SECRET` is not `true`.
 - `EVYDENCE_POSTGRES_LOAD_MODE`, when set, is `relational_only`.
 - `EVYDENCE_API_WRITER_MODE`, when set, is `single` or `single-writer`.
@@ -204,9 +203,8 @@ request id, nonce, and canonical-request hash. The gateway returns a signature
 and safe provider receipt identifiers. Evydence does not store production
 private key material or send raw evidence payload bytes.
 
-`EVYDENCE_SIGNING_KEY_MODE=gcp-kms` and `azure-key-vault` can use direct
-provider executors when their access-token and key configuration variables are
-set. If direct credentials are absent, they fall back to requiring the HTTPS
+`EVYDENCE_SIGNING_KEY_MODE=gcp-kms` uses the Google Application Default
+Credentials chain. If direct credentials are unavailable, use the HTTPS
 signing gateway. `pkcs11-hsm` always uses the HTTPS signing gateway because
 native HSM modules and slots are deployment-specific. Operators remain
 responsible for provider credentials, IAM, key lifecycle, gateway operation

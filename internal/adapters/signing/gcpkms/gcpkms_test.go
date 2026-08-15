@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/aatuh/evydence/internal/app"
+	"golang.org/x/oauth2"
 )
 
 func TestSignSendsDigestOnlyToGCPKMS(t *testing.T) {
@@ -25,7 +26,7 @@ func TestSignSendsDigestOnlyToGCPKMS(t *testing.T) {
 	}))
 	defer server.Close()
 
-	executor, err := New(Config{Endpoint: server.URL, AccessToken: "access-token", Client: server.Client()})
+	executor, err := NewWithTokenSource(Config{Endpoint: server.URL, TokenSource: oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "access-token"}), Client: server.Client()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +54,7 @@ func TestSignSendsDigestOnlyToGCPKMS(t *testing.T) {
 }
 
 func TestSignRejectsWrongProviderType(t *testing.T) {
-	executor, err := New(Config{Endpoint: "https://kms.example.test", AccessToken: "token", KeyName: "projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/1"})
+	executor, err := NewWithTokenSource(Config{Endpoint: "https://kms.example.test", TokenSource: oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "token"}), KeyName: "projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/1"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,12 +63,12 @@ func TestSignRejectsWrongProviderType(t *testing.T) {
 	}
 }
 
-func TestNewRequiresHTTPSAndAccessToken(t *testing.T) {
-	if _, err := New(Config{Endpoint: "http://kms.example.test", AccessToken: "token"}); err == nil {
+func TestNewWithTokenSourceRequiresHTTPSAndCredentials(t *testing.T) {
+	if _, err := NewWithTokenSource(Config{Endpoint: "http://kms.example.test", TokenSource: oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "token"})}); err == nil {
 		t.Fatal("expected non-HTTPS endpoint to be rejected")
 	}
-	if _, err := New(Config{Endpoint: "https://kms.example.test"}); err == nil {
-		t.Fatal("expected missing access token to be rejected")
+	if _, err := NewWithTokenSource(Config{Endpoint: "https://kms.example.test"}); err == nil {
+		t.Fatal("expected missing credential source to be rejected")
 	}
 }
 
