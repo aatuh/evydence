@@ -25,6 +25,7 @@ import (
 	s3store "github.com/aatuh/evydence/internal/adapters/objectstore/s3"
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/app"
+	scannerparser "github.com/aatuh/evydence/internal/app/parsers/scanners"
 	vexparser "github.com/aatuh/evydence/internal/app/parsers/vex"
 	"github.com/aatuh/evydence/internal/domain"
 )
@@ -33,7 +34,7 @@ const defaultMaxWorkerPayloadBytes = 20 << 20
 
 var expectedParserVersions = map[string]string{
 	"parse_sbom":               app.ParserVersionCycloneDXJSON,
-	"parse_vulnerability_scan": app.ParserVersionGenericVulnerabilityJSON,
+	"parse_vulnerability_scan": app.ParserVersionScannerAdaptersJSON,
 	"parse_openapi_contract":   app.ParserVersionOpenAPIJSON,
 	"parse_vex":                app.ParserVersionOpenVEXJSON,
 	"verify_attestation":       app.ParserVersionDSSEInTotoJSON,
@@ -515,6 +516,9 @@ func requireParserVersion(job postgres.ClaimedJob) error {
 	if job.Kind == "parse_sbom" && (got == app.ParserVersionCycloneDXJSON || got == app.ParserVersionSPDXJSON) {
 		return nil
 	}
+	if job.Kind == "parse_vulnerability_scan" && (got == app.ParserVersionScannerAdaptersJSON || got == app.ParserVersionGenericVulnerabilityJSON) {
+		return nil
+	}
 	if got != expected {
 		return errors.New("unsupported outbox parser version")
 	}
@@ -658,11 +662,11 @@ func parseReplayedSBOM(raw []byte, parserVersions ...string) (replayedSBOM, erro
 }
 
 type replayedVulnerabilityScan struct {
-	Scanner      string
-	TargetRef    string
-	FindingCount int
-	Summary      map[string]int
-	Findings     []domain.VulnerabilityFinding
+	Scanner, Adapter, AdapterVersion, SourceSchema string
+	TargetRef                                      string
+	FindingCount                                   int
+	Summary                                        map[string]int
+	Findings                                       []domain.VulnerabilityFinding
 }
 
 func verifyReplayedVulnerabilityScan(parsed replayedVulnerabilityScan, scan domain.VulnerabilityScan) error {
@@ -670,6 +674,9 @@ func verifyReplayedVulnerabilityScan(parsed replayedVulnerabilityScan, scan doma
 		return errors.New("replayed vulnerability scan payload does not match durable state")
 	}
 	if scan.TargetRef != "" && parsed.TargetRef != scan.TargetRef {
+		return errors.New("replayed vulnerability scan payload does not match durable state")
+	}
+	if (scan.Adapter != "" && parsed.Adapter != scan.Adapter) || (scan.AdapterVersion != "" && parsed.AdapterVersion != scan.AdapterVersion) || (scan.SourceSchema != "" && parsed.SourceSchema != scan.SourceSchema) {
 		return errors.New("replayed vulnerability scan payload does not match durable state")
 	}
 	if len(scan.Findings) != 0 && parsed.FindingCount != len(scan.Findings) {
@@ -693,6 +700,18 @@ func mergeReplayedVulnerabilityScan(scan domain.VulnerabilityScan, parsed replay
 		scan.TargetRef = parsed.TargetRef
 		changed = true
 	}
+	if scan.Adapter == "" && parsed.Adapter != "" {
+		scan.Adapter = parsed.Adapter
+		changed = true
+	}
+	if scan.AdapterVersion == "" && parsed.AdapterVersion != "" {
+		scan.AdapterVersion = parsed.AdapterVersion
+		changed = true
+	}
+	if scan.SourceSchema == "" && parsed.SourceSchema != "" {
+		scan.SourceSchema = parsed.SourceSchema
+		changed = true
+	}
 	if scan.Summary == nil && parsed.Summary != nil {
 		scan.Summary = cloneIntMap(parsed.Summary)
 		changed = true
@@ -705,37 +724,21 @@ func mergeReplayedVulnerabilityScan(scan domain.VulnerabilityScan, parsed replay
 }
 
 func parseReplayedVulnerabilityScan(raw []byte, subjectID string) (replayedVulnerabilityScan, error) {
-	var doc struct {
-		Scanner   string `json:"scanner"`
-		TargetRef string `json:"target_ref"`
-		Findings  []struct {
-			Vulnerability string `json:"vulnerability"`
-			Component     string `json:"component"`
-			Severity      string `json:"severity"`
-			State         string `json:"state"`
-		} `json:"findings"`
-		ReleaseID string `json:"release_id"`
-	}
-	if err := strictDecodeWorker(raw, &doc); err != nil || strings.TrimSpace(doc.Scanner) == "" || strings.TrimSpace(doc.TargetRef) == "" || strings.TrimSpace(doc.ReleaseID) == "" {
+	doc, err := scannerparser.ParseBounded(raw, scannerparser.DefaultLimits(defaultMaxWorkerPayloadBytes))
+	if err != nil {
 		return replayedVulnerabilityScan{}, errors.New("replayed vulnerability scan payload is invalid")
 	}
 	summary := map[string]int{}
 	findings := make([]domain.VulnerabilityFinding, 0, len(doc.Findings))
 	for i, finding := range doc.Findings {
-		if strings.TrimSpace(finding.Vulnerability) == "" || strings.TrimSpace(finding.Severity) == "" {
-			return replayedVulnerabilityScan{}, errors.New("replayed vulnerability scan payload is invalid")
-		}
-		severity := strings.ToLower(strings.TrimSpace(finding.Severity))
-		summary[severity]++
+		summary[finding.Severity]++
 		findings = append(findings, domain.VulnerabilityFinding{
 			ID:            fmt.Sprintf("%s:finding:%d", strings.TrimSpace(subjectID), i+1),
-			Vulnerability: strings.TrimSpace(finding.Vulnerability),
-			Component:     strings.TrimSpace(finding.Component),
-			Severity:      severity,
-			State:         nonEmptyWorker(finding.State, "open"),
+			Vulnerability: finding.Vulnerability, Component: finding.Component, Severity: finding.Severity, State: finding.State, SeveritySource: finding.SeveritySource, FixVersion: finding.FixVersion,
+			Identity: domain.VulnerabilityIdentity{CVE: finding.Identity.CVE, GHSA: finding.Identity.GHSA, OSV: finding.Identity.OSV, VendorAdvisory: finding.Identity.VendorAdvisory, PURL: finding.Identity.PURL, CPE: finding.Identity.CPE},
 		})
 	}
-	return replayedVulnerabilityScan{Scanner: strings.TrimSpace(doc.Scanner), TargetRef: strings.TrimSpace(doc.TargetRef), FindingCount: len(doc.Findings), Summary: summary, Findings: findings}, nil
+	return replayedVulnerabilityScan{Scanner: doc.Scanner, Adapter: doc.Adapter, AdapterVersion: doc.AdapterVersion, SourceSchema: doc.SourceSchema, TargetRef: doc.TargetRef, FindingCount: len(doc.Findings), Summary: summary, Findings: findings}, nil
 }
 
 type replayedOpenAPIContract struct {

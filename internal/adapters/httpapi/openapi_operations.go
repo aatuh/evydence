@@ -310,14 +310,15 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "VEX document id."))
 		operation.Responses[http.StatusOK] = jsonResponse("VEX import report envelope.", "#/components/schemas/VEXImportReportEnvelope")
 	case "uploadVulnerabilityScan":
-		operation.Description = "Uploads a generic vulnerability scan JSON payload and records normalized findings. The request is streamed to a private temporary file while hashing and is limited to 20 MiB."
-		operation.RequestBody = jsonRequest("Vulnerability scan upload payload.", "#/components/schemas/UploadVulnerabilityScanRequest")
+		operation.Description = "Uploads either the Evydence generic scan schema or a versioned native-scanner envelope (Grype, Trivy, OSV-Scanner, or Dependency-Track). Scanner output is preserved as raw evidence and is not treated as authoritative. The request is streamed to a private temporary file while hashing and is limited to 20 MiB."
+		operation.RequestBody = jsonRequest("Generic scan or versioned native-scanner envelope.", "#/components/schemas/UploadVulnerabilityScanBody")
 		setRequestBodyLimit(&operation, app.EvidenceDocumentLimit)
 		addJSONRequestExamples(operation.RequestBody, map[string]any{
 			"generic-critical-finding": specs.Example{
 				Summary: "Upload a generic scanner finding for release triage",
 				Value:   vulnerabilityScanUploadExample(),
 			},
+			"grype-envelope": specs.Example{Summary: "Preserve a Grype JSON report with explicit release scope", Value: map[string]any{"scanner": "grype", "target_ref": "pkg:oci/payments-api@sha256-ca978112", "release_id": "rel_20260527120000", "source_schema": "grype-json.v1", "payload": map[string]any{"matches": []any{}}}},
 		})
 		operation.Responses[http.StatusCreated] = jsonResponse("Created vulnerability scan envelope.", "#/components/schemas/VulnerabilityScanEnvelope")
 	case "getVulnerabilityScan":

@@ -1212,23 +1212,38 @@ type SBOMComponentRecord struct {
 }
 
 type VulnerabilityScan struct {
-	ID         string                 `json:"id"`
-	TenantID   string                 `json:"tenant_id"`
-	EvidenceID string                 `json:"evidence_id"`
-	ReleaseID  string                 `json:"release_id,omitempty"`
-	Scanner    string                 `json:"scanner"`
-	TargetRef  string                 `json:"target_ref"`
-	Summary    map[string]int         `json:"summary"`
-	Findings   []VulnerabilityFinding `json:"findings,omitempty"`
-	CreatedAt  time.Time              `json:"created_at"`
+	ID             string                 `json:"id"`
+	TenantID       string                 `json:"tenant_id"`
+	EvidenceID     string                 `json:"evidence_id"`
+	ReleaseID      string                 `json:"release_id,omitempty"`
+	Scanner        string                 `json:"scanner"`
+	Adapter        string                 `json:"adapter,omitempty"`
+	AdapterVersion string                 `json:"adapter_version,omitempty"`
+	SourceSchema   string                 `json:"source_schema,omitempty"`
+	TargetRef      string                 `json:"target_ref"`
+	Summary        map[string]int         `json:"summary"`
+	Findings       []VulnerabilityFinding `json:"findings,omitempty"`
+	CreatedAt      time.Time              `json:"created_at"`
 }
 
 type VulnerabilityFinding struct {
-	ID            string `json:"id"`
-	Vulnerability string `json:"vulnerability"`
-	Component     string `json:"component,omitempty"`
-	Severity      string `json:"severity"`
-	State         string `json:"state"`
+	ID             string                `json:"id"`
+	Vulnerability  string                `json:"vulnerability"`
+	Component      string                `json:"component,omitempty"`
+	Severity       string                `json:"severity"`
+	State          string                `json:"state"`
+	SeveritySource string                `json:"severity_source,omitempty"`
+	FixVersion     string                `json:"fix_version,omitempty"`
+	Identity       VulnerabilityIdentity `json:"identity,omitempty"`
+}
+
+type VulnerabilityIdentity struct {
+	CVE            string `json:"cve,omitempty"`
+	GHSA           string `json:"ghsa,omitempty"`
+	OSV            string `json:"osv,omitempty"`
+	VendorAdvisory string `json:"vendor_advisory,omitempty"`
+	PURL           string `json:"purl,omitempty"`
+	CPE            string `json:"cpe,omitempty"`
 }
 
 type VEXDocument struct {

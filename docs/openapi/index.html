@@ -143,7 +143,7 @@
         <div class="summary-card"><strong>3.1.0</strong><span>OpenAPI version</span></div>
         <div class="summary-card"><strong>172</strong><span>registered paths</span></div>
         <div class="summary-card"><strong>189</strong><span>operations</span></div>
-        <div class="summary-card"><strong>382</strong><span>schemas</span></div>
+        <div class="summary-card"><strong>386</strong><span>schemas</span></div>
       </div>
     </header>
     <main>
@@ -3305,20 +3305,20 @@
               <div><dt>Responses</dt><dd>201 application/json: VulnerabilityWorkflowRecordEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/vulnerability-scans upload vulnerability scan uploads a generic vulnerability scan json payload and records normalized findings. the request is streamed to a private temporary file while hashing and is limited to 20 mib. uploadvulnerabilityscan evydence evidence:write">
+          <article class="operation" data-operation data-search="post /v1/vulnerability-scans upload vulnerability scan uploads either the evydence generic scan schema or a versioned native-scanner envelope (grype, trivy, osv-scanner, or dependency-track). scanner output is preserved as raw evidence and is not treated as authoritative. the request is streamed to a private temporary file while hashing and is limited to 20 mib. uploadvulnerabilityscan evydence evidence:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/vulnerability-scans</code>
             </div>
             <h3>Upload vulnerability scan</h3>
-            <p>Uploads a generic vulnerability scan JSON payload and records normalized findings. The request is streamed to a private temporary file while hashing and is limited to 20 MiB.</p>
+            <p>Uploads either the Evydence generic scan schema or a versioned native-scanner envelope (Grype, Trivy, OSV-Scanner, or Dependency-Track). Scanner output is preserved as raw evidence and is not treated as authoritative. The request is streamed to a private temporary file while hashing and is limited to 20 MiB.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>uploadVulnerabilityScan</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
               <div><dt>Auth</dt><dd>BearerAuth</dd></div>
               <div><dt>Scopes</dt><dd>evidence:write</dd></div>
               <div><dt>Idempotency</dt><dd>Idempotency-Key</dd></div>
-              <div><dt>Request</dt><dd>application/json: UploadVulnerabilityScanRequest</dd></div>
+              <div><dt>Request</dt><dd>application/json: UploadVulnerabilityScanBody</dd></div>
               <div><dt>Responses</dt><dd>201 application/json: VulnerabilityScanEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
@@ -4911,6 +4911,11 @@
             <td>data, meta</td>
           </tr>
           <tr>
+            <td><code>ScannerAdapterEnvelope</code></td>
+            <td>object</td>
+            <td>scanner, target_ref, release_id, source_schema, payload</td>
+          </tr>
+          <tr>
             <td><code>SecurityControl</code></td>
             <td>object</td>
             <td>id, tenant_id, framework_id, code, title, objective, schema_version, created_at</td>
@@ -5121,6 +5126,11 @@
             <td>category, format, scanner, target_ref, payload</td>
           </tr>
           <tr>
+            <td><code>UploadVulnerabilityScanBody</code></td>
+            <td>oneOf(UploadVulnerabilityScanRequest, ScannerAdapterEnvelope)</td>
+            <td>none</td>
+          </tr>
+          <tr>
             <td><code>UploadVulnerabilityScanRequest</code></td>
             <td>object</td>
             <td>scanner, target_ref, release_id, findings</td>
@@ -5254,6 +5264,16 @@
             <td><code>VulnerabilityDecisionSummaryReportEnvelope</code></td>
             <td>object</td>
             <td>data, meta</td>
+          </tr>
+          <tr>
+            <td><code>VulnerabilityFinding</code></td>
+            <td>object</td>
+            <td>id, vulnerability, severity, state</td>
+          </tr>
+          <tr>
+            <td><code>VulnerabilityIdentity</code></td>
+            <td>object</td>
+            <td>none</td>
           </tr>
           <tr>
             <td><code>VulnerabilityPostureReport</code></td>

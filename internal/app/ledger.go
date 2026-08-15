@@ -19,6 +19,7 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 
+	scannerparser "github.com/aatuh/evydence/internal/app/parsers/scanners"
 	"github.com/aatuh/evydence/internal/domain"
 )
 
@@ -1261,32 +1262,17 @@ func (s releaseEvidenceService) UploadVulnerabilityScanPayload(ctx context.Conte
 	if err := validatePayloadSource(source, EvidenceDocumentLimit); err != nil {
 		return domain.VulnerabilityScan{}, ErrValidation
 	}
-	var doc struct {
-		Scanner   string `json:"scanner"`
-		TargetRef string `json:"target_ref"`
-		Findings  []struct {
-			Vulnerability string `json:"vulnerability"`
-			Component     string `json:"component"`
-			Severity      string `json:"severity"`
-			State         string `json:"state"`
-		} `json:"findings"`
-		ReleaseID string `json:"release_id"`
-	}
 	reader, err := source.Open()
 	if err != nil {
 		return domain.VulnerabilityScan{}, ErrValidation
 	}
 	defer reader.Close()
-	dec := json.NewDecoder(reader)
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&doc); err != nil || dec.Decode(&struct{}{}) != io.EOF || strings.TrimSpace(doc.Scanner) == "" || strings.TrimSpace(doc.TargetRef) == "" {
-		return domain.VulnerabilityScan{}, ErrValidation
-	}
-	if doc.ReleaseID == "" {
+	doc, err := scannerparser.ParseBoundedReader(reader, scannerparser.DefaultLimits(EvidenceDocumentLimit))
+	if err != nil {
 		return domain.VulnerabilityScan{}, ErrValidation
 	}
 	l.mu.Lock()
-	release, ok := l.releases[strings.TrimSpace(doc.ReleaseID)]
+	release, ok := l.releases[doc.ReleaseID]
 	if !ok || release.TenantID != actor.TenantID {
 		l.mu.Unlock()
 		return domain.VulnerabilityScan{}, ErrNotFound
@@ -1300,13 +1286,8 @@ func (s releaseEvidenceService) UploadVulnerabilityScanPayload(ctx context.Conte
 	summary := map[string]int{}
 	findings := make([]domain.VulnerabilityFinding, 0, len(doc.Findings))
 	for i, finding := range doc.Findings {
-		if finding.Vulnerability == "" || finding.Severity == "" {
-			return domain.VulnerabilityScan{}, ErrValidation
-		}
-		severity := strings.ToLower(finding.Severity)
-		summary[severity]++
-		state := nonEmpty(finding.State, "open")
-		findings = append(findings, domain.VulnerabilityFinding{ID: fmt.Sprintf("%s:finding:%d", scanID, i+1), Vulnerability: finding.Vulnerability, Component: finding.Component, Severity: severity, State: state})
+		summary[finding.Severity]++
+		findings = append(findings, domain.VulnerabilityFinding{ID: fmt.Sprintf("%s:finding:%d", scanID, i+1), Vulnerability: finding.Vulnerability, Component: finding.Component, Severity: finding.Severity, State: finding.State, SeveritySource: finding.SeveritySource, FixVersion: finding.FixVersion, Identity: domain.VulnerabilityIdentity{CVE: finding.Identity.CVE, GHSA: finding.Identity.GHSA, OSV: finding.Identity.OSV, VendorAdvisory: finding.Identity.VendorAdvisory, PURL: finding.Identity.PURL, CPE: finding.Identity.CPE}})
 	}
 	payloadHash := source.Digest
 	stagedPayload, err := l.stagePayloadSource(ctx, actor.TenantID, "application/json", source)
@@ -1317,15 +1298,15 @@ func (s releaseEvidenceService) UploadVulnerabilityScanPayload(ctx context.Conte
 	evidenceInput := CreateEvidenceInput{
 		ReleaseID:        doc.ReleaseID,
 		Type:             "vulnerability_scan",
-		Subtype:          "generic",
-		Title:            "Generic vulnerability scan",
+		Subtype:          doc.Adapter,
+		Title:            "Vulnerability scan",
 		SourceSystem:     doc.Scanner,
 		ObservedAt:       l.now(),
 		PayloadRef:       payloadRef,
 		PayloadHash:      payloadHash,
 		PayloadMediaType: "application/json",
 		PayloadSize:      source.Size,
-		Metadata:         map[string]any{"scanner": doc.Scanner, "target_ref": doc.TargetRef},
+		Metadata:         map[string]any{"scanner": doc.Scanner, "adapter": doc.Adapter, "adapter_version": doc.AdapterVersion, "source_schema": doc.SourceSchema, "target_ref": doc.TargetRef},
 	}
 	if l.unitOfWork != nil {
 		l.mu.Lock()
@@ -1334,17 +1315,20 @@ func (s releaseEvidenceService) UploadVulnerabilityScanPayload(ctx context.Conte
 		if err != nil {
 			return domain.VulnerabilityScan{}, err
 		}
-		scan := domain.VulnerabilityScan{ID: scanID, TenantID: actor.TenantID, EvidenceID: item.ID, ReleaseID: doc.ReleaseID, Scanner: doc.Scanner, TargetRef: doc.TargetRef, Summary: summary, Findings: findings, CreatedAt: l.now()}
+		scan := domain.VulnerabilityScan{ID: scanID, TenantID: actor.TenantID, EvidenceID: item.ID, ReleaseID: doc.ReleaseID, Scanner: doc.Scanner, Adapter: doc.Adapter, AdapterVersion: doc.AdapterVersion, SourceSchema: doc.SourceSchema, TargetRef: doc.TargetRef, Summary: summary, Findings: findings, CreatedAt: l.now()}
 		persistedScan := scan
 		chainAction := "vulnerability_scan.parsed"
 		if l.workerOwnedParsers {
 			persistedScan.Scanner = ""
+			persistedScan.Adapter = ""
+			persistedScan.AdapterVersion = ""
+			persistedScan.SourceSchema = ""
 			persistedScan.TargetRef = ""
 			persistedScan.Summary = nil
 			persistedScan.Findings = nil
 			chainAction = "vulnerability_scan.accepted"
 		}
-		job := l.newOutboxJob(actor.TenantID, "parse_vulnerability_scan", "vulnerability_scan", scan.ID, addPayloadLifecycle(map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionGenericVulnerabilityJSON}, stagedPayload))
+		job := l.newOutboxJob(actor.TenantID, "parse_vulnerability_scan", "vulnerability_scan", scan.ID, addPayloadLifecycle(map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionScannerAdaptersJSON}, stagedPayload))
 		var evidenceEntry, scanEntry domain.AuditChainEntry
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
 			if err := l.persistStagedObjectPayload(ctx, repos, stagedPayload); err != nil {
@@ -1387,6 +1371,9 @@ func (s releaseEvidenceService) UploadVulnerabilityScanPayload(ctx context.Conte
 	chainAction := "vulnerability_scan.parsed"
 	if l.workerOwnedParsers {
 		persistedScan.Scanner = ""
+		persistedScan.Adapter = ""
+		persistedScan.AdapterVersion = ""
+		persistedScan.SourceSchema = ""
 		persistedScan.TargetRef = ""
 		persistedScan.Summary = nil
 		persistedScan.Findings = nil
@@ -1394,7 +1381,7 @@ func (s releaseEvidenceService) UploadVulnerabilityScanPayload(ctx context.Conte
 	}
 	l.scans[scan.ID] = persistedScan
 	_, _ = l.appendChainLocked(actor.TenantID, chainAction, "vulnerability_scan", scan.ID, "api_key", actor.KeyID, payloadHash, "")
-	job := l.newOutboxJob(actor.TenantID, "parse_vulnerability_scan", "vulnerability_scan", scan.ID, addPayloadLifecycle(map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionGenericVulnerabilityJSON}, stagedPayload))
+	job := l.newOutboxJob(actor.TenantID, "parse_vulnerability_scan", "vulnerability_scan", scan.ID, addPayloadLifecycle(map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionScannerAdaptersJSON}, stagedPayload))
 	if err := l.persistReleaseLedgerWithOutboxLocked(ctx, job); err != nil {
 		return domain.VulnerabilityScan{}, err
 	}

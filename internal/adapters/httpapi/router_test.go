@@ -229,7 +229,7 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	assertRequestExampleContains(t, uploadSBOM, "cyclonedx-release-sbom", "pkg:apk/openssl")
 	assertResponseRef(t, uploadSBOM, "201", "#/components/schemas/SBOMEnvelope")
 	uploadVulnerabilityScan := operationMap(t, paths, "/v1/vulnerability-scans", "post")
-	assertRequestRef(t, uploadVulnerabilityScan, "#/components/schemas/UploadVulnerabilityScanRequest")
+	assertRequestRef(t, uploadVulnerabilityScan, "#/components/schemas/UploadVulnerabilityScanBody")
 	assertRequestExampleContains(t, uploadVulnerabilityScan, "generic-critical-finding", "CVE-2026-0099")
 	assertResponseRef(t, uploadVulnerabilityScan, "201", "#/components/schemas/VulnerabilityScanEnvelope")
 	listVulnerabilityDecisions := operationMap(t, paths, "/v1/vulnerability-decisions", "get")

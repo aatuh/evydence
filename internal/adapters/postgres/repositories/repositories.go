@@ -776,9 +776,9 @@ func (r evidence) InsertVulnerabilityScan(ctx context.Context, scan domain.Vulne
 		return fmt.Errorf("encode vulnerability scan findings: %w", err)
 	}
 	_, err = r.tx.Exec(ctx, `
-		INSERT INTO vulnerability_scans (id, tenant_id, evidence_id, release_id, scanner, target_ref, summary, findings, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-	`, scan.ID, scan.TenantID, scan.EvidenceID, nullableString(scan.ReleaseID), scan.Scanner, scan.TargetRef, summary, findings, scan.CreatedAt)
+		INSERT INTO vulnerability_scans (id, tenant_id, evidence_id, release_id, scanner, adapter, adapter_version, source_schema, target_ref, summary, findings, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+	`, scan.ID, scan.TenantID, scan.EvidenceID, nullableString(scan.ReleaseID), scan.Scanner, scan.Adapter, scan.AdapterVersion, scan.SourceSchema, scan.TargetRef, summary, findings, scan.CreatedAt)
 	return writeError("insert vulnerability scan", err)
 }
 

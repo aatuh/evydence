@@ -28,15 +28,19 @@ the broader conformance, fixture-corpus, replay, and parser-version work.
 | OpenVEX JSON | `core` | Bounded OpenVEX JSON using maintained `github.com/openvex/go-vex` model; tested against the OpenVEX specification's minimal example | `openvex-json.v2.0.0` on import report and `parse_vex` job | Native `application/vnd.openvex+json`: 20 MiB; JSON envelope: 64 KiB |
 | CycloneDX VEX JSON | `core` | Bounded CycloneDX VEX JSON 1.4–1.7 using maintained `github.com/CycloneDX/cyclonedx-go`; tested against the official CycloneDX 1.4 VEX example | `cyclonedx-vex-json.v2.0.0` on import report and `parse_vex` job | JSON envelope: 64 KiB |
 | DSSE + in-toto statement JSON | `core` | Structural profile; fixtures use in-toto Statement v1 and SLSA provenance v1 | `dsse-in-toto-json.v1.0.0` on `verify_attestation` job | JSON request: 64 KiB |
-| Generic vulnerability-scan JSON | `core` | Evydence-owned normalized scanner schema | `generic-vulnerability-scan-json.v1.0.0` on `parse_vulnerability_scan` job | Streamed `application/json`: 20 MiB |
+| Generic vulnerability-scan JSON | `core` | Evydence-owned normalized scanner schema | `scanner-adapters-json.v1.0.0` on new `parse_vulnerability_scan` jobs | Streamed `application/json`: 20 MiB |
+| Grype JSON | `core` | Versioned `grype-json.v1` envelope around the native `matches` report | `scanner-adapters-json.v1.0.0` | Streamed `application/json`: 20 MiB |
+| Trivy JSON | `core` | Versioned `trivy-json.v1` envelope around the native `Results` report | `scanner-adapters-json.v1.0.0` | Streamed `application/json`: 20 MiB |
+| OSV-Scanner JSON | `core` | Versioned `osv-scanner-json.v1` envelope around native package findings | `scanner-adapters-json.v1.0.0` | Streamed `application/json`: 20 MiB |
+| Dependency-Track JSON | `core` | Versioned `dependency-track-json.v1` envelope around exported component findings | `scanner-adapters-json.v1.0.0` | Streamed `application/json`: 20 MiB |
 | Generic/SARIF security-scan JSON | `experimental` | Reduced summary; fixtures use SARIF `2.1.0` | No stable parser-version contract | JSON envelope: 64 KiB |
 
 The parser-version strings identify Evydence behavior, not external scanner
-versions. `scanner: "grype"` is metadata and does not select a Grype parser.
-Native Grype, Trivy, OSV-Scanner, Dependency-Track, and similar exports are not
-currently supported; convert them to the generic vulnerability-scan schema
-until EVY-505 adds versioned adapters. Syft/Trivy CycloneDX 1.6 outputs are used
-as EVY-502 interoperability fixtures for the supported CycloneDX route.
+versions. Native adapters are selected only by the explicit `scanner` and
+`source_schema` envelope fields. Unknown versions are rejected; a report is
+never guessed or silently flattened. The generic schema remains supported for
+producers that already normalize findings. Syft/Trivy CycloneDX 1.6 outputs are
+used as EVY-502 interoperability fixtures for the supported CycloneDX route.
 
 ## Format details and current limitations
 
@@ -179,17 +183,26 @@ Evidence: `internal/app/builds.go` (`parseDSSEAttestation`),
 
 ### Generic vulnerability-scan JSON
 
-`POST /v1/vulnerability-scans` is an Evydence-owned schema, not a native scanner
-export. It requires scanner, target ref, release ID, and findings with
-vulnerability and severity; component/state are optional, missing state becomes
-`open`, severity is lowercased, and unknown fields are rejected. The route
+`POST /v1/vulnerability-scans` accepts the Evydence-owned generic schema and
+versioned native adapter envelopes. The generic form requires scanner, target
+ref, release ID, and findings with vulnerability and severity; component/state
+are optional, missing state becomes `open`, severity is lowercased, and unknown
+fields are rejected. The route
 streams up to 20 MiB and preserves raw bytes.
 
+Native envelopes require `source_schema` (`grype-json.v1`, `trivy-json.v1`,
+`osv-scanner-json.v1`, or `dependency-track-json.v1`) and an unmodified native
+JSON object in `payload`. Their findings retain CVE, GHSA, OSV, vendor advisory,
+PURL, CPE, severity source, and fix-version fields when supplied. Differing
+identifiers of the same kind are rejected rather than selected arbitrarily;
+PURLs remain ecosystem-qualified, so packages are not conflated across
+ecosystems. Scanner data is evidence for review, not scanner authority.
+
 Evidence: `internal/app/ledger.go` (`UploadVulnerabilityScanPayload`),
-`ParserVersionGenericVulnerabilityJSON`,
-`TestUploadVulnerabilityScanCanDeferParserSideEffectsToWorker`,
-`TestParsersRejectMalformedInputs`, and HTTP streaming/limit tests under
-`internal/adapters/httpapi`.
+`ParserVersionScannerAdaptersJSON`,
+`internal/app/parsers/scanners`,
+`TestUploadVulnerabilityScanCanDeferParserSideEffectsToWorker`, and HTTP
+streaming/limit tests under `internal/adapters/httpapi`.
 
 ### Experimental security-scan JSON
 

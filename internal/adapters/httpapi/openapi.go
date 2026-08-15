@@ -2069,27 +2069,49 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "tenant_id", "release_id", "format", "parser_version", "advisory", "statement_count", "status_summary", "decisions_would_create", "decisions_would_supersede", "assumptions", "limitations", "schema_version", "generated_at"))
 	registry.RegisterSchema("VEXImportPreviewEnvelope", dataEnvelopeSchema("#/components/schemas/VEXImportPreview"))
 	registry.RegisterSchema("VulnerabilityScan", objectSchema(map[string]any{
-		"id":         map[string]any{"type": "string"},
-		"tenant_id":  map[string]any{"type": "string"},
-		"release_id": map[string]any{"type": "string"},
-		"scanner":    map[string]any{"type": "string"},
-		"target_ref": map[string]any{"type": "string"},
-		"summary":    map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "integer"}},
-		"findings":   map[string]any{"type": "array", "items": map[string]any{"type": "object"}},
-		"created_at": map[string]any{"type": "string", "format": "date-time"},
+		"id":              map[string]any{"type": "string"},
+		"tenant_id":       map[string]any{"type": "string"},
+		"release_id":      map[string]any{"type": "string"},
+		"scanner":         map[string]any{"type": "string"},
+		"adapter":         map[string]any{"type": "string"},
+		"adapter_version": map[string]any{"type": "string"},
+		"source_schema":   map[string]any{"type": "string"},
+		"target_ref":      map[string]any{"type": "string"},
+		"summary":         map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "integer"}},
+		"findings":        map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/VulnerabilityFinding"}},
+		"created_at":      map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "release_id", "scanner", "target_ref", "summary", "findings", "created_at"))
 	registry.RegisterSchema("VulnerabilityScanEnvelope", dataEnvelopeSchema("#/components/schemas/VulnerabilityScan"))
+	registry.RegisterSchema("VulnerabilityIdentity", objectSchema(map[string]any{
+		"cve": map[string]any{"type": "string"}, "ghsa": map[string]any{"type": "string"}, "osv": map[string]any{"type": "string"}, "vendor_advisory": map[string]any{"type": "string"}, "purl": map[string]any{"type": "string"}, "cpe": map[string]any{"type": "string"},
+	}))
+	registry.RegisterSchema("VulnerabilityFinding", objectSchema(map[string]any{
+		"id": map[string]any{"type": "string"}, "vulnerability": map[string]any{"type": "string"}, "component": map[string]any{"type": "string"}, "severity": map[string]any{"type": "string"}, "state": map[string]any{"type": "string"}, "severity_source": map[string]any{"type": "string"}, "fix_version": map[string]any{"type": "string"}, "identity": map[string]any{"$ref": "#/components/schemas/VulnerabilityIdentity"},
+	}, "id", "vulnerability", "severity", "state"))
+	registry.RegisterSchema("ScannerAdapterEnvelope", objectSchema(map[string]any{
+		"scanner":       map[string]any{"type": "string", "enum": []string{"grype", "trivy", "osv-scanner", "dependency-track"}},
+		"target_ref":    map[string]any{"type": "string"},
+		"release_id":    map[string]any{"type": "string"},
+		"source_schema": map[string]any{"type": "string", "enum": []string{"grype-json.v1", "trivy-json.v1", "osv-scanner-json.v1", "dependency-track-json.v1"}},
+		"payload":       map[string]any{"type": "object", "description": "Unmodified native scanner JSON. The selected scanner and source_schema determine the bounded adapter."},
+	}, "scanner", "target_ref", "release_id", "source_schema", "payload"))
 	registry.RegisterSchema("UploadVulnerabilityScanRequest", objectSchema(map[string]any{
 		"scanner":    map[string]any{"type": "string"},
 		"target_ref": map[string]any{"type": "string"},
 		"release_id": map[string]any{"type": "string"},
 		"findings": map[string]any{"type": "array", "items": objectSchema(map[string]any{
-			"vulnerability": map[string]any{"type": "string"},
-			"component":     map[string]any{"type": "string"},
-			"severity":      map[string]any{"type": "string"},
-			"state":         map[string]any{"type": "string"},
+			"vulnerability":   map[string]any{"type": "string"},
+			"component":       map[string]any{"type": "string"},
+			"severity":        map[string]any{"type": "string"},
+			"state":           map[string]any{"type": "string"},
+			"severity_source": map[string]any{"type": "string"},
+			"fix_version":     map[string]any{"type": "string"},
+			"identity":        map[string]any{"$ref": "#/components/schemas/VulnerabilityIdentity"},
 		}, "vulnerability", "severity")},
 	}, "scanner", "target_ref", "release_id", "findings"))
+	registry.RegisterSchema("UploadVulnerabilityScanBody", map[string]any{
+		"oneOf": []any{map[string]any{"$ref": "#/components/schemas/UploadVulnerabilityScanRequest"}, map[string]any{"$ref": "#/components/schemas/ScannerAdapterEnvelope"}},
+	})
 	registry.RegisterSchema("CreateIncidentRequest", objectSchema(map[string]any{
 		"product_id": map[string]any{"type": "string"},
 		"release_id": map[string]any{"type": "string"},

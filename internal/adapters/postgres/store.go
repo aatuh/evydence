@@ -932,7 +932,7 @@ func (s *Store) loadRelationalSBOMs(ctx context.Context, state *app.PersistedSta
 }
 
 func (s *Store) loadRelationalScans(ctx context.Context, state *app.PersistedState, loaded *bool) error {
-	rows, err := s.pool.Query(ctx, `SELECT id, tenant_id, evidence_id, release_id, scanner, target_ref, summary, findings, created_at FROM vulnerability_scans`)
+	rows, err := s.pool.Query(ctx, `SELECT id, tenant_id, evidence_id, release_id, scanner, adapter, adapter_version, source_schema, target_ref, summary, findings, created_at FROM vulnerability_scans`)
 	if err != nil {
 		return fmt.Errorf("load relational vulnerability scans: %w", err)
 	}
@@ -941,7 +941,7 @@ func (s *Store) loadRelationalScans(ctx context.Context, state *app.PersistedSta
 		var scan domain.VulnerabilityScan
 		var releaseID sql.NullString
 		var summary, findings []byte
-		if err := rows.Scan(&scan.ID, &scan.TenantID, &scan.EvidenceID, &releaseID, &scan.Scanner, &scan.TargetRef, &summary, &findings, &scan.CreatedAt); err != nil {
+		if err := rows.Scan(&scan.ID, &scan.TenantID, &scan.EvidenceID, &releaseID, &scan.Scanner, &scan.Adapter, &scan.AdapterVersion, &scan.SourceSchema, &scan.TargetRef, &summary, &findings, &scan.CreatedAt); err != nil {
 			return fmt.Errorf("scan relational vulnerability scan: %w", err)
 		}
 		scan.ReleaseID = nullableSQLString(releaseID)
@@ -3341,12 +3341,12 @@ func syncReleaseLedgerCore(ctx context.Context, tx pgx.Tx, state app.PersistedSt
 		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO vulnerability_scans (
-				id, tenant_id, evidence_id, release_id, scanner, target_ref,
+				id, tenant_id, evidence_id, release_id, scanner, adapter, adapter_version, source_schema, target_ref,
 				summary, findings, created_at
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-			ON CONFLICT (id) DO UPDATE SET summary = EXCLUDED.summary, findings = EXCLUDED.findings
-		`, scan.ID, scan.TenantID, scan.EvidenceID, nullableString(scan.ReleaseID), scan.Scanner, scan.TargetRef, summary, findings, nonZeroTime(scan.CreatedAt)); err != nil {
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			ON CONFLICT (id) DO UPDATE SET adapter = EXCLUDED.adapter, adapter_version = EXCLUDED.adapter_version, source_schema = EXCLUDED.source_schema, summary = EXCLUDED.summary, findings = EXCLUDED.findings
+		`, scan.ID, scan.TenantID, scan.EvidenceID, nullableString(scan.ReleaseID), scan.Scanner, scan.Adapter, scan.AdapterVersion, scan.SourceSchema, scan.TargetRef, summary, findings, nonZeroTime(scan.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert vulnerability scan row: %w", err)
 		}
 	}

@@ -434,7 +434,7 @@ func TestUploadVulnerabilityScanCanDeferParserSideEffectsToWorker(t *testing.T) 
 		t.Fatalf("outbox jobs = %d, want 1", len(outbox.jobs))
 	}
 	job := outbox.jobs[0]
-	if job.Kind != "parse_vulnerability_scan" || job.Payload["payload_ref"] == "" || job.Payload["payload_hash"] == "" || job.Payload["parser_version"] != ParserVersionGenericVulnerabilityJSON {
+	if job.Kind != "parse_vulnerability_scan" || job.Payload["payload_ref"] == "" || job.Payload["payload_hash"] == "" || job.Payload["parser_version"] != ParserVersionScannerAdaptersJSON {
 		t.Fatalf("outbox job missing replay metadata: %#v", job)
 	}
 	payloadRef, ok := job.Payload["payload_ref"].(string)
