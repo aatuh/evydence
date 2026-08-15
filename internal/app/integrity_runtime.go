@@ -76,6 +76,9 @@ func (l *Ledger) VerifyCosignSignature(ctx context.Context, actor domain.Actor, 
 	if !artifactOK || artifact.TenantID != actor.TenantID {
 		return domain.CosignVerification{}, ErrNotFound
 	}
+	if err := l.authorizeResourceLocked(actor, ScopeVerifyRead, resourceRefs{ArtifactID: artifact.ID}); err != nil {
+		return domain.CosignVerification{}, err
+	}
 	checks := []domain.VerifyCheck{}
 	if artifact.Digest != sig.SubjectDigest || !validDigest(sig.SubjectDigest) {
 		checks = append(checks, domain.VerifyCheck{Name: "digest_binding_assessed", Result: "failed", Detail: "stored artifact and signature digest binding does not match"})

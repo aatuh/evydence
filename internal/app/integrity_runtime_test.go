@@ -73,6 +73,20 @@ func TestCosignMerkleTransparencyAndKeyRevocationFlow(t *testing.T) {
 	}
 }
 
+func TestVerifyCosignSignatureRejectsHumanSessionOutsideArtifactGrant(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	actor, _, artifact := setupReleaseRiskFixture(t, ledger)
+	sig, err := ledger.CreateArtifactSignature(ctx, actor, CreateArtifactSignatureInput{ArtifactID: artifact.ID, Algorithm: "cosign", Signature: "recorded"})
+	if err != nil {
+		t.Fatalf("create artifact signature: %v", err)
+	}
+	restricted := domain.Actor{TenantID: actor.TenantID, UserID: "usr_restricted", Scopes: []string{ScopeVerifyRead}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: "prod_other", Scopes: []string{ScopeVerifyRead}}}}
+	if _, err := ledger.VerifyCosignSignature(ctx, restricted, VerifyCosignInput{ArtifactSignatureID: sig.ID}); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("restricted session verify err=%v, want forbidden", err)
+	}
+}
+
 func TestRuntimeRetentionBackupReadinessMetricsAndAudit(t *testing.T) {
 	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
