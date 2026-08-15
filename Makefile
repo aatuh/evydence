@@ -679,8 +679,7 @@ marketing-site-production-check: ## Build and validate the marketing site for ev
 	@PUBLIC_SITE_URL=https://evydence.app PUBLIC_SITE_BASE=/ PUBLIC_GA_MEASUREMENT_ID=G-XC2ESEHQ3W npm --prefix site/marketing run check
 
 restore-rehearsal-check: ## Run repository-owned backup/restore rehearsal tests
-	@$(GO) test ./internal/app -run TestBackupRestoreRehearsalPreservesLedgerAndObjectPayloads -count=1
-	@$(GO) test ./internal/adapters/postgres -run TestPostgresBackupRestoreRehearsalPreservesLedgerAndObjects -count=1
+	@sh scripts/restore_rehearsal.sh
 
 fast-check: ## Run non-mutating fast validation
 	@$(MAKE) test
