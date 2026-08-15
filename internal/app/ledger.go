@@ -1166,11 +1166,11 @@ func (s releaseEvidenceService) UploadSBOMPayload(ctx context.Context, actor dom
 		PayloadMediaType: "application/vnd.cyclonedx+json",
 		PayloadSize:      source.Size,
 		SubjectRefs:      subjectForArtifact(artifactID),
-		Metadata: map[string]any{
+		Metadata: WithParserProvenance(map[string]any{
 			"sbom_format":       "cyclonedx",
 			"sbom_spec_version": doc.SpecVersion,
 			"component_count":   len(components),
-		},
+		}, ParserProvenance{Name: "cyclonedx", Version: ParserVersionCycloneDXJSON, SourceSchema: "cyclonedx-" + doc.SpecVersion, NormalizedSchema: "evydence-sbom.v1", ReplayStatus: ParserReplayStatusOriginal}),
 	}
 	if l.unitOfWork != nil {
 		l.mu.Lock()
@@ -1306,7 +1306,7 @@ func (s releaseEvidenceService) UploadVulnerabilityScanPayload(ctx context.Conte
 		PayloadHash:      payloadHash,
 		PayloadMediaType: "application/json",
 		PayloadSize:      source.Size,
-		Metadata:         map[string]any{"scanner": doc.Scanner, "adapter": doc.Adapter, "adapter_version": doc.AdapterVersion, "source_schema": doc.SourceSchema, "target_ref": doc.TargetRef},
+		Metadata:         WithParserProvenance(map[string]any{"scanner": doc.Scanner, "adapter": doc.Adapter, "adapter_version": doc.AdapterVersion, "source_schema": doc.SourceSchema, "target_ref": doc.TargetRef}, ParserProvenance{Name: doc.Adapter, Version: doc.AdapterVersion, SourceSchema: doc.SourceSchema, NormalizedSchema: "evydence-vulnerability-finding.v1", ReplayStatus: ParserReplayStatusOriginal}),
 	}
 	if l.unitOfWork != nil {
 		l.mu.Lock()
@@ -1447,7 +1447,7 @@ func (s releaseEvidenceService) UploadOpenAPIContractPayload(ctx context.Context
 		PayloadHash:      payloadHash,
 		PayloadMediaType: "application/vnd.oai.openapi+json",
 		PayloadSize:      source.Size,
-		Metadata:         map[string]any{"version": version, "path_count": len(doc.Paths.Map())},
+		Metadata:         WithParserProvenance(map[string]any{"version": version, "path_count": len(doc.Paths.Map())}, ParserProvenance{Name: "openapi", Version: ParserVersionOpenAPIJSON, SourceSchema: "openapi-" + doc.OpenAPI, NormalizedSchema: "evydence-openapi-contract.v1", ReplayStatus: ParserReplayStatusOriginal}),
 	}
 	if l.unitOfWork != nil {
 		l.mu.Lock()

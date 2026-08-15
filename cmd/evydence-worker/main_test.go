@@ -1069,6 +1069,77 @@ func TestPrioritizePayloadFinalizationKeepsOtherJobsStable(t *testing.T) {
 	}
 }
 
+func TestParserReplayRequiresExplicitScopedApply(t *testing.T) {
+	for _, args := range [][]string{{}, {"--tenant", "ten_test", "--evidence", "ev_test", "--parser-version", app.ParserVersionSPDXJSON, "--actor", "operator"}} {
+		if err := runParserReplay(args); err == nil || !strings.Contains(err.Error(), "requires --tenant") {
+			t.Fatalf("runParserReplay(%q) err=%v", args, err)
+		}
+	}
+	t.Setenv("EVYDENCE_DATABASE_URL", "")
+	args := []string{"--tenant", "ten_test", "--evidence", "ev_test", "--parser-version", app.ParserVersionSPDXJSON, "--actor", "operator", "--apply"}
+	if err := runParserReplay(args); err == nil || !strings.Contains(err.Error(), "EVYDENCE_DATABASE_URL") {
+		t.Fatalf("runParserReplay valid args without database err=%v", err)
+	}
+}
+
+func TestParseParserReplayArgsRejectsUnsafeInputAndNormalizesScope(t *testing.T) {
+	request, err := parseParserReplayArgs([]string{"--tenant", " ten_test ", "--evidence", " ev_test ", "--parser-version", " " + app.ParserVersionSPDXJSON + " ", "--actor", " operator ", "--apply"})
+	if err != nil || request.TenantID != "ten_test" || request.EvidenceID != "ev_test" || request.ParserVersion != app.ParserVersionSPDXJSON || request.ActorID != "operator" {
+		t.Fatalf("parser replay request=%#v err=%v", request, err)
+	}
+	for _, args := range [][]string{
+		{"--tenant", "ten_test", "--evidence", "ev_test", "--parser-version", app.ParserVersionSPDXJSON, "--actor", "operator"},
+		{"--tenant", "ten_test", "--evidence", "ev_test", "--parser-version", app.ParserVersionSPDXJSON, "--actor", "operator", "--apply", "unexpected"},
+		{"--tenant", "ten_test", "--unknown", "value", "--apply"},
+	} {
+		if _, err := parseParserReplayArgs(args); err == nil {
+			t.Fatalf("unsafe parser replay arguments were accepted: %q", args)
+		}
+	}
+}
+
+type replayStoreStub struct {
+	state  app.PersistedState
+	saved  int
+	closed bool
+}
+
+func (s *replayStoreStub) Close()                                                   { s.closed = true }
+func (s *replayStoreStub) ApplyMigrations(context.Context, string) (int, error)     { return 0, nil }
+func (s *replayStoreStub) RequireNoPendingMigrations(context.Context, string) error { return nil }
+func (s *replayStoreStub) LoadState(context.Context) (app.PersistedState, bool, error) {
+	return s.state, true, nil
+}
+func (s *replayStoreStub) SaveState(_ context.Context, state app.PersistedState) error {
+	s.state, s.saved = state, s.saved+1
+	return nil
+}
+
+type replayObjectStoreStub struct{ object app.Object }
+
+func (s replayObjectStoreStub) Put(context.Context, app.Object) error           { return nil }
+func (s replayObjectStoreStub) Get(context.Context, string) (app.Object, error) { return s.object, nil }
+
+func TestRunParserReplayAppendsVerifiedDerivedRecordAndIsIdempotent(t *testing.T) {
+	raw := []byte(`{"scanner":"generic","target_ref":"pkg:oci/api","release_id":"rel_test","findings":[]}`)
+	digest := digestBytes(raw)
+	stub := &replayStoreStub{state: app.PersistedState{Evidence: map[string]domain.EvidenceItem{"ev_source": {ID: "ev_source", TenantID: "ten_test", Type: "vulnerability_scan", PayloadHash: digest, PayloadRef: "object://tenants/ten_test/payloads/source", CreatedAt: time.Now().UTC()}}, Chain: map[string][]domain.AuditChainEntry{}}}
+	previousStore, previousObjects := openParserReplayStore, openParserReplayObjects
+	t.Cleanup(func() { openParserReplayStore, openParserReplayObjects = previousStore, previousObjects })
+	openParserReplayStore = func(context.Context, string, postgres.StoreOptions) (parserReplayStore, error) { return stub, nil }
+	openParserReplayObjects = func(context.Context) (app.ObjectStore, string, error) {
+		return replayObjectStoreStub{object: app.Object{Key: "tenants/ten_test/payloads/source", TenantID: "ten_test", Digest: digest, Bytes: raw}}, "test", nil
+	}
+	t.Setenv("EVYDENCE_DATABASE_URL", "postgres://test")
+	args := []string{"--tenant", "ten_test", "--evidence", "ev_source", "--parser-version", app.ParserVersionScannerAdaptersJSON, "--actor", "operator", "--apply"}
+	if err := runParserReplay(args); err != nil || stub.saved != 1 || len(stub.state.Evidence) != 2 || !stub.closed {
+		t.Fatalf("first replay err=%v saved=%d state=%#v closed=%v", err, stub.saved, stub.state, stub.closed)
+	}
+	if err := runParserReplay(args); err != nil || stub.saved != 1 {
+		t.Fatalf("idempotent replay err=%v saved=%d", err, stub.saved)
+	}
+}
+
 func dsseEnvelopeForTest(t *testing.T, digest string) []byte {
 	t.Helper()
 	statement, err := json.Marshal(map[string]any{

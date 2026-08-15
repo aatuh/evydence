@@ -40,6 +40,20 @@ var expectedParserVersions = map[string]string{
 	"verify_attestation":       app.ParserVersionDSSEInTotoJSON,
 }
 
+type parserReplayStore interface {
+	Close()
+	ApplyMigrations(context.Context, string) (int, error)
+	RequireNoPendingMigrations(context.Context, string) error
+	LoadState(context.Context) (app.PersistedState, bool, error)
+	SaveState(context.Context, app.PersistedState) error
+}
+
+var openParserReplayStore = func(ctx context.Context, databaseURL string, options postgres.StoreOptions) (parserReplayStore, error) {
+	return postgres.OpenWithOptions(ctx, databaseURL, options)
+}
+
+var openParserReplayObjects = openObjectStore
+
 func main() {
 	if err := runWithArgs(os.Args[1:]); err != nil {
 		log.Fatal(err)
@@ -57,6 +71,8 @@ func runWithArgs(args []string) error {
 			return nil
 		case "reconcile":
 			return runObjectReconciliation(args[1:])
+		case "parser-replay":
+			return runParserReplay(args[1:])
 		default:
 			return fmt.Errorf("unsupported worker command %q", args[0])
 		}
@@ -130,6 +146,88 @@ func runWithArgs(args []string) error {
 			}
 		}
 	}
+}
+
+// runParserReplay is an explicit operator command that appends a derived
+// normalization record. It cannot edit the source evidence or provider object.
+func runParserReplay(args []string) error {
+	request, err := parseParserReplayArgs(args)
+	if err != nil {
+		return err
+	}
+	production := strings.EqualFold(os.Getenv("ENV"), "production")
+	databaseURL := strings.TrimSpace(os.Getenv("EVYDENCE_DATABASE_URL"))
+	if databaseURL == "" {
+		return errors.New("parser-replay requires EVYDENCE_DATABASE_URL")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), durationEnv("EVYDENCE_PARSER_REPLAY_TIMEOUT", 2*time.Minute))
+	defer cancel()
+	loadMode, err := postgres.ResolveLoadMode(os.Getenv("EVYDENCE_POSTGRES_LOAD_MODE"), production)
+	if err != nil {
+		return err
+	}
+	if production {
+		if err := postgres.ValidateProductionLoadMode(loadMode); err != nil {
+			return err
+		}
+	}
+	store, err := openParserReplayStore(ctx, databaseURL, postgres.StoreOptions{LoadMode: loadMode, DisableSnapshotWrites: production})
+	if err != nil {
+		return errors.New("parser-replay could not open durable storage")
+	}
+	defer store.Close()
+	migrationsDir := envDefault("EVYDENCE_MIGRATIONS_DIR", "migrations")
+	if !strings.EqualFold(os.Getenv("EVYDENCE_SKIP_MIGRATIONS"), "true") {
+		if _, err := store.ApplyMigrations(ctx, migrationsDir); err != nil {
+			return errors.New("parser-replay could not apply migrations")
+		}
+	} else if err := store.RequireNoPendingMigrations(ctx, migrationsDir); err != nil {
+		return errors.New("parser-replay requires current migrations")
+	}
+	state, ok, err := store.LoadState(ctx)
+	if err != nil || !ok {
+		return errors.New("parser-replay could not load durable state")
+	}
+	key, err := app.ParserReplayPayloadKey(&state, app.ParserReplayRequest{TenantID: request.TenantID, EvidenceID: request.EvidenceID})
+	if err != nil {
+		return errors.New("parser-replay source evidence not found")
+	}
+	objects, _, err := openParserReplayObjects(ctx)
+	if err != nil {
+		return errors.New("parser-replay could not open object storage")
+	}
+	object, err := objects.Get(ctx, key)
+	if err != nil {
+		return errors.New("parser-replay source payload verification failed")
+	}
+	result, err := app.ReplayStoredParserEvidence(&state, object, app.ParserReplayRequest{TenantID: request.TenantID, EvidenceID: request.EvidenceID, ParserVersion: request.ParserVersion, ActorID: request.ActorID, Now: time.Now().UTC()})
+	if err != nil {
+		return errors.New("parser-replay rejected requested interpretation")
+	}
+	if result.Created {
+		if err := store.SaveState(ctx, state); err != nil {
+			return errors.New("parser-replay could not persist derived record")
+		}
+	}
+	return json.NewEncoder(os.Stdout).Encode(map[string]any{"evidence_id": result.EvidenceID, "created": result.Created, "parser_version": result.Parser.Version})
+}
+
+type parserReplayArgs struct {
+	TenantID, EvidenceID, ParserVersion, ActorID string
+}
+
+func parseParserReplayArgs(args []string) (parserReplayArgs, error) {
+	flags := flag.NewFlagSet("parser-replay", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	tenantID := flags.String("tenant", "", "tenant ID")
+	evidenceID := flags.String("evidence", "", "source evidence ID")
+	parserVersion := flags.String("parser-version", "", "installed parser version")
+	actorID := flags.String("actor", "", "operator actor ID")
+	apply := flags.Bool("apply", false, "append the derived replay record")
+	if err := flags.Parse(args); err != nil || flags.NArg() != 0 || !*apply || strings.TrimSpace(*tenantID) == "" || strings.TrimSpace(*evidenceID) == "" || strings.TrimSpace(*parserVersion) == "" || strings.TrimSpace(*actorID) == "" {
+		return parserReplayArgs{}, errors.New("parser-replay requires --tenant, --evidence, --parser-version, --actor, and --apply")
+	}
+	return parserReplayArgs{TenantID: strings.TrimSpace(*tenantID), EvidenceID: strings.TrimSpace(*evidenceID), ParserVersion: strings.TrimSpace(*parserVersion), ActorID: strings.TrimSpace(*actorID)}, nil
 }
 
 // runObjectReconciliation performs a bounded, tenant-scoped reconciliation

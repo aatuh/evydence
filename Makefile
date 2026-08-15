@@ -69,6 +69,9 @@ openapi-check: openapi.yaml ## Validate OpenAPI generation and route contract te
 openapi-precision-check: ## Enforce current OpenAPI precision floor and broad-route ceiling
 	@python3 scripts/openapi_precision_check.py
 
+parser-corpus-check: ## Verify parser corpus provenance, hashes, and normalized summaries
+	@python3 scripts/parser_corpus_check.py
+
 rendered-openapi-check: ## Validate generated static OpenAPI docs
 	@scripts/render_openapi_docs.py --check
 

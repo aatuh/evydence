@@ -482,11 +482,11 @@ func (l *Ledger) UploadBuildAttestation(ctx context.Context, actor domain.Actor,
 		PayloadMediaType: "application/vnd.dsse.envelope+json",
 		PayloadSize:      int64(len(raw)),
 		SubjectRefs:      buildOutputSubjects(build.Outputs),
-		Metadata: map[string]any{
+		Metadata: WithParserProvenance(map[string]any{
 			"payload_type":    parsed.PayloadType,
 			"predicate_type":  parsed.PredicateType,
 			"signature_count": parsed.SignatureCount,
-		},
+		}, ParserProvenance{Name: "dsse-in-toto", Version: ParserVersionDSSEInTotoJSON, SourceSchema: "in-toto-statement.v1", NormalizedSchema: "evydence-build-attestation.v1", ReplayStatus: ParserReplayStatusOriginal}),
 		Limitations: []string{"DSSE and in-toto structure was parsed; cryptographic trust-root verification is not performed in this slice."},
 	}
 

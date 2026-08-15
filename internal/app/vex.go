@@ -156,10 +156,10 @@ func (s releaseEvidenceService) UploadVEXPayload(ctx context.Context, actor doma
 		PayloadMediaType: "application/vnd.openvex+json",
 		PayloadSize:      source.Size,
 		SubjectRefs:      subjectForArtifact(artifactID),
-		Metadata: map[string]any{
+		Metadata: WithParserProvenance(map[string]any{
 			"format":          "openvex",
 			"statement_count": len(doc.Statements),
-		},
+		}, ParserProvenance{Name: "openvex", Version: ParserVersionOpenVEXJSON, SourceSchema: "openvex-json", NormalizedSchema: "evydence-vex.v1", Warnings: doc.Warnings, ReplayStatus: ParserReplayStatusOriginal}),
 	}
 	if l.unitOfWork != nil {
 		l.mu.Lock()

@@ -1047,7 +1047,7 @@ func (l *Ledger) UploadCycloneDXVEX(ctx context.Context, actor domain.Actor, rel
 	item, err := l.CreateEvidence(ctx, actor, CreateEvidenceInput{
 		ReleaseID: releaseID, Type: "vex", Subtype: "cyclonedx", Title: "CycloneDX VEX", SourceSystem: "api", ObservedAt: l.now(),
 		PayloadRef: payloadRef, PayloadHash: payloadHash, PayloadMediaType: "application/vnd.cyclonedx+json", PayloadSize: int64(len(raw)), StagedPayload: stagedPayload,
-		SubjectRefs: subjectForArtifact(artifactID), Metadata: map[string]any{"format": "cyclonedx", "spec_version": doc.SpecVersion},
+		SubjectRefs: subjectForArtifact(artifactID), Metadata: WithParserProvenance(map[string]any{"format": "cyclonedx", "spec_version": doc.SpecVersion}, ParserProvenance{Name: "cyclonedx-vex", Version: ParserVersionCycloneDXVEXJSON, SourceSchema: "cyclonedx-vex-" + doc.SpecVersion, NormalizedSchema: "evydence-vex.v1", Warnings: doc.Warnings, ReplayStatus: ParserReplayStatusOriginal}),
 	})
 	if err != nil {
 		return domain.VEXDocument{}, err

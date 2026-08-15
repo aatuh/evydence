@@ -42,12 +42,12 @@ func normalizeSPDXResult(parsed spdxparser.Result) spdxNormalization {
 
 func (n spdxNormalization) evidenceMetadata() map[string]any {
 	warnings, unsupported := append([]string(nil), n.Warnings...), append([]string(nil), n.UnsupportedPaths...)
-	return map[string]any{
+	return WithParserProvenance(map[string]any{
 		"sbom_format": "spdx", "sbom_spec_version": n.SpecVersion, "component_count": len(n.Components), "relationship_count": n.RelationshipCount,
 		"checksum_count": n.ChecksumCount, "license_count": n.LicenseCount, "external_reference_count": n.ExternalReferenceCount,
 		"parser_version": n.ParserVersion, "normalization_warnings": warnings, "unsupported_normalization": unsupported,
 		"import_report": map[string]any{"parser_version": n.ParserVersion, "warnings": append([]string(nil), warnings...), "unsupported_constructs": append([]string(nil), unsupported...)},
-	}
+	}, ParserProvenance{Name: "spdx", Version: n.ParserVersion, SourceSchema: strings.ToLower(n.SpecVersion), NormalizedSchema: "evydence-sbom.v1", Warnings: warnings, ReplayStatus: ParserReplayStatusOriginal})
 }
 
 func (n spdxNormalization) limitations() []string {
