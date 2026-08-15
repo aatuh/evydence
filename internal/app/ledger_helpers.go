@@ -177,6 +177,8 @@ func ProblemCode(err error) string {
 		return "COSIGN_FULL_VERIFICATION_UNAVAILABLE"
 	case errors.Is(err, ErrVerificationFailed):
 		return "VERIFICATION_FAILED"
+	case errors.Is(err, ErrRetryableSigning):
+		return "SIGNING_PROVIDER_UNAVAILABLE"
 	case errors.Is(err, ErrRateLimited):
 		return "RATE_LIMITED"
 	case errors.Is(err, ErrValidation):
@@ -207,6 +209,8 @@ func StatusCode(err error) int {
 		return 422
 	case errors.Is(err, ErrRateLimited):
 		return 429
+	case errors.Is(err, ErrRetryableSigning):
+		return 503
 	default:
 		return 500
 	}

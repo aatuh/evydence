@@ -82,7 +82,7 @@ const (
 	PDFReportPackageVersion           = "pdf-report-package.v1.0.0"
 	AnomalyReportVersion              = "anomaly-report.v1.0.0"
 	ProviderVerificationVersion       = "provider-verification.v2.0.0"
-	SigningOperationVersion           = "signing-operation.v1.0.0"
+	SigningOperationVersion           = "signing-operation.v1.1.0"
 )
 
 type Actor struct {
@@ -1172,17 +1172,20 @@ type ProviderVerification struct {
 }
 
 type SigningOperation struct {
-	ID            string        `json:"id"`
-	TenantID      string        `json:"tenant_id"`
-	ProviderID    string        `json:"provider_id"`
-	SubjectType   string        `json:"subject_type"`
-	SubjectID     string        `json:"subject_id"`
-	PayloadHash   string        `json:"payload_hash"`
-	SignatureRef  string        `json:"signature_ref,omitempty"`
-	Result        string        `json:"result"`
-	Checks        []VerifyCheck `json:"checks"`
-	SchemaVersion string        `json:"schema_version"`
-	CreatedAt     time.Time     `json:"created_at"`
+	ID                   string        `json:"id"`
+	TenantID             string        `json:"tenant_id"`
+	ProviderID           string        `json:"provider_id"`
+	SubjectType          string        `json:"subject_type"`
+	SubjectID            string        `json:"subject_id"`
+	PayloadHash          string        `json:"payload_hash"`
+	CanonicalPayloadHash string        `json:"canonical_payload_hash,omitempty"`
+	RequestID            string        `json:"request_id,omitempty"`
+	ProviderRequestID    string        `json:"provider_request_id,omitempty"`
+	SignatureRef         string        `json:"signature_ref,omitempty"`
+	Result               string        `json:"result"`
+	Checks               []VerifyCheck `json:"checks"`
+	SchemaVersion        string        `json:"schema_version"`
+	CreatedAt            time.Time     `json:"created_at"`
 }
 
 type SBOM struct {

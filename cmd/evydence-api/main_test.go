@@ -294,7 +294,6 @@ func TestOpenSigningExecutorConfiguresDirectGCPKMS(t *testing.T) {
 func TestOpenSigningExecutorConfiguresDirectAzureKeyVault(t *testing.T) {
 	t.Setenv("EVYDENCE_SIGNING_KEY_MODE", "azure-key-vault")
 	t.Setenv("EVYDENCE_AZURE_KEY_VAULT_URL", "https://vault.example.test")
-	t.Setenv("EVYDENCE_AZURE_KEY_VAULT_ACCESS_TOKEN", "access-token")
 	t.Setenv("EVYDENCE_AZURE_KEY_VAULT_KEY_NAME", "evydence")
 	t.Setenv("EVYDENCE_AZURE_KEY_VAULT_KEY_VERSION", "v1")
 	signer, err := openSigningExecutor()

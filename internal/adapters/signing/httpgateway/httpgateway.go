@@ -54,9 +54,10 @@ type signRequest struct {
 }
 
 type signResponse struct {
-	Signature string `json:"signature"`
-	KeyID     string `json:"key_id"`
-	Algorithm string `json:"algorithm"`
+	Signature         string `json:"signature"`
+	KeyID             string `json:"key_id"`
+	Algorithm         string `json:"algorithm"`
+	ProviderRequestID string `json:"provider_request_id,omitempty"`
 }
 
 func New(cfg Config) (*Executor, error) {
@@ -122,17 +123,23 @@ func (e *Executor) Sign(ctx context.Context, request app.SigningRequest) (app.Si
 	}
 	resp, err := e.client.Do(httpReq)
 	if err != nil {
-		return app.SigningResult{}, errors.New("execute signing request")
+		return app.SigningResult{}, fmt.Errorf("%w: execute signing request", app.ErrRetryableSigning)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
+		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= http.StatusInternalServerError {
+			return app.SigningResult{}, fmt.Errorf("%w: signing gateway returned status %d", app.ErrRetryableSigning, resp.StatusCode)
+		}
 		return app.SigningResult{}, fmt.Errorf("signing gateway returned status %d", resp.StatusCode)
 	}
 	var decoded signResponse
 	decoder := json.NewDecoder(io.LimitReader(resp.Body, 1<<20))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&decoded); err != nil {
+		return app.SigningResult{}, errors.New("decode signing response")
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
 		return app.SigningResult{}, errors.New("decode signing response")
 	}
 	decoded.Signature = strings.TrimSpace(decoded.Signature)
@@ -158,10 +165,19 @@ func (e *Executor) Sign(ctx context.Context, request app.SigningRequest) (app.Si
 		KeyRef:               request.KeyRef,
 		CanonicalPayloadHash: request.CanonicalPayloadHash,
 		RequestID:            request.RequestID,
+		ProviderRequestID:    safeProviderRequestID(decoded.ProviderRequestID),
 		Checks: []domain.VerifyCheck{
 			{Name: "signing_gateway_response", Result: "passed", Detail: "External signing gateway signature verified over the canonical request hash."},
 		},
 	}, nil
+}
+
+func safeProviderRequestID(value string) string {
+	value = strings.TrimSpace(value)
+	if len(value) > 256 || strings.ContainsAny(value, "\r\n") {
+		return ""
+	}
+	return value
 }
 
 func localhostHost(host string) bool {

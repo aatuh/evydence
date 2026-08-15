@@ -673,17 +673,20 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"payload_hash": map[string]any{"type": "string", "pattern": "^sha256:"},
 	}, "provider_id", "subject_type", "subject_id", "payload_hash"))
 	registry.RegisterSchema("SigningOperation", objectSchema(map[string]any{
-		"id":             map[string]any{"type": "string"},
-		"tenant_id":      map[string]any{"type": "string"},
-		"provider_id":    map[string]any{"type": "string"},
-		"subject_type":   map[string]any{"type": "string"},
-		"subject_id":     map[string]any{"type": "string"},
-		"payload_hash":   map[string]any{"type": "string", "pattern": "^sha256:"},
-		"signature_ref":  map[string]any{"type": "string"},
-		"result":         map[string]any{"type": "string"},
-		"checks":         map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/VerifyCheck"}},
-		"schema_version": map[string]any{"type": "string"},
-		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+		"id":                     map[string]any{"type": "string"},
+		"tenant_id":              map[string]any{"type": "string"},
+		"provider_id":            map[string]any{"type": "string"},
+		"subject_type":           map[string]any{"type": "string"},
+		"subject_id":             map[string]any{"type": "string"},
+		"payload_hash":           map[string]any{"type": "string", "pattern": "^sha256:"},
+		"canonical_payload_hash": map[string]any{"type": "string", "pattern": "^sha256:", "description": "Hash of the canonical provider-signing request; no raw payload bytes are stored."},
+		"request_id":             map[string]any{"type": "string", "description": "Evydence signing-request identifier for safe retry correlation."},
+		"provider_request_id":    map[string]any{"type": "string", "description": "Provider receipt identifier when returned by the signing provider; credentials and raw provider responses are never stored."},
+		"signature_ref":          map[string]any{"type": "string"},
+		"result":                 map[string]any{"type": "string"},
+		"checks":                 map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/VerifyCheck"}},
+		"schema_version":         map[string]any{"type": "string"},
+		"created_at":             map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "provider_id", "subject_type", "subject_id", "payload_hash", "result", "checks", "schema_version", "created_at"))
 	registry.RegisterSchema("SigningOperationEnvelope", dataEnvelopeSchema("#/components/schemas/SigningOperation"))
 	registry.RegisterSchema("CreateArtifactSignatureRequest", objectSchema(map[string]any{

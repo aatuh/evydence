@@ -228,15 +228,14 @@ func openSigningExecutor() (app.SigningExecutor, error) {
 		}
 		return executor, nil
 	}
-	if mode == "azure_key_vault" && strings.TrimSpace(os.Getenv("EVYDENCE_AZURE_KEY_VAULT_ACCESS_TOKEN")) != "" {
+	if mode == "azure_key_vault" {
 		executor, err := azurekeyvault.New(azurekeyvault.Config{
-			VaultURL:    os.Getenv("EVYDENCE_AZURE_KEY_VAULT_URL"),
-			AccessToken: os.Getenv("EVYDENCE_AZURE_KEY_VAULT_ACCESS_TOKEN"),
-			KeyName:     os.Getenv("EVYDENCE_AZURE_KEY_VAULT_KEY_NAME"),
-			KeyVersion:  os.Getenv("EVYDENCE_AZURE_KEY_VAULT_KEY_VERSION"),
-			Algorithm:   os.Getenv("EVYDENCE_AZURE_KEY_VAULT_ALGORITHM"),
-			APIVersion:  os.Getenv("EVYDENCE_AZURE_KEY_VAULT_API_VERSION"),
-			Timeout:     time.Duration(intEnv("EVYDENCE_AZURE_KEY_VAULT_TIMEOUT_SECONDS", 10)) * time.Second,
+			VaultURL:   os.Getenv("EVYDENCE_AZURE_KEY_VAULT_URL"),
+			KeyName:    os.Getenv("EVYDENCE_AZURE_KEY_VAULT_KEY_NAME"),
+			KeyVersion: os.Getenv("EVYDENCE_AZURE_KEY_VAULT_KEY_VERSION"),
+			Algorithm:  os.Getenv("EVYDENCE_AZURE_KEY_VAULT_ALGORITHM"),
+			APIVersion: os.Getenv("EVYDENCE_AZURE_KEY_VAULT_API_VERSION"),
+			Timeout:    time.Duration(intEnv("EVYDENCE_AZURE_KEY_VAULT_TIMEOUT_SECONDS", 10)) * time.Second,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("configure Azure Key Vault signing executor: %w", err)

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"time"
 )
@@ -210,7 +211,7 @@ func (l *Ledger) withDurableIdempotency(ctx context.Context, reservation Idempot
 			return ErrValidation
 		}
 	})
-	if commandRan && commandErr != nil {
+	if commandRan && commandErr != nil && !errors.Is(commandErr, ErrRetryableSigning) {
 		// The command transaction was rolled back, so recording the safe failed
 		// state happens separately and cannot commit a partial domain mutation.
 		_ = l.persistDurableIdempotencyFailure(context.WithoutCancel(ctx), reservation)
@@ -441,6 +442,10 @@ func (l *Ledger) finishIdempotencyReservation(ctx context.Context, reservation I
 	case IdempotencyReservationAcquired, IdempotencyReservationRecovered:
 		status, response, err := run()
 		if err != nil {
+			if errors.Is(err, ErrRetryableSigning) {
+				l.releaseInMemoryIdempotency(reservation)
+				return status, response, err
+			}
 			// Failure state records no raw error or partial response. A later ticket
 			// defines which documented client failures may be replayed safely.
 			_ = fail(ctx)
@@ -452,6 +457,16 @@ func (l *Ledger) finishIdempotencyReservation(ctx context.Context, reservation I
 		return status, response, nil
 	default:
 		return 0, nil, ErrValidation
+	}
+}
+
+func (l *Ledger) releaseInMemoryIdempotency(reservation IdempotencyReservation) {
+	storeKey := NewIdempotencyRecordKey(reservation.Key.TenantID, reservation.Key.ActorID, reservation.Key.Method, reservation.Key.Path, reservation.Key.IdempotencyKey)
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	record, exists := l.idempotency[storeKey]
+	if exists && record.State == IdempotencyPending && record.OwnerTokenHash == reservation.OwnerTokenHash {
+		delete(l.idempotency, storeKey)
 	}
 }
 

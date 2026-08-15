@@ -1405,7 +1405,7 @@ func (l *Ledger) CreateSigningOperation(ctx context.Context, actor domain.Actor,
 		return domain.SigningOperation{}, err
 	}
 	signature := domain.Signature{ID: newID("sig"), TenantID: actor.TenantID, SubjectType: subjectType, SubjectID: subjectID, KeyID: provider.ID, Algorithm: signatureAlgorithm, Value: signatureValue, CreatedAt: l.now()}
-	op := domain.SigningOperation{ID: newID("sop"), TenantID: actor.TenantID, ProviderID: provider.ID, SubjectType: subjectType, SubjectID: subjectID, PayloadHash: payloadHash, SignatureRef: signature.ID, Result: result, Checks: checks, SchemaVersion: domain.SigningOperationVersion, CreatedAt: l.now()}
+	op := domain.SigningOperation{ID: newID("sop"), TenantID: actor.TenantID, ProviderID: provider.ID, SubjectType: subjectType, SubjectID: subjectID, PayloadHash: payloadHash, CanonicalPayloadHash: request.CanonicalPayloadHash, RequestID: request.RequestID, ProviderRequestID: strings.TrimSpace(signed.ProviderRequestID), SignatureRef: signature.ID, Result: result, Checks: checks, SchemaVersion: domain.SigningOperationVersion, CreatedAt: l.now()}
 	if l.unitOfWork != nil {
 		var entry domain.AuditChainEntry
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {

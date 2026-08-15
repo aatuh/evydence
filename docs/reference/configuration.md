@@ -79,7 +79,6 @@ process, or equivalent deployment control.
 | `EVYDENCE_GCP_KMS_ENDPOINT` | No | `https://cloudkms.googleapis.com` | Optional GCP KMS endpoint for tests or controlled private endpoints. |
 | `EVYDENCE_GCP_KMS_TIMEOUT_SECONDS` | No | `10` | Timeout for GCP KMS signing requests. |
 | `EVYDENCE_AZURE_KEY_VAULT_URL` | Azure Key Vault mode | unset | HTTPS Key Vault URL used by the direct Azure Key Vault executor. |
-| `EVYDENCE_AZURE_KEY_VAULT_ACCESS_TOKEN` | Azure Key Vault mode | unset | Bearer token used by the direct Azure Key Vault executor. Store outside source control and logs. If unset, `azure-key-vault` requires `EVYDENCE_SIGNING_EXECUTOR_URL`. |
 | `EVYDENCE_AZURE_KEY_VAULT_KEY_NAME` | Azure Key Vault mode | unset | Default Key Vault key name. A signing provider `key_ref` URL can override it. |
 | `EVYDENCE_AZURE_KEY_VAULT_KEY_VERSION` | Azure Key Vault mode | unset | Default Key Vault key version. A signing provider `key_ref` URL can override it. |
 | `EVYDENCE_AZURE_KEY_VAULT_ALGORITHM` | No | `ES256` | Azure Key Vault signing algorithm used for the SHA-256 digest. |
@@ -121,8 +120,8 @@ When `ENV=production`, the API refuses to start unless:
 - `EVYDENCE_API_KEY_PEPPER` is non-empty and not the local default.
 - `EVYDENCE_SIGNING_KEY_MODE` is `external`, `aws-kms`, `gcp-kms`,
   `azure-key-vault`, or `pkcs11-hsm`. `external` and `pkcs11-hsm` require
-  `EVYDENCE_SIGNING_EXECUTOR_URL`; `gcp-kms` and `azure-key-vault` require
-  Application Default Credentials or `EVYDENCE_SIGNING_EXECUTOR_URL`.
+  `EVYDENCE_SIGNING_EXECUTOR_URL`; `gcp-kms` uses Google Application Default
+  Credentials and `azure-key-vault` uses Azure DefaultAzureCredential.
 - `EVYDENCE_PRINT_BOOTSTRAP_SECRET` is not `true`.
 - `EVYDENCE_POSTGRES_LOAD_MODE`, when set, is `relational_only`.
 - `EVYDENCE_API_WRITER_MODE`, when set, is `single` or `single-writer`.
@@ -204,11 +203,12 @@ and safe provider receipt identifiers. Evydence does not store production
 private key material or send raw evidence payload bytes.
 
 `EVYDENCE_SIGNING_KEY_MODE=gcp-kms` uses the Google Application Default
-Credentials chain. If direct credentials are unavailable, use the HTTPS
-signing gateway. `pkcs11-hsm` always uses the HTTPS signing gateway because
-native HSM modules and slots are deployment-specific. Operators remain
-responsible for provider credentials, IAM, key lifecycle, gateway operation
-where used, and custody review.
+Credentials chain and `azure-key-vault` uses Azure DefaultAzureCredential. If
+direct credentials are unavailable, use the HTTPS signing gateway.
+`pkcs11-hsm` always uses the HTTPS signing gateway because native HSM modules
+and slots are deployment-specific. Operators remain responsible for provider
+credentials, IAM, key lifecycle, gateway operation where used, and custody
+review.
 
 Tenant signing-provider records also accept `native_pkcs11_hsm` for deployments
 that operate local PKCS#11 modules or slots outside Evydence. The provider
@@ -217,24 +217,36 @@ passwords, or secrets. This profile records custody evidence for review through
 `GET /v1/reports/custody-review`; it does not load native HSM modules or prove
 hardware custody by itself.
 
-When `EVYDENCE_SIGNING_KEY_MODE=aws-kms`, Evydence uses the AWS KMS `Sign`
-operation against `EVYDENCE_AWS_KMS_KEY_ID`. The executor signs the decoded
-SHA-256 digest with KMS `MessageType=DIGEST`; it does not send raw evidence
-payload bytes to AWS KMS. Operators remain responsible for AWS IAM policy,
-key lifecycle, CloudTrail review, regional availability, and external review
-of whether the selected key custody profile satisfies their deployment needs.
+When `EVYDENCE_SIGNING_KEY_MODE=aws-kms`, Evydence uses AWS KMS `Sign` and
+`Verify` against `EVYDENCE_AWS_KMS_KEY_ID`. The executor signs and verifies
+the decoded SHA-256 canonical-request digest with KMS `MessageType=DIGEST`; it
+does not send raw evidence payload bytes to AWS KMS. Operators remain
+responsible for AWS IAM policy, key lifecycle, CloudTrail review, regional
+availability, and external review of whether the selected key custody profile
+satisfies their deployment needs.
 
-When `EVYDENCE_SIGNING_KEY_MODE=gcp-kms`, Evydence can call GCP Cloud KMS
-`asymmetricSign` with a configured bearer token and key-version resource name.
-The executor sends a SHA-256 digest, not raw evidence payload bytes. Operators
-remain responsible for GCP IAM, token issuance, audit logs, key lifecycle, and
-regional availability.
+When `EVYDENCE_SIGNING_KEY_MODE=gcp-kms`, Evydence calls GCP Cloud KMS
+`asymmetricSign` with an Application Default Credentials access token and a
+key-version resource name. It fetches the provider public key and verifies the
+returned signature over the SHA-256 canonical-request digest. The executor
+does not send raw evidence payload bytes. Operators remain responsible for GCP
+IAM, audit logs, key lifecycle, and regional availability.
 
-When `EVYDENCE_SIGNING_KEY_MODE=azure-key-vault`, Evydence can call Azure Key
-Vault `sign` with a configured bearer token, key name, key version, and
-algorithm. The executor sends a SHA-256 digest encoded for Key Vault, not raw
-evidence payload bytes. Operators remain responsible for Azure identity, Key
-Vault access policy/RBAC, audit logs, key lifecycle, and regional availability.
+When `EVYDENCE_SIGNING_KEY_MODE=azure-key-vault`, Evydence calls Azure Key
+Vault `sign` using DefaultAzureCredential, a key name/version, and `ES256`. It
+fetches the provider public key and verifies the returned signature over the
+SHA-256 canonical-request digest. The executor does not send raw evidence
+payload bytes. Operators remain responsible for Azure identity, Key Vault
+access policy/RBAC, audit logs, key lifecycle, and regional availability.
+
+If a signing provider is temporarily unavailable, Evydence returns a retryable
+service-unavailable response and releases the request's idempotency reservation
+without persisting a signing operation or signature. Retrying the same
+idempotency key can then create at most one persisted signing receipt after a
+successful provider response. Providers that do not expose a request-level
+idempotency primitive can still produce an unobserved external signature after
+a network timeout; use the HTTPS gateway where provider-side deduplication is
+required.
 
 ## Provider Validation Gateway
 

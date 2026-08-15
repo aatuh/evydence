@@ -88,3 +88,12 @@ func TestSignRejectsUnknownResponseFields(t *testing.T) {
 		t.Fatal("expected strict response decoding to reject unknown fields")
 	}
 }
+
+func TestSafeProviderRequestIDDropsUnsafeValues(t *testing.T) {
+	if safeProviderRequestID("  provider-request-1  ") != "provider-request-1" {
+		t.Fatal("expected safe provider request ID to be normalized")
+	}
+	if safeProviderRequestID("bad\nrequest") != "" || safeProviderRequestID(string(make([]byte, 257))) != "" {
+		t.Fatal("expected unsafe provider request ID to be discarded")
+	}
+}

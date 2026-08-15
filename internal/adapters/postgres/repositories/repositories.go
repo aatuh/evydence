@@ -2893,7 +2893,7 @@ func (r futureExtensions) InsertSigningOperation(ctx context.Context, signature 
 	if err != nil {
 		return writeError("insert provider signature receipt", err)
 	}
-	_, err = r.tx.Exec(ctx, `INSERT INTO signing_operations (id, tenant_id, provider_id, subject_type, subject_id, payload_hash, signature_ref, result, checks, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, operation.ID, operation.TenantID, operation.ProviderID, operation.SubjectType, operation.SubjectID, operation.PayloadHash, operation.SignatureRef, operation.Result, checks, operation.SchemaVersion, operation.CreatedAt)
+	_, err = r.tx.Exec(ctx, `INSERT INTO signing_operations (id, tenant_id, provider_id, subject_type, subject_id, payload_hash, canonical_payload_hash, request_id, provider_request_id, signature_ref, result, checks, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`, operation.ID, operation.TenantID, operation.ProviderID, operation.SubjectType, operation.SubjectID, operation.PayloadHash, operation.CanonicalPayloadHash, operation.RequestID, nullableString(operation.ProviderRequestID), operation.SignatureRef, operation.Result, checks, operation.SchemaVersion, operation.CreatedAt)
 	return writeError("insert signing operation", err)
 }
 

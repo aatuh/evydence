@@ -698,7 +698,7 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 			"provider_verification_test": {ID: "provider_verification_test", TenantID: "ten_test", ProviderType: "oidc", ProviderID: "sso_test", Subject: "sub", Result: "verified", Checks: []domain.VerifyCheck{{Name: "subject", Result: "passed"}}, Limitations: []string{"static trust material"}, SchemaVersion: domain.ProviderVerificationVersion, CreatedAt: time.Now().UTC()},
 		},
 		SigningOperations: map[string]domain.SigningOperation{
-			"signing_operation_test": {ID: "signing_operation_test", TenantID: "ten_test", ProviderID: "sign_provider_test", SubjectType: "release", SubjectID: "rel_test", PayloadHash: "sha256:" + strings.Repeat("2", 64), SignatureRef: "provider_receipt_test", Result: "signed", Checks: []domain.VerifyCheck{{Name: "provider", Result: "passed"}}, SchemaVersion: domain.SigningOperationVersion, CreatedAt: time.Now().UTC()},
+			"signing_operation_test": {ID: "signing_operation_test", TenantID: "ten_test", ProviderID: "sign_provider_test", SubjectType: "release", SubjectID: "rel_test", PayloadHash: "sha256:" + strings.Repeat("2", 64), CanonicalPayloadHash: "sha256:" + strings.Repeat("3", 64), RequestID: "signing-request-test", ProviderRequestID: "provider-request-test", SignatureRef: "provider_receipt_test", Result: "signed", Checks: []domain.VerifyCheck{{Name: "provider", Result: "passed"}}, SchemaVersion: domain.SigningOperationVersion, CreatedAt: time.Now().UTC()},
 		},
 		Idempotency: map[string]app.IdempotencyRecord{
 			app.NewIdempotencyRecordKey("ten_test", "user:user_test", "POST", "/v1/products", "idem"): {RequestHash: "sha256:request", Status: 201, Response: map[string]any{"ok": true}, CreatedAt: time.Now().UTC()},
@@ -998,7 +998,7 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	if relational.MarketplaceCollectors["market_collector_test"].State != "published" || relational.ProviderVerifications["provider_verification_test"].Result != "verified" {
 		t.Fatalf("relational marketplace/provider rows missing: market=%#v provider=%#v", relational.MarketplaceCollectors["market_collector_test"], relational.ProviderVerifications["provider_verification_test"])
 	}
-	if relational.SigningOperations["signing_operation_test"].SignatureRef != "provider_receipt_test" || len(relational.SigningOperations["signing_operation_test"].Checks) != 1 {
+	if relational.SigningOperations["signing_operation_test"].SignatureRef != "provider_receipt_test" || relational.SigningOperations["signing_operation_test"].CanonicalPayloadHash != "sha256:"+strings.Repeat("3", 64) || relational.SigningOperations["signing_operation_test"].RequestID != "signing-request-test" || relational.SigningOperations["signing_operation_test"].ProviderRequestID != "provider-request-test" || len(relational.SigningOperations["signing_operation_test"].Checks) != 1 {
 		t.Fatalf("relational signing operation missing: operation=%#v", relational.SigningOperations["signing_operation_test"])
 	}
 	if relational.PDFReports["pdf_test"].PayloadHash == "" || relational.AnomalyReports["anom_test"].Result != "review" {

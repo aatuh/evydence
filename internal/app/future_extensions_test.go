@@ -302,6 +302,7 @@ func (f *fakeSigningExecutor) Sign(_ context.Context, request SigningRequest) (S
 		KeyRef:               request.KeyRef,
 		CanonicalPayloadHash: request.CanonicalPayloadHash,
 		RequestID:            request.RequestID,
+		ProviderRequestID:    "provider-request-123",
 		Checks:               []domain.VerifyCheck{{Name: "fake_executor", Result: "passed"}},
 	}, nil
 }
@@ -347,7 +348,7 @@ func TestSigningOperationCanExecuteConfiguredSignerWithoutPrivateKey(t *testing.
 	if err != nil {
 		t.Fatalf("signing operation: %v", err)
 	}
-	if op.Result != "passed" || op.SignatureRef == "" {
+	if op.Result != "passed" || op.SignatureRef == "" || op.CanonicalPayloadHash != signer.request.CanonicalPayloadHash || op.RequestID != signer.request.RequestID || op.ProviderRequestID != "provider-request-123" {
 		t.Fatalf("operation = %#v", op)
 	}
 	if signer.request.Profile != signingRequestProfile || signer.request.ProviderID != provider.ID || signer.request.KeyRef != provider.KeyRef || signer.request.PayloadHash != sampleDigest("payload") || signer.request.CanonicalPayloadHash == "" || signer.request.RequestID == "" || signer.request.Nonce == "" {

@@ -2646,19 +2646,20 @@ func (s *Store) loadRelationalFutureExtensionRows(ctx context.Context, state *ap
 		return err
 	}
 
-	signingRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, provider_id, subject_type, subject_id, payload_hash, signature_ref, result, checks, schema_version, created_at FROM signing_operations`)
+	signingRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, provider_id, subject_type, subject_id, payload_hash, canonical_payload_hash, request_id, provider_request_id, signature_ref, result, checks, schema_version, created_at FROM signing_operations`)
 	if err != nil {
 		return fmt.Errorf("load relational signing operations: %w", err)
 	}
 	defer signingRows.Close()
 	for signingRows.Next() {
 		var operation domain.SigningOperation
-		var signatureRef sql.NullString
+		var signatureRef, providerRequestID sql.NullString
 		var checks []byte
-		if err := signingRows.Scan(&operation.ID, &operation.TenantID, &operation.ProviderID, &operation.SubjectType, &operation.SubjectID, &operation.PayloadHash, &signatureRef, &operation.Result, &checks, &operation.SchemaVersion, &operation.CreatedAt); err != nil {
+		if err := signingRows.Scan(&operation.ID, &operation.TenantID, &operation.ProviderID, &operation.SubjectType, &operation.SubjectID, &operation.PayloadHash, &operation.CanonicalPayloadHash, &operation.RequestID, &providerRequestID, &signatureRef, &operation.Result, &checks, &operation.SchemaVersion, &operation.CreatedAt); err != nil {
 			return fmt.Errorf("scan relational signing operation: %w", err)
 		}
 		operation.SignatureRef = nullableSQLString(signatureRef)
+		operation.ProviderRequestID = nullableSQLString(providerRequestID)
 		if err := decodeJSON(checks, &operation.Checks); err != nil {
 			return fmt.Errorf("decode relational signing operation checks: %w", err)
 		}
@@ -4912,12 +4913,12 @@ func syncFutureExtensionRows(ctx context.Context, tx pgx.Tx, state app.Persisted
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO signing_operations (
 				id, tenant_id, provider_id, subject_type, subject_id,
-				payload_hash, signature_ref, result, checks,
+				payload_hash, canonical_payload_hash, request_id, provider_request_id, signature_ref, result, checks,
 				schema_version, created_at
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-			ON CONFLICT (id) DO UPDATE SET signature_ref = EXCLUDED.signature_ref, result = EXCLUDED.result, checks = EXCLUDED.checks, schema_version = EXCLUDED.schema_version
-		`, operation.ID, operation.TenantID, operation.ProviderID, operation.SubjectType, operation.SubjectID, operation.PayloadHash, nullableString(operation.SignatureRef), operation.Result, checks, operation.SchemaVersion, nonZeroTime(operation.CreatedAt)); err != nil {
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			ON CONFLICT (id) DO UPDATE SET canonical_payload_hash = EXCLUDED.canonical_payload_hash, request_id = EXCLUDED.request_id, provider_request_id = EXCLUDED.provider_request_id, signature_ref = EXCLUDED.signature_ref, result = EXCLUDED.result, checks = EXCLUDED.checks, schema_version = EXCLUDED.schema_version
+		`, operation.ID, operation.TenantID, operation.ProviderID, operation.SubjectType, operation.SubjectID, operation.PayloadHash, operation.CanonicalPayloadHash, operation.RequestID, nullableString(operation.ProviderRequestID), nullableString(operation.SignatureRef), operation.Result, checks, operation.SchemaVersion, nonZeroTime(operation.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert signing operation row: %w", err)
 		}
 	}
