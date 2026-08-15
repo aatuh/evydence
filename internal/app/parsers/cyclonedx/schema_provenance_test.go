@@ -1,6 +1,7 @@
 package cyclonedx
 
 import (
+	// #nosec G505 -- SHA-1 is required to reproduce legacy Git blob object IDs; this is not a security decision.
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
@@ -26,6 +27,7 @@ func TestVendoredSchemaResourcesMatchPinnedUpstreamGitObjects(t *testing.T) {
 }
 
 func gitBlobSHA(raw []byte) string {
+	// #nosec G401 -- SHA-1 is required only for the Git blob object ID asserted by this provenance test.
 	h := sha1.New()
 	_, _ = fmt.Fprintf(h, "blob %d%c", len(raw), byte(0))
 	_, _ = h.Write(raw)
