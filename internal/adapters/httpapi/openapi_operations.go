@@ -576,12 +576,12 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("DSSE envelope.", "#/components/schemas/DSSEEnvelope")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created build attestation envelope.", "#/components/schemas/BuildAttestationEnvelope")
 	case "verifyBuildAttestationSignature":
-		operation.Description = "Verifies a build attestation signature against configured tenant DSSE trust roots."
+		operation.Description = "Offline-verifies DSSE PAE, an in-toto Statement v1/SLSA provenance v1 predicate, registered release-artifact subject digests, and immutable configured tenant-root policy."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Build attestation id."))
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Build attestation verification envelope.", "#/components/schemas/VerificationResultEnvelope")
 	case "createDSSETrustRoot":
-		operation.Description = "Creates a tenant-scoped DSSE trust root using public verification key material only."
+		operation.Description = "Creates a tenant-scoped immutable DSSE Ed25519 trust root with an explicit SLSA predicate, builder, and required-claims policy."
 		operation.RequestBody = jsonRequest("DSSE trust-root creation request.", "#/components/schemas/CreateDSSETrustRootRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created DSSE trust root envelope.", "#/components/schemas/DSSETrustRootEnvelope")
 	case "createReleaseCandidate":

@@ -449,13 +449,13 @@
               <div><dt>Responses</dt><dd>200 application/json: VerificationResultEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/build-attestations/{id}/verify-signature verify build attestation signature verifies a build attestation signature against configured tenant dsse trust roots. verifybuildattestationsignature evydence verify:read">
+          <article class="operation" data-operation data-search="post /v1/build-attestations/{id}/verify-signature verify build attestation signature offline-verifies dsse pae, an in-toto statement v1/slsa provenance v1 predicate, registered release-artifact subject digests, and immutable configured tenant-root policy. verifybuildattestationsignature evydence verify:read">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/build-attestations/{id}/verify-signature</code>
             </div>
             <h3>Verify build attestation signature</h3>
-            <p>Verifies a build attestation signature against configured tenant DSSE trust roots.</p>
+            <p>Offline-verifies DSSE PAE, an in-toto Statement v1/SLSA provenance v1 predicate, registered release-artifact subject digests, and immutable configured tenant-root policy.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>verifyBuildAttestationSignature</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -1078,13 +1078,13 @@
               <div><dt>Responses</dt><dd>200 application/json: DeploymentEventEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/dsse-trust-roots create dsse trust root creates a tenant-scoped dsse trust root using public verification key material only. createdssetrustroot evydence keys:admin">
+          <article class="operation" data-operation data-search="post /v1/dsse-trust-roots create dsse trust root creates a tenant-scoped immutable dsse ed25519 trust root with an explicit slsa predicate, builder, and required-claims policy. createdssetrustroot evydence keys:admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/dsse-trust-roots</code>
             </div>
             <h3>Create DSSE trust root</h3>
-            <p>Creates a tenant-scoped DSSE trust root using public verification key material only.</p>
+            <p>Creates a tenant-scoped immutable DSSE Ed25519 trust root with an explicit SLSA predicate, builder, and required-claims policy.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createDSSETrustRoot</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -3688,7 +3688,7 @@
           <tr>
             <td><code>CreateDSSETrustRootRequest</code></td>
             <td>object</td>
-            <td>name, key_id, algorithm, public_key</td>
+            <td>name, key_id, algorithm, public_key, allowed_predicate_types, expected_builder_ids, required_claims</td>
           </tr>
           <tr>
             <td><code>CreateDeploymentEnvironmentRequest</code></td>
@@ -3973,7 +3973,7 @@
           <tr>
             <td><code>DSSETrustRoot</code></td>
             <td>object</td>
-            <td>id, tenant_id, name, key_id, algorithm, public_key, status, schema_version, created_at</td>
+            <td>id, tenant_id, name, key_id, algorithm, public_key, allowed_predicate_types, expected_builder_ids, required_claims, status, schema_version, created_at</td>
           </tr>
           <tr>
             <td><code>DSSETrustRootEnvelope</code></td>

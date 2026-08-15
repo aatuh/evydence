@@ -1039,7 +1039,7 @@ func (l *Ledger) releaseReadinessSectionsLocked(tenantID, releaseID string, eval
 		}),
 		readinessSection("provenance", "Build Provenance And Bundle", []domain.ReadinessQuestion{
 			readinessQuestionForCheck(checks["release_requires_passed_build"], "passed_build", "Is passed build provenance attached?", "A passed build is linked to a release artifact digest.", "No passed build with output digest linked to the release was found."),
-			readinessQuestionForCheck(checks["release_requires_build_attestation"], "build_attestation", "Is there a build attestation for a release artifact?", "A build attestation subject matches a release artifact digest.", "No build attestation subject matches a release artifact digest."),
+			readinessQuestionForCheck(checks["release_requires_build_attestation"], "build_attestation", "Is there a trusted build attestation for a release artifact?", "A passed trusted-attestation receipt covers a registered release artifact digest.", "No passed trusted-attestation receipt covers a registered release artifact digest."),
 			readinessQuestionForCheck(checks["release_requires_signed_bundle"], "signed_bundle", "Is there a signed release bundle?", "A signed release bundle exists for this release.", "A signed release bundle is missing for this release."),
 		}),
 		readinessSection("customer_review", "Customer Package Review", []domain.ReadinessQuestion{

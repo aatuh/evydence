@@ -683,16 +683,19 @@ func (s *Server) verifyBuildAttestationSignature(w http.ResponseWriter, r *http.
 
 func (s *Server) createDSSETrustRoot(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Name      string `json:"name"`
-		KeyID     string `json:"key_id"`
-		Algorithm string `json:"algorithm"`
-		PublicKey string `json:"public_key"`
+		Name                  string   `json:"name"`
+		KeyID                 string   `json:"key_id"`
+		Algorithm             string   `json:"algorithm"`
+		PublicKey             string   `json:"public_key"`
+		AllowedPredicateTypes []string `json:"allowed_predicate_types"`
+		ExpectedBuilderIDs    []string `json:"expected_builder_ids"`
+		RequiredClaims        []string `json:"required_claims"`
 	}
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		root, err := s.ledger.CreateDSSETrustRoot(ctx, actor, app.CreateDSSETrustRootInput{Name: req.Name, KeyID: req.KeyID, Algorithm: req.Algorithm, PublicKey: req.PublicKey})
+		root, err := s.ledger.CreateDSSETrustRoot(ctx, actor, app.CreateDSSETrustRootInput{Name: req.Name, KeyID: req.KeyID, Algorithm: req.Algorithm, PublicKey: req.PublicKey, AllowedPredicateTypes: req.AllowedPredicateTypes, ExpectedBuilderIDs: req.ExpectedBuilderIDs, RequiredClaims: req.RequiredClaims})
 		return http.StatusCreated, root, err
 	})
 }

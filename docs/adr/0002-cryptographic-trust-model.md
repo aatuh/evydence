@@ -66,7 +66,7 @@ compared to an expectation supplied by the caller or tenant policy.
 | Audit-chain entry and checkpoint | Versioned entry canonical form; ordered entry hashes and root | Verifies local continuity, hashes, and configured tenant signatures. A local checkpoint is not external publication. |
 | Release bundle | Canonical JSON manifest and its SHA-256 | Verifies the manifest hash and the tenant-signing receipt over that hash. |
 | Artifact signature | OCI/artifact digest and a stored Sigstore bundle | The explicit offline Cosign profile verifies the bundle signature, artifact digest, Fulcio/public-key trust material, keyless identity policy when applicable, and embedded Rekor proof. Online-required verification remains unavailable rather than downgrading. |
-| DSSE attestation | Current v1: decoded envelope payload | Current code checks Ed25519 over the decoded payload against an active tenant root. It does **not** yet evaluate DSSE PAE, in-toto policy, builder identity, or historical root validity. |
+| DSSE attestation | DSSE PAE over exact payload type and payload bytes; in-toto Statement v1 | The offline profile verifies an Ed25519 PAE signature against an active tenant root with an explicit SLSA provenance v1 predicate, builder, required-claims, and registered release-artifact-subject policy. It does not establish certificate-chain trust, transparency, CI runtime integrity, provenance completeness, or historical root validity. |
 | Merkle/public-log proof | Ordered leaf and proof hashes, root, tree size, checkpoint | Local Merkle verification and configured public-log proof verification have separate profiles. |
 | Customer package | Package manifest JSON, archive member hashes, and optional bundle | Offline verification checks integrity and redaction shape; it does not currently require a package-manifest signature. |
 | Release artifact manifest | Canonical manifest JSON, artifact hashes, and detached release signature | The CLI verifier uses an explicitly supplied public key; it has no live revocation source. |
@@ -129,8 +129,9 @@ regulator acceptance, or a secure release.
 
 ## Consequences
 
-Future Sigstore/Cosign, DSSE/in-toto, signing-provider, key-history, and
-transparency work must use a named profile and produce check-level receipts.
+Future signing-provider, key-history, and transparency work must use a named
+profile and produce check-level receipts. DSSE/in-toto changes must preserve
+the same profile, PAE, and explicit-policy boundary.
 It must reject ambiguous or missing policy inputs rather than infer them from
 the uploaded material. Test vectors must cover invalid signature, wrong
 subject, identity, issuer, clock, revocation, and required-proof cases where

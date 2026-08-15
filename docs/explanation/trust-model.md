@@ -24,10 +24,12 @@ The Cosign endpoint verifies explicit offline Sigstore bundles with
 operator-configured trust material. Keyless requests must provide exact expected
 identity and issuer values; the receipt records only verified values and safe
 library/trust-root versions. An online-required request fails rather than
-downgrading to metadata. Current DSSE verification checks an active tenant
-Ed25519 root over the decoded payload, but does not yet claim DSSE PAE,
-in-toto predicate, builder, transparency, or historical-key policy
-verification. See [the cryptographic trust-model ADR](../adr/0002-cryptographic-trust-model.md)
+downgrading to metadata. The offline DSSE profile verifies DSSE PAE, in-toto Statement v1,
+the SLSA provenance v1 predicate, a configured builder and required claims, and
+registered release-artifact subjects against an explicit tenant Ed25519 root.
+It does not establish certificate-chain trust, transparency, CI runtime
+integrity, provenance completeness, or historical-key validity. See [the
+cryptographic trust-model ADR](../adr/0002-cryptographic-trust-model.md)
 and [Verification results](../reference/verification-results.md).
 
 ## Audit-Chain Tamper Evidence

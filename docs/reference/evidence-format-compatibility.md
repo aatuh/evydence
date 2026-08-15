@@ -27,7 +27,7 @@ the broader conformance, fixture-corpus, replay, and parser-version work.
 | SPDX SBOM JSON | `core` | Bounded SPDX JSON `SPDX-2.2` and `SPDX-2.3`; the shared corpus covers a standards-shaped document plus Syft/Trivy output shapes | `spdx-json.v2.0.0` on durable `parse_sbom` jobs and evidence metadata | Native `application/spdx+json`: 20 MiB; JSON envelope: 64 KiB |
 | OpenVEX JSON | `core` | Bounded OpenVEX JSON using maintained `github.com/openvex/go-vex` model; tested against the OpenVEX specification's minimal example | `openvex-json.v2.0.0` on import report and `parse_vex` job | Native `application/vnd.openvex+json`: 20 MiB; JSON envelope: 64 KiB |
 | CycloneDX VEX JSON | `core` | Bounded CycloneDX VEX JSON 1.4–1.7 using maintained `github.com/CycloneDX/cyclonedx-go`; tested against the official CycloneDX 1.4 VEX example | `cyclonedx-vex-json.v2.0.0` on import report and `parse_vex` job | JSON envelope: 64 KiB |
-| DSSE + in-toto statement JSON | `core` | Structural profile; fixtures use in-toto Statement v1 and SLSA provenance v1 | `dsse-in-toto-json.v1.0.0` on `verify_attestation` job | JSON request: 64 KiB |
+| DSSE + in-toto statement JSON | `core` | Offline trusted-attestation profile: DSSE `application/vnd.in-toto+json`, in-toto Statement v1, and SLSA provenance v1 only | `dsse-in-toto-json.v1.0.0` on `verify_attestation` job; versioned verification receipt | JSON request: 64 KiB |
 | Generic vulnerability-scan JSON | `core` | Evydence-owned normalized scanner schema | `scanner-adapters-json.v1.0.0` on new `parse_vulnerability_scan` jobs | Streamed `application/json`: 20 MiB |
 | Grype JSON | `core` | Versioned `grype-json.v1` envelope around the native `matches` report | `scanner-adapters-json.v1.0.0` | Streamed `application/json`: 20 MiB |
 | Trivy JSON | `core` | Versioned `trivy-json.v1` envelope around the native `Results` report | `scanner-adapters-json.v1.0.0` | Streamed `application/json`: 20 MiB |
@@ -166,20 +166,38 @@ Evidence: `internal/app/risk_workflows.go`,
 
 ### DSSE and in-toto JSON
 
-`POST /v1/builds/{id}/attestations` requires DSSE `payloadType`, base64 payload,
-non-empty signatures, and an inner statement with `_type`, `predicateType`, and
-subjects containing valid SHA-256 digests. At least one digest must match a
-registered build output. The envelope rejects unknown fields; the inner
-statement uses ordinary JSON unmarshalling, so unmodeled inner fields can be
-ignored. Fixtures exercise in-toto Statement v1, SLSA provenance v1, and
-`application/vnd.in-toto+json`; other non-empty type values are not a supported
-profile claim. Structural acceptance is separate from trust-root signature
-verification.
+`POST /v1/builds/{id}/attestations` preserves the original DSSE envelope and
+requires a DSSE `payloadType`, base64 payload, non-empty signatures, an in-toto
+Statement v1, and subjects with valid SHA-256 digests. Every uploaded subject
+must match a registered build output. The maintained DSSE and in-toto libraries
+parse the envelope and statement; the envelope rejects unknown fields.
 
-Evidence: `internal/app/builds.go` (`parseDSSEAttestation`),
-`ParserVersionDSSEInTotoJSON`, `TestDSSETrustRootVerification`,
-`TestBuildValidationTenantIsolationAndMalformedAttestation`, and
-`TestUploadBuildAttestationCanDeferParserSideEffectsToWorker`.
+`POST /v1/build-attestations/{id}/verify-signature` is an explicit offline
+assurance step. A passing receipt requires DSSE PAE and Ed25519 signature
+verification against one configured tenant root, payload type
+`application/vnd.in-toto+json`, predicate type `https://slsa.dev/provenance/v1`,
+all attested subjects registered for the build's release, the configured builder
+identity, and configured required claims (`builder_id`, `build_type`, and/or
+`external_parameters`). Each root records its immutable policy when created.
+Unsupported payload or predicate types return `not_verified`; they never count
+as trusted provenance or release-readiness evidence. This profile is offline
+only and does not claim certificate-chain trust, revocation, transparency-log
+inclusion, CI-provider runtime integrity, or provenance completeness.
+
+Evidence: `internal/adapters/verification/dsse`, `internal/app/builds.go`,
+`internal/app/governance_packages.go`, `ParserVersionDSSEInTotoJSON`,
+`TestVerifyAttestationEnforcesPAEAndTrustedPolicy`,
+`TestDSSETrustRootVerification`, and
+`TestBuildValidationTenantIsolationAndMalformedAttestation`.
+
+The verifier directly uses tagged `github.com/in-toto/attestation v1.2.0`
+(Apache-2.0) and `github.com/secure-systems-lab/go-securesystemslib v0.11.0`
+(MIT). Both were already present transitively through the existing Sigstore
+stack, so promoting them to direct requirements adds no new module-graph
+footprint. The standard library does not provide DSSE PAE or in-toto protobuf
+models; the fallback is to reject attestations rather than reimplement either
+security-critical format. `make vuln` reports no reachable vulnerabilities;
+dependency update and vulnerability monitoring remain governed by EVY-1407.
 
 ### Generic vulnerability-scan JSON
 

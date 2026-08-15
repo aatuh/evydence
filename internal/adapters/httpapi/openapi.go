@@ -767,22 +767,28 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "id", "tenant_id", "build_id", "evidence_id", "payload_hash", "payload_size", "payload_type", "predicate_type", "subject_digests", "signature_count", "verification_status", "schema_version", "created_at"))
 	registry.RegisterSchema("BuildAttestationEnvelope", dataEnvelopeSchema("#/components/schemas/BuildAttestation"))
 	registry.RegisterSchema("CreateDSSETrustRootRequest", objectSchema(map[string]any{
-		"name":       map[string]any{"type": "string"},
-		"key_id":     map[string]any{"type": "string"},
-		"algorithm":  map[string]any{"type": "string", "enum": []string{"Ed25519"}},
-		"public_key": map[string]any{"type": "string", "description": "Base64-encoded Ed25519 public key."},
-	}, "name", "key_id", "algorithm", "public_key"))
+		"name":                    map[string]any{"type": "string"},
+		"key_id":                  map[string]any{"type": "string"},
+		"algorithm":               map[string]any{"type": "string", "enum": []string{"Ed25519"}},
+		"public_key":              map[string]any{"type": "string", "description": "Base64-encoded Ed25519 public key."},
+		"allowed_predicate_types": map[string]any{"type": "array", "minItems": 1, "items": map[string]any{"type": "string", "enum": []string{"https://slsa.dev/provenance/v1"}}},
+		"expected_builder_ids":    map[string]any{"type": "array", "minItems": 1, "items": map[string]any{"type": "string", "minLength": 1}},
+		"required_claims":         map[string]any{"type": "array", "minItems": 1, "items": map[string]any{"type": "string", "enum": []string{"builder_id", "build_type", "external_parameters"}}},
+	}, "name", "key_id", "algorithm", "public_key", "allowed_predicate_types", "expected_builder_ids", "required_claims"))
 	registry.RegisterSchema("DSSETrustRoot", objectSchema(map[string]any{
-		"id":             map[string]any{"type": "string"},
-		"tenant_id":      map[string]any{"type": "string"},
-		"name":           map[string]any{"type": "string"},
-		"key_id":         map[string]any{"type": "string"},
-		"algorithm":      map[string]any{"type": "string"},
-		"public_key":     map[string]any{"type": "string"},
-		"status":         map[string]any{"type": "string"},
-		"schema_version": map[string]any{"type": "string"},
-		"created_at":     map[string]any{"type": "string", "format": "date-time"},
-	}, "id", "tenant_id", "name", "key_id", "algorithm", "public_key", "status", "schema_version", "created_at"))
+		"id":                      map[string]any{"type": "string"},
+		"tenant_id":               map[string]any{"type": "string"},
+		"name":                    map[string]any{"type": "string"},
+		"key_id":                  map[string]any{"type": "string"},
+		"algorithm":               map[string]any{"type": "string"},
+		"public_key":              map[string]any{"type": "string"},
+		"allowed_predicate_types": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"expected_builder_ids":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"required_claims":         map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"status":                  map[string]any{"type": "string"},
+		"schema_version":          map[string]any{"type": "string"},
+		"created_at":              map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "name", "key_id", "algorithm", "public_key", "allowed_predicate_types", "expected_builder_ids", "required_claims", "status", "schema_version", "created_at"))
 	registry.RegisterSchema("DSSETrustRootEnvelope", dataEnvelopeSchema("#/components/schemas/DSSETrustRoot"))
 	registry.RegisterSchema("CreateReleaseCandidateRequest", objectSchema(map[string]any{
 		"release_id":   map[string]any{"type": "string"},

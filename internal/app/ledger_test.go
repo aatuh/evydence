@@ -1924,8 +1924,8 @@ func TestCollectorBuildAttestationReadinessFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("readiness after attestation: %v", err)
 	}
-	if report.Result != "passed" {
-		t.Fatalf("expected passed readiness, got %#v", report)
+	if report.Result != "failed" || !hasMissing(report.Gaps, "build_attestation") {
+		t.Fatalf("an unverified structural attestation must not satisfy readiness: %#v", report)
 	}
 }
 
@@ -2058,8 +2058,27 @@ func addBuildProvenance(t *testing.T, ledger *Ledger, actor domain.Actor, releas
 	if err != nil {
 		t.Fatalf("provenance build: %v", err)
 	}
-	if _, err := ledger.UploadBuildAttestation(ctx, actor, build.ID, dsseForDigest(t, artifact.Digest)); err != nil {
+	attestation, err := ledger.UploadBuildAttestation(ctx, actor, build.ID, dsseForDigest(t, artifact.Digest))
+	if err != nil {
 		t.Fatalf("provenance attestation: %v", err)
+	}
+	markAttestationVerifiedForReadiness(ledger, actor, attestation.ID)
+}
+
+// markAttestationVerifiedForReadiness isolates broader readiness tests from
+// cryptographic verification. EVY-603 verification behavior itself is covered
+// by the DSSE adapter and application verification tests.
+func markAttestationVerifiedForReadiness(ledger *Ledger, actor domain.Actor, attestationID string) {
+	id := newID("vr")
+	ledger.verifications[id] = domain.VerificationResult{
+		ID:            id,
+		TenantID:      actor.TenantID,
+		SubjectType:   "build_attestation",
+		SubjectID:     attestationID,
+		Result:        string(domain.VerificationStatePassed),
+		Profile:       domain.VerificationProfile{ID: domain.VerificationProfileDSSEAttestationSignature},
+		SchemaVersion: domain.VerificationResultSchemaVersion,
+		VerifiedAt:    fixedNow(),
 	}
 }
 
@@ -2073,12 +2092,13 @@ func dsseForDigest(t *testing.T, digest string) []byte {
 			"digest": map[string]string{"sha256": strings.TrimPrefix(digest, "sha256:")},
 		}},
 		"predicate": map[string]any{
-			"builder":   map[string]string{"id": "https://github.com/actions/runner"},
-			"buildType": "https://github.com/actions/workflow",
-			"materials": []map[string]any{{
-				"uri":    "git+https://github.com/aatuh/evydence",
-				"digest": map[string]string{"sha1": "0123456789abcdef0123456789abcdef01234567"},
-			}},
+			"buildDefinition": map[string]any{
+				"buildType":          "https://github.com/actions/workflow",
+				"externalParameters": map[string]string{"mode": "release"},
+			},
+			"runDetails": map[string]any{
+				"builder": map[string]string{"id": "https://github.com/actions/runner"},
+			},
 		},
 	}
 	statementBody, err := json.Marshal(statement)

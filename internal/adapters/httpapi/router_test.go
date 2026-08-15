@@ -1498,6 +1498,7 @@ func TestGovernancePackageAndBundleHTTPFlow(t *testing.T) {
 	bundle := dataMap(t, bundleBody)
 	postJSON(t, server, secret, "/v1/evidence-bundles/import", "gov-bundle-import", bundle, http.StatusCreated)
 	postJSON(t, server, secret, "/v1/dsse-trust-roots", "gov-bad-root", map[string]any{"name": "bad", "key_id": "root", "algorithm": "Ed25519", "public_key": "bad"}, http.StatusBadRequest)
+	postJSON(t, server, secret, "/v1/dsse-trust-roots", "gov-root-missing-policy", map[string]any{"name": "missing policy", "key_id": "root-2", "algorithm": "Ed25519", "public_key": base64.StdEncoding.EncodeToString(make([]byte, ed25519.PublicKeySize))}, http.StatusBadRequest)
 }
 
 func TestEnterprisePortalRetentionAndCommercialCollectorHTTPFlow(t *testing.T) {
@@ -2424,9 +2425,11 @@ func dsseHTTP(t *testing.T, digest string) []byte {
 			"digest": map[string]string{"sha256": strings.TrimPrefix(digest, "sha256:")},
 		}},
 		"predicate": map[string]any{
-			"builder":   map[string]string{"id": "https://github.com/actions/runner"},
-			"buildType": "https://github.com/actions/workflow",
-			"materials": []map[string]any{{"uri": "git+https://github.com/aatuh/evydence"}},
+			"buildDefinition": map[string]any{
+				"buildType":          "https://github.com/actions/workflow",
+				"externalParameters": map[string]string{"mode": "release"},
+			},
+			"runDetails": map[string]any{"builder": map[string]string{"id": "https://github.com/actions/runner"}},
 		},
 	}
 	statementBody, err := json.Marshal(statement)

@@ -1262,7 +1262,7 @@ func (s packageReportService) GenerateAnomalyReport(ctx context.Context, actor d
 			signals = append(signals, domain.AnomalySignal{Name: "missing_passed_build", Severity: "medium", Detail: "No passed build run is linked to this release."})
 		}
 		if l.checkReleaseHasBuildAttestationLocked(actor.TenantID, subjectID).Result != "passed" {
-			signals = append(signals, domain.AnomalySignal{Name: "missing_matching_attestation", Severity: "medium", Detail: "No build attestation subject digest matches a release artifact digest."})
+			signals = append(signals, domain.AnomalySignal{Name: "missing_matching_attestation", Severity: "medium", Detail: "No passed trusted-attestation receipt covers a registered release artifact digest."})
 		}
 		if len(l.unhandledCriticalFindingsLocked(actor.TenantID, subjectID)) > 0 {
 			signals = append(signals, domain.AnomalySignal{Name: "unhandled_critical_finding", Severity: "high", Detail: "An open critical finding lacks a valid decision or approved exception."})

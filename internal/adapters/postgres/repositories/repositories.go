@@ -1327,7 +1327,7 @@ func (r governance) InsertRetentionOverride(ctx context.Context, override domain
 }
 
 func (r governance) InsertDSSETrustRoot(ctx context.Context, root domain.DSSETrustRoot) error {
-	if root.ID == "" || root.TenantID == "" || root.Name == "" || root.KeyID == "" || root.Algorithm != "Ed25519" || root.Status != "active" || root.SchemaVersion == "" || root.CreatedAt.IsZero() {
+	if root.ID == "" || root.TenantID == "" || root.Name == "" || root.KeyID == "" || root.Algorithm != "Ed25519" || root.Status != "active" || root.SchemaVersion != domain.DSSETrustRootSchemaVersion || len(root.AllowedPredicateTypes) == 0 || len(root.ExpectedBuilderIDs) == 0 || len(root.RequiredClaims) == 0 || root.CreatedAt.IsZero() {
 		return app.ErrValidation
 	}
 	publicKey, err := base64.StdEncoding.DecodeString(root.PublicKey)
@@ -1337,7 +1337,19 @@ func (r governance) InsertDSSETrustRoot(ctx context.Context, root domain.DSSETru
 	if err := requireTenant(ctx, r.tx, root.TenantID); err != nil {
 		return err
 	}
-	_, err = r.tx.Exec(ctx, `INSERT INTO dsse_trust_roots (id, tenant_id, name, key_id, algorithm, public_key, status, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, root.ID, root.TenantID, root.Name, root.KeyID, root.Algorithm, root.PublicKey, root.Status, root.SchemaVersion, root.CreatedAt)
+	predicateTypes, err := json.Marshal(root.AllowedPredicateTypes)
+	if err != nil {
+		return writeError("encode DSSE predicate policy", err)
+	}
+	builderIDs, err := json.Marshal(root.ExpectedBuilderIDs)
+	if err != nil {
+		return writeError("encode DSSE builder policy", err)
+	}
+	requiredClaims, err := json.Marshal(root.RequiredClaims)
+	if err != nil {
+		return writeError("encode DSSE required claims", err)
+	}
+	_, err = r.tx.Exec(ctx, `INSERT INTO dsse_trust_roots (id, tenant_id, name, key_id, algorithm, public_key, allowed_predicate_types, expected_builder_ids, required_claims, status, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, root.ID, root.TenantID, root.Name, root.KeyID, root.Algorithm, root.PublicKey, predicateTypes, builderIDs, requiredClaims, root.Status, root.SchemaVersion, root.CreatedAt)
 	return writeError("insert DSSE trust root", err)
 }
 

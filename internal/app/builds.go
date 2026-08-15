@@ -1,16 +1,13 @@
 package app
 
 import (
-	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
-	"io"
 	"sort"
 	"strings"
 	"time"
 
+	verificationdsse "github.com/aatuh/evydence/internal/adapters/verification/dsse"
 	"github.com/aatuh/evydence/internal/domain"
 )
 
@@ -487,7 +484,7 @@ func (l *Ledger) UploadBuildAttestation(ctx context.Context, actor domain.Actor,
 			"predicate_type":  parsed.PredicateType,
 			"signature_count": parsed.SignatureCount,
 		}, ParserProvenance{Name: "dsse-in-toto", Version: ParserVersionDSSEInTotoJSON, SourceSchema: "in-toto-statement.v1", NormalizedSchema: "evydence-build-attestation.v1", ReplayStatus: ParserReplayStatusOriginal}),
-		Limitations: []string{"DSSE and in-toto structure was parsed; cryptographic trust-root verification is not performed in this slice."},
+		Limitations: []string{"Structural DSSE/in-toto parsing does not assign trust. A separately recorded offline verification receipt is required for release readiness."},
 	}
 
 	l.mu.Lock()
@@ -759,89 +756,19 @@ type parsedAttestation struct {
 	SignatureCount int
 }
 
-type dsseEnvelope struct {
-	PayloadType string          `json:"payloadType"`
-	Payload     string          `json:"payload"`
-	Signatures  []dsseSignature `json:"signatures"`
-}
-
-type dsseSignature struct {
-	KeyID string `json:"keyid,omitempty"`
-	Sig   string `json:"sig"`
-}
-
-type inTotoStatement struct {
-	Type          string          `json:"_type"`
-	Subject       []inTotoSubject `json:"subject"`
-	PredicateType string          `json:"predicateType"`
-	Predicate     slsaPredicate   `json:"predicate"`
-}
-
-type inTotoSubject struct {
-	Name   string            `json:"name"`
-	Digest map[string]string `json:"digest"`
-}
-
-type slsaPredicate struct {
-	Builder   slsaBuilder       `json:"builder"`
-	BuildType string            `json:"buildType"`
-	Materials []json.RawMessage `json:"materials"`
-}
-
-type slsaBuilder struct {
-	ID string `json:"id"`
-}
-
 func parseDSSEAttestation(raw []byte) (parsedAttestation, error) {
-	var envelope dsseEnvelope
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&envelope); err != nil {
-		return parsedAttestation{}, ErrValidation
-	}
-	if err := dec.Decode(&struct{}{}); err != io.EOF {
-		return parsedAttestation{}, ErrValidation
-	}
-	if strings.TrimSpace(envelope.PayloadType) == "" || strings.TrimSpace(envelope.Payload) == "" || len(envelope.Signatures) == 0 {
-		return parsedAttestation{}, ErrValidation
-	}
-	for _, sig := range envelope.Signatures {
-		if strings.TrimSpace(sig.Sig) == "" {
-			return parsedAttestation{}, ErrValidation
-		}
-	}
-	payload, err := base64.StdEncoding.DecodeString(envelope.Payload)
+	parsed, err := verificationdsse.Parse(raw)
 	if err != nil {
 		return parsedAttestation{}, ErrValidation
 	}
-	var statement inTotoStatement
-	if err := json.Unmarshal(payload, &statement); err != nil {
-		return parsedAttestation{}, ErrValidation
-	}
-	if strings.TrimSpace(statement.Type) == "" || strings.TrimSpace(statement.PredicateType) == "" || len(statement.Subject) == 0 {
-		return parsedAttestation{}, ErrValidation
-	}
-	digests := []string{}
-	for _, subject := range statement.Subject {
-		digest := strings.TrimSpace(subject.Digest["sha256"])
-		if digest == "" {
-			return parsedAttestation{}, ErrValidation
-		}
-		full := "sha256:" + strings.ToLower(digest)
-		if !validDigest(full) {
-			return parsedAttestation{}, ErrValidation
-		}
-		digests = append(digests, full)
-	}
-	sort.Strings(digests)
 	return parsedAttestation{
-		PayloadType:    strings.TrimSpace(envelope.PayloadType),
-		PredicateType:  strings.TrimSpace(statement.PredicateType),
-		SubjectDigests: digests,
-		BuilderID:      strings.TrimSpace(statement.Predicate.Builder.ID),
-		BuildType:      strings.TrimSpace(statement.Predicate.BuildType),
-		MaterialsCount: len(statement.Predicate.Materials),
-		SignatureCount: len(envelope.Signatures),
+		PayloadType:    parsed.PayloadType,
+		PredicateType:  parsed.PredicateType,
+		SubjectDigests: parsed.SubjectDigests,
+		BuilderID:      parsed.BuilderID,
+		BuildType:      parsed.BuildType,
+		MaterialsCount: parsed.MaterialsCount,
+		SignatureCount: parsed.SignatureCount,
 	}, nil
 }
 
@@ -893,13 +820,28 @@ func (l *Ledger) checkReleaseHasBuildAttestationLocked(tenantID, releaseID strin
 		if !ok || build.TenantID != tenantID || build.ReleaseID != releaseID {
 			continue
 		}
+		if !l.hasPassedDSSEAttestationReceiptLocked(tenantID, attestation.ID) {
+			continue
+		}
 		for _, digest := range attestation.SubjectDigests {
 			if _, ok := releaseDigests[digest]; ok {
-				return domain.PolicyCheck{Name: "release_requires_build_attestation", Result: "passed", Severity: "high", Explanation: "build attestation subject matches a release artifact digest"}
+				return domain.PolicyCheck{Name: "release_requires_build_attestation", Result: "passed", Severity: "high", Explanation: "verified build attestation receipt and subject match a release artifact digest"}
 			}
 		}
 	}
-	return domain.PolicyCheck{Name: "release_requires_build_attestation", Result: "failed", Severity: "high", Missing: []string{"build_attestation"}, Explanation: "no build attestation subject matches a release artifact digest", Remediation: "Upload a DSSE/in-toto attestation whose subject digest matches a release artifact digest."}
+	return domain.PolicyCheck{Name: "release_requires_build_attestation", Result: "failed", Severity: "high", Missing: []string{"build_attestation"}, Explanation: "no attestation has a passed DSSE/in-toto receipt and a subject matching a release artifact digest", Remediation: "Upload a supported DSSE/in-toto attestation, verify it with a configured root policy, and ensure its subject digest matches a release artifact digest."}
+}
+
+func (l *Ledger) hasPassedDSSEAttestationReceiptLocked(tenantID, attestationID string) bool {
+	for _, verification := range l.verifications {
+		if verification.TenantID != tenantID || verification.SubjectType != "build_attestation" || verification.SubjectID != attestationID || verification.Result != string(domain.VerificationStatePassed) {
+			continue
+		}
+		if verification.Profile.ID == domain.VerificationProfileDSSEAttestationSignature && verification.SchemaVersion == domain.VerificationResultSchemaVersion {
+			return true
+		}
+	}
+	return false
 }
 
 func (l *Ledger) releaseArtifactDigestsLocked(tenantID, releaseID string) map[string]struct{} {

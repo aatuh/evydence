@@ -1964,15 +1964,25 @@ func (s *Store) loadRelationalWaiversApprovalsTrust(ctx context.Context, state *
 		return err
 	}
 
-	trustRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, name, key_id, algorithm, public_key, status, schema_version, created_at FROM dsse_trust_roots`)
+	trustRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, name, key_id, algorithm, public_key, allowed_predicate_types, expected_builder_ids, required_claims, status, schema_version, created_at FROM dsse_trust_roots`)
 	if err != nil {
 		return fmt.Errorf("load relational dsse trust roots: %w", err)
 	}
 	defer trustRows.Close()
 	for trustRows.Next() {
 		var root domain.DSSETrustRoot
-		if err := trustRows.Scan(&root.ID, &root.TenantID, &root.Name, &root.KeyID, &root.Algorithm, &root.PublicKey, &root.Status, &root.SchemaVersion, &root.CreatedAt); err != nil {
+		var predicateTypes, builderIDs, requiredClaims []byte
+		if err := trustRows.Scan(&root.ID, &root.TenantID, &root.Name, &root.KeyID, &root.Algorithm, &root.PublicKey, &predicateTypes, &builderIDs, &requiredClaims, &root.Status, &root.SchemaVersion, &root.CreatedAt); err != nil {
 			return fmt.Errorf("scan relational dsse trust root: %w", err)
+		}
+		if err := decodeJSON(predicateTypes, &root.AllowedPredicateTypes); err != nil {
+			return fmt.Errorf("decode relational DSSE root predicate policy: %w", err)
+		}
+		if err := decodeJSON(builderIDs, &root.ExpectedBuilderIDs); err != nil {
+			return fmt.Errorf("decode relational DSSE root builder policy: %w", err)
+		}
+		if err := decodeJSON(requiredClaims, &root.RequiredClaims); err != nil {
+			return fmt.Errorf("decode relational DSSE root required claims: %w", err)
 		}
 		state.DSSETrustRoots[root.ID] = root
 		*loaded = true
@@ -4251,14 +4261,26 @@ func syncIncidentSecurityGovernanceRows(ctx context.Context, tx pgx.Tx, state ap
 		if root.ID == "" || root.TenantID == "" || root.KeyID == "" {
 			continue
 		}
+		predicateTypes, err := json.Marshal(root.AllowedPredicateTypes)
+		if err != nil {
+			return fmt.Errorf("encode DSSE root predicate policy: %w", err)
+		}
+		builderIDs, err := json.Marshal(root.ExpectedBuilderIDs)
+		if err != nil {
+			return fmt.Errorf("encode DSSE root builder policy: %w", err)
+		}
+		requiredClaims, err := json.Marshal(root.RequiredClaims)
+		if err != nil {
+			return fmt.Errorf("encode DSSE root required claims: %w", err)
+		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO dsse_trust_roots (
-				id, tenant_id, name, key_id, algorithm, public_key, status,
-				schema_version, created_at
+				id, tenant_id, name, key_id, algorithm, public_key, allowed_predicate_types,
+				expected_builder_ids, required_claims, status, schema_version, created_at
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-			ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, public_key = EXCLUDED.public_key
-		`, root.ID, root.TenantID, root.Name, root.KeyID, root.Algorithm, root.PublicKey, root.Status, root.SchemaVersion, nonZeroTime(root.CreatedAt)); err != nil {
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			ON CONFLICT (id) DO NOTHING
+		`, root.ID, root.TenantID, root.Name, root.KeyID, root.Algorithm, root.PublicKey, predicateTypes, builderIDs, requiredClaims, root.Status, root.SchemaVersion, nonZeroTime(root.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert dsse trust root row: %w", err)
 		}
 	}

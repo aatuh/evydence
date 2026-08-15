@@ -52,7 +52,7 @@ const (
 	ReportTemplateSchemaVersion       = "report-template.v1.0.0"
 	EvidenceBundleSchemaVersion       = "evidence-bundle.v1.0.0"
 	EvidenceBundleImportVersion       = "evidence-bundle-import.v1.0.0"
-	DSSETrustRootSchemaVersion        = "dsse-trust-root.v1.0.0"
+	DSSETrustRootSchemaVersion        = "dsse-trust-root.v2.0.0"
 	CosignVerificationSchemaVersion   = "cosign-verification.v3.0.0"
 	SigningProviderSchemaVersion      = "signing-provider.v1.0.0"
 	MerkleBatchSchemaVersion          = "merkle-batch.v1.0.0"
@@ -1902,13 +1902,16 @@ type EvidenceBundleImport struct {
 }
 
 type DSSETrustRoot struct {
-	ID            string    `json:"id"`
-	TenantID      string    `json:"tenant_id"`
-	Name          string    `json:"name"`
-	KeyID         string    `json:"key_id"`
-	Algorithm     string    `json:"algorithm"`
-	PublicKey     string    `json:"public_key"`
-	Status        string    `json:"status"`
-	SchemaVersion string    `json:"schema_version"`
-	CreatedAt     time.Time `json:"created_at"`
+	ID                    string    `json:"id"`
+	TenantID              string    `json:"tenant_id"`
+	Name                  string    `json:"name"`
+	KeyID                 string    `json:"key_id"`
+	Algorithm             string    `json:"algorithm"`
+	PublicKey             string    `json:"public_key"`
+	AllowedPredicateTypes []string  `json:"allowed_predicate_types"`
+	ExpectedBuilderIDs    []string  `json:"expected_builder_ids"`
+	RequiredClaims        []string  `json:"required_claims"`
+	Status                string    `json:"status"`
+	SchemaVersion         string    `json:"schema_version"`
+	CreatedAt             time.Time `json:"created_at"`
 }

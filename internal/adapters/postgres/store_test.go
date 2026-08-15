@@ -556,7 +556,7 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 			"approval_test": {ID: "approval_test", TenantID: "ten_test", SubjectType: "release", SubjectID: "rel_test", Decision: "approved", Reason: "test", ApproverID: "user_test", EvidenceID: "ev_test", SchemaVersion: domain.ApprovalRecordSchemaVersion, CreatedAt: time.Now().UTC()},
 		},
 		DSSETrustRoots: map[string]domain.DSSETrustRoot{
-			"dsse_root_test": {ID: "dsse_root_test", TenantID: "ten_test", Name: "root", KeyID: "key-1", Algorithm: "Ed25519", PublicKey: "pub", Status: "active", SchemaVersion: domain.DSSETrustRootSchemaVersion, CreatedAt: time.Now().UTC()},
+			"dsse_root_test": {ID: "dsse_root_test", TenantID: "ten_test", Name: "root", KeyID: "key-1", Algorithm: "Ed25519", PublicKey: "pub", AllowedPredicateTypes: []string{"https://slsa.dev/provenance/v1"}, ExpectedBuilderIDs: []string{"https://example.test/builder"}, RequiredClaims: []string{"builder_id"}, Status: "active", SchemaVersion: domain.DSSETrustRootSchemaVersion, CreatedAt: time.Now().UTC()},
 		},
 		CosignVerifications: map[string]domain.CosignVerification{
 			"cosign_test": {ID: "cosign_test", TenantID: "ten_test", ArtifactID: "art_test", ContainerImageID: "image_test", ArtifactSignatureID: "artsig_test", SubjectDigest: "sha256:" + strings.Repeat("a", 64), RekorUUID: "rekor", RekorLogIndex: "1", CertificateIdentity: "repo", CertificateIssuer: "issuer", VerifierLibraryVersion: "sigstore-go.v1.1.4", TrustRootVersion: "test-root.v1", VerificationMode: "keyless", Result: "pass", Checks: []domain.VerifyCheck{{Name: "digest", Result: "passed"}}, SchemaVersion: domain.CosignVerificationSchemaVersion, CreatedAt: time.Now().UTC()},

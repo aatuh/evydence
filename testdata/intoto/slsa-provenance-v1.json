@@ -1,0 +1,25 @@
+{
+  "_type": "https://in-toto.io/Statement/v1",
+  "subject": [
+    {
+      "name": "payments-api.tar.gz",
+      "digest": {
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    }
+  ],
+  "predicateType": "https://slsa.dev/provenance/v1",
+  "predicate": {
+    "buildDefinition": {
+      "buildType": "https://github.com/actions/workflow",
+      "externalParameters": {
+        "mode": "release"
+      }
+    },
+    "runDetails": {
+      "builder": {
+        "id": "https://github.com/actions/runner"
+      }
+    }
+  }
+}

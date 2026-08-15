@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	verificationdsse "github.com/aatuh/evydence/internal/adapters/verification/dsse"
 	"github.com/aatuh/evydence/internal/domain"
 )
 
@@ -81,10 +82,13 @@ type RenderReportInput struct {
 }
 
 type CreateDSSETrustRootInput struct {
-	Name      string
-	KeyID     string
-	Algorithm string
-	PublicKey string
+	Name                  string
+	KeyID                 string
+	Algorithm             string
+	PublicKey             string
+	AllowedPredicateTypes []string
+	ExpectedBuilderIDs    []string
+	RequiredClaims        []string
 }
 
 type redactionProfilePreset struct {
@@ -2212,6 +2216,9 @@ func (l *Ledger) CreateDSSETrustRoot(ctx context.Context, actor domain.Actor, in
 		return domain.DSSETrustRoot{}, err
 	}
 	in.Name, in.KeyID, in.Algorithm, in.PublicKey = strings.TrimSpace(in.Name), strings.TrimSpace(in.KeyID), strings.TrimSpace(in.Algorithm), strings.TrimSpace(in.PublicKey)
+	in.AllowedPredicateTypes = sortedStrings(in.AllowedPredicateTypes)
+	in.ExpectedBuilderIDs = sortedStrings(in.ExpectedBuilderIDs)
+	in.RequiredClaims = sortedStrings(in.RequiredClaims)
 	if in.Name == "" || in.KeyID == "" || in.Algorithm != "Ed25519" {
 		return domain.DSSETrustRoot{}, ErrValidation
 	}
@@ -2219,9 +2226,12 @@ func (l *Ledger) CreateDSSETrustRoot(ctx context.Context, actor domain.Actor, in
 	if err != nil || len(pub) != ed25519.PublicKeySize {
 		return domain.DSSETrustRoot{}, ErrValidation
 	}
+	if !validDSSEPolicy(in.AllowedPredicateTypes, in.ExpectedBuilderIDs, in.RequiredClaims) {
+		return domain.DSSETrustRoot{}, ErrValidation
+	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	root := domain.DSSETrustRoot{ID: newID("dtr"), TenantID: actor.TenantID, Name: in.Name, KeyID: in.KeyID, Algorithm: in.Algorithm, PublicKey: in.PublicKey, Status: "active", SchemaVersion: domain.DSSETrustRootSchemaVersion, CreatedAt: l.now()}
+	root := domain.DSSETrustRoot{ID: newID("dtr"), TenantID: actor.TenantID, Name: in.Name, KeyID: in.KeyID, Algorithm: in.Algorithm, PublicKey: in.PublicKey, AllowedPredicateTypes: in.AllowedPredicateTypes, ExpectedBuilderIDs: in.ExpectedBuilderIDs, RequiredClaims: in.RequiredClaims, Status: "active", SchemaVersion: domain.DSSETrustRootSchemaVersion, CreatedAt: l.now()}
 	if l.unitOfWork != nil {
 		var entry domain.AuditChainEntry
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
@@ -2247,11 +2257,50 @@ func (l *Ledger) CreateDSSETrustRoot(ctx context.Context, actor domain.Actor, in
 }
 
 func validDSSETrustRoot(root domain.DSSETrustRoot) bool {
-	if root.ID == "" || root.TenantID == "" || root.Name == "" || root.KeyID == "" || root.Algorithm != "Ed25519" || root.Status != "active" || root.SchemaVersion == "" || root.CreatedAt.IsZero() {
+	if root.ID == "" || root.TenantID == "" || root.Name == "" || root.KeyID == "" || root.Algorithm != "Ed25519" || root.Status != "active" || root.SchemaVersion != domain.DSSETrustRootSchemaVersion || root.CreatedAt.IsZero() || !validDSSEPolicy(root.AllowedPredicateTypes, root.ExpectedBuilderIDs, root.RequiredClaims) {
 		return false
 	}
 	publicKey, err := base64.StdEncoding.DecodeString(root.PublicKey)
 	return err == nil && len(publicKey) == ed25519.PublicKeySize
+}
+
+func validDSSEPolicy(predicateTypes, builderIDs, requiredClaims []string) bool {
+	if len(predicateTypes) == 0 || len(builderIDs) == 0 || len(requiredClaims) == 0 {
+		return false
+	}
+	seen := map[string]struct{}{}
+	for _, predicateType := range predicateTypes {
+		if predicateType != verificationdsse.PredicateTypeSLSAProvenance {
+			return false
+		}
+		if _, ok := seen[predicateType]; ok {
+			return false
+		}
+		seen[predicateType] = struct{}{}
+	}
+	seen = map[string]struct{}{}
+	for _, builderID := range builderIDs {
+		if strings.TrimSpace(builderID) == "" {
+			return false
+		}
+		if _, ok := seen[builderID]; ok {
+			return false
+		}
+		seen[builderID] = struct{}{}
+	}
+	seen = map[string]struct{}{}
+	for _, claim := range requiredClaims {
+		switch claim {
+		case "builder_id", "build_type", "external_parameters":
+		default:
+			return false
+		}
+		if _, ok := seen[claim]; ok {
+			return false
+		}
+		seen[claim] = struct{}{}
+	}
+	return true
 }
 
 func (l *Ledger) VerifyDSSEAttestationSignature(ctx context.Context, actor domain.Actor, attestationID string) (domain.VerificationResult, error) {
@@ -2267,9 +2316,19 @@ func (l *Ledger) VerifyDSSEAttestationSignature(ctx context.Context, actor domai
 		l.mu.Unlock()
 		return domain.VerificationResult{}, ErrNotFound
 	}
+	build, ok := l.buildRuns[att.BuildID]
+	if !ok || build.TenantID != actor.TenantID {
+		l.mu.Unlock()
+		return domain.VerificationResult{}, ErrNotFound
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeVerifyRead, resourceRefs{ProjectID: build.ProjectID, ReleaseID: build.ReleaseID, BuildID: build.ID}); err != nil {
+		l.mu.Unlock()
+		return domain.VerificationResult{}, err
+	}
+	expectedSubjects := l.registeredReleaseBuildOutputDigestsLocked(actor.TenantID, build)
 	roots := []domain.DSSETrustRoot{}
 	for _, root := range l.dsseTrustRoots {
-		if root.TenantID == actor.TenantID && root.Status == "active" {
+		if root.TenantID == actor.TenantID && root.Status == "active" && validDSSETrustRoot(root) {
 			roots = append(roots, root)
 		}
 	}
@@ -2287,36 +2346,21 @@ func (l *Ledger) VerifyDSSEAttestationSignature(ctx context.Context, actor domai
 	if err != nil {
 		return domain.VerificationResult{}, err
 	}
-	var envelope dsseEnvelope
-	if err := json.Unmarshal(object.Bytes, &envelope); err != nil {
+	if hashBytes(object.Bytes) != att.PayloadHash {
 		return domain.VerificationResult{}, ErrValidation
 	}
-	payload, err := base64.StdEncoding.DecodeString(envelope.Payload)
+	verification, err := verifyDSSEAgainstConfiguredRoots(ctx, object.Bytes, roots, expectedSubjects)
 	if err != nil {
 		return domain.VerificationResult{}, ErrValidation
 	}
-	checks := []domain.VerifyCheck{}
-	passed := false
-	for _, sig := range envelope.Signatures {
-		for _, root := range roots {
-			if sig.KeyID != root.KeyID {
-				continue
-			}
-			pub, _ := base64.StdEncoding.DecodeString(root.PublicKey)
-			value, err := base64.StdEncoding.DecodeString(sig.Sig)
-			if err == nil && ed25519.Verify(ed25519.PublicKey(pub), payload, value) {
-				passed = true
-				checks = append(checks, domain.VerifyCheck{Name: "dsse_signature", Result: "passed", Detail: root.KeyID})
-			}
-		}
-	}
-	if !passed {
-		checks = append(checks, domain.VerifyCheck{Name: "dsse_signature", Result: "failed"})
-	}
+	checks := dsseVerificationChecks(verification)
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	profile := assuranceProfile(domain.VerificationProfileDSSEAttestationSignature, []string{"dsse_signature"}, []string{"active tenant DSSE Ed25519 trust roots"}, "DSSE key identifier matches configured trust root", "not_evaluated", "raw DSSE attestation bytes", att.PayloadHash, []string{"DSSE signature verification does not verify builder identity, provenance completeness, or external transparency inclusion."})
+	profile := assuranceProfile(domain.VerificationProfileDSSEAttestationSignature, []string{"dsse_pae_signature", "trusted_root", "payload_type", "predicate_type", "subject_digest", "builder_identity", "policy_required_claims"}, append([]string{"configured tenant Ed25519 DSSE trust root", "go-securesystemslib/dsse.v0.11.0", "in-toto/attestation.v1.2.0"}, verification.AcceptedRootIDs...), "signature key, SLSA builder identity, and required claims must match one immutable configured tenant root policy", "not_evaluated", "raw DSSE envelope and signed in-toto Statement v1", att.PayloadHash, []string{"This offline profile does not establish certificate-chain trust, revocation, transparency-log inclusion, provenance completeness, or CI-provider runtime integrity."})
 	vr := verificationResult(newID("vr"), actor.TenantID, "build_attestation", att.ID, checks, profile, l.now())
+	if verification.Check("predicate_type") == verificationdsse.CheckNotVerified || verification.Check("payload_type") == verificationdsse.CheckNotVerified || verification.Check("trusted_root") == verificationdsse.CheckNotVerified {
+		vr.Result = string(domain.VerificationStateNotVerified)
+	}
 	if l.unitOfWork != nil {
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
 			return repos.Verification.InsertVerificationResult(ctx, vr)
@@ -2337,6 +2381,68 @@ func (l *Ledger) VerifyDSSEAttestationSignature(ctx context.Context, actor domai
 		return vr, ErrVerificationFailed
 	}
 	return vr, nil
+}
+
+func (l *Ledger) registeredReleaseBuildOutputDigestsLocked(tenantID string, build domain.BuildRun) []string {
+	releaseDigests := l.releaseArtifactDigestsLocked(tenantID, build.ReleaseID)
+	digests := []string{}
+	for _, output := range build.Outputs {
+		artifact, ok := l.artifacts[output.ArtifactID]
+		if !ok || artifact.TenantID != tenantID || artifact.Digest != output.Digest {
+			continue
+		}
+		if _, ok := releaseDigests[output.Digest]; ok {
+			digests = append(digests, output.Digest)
+		}
+	}
+	return sortedStrings(digests)
+}
+
+func verifyDSSEAgainstConfiguredRoots(ctx context.Context, raw []byte, roots []domain.DSSETrustRoot, expectedSubjects []string) (verificationdsse.Result, error) {
+	if len(roots) == 0 {
+		parsed, err := verificationdsse.Parse(raw)
+		if err != nil {
+			return verificationdsse.Result{}, err
+		}
+		parsed.Checks = []verificationdsse.Check{
+			{Name: "dsse_pae_signature", Result: verificationdsse.CheckNotVerified},
+			{Name: "trusted_root", Result: verificationdsse.CheckNotVerified},
+			{Name: "payload_type", Result: verificationdsse.CheckNotVerified, Detail: parsed.PayloadType},
+			{Name: "predicate_type", Result: verificationdsse.CheckNotVerified, Detail: parsed.PredicateType},
+			{Name: "subject_digest", Result: verificationdsse.CheckNotVerified},
+			{Name: "builder_identity", Result: verificationdsse.CheckNotVerified},
+			{Name: "policy_required_claims", Result: verificationdsse.CheckNotVerified},
+		}
+		return parsed, nil
+	}
+	var candidate verificationdsse.Result
+	for _, root := range roots {
+		result, err := verificationdsse.Verify(ctx, raw, verificationdsse.Policy{
+			Roots:                  []verificationdsse.TrustRoot{{ID: root.ID, KeyID: root.KeyID, Algorithm: root.Algorithm, PublicKey: root.PublicKey}},
+			AllowedPredicateTypes:  root.AllowedPredicateTypes,
+			ExpectedBuilderIDs:     root.ExpectedBuilderIDs,
+			RequiredClaims:         root.RequiredClaims,
+			ExpectedSubjectDigests: expectedSubjects,
+		})
+		if err != nil {
+			return verificationdsse.Result{}, err
+		}
+		if result.Passed() {
+			return result, nil
+		}
+		if candidate.Check("dsse_pae_signature") == "" || (candidate.Check("dsse_pae_signature") != verificationdsse.CheckPassed && result.Check("dsse_pae_signature") == verificationdsse.CheckPassed) {
+			candidate = result
+		}
+	}
+	return candidate, nil
+}
+
+func dsseVerificationChecks(result verificationdsse.Result) []domain.VerifyCheck {
+	checks := make([]domain.VerifyCheck, 0, len(result.Checks))
+	for _, check := range result.Checks {
+		checks = append(checks, domain.VerifyCheck{Name: check.Name, Result: check.Result, Detail: check.Detail})
+	}
+	return checks
 }
 
 func (l *Ledger) packageEvidenceIDsLocked(tenantID, productID, releaseID string, profile domain.RedactionProfile) []string {
