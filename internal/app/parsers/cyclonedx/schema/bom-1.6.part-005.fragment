@@ -1,3 +1,99 @@
+        "publisher": {
+          "type": "string",
+          "title": "Component Publisher",
+          "description": "The person(s) or organization(s) that published the component",
+          "examples": ["Acme Inc"]
+        },
+        "group": {
+          "type": "string",
+          "title": "Component Group",
+          "description": "The grouping name or identifier. This will often be a shortened, single name of the company or project that produced the component, or the source package or domain name. Whitespace and special characters should be avoided. Examples include: apache, org.apache.commons, and apache.org.",
+          "examples": ["com.acme"]
+        },
+        "name": {
+          "type": "string",
+          "title": "Component Name",
+          "description": "The name of the component. This will often be a shortened, single name of the component. Examples: commons-lang3 and jquery",
+          "examples": ["tomcat-catalina"]
+        },
+        "version": {
+          "$ref": "#/definitions/version",
+          "title": "Component Version",
+          "description": "The component version. The version should ideally comply with semantic versioning but is not enforced."
+        },
+        "description": {
+          "type": "string",
+          "title": "Component Description",
+          "description": "Specifies a description for the component"
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "required",
+            "optional",
+            "excluded"
+          ],
+          "meta:enum": {
+            "required": "The component is required for runtime",
+            "optional": "The component is optional at runtime. Optional components are components that are not capable of being called due to them not being installed or otherwise accessible by any means. Components that are installed but due to configuration or other restrictions are prohibited from being called must be scoped as 'required'.",
+            "excluded": "Components that are excluded provide the ability to document component usage for test and other non-runtime purposes. Excluded components are not reachable within a call graph at runtime."
+          },
+          "title": "Component Scope",
+          "description": "Specifies the scope of the component. If scope is not specified, 'required' scope SHOULD be assumed by the consumer of the BOM.",
+          "default": "required"
+        },
+        "hashes": {
+          "type": "array",
+          "title": "Component Hashes",
+          "description": "The hashes of the component.",
+          "items": {"$ref": "#/definitions/hash"}
+        },
+        "licenses": {
+          "$ref": "#/definitions/licenseChoice",
+          "title": "Component License(s)"
+        },
+        "copyright": {
+          "type": "string",
+          "title": "Component Copyright",
+          "description": "A copyright notice informing users of the underlying claims to copyright ownership in a published work.",
+          "examples": ["Acme Inc"]
+        },
+        "cpe": {
+          "type": "string",
+          "title": "Common Platform Enumeration (CPE)",
+          "description": "Asserts the identity of the component using CPE. The CPE must conform to the CPE 2.2 or 2.3 specification. See [https://nvd.nist.gov/products/cpe](https://nvd.nist.gov/products/cpe). Refer to `@.evidence.identity` to optionally provide evidence that substantiates the assertion of the component's identity.",
+          "examples": ["cpe:2.3:a:acme:component_framework:-:*:*:*:*:*:*:*"]
+        },
+        "purl": {
+          "type": "string",
+          "title": "Package URL (purl)",
+          "description": "Asserts the identity of the component using package-url (purl). The purl, if specified, must be valid and conform to the specification defined at: [https://github.com/package-url/purl-spec](https://github.com/package-url/purl-spec). Refer to `@.evidence.identity` to optionally provide evidence that substantiates the assertion of the component's identity.",
+          "examples": ["pkg:maven/com.acme/tomcat-catalina@9.0.14?packaging=jar"]
+        },
+        "omniborId": {
+          "type": "array",
+          "title": "OmniBOR Artifact Identifier (gitoid)",
+          "description": "Asserts the identity of the component using the OmniBOR Artifact ID. The OmniBOR, if specified, must be valid and conform to the specification defined at: [https://www.iana.org/assignments/uri-schemes/prov/gitoid](https://www.iana.org/assignments/uri-schemes/prov/gitoid). Refer to `@.evidence.identity` to optionally provide evidence that substantiates the assertion of the component's identity.",
+          "items": { "type": "string" },
+          "examples": [
+            "gitoid:blob:sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3",
+            "gitoid:blob:sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+          ]
+        },
+        "swhid": {
+          "type": "array",
+          "title": "Software Heritage Identifier",
+          "description": "Asserts the identity of the component using the Software Heritage persistent identifier (SWHID). The SWHID, if specified, must be valid and conform to the specification defined at: [https://docs.softwareheritage.org/devel/swh-model/persistent-identifiers.html](https://docs.softwareheritage.org/devel/swh-model/persistent-identifiers.html). Refer to `@.evidence.identity` to optionally provide evidence that substantiates the assertion of the component's identity.",
+          "items": { "type": "string" },
+          "examples": ["swh:1:cnt:94a9ed024d3859793618152ea559a168bbcbb5e2"]
+        },
+        "swid": {
+          "$ref": "#/definitions/swid",
+          "title": "SWID Tag",
+          "description": "Asserts the identity of the component using [ISO-IEC 19770-2 Software Identification (SWID) Tags](https://www.iso.org/standard/65666.html). Refer to `@.evidence.identity` to optionally provide evidence that substantiates the assertion of the component's identity."
+        },
+        "modified": {
+          "type": "boolean",
           "title": "Component Modified From Original",
           "description": "[Deprecated] This will be removed in a future version. Use the pedigree element instead to supply information on exactly how the component was modified. A boolean value indicating if the component has been modified from the original. A value of true indicates the component is a derivative of the original. A value of false indicates the component has not been modified from the original."
         },
@@ -79,172 +175,3 @@
         },
         "cryptoProperties": {
           "$ref": "#/definitions/cryptoProperties",
-          "title": "Cryptographic Properties"
-        },
-        "properties": {
-          "type": "array",
-          "title": "Properties",
-          "description": "Provides the ability to document properties in a name-value store. This provides flexibility to include data not officially supported in the standard without having to use additional namespaces or create extensions. Unlike key-value stores, properties support duplicate names, each potentially having different values. Property names of interest to the general public are encouraged to be registered in the [CycloneDX Property Taxonomy](https://github.com/CycloneDX/cyclonedx-property-taxonomy). Formal registration is optional.",
-          "items": {"$ref": "#/definitions/property"}
-        },
-        "tags": {
-          "$ref": "#/definitions/tags",
-          "title": "Tags"
-        },
-        "signature": {
-          "$ref": "#/definitions/signature",
-          "title": "Signature",
-          "description": "Enveloped signature in [JSON Signature Format (JSF)](https://cyberphone.github.io/doc/security/jsf.html)."
-        }
-      }
-    },
-    "swid": {
-      "type": "object",
-      "title": "SWID Tag",
-      "description": "Specifies metadata and content for ISO-IEC 19770-2 Software Identification (SWID) Tags.",
-      "required": [
-        "tagId",
-        "name"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "tagId": {
-          "type": "string",
-          "title": "Tag ID",
-          "description": "Maps to the tagId of a SoftwareIdentity."
-        },
-        "name": {
-          "type": "string",
-          "title": "Name",
-          "description": "Maps to the name of a SoftwareIdentity."
-        },
-        "version": {
-          "type": "string",
-          "title": "Version",
-          "default": "0.0",
-          "description": "Maps to the version of a SoftwareIdentity."
-        },
-        "tagVersion": {
-          "type": "integer",
-          "title": "Tag Version",
-          "default": 0,
-          "description": "Maps to the tagVersion of a SoftwareIdentity."
-        },
-        "patch": {
-          "type": "boolean",
-          "title": "Patch",
-          "default": false,
-          "description": "Maps to the patch of a SoftwareIdentity."
-        },
-        "text": {
-          "title": "Attachment text",
-          "description": "Specifies the metadata and content of the SWID tag.",
-          "$ref": "#/definitions/attachment"
-        },
-        "url": {
-          "type": "string",
-          "title": "URL",
-          "description": "The URL to the SWID file.",
-          "format": "iri-reference"
-        }
-      }
-    },
-    "attachment": {
-      "type": "object",
-      "title": "Attachment",
-      "description": "Specifies the metadata and content for an attachment.",
-      "required": [
-        "content"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "contentType": {
-          "type": "string",
-          "title": "Content-Type",
-          "description": "Specifies the format and nature of the data being attached, helping systems correctly interpret and process the content. Common content type examples include `application/json` for JSON data and `text/plain` for plain text documents.\n [RFC 2045 section 5.1](https://www.ietf.org/rfc/rfc2045.html#section-5.1) outlines the structure and use of content types. For a comprehensive list of registered content types, refer to the [IANA media types registry](https://www.iana.org/assignments/media-types/media-types.xhtml).",
-          "default": "text/plain",
-          "examples": [
-            "text/plain",
-            "application/json",
-            "image/png"
-          ]
-        },
-        "encoding": {
-          "type": "string",
-          "title": "Encoding",
-          "description": "Specifies the optional encoding the text is represented in.",
-          "enum": [
-            "base64"
-          ],
-          "meta:enum": {
-            "base64": "Base64 is a binary-to-text encoding scheme that represents binary data in an ASCII string."
-          }
-        },
-        "content": {
-          "type": "string",
-          "title": "Attachment Text",
-          "description": "The attachment data. Proactive controls such as input validation and sanitization should be employed to prevent misuse of attachment text."
-        }
-      }
-    },
-    "hash": {
-      "type": "object",
-      "title": "Hash",
-      "required": [
-        "alg",
-        "content"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "alg": {
-          "$ref": "#/definitions/hash-alg"
-        },
-        "content": {
-          "$ref": "#/definitions/hash-content"
-        }
-      }
-    },
-    "hash-alg": {
-      "type": "string",
-      "title": "Hash Algorithm",
-      "description": "The algorithm that generated the hash value.",
-      "enum": [
-        "MD5",
-        "SHA-1",
-        "SHA-256",
-        "SHA-384",
-        "SHA-512",
-        "SHA3-256",
-        "SHA3-384",
-        "SHA3-512",
-        "BLAKE2b-256",
-        "BLAKE2b-384",
-        "BLAKE2b-512",
-        "BLAKE3"
-      ]
-    },
-    "hash-content": {
-      "type": "string",
-      "title": "Hash Value",
-      "description": "The value of the hash.",
-      "examples": ["3942447fac867ae5cdb3229b658f4d48"],
-      "pattern": "^([a-fA-F0-9]{32}|[a-fA-F0-9]{40}|[a-fA-F0-9]{64}|[a-fA-F0-9]{96}|[a-fA-F0-9]{128})$"
-    },
-    "license": {
-      "type": "object",
-      "title": "License",
-      "description": "Specifies the details and attributes related to a software license. It can either include a valid SPDX license identifier or a named license, along with additional properties such as license acknowledgment, comprehensive commercial licensing information, and the full text of the license.",
-      "oneOf": [
-        {
-          "required": ["id"]
-        },
-        {
-          "required": ["name"]
-        }
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "bom-ref": {
-          "$ref": "#/definitions/refType",
-          "title": "BOM Reference",
-          "description": "An optional identifier which can be used to reference the license elsewhere in the BOM. Every bom-ref must be unique within the BOM.\nValue SHOULD not start with the BOM-Link intro 'urn:cdx:' to avoid conflicts with BOM-Links."

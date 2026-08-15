@@ -244,7 +244,7 @@ func TestReleaseSecuritySummaryIsTenantScopedAndRedacted(t *testing.T) {
 	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
-	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"openssl","purl":"pkg:apk/openssl@3.1.0"}]}`)); err != nil {
+	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"openssl","purl":"pkg:apk/openssl@3.1.0"}]}`)); err != nil {
 		t.Fatalf("sbom: %v", err)
 	}
 	scan, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{
@@ -351,7 +351,7 @@ func TestUploadSBOMCanDeferParserSideEffectsToWorker(t *testing.T) {
 		t.Fatalf("artifact: %v", err)
 	}
 
-	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api","purl":"pkg:oci/api"}]}`))
+	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api","purl":"pkg:oci/api"}]}`))
 	if err != nil {
 		t.Fatalf("upload sbom: %v", err)
 	}
@@ -1049,7 +1049,7 @@ func TestReleaseReadinessRequiresHandledCriticalFinding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
-	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"}]}`)); err != nil {
+	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"}]}`)); err != nil {
 		t.Fatalf("sbom: %v", err)
 	}
 	if _, err := ledger.CreateReleaseBundle(ctx, actor, release.ID); err != nil {
@@ -1152,7 +1152,7 @@ func TestCustomerVisibleDecisionRequiresImpactAndRedactsInternalNotes(t *testing
 	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, "", []byte(`{
 		"bomFormat":"CycloneDX",
 		"specVersion":"1.6",
-		"components":[{"name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"}]
+		"components":[{"type":"library","name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"}]
 	}`))
 	if err != nil {
 		t.Fatalf("sbom: %v", err)
@@ -1243,7 +1243,7 @@ func TestVulnerabilityDecisionSummaryReportRedactsInternalAndOnlyIncludesActiveV
 	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, "", []byte(`{
 		"bomFormat":"CycloneDX",
 		"specVersion":"1.6",
-		"components":[{"name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"}]
+		"components":[{"type":"library","name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"}]
 	}`))
 	if err != nil {
 		t.Fatalf("summary sbom: %v", err)
@@ -1808,7 +1808,7 @@ func TestExceptionApprovalControlsReadinessAndTenantScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
-	if _, err := ledger.UploadSBOM(ctx, actorA, releaseA.ID, artifactA.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"openssl","purl":"pkg:apk/openssl@3.1.0"}]}`)); err != nil {
+	if _, err := ledger.UploadSBOM(ctx, actorA, releaseA.ID, artifactA.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"openssl","purl":"pkg:apk/openssl@3.1.0"}]}`)); err != nil {
 		t.Fatalf("sbom: %v", err)
 	}
 	if _, err := ledger.CreateReleaseBundle(ctx, actorA, releaseA.ID); err != nil {
@@ -1849,7 +1849,7 @@ func TestCollectorBuildAttestationReadinessFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("project: %v", err)
 	}
-	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api","purl":"pkg:oci/payments-api"}]}`)); err != nil {
+	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api","purl":"pkg:oci/payments-api"}]}`)); err != nil {
 		t.Fatalf("sbom: %v", err)
 	}
 	if _, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{"scanner":"grype","target_ref":"pkg:oci/payments-api","release_id":"`+release.ID+`","findings":[]}`)); err != nil {

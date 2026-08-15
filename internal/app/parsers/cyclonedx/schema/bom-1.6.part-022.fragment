@@ -1,3 +1,106 @@
+              "title": "Implementation platform",
+              "description": "The target platform for which the algorithm is implemented. The implementation can be 'generic', running on any platform or for a specific platform.",
+              "enum": [
+                "generic",
+                "x86_32",
+                "x86_64",
+                "armv7-a",
+                "armv7-m",
+                "armv8-a",
+                "armv8-m",
+                "armv9-a",
+                "armv9-m",
+                "s390x",
+                "ppc64",
+                "ppc64le",
+                "other",
+                "unknown"
+              ]
+            },
+            "certificationLevel": {
+              "type": "array",
+              "title": "Certification Level",
+              "description": "The certification that the implementation of the cryptographic algorithm has received, if any. Certifications include revisions and levels of FIPS 140 or Common Criteria of different Extended Assurance Levels (CC-EAL).",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "fips140-1-l1",
+                  "fips140-1-l2",
+                  "fips140-1-l3",
+                  "fips140-1-l4",
+                  "fips140-2-l1",
+                  "fips140-2-l2",
+                  "fips140-2-l3",
+                  "fips140-2-l4",
+                  "fips140-3-l1",
+                  "fips140-3-l2",
+                  "fips140-3-l3",
+                  "fips140-3-l4",
+                  "cc-eal1",
+                  "cc-eal1+",
+                  "cc-eal2",
+                  "cc-eal2+",
+                  "cc-eal3",
+                  "cc-eal3+",
+                  "cc-eal4",
+                  "cc-eal4+",
+                  "cc-eal5",
+                  "cc-eal5+",
+                  "cc-eal6",
+                  "cc-eal6+",
+                  "cc-eal7",
+                  "cc-eal7+",
+                  "other",
+                  "unknown"
+                ],
+                "meta:enum": {
+                  "none": "No certification obtained",
+                  "fips140-1-l1": "FIPS 140-1 Level 1",
+                  "fips140-1-l2": "FIPS 140-1 Level 2",
+                  "fips140-1-l3": "FIPS 140-1 Level 3",
+                  "fips140-1-l4": "FIPS 140-1 Level 4",
+                  "fips140-2-l1": "FIPS 140-2 Level 1",
+                  "fips140-2-l2": "FIPS 140-2 Level 2",
+                  "fips140-2-l3": "FIPS 140-2 Level 3",
+                  "fips140-2-l4": "FIPS 140-2 Level 4",
+                  "fips140-3-l1": "FIPS 140-3 Level 1",
+                  "fips140-3-l2": "FIPS 140-3 Level 2",
+                  "fips140-3-l3": "FIPS 140-3 Level 3",
+                  "fips140-3-l4": "FIPS 140-3 Level 4",
+                  "cc-eal1": "Common Criteria - Evaluation Assurance Level 1",
+                  "cc-eal1+": "Common Criteria - Evaluation Assurance Level 1 (Augmented)",
+                  "cc-eal2": "Common Criteria - Evaluation Assurance Level 2",
+                  "cc-eal2+": "Common Criteria - Evaluation Assurance Level 2 (Augmented)",
+                  "cc-eal3": "Common Criteria - Evaluation Assurance Level 3",
+                  "cc-eal3+": "Common Criteria - Evaluation Assurance Level 3 (Augmented)",
+                  "cc-eal4": "Common Criteria - Evaluation Assurance Level 4",
+                  "cc-eal4+": "Common Criteria - Evaluation Assurance Level 4 (Augmented)",
+                  "cc-eal5": "Common Criteria - Evaluation Assurance Level 5",
+                  "cc-eal5+": "Common Criteria - Evaluation Assurance Level 5 (Augmented)",
+                  "cc-eal6": "Common Criteria - Evaluation Assurance Level 6",
+                  "cc-eal6+": "Common Criteria - Evaluation Assurance Level 6 (Augmented)",
+                  "cc-eal7": "Common Criteria - Evaluation Assurance Level 7",
+                  "cc-eal7+": "Common Criteria - Evaluation Assurance Level 7 (Augmented)",
+                  "other": "Another certification",
+                  "unknown": "The certification level is not known"
+                }
+              }
+            },
+            "mode": {
+              "type": "string",
+              "title": "Mode",
+              "description": "The mode of operation in which the cryptographic algorithm (block cipher) is used.",
+              "enum": [
+                "cbc",
+                "ecb",
+                "ccm",
+                "gcm",
+                "cfb",
+                "ofb",
+                "ctr",
+                "other",
+                "unknown"
               ],
               "meta:enum": {
                 "cbc": "Cipher block chaining",
@@ -171,80 +274,3 @@
                 "public-key": "The non-confidential key of a key pair used in asymmetric cryptography.",
                 "secret-key": "A key used to encrypt and decrypt messages in symmetric cryptography.",
                 "key": "A piece of information, usually an octet string, which, when processed through a cryptographic algorithm, processes cryptographic data.",
-                "ciphertext": "The result of encryption performed on plaintext using an algorithm (or cipher).",
-                "signature": "A cryptographic value that is calculated from the data and a key known only by the signer.",
-                "digest": "The output of the hash function.",
-                "initialization-vector": "A fixed-size random or pseudo-random value used as an input parameter for cryptographic algorithms.",
-                "nonce": "A random or pseudo-random number that can only be used once in a cryptographic communication.",
-                "seed": "The input to a pseudo-random number generator. Different seeds generate different pseudo-random sequences.",
-                "salt": "A value used in a cryptographic process, usually to ensure that the results of computations for one instance cannot be reused by an attacker.",
-                "shared-secret": "A piece of data known only to the parties involved, in a secure communication.",
-                "tag": "A message authentication code (MAC), sometimes known as an authentication tag, is a short piece of information used for authenticating and integrity-checking a message.",
-                "additional-data": "An unspecified collection of data with relevance to cryptographic activity.",
-                "password": "A secret word, phrase, or sequence of characters used during authentication or authorization.",
-                "credential": "Establishes the identity of a party to communication, usually in the form of cryptographic keys or passwords.",
-                "token": "An object encapsulating a security identity.",
-                "other": "Another type of cryptographic asset.",
-                "unknown": "The type of cryptographic asset is not known."
-              }
-            },
-            "id": {
-                "type": "string",
-                "title": "ID",
-                "description": "The optional unique identifier for the related cryptographic material."
-            },
-            "state": {
-                "type": "string",
-                "title": "State",
-                "description": "The key state as defined by NIST SP 800-57.",
-                "enum": [
-                    "pre-activation",
-                    "active",
-                    "suspended",
-                    "deactivated",
-                    "compromised",
-                    "destroyed"
-                ]
-            },
-            "algorithmRef": {
-                "$ref": "#/definitions/refType",
-                "title": "Algorithm Reference",
-                "description": "The bom-ref to the algorithm used to generate the related cryptographic material."
-            },
-            "creationDate": {
-                "type": "string",
-                "format": "date-time",
-                "title": "Creation Date",
-                "description": "The date and time (timestamp) when the related cryptographic material was created."
-            },
-            "activationDate": {
-                "type": "string",
-                "format": "date-time",
-                "title": "Activation Date",
-                "description": "The date and time (timestamp) when the related cryptographic material was activated."
-            },
-            "updateDate": {
-                "type": "string",
-                "format": "date-time",
-                "title": "Update Date",
-                "description": "The date and time (timestamp) when the related cryptographic material was updated."
-            },
-            "expirationDate": {
-                "type": "string",
-                "format": "date-time",
-                "title": "Expiration Date",
-                "description": "The date and time (timestamp) when the related cryptographic material expires."
-            },
-            "value": {
-                "type": "string",
-                "title": "Value",
-                "description": "The associated value of the cryptographic material."
-            },
-            "size": {
-                "type": "integer",
-                "title": "Size",
-                "description": "The size of the cryptographic asset (in bits)."
-            },
-            "format": {
-                "type": "string",
-                "title": "Format",

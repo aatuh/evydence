@@ -6,23 +6,15 @@ The CycloneDX validator is pinned to these three files from
 
 | Local representation | Upstream path | Expected upstream Git blob | Repository state |
 | --- | --- | --- | --- |
-| `bom-1.6.part-001.fragment` ... `bom-1.6.part-023.fragment` | `schema/bom-1.6.schema.json` | `b6c096a999d6ee9e408a9c3ae6c6227d6981c9ba` | Vendored line slices; exact-byte repair pending |
+| `bom-1.6.part-001.fragment` ... `bom-1.6.part-023.fragment` | `schema/bom-1.6.schema.json` | `b6c096a999d6ee9e408a9c3ae6c6227d6981c9ba` | Vendored exact-byte slices; reconstructed and verified |
 | `spdx.schema.json` | `schema/spdx.schema.json` | `2dccc87e3cb3c3438d3f1623a3483657ee8d4189` | Vendored and embedded exactly |
 | `jsf-0.82.schema.json` | `schema/jsf-0.82.schema.json` | `f46bfb1e52731ad1280123ff3e2bd29bd18d4bc2` | Vendored and embedded exactly |
 
 The pinned upstream BOM root is 262,666 bytes and Git blob
-`b6c096a999d6ee9e408a9c3ae6c6227d6981c9ba`. The current 23 line-oriented
-fragments contain 262,640 bytes; restoring one newline after every fragment
-produces 262,663 bytes, three bytes short of the pinned object. The exact source
-lines are present structurally, but the line-oriented connector relay has
-normalized or omitted three raw bytes that have not yet been identified.
-
-This mismatch is intentionally fail-closed. `embeddedPinnedBOMSchema` requires
-the expected part count, the exact 262,666-byte length, and the pinned whole-file
-Git object ID before any schema compiler sees the root. Do not relax those
-checks to make the current fragment representation compile. The preferred repair
-is an opaque byte/base64 transfer or a precisely identified byte correction that
-reconstructs the exact upstream Git object.
+`b6c096a999d6ee9e408a9c3ae6c6227d6981c9ba`. The 23 opaque byte slices are
+joined without separators. `embeddedPinnedBOMSchema` requires the expected part
+count, exact length, and pinned whole-file Git object ID before any schema
+compiler sees the root. Do not relax those checks or normalize fragment bytes.
 
 The fragments use a `.fragment` suffix rather than `.json` because no individual
 fragment is a standalone JSON document and generic JSON validation tooling must
@@ -31,8 +23,7 @@ not treat one as such.
 `schema_provenance_test.go` verifies the committed SPDX and JSF resources by
 recomputing their Git blob object IDs. `pinned_root_test.go` independently
 reconstructs the embedded BOM root and requires its byte length and Git object
-ID before compiling the offline validator. That root test is expected to expose
-this exact-byte blocker until the representation is repaired.
+ID before compiling the offline validator.
 
 `NewPinnedSchemaValidator` verifies any explicitly supplied root bytes against
 `PinnedBOMSchemaGitBlobSHA` before schema compilation. SHA-1 is used there only
@@ -48,10 +39,10 @@ uses `ParseCycloneDXReplayProjection` and the same shared bounded parser.
 Historical parser-version migration and replay compatibility remain separate
 replay/versioning work.
 
-The exported public `Ledger.UploadSBOM` and `Ledger.UploadSBOMPayload` facade is
-kept on the last known-working reduced ingestion route while the embedded root is
-being repaired. Reactivate the conformant public route only after the exact root
-reconstructs successfully and the EVY-502 local validation gates pass.
+The exported public `Ledger.UploadSBOM` and `Ledger.UploadSBOMPayload` facade
+uses the conformant transaction after the embedded root is verified. The
+transaction validates and normalizes one bounded byte stream before staging or
+publishing evidence.
 
 The CycloneDX BOM and JSF schemas state Apache-2.0 terms in their schema
 comments; the upstream CycloneDX specification repository is Apache-2.0. The

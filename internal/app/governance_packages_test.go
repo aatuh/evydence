@@ -173,7 +173,7 @@ func TestCustomerPackageV2ManifestSchemaAndSensitiveFieldExclusion(t *testing.T)
 	if err != nil {
 		t.Fatalf("foreign OpenAPI contract: %v", err)
 	}
-	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"}]}`)); err != nil {
+	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"}]}`)); err != nil {
 		t.Fatalf("sbom: %v", err)
 	}
 	scan := uploadVEXMappingScan(t, ctx, ledger, actor, release.ID, "CVE-2026-0700", "pkg:apk/openssl@3.1.0")

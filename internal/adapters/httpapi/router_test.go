@@ -871,7 +871,7 @@ func TestReleaseEvidenceFlowStartHTTPFlow(t *testing.T) {
 		"artifact_id": artifactID,
 		"payload": map[string]any{
 			"bomFormat": "CycloneDX", "specVersion": "1.6",
-			"components": []map[string]any{{"name": "api", "purl": "pkg:github/acme/api@abc"}},
+			"components": []map[string]any{{"type": "library", "name": "api", "purl": "pkg:github/acme/api@abc"}},
 		},
 	}, http.StatusCreated)
 	postJSON(t, server, secret, "/v1/vulnerability-scans", "flow-scan", map[string]any{"scanner": "generic", "target_ref": "pkg:github/acme/api@abc", "release_id": releaseID, "findings": []map[string]any{}}, http.StatusCreated)
@@ -901,7 +901,7 @@ func TestReleaseSecuritySummaryHTTPFlow(t *testing.T) {
 		"artifact_id": artifactID,
 		"payload": map[string]any{
 			"bomFormat": "CycloneDX", "specVersion": "1.6",
-			"components": []map[string]any{{"name": "openssl", "purl": "pkg:apk/openssl@3.1.0"}},
+			"components": []map[string]any{{"type": "library", "name": "openssl", "purl": "pkg:apk/openssl@3.1.0"}},
 		},
 	}, http.StatusCreated)
 	scanBody := postJSON(t, server, secret, "/v1/vulnerability-scans", "security-summary-scan", map[string]any{
@@ -944,7 +944,7 @@ func TestReleaseRiskDecisionHTTPFlow(t *testing.T) {
 		"artifact_id": artifactID,
 		"payload": map[string]any{
 			"bomFormat": "CycloneDX", "specVersion": "1.6",
-			"components": []map[string]any{{"name": "openssl", "purl": "pkg:apk/openssl@3.1.0"}},
+			"components": []map[string]any{{"type": "library", "name": "openssl", "purl": "pkg:apk/openssl@3.1.0"}},
 		},
 	}, http.StatusCreated)
 	scanBody := postJSON(t, server, secret, "/v1/vulnerability-scans", "risk-scan", map[string]any{
@@ -1241,7 +1241,7 @@ func TestControlsAndReportsHTTPFlow(t *testing.T) {
 		"artifact_id": artifactID,
 		"payload": map[string]any{
 			"bomFormat": "CycloneDX", "specVersion": "1.6",
-			"components": []map[string]any{{"name": "api", "purl": "pkg:oci/payments-api"}},
+			"components": []map[string]any{{"type": "library", "name": "api", "purl": "pkg:oci/payments-api"}},
 		},
 	}, http.StatusCreated)
 	sbomID := dataField(t, sbomBody, "id")
@@ -1739,7 +1739,7 @@ func TestFutureExtensionAndReadAdminHTTPGaps(t *testing.T) {
 		t.Fatalf("anomaly missing limitations: %s", anomaly)
 	}
 
-	sbomBody := postJSON(t, server, secret, "/v1/sboms", "future-sbom", map[string]any{"release_id": releaseID, "artifact_id": artifactID, "payload": map[string]any{"bomFormat": "CycloneDX", "specVersion": "1.6", "components": []map[string]any{{"name": "api", "purl": "pkg:oci/api"}}}}, http.StatusCreated)
+	sbomBody := postJSON(t, server, secret, "/v1/sboms", "future-sbom", map[string]any{"release_id": releaseID, "artifact_id": artifactID, "payload": map[string]any{"bomFormat": "CycloneDX", "specVersion": "1.6", "components": []map[string]any{{"type": "library", "name": "api", "purl": "pkg:oci/api"}}}}, http.StatusCreated)
 	sbomID := dataField(t, sbomBody, "id")
 	getJSON(t, server, secret, "/v1/sboms/"+sbomID, http.StatusOK)
 	scanBody := postJSON(t, server, secret, "/v1/vulnerability-scans", "future-vuln-scan", map[string]any{"scanner": "grype", "target_ref": "pkg:oci/api", "release_id": releaseID, "findings": []map[string]any{}}, http.StatusCreated)

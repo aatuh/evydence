@@ -1,3 +1,66 @@
+          },
+          "uniqueItems": true
+        },
+        "properties": {
+          "type": "array",
+          "title": "Properties",
+          "description": "Provides the ability to document properties in a name-value store. This provides flexibility to include data not officially supported in the standard without having to use additional namespaces or create extensions. Unlike key-value stores, properties support duplicate names, each potentially having different values. Property names of interest to the general public are encouraged to be registered in the [CycloneDX Property Taxonomy](https://github.com/CycloneDX/cyclonedx-property-taxonomy). Formal registration is optional.",
+          "items": {
+            "$ref": "#/definitions/property"
+          }
+        }
+      }
+    },
+    "event": {
+      "title": "Event",
+      "description": "Represents something that happened that may trigger a response.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "uid": {
+          "title": "Unique Identifier (UID)",
+          "description": "The unique identifier of the event.",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "description": "A description of the event.",
+          "type": "string"
+        },
+        "timeReceived": {
+          "title": "Time Received",
+          "description": "The date and time (timestamp) when the event was received.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "data": {
+          "title": "Data",
+          "description": "Encoding of the raw event data.",
+          "$ref": "#/definitions/attachment"
+        },
+        "source": {
+          "title": "Source",
+          "description": "References the component or service that was the source of the event",
+          "$ref": "#/definitions/resourceReferenceChoice"
+        },
+        "target": {
+          "title": "Target",
+          "description": "References the component or service that was the target of the event",
+          "$ref": "#/definitions/resourceReferenceChoice"
+        },
+        "properties": {
+          "type": "array",
+          "title": "Properties",
+          "description": "Provides the ability to document properties in a name-value store. This provides flexibility to include data not officially supported in the standard without having to use additional namespaces or create extensions. Unlike key-value stores, properties support duplicate names, each potentially having different values. Property names of interest to the general public are encouraged to be registered in the [CycloneDX Property Taxonomy](https://github.com/CycloneDX/cyclonedx-property-taxonomy). Formal registration is optional.",
+          "items": {
+            "$ref": "#/definitions/property"
+          }
+        }
+      }
+    },
+    "inputType": {
+      "title": "Input type",
+      "description": "Type that represents various input data types and formats.",
       "type": "object",
       "oneOf": [
         {
@@ -236,15 +299,3 @@
           "type": "array",
           "title": "Properties",
           "description": "Provides the ability to document properties in a name-value store. This provides flexibility to include data not officially supported in the standard without having to use additional namespaces or create extensions. Unlike key-value stores, properties support duplicate names, each potentially having different values. Property names of interest to the general public are encouraged to be registered in the [CycloneDX Property Taxonomy](https://github.com/CycloneDX/cyclonedx-property-taxonomy). Formal registration is optional.",
-          "items": {
-            "$ref": "#/definitions/property"
-          }
-        }
-      }
-    },
-    "taskType": {
-      "type": "string",
-      "enum": [
-        "copy",
-        "clone",
-        "lint",

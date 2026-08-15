@@ -1,3 +1,77 @@
+          "items": {
+            "$ref": "#/definitions/property"
+          }
+        }
+      }
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "executed": {
+          "title": "Executed",
+          "description": "A text representation of the executed command.",
+          "type": "string"
+        },
+        "properties": {
+          "type": "array",
+          "title": "Properties",
+          "description": "Provides the ability to document properties in a name-value store. This provides flexibility to include data not officially supported in the standard without having to use additional namespaces or create extensions. Unlike key-value stores, properties support duplicate names, each potentially having different values. Property names of interest to the general public are encouraged to be registered in the [CycloneDX Property Taxonomy](https://github.com/CycloneDX/cyclonedx-property-taxonomy). Formal registration is optional.",
+          "items": {
+            "$ref": "#/definitions/property"
+          }
+        }
+      }
+    },
+    "workspace": {
+      "title": "Workspace",
+      "description": "A named filesystem or data resource shareable by workflow tasks.",
+      "type": "object",
+      "required": [
+        "bom-ref",
+        "uid"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "bom-ref": {
+          "title": "BOM Reference",
+          "description": "An optional identifier which can be used to reference the workspace elsewhere in the BOM. Every bom-ref must be unique within the BOM.\nValue SHOULD not start with the BOM-Link intro 'urn:cdx:' to avoid conflicts with BOM-Links.",
+          "$ref": "#/definitions/refType"
+        },
+        "uid": {
+          "title": "Unique Identifier (UID)",
+          "description": "The unique identifier for the resource instance within its deployment context.",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "description": "The name of the resource instance.",
+          "type": "string"
+        },
+        "aliases": {
+          "title": "Aliases",
+          "description": "The names for the workspace as referenced by other workflow tasks. Effectively, a name mapping so other tasks can use their own local name in their steps.",
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "description": {
+          "title": "Description",
+          "description": "A description of the resource instance.",
+          "type": "string"
+        },
+        "resourceReferences": {
+          "title": "Resource references",
+          "description": "References to component or service resources that are used to realize the resource instance.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/definitions/resourceReferenceChoice"
+          }
+        },
+        "accessMode": {
+          "title": "Access mode",
+          "description": "Describes the read-write access control for the workspace relative to the owning resource instance.",
+          "type": "string",
           "enum": [
             "read-only",
             "read-write",
@@ -185,66 +259,3 @@
           "type": "array",
           "items": {
             "$ref": "#/definitions/outputType"
-          },
-          "uniqueItems": true
-        },
-        "properties": {
-          "type": "array",
-          "title": "Properties",
-          "description": "Provides the ability to document properties in a name-value store. This provides flexibility to include data not officially supported in the standard without having to use additional namespaces or create extensions. Unlike key-value stores, properties support duplicate names, each potentially having different values. Property names of interest to the general public are encouraged to be registered in the [CycloneDX Property Taxonomy](https://github.com/CycloneDX/cyclonedx-property-taxonomy). Formal registration is optional.",
-          "items": {
-            "$ref": "#/definitions/property"
-          }
-        }
-      }
-    },
-    "event": {
-      "title": "Event",
-      "description": "Represents something that happened that may trigger a response.",
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "uid": {
-          "title": "Unique Identifier (UID)",
-          "description": "The unique identifier of the event.",
-          "type": "string"
-        },
-        "description": {
-          "title": "Description",
-          "description": "A description of the event.",
-          "type": "string"
-        },
-        "timeReceived": {
-          "title": "Time Received",
-          "description": "The date and time (timestamp) when the event was received.",
-          "type": "string",
-          "format": "date-time"
-        },
-        "data": {
-          "title": "Data",
-          "description": "Encoding of the raw event data.",
-          "$ref": "#/definitions/attachment"
-        },
-        "source": {
-          "title": "Source",
-          "description": "References the component or service that was the source of the event",
-          "$ref": "#/definitions/resourceReferenceChoice"
-        },
-        "target": {
-          "title": "Target",
-          "description": "References the component or service that was the target of the event",
-          "$ref": "#/definitions/resourceReferenceChoice"
-        },
-        "properties": {
-          "type": "array",
-          "title": "Properties",
-          "description": "Provides the ability to document properties in a name-value store. This provides flexibility to include data not officially supported in the standard without having to use additional namespaces or create extensions. Unlike key-value stores, properties support duplicate names, each potentially having different values. Property names of interest to the general public are encouraged to be registered in the [CycloneDX Property Taxonomy](https://github.com/CycloneDX/cyclonedx-property-taxonomy). Formal registration is optional.",
-          "items": {
-            "$ref": "#/definitions/property"
-          }
-        }
-      }
-    },
-    "inputType": {
-      "title": "Input type",
-      "description": "Type that represents various input data types and formats.",

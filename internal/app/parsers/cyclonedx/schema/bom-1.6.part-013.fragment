@@ -1,3 +1,171 @@
+          "title": "Impact Analysis",
+          "description": "An assessment of the impact and exploitability of the vulnerability.",
+          "additionalProperties": false,
+          "properties": {
+            "state": {
+              "$ref": "#/definitions/impactAnalysisState"
+            },
+            "justification": {
+              "$ref": "#/definitions/impactAnalysisJustification"
+            },
+            "response": {
+              "type": "array",
+              "title": "Response",
+              "description": "A response to the vulnerability by the manufacturer, supplier, or project responsible for the affected component or service. More than one response is allowed. Responses are strongly encouraged for vulnerabilities where the analysis state is exploitable.",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "can_not_fix",
+                  "will_not_fix",
+                  "update",
+                  "rollback",
+                  "workaround_available"
+                ],
+                "meta:enum": {
+                  "can_not_fix": "Can not fix",
+                  "will_not_fix": "Will not fix",
+                  "update": "Update to a different revision or release",
+                  "rollback": "Revert to a previous revision or release",
+                  "workaround_available": "There is a workaround available"
+                }
+              }
+            },
+            "detail": {
+              "type": "string",
+              "title": "Detail",
+              "description": "Detailed description of the impact including methods used during assessment. If a vulnerability is not exploitable, this field should include specific details on why the component or service is not impacted by this vulnerability."
+            },
+            "firstIssued": {
+              "type": "string",
+              "format": "date-time",
+              "title": "First Issued",
+              "description": "The date and time (timestamp) when the analysis was first issued."
+            },
+            "lastUpdated": {
+              "type": "string",
+              "format": "date-time",
+              "title": "Last Updated",
+              "description": "The date and time (timestamp) when the analysis was last updated."
+            }
+          }
+        },
+        "affects": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "required": [
+              "ref"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "ref": {
+                "anyOf": [
+                  {
+                    "title": "Ref",
+                    "$ref": "#/definitions/refLinkType"
+                  },
+                  {
+                    "title": "BOM-Link Element",
+                    "$ref": "#/definitions/bomLinkElementType"
+                  }
+                ],
+                "title": "Reference",
+                "description": "References a component or service by the objects bom-ref"
+              },
+              "versions": {
+                "type": "array",
+                "title": "Versions",
+                "description": "Zero or more individual versions or range of versions.",
+                "items": {
+                  "type": "object",
+                  "oneOf": [
+                    {
+                      "required": ["version"]
+                    },
+                    {
+                      "required": ["range"]
+                    }
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "version": {
+                      "title": "Version",
+                      "description": "A single version of a component or service.",
+                      "$ref": "#/definitions/version"
+                    },
+                    "range": {
+                      "title": "Version Range",
+                      "description": "A version range specified in Package URL Version Range syntax (vers) which is defined at https://github.com/package-url/vers-spec",
+                      "$ref": "#/definitions/versionRange"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "description": "The vulnerability status for the version or range of versions.",
+                      "$ref": "#/definitions/affectedStatus",
+                      "default": "affected"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "title": "Affects",
+          "description": "The components or services that are affected by the vulnerability."
+        },
+        "properties": {
+          "type": "array",
+          "title": "Properties",
+          "description": "Provides the ability to document properties in a name-value store. This provides flexibility to include data not officially supported in the standard without having to use additional namespaces or create extensions. Unlike key-value stores, properties support duplicate names, each potentially having different values. Property names of interest to the general public are encouraged to be registered in the [CycloneDX Property Taxonomy](https://github.com/CycloneDX/cyclonedx-property-taxonomy). Formal registration is optional.",
+          "items": {
+            "$ref": "#/definitions/property"
+          }
+        }
+      }
+    },
+    "affectedStatus": {
+      "description": "The vulnerability status of a given version or range of versions of a product. The statuses 'affected' and 'unaffected' indicate that the version is affected or unaffected by the vulnerability. The status 'unknown' indicates that it is unknown or unspecified whether the given version is affected. There can be many reasons for an 'unknown' status, including that an investigation has not been undertaken or that a vendor has not disclosed the status.",
+      "type": "string",
+      "enum": [
+        "affected",
+        "unaffected",
+        "unknown"
+      ],
+      "meta:enum": {
+        "affected": "The version is affected by the vulnerability.",
+        "unaffected": "The version is not affected by the vulnerability.",
+        "unknown": "It is unknown (or unspecified) whether the given version is affected."
+      }
+    },
+    "version": {
+      "description": "A single disjunctive version identifier, for a component or service.",
+      "type": "string",
+      "maxLength": 1024,
+      "examples": [
+        "9.0.14",
+        "v1.33.7",
+        "7.0.0-M1",
+        "2.0pre1",
+        "1.0.0-beta1",
+        "0.8.15"
+      ]
+    },
+    "versionRange": {
+      "description": "A version range specified in Package URL Version Range syntax (vers) which is defined at https://github.com/package-url/vers-spec",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "examples": [
+        "vers:cargo/9.0.14",
+        "vers:npm/1.2.3|>=2.0.0|<5.0.0",
+        "vers:pypi/0.0.0|0.0.1|0.0.2|0.0.3|1.0|2.0pre1",
+        "vers:tomee/>=1.0.0-beta1|<=1.7.5|>=7.0.0-M1|<=7.0.7|>=7.1.0|<=7.1.2|>=8.0.0-M1|<=8.0.1",
+        "vers:gem/>=2.2.0|!= 2.2.1|<2.3.0"
+      ]
+    },
+    "range": {
+      "deprecated": true,
+      "description": "Deprecated definition. use definition `versionRange` instead.",
       "$ref": "#/definitions/versionRange"
     },
     "annotations": {
@@ -103,148 +271,3 @@
       "$comment": "Model card support in CycloneDX is derived from TensorFlow Model Card Toolkit released under the Apache 2.0 license and available from https://github.com/tensorflow/model-card-toolkit/blob/main/model_card_toolkit/schema/v0.0.2/model_card.schema.json. In addition, CycloneDX model card support includes portions of VerifyML, also released under the Apache 2.0 license and available from https://github.com/cylynx/verifyml/blob/main/verifyml/model_card_toolkit/schema/v0.0.4/model_card.schema.json.",
       "type": "object",
       "title": "Model Card",
-      "description": "A model card describes the intended uses of a machine learning model and potential limitations, including biases and ethical considerations. Model cards typically contain the training parameters, which datasets were used to train the model, performance metrics, and other relevant data useful for ML transparency. This object SHOULD be specified for any component of type `machine-learning-model` and must not be specified for other component types.",
-      "additionalProperties": false,
-      "properties": {
-        "bom-ref": {
-          "$ref": "#/definitions/refType",
-          "title": "BOM Reference",
-          "description": "An optional identifier which can be used to reference the model card elsewhere in the BOM. Every bom-ref must be unique within the BOM.\nValue SHOULD not start with the BOM-Link intro 'urn:cdx:' to avoid conflicts with BOM-Links."
-        },
-        "modelParameters": {
-          "type": "object",
-          "title": "Model Parameters",
-          "description": "Hyper-parameters for construction of the model.",
-          "additionalProperties": false,
-          "properties": {
-            "approach": {
-              "type": "object",
-              "title": "Approach",
-              "description": "The overall approach to learning used by the model for problem solving.",
-              "additionalProperties": false,
-              "properties": {
-                "type": {
-                  "type": "string",
-                  "title": "Learning Type",
-                  "description": "Learning types describing the learning problem or hybrid learning problem.",
-                  "enum": [
-                    "supervised",
-                    "unsupervised",
-                    "reinforcement-learning",
-                    "semi-supervised",
-                    "self-supervised"
-                  ],
-                  "meta:enum": {
-                    "supervised": "Supervised machine learning involves training an algorithm on labeled data to predict or classify new data based on the patterns learned from the labeled examples.",
-                    "unsupervised": "Unsupervised machine learning involves training algorithms on unlabeled data to discover patterns, structures, or relationships without explicit guidance, allowing the model to identify inherent structures or clusters within the data.",
-                    "reinforcement-learning": "Reinforcement learning is a type of machine learning where an agent learns to make decisions by interacting with an environment to maximize cumulative rewards, through trial and error.",
-                    "semi-supervised": "Semi-supervised machine learning utilizes a combination of labeled and unlabeled data during training to improve model performance, leveraging the benefits of both supervised and unsupervised learning techniques.",
-                    "self-supervised": "Self-supervised machine learning involves training models to predict parts of the input data from other parts of the same data, without requiring external labels, enabling learning from large amounts of unlabeled data."
-                  }
-                }
-              }
-            },
-            "task": {
-              "type": "string",
-              "title": "Task",
-              "description": "Directly influences the input and/or output. Examples include classification, regression, clustering, etc."
-            },
-            "architectureFamily": {
-              "type": "string",
-              "title": "Architecture Family",
-              "description": "The model architecture family such as transformer network, convolutional neural network, residual neural network, LSTM neural network, etc."
-            },
-            "modelArchitecture": {
-              "type": "string",
-              "title": "Model Architecture",
-              "description": "The specific architecture of the model such as GPT-1, ResNet-50, YOLOv3, etc."
-            },
-            "datasets": {
-              "type": "array",
-              "title": "Datasets",
-              "description": "The datasets used to train and evaluate the model.",
-              "items" : {
-                "oneOf" : [
-                  {
-                    "title": "Inline Data Information",
-                    "$ref": "#/definitions/componentData"
-                  },
-                  {
-                    "type": "object",
-                    "title": "Data Reference",
-                    "additionalProperties": false,
-                    "properties": {
-                      "ref": {
-                        "anyOf": [
-                          {
-                            "title": "Ref",
-                            "$ref": "#/definitions/refLinkType"
-                          },
-                          {
-                            "title": "BOM-Link Element",
-                            "$ref": "#/definitions/bomLinkElementType"
-                          }
-                        ],
-                        "title": "Reference",
-                        "type": "string",
-                        "description": "References a data component by the components bom-ref attribute"
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            "inputs": {
-              "type": "array",
-              "title": "Inputs",
-              "description": "The input format(s) of the model",
-              "items": { "$ref": "#/definitions/inputOutputMLParameters" }
-            },
-            "outputs": {
-              "type": "array",
-              "title": "Outputs",
-              "description": "The output format(s) from the model",
-              "items": { "$ref": "#/definitions/inputOutputMLParameters" }
-            }
-          }
-        },
-        "quantitativeAnalysis": {
-          "type": "object",
-          "title": "Quantitative Analysis",
-          "description": "A quantitative analysis of the model",
-          "additionalProperties": false,
-          "properties": {
-            "performanceMetrics": {
-              "type": "array",
-              "title": "Performance Metrics",
-              "description": "The model performance metrics being reported. Examples may include accuracy, F1 score, precision, top-3 error rates, MSC, etc.",
-              "items": { "$ref": "#/definitions/performanceMetric" }
-            },
-            "graphics": { "$ref": "#/definitions/graphicsCollection" }
-          }
-        },
-        "considerations": {
-          "type": "object",
-          "title": "Considerations",
-          "description": "What considerations should be taken into account regarding the model's construction, training, and application?",
-          "additionalProperties": false,
-          "properties": {
-            "users": {
-              "type": "array",
-              "title": "Users",
-              "description": "Who are the intended users of the model?",
-              "items": {
-                "type": "string"
-              }
-            },
-            "useCases": {
-              "type": "array",
-              "title": "Use Cases",
-              "description": "What are the intended use cases of the model?",
-              "items": {
-                "type": "string"
-              }
-            },
-            "technicalLimitations": {
-              "type": "array",
-              "title": "Technical Limitations",

@@ -43,6 +43,7 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 | Family | File | Function | Call |
 | --- | --- | --- | --- |
 | VEX and vulnerability decisions | `internal/app/vex.go` | `UploadVEXPayload` | `persistReleaseLedgerWithOutboxLocked` |
+| unclassified | `internal/app/cyclonedx_upload.go` | `uploadValidatedCycloneDXSBOMPayload` | `persistReleaseLedgerWithOutboxLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `RecordEvidenceLifecycleEvent` | `persistReleaseLedgerStateLocked` |
 | release ledger and signing | `internal/app/ledger.go` | `ApproveRelease` | `persistReleaseLedgerStateLocked` |
 | release ledger and signing | `internal/app/ledger.go` | `CreateEvidence` | `persistReleaseLedgerStateLocked` |

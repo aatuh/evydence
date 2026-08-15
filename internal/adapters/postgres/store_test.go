@@ -1630,7 +1630,7 @@ func TestPostgresBackupRestoreRehearsalPreservesLedgerAndObjects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rawSBOM := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api","purl":"pkg:oci/api"}]}`)
+	rawSBOM := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api","purl":"pkg:oci/api"}]}`)
 	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, rawSBOM)
 	if err != nil {
 		t.Fatal(err)

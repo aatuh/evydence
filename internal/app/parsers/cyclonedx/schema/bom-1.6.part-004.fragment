@@ -1,3 +1,51 @@
+          "$ref": "#/definitions/organizationalEntity"
+        },
+        "licenses": {
+          "title": "BOM License(s)",
+          "description": "The license information for the BOM document.\nThis may be different from the license(s) of the component(s) that the BOM describes.",
+          "$ref": "#/definitions/licenseChoice"
+        },
+        "properties": {
+          "type": "array",
+          "title": "Properties",
+          "description": "Provides the ability to document properties in a name-value store. This provides flexibility to include data not officially supported in the standard without having to use additional namespaces or create extensions. Unlike key-value stores, properties support duplicate names, each potentially having different values. Property names of interest to the general public are encouraged to be registered in the [CycloneDX Property Taxonomy](https://github.com/CycloneDX/cyclonedx-property-taxonomy). Formal registration is optional.",
+          "items": {"$ref": "#/definitions/property"}
+        }
+      }
+    },
+    "tool": {
+      "type": "object",
+      "title": "Tool",
+      "description": "[Deprecated] This will be removed in a future version. Use component or service instead. Information about the automated or manual tool used",
+      "additionalProperties": false,
+      "properties": {
+        "vendor": {
+          "type": "string",
+          "title": "Tool Vendor",
+          "description": "The name of the vendor who created the tool"
+        },
+        "name": {
+          "type": "string",
+          "title": "Tool Name",
+          "description": "The name of the tool"
+        },
+        "version": {
+          "$ref": "#/definitions/version",
+          "title": "Tool Version",
+          "description": "The version of the tool"
+        },
+        "hashes": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/hash"},
+          "title": "Hashes",
+          "description": "The hashes of the tool (if applicable)."
+        },
+        "externalReferences": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/externalReference"},
+          "title": "External References",
+          "description": "External references provide a way to document systems, sites, and information that may be relevant, but are not included with the BOM. They may also establish specific relationships within or external to the BOM."
+        }
       }
     },
     "organizationalEntity": {
@@ -152,99 +200,3 @@
           "description": "[Deprecated] This will be removed in a future version. Use `@.authors` or `@.manufacturer` instead.\nThe person(s) or organization(s) that authored the component",
           "examples": ["Acme Inc"]
         },
-        "publisher": {
-          "type": "string",
-          "title": "Component Publisher",
-          "description": "The person(s) or organization(s) that published the component",
-          "examples": ["Acme Inc"]
-        },
-        "group": {
-          "type": "string",
-          "title": "Component Group",
-          "description": "The grouping name or identifier. This will often be a shortened, single name of the company or project that produced the component, or the source package or domain name. Whitespace and special characters should be avoided. Examples include: apache, org.apache.commons, and apache.org.",
-          "examples": ["com.acme"]
-        },
-        "name": {
-          "type": "string",
-          "title": "Component Name",
-          "description": "The name of the component. This will often be a shortened, single name of the component. Examples: commons-lang3 and jquery",
-          "examples": ["tomcat-catalina"]
-        },
-        "version": {
-          "$ref": "#/definitions/version",
-          "title": "Component Version",
-          "description": "The component version. The version should ideally comply with semantic versioning but is not enforced."
-        },
-        "description": {
-          "type": "string",
-          "title": "Component Description",
-          "description": "Specifies a description for the component"
-        },
-        "scope": {
-          "type": "string",
-          "enum": [
-            "required",
-            "optional",
-            "excluded"
-          ],
-          "meta:enum": {
-            "required": "The component is required for runtime",
-            "optional": "The component is optional at runtime. Optional components are components that are not capable of being called due to them not being installed or otherwise accessible by any means. Components that are installed but due to configuration or other restrictions are prohibited from being called must be scoped as 'required'.",
-            "excluded": "Components that are excluded provide the ability to document component usage for test and other non-runtime purposes. Excluded components are not reachable within a call graph at runtime."
-          },
-          "title": "Component Scope",
-          "description": "Specifies the scope of the component. If scope is not specified, 'required' scope SHOULD be assumed by the consumer of the BOM.",
-          "default": "required"
-        },
-        "hashes": {
-          "type": "array",
-          "title": "Component Hashes",
-          "description": "The hashes of the component.",
-          "items": {"$ref": "#/definitions/hash"}
-        },
-        "licenses": {
-          "$ref": "#/definitions/licenseChoice",
-          "title": "Component License(s)"
-        },
-        "copyright": {
-          "type": "string",
-          "title": "Component Copyright",
-          "description": "A copyright notice informing users of the underlying claims to copyright ownership in a published work.",
-          "examples": ["Acme Inc"]
-        },
-        "cpe": {
-          "type": "string",
-          "title": "Common Platform Enumeration (CPE)",
-          "description": "Asserts the identity of the component using CPE. The CPE must conform to the CPE 2.2 or 2.3 specification. See [https://nvd.nist.gov/products/cpe](https://nvd.nist.gov/products/cpe). Refer to `@.evidence.identity` to optionally provide evidence that substantiates the assertion of the component's identity.",
-          "examples": ["cpe:2.3:a:acme:component_framework:-:*:*:*:*:*:*:*"]
-        },
-        "purl": {
-          "type": "string",
-          "title": "Package URL (purl)",
-          "description": "Asserts the identity of the component using package-url (purl). The purl, if specified, must be valid and conform to the specification defined at: [https://github.com/package-url/purl-spec](https://github.com/package-url/purl-spec). Refer to `@.evidence.identity` to optionally provide evidence that substantiates the assertion of the component's identity.",
-          "examples": ["pkg:maven/com.acme/tomcat-catalina@9.0.14?packaging=jar"]
-        },
-        "omniborId": {
-          "type": "array",
-          "title": "OmniBOR Artifact Identifier (gitoid)",
-          "description": "Asserts the identity of the component using the OmniBOR Artifact ID. The OmniBOR, if specified, must be valid and conform to the specification defined at: [https://www.iana.org/assignments/uri-schemes/prov/gitoid](https://www.iana.org/assignments/uri-schemes/prov/gitoid). Refer to `@.evidence.identity` to optionally provide evidence that substantiates the assertion of the component's identity.",
-          "items": { "type": "string" },
-          "examples": [
-            "gitoid:blob:sha1:a94a8fe5ccb19ba61c4c0873d391e987982fbbd3",
-            "gitoid:blob:sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
-          ]
-        },
-        "swhid": {
-          "type": "array",
-          "title": "Software Heritage Identifier",
-          "description": "Asserts the identity of the component using the Software Heritage persistent identifier (SWHID). The SWHID, if specified, must be valid and conform to the specification defined at: [https://docs.softwareheritage.org/devel/swh-model/persistent-identifiers.html](https://docs.softwareheritage.org/devel/swh-model/persistent-identifiers.html). Refer to `@.evidence.identity` to optionally provide evidence that substantiates the assertion of the component's identity.",
-          "items": { "type": "string" },
-          "examples": ["swh:1:cnt:94a9ed024d3859793618152ea559a168bbcbb5e2"]
-        },
-        "swid": {
-          "$ref": "#/definitions/swid",
-          "title": "SWID Tag",
-          "description": "Asserts the identity of the component using [ISO-IEC 19770-2 Software Identification (SWID) Tags](https://www.iso.org/standard/65666.html). Refer to `@.evidence.identity` to optionally provide evidence that substantiates the assertion of the component's identity."
-        },
-        "modified": {
-          "type": "boolean",

@@ -23,7 +23,7 @@ the broader conformance, fixture-corpus, replay, and parser-version work.
 
 | Input | Stability | Tested contract | Retained parser identity | Public HTTP form / effective limit |
 | --- | --- | --- | --- | --- |
-| CycloneDX SBOM JSON | `core` | Public route remains reduced while EVY-502 repairs the exact pinned 1.6 root; the shared bounded parser/validator corpus targets official CycloneDX 1.6 | `cyclonedx-json.v1.3.4` on durable `parse_sbom` jobs and conformant-parser metadata | Native `application/vnd.cyclonedx+json`: 20 MiB; JSON envelope: 64 KiB |
+| CycloneDX SBOM JSON | `core` | Official-schema CycloneDX 1.6 JSON; the shared bounded parser/validator corpus targets official fixtures plus Syft/Trivy output shapes | `cyclonedx-json.v1.3.4` on durable `parse_sbom` jobs and evidence metadata | Native `application/vnd.cyclonedx+json`: 20 MiB; JSON envelope: 64 KiB |
 | SPDX SBOM JSON | `core` | Reduced shape; fixtures use `SPDX-2.3` | `spdx-json.v1` in evidence metadata | JSON envelope: 64 KiB |
 | OpenVEX JSON | `core` | Reduced shape; fixtures use `https://openvex.dev/ns/v0.2.0` | `openvex-json.v1.0.0` on import report and `parse_vex` job | Native `application/vnd.openvex+json`: 20 MiB; JSON envelope: 64 KiB |
 | CycloneDX VEX JSON | `core` | Reduced shape; fixtures use `specVersion: 1.6` | `cyclonedx-vex-json.v1.0.0` on import report and `parse_vex` job | JSON envelope: 64 KiB |
@@ -36,25 +36,21 @@ versions. `scanner: "grype"` is metadata and does not select a Grype parser.
 Native Grype, Trivy, OSV-Scanner, Dependency-Track, and similar exports are not
 currently supported; convert them to the generic vulnerability-scan schema
 until EVY-505 adds versioned adapters. Syft/Trivy CycloneDX 1.6 outputs are used
-as EVY-502 interoperability fixtures, but that parser evidence does not broaden
-the public route while schema activation is pending.
+as EVY-502 interoperability fixtures for the supported CycloneDX route.
 
 ## Format details and current limitations
 
 ### CycloneDX SBOM JSON
 
-`POST /v1/sboms` currently remains on the last known-working reduced public
-contract while EVY-502 repairs the pinned root-schema representation. The public
-route reads the historical reduced CycloneDX shape and must not be advertised as
-full official-schema ingestion yet.
+`POST /v1/sboms` validates CycloneDX 1.6 documents with the pinned official
+schema before publishing evidence. Valid standard fields outside Evydence's
+normalized subset remain raw preserved and appear as parser limitations.
 
 The conformant EVY-502 implementation exists separately and is covered by parser
 and app tests. It pins CycloneDX 1.6 plus the SPDX/JSF companion schemas,
 disables external schema resolution, and refuses to compile a root unless the
-reconstructed bytes match the recorded upstream Git object. The current
-line-oriented root fragments reconstruct to 262,663 bytes instead of the pinned
-262,666 bytes, so the constructor correctly fails closed and public activation is
-deferred until those exact bytes are repaired.
+reconstructed bytes match the recorded upstream Git object. The embedded root is
+262,666 bytes and matches that pinned object before the validator is constructed.
 
 The shared parser is tested with CycloneDX 1.6 official fixtures plus Syft/Trivy
 CycloneDX fixture shapes. It accepts standard fields that Evydence does not
@@ -200,9 +196,8 @@ aggregate dependency/provision edges, 1 MiB per JSON string/key, and 1,000,000
 visited JSON values. Depth, value-count, string/key bounds, and duplicate-key
 rejection are applied by the streaming token preflight before full JSON-tree
 materialization; structural checks are repeated on the decoded representation.
-These parser limits apply to the shared conformant path and current-version
-worker replay. They do not broaden the reduced public route while exact schema
-activation is pending.
+These parser limits apply to the public conformant path and current-version
+worker replay.
 
 Other evidence families listed here do not yet have equivalent independent
 maximum JSON-depth, component/package/statement/subject/finding-count limits

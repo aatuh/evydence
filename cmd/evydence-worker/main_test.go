@@ -179,7 +179,7 @@ func TestProcessJobVerifiesConfiguredJobState(t *testing.T) {
 }
 
 func TestProcessJobWithObjectsPersistsParserDerivedFields(t *testing.T) {
-	body := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api","version":"1.0.0","purl":"pkg:generic/api@1.0.0"}]}`)
+	body := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api","version":"1.0.0","purl":"pkg:generic/api@1.0.0"}]}`)
 	hash := digestBytes(body)
 	job := postgres.ClaimedJob{
 		TenantID:  "ten_test",
@@ -204,7 +204,7 @@ func TestProcessJobWithObjectsPersistsParserDerivedFields(t *testing.T) {
 }
 
 func TestProcessJobWithObjectsUsesFocusedReleaseLedgerMutationForParserSideEffects(t *testing.T) {
-	body := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api","version":"1.0.0"}]}`)
+	body := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api","version":"1.0.0"}]}`)
 	hash := digestBytes(body)
 	job := postgres.ClaimedJob{
 		TenantID:  "ten_test",
@@ -232,7 +232,7 @@ func TestProcessJobWithObjectsUsesFocusedReleaseLedgerMutationForParserSideEffec
 }
 
 func TestProcessJobWithObjectsRequiresWritableStateForParserSideEffects(t *testing.T) {
-	body := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api"}]}`)
+	body := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api"}]}`)
 	hash := digestBytes(body)
 	job := postgres.ClaimedJob{
 		TenantID:  "ten_test",
@@ -267,7 +267,7 @@ func TestProcessJobRejectsUnsupportedParserVersion(t *testing.T) {
 }
 
 func TestProcessJobWithObjectsVerifiesTenantPrefixedPayload(t *testing.T) {
-	body := []byte(`{"bomFormat":"CycloneDX"}`)
+	body := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[]}`)
 	hash := digestBytes(body)
 	job := postgres.ClaimedJob{
 		ID:        "job_test",
@@ -280,7 +280,7 @@ func TestProcessJobWithObjectsVerifiesTenantPrefixedPayload(t *testing.T) {
 		"sbom_test": {ID: "sbom_test", TenantID: "ten_test"},
 	}}
 	object := app.Object{Key: "tenants/ten_test/payloads/sbom.json", TenantID: "ten_test", Digest: hash, Bytes: body}
-	if err := processJobWithObjects(context.Background(), fakeStateLoader{state: state, ok: true}, fakeObjectGetter{object: object, wantKey: "tenants/ten_test/payloads/sbom.json"}, job); err != nil {
+	if err := processJobWithObjects(context.Background(), &fakeStateStore{state: state, ok: true}, fakeObjectGetter{object: object, wantKey: "tenants/ten_test/payloads/sbom.json"}, job); err != nil {
 		t.Fatalf("process object-backed job: %v", err)
 	}
 }
@@ -366,7 +366,7 @@ func TestProcessJobWithObjectsParsesPayloadAndChecksDurableState(t *testing.T) {
 	}{
 		{
 			name: "sbom component count",
-			body: []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api"},{"name":"worker"}]}`),
+			body: []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api"},{"type":"library","name":"worker"}]}`),
 			job:  postgres.ClaimedJob{TenantID: "ten_test", Kind: "parse_sbom", SubjectID: "sbom_test"},
 			state: app.PersistedState{SBOMs: map[string]domain.SBOM{
 				"sbom_test": {ID: "sbom_test", TenantID: "ten_test", SpecVersion: "1.6", ComponentCount: 2},
@@ -634,7 +634,7 @@ func TestParseReplayedVEXSupportsCycloneDX(t *testing.T) {
 }
 
 func TestProcessJobWithObjectsFailsSafelyForParserMismatches(t *testing.T) {
-	body := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api"},{"name":"worker"}]}`)
+	body := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api"},{"type":"library","name":"worker"}]}`)
 	hash := digestBytes(body)
 	job := postgres.ClaimedJob{
 		TenantID:  "ten_test",

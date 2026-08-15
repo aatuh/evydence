@@ -538,7 +538,7 @@ func TestBackupRestoreRehearsalPreservesLedgerAndObjectPayloads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("artifact: %v", err)
 	}
-	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api","purl":"pkg:oci/api"}]}`))
+	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api","purl":"pkg:oci/api"}]}`))
 	if err != nil {
 		t.Fatalf("upload sbom: %v", err)
 	}

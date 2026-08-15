@@ -1,3 +1,18 @@
+                  }
+                }
+              }
+            },
+            "signature": {
+              "$ref": "#/definitions/signature",
+              "title": "Signature",
+              "description": "Enveloped signature in [JSON Signature Format (JSF)](https://cyberphone.github.io/doc/security/jsf.html)."
+            }
+          }
+        },
+        "signature": {
+          "$ref": "#/definitions/signature",
+          "title": "Signature",
+          "description": "Enveloped signature in [JSON Signature Format (JSF)](https://cyberphone.github.io/doc/security/jsf.html)."
         }
       }
     },
@@ -200,51 +215,3 @@
         "supplier": {
           "title": "Supplier",
           "description": " The organization that supplied the component that the BOM describes. The supplier may often be the manufacturer, but may also be a distributor or repackager.",
-          "$ref": "#/definitions/organizationalEntity"
-        },
-        "licenses": {
-          "title": "BOM License(s)",
-          "description": "The license information for the BOM document.\nThis may be different from the license(s) of the component(s) that the BOM describes.",
-          "$ref": "#/definitions/licenseChoice"
-        },
-        "properties": {
-          "type": "array",
-          "title": "Properties",
-          "description": "Provides the ability to document properties in a name-value store. This provides flexibility to include data not officially supported in the standard without having to use additional namespaces or create extensions. Unlike key-value stores, properties support duplicate names, each potentially having different values. Property names of interest to the general public are encouraged to be registered in the [CycloneDX Property Taxonomy](https://github.com/CycloneDX/cyclonedx-property-taxonomy). Formal registration is optional.",
-          "items": {"$ref": "#/definitions/property"}
-        }
-      }
-    },
-    "tool": {
-      "type": "object",
-      "title": "Tool",
-      "description": "[Deprecated] This will be removed in a future version. Use component or service instead. Information about the automated or manual tool used",
-      "additionalProperties": false,
-      "properties": {
-        "vendor": {
-          "type": "string",
-          "title": "Tool Vendor",
-          "description": "The name of the vendor who created the tool"
-        },
-        "name": {
-          "type": "string",
-          "title": "Tool Name",
-          "description": "The name of the tool"
-        },
-        "version": {
-          "$ref": "#/definitions/version",
-          "title": "Tool Version",
-          "description": "The version of the tool"
-        },
-        "hashes": {
-          "type": "array",
-          "items": {"$ref": "#/definitions/hash"},
-          "title": "Hashes",
-          "description": "The hashes of the tool (if applicable)."
-        },
-        "externalReferences": {
-          "type": "array",
-          "items": {"$ref": "#/definitions/externalReference"},
-          "title": "External References",
-          "description": "External references provide a way to document systems, sites, and information that may be relevant, but are not included with the BOM. They may also establish specific relationships within or external to the BOM."
-        }

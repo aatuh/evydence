@@ -2,6 +2,7 @@ package cyclonedx
 
 import (
 	"bytes"
+	// #nosec G505 -- Git blob identity is defined by SHA-1; this is not application cryptography.
 	"crypto/sha1"
 	"embed"
 	"encoding/hex"
@@ -70,11 +71,10 @@ func embeddedPinnedBOMSchema() ([]byte, error) {
 		if err != nil {
 			return nil, errors.Join(ErrInvalid, err)
 		}
-		if joined.Len()+len(part)+1 > pinnedBOMSchemaSize {
+		if joined.Len()+len(part) > pinnedBOMSchemaSize {
 			return nil, ErrInvalid
 		}
 		_, _ = joined.Write(part)
-		_ = joined.WriteByte('\n')
 	}
 
 	raw := joined.Bytes()
@@ -101,7 +101,7 @@ func NewPinnedSchemaValidator(bom io.Reader) (*SchemaValidator, error) {
 }
 
 func schemaGitBlobSHA(raw []byte) string {
-	h := sha1.New() // #nosec G505 -- matching Git's pinned blob object identifier.
+	h := sha1.New() // #nosec G401 -- Git blob identity requires SHA-1 by definition.
 	_, _ = fmt.Fprintf(h, "blob %d%c", len(raw), byte(0))
 	_, _ = h.Write(raw)
 	return hex.EncodeToString(h.Sum(nil))

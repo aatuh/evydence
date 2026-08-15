@@ -238,13 +238,3 @@
             }
           }
         },
-        "claims": {
-          "type": "array",
-          "title": "Claims",
-          "description": "The list of claims.",
-          "items": {
-            "type": "object",
-            "title": "Claim",
-            "additionalProperties": false,
-            "properties": {
-              "bom-ref": {

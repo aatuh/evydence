@@ -9,8 +9,8 @@ import (
 )
 
 // uploadValidatedCycloneDXSBOMPayload is the conformant CycloneDX transaction
-// path. The public Ledger facade switches to this method only after the pinned
-// official schema resources are embedded and verified.
+// path used by the public Ledger facade after it verifies the pinned official
+// schema resources.
 func (s releaseEvidenceService) uploadValidatedCycloneDXSBOMPayload(
 	ctx context.Context,
 	actor domain.Actor,

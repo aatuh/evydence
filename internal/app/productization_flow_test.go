@@ -43,8 +43,8 @@ func TestVEXFirstReleaseEvidenceFlowEndToEnd(t *testing.T) {
 		"bomFormat":"CycloneDX",
 		"specVersion":"1.6",
 		"components":[
-			{"name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"},
-			{"name":"curl","version":"8.0.0","purl":"pkg:apk/curl@8.0.0"}
+			{"type":"library","name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"},
+			{"type":"library","name":"curl","version":"8.0.0","purl":"pkg:apk/curl@8.0.0"}
 		]
 	}`))
 	if err != nil {

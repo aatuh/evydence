@@ -1,3 +1,103 @@
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "description": "The name of the resource instance.",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "description": "A description of the resource instance.",
+          "type": "string"
+        },
+        "resourceReferences": {
+          "title": "Resource references",
+          "description": "References to component or service resources that are used to realize the resource instance.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/definitions/resourceReferenceChoice"
+          }
+        },
+        "tasks": {
+          "title": "Tasks",
+          "description": "The tasks that comprise the workflow.",
+          "$comment": "Note that tasks can appear more than once as different instances (by name or UID).",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/definitions/task"
+          }
+        },
+        "taskDependencies": {
+          "title": "Task dependency graph",
+          "description": "The graph of dependencies between tasks within the workflow.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/definitions/dependency"
+          }
+        },
+        "taskTypes": {
+          "title": "Task types",
+          "description": "Indicates the types of activities performed by the set of workflow tasks.",
+          "$comment": "Currently, these types reflect common CI/CD actions.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/taskType"
+          }
+        },
+        "trigger": {
+          "title": "Trigger",
+          "description": "The trigger that initiated the task.",
+          "$ref": "#/definitions/trigger"
+        },
+        "steps": {
+          "title": "Steps",
+          "description": "The sequence of steps for the task.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/step"
+          },
+          "uniqueItems": true
+        },
+        "inputs": {
+          "title": "Inputs",
+          "description": "Represents resources and data brought into a task at runtime by executor or task commands",
+          "examples": ["a `configuration` file which was declared as a local `component` or `externalReference`"],
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/inputType"
+          },
+          "uniqueItems": true
+        },
+        "outputs": {
+          "title": "Outputs",
+          "description": "Represents resources and data output from a task at runtime by executor or task commands",
+          "examples": ["a log file or metrics data produced by the task"],
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/outputType"
+          },
+          "uniqueItems": true
+        },
+        "timeStart": {
+          "title": "Time start",
+          "description": "The date and time (timestamp) when the task started.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "timeEnd": {
+          "title": "Time end",
+          "description": "The date and time (timestamp) when the task ended.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "workspaces": {
+          "title": "Workspaces",
+          "description": "A set of named filesystem or data resource shareable by workflow tasks.",
+          "type": "array",
+          "uniqueItems": true,
           "items": {
             "$ref": "#/definitions/workspace"
           }
@@ -174,77 +274,3 @@
           "type": "array",
           "title": "Properties",
           "description": "Provides the ability to document properties in a name-value store. This provides flexibility to include data not officially supported in the standard without having to use additional namespaces or create extensions. Unlike key-value stores, properties support duplicate names, each potentially having different values. Property names of interest to the general public are encouraged to be registered in the [CycloneDX Property Taxonomy](https://github.com/CycloneDX/cyclonedx-property-taxonomy). Formal registration is optional.",
-          "items": {
-            "$ref": "#/definitions/property"
-          }
-        }
-      }
-    },
-    "command": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "executed": {
-          "title": "Executed",
-          "description": "A text representation of the executed command.",
-          "type": "string"
-        },
-        "properties": {
-          "type": "array",
-          "title": "Properties",
-          "description": "Provides the ability to document properties in a name-value store. This provides flexibility to include data not officially supported in the standard without having to use additional namespaces or create extensions. Unlike key-value stores, properties support duplicate names, each potentially having different values. Property names of interest to the general public are encouraged to be registered in the [CycloneDX Property Taxonomy](https://github.com/CycloneDX/cyclonedx-property-taxonomy). Formal registration is optional.",
-          "items": {
-            "$ref": "#/definitions/property"
-          }
-        }
-      }
-    },
-    "workspace": {
-      "title": "Workspace",
-      "description": "A named filesystem or data resource shareable by workflow tasks.",
-      "type": "object",
-      "required": [
-        "bom-ref",
-        "uid"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "bom-ref": {
-          "title": "BOM Reference",
-          "description": "An optional identifier which can be used to reference the workspace elsewhere in the BOM. Every bom-ref must be unique within the BOM.\nValue SHOULD not start with the BOM-Link intro 'urn:cdx:' to avoid conflicts with BOM-Links.",
-          "$ref": "#/definitions/refType"
-        },
-        "uid": {
-          "title": "Unique Identifier (UID)",
-          "description": "The unique identifier for the resource instance within its deployment context.",
-          "type": "string"
-        },
-        "name": {
-          "title": "Name",
-          "description": "The name of the resource instance.",
-          "type": "string"
-        },
-        "aliases": {
-          "title": "Aliases",
-          "description": "The names for the workspace as referenced by other workflow tasks. Effectively, a name mapping so other tasks can use their own local name in their steps.",
-          "type": "array",
-          "items": {"type": "string"}
-        },
-        "description": {
-          "title": "Description",
-          "description": "A description of the resource instance.",
-          "type": "string"
-        },
-        "resourceReferences": {
-          "title": "Resource references",
-          "description": "References to component or service resources that are used to realize the resource instance.",
-          "type": "array",
-          "uniqueItems": true,
-          "items": {
-            "$ref": "#/definitions/resourceReferenceChoice"
-          }
-        },
-        "accessMode": {
-          "title": "Access mode",
-          "description": "Describes the read-write access control for the workspace relative to the owning resource instance.",
-          "type": "string",

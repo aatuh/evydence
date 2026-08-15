@@ -414,7 +414,7 @@ func TestReleaseEvidenceSBOMUsesOneUnitOfWorkForEvidenceAuditAndOutbox(t *testin
 	if err != nil {
 		t.Fatalf("register artifact: %v", err)
 	}
-	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"openssl","version":"3.1.0"}]}`))
+	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"openssl","version":"3.1.0"}]}`))
 	if err != nil {
 		t.Fatalf("upload SBOM: %v", err)
 	}

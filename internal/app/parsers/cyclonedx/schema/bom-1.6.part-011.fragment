@@ -1,3 +1,196 @@
+        "incomplete_third_party_opensource_only": "The relationship is incomplete. Only relationships for third-party components, services, or their dependencies are represented, limited specifically to those that are opensource.",
+        "unknown": "The relationship may be complete or incomplete. This usually signifies a 'best-effort' to obtain constituent components, services, or dependencies but the completeness is inconclusive.",
+        "not_specified": "The relationship completeness is not specified."
+      }
+    },
+    "property": {
+      "type": "object",
+      "title": "Lightweight name-value pair",
+      "description": "Provides the ability to document properties in a name-value store. This provides flexibility to include data not officially supported in the standard without having to use additional namespaces or create extensions. Unlike key-value stores, properties support duplicate names, each potentially having different values. Property names of interest to the general public are encouraged to be registered in the [CycloneDX Property Taxonomy](https://github.com/CycloneDX/cyclonedx-property-taxonomy). Formal registration is optional.",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "title": "Name",
+          "description": "The name of the property. Duplicate names are allowed, each potentially having a different value."
+        },
+        "value": {
+          "type": "string",
+          "title": "Value",
+          "description": "The value of the property."
+        }
+      },
+      "additionalProperties": false
+    },
+    "localeType": {
+      "type": "string",
+      "pattern": "^([a-z]{2})(-[A-Z]{2})?$",
+      "title": "Locale",
+      "description": "Defines a syntax for representing two character language code (ISO-639) followed by an optional two character country code. The language code must be lower case. If the country code is specified, the country code must be upper case. The language code and country code must be separated by a minus sign. Examples: en, en-US, fr, fr-CA"
+    },
+    "releaseType": {
+      "type": "string",
+      "examples": [
+        "major",
+        "minor",
+        "patch",
+        "pre-release",
+        "internal"
+      ],
+      "description": "The software versioning type. It is recommended that the release type use one of 'major', 'minor', 'patch', 'pre-release', or 'internal'. Representing all possible software release types is not practical, so standardizing on the recommended values, whenever possible, is strongly encouraged.\n\n* __major__ = A major release may contain significant changes or may introduce breaking changes.\n* __minor__ = A minor release, also known as an update, may contain a smaller number of changes than major releases.\n* __patch__ = Patch releases are typically unplanned and may resolve defects or important security issues.\n* __pre-release__ = A pre-release may include alpha, beta, or release candidates and typically have limited support. They provide the ability to preview a release prior to its general availability.\n* __internal__ = Internal releases are not for public consumption and are intended to be used exclusively by the project or manufacturer that produced it."
+    },
+    "note": {
+      "type": "object",
+      "title": "Note",
+      "description": "A note containing the locale and content.",
+      "required": [
+        "text"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "locale": {
+          "$ref": "#/definitions/localeType",
+          "title": "Locale",
+          "description": "The ISO-639 (or higher) language code and optional ISO-3166 (or higher) country code. Examples include: \"en\", \"en-US\", \"fr\" and \"fr-CA\""
+        },
+        "text": {
+          "title": "Release note content",
+          "description": "Specifies the full content of the release note.",
+          "$ref": "#/definitions/attachment"
+        }
+      }
+    },
+    "releaseNotes": {
+      "type": "object",
+      "title": "Release notes",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/releaseType",
+          "title": "Type",
+          "description": "The software versioning type the release note describes."
+        },
+        "title": {
+          "type": "string",
+          "title": "Title",
+          "description": "The title of the release."
+        },
+        "featuredImage": {
+          "type": "string",
+          "format": "iri-reference",
+          "title": "Featured image",
+          "description": "The URL to an image that may be prominently displayed with the release note."
+        },
+        "socialImage": {
+          "type": "string",
+          "format": "iri-reference",
+          "title": "Social image",
+          "description": "The URL to an image that may be used in messaging on social media platforms."
+        },
+        "description": {
+          "type": "string",
+          "title": "Description",
+          "description": "A short description of the release."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "title": "Timestamp",
+          "description": "The date and time (timestamp) when the release note was created."
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "Aliases",
+          "description": "One or more alternate names the release may be referred to. This may include unofficial terms used by development and marketing teams (e.g. code names)."
+        },
+        "tags": {
+          "$ref": "#/definitions/tags",
+          "title": "Tags"
+        },
+        "resolves": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/issue"},
+          "title": "Resolves",
+          "description": "A collection of issues that have been resolved."
+        },
+        "notes": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/note"},
+          "title": "Notes",
+          "description": "Zero or more release notes containing the locale and content. Multiple note objects may be specified to support release notes in a wide variety of languages."
+        },
+        "properties": {
+          "type": "array",
+          "title": "Properties",
+          "description": "Provides the ability to document properties in a name-value store. This provides flexibility to include data not officially supported in the standard without having to use additional namespaces or create extensions. Unlike key-value stores, properties support duplicate names, each potentially having different values. Property names of interest to the general public are encouraged to be registered in the [CycloneDX Property Taxonomy](https://github.com/CycloneDX/cyclonedx-property-taxonomy). Formal registration is optional.",
+          "items": {"$ref": "#/definitions/property"}
+        }
+      }
+    },
+    "advisory": {
+      "type": "object",
+      "title": "Advisory",
+      "description": "Title and location where advisory information can be obtained. An advisory is a notification of a threat to a component, service, or system.",
+      "required": ["url"],
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "type": "string",
+          "title": "Title",
+          "description": "An optional name of the advisory."
+        },
+        "url": {
+          "type": "string",
+          "title": "URL",
+          "format": "iri-reference",
+          "description": "Location where the advisory can be obtained."
+        }
+      }
+    },
+    "cwe": {
+      "type": "integer",
+      "minimum": 1,
+      "title": "CWE",
+      "description": "Integer representation of a Common Weaknesses Enumerations (CWE). For example 399 (of https://cwe.mitre.org/data/definitions/399.html)"
+    },
+    "severity": {
+      "type": "string",
+      "title": "Severity",
+      "description": "Textual representation of the severity of the vulnerability adopted by the analysis method. If the analysis method uses values other than what is provided, the user is expected to translate appropriately.",
+      "enum": [
+        "critical",
+        "high",
+        "medium",
+        "low",
+        "info",
+        "none",
+        "unknown"
+      ],
+      "meta:enum": {
+        "critical": "Critical severity",
+        "high": "High severity",
+        "medium": "Medium severity",
+        "low": "Low severity",
+        "info": "Informational warning.",
+        "none": "None",
+        "unknown": "The severity is not known"
+      }
+    },
+    "scoreMethod": {
+      "type": "string",
+      "title": "Method",
+      "description": "Specifies the severity or risk scoring methodology or standard used.",
+      "enum": [
+        "CVSSv2",
+        "CVSSv3",
         "CVSSv31",
         "CVSSv4",
         "OWASP",
@@ -53,198 +246,3 @@
       "meta:enum": {
         "code_not_present": "The code has been removed or tree-shaked.",
         "code_not_reachable": "The vulnerable code is not invoked at runtime.",
-        "requires_configuration": "Exploitability requires a configurable option to be set/unset.",
-        "requires_dependency": "Exploitability requires a dependency that is not present.",
-        "requires_environment": "Exploitability requires a certain environment which is not present.",
-        "protected_by_compiler": "Exploitability requires a compiler flag to be set/unset.",
-        "protected_at_runtime": "Exploits are prevented at runtime.",
-        "protected_at_perimeter": "Attacks are blocked at physical, logical, or network perimeter.",
-        "protected_by_mitigating_control": "Preventative measures have been implemented that reduce the likelihood and/or impact of the vulnerability."
-      }
-    },
-    "rating": {
-      "type": "object",
-      "title": "Rating",
-      "description": "Defines the severity or risk ratings of a vulnerability.",
-      "additionalProperties": false,
-      "properties": {
-        "source": {
-          "$ref": "#/definitions/vulnerabilitySource",
-          "description": "The source that calculated the severity or risk rating of the vulnerability."
-        },
-        "score": {
-          "type": "number",
-          "title": "Score",
-          "description": "The numerical score of the rating."
-        },
-        "severity": {
-          "$ref": "#/definitions/severity",
-          "description": "Textual representation of the severity that corresponds to the numerical score of the rating."
-        },
-        "method": {
-          "$ref": "#/definitions/scoreMethod"
-        },
-        "vector": {
-          "type": "string",
-          "title": "Vector",
-          "description": "Textual representation of the metric values used to score the vulnerability"
-        },
-        "justification": {
-          "type": "string",
-          "title": "Justification",
-          "description": "An optional reason for rating the vulnerability as it was"
-        }
-      }
-    },
-    "vulnerabilitySource": {
-      "type": "object",
-      "title": "Source",
-      "description": "The source of vulnerability information. This is often the organization that published the vulnerability.",
-      "additionalProperties": false,
-      "properties": {
-        "url": {
-          "type": "string",
-          "title": "URL",
-          "description": "The url of the vulnerability documentation as provided by the source.",
-          "examples": [
-            "https://nvd.nist.gov/vuln/detail/CVE-2021-39182"
-          ]
-        },
-        "name": {
-          "type": "string",
-          "title": "Name",
-          "description": "The name of the source.",
-          "examples": [
-            "NVD",
-            "National Vulnerability Database",
-            "OSS Index",
-            "VulnDB",
-            "GitHub Advisories"
-          ]
-        }
-      }
-    },
-    "vulnerability": {
-      "type": "object",
-      "title": "Vulnerability",
-      "description": "Defines a weakness in a component or service that could be exploited or triggered by a threat source.",
-      "additionalProperties": false,
-      "properties": {
-        "bom-ref": {
-          "$ref": "#/definitions/refType",
-          "title": "BOM Reference",
-          "description": "An optional identifier which can be used to reference the vulnerability elsewhere in the BOM. Every bom-ref must be unique within the BOM.\nValue SHOULD not start with the BOM-Link intro 'urn:cdx:' to avoid conflicts with BOM-Links."
-        },
-        "id": {
-          "type": "string",
-          "title": "ID",
-          "description": "The identifier that uniquely identifies the vulnerability.",
-          "examples": [
-            "CVE-2021-39182",
-            "GHSA-35m5-8cvj-8783",
-            "SNYK-PYTHON-ENROCRYPT-1912876"
-          ]
-        },
-        "source": {
-          "$ref": "#/definitions/vulnerabilitySource",
-          "description": "The source that published the vulnerability."
-        },
-        "references": {
-          "type": "array",
-          "title": "References",
-          "description": "Zero or more pointers to vulnerabilities that are the equivalent of the vulnerability specified. Often times, the same vulnerability may exist in multiple sources of vulnerability intelligence, but have different identifiers. References provide a way to correlate vulnerabilities across multiple sources of vulnerability intelligence.",
-          "items": {
-            "type": "object",
-            "required": [
-              "id",
-              "source"
-            ],
-            "additionalProperties": false,
-            "properties": {
-              "id": {
-                "type": "string",
-                "title": "ID",
-                "description": "An identifier that uniquely identifies the vulnerability.",
-                "examples": [
-                  "CVE-2021-39182",
-                  "GHSA-35m5-8cvj-8783",
-                  "SNYK-PYTHON-ENROCRYPT-1912876"
-                ]
-              },
-              "source": {
-                "$ref": "#/definitions/vulnerabilitySource",
-                "description": "The source that published the vulnerability."
-              }
-            }
-          }
-        },
-        "ratings": {
-          "type": "array",
-          "title": "Ratings",
-          "description": "List of vulnerability ratings. Consumers SHOULD consider ratings in prioritization decisions; source ratings may differ and aid prioritization.",
-          "items": {
-            "$ref": "#/definitions/rating"
-          }
-        },
-        "cwes": {
-          "type": "array",
-          "title": "CWEs",
-          "description": "List of Common Weaknesses Enumerations (CWEs) codes that describes this vulnerability.",
-          "examples": [399],
-          "items": {
-            "$ref": "#/definitions/cwe"
-          }
-        },
-        "description": {
-          "type": "string",
-          "title": "Description",
-          "description": "A description of the vulnerability as provided by the source."
-        },
-        "detail": {
-          "type": "string",
-          "title": "Details",
-          "description": "If available, an in-depth description of the vulnerability as provided by the source organization. Details often include information useful in understanding root cause."
-        },
-        "recommendation": {
-          "type": "string",
-          "title": "Recommendation",
-          "description": "Recommendations of how the vulnerability can be remediated or mitigated."
-        },
-        "workaround": {
-          "type": "string",
-          "title": "Workarounds",
-          "description": "A bypass, usually temporary, of the vulnerability that reduces its likelihood and/or impact. Workarounds often involve changes to configuration or deployments."
-        },
-        "proofOfConcept": {
-          "type": "object",
-          "title": "Proof of Concept",
-          "description": "Evidence used to reproduce the vulnerability.",
-          "properties": {
-            "reproductionSteps": {
-              "type": "string",
-              "title": "Steps to Reproduce",
-              "description": "Precise steps to reproduce the vulnerability."
-            },
-            "environment": {
-              "type": "string",
-              "title": "Environment",
-              "description": "A description of the environment in which reproduction was possible."
-            },
-            "supportingMaterial": {
-              "type": "array",
-              "title": "Supporting Material",
-              "description": "Supporting material that helps in reproducing or understanding how reproduction is possible. This may include screenshots, payloads, and PoC exploit code.",
-              "items": { "$ref": "#/definitions/attachment" }
-            }
-          }
-        },
-        "advisories": {
-          "type": "array",
-          "title": "Advisories",
-          "description": "Published advisories of the vulnerability if provided.",
-          "items": {
-            "$ref": "#/definitions/advisory"
-          }
-        },
-        "created": {
-          "type": "string",
