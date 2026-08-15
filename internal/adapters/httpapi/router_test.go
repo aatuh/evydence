@@ -1778,10 +1778,7 @@ func TestFutureExtensionAndReadAdminHTTPGaps(t *testing.T) {
 
 	providerBody := postJSON(t, server, secret, "/v1/signing-providers", "future-provider", map[string]any{"name": "kms", "type": "aws_kms", "key_ref": "arn:aws:kms:example", "encrypted": true}, http.StatusCreated)
 	providerID := dataField(t, providerBody, "id")
-	op := postJSON(t, server, secret, "/v1/signing-operations", "future-sign-op", map[string]any{"provider_id": providerID, "subject_type": "release", "subject_id": releaseID, "payload_hash": digest, "external_signature": "sig"}, http.StatusCreated)
-	if !strings.Contains(op, `"result":"passed"`) {
-		t.Fatalf("signing operation did not pass: %s", op)
-	}
+	postJSON(t, server, secret, "/v1/signing-operations", "future-sign-op", map[string]any{"provider_id": providerID, "subject_type": "release", "subject_id": releaseID, "payload_hash": digest, "external_signature": "sig"}, http.StatusBadRequest)
 	saas := postJSON(t, server, secret, "/v1/saas/profiles", "future-saas", map[string]any{"name": "hosted", "region": "eu", "admin_tenant_id": dataField(t, productBody, "tenant_id"), "isolation_model": "shared-control-plane"}, http.StatusCreated)
 	if !strings.Contains(saas, `"config_hash"`) {
 		t.Fatalf("saas profile missing hash: %s", saas)

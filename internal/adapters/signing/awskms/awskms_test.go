@@ -53,10 +53,11 @@ func TestSignSendsDigestOnlyAndReturnsBase64Signature(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, err := executor.Sign(t.Context(), app.SigningRequest{
-		TenantID:    "ten_1",
-		SubjectType: "release",
-		SubjectID:   "rel_1",
-		PayloadHash: "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		TenantID:             "ten_1",
+		SubjectType:          "release",
+		SubjectID:            "rel_1",
+		PayloadHash:          "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		CanonicalPayloadHash: "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -104,10 +105,11 @@ func TestSignHidesProviderErrorDetails(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = executor.Sign(context.Background(), app.SigningRequest{
-		TenantID:    "ten_1",
-		SubjectType: "release",
-		SubjectID:   "rel_1",
-		PayloadHash: "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		TenantID:             "ten_1",
+		SubjectType:          "release",
+		SubjectID:            "rel_1",
+		PayloadHash:          "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		CanonicalPayloadHash: "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 	})
 	if err == nil {
 		t.Fatal("expected provider error")

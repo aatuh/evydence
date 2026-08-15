@@ -77,7 +77,7 @@ func (e *Executor) Sign(ctx context.Context, request app.SigningRequest) (app.Si
 	if strings.TrimSpace(request.TenantID) == "" || strings.TrimSpace(request.SubjectType) == "" || strings.TrimSpace(request.SubjectID) == "" {
 		return app.SigningResult{}, app.ErrValidation
 	}
-	digest, err := parseSHA256Digest(request.PayloadHash)
+	digest, err := parseSHA256Digest(request.CanonicalPayloadHash)
 	if err != nil {
 		return app.SigningResult{}, err
 	}
@@ -108,9 +108,14 @@ func (e *Executor) Sign(ctx context.Context, request app.SigningRequest) (app.Si
 		algorithm = e.algorithm
 	}
 	return app.SigningResult{
-		Signature: base64.StdEncoding.EncodeToString(output.Signature),
-		KeyID:     keyID,
-		Algorithm: "aws-kms:" + string(algorithm),
+		Signature:            base64.StdEncoding.EncodeToString(output.Signature),
+		KeyID:                keyID,
+		Algorithm:            "aws-kms:" + string(algorithm),
+		ProviderID:           request.ProviderID,
+		ProviderType:         "aws_kms",
+		KeyRef:               request.KeyRef,
+		CanonicalPayloadHash: request.CanonicalPayloadHash,
+		RequestID:            request.RequestID,
 		Checks: []domain.VerifyCheck{
 			{Name: "aws_kms_signature_returned", Result: "passed", Detail: "AWS KMS returned a signature over the submitted SHA-256 digest."},
 		},

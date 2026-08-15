@@ -2812,13 +2812,13 @@
               <div><dt>Responses</dt><dd>200 application/json: SigningKeyEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/signing-operations create signing provider operation receipt records an external signing operation receipt and checks payload/signature metadata without logging secrets. when the api is configured with a signing executor, external_signature may be omitted and the executor signs the payload hash. createsigningoperation evydence keys:admin">
+          <article class="operation" data-operation data-search="post /v1/signing-operations create signing provider operation receipt requests a configured signing executor to sign a canonical request binding the provider, key reference, subject, payload digest, request id, and nonce. caller-supplied signatures are rejected. createsigningoperation evydence keys:admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/signing-operations</code>
             </div>
             <h3>Create signing provider operation receipt</h3>
-            <p>Records an external signing operation receipt and checks payload/signature metadata without logging secrets. When the API is configured with a signing executor, external_signature may be omitted and the executor signs the payload hash.</p>
+            <p>Requests a configured signing executor to sign a canonical request binding the provider, key reference, subject, payload digest, request id, and nonce. Caller-supplied signatures are rejected.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createSigningOperation</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

@@ -394,20 +394,31 @@ type FutureExtensionsRepository interface {
 }
 
 type SigningRequest struct {
-	TenantID     string
-	ProviderID   string
-	ProviderType string
-	KeyRef       string
-	SubjectType  string
-	SubjectID    string
-	PayloadHash  string
+	Profile              string
+	TenantID             string
+	ProviderID           string
+	ProviderType         string
+	ExpectedProviderType string
+	KeyRef               string
+	SubjectType          string
+	SubjectID            string
+	PayloadHash          string
+	CanonicalPayloadHash string
+	RequestID            string
+	Nonce                string
 }
 
 type SigningResult struct {
-	Signature string
-	KeyID     string
-	Algorithm string
-	Checks    []domain.VerifyCheck
+	Signature            string
+	KeyID                string
+	Algorithm            string
+	ProviderID           string
+	ProviderType         string
+	KeyRef               string
+	CanonicalPayloadHash string
+	RequestID            string
+	ProviderRequestID    string
+	Checks               []domain.VerifyCheck
 }
 
 type OIDCDiscoveryRequest struct {

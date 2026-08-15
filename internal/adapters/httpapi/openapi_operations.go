@@ -554,7 +554,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Signing provider creation request.", "#/components/schemas/CreateSigningProviderRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created signing provider envelope.", "#/components/schemas/SigningProviderEnvelope")
 	case "createSigningOperation":
-		operation.Description = "Records an external signing operation receipt and checks payload/signature metadata without logging secrets. When the API is configured with a signing executor, external_signature may be omitted and the executor signs the payload hash."
+		operation.Description = "Requests a configured signing executor to sign a canonical request binding the provider, key reference, subject, payload digest, request id, and nonce. Caller-supplied signatures are rejected."
 		operation.RequestBody = jsonRequest("Signing operation creation request.", "#/components/schemas/CreateSigningOperationRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created signing operation envelope.", "#/components/schemas/SigningOperationEnvelope")
 	case "createArtifactSignature":

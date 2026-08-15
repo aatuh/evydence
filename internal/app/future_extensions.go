@@ -99,6 +99,21 @@ type CreateSigningOperationInput struct {
 	ExternalSignature string
 }
 
+const signingRequestProfile = "evydence-provider-signing.v1"
+
+type canonicalSigningRequest struct {
+	Profile      string `json:"profile"`
+	TenantID     string `json:"tenant_id"`
+	ProviderID   string `json:"provider_id"`
+	ProviderType string `json:"provider_type"`
+	KeyRef       string `json:"key_ref"`
+	SubjectType  string `json:"subject_type"`
+	SubjectID    string `json:"subject_id"`
+	PayloadHash  string `json:"payload_hash"`
+	RequestID    string `json:"request_id"`
+	Nonce        string `json:"nonce"`
+}
+
 type VerifyProviderIdentityInput struct {
 	ProviderType  string
 	ProviderID    string
@@ -1305,9 +1320,8 @@ func (l *Ledger) CreateSigningOperation(ctx context.Context, actor domain.Actor,
 		return domain.SigningOperation{}, err
 	}
 	providerID, subjectType, subjectID := strings.TrimSpace(in.ProviderID), strings.TrimSpace(in.SubjectType), strings.TrimSpace(in.SubjectID)
-	signatureValue := strings.TrimSpace(in.ExternalSignature)
 	payloadHash := strings.TrimSpace(in.PayloadHash)
-	if providerID == "" || subjectType == "" || subjectID == "" || !validDigest(payloadHash) || len(signatureValue) > 32768 {
+	if providerID == "" || subjectType == "" || subjectID == "" || !validDigest(payloadHash) || strings.TrimSpace(in.ExternalSignature) != "" {
 		return domain.SigningOperation{}, ErrValidation
 	}
 	l.mu.Lock()
@@ -1331,37 +1345,49 @@ func (l *Ledger) CreateSigningOperation(ctx context.Context, actor domain.Actor,
 		checks[0].Result = "failed"
 	}
 	signatureAlgorithm := "external-" + provider.Type
-	if signatureValue == "" {
-		if l.signer == nil {
-			return domain.SigningOperation{}, ErrValidation
-		}
-		if !providerActive {
-			return domain.SigningOperation{}, ErrVerificationFailed
-		}
-		signed, err := l.signer.Sign(ctx, SigningRequest{
-			TenantID:     actor.TenantID,
-			ProviderID:   provider.ID,
-			ProviderType: provider.Type,
-			KeyRef:       provider.KeyRef,
-			SubjectType:  subjectType,
-			SubjectID:    subjectID,
-			PayloadHash:  payloadHash,
-		})
-		if err != nil {
-			return domain.SigningOperation{}, err
-		}
-		signatureValue = strings.TrimSpace(signed.Signature)
-		if signatureValue == "" || len(signatureValue) > 32768 {
-			return domain.SigningOperation{}, ErrValidation
-		}
-		if strings.TrimSpace(signed.Algorithm) != "" {
-			signatureAlgorithm = strings.TrimSpace(signed.Algorithm)
-		}
-		checks = append(checks, signed.Checks...)
-		checks = append(checks, domain.VerifyCheck{Name: "signing_executor_invoked", Result: "passed", Detail: strings.TrimSpace(signed.KeyID)})
-	} else {
-		checks = append(checks, domain.VerifyCheck{Name: "external_signature_present", Result: "passed", Detail: "Signature value was supplied by the configured provider path; local cryptographic trust verification is not implied."})
+	if l.signer == nil {
+		return domain.SigningOperation{}, ErrValidation
 	}
+	if !providerActive {
+		return domain.SigningOperation{}, ErrVerificationFailed
+	}
+	request := SigningRequest{
+		Profile:              signingRequestProfile,
+		TenantID:             actor.TenantID,
+		ProviderID:           provider.ID,
+		ProviderType:         provider.Type,
+		ExpectedProviderType: provider.Type,
+		KeyRef:               provider.KeyRef,
+		SubjectType:          subjectType,
+		SubjectID:            subjectID,
+		PayloadHash:          payloadHash,
+		RequestID:            newID("sreq"),
+		Nonce:                newID("snonce"),
+	}
+	canonicalPayloadHash, err := canonicalSigningRequestHash(request)
+	if err != nil {
+		return domain.SigningOperation{}, ErrValidation
+	}
+	request.CanonicalPayloadHash = canonicalPayloadHash
+	signed, err := l.signer.Sign(ctx, request)
+	if err != nil {
+		return domain.SigningOperation{}, err
+	}
+	if err := validateSigningResult(request, signed); err != nil {
+		return domain.SigningOperation{}, ErrVerificationFailed
+	}
+	signatureValue := strings.TrimSpace(signed.Signature)
+	if signatureValue == "" || len(signatureValue) > 32768 {
+		return domain.SigningOperation{}, ErrValidation
+	}
+	if strings.TrimSpace(signed.Algorithm) != "" {
+		signatureAlgorithm = strings.TrimSpace(signed.Algorithm)
+	}
+	checks = append(checks, signed.Checks...)
+	checks = append(checks,
+		domain.VerifyCheck{Name: "canonical_signing_request", Result: "passed", Detail: request.Profile},
+		domain.VerifyCheck{Name: "signing_executor_invoked", Result: "passed", Detail: strings.TrimSpace(signed.KeyID)},
+	)
 	result := "passed"
 	for _, check := range checks {
 		if check.Result == "failed" {
@@ -1410,6 +1436,35 @@ func (l *Ledger) CreateSigningOperation(ctx context.Context, actor domain.Actor,
 		return op, ErrVerificationFailed
 	}
 	return op, nil
+}
+
+func canonicalSigningRequestHash(request SigningRequest) (string, error) {
+	if request.Profile != signingRequestProfile || strings.TrimSpace(request.TenantID) == "" || strings.TrimSpace(request.ProviderID) == "" || strings.TrimSpace(request.ProviderType) == "" || strings.TrimSpace(request.ExpectedProviderType) != request.ProviderType || strings.TrimSpace(request.KeyRef) == "" || strings.TrimSpace(request.SubjectType) == "" || strings.TrimSpace(request.SubjectID) == "" || !validDigest(request.PayloadHash) || strings.TrimSpace(request.RequestID) == "" || strings.TrimSpace(request.Nonce) == "" {
+		return "", ErrValidation
+	}
+	body, err := json.Marshal(canonicalSigningRequest{
+		Profile:      request.Profile,
+		TenantID:     request.TenantID,
+		ProviderID:   request.ProviderID,
+		ProviderType: request.ProviderType,
+		KeyRef:       request.KeyRef,
+		SubjectType:  request.SubjectType,
+		SubjectID:    request.SubjectID,
+		PayloadHash:  request.PayloadHash,
+		RequestID:    request.RequestID,
+		Nonce:        request.Nonce,
+	})
+	if err != nil {
+		return "", err
+	}
+	return hashBytes(body), nil
+}
+
+func validateSigningResult(request SigningRequest, result SigningResult) error {
+	if strings.TrimSpace(result.Signature) == "" || len(result.Signature) > 32768 || strings.TrimSpace(result.Algorithm) == "" || strings.TrimSpace(result.ProviderID) != request.ProviderID || strings.TrimSpace(result.ProviderType) != request.ExpectedProviderType || strings.TrimSpace(result.KeyRef) != request.KeyRef || strings.TrimSpace(result.CanonicalPayloadHash) != request.CanonicalPayloadHash || strings.TrimSpace(result.RequestID) != request.RequestID {
+		return ErrValidation
+	}
+	return nil
 }
 
 func (l *Ledger) VerifyProviderIdentity(ctx context.Context, actor domain.Actor, in VerifyProviderIdentityInput) (domain.ProviderVerification, error) {

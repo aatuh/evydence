@@ -31,7 +31,7 @@ func TestSignSendsDigestOnlyToAzureKeyVault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := executor.Sign(t.Context(), app.SigningRequest{ProviderType: "azure_key_vault", PayloadHash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
+	result, err := executor.Sign(t.Context(), app.SigningRequest{ProviderType: "azure_key_vault", PayloadHash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", CanonicalPayloadHash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func TestSignCanUseKeyRefURL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = executor.Sign(t.Context(), app.SigningRequest{ProviderType: "azure_key_vault", KeyRef: server.URL + "/keys/from-ref/v2", PayloadHash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
+	_, err = executor.Sign(t.Context(), app.SigningRequest{ProviderType: "azure_key_vault", KeyRef: server.URL + "/keys/from-ref/v2", PayloadHash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", CanonicalPayloadHash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
 	if err != nil {
 		t.Fatal(err)
 	}

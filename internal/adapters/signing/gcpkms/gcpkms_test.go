@@ -30,9 +30,10 @@ func TestSignSendsDigestOnlyToGCPKMS(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, err := executor.Sign(t.Context(), app.SigningRequest{
-		ProviderType: "gcp_kms",
-		KeyRef:       "projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/1",
-		PayloadHash:  "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		ProviderType:         "gcp_kms",
+		KeyRef:               "projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/1",
+		PayloadHash:          "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		CanonicalPayloadHash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 	})
 	if err != nil {
 		t.Fatal(err)

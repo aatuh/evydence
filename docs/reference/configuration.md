@@ -65,7 +65,7 @@ process, or equivalent deployment control.
 | `EVYDENCE_PROVIDER_VALIDATION_GATEWAY_TIMEOUT_SECONDS` | No | `10` | Timeout for provider validation gateway requests. |
 | `EVYDENCE_PROVIDER_VALIDATION_GATEWAY_ALLOW_INSECURE_LOCALHOST` | Local only | `false` | Allows an HTTP localhost gateway for tests. Do not use for production. |
 | `EVYDENCE_SIGNING_KEY_MODE` | Production yes | `external`, `aws-kms`, `gcp-kms`, `azure-key-vault`, or `pkcs11-hsm` for production | Production rejects local plaintext signing-key mode. `aws-kms`, `gcp-kms`, and `azure-key-vault` can use built-in provider executors. `pkcs11-hsm` remains an HTTPS signing-gateway profile. |
-| `EVYDENCE_SIGNING_EXECUTOR_URL` | `external` and `pkcs11-hsm` production modes | unset | HTTPS signing gateway used by `POST /v1/signing-operations` when `external_signature` is omitted. The API sends subject metadata and `payload_hash`, not raw payload bytes. |
+| `EVYDENCE_SIGNING_EXECUTOR_URL` | `external` and `pkcs11-hsm` production modes | unset | HTTPS signing gateway used by `POST /v1/signing-operations`. The API sends a canonical request that binds subject metadata and `payload_hash`, never raw payload bytes. |
 | `EVYDENCE_SIGNING_EXECUTOR_TOKEN` | Signing gateway | unset | Optional bearer token for the signing gateway. Store outside source control and logs. |
 | `EVYDENCE_SIGNING_EXECUTOR_TIMEOUT_SECONDS` | No | `10` | Timeout for signing gateway requests. |
 | `EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST` | Local only | `false` | Allows `http://localhost` or loopback signing gateway endpoints for local development and tests. Do not use for production. |
@@ -196,12 +196,12 @@ their deployment requirements.
 
 ## Signing Executors
 
-When `EVYDENCE_SIGNING_EXECUTOR_URL` is set, signing operations can omit
-`external_signature`. Evydence sends a JSON request containing tenant id,
-provider id/type, key reference, subject type/id, and `payload_hash`. The
-gateway returns a signature, optional provider key id, and optional algorithm.
-Evydence records the signature receipt and verification checks; it does not
-store production private key material or send raw evidence payload bytes.
+Signing operations always use a configured executor; the public API rejects
+caller-supplied signatures. Evydence sends a canonical JSON request containing
+tenant id, provider id/type, key reference, subject type/id, `payload_hash`,
+request id, nonce, and canonical-request hash. The gateway returns a signature
+and safe provider receipt identifiers. Evydence does not store production
+private key material or send raw evidence payload bytes.
 
 `EVYDENCE_SIGNING_KEY_MODE=gcp-kms` and `azure-key-vault` can use direct
 provider executors when their access-token and key configuration variables are

@@ -86,7 +86,7 @@ func (e *Executor) Sign(ctx context.Context, req app.SigningRequest) (app.Signin
 	if providerType := strings.TrimSpace(req.ProviderType); providerType != "" && providerType != "gcp_kms" {
 		return app.SigningResult{}, app.ErrValidation
 	}
-	digest, err := decodePayloadHash(req.PayloadHash)
+	digest, err := decodePayloadHash(req.CanonicalPayloadHash)
 	if err != nil {
 		return app.SigningResult{}, err
 	}
@@ -129,9 +129,14 @@ func (e *Executor) Sign(ctx context.Context, req app.SigningRequest) (app.Signin
 		return app.SigningResult{}, app.ErrValidation
 	}
 	return app.SigningResult{
-		Signature: decoded.Signature,
-		KeyID:     firstNonEmpty(strings.TrimSpace(decoded.Name), keyName),
-		Algorithm: "gcp-kms:asymmetric-sign-sha256",
+		Signature:            decoded.Signature,
+		KeyID:                firstNonEmpty(strings.TrimSpace(decoded.Name), keyName),
+		Algorithm:            "gcp-kms:asymmetric-sign-sha256",
+		ProviderID:           req.ProviderID,
+		ProviderType:         "gcp_kms",
+		KeyRef:               keyName,
+		CanonicalPayloadHash: req.CanonicalPayloadHash,
+		RequestID:            req.RequestID,
 		Checks: []domain.VerifyCheck{
 			{Name: "gcp_kms_signature_returned", Result: "passed", Detail: "GCP Cloud KMS returned a signature over the submitted SHA-256 digest."},
 		},

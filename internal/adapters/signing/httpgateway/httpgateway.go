@@ -34,13 +34,18 @@ type Executor struct {
 }
 
 type signRequest struct {
-	TenantID     string `json:"tenant_id"`
-	ProviderID   string `json:"provider_id"`
-	ProviderType string `json:"provider_type"`
-	KeyRef       string `json:"key_ref"`
-	SubjectType  string `json:"subject_type"`
-	SubjectID    string `json:"subject_id"`
-	PayloadHash  string `json:"payload_hash"`
+	Profile              string `json:"profile"`
+	TenantID             string `json:"tenant_id"`
+	ProviderID           string `json:"provider_id"`
+	ProviderType         string `json:"provider_type"`
+	ExpectedProviderType string `json:"expected_provider_type"`
+	KeyRef               string `json:"key_ref"`
+	SubjectType          string `json:"subject_type"`
+	SubjectID            string `json:"subject_id"`
+	PayloadHash          string `json:"payload_hash"`
+	CanonicalPayloadHash string `json:"canonical_payload_hash"`
+	RequestID            string `json:"request_id"`
+	Nonce                string `json:"nonce"`
 }
 
 type signResponse struct {
@@ -77,13 +82,18 @@ func (e *Executor) Sign(ctx context.Context, request app.SigningRequest) (app.Si
 		return app.SigningResult{}, app.ErrValidation
 	}
 	body, err := json.Marshal(signRequest{
-		TenantID:     request.TenantID,
-		ProviderID:   request.ProviderID,
-		ProviderType: request.ProviderType,
-		KeyRef:       request.KeyRef,
-		SubjectType:  request.SubjectType,
-		SubjectID:    request.SubjectID,
-		PayloadHash:  request.PayloadHash,
+		Profile:              request.Profile,
+		TenantID:             request.TenantID,
+		ProviderID:           request.ProviderID,
+		ProviderType:         request.ProviderType,
+		ExpectedProviderType: request.ExpectedProviderType,
+		KeyRef:               request.KeyRef,
+		SubjectType:          request.SubjectType,
+		SubjectID:            request.SubjectID,
+		PayloadHash:          request.PayloadHash,
+		CanonicalPayloadHash: request.CanonicalPayloadHash,
+		RequestID:            request.RequestID,
+		Nonce:                request.Nonce,
 	})
 	if err != nil {
 		return app.SigningResult{}, fmt.Errorf("encode signing request: %w", err)
@@ -119,9 +129,14 @@ func (e *Executor) Sign(ctx context.Context, request app.SigningRequest) (app.Si
 		return app.SigningResult{}, app.ErrValidation
 	}
 	return app.SigningResult{
-		Signature: decoded.Signature,
-		KeyID:     decoded.KeyID,
-		Algorithm: decoded.Algorithm,
+		Signature:            decoded.Signature,
+		KeyID:                decoded.KeyID,
+		Algorithm:            decoded.Algorithm,
+		ProviderID:           request.ProviderID,
+		ProviderType:         request.ProviderType,
+		KeyRef:               request.KeyRef,
+		CanonicalPayloadHash: request.CanonicalPayloadHash,
+		RequestID:            request.RequestID,
 		Checks: []domain.VerifyCheck{
 			{Name: "signing_gateway_response", Result: "passed", Detail: "External signing gateway returned a signature over the submitted payload hash."},
 		},

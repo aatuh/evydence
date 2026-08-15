@@ -667,11 +667,10 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "report_type", "tenant_id", "checks", "assumptions", "limitations", "generated_at"))
 	registry.RegisterSchema("SigningCustodyReviewReportEnvelope", dataEnvelopeSchema("#/components/schemas/SigningCustodyReviewReport"))
 	registry.RegisterSchema("CreateSigningOperationRequest", objectSchema(map[string]any{
-		"provider_id":        map[string]any{"type": "string"},
-		"subject_type":       map[string]any{"type": "string"},
-		"subject_id":         map[string]any{"type": "string"},
-		"payload_hash":       map[string]any{"type": "string", "pattern": "^sha256:"},
-		"external_signature": map[string]any{"type": "string", "description": "Optional when a server-side signing executor is configured. The executor signs payload_hash and Evydence records only the returned signature receipt."},
+		"provider_id":  map[string]any{"type": "string"},
+		"subject_type": map[string]any{"type": "string"},
+		"subject_id":   map[string]any{"type": "string"},
+		"payload_hash": map[string]any{"type": "string", "pattern": "^sha256:"},
 	}, "provider_id", "subject_type", "subject_id", "payload_hash"))
 	registry.RegisterSchema("SigningOperation", objectSchema(map[string]any{
 		"id":             map[string]any{"type": "string"},

@@ -101,7 +101,7 @@ func (e *Executor) Sign(ctx context.Context, req app.SigningRequest) (app.Signin
 	if providerType := strings.TrimSpace(req.ProviderType); providerType != "" && providerType != "azure_key_vault" {
 		return app.SigningResult{}, app.ErrValidation
 	}
-	digest, err := decodePayloadHash(req.PayloadHash)
+	digest, err := decodePayloadHash(req.CanonicalPayloadHash)
 	if err != nil {
 		return app.SigningResult{}, err
 	}
@@ -141,9 +141,14 @@ func (e *Executor) Sign(ctx context.Context, req app.SigningRequest) (app.Signin
 		return app.SigningResult{}, app.ErrValidation
 	}
 	return app.SigningResult{
-		Signature: signature,
-		KeyID:     firstNonEmpty(strings.TrimSpace(decoded.KeyID), vaultURL+"/keys/"+keyName+"/"+keyVersion),
-		Algorithm: "azure-key-vault:" + e.algorithm,
+		Signature:            signature,
+		KeyID:                firstNonEmpty(strings.TrimSpace(decoded.KeyID), vaultURL+"/keys/"+keyName+"/"+keyVersion),
+		Algorithm:            "azure-key-vault:" + e.algorithm,
+		ProviderID:           req.ProviderID,
+		ProviderType:         "azure_key_vault",
+		KeyRef:               req.KeyRef,
+		CanonicalPayloadHash: req.CanonicalPayloadHash,
+		RequestID:            req.RequestID,
 		Checks: []domain.VerifyCheck{
 			{Name: "azure_key_vault_signature_returned", Result: "passed", Detail: "Azure Key Vault returned a signature over the submitted SHA-256 digest."},
 		},

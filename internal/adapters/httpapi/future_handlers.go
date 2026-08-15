@@ -205,17 +205,16 @@ func (s *Server) generateAnomalyReport(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) createSigningOperation(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		ProviderID        string `json:"provider_id"`
-		SubjectType       string `json:"subject_type"`
-		SubjectID         string `json:"subject_id"`
-		PayloadHash       string `json:"payload_hash"`
-		ExternalSignature string `json:"external_signature"`
+		ProviderID  string `json:"provider_id"`
+		SubjectType string `json:"subject_type"`
+		SubjectID   string `json:"subject_id"`
+		PayloadHash string `json:"payload_hash"`
 	}
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		op, err := s.ledger.CreateSigningOperation(ctx, actor, app.CreateSigningOperationInput{ProviderID: req.ProviderID, SubjectType: req.SubjectType, SubjectID: req.SubjectID, PayloadHash: req.PayloadHash, ExternalSignature: req.ExternalSignature})
+		op, err := s.ledger.CreateSigningOperation(ctx, actor, app.CreateSigningOperationInput{ProviderID: req.ProviderID, SubjectType: req.SubjectType, SubjectID: req.SubjectID, PayloadHash: req.PayloadHash})
 		return http.StatusCreated, op, err
 	})
 }
