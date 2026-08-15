@@ -1233,6 +1233,23 @@ func (s *Server) importEvidenceBundle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) uploadSPDXSBOM(w http.ResponseWriter, r *http.Request) {
+	if requestMediaType(r) == "application/spdx+json" {
+		releaseID, err := requiredSingleHeader(r, "X-Evydence-Release-ID")
+		if err != nil {
+			writeProblem(w, r, app.ErrValidation)
+			return
+		}
+		artifactID, err := optionalSingleHeader(r, "X-Evydence-Artifact-ID")
+		if err != nil {
+			writeProblem(w, r, app.ErrValidation)
+			return
+		}
+		s.createStreamedEvidence(w, r, app.EvidenceDocumentLimit, func(s *Server, ctx requestContext, actor domain.Actor, source app.PayloadSource) (int, any, error) {
+			sbom, err := s.ledger.UploadSPDXSBOMPayload(ctx, actor, releaseID, artifactID, source)
+			return http.StatusCreated, sbom, err
+		})
+		return
+	}
 	var req struct {
 		ReleaseID  string          `json:"release_id"`
 		ArtifactID string          `json:"artifact_id"`

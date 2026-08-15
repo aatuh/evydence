@@ -1196,9 +1196,10 @@ type SBOM struct {
 }
 
 type SBOMComponent struct {
-	Name    string `json:"name"`
-	Version string `json:"version,omitempty"`
-	PURL    string `json:"purl,omitempty"`
+	Identity string `json:"identity,omitempty"`
+	Name     string `json:"name"`
+	Version  string `json:"version,omitempty"`
+	PURL     string `json:"purl,omitempty"`
 }
 
 type SBOMComponentRecord struct {

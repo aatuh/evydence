@@ -32,10 +32,16 @@ func parseCycloneDXReader(reader io.Reader, maxBytes int64) (cyclonedxNormalizat
 func normalizeCycloneDXResult(parsed cyclonedxparser.Result) cyclonedxNormalization {
 	components := make([]domain.SBOMComponent, 0, len(parsed.Components))
 	for _, component := range parsed.Components {
+		purl := strings.TrimSpace(component.PURL)
+		identity := strings.TrimSpace(component.Identity)
+		if purl != "" {
+			identity = "purl:" + purl
+		}
 		components = append(components, domain.SBOMComponent{
-			Name:    strings.TrimSpace(component.Name),
-			Version: strings.TrimSpace(component.Version),
-			PURL:    strings.TrimSpace(component.PURL),
+			Identity: identity,
+			Name:     strings.TrimSpace(component.Name),
+			Version:  strings.TrimSpace(component.Version),
+			PURL:     purl,
 		})
 	}
 	return cyclonedxNormalization{

@@ -58,7 +58,7 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 | release ledger and signing | `internal/app/ledger.go` | `UploadSBOMPayload` | `persistReleaseLedgerWithOutboxLocked` |
 | release ledger and signing | `internal/app/ledger.go` | `UploadVulnerabilityScanPayload` | `persistReleaseLedgerWithOutboxLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `UploadCycloneDXVEX` | `persistReleaseLedgerWithOutboxLocked` |
-| risk and security workflows | `internal/app/risk_workflows.go` | `UploadSPDXSBOM` | `persistReleaseLedgerStateLocked` |
+| unclassified | `internal/app/spdx_upload.go` | `uploadValidatedSPDXSBOMPayload` | `persistReleaseLedgerWithOutboxLocked` |
 
 ## Remaining Broad Relational-State Mutations
 

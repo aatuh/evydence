@@ -1960,10 +1960,11 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "id", "tenant_id", "evidence_id", "release_id", "format", "component_count", "created_at"))
 	registry.RegisterSchema("SBOMEnvelope", dataEnvelopeSchema("#/components/schemas/SBOM"))
 	registry.RegisterSchema("SBOMComponent", objectSchema(map[string]any{
-		"name":    map[string]any{"type": "string"},
-		"version": map[string]any{"type": "string"},
-		"purl":    map[string]any{"type": "string"},
-		"hashes":  map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "string"}},
+		"identity": map[string]any{"type": "string"},
+		"name":     map[string]any{"type": "string"},
+		"version":  map[string]any{"type": "string"},
+		"purl":     map[string]any{"type": "string"},
+		"hashes":   map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "string"}},
 	}, "name"))
 	registry.RegisterSchema("SBOMComponentRecord", objectSchema(map[string]any{
 		"sbom_id":     map[string]any{"type": "string"},

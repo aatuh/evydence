@@ -10,6 +10,10 @@ type releaseEvidenceService struct {
 	ledger *Ledger
 }
 
+func (l *Ledger) UploadSPDXSBOM(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.SBOM, error) {
+	return l.UploadSPDXSBOMPayload(ctx, actor, releaseID, artifactID, BytesPayloadSource(raw))
+}
+
 func (l *Ledger) releaseEvidenceService() releaseEvidenceService {
 	return releaseEvidenceService{ledger: l}
 }
@@ -91,6 +95,12 @@ func (l *Ledger) UploadSBOMPayload(ctx context.Context, actor domain.Actor, rele
 		return domain.SBOM{}, err
 	}
 	return l.releaseEvidenceService().uploadValidatedCycloneDXSBOMPayload(ctx, actor, releaseID, artifactID, source, validator)
+}
+
+// UploadSPDXSBOMPayload accepts an SPDX JSON source whose bytes are validated,
+// normalized, and staged as the same digest-bound payload.
+func (l *Ledger) UploadSPDXSBOMPayload(ctx context.Context, actor domain.Actor, releaseID, artifactID string, source PayloadSource) (domain.SBOM, error) {
+	return l.releaseEvidenceService().uploadValidatedSPDXSBOMPayload(ctx, actor, releaseID, artifactID, source)
 }
 
 func (l *Ledger) UploadVulnerabilityScan(ctx context.Context, actor domain.Actor, raw []byte) (domain.VulnerabilityScan, error) {

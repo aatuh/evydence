@@ -24,7 +24,7 @@ the broader conformance, fixture-corpus, replay, and parser-version work.
 | Input | Stability | Tested contract | Retained parser identity | Public HTTP form / effective limit |
 | --- | --- | --- | --- | --- |
 | CycloneDX SBOM JSON | `core` | Official-schema CycloneDX 1.6 JSON; the shared bounded parser/validator corpus targets official fixtures plus Syft/Trivy output shapes | `cyclonedx-json.v1.3.4` on durable `parse_sbom` jobs and evidence metadata | Native `application/vnd.cyclonedx+json`: 20 MiB; JSON envelope: 64 KiB |
-| SPDX SBOM JSON | `core` | Reduced shape; fixtures use `SPDX-2.3` | `spdx-json.v1` in evidence metadata | JSON envelope: 64 KiB |
+| SPDX SBOM JSON | `core` | Bounded SPDX JSON `SPDX-2.2` and `SPDX-2.3`; the shared corpus covers a standards-shaped document plus Syft/Trivy output shapes | `spdx-json.v2.0.0` on durable `parse_sbom` jobs and evidence metadata | Native `application/spdx+json`: 20 MiB; JSON envelope: 64 KiB |
 | OpenVEX JSON | `core` | Reduced shape; fixtures use `https://openvex.dev/ns/v0.2.0` | `openvex-json.v1.0.0` on import report and `parse_vex` job | Native `application/vnd.openvex+json`: 20 MiB; JSON envelope: 64 KiB |
 | CycloneDX VEX JSON | `core` | Reduced shape; fixtures use `specVersion: 1.6` | `cyclonedx-vex-json.v1.0.0` on import report and `parse_vex` job | JSON envelope: 64 KiB |
 | DSSE + in-toto statement JSON | `core` | Structural profile; fixtures use in-toto Statement v1 and SLSA provenance v1 | `dsse-in-toto-json.v1.0.0` on `verify_attestation` job | JSON request: 64 KiB |
@@ -87,15 +87,32 @@ tests.
 
 ### SPDX SBOM JSON
 
-`POST /v1/sboms/spdx` reads `spdxVersion`, package name/version, and external
-reference type/locator; the first `purl` reference becomes the normalized purl.
-Package names are required and unknown fields are rejected. The parser only
-checks the `SPDX-` prefix, so the compatibility claim is the tested SPDX 2.3
-reduced shape, not every structurally accepted `SPDX-*` value. Relationships,
-checksums, licenses, document metadata, and annotations are not normalized.
+`POST /v1/sboms/spdx` accepts only SPDX JSON `SPDX-2.2` and `SPDX-2.3`. The
+native `application/spdx+json` form supports a 20 MiB payload and requires the
+release id in `X-Evydence-Release-ID`; the JSON envelope is retained for small
+requests. The shared bounded parser rejects duplicate keys and oversized,
+deep, or overlarge package/relationship/checksum/external-reference graphs.
 
-Evidence: `internal/app/risk_workflows.go` (`UploadSPDXSBOM`) and
-`TestSecurityScansManualDocsSPDXAndSBOMDiff`.
+Package names, versions, SPDX identifiers, PURLs, relationships, checksums,
+licenses, and external-reference counts are parsed deterministically. A PURL
+is the cross-format component identity when present. PURL-less components use
+their SPDX identifier, avoiding a false merge with a CycloneDX component that
+happens to have the same name and version. The immutable raw payload retains
+the complete source document. Standard or legal extension fields outside the
+normalized subset are accepted and reported as parser warnings and import
+report metadata rather than silently normalized or rejected.
+
+The upload transaction authorizes release and artifact targets before opening
+the raw source, binds normalization to the declared source size and SHA-256,
+then stages the same source as immutable evidence. Current-version worker
+replay dispatches by the durable parser version and uses the shared SPDX parser.
+This does not claim historical parser-version migration or prove SBOM
+completeness.
+
+Evidence: `internal/app/parsers/spdx`, `internal/app/spdx_ingestion.go`,
+`internal/app/spdx_upload.go`, `internal/app/spdx_replay.go`,
+`internal/app/parser_versions.go`, `cmd/evydence-worker/main.go`, and SPDX
+parser/upload/replay tests.
 
 ### OpenVEX JSON
 
@@ -207,7 +224,7 @@ claims must remain tied to the bounds actually enforced by each parser.
 ## Parser version and compatibility
 
 OpenVEX/CycloneDX VEX persist parser version on import reports and parser jobs;
-SPDX stores `spdx-json.v1` in evidence metadata; CycloneDX SBOM, generic scan,
+SPDX stores `spdx-json.v2.0.0` in evidence metadata; CycloneDX SBOM, generic scan,
 and DSSE/in-toto store parser version on durable subject-linked outbox jobs.
 CycloneDX `parse_sbom` jobs use `cyclonedx-json.v1.3.4`, and current worker replay
 uses that shared parser projection. The worker rejects parser jobs whose version

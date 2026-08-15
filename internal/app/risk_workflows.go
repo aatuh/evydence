@@ -813,88 +813,95 @@ func (l *Ledger) UploadManualSecurityDocument(ctx context.Context, actor domain.
 	return doc, nil
 }
 
-func (l *Ledger) UploadSPDXSBOM(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.SBOM, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.SBOM{}, err
-	}
-	if err := require(actor, ScopeEvidenceWrite); err != nil {
-		return domain.SBOM{}, err
-	}
-	if !ValidPayloadSize(int64(len(raw)), EvidenceDocumentLimit) {
-		return domain.SBOM{}, ErrValidation
-	}
-	var doc struct {
-		SPDXVersion string `json:"spdxVersion"`
-		Packages    []struct {
-			Name         string `json:"name"`
-			VersionInfo  string `json:"versionInfo"`
-			ExternalRefs []struct {
-				ReferenceType    string `json:"referenceType"`
-				ReferenceLocator string `json:"referenceLocator"`
-			} `json:"externalRefs"`
-		} `json:"packages"`
-	}
-	if err := strictDecode(raw, &doc); err != nil || !strings.HasPrefix(doc.SPDXVersion, "SPDX-") {
-		return domain.SBOM{}, ErrValidation
-	}
-	components := []domain.SBOMComponent{}
-	for _, pkg := range doc.Packages {
-		if strings.TrimSpace(pkg.Name) == "" {
-			return domain.SBOM{}, ErrValidation
-		}
-		purl := ""
-		for _, ref := range pkg.ExternalRefs {
-			if strings.EqualFold(ref.ReferenceType, "purl") {
-				purl = ref.ReferenceLocator
-				break
+// uploadSPDXSBOMLegacy is retained only as a compatibility assertion while
+// callers transition through the public Ledger facade.
+func (l *Ledger) uploadSPDXSBOMLegacy(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.SBOM, error) {
+	return l.UploadSPDXSBOMPayload(ctx, actor, releaseID, artifactID, BytesPayloadSource(raw))
+
+	/*
+			if err := ctx.Err(); err != nil {
+				return domain.SBOM{}, err
 			}
-		}
-		components = append(components, domain.SBOMComponent{Name: pkg.Name, Version: pkg.VersionInfo, PURL: purl})
-	}
-	l.mu.Lock()
-	if err := l.ensureScopeLocked(actor.TenantID, "", "", strings.TrimSpace(releaseID)); err != nil {
-		l.mu.Unlock()
-		return domain.SBOM{}, err
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, resourceRefs{ReleaseID: strings.TrimSpace(releaseID)}); err != nil {
-		l.mu.Unlock()
-		return domain.SBOM{}, err
-	}
-	l.mu.Unlock()
-	payloadHash := hashBytes(raw)
-	stagedPayload, err := l.stagePayload(ctx, actor.TenantID, "application/spdx+json", payloadHash, raw)
-	if err != nil {
-		return domain.SBOM{}, err
-	}
-	payloadRef := stagedPayload.Reference()
-	item, err := l.CreateEvidence(ctx, actor, CreateEvidenceInput{
-		ReleaseID:        releaseID,
-		Type:             "sbom",
-		Subtype:          "spdx",
-		Title:            "SPDX SBOM",
-		SourceSystem:     "api",
-		ObservedAt:       l.now(),
-		PayloadRef:       payloadRef,
-		PayloadHash:      payloadHash,
-		PayloadMediaType: "application/spdx+json",
-		PayloadSize:      int64(len(raw)),
-		StagedPayload:    stagedPayload,
-		SubjectRefs:      subjectForArtifact(artifactID),
-		Metadata:         map[string]any{"sbom_format": "spdx", "sbom_spec_version": doc.SPDXVersion, "component_count": len(components), "parser_version": "spdx-json.v1"},
-		Limitations:      []string{"SBOM ingestion validates document shape but does not prove SBOM completeness."},
-	})
-	if err != nil {
-		return domain.SBOM{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	sbom := domain.SBOM{ID: newID("sbom"), TenantID: actor.TenantID, EvidenceID: item.ID, ReleaseID: releaseID, ArtifactID: artifactID, Format: "spdx", SpecVersion: doc.SPDXVersion, ComponentCount: len(components), Components: components, CreatedAt: l.now()}
-	l.sboms[sbom.ID] = sbom
-	_, _ = l.appendChainLocked(actor.TenantID, "sbom.parsed", "sbom", sbom.ID, "api_key", actor.KeyID, payloadHash, "")
-	if err := l.persistReleaseLedgerStateLocked(ctx); err != nil {
-		return domain.SBOM{}, err
-	}
-	return sbom, nil
+			if err := require(actor, ScopeEvidenceWrite); err != nil {
+				return domain.SBOM{}, err
+			}
+			if !ValidPayloadSize(int64(len(raw)), EvidenceDocumentLimit) {
+				return domain.SBOM{}, ErrValidation
+			}
+			var doc struct {
+				SPDXVersion string `json:"spdxVersion"`
+				Packages    []struct {
+					Name         string `json:"name"`
+					VersionInfo  string `json:"versionInfo"`
+					ExternalRefs []struct {
+						ReferenceType    string `json:"referenceType"`
+						ReferenceLocator string `json:"referenceLocator"`
+					} `json:"externalRefs"`
+				} `json:"packages"`
+			}
+			if err := strictDecode(raw, &doc); err != nil || !strings.HasPrefix(doc.SPDXVersion, "SPDX-") {
+				return domain.SBOM{}, ErrValidation
+			}
+			components := []domain.SBOMComponent{}
+			for _, pkg := range doc.Packages {
+				if strings.TrimSpace(pkg.Name) == "" {
+					return domain.SBOM{}, ErrValidation
+				}
+				purl := ""
+				for _, ref := range pkg.ExternalRefs {
+					if strings.EqualFold(ref.ReferenceType, "purl") {
+						purl = ref.ReferenceLocator
+						break
+					}
+				}
+				components = append(components, domain.SBOMComponent{Name: pkg.Name, Version: pkg.VersionInfo, PURL: purl})
+			}
+			l.mu.Lock()
+			if err := l.ensureScopeLocked(actor.TenantID, "", "", strings.TrimSpace(releaseID)); err != nil {
+				l.mu.Unlock()
+				return domain.SBOM{}, err
+			}
+			if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, resourceRefs{ReleaseID: strings.TrimSpace(releaseID)}); err != nil {
+				l.mu.Unlock()
+				return domain.SBOM{}, err
+			}
+			l.mu.Unlock()
+			payloadHash := hashBytes(raw)
+			stagedPayload, err := l.stagePayload(ctx, actor.TenantID, "application/spdx+json", payloadHash, raw)
+			if err != nil {
+				return domain.SBOM{}, err
+			}
+			payloadRef := stagedPayload.Reference()
+			item, err := l.CreateEvidence(ctx, actor, CreateEvidenceInput{
+				ReleaseID:        releaseID,
+				Type:             "sbom",
+				Subtype:          "spdx",
+				Title:            "SPDX SBOM",
+				SourceSystem:     "api",
+				ObservedAt:       l.now(),
+				PayloadRef:       payloadRef,
+				PayloadHash:      payloadHash,
+				PayloadMediaType: "application/spdx+json",
+				PayloadSize:      int64(len(raw)),
+				StagedPayload:    stagedPayload,
+				SubjectRefs:      subjectForArtifact(artifactID),
+				Metadata:         map[string]any{"sbom_format": "spdx", "sbom_spec_version": doc.SPDXVersion, "component_count": len(components), "parser_version": "spdx-json.v1"},
+				Limitations:      []string{"SBOM ingestion validates document shape but does not prove SBOM completeness."},
+			})
+			if err != nil {
+				return domain.SBOM{}, err
+			}
+			l.mu.Lock()
+			defer l.mu.Unlock()
+			sbom := domain.SBOM{ID: newID("sbom"), TenantID: actor.TenantID, EvidenceID: item.ID, ReleaseID: releaseID, ArtifactID: artifactID, Format: "spdx", SpecVersion: doc.SPDXVersion, ComponentCount: len(components), Components: components, CreatedAt: l.now()}
+			l.sboms[sbom.ID] = sbom
+			_, _ = l.appendChainLocked(actor.TenantID, "sbom.parsed", "sbom", sbom.ID, "api_key", actor.KeyID, payloadHash, "")
+		if err := l.persistReleaseLedgerState
+			Locked(ctx); err != nil {
+				return domain.SBOM{}, err
+			}
+			return sbom, nil
+	*/
 }
 
 func (l *Ledger) CreateSBOMDiff(ctx context.Context, actor domain.Actor, in CreateSBOMDiffInput) (domain.SBOMDiff, error) {
@@ -1666,6 +1673,9 @@ func sortComponents(values []domain.SBOMComponent) {
 }
 
 func componentKey(component domain.SBOMComponent) string {
+	if component.Identity != "" {
+		return component.Identity
+	}
 	if component.PURL != "" {
 		return component.PURL
 	}

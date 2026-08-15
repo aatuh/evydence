@@ -328,7 +328,7 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 			return errors.New("parsed sbom is not available in durable state")
 		}
 		if hasReplayedObject {
-			parsed, err := parseReplayedSBOM(replayed.Bytes)
+			parsed, err := parseReplayedSBOM(replayed.Bytes, payloadString(job, "parser_version"))
 			if err != nil {
 				return err
 			}
@@ -511,6 +511,9 @@ func requireParserVersion(job postgres.ClaimedJob) error {
 	if job.Kind == "parse_vex" && (got == app.ParserVersionOpenVEXJSON || got == app.ParserVersionCycloneDXVEXJSON) {
 		return nil
 	}
+	if job.Kind == "parse_sbom" && (got == app.ParserVersionCycloneDXJSON || got == app.ParserVersionSPDXJSON) {
+		return nil
+	}
 	if got != expected {
 		return errors.New("unsupported outbox parser version")
 	}
@@ -634,16 +637,23 @@ func mergeReplayedSBOM(sbom domain.SBOM, parsed replayedSBOM) (domain.SBOM, bool
 	return sbom, changed
 }
 
-func parseReplayedSBOM(raw []byte) (replayedSBOM, error) {
-	parsed, err := app.ParseCycloneDXReplayProjection(raw, defaultMaxWorkerPayloadBytes)
+func parseReplayedSBOM(raw []byte, parserVersions ...string) (replayedSBOM, error) {
+	parserVersion := ""
+	if len(parserVersions) > 0 {
+		parserVersion = parserVersions[0]
+	}
+	if parserVersion == "" || parserVersion == app.ParserVersionCycloneDXJSON {
+		parsed, err := app.ParseCycloneDXReplayProjection(raw, defaultMaxWorkerPayloadBytes)
+		if err != nil {
+			return replayedSBOM{}, errors.New("replayed sbom payload is invalid")
+		}
+		return replayedSBOM{SpecVersion: parsed.SpecVersion, ComponentCount: len(parsed.Components), Components: append([]domain.SBOMComponent(nil), parsed.Components...)}, nil
+	}
+	parsed, err := app.ParseSPDXReplayProjection(raw, defaultMaxWorkerPayloadBytes)
 	if err != nil {
 		return replayedSBOM{}, errors.New("replayed sbom payload is invalid")
 	}
-	return replayedSBOM{
-		SpecVersion:    parsed.SpecVersion,
-		ComponentCount: len(parsed.Components),
-		Components:     append([]domain.SBOMComponent(nil), parsed.Components...),
-	}, nil
+	return replayedSBOM{SpecVersion: parsed.SpecVersion, ComponentCount: len(parsed.Components), Components: append([]domain.SBOMComponent(nil), parsed.Components...)}, nil
 }
 
 type replayedVulnerabilityScan struct {

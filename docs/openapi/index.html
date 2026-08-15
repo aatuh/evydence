@@ -2693,20 +2693,20 @@
               <div><dt>Responses</dt><dd>201 application/json: SBOMEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/sboms/spdx upload spdx sbom uploads an spdx json sbom payload, stores raw bytes as evidence, and records normalized sbom metadata. uploadspdxsbom evydence evidence:write">
+          <article class="operation" data-operation data-search="post /v1/sboms/spdx upload spdx sbom uploads an spdx 2.2 or 2.3 json sbom payload, stores immutable raw bytes as evidence, and records deterministic normalization metadata. use application/spdx+json with explicit metadata headers for streaming uploads up to 20 mib; the json envelope remains limited to small requests. uploadspdxsbom evydence evidence:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/sboms/spdx</code>
             </div>
             <h3>Upload SPDX SBOM</h3>
-            <p>Uploads an SPDX JSON SBOM payload, stores raw bytes as evidence, and records normalized SBOM metadata.</p>
+            <p>Uploads an SPDX 2.2 or 2.3 JSON SBOM payload, stores immutable raw bytes as evidence, and records deterministic normalization metadata. Use application/spdx+json with explicit metadata headers for streaming uploads up to 20 MiB; the JSON envelope remains limited to small requests.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>uploadSPDXSBOM</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
               <div><dt>Auth</dt><dd>BearerAuth</dd></div>
               <div><dt>Scopes</dt><dd>evidence:write</dd></div>
               <div><dt>Idempotency</dt><dd>Idempotency-Key</dd></div>
-              <div><dt>Request</dt><dd>application/json: UploadSPDXSBOMRequest</dd></div>
+              <div><dt>Request</dt><dd>application/json: UploadSPDXSBOMRequest; application/spdx+json: string</dd></div>
               <div><dt>Responses</dt><dd>201 application/json: SBOMEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
