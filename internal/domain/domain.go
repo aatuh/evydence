@@ -728,16 +728,85 @@ type AuditChainEntry struct {
 	SchemaVersion      string         `json:"schema_version"`
 }
 
+const (
+	SigningKeyDefaultProvider = "local_ed25519"
+	SigningKeyStatusActive    = "active"
+	SigningKeyStatusRetiring  = "retiring"
+	SigningKeyStatusRevoked   = "revoked"
+
+	SigningKeyRevocationOrdinary    = "ordinary"
+	SigningKeyRevocationCompromised = "compromised"
+
+	SigningKeyHistoricalValidityPreserve                 = "preserve"
+	SigningKeyHistoricalValidityInvalidateFromCompromise = "invalidate_from_compromise"
+	SigningKeyHistoricalValidityInvalidateAll            = "invalidate_all"
+
+	SigningKeyHistoricalValidityValid         = "valid"
+	SigningKeyHistoricalValidityOutsideWindow = "outside_validity_window"
+	SigningKeyHistoricalValidityCompromised   = "compromised"
+)
+
+// SigningKey records public signing-key metadata and its immutable lifecycle
+// facts. Private material is deliberately excluded from JSON serialization.
 type SigningKey struct {
-	ID        string     `json:"id"`
-	TenantID  string     `json:"tenant_id"`
-	KID       string     `json:"kid"`
-	Algorithm string     `json:"algorithm"`
-	Status    string     `json:"status"`
-	PublicKey string     `json:"public_key"`
-	Private   []byte     `json:"-"`
-	CreatedAt time.Time  `json:"created_at"`
-	RevokedAt *time.Time `json:"revoked_at,omitempty"`
+	ID                       string     `json:"id"`
+	TenantID                 string     `json:"tenant_id"`
+	KID                      string     `json:"kid"`
+	Version                  int        `json:"version"`
+	Provider                 string     `json:"provider"`
+	Algorithm                string     `json:"algorithm"`
+	Status                   string     `json:"status"`
+	PublicKey                string     `json:"public_key"`
+	PublicKeyFingerprint     string     `json:"public_key_fingerprint,omitempty"`
+	Private                  []byte     `json:"-"`
+	ValidFrom                time.Time  `json:"valid_from"`
+	ValidUntil               *time.Time `json:"valid_until,omitempty"`
+	CreatedAt                time.Time  `json:"created_at"`
+	RevokedAt                *time.Time `json:"revoked_at,omitempty"`
+	RevocationReason         string     `json:"revocation_reason,omitempty"`
+	RevocationSemantics      string     `json:"revocation_semantics,omitempty"`
+	HistoricalValidityPolicy string     `json:"historical_validity_policy,omitempty"`
+	CompromisedAt            *time.Time `json:"compromised_at,omitempty"`
+}
+
+// HistoricalValidityAt evaluates a signature timestamp against a recorded key
+// lifecycle. It has no wall-clock dependency: callers provide verificationTime
+// so an evidence package can be re-evaluated deterministically later.
+func (key SigningKey) HistoricalValidityAt(signedAt, verificationTime time.Time) string {
+	if signedAt.IsZero() || verificationTime.IsZero() || verificationTime.Before(signedAt) {
+		return SigningKeyHistoricalValidityOutsideWindow
+	}
+	validFrom := key.ValidFrom
+	if validFrom.IsZero() {
+		validFrom = key.CreatedAt
+	}
+	if validFrom.IsZero() || signedAt.Before(validFrom) {
+		return SigningKeyHistoricalValidityOutsideWindow
+	}
+	validUntil := key.ValidUntil
+	// Pre-lifecycle records used revoked_at as their only upper bound. Preserve
+	// that historic meaning while migrations and snapshot restores converge.
+	if validUntil == nil && key.Status == SigningKeyStatusRevoked && key.RevokedAt != nil && key.RevocationSemantics != SigningKeyRevocationCompromised {
+		validUntil = key.RevokedAt
+	}
+	if validUntil != nil && signedAt.After(*validUntil) {
+		return SigningKeyHistoricalValidityOutsideWindow
+	}
+	if key.RevocationSemantics == SigningKeyRevocationCompromised {
+		switch key.HistoricalValidityPolicy {
+		case SigningKeyHistoricalValidityInvalidateAll:
+			return SigningKeyHistoricalValidityCompromised
+		case SigningKeyHistoricalValidityInvalidateFromCompromise:
+			compromisedAt := key.CompromisedAt
+			if compromisedAt == nil {
+				compromisedAt = key.RevokedAt
+			}
+			if compromisedAt != nil && !signedAt.Before(*compromisedAt) {
+				return SigningKeyHistoricalValidityCompromised
+			}
+		}
+	}
+	return SigningKeyHistoricalValidityValid
 }
 
 type SigningProvider struct {

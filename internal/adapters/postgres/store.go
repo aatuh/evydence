@@ -824,7 +824,9 @@ func (s *Store) loadRelationalAuditChain(ctx context.Context, state *app.Persist
 func (s *Store) loadRelationalSigning(ctx context.Context, state *app.PersistedState, loaded *bool) error {
 	keyRows, err := s.pool.Query(ctx, `
 		SELECT id, tenant_id, kid, algorithm, status, public_key,
-		       encrypted_private_key, created_at, revoked_at
+		       public_key_fingerprint, version, provider, valid_from, valid_until,
+		       encrypted_private_key, created_at, revoked_at, revocation_reason,
+		       revocation_semantics, historical_validity_policy, compromised_at
 		FROM signing_keys
 	`)
 	if err != nil {
@@ -834,11 +836,13 @@ func (s *Store) loadRelationalSigning(ctx context.Context, state *app.PersistedS
 	for keyRows.Next() {
 		var key domain.SigningKey
 		var private []byte
-		var revokedAt sql.NullTime
-		if err := keyRows.Scan(&key.ID, &key.TenantID, &key.KID, &key.Algorithm, &key.Status, &key.PublicKey, &private, &key.CreatedAt, &revokedAt); err != nil {
+		var validUntil, revokedAt, compromisedAt sql.NullTime
+		if err := keyRows.Scan(&key.ID, &key.TenantID, &key.KID, &key.Algorithm, &key.Status, &key.PublicKey, &key.PublicKeyFingerprint, &key.Version, &key.Provider, &key.ValidFrom, &validUntil, &private, &key.CreatedAt, &revokedAt, &key.RevocationReason, &key.RevocationSemantics, &key.HistoricalValidityPolicy, &compromisedAt); err != nil {
 			return fmt.Errorf("scan relational signing key: %w", err)
 		}
+		key.ValidUntil = nullableSQLTime(validUntil)
 		key.RevokedAt = nullableSQLTime(revokedAt)
+		key.CompromisedAt = nullableSQLTime(compromisedAt)
 		state.SigningKeys[key.ID] = key
 		if len(private) != 0 {
 			state.SigningKeyPrivate[key.ID] = append([]byte(nil), private...)
@@ -3260,18 +3264,33 @@ func syncReleaseLedgerCore(ctx context.Context, tx pgx.Tx, state app.PersistedSt
 		if len(private) == 0 {
 			private = key.Private
 		}
+		validFrom := key.ValidFrom
+		if validFrom.IsZero() {
+			validFrom = key.CreatedAt
+		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO signing_keys (
 				id, tenant_id, kid, algorithm, status, public_key,
-				encrypted_private_key, created_at, revoked_at
+				public_key_fingerprint, version, provider, valid_from, valid_until,
+				encrypted_private_key, created_at, revoked_at, revocation_reason,
+				revocation_semantics, historical_validity_policy, compromised_at
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, GREATEST($8, 1), COALESCE(NULLIF($9, ''), 'local_ed25519'), $10, $11, $12, $13, $14, $15, $16, COALESCE(NULLIF($17, ''), 'preserve'), $18)
 			ON CONFLICT (id) DO UPDATE SET
 				status = EXCLUDED.status,
 				public_key = EXCLUDED.public_key,
+				public_key_fingerprint = EXCLUDED.public_key_fingerprint,
+				version = EXCLUDED.version,
+				provider = EXCLUDED.provider,
+				valid_from = EXCLUDED.valid_from,
+				valid_until = EXCLUDED.valid_until,
 				encrypted_private_key = EXCLUDED.encrypted_private_key,
-				revoked_at = EXCLUDED.revoked_at
-		`, key.ID, key.TenantID, key.KID, key.Algorithm, key.Status, key.PublicKey, nullableBytes(private), nonZeroTime(key.CreatedAt), nullableTime(key.RevokedAt)); err != nil {
+				revoked_at = EXCLUDED.revoked_at,
+				revocation_reason = EXCLUDED.revocation_reason,
+				revocation_semantics = EXCLUDED.revocation_semantics,
+				historical_validity_policy = EXCLUDED.historical_validity_policy,
+				compromised_at = EXCLUDED.compromised_at
+		`, key.ID, key.TenantID, key.KID, key.Algorithm, key.Status, key.PublicKey, key.PublicKeyFingerprint, key.Version, key.Provider, validFrom, nullableTime(key.ValidUntil), nullableBytes(private), nonZeroTime(key.CreatedAt), nullableTime(key.RevokedAt), key.RevocationReason, key.RevocationSemantics, key.HistoricalValidityPolicy, nullableTime(key.CompromisedAt)); err != nil {
 			return fmt.Errorf("upsert signing key row: %w", err)
 		}
 	}

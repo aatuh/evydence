@@ -2192,13 +2192,19 @@ func (r signatures) InsertSigningKey(ctx context.Context, key domain.SigningKey)
 	if err := requireTenant(ctx, r.tx, key.TenantID); err != nil {
 		return err
 	}
+	validFrom := key.ValidFrom
+	if validFrom.IsZero() {
+		validFrom = key.CreatedAt
+	}
 	_, err := r.tx.Exec(ctx, `
 		INSERT INTO signing_keys (
 			id, tenant_id, kid, algorithm, status, public_key,
-			encrypted_private_key, created_at, revoked_at
+			public_key_fingerprint, version, provider, valid_from, valid_until,
+			encrypted_private_key, created_at, revoked_at, revocation_reason,
+			revocation_semantics, historical_validity_policy, compromised_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-	`, key.ID, key.TenantID, key.KID, key.Algorithm, key.Status, key.PublicKey, nullableBytes(key.Private), key.CreatedAt, key.RevokedAt)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, GREATEST($8, 1), COALESCE(NULLIF($9, ''), 'local_ed25519'), $10, $11, $12, $13, $14, $15, $16, COALESCE(NULLIF($17, ''), 'preserve'), $18)
+	`, key.ID, key.TenantID, key.KID, key.Algorithm, key.Status, key.PublicKey, key.PublicKeyFingerprint, key.Version, key.Provider, validFrom, key.ValidUntil, nullableBytes(key.Private), key.CreatedAt, key.RevokedAt, key.RevocationReason, key.RevocationSemantics, key.HistoricalValidityPolicy, key.CompromisedAt)
 	return writeError("insert signing key", err)
 }
 
@@ -2208,9 +2214,12 @@ func (r signatures) UpdateSigningKey(ctx context.Context, key domain.SigningKey,
 	}
 	result, err := r.tx.Exec(ctx, `
 		UPDATE signing_keys
-		SET status = $3, revoked_at = $4
-		WHERE id = $1 AND tenant_id = $2 AND status = $5
-	`, key.ID, key.TenantID, key.Status, key.RevokedAt, expectedStatus)
+		SET status = $3, revoked_at = $4, valid_until = $5,
+			revocation_reason = $6, revocation_semantics = $7,
+			historical_validity_policy = COALESCE(NULLIF($8, ''), 'preserve'),
+			compromised_at = $9
+		WHERE id = $1 AND tenant_id = $2 AND status = $10
+	`, key.ID, key.TenantID, key.Status, key.RevokedAt, key.ValidUntil, key.RevocationReason, key.RevocationSemantics, key.HistoricalValidityPolicy, key.CompromisedAt, expectedStatus)
 	if err != nil {
 		return writeError("update signing key", err)
 	}

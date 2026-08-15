@@ -25,6 +25,12 @@ type CreateSigningProviderInput struct {
 	Encrypted bool
 }
 
+type SigningKeyRevocationInput struct {
+	Reason                   string
+	Semantics                string
+	HistoricalValidityPolicy string
+}
+
 type CreateMerkleBatchInput struct {
 	FromSequence int64
 	ToSequence   int64
@@ -249,11 +255,36 @@ func (l *Ledger) persistCosignVerification(ctx context.Context, actor domain.Act
 }
 
 func (l *Ledger) RevokeSigningKey(ctx context.Context, actor domain.Actor, keyID, reason string) (domain.SigningKey, error) {
+	return l.RevokeSigningKeyWithPolicy(ctx, actor, keyID, SigningKeyRevocationInput{
+		Reason:                   reason,
+		Semantics:                domain.SigningKeyRevocationOrdinary,
+		HistoricalValidityPolicy: domain.SigningKeyHistoricalValidityPreserve,
+	})
+}
+
+func (l *Ledger) RevokeSigningKeyWithPolicy(ctx context.Context, actor domain.Actor, keyID string, in SigningKeyRevocationInput) (domain.SigningKey, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.SigningKey{}, err
 	}
 	if err := require(actor, ScopeKeysAdmin); err != nil {
 		return domain.SigningKey{}, err
+	}
+	in.Reason = strings.TrimSpace(in.Reason)
+	in.Semantics = strings.TrimSpace(in.Semantics)
+	in.HistoricalValidityPolicy = strings.TrimSpace(in.HistoricalValidityPolicy)
+	if in.Reason == "" {
+		return domain.SigningKey{}, ErrValidation
+	}
+	if in.Semantics == "" {
+		in.Semantics = domain.SigningKeyRevocationOrdinary
+	}
+	if in.HistoricalValidityPolicy == "" {
+		in.HistoricalValidityPolicy = domain.SigningKeyHistoricalValidityPreserve
+	}
+	if (in.Semantics != domain.SigningKeyRevocationOrdinary && in.Semantics != domain.SigningKeyRevocationCompromised) ||
+		(in.HistoricalValidityPolicy != domain.SigningKeyHistoricalValidityPreserve && in.HistoricalValidityPolicy != domain.SigningKeyHistoricalValidityInvalidateFromCompromise && in.HistoricalValidityPolicy != domain.SigningKeyHistoricalValidityInvalidateAll) ||
+		(in.Semantics == domain.SigningKeyRevocationOrdinary && in.HistoricalValidityPolicy != domain.SigningKeyHistoricalValidityPreserve) {
+		return domain.SigningKey{}, ErrValidation
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -261,13 +292,20 @@ func (l *Ledger) RevokeSigningKey(ctx context.Context, actor domain.Actor, keyID
 	if !ok || key.TenantID != actor.TenantID {
 		return domain.SigningKey{}, ErrNotFound
 	}
-	if key.Status == "revoked" {
+	if key.Status == domain.SigningKeyStatusRevoked {
 		return domain.SigningKey{}, ErrConflict
 	}
 	previousStatus := key.Status
 	now := l.now()
-	key.Status = "revoked"
+	key.Status = domain.SigningKeyStatusRevoked
 	key.RevokedAt = &now
+	key.ValidUntil = &now
+	key.RevocationReason = in.Reason
+	key.RevocationSemantics = in.Semantics
+	key.HistoricalValidityPolicy = in.HistoricalValidityPolicy
+	if in.Semantics == domain.SigningKeyRevocationCompromised {
+		key.CompromisedAt = &now
+	}
 	if l.unitOfWork != nil {
 		var entry domain.AuditChainEntry
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
@@ -275,7 +313,11 @@ func (l *Ledger) RevokeSigningKey(ctx context.Context, actor domain.Actor, keyID
 				return err
 			}
 			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, actor.TenantID, "signing_key.revoked", "signing_key", key.ID, actorType(actor), actorID(actor), "", ""))
+			action := "signing_key.revoked"
+			if in.Semantics == domain.SigningKeyRevocationCompromised {
+				action = "signing_key.compromised"
+			}
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, actor.TenantID, action, "signing_key", key.ID, actorType(actor), actorID(actor), "", ""))
 			return err
 		}); err != nil {
 			return domain.SigningKey{}, err
@@ -283,16 +325,18 @@ func (l *Ledger) RevokeSigningKey(ctx context.Context, actor domain.Actor, keyID
 		l.signingKeys[key.ID] = key
 		l.publishCommittedAuditEntryLocked(entry)
 		key.Private = nil
-		_ = reason
 		return key, nil
 	}
 	l.signingKeys[key.ID] = key
-	_, _ = l.appendChainLocked(actor.TenantID, "signing_key.revoked", "signing_key", key.ID, actorType(actor), actorID(actor), "", "")
+	action := "signing_key.revoked"
+	if in.Semantics == domain.SigningKeyRevocationCompromised {
+		action = "signing_key.compromised"
+	}
+	_, _ = l.appendChainLocked(actor.TenantID, action, "signing_key", key.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {
 		return domain.SigningKey{}, err
 	}
 	key.Private = nil
-	_ = reason
 	return key, nil
 }
 

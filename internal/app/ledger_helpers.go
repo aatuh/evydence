@@ -114,6 +114,13 @@ func secretPrefix(secret string) string {
 	return secret[:12]
 }
 
+func signingKeyProvider(key domain.SigningKey) string {
+	if key.Provider == "" {
+		return domain.SigningKeyDefaultProvider
+	}
+	return key.Provider
+}
+
 func sortedStrings(in []string) []string {
 	out := append([]string(nil), in...)
 	for i := range out {

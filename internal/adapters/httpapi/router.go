@@ -2248,7 +2248,9 @@ func (s *Server) rotateSigningKey(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) revokeSigningKey(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Reason string `json:"reason"`
+		Reason                   string `json:"reason"`
+		Semantics                string `json:"semantics"`
+		HistoricalValidityPolicy string `json:"historical_validity_policy"`
 	}
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if len(bytes.TrimSpace(body)) > 0 {
@@ -2256,7 +2258,11 @@ func (s *Server) revokeSigningKey(w http.ResponseWriter, r *http.Request) {
 				return 0, nil, err
 			}
 		}
-		key, err := s.ledger.RevokeSigningKey(ctx, actor, r.PathValue("id"), req.Reason)
+		key, err := s.ledger.RevokeSigningKeyWithPolicy(ctx, actor, r.PathValue("id"), app.SigningKeyRevocationInput{
+			Reason:                   req.Reason,
+			Semantics:                req.Semantics,
+			HistoricalValidityPolicy: req.HistoricalValidityPolicy,
+		})
 		return http.StatusOK, key, err
 	})
 }

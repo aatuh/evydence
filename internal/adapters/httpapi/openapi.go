@@ -614,20 +614,31 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "id", "tenant_id", "base_contract_id", "target_contract_id", "product_id", "result", "schema_version", "created_at"))
 	registry.RegisterSchema("ContractDiffEnvelope", dataEnvelopeSchema("#/components/schemas/ContractDiff"))
 	registry.RegisterSchema("SigningKey", objectSchema(map[string]any{
-		"id":         map[string]any{"type": "string"},
-		"tenant_id":  map[string]any{"type": "string"},
-		"kid":        map[string]any{"type": "string"},
-		"algorithm":  map[string]any{"type": "string"},
-		"status":     map[string]any{"type": "string"},
-		"public_key": map[string]any{"type": "string"},
-		"created_at": map[string]any{"type": "string", "format": "date-time"},
-		"revoked_at": map[string]any{"type": "string", "format": "date-time"},
-	}, "id", "tenant_id", "kid", "algorithm", "status", "public_key", "created_at"))
+		"id":                         map[string]any{"type": "string"},
+		"tenant_id":                  map[string]any{"type": "string"},
+		"kid":                        map[string]any{"type": "string"},
+		"version":                    map[string]any{"type": "integer", "minimum": 1},
+		"provider":                   map[string]any{"type": "string"},
+		"algorithm":                  map[string]any{"type": "string"},
+		"status":                     map[string]any{"type": "string", "enum": []string{"active", "retiring", "revoked"}},
+		"public_key":                 map[string]any{"type": "string"},
+		"public_key_fingerprint":     map[string]any{"type": "string", "pattern": "^sha256:"},
+		"valid_from":                 map[string]any{"type": "string", "format": "date-time"},
+		"valid_until":                map[string]any{"type": "string", "format": "date-time"},
+		"created_at":                 map[string]any{"type": "string", "format": "date-time"},
+		"revoked_at":                 map[string]any{"type": "string", "format": "date-time"},
+		"revocation_reason":          map[string]any{"type": "string"},
+		"revocation_semantics":       map[string]any{"type": "string", "enum": []string{"ordinary", "compromised"}},
+		"historical_validity_policy": map[string]any{"type": "string", "enum": []string{"preserve", "invalidate_from_compromise", "invalidate_all"}},
+		"compromised_at":             map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "kid", "version", "provider", "algorithm", "status", "public_key", "valid_from", "created_at"))
 	registry.RegisterSchema("SigningKeyEnvelope", dataEnvelopeSchema("#/components/schemas/SigningKey"))
 	registry.RegisterSchema("SigningKeyListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/SigningKey"))
 	registry.RegisterSchema("SigningKeyTransitionRequest", objectSchema(map[string]any{
-		"reason": map[string]any{"type": "string"},
-	}))
+		"reason":                     map[string]any{"type": "string", "minLength": 1},
+		"semantics":                  map[string]any{"type": "string", "enum": []string{"ordinary", "compromised"}},
+		"historical_validity_policy": map[string]any{"type": "string", "enum": []string{"preserve", "invalidate_from_compromise", "invalidate_all"}},
+	}, "reason"))
 	registry.RegisterSchema("CreateSigningProviderRequest", objectSchema(map[string]any{
 		"name":      map[string]any{"type": "string"},
 		"type":      map[string]any{"type": "string"},

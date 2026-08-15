@@ -541,11 +541,11 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Description = "Lists tenant signing public-key metadata without private key material."
 		operation.Responses[http.StatusOK] = jsonResponse("Signing key list envelope.", "#/components/schemas/SigningKeyListEnvelope")
 	case "rotateSigningKey":
-		operation.Description = "Rotates the active tenant signing key and returns public-key metadata only."
+		operation.Description = "Rotates the active tenant signing key, retires the prior key with an explicit validity window, and returns public-key metadata only."
 		operation.RequestBody = jsonRequest("Signing key rotation request.", "#/components/schemas/SigningKeyTransitionRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Rotated signing key envelope.", "#/components/schemas/SigningKeyEnvelope")
 	case "revokeSigningKey":
-		operation.Description = "Revokes a tenant signing key as an audited lifecycle transition."
+		operation.Description = "Revokes a tenant signing key as an audited lifecycle transition. Ordinary revocation preserves signatures valid at signing time; compromised-key policy is explicit and can invalidate historical results."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Signing key id."))
 		operation.RequestBody = jsonRequest("Signing key revocation request.", "#/components/schemas/SigningKeyTransitionRequest")
 		operation.Responses[http.StatusOK] = jsonResponse("Revoked signing key envelope.", "#/components/schemas/SigningKeyEnvelope")

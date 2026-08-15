@@ -2114,6 +2114,9 @@ func (l *Ledger) RotateSigningKey(ctx context.Context, actor domain.Actor, reaso
 	if err := require(actor, ScopeKeysAdmin); err != nil {
 		return domain.SigningKey{}, err
 	}
+	if strings.TrimSpace(reason) == "" {
+		return domain.SigningKey{}, ErrValidation
+	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.unitOfWork != nil {
@@ -2444,15 +2447,26 @@ func (l *Ledger) rotateSigningKeyLocked(tenantID, _ string) (domain.SigningKey, 
 }
 
 func (l *Ledger) planSigningKeyRotationLocked(tenantID string) (domain.SigningKey, []domain.SigningKey, error) {
+	now := l.now().UTC()
+	version := 1
 	retiring := make([]domain.SigningKey, 0)
 	for _, key := range l.signingKeys {
-		if key.TenantID == tenantID && key.Status == "active" {
-			key.Status = "retiring"
+		if key.TenantID != tenantID || signingKeyProvider(key) != domain.SigningKeyDefaultProvider {
+			continue
+		}
+		if key.Version < 1 && version < 2 {
+			version = 2
+		} else if key.Version >= version {
+			version = key.Version + 1
+		}
+		if key.Status == domain.SigningKeyStatusActive {
+			key.Status = domain.SigningKeyStatusRetiring
+			key.ValidUntil = &now
 			retiring = append(retiring, key)
 		}
 	}
 	sort.Slice(retiring, func(i, j int) bool { return retiring[i].ID < retiring[j].ID })
-	key, err := l.newSigningKey(tenantID)
+	key, err := l.newSigningKeyAt(tenantID, domain.SigningKeyDefaultProvider, version, now)
 	if err != nil {
 		return domain.SigningKey{}, nil, err
 	}
@@ -2462,17 +2476,29 @@ func (l *Ledger) planSigningKeyRotationLocked(tenantID string) (domain.SigningKe
 // newSigningKey creates private material without publishing it. Callers must
 // write it transactionally and must never return Private to normal callers.
 func (l *Ledger) newSigningKey(tenantID string) (domain.SigningKey, error) {
+	return l.newSigningKeyAt(tenantID, domain.SigningKeyDefaultProvider, 1, l.now().UTC())
+}
+
+func (l *Ledger) newSigningKeyAt(tenantID, provider string, version int, now time.Time) (domain.SigningKey, error) {
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		return domain.SigningKey{}, err
 	}
-	return domain.SigningKey{ID: newID("sk"), TenantID: tenantID, KID: time.Now().UTC().Format("20060102T150405Z"), Algorithm: "Ed25519", Status: "active", PublicKey: base64.RawStdEncoding.EncodeToString(pub), Private: priv, CreatedAt: l.now()}, nil
+	if provider == "" {
+		provider = domain.SigningKeyDefaultProvider
+	}
+	if version < 1 {
+		version = 1
+	}
+	now = now.UTC()
+	fingerprint := sha256.Sum256(pub)
+	return domain.SigningKey{ID: newID("sk"), TenantID: tenantID, KID: fmt.Sprintf("%s-v%d", now.Format("20060102T150405Z"), version), Version: version, Provider: provider, Algorithm: "Ed25519", Status: domain.SigningKeyStatusActive, PublicKey: base64.RawStdEncoding.EncodeToString(pub), PublicKeyFingerprint: "sha256:" + hex.EncodeToString(fingerprint[:]), Private: priv, ValidFrom: now, CreatedAt: now, HistoricalValidityPolicy: domain.SigningKeyHistoricalValidityPreserve}, nil
 }
 
 func (l *Ledger) signLocked(tenantID, subjectType, subjectID string, payload []byte) (domain.Signature, error) {
 	var active domain.SigningKey
 	for _, key := range l.signingKeys {
-		if key.TenantID == tenantID && key.Status == "active" {
+		if key.TenantID == tenantID && key.Status == domain.SigningKeyStatusActive {
 			active = key
 			break
 		}
@@ -2482,7 +2508,7 @@ func (l *Ledger) signLocked(tenantID, subjectType, subjectID string, payload []b
 			return domain.Signature{}, err
 		}
 		for _, key := range l.signingKeys {
-			if key.TenantID == tenantID && key.Status == "active" {
+			if key.TenantID == tenantID && key.Status == domain.SigningKeyStatusActive {
 				active = key
 				break
 			}
@@ -2504,7 +2530,7 @@ func (l *Ledger) verifySignatureLocked(tenantID string, signatureRefs []string, 
 		if !ok || key.TenantID != tenantID {
 			continue
 		}
-		if key.Status == "revoked" && (key.RevokedAt == nil || sig.CreatedAt.After(*key.RevokedAt)) {
+		if key.HistoricalValidityAt(sig.CreatedAt, l.now().UTC()) != domain.SigningKeyHistoricalValidityValid {
 			continue
 		}
 		pub, err := base64.RawStdEncoding.DecodeString(key.PublicKey)

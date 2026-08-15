@@ -2778,13 +2778,13 @@
               <div><dt>Responses</dt><dd>200 application/json: SigningKeyListEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/signing-keys/rotate rotate signing key rotates the active tenant signing key and returns public-key metadata only. rotatesigningkey evydence keys:admin">
+          <article class="operation" data-operation data-search="post /v1/signing-keys/rotate rotate signing key rotates the active tenant signing key, retires the prior key with an explicit validity window, and returns public-key metadata only. rotatesigningkey evydence keys:admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/signing-keys/rotate</code>
             </div>
             <h3>Rotate signing key</h3>
-            <p>Rotates the active tenant signing key and returns public-key metadata only.</p>
+            <p>Rotates the active tenant signing key, retires the prior key with an explicit validity window, and returns public-key metadata only.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>rotateSigningKey</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2795,13 +2795,13 @@
               <div><dt>Responses</dt><dd>201 application/json: SigningKeyEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/signing-keys/{id}/revoke revoke signing key revokes a tenant signing key as an audited lifecycle transition. revokesigningkey evydence keys:admin">
+          <article class="operation" data-operation data-search="post /v1/signing-keys/{id}/revoke revoke signing key revokes a tenant signing key as an audited lifecycle transition. ordinary revocation preserves signatures valid at signing time; compromised-key policy is explicit and can invalidate historical results. revokesigningkey evydence keys:admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/signing-keys/{id}/revoke</code>
             </div>
             <h3>Revoke signing key</h3>
-            <p>Revokes a tenant signing key as an audited lifecycle transition.</p>
+            <p>Revokes a tenant signing key as an audited lifecycle transition. Ordinary revocation preserves signatures valid at signing time; compromised-key policy is explicit and can invalidate historical results.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>revokeSigningKey</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -4973,7 +4973,7 @@
           <tr>
             <td><code>SigningKey</code></td>
             <td>object</td>
-            <td>id, tenant_id, kid, algorithm, status, public_key, created_at</td>
+            <td>id, tenant_id, kid, version, provider, algorithm, status, public_key, valid_from, created_at</td>
           </tr>
           <tr>
             <td><code>SigningKeyEnvelope</code></td>
@@ -4988,7 +4988,7 @@
           <tr>
             <td><code>SigningKeyTransitionRequest</code></td>
             <td>object</td>
-            <td>none</td>
+            <td>reason</td>
           </tr>
           <tr>
             <td><code>SigningOperation</code></td>
