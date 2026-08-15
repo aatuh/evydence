@@ -11,14 +11,12 @@ export type CreateProductRequest = {
 
 export type CreateReleaseRequest = {
   product_id: string;
-  project_id?: string;
   version: string;
 };
 
 export type RegisterArtifactRequest = {
-  release_id?: string;
-  name?: string;
-  media_type?: string;
+  name: string;
+  media_type: string;
   digest: string;
   size?: number;
 };
@@ -26,7 +24,6 @@ export type RegisterArtifactRequest = {
 export type BuildOutput = {
   artifact_id?: string;
   digest: string;
-  name?: string;
 };
 
 export type CreateBuildRequest = {
@@ -34,10 +31,21 @@ export type CreateBuildRequest = {
   release_id: string;
   provider: "github_actions" | "generic";
   commit_sha: string;
+  repository?: string;
+  workflow_ref?: string;
+  run_id?: string;
+  run_attempt?: number;
+  job_id?: string;
+  actor?: string;
+  ref?: string;
+  oidc_subject?: string;
   status: "queued" | "running" | "passed" | "failed" | "cancelled";
   started_at: string;
+  finished_at?: string;
+  parameters_hash?: string;
+  environment_hash?: string;
+  provider_metadata?: Record<string, unknown>;
   outputs?: BuildOutput[];
-  github?: Record<string, unknown>;
 };
 
 export type CreateSSOProviderRequest = {

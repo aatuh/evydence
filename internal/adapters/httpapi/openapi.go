@@ -1716,21 +1716,19 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	registry.RegisterSchema("ProjectEnvelope", dataEnvelopeSchema("#/components/schemas/Project"))
 	registry.RegisterSchema("CreateReleaseRequest", objectSchema(map[string]any{
 		"product_id": map[string]any{"type": "string"},
-		"project_id": map[string]any{"type": "string"},
 		"version":    map[string]any{"type": "string"},
 	}, "product_id", "version"))
 	registry.RegisterSchema("Release", objectSchema(map[string]any{
-		"id":             map[string]any{"type": "string"},
-		"tenant_id":      map[string]any{"type": "string"},
-		"product_id":     map[string]any{"type": "string"},
-		"project_id":     map[string]any{"type": "string"},
-		"version":        map[string]any{"type": "string"},
-		"status":         map[string]any{"type": "string", "enum": []string{"draft", "frozen", "approved"}},
-		"schema_version": map[string]any{"type": "string"},
-		"created_at":     map[string]any{"type": "string", "format": "date-time"},
-		"frozen_at":      map[string]any{"type": "string", "format": "date-time"},
-		"approved_at":    map[string]any{"type": "string", "format": "date-time"},
-	}, "id", "tenant_id", "product_id", "version", "revision", "status", "schema_version", "created_at"))
+		"id":          map[string]any{"type": "string"},
+		"tenant_id":   map[string]any{"type": "string"},
+		"product_id":  map[string]any{"type": "string"},
+		"version":     map[string]any{"type": "string"},
+		"revision":    map[string]any{"type": "integer", "minimum": 1},
+		"state":       map[string]any{"type": "string", "enum": []string{"draft", "frozen", "approved"}},
+		"created_at":  map[string]any{"type": "string", "format": "date-time"},
+		"frozen_at":   map[string]any{"type": "string", "format": "date-time"},
+		"approved_at": map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "product_id", "version", "revision", "state", "created_at"))
 	registry.RegisterSchema("ReleaseEnvelope", dataEnvelopeSchema("#/components/schemas/Release"))
 	registry.RegisterSchema("ReleaseEvidenceFlowStep", objectSchema(map[string]any{
 		"id":                   map[string]any{"type": "string"},
@@ -1805,35 +1803,45 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "product", "release", "artifact_count", "sbom_status", "vulnerability_scan_status", "open_findings_by_severity", "decisions_by_status", "approval_summary", "exception_summary", "readiness_status", "package_status", "counts", "assumptions", "limitations", "schema_version", "generated_at"))
 	registry.RegisterSchema("ReleaseSecuritySummaryEnvelope", dataEnvelopeSchema("#/components/schemas/ReleaseSecuritySummary"))
 	registry.RegisterSchema("RegisterArtifactRequest", objectSchema(map[string]any{
-		"release_id":  map[string]any{"type": "string"},
-		"name":        map[string]any{"type": "string"},
-		"media_type":  map[string]any{"type": "string"},
-		"digest":      map[string]any{"type": "string", "pattern": "^sha256:"},
-		"size":        map[string]any{"type": "integer", "minimum": 0},
-		"subject_ref": map[string]any{"type": "string"},
-	}, "name", "digest"))
+		"name":       map[string]any{"type": "string"},
+		"media_type": map[string]any{"type": "string"},
+		"digest":     map[string]any{"type": "string", "pattern": "^sha256:"},
+		"size":       map[string]any{"type": "integer", "minimum": 0},
+	}, "name", "media_type", "digest"))
 	registry.RegisterSchema("Artifact", objectSchema(map[string]any{
-		"id":             map[string]any{"type": "string"},
-		"tenant_id":      map[string]any{"type": "string"},
-		"release_id":     map[string]any{"type": "string"},
-		"name":           map[string]any{"type": "string"},
-		"media_type":     map[string]any{"type": "string"},
-		"digest":         map[string]any{"type": "string"},
-		"size":           map[string]any{"type": "integer"},
-		"schema_version": map[string]any{"type": "string"},
-		"created_at":     map[string]any{"type": "string", "format": "date-time"},
-	}, "id", "tenant_id", "name", "digest", "schema_version", "created_at"))
+		"id":         map[string]any{"type": "string"},
+		"tenant_id":  map[string]any{"type": "string"},
+		"name":       map[string]any{"type": "string"},
+		"media_type": map[string]any{"type": "string"},
+		"digest":     map[string]any{"type": "string"},
+		"size":       map[string]any{"type": "integer", "minimum": 0},
+		"created_at": map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "name", "media_type", "digest", "size", "created_at"))
 	registry.RegisterSchema("ArtifactEnvelope", dataEnvelopeSchema("#/components/schemas/Artifact"))
+	registry.RegisterSchema("BuildOutput", objectSchema(map[string]any{
+		"artifact_id": map[string]any{"type": "string"},
+		"digest":      map[string]any{"type": "string"},
+	}, "digest"))
 	registry.RegisterSchema("CreateBuildRequest", objectSchema(map[string]any{
-		"project_id":   map[string]any{"type": "string"},
-		"release_id":   map[string]any{"type": "string"},
-		"provider":     map[string]any{"type": "string"},
-		"commit_sha":   map[string]any{"type": "string"},
-		"status":       map[string]any{"type": "string", "enum": []string{"queued", "running", "passed", "failed", "cancelled"}},
-		"started_at":   map[string]any{"type": "string", "format": "date-time"},
-		"completed_at": map[string]any{"type": "string", "format": "date-time"},
-		"github":       map[string]any{"type": "object"},
-		"outputs":      map[string]any{"type": "array", "items": map[string]any{"type": "object"}},
+		"project_id":        map[string]any{"type": "string"},
+		"release_id":        map[string]any{"type": "string"},
+		"provider":          map[string]any{"type": "string"},
+		"commit_sha":        map[string]any{"type": "string"},
+		"repository":        map[string]any{"type": "string"},
+		"workflow_ref":      map[string]any{"type": "string"},
+		"run_id":            map[string]any{"type": "string"},
+		"run_attempt":       map[string]any{"type": "integer", "minimum": 0},
+		"job_id":            map[string]any{"type": "string"},
+		"actor":             map[string]any{"type": "string"},
+		"ref":               map[string]any{"type": "string"},
+		"oidc_subject":      map[string]any{"type": "string"},
+		"status":            map[string]any{"type": "string", "enum": []string{"queued", "running", "passed", "failed", "cancelled"}},
+		"started_at":        map[string]any{"type": "string", "format": "date-time"},
+		"finished_at":       map[string]any{"type": "string", "format": "date-time"},
+		"parameters_hash":   map[string]any{"type": "string"},
+		"environment_hash":  map[string]any{"type": "string"},
+		"provider_metadata": map[string]any{"type": "object"},
+		"outputs":           map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/BuildOutput"}},
 	}, "project_id", "release_id", "provider", "commit_sha", "status", "started_at"))
 	registry.RegisterSchema("BuildRun", objectSchema(map[string]any{
 		"id":             map[string]any{"type": "string"},

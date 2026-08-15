@@ -143,7 +143,7 @@
         <div class="summary-card"><strong>3.1.0</strong><span>OpenAPI version</span></div>
         <div class="summary-card"><strong>172</strong><span>registered paths</span></div>
         <div class="summary-card"><strong>189</strong><span>operations</span></div>
-        <div class="summary-card"><strong>386</strong><span>schemas</span></div>
+        <div class="summary-card"><strong>387</strong><span>schemas</span></div>
       </div>
     </header>
     <main>
@@ -347,13 +347,13 @@
               <div><dt>Responses</dt><dd>200 application/json: CosignVerificationEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/artifacts register artifact registers an artifact digest for release evidence and later build/attestation matching. registerartifact evydence evidence:write">
+          <article class="operation" data-operation data-search="post /v1/artifacts register artifact registers a tenant-scoped artifact digest for later evidence, build, and attestation matching. registerartifact evydence evidence:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/artifacts</code>
             </div>
             <h3>Register artifact</h3>
-            <p>Registers an artifact digest for release evidence and later build/attestation matching.</p>
+            <p>Registers a tenant-scoped artifact digest for later evidence, build, and attestation matching.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>registerArtifact</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2166,13 +2166,13 @@
               <div><dt>Responses</dt><dd>200 application/json: ReleaseCandidateEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/releases create release creates an append-only release record under a product and optional project. createrelease evydence release:write">
+          <article class="operation" data-operation data-search="post /v1/releases create release creates an append-only release record under a product. createrelease evydence release:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/releases</code>
             </div>
             <h3>Create release</h3>
-            <p>Creates an append-only release record under a product and optional project.</p>
+            <p>Creates an append-only release record under a product.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createRelease</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -3433,7 +3433,7 @@
           <tr>
             <td><code>Artifact</code></td>
             <td>object</td>
-            <td>id, tenant_id, name, digest, schema_version, created_at</td>
+            <td>id, tenant_id, name, media_type, digest, size, created_at</td>
           </tr>
           <tr>
             <td><code>ArtifactEnvelope</code></td>
@@ -3479,6 +3479,11 @@
             <td><code>BuildAttestationEnvelope</code></td>
             <td>object</td>
             <td>data, meta</td>
+          </tr>
+          <tr>
+            <td><code>BuildOutput</code></td>
+            <td>object</td>
+            <td>digest</td>
           </tr>
           <tr>
             <td><code>BuildRun</code></td>
@@ -4648,7 +4653,7 @@
           <tr>
             <td><code>RegisterArtifactRequest</code></td>
             <td>object</td>
-            <td>name, digest</td>
+            <td>name, media_type, digest</td>
           </tr>
           <tr>
             <td><code>RegisterContainerImageRequest</code></td>
@@ -4658,7 +4663,7 @@
           <tr>
             <td><code>Release</code></td>
             <td>object</td>
-            <td>id, tenant_id, product_id, version, revision, status, schema_version, created_at</td>
+            <td>id, tenant_id, product_id, version, revision, state, created_at</td>
           </tr>
           <tr>
             <td><code>ReleaseBundle</code></td>

@@ -180,14 +180,13 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Project id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Project envelope.", "#/components/schemas/ProjectEnvelope")
 	case "createRelease":
-		operation.Description = "Creates an append-only release record under a product and optional project."
+		operation.Description = "Creates an append-only release record under a product."
 		operation.RequestBody = jsonRequest("Release creation request.", "#/components/schemas/CreateReleaseRequest")
 		addJSONRequestExamples(operation.RequestBody, map[string]any{
 			"release-candidate": specs.Example{
 				Summary: "Create a release for evidence collection",
 				Value: map[string]any{
 					"product_id": "prod_20260527120000",
-					"project_id": "proj_20260527120000",
 					"version":    "1.0.0-rc.1",
 				},
 			},
@@ -198,14 +197,13 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 				Summary: "Created release response",
 				Value: map[string]any{
 					"data": map[string]any{
-						"id":             "rel_20260527120000",
-						"tenant_id":      "ten_20260527120000",
-						"product_id":     "prod_20260527120000",
-						"project_id":     "proj_20260527120000",
-						"version":        "1.0.0-rc.1",
-						"status":         "draft",
-						"schema_version": "release.v1.0.0",
-						"created_at":     "2026-05-27T12:00:00Z",
+						"id":         "rel_20260527120000",
+						"tenant_id":  "ten_20260527120000",
+						"product_id": "prod_20260527120000",
+						"version":    "1.0.0-rc.1",
+						"revision":   1,
+						"state":      "draft",
+						"created_at": "2026-05-27T12:00:00Z",
 					},
 					"meta": map[string]any{"api_version": "v1"},
 				},
@@ -235,7 +233,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Approved release envelope.", "#/components/schemas/ReleaseEnvelope")
 	case "registerArtifact":
-		operation.Description = "Registers an artifact digest for release evidence and later build/attestation matching."
+		operation.Description = "Registers a tenant-scoped artifact digest for later evidence, build, and attestation matching."
 		operation.RequestBody = jsonRequest("Artifact registration request.", "#/components/schemas/RegisterArtifactRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Registered artifact envelope.", "#/components/schemas/ArtifactEnvelope")
 	case "getArtifact":

@@ -723,8 +723,8 @@ func (s releaseEvidenceService) RegisterArtifact(ctx context.Context, actor doma
 	if err := require(actor, ScopeEvidenceWrite); err != nil {
 		return domain.Artifact{}, err
 	}
-	name, digest = strings.TrimSpace(name), strings.TrimSpace(digest)
-	if name == "" || !validDigest(digest) || size < 0 {
+	name, mediaType, digest = strings.TrimSpace(name), strings.TrimSpace(mediaType), strings.TrimSpace(digest)
+	if name == "" || mediaType == "" || !validDigest(digest) || size < 0 {
 		return domain.Artifact{}, ErrValidation
 	}
 	l.mu.Lock()

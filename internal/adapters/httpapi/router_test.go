@@ -612,6 +612,56 @@ func TestProductProjectArtifactReadEndpoints(t *testing.T) {
 	getJSON(t, server, secret, "/v1/artifacts/art_missing", http.StatusNotFound)
 }
 
+func TestReleaseAndArtifactRejectUnsupportedRelationshipFields(t *testing.T) {
+	server, secret := testServer(t)
+	productBody := postJSON(t, server, secret, "/v1/products", "contract-fields-product", map[string]any{"name": "Contract API", "slug": "contract-api"}, http.StatusCreated)
+	productID := dataField(t, productBody, "id")
+
+	for _, tc := range []struct {
+		name    string
+		path    string
+		idem    string
+		payload map[string]any
+	}{
+		{
+			name:    "release project id",
+			path:    "/v1/releases",
+			idem:    "contract-fields-release-project",
+			payload: map[string]any{"product_id": productID, "project_id": "proj_ignored", "version": "1.0.0"},
+		},
+		{
+			name:    "artifact release id",
+			path:    "/v1/artifacts",
+			idem:    "contract-fields-artifact-release",
+			payload: map[string]any{"release_id": "rel_ignored", "name": "api.tgz", "media_type": "application/gzip", "digest": "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb"},
+		},
+		{
+			name:    "artifact subject ref",
+			path:    "/v1/artifacts",
+			idem:    "contract-fields-artifact-subject",
+			payload: map[string]any{"subject_ref": "release:ignored", "name": "api.tgz", "media_type": "application/gzip", "digest": "sha256:3e23e8160039594a33894f6564e1b1348bbdbb4f9a5f5f6e8a1c7a8c4f6f1f5a"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			body := postJSON(t, server, secret, tc.path, tc.idem, tc.payload, http.StatusBadRequest)
+			if !strings.Contains(body, `"code":"VALIDATION_FAILED"`) {
+				t.Fatalf("unsupported field response = %s", body)
+			}
+		})
+	}
+}
+
+func TestRegisterArtifactRequiresMediaType(t *testing.T) {
+	server, secret := testServer(t)
+	body := postJSON(t, server, secret, "/v1/artifacts", "contract-fields-artifact-media-type", map[string]any{
+		"name":   "api.tgz",
+		"digest": "sha256:2e7d2c03a9507ae265ecf5b5356885a53393a2029d241394997265a1a25aefc6",
+	}, http.StatusBadRequest)
+	if !strings.Contains(body, `"code":"VALIDATION_FAILED"`) {
+		t.Fatalf("missing media_type response = %s", body)
+	}
+}
+
 func TestServerRateLimitReturnsSafeProblem(t *testing.T) {
 	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
 	server, err := NewServerWithOptions(ledger, ServerOptions{RateLimitRequestsPerMinute: 2})

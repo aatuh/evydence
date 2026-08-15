@@ -135,4 +135,4 @@ make test
 make sdk-check
 ```
 
-`make sdk-check` runs `scripts/sdk_check.py`, which verifies that the curated helper methods still map to committed OpenAPI operations, idempotent routes still require `Idempotency-Key`, SDKs keep basic `/v1/` path validation, and the generated route catalog matches `openapi.yaml`. Generated SDK publishing is not an API runtime dependency. Keep generated clients tied to the committed `openapi.yaml` and document any route coverage gaps at release time.
+`make sdk-check` runs `scripts/sdk_check.py`, which verifies that the curated helper methods still map to committed OpenAPI operations, idempotent routes still require `Idempotency-Key`, Go and TypeScript request fields and requiredness match the corresponding OpenAPI schemas and handler decode structs, SDKs keep basic `/v1/` path validation, and the generated route catalog matches `openapi.yaml`. Generated SDK publishing is not an API runtime dependency. Keep generated clients tied to the committed `openapi.yaml` and document any route coverage gaps at release time.

@@ -111,7 +111,7 @@ func TestReleaseLedgerTypedHelpersUseContractRoutes(t *testing.T) {
 			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 				t.Fatalf("decode release: %v", err)
 			}
-			if body.ProductID != "prod_1" || body.ProjectID != "proj_1" || body.Version != "1.0.0" {
+			if body.ProductID != "prod_1" || body.Version != "1.0.0" {
 				t.Fatalf("release body = %#v", body)
 			}
 		case "POST /v1/artifacts":
@@ -119,7 +119,7 @@ func TestReleaseLedgerTypedHelpersUseContractRoutes(t *testing.T) {
 			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 				t.Fatalf("decode artifact: %v", err)
 			}
-			if body.ReleaseID != "rel_1" || body.Digest != "sha256:abc" || body.Size != 42 {
+			if body.Name != "api.tgz" || body.MediaType != "application/gzip" || body.Digest != "sha256:abc" || body.Size != 42 {
 				t.Fatalf("artifact body = %#v", body)
 			}
 		case "POST /v1/builds":
@@ -127,7 +127,7 @@ func TestReleaseLedgerTypedHelpersUseContractRoutes(t *testing.T) {
 			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 				t.Fatalf("decode build: %v", err)
 			}
-			if body.ProjectID != "proj_1" || body.ReleaseID != "rel_1" || body.Provider != "github_actions" || body.CommitSHA != "0123456789abcdef0123456789abcdef01234567" || body.Status != "passed" || len(body.Outputs) != 1 {
+			if body.ProjectID != "proj_1" || body.ReleaseID != "rel_1" || body.Provider != "github_actions" || body.CommitSHA != "0123456789abcdef0123456789abcdef01234567" || body.Repository != "acme/api" || body.WorkflowRef != "acme/api/.github/workflows/build.yml@main" || body.RunID != "123" || body.RunAttempt != 2 || body.JobID != "456" || body.Actor != "octo" || body.Ref != "refs/heads/main" || body.OIDCSubject != "repo:acme/api" || body.Status != "passed" || body.FinishedAt != "2026-05-28T10:01:00Z" || body.ParametersHash != "sha256:params" || body.EnvironmentHash != "sha256:environment" || body.ProviderMetadata["workflow"] != "build" || len(body.Outputs) != 1 {
 				t.Fatalf("build body = %#v", body)
 			}
 		default:
@@ -151,26 +151,38 @@ func TestReleaseLedgerTypedHelpersUseContractRoutes(t *testing.T) {
 		{
 			name: "release",
 			run: func() error {
-				return client.CreateRelease(context.Background(), "idem-typed", CreateReleaseRequest{ProductID: "prod_1", ProjectID: "proj_1", Version: "1.0.0"}, nil)
+				return client.CreateRelease(context.Background(), "idem-typed", CreateReleaseRequest{ProductID: "prod_1", Version: "1.0.0"}, nil)
 			},
 		},
 		{
 			name: "artifact",
 			run: func() error {
-				return client.RegisterArtifact(context.Background(), "idem-typed", RegisterArtifactRequest{ReleaseID: "rel_1", Digest: "sha256:abc", Size: 42}, nil)
+				return client.RegisterArtifact(context.Background(), "idem-typed", RegisterArtifactRequest{Name: "api.tgz", MediaType: "application/gzip", Digest: "sha256:abc", Size: 42}, nil)
 			},
 		},
 		{
 			name: "build",
 			run: func() error {
 				return client.CreateBuild(context.Background(), "idem-typed", CreateBuildRequest{
-					ProjectID: "proj_1",
-					ReleaseID: "rel_1",
-					Provider:  "github_actions",
-					CommitSHA: "0123456789abcdef0123456789abcdef01234567",
-					Status:    "passed",
-					StartedAt: "2026-05-28T10:00:00Z",
-					Outputs:   []BuildOutput{{Digest: "sha256:abc"}},
+					ProjectID:        "proj_1",
+					ReleaseID:        "rel_1",
+					Provider:         "github_actions",
+					CommitSHA:        "0123456789abcdef0123456789abcdef01234567",
+					Repository:       "acme/api",
+					WorkflowRef:      "acme/api/.github/workflows/build.yml@main",
+					RunID:            "123",
+					RunAttempt:       2,
+					JobID:            "456",
+					Actor:            "octo",
+					Ref:              "refs/heads/main",
+					OIDCSubject:      "repo:acme/api",
+					Status:           "passed",
+					StartedAt:        "2026-05-28T10:00:00Z",
+					FinishedAt:       "2026-05-28T10:01:00Z",
+					ParametersHash:   "sha256:params",
+					EnvironmentHash:  "sha256:environment",
+					ProviderMetadata: map[string]any{"workflow": "build"},
+					Outputs:          []BuildOutput{{Digest: "sha256:abc"}},
 				}, nil)
 			},
 		},

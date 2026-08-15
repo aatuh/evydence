@@ -53,6 +53,16 @@ release artifacts.
 - The release-evidence, SDK route catalog, API contract matrix, and public API
   operations now record explicit stability classifications for evaluation and
   implementation planning.
+- Corrected the prerelease release and artifact contracts to match the server:
+  `POST /v1/releases` no longer accepts `project_id`; `POST /v1/artifacts` no
+  longer accepts `release_id` or `subject_ref`; and artifact `media_type` is
+  required. Clients that sent those removed fields must omit them and link
+  artifacts to releases through the documented evidence, build, or
+  release-candidate flows instead.
+- Corrected the prerelease build helper to use `finished_at` and
+  `provider_metadata` plus the documented CI identity fields. The obsolete
+  `completed_at` and `github` fields are removed from the OpenAPI and typed SDK
+  contract.
 - The repository now tracks a scorecard and execution backlog with evidence
   links and external-evidence blockers; these are implementation-tracking
   records, not production or compliance claims.
@@ -62,6 +72,9 @@ release artifacts.
 
 ### Fixed
 
+- Artifact registration now rejects a missing or whitespace-only `media_type`
+  before persistence, so in-memory and PostgreSQL-backed deployments apply the
+  same request contract.
 - Object payload storage now enforces the versioned canonical tenant/digest key layout, confines filesystem operations beneath the configured root even across symlinks, and verifies tenant, digest bytes, byte count, and media type before filesystem or S3 content is trusted. S3 public/custom remote endpoints require TLS and AWS S3 endpoints require an explicit region.
 - Object-retention verification no longer treats a local policy record as
   provider enforcement. Positive results now retain bounded provider-observation

@@ -23,7 +23,6 @@ release_id = release["data"]["id"]
 artifact = client.register_artifact(
     "example-python-artifact",
     {
-        "release_id": release_id,
         "name": "example-api.tar.gz",
         "media_type": "application/gzip",
         "digest": "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",

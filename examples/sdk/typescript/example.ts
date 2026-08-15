@@ -18,7 +18,6 @@ const release = await client.createRelease<{ data: { id: string } }>(
 const artifact = await client.registerArtifact<{ data: { id: string } }>(
   "example-typescript-artifact",
   {
-    release_id: release.data.id,
     name: "example-api.tar.gz",
     media_type: "application/gzip",
     digest: "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",
