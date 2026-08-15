@@ -254,6 +254,7 @@ func openSigningExecutor() (app.SigningExecutor, error) {
 	executor, err := signinggateway.New(signinggateway.Config{
 		Endpoint:                  endpoint,
 		BearerToken:               os.Getenv("EVYDENCE_SIGNING_EXECUTOR_TOKEN"),
+		VerificationPublicKey:     os.Getenv("EVYDENCE_SIGNING_EXECUTOR_PUBLIC_KEY_BASE64"),
 		AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST"), "true"),
 		Timeout:                   time.Duration(intEnv("EVYDENCE_SIGNING_EXECUTOR_TIMEOUT_SECONDS", 10)) * time.Second,
 	})

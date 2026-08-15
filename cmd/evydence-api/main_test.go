@@ -247,6 +247,7 @@ func TestOpenSigningExecutorRequiresHTTPSUnlessLocalOverride(t *testing.T) {
 	}
 	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_URL", "http://127.0.0.1/sign")
 	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST", "true")
+	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_PUBLIC_KEY_BASE64", base64.StdEncoding.EncodeToString(make([]byte, 32)))
 	signer, err := openSigningExecutor()
 	if err != nil {
 		t.Fatalf("localhost signer should be accepted: %v", err)
@@ -260,6 +261,7 @@ func TestOpenSigningExecutorUsesGatewayForNonAWSKMSModes(t *testing.T) {
 	t.Setenv("EVYDENCE_SIGNING_KEY_MODE", "gcp-kms")
 	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_URL", "http://127.0.0.1/sign")
 	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST", "true")
+	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_PUBLIC_KEY_BASE64", base64.StdEncoding.EncodeToString(make([]byte, 32)))
 	signer, err := openSigningExecutor()
 	if err != nil {
 		t.Fatalf("gcp-kms gateway signer should be accepted: %v", err)

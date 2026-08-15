@@ -3,6 +3,9 @@ package httpgateway
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,6 +25,7 @@ const defaultTimeout = 10 * time.Second
 type Config struct {
 	Endpoint                  string
 	BearerToken               string
+	VerificationPublicKey     string
 	Timeout                   time.Duration
 	AllowInsecureForLocalhost bool
 	Client                    *http.Client
@@ -30,6 +34,7 @@ type Config struct {
 type Executor struct {
 	endpoint    string
 	bearerToken string
+	publicKey   ed25519.PublicKey
 	client      *http.Client
 }
 
@@ -66,15 +71,23 @@ func New(cfg Config) (*Executor, error) {
 	if parsed.Scheme != "https" && (!cfg.AllowInsecureForLocalhost || parsed.Scheme != "http" || !localhostHost(parsed.Hostname())) {
 		return nil, errors.New("signing gateway endpoint must use https")
 	}
+	publicKey, err := base64.StdEncoding.DecodeString(strings.TrimSpace(cfg.VerificationPublicKey))
+	if err != nil || len(publicKey) != ed25519.PublicKeySize {
+		return nil, app.ErrValidation
+	}
 	timeout := cfg.Timeout
 	if timeout <= 0 {
 		timeout = defaultTimeout
 	}
-	client := cfg.Client
-	if client == nil {
-		client = &http.Client{Timeout: timeout}
+	client := &http.Client{Timeout: timeout}
+	if cfg.Client != nil {
+		*client = *cfg.Client
+		client.Timeout = timeout
 	}
-	return &Executor{endpoint: endpoint, bearerToken: strings.TrimSpace(cfg.BearerToken), client: client}, nil
+	client.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return errors.New("signing gateway redirects are not permitted")
+	}
+	return &Executor{endpoint: endpoint, bearerToken: strings.TrimSpace(cfg.BearerToken), publicKey: ed25519.PublicKey(publicKey), client: client}, nil
 }
 
 func (e *Executor) Sign(ctx context.Context, request app.SigningRequest) (app.SigningResult, error) {
@@ -125,8 +138,16 @@ func (e *Executor) Sign(ctx context.Context, request app.SigningRequest) (app.Si
 	decoded.Signature = strings.TrimSpace(decoded.Signature)
 	decoded.KeyID = strings.TrimSpace(decoded.KeyID)
 	decoded.Algorithm = strings.TrimSpace(decoded.Algorithm)
-	if decoded.Signature == "" || len(decoded.Signature) > 32768 {
+	if decoded.Signature == "" || len(decoded.Signature) > 32768 || decoded.Algorithm != "ed25519" {
 		return app.SigningResult{}, app.ErrValidation
+	}
+	signature, err := base64.StdEncoding.DecodeString(decoded.Signature)
+	if err != nil || len(signature) != ed25519.SignatureSize {
+		return app.SigningResult{}, app.ErrValidation
+	}
+	digest, err := hex.DecodeString(strings.TrimPrefix(request.CanonicalPayloadHash, "sha256:"))
+	if err != nil || len(digest) != 32 || !ed25519.Verify(e.publicKey, digest, signature) {
+		return app.SigningResult{}, app.ErrVerificationFailed
 	}
 	return app.SigningResult{
 		Signature:            decoded.Signature,
@@ -138,7 +159,7 @@ func (e *Executor) Sign(ctx context.Context, request app.SigningRequest) (app.Si
 		CanonicalPayloadHash: request.CanonicalPayloadHash,
 		RequestID:            request.RequestID,
 		Checks: []domain.VerifyCheck{
-			{Name: "signing_gateway_response", Result: "passed", Detail: "External signing gateway returned a signature over the submitted payload hash."},
+			{Name: "signing_gateway_response", Result: "passed", Detail: "External signing gateway signature verified over the canonical request hash."},
 		},
 	}, nil
 }

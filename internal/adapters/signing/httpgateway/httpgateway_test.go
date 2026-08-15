@@ -1,6 +1,10 @@
 package httpgateway
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -10,15 +14,20 @@ import (
 )
 
 func TestNewRequiresHTTPSEndpointExceptLocalhostOverride(t *testing.T) {
-	if _, err := New(Config{Endpoint: "http://example.com/sign"}); err == nil {
+	publicKey := base64.StdEncoding.EncodeToString(make([]byte, ed25519.PublicKeySize))
+	if _, err := New(Config{Endpoint: "http://example.com/sign", VerificationPublicKey: publicKey}); err == nil {
 		t.Fatal("expected non-HTTPS remote endpoint to be rejected")
 	}
-	if _, err := New(Config{Endpoint: "http://127.0.0.1/sign", AllowInsecureForLocalhost: true}); err != nil {
+	if _, err := New(Config{Endpoint: "http://127.0.0.1/sign", VerificationPublicKey: publicKey, AllowInsecureForLocalhost: true}); err != nil {
 		t.Fatalf("localhost override should be accepted: %v", err)
 	}
 }
 
 func TestSignPostsHashOnlyAndReturnsSignature(t *testing.T) {
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
 	var gotAuth, gotPayloadHash, gotKeyRef string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -31,11 +40,15 @@ func TestSignPostsHashOnlyAndReturnsSignature(t *testing.T) {
 		}
 		gotPayloadHash = req.PayloadHash
 		gotKeyRef = req.KeyRef
-		_ = json.NewEncoder(w).Encode(signResponse{Signature: "sig_external", KeyID: "kms-key-1", Algorithm: "external-aws_kms"})
+		digest, err := hex.DecodeString(req.CanonicalPayloadHash[len("sha256:"):])
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = json.NewEncoder(w).Encode(signResponse{Signature: base64.StdEncoding.EncodeToString(ed25519.Sign(privateKey, digest)), KeyID: "kms-key-1", Algorithm: "ed25519"})
 	}))
 	defer server.Close()
 
-	executor, err := New(Config{Endpoint: server.URL, BearerToken: "secret-token", AllowInsecureForLocalhost: true})
+	executor, err := New(Config{Endpoint: server.URL, BearerToken: "secret-token", VerificationPublicKey: base64.StdEncoding.EncodeToString(publicKey), AllowInsecureForLocalhost: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,12 +59,12 @@ func TestSignPostsHashOnlyAndReturnsSignature(t *testing.T) {
 		KeyRef:       "arn:aws:kms:example",
 		SubjectType:  "release",
 		SubjectID:    "rel_1",
-		PayloadHash:  "sha256:abcdef",
+		PayloadHash:  "sha256:abcdef", CanonicalPayloadHash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", RequestID: "req_1", Nonce: "nonce_1",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Signature != "sig_external" || result.KeyID != "kms-key-1" || result.Algorithm != "external-aws_kms" {
+	if result.Signature == "" || result.KeyID != "kms-key-1" || result.Algorithm != "ed25519" {
 		t.Fatalf("result = %#v", result)
 	}
 	if gotAuth != "Bearer secret-token" {
@@ -67,7 +80,7 @@ func TestSignRejectsUnknownResponseFields(t *testing.T) {
 		_, _ = w.Write([]byte(`{"signature":"sig","extra":"nope"}`))
 	}))
 	defer server.Close()
-	executor, err := New(Config{Endpoint: server.URL, AllowInsecureForLocalhost: true})
+	executor, err := New(Config{Endpoint: server.URL, VerificationPublicKey: base64.StdEncoding.EncodeToString(make([]byte, ed25519.PublicKeySize)), AllowInsecureForLocalhost: true})
 	if err != nil {
 		t.Fatal(err)
 	}

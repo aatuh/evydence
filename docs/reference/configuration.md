@@ -67,6 +67,7 @@ process, or equivalent deployment control.
 | `EVYDENCE_SIGNING_KEY_MODE` | Production yes | `external`, `aws-kms`, `gcp-kms`, `azure-key-vault`, or `pkcs11-hsm` for production | Production rejects local plaintext signing-key mode. `aws-kms`, `gcp-kms`, and `azure-key-vault` can use built-in provider executors. `pkcs11-hsm` remains an HTTPS signing-gateway profile. |
 | `EVYDENCE_SIGNING_EXECUTOR_URL` | `external` and `pkcs11-hsm` production modes | unset | HTTPS signing gateway used by `POST /v1/signing-operations`. The API sends a canonical request that binds subject metadata and `payload_hash`, never raw payload bytes. |
 | `EVYDENCE_SIGNING_EXECUTOR_TOKEN` | Signing gateway | unset | Optional bearer token for the signing gateway. Store outside source control and logs. |
+| `EVYDENCE_SIGNING_EXECUTOR_PUBLIC_KEY_BASE64` | Signing gateway | unset | Required base64-encoded Ed25519 public key. Evydence verifies the gateway signature over the canonical signing-request hash before persisting a receipt. This is public trust material, never a private key. |
 | `EVYDENCE_SIGNING_EXECUTOR_TIMEOUT_SECONDS` | No | `10` | Timeout for signing gateway requests. |
 | `EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST` | Local only | `false` | Allows `http://localhost` or loopback signing gateway endpoints for local development and tests. Do not use for production. |
 | `EVYDENCE_AWS_KMS_KEY_ID` | AWS KMS mode | unset | AWS KMS asymmetric signing key id, alias, or ARN. Store IAM credentials outside Evydence config and logs. |
