@@ -25,6 +25,7 @@ import (
 	s3store "github.com/aatuh/evydence/internal/adapters/objectstore/s3"
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/app"
+	vexparser "github.com/aatuh/evydence/internal/app/parsers/vex"
 	"github.com/aatuh/evydence/internal/domain"
 )
 
@@ -868,138 +869,36 @@ func parseReplayedVEX(raw []byte) (replayedVEX, error) {
 }
 
 func parseReplayedOpenVEX(raw []byte) (replayedVEX, error) {
-	var doc struct {
-		Context    any    `json:"@context"`
-		ID         string `json:"@id"`
-		Author     string `json:"author"`
-		Timestamp  string `json:"timestamp"`
-		Version    any    `json:"version"`
-		Statements []struct {
-			Vulnerability struct {
-				Name string `json:"name"`
-			} `json:"vulnerability"`
-			Products        []map[string]any `json:"products"`
-			Status          string           `json:"status"`
-			Justification   string           `json:"justification"`
-			ImpactStatement string           `json:"impact_statement"`
-			ActionStatement string           `json:"action_statement"`
-		} `json:"statements"`
-	}
-	if err := strictDecodeWorker(raw, &doc); err != nil || strings.TrimSpace(doc.Author) == "" || strings.TrimSpace(doc.Timestamp) == "" || len(doc.Statements) == 0 {
+	doc, err := vexparser.ParseOpenVEX(raw, vexparser.DefaultLimits(defaultMaxWorkerPayloadBytes))
+	if err != nil {
 		return replayedVEX{}, errors.New("replayed vex payload is invalid")
 	}
-	summary := map[string]int{}
-	statements := make([]replayedVEXStatement, 0, len(doc.Statements))
-	for _, statement := range doc.Statements {
-		status := strings.TrimSpace(statement.Status)
-		if strings.TrimSpace(statement.Vulnerability.Name) == "" || status == "" || len(statement.Products) == 0 {
-			return replayedVEX{}, errors.New("replayed vex payload is invalid")
-		}
-		switch status {
-		case "affected", "not_affected", "fixed", "under_investigation":
-		default:
-			return replayedVEX{}, errors.New("replayed vex payload is invalid")
-		}
-		summary[status]++
-		statements = append(statements, replayedVEXStatement{
-			Vulnerability:   strings.TrimSpace(statement.Vulnerability.Name),
-			Products:        replayedVEXProductIDs(statement.Products),
-			Status:          status,
-			Justification:   strings.TrimSpace(statement.Justification),
-			ImpactStatement: strings.TrimSpace(statement.ImpactStatement),
-			ActionStatement: strings.TrimSpace(statement.ActionStatement),
-		})
-	}
-	return replayedVEX{Author: strings.TrimSpace(doc.Author), StatementCount: len(doc.Statements), StatusSummary: summary, Statements: statements}, nil
+	return replayedVEXFromParsed(doc), nil
 }
 
 func parseReplayedCycloneDXVEX(raw []byte) (replayedVEX, error) {
-	var doc struct {
-		BOMFormat       string `json:"bomFormat"`
-		SpecVersion     string `json:"specVersion"`
-		Vulnerabilities []struct {
-			ID      string `json:"id"`
-			Affects []struct {
-				Ref string `json:"ref"`
-			} `json:"affects,omitempty"`
-			Analysis struct {
-				State         string   `json:"state"`
-				Justification string   `json:"justification"`
-				Detail        string   `json:"detail"`
-				Response      []string `json:"response"`
-			} `json:"analysis"`
-		} `json:"vulnerabilities"`
-	}
-	if err := strictDecodeWorker(raw, &doc); err != nil || !strings.EqualFold(strings.TrimSpace(doc.BOMFormat), "cyclonedx") || len(doc.Vulnerabilities) == 0 {
+	doc, err := vexparser.ParseCycloneDX(raw, vexparser.DefaultLimits(defaultMaxWorkerPayloadBytes))
+	if err != nil {
 		return replayedVEX{}, errors.New("replayed vex payload is invalid")
 	}
+	return replayedVEXFromParsed(doc), nil
+}
+
+func replayedVEXFromParsed(doc vexparser.Document) replayedVEX {
 	summary := map[string]int{}
-	statements := make([]replayedVEXStatement, 0, len(doc.Vulnerabilities))
-	for _, vuln := range doc.Vulnerabilities {
-		status := workerCycloneDXAnalysisStatus(vuln.Analysis.State)
-		if strings.TrimSpace(vuln.ID) == "" || status == "" {
+	statements := make([]replayedVEXStatement, 0, len(doc.Statements))
+	for _, statement := range doc.Statements {
+		if statement.Vulnerability == "" || statement.Status == "" {
 			continue
 		}
 		products := map[string]struct{}{}
-		for _, affect := range vuln.Affects {
-			if ref := strings.TrimSpace(affect.Ref); ref != "" {
-				products[ref] = struct{}{}
-			}
+		for _, product := range statement.Products {
+			products[product] = struct{}{}
 		}
-		summary[status]++
-		statements = append(statements, replayedVEXStatement{
-			Vulnerability:   strings.TrimSpace(vuln.ID),
-			Products:        products,
-			Status:          status,
-			Justification:   nonEmptyWorker(strings.TrimSpace(vuln.Analysis.Justification), "cyclonedx_vex"),
-			ImpactStatement: strings.TrimSpace(vuln.Analysis.Detail),
-			ActionStatement: strings.Join(vuln.Analysis.Response, ","),
-		})
+		summary[statement.Status]++
+		statements = append(statements, replayedVEXStatement{Vulnerability: statement.Vulnerability, Products: products, Status: statement.Status, Justification: nonEmptyWorker(statement.Justification, "cyclonedx_vex"), ImpactStatement: statement.ImpactStatement, ActionStatement: statement.ActionStatement})
 	}
-	if len(statements) == 0 {
-		return replayedVEX{}, errors.New("replayed vex payload is invalid")
-	}
-	return replayedVEX{Author: "cyclonedx", StatementCount: len(doc.Vulnerabilities), StatusSummary: summary, Statements: statements}, nil
-}
-
-func workerCycloneDXAnalysisStatus(state string) string {
-	switch strings.ToLower(strings.TrimSpace(state)) {
-	case "resolved", "fixed":
-		return "fixed"
-	case "not_affected":
-		return "not_affected"
-	case "exploitable", "affected":
-		return "affected"
-	case "in_triage", "under_investigation":
-		return "under_investigation"
-	default:
-		return ""
-	}
-}
-
-func replayedVEXProductIDs(products []map[string]any) map[string]struct{} {
-	out := map[string]struct{}{}
-	var walk func([]map[string]any)
-	walk = func(items []map[string]any) {
-		for _, item := range items {
-			if id, ok := item["@id"].(string); ok {
-				if id = strings.TrimSpace(id); id != "" {
-					out[id] = struct{}{}
-				}
-			}
-			if children, ok := item["subcomponents"].([]any); ok {
-				mapped := make([]map[string]any, 0, len(children))
-				for _, child := range children {
-					if childMap, ok := child.(map[string]any); ok {
-						mapped = append(mapped, childMap)
-					}
-				}
-				walk(mapped)
-			}
-		}
-	}
-	walk(products)
-	return out
+	return replayedVEX{Author: doc.Author, StatementCount: len(doc.Statements), StatusSummary: summary, Statements: statements}
 }
 
 func applyReplayedVEXDecisions(state *app.PersistedState, job postgres.ClaimedJob, vex domain.VEXDocument, parsed replayedVEX, payloadHash string) (int, int, []domain.VEXImportIssue, error) {
@@ -1021,6 +920,10 @@ func applyReplayedVEXDecisions(state *app.PersistedState, job postgres.ClaimedJo
 	}
 	sort.Strings(scanIDs)
 	for index, statement := range parsed.Statements {
+		if !workerVEXStatementUnambiguous(state, scanIDs, statement) {
+			mappingFailures = append(mappingFailures, domain.VEXImportIssue{StatementIndex: index + 1, Code: "ambiguous_finding", Detail: "Multiple plausible findings matched this VEX statement; no decision was applied."})
+			continue
+		}
 		statementMatched := false
 		for _, scanID := range scanIDs {
 			scan := state.Scans[scanID]
@@ -1092,6 +995,33 @@ func applyReplayedVEXDecisions(state *app.PersistedState, job postgres.ClaimedJo
 		}
 	}
 	return created, superseded, mappingFailures, nil
+}
+
+func workerVEXStatementUnambiguous(state *app.PersistedState, scanIDs []string, statement replayedVEXStatement) bool {
+	matchCount := 0
+	components := map[string]struct{}{}
+	for _, scanID := range scanIDs {
+		for _, finding := range state.Scans[scanID].Findings {
+			if finding.Vulnerability != statement.Vulnerability {
+				continue
+			}
+			if len(statement.Products) > 0 && finding.Component != "" {
+				if _, ok := statement.Products[finding.Component]; !ok {
+					continue
+				}
+			}
+			matchCount++
+			component := strings.TrimSpace(finding.Component)
+			if component == "" {
+				return matchCount < 2
+			}
+			if _, duplicate := components[component]; duplicate {
+				return false
+			}
+			components[component] = struct{}{}
+		}
+	}
+	return matchCount < 2 || (len(statement.Products) > 0 && matchCount <= len(statement.Products))
 }
 
 func replayedVEXDecisionExists(decisions map[string]domain.VulnerabilityDecision, tenantID, vexID, findingID string) bool {

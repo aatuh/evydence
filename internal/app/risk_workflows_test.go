@@ -215,8 +215,13 @@ func TestCycloneDXVEXImportReportTracksIssuesDuplicatesAndOutbox(t *testing.T) {
 		t.Fatalf("outbox jobs = %#v", outbox.jobs)
 	}
 
-	if _, err := ledger.UploadCycloneDXVEX(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","unexpected":true,"vulnerabilities":[{"id":"CVE-2026-2001","analysis":{"state":"resolved"}}]}`)); !errors.Is(err, ErrValidation) {
-		t.Fatalf("unsupported field err=%v, want validation", err)
+	extended, err := ledger.UploadCycloneDXVEX(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","unexpected":true,"vulnerabilities":[{"id":"CVE-2026-2001","analysis":{"state":"resolved"}}]}`))
+	if err != nil {
+		t.Fatalf("extension-bearing vex: %v", err)
+	}
+	extendedReport, err := ledger.GetVEXImportReport(ctx, actor, extended.ID)
+	if err != nil || !strings.Contains(strings.Join(extendedReport.Warnings, "\n"), "$.unexpected is preserved") {
+		t.Fatalf("extension report = %#v, err=%v", extendedReport, err)
 	}
 	if _, err := ledger.UploadCycloneDXVEX(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","vulnerabilities":[`)); !errors.Is(err, ErrValidation) {
 		t.Fatalf("malformed err=%v, want validation", err)
@@ -288,7 +293,8 @@ func TestVEXImportPreviewIsAdvisoryAndDoesNotMutateLedger(t *testing.T) {
 	if len(cyclonePreview.MappingFailures) != 1 || cyclonePreview.MappingFailures[0].StatementIndex != 2 {
 		t.Fatalf("cyclonedx mapping failures = %#v", cyclonePreview.MappingFailures)
 	}
-	if _, err := ledger.PreviewCycloneDXVEXImport(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","unexpected":true,"vulnerabilities":[{"id":"CVE-2026-4001","analysis":{"state":"resolved"}}]}`)); !errors.Is(err, ErrValidation) {
-		t.Fatalf("strict preview err=%v, want validation", err)
+	extendedPreview, err := ledger.PreviewCycloneDXVEXImport(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","unexpected":true,"vulnerabilities":[{"id":"CVE-2026-4001","analysis":{"state":"resolved"}}]}`))
+	if err != nil || !strings.Contains(strings.Join(extendedPreview.Warnings, "\n"), "$.unexpected is preserved") {
+		t.Fatalf("extension preview = %#v, err=%v", extendedPreview, err)
 	}
 }

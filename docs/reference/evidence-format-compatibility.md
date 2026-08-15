@@ -25,8 +25,8 @@ the broader conformance, fixture-corpus, replay, and parser-version work.
 | --- | --- | --- | --- | --- |
 | CycloneDX SBOM JSON | `core` | Official-schema CycloneDX 1.6 JSON; the shared bounded parser/validator corpus targets official fixtures plus Syft/Trivy output shapes | `cyclonedx-json.v1.3.4` on durable `parse_sbom` jobs and evidence metadata | Native `application/vnd.cyclonedx+json`: 20 MiB; JSON envelope: 64 KiB |
 | SPDX SBOM JSON | `core` | Bounded SPDX JSON `SPDX-2.2` and `SPDX-2.3`; the shared corpus covers a standards-shaped document plus Syft/Trivy output shapes | `spdx-json.v2.0.0` on durable `parse_sbom` jobs and evidence metadata | Native `application/spdx+json`: 20 MiB; JSON envelope: 64 KiB |
-| OpenVEX JSON | `core` | Reduced shape; fixtures use `https://openvex.dev/ns/v0.2.0` | `openvex-json.v1.0.0` on import report and `parse_vex` job | Native `application/vnd.openvex+json`: 20 MiB; JSON envelope: 64 KiB |
-| CycloneDX VEX JSON | `core` | Reduced shape; fixtures use `specVersion: 1.6` | `cyclonedx-vex-json.v1.0.0` on import report and `parse_vex` job | JSON envelope: 64 KiB |
+| OpenVEX JSON | `core` | Bounded OpenVEX JSON using maintained `github.com/openvex/go-vex` model; tested against the OpenVEX specification's minimal example | `openvex-json.v2.0.0` on import report and `parse_vex` job | Native `application/vnd.openvex+json`: 20 MiB; JSON envelope: 64 KiB |
+| CycloneDX VEX JSON | `core` | Bounded CycloneDX VEX JSON 1.4–1.7 using maintained `github.com/CycloneDX/cyclonedx-go`; tested against the official CycloneDX 1.4 VEX example | `cyclonedx-vex-json.v2.0.0` on import report and `parse_vex` job | JSON envelope: 64 KiB |
 | DSSE + in-toto statement JSON | `core` | Structural profile; fixtures use in-toto Statement v1 and SLSA provenance v1 | `dsse-in-toto-json.v1.0.0` on `verify_attestation` job | JSON request: 64 KiB |
 | Generic vulnerability-scan JSON | `core` | Evydence-owned normalized scanner schema | `generic-vulnerability-scan-json.v1.0.0` on `parse_vulnerability_scan` job | Streamed `application/json`: 20 MiB |
 | Generic/SARIF security-scan JSON | `experimental` | Reduced summary; fixtures use SARIF `2.1.0` | No stable parser-version contract | JSON envelope: 64 KiB |
@@ -116,14 +116,25 @@ parser/upload/replay tests.
 
 ### OpenVEX JSON
 
-`POST /v1/vex` requires author, RFC 3339 timestamp, at least one statement,
-`vulnerability.name`, product `@id`, a supported status
-(`affected`, `not_affected`, `fixed`, `under_investigation`), and justification.
-Nested product subcomponents are validated. Unknown fields are rejected by the
-reduced model. Context/version is recorded rather than allowlisted; the tested
-contract uses namespace `https://openvex.dev/ns/v0.2.0`. Mapping failures are
-recorded in import reports instead of silently attaching a statement to another
-finding.
+`POST /v1/vex` accepts bounded OpenVEX JSON through the maintained
+`github.com/openvex/go-vex` model plus duplicate-key and resource-bound
+preflight. It requires author, RFC 3339 timestamp, at least one statement,
+`vulnerability.name`, product `@id`, and a supported status (`affected`,
+`not_affected`, `fixed`, `under_investigation`). Nested product subcomponents
+are included in matching. Standard fields and vendor extensions outside the
+normalized decision subset remain in immutable raw evidence and appear as
+import warnings rather than causing rejection. The parser records source
+justification vocabulary unchanged. It supports the OpenVEX specification's
+`https://openvex.dev/ns/v0.2.0` example but does not establish source identity,
+signature trust, or legal sufficiency.
+
+Finding mapping first scopes candidates to the tenant and release, then matches
+the vulnerability and exact product/subcomponent identifier. A statement with
+no product reference may apply only when one candidate exists. A statement with
+several explicit product identifiers may apply one unique finding per identifier.
+Duplicate candidates for an identifier, a candidate with no identifier, or any
+other multi-candidate case produces `ambiguous_finding` in the import report or
+preview and creates no decision. This policy also applies during worker replay.
 
 Evidence: `internal/app/vex.go`, `ParserVersionOpenVEXJSON`,
 `TestOpenVEXIngestionCreatesDecisionAndRejectsMalformedInput`,
@@ -132,12 +143,17 @@ Evidence: `internal/app/vex.go`, `ParserVersionOpenVEXJSON`,
 
 ### CycloneDX VEX JSON
 
-`POST /v1/vex/cyclonedx` reads `bomFormat`, `specVersion`, vulnerabilities,
-`affects[].ref`, and analysis state/justification/detail/response. Unknown fields
-are rejected. Missing IDs or unsupported states become import-report issues and
-are skipped; all-invalid input fails. Duplicate mapping does not duplicate
-decision effects. The tested reduced contract is CycloneDX 1.6; other version
-strings being structurally accepted are not supported-version evidence.
+`POST /v1/vex/cyclonedx` supports bounded CycloneDX VEX JSON `specVersion`
+1.4–1.7 through `github.com/CycloneDX/cyclonedx-go` and normalizes
+`vulnerabilities`, `affects[].ref`, and analysis
+state/justification/detail/response. It maps `resolved` and
+`resolved_with_pedigree` to `fixed`, `not_affected` and `false_positive` to
+`not_affected`, `exploitable` to `affected`, and `in_triage` to
+`under_investigation`; the original justification is retained. Standard fields
+and extensions remain in raw evidence and are reported as warnings. Missing IDs
+or unsupported states become import-report issues and are skipped; all-invalid
+input fails. The same explicit ambiguity policy above prevents a VEX statement
+from silently changing more than one plausible finding.
 
 Evidence: `internal/app/risk_workflows.go`,
 `ParserVersionCycloneDXVEXJSON`,
