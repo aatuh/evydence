@@ -1973,7 +1973,7 @@ func (l *Ledger) VerifySubject(ctx context.Context, actor domain.Actor, subjectT
 			return domain.VerificationResult{}, err
 		}
 		checks = l.verifyChainLocked(actor.TenantID)
-		profile = assuranceProfile("audit-chain-integrity.v1", requiredCheckNames(checks), []string{"Evydence audit-chain canonical hashes"}, "tenant-scoped verification authorization", "not_evaluated", "tenant audit-chain entries", "", []string{"Audit-chain verification does not prove external anchoring or third-party log inclusion."})
+		profile = assuranceProfile(domain.VerificationProfileAuditChainIntegrity, requiredCheckNames(checks), []string{"Evydence audit-chain canonical hashes"}, "tenant-scoped verification authorization", "not_evaluated", "tenant audit-chain entries", "", []string{"Audit-chain verification does not prove external anchoring or third-party log inclusion."})
 	case "audit_chain_checkpoint":
 		if err := l.authorizeResourceLocked(actor, ScopeVerifyRead, resourceRefs{}); err != nil {
 			return domain.VerificationResult{}, err
@@ -1983,7 +1983,7 @@ func (l *Ledger) VerifySubject(ctx context.Context, actor domain.Actor, subjectT
 		if !found {
 			return domain.VerificationResult{}, ErrNotFound
 		}
-		profile = assuranceProfile("audit-chain-merkle-checkpoint.v1", requiredCheckNames(checks), []string{"Evydence audit-chain hashes", "tenant signing keys"}, "tenant-scoped verification authorization", "not_evaluated", "tenant audit-chain range and signed Merkle root", "", []string{"This signed checkpoint detects truncation or rewrites within its covered sequence range, but does not prove external publication or third-party log inclusion."})
+		profile = assuranceProfile(domain.VerificationProfileAuditChainMerkleCheckpoint, requiredCheckNames(checks), []string{"Evydence audit-chain hashes", "tenant signing keys"}, "tenant-scoped verification authorization", "not_evaluated", "tenant audit-chain range and signed Merkle root", "", []string{"This signed checkpoint detects truncation or rewrites within its covered sequence range, but does not prove external publication or third-party log inclusion."})
 	case "audit_chain_release_manifest":
 		bundle, ok := l.bundles[strings.TrimSpace(subjectID)]
 		if !ok || bundle.TenantID != actor.TenantID {
@@ -1997,7 +1997,7 @@ func (l *Ledger) VerifySubject(ctx context.Context, actor domain.Actor, subjectT
 		if !found {
 			return domain.VerificationResult{}, ErrNotFound
 		}
-		profile = assuranceProfile("audit-chain-release-manifest-checkpoint.v1", requiredCheckNames(checks), []string{"release bundle manifest", "tenant signing keys"}, "tenant-scoped verification authorization", "not_evaluated", "signed release manifest audit-chain checkpoint", bundle.ManifestHash, []string{"This signed checkpoint detects truncation or rewrites within its covered sequence range, but does not prove external publication or third-party log inclusion."})
+		profile = assuranceProfile(domain.VerificationProfileAuditChainReleaseManifest, requiredCheckNames(checks), []string{"release bundle manifest", "tenant signing keys"}, "tenant-scoped verification authorization", "not_evaluated", "signed release manifest audit-chain checkpoint", bundle.ManifestHash, []string{"This signed checkpoint detects truncation or rewrites within its covered sequence range, but does not prove external publication or third-party log inclusion."})
 	case "evidence_item":
 		item, ok := l.evidence[strings.TrimSpace(subjectID)]
 		if !ok || item.TenantID != actor.TenantID {
@@ -2012,7 +2012,7 @@ func (l *Ledger) VerifySubject(ctx context.Context, actor domain.Actor, subjectT
 		} else {
 			checks = append(checks, domain.VerifyCheck{Name: "canonical_hash", Result: "passed"})
 		}
-		profile = assuranceProfile("evidence-canonical-hash.v1", []string{"canonical_hash"}, []string{domain.CanonicalizationProfileVersion}, "tenant-scoped verification authorization", "not_evaluated", "canonical evidence fields", item.CanonicalHash, []string{"Canonical evidence hashing does not validate the origin or completeness of the uploaded payload."})
+		profile = assuranceProfile(domain.VerificationProfileEvidenceCanonicalHash, []string{"canonical_hash"}, []string{domain.CanonicalizationProfileVersion}, "tenant-scoped verification authorization", "not_evaluated", "canonical evidence fields", item.CanonicalHash, []string{"Canonical evidence hashing does not validate the origin or completeness of the uploaded payload."})
 	case "release_bundle":
 		bundle, ok := l.bundles[strings.TrimSpace(subjectID)]
 		if !ok || bundle.TenantID != actor.TenantID {
@@ -2032,7 +2032,7 @@ func (l *Ledger) VerifySubject(ctx context.Context, actor domain.Actor, subjectT
 		} else {
 			checks = append(checks, domain.VerifyCheck{Name: "bundle_signature", Result: "passed"})
 		}
-		profile = assuranceProfile("release-bundle-signature.v1", []string{"manifest_hash", "bundle_signature"}, []string{"active or historically valid tenant signing keys"}, "tenant-scoped verification authorization", "not_evaluated", "release bundle manifest canonical JSON", bundle.ManifestHash, []string{"Bundle verification does not establish external publication, registry provenance, or legal sufficiency."})
+		profile = assuranceProfile(domain.VerificationProfileReleaseBundleSignature, []string{"manifest_hash", "bundle_signature"}, []string{"active or historically valid tenant signing keys"}, "tenant-scoped verification authorization", "not_evaluated", "release bundle manifest canonical JSON", bundle.ManifestHash, []string{"Bundle verification does not establish external publication, registry provenance, or legal sufficiency."})
 	case "artifact_signature":
 		sig, ok := l.artifactSigs[strings.TrimSpace(subjectID)]
 		if !ok || sig.TenantID != actor.TenantID {
@@ -2055,7 +2055,7 @@ func (l *Ledger) VerifySubject(ctx context.Context, actor domain.Actor, subjectT
 		} else {
 			checks = append(checks, domain.VerifyCheck{Name: "signature_material_present", Result: "passed", Detail: "signature recorded; cryptographic trust-root verification is deferred"})
 		}
-		profile = assuranceProfile("artifact-signature-metadata.v1", []string{"digest_binding_assessed", "signature_material_present", "cryptographic_signature_verified", "certificate_identity_policy", "transparency_inclusion_proof"}, []string{"recorded artifact signature metadata"}, "no certificate identity policy evaluated", "not_evaluated", "artifact digest and detached signature metadata", sig.SubjectDigest, []string{"This profile is metadata-only and cannot verify cryptographic signature validity, certificate identity, trust roots, or transparency inclusion."})
+		profile = assuranceProfile(domain.VerificationProfileArtifactSignatureMetadata, []string{"digest_binding_assessed", "signature_material_present", "cryptographic_signature_verified", "certificate_identity_policy", "transparency_inclusion_proof"}, []string{"recorded artifact signature metadata"}, "no certificate identity policy evaluated", "not_evaluated", "artifact digest and detached signature metadata", sig.SubjectDigest, []string{"This profile is metadata-only and cannot verify cryptographic signature validity, certificate identity, trust roots, or transparency inclusion."})
 	default:
 		return domain.VerificationResult{}, ErrValidation
 	}

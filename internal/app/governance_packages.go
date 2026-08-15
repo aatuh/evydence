@@ -2315,7 +2315,7 @@ func (l *Ledger) VerifyDSSEAttestationSignature(ctx context.Context, actor domai
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	profile := assuranceProfile("dsse-attestation-signature.v1", []string{"dsse_signature"}, []string{"active tenant DSSE Ed25519 trust roots"}, "DSSE key identifier matches configured trust root", "not_evaluated", "raw DSSE attestation bytes", att.PayloadHash, []string{"DSSE signature verification does not verify builder identity, provenance completeness, or external transparency inclusion."})
+	profile := assuranceProfile(domain.VerificationProfileDSSEAttestationSignature, []string{"dsse_signature"}, []string{"active tenant DSSE Ed25519 trust roots"}, "DSSE key identifier matches configured trust root", "not_evaluated", "raw DSSE attestation bytes", att.PayloadHash, []string{"DSSE signature verification does not verify builder identity, provenance completeness, or external transparency inclusion."})
 	vr := verificationResult(newID("vr"), actor.TenantID, "build_attestation", att.ID, checks, profile, l.now())
 	if l.unitOfWork != nil {
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {

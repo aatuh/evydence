@@ -101,7 +101,7 @@ func (l *Ledger) VerifyCosignSignature(ctx context.Context, actor domain.Actor, 
 			break
 		}
 	}
-	profile := assuranceProfile("cosign-full-verification.v1", []string{"digest_binding_assessed", "signature_material_present", "cryptographic_signature_verified", "certificate_identity_policy", "transparency_inclusion_proof"}, []string{"configured Cosign verifier trust roots"}, "configured certificate identity and issuer policy", "verified inclusion proof and checkpoint", "artifact digest and detached signature material", sig.SubjectDigest, []string{"This deployment has no configured Cosign verifier or tenant trust policy, so metadata assessment cannot establish cryptographic signature validity."})
+	profile := assuranceProfile(domain.VerificationProfileCosignFull, []string{"digest_binding_assessed", "signature_material_present", "cryptographic_signature_verified", "certificate_identity_policy", "transparency_inclusion_proof"}, []string{"configured Cosign verifier trust roots"}, "configured certificate identity and issuer policy", "verified inclusion proof and checkpoint", "artifact digest and detached signature material", sig.SubjectDigest, []string{"This deployment has no configured Cosign verifier or tenant trust policy, so metadata assessment cannot establish cryptographic signature validity."})
 	result := string(domain.AggregateVerificationState(profile, checks))
 	record := domain.CosignVerification{
 		ID:                  newID("cosv"),
@@ -342,7 +342,7 @@ func (l *Ledger) VerifyMerkleBatch(ctx context.Context, actor domain.Actor, id s
 	} else {
 		checks = append(checks, domain.VerifyCheck{Name: "checkpoint_signature", Result: "passed"})
 	}
-	profile := assuranceProfile("merkle-checkpoint.v1", []string{"merkle_root", "checkpoint_signature"}, []string{"tenant signing keys"}, "tenant-scoped verification authorization", "not_evaluated", "Merkle batch leaf hashes and signed root", batch.RootHash, []string{"Merkle checkpoint verification does not establish external transparency-log inclusion."})
+	profile := assuranceProfile(domain.VerificationProfileMerkleCheckpoint, []string{"merkle_root", "checkpoint_signature"}, []string{"tenant signing keys"}, "tenant-scoped verification authorization", "not_evaluated", "Merkle batch leaf hashes and signed root", batch.RootHash, []string{"Merkle checkpoint verification does not establish external transparency-log inclusion."})
 	vr := verificationResult(newID("vr"), actor.TenantID, "merkle_batch", batch.ID, checks, profile, l.now())
 	if l.unitOfWork != nil {
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
@@ -854,7 +854,7 @@ func (l *Ledger) VerifyBackupManifest(ctx context.Context, actor domain.Actor, i
 	}
 	checks := append([]domain.VerifyCheck(nil), manifest.ConsistencyChecks...)
 	checks = append(checks, domain.VerifyCheck{Name: "backup_manifest_present", Result: "passed", Detail: manifest.StateHash})
-	profile := assuranceProfile("backup-manifest-consistency.v1", requiredCheckNames(checks), []string{"backup manifest canonical hash"}, "tenant-scoped verification authorization", "not_evaluated", "backup manifest consistency counts and state hash", manifest.StateHash, []string{"Backup manifest verification does not prove an external backup can be restored or meets an operator's retention policy."})
+	profile := assuranceProfile(domain.VerificationProfileBackupManifest, requiredCheckNames(checks), []string{"backup manifest canonical hash"}, "tenant-scoped verification authorization", "not_evaluated", "backup manifest consistency counts and state hash", manifest.StateHash, []string{"Backup manifest verification does not prove an external backup can be restored or meets an operator's retention policy."})
 	vr := verificationResult(newID("vr"), actor.TenantID, "backup_manifest", manifest.ID, checks, profile, l.now())
 	if l.unitOfWork != nil {
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
