@@ -700,25 +700,39 @@ func (l *Ledger) FetchAndVerifyPublicTransparencyLogEntry(ctx context.Context, a
 }
 
 func verifyRFC6962StyleProof(leafHash, rootHash string, leafIndex, treeSize int, proof []string) bool {
-	if treeSize == 1 {
-		return leafIndex == 0 && len(proof) == 0 && leafHash == rootHash
+	if treeSize <= 0 || leafIndex < 0 || leafIndex >= treeSize {
+		return false
 	}
 	node, err := decodeSHA256Digest(leafHash)
 	if err != nil {
 		return false
 	}
-	index := leafIndex
-	for _, proofHash := range proof {
+	index, last := leafIndex, treeSize-1
+	proofIndex := 0
+	for last > 0 {
+		if proofIndex >= len(proof) {
+			return false
+		}
+		proofHash := proof[proofIndex]
 		sibling, err := decodeSHA256Digest(proofHash)
 		if err != nil {
 			return false
 		}
-		if index%2 == 0 {
-			node = transparencyParentHash(node, sibling)
-		} else {
+		if index%2 == 1 || index == last {
 			node = transparencyParentHash(sibling, node)
+			for index%2 == 0 && index != 0 {
+				index /= 2
+				last /= 2
+			}
+		} else {
+			node = transparencyParentHash(node, sibling)
 		}
 		index /= 2
+		last /= 2
+		proofIndex++
+	}
+	if proofIndex != len(proof) {
+		return false
 	}
 	root, err := decodeSHA256Digest(rootHash)
 	if err != nil {

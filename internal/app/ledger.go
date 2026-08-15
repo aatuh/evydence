@@ -2030,7 +2030,7 @@ func (l *Ledger) VerifySubject(ctx context.Context, actor domain.Actor, subjectT
 		} else {
 			checks = append(checks, domain.VerifyCheck{Name: "manifest_hash", Result: "passed"})
 		}
-		if !l.verifySignatureLocked(bundle.TenantID, bundle.SignatureRefs, []byte(bundle.ManifestHash)) {
+		if !l.verifySignatureForSubjectLocked(bundle.TenantID, bundle.SignatureRefs, "release_bundle", bundle.ID, []byte(bundle.ManifestHash)) {
 			checks = append(checks, domain.VerifyCheck{Name: "bundle_signature", Result: "failed"})
 		} else {
 			checks = append(checks, domain.VerifyCheck{Name: "bundle_signature", Result: "passed"})
@@ -2521,9 +2521,20 @@ func (l *Ledger) signLocked(tenantID, subjectType, subjectID string, payload []b
 }
 
 func (l *Ledger) verifySignatureLocked(tenantID string, signatureRefs []string, payload []byte) bool {
+	return l.verifySignatureForSubjectLocked(tenantID, signatureRefs, "", "", payload)
+}
+
+// verifySignatureForSubjectLocked verifies both the cryptographic value and the
+// immutable subject recorded with the signature. Callers that verify an
+// identifiable ledger object must use this form so a valid signature for one
+// object cannot be replayed for another object with identical bytes.
+func (l *Ledger) verifySignatureForSubjectLocked(tenantID string, signatureRefs []string, subjectType, subjectID string, payload []byte) bool {
 	for _, ref := range signatureRefs {
 		sig, ok := l.signatures[ref]
 		if !ok || sig.TenantID != tenantID {
+			continue
+		}
+		if subjectType != "" && (sig.SubjectType != subjectType || sig.SubjectID != subjectID) {
 			continue
 		}
 		key, ok := l.signingKeys[sig.KeyID]

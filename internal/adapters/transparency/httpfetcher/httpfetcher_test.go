@@ -57,3 +57,15 @@ func TestFetchTransparencyProofRejectsUnknownFieldsAndDoesNotLeakBody(t *testing
 		t.Fatalf("error leaked provider body: %v", err)
 	}
 }
+
+func TestFetchTransparencyProofRejectsTrailingJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"root_hash":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","leaf_index":0,"tree_size":1,"inclusion_proof":[]}{"untrusted":"extra"}`))
+	}))
+	defer server.Close()
+
+	fetcher := New(Config{AllowInsecureForLocalhost: true})
+	if _, err := fetcher.FetchTransparencyProof(t.Context(), app.TransparencyProofRequest{Endpoint: server.URL, ExternalID: "entry-1"}); err == nil {
+		t.Fatal("trailing JSON response unexpectedly accepted")
+	}
+}

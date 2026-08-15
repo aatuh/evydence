@@ -97,6 +97,21 @@ func TestFetchTransparencyProofRejectsUnknownFieldsAndHidesBody(t *testing.T) {
 	}
 }
 
+func TestFetchTransparencyProofRejectsTrailingJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"external_id":"entry-1","root_hash":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","leaf_index":0,"tree_size":1,"inclusion_proof":[]}{"untrusted":"extra"}`))
+	}))
+	defer server.Close()
+
+	fetcher, err := New(Config{Endpoint: server.URL, AllowInsecureForLocalhost: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fetcher.FetchTransparencyProof(t.Context(), app.TransparencyProofRequest{ExternalID: "entry-1"}); err == nil {
+		t.Fatal("trailing JSON response unexpectedly accepted")
+	}
+}
+
 func TestNewRequiresHTTPSEndpointExceptLocalhostOverride(t *testing.T) {
 	if _, err := New(Config{Endpoint: "http://example.com/proof"}); err == nil {
 		t.Fatal("expected remote HTTP endpoint to be rejected")

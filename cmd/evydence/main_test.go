@@ -445,6 +445,61 @@ func TestVerifyCustomerPackageRejectsUnsafeArchiveShape(t *testing.T) {
 	if err := verifyCustomerPackage([]string{"--archive", undeclaredDecisionPath}); err == nil || !strings.Contains(err.Error(), "undeclared vulnerability decision export") {
 		t.Fatalf("undeclared decision export err=%v", err)
 	}
+
+	symlinkArchivePath := writeCustomCustomerPackageArchive(t, dir+"/package-symlink.zip", []archiveEntry{
+		{name: "manifest.json", body: body},
+		{name: "package.json", body: mustMarshalJSON(t, map[string]any{"id": "csp_1", "manifest_hash": hash})},
+		{name: "verification.json", body: mustMarshalJSON(t, map[string]any{"package_id": "csp_1", "manifest_hash": hash})},
+		{name: "README.txt", body: []byte("manifest.json"), mode: os.ModeSymlink | 0o777},
+	})
+	if err := verifyCustomerPackage([]string{"--archive", symlinkArchivePath}); err == nil || !strings.Contains(err.Error(), "unsafe archive entry") {
+		t.Fatalf("symlink archive err=%v", err)
+	}
+
+	bombArchivePath := writeCustomCustomerPackageArchive(t, dir+"/package-compression-bomb.zip", []archiveEntry{
+		{name: "manifest.json", body: body},
+		{name: "package.json", body: mustMarshalJSON(t, map[string]any{"id": "csp_1", "manifest_hash": hash})},
+		{name: "verification.json", body: mustMarshalJSON(t, map[string]any{"package_id": "csp_1", "manifest_hash": hash})},
+		{name: "README.txt", body: []byte(strings.Repeat("a", 4096))},
+	})
+	if err := verifyCustomerPackage([]string{"--archive", bombArchivePath}); err == nil || !strings.Contains(err.Error(), "compression ratio") {
+		t.Fatalf("compression-bomb archive err=%v", err)
+	}
+}
+
+func TestVerifyReleaseArtifactFilesRejectsUnsafeManifestEntries(t *testing.T) {
+	dir := t.TempDir()
+	artifactPath := dir + "/artifact"
+	if err := os.WriteFile(artifactPath, []byte("artifact"), 0o600); err != nil {
+		t.Fatalf("write artifact: %v", err)
+	}
+	digest, err := hashFile(artifactPath)
+	if err != nil {
+		t.Fatalf("hash artifact: %v", err)
+	}
+	manifestPath := dir + "/manifest.json"
+	writeManifest := func(artifacts []map[string]any) {
+		t.Helper()
+		body := mustMarshalJSON(t, map[string]any{"schema_version": "evydence-release-artifacts.v1.0.0", "generated_at": "2026-05-28T12:00:00Z", "artifacts": artifacts})
+		if err := os.WriteFile(manifestPath, body, 0o600); err != nil {
+			t.Fatalf("write manifest: %v", err)
+		}
+	}
+	writeManifest([]map[string]any{{"path": "../outside", "digest": digest, "size": int64(8)}})
+	if err := verifyReleaseArtifactFiles(manifestPath, nil); err == nil || !strings.Contains(err.Error(), "unsafe or duplicate") {
+		t.Fatalf("traversal manifest err=%v", err)
+	}
+	writeManifest([]map[string]any{{"path": "artifact", "digest": digest, "size": int64(8)}, {"path": "artifact", "digest": digest, "size": int64(8)}})
+	if err := verifyReleaseArtifactFiles(manifestPath, nil); err == nil || !strings.Contains(err.Error(), "unsafe or duplicate") {
+		t.Fatalf("duplicate artifact manifest err=%v", err)
+	}
+	if err := os.Symlink(artifactPath, dir+"/linked-artifact"); err != nil {
+		t.Fatalf("make symlink: %v", err)
+	}
+	writeManifest([]map[string]any{{"path": "linked-artifact", "digest": digest, "size": int64(8)}})
+	if err := verifyReleaseArtifactFiles(manifestPath, nil); err == nil || !strings.Contains(err.Error(), "regular file") {
+		t.Fatalf("symlink artifact manifest err=%v", err)
+	}
 }
 
 func TestVerifyCustomerPackageRejectsDuplicateJSONKeys(t *testing.T) {
@@ -1145,6 +1200,7 @@ func writeTestCustomerPackageArchive(t *testing.T, path string, manifest []byte,
 type archiveEntry struct {
 	name string
 	body []byte
+	mode os.FileMode
 }
 
 func writeCustomCustomerPackageArchive(t *testing.T, path string, entries []archiveEntry) string {
@@ -1155,7 +1211,11 @@ func writeCustomCustomerPackageArchive(t *testing.T, path string, entries []arch
 	}
 	zw := zip.NewWriter(file)
 	for _, entry := range entries {
-		writer, err := zw.Create(entry.name)
+		header := &zip.FileHeader{Name: entry.name, Method: zip.Deflate}
+		if entry.mode != 0 {
+			header.SetMode(entry.mode)
+		}
+		writer, err := zw.CreateHeader(header)
 		if err != nil {
 			t.Fatalf("create archive entry: %v", err)
 		}

@@ -85,6 +85,25 @@ func TestCosignMerkleTransparencyAndKeyRevocationFlow(t *testing.T) {
 	}
 }
 
+func TestVerifyMerkleBatchRejectsReplayedSignatureSubject(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	actor, _, _ := setupReleaseRiskFixture(t, ledger)
+	batch, err := ledger.CreateMerkleBatch(ctx, actor, CreateMerkleBatchInput{})
+	if err != nil {
+		t.Fatalf("create merkle batch: %v", err)
+	}
+	ledger.mu.Lock()
+	signature := ledger.signatures[batch.SignatureRefs[0]]
+	signature.SubjectID = "mb_replayed"
+	ledger.signatures[signature.ID] = signature
+	ledger.mu.Unlock()
+
+	if _, err := ledger.VerifyMerkleBatch(ctx, actor, batch.ID); !errors.Is(err, ErrVerificationFailed) {
+		t.Fatalf("replayed signature subject err=%v, want ErrVerificationFailed", err)
+	}
+}
+
 type fakeCosignPolicyVerifier struct {
 	receipt  CosignVerificationReceipt
 	err      error

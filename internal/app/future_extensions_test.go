@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -91,6 +93,36 @@ func TestFutureExtensionsAreEvidenceBackedAndTenantScoped(t *testing.T) {
 		t.Fatalf("cross-tenant pdf err=%v, want not found", err)
 	}
 	_ = artifact
+}
+
+func TestVerifyRFC6962StyleProofRejectsInvalidIrregularTreeShape(t *testing.T) {
+	body, err := os.ReadFile(filepath.Join("..", "..", "testdata", "verification", "rfc6962-tree-size-3.v1.json"))
+	if err != nil {
+		t.Fatalf("read verification vector: %v", err)
+	}
+	var vector struct {
+		SchemaVersion  string   `json:"schema_version"`
+		TreeSize       int      `json:"tree_size"`
+		LeafIndex      int      `json:"leaf_index"`
+		LeafHash       string   `json:"leaf_hash"`
+		InclusionProof []string `json:"inclusion_proof"`
+		RootHash       string   `json:"root_hash"`
+	}
+	if err := json.Unmarshal(body, &vector); err != nil {
+		t.Fatalf("decode verification vector: %v", err)
+	}
+	if vector.SchemaVersion != "evydence-rfc6962-style-proof-vector.v1" {
+		t.Fatalf("unsupported vector schema %q", vector.SchemaVersion)
+	}
+	if !verifyRFC6962StyleProof(vector.LeafHash, vector.RootHash, vector.LeafIndex, vector.TreeSize, vector.InclusionProof) {
+		t.Fatal("valid irregular-tree inclusion proof was rejected")
+	}
+	if verifyRFC6962StyleProof(vector.LeafHash, vector.RootHash, vector.LeafIndex, vector.TreeSize, append(vector.InclusionProof, hashBytes([]byte("extra")))) {
+		t.Fatal("proof with an extra hash was accepted")
+	}
+	if verifyRFC6962StyleProof(vector.LeafHash, vector.RootHash, vector.LeafIndex, vector.TreeSize, nil) {
+		t.Fatal("proof with a missing hash was accepted")
+	}
 }
 
 func TestFetchAndVerifyPublicTransparencyLogEntryUsesFetcher(t *testing.T) {

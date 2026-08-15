@@ -1,0 +1,10 @@
+{
+  "schema_version": "evydence-rfc6962-style-proof-vector.v1",
+  "tree_size": 3,
+  "leaf_index": 2,
+  "leaf_hash": "sha256:3547cb112ac4489af2310c0626cdba6f3097a2ad5a3b42ddd3b59c76c7a079a3",
+  "inclusion_proof": [
+    "sha256:09bda0c49344a4274d2202b56814924b5a20542fa05d321b5476b1cff86e4f1e"
+  ],
+  "root_hash": "sha256:182abf87bf326a97e87bab1160af7922a7ca245a169a8cdf60c8772123919395"
+}

@@ -461,17 +461,31 @@ func (l *Ledger) VerifyMerkleBatch(ctx context.Context, actor domain.Actor, id s
 		return domain.VerificationResult{}, ErrNotFound
 	}
 	checks := []domain.VerifyCheck{}
+	entries := l.chain[actor.TenantID]
+	if batch.FromSequence < 1 || batch.ToSequence < batch.FromSequence || batch.ToSequence > int64(len(entries)) {
+		checks = append(checks, domain.VerifyCheck{Name: "checkpoint_coverage", Result: "failed"})
+	} else {
+		leaves := make([]string, 0, batch.ToSequence-batch.FromSequence+1)
+		for _, entry := range entries[batch.FromSequence-1 : batch.ToSequence] {
+			leaves = append(leaves, entry.EntryHash)
+		}
+		if sameAuditChainHashes(leaves, batch.LeafHashes) && batch.EntryCount == len(leaves) {
+			checks = append(checks, domain.VerifyCheck{Name: "checkpoint_coverage", Result: "passed"})
+		} else {
+			checks = append(checks, domain.VerifyCheck{Name: "checkpoint_coverage", Result: "failed"})
+		}
+	}
 	if got := merkleRoot(batch.LeafHashes); got != batch.RootHash {
 		checks = append(checks, domain.VerifyCheck{Name: "merkle_root", Result: "failed"})
 	} else {
 		checks = append(checks, domain.VerifyCheck{Name: "merkle_root", Result: "passed"})
 	}
-	if !l.verifySignatureLocked(actor.TenantID, batch.SignatureRefs, []byte(batch.RootHash)) {
+	if !l.verifySignatureForSubjectLocked(actor.TenantID, batch.SignatureRefs, "merkle_batch", batch.ID, []byte(batch.RootHash)) {
 		checks = append(checks, domain.VerifyCheck{Name: "checkpoint_signature", Result: "failed"})
 	} else {
 		checks = append(checks, domain.VerifyCheck{Name: "checkpoint_signature", Result: "passed"})
 	}
-	profile := assuranceProfile(domain.VerificationProfileMerkleCheckpoint, []string{"merkle_root", "checkpoint_signature"}, []string{"tenant signing keys"}, "tenant-scoped verification authorization", "not_evaluated", "Merkle batch leaf hashes and signed root", batch.RootHash, []string{"Merkle checkpoint verification does not establish external transparency-log inclusion."})
+	profile := assuranceProfile(domain.VerificationProfileMerkleCheckpoint, []string{"checkpoint_coverage", "merkle_root", "checkpoint_signature"}, []string{"tenant signing keys"}, "tenant-scoped verification authorization", "not_evaluated", "Merkle batch leaf hashes and signed root", batch.RootHash, []string{"Merkle checkpoint verification does not establish external transparency-log inclusion."})
 	vr := verificationResult(newID("vr"), actor.TenantID, "merkle_batch", batch.ID, checks, profile, l.now())
 	if l.unitOfWork != nil {
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {

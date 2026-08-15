@@ -158,7 +158,7 @@ func (l *Ledger) verifyMerkleAuditChainCheckpointLocked(tenantID, batchID string
 	} else {
 		checks = append(checks, domain.VerifyCheck{Name: "checkpoint_root", Result: "passed"})
 	}
-	if !l.verifySignatureLocked(tenantID, batch.SignatureRefs, []byte(batch.RootHash)) {
+	if !l.verifySignatureForSubjectLocked(tenantID, batch.SignatureRefs, "merkle_batch", batch.ID, []byte(batch.RootHash)) {
 		checks = append(checks, domain.VerifyCheck{Name: "checkpoint_signature", Result: "failed"})
 	} else {
 		checks = append(checks, domain.VerifyCheck{Name: "checkpoint_signature", Result: "passed"})
@@ -178,7 +178,7 @@ func (l *Ledger) verifyReleaseManifestAuditChainCheckpointLocked(tenantID, bundl
 	} else {
 		checks = append(checks, domain.VerifyCheck{Name: "checkpoint_manifest_hash", Result: "passed"})
 	}
-	if !l.verifySignatureLocked(tenantID, bundle.SignatureRefs, []byte(bundle.ManifestHash)) {
+	if !l.verifySignatureForSubjectLocked(tenantID, bundle.SignatureRefs, "release_bundle", bundle.ID, []byte(bundle.ManifestHash)) {
 		checks = append(checks, domain.VerifyCheck{Name: "checkpoint_signature", Result: "failed"})
 	} else {
 		checks = append(checks, domain.VerifyCheck{Name: "checkpoint_signature", Result: "passed"})
