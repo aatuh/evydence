@@ -15,7 +15,7 @@ BUILD_DIRTY ?= $(shell if test -n "$$(git status --porcelain --untracked-files=a
 BUILD_GO_VERSION ?= $(shell $(GO) env GOVERSION)
 BUILD_RELEASE_MANIFEST_DIGEST ?= unknown
 
-.PHONY: help tools build-api fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check rendered-openapi-check meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check docs-check deploy-check sdk-check demo-check customer-cve-review-demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check black-box-release-artifact-check benchmark-check package-viewer-check release-asset-smoke-check marketing-site-check marketing-site-production-check restore-rehearsal-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
+.PHONY: help tools build-api fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check api-inventory-check rendered-openapi-check meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check docs-check deploy-check sdk-check demo-check customer-cve-review-demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check black-box-release-artifact-check benchmark-check package-viewer-check release-asset-smoke-check marketing-site-check marketing-site-production-check restore-rehearsal-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -68,6 +68,9 @@ openapi-check: openapi.yaml ## Validate OpenAPI generation and route contract te
 
 openapi-precision-check: ## Enforce current OpenAPI precision floor and broad-route ceiling
 	@python3 scripts/openapi_precision_check.py
+
+api-inventory-check: ## Validate the generated public API stability inventory
+	@python3 scripts/api_inventory.py --check
 
 parser-corpus-check: ## Verify parser corpus provenance, hashes, and normalized summaries
 	@python3 scripts/parser_corpus_check.py
@@ -179,7 +182,7 @@ backlog-check: ## Validate tracked execution backlog metadata
 quality-scorecard-check: ## Validate evidence-backed quality scorecard
 	@python3 scripts/quality_scorecard.py --check
 
-docs-check: meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check rendered-openapi-check ## Validate canonical docs exist and avoid forbidden product claims
+docs-check: meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check rendered-openapi-check api-inventory-check ## Validate canonical docs exist and avoid forbidden product claims
 	@test -f README.md
 	@test -f .production.env.example
 	@test -f docs/README.md
@@ -203,6 +206,7 @@ docs-check: meta-check release-truth-check persistence-decomposition-check backl
 	@test -f docs/reference/configuration.md
 	@test -f docs/reference/capability-map.md
 	@test -f docs/reference/api-contract-matrix.md
+	@test -f docs/reference/api-inventory.md
 	@test -f docs/reference/product-boundary.md
 	@test -f docs/reference/openapi.md
 	@test -f docs/openapi/index.html
