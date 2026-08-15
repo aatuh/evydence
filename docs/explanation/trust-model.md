@@ -20,8 +20,11 @@ Recorded metadata, cryptographic validity, trusted identity, and transparency
 verification are separate layers. A submitted certificate identity does not
 prove who signed a payload until a profile has verified the certificate and
 compared it with an expected identity supplied by the caller or tenant policy.
-The current Cosign endpoint deliberately returns a limited profile until real
-policy verification is added; current DSSE verification checks an active tenant
+The Cosign endpoint verifies explicit offline Sigstore bundles with
+operator-configured trust material. Keyless requests must provide exact expected
+identity and issuer values; the receipt records only verified values and safe
+library/trust-root versions. An online-required request fails rather than
+downgrading to metadata. Current DSSE verification checks an active tenant
 Ed25519 root over the decoded payload, but does not yet claim DSSE PAE,
 in-toto predicate, builder, transparency, or historical-key policy
 verification. See [the cryptographic trust-model ADR](../adr/0002-cryptographic-trust-model.md)

@@ -711,29 +711,31 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "id", "tenant_id", "artifact_id", "subject_digest", "algorithm", "signature", "verification_status", "schema_version", "created_at"))
 	registry.RegisterSchema("ArtifactSignatureEnvelope", dataEnvelopeSchema("#/components/schemas/ArtifactSignature"))
 	registry.RegisterSchema("VerifyCosignSignatureRequest", objectSchema(map[string]any{
-		"rekor_uuid":                map[string]any{"type": "string"},
-		"rekor_log_index":           map[string]any{"type": "string"},
-		"certificate_identity":      map[string]any{"type": "string"},
-		"certificate_issuer":        map[string]any{"type": "string"},
-		"require_full_verification": map[string]any{"type": "boolean", "description": "Request cryptographic Cosign verification. This compatibility endpoint returns COSIGN_FULL_VERIFICATION_UNAVAILABLE until a verifier and trust policy are configured."},
-	}))
+		"expected_identity": map[string]any{"type": "string", "description": "Exact expected Fulcio certificate identity for keyless verification."},
+		"expected_issuer":   map[string]any{"type": "string", "description": "Exact expected Fulcio OIDC issuer for keyless verification."},
+		"mode":              map[string]any{"type": "string", "enum": []string{"keyless", "key"}, "description": "keyless requires expected_identity and expected_issuer; key rejects them and uses configured public-key trust material."},
+		"offline":           map[string]any{"type": "boolean", "description": "Must be true for the currently supported explicit-offline bundle profile. The bundle must contain a verified Rekor inclusion proof."},
+	}, "mode", "offline"))
 	registry.RegisterSchema("CosignVerification", objectSchema(map[string]any{
-		"id":                    map[string]any{"type": "string"},
-		"tenant_id":             map[string]any{"type": "string"},
-		"artifact_id":           map[string]any{"type": "string"},
-		"container_image_id":    map[string]any{"type": "string"},
-		"artifact_signature_id": map[string]any{"type": "string"},
-		"subject_digest":        map[string]any{"type": "string"},
-		"rekor_uuid":            map[string]any{"type": "string"},
-		"rekor_log_index":       map[string]any{"type": "string"},
-		"certificate_identity":  map[string]any{"type": "string"},
-		"certificate_issuer":    map[string]any{"type": "string"},
-		"result":                map[string]any{"type": "string", "enum": []string{"failed", "not_verified", "limited", "skipped", "error"}, "description": "limited records only metadata assessment; it never proves a Cosign signature, certificate identity, trust policy, or Rekor inclusion."},
-		"checks":                map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/VerifyCheck"}},
-		"profile":               map[string]any{"$ref": "#/components/schemas/VerificationProfile"},
-		"limitations":           map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-		"schema_version":        map[string]any{"type": "string"},
-		"created_at":            map[string]any{"type": "string", "format": "date-time"},
+		"id":                       map[string]any{"type": "string"},
+		"tenant_id":                map[string]any{"type": "string"},
+		"artifact_id":              map[string]any{"type": "string"},
+		"container_image_id":       map[string]any{"type": "string"},
+		"artifact_signature_id":    map[string]any{"type": "string"},
+		"subject_digest":           map[string]any{"type": "string"},
+		"rekor_uuid":               map[string]any{"type": "string"},
+		"rekor_log_index":          map[string]any{"type": "string"},
+		"certificate_identity":     map[string]any{"type": "string"},
+		"certificate_issuer":       map[string]any{"type": "string"},
+		"verifier_library_version": map[string]any{"type": "string"},
+		"trust_root_version":       map[string]any{"type": "string"},
+		"verification_mode":        map[string]any{"type": "string", "enum": []string{"keyless", "key"}},
+		"result":                   map[string]any{"type": "string", "enum": []string{"passed", "failed", "not_verified", "limited", "skipped", "error"}, "description": "passed requires every profile check, including cryptographic signature, digest, trust, and embedded Rekor inclusion proof verification."},
+		"checks":                   map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/VerifyCheck"}},
+		"profile":                  map[string]any{"$ref": "#/components/schemas/VerificationProfile"},
+		"limitations":              map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"schema_version":           map[string]any{"type": "string"},
+		"created_at":               map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "artifact_signature_id", "subject_digest", "result", "checks", "profile", "limitations", "schema_version", "created_at"))
 	registry.RegisterSchema("CosignVerificationEnvelope", dataEnvelopeSchema("#/components/schemas/CosignVerification"))
 	registry.RegisterSchema("DSSEEnvelope", objectSchema(map[string]any{

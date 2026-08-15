@@ -568,7 +568,7 @@ presets; preset policy fields cannot be overridden in the create request.
 | `POST` | `/v1/saas/profiles` | Create explicit-instance-admin SaaS edition profile record. |
 | `POST` | `/v1/artifact-signatures` | Create artifact signature metadata. |
 | `GET` | `/v1/artifact-signatures/{id}` | Read artifact signature. |
-| `POST` | `/v1/artifact-signatures/{id}/verify-cosign` | **Deprecated:** assess stored Cosign metadata; does not perform cryptographic verification. |
+| `POST` | `/v1/artifact-signatures/{id}/verify-cosign` | Verify a finalized offline Sigstore/Cosign bundle against configured trust material and explicit policy inputs. |
 | `POST` | `/v1/merkle-batches` | Create signed checkpoint batch. |
 | `GET` | `/v1/merkle-batches/{id}/verify` | Verify batch. |
 | `POST` | `/v1/transparency-checkpoints` | Record external anchoring metadata. |
@@ -585,15 +585,14 @@ presets; preset policy fields cannot be overridden in the create request.
 | `POST` | `/v1/backup-manifests` | Generate backup manifest. |
 | `GET` | `/v1/backup-manifests/{id}/verify` | Verify backup manifest. |
 
-`POST /v1/artifact-signatures/{id}/verify-cosign` remains only as a
-compatibility metadata-assessment route until real Cosign verification and a
-tenant trust policy are available. It records whether stored digest binding,
-signature material, and optional Rekor metadata are present. Its successful
-result is always `limited`, never `passed`; it does not validate signature
-bytes, certificate identity, trust roots, Rekor inclusion, or checkpoint trust.
-Clients needing full verification can send `require_full_verification: true` and
-will receive a `422` Problem Details response with code
-`COSIGN_FULL_VERIFICATION_UNAVAILABLE` until that verifier is configured.
+`POST /v1/artifact-signatures/{id}/verify-cosign` verifies a finalized stored
+Sigstore bundle. Requests use `mode`, `offline`, and—for `keyless`—exact
+`expected_identity` and `expected_issuer` values. The implemented profile
+requires `offline: true`, configured operator trust material, an artifact-digest
+match, signature verification, and an embedded Rekor inclusion proof. It does
+not silently fetch or downgrade to metadata when an online profile is required.
+Without configured trust material, the route returns `422` with
+`COSIGN_FULL_VERIFICATION_UNAVAILABLE`.
 
 All result-bearing verification APIs use the versioned machine-state taxonomy
 and include an assurance profile plus limitations. `passed` is emitted only

@@ -53,7 +53,7 @@ const (
 	EvidenceBundleSchemaVersion       = "evidence-bundle.v1.0.0"
 	EvidenceBundleImportVersion       = "evidence-bundle-import.v1.0.0"
 	DSSETrustRootSchemaVersion        = "dsse-trust-root.v1.0.0"
-	CosignVerificationSchemaVersion   = "cosign-verification.v2.0.0"
+	CosignVerificationSchemaVersion   = "cosign-verification.v3.0.0"
 	SigningProviderSchemaVersion      = "signing-provider.v1.0.0"
 	MerkleBatchSchemaVersion          = "merkle-batch.v1.0.0"
 	TransparencyCheckpointVersion     = "transparency-checkpoint.v1.0.0"
@@ -764,22 +764,25 @@ type Signature struct {
 }
 
 type CosignVerification struct {
-	ID                  string              `json:"id"`
-	TenantID            string              `json:"tenant_id"`
-	ArtifactID          string              `json:"artifact_id,omitempty"`
-	ContainerImageID    string              `json:"container_image_id,omitempty"`
-	ArtifactSignatureID string              `json:"artifact_signature_id"`
-	SubjectDigest       string              `json:"subject_digest"`
-	RekorUUID           string              `json:"rekor_uuid,omitempty"`
-	RekorLogIndex       string              `json:"rekor_log_index,omitempty"`
-	CertificateIdentity string              `json:"certificate_identity,omitempty"`
-	CertificateIssuer   string              `json:"certificate_issuer,omitempty"`
-	Result              string              `json:"result"`
-	Checks              []VerifyCheck       `json:"checks"`
-	Profile             VerificationProfile `json:"profile"`
-	Limitations         []string            `json:"limitations"`
-	SchemaVersion       string              `json:"schema_version"`
-	CreatedAt           time.Time           `json:"created_at"`
+	ID                     string              `json:"id"`
+	TenantID               string              `json:"tenant_id"`
+	ArtifactID             string              `json:"artifact_id,omitempty"`
+	ContainerImageID       string              `json:"container_image_id,omitempty"`
+	ArtifactSignatureID    string              `json:"artifact_signature_id"`
+	SubjectDigest          string              `json:"subject_digest"`
+	RekorUUID              string              `json:"rekor_uuid,omitempty"`
+	RekorLogIndex          string              `json:"rekor_log_index,omitempty"`
+	CertificateIdentity    string              `json:"certificate_identity,omitempty"`
+	CertificateIssuer      string              `json:"certificate_issuer,omitempty"`
+	VerifierLibraryVersion string              `json:"verifier_library_version,omitempty"`
+	TrustRootVersion       string              `json:"trust_root_version,omitempty"`
+	VerificationMode       string              `json:"verification_mode,omitempty"`
+	Result                 string              `json:"result"`
+	Checks                 []VerifyCheck       `json:"checks"`
+	Profile                VerificationProfile `json:"profile"`
+	Limitations            []string            `json:"limitations"`
+	SchemaVersion          string              `json:"schema_version"`
+	CreatedAt              time.Time           `json:"created_at"`
 }
 
 type MerkleBatch struct {

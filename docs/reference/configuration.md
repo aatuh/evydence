@@ -55,6 +55,9 @@ process, or equivalent deployment control.
 | `EVYDENCE_WORKER_POLL_INTERVAL` | No | `1s` | Worker outbox polling interval. |
 | `EVYDENCE_WORKER_BATCH_SIZE` | No | `10` | Maximum outbox jobs claimed per polling cycle. |
 | `EVYDENCE_WORKER_MAX_PAYLOAD_BYTES` | No | `20971520` | Maximum raw object payload size replayed by a worker job. |
+| `EVYDENCE_SIGSTORE_TRUST_ROOT_JSON_BASE64` | Optional Cosign verification | unset | Base64-encoded operator-managed Sigstore trusted-root JSON, bounded to 1 MiB after decoding. Do not put private keys here. |
+| `EVYDENCE_SIGSTORE_TRUSTED_PUBLIC_KEY_PEM_BASE64` | Optional key-based Cosign verification | unset | Base64-encoded operator-managed PEM public key, bounded to 1 MiB after decoding. It can be configured with or instead of the trusted root. |
+| `EVYDENCE_SIGSTORE_TRUST_ROOT_VERSION` | When either Sigstore trust variable is set | unset | Non-secret operator version label recorded in the verification receipt. Missing, malformed, or oversized trust configuration prevents startup. |
 | `EVYDENCE_OIDC_USERINFO_TIMEOUT_SECONDS` | No | `10` | Timeout for optional live OIDC UserInfo validation when `POST /v1/provider-verifications` includes `access_token`. |
 | `EVYDENCE_OIDC_USERINFO_ALLOW_INSECURE_LOCALHOST` | Local only | `false` | Allows HTTP OIDC issuer/UserInfo endpoints only for localhost tests. Do not use for production. |
 | `EVYDENCE_PROVIDER_VALIDATION_GATEWAY_URL` | No | unset | Optional HTTPS operator-controlled provider validation gateway. When set, provider verification uses this gateway instead of direct OIDC UserInfo calls. |
@@ -173,6 +176,23 @@ policy record includes verification checks and limitations. These checks cover
 the configured bucket and sample object only: operators still need to review
 bucket creation mode, IAM policy, lifecycle rules, backups, and any
 deployment-specific WORM requirements.
+
+## Sigstore/Cosign Offline Verification
+
+The Cosign route is enabled only when operator configuration supplies a
+versioned Sigstore trusted root or public key. It verifies self-contained,
+stored bundles offline and requires an embedded Rekor inclusion proof. The
+configuration is read only at process startup; it does not fetch trust roots or
+Rekor material over the network. A request that requires online verification
+does not fall back to this profile. Verification receipts record the configured
+version and library version, never trust-root bytes, certificates, bundle bytes,
+or private keys.
+
+For keyless bundles, callers must supply exact expected identity and issuer
+values. For key bundles, callers select `mode: "key"` and the configured public
+key supplies the trust boundary. Operators remain responsible for trust-root
+rotation, revocation policy, and deciding whether the offline profile fits
+their deployment requirements.
 
 ## Signing Executors
 

@@ -65,7 +65,7 @@ compared to an expectation supplied by the caller or tenant policy.
 | Evidence item | Versioned canonical evidence fields | Recomputes the stored canonical SHA-256; it does not establish origin or completeness. |
 | Audit-chain entry and checkpoint | Versioned entry canonical form; ordered entry hashes and root | Verifies local continuity, hashes, and configured tenant signatures. A local checkpoint is not external publication. |
 | Release bundle | Canonical JSON manifest and its SHA-256 | Verifies the manifest hash and the tenant-signing receipt over that hash. |
-| Artifact signature | OCI/artifact subject digest and detached-signature material | The current metadata profile is deliberately limited until Sigstore/Cosign policy verification is implemented. |
+| Artifact signature | OCI/artifact digest and a stored Sigstore bundle | The explicit offline Cosign profile verifies the bundle signature, artifact digest, Fulcio/public-key trust material, keyless identity policy when applicable, and embedded Rekor proof. Online-required verification remains unavailable rather than downgrading. |
 | DSSE attestation | Current v1: decoded envelope payload | Current code checks Ed25519 over the decoded payload against an active tenant root. It does **not** yet evaluate DSSE PAE, in-toto policy, builder identity, or historical root validity. |
 | Merkle/public-log proof | Ordered leaf and proof hashes, root, tree size, checkpoint | Local Merkle verification and configured public-log proof verification have separate profiles. |
 | Customer package | Package manifest JSON, archive member hashes, and optional bundle | Offline verification checks integrity and redaction shape; it does not currently require a package-manifest signature. |

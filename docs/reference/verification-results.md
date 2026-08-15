@@ -41,11 +41,11 @@ Every current result carries a profile with
 | `payload_scope`, `payload_digest` | The payload fields or digest evaluated; payload bytes are not copied into the profile. |
 | `limitations` | Scope boundaries and evidence gaps that remain after the evaluation. |
 
-The result itself uses `verification-result.v2.0.0`. Cosign and provider
-verification receipts have their own v2 schema versions while embedding the
-same profile shape. The deprecated Cosign metadata route remains intentionally
-limited because the current deployment does not provide a configured
-cryptographic verifier and tenant trust policy.
+The result itself uses `verification-result.v2.0.0`. Cosign receipts use
+`cosign-verification.v3.0.0` and additionally record safe verifier-library,
+trust-root-version, and verification-mode values while embedding the same
+profile shape. They never store raw bundles, certificates, public keys, or
+trust-root bytes.
 
 ## Named Verification Profiles and Endpoint Mapping
 
@@ -64,7 +64,7 @@ inferred from submitted metadata.
 | `POST /v1/verify` with `evidence_item` | `evidence-canonical-hash.v1` | canonical hash | Canonical evidence fields only, not origin or completeness. |
 | `POST /v1/verify` or `POST /v1/release-bundles/{id}/verify` with a release bundle | `release-bundle-signature.v1` | manifest hash, bundle signature | Tenant-signing receipt over the canonical manifest hash. |
 | `POST /v1/verify` with an artifact signature | `artifact-signature-metadata.v1` | digest binding, signature material, cryptographic verification, identity policy, transparency proof | Deliberately limited metadata assessment until EVY-602. |
-| `POST /v1/artifact-signatures/{id}/verify-cosign` | `cosign-full-verification.v1` | digest binding, signature material, cryptographic signature, certificate identity, transparency proof | Current route records a limited assessment; EVY-602 supplies real Sigstore policy verification. |
+| `POST /v1/artifact-signatures/{id}/verify-cosign` | `cosign-full-verification.v1` | bundle syntax, subject digest, cryptographic signature, embedded Rekor proof, Fulcio trust root/certificate validity, keyless identity/issuer policy or configured public key | Explicit offline Sigstore verification; online-required requests are rejected, not downgraded. |
 | `POST /v1/build-attestations/{id}/verify-signature` | `dsse-attestation-signature.v1` | DSSE signature | Current Ed25519 decoded-payload/root check only; EVY-603 adds DSSE PAE and in-toto policy. |
 | `POST /v1/merkle-batches/{id}/verify` | `merkle-checkpoint.v1` | Merkle root, checkpoint signature | Local signed Merkle checkpoint; external log inclusion is not evaluated. |
 | `POST /v1/public-transparency-log-entries/{id}/verify` | `transparency-inclusion-proof.v1` | leaf hash, inclusion path, root hash, tree size, checkpoint | Resource-level proof checks today; EVY-606 standardizes a profile-bearing receipt. |

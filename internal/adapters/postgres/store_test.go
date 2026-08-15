@@ -559,7 +559,7 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 			"dsse_root_test": {ID: "dsse_root_test", TenantID: "ten_test", Name: "root", KeyID: "key-1", Algorithm: "Ed25519", PublicKey: "pub", Status: "active", SchemaVersion: domain.DSSETrustRootSchemaVersion, CreatedAt: time.Now().UTC()},
 		},
 		CosignVerifications: map[string]domain.CosignVerification{
-			"cosign_test": {ID: "cosign_test", TenantID: "ten_test", ArtifactID: "art_test", ContainerImageID: "image_test", ArtifactSignatureID: "artsig_test", SubjectDigest: "sha256:" + strings.Repeat("a", 64), RekorUUID: "rekor", RekorLogIndex: "1", CertificateIdentity: "repo", CertificateIssuer: "issuer", Result: "pass", Checks: []domain.VerifyCheck{{Name: "digest", Result: "passed"}}, SchemaVersion: domain.CosignVerificationSchemaVersion, CreatedAt: time.Now().UTC()},
+			"cosign_test": {ID: "cosign_test", TenantID: "ten_test", ArtifactID: "art_test", ContainerImageID: "image_test", ArtifactSignatureID: "artsig_test", SubjectDigest: "sha256:" + strings.Repeat("a", 64), RekorUUID: "rekor", RekorLogIndex: "1", CertificateIdentity: "repo", CertificateIssuer: "issuer", VerifierLibraryVersion: "sigstore-go.v1.1.4", TrustRootVersion: "test-root.v1", VerificationMode: "keyless", Result: "pass", Checks: []domain.VerifyCheck{{Name: "digest", Result: "passed"}}, SchemaVersion: domain.CosignVerificationSchemaVersion, CreatedAt: time.Now().UTC()},
 		},
 		SigningProviders: map[string]domain.SigningProvider{
 			"sign_provider_test": {ID: "sign_provider_test", TenantID: "ten_test", Name: "kms", Type: "aws_kms", Status: "active", KeyRef: "arn:aws:kms:test", Encrypted: true, SchemaVersion: domain.SigningProviderSchemaVersion, CreatedAt: time.Now().UTC()},
@@ -934,7 +934,8 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	if !relational.Waivers["waiver_test"].Approved || relational.Approvals["approval_test"].EvidenceID != "ev_test" || relational.DSSETrustRoots["dsse_root_test"].Status != "active" {
 		t.Fatalf("relational governance/trust rows missing: waiver=%#v approval=%#v trust=%#v", relational.Waivers["waiver_test"], relational.Approvals["approval_test"], relational.DSSETrustRoots["dsse_root_test"])
 	}
-	if len(relational.CosignVerifications["cosign_test"].Checks) != 1 || !relational.SigningProviders["sign_provider_test"].Encrypted {
+	cosignVerification := relational.CosignVerifications["cosign_test"]
+	if len(cosignVerification.Checks) != 1 || cosignVerification.VerifierLibraryVersion != "sigstore-go.v1.1.4" || cosignVerification.TrustRootVersion != "test-root.v1" || cosignVerification.VerificationMode != "keyless" || !relational.SigningProviders["sign_provider_test"].Encrypted {
 		t.Fatalf("relational signing provider rows missing: cosign=%#v provider=%#v", relational.CosignVerifications["cosign_test"], relational.SigningProviders["sign_provider_test"])
 	}
 	if relational.MerkleBatches["merkle_test"].RootHash == "" || relational.TransparencyCheckpoints["transparency_test"].ExternalID != "ts-1" {

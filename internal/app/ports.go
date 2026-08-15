@@ -124,6 +124,41 @@ type TransparencyProofFetcher interface {
 	FetchTransparencyProof(context.Context, TransparencyProofRequest) (TransparencyProofResult, error)
 }
 
+type CosignVerificationMode string
+
+const (
+	CosignVerificationModeKeyless CosignVerificationMode = "keyless"
+	CosignVerificationModeKey     CosignVerificationMode = "key"
+)
+
+// CosignVerificationRequest carries only the immutable bundle bytes and
+// caller-supplied policy inputs. Trust material belongs to the configured
+// verifier and must never be accepted from an API caller or stored receipt.
+type CosignVerificationRequest struct {
+	Bundle           []byte
+	ArtifactDigest   string
+	ExpectedIdentity string
+	ExpectedIssuer   string
+	Mode             CosignVerificationMode
+	Offline          bool
+}
+
+// CosignVerificationReceipt is safe to persist and return to authorized
+// callers. It deliberately excludes bundles, certificate bytes, key material,
+// endpoints, and verifier-internal error strings.
+type CosignVerificationReceipt struct {
+	LibraryVersion      string
+	TrustRootVersion    string
+	CertificateIdentity string
+	CertificateIssuer   string
+	Checks              []domain.VerifyCheck
+	Limitations         []string
+}
+
+type CosignPolicyVerifier interface {
+	VerifyCosign(context.Context, CosignVerificationRequest) (CosignVerificationReceipt, error)
+}
+
 type Outbox interface {
 	Enqueue(context.Context, OutboxJob) error
 }

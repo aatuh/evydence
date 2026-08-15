@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"strings"
 	"time"
@@ -10,12 +11,11 @@ import (
 )
 
 type VerifyCosignInput struct {
-	ArtifactSignatureID     string
-	RekorUUID               string
-	RekorLogIndex           string
-	CertificateIdentity     string
-	CertificateIssuer       string
-	RequireFullVerification bool
+	ArtifactSignatureID string
+	ExpectedIdentity    string
+	ExpectedIssuer      string
+	Mode                CosignVerificationMode
+	Offline             bool
 }
 
 type CreateSigningProviderInput struct {
@@ -67,35 +67,23 @@ func (l *Ledger) VerifyCosignSignature(ctx context.Context, actor domain.Actor, 
 		return domain.CosignVerification{}, err
 	}
 	l.mu.Lock()
-	defer l.mu.Unlock()
 	sig, ok := l.artifactSigs[strings.TrimSpace(in.ArtifactSignatureID)]
 	if !ok || sig.TenantID != actor.TenantID {
+		l.mu.Unlock()
 		return domain.CosignVerification{}, ErrNotFound
 	}
 	artifact, artifactOK := l.artifacts[sig.ArtifactID]
 	if !artifactOK || artifact.TenantID != actor.TenantID {
+		l.mu.Unlock()
 		return domain.CosignVerification{}, ErrNotFound
 	}
 	if err := l.authorizeResourceLocked(actor, ScopeVerifyRead, resourceRefs{ArtifactID: artifact.ID}); err != nil {
+		l.mu.Unlock()
 		return domain.CosignVerification{}, err
 	}
-	checks := []domain.VerifyCheck{}
-	if artifact.Digest != sig.SubjectDigest || !validDigest(sig.SubjectDigest) {
-		checks = append(checks, domain.VerifyCheck{Name: "digest_binding_assessed", Result: "failed", Detail: "stored artifact and signature digest binding does not match"})
-	} else {
-		checks = append(checks, domain.VerifyCheck{Name: "digest_binding_assessed", Result: "passed", Detail: "stored artifact and signature digest binding matches"})
-	}
-	if strings.TrimSpace(sig.Signature) == "" {
-		checks = append(checks, domain.VerifyCheck{Name: "signature_material_present", Result: "failed", Detail: "no signature material was recorded"})
-	} else {
-		checks = append(checks, domain.VerifyCheck{Name: "signature_material_present", Result: "passed", Detail: "signature material was recorded but was not cryptographically verified"})
-	}
-	if strings.TrimSpace(in.RekorUUID) != "" && strings.TrimSpace(in.RekorLogIndex) != "" {
-		checks = append(checks, domain.VerifyCheck{Name: "rekor_metadata_present", Result: "passed", Detail: "Rekor metadata was recorded but inclusion and checkpoint trust were not verified"})
-	} else if strings.TrimSpace(in.RekorUUID) != "" || strings.TrimSpace(in.RekorLogIndex) != "" {
-		checks = append(checks, domain.VerifyCheck{Name: "rekor_metadata_present", Result: "warning", Detail: "partial Rekor metadata was recorded but was not verified"})
-	} else {
-		checks = append(checks, domain.VerifyCheck{Name: "rekor_metadata_present", Result: "skipped", Detail: "no Rekor metadata was supplied"})
+	if err := validateCosignVerificationInput(in); err != nil {
+		l.mu.Unlock()
+		return domain.CosignVerification{}, ErrValidation
 	}
 	var imageID string
 	for _, image := range l.images {
@@ -104,27 +92,133 @@ func (l *Ledger) VerifyCosignSignature(ctx context.Context, actor domain.Actor, 
 			break
 		}
 	}
-	profile := assuranceProfile(domain.VerificationProfileCosignFull, []string{"digest_binding_assessed", "signature_material_present", "cryptographic_signature_verified", "certificate_identity_policy", "transparency_inclusion_proof"}, []string{"configured Cosign verifier trust roots"}, "configured certificate identity and issuer policy", "verified inclusion proof and checkpoint", "artifact digest and detached signature material", sig.SubjectDigest, []string{"This deployment has no configured Cosign verifier or tenant trust policy, so metadata assessment cannot establish cryptographic signature validity."})
+	verifier, objects, store := l.cosign, l.objects, l.store
+	l.mu.Unlock()
+
+	profile := cosignVerificationProfile(in.Mode, sig.SubjectDigest)
+	receipt := CosignVerificationReceipt{}
+	verificationErr := error(nil)
+	switch {
+	case verifier == nil:
+		verificationErr = ErrFullVerificationUnavailable
+		receipt.Checks = []domain.VerifyCheck{{Name: "verification_configuration", Result: "failed", Detail: "no Sigstore verifier and trust policy are configured"}}
+	case sig.Algorithm != "cosign":
+		verificationErr = ErrVerificationFailed
+		receipt.Checks = []domain.VerifyCheck{{Name: "signature_algorithm", Result: "failed", Detail: "artifact signature is not recorded as a Cosign bundle"}}
+	case artifact.Digest != sig.SubjectDigest || !validDigest(sig.SubjectDigest):
+		verificationErr = ErrVerificationFailed
+		receipt.Checks = []domain.VerifyCheck{{Name: "subject_digest", Result: "failed", Detail: "stored artifact and signature digest binding does not match"}}
+	default:
+		bundle, err := loadCosignBundle(ctx, actor.TenantID, sig, objects, store)
+		if err != nil {
+			verificationErr = ErrVerificationFailed
+			receipt.Checks = []domain.VerifyCheck{{Name: "sigstore_bundle", Result: "failed", Detail: "stored Sigstore bundle is unavailable, not finalized, or does not match its recorded digest"}}
+		} else {
+			receipt, verificationErr = verifier.VerifyCosign(ctx, CosignVerificationRequest{
+				Bundle:           bundle,
+				ArtifactDigest:   artifact.Digest,
+				ExpectedIdentity: strings.TrimSpace(in.ExpectedIdentity),
+				ExpectedIssuer:   strings.TrimSpace(in.ExpectedIssuer),
+				Mode:             in.Mode,
+				Offline:          in.Offline,
+			})
+			if verificationErr != nil && !errors.Is(verificationErr, ErrFullVerificationUnavailable) {
+				verificationErr = ErrVerificationFailed
+			}
+		}
+	}
+	checks := append([]domain.VerifyCheck(nil), receipt.Checks...)
+	if len(checks) == 0 {
+		checks = []domain.VerifyCheck{{Name: "cryptographic_verification", Result: "failed", Detail: "Sigstore verification produced no receipt"}}
+		verificationErr = ErrVerificationFailed
+	}
 	result := string(domain.AggregateVerificationState(profile, checks))
 	record := domain.CosignVerification{
-		ID:                  newID("cosv"),
-		TenantID:            actor.TenantID,
-		ArtifactID:          artifact.ID,
-		ContainerImageID:    imageID,
-		ArtifactSignatureID: sig.ID,
-		SubjectDigest:       sig.SubjectDigest,
-		RekorUUID:           strings.TrimSpace(in.RekorUUID),
-		RekorLogIndex:       strings.TrimSpace(in.RekorLogIndex),
-		CertificateIdentity: strings.TrimSpace(in.CertificateIdentity),
-		CertificateIssuer:   strings.TrimSpace(in.CertificateIssuer),
-		Result:              result,
-		Checks:              checks,
-		Profile:             profile,
-		Limitations:         append([]string(nil), profile.Limitations...),
-		SchemaVersion:       domain.CosignVerificationSchemaVersion,
-		CreatedAt:           l.now(),
+		ID:                     newID("cosv"),
+		TenantID:               actor.TenantID,
+		ArtifactID:             artifact.ID,
+		ContainerImageID:       imageID,
+		ArtifactSignatureID:    sig.ID,
+		SubjectDigest:          sig.SubjectDigest,
+		CertificateIdentity:    strings.TrimSpace(receipt.CertificateIdentity),
+		CertificateIssuer:      strings.TrimSpace(receipt.CertificateIssuer),
+		VerifierLibraryVersion: strings.TrimSpace(receipt.LibraryVersion),
+		TrustRootVersion:       strings.TrimSpace(receipt.TrustRootVersion),
+		VerificationMode:       string(in.Mode),
+		Result:                 result,
+		Checks:                 checks,
+		Profile:                profile,
+		Limitations:            append([]string(nil), receipt.Limitations...),
+		SchemaVersion:          domain.CosignVerificationSchemaVersion,
+		CreatedAt:              l.now(),
 	}
 	verification := verificationResult(record.ID, actor.TenantID, "artifact_signature", sig.ID, checks, profile, record.CreatedAt)
+	if err := l.persistCosignVerification(ctx, actor, sig, record, verification); err != nil {
+		return domain.CosignVerification{}, err
+	}
+	if verificationErr != nil {
+		return record, verificationErr
+	}
+	if verificationReturnsFailure(result) {
+		return record, ErrVerificationFailed
+	}
+	return record, nil
+}
+
+func validateCosignVerificationInput(in VerifyCosignInput) error {
+	if !in.Offline {
+		return ErrValidation
+	}
+	switch in.Mode {
+	case CosignVerificationModeKeyless:
+		if strings.TrimSpace(in.ExpectedIdentity) == "" || strings.TrimSpace(in.ExpectedIssuer) == "" {
+			return ErrValidation
+		}
+	case CosignVerificationModeKey:
+		if strings.TrimSpace(in.ExpectedIdentity) != "" || strings.TrimSpace(in.ExpectedIssuer) != "" {
+			return ErrValidation
+		}
+	default:
+		return ErrValidation
+	}
+	return nil
+}
+
+func cosignVerificationProfile(mode CosignVerificationMode, digest string) domain.VerificationProfile {
+	required := []string{"sigstore_bundle", "subject_digest", "cryptographic_signature", "rekor_inclusion_proof"}
+	identityPolicy := "configured key-based signing trust material"
+	if mode == CosignVerificationModeKeyless {
+		required = append(required, "fulcio_trust_root", "certificate_validity", "certificate_identity_policy")
+		identityPolicy = "caller-supplied expected certificate identity and issuer"
+	} else {
+		required = append(required, "trusted_public_key")
+	}
+	return assuranceProfile(domain.VerificationProfileCosignFull, required, []string{"configured Sigstore trust root or public key"}, identityPolicy, "embedded Rekor inclusion proof verified offline", "artifact digest and signed Sigstore bundle", digest, []string{"This profile verifies an explicit offline bundle only. Online-required verification is rejected instead of downgraded."})
+}
+
+func loadCosignBundle(ctx context.Context, tenantID string, sig domain.ArtifactSignature, objects ObjectStore, store Store) ([]byte, error) {
+	if objects == nil || !validDigest(sig.PayloadHash) {
+		return nil, ErrVerificationFailed
+	}
+	_, expectedKey, err := CanonicalObjectPayloadKeys(tenantID, sig.PayloadHash)
+	if err != nil || sig.PayloadRef != "object://"+expectedKey {
+		return nil, ErrVerificationFailed
+	}
+	if lifecycle, ok := store.(ObjectPayloadLifecycleStore); ok {
+		if err := RequireFinalizedObjectPayload(ctx, lifecycle, tenantID, sig.PayloadHash, expectedKey); err != nil {
+			return nil, err
+		}
+	}
+	object, err := objects.Get(ctx, expectedKey)
+	if err != nil || object.Key != expectedKey || object.TenantID != tenantID || object.Digest != sig.PayloadHash || hashBytes(object.Bytes) != sig.PayloadHash {
+		return nil, ErrVerificationFailed
+	}
+	return append([]byte(nil), object.Bytes...), nil
+}
+
+func (l *Ledger) persistCosignVerification(ctx context.Context, actor domain.Actor, sig domain.ArtifactSignature, record domain.CosignVerification, verification domain.VerificationResult) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	if l.unitOfWork != nil {
 		var entry domain.AuditChainEntry
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
@@ -138,32 +232,20 @@ func (l *Ledger) VerifyCosignSignature(ctx context.Context, actor domain.Actor, 
 			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(record.CreatedAt, actor.TenantID, "cosign_signature.verified", "artifact_signature", sig.ID, actorType(actor), actorID(actor), sig.SubjectDigest, ""))
 			return err
 		}); err != nil {
-			return domain.CosignVerification{}, err
+			return err
 		}
 		l.cosignVerifs[record.ID] = record
 		l.verifications[record.ID] = verification
 		l.publishCommittedAuditEntryLocked(entry)
-		if verificationReturnsFailure(result) {
-			return record, ErrVerificationFailed
-		}
-		if in.RequireFullVerification {
-			return record, ErrFullVerificationUnavailable
-		}
-		return record, nil
+		return nil
 	}
 	l.cosignVerifs[record.ID] = record
 	l.verifications[record.ID] = verification
 	_, _ = l.appendChainLocked(actor.TenantID, "cosign_signature.verified", "artifact_signature", sig.ID, actorType(actor), actorID(actor), sig.SubjectDigest, "")
 	if err := l.persistLocked(ctx); err != nil {
-		return domain.CosignVerification{}, err
+		return err
 	}
-	if verificationReturnsFailure(result) {
-		return record, ErrVerificationFailed
-	}
-	if in.RequireFullVerification {
-		return record, ErrFullVerificationUnavailable
-	}
-	return record, nil
+	return nil
 }
 
 func (l *Ledger) RevokeSigningKey(ctx context.Context, actor domain.Actor, keyID, reason string) (domain.SigningKey, error) {

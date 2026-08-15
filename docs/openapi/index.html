@@ -330,13 +330,13 @@
               <div><dt>Responses</dt><dd>200 application/json: ArtifactSignatureEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/artifact-signatures/{id}/verify-cosign verify cosign-style artifact signature deprecated compatibility metadata-assessment endpoint. it assesses stored digest binding, signature-material presence, and supplied rekor metadata only. it never cryptographically verifies a cosign signature, certificate identity, trust policy, rekor inclusion, or checkpoint. successful metadata assessment returns limited; require_full_verification=true returns cosign_full_verification_unavailable until a verifier and trust policy are configured. verifycosignsignature evydence verify:read">
+          <article class="operation" data-operation data-search="post /v1/artifact-signatures/{id}/verify-cosign verify cosign-style artifact signature cryptographically verifies a stored sigstore/cosign bundle against operator-configured trust material and caller-supplied keyless identity policy. the explicit offline profile requires an embedded rekor inclusion proof and does not silently downgrade an online-required request. verifycosignsignature evydence verify:read">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/artifact-signatures/{id}/verify-cosign</code>
             </div>
             <h3>Verify cosign-style artifact signature</h3>
-            <p>Deprecated compatibility metadata-assessment endpoint. It assesses stored digest binding, signature-material presence, and supplied Rekor metadata only. It never cryptographically verifies a Cosign signature, certificate identity, trust policy, Rekor inclusion, or checkpoint. Successful metadata assessment returns limited; require_full_verification=true returns COSIGN_FULL_VERIFICATION_UNAVAILABLE until a verifier and trust policy are configured.</p>
+            <p>Cryptographically verifies a stored Sigstore/Cosign bundle against operator-configured trust material and caller-supplied keyless identity policy. The explicit offline profile requires an embedded Rekor inclusion proof and does not silently downgrade an online-required request.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>verifyCosignSignature</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -5208,7 +5208,7 @@
           <tr>
             <td><code>VerifyCosignSignatureRequest</code></td>
             <td>object</td>
-            <td>none</td>
+            <td>mode, offline</td>
           </tr>
           <tr>
             <td><code>VerifyProviderIdentityRequest</code></td>

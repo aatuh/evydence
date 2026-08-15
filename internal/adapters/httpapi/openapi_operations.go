@@ -566,10 +566,9 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Artifact signature id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Artifact signature envelope.", "#/components/schemas/ArtifactSignatureEnvelope")
 	case "verifyCosignSignature":
-		operation.Description = "Deprecated compatibility metadata-assessment endpoint. It assesses stored digest binding, signature-material presence, and supplied Rekor metadata only. It never cryptographically verifies a Cosign signature, certificate identity, trust policy, Rekor inclusion, or checkpoint. Successful metadata assessment returns limited; require_full_verification=true returns COSIGN_FULL_VERIFICATION_UNAVAILABLE until a verifier and trust policy are configured."
-		operation.Deprecated = true
+		operation.Description = "Cryptographically verifies a stored Sigstore/Cosign bundle against operator-configured trust material and caller-supplied keyless identity policy. The explicit offline profile requires an embedded Rekor inclusion proof and does not silently downgrade an online-required request."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Artifact signature id."))
-		operation.RequestBody = jsonRequest("Cosign verification metadata request.", "#/components/schemas/VerifyCosignSignatureRequest")
+		operation.RequestBody = jsonRequest("Cosign policy verification request.", "#/components/schemas/VerifyCosignSignatureRequest")
 		operation.Responses[http.StatusOK] = jsonResponse("Cosign verification envelope.", "#/components/schemas/CosignVerificationEnvelope")
 	case "uploadBuildAttestation":
 		operation.Description = "Uploads a DSSE/in-toto build attestation for a tenant-scoped build and stores raw bytes in object storage."

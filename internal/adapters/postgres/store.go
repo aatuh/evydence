@@ -2002,16 +2002,16 @@ func (s *Store) loadRelationalIntegrityProviderRows(ctx context.Context, state *
 		return err
 	}
 
-	cosignRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, artifact_id, container_image_id, artifact_signature_id, subject_digest, rekor_uuid, rekor_log_index, certificate_identity, certificate_issuer, result, checks, assurance_profile, limitations, schema_version, created_at FROM cosign_verifications`)
+	cosignRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, artifact_id, container_image_id, artifact_signature_id, subject_digest, rekor_uuid, rekor_log_index, certificate_identity, certificate_issuer, verifier_library_version, trust_root_version, verification_mode, result, checks, assurance_profile, limitations, schema_version, created_at FROM cosign_verifications`)
 	if err != nil {
 		return fmt.Errorf("load relational cosign verifications: %w", err)
 	}
 	defer cosignRows.Close()
 	for cosignRows.Next() {
 		var verification domain.CosignVerification
-		var artifactID, imageID, rekorUUID, rekorLogIndex, certIdentity, certIssuer sql.NullString
+		var artifactID, imageID, rekorUUID, rekorLogIndex, certIdentity, certIssuer, libraryVersion, trustRootVersion, verificationMode sql.NullString
 		var checks, profile []byte
-		if err := cosignRows.Scan(&verification.ID, &verification.TenantID, &artifactID, &imageID, &verification.ArtifactSignatureID, &verification.SubjectDigest, &rekorUUID, &rekorLogIndex, &certIdentity, &certIssuer, &verification.Result, &checks, &profile, &verification.Limitations, &verification.SchemaVersion, &verification.CreatedAt); err != nil {
+		if err := cosignRows.Scan(&verification.ID, &verification.TenantID, &artifactID, &imageID, &verification.ArtifactSignatureID, &verification.SubjectDigest, &rekorUUID, &rekorLogIndex, &certIdentity, &certIssuer, &libraryVersion, &trustRootVersion, &verificationMode, &verification.Result, &checks, &profile, &verification.Limitations, &verification.SchemaVersion, &verification.CreatedAt); err != nil {
 			return fmt.Errorf("scan relational cosign verification: %w", err)
 		}
 		verification.ArtifactID = nullableSQLString(artifactID)
@@ -2020,6 +2020,9 @@ func (s *Store) loadRelationalIntegrityProviderRows(ctx context.Context, state *
 		verification.RekorLogIndex = nullableSQLString(rekorLogIndex)
 		verification.CertificateIdentity = nullableSQLString(certIdentity)
 		verification.CertificateIssuer = nullableSQLString(certIssuer)
+		verification.VerifierLibraryVersion = nullableSQLString(libraryVersion)
+		verification.TrustRootVersion = nullableSQLString(trustRootVersion)
+		verification.VerificationMode = nullableSQLString(verificationMode)
 		if err := decodeJSON(checks, &verification.Checks); err != nil {
 			return fmt.Errorf("decode relational cosign checks: %w", err)
 		}
@@ -4303,16 +4306,16 @@ func syncIntegrityProviderRows(ctx context.Context, tx pgx.Tx, state app.Persist
 			INSERT INTO cosign_verifications (
 				id, tenant_id, artifact_id, container_image_id,
 				artifact_signature_id, subject_digest, rekor_uuid, rekor_log_index,
-				certificate_identity, certificate_issuer, result, checks, assurance_profile, limitations,
-				schema_version, created_at
+				certificate_identity, certificate_issuer, verifier_library_version, trust_root_version, verification_mode,
+				result, checks, assurance_profile, limitations, schema_version, created_at
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-			ON CONFLICT (id) DO UPDATE SET result = EXCLUDED.result, checks = EXCLUDED.checks, assurance_profile = EXCLUDED.assurance_profile, limitations = EXCLUDED.limitations, schema_version = EXCLUDED.schema_version
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+			ON CONFLICT (id) DO UPDATE SET verifier_library_version = EXCLUDED.verifier_library_version, trust_root_version = EXCLUDED.trust_root_version, verification_mode = EXCLUDED.verification_mode, result = EXCLUDED.result, checks = EXCLUDED.checks, assurance_profile = EXCLUDED.assurance_profile, limitations = EXCLUDED.limitations, schema_version = EXCLUDED.schema_version
 		`, verification.ID, verification.TenantID, nullableString(verification.ArtifactID), nullableString(verification.ContainerImageID),
 			verification.ArtifactSignatureID, verification.SubjectDigest, nullableString(verification.RekorUUID),
 			nullableString(verification.RekorLogIndex), nullableString(verification.CertificateIdentity),
-			nullableString(verification.CertificateIssuer), verification.Result, checks, profile, textArray(verification.Limitations), verification.SchemaVersion,
-			nonZeroTime(verification.CreatedAt)); err != nil {
+			nullableString(verification.CertificateIssuer), nullableString(verification.VerifierLibraryVersion), nullableString(verification.TrustRootVersion), nullableString(verification.VerificationMode),
+			verification.Result, checks, profile, textArray(verification.Limitations), verification.SchemaVersion, nonZeroTime(verification.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert cosign verification row: %w", err)
 		}
 	}

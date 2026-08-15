@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,11 +27,14 @@ import (
 	signinggateway "github.com/aatuh/evydence/internal/adapters/signing/httpgateway"
 	"github.com/aatuh/evydence/internal/adapters/transparency/httpfetcher"
 	transparencygateway "github.com/aatuh/evydence/internal/adapters/transparency/httpgateway"
+	cosignverification "github.com/aatuh/evydence/internal/adapters/verification/sigstore"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
 )
 
 const runtimeReadinessTimeout = 5 * time.Second
+
+const maxSigstoreTrustConfigBytes = 1 << 20
 
 func main() {
 	if err := run(); err != nil {
@@ -73,6 +77,11 @@ func run() error {
 		return err
 	}
 	cfg.Transparency = transparencyFetcher
+	cosignVerifier, err := openCosignVerifier()
+	if err != nil {
+		return err
+	}
+	cfg.Cosign = cosignVerifier
 	if signer, err := openSigningExecutor(); err != nil {
 		return err
 	} else {
@@ -272,6 +281,52 @@ func openTransparencyProofFetcher() (app.TransparencyProofFetcher, error) {
 		AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_TRANSPARENCY_FETCH_ALLOW_INSECURE_LOCALHOST"), "true"),
 		Timeout:                   time.Duration(intEnv("EVYDENCE_TRANSPARENCY_FETCH_TIMEOUT_SECONDS", 10)) * time.Second,
 	}), nil
+}
+
+// openCosignVerifier decodes public, operator-managed trust material from
+// bounded base64 environment variables. It deliberately has no network path:
+// the verification endpoint supports explicit offline bundles only.
+func openCosignVerifier() (app.CosignPolicyVerifier, error) {
+	rootValue := strings.TrimSpace(os.Getenv("EVYDENCE_SIGSTORE_TRUST_ROOT_JSON_BASE64"))
+	keyValue := strings.TrimSpace(os.Getenv("EVYDENCE_SIGSTORE_TRUSTED_PUBLIC_KEY_PEM_BASE64"))
+	if rootValue == "" && keyValue == "" {
+		return nil, nil
+	}
+	version := strings.TrimSpace(os.Getenv("EVYDENCE_SIGSTORE_TRUST_ROOT_VERSION"))
+	if version == "" {
+		return nil, errors.New("sigstore trust material requires EVYDENCE_SIGSTORE_TRUST_ROOT_VERSION")
+	}
+	rootJSON, err := decodeBoundedBase64Config(rootValue)
+	if err != nil {
+		return nil, errors.New("EVYDENCE_SIGSTORE_TRUST_ROOT_JSON_BASE64 is invalid")
+	}
+	publicKey, err := decodeBoundedBase64Config(keyValue)
+	if err != nil {
+		return nil, errors.New("EVYDENCE_SIGSTORE_TRUSTED_PUBLIC_KEY_PEM_BASE64 is invalid")
+	}
+	verifier, err := cosignverification.New(cosignverification.Config{
+		TrustedRootJSON:     rootJSON,
+		TrustRootVersion:    version,
+		TrustedPublicKeyPEM: publicKey,
+	})
+	if err != nil {
+		return nil, errors.New("configured Sigstore trust material is invalid")
+	}
+	return verifier, nil
+}
+
+func decodeBoundedBase64Config(value string) ([]byte, error) {
+	if value == "" {
+		return nil, nil
+	}
+	if len(value) > base64.StdEncoding.EncodedLen(maxSigstoreTrustConfigBytes) {
+		return nil, errors.New("configuration is too large")
+	}
+	decoded, err := base64.StdEncoding.Strict().DecodeString(value)
+	if err != nil || len(decoded) == 0 || len(decoded) > maxSigstoreTrustConfigBytes {
+		return nil, errors.New("invalid base64 configuration")
+	}
+	return decoded, nil
 }
 
 func openProviderIdentityValidator() (app.ProviderIdentityValidator, error) {

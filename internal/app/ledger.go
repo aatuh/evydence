@@ -74,6 +74,7 @@ type Config struct {
 	OIDC                  OIDCDiscoveryClient
 	ProviderAPI           ProviderIdentityValidator
 	Transparency          TransparencyProofFetcher
+	Cosign                CosignPolicyVerifier
 	Outbox                Outbox
 	OutboxAdmin           OutboxAdmin
 	ReconciliationMetrics ObjectReconciliationMetricsStore
@@ -97,6 +98,7 @@ type Ledger struct {
 	oidc                  OIDCDiscoveryClient
 	providerAPI           ProviderIdentityValidator
 	transparencyProofs    TransparencyProofFetcher
+	cosign                CosignPolicyVerifier
 	outbox                Outbox
 	outboxAdmin           OutboxAdmin
 	reconciliationMetrics ObjectReconciliationMetricsStore
@@ -246,6 +248,7 @@ func NewLedgerWithContext(ctx context.Context, cfg Config) (*Ledger, error) {
 		oidc:                  cfg.OIDC,
 		providerAPI:           cfg.ProviderAPI,
 		transparencyProofs:    cfg.Transparency,
+		cosign:                cfg.Cosign,
 		outbox:                cfg.Outbox,
 		outboxAdmin:           cfg.OutboxAdmin,
 		reconciliationMetrics: cfg.ReconciliationMetrics,
