@@ -41,7 +41,7 @@ client.post(
         "payload": {
             "bomFormat": "CycloneDX",
             "specVersion": "1.6",
-            "components": [{"name": "openssl", "purl": "pkg:apk/openssl@3.1.0"}],
+            "components": [{"type": "library", "name": "openssl", "purl": "pkg:apk/openssl@3.1.0"}],
         },
     },
 )

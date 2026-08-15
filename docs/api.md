@@ -195,7 +195,7 @@ POST /v1/sboms
     "bomFormat": "CycloneDX",
     "specVersion": "1.6",
     "components": [
-      {"name": "openssl", "purl": "pkg:apk/openssl@3.1.0"}
+      {"type": "library", "name": "openssl", "purl": "pkg:apk/openssl@3.1.0"}
     ]
   }
 }

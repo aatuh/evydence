@@ -683,7 +683,7 @@ func TestGitHubActionsUploadBuildPostsBuildAndAttestationSafely(t *testing.T) {
 func TestReleaseUploadEvidenceDryRunValidatesFilesAndPrintsNextSteps(t *testing.T) {
 	dir := t.TempDir()
 	artifactPath := writeTestFile(t, dir+"/api.tar.gz", []byte("artifact"))
-	sbomPath := writeTestFile(t, dir+"/sbom.json", []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api","purl":"pkg:github/acme/api@abc"}]}`))
+	sbomPath := writeTestFile(t, dir+"/sbom.json", []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api","purl":"pkg:github/acme/api@abc"}]}`))
 	scanPath := writeTestFile(t, dir+"/scan.json", []byte(`{"findings":[]}`))
 	vexPath := writeTestFile(t, dir+"/vex.json", []byte(`{"@context":"https://openvex.dev/ns/v0.2.0","@id":"https://example.test/vex","author":"security@example.test","timestamp":"2026-05-27T12:00:00Z","version":1,"statements":[{"vulnerability":{"name":"CVE-2026-0001"},"products":[{"@id":"pkg:github/acme/api@abc"}],"status":"not_affected","justification":"component_not_present","impact_statement":"not shipped","action_statement":"none"}]}`))
 	t.Setenv("EVYDENCE_API_KEY", "evy_secret_should_not_print")
@@ -718,7 +718,7 @@ func TestReleaseUploadEvidenceDryRunValidatesFilesAndPrintsNextSteps(t *testing.
 func TestReleaseUploadEvidenceCreatesMissingResourcesAndUploads(t *testing.T) {
 	dir := t.TempDir()
 	artifactPath := writeTestFile(t, dir+"/api.tar.gz", []byte("artifact"))
-	sbomPath := writeTestFile(t, dir+"/sbom.json", []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api","purl":"pkg:github/acme/api@abc"}]}`))
+	sbomPath := writeTestFile(t, dir+"/sbom.json", []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api","purl":"pkg:github/acme/api@abc"}]}`))
 	scanPath := writeTestFile(t, dir+"/scan.json", []byte(`{"scanner":"generic","findings":[]}`))
 	vexPath := writeTestFile(t, dir+"/vex.json", []byte(`{"@context":"https://openvex.dev/ns/v0.2.0","@id":"https://example.test/vex","author":"security@example.test","timestamp":"2026-05-27T12:00:00Z","version":1,"statements":[{"vulnerability":{"name":"CVE-2026-0001"},"products":[{"@id":"pkg:github/acme/api@abc"}],"status":"fixed","justification":"fixed","impact_statement":"patched","action_statement":"upgrade"}]}`))
 	seen := []string{}
