@@ -7,11 +7,15 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
+	"net/netip"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/aatuh/evydence/internal/adapters/httpapi"
@@ -37,12 +41,14 @@ const runtimeReadinessTimeout = 5 * time.Second
 const maxSigstoreTrustConfigBytes = 1 << 20
 
 func main() {
-	if err := run(); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := runWithContext(ctx); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run() error {
+func runWithContext(ctx context.Context) error {
 	identity := runtimeinfo.Current()
 	log.Printf("evydence api build identity %s", identity.String())
 	production := strings.EqualFold(os.Getenv("ENV"), "production")
@@ -59,6 +65,10 @@ func run() error {
 		return err
 	}
 	if err := validateAPIWriterMode(production, os.Getenv("EVYDENCE_API_WRITER_MODE"), os.Getenv("EVYDENCE_API_WRITER_REPLICAS")); err != nil {
+		return err
+	}
+	httpConfig, err := httpRuntimeConfigFromEnv()
+	if err != nil {
 		return err
 	}
 	cfg := app.Config{APIKeyPepper: pepper}
@@ -82,7 +92,7 @@ func run() error {
 		return err
 	}
 	cfg.Cosign = cosignVerifier
-	if signer, err := openSigningExecutor(); err != nil {
+	if signer, err := openSigningExecutor(ctx); err != nil {
 		return err
 	} else {
 		cfg.Signer = signer
@@ -90,8 +100,8 @@ func run() error {
 	var closeStore func()
 	var releaseWriterLease func()
 	if databaseURL != "" {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
+		startupCtx, cancelStartup := context.WithTimeout(ctx, 30*time.Second)
+		defer cancelStartup()
 		loadMode, err := postgres.ResolveLoadMode(os.Getenv("EVYDENCE_POSTGRES_LOAD_MODE"), production)
 		if err != nil {
 			return err
@@ -101,13 +111,13 @@ func run() error {
 				return err
 			}
 		}
-		pgStore, err := postgres.OpenWithOptions(ctx, databaseURL, postgres.StoreOptions{LoadMode: loadMode, DisableSnapshotWrites: production})
+		pgStore, err := postgres.OpenWithOptions(startupCtx, databaseURL, postgres.StoreOptions{LoadMode: loadMode, DisableSnapshotWrites: production})
 		if err != nil {
 			return err
 		}
 		closeStore = pgStore.Close
 		if production {
-			releaseWriterLease, err = pgStore.AcquireAPIWriterLease(ctx)
+			releaseWriterLease, err = pgStore.AcquireAPIWriterLease(startupCtx)
 			if err != nil {
 				closeStore()
 				return fmt.Errorf("acquire api writer lease: %w", err)
@@ -115,15 +125,15 @@ func run() error {
 		}
 		migrationsDir := envDefault("EVYDENCE_MIGRATIONS_DIR", "migrations")
 		if !strings.EqualFold(os.Getenv("EVYDENCE_SKIP_MIGRATIONS"), "true") {
-			if _, err := pgStore.ApplyMigrations(ctx, migrationsDir); err != nil {
+			if _, err := pgStore.ApplyMigrations(startupCtx, migrationsDir); err != nil {
 				closeStore()
 				return fmt.Errorf("apply migrations: %w", err)
 			}
-		} else if err := pgStore.RequireNoPendingMigrations(ctx, migrationsDir); err != nil {
+		} else if err := pgStore.RequireNoPendingMigrations(startupCtx, migrationsDir); err != nil {
 			closeStore()
 			return fmt.Errorf("check migrations: %w", err)
 		}
-		objectStore, _, err := openObjectStore(ctx)
+		objectStore, _, err := openObjectStore(startupCtx)
 		if err != nil {
 			closeStore()
 			return err
@@ -160,14 +170,14 @@ func run() error {
 	if releaseWriterLease != nil {
 		defer releaseWriterLease()
 	}
-	ledgerContext, cancelLedgerLoad := context.WithTimeout(context.Background(), 30*time.Second)
+	ledgerContext, cancelLedgerLoad := context.WithTimeout(ctx, 30*time.Second)
 	defer cancelLedgerLoad()
 	ledger, err := app.NewLedgerWithContext(ledgerContext, cfg)
 	if err != nil {
 		return fmt.Errorf("create ledger: %w", err)
 	}
 	if !ledger.HasTenants() && !strings.EqualFold(os.Getenv("EVYDENCE_BOOTSTRAP_DISABLED"), "true") {
-		tenant, key, secret, err := ledger.BootstrapTenant(context.Background(), envDefault("EVYDENCE_BOOTSTRAP_TENANT", "Local Tenant"), "local-admin", []string{"*"})
+		tenant, key, secret, err := ledger.BootstrapTenant(ctx, envDefault("EVYDENCE_BOOTSTRAP_TENANT", "Local Tenant"), "local-admin", []string{"*"})
 		if err != nil {
 			return fmt.Errorf("bootstrap tenant: %w", err)
 		}
@@ -181,32 +191,35 @@ func run() error {
 			log.Printf("bootstrapped tenant %s and key %s; set EVYDENCE_PRINT_BOOTSTRAP_SECRET=true for local-only secret output", tenant.ID, key.ID)
 		}
 	}
-	server, err := httpapi.NewServerWithOptions(ledger, httpapi.ServerOptions{
-		RateLimitRequestsPerMinute: intEnv("EVYDENCE_RATE_LIMIT_REQUESTS_PER_MINUTE", 0),
-		BuildIdentity:              identity,
-		PaginationSecret:           []byte(pepper),
+	server, err := httpapi.NewServerWithOptionsContext(ctx, ledger, httpapi.ServerOptions{
+		RateLimitRequestsPerMinute:       httpConfig.RateLimitRequestsPerMinute,
+		ExpensiveTenantRequestsPerMinute: httpConfig.ExpensiveTenantRequestsPerMinute,
+		RateLimitBucketCapacity:          httpConfig.RateLimitBucketCapacity,
+		TrustedProxyCIDRs:                httpConfig.TrustedProxyCIDRs,
+		MaxURLBytes:                      httpConfig.MaxURLBytes,
+		MaxInboundRequestBytes:           httpConfig.MaxInboundRequestBytes,
+		MaxInFlightRequests:              httpConfig.MaxInFlightRequests,
+		MaxConcurrentUploads:             httpConfig.MaxConcurrentUploads,
+		BuildIdentity:                    identity,
+		PaginationSecret:                 []byte(pepper),
 	})
 	if err != nil {
 		return fmt.Errorf("create server: %w", err)
 	}
 	addr := envDefault("EVYDENCE_ADDR", ":8080")
-	httpServer := &http.Server{
-		Addr:              addr,
-		Handler:           server.Handler(),
-		ReadHeaderTimeout: 5 * time.Second,
-	}
+	httpServer := newHTTPServer(addr, server.Handler(), httpConfig)
 	log.Printf("evydence api listening on %s", addr)
-	return httpServer.ListenAndServe()
+	return serveHTTP(ctx, httpServer, httpConfig.ShutdownTimeout)
 }
 
-func openSigningExecutor() (app.SigningExecutor, error) {
+func openSigningExecutor(ctx context.Context) (app.SigningExecutor, error) {
 	mode := normalizeSigningKeyMode(os.Getenv("EVYDENCE_SIGNING_KEY_MODE"))
 	if mode == "aws_kms" {
 		region := strings.TrimSpace(os.Getenv("EVYDENCE_AWS_REGION"))
 		if region == "" {
 			region = strings.TrimSpace(os.Getenv("AWS_REGION"))
 		}
-		executor, err := awskms.New(context.Background(), awskms.Config{
+		executor, err := awskms.New(ctx, awskms.Config{
 			Region:           region,
 			KeyID:            os.Getenv("EVYDENCE_AWS_KMS_KEY_ID"),
 			Endpoint:         os.Getenv("EVYDENCE_AWS_KMS_ENDPOINT"),
@@ -219,7 +232,7 @@ func openSigningExecutor() (app.SigningExecutor, error) {
 		return executor, nil
 	}
 	if mode == "gcp_kms" {
-		executor, err := gcpkms.New(context.Background(), gcpkms.Config{
+		executor, err := gcpkms.New(ctx, gcpkms.Config{
 			Endpoint: os.Getenv("EVYDENCE_GCP_KMS_ENDPOINT"),
 			KeyName:  os.Getenv("EVYDENCE_GCP_KMS_KEY_NAME"),
 			Timeout:  time.Duration(intEnv("EVYDENCE_GCP_KMS_TIMEOUT_SECONDS", 10)) * time.Second,
@@ -440,6 +453,187 @@ func envDefault(name, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+type httpRuntimeConfig struct {
+	ReadHeaderTimeout                time.Duration
+	ReadTimeout                      time.Duration
+	WriteTimeout                     time.Duration
+	IdleTimeout                      time.Duration
+	ShutdownTimeout                  time.Duration
+	MaxHeaderBytes                   int
+	MaxURLBytes                      int
+	MaxInboundRequestBytes           int64
+	MaxInFlightRequests              int
+	MaxConcurrentUploads             int
+	RateLimitRequestsPerMinute       int
+	ExpensiveTenantRequestsPerMinute int
+	RateLimitBucketCapacity          int
+	TrustedProxyCIDRs                []string
+}
+
+// httpRuntimeConfigFromEnv validates ingress controls before a listener is
+// opened. Bounds deliberately make accidental zero/infinite timeouts and
+// memory-expanding headers impossible in the API process configuration.
+func httpRuntimeConfigFromEnv() (httpRuntimeConfig, error) {
+	readHeaderTimeout, err := boundedDurationSecondsEnv("EVYDENCE_HTTP_READ_HEADER_TIMEOUT_SECONDS", 5, 1, 60)
+	if err != nil {
+		return httpRuntimeConfig{}, err
+	}
+	readTimeout, err := boundedDurationSecondsEnv("EVYDENCE_HTTP_READ_TIMEOUT_SECONDS", 30, 1, 900)
+	if err != nil {
+		return httpRuntimeConfig{}, err
+	}
+	writeTimeout, err := boundedDurationSecondsEnv("EVYDENCE_HTTP_WRITE_TIMEOUT_SECONDS", 60, 1, 900)
+	if err != nil {
+		return httpRuntimeConfig{}, err
+	}
+	idleTimeout, err := boundedDurationSecondsEnv("EVYDENCE_HTTP_IDLE_TIMEOUT_SECONDS", 120, 1, 3600)
+	if err != nil {
+		return httpRuntimeConfig{}, err
+	}
+	shutdownTimeout, err := boundedDurationSecondsEnv("EVYDENCE_HTTP_SHUTDOWN_TIMEOUT_SECONDS", 30, 1, 300)
+	if err != nil {
+		return httpRuntimeConfig{}, err
+	}
+	maxHeaderBytes, err := boundedIntEnv("EVYDENCE_HTTP_MAX_HEADER_BYTES", 16<<10, 1<<10, 1<<20)
+	if err != nil {
+		return httpRuntimeConfig{}, err
+	}
+	maxURLBytes, err := boundedIntEnv("EVYDENCE_HTTP_MAX_URL_BYTES", 8<<10, 1<<10, 64<<10)
+	if err != nil {
+		return httpRuntimeConfig{}, err
+	}
+	maxInFlight, err := boundedIntEnv("EVYDENCE_HTTP_MAX_IN_FLIGHT_REQUESTS", 256, 1, 100_000)
+	if err != nil {
+		return httpRuntimeConfig{}, err
+	}
+	maxUploads, err := boundedIntEnv("EVYDENCE_HTTP_MAX_CONCURRENT_UPLOADS", 8, 1, 10_000)
+	if err != nil {
+		return httpRuntimeConfig{}, err
+	}
+	rateLimit, err := boundedIntEnv("EVYDENCE_RATE_LIMIT_REQUESTS_PER_MINUTE", 120, 0, 60_000)
+	if err != nil {
+		return httpRuntimeConfig{}, err
+	}
+	expensiveTenantRateLimit, err := boundedIntEnv("EVYDENCE_EXPENSIVE_TENANT_REQUESTS_PER_MINUTE", 30, 0, 60_000)
+	if err != nil {
+		return httpRuntimeConfig{}, err
+	}
+	bucketCapacity, err := boundedIntEnv("EVYDENCE_RATE_LIMIT_BUCKET_CAPACITY", 10_000, 1, 1_000_000)
+	if err != nil {
+		return httpRuntimeConfig{}, err
+	}
+	trustedProxyCIDRs, err := trustedProxyCIDRsFromEnv("EVYDENCE_TRUSTED_PROXY_CIDRS")
+	if err != nil {
+		return httpRuntimeConfig{}, err
+	}
+	return httpRuntimeConfig{
+		ReadHeaderTimeout:                readHeaderTimeout,
+		ReadTimeout:                      readTimeout,
+		WriteTimeout:                     writeTimeout,
+		IdleTimeout:                      idleTimeout,
+		ShutdownTimeout:                  shutdownTimeout,
+		MaxHeaderBytes:                   maxHeaderBytes,
+		MaxURLBytes:                      maxURLBytes,
+		MaxInboundRequestBytes:           app.EvidenceDocumentLimit,
+		MaxInFlightRequests:              maxInFlight,
+		MaxConcurrentUploads:             maxUploads,
+		RateLimitRequestsPerMinute:       rateLimit,
+		ExpensiveTenantRequestsPerMinute: expensiveTenantRateLimit,
+		RateLimitBucketCapacity:          bucketCapacity,
+		TrustedProxyCIDRs:                trustedProxyCIDRs,
+	}, nil
+}
+
+func boundedDurationSecondsEnv(name string, fallback, min, max int) (time.Duration, error) {
+	seconds, err := boundedIntEnv(name, fallback, min, max)
+	if err != nil {
+		return 0, err
+	}
+	return time.Duration(seconds) * time.Second, nil
+}
+
+func boundedIntEnv(name string, fallback, min, max int) (int, error) {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return fallback, nil
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed < min || parsed > max {
+		return 0, fmt.Errorf("%s must be an integer between %d and %d", name, min, max)
+	}
+	return parsed, nil
+}
+
+func trustedProxyCIDRsFromEnv(name string) ([]string, error) {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return nil, nil
+	}
+	parts := strings.Split(value, ",")
+	trusted := make([]string, 0, len(parts))
+	for _, part := range parts {
+		prefix, err := netip.ParsePrefix(strings.TrimSpace(part))
+		if err != nil {
+			return nil, fmt.Errorf("%s contains an invalid CIDR", name)
+		}
+		trusted = append(trusted, prefix.Masked().String())
+	}
+	return trusted, nil
+}
+
+func newHTTPServer(addr string, handler http.Handler, config httpRuntimeConfig) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: config.ReadHeaderTimeout,
+		ReadTimeout:       config.ReadTimeout,
+		WriteTimeout:      config.WriteTimeout,
+		IdleTimeout:       config.IdleTimeout,
+		MaxHeaderBytes:    config.MaxHeaderBytes,
+	}
+}
+
+func serveHTTP(ctx context.Context, server *http.Server, shutdownTimeout time.Duration) error {
+	if ctx == nil {
+		return errors.New("API server context is required")
+	}
+	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", server.Addr)
+	if err != nil {
+		return err
+	}
+	return serveHTTPOnListener(ctx, server, listener, shutdownTimeout)
+}
+
+func serveHTTPOnListener(ctx context.Context, server *http.Server, listener net.Listener, shutdownTimeout time.Duration) error {
+	if ctx == nil {
+		return errors.New("API server context is required")
+	}
+	if shutdownTimeout <= 0 {
+		shutdownTimeout = 30 * time.Second
+	}
+	errCh := make(chan error, 1)
+	go func() { errCh <- server.Serve(listener) }()
+	select {
+	case err := <-errCh:
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+		return err
+	case <-ctx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			_ = server.Close()
+			return fmt.Errorf("gracefully shut down API server: %w", err)
+		}
+		err := <-errCh
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+		return err
+	}
 }
 
 func intEnv(name string, fallback int) int {

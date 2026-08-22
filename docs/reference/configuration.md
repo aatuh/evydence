@@ -45,7 +45,19 @@ process, or equivalent deployment control.
 | `EVYDENCE_S3_SECRET_ACCESS_KEY` | S3/MinIO object store | local example value | Store outside source control and logs. |
 | `EVYDENCE_S3_REGION` | No | empty | Optional S3 region. |
 | `EVYDENCE_S3_USE_SSL` | No | `false` locally, `true` in chart values | Use TLS for remote object storage. |
-| `EVYDENCE_RATE_LIMIT_REQUESTS_PER_MINUTE` | No | `0` disabled | Optional in-process per-client request limit using the TCP remote address. Use reverse-proxy or ingress rate limiting for production edge controls. |
+| `EVYDENCE_HTTP_READ_HEADER_TIMEOUT_SECONDS` | No | `5` | Maximum time to receive HTTP request headers. Values must be whole seconds from 1 through 60. |
+| `EVYDENCE_HTTP_READ_TIMEOUT_SECONDS` | No | `30` | Maximum total request-read time. Values must be whole seconds from 1 through 900. |
+| `EVYDENCE_HTTP_WRITE_TIMEOUT_SECONDS` | No | `60` | Maximum response-write time. Values must be whole seconds from 1 through 900. |
+| `EVYDENCE_HTTP_IDLE_TIMEOUT_SECONDS` | No | `120` | Idle keep-alive timeout. Values must be whole seconds from 1 through 3600. |
+| `EVYDENCE_HTTP_SHUTDOWN_TIMEOUT_SECONDS` | No | `30` | Graceful shutdown deadline after `SIGINT` or `SIGTERM`. Values must be whole seconds from 1 through 300. |
+| `EVYDENCE_HTTP_MAX_HEADER_BYTES` | No | `16384` | Listener header-size cap in bytes. Values must be 1024 through 1048576. |
+| `EVYDENCE_HTTP_MAX_URL_BYTES` | No | `8192` | Raw request-target cap in bytes, including its query string. Values must be 1024 through 65536. |
+| `EVYDENCE_HTTP_MAX_IN_FLIGHT_REQUESTS` | No | `256` | Process-wide simultaneous request cap. Saturation returns a retryable `429` Problem Details response. |
+| `EVYDENCE_HTTP_MAX_CONCURRENT_UPLOADS` | No | `8` | Simultaneous native SBOM, VEX, scan, and OpenAPI-document upload cap. Saturation returns a retryable `429` Problem Details response. |
+| `EVYDENCE_RATE_LIMIT_REQUESTS_PER_MINUTE` | No | `120` | In-process per-client request limit. Set `0` only for controlled local evaluation; retain a reverse-proxy or ingress limit as the primary edge control. |
+| `EVYDENCE_EXPENSIVE_TENANT_REQUESTS_PER_MINUTE` | No | `30` | Per-tenant, per-route limit for document ingestion, bundle/import/export, report/package generation, diffs, and policy evaluation. Set `0` only for controlled local evaluation. |
+| `EVYDENCE_RATE_LIMIT_BUCKET_CAPACITY` | No | `10000` | Maximum tracked client/tenant-route buckets per in-process limiter. Values must be 1 through 1000000; least-recent buckets are evicted when full. |
+| `EVYDENCE_TRUSTED_PROXY_CIDRS` | No | unset | Comma-separated proxy source CIDRs. Evydence uses `X-Forwarded-For` only when the direct TCP peer is in this list; otherwise it rate-limits the direct remote address. |
 | `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS` | No | `false` | Optional hardening mode for parser-backed uploads. When set to `true`, the API stores accepted records and the outbox worker populates parser-derived fields from tenant-prefixed raw payloads after digest verification, including VEX-derived vulnerability decisions. |
 | `EVYDENCE_SKIP_MIGRATIONS` | No | unset | Set to `true` only when migrations are applied by a separate release process. API and worker startup still verify that no committed migrations are pending and fail closed if the database is behind. |
 | `EVYDENCE_MIGRATIONS_DIR` | No | `migrations` | Migration directory for API startup and `cmd/evydence-migrate`. |
@@ -111,6 +123,30 @@ proxy limit lower than the table will reject a valid request before Evydence
 can return its RFC 9457 problem response; a higher proxy limit does not weaken
 the application limit. Keep any proxy configuration derived from this table
 and review it when `payload_limits.go` changes.
+
+## HTTP Ingress Limits And Proxy Trust
+
+The API listener applies bounded header, request-target, request-read,
+response-write, idle, and graceful-shutdown limits from the variables above.
+The process rejects an invalid bound or proxy CIDR during startup rather than
+silently falling back to an unbounded setting.
+
+Evydence does not accept compressed or multipart request bodies. Only an absent
+or `identity` `Content-Encoding` is accepted, so the ingress limit and the
+route parser count the same bytes. Multipart is rejected because no public
+route accepts multipart parts; native documents use their documented raw media
+types and metadata headers. The ingress ceiling is the 20 MiB native-document
+limit in `internal/app/payload_limits.go`; individual routes keep their tighter
+small-JSON or report-template limits.
+
+Set `EVYDENCE_TRUSTED_PROXY_CIDRS` only for addresses controlled by the
+deployment. A trusted proxy must append and sanitize `X-Forwarded-For` before
+forwarding requests. Evydence walks the rightmost trusted proxy hops to the
+first untrusted address, and ignores `X-Forwarded-For` entirely when the direct
+peer is not trusted. It does not treat `Forwarded` or `X-Real-IP` as a client
+identity source. This process-local limiter remains a safety boundary, not a
+substitute for TLS termination, edge DDoS controls, or a shared distributed
+rate limiter when multiple API processes are introduced.
 
 ## Production Rejection Checks
 

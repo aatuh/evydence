@@ -7,6 +7,19 @@ data:
   EVYDENCE_ADDR: {{ .Values.api.addr | quote }}
   EVYDENCE_API_WRITER_MODE: {{ .Values.api.writerMode | quote }}
   EVYDENCE_API_WRITER_REPLICAS: {{ .Values.api.replicas | quote }}
+  EVYDENCE_HTTP_READ_HEADER_TIMEOUT_SECONDS: {{ .Values.api.readHeaderTimeoutSeconds | quote }}
+  EVYDENCE_HTTP_READ_TIMEOUT_SECONDS: {{ .Values.api.readTimeoutSeconds | quote }}
+  EVYDENCE_HTTP_WRITE_TIMEOUT_SECONDS: {{ .Values.api.writeTimeoutSeconds | quote }}
+  EVYDENCE_HTTP_IDLE_TIMEOUT_SECONDS: {{ .Values.api.idleTimeoutSeconds | quote }}
+  EVYDENCE_HTTP_SHUTDOWN_TIMEOUT_SECONDS: {{ .Values.api.shutdownTimeoutSeconds | quote }}
+  EVYDENCE_HTTP_MAX_HEADER_BYTES: {{ .Values.api.maxHeaderBytes | quote }}
+  EVYDENCE_HTTP_MAX_URL_BYTES: {{ .Values.api.maxURLBytes | quote }}
+  EVYDENCE_HTTP_MAX_IN_FLIGHT_REQUESTS: {{ .Values.api.maxInFlightRequests | quote }}
+  EVYDENCE_HTTP_MAX_CONCURRENT_UPLOADS: {{ .Values.api.maxConcurrentUploads | quote }}
+  EVYDENCE_RATE_LIMIT_REQUESTS_PER_MINUTE: {{ .Values.api.rateLimitRequestsPerMinute | quote }}
+  EVYDENCE_EXPENSIVE_TENANT_REQUESTS_PER_MINUTE: {{ .Values.api.expensiveTenantRequestsPerMinute | quote }}
+  EVYDENCE_RATE_LIMIT_BUCKET_CAPACITY: {{ .Values.api.rateLimitBucketCapacity | quote }}
+  EVYDENCE_TRUSTED_PROXY_CIDRS: {{ .Values.api.trustedProxyCIDRs | quote }}
   EVYDENCE_OBJECT_STORE: {{ .Values.env.objectStore | quote }}
   EVYDENCE_S3_ENDPOINT: {{ .Values.env.s3Endpoint | quote }}
   EVYDENCE_S3_BUCKET: {{ .Values.env.s3Bucket | quote }}

@@ -8,11 +8,9 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/aatuh/api-toolkit/v3/httpx"
@@ -35,26 +33,49 @@ type Server struct {
 	mux      *http.ServeMux
 	specs    *specs.Registry
 	routes   *routecontracts.Registry
-	limiter  *requestRateLimiter
+	ingress  *ingressControl
 	identity runtimeinfo.Identity
 	cursors  appquery.CursorCodec
 }
 
 type ServerOptions struct {
+	// RateLimitRequestsPerMinute bounds unauthenticated and authenticated edge
+	// traffic by client address. Forwarded addresses are used only when the
+	// direct remote address belongs to TrustedProxyCIDRs.
 	RateLimitRequestsPerMinute int
-	BuildIdentity              runtimeinfo.Identity
+	// ExpensiveTenantRequestsPerMinute bounds storage, parsing, export, and
+	// report-heavy POST operations per authenticated tenant and route.
+	ExpensiveTenantRequestsPerMinute int
+	RateLimitBucketCapacity          int
+	TrustedProxyCIDRs                []string
+	MaxURLBytes                      int
+	MaxInboundRequestBytes           int64
+	MaxInFlightRequests              int
+	MaxConcurrentUploads             int
+	BuildIdentity                    runtimeinfo.Identity
 	// PaginationSecret authenticates opaque cursor tokens. Production callers
 	// should supply a stable, non-public secret so tokens survive restarts.
 	PaginationSecret []byte
 }
 
 func NewServer(ledger *app.Ledger) (*Server, error) {
-	return NewServerWithOptions(ledger, ServerOptions{})
+	return NewServerWithOptionsContext(context.Background(), ledger, ServerOptions{})
 }
 
 func NewServerWithOptions(ledger *app.Ledger, opts ServerOptions) (*Server, error) {
+	return NewServerWithOptionsContext(context.Background(), ledger, opts)
+}
+
+func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts ServerOptions) (*Server, error) {
+	if ctx == nil {
+		return nil, errors.New("server context is required")
+	}
 	if ledger == nil {
-		ledger = app.NewLedger(app.Config{})
+		var err error
+		ledger, err = app.NewLedgerWithContext(ctx, app.Config{})
+		if err != nil {
+			return nil, err
+		}
 	}
 	mux := http.NewServeMux()
 	specRegistry := NewSpecRegistry()
@@ -75,7 +96,11 @@ func NewServerWithOptions(ledger *app.Ledger, opts ServerOptions) (*Server, erro
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{ledger: ledger, mux: mux, specs: specRegistry, routes: routeRegistry, limiter: newRequestRateLimiter(opts.RateLimitRequestsPerMinute), identity: identity, cursors: cursors}
+	ingress, err := newIngressControl(opts)
+	if err != nil {
+		return nil, err
+	}
+	server := &Server{ledger: ledger, mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors}
 	if err := server.registerRoutes(); err != nil {
 		return nil, err
 	}
@@ -83,7 +108,7 @@ func NewServerWithOptions(ledger *app.Ledger, opts ServerOptions) (*Server, erro
 }
 
 func (s *Server) Handler() http.Handler {
-	return secureHeaders(requestIDMiddleware(s.rateLimitMiddleware(s.conditionalReadMiddleware(s.mux))))
+	return secureHeaders(requestIDMiddleware(s.inFlightMiddleware(s.ingressValidationMiddleware(s.rateLimitMiddleware(s.uploadConcurrencyMiddleware(s.conditionalReadMiddleware(s.mux)))))))
 }
 
 func (s *Server) OpenAPI() ([]byte, error) {
@@ -2462,6 +2487,10 @@ func (s *Server) authenticate(w http.ResponseWriter, r *http.Request) (domain.Ac
 		writeProblem(w, r, err)
 		return domain.Actor{}, false
 	}
+	if !s.allowExpensiveTenantRequest(actor, r) {
+		writeProblem(w, r, app.ErrRateLimited)
+		return domain.Actor{}, false
+	}
 	return actor, true
 }
 
@@ -2597,65 +2626,6 @@ func writeProblem(w http.ResponseWriter, r *http.Request, err error) {
 		problem.Instance = r.URL.Path
 	}
 	httpx.WriteProblem(w, status, problem)
-}
-
-type requestRateLimiter struct {
-	mu      sync.Mutex
-	limit   int
-	window  time.Duration
-	buckets map[string]rateLimitBucket
-}
-
-type rateLimitBucket struct {
-	reset time.Time
-	used  int
-}
-
-func newRequestRateLimiter(limit int) *requestRateLimiter {
-	if limit <= 0 {
-		return nil
-	}
-	return &requestRateLimiter{limit: limit, window: time.Minute, buckets: map[string]rateLimitBucket{}}
-}
-
-func (s *Server) rateLimitMiddleware(next http.Handler) http.Handler {
-	if s.limiter == nil {
-		return next
-	}
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !s.limiter.allow(clientRateLimitKey(r), time.Now().UTC()) {
-			writeProblem(w, r, app.ErrRateLimited)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
-func (l *requestRateLimiter) allow(key string, now time.Time) bool {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	bucket := l.buckets[key]
-	if bucket.reset.IsZero() || !now.Before(bucket.reset) {
-		bucket = rateLimitBucket{reset: now.Add(l.window)}
-	}
-	if bucket.used >= l.limit {
-		l.buckets[key] = bucket
-		return false
-	}
-	bucket.used++
-	l.buckets[key] = bucket
-	return true
-}
-
-func clientRateLimitKey(r *http.Request) string {
-	host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
-	if err == nil && host != "" {
-		return host
-	}
-	if remote := strings.TrimSpace(r.RemoteAddr); remote != "" {
-		return remote
-	}
-	return "unknown"
 }
 
 func requestIDMiddleware(next http.Handler) http.Handler {
