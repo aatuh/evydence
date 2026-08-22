@@ -144,6 +144,9 @@ make production-check
 The gate requires:
 
 - `EVYDENCE_TEST_DATABASE_URL` set to a disposable PostgreSQL database;
+- `EVYDENCE_TEST_S3_*` set to an isolated loopback MinIO service with
+  test-only credentials;
+- `make integration-check` passing without skipped PostgreSQL or MinIO tests;
 - `make release-check` passing without skipped live PostgreSQL checks;
 - `make coverage-check` passing at the configured threshold;
 - migration compatibility from every committed migration prefix to the current
@@ -184,7 +187,7 @@ disposable database and sanitized logs.
 
 Do not describe an Evydence build as broadly self-hosted production-ready until:
 
-- `make production-check` passes in CI with live PostgreSQL;
+- `make production-check` passes in CI with live PostgreSQL and MinIO;
 - `make black-box-demo-check` passes against a disposable PostgreSQL schema,
   exercising API, worker, restart persistence, readiness, package, and
   audit-chain verification paths;

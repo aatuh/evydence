@@ -32,6 +32,10 @@ jobs:
     env:
       EVYDENCE_API_KEY_PEPPER: ci-test-pepper
       EVYDENCE_TEST_DATABASE_URL: postgres://evydence:change-me@localhost:5432/evydence?sslmode=disable
+      EVYDENCE_TEST_S3_ENDPOINT: 127.0.0.1:9000
+      EVYDENCE_TEST_S3_ACCESS_KEY_ID: evydence
+      EVYDENCE_TEST_S3_SECRET_ACCESS_KEY: change-me-change-me
+      EVYDENCE_TEST_S3_USE_SSL: "false"
     steps:
       - name: Check out repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -54,6 +58,23 @@ jobs:
       - name: Install Go QA tools
         run: make tools
 
+      - name: Start isolated MinIO integration service
+        run: |
+          docker run --detach --name evydence-ci-minio \
+            --publish 127.0.0.1:9000:9000 \
+            --env MINIO_ROOT_USER=evydence \
+            --env MINIO_ROOT_PASSWORD=change-me-change-me \
+            minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e \
+            server /data
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:9000/minio/health/live >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs evydence-ci-minio >&2 || true
+          exit 1
+
       - name: Install pinned OpenAPI diff tool
         env:
           OASDIFF_VERSION: 1.29.1
@@ -74,11 +95,12 @@ jobs:
           OASDIFF_BIN: ${{ runner.temp }}/oasdiff/oasdiff
         run: make openapi-breaking-check
 
-      - name: Run storage reconciliation focused tests
-        run: go test ./internal/app ./internal/adapters/objectstore/... ./internal/adapters/postgres -count=1
-
-      - name: Run production check with live PostgreSQL
+      - name: Run production check with live PostgreSQL and MinIO
         run: make production-check
+
+      - name: Stop isolated MinIO integration service
+        if: always()
+        run: docker rm --force evydence-ci-minio || true
 
       - name: Upload release evidence artifacts
         if: always()
@@ -95,4 +117,5 @@ jobs:
             tmp/black-box-release-artifact/release/evydence_linux_amd64/SHA256SUMS
             tmp/production-check/evydence-release-manifest.json
             tmp/production-check/evydence-release-manifest.sig.json
+            tmp/integration-check/integration-summary.json
           if-no-files-found: ignore

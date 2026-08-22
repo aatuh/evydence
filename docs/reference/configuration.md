@@ -8,7 +8,7 @@ This is the canonical reference for current environment files and runtime variab
 |------|---------|---------|---------------------|
 | `.env.example` | `docker-compose.yml` | Local PostgreSQL and MinIO container credentials. | No |
 | `.api.env.example` | API, worker, migration command | Local API runtime settings, durable database URL, object storage mode, bootstrap tenant, and local secret printing. | No |
-| `.test.env.example` | Make targets for live PostgreSQL tests | `EVYDENCE_TEST_DATABASE_URL` and test-only API key pepper. | No |
+| `.test.env.example` | Make targets for live PostgreSQL and MinIO tests | `EVYDENCE_TEST_DATABASE_URL`, loopback MinIO test credentials, and test-only API key pepper. | No |
 | `.production.env.example` | Operators translating config into deployment secrets | Production-mode variable checklist with empty secret fields, external object storage, single-writer API settings, rate limiting, signing profiles, and telemetry/diagnostic notes. | No |
 
 Copy examples to local untracked files when needed:
@@ -100,7 +100,11 @@ process, or equivalent deployment control.
 | `EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_TOKEN` | Gateway | unset | Optional bearer token for the transparency proof gateway. Store outside source control and logs. |
 | `EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_TIMEOUT_SECONDS` | No | `10` | Timeout for transparency proof gateway requests. |
 | `EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_ALLOW_INSECURE_LOCALHOST` | Local only | `false` | Allows an HTTP localhost transparency proof gateway for tests. Do not use for production. |
-| `EVYDENCE_TEST_DATABASE_URL` | Live tests | `.test.env.example` value | Used by `make live-postgres-check`, `make postgres-integration-test`, `make fault-injection-check`, and `make release-check`. The fault-injection target rejects `ENV=production` and a value equal to `EVYDENCE_DATABASE_URL`. |
+| `EVYDENCE_TEST_DATABASE_URL` | Live tests | `.test.env.example` value | Used by `make live-postgres-check`, `make postgres-integration-test`, `make fault-injection-check`, `make integration-check`, and `make release-check`. `make integration-check` rejects `ENV=production` and a value equal to `EVYDENCE_DATABASE_URL`. |
+| `EVYDENCE_TEST_S3_ENDPOINT` | Live MinIO tests | `127.0.0.1:9000` | Required by `make integration-check` and therefore `make production-check`. The integration gate permits only a loopback MinIO endpoint and rejects a value equal to `EVYDENCE_S3_ENDPOINT`. |
+| `EVYDENCE_TEST_S3_ACCESS_KEY_ID` | Live MinIO tests | `.test.env.example` value | Test-only credential for the disposable MinIO service. Never point it at a production or shared object-store account. |
+| `EVYDENCE_TEST_S3_SECRET_ACCESS_KEY` | Live MinIO tests | `.test.env.example` value | Test-only secret for the disposable MinIO service. The integration summary redacts credentials. Never commit a real value. |
+| `EVYDENCE_TEST_S3_USE_SSL` | Live MinIO tests | `false` | Boolean transport setting for the loopback test service. |
 
 ## Request-Body Limits
 
