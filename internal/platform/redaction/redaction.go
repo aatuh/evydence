@@ -211,9 +211,12 @@ func sanitize(value any, remove bool) (any, bool) {
 		}
 		return json.RawMessage(encoded), true
 	default:
-		decoded, ok := decodeJSONShapedValue(value)
+		decoded, ok, failed := decodeJSONShapedValue(value)
 		if !ok {
 			return value, false
+		}
+		if failed {
+			return Redacted, true
 		}
 		safe, changed := sanitize(decoded, remove)
 		if !changed {
@@ -223,25 +226,24 @@ func sanitize(value any, remove bool) (any, bool) {
 	}
 }
 
-func decodeJSONShapedValue(value any) (any, bool) {
+func decodeJSONShapedValue(value any) (decoded any, ok bool, failed bool) {
 	if value == nil {
-		return nil, false
+		return nil, false, false
 	}
 	kind := reflect.TypeOf(value).Kind()
 	switch kind {
 	case reflect.Array, reflect.Map, reflect.Pointer, reflect.Slice, reflect.Struct:
 	default:
-		return nil, false
+		return nil, false, false
 	}
 	encoded, err := json.Marshal(value)
 	if err != nil {
-		return Redacted, true
+		return nil, true, true
 	}
-	var decoded any
 	if err := json.Unmarshal(encoded, &decoded); err != nil {
-		return Redacted, true
+		return nil, true, true
 	}
-	return decoded, true
+	return decoded, true, false
 }
 
 func normalizeKey(key string) string {
@@ -296,7 +298,9 @@ func firstSensitivePath(value any, path string) (string, bool) {
 			return path, true
 		}
 	default:
-		if decoded, ok := decodeJSONShapedValue(value); ok {
+		if decoded, ok, failed := decodeJSONShapedValue(value); failed {
+			return path, true
+		} else if ok {
 			return firstSensitivePath(decoded, path)
 		}
 	}
