@@ -38,6 +38,7 @@ product-boundary language across the docs.
 | Key rotation | `docs/runbooks/key-rotation.md` | Credential and signing-provider rotation boundaries. |
 | Capacity and failure modes | `docs/reference/capacity-and-failures.md` and `docs/reference/benchmark-results.md` | Benchmark results are narrow and local. |
 | Security reporting | `SECURITY.md` | Repository settings for private reporting must be verified on GitHub. |
+| Threat model and security requirements | `docs/security/threat-model.md` and `docs/security/security-requirements.md` | Current trust boundaries, public-claim requirements, repository evidence, open security backlog, and explicitly external controls. |
 | Support expectations | `SUPPORT.md` | Public support boundaries and sanitized-report rules. |
 | Commercial pilot positioning | `docs/commercial/design-partner-pilot.md` and `COMMERCIAL.md` | Pilot docs must not imply legal compliance, certification, scanner authority, SBOM completeness, or secure releases. |
 | Reusable product copy | `docs/commercial/product-landing-copy.md` | Website, outreach, and README excerpts should start from this conservative copy. |
