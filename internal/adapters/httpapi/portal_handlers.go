@@ -45,7 +45,9 @@ func (s *Server) listCustomerPortalAccess(w http.ResponseWriter, r *http.Request
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, access)
+	writeCreatedAtPaginated(s, w, r, actor, "customer-portal-access", []string{"package_id"}, access, func(entry domain.CustomerPortalAccess) (string, time.Time) {
+		return entry.ID, entry.CreatedAt
+	})
 }
 
 func (s *Server) revokeCustomerPortalAccess(w http.ResponseWriter, r *http.Request) {
@@ -485,5 +487,7 @@ func (s *Server) listQuestionnaireAnswerLibrary(w http.ResponseWriter, r *http.R
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, entries)
+	writeCreatedAtPaginated(s, w, r, actor, "questionnaire-answer-library", []string{"question_id", "product_id", "release_id"}, entries, func(entry domain.QuestionnaireAnswerLibraryEntry) (string, time.Time) {
+		return entry.ID, entry.CreatedAt
+	})
 }

@@ -38,6 +38,133 @@ func TestRoutesValidateAndOpenAPIRenders(t *testing.T) {
 	}
 }
 
+func TestListProductsUsesBoundedTenantBoundCursorPagination(t *testing.T) {
+	server, secret := testServer(t)
+	for _, product := range []struct {
+		name string
+		slug string
+	}{
+		{name: "Alpha", slug: "alpha"},
+		{name: "Bravo", slug: "bravo"},
+		{name: "Charlie", slug: "charlie"},
+	} {
+		postJSON(t, server, secret, "/v1/products", "pagination-"+product.slug, map[string]any{"name": product.name, "slug": product.slug}, http.StatusCreated)
+	}
+	first := getRaw(t, server, secret, "/v1/products?page_size=2&sort=created_at&direction=asc", http.StatusOK)
+	var firstPage struct {
+		Data []map[string]any `json:"data"`
+		Meta struct {
+			PageSize   int    `json:"page_size"`
+			Sort       string `json:"sort"`
+			Direction  string `json:"direction"`
+			NextCursor string `json:"next_cursor"`
+		} `json:"meta"`
+	}
+	if err := json.Unmarshal(first.Body.Bytes(), &firstPage); err != nil {
+		t.Fatalf("decode first page: %v body=%s", err, first.Body.String())
+	}
+	if len(firstPage.Data) != 2 || firstPage.Meta.PageSize != 2 || firstPage.Meta.Sort != "created_at" || firstPage.Meta.Direction != "asc" || firstPage.Meta.NextCursor == "" {
+		t.Fatalf("first page = %#v, want two records and continuation metadata", firstPage)
+	}
+	second := getRaw(t, server, secret, "/v1/products?page_size=2&sort=created_at&direction=asc&cursor="+url.QueryEscape(firstPage.Meta.NextCursor), http.StatusOK)
+	var secondPage struct {
+		Data []map[string]any `json:"data"`
+		Meta struct {
+			NextCursor string `json:"next_cursor"`
+		} `json:"meta"`
+	}
+	if err := json.Unmarshal(second.Body.Bytes(), &secondPage); err != nil {
+		t.Fatalf("decode second page: %v body=%s", err, second.Body.String())
+	}
+	if len(secondPage.Data) != 1 || secondPage.Meta.NextCursor != "" {
+		t.Fatalf("second page = %#v, want the remaining record without continuation", secondPage)
+	}
+	invalid := getRaw(t, server, secret, "/v1/products?page_size=501", http.StatusBadRequest)
+	if !strings.Contains(invalid.Body.String(), `"code":"VALIDATION_FAILED"`) {
+		t.Fatalf("invalid page size response = %s", invalid.Body.String())
+	}
+	tampered := getRaw(t, server, secret, "/v1/products?page_size=2&cursor="+url.QueryEscape(firstPage.Meta.NextCursor+"x"), http.StatusBadRequest)
+	if !strings.Contains(tampered.Body.String(), `"code":"VALIDATION_FAILED"`) {
+		t.Fatalf("tampered cursor response = %s", tampered.Body.String())
+	}
+}
+
+func TestEvidenceSearchCursorPagesDoNotTruncateMatchingRecords(t *testing.T) {
+	server, secret := testServer(t)
+	digest := "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb"
+	for _, key := range []string{"search-page-a", "search-page-b", "search-page-c"} {
+		postJSON(t, server, secret, "/v1/evidence", key, map[string]any{"type": "build", "title": key, "payload_hash": digest}, http.StatusCreated)
+	}
+	first := getRaw(t, server, secret, "/v1/evidence/search?type=build&page_size=2", http.StatusOK)
+	var firstPage struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+		Meta struct {
+			NextCursor string `json:"next_cursor"`
+		} `json:"meta"`
+	}
+	if err := json.Unmarshal(first.Body.Bytes(), &firstPage); err != nil {
+		t.Fatalf("decode search first page: %v", err)
+	}
+	if len(firstPage.Data) != 2 || firstPage.Meta.NextCursor == "" {
+		t.Fatalf("search first page=%#v, want two records and a cursor", firstPage)
+	}
+	second := getRaw(t, server, secret, "/v1/evidence/search?type=build&page_size=2&cursor="+url.QueryEscape(firstPage.Meta.NextCursor), http.StatusOK)
+	var secondPage struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(second.Body.Bytes(), &secondPage); err != nil {
+		t.Fatalf("decode search second page: %v", err)
+	}
+	seen := map[string]bool{}
+	for _, item := range append(firstPage.Data, secondPage.Data...) {
+		if item.ID == "" || seen[item.ID] {
+			t.Fatalf("search pages contain invalid or duplicate id %q", item.ID)
+		}
+		seen[item.ID] = true
+	}
+	if len(seen) != 3 {
+		t.Fatalf("search cursor pages returned %d distinct records, want 3", len(seen))
+	}
+	getRaw(t, server, secret, "/v1/evidence/search?source=one&source_system=one", http.StatusBadRequest)
+}
+
+func TestResourceReadsUsePrivateConditionalETags(t *testing.T) {
+	server, secret := testServer(t)
+	product := postJSON(t, server, secret, "/v1/products", "etag-product", map[string]any{"name": "ETag product", "slug": "etag-product"}, http.StatusCreated)
+	productID := dataField(t, product, "id")
+	first := getRaw(t, server, secret, "/v1/products/"+productID, http.StatusOK)
+	etag := first.Header().Get("ETag")
+	if etag == "" || !strings.Contains(first.Header().Get("Cache-Control"), "private") || !strings.Contains(first.Header().Get("Vary"), "Authorization") {
+		t.Fatalf("immutable resource cache headers = %#v, want private ETag response", first.Header())
+	}
+	conditional := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/v1/products/"+productID, nil)
+	request.Header.Set("Authorization", "Bearer "+secret)
+	request.Header.Set("If-None-Match", etag)
+	server.Handler().ServeHTTP(conditional, request)
+	if conditional.Code != http.StatusNotModified || conditional.Body.Len() != 0 || conditional.Header().Get("ETag") != etag {
+		t.Fatalf("conditional immutable response status=%d headers=%#v body=%q", conditional.Code, conditional.Header(), conditional.Body.String())
+	}
+	release := postJSON(t, server, secret, "/v1/releases", "etag-release", map[string]any{"product_id": productID, "version": "1.0.0"}, http.StatusCreated)
+	releaseID := dataField(t, release, "id")
+	mutable := getRaw(t, server, secret, "/v1/releases/"+releaseID, http.StatusOK)
+	if mutable.Header().Get("ETag") != `"1"` {
+		t.Fatalf("mutable resource ETag = %q, want revision ETag", mutable.Header().Get("ETag"))
+	}
+	invalid := httptest.NewRecorder()
+	invalidRequest := httptest.NewRequest(http.MethodGet, "/v1/products/"+productID, nil)
+	invalidRequest.Header.Set("Authorization", "Bearer "+secret)
+	invalidRequest.Header.Set("If-None-Match", "not-a-tag")
+	server.Handler().ServeHTTP(invalid, invalidRequest)
+	if invalid.Code != http.StatusBadRequest || !strings.Contains(invalid.Body.String(), `"code":"VALIDATION_FAILED"`) {
+		t.Fatalf("invalid If-None-Match response status=%d body=%s", invalid.Code, invalid.Body.String())
+	}
+}
+
 func TestOpenAPIOperationsHaveExactlyOneStabilityClass(t *testing.T) {
 	server, _ := testServer(t)
 	docBytes, err := server.OpenAPI()

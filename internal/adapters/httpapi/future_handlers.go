@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
@@ -157,7 +158,9 @@ func (s *Server) listMarketplaceCollectors(w http.ResponseWriter, r *http.Reques
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, collectors)
+	writeCreatedAtPaginated(s, w, r, actor, "marketplace-collectors", nil, collectors, func(collector domain.MarketplaceCollector) (string, time.Time) {
+		return collector.ID, collector.CreatedAt
+	})
 }
 
 func (s *Server) marketplaceCollectorHealth(w http.ResponseWriter, r *http.Request) {

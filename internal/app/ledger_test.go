@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
 )
 
@@ -18,6 +19,24 @@ type contextRecordingStore struct {
 	state   PersistedState
 	ok      bool
 	loadErr error
+}
+
+type evidencePageStoreSpy struct {
+	contextRecordingStore
+	requests       []EvidencePageRequest
+	searchRequests []EvidenceSearchPageRequest
+	result         appquery.Result[domain.EvidenceItem]
+}
+
+func (s *evidencePageStoreSpy) ListEvidencePage(_ context.Context, request EvidencePageRequest) (appquery.Result[domain.EvidenceItem], error) {
+	s.requests = append(s.requests, request)
+	return s.result, nil
+}
+
+func (s *evidencePageStoreSpy) SearchEvidencePage(_ context.Context, request EvidenceSearchPageRequest) (appquery.Result[domain.EvidenceItem], error) {
+	s.searchRequests = append(s.searchRequests, request)
+	s.requests = append(s.requests, EvidencePageRequest{TenantID: request.TenantID, Page: request.Page, After: request.After})
+	return s.result, nil
 }
 
 func (s *contextRecordingStore) LoadState(ctx context.Context) (PersistedState, bool, error) {
@@ -97,6 +116,70 @@ func TestNewLedgerWithContextReturnsLoadFailure(t *testing.T) {
 	}
 	if store.seen == nil {
 		t.Fatal("constructor did not call configured state store")
+	}
+}
+
+func TestListEvidencePageUsesPersistencePortOnlyForTenantWideActor(t *testing.T) {
+	item := domain.EvidenceItem{ID: "ev_page", TenantID: "ten_page", ProductID: "prod_page", Type: "build", CreatedAt: time.Date(2026, 8, 22, 12, 0, 0, 0, time.UTC)}
+	store := &evidencePageStoreSpy{
+		contextRecordingStore: contextRecordingStore{state: PersistedState{
+			Products: map[string]domain.Product{"prod_page": {ID: "prod_page", TenantID: "ten_page"}},
+			Evidence: map[string]domain.EvidenceItem{"ev_page": item},
+		}, ok: true},
+		result: appquery.Result[domain.EvidenceItem]{Items: []domain.EvidenceItem{item}},
+	}
+	ledger := newLedgerWithStore(t, Config{APIKeyPepper: "test", Store: store})
+	request := EvidencePageRequest{Page: appquery.PageRequest{PageSize: 50, Sort: appquery.SortCreatedAt, Direction: appquery.Ascending}}
+	apiKeyActor := domain.Actor{TenantID: "ten_page", KeyID: "key_page", Scopes: []string{ScopeEvidenceRead}}
+	page, err := ledger.ListEvidencePage(context.Background(), apiKeyActor, request)
+	if err != nil || len(page.Items) != 1 || len(store.requests) != 1 || store.requests[0].TenantID != apiKeyActor.TenantID {
+		t.Fatalf("persistence page=%#v requests=%#v err=%v", page, store.requests, err)
+	}
+
+	store.requests = nil
+	humanActor := domain.Actor{
+		TenantID: "ten_page", UserID: "usr_page", Scopes: []string{ScopeEvidenceRead},
+		ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: "prod_page", Scopes: []string{ScopeEvidenceRead}}},
+	}
+	page, err = ledger.ListEvidencePage(context.Background(), humanActor, request)
+	if err != nil || len(page.Items) != 1 || len(store.requests) != 0 {
+		t.Fatalf("granular human page=%#v requests=%#v err=%v", page, store.requests, err)
+	}
+}
+
+func TestSearchEvidencePageUsesPersistencePortAndPreservesGranularAuthorization(t *testing.T) {
+	createdAt := time.Date(2026, 8, 22, 12, 0, 0, 0, time.UTC)
+	matching := domain.EvidenceItem{ID: "ev_matching", TenantID: "ten_search", ProductID: "prod_search", Type: "build", Tags: []string{"release"}, CreatedAt: createdAt}
+	nonMatching := domain.EvidenceItem{ID: "ev_nonmatching", TenantID: "ten_search", ProductID: "prod_search", Type: "build", Tags: []string{"other"}, CreatedAt: createdAt.Add(time.Second)}
+	store := &evidencePageStoreSpy{
+		contextRecordingStore: contextRecordingStore{state: PersistedState{
+			Evidence: map[string]domain.EvidenceItem{matching.ID: matching, nonMatching.ID: nonMatching},
+		}, ok: true},
+		result: appquery.Result[domain.EvidenceItem]{Items: []domain.EvidenceItem{matching}},
+	}
+	ledger := newLedgerWithStore(t, Config{APIKeyPepper: "test", Store: store})
+	request := EvidenceSearchPageRequest{
+		Filter: EvidenceSearchInput{Tag: "release", Limit: 999},
+		Page:   appquery.PageRequest{PageSize: 1, Sort: appquery.SortCreatedAt, Direction: appquery.Descending},
+	}
+	apiKeyActor := domain.Actor{TenantID: "ten_search", KeyID: "key_search", Scopes: []string{ScopeEvidenceRead}}
+	page, err := ledger.SearchEvidencePage(context.Background(), apiKeyActor, request)
+	if err != nil || len(page.Items) != 1 || len(store.searchRequests) != 1 {
+		t.Fatalf("persistence search page=%#v requests=%#v err=%v", page, store.searchRequests, err)
+	}
+	if got := store.searchRequests[0]; got.TenantID != apiKeyActor.TenantID || got.Filter.Limit != 0 {
+		t.Fatalf("persistence search request=%#v, want tenant-bound request without legacy limit", got)
+	}
+
+	store.requests = nil
+	store.searchRequests = nil
+	humanActor := domain.Actor{
+		TenantID: "ten_search", UserID: "usr_search", Scopes: []string{ScopeEvidenceRead},
+		ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: "prod_search", Scopes: []string{ScopeEvidenceRead}}},
+	}
+	page, err = ledger.SearchEvidencePage(context.Background(), humanActor, request)
+	if err != nil || len(store.searchRequests) != 0 || len(page.Items) != 1 || page.Items[0].ID != matching.ID {
+		t.Fatalf("granular human search page=%#v persistence requests=%#v err=%v", page, store.searchRequests, err)
 	}
 }
 

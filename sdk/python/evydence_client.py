@@ -5,7 +5,25 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Generic, TypeVar
+
+
+T = TypeVar("T")
+
+
+@dataclass(frozen=True)
+class PageMeta:
+    api_version: str
+    page_size: int
+    sort: str
+    direction: str
+    next_cursor: str | None = None
+
+
+@dataclass(frozen=True)
+class PageEnvelope(Generic[T]):
+    data: list[T]
+    meta: PageMeta
 
 
 @dataclass(frozen=True)

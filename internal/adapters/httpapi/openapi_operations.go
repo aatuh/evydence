@@ -6,6 +6,7 @@ import (
 	"github.com/aatuh/api-toolkit/v3/specs"
 
 	"github.com/aatuh/evydence/internal/app"
+	appquery "github.com/aatuh/evydence/internal/app/query"
 )
 
 func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
@@ -335,15 +336,24 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("Evidence item list envelope.", "#/components/schemas/EvidenceItemListEnvelope")
 	case "searchEvidence":
-		operation.Description = "Searches tenant-scoped evidence with deterministic filters and cursor-style pagination."
+		operation.Description = "Searches tenant-scoped evidence with deterministic filters. The legacy source alias remains supported for source_system."
 		operation.Parameters = append(operation.Parameters,
 			queryParam("product_id", "Filter by product id.", "string"),
 			queryParam("project_id", "Filter by project id.", "string"),
 			queryParam("release_id", "Filter by release id.", "string"),
+			queryParam("build_id", "Filter by build id.", "string"),
+			queryParam("deployment_id", "Filter by deployment id.", "string"),
 			queryParam("type", "Filter by evidence type.", "string"),
-			queryParam("source", "Filter by evidence source.", "string"),
+			queryParam("subtype", "Filter by evidence subtype.", "string"),
+			queryParam("source", "Deprecated alias for source_system.", "string"),
+			queryParam("source_system", "Filter by evidence source system.", "string"),
+			queryParam("collector_id", "Filter by collector id.", "string"),
+			queryParam("verification_status", "Filter by verification status.", "string"),
+			queryParam("subject_type", "Filter by subject type.", "string"),
+			queryParam("subject_id", "Filter by subject id.", "string"),
 			queryParam("tag", "Filter by a single evidence tag.", "string"),
-			queryParam("cursor", "Opaque pagination cursor.", "string"),
+			queryParam("created_after", "Filter by an RFC3339 creation timestamp inclusive lower bound.", "string"),
+			queryParam("created_before", "Filter by an RFC3339 creation timestamp inclusive upper bound.", "string"),
 			queryParam("limit", "Maximum returned records.", "integer"),
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("Evidence search result envelope.", "#/components/schemas/EvidenceSearchEnvelope")
@@ -430,7 +440,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 			queryParam("subject_type", "Filter by audited subject type.", "string"),
 			queryParam("subject_id", "Filter by audited subject id.", "string"),
 			queryParam("since", "Only include entries at or after this RFC3339 timestamp.", "string"),
-			queryParam("limit", "Maximum returned entries; defaults to 100 and caps at 500.", "integer"),
+			queryParam("limit", "Deprecated maximum returned entries alias; defaults to 50 and caps at 500.", "integer"),
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("Audit-chain entry list envelope.", "#/components/schemas/AuditChainEntryListEnvelope")
 	case "generateBackupManifest":
@@ -946,7 +956,87 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("PDF report package creation request.", "#/components/schemas/CreatePDFReportPackageRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created PDF report package envelope.", "#/components/schemas/PDFReportPackageEnvelope")
 	}
+	if isPaginatedOperation(operation.OperationID) {
+		operation.Description += " Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction."
+		operation.Parameters = appendPaginationParameters(operation.OperationID, operation.Parameters)
+	}
+	if isConditionalReadOperation(operation.OperationID) {
+		operation.Parameters = appendParameterIfMissing(operation.Parameters, optionalHeaderParam("If-None-Match", "Optional ETag from a prior private resource read. A match returns 304 without a response body."))
+		if operation.Extensions == nil {
+			operation.Extensions = map[string]any{}
+		}
+		operation.Extensions["x-evydence-conditional-read"] = map[string]any{
+			"cache_control": "private, max-age=0, must-revalidate",
+			"vary":          "Authorization",
+			"not_modified":  http.StatusNotModified,
+		}
+	}
 	return operation
+}
+
+func isPaginatedOperation(operationID string) bool {
+	switch operationID {
+	case "listAPIKeys", "listCollectors", "listControlFrameworks", "listControlEvidence", "listProducts", "listEvidence", "searchEvidence", "listSBOMComponents", "listAuditLog", "listVulnerabilityDecisions", "listExceptions", "listSigningKeys", "listReleaseCandidates", "listEvidenceLifecycleEvents", "listSourceRepositories", "listDeploymentEnvironments", "listDeployments", "listCommercialCollectors", "listMarketplaceCollectors", "listControlFrameworkTemplatePacks", "listCustomerPortalAccess", "listQuestionnaireAnswerLibrary", "listRoleBindings":
+		return true
+	default:
+		return false
+	}
+}
+
+func isConditionalReadOperation(operationID string) bool {
+	switch operationID {
+	case "getSecurityControl", "getProduct", "getProject", "getRelease", "getReleaseCandidate", "getArtifact", "getArtifactSignature", "getBuildRun", "getDeployment", "getCustomerPackage", "getEvidence", "getSBOM", "getVEX", "getVEXImportReport", "getVulnerabilityScan", "getOpenAPIContract", "getReleaseBundle", "getReleaseBundleManifest":
+		return true
+	default:
+		return false
+	}
+}
+
+func appendPaginationParameters(operationID string, parameters []specs.Parameter) []specs.Parameter {
+	sortValues := []string{string(appquery.SortCreatedAt), string(appquery.SortID)}
+	defaultSort := string(appquery.SortCreatedAt)
+	defaultDirection := string(appquery.Ascending)
+	if operationID == "listControlFrameworkTemplatePacks" || operationID == "listSBOMComponents" {
+		sortValues = []string{string(appquery.SortID)}
+		defaultSort = string(appquery.SortID)
+	}
+	if operationID == "searchEvidence" || operationID == "listAuditLog" {
+		defaultDirection = string(appquery.Descending)
+	}
+	parameters = appendParameterIfMissing(parameters, specs.Parameter{
+		Name:        "page_size",
+		In:          "query",
+		Description: "Maximum records in this page. Defaults to 50 and is capped at 500.",
+		Schema:      map[string]any{"type": "integer", "minimum": 1, "maximum": appquery.MaxPageSize, "default": appquery.DefaultPageSize},
+	})
+	parameters = appendParameterIfMissing(parameters, specs.Parameter{
+		Name:        "cursor",
+		In:          "query",
+		Description: "Opaque continuation token returned as meta.next_cursor. It must be reused with the same tenant, filters, sort, and direction.",
+		Schema:      map[string]any{"type": "string", "minLength": 1, "maxLength": 4096},
+	})
+	parameters = appendParameterIfMissing(parameters, specs.Parameter{
+		Name:        "sort",
+		In:          "query",
+		Description: "Stable sort key for cursor pagination.",
+		Schema:      map[string]any{"type": "string", "enum": sortValues, "default": defaultSort},
+	})
+	parameters = appendParameterIfMissing(parameters, specs.Parameter{
+		Name:        "direction",
+		In:          "query",
+		Description: "Sort direction for cursor pagination.",
+		Schema:      map[string]any{"type": "string", "enum": []string{string(appquery.Ascending), string(appquery.Descending)}, "default": defaultDirection},
+	})
+	return parameters
+}
+
+func appendParameterIfMissing(parameters []specs.Parameter, parameter specs.Parameter) []specs.Parameter {
+	for _, existing := range parameters {
+		if existing.In == parameter.In && existing.Name == parameter.Name {
+			return parameters
+		}
+	}
+	return append(parameters, parameter)
 }
 
 func addProblemResponses(operation *specs.Operation) {

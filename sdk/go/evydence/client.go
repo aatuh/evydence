@@ -17,6 +17,22 @@ type Client struct {
 	HTTP    *http.Client
 }
 
+// PageMeta is returned by every cursor-paginated collection response.
+type PageMeta struct {
+	APIVersion string `json:"api_version"`
+	PageSize   int    `json:"page_size"`
+	Sort       string `json:"sort"`
+	Direction  string `json:"direction"`
+	NextCursor string `json:"next_cursor,omitempty"`
+}
+
+// PageEnvelope preserves the API data envelope while exposing typed records
+// and cursor metadata to Go callers.
+type PageEnvelope[T any] struct {
+	Data []T      `json:"data"`
+	Meta PageMeta `json:"meta"`
+}
+
 type CreateProductRequest struct {
 	Name string `json:"name"`
 	Slug string `json:"slug"`

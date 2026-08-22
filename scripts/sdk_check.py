@@ -260,6 +260,13 @@ def main() -> None:
         require_text(typescript_client, f"async {helper.typescript_name}", "TypeScript SDK")
         require_text(python_client, f"def {helper.python_name}", "Python SDK")
 
+    require_text(go_client, "type PageMeta struct", "Go SDK pagination type")
+    require_text(go_client, "type PageEnvelope[T any] struct", "Go SDK pagination envelope")
+    require_text(typescript_client, "export type PageMeta", "TypeScript SDK pagination type")
+    require_text(typescript_client, "export type PageEnvelope<T>", "TypeScript SDK pagination envelope")
+    require_text(python_client, "class PageMeta", "Python SDK pagination type")
+    require_text(python_client, "class PageEnvelope", "Python SDK pagination envelope")
+
     require_text(go_client, "strings.HasPrefix(path, \"/v1/\")", "Go SDK path validation")
     require_text(typescript_client, "path.startsWith(\"/v1/\")", "TypeScript SDK path validation")
     require_text(python_client, "path.startswith(\"/v1/\")", "Python SDK path validation")

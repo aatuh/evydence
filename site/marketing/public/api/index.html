@@ -228,13 +228,13 @@
               <div><dt>Responses</dt><dd>200 application/json: ReadinessDiagnosticsEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/api-keys list api keys lists tenant-scoped api key metadata without key hashes or one-time secrets. listapikeys evydence admin">
+          <article class="operation" data-operation data-search="get /v1/api-keys list api keys lists tenant-scoped api key metadata without key hashes or one-time secrets. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listapikeys evydence admin">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/api-keys</code>
             </div>
             <h3>List API keys</h3>
-            <p>Lists tenant-scoped API key metadata without key hashes or one-time secrets.</p>
+            <p>Lists tenant-scoped API key metadata without key hashes or one-time secrets. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listAPIKeys</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -398,13 +398,13 @@
               <div><dt>Responses</dt><dd>200 application/json: VerificationResultEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/audit-log list tenant audit log lists tenant-scoped append-only audit-chain entries in reverse chronological order. listauditlog evydence admin">
+          <article class="operation" data-operation data-search="get /v1/audit-log list tenant audit log lists tenant-scoped append-only audit-chain entries in reverse chronological order. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listauditlog evydence admin">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/audit-log</code>
             </div>
             <h3>List tenant audit log</h3>
-            <p>Lists tenant-scoped append-only audit-chain entries in reverse chronological order.</p>
+            <p>Lists tenant-scoped append-only audit-chain entries in reverse chronological order. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listAuditLog</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -517,13 +517,13 @@
               <div><dt>Responses</dt><dd>201 application/json: BuildAttestationEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/collectors list collectors lists tenant-scoped collector metadata without api key hashes or one-time secrets. listcollectors evydence collector:read">
+          <article class="operation" data-operation data-search="get /v1/collectors list collectors lists tenant-scoped collector metadata without api key hashes or one-time secrets. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listcollectors evydence collector:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/collectors</code>
             </div>
             <h3>List collectors</h3>
-            <p>Lists tenant-scoped collector metadata without API key hashes or one-time secrets.</p>
+            <p>Lists tenant-scoped collector metadata without API key hashes or one-time secrets. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listCollectors</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -619,13 +619,13 @@
               <div><dt>Responses</dt><dd>201 application/json: CollectorReleaseEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/commercial-collectors list commercial collector definitions lists tenant-scoped commercial collector definitions. listcommercialcollectors evydence collector:read">
+          <article class="operation" data-operation data-search="get /v1/commercial-collectors list commercial collector definitions lists tenant-scoped commercial collector definitions. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listcommercialcollectors evydence collector:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/commercial-collectors</code>
             </div>
             <h3>List commercial collector definitions</h3>
-            <p>Lists tenant-scoped commercial collector definitions.</p>
+            <p>Lists tenant-scoped commercial collector definitions. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listCommercialCollectors</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -670,13 +670,13 @@
               <div><dt>Responses</dt><dd>201 application/json: ContainerImageEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/control-evidence list control evidence lists tenant-scoped control evidence links with optional control, product, and release filters. listcontrolevidence evydence controls:read">
+          <article class="operation" data-operation data-search="get /v1/control-evidence list control evidence lists tenant-scoped control evidence links with optional control, product, and release filters. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listcontrolevidence evydence controls:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/control-evidence</code>
             </div>
             <h3>List control evidence</h3>
-            <p>Lists tenant-scoped control evidence links with optional control, product, and release filters.</p>
+            <p>Lists tenant-scoped control evidence links with optional control, product, and release filters. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listControlEvidence</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -687,13 +687,13 @@
               <div><dt>Responses</dt><dd>200 application/json: ControlEvidenceListEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/control-framework-template-packs list control framework template packs lists built-in control framework template packs available for explicit tenant installation. listcontrolframeworktemplatepacks evydence controls:read">
+          <article class="operation" data-operation data-search="get /v1/control-framework-template-packs list control framework template packs lists built-in control framework template packs available for explicit tenant installation. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listcontrolframeworktemplatepacks evydence controls:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/control-framework-template-packs</code>
             </div>
             <h3>List control framework template packs</h3>
-            <p>Lists built-in control framework template packs available for explicit tenant installation.</p>
+            <p>Lists built-in control framework template packs available for explicit tenant installation. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listControlFrameworkTemplatePacks</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -721,13 +721,13 @@
               <div><dt>Responses</dt><dd>201 application/json: ControlFrameworkEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/control-frameworks list control frameworks lists tenant-scoped control frameworks. listcontrolframeworks evydence controls:read">
+          <article class="operation" data-operation data-search="get /v1/control-frameworks list control frameworks lists tenant-scoped control frameworks. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listcontrolframeworks evydence controls:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/control-frameworks</code>
             </div>
             <h3>List control frameworks</h3>
-            <p>Lists tenant-scoped control frameworks.</p>
+            <p>Lists tenant-scoped control frameworks. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listControlFrameworks</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -891,13 +891,13 @@
               <div><dt>Responses</dt><dd>200 application/zip: string; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/customer-portal/access list customer portal access records lists tenant-scoped external reviewer access records without token hashes or token secrets. listcustomerportalaccess evydence package:read">
+          <article class="operation" data-operation data-search="get /v1/customer-portal/access list customer portal access records lists tenant-scoped external reviewer access records without token hashes or token secrets. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listcustomerportalaccess evydence package:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/customer-portal/access</code>
             </div>
             <h3>List customer portal access records</h3>
-            <p>Lists tenant-scoped external reviewer access records without token hashes or token secrets.</p>
+            <p>Lists tenant-scoped external reviewer access records without token hashes or token secrets. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listCustomerPortalAccess</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -1027,13 +1027,13 @@
               <div><dt>Responses</dt><dd>200 application/zip: string; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/deployments list deployments lists tenant-scoped deployment events by optional release and environment filters. listdeployments evydence deployment:read">
+          <article class="operation" data-operation data-search="get /v1/deployments list deployments lists tenant-scoped deployment events by optional release and environment filters. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listdeployments evydence deployment:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/deployments</code>
             </div>
             <h3>List deployments</h3>
-            <p>Lists tenant-scoped deployment events by optional release and environment filters.</p>
+            <p>Lists tenant-scoped deployment events by optional release and environment filters. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listDeployments</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -1095,13 +1095,13 @@
               <div><dt>Responses</dt><dd>201 application/json: DSSETrustRootEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/environments list deployment environments lists tenant-scoped deployment environments, optionally filtered by product. listdeploymentenvironments evydence deployment:read">
+          <article class="operation" data-operation data-search="get /v1/environments list deployment environments lists tenant-scoped deployment environments, optionally filtered by product. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listdeploymentenvironments evydence deployment:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/environments</code>
             </div>
             <h3>List deployment environments</h3>
-            <p>Lists tenant-scoped deployment environments, optionally filtered by product.</p>
+            <p>Lists tenant-scoped deployment environments, optionally filtered by product. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listDeploymentEnvironments</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -1129,13 +1129,13 @@
               <div><dt>Responses</dt><dd>201 application/json: DeploymentEnvironmentEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/evidence list evidence lists tenant-scoped evidence by optional release and evidence type filters. listevidence evydence evidence:read">
+          <article class="operation" data-operation data-search="get /v1/evidence list evidence lists tenant-scoped evidence by optional release and evidence type filters. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listevidence evydence evidence:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/evidence</code>
             </div>
             <h3>List evidence</h3>
-            <p>Lists tenant-scoped evidence by optional release and evidence type filters.</p>
+            <p>Lists tenant-scoped evidence by optional release and evidence type filters. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listEvidence</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -1231,13 +1231,13 @@
               <div><dt>Responses</dt><dd>201 application/json: EvidenceSummaryEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/evidence/search search evidence searches tenant-scoped evidence with deterministic filters and cursor-style pagination. searchevidence evydence evidence:read">
+          <article class="operation" data-operation data-search="get /v1/evidence/search search evidence searches tenant-scoped evidence with deterministic filters. the legacy source alias remains supported for source_system. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. searchevidence evydence evidence:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/evidence/search</code>
             </div>
             <h3>Search evidence</h3>
-            <p>Searches tenant-scoped evidence with deterministic filters and cursor-style pagination.</p>
+            <p>Searches tenant-scoped evidence with deterministic filters. The legacy source alias remains supported for source_system. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>searchEvidence</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -1265,13 +1265,13 @@
               <div><dt>Responses</dt><dd>200 application/json: EvidenceItemEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/evidence/{id}/lifecycle-events list evidence lifecycle events lists append-only lifecycle events for a tenant-scoped evidence item. listevidencelifecycleevents evydence evidence:read">
+          <article class="operation" data-operation data-search="get /v1/evidence/{id}/lifecycle-events list evidence lifecycle events lists append-only lifecycle events for a tenant-scoped evidence item. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listevidencelifecycleevents evydence evidence:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/evidence/{id}/lifecycle-events</code>
             </div>
             <h3>List evidence lifecycle events</h3>
-            <p>Lists append-only lifecycle events for a tenant-scoped evidence item.</p>
+            <p>Lists append-only lifecycle events for a tenant-scoped evidence item. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listEvidenceLifecycleEvents</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -1333,13 +1333,13 @@
               <div><dt>Responses</dt><dd>201 application/json: EvidenceItemEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/exceptions list exceptions lists tenant-scoped exceptions, optionally filtered by release. listexceptions evydence verify:read">
+          <article class="operation" data-operation data-search="get /v1/exceptions list exceptions lists tenant-scoped exceptions, optionally filtered by release. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listexceptions evydence verify:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/exceptions</code>
             </div>
             <h3>List exceptions</h3>
-            <p>Lists tenant-scoped exceptions, optionally filtered by release.</p>
+            <p>Lists tenant-scoped exceptions, optionally filtered by release. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listExceptions</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -1486,13 +1486,13 @@
               <div><dt>Responses</dt><dd>201 application/json: LegalHoldEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/marketplace-collectors list marketplace collector records lists tenant-scoped marketplace collector package metadata. listmarketplacecollectors evydence collector:read">
+          <article class="operation" data-operation data-search="get /v1/marketplace-collectors list marketplace collector records lists tenant-scoped marketplace collector package metadata. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listmarketplacecollectors evydence collector:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/marketplace-collectors</code>
             </div>
             <h3>List marketplace collector records</h3>
-            <p>Lists tenant-scoped marketplace collector package metadata.</p>
+            <p>Lists tenant-scoped marketplace collector package metadata. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listMarketplaceCollectors</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -1724,13 +1724,13 @@
               <div><dt>Responses</dt><dd>201 application/json: PolicyEvaluationEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/products list products lists tenant-scoped products visible to the authenticated actor. listproducts evydence product:read">
+          <article class="operation" data-operation data-search="get /v1/products list products lists tenant-scoped products visible to the authenticated actor. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listproducts evydence product:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/products</code>
             </div>
             <h3>List products</h3>
-            <p>Lists tenant-scoped products visible to the authenticated actor.</p>
+            <p>Lists tenant-scoped products visible to the authenticated actor. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listProducts</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -1894,13 +1894,13 @@
               <div><dt>Responses</dt><dd>201 application/json: PublicTransparencyLogEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/questionnaire-answer-library list questionnaire answer library entries lists tenant-scoped questionnaire answer library entries with optional question, product, and release filters. listquestionnaireanswerlibrary evydence package:read">
+          <article class="operation" data-operation data-search="get /v1/questionnaire-answer-library list questionnaire answer library entries lists tenant-scoped questionnaire answer library entries with optional question, product, and release filters. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listquestionnaireanswerlibrary evydence package:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/questionnaire-answer-library</code>
             </div>
             <h3>List questionnaire answer library entries</h3>
-            <p>Lists tenant-scoped questionnaire answer library entries with optional question, product, and release filters.</p>
+            <p>Lists tenant-scoped questionnaire answer library entries with optional question, product, and release filters. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listQuestionnaireAnswerLibrary</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2081,13 +2081,13 @@
               <div><dt>Responses</dt><dd>200 application/json: VerificationResultEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/release-candidates list release candidates lists tenant-scoped release candidates, optionally filtered by release. listreleasecandidates evydence release:read">
+          <article class="operation" data-operation data-search="get /v1/release-candidates list release candidates lists tenant-scoped release candidates, optionally filtered by release. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listreleasecandidates evydence release:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/release-candidates</code>
             </div>
             <h3>List release candidates</h3>
-            <p>Lists tenant-scoped release candidates, optionally filtered by release.</p>
+            <p>Lists tenant-scoped release candidates, optionally filtered by release. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listReleaseCandidates</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2591,13 +2591,13 @@
               <div><dt>Responses</dt><dd>201 application/json: RetentionOverrideEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/role-bindings list role bindings lists tenant-scoped role bindings visible to the identity administrator. listrolebindings evydence identity:admin">
+          <article class="operation" data-operation data-search="get /v1/role-bindings list role bindings lists tenant-scoped role bindings visible to the identity administrator. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listrolebindings evydence identity:admin">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/role-bindings</code>
             </div>
             <h3>List role bindings</h3>
-            <p>Lists tenant-scoped role bindings visible to the identity administrator.</p>
+            <p>Lists tenant-scoped role bindings visible to the identity administrator. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listRoleBindings</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2642,13 +2642,13 @@
               <div><dt>Responses</dt><dd>201 application/json: SaaSEditionProfileEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/sbom-components list sbom components lists tenant-scoped sbom components by sbom, release, artifact, name/version/purl query, or exact purl. listsbomcomponents evydence evidence:read">
+          <article class="operation" data-operation data-search="get /v1/sbom-components list sbom components lists tenant-scoped sbom components by sbom, release, artifact, name/version/purl query, or exact purl. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listsbomcomponents evydence evidence:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/sbom-components</code>
             </div>
             <h3>List SBOM components</h3>
-            <p>Lists tenant-scoped SBOM components by SBOM, release, artifact, name/version/PURL query, or exact PURL.</p>
+            <p>Lists tenant-scoped SBOM components by SBOM, release, artifact, name/version/PURL query, or exact PURL. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listSBOMComponents</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2761,13 +2761,13 @@
               <div><dt>Responses</dt><dd>201 application/json: SecurityScanEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/signing-keys list signing keys lists tenant signing public-key metadata without private key material. listsigningkeys evydence verify:read">
+          <article class="operation" data-operation data-search="get /v1/signing-keys list signing keys lists tenant signing public-key metadata without private key material. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listsigningkeys evydence verify:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/signing-keys</code>
             </div>
             <h3>List signing keys</h3>
-            <p>Lists tenant signing public-key metadata without private key material.</p>
+            <p>Lists tenant signing public-key metadata without private key material. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listSigningKeys</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2897,13 +2897,13 @@
               <div><dt>Responses</dt><dd>201 application/json: PullRequestEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/source/repositories list source repositories lists tenant-scoped source repositories, optionally filtered by project. listsourcerepositories evydence source:read">
+          <article class="operation" data-operation data-search="get /v1/source/repositories list source repositories lists tenant-scoped source repositories, optionally filtered by project. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listsourcerepositories evydence source:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/source/repositories</code>
             </div>
             <h3>List source repositories</h3>
-            <p>Lists tenant-scoped source repositories, optionally filtered by project.</p>
+            <p>Lists tenant-scoped source repositories, optionally filtered by project. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listSourceRepositories</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -3254,13 +3254,13 @@
               <div><dt>Responses</dt><dd>200 application/json: VEXImportReportEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/vulnerability-decisions list vulnerability decisions lists append-only vulnerability decisions over time with tenant-scoped product, release, vulnerability, component, status, and active filters. listvulnerabilitydecisions evydence evidence:read">
+          <article class="operation" data-operation data-search="get /v1/vulnerability-decisions list vulnerability decisions lists append-only vulnerability decisions over time with tenant-scoped product, release, vulnerability, component, status, and active filters. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listvulnerabilitydecisions evydence evidence:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/vulnerability-decisions</code>
             </div>
             <h3>List vulnerability decisions</h3>
-            <p>Lists append-only vulnerability decisions over time with tenant-scoped product, release, vulnerability, component, status, and active filters.</p>
+            <p>Lists append-only vulnerability decisions over time with tenant-scoped product, release, vulnerability, component, status, and active filters. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listVulnerabilityDecisions</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -4843,7 +4843,7 @@
           <tr>
             <td><code>SBOMComponentRecord</code></td>
             <td>object</td>
-            <td>sbom_id, component</td>
+            <td>id, sbom_id, component</td>
           </tr>
           <tr>
             <td><code>SBOMComponentRecordListEnvelope</code></td>

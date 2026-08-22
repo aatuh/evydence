@@ -5,6 +5,7 @@ import (
 	"io"
 	"time"
 
+	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
 )
 
@@ -23,6 +24,29 @@ type ReleaseLedgerMutationStore interface {
 
 type RelationalStateStore interface {
 	SaveRelationalState(context.Context, PersistedState) error
+}
+
+// EvidencePageStore is the bounded, index-oriented read port used for large
+// evidence collections. Authorization remains in Ledger; adapters receive a
+// tenant-bound request only after that policy has been evaluated.
+type EvidencePageStore interface {
+	ListEvidencePage(context.Context, EvidencePageRequest) (appquery.Result[domain.EvidenceItem], error)
+	SearchEvidencePage(context.Context, EvidenceSearchPageRequest) (appquery.Result[domain.EvidenceItem], error)
+}
+
+type EvidencePageRequest struct {
+	TenantID  string
+	ReleaseID string
+	Type      string
+	Page      appquery.PageRequest
+	After     *appquery.SortKey
+}
+
+type EvidenceSearchPageRequest struct {
+	TenantID string
+	Filter   EvidenceSearchInput
+	Page     appquery.PageRequest
+	After    *appquery.SortKey
 }
 
 // AuditChainRelationalStateStore atomically reconciles audit-chain append

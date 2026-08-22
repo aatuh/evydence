@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 
+	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
 )
 
@@ -72,6 +73,95 @@ func (l *Ledger) GetEvidence(ctx context.Context, actor domain.Actor, id string)
 
 func (l *Ledger) ListEvidence(ctx context.Context, actor domain.Actor, releaseID, typ string) ([]domain.EvidenceItem, error) {
 	return l.releaseEvidenceService().ListEvidence(ctx, actor, releaseID, typ)
+}
+
+// ListEvidencePage uses an indexed persistence query when the actor has
+// tenant-wide read authority. Granular human grants keep the established
+// in-memory authorization path, whose cross-resource grant semantics depend
+// on ledger relationship maps.
+func (l *Ledger) ListEvidencePage(ctx context.Context, actor domain.Actor, request EvidencePageRequest) (appquery.Result[domain.EvidenceItem], error) {
+	if err := ctx.Err(); err != nil {
+		return appquery.Result[domain.EvidenceItem]{}, err
+	}
+	if err := require(actor, ScopeEvidenceRead); err != nil {
+		return appquery.Result[domain.EvidenceItem]{}, err
+	}
+	if request.TenantID != "" && request.TenantID != actor.TenantID {
+		return appquery.Result[domain.EvidenceItem]{}, ErrForbidden
+	}
+	request.TenantID = actor.TenantID
+	if err := appquery.Validate(request.Page, request.After); err != nil {
+		return appquery.Result[domain.EvidenceItem]{}, ErrValidation
+	}
+	if l.evidencePages != nil && actorHasTenantWideRead(actor, ScopeEvidenceRead) {
+		return l.evidencePages.ListEvidencePage(ctx, request)
+	}
+	items, err := l.ListEvidence(ctx, actor, request.ReleaseID, request.Type)
+	if err != nil {
+		return appquery.Result[domain.EvidenceItem]{}, err
+	}
+	page, err := appquery.Page(items, request.Page, request.After, func(item domain.EvidenceItem, sort appquery.Sort) appquery.SortKey {
+		return appquery.RecordSortKey(item.ID, item.CreatedAt, sort)
+	})
+	if err != nil {
+		return appquery.Result[domain.EvidenceItem]{}, ErrValidation
+	}
+	return page, nil
+}
+
+func actorHasTenantWideRead(actor domain.Actor, scope string) bool {
+	if !humanSessionActor(actor) {
+		return true
+	}
+	for _, grant := range actor.ResourceGrants {
+		if grantHasScope(grant, scope) && (grant.ResourceType == "" || grant.ResourceType == "tenant") && (grant.ResourceID == "" || grant.ResourceID == actor.TenantID) {
+			return true
+		}
+	}
+	return false
+}
+
+// SearchEvidencePage applies the complete search predicate before paging. It
+// does not use EvidenceSearchInput.Limit because cursor page bounds are kept
+// separate from matching semantics.
+func (l *Ledger) SearchEvidencePage(ctx context.Context, actor domain.Actor, request EvidenceSearchPageRequest) (appquery.Result[domain.EvidenceItem], error) {
+	if err := ctx.Err(); err != nil {
+		return appquery.Result[domain.EvidenceItem]{}, err
+	}
+	if err := require(actor, ScopeEvidenceRead); err != nil {
+		return appquery.Result[domain.EvidenceItem]{}, err
+	}
+	if request.TenantID != "" && request.TenantID != actor.TenantID {
+		return appquery.Result[domain.EvidenceItem]{}, ErrForbidden
+	}
+	if err := appquery.Validate(request.Page, request.After); err != nil {
+		return appquery.Result[domain.EvidenceItem]{}, ErrValidation
+	}
+	request.TenantID = actor.TenantID
+	request.Filter.Limit = 0
+	if l.evidencePages != nil && actorHasTenantWideRead(actor, ScopeEvidenceRead) {
+		return l.evidencePages.SearchEvidencePage(ctx, request)
+	}
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	items := make([]domain.EvidenceItem, 0)
+	for _, item := range l.evidence {
+		if item.TenantID != actor.TenantID || !matchesEvidenceSearch(item, request.Filter) {
+			continue
+		}
+		if !l.resourceAllowedLocked(actor, ScopeEvidenceRead, refsForEvidence(item)) {
+			continue
+		}
+		items = append(items, item)
+	}
+	page, err := appquery.Page(items, request.Page, request.After, func(item domain.EvidenceItem, sort appquery.Sort) appquery.SortKey {
+		return appquery.RecordSortKey(item.ID, item.CreatedAt, sort)
+	})
+	if err != nil {
+		return appquery.Result[domain.EvidenceItem]{}, ErrValidation
+	}
+	return page, nil
 }
 
 func (l *Ledger) SupersedeEvidence(ctx context.Context, actor domain.Actor, id, replacementID, reason string) (domain.EvidenceItem, error) {

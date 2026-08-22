@@ -184,6 +184,7 @@ func run() error {
 	server, err := httpapi.NewServerWithOptions(ledger, httpapi.ServerOptions{
 		RateLimitRequestsPerMinute: intEnv("EVYDENCE_RATE_LIMIT_REQUESTS_PER_MINUTE", 0),
 		BuildIdentity:              identity,
+		PaginationSecret:           []byte(pepper),
 	})
 	if err != nil {
 		return fmt.Errorf("create server: %w", err)

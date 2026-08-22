@@ -106,7 +106,9 @@ func (s *Server) listRoleBindings(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, bindings)
+	writeCreatedAtPaginated(s, w, r, actor, "role-bindings", nil, bindings, func(binding domain.RoleBinding) (string, time.Time) {
+		return binding.ID, binding.CreatedAt
+	})
 }
 
 func (s *Server) createSSOProvider(w http.ResponseWriter, r *http.Request) {

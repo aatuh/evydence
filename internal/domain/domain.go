@@ -1278,6 +1278,7 @@ type SBOMComponent struct {
 }
 
 type SBOMComponentRecord struct {
+	ID          string        `json:"id"`
 	SBOMID      string        `json:"sbom_id"`
 	ReleaseID   string        `json:"release_id,omitempty"`
 	ArtifactID  string        `json:"artifact_id,omitempty"`

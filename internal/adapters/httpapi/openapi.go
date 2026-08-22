@@ -1996,11 +1996,12 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"hashes":   map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "string"}},
 	}, "name"))
 	registry.RegisterSchema("SBOMComponentRecord", objectSchema(map[string]any{
+		"id":          map[string]any{"type": "string", "description": "Stable record identity for cursor pagination within an SBOM."},
 		"sbom_id":     map[string]any{"type": "string"},
 		"release_id":  map[string]any{"type": "string"},
 		"artifact_id": map[string]any{"type": "string"},
 		"component":   map[string]any{"$ref": "#/components/schemas/SBOMComponent"},
-	}, "sbom_id", "component"))
+	}, "id", "sbom_id", "component"))
 	registry.RegisterSchema("SBOMComponentRecordListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/SBOMComponentRecord"))
 	registry.RegisterSchema("UploadSPDXSBOMRequest", objectSchema(map[string]any{
 		"release_id":  map[string]any{"type": "string"},
@@ -2524,7 +2525,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"items":       map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/EvidenceItem"}},
 		"next_cursor": map[string]any{"type": "string"},
 	}, "items"))
-	registry.RegisterSchema("EvidenceSearchEnvelope", dataEnvelopeSchema("#/components/schemas/EvidenceSearchResponse"))
+	registry.RegisterSchema("EvidenceSearchEnvelope", dataArrayEnvelopeSchema("#/components/schemas/EvidenceItem"))
 	registry.RegisterSchema("CreateReleaseBundleRequest", objectSchema(map[string]any{
 		"release_id": map[string]any{"type": "string"},
 	}, "release_id"))
@@ -2629,6 +2630,10 @@ func dataArrayEnvelopeSchema(itemRef string) map[string]any {
 		"data": map[string]any{"type": "array", "items": map[string]any{"$ref": itemRef}},
 		"meta": objectSchema(map[string]any{
 			"api_version": map[string]any{"type": "string"},
-		}, "api_version"),
+			"page_size":   map[string]any{"type": "integer", "minimum": 1, "maximum": 500},
+			"sort":        map[string]any{"type": "string", "enum": []string{"created_at", "id"}},
+			"direction":   map[string]any{"type": "string", "enum": []string{"asc", "desc"}},
+			"next_cursor": map[string]any{"type": "string", "description": "Opaque cursor for the next page; absent when no additional page exists."},
+		}, "api_version", "page_size", "sort", "direction"),
 	}, "data", "meta")
 }

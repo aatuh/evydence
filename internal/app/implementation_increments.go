@@ -142,8 +142,8 @@ func (l *Ledger) SearchEvidence(ctx context.Context, actor domain.Actor, in Evid
 	if err := require(actor, ScopeEvidenceRead); err != nil {
 		return nil, err
 	}
-	if in.Limit <= 0 || in.Limit > 200 {
-		in.Limit = 100
+	if in.Limit <= 0 || in.Limit > 500 {
+		in.Limit = 500
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()

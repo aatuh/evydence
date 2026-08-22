@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -91,6 +92,7 @@ type Ledger struct {
 	pepper                []byte
 	now                   func() time.Time
 	store                 Store
+	evidencePages         EvidencePageStore
 	unitOfWork            UnitOfWorkFactory
 	objects               ObjectStore
 	retention             ObjectRetentionVerifier
@@ -241,6 +243,7 @@ func NewLedgerWithContext(ctx context.Context, cfg Config) (*Ledger, error) {
 		pepper:                []byte(pepper),
 		now:                   now,
 		store:                 cfg.Store,
+		evidencePages:         evidencePageStore(cfg.Store),
 		unitOfWork:            unitOfWork,
 		objects:               cfg.ObjectStore,
 		retention:             retention,
@@ -361,6 +364,11 @@ func NewLedgerWithContext(ctx context.Context, cfg Config) (*Ledger, error) {
 		}
 	}
 	return ledger, nil
+}
+
+func evidencePageStore(store Store) EvidencePageStore {
+	pages, _ := store.(EvidencePageStore)
+	return pages
 }
 
 func (l *Ledger) HasTenants() bool {
@@ -1895,11 +1903,11 @@ func (s releaseEvidenceService) ListSBOMComponents(ctx context.Context, actor do
 		if err := l.authorizeResourceLocked(actor, ScopeEvidenceRead, resourceRefs{ReleaseID: sbom.ReleaseID, ArtifactID: sbom.ArtifactID}); err != nil {
 			return nil, err
 		}
-		for _, component := range sbom.Components {
+		for index, component := range sbom.Components {
 			if !sbomComponentMatches(component, in.Query, in.PURL) {
 				continue
 			}
-			out = append(out, domain.SBOMComponentRecord{SBOMID: sbom.ID, ReleaseID: sbom.ReleaseID, ArtifactID: sbom.ArtifactID, Format: sbom.Format, SpecVersion: sbom.SpecVersion, Component: component})
+			out = append(out, domain.SBOMComponentRecord{ID: sbom.ID + ":" + strconv.Itoa(index), SBOMID: sbom.ID, ReleaseID: sbom.ReleaseID, ArtifactID: sbom.ArtifactID, Format: sbom.Format, SpecVersion: sbom.SpecVersion, Component: component})
 			if len(out) >= in.Limit {
 				return out, nil
 			}

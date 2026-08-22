@@ -4,6 +4,19 @@ export type EvydenceClientOptions = {
   fetchImpl?: typeof fetch;
 };
 
+export type PageMeta = {
+  api_version: string;
+  page_size: number;
+  sort: "created_at" | "id";
+  direction: "asc" | "desc";
+  next_cursor?: string;
+};
+
+export type PageEnvelope<T> = {
+  data: T[];
+  meta: PageMeta;
+};
+
 export type CreateProductRequest = {
   name: string;
   slug: string;

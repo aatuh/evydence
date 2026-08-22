@@ -21,6 +21,7 @@ import (
 	"github.com/aatuh/api-toolkit/v3/specs"
 
 	"github.com/aatuh/evydence/internal/app"
+	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
 )
@@ -36,11 +37,15 @@ type Server struct {
 	routes   *routecontracts.Registry
 	limiter  *requestRateLimiter
 	identity runtimeinfo.Identity
+	cursors  appquery.CursorCodec
 }
 
 type ServerOptions struct {
 	RateLimitRequestsPerMinute int
 	BuildIdentity              runtimeinfo.Identity
+	// PaginationSecret authenticates opaque cursor tokens. Production callers
+	// should supply a stable, non-public secret so tokens survive restarts.
+	PaginationSecret []byte
 }
 
 func NewServer(ledger *app.Ledger) (*Server, error) {
@@ -59,7 +64,18 @@ func NewServerWithOptions(ledger *app.Ledger, opts ServerOptions) (*Server, erro
 	if identity.IsZero() {
 		identity = runtimeinfo.Current()
 	}
-	server := &Server{ledger: ledger, mux: mux, specs: specRegistry, routes: routeRegistry, limiter: newRequestRateLimiter(opts.RateLimitRequestsPerMinute), identity: identity}
+	paginationSecret := opts.PaginationSecret
+	if len(paginationSecret) == 0 {
+		paginationSecret = make([]byte, 32)
+		if _, err := rand.Read(paginationSecret); err != nil {
+			return nil, err
+		}
+	}
+	cursors, err := appquery.NewCursorCodec(paginationSecret)
+	if err != nil {
+		return nil, err
+	}
+	server := &Server{ledger: ledger, mux: mux, specs: specRegistry, routes: routeRegistry, limiter: newRequestRateLimiter(opts.RateLimitRequestsPerMinute), identity: identity, cursors: cursors}
 	if err := server.registerRoutes(); err != nil {
 		return nil, err
 	}
@@ -67,7 +83,7 @@ func NewServerWithOptions(ledger *app.Ledger, opts ServerOptions) (*Server, erro
 }
 
 func (s *Server) Handler() http.Handler {
-	return secureHeaders(requestIDMiddleware(s.rateLimitMiddleware(s.mux)))
+	return secureHeaders(requestIDMiddleware(s.rateLimitMiddleware(s.conditionalReadMiddleware(s.mux))))
 }
 
 func (s *Server) OpenAPI() ([]byte, error) {
@@ -109,7 +125,9 @@ func (s *Server) listCollectors(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, collectors)
+	writeCreatedAtPaginated(s, w, r, actor, "collectors", nil, collectors, func(collector domain.Collector) (string, time.Time) {
+		return collector.ID, collector.CreatedAt
+	})
 }
 
 func (s *Server) recordCollectorRelease(w http.ResponseWriter, r *http.Request) {
@@ -182,7 +200,9 @@ func (s *Server) listControlFrameworks(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, frameworks)
+	writeCreatedAtPaginated(s, w, r, actor, "control-frameworks", nil, frameworks, func(framework domain.ControlFramework) (string, time.Time) {
+		return framework.ID, framework.CreatedAt
+	})
 }
 
 func (s *Server) listControlFrameworkTemplatePacks(w http.ResponseWriter, r *http.Request) {
@@ -195,7 +215,9 @@ func (s *Server) listControlFrameworkTemplatePacks(w http.ResponseWriter, r *htt
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, packs)
+	writePaginated(s, w, r, actor, "control-framework-template-packs", nil, packs, func(pack domain.ControlFrameworkTemplatePack, sort appquery.Sort) appquery.SortKey {
+		return appquery.RecordSortKey(pack.ID, time.Time{}, sort)
+	})
 }
 
 func (s *Server) installControlFrameworkTemplatePack(w http.ResponseWriter, r *http.Request) {
@@ -282,7 +304,9 @@ func (s *Server) listControlEvidence(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, links)
+	writeCreatedAtPaginated(s, w, r, actor, "control-evidence", []string{"control_id", "product_id", "release_id"}, links, func(link domain.ControlEvidence) (string, time.Time) {
+		return link.ID, link.CreatedAt
+	})
 }
 
 func (s *Server) createProduct(w http.ResponseWriter, r *http.Request) {
@@ -306,7 +330,9 @@ func (s *Server) listProducts(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, products)
+	writeCreatedAtPaginated(s, w, r, actor, "products", nil, products, func(product domain.Product) (string, time.Time) {
+		return product.ID, product.CreatedAt
+	})
 }
 
 func (s *Server) getProduct(w http.ResponseWriter, r *http.Request) {
@@ -458,7 +484,9 @@ func (s *Server) listReleaseCandidates(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, candidates)
+	writeCreatedAtPaginated(s, w, r, actor, "release-candidates", []string{"release_id"}, candidates, func(candidate domain.ReleaseCandidate) (string, time.Time) {
+		return candidate.ID, candidate.CreatedAt
+	})
 }
 
 func (s *Server) getReleaseCandidate(w http.ResponseWriter, r *http.Request) {
@@ -729,7 +757,9 @@ func (s *Server) listSourceRepositories(w http.ResponseWriter, r *http.Request) 
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, repos)
+	writeCreatedAtPaginated(s, w, r, actor, "source-repositories", []string{"project_id"}, repos, func(repo domain.SourceRepository) (string, time.Time) {
+		return repo.ID, repo.CreatedAt
+	})
 }
 
 func (s *Server) recordSourceCommit(w http.ResponseWriter, r *http.Request) {
@@ -833,7 +863,9 @@ func (s *Server) listDeploymentEnvironments(w http.ResponseWriter, r *http.Reque
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, envs)
+	writeCreatedAtPaginated(s, w, r, actor, "deployment-environments", []string{"product_id"}, envs, func(environment domain.DeploymentEnvironment) (string, time.Time) {
+		return environment.ID, environment.CreatedAt
+	})
 }
 
 func (s *Server) recordDeployment(w http.ResponseWriter, r *http.Request) {
@@ -868,7 +900,9 @@ func (s *Server) listDeployments(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, deployments)
+	writeCreatedAtPaginated(s, w, r, actor, "deployments", []string{"release_id", "environment_id"}, deployments, func(deployment domain.DeploymentEvent) (string, time.Time) {
+		return deployment.ID, deployment.CreatedAt
+	})
 }
 
 func (s *Server) getDeployment(w http.ResponseWriter, r *http.Request) {
@@ -1320,12 +1354,27 @@ func (s *Server) listEvidence(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	items, err := s.ledger.ListEvidence(r.Context(), actor, r.URL.Query().Get("release_id"), r.URL.Query().Get("type"))
+	pageRequest, err := s.parsePageRequest(r, actor, "evidence", "release_id", "type")
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, items)
+	query := r.URL.Query()
+	page, err := s.ledger.ListEvidencePage(r.Context(), actor, app.EvidencePageRequest{
+		ReleaseID: query.Get("release_id"),
+		Type:      query.Get("type"),
+		Page: appquery.PageRequest{
+			PageSize:  pageRequest.pageSize,
+			Sort:      pageRequest.sort,
+			Direction: pageRequest.direction,
+		},
+		After: pageRequest.after,
+	})
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	writePage(s, w, r, actor, "evidence", pageRequest, page)
 }
 
 func (s *Server) searchEvidence(w http.ResponseWriter, r *http.Request) {
@@ -1333,15 +1382,19 @@ func (s *Server) searchEvidence(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	pageRequest, err := s.parsePageRequestWithLegacyLimit(r, actor, "evidence-search", true, "product_id", "project_id", "release_id", "build_id", "deployment_id", "type", "subtype", "source", "source_system", "collector_id", "verification_status", "subject_type", "subject_id", "tag", "created_after", "created_before")
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
 	query := r.URL.Query()
-	limit := 0
-	if query.Get("limit") != "" {
-		parsed, err := strconv.Atoi(query.Get("limit"))
-		if err != nil || parsed < 0 {
-			writeProblem(w, r, app.ErrValidation)
-			return
-		}
-		limit = parsed
+	sourceSystem := query.Get("source")
+	if sourceSystem != "" && query.Get("source_system") != "" {
+		writeProblem(w, r, app.ErrValidation)
+		return
+	}
+	if sourceSystem == "" {
+		sourceSystem = query.Get("source_system")
 	}
 	createdAfter, err := parseOptionalRFC3339(query.Get("created_after"))
 	if err != nil {
@@ -1353,29 +1406,36 @@ func (s *Server) searchEvidence(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, err)
 		return
 	}
-	items, err := s.ledger.SearchEvidence(r.Context(), actor, app.EvidenceSearchInput{
-		ProductID:          query.Get("product_id"),
-		ProjectID:          query.Get("project_id"),
-		ReleaseID:          query.Get("release_id"),
-		BuildID:            query.Get("build_id"),
-		DeploymentID:       query.Get("deployment_id"),
-		Type:               query.Get("type"),
-		Subtype:            query.Get("subtype"),
-		SourceSystem:       query.Get("source_system"),
-		CollectorID:        query.Get("collector_id"),
-		VerificationStatus: query.Get("verification_status"),
-		SubjectType:        query.Get("subject_type"),
-		SubjectID:          query.Get("subject_id"),
-		Tag:                query.Get("tag"),
-		CreatedAfter:       createdAfter,
-		CreatedBefore:      createdBefore,
-		Limit:              limit,
+	page, err := s.ledger.SearchEvidencePage(r.Context(), actor, app.EvidenceSearchPageRequest{
+		Filter: app.EvidenceSearchInput{
+			ProductID:          query.Get("product_id"),
+			ProjectID:          query.Get("project_id"),
+			ReleaseID:          query.Get("release_id"),
+			BuildID:            query.Get("build_id"),
+			DeploymentID:       query.Get("deployment_id"),
+			Type:               query.Get("type"),
+			Subtype:            query.Get("subtype"),
+			SourceSystem:       sourceSystem,
+			CollectorID:        query.Get("collector_id"),
+			VerificationStatus: query.Get("verification_status"),
+			SubjectType:        query.Get("subject_type"),
+			SubjectID:          query.Get("subject_id"),
+			Tag:                query.Get("tag"),
+			CreatedAfter:       createdAfter,
+			CreatedBefore:      createdBefore,
+		},
+		Page: appquery.PageRequest{
+			PageSize:  pageRequest.pageSize,
+			Sort:      pageRequest.sort,
+			Direction: pageRequest.direction,
+		},
+		After: pageRequest.after,
 	})
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, items)
+	writePage(s, w, r, actor, "evidence-search", pageRequest, page)
 }
 
 func (s *Server) getEvidence(w http.ResponseWriter, r *http.Request) {
@@ -1447,7 +1507,9 @@ func (s *Server) listEvidenceLifecycleEvents(w http.ResponseWriter, r *http.Requ
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, events)
+	writeCreatedAtPaginated(s, w, r, actor, "evidence/"+r.PathValue("id")+"/lifecycle-events", nil, events, func(event domain.EvidenceLifecycleEvent) (string, time.Time) {
+		return event.ID, event.CreatedAt
+	})
 }
 
 func (s *Server) uploadSBOM(w http.ResponseWriter, r *http.Request) {
@@ -1501,28 +1563,21 @@ func (s *Server) listSBOMComponents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	query := r.URL.Query()
-	limit := 0
-	if value := strings.TrimSpace(query.Get("limit")); value != "" {
-		parsed, err := strconv.Atoi(value)
-		if err != nil {
-			writeProblem(w, r, app.ErrValidation)
-			return
-		}
-		limit = parsed
-	}
 	components, err := s.ledger.ListSBOMComponents(r.Context(), actor, app.ListSBOMComponentsInput{
 		SBOMID:     query.Get("sbom_id"),
 		ReleaseID:  query.Get("release_id"),
 		ArtifactID: query.Get("artifact_id"),
 		Query:      query.Get("query"),
 		PURL:       query.Get("purl"),
-		Limit:      limit,
+		Limit:      500,
 	})
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, components)
+	writePaginatedWithLegacyLimit(s, w, r, actor, "sbom-components", []string{"sbom_id", "release_id", "artifact_id", "query", "purl"}, true, components, func(component domain.SBOMComponentRecord, sort appquery.Sort) appquery.SortKey {
+		return appquery.RecordSortKey(component.ID, time.Time{}, sort)
+	})
 }
 
 func (s *Server) uploadVEX(w http.ResponseWriter, r *http.Request) {
@@ -1734,7 +1789,9 @@ func (s *Server) listVulnerabilityDecisions(w http.ResponseWriter, r *http.Reque
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, decisions)
+	writeCreatedAtPaginated(s, w, r, actor, "vulnerability-decisions", []string{"product_id", "release_id", "vulnerability", "component", "status", "active"}, decisions, func(decision domain.VulnerabilityDecision) (string, time.Time) {
+		return decision.ID, decision.CreatedAt
+	})
 }
 
 func (s *Server) recordVulnerabilityWorkflow(w http.ResponseWriter, r *http.Request) {
@@ -1933,7 +1990,9 @@ func (s *Server) listExceptions(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, exceptions)
+	writeCreatedAtPaginated(s, w, r, actor, "exceptions", []string{"release_id"}, exceptions, func(exception domain.Exception) (string, time.Time) {
+		return exception.ID, exception.CreatedAt
+	})
 }
 
 func (s *Server) approveException(w http.ResponseWriter, r *http.Request) {
@@ -2094,26 +2153,19 @@ func (s *Server) listAuditLog(w http.ResponseWriter, r *http.Request) {
 		}
 		since = &parsed
 	}
-	limit := 0
-	if value := strings.TrimSpace(r.URL.Query().Get("limit")); value != "" {
-		parsed, err := strconv.Atoi(value)
-		if err != nil {
-			writeProblem(w, r, app.ErrValidation)
-			return
-		}
-		limit = parsed
-	}
 	entries, err := s.ledger.ListAuditLog(r.Context(), actor, app.AuditLogFilter{
 		SubjectType: r.URL.Query().Get("subject_type"),
 		SubjectID:   r.URL.Query().Get("subject_id"),
 		Since:       since,
-		Limit:       limit,
+		Limit:       500,
 	})
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, entries)
+	writeCreatedAtPaginatedWithLegacyLimit(s, w, r, actor, "audit-log", []string{"subject_type", "subject_id", "since"}, entries, func(entry domain.AuditChainEntry) (string, time.Time) {
+		return entry.ID, entry.OccurredAt
+	})
 }
 
 func (s *Server) createMerkleBatch(w http.ResponseWriter, r *http.Request) {
@@ -2228,7 +2280,9 @@ func (s *Server) listSigningKeys(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, keys)
+	writeCreatedAtPaginated(s, w, r, actor, "signing-keys", nil, keys, func(key domain.SigningKey) (string, time.Time) {
+		return key.ID, key.CreatedAt
+	})
 }
 
 func (s *Server) rotateSigningKey(w http.ResponseWriter, r *http.Request) {
@@ -2316,7 +2370,9 @@ func (s *Server) listCommercialCollectors(w http.ResponseWriter, r *http.Request
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, definitions)
+	writeCreatedAtPaginated(s, w, r, actor, "commercial-collectors", nil, definitions, func(definition domain.CommercialCollectorDefinition) (string, time.Time) {
+		return definition.ID, definition.CreatedAt
+	})
 }
 
 func (s *Server) verifySubject(w http.ResponseWriter, r *http.Request) {
@@ -2358,7 +2414,9 @@ func (s *Server) listAPIKeys(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, keys)
+	writeCreatedAtPaginated(s, w, r, actor, "api-keys", nil, keys, func(key domain.APIKey) (string, time.Time) {
+		return key.ID, key.CreatedAt
+	})
 }
 
 func (s *Server) create(w http.ResponseWriter, r *http.Request, run func(*Server, requestContext, domain.Actor, []byte) (int, any, error)) {

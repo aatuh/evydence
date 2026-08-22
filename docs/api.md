@@ -70,6 +70,45 @@ Example validation problem:
 }
 ```
 
+## Collection Pagination And Conditional Reads
+
+Collection `GET` endpoints return the existing `data` array together with a
+typed `meta` object. This preserves the v1 envelope while bounding every page:
+
+```json
+{
+  "data": [{"id": "..."}],
+  "meta": {
+    "api_version": "v1",
+    "page_size": 50,
+    "sort": "created_at",
+    "direction": "asc",
+    "next_cursor": "opaque-token-when-another-page-exists"
+  }
+}
+```
+
+`page_size` defaults to `50` and must be from `1` through `500`. Most lists
+allow `sort=created_at` (the default) or `sort=id`, with `direction=asc` (the
+default) or `direction=desc`; evidence search and audit log retain their
+reverse-chronological default (`direction=desc`). Template packs and SBOM components are sorted by
+their stable `id` only. Send the returned opaque `cursor` unchanged with the
+same filters, sort, and direction to fetch the next page. Cursors are bound to
+the authenticated tenant and query shape; malformed, tampered, mismatched, or
+stale cursors return `400 VALIDATION_FAILED` without disclosing list state.
+
+`limit` remains a transitional alias for the existing evidence-search, SBOM
+component, and audit-log routes. Do not combine it with `page_size`; new
+clients should use `page_size`. Unsupported, repeated, or blank query
+parameters are rejected rather than silently ignored.
+
+Finite resource `GET` responses expose private ETags. For immutable resources
+the tag is a representation digest; resources with a positive `revision` use
+that revision as a strong decimal ETag. Send `If-None-Match` from a previous
+read to receive `304 Not Modified` with no response body when it still matches.
+Responses include `Cache-Control: private, max-age=0, must-revalidate` and
+`Vary: Authorization`; ETags never grant access or replace authorization.
+
 ## Conditional Release Transitions
 
 Releases and release candidates include a positive integer `revision` in their
