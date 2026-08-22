@@ -15,7 +15,7 @@ BUILD_DIRTY ?= $(shell if test -n "$$(git status --porcelain --untracked-files=a
 BUILD_GO_VERSION ?= $(shell $(GO) env GOVERSION)
 BUILD_RELEASE_MANIFEST_DIGEST ?= unknown
 
-.PHONY: help tools build-api fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check api-inventory-check rendered-openapi-check meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check docs-check deploy-check sdk-check demo-check customer-cve-review-demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check black-box-release-artifact-check benchmark-check package-viewer-check release-asset-smoke-check marketing-site-check marketing-site-production-check restore-rehearsal-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
+.PHONY: help tools build-api fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-breaking-check openapi-precision-check api-inventory-check rendered-openapi-check meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check docs-check deploy-check sdk-check demo-check customer-cve-review-demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check black-box-release-artifact-check benchmark-check package-viewer-check release-asset-smoke-check marketing-site-check marketing-site-production-check restore-rehearsal-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -65,6 +65,10 @@ openapi-check: openapi.yaml ## Validate OpenAPI generation and route contract te
 	@$(GO) run ./cmd/openapi > /tmp/evydence-openapi.yaml
 	@cmp -s openapi.yaml /tmp/evydence-openapi.yaml
 	@scripts/render_openapi_docs.py --check
+
+openapi-breaking-check: ## Enforce release-artifact OpenAPI compatibility and exact exceptions
+	@python3 scripts/openapi_breaking_check_test.py
+	@scripts/openapi_breaking_check.sh
 
 openapi-precision-check: ## Enforce current OpenAPI precision floor and broad-route ceiling
 	@python3 scripts/openapi_precision_check.py
@@ -212,6 +216,9 @@ docs-check: meta-check release-truth-check persistence-decomposition-check backl
 	@test -f docs/reference/api-inventory.md
 	@test -f docs/reference/product-boundary.md
 	@test -f docs/reference/openapi.md
+	@test -f docs/reference/api-versioning.md
+	@test -f docs/reference/openapi-baseline.json
+	@test -f .github/openapi-breaking-exceptions.json
 	@test -f docs/openapi/index.html
 	@test -f site/marketing/public/api/index.html
 	@test -f docs/reference/vulnerability-decisions.md

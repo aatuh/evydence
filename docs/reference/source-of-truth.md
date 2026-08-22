@@ -10,6 +10,7 @@ product-boundary language across the docs.
 | Operator path | `docs/operator-overview.md` and `docs/operations.md` | Links install, config, deployment, gates, runbooks, and production boundaries. |
 | Runtime configuration | `docs/reference/configuration.md` | How-to guides may show a short example, then link here for variables. |
 | API routes, scopes, idempotency, schemas | `openapi.yaml`, `docs/api.md`, `docs/reference/api-inventory.md`, `docs/reference/api-contract-matrix.md`, and `docs/openapi/index.html` | `openapi.yaml` is generated; the inventory, matrix, and rendered OpenAPI docs are generated from it. |
+| API versioning, deprecation, and compatibility exceptions | `docs/reference/api-versioning.md`, `docs/reference/openapi-baseline.json`, and `.github/openapi-breaking-exceptions.json` | The baseline is a release artifact; the checked exception file is exact and does not replace release review. |
 | Product boundary and API stability | `docs/reference/product-boundary.md` and `openapi.yaml` | Stability is generated per operation as `x-evydence-stability`; the inventory, matrix, and route catalog must match it. |
 | Verification result taxonomy and assurance profiles | `docs/reference/verification-results.md` | Defines machine states, `passed` requirements, profile fields, legacy migration behavior, and customer-package representation. |
 | Local startup | `docs/tutorials/getting-started.md` | Uses in-process state only. |

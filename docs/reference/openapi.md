@@ -19,6 +19,18 @@ make openapi-check
 `make openapi-check` regenerates the contract, compares it with the committed file, and runs route contract tests for the HTTP adapter.
 It also checks that the rendered static API docs in [`docs/openapi/index.html`](../openapi/index.html) and `site/marketing/public/api/index.html` match the committed contract.
 
+Check public compatibility against the checked-in release artifact baseline:
+
+```sh
+OASDIFF_BIN=/path/to/oasdiff make openapi-breaking-check
+```
+
+CI supplies the pinned, checksum-verified `oasdiff` binary. The baseline,
+exception constraints, stable-line rule, and deprecation lifecycle are defined
+in [API Versioning And Deprecation](api-versioning.md). Do not replace the
+baseline with a branch or a network URL: it must remain tied to a verified
+release asset.
+
 Check precision regression:
 
 ```sh

@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "exceptions": [
+    {
+      "id": "v0.1.0-rc.7-prerelease-contract-reconciliation",
+      "channel": "prerelease",
+      "kind": "prerelease",
+      "baseline_sha256": "4c4ebb9e25a17f40a77ad206e927660cde68aa63dec45be3982f51c2541a6364",
+      "changes_sha256": "ad138dd4b994af74ad92e4e86b9f174dbb166a427a902b9bd41a6bc501eea377",
+      "change_count": 133,
+      "change_summary": {
+        "error-code-added": 16,
+        "new-required-request-parameter": 4,
+        "new-required-request-property": 6,
+        "request-body-wrapped-in-one-of": 1,
+        "request-parameter-min-length-increased": 1,
+        "request-property-became-required": 3,
+        "request-property-min-length-increased": 2,
+        "response-property-became-optional": 4,
+        "response-property-enum-value-added": 84,
+        "response-property-type-changed": 1,
+        "response-required-property-removed": 11
+      },
+      "approval_ref": "EVY-705 repository-controlled prerelease change record",
+      "migration_note": "docs/reference/api-versioning.md#prerelease-baseline-reconciliation",
+      "changelog_note": "CHANGELOG.md#unreleased"
+    }
+  ]
+}

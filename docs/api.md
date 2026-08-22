@@ -12,8 +12,9 @@ Every operation is classified as `core`, `supported`, `experimental`, or
 `deprecated` in the generated OpenAPI extension
 `x-evydence-stability`. See [Product boundary and API stability](reference/product-boundary.md)
 for the classification policy and the generated [API contract matrix](reference/api-contract-matrix.md)
-for every operation. The current classification is planning metadata; EVY-705
-defines the formal compatibility and deprecation lifecycle.
+for every operation. [API Versioning And Deprecation](reference/api-versioning.md)
+defines the formal compatibility, prerelease-exception, and deprecation
+lifecycle.
 
 ## Request Contract
 

@@ -50,6 +50,11 @@ release artifacts.
 
 ### Changed
 
+- The `/v1` OpenAPI contract is now compared against a checksum-verified
+  release-artifact baseline in CI. Unapproved breaking changes fail; the
+  current pre-release reconciliation is exact and documented in
+  `docs/reference/api-versioning.md`. Stable-line breaks require a documented
+  security emergency, migration note, and changelog entry.
 - The release-evidence, SDK route catalog, API contract matrix, and public API
   operations now record explicit stability classifications for evaluation and
   implementation planning.
