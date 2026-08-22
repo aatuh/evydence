@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
+	"github.com/aatuh/evydence/internal/platform/httpclient"
 )
 
 const (
@@ -28,7 +28,8 @@ type Config struct {
 }
 
 type Fetcher struct {
-	client                    *http.Client
+	baseClient                *http.Client
+	timeout                   time.Duration
 	allowInsecureForLocalhost bool
 }
 
@@ -46,20 +47,11 @@ func New(cfg Config) *Fetcher {
 	if timeout <= 0 {
 		timeout = defaultTimeout
 	}
-	client := cfg.Client
-	if client == nil {
-		client = &http.Client{
-			Timeout: timeout,
-			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		}
-	}
-	return &Fetcher{client: client, allowInsecureForLocalhost: cfg.AllowInsecureForLocalhost}
+	return &Fetcher{baseClient: cfg.Client, timeout: timeout, allowInsecureForLocalhost: cfg.AllowInsecureForLocalhost}
 }
 
 func (f *Fetcher) FetchTransparencyProof(ctx context.Context, req app.TransparencyProofRequest) (app.TransparencyProofResult, error) {
-	if f == nil || f.client == nil {
+	if f == nil {
 		return app.TransparencyProofResult{}, app.ErrValidation
 	}
 	externalID := strings.TrimSpace(req.ExternalID)
@@ -70,6 +62,16 @@ func (f *Fetcher) FetchTransparencyProof(ctx context.Context, req app.Transparen
 	if err != nil {
 		return app.TransparencyProofResult{}, err
 	}
+	client, err := httpclient.New(httpclient.Config{
+		Timeout:                   f.timeout,
+		MaxResponseBytes:          maxProofBytes,
+		AllowedHosts:              []string{endpoint.Hostname()},
+		AllowInsecureForLocalhost: f.allowInsecureForLocalhost,
+		Client:                    f.baseClient,
+	})
+	if err != nil {
+		return app.TransparencyProofResult{}, app.ErrValidation
+	}
 	endpoint.Path = strings.TrimRight(endpoint.Path, "/") + "/entries/" + url.PathEscape(externalID) + "/inclusion-proof"
 	endpoint.RawQuery = ""
 	endpoint.Fragment = ""
@@ -79,7 +81,7 @@ func (f *Fetcher) FetchTransparencyProof(ctx context.Context, req app.Transparen
 		return app.TransparencyProofResult{}, app.ErrValidation
 	}
 	httpReq.Header.Set("Accept", "application/json")
-	resp, err := f.client.Do(httpReq)
+	resp, err := client.Do(httpReq)
 	if err != nil {
 		return app.TransparencyProofResult{}, errors.New("fetch transparency proof")
 	}
@@ -156,6 +158,5 @@ func localhostHost(host string) bool {
 	if strings.EqualFold(host, "localhost") {
 		return true
 	}
-	ip := net.ParseIP(host)
-	return ip != nil && ip.IsLoopback()
+	return strings.HasPrefix(host, "127.") || host == "::1"
 }

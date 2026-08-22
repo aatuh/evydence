@@ -33,6 +33,18 @@ func TestValidateRuntimeConfigAllowsLocalBootstrapSecretPrinting(t *testing.T) {
 	}
 }
 
+func TestValidateOutboundHTTPConfigRejectsProductionLoopbackOverrides(t *testing.T) {
+	t.Setenv("ENV", "production")
+	t.Setenv(outboundLocalhostOverrideNames[0], "true")
+	err := validateOutboundHTTPConfig(true)
+	if err == nil || !strings.Contains(err.Error(), outboundLocalhostOverrideNames[0]) {
+		t.Fatalf("err=%v, want production localhost override rejection", err)
+	}
+	if outboundLocalhostAllowed(outboundLocalhostOverrideNames[0]) {
+		t.Fatal("production must not enable a loopback outbound override")
+	}
+}
+
 func TestValidateRuntimeConfigRejectsProductionDefaults(t *testing.T) {
 	tests := []struct {
 		name       string

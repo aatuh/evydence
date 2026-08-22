@@ -67,6 +67,9 @@ func runWithContext(ctx context.Context) error {
 	if err := validateAPIWriterMode(production, os.Getenv("EVYDENCE_API_WRITER_MODE"), os.Getenv("EVYDENCE_API_WRITER_REPLICAS")); err != nil {
 		return err
 	}
+	if err := validateOutboundHTTPConfig(production); err != nil {
+		return err
+	}
 	httpConfig, err := httpRuntimeConfigFromEnv()
 	if err != nil {
 		return err
@@ -74,7 +77,7 @@ func runWithContext(ctx context.Context) error {
 	cfg := app.Config{APIKeyPepper: pepper}
 	cfg.WorkerOwnedParserSideEffects = boolEnv("EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS")
 	cfg.OIDC = oidcdiscovery.New(oidcdiscovery.Config{
-		AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_OIDC_DISCOVERY_ALLOW_INSECURE_LOCALHOST"), "true"),
+		AllowInsecureForLocalhost: outboundLocalhostAllowed("EVYDENCE_OIDC_DISCOVERY_ALLOW_INSECURE_LOCALHOST"),
 		Timeout:                   time.Duration(intEnv("EVYDENCE_OIDC_DISCOVERY_TIMEOUT_SECONDS", 10)) * time.Second,
 	})
 	providerValidator, err := openProviderIdentityValidator()
@@ -267,7 +270,7 @@ func openSigningExecutor(ctx context.Context) (app.SigningExecutor, error) {
 		Endpoint:                  endpoint,
 		BearerToken:               os.Getenv("EVYDENCE_SIGNING_EXECUTOR_TOKEN"),
 		VerificationPublicKey:     os.Getenv("EVYDENCE_SIGNING_EXECUTOR_PUBLIC_KEY_BASE64"),
-		AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST"), "true"),
+		AllowInsecureForLocalhost: outboundLocalhostAllowed("EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST"),
 		Timeout:                   time.Duration(intEnv("EVYDENCE_SIGNING_EXECUTOR_TIMEOUT_SECONDS", 10)) * time.Second,
 	})
 	if err != nil {
@@ -282,7 +285,7 @@ func openTransparencyProofFetcher() (app.TransparencyProofFetcher, error) {
 		fetcher, err := transparencygateway.New(transparencygateway.Config{
 			Endpoint:                  endpoint,
 			BearerToken:               os.Getenv("EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_TOKEN"),
-			AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_ALLOW_INSECURE_LOCALHOST"), "true"),
+			AllowInsecureForLocalhost: outboundLocalhostAllowed("EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_ALLOW_INSECURE_LOCALHOST"),
 			Timeout:                   time.Duration(intEnv("EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_TIMEOUT_SECONDS", 10)) * time.Second,
 		})
 		if err != nil {
@@ -291,7 +294,7 @@ func openTransparencyProofFetcher() (app.TransparencyProofFetcher, error) {
 		return fetcher, nil
 	}
 	return httpfetcher.New(httpfetcher.Config{
-		AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_TRANSPARENCY_FETCH_ALLOW_INSECURE_LOCALHOST"), "true"),
+		AllowInsecureForLocalhost: outboundLocalhostAllowed("EVYDENCE_TRANSPARENCY_FETCH_ALLOW_INSECURE_LOCALHOST"),
 		Timeout:                   time.Duration(intEnv("EVYDENCE_TRANSPARENCY_FETCH_TIMEOUT_SECONDS", 10)) * time.Second,
 	}), nil
 }
@@ -348,7 +351,7 @@ func openProviderIdentityValidator() (app.ProviderIdentityValidator, error) {
 		validator, err := httpvalidator.New(httpvalidator.Config{
 			Endpoint:                  endpoint,
 			BearerToken:               os.Getenv("EVYDENCE_PROVIDER_VALIDATION_GATEWAY_TOKEN"),
-			AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_PROVIDER_VALIDATION_GATEWAY_ALLOW_INSECURE_LOCALHOST"), "true"),
+			AllowInsecureForLocalhost: outboundLocalhostAllowed("EVYDENCE_PROVIDER_VALIDATION_GATEWAY_ALLOW_INSECURE_LOCALHOST"),
 			Timeout:                   time.Duration(intEnv("EVYDENCE_PROVIDER_VALIDATION_GATEWAY_TIMEOUT_SECONDS", 10)) * time.Second,
 		})
 		if err != nil {
@@ -357,7 +360,7 @@ func openProviderIdentityValidator() (app.ProviderIdentityValidator, error) {
 		return validator, nil
 	}
 	return oidcuserinfo.New(oidcuserinfo.Config{
-		AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_OIDC_USERINFO_ALLOW_INSECURE_LOCALHOST"), "true"),
+		AllowInsecureForLocalhost: outboundLocalhostAllowed("EVYDENCE_OIDC_USERINFO_ALLOW_INSECURE_LOCALHOST"),
 		Timeout:                   time.Duration(intEnv("EVYDENCE_OIDC_USERINFO_TIMEOUT_SECONDS", 10)) * time.Second,
 	}), nil
 }
@@ -383,6 +386,31 @@ func validateRuntimeConfig(production bool, databaseURL, pepper, signingKeyMode,
 		return errors.New("production refuses EVYDENCE_PRINT_BOOTSTRAP_SECRET=true")
 	}
 	return nil
+}
+
+var outboundLocalhostOverrideNames = []string{
+	"EVYDENCE_OIDC_DISCOVERY_ALLOW_INSECURE_LOCALHOST",
+	"EVYDENCE_OIDC_USERINFO_ALLOW_INSECURE_LOCALHOST",
+	"EVYDENCE_PROVIDER_VALIDATION_GATEWAY_ALLOW_INSECURE_LOCALHOST",
+	"EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST",
+	"EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_ALLOW_INSECURE_LOCALHOST",
+	"EVYDENCE_TRANSPARENCY_FETCH_ALLOW_INSECURE_LOCALHOST",
+}
+
+func validateOutboundHTTPConfig(production bool) error {
+	if !production {
+		return nil
+	}
+	for _, name := range outboundLocalhostOverrideNames {
+		if boolEnv(name) {
+			return fmt.Errorf("production refuses %s=true", name)
+		}
+	}
+	return nil
+}
+
+func outboundLocalhostAllowed(name string) bool {
+	return !strings.EqualFold(os.Getenv("ENV"), "production") && boolEnv(name)
 }
 
 func signingConfigurationReadiness(signer app.SigningExecutor) func(context.Context) error {

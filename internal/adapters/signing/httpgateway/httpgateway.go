@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -18,6 +17,7 @@ import (
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
+	"github.com/aatuh/evydence/internal/platform/httpclient"
 )
 
 const defaultTimeout = 10 * time.Second
@@ -80,13 +80,15 @@ func New(cfg Config) (*Executor, error) {
 	if timeout <= 0 {
 		timeout = defaultTimeout
 	}
-	client := &http.Client{Timeout: timeout}
-	if cfg.Client != nil {
-		*client = *cfg.Client
-		client.Timeout = timeout
-	}
-	client.CheckRedirect = func(*http.Request, []*http.Request) error {
-		return errors.New("signing gateway redirects are not permitted")
+	client, err := httpclient.New(httpclient.Config{
+		Timeout:                   timeout,
+		MaxResponseBytes:          1 << 20,
+		AllowedHosts:              []string{parsed.Hostname()},
+		AllowInsecureForLocalhost: cfg.AllowInsecureForLocalhost,
+		Client:                    cfg.Client,
+	})
+	if err != nil {
+		return nil, app.ErrValidation
 	}
 	return &Executor{endpoint: endpoint, bearerToken: strings.TrimSpace(cfg.BearerToken), publicKey: ed25519.PublicKey(publicKey), client: client}, nil
 }
@@ -184,6 +186,5 @@ func localhostHost(host string) bool {
 	if host == "localhost" {
 		return true
 	}
-	ip := net.ParseIP(host)
-	return ip != nil && ip.IsLoopback()
+	return strings.HasPrefix(host, "127.") || host == "::1"
 }

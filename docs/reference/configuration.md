@@ -71,17 +71,17 @@ process, or equivalent deployment control.
 | `EVYDENCE_SIGSTORE_TRUSTED_PUBLIC_KEY_PEM_BASE64` | Optional key-based Cosign verification | unset | Base64-encoded operator-managed PEM public key, bounded to 1 MiB after decoding. It can be configured with or instead of the trusted root. |
 | `EVYDENCE_SIGSTORE_TRUST_ROOT_VERSION` | When either Sigstore trust variable is set | unset | Non-secret operator version label recorded in the verification receipt. Missing, malformed, or oversized trust configuration prevents startup. |
 | `EVYDENCE_OIDC_USERINFO_TIMEOUT_SECONDS` | No | `10` | Timeout for optional live OIDC UserInfo validation when `POST /v1/provider-verifications` includes `access_token`. |
-| `EVYDENCE_OIDC_USERINFO_ALLOW_INSECURE_LOCALHOST` | Local only | `false` | Allows HTTP OIDC issuer/UserInfo endpoints only for localhost tests. Do not use for production. |
+| `EVYDENCE_OIDC_USERINFO_ALLOW_INSECURE_LOCALHOST` | Local development only | `false` | Allows an HTTP loopback OIDC issuer/UserInfo endpoint only outside production. `ENV=production` rejects this setting when `true`. Discovery and UserInfo must remain the same origin, so a bearer token is never sent to a discovered different origin. |
 | `EVYDENCE_PROVIDER_VALIDATION_GATEWAY_URL` | No | unset | Optional HTTPS operator-controlled provider validation gateway. When set, provider verification uses this gateway instead of direct OIDC UserInfo calls. |
 | `EVYDENCE_PROVIDER_VALIDATION_GATEWAY_TOKEN` | Gateway | unset | Optional bearer token for the provider validation gateway. Store outside source control and logs. |
 | `EVYDENCE_PROVIDER_VALIDATION_GATEWAY_TIMEOUT_SECONDS` | No | `10` | Timeout for provider validation gateway requests. |
-| `EVYDENCE_PROVIDER_VALIDATION_GATEWAY_ALLOW_INSECURE_LOCALHOST` | Local only | `false` | Allows an HTTP localhost gateway for tests. Do not use for production. |
+| `EVYDENCE_PROVIDER_VALIDATION_GATEWAY_ALLOW_INSECURE_LOCALHOST` | Local development only | `false` | Allows an HTTP loopback gateway only outside production. `ENV=production` rejects this setting when `true`. |
 | `EVYDENCE_SIGNING_KEY_MODE` | Production yes | `external`, `aws-kms`, `gcp-kms`, `azure-key-vault`, or `pkcs11-hsm` for production | Production rejects local plaintext signing-key mode. `aws-kms`, `gcp-kms`, and `azure-key-vault` can use built-in provider executors. `pkcs11-hsm` remains an HTTPS signing-gateway profile. |
 | `EVYDENCE_SIGNING_EXECUTOR_URL` | `external` and `pkcs11-hsm` production modes | unset | HTTPS signing gateway used by `POST /v1/signing-operations`. The API sends a canonical request that binds subject metadata and `payload_hash`, never raw payload bytes. |
 | `EVYDENCE_SIGNING_EXECUTOR_TOKEN` | Signing gateway | unset | Optional bearer token for the signing gateway. Store outside source control and logs. |
 | `EVYDENCE_SIGNING_EXECUTOR_PUBLIC_KEY_BASE64` | Signing gateway | unset | Required base64-encoded Ed25519 public key. Evydence verifies the gateway signature over the canonical signing-request hash before persisting a receipt. This is public trust material, never a private key. |
 | `EVYDENCE_SIGNING_EXECUTOR_TIMEOUT_SECONDS` | No | `10` | Timeout for signing gateway requests. |
-| `EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST` | Local only | `false` | Allows `http://localhost` or loopback signing gateway endpoints for local development and tests. Do not use for production. |
+| `EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST` | Local development only | `false` | Allows an HTTP loopback signing gateway only outside production. `ENV=production` rejects this setting when `true`. |
 | `EVYDENCE_AWS_KMS_KEY_ID` | AWS KMS mode | unset | AWS KMS asymmetric signing key id, alias, or ARN. Store IAM credentials outside Evydence config and logs. |
 | `EVYDENCE_AWS_REGION` / `AWS_REGION` | AWS KMS mode | unset | Region used by the AWS KMS executor. `EVYDENCE_AWS_REGION` takes precedence. |
 | `EVYDENCE_AWS_KMS_ENDPOINT` | No | unset | Optional AWS KMS-compatible endpoint for tests or controlled private endpoints. |
@@ -99,7 +99,7 @@ process, or equivalent deployment control.
 | `EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_URL` | No | unset | Optional HTTPS operator-controlled gateway for transparency inclusion proof fetch/verification material. When unset, Evydence fetches from the configured public log endpoint. |
 | `EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_TOKEN` | Gateway | unset | Optional bearer token for the transparency proof gateway. Store outside source control and logs. |
 | `EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_TIMEOUT_SECONDS` | No | `10` | Timeout for transparency proof gateway requests. |
-| `EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_ALLOW_INSECURE_LOCALHOST` | Local only | `false` | Allows an HTTP localhost transparency proof gateway for tests. Do not use for production. |
+| `EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_ALLOW_INSECURE_LOCALHOST` | Local development only | `false` | Allows an HTTP loopback transparency gateway only outside production. `ENV=production` rejects this setting when `true`. |
 | `EVYDENCE_TEST_DATABASE_URL` | Live tests | `.test.env.example` value | Used by `make live-postgres-check`, `make postgres-integration-test`, `make fault-injection-check`, `make integration-check`, and `make release-check`. `make integration-check` rejects `ENV=production` and a value equal to `EVYDENCE_DATABASE_URL`. |
 | `EVYDENCE_TEST_S3_ENDPOINT` | Live MinIO tests | `127.0.0.1:9000` | Required by `make integration-check` and therefore `make production-check`. The integration gate permits only a loopback MinIO endpoint and rejects a value equal to `EVYDENCE_S3_ENDPOINT`. |
 | `EVYDENCE_TEST_S3_ACCESS_KEY_ID` | Live MinIO tests | `.test.env.example` value | Test-only credential for the disposable MinIO service. Never point it at a production or shared object-store account. |
@@ -166,6 +166,34 @@ When `ENV=production`, the API refuses to start unless:
 - `EVYDENCE_POSTGRES_LOAD_MODE`, when set, is `relational_only`.
 - `EVYDENCE_API_WRITER_MODE`, when set, is `single` or `single-writer`.
 - `EVYDENCE_API_WRITER_REPLICAS`, when set, is `1`.
+- Any `EVYDENCE_*_ALLOW_INSECURE_LOCALHOST` outbound-provider override is not
+  `true`. This includes OIDC discovery/UserInfo, provider-validation,
+  signing-executor, and transparency gateway/fetch settings.
+
+## Outbound Provider Destination Policy
+
+The OIDC discovery/UserInfo, provider-validation gateway, signing gateway, and
+transparency HTTP adapters use one outbound policy. By default they require an
+HTTPS destination whose resolved address is public; loopback, private,
+link-local (including metadata-service), multicast, unspecified, carrier-grade
+NAT, and documentation/reserved IPv4 addresses are rejected. The client
+resolves and validates each dial target and dials that checked address, so a
+later DNS answer cannot silently redirect the connection.
+
+Ambient `HTTP_PROXY`/`HTTPS_PROXY` configuration is not used for these adapter
+calls. Redirects are denied rather than followed, so a gateway bearer token
+cannot cross an origin. Gateway profiles allow only their configured endpoint
+host. OIDC discovery and UserInfo are pinned to the configured issuer origin;
+a discovered different-host or different-scheme endpoint fails closed. Each
+adapter has a finite timeout and response-body budget.
+
+The `*_ALLOW_INSECURE_LOCALHOST` variables are narrowly for local development
+and test loopback endpoints. They do not allow arbitrary private hosts, are
+rejected when `ENV=production`, and are not a production proxy or egress-policy
+mechanism. Operators who require a corporate proxy or a private provider cannot
+use this direct-adapter profile unchanged; they need a separately reviewed
+deployment/code change with explicit egress and IAM controls. This runtime
+deliberately does not silently inherit an ambient proxy.
 
 ## Build Identity
 
