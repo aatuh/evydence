@@ -131,6 +131,20 @@ provider-only uploads are reported rather than deleted, verified finalizations
 resume deterministically, uncommitted audit work rolls back, and expired outbox
 leases are reclaimed while stale lease tokens remain fenced.
 
+For a focused transactional failure check against a disposable PostgreSQL
+database, run:
+
+```sh
+EVYDENCE_TEST_DATABASE_URL='postgres://...' make fault-injection-check
+```
+
+The target covers pre-insert, post-domain/audit/outbox, and pre-commit rollback
+visibility, along with idempotency replay after response loss and the existing
+recovery kill points. It rejects `ENV=production` and a test URL equal to the
+runtime database URL. The test is repository evidence for the exercised
+PostgreSQL/filesystem profile; it does not inject faults into a deployed API or
+replace an operator recovery rehearsal.
+
 These checks are repository proof for the tested PostgreSQL/filesystem profile.
 They do not replace an operator rehearsal against the target managed PostgreSQL
 service, S3/MinIO snapshot mechanism, KMS/HSM configuration, network policy,
