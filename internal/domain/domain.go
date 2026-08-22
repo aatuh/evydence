@@ -1,116 +1,14 @@
 package domain
 
-import "time"
+import (
+	"time"
 
-const (
-	EvidenceItemSchemaVersion         = "evidence-item.v1.0.0"
-	AuditChainEntrySchemaVersion      = "audit-chain-entry.v2.0.0"
-	ReleaseBundleSchemaVersion        = "release-bundle.v1.0.0"
-	ReleaseEvidenceFlowVersion        = "release-evidence-flow.v1.0.0"
-	ReleaseSecuritySummaryVersion     = "release-security-summary.v1.0.0"
-	CanonicalizationProfileVersion    = "canonicalization-profile.v1.0.0"
-	PolicySetVersion                  = "policy-set.v1.0.0"
-	VEXDocumentSchemaVersion          = "vex-document.v1.0.0"
-	VEXImportReportSchemaVersion      = "vex-import-report.v1.0.0"
-	VEXImportPreviewSchemaVersion     = "vex-import-preview.v1.0.0"
-	VulnerabilityDecisionVersion      = "vulnerability-decision.v1.0.0"
-	ReleaseReadinessTemplateVersion   = "release-readiness.v1.0.0"
-	CollectorSchemaVersion            = "collector.v1.0.0"
-	BuildRunSchemaVersion             = "build-run.v1.0.0"
-	BuildAttestationSchemaVersion     = "build-attestation.v1.0.0"
-	ControlFrameworkSchemaVersion     = "control-framework.v1.0.0"
-	SecurityControlSchemaVersion      = "security-control.v1.0.0"
-	ControlEvidenceSchemaVersion      = "control-evidence.v1.0.0"
-	ControlCoverageTemplateVersion    = "control-coverage.v1.0.0"
-	CRAReadinessTemplateVersion       = "cra-readiness.v1.0.0"
-	EvidenceLifecycleSchemaVersion    = "evidence-lifecycle-event.v1.0.0"
-	ReleaseCandidateSchemaVersion     = "release-candidate.v1.0.0"
-	ContainerImageSchemaVersion       = "container-image.v1.0.0"
-	ArtifactSignatureSchemaVersion    = "artifact-signature.v1.0.0"
-	SourceRepositorySchemaVersion     = "source-repository.v1.0.0"
-	SourceCommitSchemaVersion         = "source-commit.v1.0.0"
-	SourceBranchSchemaVersion         = "source-branch.v1.0.0"
-	PullRequestSchemaVersion          = "pull-request.v1.0.0"
-	DeploymentEnvironmentVersion      = "deployment-environment.v1.0.0"
-	DeploymentEventSchemaVersion      = "deployment-event.v1.0.0"
-	IncidentSchemaVersion             = "incident.v1.0.0"
-	IncidentTimelineSchemaVersion     = "incident-timeline-event.v1.0.0"
-	IncidentWebhookReceiverVersion    = "incident-webhook-receiver.v1.0.0"
-	IncidentWebhookEventVersion       = "incident-webhook-event.v1.0.0"
-	RemediationTaskSchemaVersion      = "remediation-task.v1.0.0"
-	SecurityScanSchemaVersion         = "security-scan.v1.0.0"
-	ManualSecurityDocSchemaVersion    = "manual-security-document.v1.0.0"
-	SBOMDiffSchemaVersion             = "sbom-diff.v1.0.0"
-	DependencyChangeSchemaVersion     = "dependency-change.v1.0.0"
-	ContractDiffSchemaVersion         = "contract-diff.v1.0.0"
-	CustomPolicySchemaVersion         = "custom-policy.v1.0.0"
-	CustomPolicyEvalSchemaVersion     = "custom-policy-evaluation.v1.0.0"
-	WaiverSchemaVersion               = "waiver.v1.0.0"
-	ApprovalRecordSchemaVersion       = "approval-record.v1.0.0"
-	RedactionProfileSchemaVersion     = "redaction-profile.v1.0.0"
-	CustomerPackageSchemaVersion      = "customer-security-package.v2.0.0"
-	ReportTemplateSchemaVersion       = "report-template.v1.0.0"
-	EvidenceBundleSchemaVersion       = "evidence-bundle.v1.0.0"
-	EvidenceBundleImportVersion       = "evidence-bundle-import.v1.0.0"
-	DSSETrustRootSchemaVersion        = "dsse-trust-root.v2.0.0"
-	CosignVerificationSchemaVersion   = "cosign-verification.v3.0.0"
-	SigningProviderSchemaVersion      = "signing-provider.v1.0.0"
-	MerkleBatchSchemaVersion          = "merkle-batch.v1.0.0"
-	TransparencyCheckpointVersion     = "transparency-checkpoint.v1.0.0"
-	ObjectRetentionPolicyVersion      = "object-retention-policy.v2.0.0"
-	BackupManifestSchemaVersion       = "backup-manifest.v1.0.0"
-	CollectorReleaseSchemaVersion     = "collector-release.v1.0.0"
-	OrganizationSchemaVersion         = "organization.v1.0.0"
-	HumanUserSchemaVersion            = "human-user.v1.0.0"
-	RoleBindingSchemaVersion          = "role-binding.v1.0.0"
-	SSOProviderSchemaVersion          = "sso-provider.v1.0.0"
-	SSOSessionSchemaVersion           = "sso-session.v1.0.0"
-	LegalHoldSchemaVersion            = "legal-hold.v1.0.0"
-	RetentionOverrideSchemaVersion    = "retention-override.v1.0.0"
-	CustomerPortalAccessVersion       = "customer-portal-access.v1.0.0"
-	QuestionnaireTemplateVersion      = "questionnaire-template.v1.0.0"
-	QuestionnairePackageVersion       = "questionnaire-package.v1.0.0"
-	QuestionnaireAnswerLibraryVersion = "questionnaire-answer-library.v1.0.0"
-	CommercialCollectorVersion        = "commercial-collector.v1.0.0"
-	EvidenceSummaryVersion            = "evidence-summary.v1.0.0"
-	QuestionnaireDraftVersion         = "questionnaire-draft.v1.0.0"
-	EvidenceGraphSnapshotVersion      = "evidence-graph-snapshot.v1.0.0"
-	SaaSEditionProfileVersion         = "saas-edition-profile.v1.0.0"
-	PublicTransparencyLogVersion      = "public-transparency-log.v1.0.0"
-	PublicTransparencyEntryVersion    = "public-transparency-entry.v1.0.0"
-	MarketplaceCollectorVersion       = "marketplace-collector.v1.0.0"
-	PDFReportPackageVersion           = "pdf-report-package.v1.0.0"
-	AnomalyReportVersion              = "anomaly-report.v1.0.0"
-	ProviderVerificationVersion       = "provider-verification.v2.0.0"
-	SigningOperationVersion           = "signing-operation.v1.1.0"
+	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
-type Actor struct {
-	TenantID       string
-	KeyID          string
-	UserID         string
-	SessionID      string
-	Name           string
-	Scopes         []string
-	CollectorID    string
-	ResourceGrants []ResourceGrant
-}
+type Actor = identitydomain.Actor
 
-func (a Actor) HasScope(scope string) bool {
-	for _, got := range a.Scopes {
-		if got == scope || got == "*" {
-			return true
-		}
-	}
-	return false
-}
-
-type ResourceGrant struct {
-	Role         string
-	ResourceType string
-	ResourceID   string
-	Scopes       []string
-}
+type ResourceGrant = identitydomain.ResourceGrant
 
 type Tenant struct {
 	ID        string    `json:"id"`
@@ -728,24 +626,6 @@ type AuditChainEntry struct {
 	SchemaVersion      string         `json:"schema_version"`
 }
 
-const (
-	SigningKeyDefaultProvider = "local_ed25519"
-	SigningKeyStatusActive    = "active"
-	SigningKeyStatusRetiring  = "retiring"
-	SigningKeyStatusRevoked   = "revoked"
-
-	SigningKeyRevocationOrdinary    = "ordinary"
-	SigningKeyRevocationCompromised = "compromised"
-
-	SigningKeyHistoricalValidityPreserve                 = "preserve"
-	SigningKeyHistoricalValidityInvalidateFromCompromise = "invalidate_from_compromise"
-	SigningKeyHistoricalValidityInvalidateAll            = "invalidate_all"
-
-	SigningKeyHistoricalValidityValid         = "valid"
-	SigningKeyHistoricalValidityOutsideWindow = "outside_validity_window"
-	SigningKeyHistoricalValidityCompromised   = "compromised"
-)
-
 // SigningKey records public signing-key metadata and its immutable lifecycle
 // facts. Private material is deliberately excluded from JSON serialization.
 type SigningKey struct {
@@ -773,40 +653,11 @@ type SigningKey struct {
 // lifecycle. It has no wall-clock dependency: callers provide verificationTime
 // so an evidence package can be re-evaluated deterministically later.
 func (key SigningKey) HistoricalValidityAt(signedAt, verificationTime time.Time) string {
-	if signedAt.IsZero() || verificationTime.IsZero() || verificationTime.Before(signedAt) {
+	contextKey, err := signingKeyToContextModel(key)
+	if err != nil {
 		return SigningKeyHistoricalValidityOutsideWindow
 	}
-	validFrom := key.ValidFrom
-	if validFrom.IsZero() {
-		validFrom = key.CreatedAt
-	}
-	if validFrom.IsZero() || signedAt.Before(validFrom) {
-		return SigningKeyHistoricalValidityOutsideWindow
-	}
-	validUntil := key.ValidUntil
-	// Pre-lifecycle records used revoked_at as their only upper bound. Preserve
-	// that historic meaning while migrations and snapshot restores converge.
-	if validUntil == nil && key.Status == SigningKeyStatusRevoked && key.RevokedAt != nil && key.RevocationSemantics != SigningKeyRevocationCompromised {
-		validUntil = key.RevokedAt
-	}
-	if validUntil != nil && signedAt.After(*validUntil) {
-		return SigningKeyHistoricalValidityOutsideWindow
-	}
-	if key.RevocationSemantics == SigningKeyRevocationCompromised {
-		switch key.HistoricalValidityPolicy {
-		case SigningKeyHistoricalValidityInvalidateAll:
-			return SigningKeyHistoricalValidityCompromised
-		case SigningKeyHistoricalValidityInvalidateFromCompromise:
-			compromisedAt := key.CompromisedAt
-			if compromisedAt == nil {
-				compromisedAt = key.RevokedAt
-			}
-			if compromisedAt != nil && !signedAt.Before(*compromisedAt) {
-				return SigningKeyHistoricalValidityCompromised
-			}
-		}
-	}
-	return SigningKeyHistoricalValidityValid
+	return contextKey.HistoricalValidityAt(signedAt, verificationTime)
 }
 
 type SigningProvider struct {

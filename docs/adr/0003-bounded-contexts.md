@@ -1,15 +1,17 @@
 # ADR 0003: Bounded Context Ownership And Dependency Rules
 
-Status: accepted as the incremental transition plan for EVY-902 through
-EVY-906. It describes target ownership; it does not claim that the current
-`internal/domain` package or `*app.Ledger` facade has already been split.
+Status: accepted. EVY-902 implemented the context-owned model layer described
+below. The command-service, handler, composition-root, and legacy-facade
+retirement steps remain assigned to EVY-903 through EVY-906.
 
 ## Context
 
-The current implementation has useful transaction-scoped repository ports, but
-the production model still collects its types in `internal/domain` and much of
-its command/query behaviour behind `internal/app.Ledger`. That makes ownership
-hard to see and permits accidental broad access to unrelated state.
+The implementation has useful transaction-scoped repository ports, but much of
+its command/query behaviour remains behind `internal/app.Ledger`. The legacy
+`internal/domain` package also remains the JSON and persistence compatibility
+surface while callers migrate. Without explicit context-owned models and
+checked adapters, those transition paths make ownership hard to see and permit
+accidental broad access to unrelated state.
 
 [ADR 0001](0001-database-authoritative-transactions.md) remains the transaction
 contract: one production command owns one PostgreSQL unit of work, including
@@ -26,6 +28,35 @@ repository port. A route may call only its owning context's application
 service. Contexts exchange identifiers and committed, versioned integration
 events rather than importing each other's aggregates or writing each other's
 repositories.
+
+### Implemented model boundary
+
+EVY-902 created tag-free, standard-library-only domain packages at
+`internal/{identity,release,evidence,risk,package,verification,operations,integration,experimental}/domain`.
+Together they own all 142 models assigned in the table below. Schema and policy
+constants now originate in those packages; `internal/domain/schema_context.go`
+re-exports them only for source compatibility.
+
+Stable lifecycle behavior uses validated named values in the context model for
+release and release-candidate state, evidence lifecycle action, vulnerability
+decision status, release-bundle state, verification result and signing-key
+status, incident status, and collector status. Normal constructors and parsers
+reject empty or unknown values, and release transitions reject invalid order.
+Verification profile normalization, conservative result aggregation, profile
+policy definitions, and signing-key historical-validity evaluation are owned by
+the verification context. Signing-key core metadata deliberately excludes
+private key bytes.
+
+`internal/domain` remains a compatibility DTO boundary while the application,
+HTTP, and PostgreSQL callers migrate in EVY-903 through EVY-906. It retains the
+existing JSON tags and public field shapes, uses aliases where exact identity is
+safe, and uses explicit copying mappers where validated values or local report
+projections differ. `make domain-context-check` verifies unique ADR ownership,
+package import/tag boundaries, field-by-field compatibility, stable field
+types, schema ownership, and the required mappers. JSON round-trip tests and
+the unchanged generated OpenAPI contract cover the current API/persistence
+representation. No database migration is required because EVY-902 does not
+change stored fields or values.
 
 ### Context ownership
 
@@ -190,7 +221,7 @@ PostgreSQL, object-store, worker, or provider adapters. The future
 Each step is additive and must leave the repository buildable, testable, and
 API-compatible.
 
-1. EVY-902 creates context-owned packages and adapters/types at the new paths.
+1. EVY-902 created context-owned packages and adapters/types at the new paths.
    Old `internal/domain` names remain type aliases or compatibility mappers;
    persisted and OpenAPI DTOs remain at adapter boundaries.
 2. EVY-903 moves identity, release, and evidence commands to focused services.

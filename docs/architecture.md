@@ -26,6 +26,17 @@ event rule, and the staged retirement of legacy package paths. The generated
 API inventory remains the authoritative operation-level map during that
 transition.
 
+The context-owned model layer is implemented under
+`internal/{identity,release,evidence,risk,package,verification,operations,integration,experimental}/domain`.
+Those packages contain tag-free core models, context schema constants, and the
+validated lifecycle and verification behavior moved by EVY-902. The legacy
+`internal/domain` package remains the JSON and persistence compatibility
+boundary through explicit aliases and copying mappers; application services,
+handlers, and adapters continue using it until their staged migrations in
+EVY-903 through EVY-906. `make domain-context-check` prevents model ownership,
+field compatibility, schema ownership, import, and transport-tag drift during
+that transition.
+
 ## Tenant And Auth Boundaries
 
 Tenant isolation is enforced in application methods before reads and writes return data. API keys are scoped, revocable, and stored as HMAC-SHA256 hashes with `EVYDENCE_API_KEY_PEPPER`.
