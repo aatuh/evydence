@@ -3254,13 +3254,13 @@
               <div><dt>Responses</dt><dd>200 application/json: VEXImportReportEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/vulnerability-decisions list vulnerability decisions lists append-only vulnerability decisions over time with tenant-scoped product, release, vulnerability, component, status, and active filters. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listvulnerabilitydecisions evydence evidence:read">
+          <article class="operation" data-operation data-search="get /v1/vulnerability-decisions list vulnerability decisions lists append-only vulnerability decisions over time with tenant-scoped product, release, vulnerability, component, status, and active filters. tenant-internal notes are excluded from responses. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listvulnerabilitydecisions evydence evidence:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/vulnerability-decisions</code>
             </div>
             <h3>List vulnerability decisions</h3>
-            <p>Lists append-only vulnerability decisions over time with tenant-scoped product, release, vulnerability, component, status, and active filters. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
+            <p>Lists append-only vulnerability decisions over time with tenant-scoped product, release, vulnerability, component, status, and active filters. Tenant-internal notes are excluded from responses. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listVulnerabilityDecisions</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -3271,13 +3271,13 @@
               <div><dt>Responses</dt><dd>200 application/json: VulnerabilityDecisionListEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/vulnerability-findings/{id}/decisions create vulnerability decision creates an append-only vulnerability decision for a tenant-scoped scan finding. createvulnerabilitydecision evydence evidence:write">
+          <article class="operation" data-operation data-search="post /v1/vulnerability-findings/{id}/decisions create vulnerability decision creates an append-only vulnerability decision for a tenant-scoped scan finding. tenant-internal notes are accepted for the ledger but excluded from the response and idempotency replays. createvulnerabilitydecision evydence evidence:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/vulnerability-findings/{id}/decisions</code>
             </div>
             <h3>Create vulnerability decision</h3>
-            <p>Creates an append-only vulnerability decision for a tenant-scoped scan finding.</p>
+            <p>Creates an append-only vulnerability decision for a tenant-scoped scan finding. Tenant-internal notes are accepted for the ledger but excluded from the response and idempotency replays.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createVulnerabilityDecision</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

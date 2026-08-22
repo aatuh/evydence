@@ -216,6 +216,40 @@ func TestWithIdempotencyStoresNoOneTimeSecretInReplay(t *testing.T) {
 	}
 }
 
+func TestIdempotencyReplayRemovesAllCentralSensitiveFields(t *testing.T) {
+	canaries := []string{
+		"evy-api-key-canary",
+		"database-password-canary",
+		"internal-note-canary",
+		"object://tenant/raw-payload-canary",
+		"bearer-token-canary",
+	}
+	response, err := safeIdempotencyReplayResponse(map[string]any{
+		"api_key":        canaries[0],
+		"database_url":   "postgres://operator:" + canaries[1] + "@db.example.test/evydence",
+		"internal_notes": canaries[2],
+		"payload_ref":    canaries[3],
+		"nested":         map[string]any{"authorization": "Bearer " + canaries[4]},
+	})
+	if err != nil {
+		t.Fatalf("safe idempotency replay response: %v", err)
+	}
+	body, err := json.Marshal(response)
+	if err != nil {
+		t.Fatalf("marshal replay response: %v", err)
+	}
+	for _, canary := range canaries {
+		if strings.Contains(string(body), canary) {
+			t.Fatalf("replay response leaked %q: %s", canary, body)
+		}
+	}
+	for _, forbiddenField := range []string{"api_key", "database_url", "internal_notes", "payload_ref", "authorization"} {
+		if strings.Contains(string(body), forbiddenField) {
+			t.Fatalf("replay response retained sensitive field %q: %s", forbiddenField, body)
+		}
+	}
+}
+
 func TestIdempotencyStateErrorsAreSafeConflicts(t *testing.T) {
 	for _, testCase := range []struct {
 		err  error

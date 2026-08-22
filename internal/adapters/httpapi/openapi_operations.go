@@ -470,7 +470,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Policy evaluation request.", "#/components/schemas/EvaluatePolicyRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Policy evaluation envelope.", "#/components/schemas/PolicyEvaluationEnvelope")
 	case "createVulnerabilityDecision":
-		operation.Description = "Creates an append-only vulnerability decision for a tenant-scoped scan finding."
+		operation.Description = "Creates an append-only vulnerability decision for a tenant-scoped scan finding. Tenant-internal notes are accepted for the ledger but excluded from the response and idempotency replays."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Vulnerability finding id."))
 		operation.RequestBody = jsonRequest("Vulnerability decision creation request.", "#/components/schemas/CreateVulnerabilityDecisionRequest")
 		addJSONRequestExamples(operation.RequestBody, map[string]any{
@@ -481,7 +481,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		})
 		operation.Responses[http.StatusCreated] = jsonResponse("Created vulnerability decision envelope.", "#/components/schemas/VulnerabilityDecisionEnvelope")
 	case "listVulnerabilityDecisions":
-		operation.Description = "Lists append-only vulnerability decisions over time with tenant-scoped product, release, vulnerability, component, status, and active filters."
+		operation.Description = "Lists append-only vulnerability decisions over time with tenant-scoped product, release, vulnerability, component, status, and active filters. Tenant-internal notes are excluded from responses."
 		operation.Parameters = append(operation.Parameters,
 			queryParam("product_id", "Filter by product id.", "string"),
 			queryParam("release_id", "Filter by release id.", "string"),

@@ -21,6 +21,7 @@ import (
 	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
+	"github.com/aatuh/evydence/internal/platform/jsonbounds"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
 )
 
@@ -1783,7 +1784,10 @@ func (s *Server) createVulnerabilityDecision(w http.ResponseWriter, r *http.Requ
 			ReviewedAt:      req.ReviewedAt,
 			ReviewDueAt:     req.ReviewDueAt,
 		})
-		return http.StatusCreated, decision, err
+		if err != nil {
+			return 0, nil, err
+		}
+		return http.StatusCreated, externalVulnerabilityDecision(decision), nil
 	})
 }
 
@@ -1814,9 +1818,78 @@ func (s *Server) listVulnerabilityDecisions(w http.ResponseWriter, r *http.Reque
 		writeProblem(w, r, err)
 		return
 	}
-	writeCreatedAtPaginated(s, w, r, actor, "vulnerability-decisions", []string{"product_id", "release_id", "vulnerability", "component", "status", "active"}, decisions, func(decision domain.VulnerabilityDecision) (string, time.Time) {
+	responses := make([]vulnerabilityDecisionResponse, 0, len(decisions))
+	for _, decision := range decisions {
+		responses = append(responses, externalVulnerabilityDecision(decision))
+	}
+	writeCreatedAtPaginated(s, w, r, actor, "vulnerability-decisions", []string{"product_id", "release_id", "vulnerability", "component", "status", "active"}, responses, func(decision vulnerabilityDecisionResponse) (string, time.Time) {
 		return decision.ID, decision.CreatedAt
 	})
+}
+
+// vulnerabilityDecisionResponse is the external projection of an append-only
+// decision. Tenant-internal notes remain in the ledger for authorized internal
+// workflows but never cross the HTTP response boundary or idempotency replay.
+type vulnerabilityDecisionResponse struct {
+	ID                string              `json:"id"`
+	TenantID          string              `json:"tenant_id"`
+	FindingID         string              `json:"finding_id"`
+	ScanID            string              `json:"scan_id"`
+	ReleaseID         string              `json:"release_id,omitempty"`
+	Vulnerability     string              `json:"vulnerability"`
+	Component         string              `json:"component,omitempty"`
+	SBOMID            string              `json:"sbom_id,omitempty"`
+	SBOMComponentPURL string              `json:"sbom_component_purl,omitempty"`
+	SBOMComponentName string              `json:"sbom_component_name,omitempty"`
+	Status            string              `json:"status"`
+	Justification     string              `json:"justification"`
+	ImpactStatement   string              `json:"impact_statement,omitempty"`
+	ActionStatement   string              `json:"action_statement,omitempty"`
+	CustomerVisible   bool                `json:"customer_visible"`
+	Source            string              `json:"source"`
+	EvidenceID        string              `json:"evidence_id,omitempty"`
+	EvidenceIDs       []string            `json:"evidence_ids,omitempty"`
+	SupportingRefs    []domain.SubjectRef `json:"supporting_refs,omitempty"`
+	VEXDocumentID     string              `json:"vex_document_id,omitempty"`
+	Supersedes        string              `json:"supersedes,omitempty"`
+	SupersededBy      string              `json:"superseded_by,omitempty"`
+	ApprovedBy        string              `json:"approved_by,omitempty"`
+	ReviewedAt        *time.Time          `json:"reviewed_at,omitempty"`
+	ReviewDueAt       *time.Time          `json:"review_due_at,omitempty"`
+	SchemaVersion     string              `json:"schema_version"`
+	CreatedAt         time.Time           `json:"created_at"`
+}
+
+func externalVulnerabilityDecision(decision domain.VulnerabilityDecision) vulnerabilityDecisionResponse {
+	return vulnerabilityDecisionResponse{
+		ID:                decision.ID,
+		TenantID:          decision.TenantID,
+		FindingID:         decision.FindingID,
+		ScanID:            decision.ScanID,
+		ReleaseID:         decision.ReleaseID,
+		Vulnerability:     decision.Vulnerability,
+		Component:         decision.Component,
+		SBOMID:            decision.SBOMID,
+		SBOMComponentPURL: decision.SBOMComponentPURL,
+		SBOMComponentName: decision.SBOMComponentName,
+		Status:            decision.Status,
+		Justification:     decision.Justification,
+		ImpactStatement:   decision.ImpactStatement,
+		ActionStatement:   decision.ActionStatement,
+		CustomerVisible:   decision.CustomerVisible,
+		Source:            decision.Source,
+		EvidenceID:        decision.EvidenceID,
+		EvidenceIDs:       decision.EvidenceIDs,
+		SupportingRefs:    decision.SupportingRefs,
+		VEXDocumentID:     decision.VEXDocumentID,
+		Supersedes:        decision.Supersedes,
+		SupersededBy:      decision.SupersededBy,
+		ApprovedBy:        decision.ApprovedBy,
+		ReviewedAt:        decision.ReviewedAt,
+		ReviewDueAt:       decision.ReviewDueAt,
+		SchemaVersion:     decision.SchemaVersion,
+		CreatedAt:         decision.CreatedAt,
+	}
 }
 
 func (s *Server) recordVulnerabilityWorkflow(w http.ResponseWriter, r *http.Request) {
@@ -2516,6 +2589,9 @@ func decodeJSON(body []byte, out any) error {
 	trimmed := bytes.TrimSpace(body)
 	if len(trimmed) == 0 {
 		trimmed = []byte(`{}`)
+	}
+	if err := jsonbounds.Validate(trimmed, jsonbounds.DefaultLimits()); err != nil {
+		return app.NewValidationError()
 	}
 	dec := json.NewDecoder(bytes.NewReader(trimmed))
 	dec.DisallowUnknownFields()

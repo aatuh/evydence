@@ -455,7 +455,6 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"impact_statement":    map[string]any{"type": "string"},
 		"action_statement":    map[string]any{"type": "string"},
 		"customer_visible":    map[string]any{"type": "boolean"},
-		"internal_notes":      map[string]any{"type": "string", "description": "Tenant-internal notes; do not include in customer-safe exports."},
 		"source":              map[string]any{"type": "string"},
 		"evidence_id":         map[string]any{"type": "string"},
 		"evidence_ids":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}},

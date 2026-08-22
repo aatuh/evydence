@@ -24,6 +24,23 @@ func TestCleanOperatorPathRejectsNUL(t *testing.T) {
 	}
 }
 
+func TestCustomerPackageJSONBoundsRejectStructuralBombs(t *testing.T) {
+	items := make([]string, 1025)
+	for index := range items {
+		items[index] = "1"
+	}
+	for name, body := range map[string]string{
+		"depth": strings.Repeat(`{"nested":`, 33) + `"value"` + strings.Repeat(`}`, 33),
+		"array": `{"items":[` + strings.Join(items, ",") + `]}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := rejectDuplicateCustomerPackageJSONKeys([]byte(body)); err == nil {
+				t.Fatalf("customer package JSON accepted %s resource bomb", name)
+			}
+		})
+	}
+}
+
 func TestReleaseManifestSignAndVerify(t *testing.T) {
 	dir := t.TempDir()
 	artifactPath := dir + "/evydence-api"

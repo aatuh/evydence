@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/domain"
+	"github.com/aatuh/evydence/internal/platform/redaction"
 )
 
 const (
@@ -211,6 +212,7 @@ func (l *Ledger) RecordEvidenceLifecycleEvent(ctx context.Context, actor domain.
 		SchemaVersion: domain.EvidenceLifecycleSchemaVersion,
 		CreatedAt:     l.now(),
 	}
+	event = safeEvidenceLifecycleEvent(event)
 	if l.unitOfWork != nil {
 		var entry domain.AuditChainEntry
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
@@ -254,11 +256,30 @@ func (l *Ledger) ListEvidenceLifecycleEvents(ctx context.Context, actor domain.A
 	out := []domain.EvidenceLifecycleEvent{}
 	for _, event := range l.lifecycle {
 		if event.TenantID == actor.TenantID && event.EvidenceID == item.ID {
-			out = append(out, event)
+			out = append(out, safeEvidenceLifecycleEvent(event))
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
 	return out, nil
+}
+
+// safeEvidenceLifecycleEvent applies the same sensitive-data policy before
+// new append-only lifecycle records are persisted and when older records are
+// projected externally. This prevents historical audit details from bypassing
+// the current output policy without rewriting the underlying evidence item.
+func safeEvidenceLifecycleEvent(event domain.EvidenceLifecycleEvent) domain.EvidenceLifecycleEvent {
+	event.Reason = redaction.RedactString(event.Reason)
+	safeDetails, _ := redaction.RemoveSensitive(event.Details)
+	if safeDetails == nil {
+		event.Details = nil
+		return event
+	}
+	if details, ok := safeDetails.(map[string]any); ok {
+		event.Details = details
+	} else {
+		event.Details = nil
+	}
+	return event
 }
 
 func (l *Ledger) CreateReleaseCandidate(ctx context.Context, actor domain.Actor, in CreateReleaseCandidateInput) (domain.ReleaseCandidate, error) {

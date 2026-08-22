@@ -15,7 +15,7 @@ BUILD_DIRTY ?= $(shell if test -n "$$(git status --porcelain --untracked-files=a
 BUILD_GO_VERSION ?= $(shell $(GO) env GOVERSION)
 BUILD_RELEASE_MANIFEST_DIGEST ?= unknown
 
-.PHONY: help tools build-api fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-breaking-check openapi-precision-check api-inventory-check rendered-openapi-check meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check docs-check deploy-check sdk-check demo-check customer-cve-review-demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check black-box-release-artifact-check benchmark-check package-viewer-check release-asset-smoke-check marketing-site-check marketing-site-production-check restore-rehearsal-check fault-injection-check integration-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
+.PHONY: help tools build-api fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-breaking-check openapi-precision-check api-inventory-check rendered-openapi-check meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check docs-check deploy-check sdk-check demo-check customer-cve-review-demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check black-box-release-artifact-check benchmark-check package-viewer-check security-regression-check release-asset-smoke-check marketing-site-check marketing-site-production-check restore-rehearsal-check fault-injection-check integration-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -559,6 +559,8 @@ deploy-check: ## Validate deployment and air-gap skeletons exist
 	@test -f deploy/observability/prometheus-rules.yaml
 	@test -f deploy/observability/grafana-dashboard.json
 	@grep -F 'postgres:16-alpine@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229' compose.production-like.yml >/dev/null
+	@grep -F 'shm_size: 256m' docker-compose.yml >/dev/null
+	@grep -F 'shm_size: 256m' compose.production-like.yml >/dev/null
 	@grep -F 'minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e' compose.production-like.yml >/dev/null
 	@grep -F 'minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727' compose.production-like.yml >/dev/null
 	@! grep -E 'image:[[:space:]]+[^$$]*:latest' compose.production-like.yml >/dev/null
@@ -655,7 +657,14 @@ package-viewer-check: ## Validate local package viewer and walkthrough
 	@test -f docs/assets/reviewer-journey.svg
 	@grep -F 'Load bundled demo' site/package-viewer/index.html >/dev/null
 	@grep -F 'textContent' site/package-viewer/index.html >/dev/null
-	@! grep -F 'innerHTML' site/package-viewer/index.html >/dev/null
+	@grep -F 'http-equiv="Content-Security-Policy"' site/package-viewer/index.html >/dev/null
+	@grep -F "default-src 'none';" site/package-viewer/index.html >/dev/null
+	@grep -F "connect-src 'none'" site/package-viewer/index.html >/dev/null
+	@grep -F 'nonce="evydence-package-viewer-v1"' site/package-viewer/index.html >/dev/null
+	@! grep -F "script-src 'unsafe-inline'" site/package-viewer/index.html >/dev/null
+	@grep -F 'maxPackageFileBytes' site/package-viewer/index.html >/dev/null
+	@grep -F 'validatePackageJSON(parsed)' site/package-viewer/index.html >/dev/null
+	@! grep -E '(innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function)' site/package-viewer/index.html >/dev/null
 	@grep -F 'Release Summary' site/package-viewer/index.html >/dev/null
 	@grep -F 'Reviewer Dossier' site/package-viewer/index.html docs/how-to/view-packages.md >/dev/null
 	@grep -F 'read-only package scope' site/package-viewer/index.html docs/how-to/view-packages.md >/dev/null
@@ -685,6 +694,15 @@ package-viewer-check: ## Validate local package viewer and walkthrough
 	@grep -F 'Verification Status' docs/assets/reviewer-journey.svg >/dev/null
 	@grep -F 'Gaps' docs/assets/reviewer-journey.svg >/dev/null
 	@grep -F 'Limitations' docs/assets/reviewer-journey.svg >/dev/null
+
+security-regression-check: ## Run mandatory leakage, parser-limit, archive, authz, SSRF, and package-viewer regressions
+	@$(GO) test ./internal/platform/redaction ./internal/platform/jsonbounds -count=1
+	@$(GO) test ./internal/app -run '^(TestCustomerPackageRedactionLeakageMatrix|TestSampleCustomerPackageFixtureHasNoRedactionLeakage|TestCustomerPackageArchiveRejectsSensitiveManifestFields|TestCustomerPackageArchiveRejectsOversizedGeneratedReport|TestCustomReportTemplatesAreDataOnlyAndBounded|TestEvidenceLifecycleAuditDetailsRemoveSensitiveCanaries|TestGeneratedReportsRejectOversizedOutput|TestIdempotencyReplayRemovesAllCentralSensitiveFields|TestResourceScopedAuthorizationCoverageInventory)$$' -count=1
+	@$(GO) test ./internal/app/parsers/... -count=1
+	@$(GO) test ./internal/adapters/httpapi -run '^(TestDecodeJSONRejectsStructuralResourceBombs|TestReleaseRiskDecisionHTTPFlow|TestCrossTenantEvidenceReadDenied|TestUnknownJSONFieldReturnsProblem)$$' -count=1
+	@$(GO) test ./cmd/evydence -run '^(TestCustomerPackageJSONBoundsRejectStructuralBombs|TestVerifyCustomerPackageRejectsUnsafeArchiveShape)$$' -count=1
+	@$(GO) test ./internal/platform/httpclient -count=1
+	@$(MAKE) package-viewer-check
 
 release-asset-smoke-check: ## Verify local release asset checksums, signature, package verification, and failure cases
 	@scripts/release_asset_smoke_check.sh
@@ -733,6 +751,7 @@ release-acceptance: ## Run deterministic release metadata acceptance checks
 release-check: ## Release validation with security, race, and configured live integration gates
 	@$(MAKE) finalize
 	@$(MAKE) release-acceptance
+	@$(MAKE) security-regression-check
 	@$(MAKE) lint
 	@$(MAKE) gosec
 	@$(MAKE) vuln

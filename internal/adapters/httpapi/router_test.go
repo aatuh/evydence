@@ -274,6 +274,9 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	if _, ok := decisionProps["sbom_component_purl"]; !ok {
 		t.Fatalf("decision schema missing sbom_component_purl: %#v", decisionProps)
 	}
+	if _, ok := decisionProps["internal_notes"]; ok {
+		t.Fatalf("decision response schema exposes tenant-internal notes: %#v", decisionProps)
+	}
 	if _, ok := decisionProps["supporting_refs"]; !ok {
 		t.Fatalf("decision schema missing supporting_refs: %#v", decisionProps)
 	}
@@ -1192,8 +1195,11 @@ func TestReleaseRiskDecisionHTTPFlow(t *testing.T) {
 	postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "risk-decision-bad", map[string]any{"status": "not_affected", "justification": "vulnerable code is not present", "customer_visible": true}, http.StatusBadRequest)
 	decisionPayload := map[string]any{"status": "not_affected", "justification": "vulnerable code is not present", "impact_statement": "The vulnerable code path is not present in this release.", "customer_visible": true, "internal_notes": "private note", "evidence_ids": []string{evidenceID}, "reviewed_at": "2026-05-27T12:00:00Z", "review_due_at": "2026-08-25T12:00:00Z"}
 	decisionBody := postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "risk-decision", decisionPayload, http.StatusCreated)
-	if !strings.Contains(decisionBody, `"customer_visible":true`) || !strings.Contains(decisionBody, `"internal_notes":"private note"`) || !strings.Contains(decisionBody, evidenceID) || !strings.Contains(decisionBody, `"review_due_at":"2026-08-25T12:00:00Z"`) || !strings.Contains(decisionBody, `"sbom_component_purl":"pkg:apk/openssl@3.1.0"`) {
-		t.Fatalf("decision response missing customer visibility/internal note fields: %s", decisionBody)
+	if !strings.Contains(decisionBody, `"customer_visible":true`) || !strings.Contains(decisionBody, evidenceID) || !strings.Contains(decisionBody, `"review_due_at":"2026-08-25T12:00:00Z"`) || !strings.Contains(decisionBody, `"sbom_component_purl":"pkg:apk/openssl@3.1.0"`) {
+		t.Fatalf("decision response missing safe fields: %s", decisionBody)
+	}
+	if strings.Contains(decisionBody, "private note") || strings.Contains(decisionBody, `"internal_notes"`) {
+		t.Fatalf("decision response leaked internal notes: %s", decisionBody)
 	}
 	replayed := postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "risk-decision", decisionPayload, http.StatusCreated)
 	if replayed != decisionBody {
@@ -1201,7 +1207,7 @@ func TestReleaseRiskDecisionHTTPFlow(t *testing.T) {
 	}
 	historyPath := "/v1/vulnerability-decisions?release_id=" + releaseID + "&product_id=" + productID + "&vulnerability=CVE-2026-0099&component=" + url.QueryEscape("pkg:apk/openssl@3.1.0") + "&status=not_affected&active=true"
 	history := getJSON(t, server, secret, historyPath, http.StatusOK)
-	if !strings.Contains(history, `"vulnerability":"CVE-2026-0099"`) || !strings.Contains(history, `"customer_visible":true`) {
+	if !strings.Contains(history, `"vulnerability":"CVE-2026-0099"`) || !strings.Contains(history, `"customer_visible":true`) || strings.Contains(history, "private note") || strings.Contains(history, `"internal_notes"`) {
 		t.Fatalf("decision history response missing decision fields: %s", history)
 	}
 	getJSON(t, server, secret, "/v1/vulnerability-decisions?active=maybe", http.StatusBadRequest)

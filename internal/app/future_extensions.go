@@ -145,8 +145,15 @@ func (s packageReportService) CreateEvidenceSummary(ctx context.Context, actor d
 		return domain.EvidenceSummary{}, err
 	}
 	evidenceIDs := sortedStrings(in.EvidenceIDs)
+	if len(evidenceIDs) > MaxEvidenceSummaryItems {
+		return domain.EvidenceSummary{}, ErrValidation
+	}
 	if len(evidenceIDs) == 0 {
-		evidenceIDs = l.evidenceIDsForRefsLocked(actor.TenantID, refs, "")
+		var exceeded bool
+		evidenceIDs, exceeded = l.evidenceIDsForRefsBoundedLocked(actor.TenantID, refs, "", MaxEvidenceSummaryItems)
+		if exceeded {
+			return domain.EvidenceSummary{}, ErrValidation
+		}
 	}
 	if len(evidenceIDs) == 0 {
 		return domain.EvidenceSummary{}, ErrValidation
@@ -177,6 +184,13 @@ func (s packageReportService) CreateEvidenceSummary(ctx context.Context, actor d
 		Limitations:   []string{"This summary supports evidence review and does not assert legal compliance, certification, or release security."},
 		SchemaVersion: domain.EvidenceSummaryVersion,
 		CreatedAt:     l.now(),
+	}
+	encodedSummary, err := json.Marshal(summary)
+	if err != nil {
+		return domain.EvidenceSummary{}, err
+	}
+	if len(encodedSummary) > MaxGeneratedReportBytes {
+		return domain.EvidenceSummary{}, ErrValidation
 	}
 	if l.unitOfWork != nil {
 		var entry domain.AuditChainEntry
@@ -299,27 +313,58 @@ func (l *Ledger) CreateGraphSnapshot(ctx context.Context, actor domain.Actor, in
 		release := l.releases[releaseID]
 		nodes = append(nodes, domain.GraphNode{ID: release.ID, Type: "release", Label: release.Version})
 		if productID != "" {
+			if len(edges) >= MaxEvidenceGraphEdges {
+				return domain.EvidenceGraphSnapshot{}, ErrValidation
+			}
 			edges = append(edges, domain.GraphEdge{From: productID, To: release.ID, Relationship: "has_release"})
 		}
 	}
-	for _, id := range l.evidenceIDsForRefsLocked(actor.TenantID, refs, "") {
+	remainingNodes := MaxEvidenceGraphNodes - len(nodes)
+	if remainingNodes <= 0 {
+		return domain.EvidenceGraphSnapshot{}, ErrValidation
+	}
+	evidenceIDs, exceeded := l.evidenceIDsForRefsBoundedLocked(actor.TenantID, refs, "", remainingNodes)
+	if exceeded {
+		return domain.EvidenceGraphSnapshot{}, ErrValidation
+	}
+	for _, id := range evidenceIDs {
+		if len(nodes) >= MaxEvidenceGraphNodes {
+			return domain.EvidenceGraphSnapshot{}, ErrValidation
+		}
 		item := l.evidence[id]
 		nodes = append(nodes, domain.GraphNode{ID: item.ID, Type: "evidence", Label: item.Title})
 		if item.ReleaseID != "" {
+			if len(edges) >= MaxEvidenceGraphEdges {
+				return domain.EvidenceGraphSnapshot{}, ErrValidation
+			}
 			edges = append(edges, domain.GraphEdge{From: item.ReleaseID, To: item.ID, Relationship: "has_evidence"})
 		} else if item.ProductID != "" {
+			if len(edges) >= MaxEvidenceGraphEdges {
+				return domain.EvidenceGraphSnapshot{}, ErrValidation
+			}
 			edges = append(edges, domain.GraphEdge{From: item.ProductID, To: item.ID, Relationship: "has_evidence"})
 		}
 		for _, ref := range item.SubjectRefs {
 			if ref.ID != "" {
+				if len(edges) >= MaxEvidenceGraphEdges {
+					return domain.EvidenceGraphSnapshot{}, ErrValidation
+				}
 				edges = append(edges, domain.GraphEdge{From: item.ID, To: ref.ID, Relationship: "references_" + ref.Type})
 			}
 		}
 	}
-	hash, err := canonicalAnyHash(struct {
+	graphMaterial := struct {
 		Nodes []domain.GraphNode `json:"nodes"`
 		Edges []domain.GraphEdge `json:"edges"`
-	}{Nodes: nodes, Edges: edges})
+	}{Nodes: nodes, Edges: edges}
+	encodedGraph, err := json.Marshal(graphMaterial)
+	if err != nil {
+		return domain.EvidenceGraphSnapshot{}, err
+	}
+	if len(encodedGraph) > MaxGeneratedReportBytes {
+		return domain.EvidenceGraphSnapshot{}, ErrValidation
+	}
+	hash, err := canonicalAnyHash(graphMaterial)
 	if err != nil {
 		return domain.EvidenceGraphSnapshot{}, err
 	}
@@ -1230,6 +1275,9 @@ func (s packageReportService) CreatePDFReportPackage(ctx context.Context, actor 
 		return domain.PDFReportPackage{}, err
 	}
 	body := []byte("%PDF-1.4\n% Evydence reproducible report\n1 0 obj << /Type /Catalog >> endobj\n% " + title + "\n% compliance readiness evidence only\n%%EOF\n")
+	if len(body) > MaxGeneratedReportBytes {
+		return domain.PDFReportPackage{}, ErrValidation
+	}
 	digest := hashBytes(body)
 	stagedPayload, err := l.stagePayload(ctx, actor.TenantID, "application/pdf", digest, body)
 	if err != nil {
@@ -1743,6 +1791,17 @@ func questionnaireAnswerSpecificity(entry domain.QuestionnaireAnswerLibraryEntry
 }
 
 func (l *Ledger) evidenceIDsForRefsLocked(tenantID string, refs resourceRefs, evidenceType string) []string {
+	ids, _ := l.evidenceIDsForRefsBoundedLocked(tenantID, refs, evidenceType, len(l.evidence)+1)
+	return ids
+}
+
+// evidenceIDsForRefsBoundedLocked returns no partial list when a traversal
+// exceeds its caller-provided budget. Callers therefore fail closed rather
+// than silently presenting a truncated graph or report as complete.
+func (l *Ledger) evidenceIDsForRefsBoundedLocked(tenantID string, refs resourceRefs, evidenceType string, limit int) ([]string, bool) {
+	if limit <= 0 {
+		return nil, true
+	}
 	ids := []string{}
 	for _, item := range l.evidence {
 		if item.TenantID != tenantID {
@@ -1752,10 +1811,13 @@ func (l *Ledger) evidenceIDsForRefsLocked(tenantID string, refs resourceRefs, ev
 			continue
 		}
 		if evidenceMatchesRefs(item, refs) {
+			if len(ids) == limit {
+				return nil, true
+			}
 			ids = append(ids, item.ID)
 		}
 	}
-	return sortedStrings(ids)
+	return sortedStrings(ids), false
 }
 
 func evidenceMatchesRefs(item domain.EvidenceItem, refs resourceRefs) bool {

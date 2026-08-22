@@ -7,6 +7,7 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"html"
 	"sort"
 	"strconv"
@@ -15,6 +16,7 @@ import (
 
 	verificationdsse "github.com/aatuh/evydence/internal/adapters/verification/dsse"
 	"github.com/aatuh/evydence/internal/domain"
+	"github.com/aatuh/evydence/internal/platform/redaction"
 )
 
 type CreateWaiverInput struct {
@@ -753,7 +755,6 @@ func (l *Ledger) packageVEXMetadataLocked(tenantID, releaseID string) []map[stri
 			"release_id":      vex.ReleaseID,
 			"artifact_id":     vex.ArtifactID,
 			"format":          vex.Format,
-			"author":          vex.Author,
 			"version":         vex.Version,
 			"statement_count": vex.StatementCount,
 			"status_summary":  cloneIntMap(vex.StatusSummary),
@@ -1481,6 +1482,7 @@ func cleanExternalLabel(value string) string {
 func customerPackageArchive(pkg domain.CustomerSecurityPackage) (CustomerPackageArchive, error) {
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
+	var expandedSize int64
 	decisionExport := customerPackageDecisionExport(pkg)
 	metadata := map[string]any{
 		"id":                   pkg.ID,
@@ -1530,40 +1532,45 @@ func customerPackageArchive(pkg domain.CustomerSecurityPackage) (CustomerPackage
 		{name: "package.json", body: metadata},
 		{name: "verification.json", body: verification},
 	} {
-		body, err := json.MarshalIndent(entry.body, "", "  ")
+		body, err := marshalCustomerPackageJSON(entry.body)
 		if err != nil {
 			_ = zw.Close()
-			return CustomerPackageArchive{}, err
+			return CustomerPackageArchive{}, fmt.Errorf("serialize customer package %s: %w", entry.name, err)
 		}
 		body = append(body, '\n')
-		if err := addZIPFile(zw, entry.name, body); err != nil {
+		if err := addCustomerPackageZIPFile(zw, &expandedSize, entry.name, body); err != nil {
 			_ = zw.Close()
 			return CustomerPackageArchive{}, err
 		}
 	}
 	if decisionExport != nil {
-		body, err := json.MarshalIndent(decisionExport, "", "  ")
+		body, err := marshalCustomerPackageJSON(decisionExport)
 		if err != nil {
 			_ = zw.Close()
 			return CustomerPackageArchive{}, err
 		}
 		body = append(body, '\n')
-		if err := addZIPFile(zw, customerDecisionExportFile, body); err != nil {
+		if err := addCustomerPackageZIPFile(zw, &expandedSize, customerDecisionExportFile, body); err != nil {
 			_ = zw.Close()
 			return CustomerPackageArchive{}, err
 		}
 	}
-	if err := addZIPFile(zw, "README.txt", []byte(readme)); err != nil {
+	if err := addCustomerPackageZIPFile(zw, &expandedSize, "README.txt", []byte(readme)); err != nil {
 		_ = zw.Close()
 		return CustomerPackageArchive{}, err
 	}
 	if pkg.DistributionWatermark != "" {
-		if err := addZIPFile(zw, "WATERMARK.txt", []byte(pkg.DistributionWatermark+"\n")); err != nil {
+		if err := addCustomerPackageZIPFile(zw, &expandedSize, "WATERMARK.txt", []byte(pkg.DistributionWatermark+"\n")); err != nil {
 			_ = zw.Close()
 			return CustomerPackageArchive{}, err
 		}
 	}
-	if err := addZIPFile(zw, "report.html", customerPackageHTMLReport(pkg, metadata, verification)); err != nil {
+	report := customerPackageHTMLReport(pkg, metadata, verification)
+	if len(report) > MaxGeneratedReportBytes {
+		_ = zw.Close()
+		return CustomerPackageArchive{}, ErrValidation
+	}
+	if err := addCustomerPackageZIPFile(zw, &expandedSize, "report.html", report); err != nil {
 		_ = zw.Close()
 		return CustomerPackageArchive{}, err
 	}
@@ -1571,6 +1578,9 @@ func customerPackageArchive(pkg domain.CustomerSecurityPackage) (CustomerPackage
 		return CustomerPackageArchive{}, err
 	}
 	body := buf.Bytes()
+	if len(body) > MaxCustomerPackageArchiveBytes {
+		return CustomerPackageArchive{}, ErrValidation
+	}
 	return CustomerPackageArchive{PackageID: pkg.ID, Filename: "evydence-customer-package-" + pkg.ID + ".zip", MediaType: "application/zip", Bytes: body, Hash: hashBytes(body), Size: int64(len(body))}, nil
 }
 
@@ -1639,9 +1649,9 @@ func customerPackageHTMLReport(pkg domain.CustomerSecurityPackage, metadata, ver
 		b.WriteString("<p class=\"muted\">No customer-visible VEX documents or vulnerability decisions are included by this package profile.</p>")
 	} else {
 		if len(vexDocuments) > 0 {
-			b.WriteString("<h3>VEX Documents</h3><table><thead><tr><th>ID</th><th>Format</th><th>Author</th><th>Statements</th><th>Status Summary</th></tr></thead><tbody>")
+			b.WriteString("<h3>VEX Documents</h3><table><thead><tr><th>ID</th><th>Format</th><th>Statements</th><th>Status Summary</th></tr></thead><tbody>")
 			for _, record := range vexDocuments {
-				b.WriteString("<tr><td>" + packageHTMLEscape(packageHTMLString(record["id"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["format"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["author"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["statement_count"])) + "</td><td>" + packageHTMLEscape(packageHTMLJSON(record["status_summary"])) + "</td></tr>")
+				b.WriteString("<tr><td>" + packageHTMLEscape(packageHTMLString(record["id"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["format"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["statement_count"])) + "</td><td>" + packageHTMLEscape(packageHTMLJSON(record["status_summary"])) + "</td></tr>")
 			}
 			b.WriteString("</tbody></table>")
 		}
@@ -1846,8 +1856,19 @@ func packageHTMLEscape(value string) string {
 	return html.EscapeString(value)
 }
 
+func addCustomerPackageZIPFile(zw *zip.Writer, expandedSize *int64, name string, body []byte) error {
+	if expandedSize == nil || len(body) > MaxCustomerPackageFileBytes || *expandedSize > MaxCustomerPackageExpandedBytes-int64(len(body)) {
+		return ErrValidation
+	}
+	*expandedSize += int64(len(body))
+	return addZIPFile(zw, name, body)
+}
+
 func addZIPFile(zw *zip.Writer, name string, body []byte) error {
-	header := &zip.FileHeader{Name: name, Method: zip.Deflate}
+	// Customer packages are generated with stored entries. This keeps their
+	// advertised uncompressed bytes equal to on-disk bytes and guarantees the
+	// generated package cannot trip the verifier's compression-ratio defense.
+	header := &zip.FileHeader{Name: name, Method: zip.Store}
 	header.SetMode(0o644)
 	header.Modified = time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)
 	writer, err := zw.CreateHeader(header)
@@ -1856,6 +1877,17 @@ func addZIPFile(zw *zip.Writer, name string, body []byte) error {
 	}
 	_, err = writer.Write(body)
 	return err
+}
+
+// marshalCustomerPackageJSON is the final output boundary for customer
+// artifacts. The profile builders must already have removed sensitive fields;
+// this guard rejects rather than silently mutates the immutable manifest.
+func marshalCustomerPackageJSON(value any) ([]byte, error) {
+	if _, changed := redaction.RemoveSensitive(value); changed {
+		path, _ := redaction.FirstSensitivePath(value)
+		return nil, fmt.Errorf("%w: customer package contains sensitive field %s", ErrValidation, path)
+	}
+	return json.MarshalIndent(value, "", "  ")
 }
 
 func (s packageReportService) CRAReadinessHTMLPackage(ctx context.Context, actor domain.Actor, productID, releaseID string) (domain.HTMLReportPackage, error) {
@@ -1869,6 +1901,9 @@ func (s packageReportService) CRAReadinessHTMLPackage(ctx context.Context, actor
 		htmlBody += "<li>" + html.EscapeString(limitation) + "</li>"
 	}
 	htmlBody += "</ul></body></html>"
+	if len(htmlBody) > MaxGeneratedReportBytes {
+		return domain.HTMLReportPackage{}, ErrValidation
+	}
 	hash := hashBytes([]byte(htmlBody))
 	l.mu.Lock()
 	defer l.mu.Unlock()

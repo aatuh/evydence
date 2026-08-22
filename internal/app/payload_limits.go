@@ -8,6 +8,21 @@ const (
 	EvidenceDocumentLimit       int64 = 20 << 20
 	EvidenceArchiveRequestLimit int64 = 128 << 20
 	ReportTemplateRequestLimit  int64 = 1 << 20
+	// MaxGeneratedReportBytes bounds a report or materialized report view after
+	// rendering, not merely its request template. This protects report outputs
+	// from growing with stored tenant metadata.
+	MaxGeneratedReportBytes = 4 << 20
+	// Customer package generation stays within the archive shape accepted by
+	// the offline verifier. Stored ZIP entries avoid compression-ratio drift.
+	MaxCustomerPackageFileBytes     = 10 << 20
+	MaxCustomerPackageArchiveBytes  = 32 << 20
+	MaxCustomerPackageExpandedBytes = 40 << 20
+	// MaxEvidenceSummaryItems caps report construction over a scoped release.
+	MaxEvidenceSummaryItems = 512
+	// Evidence graph snapshots are deliberately bounded materialized views,
+	// never unbounded tenant graph traversals.
+	MaxEvidenceGraphNodes = 4096
+	MaxEvidenceGraphEdges = 8192
 )
 
 // ValidPayloadSize applies the size invariant before an ingestion service

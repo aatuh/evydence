@@ -58,6 +58,34 @@ Operators should measure these values in their own environment:
 - Monitor `/v1/ready`, admin metrics, outbox backlog, failed jobs, database
   connection errors, and object-store errors.
 
+## Built-In Output Budgets
+
+The application applies these fixed output and diagnostic budgets. API
+operations fail validation rather than returning a partial artifact; process
+diagnostics use the explicit truncation behavior shown below:
+
+| Operation | Budget | Behavior at limit |
+| --- | --- | --- |
+| Customer package HTML report | 4 MiB rendered bytes | Package export fails validation; no partial archive is returned. |
+| CRA readiness HTML package | 4 MiB rendered bytes | Report creation fails validation. |
+| PDF report package | 4 MiB rendered bytes | Report creation fails validation. |
+| Evidence summary | 512 evidence records / 4 MiB serialized bytes | Summary creation fails validation. |
+| Evidence graph snapshot | 4,096 nodes / 8,192 edges / 4 MiB serialized bytes | Snapshot creation fails validation. |
+| Customer package archive | 10 MiB per entry / 40 MiB expanded / 32 MiB archive | Export fails validation rather than producing an archive the offline verifier would reject. |
+| Process diagnostic | 64 KiB before redaction | Longer error and log diagnostics are truncated before bounded regular-expression redaction. |
+
+These are resource-safety limits, not supported-capacity claims. Split the
+scope or use a narrower package/report request when a review needs more
+records.
+
+Lifecycle-event reasons and detail maps use the same sensitive-field policy as
+process diagnostics and customer artifacts. New records are sanitized before
+persistence, and historical records are sanitized when projected through the
+API. Customer-package VEX summaries omit author/contact data. Custom report
+templates are stored as bounded data and select from an explicit allowed-field
+list; Evydence does not execute tenant-provided regular expressions or template
+programs.
+
 ## Failure Modes
 
 | Failure | Expected Behavior | Operator Action |

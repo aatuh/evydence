@@ -21,11 +21,14 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/aatuh/evydence/internal/platform/jsonbounds"
+	"github.com/aatuh/evydence/internal/platform/redaction"
 )
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, redaction.Error(err))
 		var exitErr interface{ ExitCode() int }
 		if errors.As(err, &exitErr) {
 			os.Exit(exitErr.ExitCode())
@@ -901,70 +904,11 @@ func decodeCustomerPackageJSONObject(body []byte, target *map[string]any) error 
 }
 
 func rejectDuplicateCustomerPackageJSONKeys(body []byte) error {
-	decoder := json.NewDecoder(bytes.NewReader(body))
-	if err := rejectDuplicateCustomerPackageJSONValue(decoder); err != nil {
-		return err
-	}
-	if _, err := decoder.Token(); err != io.EOF {
-		if err == nil {
-			return errors.New("customer package JSON contains trailing data")
+	if err := jsonbounds.Validate(body, jsonbounds.DefaultLimits()); err != nil {
+		if errors.Is(err, jsonbounds.ErrDuplicateObjectKey) {
+			return errors.New("customer package JSON contains duplicate JSON key")
 		}
-		return err
-	}
-	return nil
-}
-
-func rejectDuplicateCustomerPackageJSONValue(decoder *json.Decoder) error {
-	token, err := decoder.Token()
-	if err != nil {
-		return err
-	}
-	delimiter, isDelimiter := token.(json.Delim)
-	if !isDelimiter {
-		return nil
-	}
-	switch delimiter {
-	case '{':
-		keys := map[string]struct{}{}
-		for decoder.More() {
-			token, err := decoder.Token()
-			if err != nil {
-				return err
-			}
-			key, ok := token.(string)
-			if !ok {
-				return errors.New("customer package JSON object key is invalid")
-			}
-			if _, exists := keys[key]; exists {
-				return errors.New("customer package JSON contains duplicate JSON key")
-			}
-			keys[key] = struct{}{}
-			if err := rejectDuplicateCustomerPackageJSONValue(decoder); err != nil {
-				return err
-			}
-		}
-		token, err := decoder.Token()
-		if err != nil {
-			return err
-		}
-		if token != json.Delim('}') {
-			return errors.New("customer package JSON object is invalid")
-		}
-	case '[':
-		for decoder.More() {
-			if err := rejectDuplicateCustomerPackageJSONValue(decoder); err != nil {
-				return err
-			}
-		}
-		token, err := decoder.Token()
-		if err != nil {
-			return err
-		}
-		if token != json.Delim(']') {
-			return errors.New("customer package JSON array is invalid")
-		}
-	default:
-		return errors.New("customer package JSON contains an unexpected delimiter")
+		return errors.New("customer package JSON violates structural safety limits")
 	}
 	return nil
 }

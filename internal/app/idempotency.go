@@ -6,6 +6,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/aatuh/evydence/internal/platform/redaction"
 )
 
 // IdempotencyState is the durable lifecycle for one tenant-and-actor scoped
@@ -332,64 +334,11 @@ func safeIdempotencyReplayResponse(response any) (any, error) {
 	if err := json.Unmarshal(encoded, &decoded); err != nil {
 		return nil, ErrValidation
 	}
-	safe, changed := redactIdempotencyReplaySecrets(decoded)
+	safe, changed := redaction.RemoveSensitive(decoded)
 	if !changed {
 		return response, nil
 	}
 	return safe, nil
-}
-
-func redactIdempotencyReplaySecrets(value any) (any, bool) {
-	switch typed := value.(type) {
-	case map[string]any:
-		safe := make(map[string]any, len(typed))
-		changed := false
-		for key, nested := range typed {
-			if idempotencySensitiveResponseField(key) {
-				changed = true
-				continue
-			}
-			redacted, nestedChanged := redactIdempotencyReplaySecrets(nested)
-			if nestedChanged {
-				changed = true
-			}
-			safe[key] = redacted
-		}
-		if changed {
-			return safe, true
-		}
-		return value, false
-	case []any:
-		var safe []any
-		for index, nested := range typed {
-			redacted, changed := redactIdempotencyReplaySecrets(nested)
-			if changed {
-				if safe == nil {
-					safe = append([]any(nil), typed...)
-				}
-				safe[index] = redacted
-			}
-		}
-		if safe != nil {
-			return safe, true
-		}
-		return value, false
-	default:
-		return value, false
-	}
-}
-
-func idempotencySensitiveResponseField(key string) bool {
-	normalized := strings.ToLower(strings.TrimSpace(key))
-	if strings.Contains(normalized, "secret") || strings.Contains(normalized, "password") || strings.Contains(normalized, "credential") || strings.Contains(normalized, "private") {
-		return true
-	}
-	switch normalized {
-	case "token", "authorization", "bearer", "access_token", "refresh_token", "id_token", "session_token", "webhook_token", "assertion":
-		return true
-	default:
-		return strings.HasSuffix(normalized, "_token")
-	}
 }
 
 func (l *Ledger) publishCompletedIdempotency(reservation IdempotencyReservation, status int, response any, completedAt time.Time) {

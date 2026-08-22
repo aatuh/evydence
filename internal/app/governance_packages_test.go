@@ -291,7 +291,7 @@ func TestCustomerPackageV2ManifestSchemaAndSensitiveFieldExclusion(t *testing.T)
 			t.Fatalf("manifest missing %q: %s", want, text)
 		}
 	}
-	for _, forbidden := range []string{"private manual triage note", openAPIRawCanary, foreignContract.ID, "foreign-only", "payload_ref", "object://", "api_key_secret", "evy_", "private_key", "session_hash"} {
+	for _, forbidden := range []string{"private manual triage note", "security@example.test", openAPIRawCanary, foreignContract.ID, "foreign-only", "payload_ref", "object://", "api_key_secret", "evy_", "private_key", "session_hash"} {
 		if strings.Contains(strings.ToLower(text), strings.ToLower(forbidden)) {
 			t.Fatalf("manifest leaked %q: %s", forbidden, text)
 		}

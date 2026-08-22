@@ -28,6 +28,7 @@ import (
 	scannerparser "github.com/aatuh/evydence/internal/app/parsers/scanners"
 	vexparser "github.com/aatuh/evydence/internal/app/parsers/vex"
 	"github.com/aatuh/evydence/internal/domain"
+	"github.com/aatuh/evydence/internal/platform/redaction"
 )
 
 const defaultMaxWorkerPayloadBytes = 20 << 20
@@ -56,7 +57,7 @@ var openParserReplayObjects = openObjectStore
 
 func main() {
 	if err := runWithArgs(os.Args[1:]); err != nil {
-		log.Fatal(err)
+		log.Fatal(redaction.Error(err)) // #nosec G706 -- redaction.Error removes credentials and line breaks before logging.
 	}
 }
 

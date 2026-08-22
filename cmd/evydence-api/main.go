@@ -33,6 +33,7 @@ import (
 	transparencygateway "github.com/aatuh/evydence/internal/adapters/transparency/httpgateway"
 	cosignverification "github.com/aatuh/evydence/internal/adapters/verification/sigstore"
 	"github.com/aatuh/evydence/internal/app"
+	"github.com/aatuh/evydence/internal/platform/redaction"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
 )
 
@@ -44,7 +45,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := runWithContext(ctx); err != nil {
-		log.Fatal(err)
+		log.Fatal(redaction.Error(err))
 	}
 }
 
