@@ -219,7 +219,7 @@ func TestWithIdempotencyStoresNoOneTimeSecretInReplay(t *testing.T) {
 func TestIdempotencyStateErrorsAreSafeConflicts(t *testing.T) {
 	for _, testCase := range []struct {
 		err  error
-		code string
+		code ErrorCode
 	}{
 		{err: ErrIdempotencyInProgress, code: "IDEMPOTENCY_IN_PROGRESS"},
 		{err: ErrIdempotencyFailed, code: "IDEMPOTENCY_REQUEST_FAILED"},

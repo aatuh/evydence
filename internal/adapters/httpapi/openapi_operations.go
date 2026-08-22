@@ -18,7 +18,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Scopes = nil
 		operation.Responses[http.StatusOK] = jsonResponse("Liveness status envelope.", "#/components/schemas/HealthStatusEnvelope")
 	case "ready":
-		operation.Description = "Runs bounded PostgreSQL, migration, writer-lease, object-store, and signing-configuration probes configured for this process. The public result contains no tenant data, credentials, paths, or raw dependency errors."
+		operation.Description = "Runs bounded PostgreSQL, migration, writer-lease, object-store, and signing-configuration probes configured for this process. The public result contains no tenant data, credentials, paths, or raw dependency errors. An unavailable result includes typed dependency retry metadata and Retry-After."
 		operation.Security = nil
 		operation.Scopes = nil
 		operation.Responses[http.StatusOK] = jsonResponse("Readiness status envelope.", "#/components/schemas/ReadinessStatusEnvelope")
@@ -1040,7 +1040,7 @@ func appendParameterIfMissing(parameters []specs.Parameter, parameter specs.Para
 }
 
 func addProblemResponses(operation *specs.Operation) {
-	for _, status := range []int{http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusConflict, http.StatusUnprocessableEntity} {
+	for _, status := range []int{http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusConflict, http.StatusUnprocessableEntity, http.StatusTooManyRequests, http.StatusInternalServerError, http.StatusServiceUnavailable} {
 		operation.Responses[status] = problemResponse(http.StatusText(status))
 	}
 }

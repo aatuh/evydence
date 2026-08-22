@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -15,6 +16,19 @@ type Client struct {
 	BaseURL string
 	APIKey  string
 	HTTP    *http.Client
+}
+
+// ProblemError is returned for non-2xx Evydence API responses. Callers can
+// use errors.As and switch on Problem.Code without parsing a human message.
+type ProblemError struct {
+	Problem ProblemDetails
+}
+
+func (e *ProblemError) Error() string {
+	if e == nil {
+		return "evydence: request failed"
+	}
+	return fmt.Sprintf("evydence: request failed with status %d (%s)", e.Problem.Status, e.Problem.Code)
 }
 
 // PageMeta is returned by every cursor-paginated collection response.
@@ -126,7 +140,7 @@ func (c Client) Post(ctx context.Context, path, idempotencyKey string, payload a
 		return err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("evydence: request failed with status %d", resp.StatusCode)
+		return decodeProblemError(resp, responseBody)
 	}
 	if out == nil {
 		return nil
@@ -159,12 +173,30 @@ func (c Client) Get(ctx context.Context, path string, out any) error {
 		return err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("evydence: request failed with status %d", resp.StatusCode)
+		return decodeProblemError(resp, responseBody)
 	}
 	if out == nil {
 		return nil
 	}
 	return json.Unmarshal(responseBody, out)
+}
+
+func decodeProblemError(response *http.Response, body []byte) error {
+	problem := ProblemDetails{
+		Status:     response.StatusCode,
+		Detail:     "request failed",
+		Code:       ErrorCodeInternalError,
+		RetryClass: RetryClassNone,
+	}
+	var decoded ProblemDetails
+	if json.Unmarshal(body, &decoded) == nil && decoded.Code != "" {
+		problem = decoded
+	}
+	problem.Status = response.StatusCode
+	if retryAfter, err := strconv.Atoi(strings.TrimSpace(response.Header.Get("Retry-After"))); err == nil && retryAfter > 0 {
+		problem.RetryAfterSeconds = retryAfter
+	}
+	return &ProblemError{Problem: problem}
 }
 
 func (c Client) CreateProduct(ctx context.Context, idempotencyKey string, payload CreateProductRequest, out any) error {

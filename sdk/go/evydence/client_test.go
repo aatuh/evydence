@@ -3,6 +3,7 @@ package evydence
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -82,6 +83,26 @@ func TestPostReturnsSafeStatusError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "status 403") || strings.Contains(err.Error(), "secret body") {
 		t.Fatalf("unsafe or unexpected error: %v", err)
+	}
+}
+
+func TestPostReturnsTypedProblemError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/problem+json")
+		w.Header().Set("Retry-After", "60")
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = w.Write([]byte(`{"type":"https://evydence.local/problems/rate-limited","title":"Too Many Requests","status":429,"detail":"rate limited","code":"RATE_LIMITED","request_id":"req_sdk_problem","retryable":true,"retry_class":"rate_limited","retry_after_seconds":60}`))
+	}))
+	defer server.Close()
+
+	err := Client{BaseURL: server.URL, APIKey: "secret", HTTP: server.Client()}.
+		Post(context.Background(), "/v1/evidence", "idem-1", map[string]string{"title": "Build"}, nil)
+	var problem *ProblemError
+	if !errors.As(err, &problem) {
+		t.Fatalf("error = %T %v, want ProblemError", err, err)
+	}
+	if problem.Problem.Code != ErrorCodeRateLimited || !problem.Problem.Retryable || problem.Problem.RetryClass != RetryClassRateLimited || problem.Problem.RequestID != "req_sdk_problem" || problem.Problem.RetryAfterSeconds != 60 {
+		t.Fatalf("typed problem = %#v", problem.Problem)
 	}
 }
 

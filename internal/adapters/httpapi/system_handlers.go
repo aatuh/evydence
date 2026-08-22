@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+
+	"github.com/aatuh/evydence/internal/app"
 )
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
@@ -19,7 +21,14 @@ func (s *Server) ready(w http.ResponseWriter, r *http.Request) {
 	}
 	code := http.StatusOK
 	if status["status"] != "ok" {
+		retry := app.DescribeProblem(app.ErrDependencyUnavailable)
 		code = http.StatusServiceUnavailable
+		status["retryable"] = retry.Retryable
+		status["retry_class"] = retry.RetryClass
+		if retry.RetryAfterSeconds > 0 {
+			status["retry_after_seconds"] = retry.RetryAfterSeconds
+			w.Header().Set("Retry-After", fmt.Sprintf("%d", retry.RetryAfterSeconds))
+		}
 	}
 	writeData(w, code, status)
 }

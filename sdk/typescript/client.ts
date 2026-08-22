@@ -1,3 +1,7 @@
+import type { ProblemDetails } from "./error_codes";
+
+export type { ErrorCode, FieldViolation, ProblemDetails, RetryClass } from "./error_codes";
+
 export type EvydenceClientOptions = {
   baseUrl: string;
   apiKey: string;
@@ -16,6 +20,17 @@ export type PageEnvelope<T> = {
   data: T[];
   meta: PageMeta;
 };
+
+/** Typed RFC 9457 response error. Switch on `problem.code`, not `message`. */
+export class EvydenceProblemError extends Error {
+  readonly problem: ProblemDetails;
+
+  constructor(problem: ProblemDetails) {
+    super(`Evydence request failed with status ${problem.status} (${problem.code})`);
+    this.name = "EvydenceProblemError";
+    this.problem = problem;
+  }
+}
 
 export type CreateProductRequest = {
   name: string;
@@ -106,7 +121,7 @@ export class EvydenceClient {
       body: JSON.stringify(payload),
     });
     if (!response.ok) {
-      throw new Error(`Evydence request failed with status ${response.status}`);
+      throw await problemError(response);
     }
     return response.json() as Promise<T>;
   }
@@ -124,7 +139,7 @@ export class EvydenceClient {
       headers,
     });
     if (!response.ok) {
-      throw new Error(`Evydence request failed with status ${response.status}`);
+      throw await problemError(response);
     }
     return response.json() as Promise<T>;
   }
@@ -177,5 +192,40 @@ export class EvydenceClient {
     payload: VerifyProviderIdentityRequest,
   ): Promise<T> {
     return this.post<T>("/v1/provider-verifications", idempotencyKey, payload);
+  }
+}
+
+async function problemError(response: Response): Promise<EvydenceProblemError> {
+  const retryAfter = Number.parseInt(response.headers.get("Retry-After") ?? "", 10);
+  const fallback: ProblemDetails = {
+    type: "about:blank",
+    title: "Request failed",
+    status: response.status,
+    detail: "request failed",
+    code: "INTERNAL_ERROR",
+    request_id: "",
+    retryable: false,
+    retry_class: "none",
+    ...(Number.isInteger(retryAfter) && retryAfter > 0 ? { retry_after_seconds: retryAfter } : {}),
+  };
+  try {
+    const candidate = await response.json() as Partial<ProblemDetails>;
+    if (typeof candidate.code !== "string") {
+      return new EvydenceProblemError(fallback);
+    }
+    const problem: ProblemDetails = {
+      ...fallback,
+      ...candidate,
+      status: response.status,
+      retry_after_seconds:
+        Number.isInteger(retryAfter) && retryAfter > 0
+          ? retryAfter
+          : typeof candidate.retry_after_seconds === "number"
+            ? candidate.retry_after_seconds
+            : fallback.retry_after_seconds,
+    };
+    return new EvydenceProblemError(problem);
+  } catch {
+    return new EvydenceProblemError(fallback);
   }
 }

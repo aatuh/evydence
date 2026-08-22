@@ -2471,14 +2471,14 @@ func readBody(r *http.Request) ([]byte, error) {
 
 func readBodyLimit(r *http.Request, limit int64) ([]byte, error) {
 	if r == nil || r.Body == nil || limit <= 0 || r.ContentLength > limit {
-		return nil, app.ErrValidation
+		return nil, app.NewValidationError(app.FieldViolation{Field: "/body", Code: "invalid_size"})
 	}
 	body, err := io.ReadAll(io.LimitReader(r.Body, limit+1))
 	if err != nil {
-		return nil, app.ErrValidation
+		return nil, app.NewValidationError(app.FieldViolation{Field: "/body", Code: "unreadable"})
 	}
 	if int64(len(body)) > limit {
-		return nil, app.ErrValidation
+		return nil, app.NewValidationError(app.FieldViolation{Field: "/body", Code: "too_large"})
 	}
 	return body, nil
 }
@@ -2491,12 +2491,38 @@ func decodeJSON(body []byte, out any) error {
 	dec := json.NewDecoder(bytes.NewReader(trimmed))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(out); err != nil {
-		return app.ErrValidation
+		return jsonValidationError(err)
 	}
 	if dec.Decode(&struct{}{}) != io.EOF {
-		return app.ErrValidation
+		return app.NewValidationError()
 	}
 	return nil
+}
+
+func jsonValidationError(err error) error {
+	var typeError *json.UnmarshalTypeError
+	if errors.As(err, &typeError) {
+		return app.NewValidationError(app.FieldViolation{Field: jsonFieldPointer(typeError.Field), Code: "invalid_type"})
+	}
+	const unknownFieldPrefix = "json: unknown field "
+	if raw := strings.TrimPrefix(err.Error(), unknownFieldPrefix); raw != err.Error() {
+		if field, unquoteErr := strconv.Unquote(raw); unquoteErr == nil {
+			return app.NewValidationError(app.FieldViolation{Field: jsonFieldPointer(field), Code: "unknown_field"})
+		}
+	}
+	return app.NewValidationError()
+}
+
+func jsonFieldPointer(field string) string {
+	field = strings.TrimSpace(field)
+	if field == "" {
+		return ""
+	}
+	parts := strings.Split(field, ".")
+	for index, part := range parts {
+		parts[index] = strings.ReplaceAll(strings.ReplaceAll(part, "~", "~0"), "/", "~1")
+	}
+	return "/" + strings.Join(parts, "/")
 }
 
 func parseOptionalRFC3339(value string) (time.Time, error) {
@@ -2540,16 +2566,29 @@ func writeArchive(w http.ResponseWriter, archive app.CustomerPackageArchive) {
 }
 
 func writeProblem(w http.ResponseWriter, r *http.Request, err error) {
-	status := app.StatusCode(err)
+	details := app.DescribeProblem(err)
+	status := details.Status
 	requestID := requestIDFromRequest(r)
+	w.Header().Set(requestIDHeader, requestID)
+	if details.RetryAfterSeconds > 0 {
+		w.Header().Set("Retry-After", strconv.Itoa(details.RetryAfterSeconds))
+	}
 	problem := httpx.Problem{
-		Type:   "https://evydence.local/problems/" + strings.ToLower(strings.ReplaceAll(app.ProblemCode(err), "_", "-")),
+		Type:   "https://evydence.local/problems/" + strings.ToLower(strings.ReplaceAll(string(details.Code), "_", "-")),
 		Title:  http.StatusText(status),
-		Detail: app.SafeErrorDetail(err),
+		Detail: details.Detail,
 		Ext: map[string]any{
-			"code":       app.ProblemCode(err),
-			"request_id": requestID,
+			"code":        details.Code,
+			"request_id":  requestID,
+			"retryable":   details.Retryable,
+			"retry_class": details.RetryClass,
 		},
+	}
+	if details.RetryAfterSeconds > 0 {
+		problem.Ext["retry_after_seconds"] = details.RetryAfterSeconds
+	}
+	if len(details.Violations) > 0 {
+		problem.Ext["violations"] = details.Violations
 	}
 	if revision, ok := app.CurrentRevision(err); ok {
 		problem.Ext["current_revision"] = revision
@@ -2585,7 +2624,6 @@ func (s *Server) rateLimitMiddleware(next http.Handler) http.Handler {
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !s.limiter.allow(clientRateLimitKey(r), time.Now().UTC()) {
-			w.Header().Set("Retry-After", "60")
 			writeProblem(w, r, app.ErrRateLimited)
 			return
 		}

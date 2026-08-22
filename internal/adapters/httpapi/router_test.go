@@ -243,8 +243,16 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	schemas := asStringAnyMap(t, asStringAnyMap(t, doc["components"])["schemas"])
 	problem := asStringAnyMap(t, schemas["Problem"])
 	problemProps := asStringAnyMap(t, problem["properties"])
-	if _, ok := problemProps["request_id"]; !ok {
-		t.Fatalf("Problem schema missing request_id: %#v", problemProps)
+	for _, field := range []string{"code", "request_id", "retryable", "retry_class", "violations"} {
+		if _, ok := problemProps[field]; !ok {
+			t.Fatalf("Problem schema missing %q: %#v", field, problemProps)
+		}
+	}
+	errorCodes := fmt.Sprintf("%v", asStringAnyMap(t, schemas["ErrorCode"])["enum"])
+	for _, definition := range app.ErrorCatalog() {
+		if !strings.Contains(errorCodes, string(definition.Code)) {
+			t.Fatalf("ErrorCode schema missing catalog code %q: %s", definition.Code, errorCodes)
+		}
 	}
 	versionProps := asStringAnyMap(t, asStringAnyMap(t, schemas["VersionInfo"])["properties"])
 	for _, field := range []string{"version", "commit", "build_time", "dirty", "go_version", "release_manifest_digest"} {
@@ -819,6 +827,19 @@ func TestServerRateLimitReturnsSafeProblem(t *testing.T) {
 	if rec.Header().Get("Retry-After") == "" || rec.Header().Get(requestIDHeader) == "" {
 		t.Fatalf("missing retry/request headers: %#v", rec.Header())
 	}
+	var problem struct {
+		Code              string `json:"code"`
+		RequestID         string `json:"request_id"`
+		Retryable         bool   `json:"retryable"`
+		RetryClass        string `json:"retry_class"`
+		RetryAfterSeconds int    `json:"retry_after_seconds"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &problem); err != nil {
+		t.Fatalf("decode rate limit problem: %v", err)
+	}
+	if problem.Code != "RATE_LIMITED" || !problem.Retryable || problem.RetryClass != "rate_limited" || problem.RetryAfterSeconds != 60 || problem.RequestID == "" {
+		t.Fatalf("rate limit problem metadata = %#v", problem)
+	}
 }
 
 func TestAuthenticatedReadRoutesRejectMissingBearerToken(t *testing.T) {
@@ -914,6 +935,20 @@ func TestUnknownJSONFieldReturnsProblem(t *testing.T) {
 	}
 	if rec.Header().Get("X-Request-ID") != "req-test-validation" || !strings.Contains(rec.Body.String(), `"request_id":"req-test-validation"`) {
 		t.Fatalf("request id missing from problem/header: header=%q body=%s", rec.Header().Get("X-Request-ID"), rec.Body.String())
+	}
+	var problem struct {
+		Code       string `json:"code"`
+		Violations []struct {
+			Field   string `json:"field"`
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"violations"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &problem); err != nil {
+		t.Fatalf("decode validation problem: %v", err)
+	}
+	if problem.Code != "VALIDATION_FAILED" || len(problem.Violations) != 1 || problem.Violations[0].Field != "/extra" || problem.Violations[0].Code != "unknown_field" || problem.Violations[0].Message != "" {
+		t.Fatalf("safe field violation missing: %#v", problem)
 	}
 }
 
@@ -2098,6 +2133,9 @@ func TestRuntimeSystemEndpointsExposeIdentityAndSafeDependencyReadiness(t *testi
 	server.Handler().ServeHTTP(ready, httptest.NewRequest(http.MethodGet, "/v1/ready", nil))
 	if ready.Code != http.StatusServiceUnavailable || !strings.Contains(ready.Body.String(), `"status":"unavailable"`) {
 		t.Fatalf("readiness status=%d body=%s", ready.Code, ready.Body.String())
+	}
+	if ready.Header().Get("Retry-After") != "5" || !strings.Contains(ready.Body.String(), `"retry_class":"dependency_unavailable"`) || !strings.Contains(ready.Body.String(), `"retryable":true`) {
+		t.Fatalf("readiness retry metadata missing: headers=%#v body=%s", ready.Header(), ready.Body.String())
 	}
 	for _, forbidden := range []string{"super-secret", "database.internal", "database connectivity"} {
 		if strings.Contains(ready.Body.String(), forbidden) {

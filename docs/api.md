@@ -56,7 +56,9 @@ After retention expires, the key is eligible for cleanup and is no longer a
 replay guarantee. Clients that require a retry must keep the same key and
 request bytes within that window.
 
-Successful JSON responses use a `data` envelope. Errors use RFC 9457 Problem Details with stable `code` and `request_id` fields. Clients may send `X-Request-ID`; otherwise the API generates one and returns it in the response header and Problem Details body.
+Successful JSON responses use a `data` envelope. Errors use RFC 9457 Problem Details with stable `code`, `request_id`, `retryable`, and `retry_class` fields. Clients may send `X-Request-ID`; otherwise the API generates one and returns it in the response header and Problem Details body. When a retry interval is applicable, the body contains `retry_after_seconds` and the response mirrors it in `Retry-After`.
+
+The complete generated catalog is [API Error Codes](reference/error-codes.md). Switch on `code` and `retry_class`, never the human-readable `title` or `detail`. Validation failures can include safe JSON Pointer `violations`; no response includes raw database, object-store, provider, or parser errors.
 
 Example validation problem:
 
@@ -65,8 +67,14 @@ Example validation problem:
   "type": "about:blank",
   "title": "Bad Request",
   "status": 400,
+  "detail": "validation failed",
   "code": "VALIDATION_FAILED",
-  "request_id": "req-test-validation"
+  "request_id": "req-test-validation",
+  "retryable": false,
+  "retry_class": "none",
+  "violations": [
+    {"field": "/name", "code": "required"}
+  ]
 }
 ```
 

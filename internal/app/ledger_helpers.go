@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"sort"
 	"strings"
 
@@ -160,39 +159,8 @@ func IsValidation(err error) bool {
 	return errors.Is(err, ErrValidation)
 }
 
-func ProblemCode(err error) string {
-	switch {
-	case errors.Is(err, ErrUnauthorized):
-		return "UNAUTHORIZED"
-	case errors.Is(err, ErrForbidden):
-		return "FORBIDDEN"
-	case errors.Is(err, ErrNotFound):
-		return "NOT_FOUND"
-	case CurrentVersionConflict(err):
-		return "VERSION_CONFLICT"
-	case errors.Is(err, ErrConflict):
-		return "CONFLICT"
-	case errors.Is(err, ErrImmutable):
-		return "EVIDENCE_IMMUTABLE"
-	case errors.Is(err, ErrIdempotencyConflict):
-		return "IDEMPOTENCY_KEY_REUSED"
-	case errors.Is(err, ErrIdempotencyInProgress):
-		return "IDEMPOTENCY_IN_PROGRESS"
-	case errors.Is(err, ErrIdempotencyFailed):
-		return "IDEMPOTENCY_REQUEST_FAILED"
-	case errors.Is(err, ErrFullVerificationUnavailable):
-		return "COSIGN_FULL_VERIFICATION_UNAVAILABLE"
-	case errors.Is(err, ErrVerificationFailed):
-		return "VERIFICATION_FAILED"
-	case errors.Is(err, ErrRetryableSigning):
-		return "SIGNING_PROVIDER_UNAVAILABLE"
-	case errors.Is(err, ErrRateLimited):
-		return "RATE_LIMITED"
-	case errors.Is(err, ErrValidation):
-		return "VALIDATION_FAILED"
-	default:
-		return "INTERNAL_ERROR"
-	}
+func ProblemCode(err error) ErrorCode {
+	return DescribeProblem(err).Code
 }
 
 func CurrentVersionConflict(err error) bool {
@@ -201,33 +169,9 @@ func CurrentVersionConflict(err error) bool {
 }
 
 func StatusCode(err error) int {
-	switch {
-	case errors.Is(err, ErrUnauthorized):
-		return 401
-	case errors.Is(err, ErrForbidden):
-		return 403
-	case errors.Is(err, ErrNotFound):
-		return 404
-	case errors.Is(err, ErrConflict), errors.Is(err, ErrImmutable), errors.Is(err, ErrIdempotencyConflict), errors.Is(err, ErrIdempotencyInProgress), errors.Is(err, ErrIdempotencyFailed):
-		return 409
-	case errors.Is(err, ErrValidation):
-		return 400
-	case errors.Is(err, ErrFullVerificationUnavailable), errors.Is(err, ErrVerificationFailed):
-		return 422
-	case errors.Is(err, ErrRateLimited):
-		return 429
-	case errors.Is(err, ErrRetryableSigning):
-		return 503
-	default:
-		return 500
-	}
+	return DescribeProblem(err).Status
 }
 
 func SafeErrorDetail(err error) string {
-	switch StatusCode(err) {
-	case 500:
-		return "internal server error"
-	default:
-		return fmt.Sprintf("%s", err)
-	}
+	return DescribeProblem(err).Detail
 }

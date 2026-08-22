@@ -220,6 +220,7 @@ def validate_request_field_contracts(spec: dict, go_client: str, typescript_clie
 
 def main() -> None:
     spec = load_openapi()
+    subprocess.run([sys.executable, str(ROOT / "scripts" / "generate_error_catalog.py")], check=True)
     catalog_path = ROOT / "sdk" / "openapi-route-catalog.json"
     if not catalog_path.exists():
         fail("missing sdk/openapi-route-catalog.json")
@@ -250,6 +251,10 @@ def main() -> None:
     go_client = (ROOT / "sdk/go/evydence/client.go").read_text(encoding="utf-8")
     typescript_client = (ROOT / "sdk/typescript/client.ts").read_text(encoding="utf-8")
     python_client = (ROOT / "sdk/python/evydence_client.py").read_text(encoding="utf-8")
+    go_error_codes = (ROOT / "sdk/go/evydence/error_codes.go").read_text(encoding="utf-8")
+    typescript_error_codes = (ROOT / "sdk/typescript/error_codes.ts").read_text(encoding="utf-8")
+    python_error_codes = (ROOT / "sdk/python/error_codes.py").read_text(encoding="utf-8")
+    error_catalog = json.loads((ROOT / "sdk/error-codes.json").read_text(encoding="utf-8"))
     quickstarts = (ROOT / "docs/sdk/quickstarts.md").read_text(encoding="utf-8")
 
     for failure in validate_request_field_contracts(spec, go_client, typescript_client):
@@ -266,6 +271,18 @@ def main() -> None:
     require_text(typescript_client, "export type PageEnvelope<T>", "TypeScript SDK pagination envelope")
     require_text(python_client, "class PageMeta", "Python SDK pagination type")
     require_text(python_client, "class PageEnvelope", "Python SDK pagination envelope")
+
+    require_text(go_client, "type ProblemError struct", "Go SDK typed problem error")
+    require_text(typescript_client, "class EvydenceProblemError", "TypeScript SDK typed problem error")
+    require_text(python_client, "class EvydenceProblemError", "Python SDK typed problem error")
+    require_text(go_error_codes, "type ErrorCode string", "Go SDK error code type")
+    require_text(typescript_error_codes, "export type ErrorCode", "TypeScript SDK error code type")
+    require_text(python_error_codes, "class ErrorCode", "Python SDK error code type")
+    for code in error_catalog.get("errors", []):
+        if not isinstance(code, dict) or not isinstance(code.get("code"), str):
+            fail("sdk/error-codes.json has invalid error code entry")
+        for source, label in ((go_error_codes, "Go SDK error catalog"), (typescript_error_codes, "TypeScript SDK error catalog"), (python_error_codes, "Python SDK error catalog")):
+            require_text(source, code["code"], label)
 
     require_text(go_client, "strings.HasPrefix(path, \"/v1/\")", "Go SDK path validation")
     require_text(typescript_client, "path.startsWith(\"/v1/\")", "TypeScript SDK path validation")
@@ -285,7 +302,8 @@ def main() -> None:
 
     print(
         f"sdk-check: validated {len(REQUIRED_HELPERS)} SDK helpers, {len(REQUEST_FIELD_CONTRACTS)} "
-        f"field-level request contracts, and {catalog.get('route_count')} generated route catalog entries against openapi.yaml"
+        f"field-level request contracts, {len(error_catalog.get('errors', []))} generated error codes, and "
+        f"{catalog.get('route_count')} generated route catalog entries against openapi.yaml"
     )
 
 

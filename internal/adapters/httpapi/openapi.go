@@ -1,6 +1,10 @@
 package httpapi
 
-import "github.com/aatuh/api-toolkit/v3/specs"
+import (
+	"github.com/aatuh/api-toolkit/v3/specs"
+
+	"github.com/aatuh/evydence/internal/app"
+)
 
 func NewSpecRegistry() *specs.Registry {
 	registry := specs.NewRegistryWithOptions(specs.Info{
@@ -9,15 +13,35 @@ func NewSpecRegistry() *specs.Registry {
 		Version:     "dev",
 	}, specs.RegistryOptions{OpenAPIVersion: specs.OpenAPIVersion31})
 	registry.RegisterSecurityScheme("BearerAuth", specs.SecurityScheme{Type: "http", Scheme: "bearer"})
+	registerProblemSchemas(registry)
 	registry.RegisterSchema("Problem", map[string]any{
-		"type": "object",
+		"type":                 "object",
+		"additionalProperties": false,
 		"properties": map[string]any{
 			"type":     map[string]any{"type": "string"},
 			"title":    map[string]any{"type": "string"},
 			"status":   map[string]any{"type": "integer"},
 			"detail":   map[string]any{"type": "string"},
 			"instance": map[string]any{"type": "string"},
-			"code":     map[string]any{"type": "string"},
+			"code":     map[string]any{"$ref": "#/components/schemas/ErrorCode"},
+			"retryable": map[string]any{
+				"type":        "boolean",
+				"description": "Whether the documented retry class permits an automatic client retry.",
+			},
+			"retry_class": map[string]any{
+				"$ref": "#/components/schemas/RetryClass",
+			},
+			"retry_after_seconds": map[string]any{
+				"type":        "integer",
+				"minimum":     1,
+				"description": "Positive catalog retry interval, mirrored in Retry-After when present.",
+			},
+			"violations": map[string]any{
+				"type":        "array",
+				"maxItems":    32,
+				"description": "Optional safe request-body JSON Pointer validation violations.",
+				"items":       map[string]any{"$ref": "#/components/schemas/FieldViolation"},
+			},
 			"current_revision": map[string]any{
 				"type":        "integer",
 				"format":      "int64",
@@ -29,9 +53,44 @@ func NewSpecRegistry() *specs.Registry {
 				"description": "Request identifier mirrored from the X-Request-ID response header.",
 			},
 		},
+		"required": []string{"type", "title", "status", "detail", "code", "request_id", "retryable", "retry_class"},
 	})
 	registerCriticalSchemas(registry)
 	return registry
+}
+
+func registerProblemSchemas(registry *specs.Registry) {
+	definitions := app.ErrorCatalog()
+	codes := make([]string, 0, len(definitions))
+	retryClasses := make([]string, 0, len(definitions))
+	seenRetryClasses := map[string]struct{}{}
+	for _, definition := range definitions {
+		codes = append(codes, string(definition.Code))
+		if _, seen := seenRetryClasses[string(definition.RetryClass)]; seen {
+			continue
+		}
+		seenRetryClasses[string(definition.RetryClass)] = struct{}{}
+		retryClasses = append(retryClasses, string(definition.RetryClass))
+	}
+	registry.RegisterSchema("ErrorCode", map[string]any{
+		"type":        "string",
+		"enum":        codes,
+		"description": "Stable machine-readable Evydence Problem Details code. See docs/reference/error-codes.md.",
+	})
+	registry.RegisterSchema("RetryClass", map[string]any{
+		"type":        "string",
+		"enum":        retryClasses,
+		"description": "Stable client action classification for Problem Details retry behavior.",
+	})
+	registry.RegisterSchema("FieldViolation", map[string]any{
+		"type":                 "object",
+		"additionalProperties": false,
+		"properties": map[string]any{
+			"field": map[string]any{"type": "string", "pattern": "^/(?:[A-Za-z0-9_./-]|~[01])+$", "maxLength": 256},
+			"code":  map[string]any{"type": "string", "pattern": "^[a-z0-9_-]+$", "maxLength": 64},
+		},
+		"required": []string{"field", "code"},
+	})
 }
 
 func registerCriticalSchemas(registry *specs.Registry) {
@@ -178,7 +237,14 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "id", "tenant_id", "sequence", "entry_type", "subject_type", "subject_id", "actor_type", "actor_id", "occurred_at", "canonical_entry_hash", "previous_entry_hash", "entry_hash", "schema_version"))
 	registry.RegisterSchema("AuditChainEntryListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/AuditChainEntry"))
 	registry.RegisterSchema("ReadinessStatus", objectSchema(map[string]any{
-		"status": map[string]any{"type": "string", "enum": []string{"ok", "unavailable"}},
+		"status":      map[string]any{"type": "string", "enum": []string{"ok", "unavailable"}},
+		"retryable":   map[string]any{"type": "boolean", "description": "Present for unavailable readiness and indicates whether a retry can help."},
+		"retry_class": map[string]any{"$ref": "#/components/schemas/RetryClass"},
+		"retry_after_seconds": map[string]any{
+			"type":        "integer",
+			"minimum":     1,
+			"description": "Present for retryable unavailable readiness and mirrored in Retry-After.",
+		},
 		"checks": map[string]any{"type": "array", "items": objectSchema(map[string]any{
 			"name":   map[string]any{"type": "string"},
 			"status": map[string]any{"type": "string", "enum": []string{"ok", "unavailable"}},
