@@ -7,7 +7,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.32.20
 	github.com/aws/aws-sdk-go-v2/service/kms v1.52.2
 	github.com/getkin/kin-openapi v0.139.0
-	github.com/jackc/pgx/v5 v5.9.2
+	github.com/jackc/pgx/v5 v5.10.0
 	github.com/minio/minio-go/v7 v7.2.0
 )
 
