@@ -19,6 +19,7 @@ product-boundary language across the docs.
 | Hardened self-hosted topology | `docs/reference/hardened-reference-deployment.md` | One API writer, scalable workers, external PostgreSQL/object storage, TLS, secrets, backups, monitoring, signing, and operator-owned evidence. |
 | HA and concurrency decision | `docs/reference/ha-strategy.md` | Current single-writer appliance decision, recovery boundaries, and multi-writer prerequisites. |
 | Persistence decomposition inventory | `docs/reference/persistence-decomposition.md` | Generated map of focused mutation paths, remaining broad relational-state call sites, next split order, and regression checks. |
+| Bounded-context ownership and package retirement | `docs/adr/0003-bounded-contexts.md` | Current owner map, allowed dependencies/events, transition paths, and the retirement sequence for `internal/domain` and `internal/app.Ledger`. |
 | Release validation | `docs/reference/release-validation.md` | Canonical release gate behavior. |
 | Release-candidate evidence | `docs/reference/release-candidate.md` | Canonical release-candidate artifact checklist. |
 | Release evidence artifact map | `docs/reference/release-evidence-index.md` | Maps each release artifact to generation and verification commands. |

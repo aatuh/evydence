@@ -12,6 +12,20 @@ Evydence follows a ports-and-adapters shape:
 
 Core logic does not depend on HTTP routers, SQL drivers, object storage SDKs, queues, KMS providers, provider clients, or UI frameworks. PostgreSQL persistence currently stores a versioned ledger snapshot and rebuilds tenant-scoped relational projection rows plus forward-compatible per-resource tables for implemented release, evidence, source, deployment, and control resources. Identity, idempotency, and customer portal token records are synchronized into relational rows with non-secret hashes and tenant-scoped constraints. Release-ledger core rows are also synchronized for products, projects, releases, artifacts, evidence, audit-chain entries, signing keys, signatures, SBOMs, vulnerability scans, OpenAPI contracts, policy evaluations, release bundles, and verification receipts. Collector/build provenance, source/deployment, incident, security evidence, SBOM diff, vulnerability workflow, contract diff, custom policy, waiver, approval, DSSE trust-root, collector release, Cosign verification, signing provider, Merkle batch, transparency checkpoint, evidence lifecycle, release candidate, VEX/risk decision, control, package, report, retention, provider verification, signing operation, and future-extension records are synchronized into their migration-backed relational tables. Production API and worker startup defaults to relational-only reconstruction and disables compatibility snapshot writes; local development defaults to snapshot-preferred compatibility. In production, API startup also takes a PostgreSQL advisory writer lease so an accidental second API writer fails closed while the supported profile remains single-writer. The accepted [database-authoritative command-transaction decision](adr/0001-database-authoritative-transactions.md) requires a command to commit its domain, audit, idempotency, and outbox effects before publication, and defines staged/finalized object-storage handling. Existing focused and broad call sites remain tracked in the generated [persistence decomposition inventory](reference/persistence-decomposition.md); this is production hardening work, not a completed maturity claim.
 
+## Bounded-context transition
+
+The current `internal/domain` package and `internal/app.Ledger` are transition
+paths, not the intended permanent architecture. The accepted
+[bounded-context ownership decision](adr/0003-bounded-contexts.md) assigns all
+current domain types, public operations, repository ports, migrations, and
+worker jobs to identity/access, release catalog, evidence ingestion,
+vulnerability decisions/governance, package/reporting, verification/signing,
+operations/incidents, integration ingestion, or explicitly experimental
+peripherals. It also defines allowed dependency direction, the post-commit
+event rule, and the staged retirement of legacy package paths. The generated
+API inventory remains the authoritative operation-level map during that
+transition.
+
 ## Tenant And Auth Boundaries
 
 Tenant isolation is enforced in application methods before reads and writes return data. API keys are scoped, revocable, and stored as HMAC-SHA256 hashes with `EVYDENCE_API_KEY_PEPPER`.
