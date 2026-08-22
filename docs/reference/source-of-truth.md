@@ -21,6 +21,7 @@ product-boundary language across the docs.
 | Persistence decomposition inventory | `docs/reference/persistence-decomposition.md` | Generated map of focused mutation paths, remaining broad relational-state call sites, next split order, and regression checks. |
 | Bounded-context ownership and package retirement | `docs/adr/0003-bounded-contexts.md` | Current owner map, allowed dependencies/events, transition paths, and the retirement sequence for `internal/domain` and `internal/app.Ledger`. |
 | Release validation | `docs/reference/release-validation.md` | Canonical release gate behavior. |
+| Test strategy and critical behavior evidence | `docs/reference/test-strategy.md` | Coverage floors, behavior-to-test matrix, deterministic fixture policy, and exact-commit CI evidence provenance. |
 | Release-candidate evidence | `docs/reference/release-candidate.md` | Canonical release-candidate artifact checklist. |
 | Release evidence artifact map | `docs/reference/release-evidence-index.md` | Maps each release artifact to generation and verification commands. |
 | Production profiles and exit criteria | `docs/reference/production-readiness.md`, `docs/reference/production-exit-review.md`, and `docs/reference/stable-v0.1.0-exit-criteria.md` | Do not broaden status elsewhere without updating these. |

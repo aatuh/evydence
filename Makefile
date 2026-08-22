@@ -15,7 +15,7 @@ BUILD_DIRTY ?= $(shell if test -n "$$(git status --porcelain --untracked-files=a
 BUILD_GO_VERSION ?= $(shell $(GO) env GOVERSION)
 BUILD_RELEASE_MANIFEST_DIGEST ?= unknown
 
-.PHONY: help tools build-api fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-breaking-check openapi-precision-check api-inventory-check rendered-openapi-check meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check docs-check deploy-check sdk-check demo-check customer-cve-review-demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check black-box-release-artifact-check benchmark-check package-viewer-check security-regression-check release-asset-smoke-check marketing-site-check marketing-site-production-check restore-rehearsal-check fault-injection-check integration-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
+.PHONY: help tools build-api fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check test-strategy-check openapi-check openapi-breaking-check openapi-precision-check api-inventory-check rendered-openapi-check meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check docs-check deploy-check sdk-check demo-check customer-cve-review-demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check black-box-release-artifact-check benchmark-check package-viewer-check security-regression-check release-asset-smoke-check marketing-site-check marketing-site-production-check restore-rehearsal-check fault-injection-check integration-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -56,6 +56,10 @@ coverage: ## Run tests with coverage
 
 coverage-check: ## Enforce the production coverage threshold; requires EVYDENCE_TEST_DATABASE_URL
 	@scripts/coverage_check.sh
+
+test-strategy-check: ## Validate critical behavior test evidence and coverage provenance policy
+	@python3 scripts/test_critical_behavior_matrix.py
+	@python3 scripts/critical_behavior_matrix.py --check
 
 openapi.yaml: ## Generate committed OpenAPI source
 	@$(GO) run ./cmd/openapi > openapi.yaml
@@ -725,6 +729,7 @@ integration-check: ## Run guarded live PostgreSQL and MinIO adapter checks
 fast-check: ## Run non-mutating fast validation
 	@$(MAKE) test
 	@$(MAKE) fuzz-smoke
+	@$(MAKE) test-strategy-check
 	@$(MAKE) openapi-check
 	@$(MAKE) openapi-precision-check
 	@$(MAKE) docs-check
@@ -736,6 +741,7 @@ fast-check: ## Run non-mutating fast validation
 finalize: ## Thorough validity check
 	@$(MAKE) fmt
 	@$(MAKE) test
+	@$(MAKE) test-strategy-check
 	@$(MAKE) openapi-check
 	@$(MAKE) openapi-precision-check
 	@$(MAKE) docs-check

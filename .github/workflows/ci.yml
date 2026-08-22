@@ -106,7 +106,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: evydence-ci-evidence
+          name: evydence-ci-evidence-${{ github.sha }}
           path: |
             coverage.out
             tmp/release-check-summary.txt
