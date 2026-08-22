@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aatuh/evydence/internal/app"
 )
@@ -76,6 +77,20 @@ func TestServerRateLimiterBoundsClientBuckets(t *testing.T) {
 	}
 	if got := server.ingress.edgeLimiter.bucketCount(); got > 2 {
 		t.Fatalf("rate-limit buckets=%d, want bounded capacity of 2", got)
+	}
+}
+
+func TestRequestRateLimiterExpiresWindowState(t *testing.T) {
+	limiter := newRequestRateLimiter(1, 2)
+	now := time.Date(2026, time.August, 22, 12, 0, 0, 0, time.UTC)
+	if !limiter.allow("198.51.100.1", now) {
+		t.Fatal("first request was unexpectedly limited")
+	}
+	if limiter.allow("198.51.100.1", now.Add(30*time.Second)) {
+		t.Fatal("second request within the window was not limited")
+	}
+	if !limiter.allow("198.51.100.1", now.Add(time.Minute)) {
+		t.Fatal("request after the expired window remained limited")
 	}
 }
 
