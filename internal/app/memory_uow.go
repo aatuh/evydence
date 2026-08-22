@@ -2627,6 +2627,13 @@ func (r memorySignatureRepository) InsertSigningKey(ctx context.Context, key dom
 		if _, exists := state.SigningKeys[cloned.ID]; exists {
 			return ErrConflict
 		}
+		if cloned.Status == domain.SigningKeyStatusActive {
+			for _, existing := range state.SigningKeys {
+				if existing.TenantID == cloned.TenantID && existing.Status == domain.SigningKeyStatusActive && signingKeyProvider(existing) == signingKeyProvider(cloned) {
+					return ErrConflict
+				}
+			}
+		}
 		state.SigningKeys[cloned.ID] = cloned
 		return nil
 	})
@@ -2648,9 +2655,17 @@ func (r memorySignatureRepository) UpdateSigningKey(ctx context.Context, key dom
 		if existing.Status != expectedStatus {
 			return ErrConflict
 		}
-		existing.Status = cloned.Status
-		existing.RevokedAt = cloned.RevokedAt
-		state.SigningKeys[existing.ID] = existing
+		if cloned.Status == domain.SigningKeyStatusActive {
+			for id, candidate := range state.SigningKeys {
+				if id != existing.ID && candidate.TenantID == cloned.TenantID && candidate.Status == domain.SigningKeyStatusActive && signingKeyProvider(candidate) == signingKeyProvider(cloned) {
+					return ErrConflict
+				}
+			}
+		}
+		if len(cloned.Private) == 0 {
+			cloned.Private = existing.Private
+		}
+		state.SigningKeys[existing.ID] = cloned
 		return nil
 	})
 }

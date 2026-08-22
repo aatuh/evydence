@@ -19,8 +19,9 @@ The differentiated core is a release-scoped evidence flow:
 ## Stability Classes
 
 Every public operation has a generated `x-evydence-stability` value in
-`openapi.yaml`. The generated [API contract matrix](api-contract-matrix.md) and
-SDK route catalog are the complete operation-level inventory.
+`openapi.yaml`. The generated [public API inventory](api-inventory.md), [API
+contract matrix](api-contract-matrix.md), and SDK route catalog are the
+operation-level inventories.
 
 | Class | Meaning | Compatibility stance |
 | --- | --- | --- |
@@ -29,9 +30,9 @@ SDK route catalog are the complete operation-level inventory.
 | `experimental` | Implemented surface outside the current product wedge. | May change, be isolated, or be removed through the documented API process. |
 | `deprecated` | A retained operation with a documented replacement and removal path. | No operation currently has this class. |
 
-The current generated inventory contains 43 `core`, 12 `supported`, and 131
-`experimental` operations. The counts are not a quality score or a compatibility
-promise; review the generated matrix after route changes.
+The generated inventory records the current stable-core count and all
+experimental candidates. These counts are not a quality score or a
+compatibility promise; review the generated inventory after route changes.
 
 ## Experimental Surface
 

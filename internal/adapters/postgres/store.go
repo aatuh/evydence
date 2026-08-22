@@ -824,7 +824,9 @@ func (s *Store) loadRelationalAuditChain(ctx context.Context, state *app.Persist
 func (s *Store) loadRelationalSigning(ctx context.Context, state *app.PersistedState, loaded *bool) error {
 	keyRows, err := s.pool.Query(ctx, `
 		SELECT id, tenant_id, kid, algorithm, status, public_key,
-		       encrypted_private_key, created_at, revoked_at
+		       public_key_fingerprint, version, provider, valid_from, valid_until,
+		       encrypted_private_key, created_at, revoked_at, revocation_reason,
+		       revocation_semantics, historical_validity_policy, compromised_at
 		FROM signing_keys
 	`)
 	if err != nil {
@@ -834,11 +836,13 @@ func (s *Store) loadRelationalSigning(ctx context.Context, state *app.PersistedS
 	for keyRows.Next() {
 		var key domain.SigningKey
 		var private []byte
-		var revokedAt sql.NullTime
-		if err := keyRows.Scan(&key.ID, &key.TenantID, &key.KID, &key.Algorithm, &key.Status, &key.PublicKey, &private, &key.CreatedAt, &revokedAt); err != nil {
+		var validUntil, revokedAt, compromisedAt sql.NullTime
+		if err := keyRows.Scan(&key.ID, &key.TenantID, &key.KID, &key.Algorithm, &key.Status, &key.PublicKey, &key.PublicKeyFingerprint, &key.Version, &key.Provider, &key.ValidFrom, &validUntil, &private, &key.CreatedAt, &revokedAt, &key.RevocationReason, &key.RevocationSemantics, &key.HistoricalValidityPolicy, &compromisedAt); err != nil {
 			return fmt.Errorf("scan relational signing key: %w", err)
 		}
+		key.ValidUntil = nullableSQLTime(validUntil)
 		key.RevokedAt = nullableSQLTime(revokedAt)
+		key.CompromisedAt = nullableSQLTime(compromisedAt)
 		state.SigningKeys[key.ID] = key
 		if len(private) != 0 {
 			state.SigningKeyPrivate[key.ID] = append([]byte(nil), private...)
@@ -932,7 +936,7 @@ func (s *Store) loadRelationalSBOMs(ctx context.Context, state *app.PersistedSta
 }
 
 func (s *Store) loadRelationalScans(ctx context.Context, state *app.PersistedState, loaded *bool) error {
-	rows, err := s.pool.Query(ctx, `SELECT id, tenant_id, evidence_id, release_id, scanner, target_ref, summary, findings, created_at FROM vulnerability_scans`)
+	rows, err := s.pool.Query(ctx, `SELECT id, tenant_id, evidence_id, release_id, scanner, adapter, adapter_version, source_schema, target_ref, summary, findings, created_at FROM vulnerability_scans`)
 	if err != nil {
 		return fmt.Errorf("load relational vulnerability scans: %w", err)
 	}
@@ -941,7 +945,7 @@ func (s *Store) loadRelationalScans(ctx context.Context, state *app.PersistedSta
 		var scan domain.VulnerabilityScan
 		var releaseID sql.NullString
 		var summary, findings []byte
-		if err := rows.Scan(&scan.ID, &scan.TenantID, &scan.EvidenceID, &releaseID, &scan.Scanner, &scan.TargetRef, &summary, &findings, &scan.CreatedAt); err != nil {
+		if err := rows.Scan(&scan.ID, &scan.TenantID, &scan.EvidenceID, &releaseID, &scan.Scanner, &scan.Adapter, &scan.AdapterVersion, &scan.SourceSchema, &scan.TargetRef, &summary, &findings, &scan.CreatedAt); err != nil {
 			return fmt.Errorf("scan relational vulnerability scan: %w", err)
 		}
 		scan.ReleaseID = nullableSQLString(releaseID)
@@ -1964,15 +1968,25 @@ func (s *Store) loadRelationalWaiversApprovalsTrust(ctx context.Context, state *
 		return err
 	}
 
-	trustRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, name, key_id, algorithm, public_key, status, schema_version, created_at FROM dsse_trust_roots`)
+	trustRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, name, key_id, algorithm, public_key, allowed_predicate_types, expected_builder_ids, required_claims, status, schema_version, created_at FROM dsse_trust_roots`)
 	if err != nil {
 		return fmt.Errorf("load relational dsse trust roots: %w", err)
 	}
 	defer trustRows.Close()
 	for trustRows.Next() {
 		var root domain.DSSETrustRoot
-		if err := trustRows.Scan(&root.ID, &root.TenantID, &root.Name, &root.KeyID, &root.Algorithm, &root.PublicKey, &root.Status, &root.SchemaVersion, &root.CreatedAt); err != nil {
+		var predicateTypes, builderIDs, requiredClaims []byte
+		if err := trustRows.Scan(&root.ID, &root.TenantID, &root.Name, &root.KeyID, &root.Algorithm, &root.PublicKey, &predicateTypes, &builderIDs, &requiredClaims, &root.Status, &root.SchemaVersion, &root.CreatedAt); err != nil {
 			return fmt.Errorf("scan relational dsse trust root: %w", err)
+		}
+		if err := decodeJSON(predicateTypes, &root.AllowedPredicateTypes); err != nil {
+			return fmt.Errorf("decode relational DSSE root predicate policy: %w", err)
+		}
+		if err := decodeJSON(builderIDs, &root.ExpectedBuilderIDs); err != nil {
+			return fmt.Errorf("decode relational DSSE root builder policy: %w", err)
+		}
+		if err := decodeJSON(requiredClaims, &root.RequiredClaims); err != nil {
+			return fmt.Errorf("decode relational DSSE root required claims: %w", err)
 		}
 		state.DSSETrustRoots[root.ID] = root
 		*loaded = true
@@ -2002,16 +2016,16 @@ func (s *Store) loadRelationalIntegrityProviderRows(ctx context.Context, state *
 		return err
 	}
 
-	cosignRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, artifact_id, container_image_id, artifact_signature_id, subject_digest, rekor_uuid, rekor_log_index, certificate_identity, certificate_issuer, result, checks, assurance_profile, limitations, schema_version, created_at FROM cosign_verifications`)
+	cosignRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, artifact_id, container_image_id, artifact_signature_id, subject_digest, rekor_uuid, rekor_log_index, certificate_identity, certificate_issuer, verifier_library_version, trust_root_version, verification_mode, result, checks, assurance_profile, limitations, schema_version, created_at FROM cosign_verifications`)
 	if err != nil {
 		return fmt.Errorf("load relational cosign verifications: %w", err)
 	}
 	defer cosignRows.Close()
 	for cosignRows.Next() {
 		var verification domain.CosignVerification
-		var artifactID, imageID, rekorUUID, rekorLogIndex, certIdentity, certIssuer sql.NullString
+		var artifactID, imageID, rekorUUID, rekorLogIndex, certIdentity, certIssuer, libraryVersion, trustRootVersion, verificationMode sql.NullString
 		var checks, profile []byte
-		if err := cosignRows.Scan(&verification.ID, &verification.TenantID, &artifactID, &imageID, &verification.ArtifactSignatureID, &verification.SubjectDigest, &rekorUUID, &rekorLogIndex, &certIdentity, &certIssuer, &verification.Result, &checks, &profile, &verification.Limitations, &verification.SchemaVersion, &verification.CreatedAt); err != nil {
+		if err := cosignRows.Scan(&verification.ID, &verification.TenantID, &artifactID, &imageID, &verification.ArtifactSignatureID, &verification.SubjectDigest, &rekorUUID, &rekorLogIndex, &certIdentity, &certIssuer, &libraryVersion, &trustRootVersion, &verificationMode, &verification.Result, &checks, &profile, &verification.Limitations, &verification.SchemaVersion, &verification.CreatedAt); err != nil {
 			return fmt.Errorf("scan relational cosign verification: %w", err)
 		}
 		verification.ArtifactID = nullableSQLString(artifactID)
@@ -2020,6 +2034,9 @@ func (s *Store) loadRelationalIntegrityProviderRows(ctx context.Context, state *
 		verification.RekorLogIndex = nullableSQLString(rekorLogIndex)
 		verification.CertificateIdentity = nullableSQLString(certIdentity)
 		verification.CertificateIssuer = nullableSQLString(certIssuer)
+		verification.VerifierLibraryVersion = nullableSQLString(libraryVersion)
+		verification.TrustRootVersion = nullableSQLString(trustRootVersion)
+		verification.VerificationMode = nullableSQLString(verificationMode)
 		if err := decodeJSON(checks, &verification.Checks); err != nil {
 			return fmt.Errorf("decode relational cosign checks: %w", err)
 		}
@@ -2633,19 +2650,20 @@ func (s *Store) loadRelationalFutureExtensionRows(ctx context.Context, state *ap
 		return err
 	}
 
-	signingRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, provider_id, subject_type, subject_id, payload_hash, signature_ref, result, checks, schema_version, created_at FROM signing_operations`)
+	signingRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, provider_id, subject_type, subject_id, payload_hash, canonical_payload_hash, request_id, provider_request_id, signature_ref, result, checks, schema_version, created_at FROM signing_operations`)
 	if err != nil {
 		return fmt.Errorf("load relational signing operations: %w", err)
 	}
 	defer signingRows.Close()
 	for signingRows.Next() {
 		var operation domain.SigningOperation
-		var signatureRef sql.NullString
+		var signatureRef, providerRequestID sql.NullString
 		var checks []byte
-		if err := signingRows.Scan(&operation.ID, &operation.TenantID, &operation.ProviderID, &operation.SubjectType, &operation.SubjectID, &operation.PayloadHash, &signatureRef, &operation.Result, &checks, &operation.SchemaVersion, &operation.CreatedAt); err != nil {
+		if err := signingRows.Scan(&operation.ID, &operation.TenantID, &operation.ProviderID, &operation.SubjectType, &operation.SubjectID, &operation.PayloadHash, &operation.CanonicalPayloadHash, &operation.RequestID, &providerRequestID, &signatureRef, &operation.Result, &checks, &operation.SchemaVersion, &operation.CreatedAt); err != nil {
 			return fmt.Errorf("scan relational signing operation: %w", err)
 		}
 		operation.SignatureRef = nullableSQLString(signatureRef)
+		operation.ProviderRequestID = nullableSQLString(providerRequestID)
 		if err := decodeJSON(checks, &operation.Checks); err != nil {
 			return fmt.Errorf("decode relational signing operation checks: %w", err)
 		}
@@ -3246,18 +3264,33 @@ func syncReleaseLedgerCore(ctx context.Context, tx pgx.Tx, state app.PersistedSt
 		if len(private) == 0 {
 			private = key.Private
 		}
+		validFrom := key.ValidFrom
+		if validFrom.IsZero() {
+			validFrom = key.CreatedAt
+		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO signing_keys (
 				id, tenant_id, kid, algorithm, status, public_key,
-				encrypted_private_key, created_at, revoked_at
+				public_key_fingerprint, version, provider, valid_from, valid_until,
+				encrypted_private_key, created_at, revoked_at, revocation_reason,
+				revocation_semantics, historical_validity_policy, compromised_at
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, GREATEST($8, 1), COALESCE(NULLIF($9, ''), 'local_ed25519'), $10, $11, $12, $13, $14, $15, $16, COALESCE(NULLIF($17, ''), 'preserve'), $18)
 			ON CONFLICT (id) DO UPDATE SET
 				status = EXCLUDED.status,
 				public_key = EXCLUDED.public_key,
+				public_key_fingerprint = EXCLUDED.public_key_fingerprint,
+				version = EXCLUDED.version,
+				provider = EXCLUDED.provider,
+				valid_from = EXCLUDED.valid_from,
+				valid_until = EXCLUDED.valid_until,
 				encrypted_private_key = EXCLUDED.encrypted_private_key,
-				revoked_at = EXCLUDED.revoked_at
-		`, key.ID, key.TenantID, key.KID, key.Algorithm, key.Status, key.PublicKey, nullableBytes(private), nonZeroTime(key.CreatedAt), nullableTime(key.RevokedAt)); err != nil {
+				revoked_at = EXCLUDED.revoked_at,
+				revocation_reason = EXCLUDED.revocation_reason,
+				revocation_semantics = EXCLUDED.revocation_semantics,
+				historical_validity_policy = EXCLUDED.historical_validity_policy,
+				compromised_at = EXCLUDED.compromised_at
+		`, key.ID, key.TenantID, key.KID, key.Algorithm, key.Status, key.PublicKey, key.PublicKeyFingerprint, key.Version, key.Provider, validFrom, nullableTime(key.ValidUntil), nullableBytes(private), nonZeroTime(key.CreatedAt), nullableTime(key.RevokedAt), key.RevocationReason, key.RevocationSemantics, key.HistoricalValidityPolicy, nullableTime(key.CompromisedAt)); err != nil {
 			return fmt.Errorf("upsert signing key row: %w", err)
 		}
 	}
@@ -3341,12 +3374,12 @@ func syncReleaseLedgerCore(ctx context.Context, tx pgx.Tx, state app.PersistedSt
 		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO vulnerability_scans (
-				id, tenant_id, evidence_id, release_id, scanner, target_ref,
+				id, tenant_id, evidence_id, release_id, scanner, adapter, adapter_version, source_schema, target_ref,
 				summary, findings, created_at
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-			ON CONFLICT (id) DO UPDATE SET summary = EXCLUDED.summary, findings = EXCLUDED.findings
-		`, scan.ID, scan.TenantID, scan.EvidenceID, nullableString(scan.ReleaseID), scan.Scanner, scan.TargetRef, summary, findings, nonZeroTime(scan.CreatedAt)); err != nil {
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			ON CONFLICT (id) DO UPDATE SET adapter = EXCLUDED.adapter, adapter_version = EXCLUDED.adapter_version, source_schema = EXCLUDED.source_schema, summary = EXCLUDED.summary, findings = EXCLUDED.findings
+		`, scan.ID, scan.TenantID, scan.EvidenceID, nullableString(scan.ReleaseID), scan.Scanner, scan.Adapter, scan.AdapterVersion, scan.SourceSchema, scan.TargetRef, summary, findings, nonZeroTime(scan.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert vulnerability scan row: %w", err)
 		}
 	}
@@ -4248,14 +4281,26 @@ func syncIncidentSecurityGovernanceRows(ctx context.Context, tx pgx.Tx, state ap
 		if root.ID == "" || root.TenantID == "" || root.KeyID == "" {
 			continue
 		}
+		predicateTypes, err := json.Marshal(root.AllowedPredicateTypes)
+		if err != nil {
+			return fmt.Errorf("encode DSSE root predicate policy: %w", err)
+		}
+		builderIDs, err := json.Marshal(root.ExpectedBuilderIDs)
+		if err != nil {
+			return fmt.Errorf("encode DSSE root builder policy: %w", err)
+		}
+		requiredClaims, err := json.Marshal(root.RequiredClaims)
+		if err != nil {
+			return fmt.Errorf("encode DSSE root required claims: %w", err)
+		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO dsse_trust_roots (
-				id, tenant_id, name, key_id, algorithm, public_key, status,
-				schema_version, created_at
+				id, tenant_id, name, key_id, algorithm, public_key, allowed_predicate_types,
+				expected_builder_ids, required_claims, status, schema_version, created_at
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-			ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, public_key = EXCLUDED.public_key
-		`, root.ID, root.TenantID, root.Name, root.KeyID, root.Algorithm, root.PublicKey, root.Status, root.SchemaVersion, nonZeroTime(root.CreatedAt)); err != nil {
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			ON CONFLICT (id) DO NOTHING
+		`, root.ID, root.TenantID, root.Name, root.KeyID, root.Algorithm, root.PublicKey, predicateTypes, builderIDs, requiredClaims, root.Status, root.SchemaVersion, nonZeroTime(root.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert dsse trust root row: %w", err)
 		}
 	}
@@ -4303,16 +4348,16 @@ func syncIntegrityProviderRows(ctx context.Context, tx pgx.Tx, state app.Persist
 			INSERT INTO cosign_verifications (
 				id, tenant_id, artifact_id, container_image_id,
 				artifact_signature_id, subject_digest, rekor_uuid, rekor_log_index,
-				certificate_identity, certificate_issuer, result, checks, assurance_profile, limitations,
-				schema_version, created_at
+				certificate_identity, certificate_issuer, verifier_library_version, trust_root_version, verification_mode,
+				result, checks, assurance_profile, limitations, schema_version, created_at
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-			ON CONFLICT (id) DO UPDATE SET result = EXCLUDED.result, checks = EXCLUDED.checks, assurance_profile = EXCLUDED.assurance_profile, limitations = EXCLUDED.limitations, schema_version = EXCLUDED.schema_version
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+			ON CONFLICT (id) DO UPDATE SET verifier_library_version = EXCLUDED.verifier_library_version, trust_root_version = EXCLUDED.trust_root_version, verification_mode = EXCLUDED.verification_mode, result = EXCLUDED.result, checks = EXCLUDED.checks, assurance_profile = EXCLUDED.assurance_profile, limitations = EXCLUDED.limitations, schema_version = EXCLUDED.schema_version
 		`, verification.ID, verification.TenantID, nullableString(verification.ArtifactID), nullableString(verification.ContainerImageID),
 			verification.ArtifactSignatureID, verification.SubjectDigest, nullableString(verification.RekorUUID),
 			nullableString(verification.RekorLogIndex), nullableString(verification.CertificateIdentity),
-			nullableString(verification.CertificateIssuer), verification.Result, checks, profile, textArray(verification.Limitations), verification.SchemaVersion,
-			nonZeroTime(verification.CreatedAt)); err != nil {
+			nullableString(verification.CertificateIssuer), nullableString(verification.VerifierLibraryVersion), nullableString(verification.TrustRootVersion), nullableString(verification.VerificationMode),
+			verification.Result, checks, profile, textArray(verification.Limitations), verification.SchemaVersion, nonZeroTime(verification.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert cosign verification row: %w", err)
 		}
 	}
@@ -4887,12 +4932,12 @@ func syncFutureExtensionRows(ctx context.Context, tx pgx.Tx, state app.Persisted
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO signing_operations (
 				id, tenant_id, provider_id, subject_type, subject_id,
-				payload_hash, signature_ref, result, checks,
+				payload_hash, canonical_payload_hash, request_id, provider_request_id, signature_ref, result, checks,
 				schema_version, created_at
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-			ON CONFLICT (id) DO UPDATE SET signature_ref = EXCLUDED.signature_ref, result = EXCLUDED.result, checks = EXCLUDED.checks, schema_version = EXCLUDED.schema_version
-		`, operation.ID, operation.TenantID, operation.ProviderID, operation.SubjectType, operation.SubjectID, operation.PayloadHash, nullableString(operation.SignatureRef), operation.Result, checks, operation.SchemaVersion, nonZeroTime(operation.CreatedAt)); err != nil {
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			ON CONFLICT (id) DO UPDATE SET canonical_payload_hash = EXCLUDED.canonical_payload_hash, request_id = EXCLUDED.request_id, provider_request_id = EXCLUDED.provider_request_id, signature_ref = EXCLUDED.signature_ref, result = EXCLUDED.result, checks = EXCLUDED.checks, schema_version = EXCLUDED.schema_version
+		`, operation.ID, operation.TenantID, operation.ProviderID, operation.SubjectType, operation.SubjectID, operation.PayloadHash, operation.CanonicalPayloadHash, operation.RequestID, nullableString(operation.ProviderRequestID), nullableString(operation.SignatureRef), operation.Result, checks, operation.SchemaVersion, nonZeroTime(operation.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert signing operation row: %w", err)
 		}
 	}

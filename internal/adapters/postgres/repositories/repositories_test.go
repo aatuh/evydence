@@ -338,7 +338,7 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Risk.InsertManualSecurityDocument(ctx, domain.ManualSecurityDocument{ID: "manual_security_document_repository", TenantID: tenant.ID, ProductID: product.ID, ReleaseID: release.ID, DocumentType: "security_review", Title: "Repository review", Sensitivity: "restricted", EvidenceID: evidence.ID, PayloadHash: "sha256:" + strings.Repeat("a", 64), SchemaVersion: domain.ManualSecurityDocSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert manual security document: %v", err)
 	}
-	if err := repositories.Governance.InsertDSSETrustRoot(ctx, domain.DSSETrustRoot{ID: "dtr_repository", TenantID: tenant.ID, Name: "Repository root", KeyID: "repository-root", Algorithm: "Ed25519", PublicKey: strings.Repeat("A", 43) + "=", Status: "active", SchemaVersion: domain.DSSETrustRootSchemaVersion, CreatedAt: now}); err != nil {
+	if err := repositories.Governance.InsertDSSETrustRoot(ctx, domain.DSSETrustRoot{ID: "dtr_repository", TenantID: tenant.ID, Name: "Repository root", KeyID: "repository-root", Algorithm: "Ed25519", PublicKey: strings.Repeat("A", 43) + "=", AllowedPredicateTypes: []string{"https://slsa.dev/provenance/v1"}, ExpectedBuilderIDs: []string{"https://example.test/builder"}, RequiredClaims: []string{"builder_id"}, Status: "active", SchemaVersion: domain.DSSETrustRootSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert DSSE trust root: %v", err)
 	}
 	exception := domain.Exception{ID: "ex_repository", TenantID: tenant.ID, ReleaseID: release.ID, ControlID: control.ID, Reason: "repository test", Owner: "security", ExpiresAt: now.Add(time.Hour), CreatedAt: now}

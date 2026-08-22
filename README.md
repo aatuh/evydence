@@ -125,6 +125,11 @@ For the first CI wiring example, start with the
 [GitHub Actions quickstart release evidence workflow](docs/github-actions/quickstart-release-evidence.yml),
 then move to the scanner-oriented workflow once your runner has pinned scanner
 versions.
+Before wiring external generators or scanners, review the
+[evidence format compatibility matrix](docs/reference/evidence-format-compatibility.md).
+It distinguishes the currently tested reduced JSON contracts from versions or
+fields that a parser might accept incidentally; scanner producer names do not
+imply native Grype, Trivy, or other scanner-format support.
 For concrete JSON outputs to inspect without running a full stack, open the
 sample readiness report,
 [customer-package manifest](examples/end-to-end-release-evidence/sample-customer-package-manifest.json),

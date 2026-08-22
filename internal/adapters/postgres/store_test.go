@@ -556,10 +556,10 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 			"approval_test": {ID: "approval_test", TenantID: "ten_test", SubjectType: "release", SubjectID: "rel_test", Decision: "approved", Reason: "test", ApproverID: "user_test", EvidenceID: "ev_test", SchemaVersion: domain.ApprovalRecordSchemaVersion, CreatedAt: time.Now().UTC()},
 		},
 		DSSETrustRoots: map[string]domain.DSSETrustRoot{
-			"dsse_root_test": {ID: "dsse_root_test", TenantID: "ten_test", Name: "root", KeyID: "key-1", Algorithm: "Ed25519", PublicKey: "pub", Status: "active", SchemaVersion: domain.DSSETrustRootSchemaVersion, CreatedAt: time.Now().UTC()},
+			"dsse_root_test": {ID: "dsse_root_test", TenantID: "ten_test", Name: "root", KeyID: "key-1", Algorithm: "Ed25519", PublicKey: "pub", AllowedPredicateTypes: []string{"https://slsa.dev/provenance/v1"}, ExpectedBuilderIDs: []string{"https://example.test/builder"}, RequiredClaims: []string{"builder_id"}, Status: "active", SchemaVersion: domain.DSSETrustRootSchemaVersion, CreatedAt: time.Now().UTC()},
 		},
 		CosignVerifications: map[string]domain.CosignVerification{
-			"cosign_test": {ID: "cosign_test", TenantID: "ten_test", ArtifactID: "art_test", ContainerImageID: "image_test", ArtifactSignatureID: "artsig_test", SubjectDigest: "sha256:" + strings.Repeat("a", 64), RekorUUID: "rekor", RekorLogIndex: "1", CertificateIdentity: "repo", CertificateIssuer: "issuer", Result: "pass", Checks: []domain.VerifyCheck{{Name: "digest", Result: "passed"}}, SchemaVersion: domain.CosignVerificationSchemaVersion, CreatedAt: time.Now().UTC()},
+			"cosign_test": {ID: "cosign_test", TenantID: "ten_test", ArtifactID: "art_test", ContainerImageID: "image_test", ArtifactSignatureID: "artsig_test", SubjectDigest: "sha256:" + strings.Repeat("a", 64), RekorUUID: "rekor", RekorLogIndex: "1", CertificateIdentity: "repo", CertificateIssuer: "issuer", VerifierLibraryVersion: "sigstore-go.v1.1.4", TrustRootVersion: "test-root.v1", VerificationMode: "keyless", Result: "pass", Checks: []domain.VerifyCheck{{Name: "digest", Result: "passed"}}, SchemaVersion: domain.CosignVerificationSchemaVersion, CreatedAt: time.Now().UTC()},
 		},
 		SigningProviders: map[string]domain.SigningProvider{
 			"sign_provider_test": {ID: "sign_provider_test", TenantID: "ten_test", Name: "kms", Type: "aws_kms", Status: "active", KeyRef: "arn:aws:kms:test", Encrypted: true, SchemaVersion: domain.SigningProviderSchemaVersion, CreatedAt: time.Now().UTC()},
@@ -698,7 +698,7 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 			"provider_verification_test": {ID: "provider_verification_test", TenantID: "ten_test", ProviderType: "oidc", ProviderID: "sso_test", Subject: "sub", Result: "verified", Checks: []domain.VerifyCheck{{Name: "subject", Result: "passed"}}, Limitations: []string{"static trust material"}, SchemaVersion: domain.ProviderVerificationVersion, CreatedAt: time.Now().UTC()},
 		},
 		SigningOperations: map[string]domain.SigningOperation{
-			"signing_operation_test": {ID: "signing_operation_test", TenantID: "ten_test", ProviderID: "sign_provider_test", SubjectType: "release", SubjectID: "rel_test", PayloadHash: "sha256:" + strings.Repeat("2", 64), SignatureRef: "provider_receipt_test", Result: "signed", Checks: []domain.VerifyCheck{{Name: "provider", Result: "passed"}}, SchemaVersion: domain.SigningOperationVersion, CreatedAt: time.Now().UTC()},
+			"signing_operation_test": {ID: "signing_operation_test", TenantID: "ten_test", ProviderID: "sign_provider_test", SubjectType: "release", SubjectID: "rel_test", PayloadHash: "sha256:" + strings.Repeat("2", 64), CanonicalPayloadHash: "sha256:" + strings.Repeat("3", 64), RequestID: "signing-request-test", ProviderRequestID: "provider-request-test", SignatureRef: "provider_receipt_test", Result: "signed", Checks: []domain.VerifyCheck{{Name: "provider", Result: "passed"}}, SchemaVersion: domain.SigningOperationVersion, CreatedAt: time.Now().UTC()},
 		},
 		Idempotency: map[string]app.IdempotencyRecord{
 			app.NewIdempotencyRecordKey("ten_test", "user:user_test", "POST", "/v1/products", "idem"): {RequestHash: "sha256:request", Status: 201, Response: map[string]any{"ok": true}, CreatedAt: time.Now().UTC()},
@@ -934,7 +934,8 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	if !relational.Waivers["waiver_test"].Approved || relational.Approvals["approval_test"].EvidenceID != "ev_test" || relational.DSSETrustRoots["dsse_root_test"].Status != "active" {
 		t.Fatalf("relational governance/trust rows missing: waiver=%#v approval=%#v trust=%#v", relational.Waivers["waiver_test"], relational.Approvals["approval_test"], relational.DSSETrustRoots["dsse_root_test"])
 	}
-	if len(relational.CosignVerifications["cosign_test"].Checks) != 1 || !relational.SigningProviders["sign_provider_test"].Encrypted {
+	cosignVerification := relational.CosignVerifications["cosign_test"]
+	if len(cosignVerification.Checks) != 1 || cosignVerification.VerifierLibraryVersion != "sigstore-go.v1.1.4" || cosignVerification.TrustRootVersion != "test-root.v1" || cosignVerification.VerificationMode != "keyless" || !relational.SigningProviders["sign_provider_test"].Encrypted {
 		t.Fatalf("relational signing provider rows missing: cosign=%#v provider=%#v", relational.CosignVerifications["cosign_test"], relational.SigningProviders["sign_provider_test"])
 	}
 	if relational.MerkleBatches["merkle_test"].RootHash == "" || relational.TransparencyCheckpoints["transparency_test"].ExternalID != "ts-1" {
@@ -997,7 +998,7 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	if relational.MarketplaceCollectors["market_collector_test"].State != "published" || relational.ProviderVerifications["provider_verification_test"].Result != "verified" {
 		t.Fatalf("relational marketplace/provider rows missing: market=%#v provider=%#v", relational.MarketplaceCollectors["market_collector_test"], relational.ProviderVerifications["provider_verification_test"])
 	}
-	if relational.SigningOperations["signing_operation_test"].SignatureRef != "provider_receipt_test" || len(relational.SigningOperations["signing_operation_test"].Checks) != 1 {
+	if relational.SigningOperations["signing_operation_test"].SignatureRef != "provider_receipt_test" || relational.SigningOperations["signing_operation_test"].CanonicalPayloadHash != "sha256:"+strings.Repeat("3", 64) || relational.SigningOperations["signing_operation_test"].RequestID != "signing-request-test" || relational.SigningOperations["signing_operation_test"].ProviderRequestID != "provider-request-test" || len(relational.SigningOperations["signing_operation_test"].Checks) != 1 {
 		t.Fatalf("relational signing operation missing: operation=%#v", relational.SigningOperations["signing_operation_test"])
 	}
 	if relational.PDFReports["pdf_test"].PayloadHash == "" || relational.AnomalyReports["anom_test"].Result != "review" {
@@ -1630,7 +1631,7 @@ func TestPostgresBackupRestoreRehearsalPreservesLedgerAndObjects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rawSBOM := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api","purl":"pkg:oci/api"}]}`)
+	rawSBOM := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api","purl":"pkg:oci/api"}]}`)
 	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, rawSBOM)
 	if err != nil {
 		t.Fatal(err)

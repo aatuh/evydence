@@ -143,7 +143,7 @@
         <div class="summary-card"><strong>3.1.0</strong><span>OpenAPI version</span></div>
         <div class="summary-card"><strong>172</strong><span>registered paths</span></div>
         <div class="summary-card"><strong>189</strong><span>operations</span></div>
-        <div class="summary-card"><strong>382</strong><span>schemas</span></div>
+        <div class="summary-card"><strong>387</strong><span>schemas</span></div>
       </div>
     </header>
     <main>
@@ -330,13 +330,13 @@
               <div><dt>Responses</dt><dd>200 application/json: ArtifactSignatureEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/artifact-signatures/{id}/verify-cosign verify cosign-style artifact signature deprecated compatibility metadata-assessment endpoint. it assesses stored digest binding, signature-material presence, and supplied rekor metadata only. it never cryptographically verifies a cosign signature, certificate identity, trust policy, rekor inclusion, or checkpoint. successful metadata assessment returns limited; require_full_verification=true returns cosign_full_verification_unavailable until a verifier and trust policy are configured. verifycosignsignature evydence verify:read">
+          <article class="operation" data-operation data-search="post /v1/artifact-signatures/{id}/verify-cosign verify cosign-style artifact signature cryptographically verifies a stored sigstore/cosign bundle against operator-configured trust material and caller-supplied keyless identity policy. the explicit offline profile requires an embedded rekor inclusion proof and does not silently downgrade an online-required request. verifycosignsignature evydence verify:read">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/artifact-signatures/{id}/verify-cosign</code>
             </div>
             <h3>Verify cosign-style artifact signature</h3>
-            <p>Deprecated compatibility metadata-assessment endpoint. It assesses stored digest binding, signature-material presence, and supplied Rekor metadata only. It never cryptographically verifies a Cosign signature, certificate identity, trust policy, Rekor inclusion, or checkpoint. Successful metadata assessment returns limited; require_full_verification=true returns COSIGN_FULL_VERIFICATION_UNAVAILABLE until a verifier and trust policy are configured.</p>
+            <p>Cryptographically verifies a stored Sigstore/Cosign bundle against operator-configured trust material and caller-supplied keyless identity policy. The explicit offline profile requires an embedded Rekor inclusion proof and does not silently downgrade an online-required request.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>verifyCosignSignature</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -347,13 +347,13 @@
               <div><dt>Responses</dt><dd>200 application/json: CosignVerificationEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/artifacts register artifact registers an artifact digest for release evidence and later build/attestation matching. registerartifact evydence evidence:write">
+          <article class="operation" data-operation data-search="post /v1/artifacts register artifact registers a tenant-scoped artifact digest for later evidence, build, and attestation matching. registerartifact evydence evidence:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/artifacts</code>
             </div>
             <h3>Register artifact</h3>
-            <p>Registers an artifact digest for release evidence and later build/attestation matching.</p>
+            <p>Registers a tenant-scoped artifact digest for later evidence, build, and attestation matching.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>registerArtifact</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -449,13 +449,13 @@
               <div><dt>Responses</dt><dd>200 application/json: VerificationResultEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/build-attestations/{id}/verify-signature verify build attestation signature verifies a build attestation signature against configured tenant dsse trust roots. verifybuildattestationsignature evydence verify:read">
+          <article class="operation" data-operation data-search="post /v1/build-attestations/{id}/verify-signature verify build attestation signature offline-verifies dsse pae, an in-toto statement v1/slsa provenance v1 predicate, registered release-artifact subject digests, and immutable configured tenant-root policy. verifybuildattestationsignature evydence verify:read">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/build-attestations/{id}/verify-signature</code>
             </div>
             <h3>Verify build attestation signature</h3>
-            <p>Verifies a build attestation signature against configured tenant DSSE trust roots.</p>
+            <p>Offline-verifies DSSE PAE, an in-toto Statement v1/SLSA provenance v1 predicate, registered release-artifact subject digests, and immutable configured tenant-root policy.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>verifyBuildAttestationSignature</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -1078,13 +1078,13 @@
               <div><dt>Responses</dt><dd>200 application/json: DeploymentEventEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/dsse-trust-roots create dsse trust root creates a tenant-scoped dsse trust root using public verification key material only. createdssetrustroot evydence keys:admin">
+          <article class="operation" data-operation data-search="post /v1/dsse-trust-roots create dsse trust root creates a tenant-scoped immutable dsse ed25519 trust root with an explicit slsa predicate, builder, and required-claims policy. createdssetrustroot evydence keys:admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/dsse-trust-roots</code>
             </div>
             <h3>Create DSSE trust root</h3>
-            <p>Creates a tenant-scoped DSSE trust root using public verification key material only.</p>
+            <p>Creates a tenant-scoped immutable DSSE Ed25519 trust root with an explicit SLSA predicate, builder, and required-claims policy.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createDSSETrustRoot</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2166,13 +2166,13 @@
               <div><dt>Responses</dt><dd>200 application/json: ReleaseCandidateEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/releases create release creates an append-only release record under a product and optional project. createrelease evydence release:write">
+          <article class="operation" data-operation data-search="post /v1/releases create release creates an append-only release record under a product. createrelease evydence release:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/releases</code>
             </div>
             <h3>Create release</h3>
-            <p>Creates an append-only release record under a product and optional project.</p>
+            <p>Creates an append-only release record under a product.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createRelease</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2693,20 +2693,20 @@
               <div><dt>Responses</dt><dd>201 application/json: SBOMEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/sboms/spdx upload spdx sbom uploads an spdx json sbom payload, stores raw bytes as evidence, and records normalized sbom metadata. uploadspdxsbom evydence evidence:write">
+          <article class="operation" data-operation data-search="post /v1/sboms/spdx upload spdx sbom uploads an spdx 2.2 or 2.3 json sbom payload, stores immutable raw bytes as evidence, and records deterministic normalization metadata. use application/spdx+json with explicit metadata headers for streaming uploads up to 20 mib; the json envelope remains limited to small requests. uploadspdxsbom evydence evidence:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/sboms/spdx</code>
             </div>
             <h3>Upload SPDX SBOM</h3>
-            <p>Uploads an SPDX JSON SBOM payload, stores raw bytes as evidence, and records normalized SBOM metadata.</p>
+            <p>Uploads an SPDX 2.2 or 2.3 JSON SBOM payload, stores immutable raw bytes as evidence, and records deterministic normalization metadata. Use application/spdx+json with explicit metadata headers for streaming uploads up to 20 MiB; the JSON envelope remains limited to small requests.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>uploadSPDXSBOM</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
               <div><dt>Auth</dt><dd>BearerAuth</dd></div>
               <div><dt>Scopes</dt><dd>evidence:write</dd></div>
               <div><dt>Idempotency</dt><dd>Idempotency-Key</dd></div>
-              <div><dt>Request</dt><dd>application/json: UploadSPDXSBOMRequest</dd></div>
+              <div><dt>Request</dt><dd>application/json: UploadSPDXSBOMRequest; application/spdx+json: string</dd></div>
               <div><dt>Responses</dt><dd>201 application/json: SBOMEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
@@ -2778,13 +2778,13 @@
               <div><dt>Responses</dt><dd>200 application/json: SigningKeyListEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/signing-keys/rotate rotate signing key rotates the active tenant signing key and returns public-key metadata only. rotatesigningkey evydence keys:admin">
+          <article class="operation" data-operation data-search="post /v1/signing-keys/rotate rotate signing key rotates the active tenant signing key, retires the prior key with an explicit validity window, and returns public-key metadata only. rotatesigningkey evydence keys:admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/signing-keys/rotate</code>
             </div>
             <h3>Rotate signing key</h3>
-            <p>Rotates the active tenant signing key and returns public-key metadata only.</p>
+            <p>Rotates the active tenant signing key, retires the prior key with an explicit validity window, and returns public-key metadata only.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>rotateSigningKey</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2795,13 +2795,13 @@
               <div><dt>Responses</dt><dd>201 application/json: SigningKeyEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/signing-keys/{id}/revoke revoke signing key revokes a tenant signing key as an audited lifecycle transition. revokesigningkey evydence keys:admin">
+          <article class="operation" data-operation data-search="post /v1/signing-keys/{id}/revoke revoke signing key revokes a tenant signing key as an audited lifecycle transition. ordinary revocation preserves signatures valid at signing time; compromised-key policy is explicit and can invalidate historical results. revokesigningkey evydence keys:admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/signing-keys/{id}/revoke</code>
             </div>
             <h3>Revoke signing key</h3>
-            <p>Revokes a tenant signing key as an audited lifecycle transition.</p>
+            <p>Revokes a tenant signing key as an audited lifecycle transition. Ordinary revocation preserves signatures valid at signing time; compromised-key policy is explicit and can invalidate historical results.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>revokeSigningKey</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2812,13 +2812,13 @@
               <div><dt>Responses</dt><dd>200 application/json: SigningKeyEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/signing-operations create signing provider operation receipt records an external signing operation receipt and checks payload/signature metadata without logging secrets. when the api is configured with a signing executor, external_signature may be omitted and the executor signs the payload hash. createsigningoperation evydence keys:admin">
+          <article class="operation" data-operation data-search="post /v1/signing-operations create signing provider operation receipt requests a configured signing executor to sign a canonical request binding the provider, key reference, subject, payload digest, request id, and nonce. caller-supplied signatures are rejected. createsigningoperation evydence keys:admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/signing-operations</code>
             </div>
             <h3>Create signing provider operation receipt</h3>
-            <p>Records an external signing operation receipt and checks payload/signature metadata without logging secrets. When the API is configured with a signing executor, external_signature may be omitted and the executor signs the payload hash.</p>
+            <p>Requests a configured signing executor to sign a canonical request binding the provider, key reference, subject, payload digest, request id, and nonce. Caller-supplied signatures are rejected.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createSigningOperation</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -3305,20 +3305,20 @@
               <div><dt>Responses</dt><dd>201 application/json: VulnerabilityWorkflowRecordEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/vulnerability-scans upload vulnerability scan uploads a generic vulnerability scan json payload and records normalized findings. the request is streamed to a private temporary file while hashing and is limited to 20 mib. uploadvulnerabilityscan evydence evidence:write">
+          <article class="operation" data-operation data-search="post /v1/vulnerability-scans upload vulnerability scan uploads either the evydence generic scan schema or a versioned native-scanner envelope (grype, trivy, osv-scanner, or dependency-track). scanner output is preserved as raw evidence and is not treated as authoritative. the request is streamed to a private temporary file while hashing and is limited to 20 mib. uploadvulnerabilityscan evydence evidence:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/vulnerability-scans</code>
             </div>
             <h3>Upload vulnerability scan</h3>
-            <p>Uploads a generic vulnerability scan JSON payload and records normalized findings. The request is streamed to a private temporary file while hashing and is limited to 20 MiB.</p>
+            <p>Uploads either the Evydence generic scan schema or a versioned native-scanner envelope (Grype, Trivy, OSV-Scanner, or Dependency-Track). Scanner output is preserved as raw evidence and is not treated as authoritative. The request is streamed to a private temporary file while hashing and is limited to 20 MiB.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>uploadVulnerabilityScan</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
               <div><dt>Auth</dt><dd>BearerAuth</dd></div>
               <div><dt>Scopes</dt><dd>evidence:write</dd></div>
               <div><dt>Idempotency</dt><dd>Idempotency-Key</dd></div>
-              <div><dt>Request</dt><dd>application/json: UploadVulnerabilityScanRequest</dd></div>
+              <div><dt>Request</dt><dd>application/json: UploadVulnerabilityScanBody</dd></div>
               <div><dt>Responses</dt><dd>201 application/json: VulnerabilityScanEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem</dd></div>
             </dl>
           </article>
@@ -3433,7 +3433,7 @@
           <tr>
             <td><code>Artifact</code></td>
             <td>object</td>
-            <td>id, tenant_id, name, digest, schema_version, created_at</td>
+            <td>id, tenant_id, name, media_type, digest, size, created_at</td>
           </tr>
           <tr>
             <td><code>ArtifactEnvelope</code></td>
@@ -3479,6 +3479,11 @@
             <td><code>BuildAttestationEnvelope</code></td>
             <td>object</td>
             <td>data, meta</td>
+          </tr>
+          <tr>
+            <td><code>BuildOutput</code></td>
+            <td>object</td>
+            <td>digest</td>
           </tr>
           <tr>
             <td><code>BuildRun</code></td>
@@ -3688,7 +3693,7 @@
           <tr>
             <td><code>CreateDSSETrustRootRequest</code></td>
             <td>object</td>
-            <td>name, key_id, algorithm, public_key</td>
+            <td>name, key_id, algorithm, public_key, allowed_predicate_types, expected_builder_ids, required_claims</td>
           </tr>
           <tr>
             <td><code>CreateDeploymentEnvironmentRequest</code></td>
@@ -3973,7 +3978,7 @@
           <tr>
             <td><code>DSSETrustRoot</code></td>
             <td>object</td>
-            <td>id, tenant_id, name, key_id, algorithm, public_key, status, schema_version, created_at</td>
+            <td>id, tenant_id, name, key_id, algorithm, public_key, allowed_predicate_types, expected_builder_ids, required_claims, status, schema_version, created_at</td>
           </tr>
           <tr>
             <td><code>DSSETrustRootEnvelope</code></td>
@@ -4648,7 +4653,7 @@
           <tr>
             <td><code>RegisterArtifactRequest</code></td>
             <td>object</td>
-            <td>name, digest</td>
+            <td>name, media_type, digest</td>
           </tr>
           <tr>
             <td><code>RegisterContainerImageRequest</code></td>
@@ -4658,7 +4663,7 @@
           <tr>
             <td><code>Release</code></td>
             <td>object</td>
-            <td>id, tenant_id, product_id, version, revision, status, schema_version, created_at</td>
+            <td>id, tenant_id, product_id, version, revision, state, created_at</td>
           </tr>
           <tr>
             <td><code>ReleaseBundle</code></td>
@@ -4911,6 +4916,11 @@
             <td>data, meta</td>
           </tr>
           <tr>
+            <td><code>ScannerAdapterEnvelope</code></td>
+            <td>object</td>
+            <td>scanner, target_ref, release_id, source_schema, payload</td>
+          </tr>
+          <tr>
             <td><code>SecurityControl</code></td>
             <td>object</td>
             <td>id, tenant_id, framework_id, code, title, objective, schema_version, created_at</td>
@@ -4968,7 +4978,7 @@
           <tr>
             <td><code>SigningKey</code></td>
             <td>object</td>
-            <td>id, tenant_id, kid, algorithm, status, public_key, created_at</td>
+            <td>id, tenant_id, kid, version, provider, algorithm, status, public_key, valid_from, created_at</td>
           </tr>
           <tr>
             <td><code>SigningKeyEnvelope</code></td>
@@ -4983,7 +4993,7 @@
           <tr>
             <td><code>SigningKeyTransitionRequest</code></td>
             <td>object</td>
-            <td>none</td>
+            <td>reason</td>
           </tr>
           <tr>
             <td><code>SigningOperation</code></td>
@@ -5121,6 +5131,11 @@
             <td>category, format, scanner, target_ref, payload</td>
           </tr>
           <tr>
+            <td><code>UploadVulnerabilityScanBody</code></td>
+            <td>oneOf(UploadVulnerabilityScanRequest, ScannerAdapterEnvelope)</td>
+            <td>none</td>
+          </tr>
+          <tr>
             <td><code>UploadVulnerabilityScanRequest</code></td>
             <td>object</td>
             <td>scanner, target_ref, release_id, findings</td>
@@ -5198,7 +5213,7 @@
           <tr>
             <td><code>VerifyCosignSignatureRequest</code></td>
             <td>object</td>
-            <td>none</td>
+            <td>mode, offline</td>
           </tr>
           <tr>
             <td><code>VerifyProviderIdentityRequest</code></td>
@@ -5254,6 +5269,16 @@
             <td><code>VulnerabilityDecisionSummaryReportEnvelope</code></td>
             <td>object</td>
             <td>data, meta</td>
+          </tr>
+          <tr>
+            <td><code>VulnerabilityFinding</code></td>
+            <td>object</td>
+            <td>id, vulnerability, severity, state</td>
+          </tr>
+          <tr>
+            <td><code>VulnerabilityIdentity</code></td>
+            <td>object</td>
+            <td>none</td>
           </tr>
           <tr>
             <td><code>VulnerabilityPostureReport</code></td>

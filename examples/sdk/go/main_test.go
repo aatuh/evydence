@@ -39,7 +39,10 @@ func TestMainRunsCoreEvidenceFlow(t *testing.T) {
 			assertField(t, body, "product_id", "prod_1")
 			writeJSON(w, http.StatusCreated, map[string]any{"data": map[string]any{"id": "rel_1"}})
 		case r.Method == http.MethodPost && r.URL.Path == "/v1/artifacts":
-			assertField(t, body, "release_id", "rel_1")
+			if _, ok := body["release_id"]; ok {
+				t.Fatalf("artifact request must not send release_id: %#v", body)
+			}
+			assertField(t, body, "media_type", "application/gzip")
 			writeJSON(w, http.StatusCreated, map[string]any{"data": map[string]any{"id": "art_1"}})
 		case r.Method == http.MethodPost && r.URL.Path == "/v1/sboms":
 			assertField(t, body, "artifact_id", "art_1")

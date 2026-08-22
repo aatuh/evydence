@@ -23,7 +23,7 @@ func TestDSSETrustRootUsesUnitOfWorkAndPublishesOnlyAfterCommit(t *testing.T) {
 	publicKey := base64.StdEncoding.EncodeToString(make([]byte, ed25519.PublicKeySize))
 	auditEntriesBefore := len(ledger.chain[actor.TenantID])
 
-	root, err := ledger.CreateDSSETrustRoot(ctx, actor, CreateDSSETrustRootInput{Name: "Root", KeyID: "root-1", Algorithm: "Ed25519", PublicKey: publicKey})
+	root, err := ledger.CreateDSSETrustRoot(ctx, actor, CreateDSSETrustRootInput{Name: "Root", KeyID: "root-1", Algorithm: "Ed25519", PublicKey: publicKey, AllowedPredicateTypes: []string{"https://slsa.dev/provenance/v1"}, ExpectedBuilderIDs: []string{"builder"}, RequiredClaims: []string{"builder_id", "build_type", "external_parameters"}})
 	if err != nil {
 		t.Fatalf("create DSSE trust root: %v", err)
 	}
@@ -40,7 +40,7 @@ func TestDSSETrustRootUsesUnitOfWorkAndPublishesOnlyAfterCommit(t *testing.T) {
 		return repositories
 	}}
 	beforeRoots, beforeAudit := len(ledger.dsseTrustRoots), len(ledger.chain[actor.TenantID])
-	if _, err := ledger.CreateDSSETrustRoot(ctx, actor, CreateDSSETrustRootInput{Name: "Failed", KeyID: "root-2", Algorithm: "Ed25519", PublicKey: publicKey}); !errors.Is(err, errInjectedRepositoryFailure) {
+	if _, err := ledger.CreateDSSETrustRoot(ctx, actor, CreateDSSETrustRootInput{Name: "Failed", KeyID: "root-2", Algorithm: "Ed25519", PublicKey: publicKey, AllowedPredicateTypes: []string{"https://slsa.dev/provenance/v1"}, ExpectedBuilderIDs: []string{"builder"}, RequiredClaims: []string{"builder_id", "build_type", "external_parameters"}}); !errors.Is(err, errInjectedRepositoryFailure) {
 		t.Fatalf("failed DSSE trust root err=%v, want injected repository failure", err)
 	}
 	if len(ledger.dsseTrustRoots) != beforeRoots || len(ledger.chain[actor.TenantID]) != beforeAudit {

@@ -15,7 +15,7 @@ BUILD_DIRTY ?= $(shell if test -n "$$(git status --porcelain --untracked-files=a
 BUILD_GO_VERSION ?= $(shell $(GO) env GOVERSION)
 BUILD_RELEASE_MANIFEST_DIGEST ?= unknown
 
-.PHONY: help tools build-api fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check rendered-openapi-check meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check docs-check deploy-check sdk-check demo-check customer-cve-review-demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check black-box-release-artifact-check benchmark-check package-viewer-check release-asset-smoke-check marketing-site-check marketing-site-production-check restore-rehearsal-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
+.PHONY: help tools build-api fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check api-inventory-check rendered-openapi-check meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check docs-check deploy-check sdk-check demo-check customer-cve-review-demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check black-box-release-artifact-check benchmark-check package-viewer-check release-asset-smoke-check marketing-site-check marketing-site-production-check restore-rehearsal-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -69,10 +69,17 @@ openapi-check: openapi.yaml ## Validate OpenAPI generation and route contract te
 openapi-precision-check: ## Enforce current OpenAPI precision floor and broad-route ceiling
 	@python3 scripts/openapi_precision_check.py
 
+api-inventory-check: ## Validate the generated public API stability inventory
+	@python3 scripts/api_inventory.py --check
+
+parser-corpus-check: ## Verify parser corpus provenance, hashes, and normalized summaries
+	@python3 scripts/parser_corpus_check.py
+
 rendered-openapi-check: ## Validate generated static OpenAPI docs
 	@scripts/render_openapi_docs.py --check
 
 meta-check: ## Validate root legal, governance, support, and release-evidence metadata
+	@test -f AGENTS.md
 	@test -f LICENSE
 	@test -f COMMERCIAL.md
 	@test -f GOVERNANCE.md
@@ -101,6 +108,10 @@ meta-check: ## Validate root legal, governance, support, and release-evidence me
 	@test -x scripts/release_candidate_validate.sh
 	@test -x scripts/release_asset_smoke_check.sh
 	@test -x scripts/release_evidence_metadata.py
+	@grep -F 'means incomplete; `[x]` means complete only after' AGENTS.md >/dev/null
+	@grep -F 'Use Conventional Commits and include the ticket ID' AGENTS.md >/dev/null
+	@grep -F 'Work one backlog ticket at a time.' AGENTS.md >/dev/null
+	@grep -F 'Update `.EVYDENCE_CODEX_BACKLOG.md` only after' AGENTS.md >/dev/null
 	@grep -F 'GNU AFFERO GENERAL PUBLIC LICENSE' LICENSE >/dev/null
 	@grep -F 'AGPL-3.0-only' COMMERCIAL.md >/dev/null
 	@grep -F 'Commercial license exceptions' COMMERCIAL.md >/dev/null
@@ -171,7 +182,7 @@ backlog-check: ## Validate tracked execution backlog metadata
 quality-scorecard-check: ## Validate evidence-backed quality scorecard
 	@python3 scripts/quality_scorecard.py --check
 
-docs-check: meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check rendered-openapi-check ## Validate canonical docs exist and avoid forbidden product claims
+docs-check: meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check rendered-openapi-check api-inventory-check ## Validate canonical docs exist and avoid forbidden product claims
 	@test -f README.md
 	@test -f .production.env.example
 	@test -f docs/README.md
@@ -195,6 +206,7 @@ docs-check: meta-check release-truth-check persistence-decomposition-check backl
 	@test -f docs/reference/configuration.md
 	@test -f docs/reference/capability-map.md
 	@test -f docs/reference/api-contract-matrix.md
+	@test -f docs/reference/api-inventory.md
 	@test -f docs/reference/product-boundary.md
 	@test -f docs/reference/openapi.md
 	@test -f docs/openapi/index.html
@@ -674,8 +686,7 @@ marketing-site-production-check: ## Build and validate the marketing site for ev
 	@PUBLIC_SITE_URL=https://evydence.app PUBLIC_SITE_BASE=/ PUBLIC_GA_MEASUREMENT_ID=G-XC2ESEHQ3W npm --prefix site/marketing run check
 
 restore-rehearsal-check: ## Run repository-owned backup/restore rehearsal tests
-	@$(GO) test ./internal/app -run TestBackupRestoreRehearsalPreservesLedgerAndObjectPayloads -count=1
-	@$(GO) test ./internal/adapters/postgres -run TestPostgresBackupRestoreRehearsalPreservesLedgerAndObjects -count=1
+	@sh scripts/restore_rehearsal.sh
 
 fast-check: ## Run non-mutating fast validation
 	@$(MAKE) test

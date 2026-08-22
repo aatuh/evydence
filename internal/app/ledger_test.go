@@ -244,7 +244,7 @@ func TestReleaseSecuritySummaryIsTenantScopedAndRedacted(t *testing.T) {
 	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
-	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"openssl","purl":"pkg:apk/openssl@3.1.0"}]}`)); err != nil {
+	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"openssl","purl":"pkg:apk/openssl@3.1.0"}]}`)); err != nil {
 		t.Fatalf("sbom: %v", err)
 	}
 	scan, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{
@@ -351,7 +351,7 @@ func TestUploadSBOMCanDeferParserSideEffectsToWorker(t *testing.T) {
 		t.Fatalf("artifact: %v", err)
 	}
 
-	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api","purl":"pkg:oci/api"}]}`))
+	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api","purl":"pkg:oci/api"}]}`))
 	if err != nil {
 		t.Fatalf("upload sbom: %v", err)
 	}
@@ -434,7 +434,7 @@ func TestUploadVulnerabilityScanCanDeferParserSideEffectsToWorker(t *testing.T) 
 		t.Fatalf("outbox jobs = %d, want 1", len(outbox.jobs))
 	}
 	job := outbox.jobs[0]
-	if job.Kind != "parse_vulnerability_scan" || job.Payload["payload_ref"] == "" || job.Payload["payload_hash"] == "" || job.Payload["parser_version"] != ParserVersionGenericVulnerabilityJSON {
+	if job.Kind != "parse_vulnerability_scan" || job.Payload["payload_ref"] == "" || job.Payload["payload_hash"] == "" || job.Payload["parser_version"] != ParserVersionScannerAdaptersJSON {
 		t.Fatalf("outbox job missing replay metadata: %#v", job)
 	}
 	payloadRef, ok := job.Payload["payload_ref"].(string)
@@ -1049,7 +1049,7 @@ func TestReleaseReadinessRequiresHandledCriticalFinding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
-	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"}]}`)); err != nil {
+	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"}]}`)); err != nil {
 		t.Fatalf("sbom: %v", err)
 	}
 	if _, err := ledger.CreateReleaseBundle(ctx, actor, release.ID); err != nil {
@@ -1152,7 +1152,7 @@ func TestCustomerVisibleDecisionRequiresImpactAndRedactsInternalNotes(t *testing
 	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, "", []byte(`{
 		"bomFormat":"CycloneDX",
 		"specVersion":"1.6",
-		"components":[{"name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"}]
+		"components":[{"type":"library","name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"}]
 	}`))
 	if err != nil {
 		t.Fatalf("sbom: %v", err)
@@ -1243,7 +1243,7 @@ func TestVulnerabilityDecisionSummaryReportRedactsInternalAndOnlyIncludesActiveV
 	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, "", []byte(`{
 		"bomFormat":"CycloneDX",
 		"specVersion":"1.6",
-		"components":[{"name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"}]
+		"components":[{"type":"library","name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"}]
 	}`))
 	if err != nil {
 		t.Fatalf("summary sbom: %v", err)
@@ -1808,7 +1808,7 @@ func TestExceptionApprovalControlsReadinessAndTenantScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
-	if _, err := ledger.UploadSBOM(ctx, actorA, releaseA.ID, artifactA.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"openssl","purl":"pkg:apk/openssl@3.1.0"}]}`)); err != nil {
+	if _, err := ledger.UploadSBOM(ctx, actorA, releaseA.ID, artifactA.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"openssl","purl":"pkg:apk/openssl@3.1.0"}]}`)); err != nil {
 		t.Fatalf("sbom: %v", err)
 	}
 	if _, err := ledger.CreateReleaseBundle(ctx, actorA, releaseA.ID); err != nil {
@@ -1849,7 +1849,7 @@ func TestCollectorBuildAttestationReadinessFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("project: %v", err)
 	}
-	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api","purl":"pkg:oci/payments-api"}]}`)); err != nil {
+	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api","purl":"pkg:oci/payments-api"}]}`)); err != nil {
 		t.Fatalf("sbom: %v", err)
 	}
 	if _, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{"scanner":"grype","target_ref":"pkg:oci/payments-api","release_id":"`+release.ID+`","findings":[]}`)); err != nil {
@@ -1924,8 +1924,8 @@ func TestCollectorBuildAttestationReadinessFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("readiness after attestation: %v", err)
 	}
-	if report.Result != "passed" {
-		t.Fatalf("expected passed readiness, got %#v", report)
+	if report.Result != "failed" || !hasMissing(report.Gaps, "build_attestation") {
+		t.Fatalf("an unverified structural attestation must not satisfy readiness: %#v", report)
 	}
 }
 
@@ -2058,8 +2058,27 @@ func addBuildProvenance(t *testing.T, ledger *Ledger, actor domain.Actor, releas
 	if err != nil {
 		t.Fatalf("provenance build: %v", err)
 	}
-	if _, err := ledger.UploadBuildAttestation(ctx, actor, build.ID, dsseForDigest(t, artifact.Digest)); err != nil {
+	attestation, err := ledger.UploadBuildAttestation(ctx, actor, build.ID, dsseForDigest(t, artifact.Digest))
+	if err != nil {
 		t.Fatalf("provenance attestation: %v", err)
+	}
+	markAttestationVerifiedForReadiness(ledger, actor, attestation.ID)
+}
+
+// markAttestationVerifiedForReadiness isolates broader readiness tests from
+// cryptographic verification. EVY-603 verification behavior itself is covered
+// by the DSSE adapter and application verification tests.
+func markAttestationVerifiedForReadiness(ledger *Ledger, actor domain.Actor, attestationID string) {
+	id := newID("vr")
+	ledger.verifications[id] = domain.VerificationResult{
+		ID:            id,
+		TenantID:      actor.TenantID,
+		SubjectType:   "build_attestation",
+		SubjectID:     attestationID,
+		Result:        string(domain.VerificationStatePassed),
+		Profile:       domain.VerificationProfile{ID: domain.VerificationProfileDSSEAttestationSignature},
+		SchemaVersion: domain.VerificationResultSchemaVersion,
+		VerifiedAt:    fixedNow(),
 	}
 }
 
@@ -2073,12 +2092,13 @@ func dsseForDigest(t *testing.T, digest string) []byte {
 			"digest": map[string]string{"sha256": strings.TrimPrefix(digest, "sha256:")},
 		}},
 		"predicate": map[string]any{
-			"builder":   map[string]string{"id": "https://github.com/actions/runner"},
-			"buildType": "https://github.com/actions/workflow",
-			"materials": []map[string]any{{
-				"uri":    "git+https://github.com/aatuh/evydence",
-				"digest": map[string]string{"sha1": "0123456789abcdef0123456789abcdef01234567"},
-			}},
+			"buildDefinition": map[string]any{
+				"buildType":          "https://github.com/actions/workflow",
+				"externalParameters": map[string]string{"mode": "release"},
+			},
+			"runDetails": map[string]any{
+				"builder": map[string]string{"id": "https://github.com/actions/runner"},
+			},
 		},
 	}
 	statementBody, err := json.Marshal(statement)

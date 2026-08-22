@@ -152,6 +152,60 @@ func TestOpenVEXDuplicateStatementIsIdempotentWithinImport(t *testing.T) {
 	}
 }
 
+func TestOpenVEXAmbiguousFindingIsReportedWithoutDecision(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
+	const vulnerability = "CVE-2026-0350"
+	const component = "pkg:apk/openssl@3.1.0"
+	uploadVEXMappingScan(t, ctx, ledger, actor, release.ID, vulnerability, component)
+	uploadVEXMappingScan(t, ctx, ledger, actor, release.ID, vulnerability, component)
+
+	vex, err := ledger.UploadVEX(ctx, actor, release.ID, artifact.ID, openVEXFixture(t, []map[string]any{
+		openVEXStatementFixture(vulnerability, []map[string]any{{"@id": component}}, decisionStatusFixed, "fixed_in_release"),
+	}))
+	if err != nil {
+		t.Fatalf("upload vex: %v", err)
+	}
+	report, err := ledger.GetVEXImportReport(ctx, actor, vex.ID)
+	if err != nil || len(report.MappingFailures) != 1 || report.MappingFailures[0].Code != "ambiguous_finding" || report.DecisionsCreated != 0 {
+		t.Fatalf("report=%#v err=%v", report, err)
+	}
+	active := true
+	decisions, err := ledger.ListVulnerabilityDecisions(ctx, actor, ListVulnerabilityDecisionsInput{ReleaseID: release.ID, Vulnerability: vulnerability, Active: &active})
+	if err != nil || len(decisions) != 0 {
+		t.Fatalf("decisions=%#v err=%v", decisions, err)
+	}
+}
+
+func TestUnambiguousVEXMatchesPolicy(t *testing.T) {
+	match := func(component string) matchedFinding {
+		return matchedFinding{finding: domain.VulnerabilityFinding{Component: component}}
+	}
+	if matches, ambiguous := unambiguousVEXMatches(nil, nil); ambiguous || len(matches) != 0 {
+		t.Fatalf("empty matches=%#v ambiguous=%v", matches, ambiguous)
+	}
+	if _, ambiguous := unambiguousVEXMatches([]matchedFinding{match("pkg:a"), match("pkg:b")}, nil); !ambiguous {
+		t.Fatal("unscoped multi-match must be ambiguous")
+	}
+	if _, ambiguous := unambiguousVEXMatches([]matchedFinding{match("pkg:a"), match("pkg:b")}, map[string]struct{}{"pkg:a": {}}); !ambiguous {
+		t.Fatal("more matches than product refs must be ambiguous")
+	}
+	if _, ambiguous := unambiguousVEXMatches([]matchedFinding{match(""), match("pkg:a")}, map[string]struct{}{"pkg:a": {}, "pkg:b": {}}); !ambiguous {
+		t.Fatal("empty component must be ambiguous")
+	}
+	if _, ambiguous := unambiguousVEXMatches([]matchedFinding{match("pkg:c"), match("pkg:a")}, map[string]struct{}{"pkg:a": {}, "pkg:b": {}}); !ambiguous {
+		t.Fatal("unlisted component must be ambiguous")
+	}
+	if _, ambiguous := unambiguousVEXMatches([]matchedFinding{match("pkg:a"), match("pkg:a")}, map[string]struct{}{"pkg:a": {}, "pkg:b": {}}); !ambiguous {
+		t.Fatal("duplicate component must be ambiguous")
+	}
+	matches, ambiguous := unambiguousVEXMatches([]matchedFinding{match("pkg:a"), match("pkg:b")}, map[string]struct{}{"pkg:a": {}, "pkg:b": {}})
+	if ambiguous || len(matches) != 2 {
+		t.Fatalf("explicit unique matches=%#v ambiguous=%v", matches, ambiguous)
+	}
+}
+
 func TestOpenVEXMappingSupersedesExistingDecisionFixture(t *testing.T) {
 	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
@@ -210,7 +264,7 @@ func TestOpenVEXValidationFixturesReturnUsefulSafeErrors(t *testing.T) {
 			payload: openVEXFixture(t, []map[string]any{
 				openVEXStatementFixture("CVE-2026-0500", []map[string]any{{"@id": "pkg:apk/openssl@3.1.0"}}, "secret-token-status", "triage"),
 			}),
-			wantDetail: "openvex statement 1 has an unsupported status",
+			wantDetail: "openvex JSON is malformed or violates required OpenVEX fields",
 			notContain: "secret-token-status",
 		},
 		{
@@ -218,19 +272,19 @@ func TestOpenVEXValidationFixturesReturnUsefulSafeErrors(t *testing.T) {
 			payload: openVEXFixture(t, []map[string]any{
 				openVEXStatementFixture("CVE-2026-0501", []map[string]any{{"@id": ""}}, decisionStatusFixed, "fixed"),
 			}),
-			wantDetail: "openvex statement 1 product 1 is missing an @id",
+			wantDetail: "openvex JSON is malformed or violates required OpenVEX fields",
 		},
 		{
 			name:       "malformed document",
 			payload:    []byte(`{"author":"security@example.test"`),
-			wantDetail: "openvex JSON is malformed or contains unsupported fields",
+			wantDetail: "openvex JSON is malformed or violates required OpenVEX fields",
 		},
 		{
 			name: "missing vulnerability",
 			payload: openVEXFixture(t, []map[string]any{
 				openVEXStatementFixture("", []map[string]any{{"@id": "pkg:apk/openssl@3.1.0"}}, decisionStatusFixed, "fixed"),
 			}),
-			wantDetail: "openvex statement 1 is missing a vulnerability name",
+			wantDetail: "openvex JSON is malformed or violates required OpenVEX fields",
 		},
 	}
 

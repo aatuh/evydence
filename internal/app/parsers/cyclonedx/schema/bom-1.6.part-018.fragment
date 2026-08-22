@@ -1,0 +1,261 @@
+          "items": {
+            "$ref": "#/definitions/property"
+          }
+        }
+      }
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "executed": {
+          "title": "Executed",
+          "description": "A text representation of the executed command.",
+          "type": "string"
+        },
+        "properties": {
+          "type": "array",
+          "title": "Properties",
+          "description": "Provides the ability to document properties in a name-value store. This provides flexibility to include data not officially supported in the standard without having to use additional namespaces or create extensions. Unlike key-value stores, properties support duplicate names, each potentially having different values. Property names of interest to the general public are encouraged to be registered in the [CycloneDX Property Taxonomy](https://github.com/CycloneDX/cyclonedx-property-taxonomy). Formal registration is optional.",
+          "items": {
+            "$ref": "#/definitions/property"
+          }
+        }
+      }
+    },
+    "workspace": {
+      "title": "Workspace",
+      "description": "A named filesystem or data resource shareable by workflow tasks.",
+      "type": "object",
+      "required": [
+        "bom-ref",
+        "uid"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "bom-ref": {
+          "title": "BOM Reference",
+          "description": "An optional identifier which can be used to reference the workspace elsewhere in the BOM. Every bom-ref must be unique within the BOM.\nValue SHOULD not start with the BOM-Link intro 'urn:cdx:' to avoid conflicts with BOM-Links.",
+          "$ref": "#/definitions/refType"
+        },
+        "uid": {
+          "title": "Unique Identifier (UID)",
+          "description": "The unique identifier for the resource instance within its deployment context.",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "description": "The name of the resource instance.",
+          "type": "string"
+        },
+        "aliases": {
+          "title": "Aliases",
+          "description": "The names for the workspace as referenced by other workflow tasks. Effectively, a name mapping so other tasks can use their own local name in their steps.",
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "description": {
+          "title": "Description",
+          "description": "A description of the resource instance.",
+          "type": "string"
+        },
+        "resourceReferences": {
+          "title": "Resource references",
+          "description": "References to component or service resources that are used to realize the resource instance.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/definitions/resourceReferenceChoice"
+          }
+        },
+        "accessMode": {
+          "title": "Access mode",
+          "description": "Describes the read-write access control for the workspace relative to the owning resource instance.",
+          "type": "string",
+          "enum": [
+            "read-only",
+            "read-write",
+            "read-write-once",
+            "write-once",
+            "write-only"
+          ]
+        },
+        "mountPath": {
+          "title": "Mount path",
+          "description": "A path to a location on disk where the workspace will be available to the associated task's steps.",
+          "type": "string"
+        },
+        "managedDataType": {
+          "title": "Managed data type",
+          "description": "The name of a domain-specific data type the workspace represents.",
+          "$comment": "This property is for CI/CD frameworks that are able to provide access to structured, managed data at a more granular level than a filesystem.",
+          "examples": ["ConfigMap","Secret"],
+          "type": "string"
+        },
+        "volumeRequest": {
+          "title": "Volume request",
+          "description": "Identifies the reference to the request for a specific volume type and parameters.",
+          "examples": ["a kubernetes Persistent Volume Claim (PVC) name"],
+          "type": "string"
+        },
+        "volume": {
+          "title": "Volume",
+          "description": "Information about the actual volume instance allocated to the workspace.",
+          "$comment": "The actual volume allocated may be different than the request.",
+          "examples": ["see https://kubernetes.io/docs/concepts/storage/persistent-volumes/"],
+          "$ref": "#/definitions/volume"
+        },
+        "properties": {
+          "type": "array",
+          "title": "Properties",
+          "description": "Provides the ability to document properties in a name-value store. This provides flexibility to include data not officially supported in the standard without having to use additional namespaces or create extensions. Unlike key-value stores, properties support duplicate names, each potentially having different values. Property names of interest to the general public are encouraged to be registered in the [CycloneDX Property Taxonomy](https://github.com/CycloneDX/cyclonedx-property-taxonomy). Formal registration is optional.",
+          "items": {
+            "$ref": "#/definitions/property"
+          }
+        }
+      }
+    },
+    "volume": {
+      "title": "Volume",
+      "description": "An identifiable, logical unit of data storage tied to a physical device.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "uid": {
+          "title": "Unique Identifier (UID)",
+          "description": "The unique identifier for the volume instance within its deployment context.",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "description": "The name of the volume instance",
+          "type": "string"
+        },
+        "mode": {
+          "title": "Mode",
+          "description": "The mode for the volume instance.",
+          "type": "string",
+          "enum": [
+            "filesystem", "block"
+          ],
+          "default": "filesystem"
+        },
+        "path": {
+          "title": "Path",
+          "description": "The underlying path created from the actual volume.",
+          "type": "string"
+        },
+        "sizeAllocated": {
+          "title": "Size allocated",
+          "description": "The allocated size of the volume accessible to the associated workspace. This should include the scalar size as well as IEC standard unit in either decimal or binary form.",
+          "examples": ["10GB", "2Ti", "1Pi"],
+          "type": "string"
+        },
+        "persistent": {
+          "title": "Persistent",
+          "description": "Indicates if the volume persists beyond the life of the resource it is associated with.",
+          "type": "boolean"
+        },
+        "remote": {
+          "title": "Remote",
+          "description": "Indicates if the volume is remotely (i.e., network) attached.",
+          "type": "boolean"
+        },
+        "properties": {
+          "type": "array",
+          "title": "Properties",
+          "description": "Provides the ability to document properties in a name-value store. This provides flexibility to include data not officially supported in the standard without having to use additional namespaces or create extensions. Unlike key-value stores, properties support duplicate names, each potentially having different values. Property names of interest to the general public are encouraged to be registered in the [CycloneDX Property Taxonomy](https://github.com/CycloneDX/cyclonedx-property-taxonomy). Formal registration is optional.",
+          "items": {
+            "$ref": "#/definitions/property"
+          }
+        }
+      }
+    },
+    "trigger": {
+      "title": "Trigger",
+      "description": "Represents a resource that can conditionally activate (or fire) tasks based upon associated events and their data.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "bom-ref",
+        "uid"
+      ],
+      "properties": {
+        "bom-ref": {
+          "title": "BOM Reference",
+          "description": "An optional identifier which can be used to reference the trigger elsewhere in the BOM. Every bom-ref must be unique within the BOM.\nValue SHOULD not start with the BOM-Link intro 'urn:cdx:' to avoid conflicts with BOM-Links.",
+          "$ref": "#/definitions/refType"
+        },
+        "uid": {
+          "title": "Unique Identifier (UID)",
+          "description": "The unique identifier for the resource instance within its deployment context.",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "description": "The name of the resource instance.",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "description": "A description of the resource instance.",
+          "type": "string"
+        },
+        "resourceReferences": {
+          "title": "Resource references",
+          "description": "References to component or service resources that are used to realize the resource instance.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/definitions/resourceReferenceChoice"
+          }
+        },
+        "type": {
+          "title": "Type",
+          "description": "The source type of event which caused the trigger to fire.",
+          "type": "string",
+          "enum": [
+            "manual",
+            "api",
+            "webhook",
+            "scheduled"
+          ]
+        },
+        "event": {
+          "title": "Event",
+          "description": "The event data that caused the associated trigger to activate.",
+          "$ref": "#/definitions/event"
+        },
+        "conditions": {
+          "type": "array",
+          "title": "Conditions",
+          "description": "A list of conditions used to determine if a trigger should be activated.",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/definitions/condition"
+          }
+        },
+        "timeActivated": {
+          "title": "Time activated",
+          "description": "The date and time (timestamp) when the trigger was activated.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "inputs": {
+          "title": "Inputs",
+          "description": "Represents resources and data brought into a task at runtime by executor or task commands",
+          "examples": ["a `configuration` file which was declared as a local `component` or `externalReference`"],
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/inputType"
+          },
+          "uniqueItems": true
+        },
+        "outputs": {
+          "title": "Outputs",
+          "description": "Represents resources and data output from a task at runtime by executor or task commands",
+          "examples": ["a log file or metrics data produced by the task"],
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/outputType"

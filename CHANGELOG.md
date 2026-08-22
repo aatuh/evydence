@@ -15,6 +15,17 @@ release artifacts.
 
 ### Added
 
+- Added a versioned parser conformance corpus manifest and gate that records
+  fixture provenance, redistribution rights, hashes, bounded limits, and
+  expected normalized summaries for supported parser formats.
+
+- Added a canonical evidence-format compatibility matrix that distinguishes tested reduced CycloneDX, SPDX, OpenVEX, CycloneDX VEX, DSSE/in-toto, and scanner JSON contracts from incidental parser acceptance, with parser identities, effective limits, fixture evidence, and unsupported-format guidance.
+- Recovery tooling now pairs PostgreSQL and object-store backup generations with deterministic preflight manifests, native `pg_dump`/`pg_restore` rehearsal, mismatch detection before normal startup, and crash-boundary recovery tests.
+- Object payload reconciliation now provides a tenant-scoped, resumable worker
+  command with dry-run reporting, conservative lifecycle quarantine/recovery,
+  auditable receipts, and bounded reconciliation metrics. Provider-only objects
+  are advisory candidates and are never deleted merely because a listing
+  reports them; apply mode requires an explicit abandoned-staging age threshold.
 - API build identity now records version, commit, build time, dirty state, Go
   version, and a pre-build release-input-manifest digest. Runtime liveness,
   dependency-backed readiness, and instance-admin readiness diagnostics are
@@ -42,6 +53,16 @@ release artifacts.
 - The release-evidence, SDK route catalog, API contract matrix, and public API
   operations now record explicit stability classifications for evaluation and
   implementation planning.
+- Corrected the prerelease release and artifact contracts to match the server:
+  `POST /v1/releases` no longer accepts `project_id`; `POST /v1/artifacts` no
+  longer accepts `release_id` or `subject_ref`; and artifact `media_type` is
+  required. Clients that sent those removed fields must omit them and link
+  artifacts to releases through the documented evidence, build, or
+  release-candidate flows instead.
+- Corrected the prerelease build helper to use `finished_at` and
+  `provider_metadata` plus the documented CI identity fields. The obsolete
+  `completed_at` and `github` fields are removed from the OpenAPI and typed SDK
+  contract.
 - The repository now tracks a scorecard and execution backlog with evidence
   links and external-evidence blockers; these are implementation-tracking
   records, not production or compliance claims.
@@ -51,6 +72,10 @@ release artifacts.
 
 ### Fixed
 
+- Artifact registration now rejects a missing or whitespace-only `media_type`
+  before persistence, so in-memory and PostgreSQL-backed deployments apply the
+  same request contract.
+- Object payload storage now enforces the versioned canonical tenant/digest key layout, confines filesystem operations beneath the configured root even across symlinks, and verifies tenant, digest bytes, byte count, and media type before filesystem or S3 content is trusted. S3 public/custom remote endpoints require TLS and AWS S3 endpoints require an explicit region.
 - Object-retention verification no longer treats a local policy record as
   provider enforcement. Positive results now retain bounded provider-observation
   metadata; unavailable, incomplete, failed, and stale observations remain

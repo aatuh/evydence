@@ -24,14 +24,12 @@ type CreateProductRequest struct {
 
 type CreateReleaseRequest struct {
 	ProductID string `json:"product_id"`
-	ProjectID string `json:"project_id,omitempty"`
 	Version   string `json:"version"`
 }
 
 type RegisterArtifactRequest struct {
-	ReleaseID string `json:"release_id,omitempty"`
 	Name      string `json:"name"`
-	MediaType string `json:"media_type,omitempty"`
+	MediaType string `json:"media_type"`
 	Digest    string `json:"digest"`
 	Size      int64  `json:"size,omitempty"`
 }
@@ -39,18 +37,28 @@ type RegisterArtifactRequest struct {
 type BuildOutput struct {
 	ArtifactID string `json:"artifact_id,omitempty"`
 	Digest     string `json:"digest"`
-	Name       string `json:"name,omitempty"`
 }
 
 type CreateBuildRequest struct {
-	ProjectID string         `json:"project_id"`
-	ReleaseID string         `json:"release_id"`
-	Provider  string         `json:"provider"`
-	CommitSHA string         `json:"commit_sha"`
-	Status    string         `json:"status"`
-	StartedAt string         `json:"started_at"`
-	Outputs   []BuildOutput  `json:"outputs,omitempty"`
-	GitHub    map[string]any `json:"github,omitempty"`
+	ProjectID        string         `json:"project_id"`
+	ReleaseID        string         `json:"release_id"`
+	Provider         string         `json:"provider"`
+	CommitSHA        string         `json:"commit_sha"`
+	Repository       string         `json:"repository,omitempty"`
+	WorkflowRef      string         `json:"workflow_ref,omitempty"`
+	RunID            string         `json:"run_id,omitempty"`
+	RunAttempt       int            `json:"run_attempt,omitempty"`
+	JobID            string         `json:"job_id,omitempty"`
+	Actor            string         `json:"actor,omitempty"`
+	Ref              string         `json:"ref,omitempty"`
+	OIDCSubject      string         `json:"oidc_subject,omitempty"`
+	Status           string         `json:"status"`
+	StartedAt        string         `json:"started_at"`
+	FinishedAt       string         `json:"finished_at,omitempty"`
+	ParametersHash   string         `json:"parameters_hash,omitempty"`
+	EnvironmentHash  string         `json:"environment_hash,omitempty"`
+	ProviderMetadata map[string]any `json:"provider_metadata,omitempty"`
+	Outputs          []BuildOutput  `json:"outputs,omitempty"`
 }
 
 type CreateSSOProviderRequest struct {

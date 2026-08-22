@@ -38,6 +38,12 @@ type fakeS3Server struct {
 
 func newFakeS3Store(t *testing.T) *Store {
 	t.Helper()
+	store, _ := newFakeS3StoreWithServer(t)
+	return store
+}
+
+func newFakeS3StoreWithServer(t *testing.T) (*Store, *fakeS3Server) {
+	t.Helper()
 	server := &fakeS3Server{objects: map[string]fakeS3Object{}}
 	httpServer := httptest.NewServer(http.HandlerFunc(server.handle))
 	t.Cleanup(httpServer.Close)
@@ -45,7 +51,7 @@ func newFakeS3Store(t *testing.T) *Store {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &Store{client: client, bucket: "evidence"}
+	return &Store{client: client, bucket: "evidence"}, server
 }
 
 func (s *fakeS3Server) handle(w http.ResponseWriter, r *http.Request) {
@@ -85,6 +91,11 @@ func (s *fakeS3Server) handle(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if r.Method == http.MethodPost && r.URL.Query().Has("uploads") {
+		s.objects[key] = fakeS3Object{
+			contentType: r.Header.Get("Content-Type"),
+			tenantID:    fakeS3Metadata(r, "evydence-tenant-id"),
+			digest:      fakeS3Metadata(r, "evydence-digest"),
+		}
 		w.Header().Set("Content-Type", "application/xml")
 		_, _ = io.WriteString(w, `<InitiateMultipartUploadResult><Bucket>evidence</Bucket><Key>payload</Key><UploadId>upload</UploadId></InitiateMultipartUploadResult>`)
 		return
@@ -98,8 +109,15 @@ func (s *fakeS3Server) handle(w http.ResponseWriter, r *http.Request) {
 		}
 		object := s.objects[key]
 		object.body = append(object.body, decodeFakeS3Body(body)...)
-		object.contentType = r.Header.Get("Content-Type")
-		object.tenantID, object.digest = tenantID, digest
+		if object.contentType == "" {
+			object.contentType = r.Header.Get("Content-Type")
+		}
+		if object.tenantID == "" {
+			object.tenantID = tenantID
+		}
+		if object.digest == "" {
+			object.digest = digest
+		}
 		s.objects[key] = object
 		w.Header().Set("ETag", `"etag"`)
 		return
@@ -218,6 +236,69 @@ func TestNewRejectsIncompleteConfigWithoutNetwork(t *testing.T) {
 	}
 }
 
+func TestNewRejectsUnsafeEndpointAndRegionPolicyWithoutNetwork(t *testing.T) {
+	base := Config{AccessKeyID: "access", SecretAccessKey: "secret", Bucket: "evidence"}
+	for _, test := range []struct {
+		name     string
+		endpoint string
+		region   string
+		useSSL   bool
+	}{
+		{name: "scheme", endpoint: "http://localhost:9000"},
+		{name: "path", endpoint: "localhost:9000/bucket"},
+		{name: "credentials", endpoint: "user@localhost:9000"},
+		{name: "public cleartext", endpoint: "objects.example.com:9000"},
+		{name: "aws cleartext", endpoint: "s3.us-east-1.amazonaws.com", region: "us-east-1"},
+		{name: "aws missing region", endpoint: "s3.us-east-1.amazonaws.com", useSSL: true},
+		{name: "bad region", endpoint: "objects.example.com", region: "eu north/1", useSSL: true},
+		{name: "bad port", endpoint: "localhost:70000"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := base
+			cfg.Endpoint, cfg.Region, cfg.UseSSL = test.endpoint, test.region, test.useSSL
+			if _, err := New(t.Context(), cfg); !errors.Is(err, app.ErrValidation) {
+				t.Fatalf("unsafe S3 config err=%v, want validation", err)
+			}
+		})
+	}
+}
+
+func TestEndpointPolicyAllowsTLSAndPrivateCleartextEndpoints(t *testing.T) {
+	for _, test := range []struct {
+		endpoint string
+		region   string
+		useSSL   bool
+	}{
+		{endpoint: "localhost:9000"},
+		{endpoint: "minio:9000"},
+		{endpoint: "10.0.0.8:9000"},
+		{endpoint: "minio.default.svc:9000"},
+		{endpoint: "objects.example.com", region: "eu-north-1", useSSL: true},
+		{endpoint: "s3.us-east-1.amazonaws.com", region: "us-east-1", useSSL: true},
+	} {
+		endpoint, region, err := validateEndpointPolicy(test.endpoint, test.region, test.useSSL)
+		if err != nil || endpoint != test.endpoint || region != test.region {
+			t.Fatalf("endpoint policy %q/%q ssl=%t => %q/%q err=%v", test.endpoint, test.region, test.useSSL, endpoint, region, err)
+		}
+	}
+}
+
+func TestNewAcceptsLocalExplicitEndpointPolicy(t *testing.T) {
+	server := &fakeS3Server{objects: map[string]fakeS3Object{}}
+	httpServer := httptest.NewServer(http.HandlerFunc(server.handle))
+	defer httpServer.Close()
+	store, err := New(t.Context(), Config{
+		Endpoint:        strings.TrimPrefix(httpServer.URL, "http://"),
+		AccessKeyID:     "access",
+		SecretAccessKey: "secret",
+		Bucket:          "evidence",
+		UseSSL:          false,
+	})
+	if err != nil || store == nil {
+		t.Fatalf("local S3 endpoint rejected: store=%#v err=%v", store, err)
+	}
+}
+
 func TestPutGetRejectUninitializedStoreAndUnsafeKeys(t *testing.T) {
 	if err := (*Store)(nil).Put(context.Background(), app.Object{Key: "tenants/ten_1/raw", TenantID: "ten_1"}); !errors.Is(err, app.ErrValidation) {
 		t.Fatalf("nil put err = %v, want validation", err)
@@ -236,6 +317,88 @@ func TestPutGetRejectUninitializedStoreAndUnsafeKeys(t *testing.T) {
 	}
 	if err := (*Store)(nil).CheckReadiness(context.Background()); !errors.Is(err, app.ErrValidation) {
 		t.Fatalf("nil readiness err = %v, want validation", err)
+	}
+}
+
+func TestStorePutAndGetRejectCrossTenantTraversalAndTamperedProviderData(t *testing.T) {
+	store, server := newFakeS3StoreWithServer(t)
+	body := []byte("trusted S3 object")
+	sum := sha256.Sum256(body)
+	digest := "sha256:" + hex.EncodeToString(sum[:])
+	key := "tenants/ten_1/raw/" + strings.TrimPrefix(digest, "sha256:")
+	object := app.Object{Key: key, TenantID: "ten_1", MediaType: "application/json", Digest: digest, Bytes: body, CreatedAt: time.Now().UTC()}
+
+	foreign := object
+	foreign.Key = strings.Replace(key, "ten_1", "ten_2", 1)
+	if err := store.Put(t.Context(), foreign); !errors.Is(err, app.ErrValidation) {
+		t.Fatalf("cross-tenant S3 put err=%v, want validation", err)
+	}
+	if _, err := store.Get(t.Context(), "tenants/ten_1/../ten_2/raw/object"); !errors.Is(err, app.ErrValidation) {
+		t.Fatalf("traversal S3 get err=%v, want validation", err)
+	}
+	if err := store.Put(t.Context(), object); err != nil {
+		t.Fatal(err)
+	}
+
+	server.mu.Lock()
+	tampered := server.objects[key]
+	tampered.body = []byte("tampered provider bytes")
+	server.objects[key] = tampered
+	server.mu.Unlock()
+	if _, err := store.Get(t.Context(), key); !errors.Is(err, app.ErrValidation) {
+		t.Fatalf("tampered S3 bytes err=%v, want validation", err)
+	}
+
+	if err := store.Put(t.Context(), object); err != nil {
+		t.Fatal(err)
+	}
+	server.mu.Lock()
+	tampered = server.objects[key]
+	tampered.tenantID = "ten_other"
+	server.objects[key] = tampered
+	server.mu.Unlock()
+	if _, err := store.Get(t.Context(), key); !errors.Is(err, app.ErrValidation) {
+		t.Fatalf("tampered S3 tenant metadata err=%v, want validation", err)
+	}
+
+	if err := store.Put(t.Context(), object); err != nil {
+		t.Fatal(err)
+	}
+	server.mu.Lock()
+	tampered = server.objects[key]
+	tampered.digest = "sha256:" + strings.Repeat("b", 64)
+	server.objects[key] = tampered
+	server.mu.Unlock()
+	if _, err := store.Get(t.Context(), key); !errors.Is(err, app.ErrValidation) {
+		t.Fatalf("tampered S3 digest metadata err=%v, want validation", err)
+	}
+}
+
+func TestFinalizePayloadRejectsTamperedStagedMediaTypeBeforeCopy(t *testing.T) {
+	store, server := newFakeS3StoreWithServer(t)
+	body := []byte("S3 payload")
+	sum := sha256.Sum256(body)
+	digest := "sha256:" + hex.EncodeToString(sum[:])
+	now := time.Now().UTC()
+	stagingKey, finalKey, err := app.CanonicalObjectPayloadKeys("ten_media", digest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := app.ObjectPayload{TenantID: "ten_media", Digest: digest, MediaType: "application/json", StagingKey: stagingKey, FinalKey: finalKey, Status: app.ObjectPayloadStaged, CreatedAt: now, UpdatedAt: now}
+	payload, err = store.StagePayload(t.Context(), payload, bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.mu.Lock()
+	tampered := server.objects[payload.StagingKey]
+	tampered.contentType = "text/plain"
+	server.objects[payload.StagingKey] = tampered
+	server.mu.Unlock()
+	if _, err := store.FinalizePayload(t.Context(), payload); !errors.Is(err, app.ErrValidation) {
+		t.Fatalf("tampered staged media type err=%v, want validation", err)
+	}
+	if _, err := store.Get(t.Context(), payload.FinalKey); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("tampered staging produced final object err=%v", err)
 	}
 }
 

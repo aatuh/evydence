@@ -229,7 +229,7 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	assertRequestExampleContains(t, uploadSBOM, "cyclonedx-release-sbom", "pkg:apk/openssl")
 	assertResponseRef(t, uploadSBOM, "201", "#/components/schemas/SBOMEnvelope")
 	uploadVulnerabilityScan := operationMap(t, paths, "/v1/vulnerability-scans", "post")
-	assertRequestRef(t, uploadVulnerabilityScan, "#/components/schemas/UploadVulnerabilityScanRequest")
+	assertRequestRef(t, uploadVulnerabilityScan, "#/components/schemas/UploadVulnerabilityScanBody")
 	assertRequestExampleContains(t, uploadVulnerabilityScan, "generic-critical-finding", "CVE-2026-0099")
 	assertResponseRef(t, uploadVulnerabilityScan, "201", "#/components/schemas/VulnerabilityScanEnvelope")
 	listVulnerabilityDecisions := operationMap(t, paths, "/v1/vulnerability-decisions", "get")
@@ -260,16 +260,18 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	assertRequestRef(t, verifyCosign, "#/components/schemas/VerifyCosignSignatureRequest")
 	assertResponseRef(t, verifyCosign, "200", "#/components/schemas/CosignVerificationEnvelope")
 	assertProblemResponseRef(t, verifyCosign, "422")
-	if deprecated, _ := verifyCosign["deprecated"].(bool); !deprecated {
-		t.Fatalf("cosign metadata assessment operation must be deprecated: %#v", verifyCosign)
+	if deprecated, _ := verifyCosign["deprecated"].(bool); deprecated {
+		t.Fatalf("real Cosign verification operation must not remain deprecated: %#v", verifyCosign)
 	}
 	cosignRequestProps := asStringAnyMap(t, asStringAnyMap(t, schemas["VerifyCosignSignatureRequest"])["properties"])
-	if _, ok := cosignRequestProps["require_full_verification"]; !ok {
-		t.Fatalf("cosign request must let callers request full verification: %#v", cosignRequestProps)
+	for _, field := range []string{"expected_identity", "expected_issuer", "mode", "offline"} {
+		if _, ok := cosignRequestProps[field]; !ok {
+			t.Fatalf("cosign policy request missing %s: %#v", field, cosignRequestProps)
+		}
 	}
 	cosignResult := asStringAnyMap(t, asStringAnyMap(t, schemas["CosignVerification"])["properties"])["result"]
-	if strings.Contains(fmt.Sprintf("%v", cosignResult), "passed") || !strings.Contains(fmt.Sprintf("%v", cosignResult), "limited") {
-		t.Fatalf("cosign result schema must expose limited, not passed: %#v", cosignResult)
+	if !strings.Contains(fmt.Sprintf("%v", cosignResult), "passed") {
+		t.Fatalf("cosign result schema must expose passed when full verification succeeds: %#v", cosignResult)
 	}
 	searchEvidence := operationMap(t, paths, "/v1/evidence/search", "get")
 	assertQueryParams(t, searchEvidence, "product_id", "project_id", "release_id", "type", "source", "tag", "cursor", "limit")
@@ -610,6 +612,56 @@ func TestProductProjectArtifactReadEndpoints(t *testing.T) {
 	getJSON(t, server, secret, "/v1/artifacts/art_missing", http.StatusNotFound)
 }
 
+func TestReleaseAndArtifactRejectUnsupportedRelationshipFields(t *testing.T) {
+	server, secret := testServer(t)
+	productBody := postJSON(t, server, secret, "/v1/products", "contract-fields-product", map[string]any{"name": "Contract API", "slug": "contract-api"}, http.StatusCreated)
+	productID := dataField(t, productBody, "id")
+
+	for _, tc := range []struct {
+		name    string
+		path    string
+		idem    string
+		payload map[string]any
+	}{
+		{
+			name:    "release project id",
+			path:    "/v1/releases",
+			idem:    "contract-fields-release-project",
+			payload: map[string]any{"product_id": productID, "project_id": "proj_ignored", "version": "1.0.0"},
+		},
+		{
+			name:    "artifact release id",
+			path:    "/v1/artifacts",
+			idem:    "contract-fields-artifact-release",
+			payload: map[string]any{"release_id": "rel_ignored", "name": "api.tgz", "media_type": "application/gzip", "digest": "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb"},
+		},
+		{
+			name:    "artifact subject ref",
+			path:    "/v1/artifacts",
+			idem:    "contract-fields-artifact-subject",
+			payload: map[string]any{"subject_ref": "release:ignored", "name": "api.tgz", "media_type": "application/gzip", "digest": "sha256:3e23e8160039594a33894f6564e1b1348bbdbb4f9a5f5f6e8a1c7a8c4f6f1f5a"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			body := postJSON(t, server, secret, tc.path, tc.idem, tc.payload, http.StatusBadRequest)
+			if !strings.Contains(body, `"code":"VALIDATION_FAILED"`) {
+				t.Fatalf("unsupported field response = %s", body)
+			}
+		})
+	}
+}
+
+func TestRegisterArtifactRequiresMediaType(t *testing.T) {
+	server, secret := testServer(t)
+	body := postJSON(t, server, secret, "/v1/artifacts", "contract-fields-artifact-media-type", map[string]any{
+		"name":   "api.tgz",
+		"digest": "sha256:2e7d2c03a9507ae265ecf5b5356885a53393a2029d241394997265a1a25aefc6",
+	}, http.StatusBadRequest)
+	if !strings.Contains(body, `"code":"VALIDATION_FAILED"`) {
+		t.Fatalf("missing media_type response = %s", body)
+	}
+}
+
 func TestServerRateLimitReturnsSafeProblem(t *testing.T) {
 	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
 	server, err := NewServerWithOptions(ledger, ServerOptions{RateLimitRequestsPerMinute: 2})
@@ -735,6 +787,17 @@ func TestUnknownJSONFieldReturnsProblem(t *testing.T) {
 	}
 	if rec.Header().Get("X-Request-ID") != "req-test-validation" || !strings.Contains(rec.Body.String(), `"request_id":"req-test-validation"`) {
 		t.Fatalf("request id missing from problem/header: header=%q body=%s", rec.Header().Get("X-Request-ID"), rec.Body.String())
+	}
+}
+
+func TestCosignVerificationRejectsLegacyMetadataFields(t *testing.T) {
+	server, secret := testServer(t)
+	body := postJSON(t, server, secret, "/v1/artifact-signatures/sig_missing/verify-cosign", "legacy-cosign-metadata", map[string]any{
+		"rekor_uuid":         "legacy-record",
+		"certificate_issuer": "https://issuer.example.invalid",
+	}, http.StatusBadRequest)
+	if !strings.Contains(body, `"code":"VALIDATION_FAILED"`) {
+		t.Fatalf("legacy metadata request must fail validation: %s", body)
 	}
 }
 
@@ -871,7 +934,7 @@ func TestReleaseEvidenceFlowStartHTTPFlow(t *testing.T) {
 		"artifact_id": artifactID,
 		"payload": map[string]any{
 			"bomFormat": "CycloneDX", "specVersion": "1.6",
-			"components": []map[string]any{{"name": "api", "purl": "pkg:github/acme/api@abc"}},
+			"components": []map[string]any{{"type": "library", "name": "api", "purl": "pkg:github/acme/api@abc"}},
 		},
 	}, http.StatusCreated)
 	postJSON(t, server, secret, "/v1/vulnerability-scans", "flow-scan", map[string]any{"scanner": "generic", "target_ref": "pkg:github/acme/api@abc", "release_id": releaseID, "findings": []map[string]any{}}, http.StatusCreated)
@@ -901,7 +964,7 @@ func TestReleaseSecuritySummaryHTTPFlow(t *testing.T) {
 		"artifact_id": artifactID,
 		"payload": map[string]any{
 			"bomFormat": "CycloneDX", "specVersion": "1.6",
-			"components": []map[string]any{{"name": "openssl", "purl": "pkg:apk/openssl@3.1.0"}},
+			"components": []map[string]any{{"type": "library", "name": "openssl", "purl": "pkg:apk/openssl@3.1.0"}},
 		},
 	}, http.StatusCreated)
 	scanBody := postJSON(t, server, secret, "/v1/vulnerability-scans", "security-summary-scan", map[string]any{
@@ -944,7 +1007,7 @@ func TestReleaseRiskDecisionHTTPFlow(t *testing.T) {
 		"artifact_id": artifactID,
 		"payload": map[string]any{
 			"bomFormat": "CycloneDX", "specVersion": "1.6",
-			"components": []map[string]any{{"name": "openssl", "purl": "pkg:apk/openssl@3.1.0"}},
+			"components": []map[string]any{{"type": "library", "name": "openssl", "purl": "pkg:apk/openssl@3.1.0"}},
 		},
 	}, http.StatusCreated)
 	scanBody := postJSON(t, server, secret, "/v1/vulnerability-scans", "risk-scan", map[string]any{
@@ -1006,13 +1069,9 @@ func TestIntegrityRuntimeHTTPFlow(t *testing.T) {
 	postJSON(t, server, secret, "/v1/container-images", "int-image", map[string]any{"artifact_id": artifactID, "repository": "registry.example.com/payments", "tag": "3.0.0", "digest": artifactDigest}, http.StatusCreated)
 	sigBody := postJSON(t, server, secret, "/v1/artifact-signatures", "int-sig", map[string]any{"artifact_id": artifactID, "algorithm": "cosign", "signature": "MEUCIQ"}, http.StatusCreated)
 	sigID := dataField(t, sigBody, "id")
-	cosign := postJSON(t, server, secret, "/v1/artifact-signatures/"+sigID+"/verify-cosign", "int-cosign", map[string]any{"rekor_uuid": "uuid", "rekor_log_index": "1"}, http.StatusOK)
-	if !strings.Contains(cosign, `"result":"limited"`) || !strings.Contains(cosign, `"digest_binding_assessed"`) {
-		t.Fatalf("cosign response: %s", cosign)
-	}
-	fullCosign := postJSON(t, server, secret, "/v1/artifact-signatures/"+sigID+"/verify-cosign", "int-cosign-full", map[string]any{"require_full_verification": true}, http.StatusUnprocessableEntity)
-	if !strings.Contains(fullCosign, `"code":"COSIGN_FULL_VERIFICATION_UNAVAILABLE"`) {
-		t.Fatalf("full cosign verification problem: %s", fullCosign)
+	cosign := postJSON(t, server, secret, "/v1/artifact-signatures/"+sigID+"/verify-cosign", "int-cosign", map[string]any{"mode": "keyless", "offline": true, "expected_identity": "repo:owner/name", "expected_issuer": "https://token.actions.githubusercontent.com"}, http.StatusUnprocessableEntity)
+	if !strings.Contains(cosign, `"code":"COSIGN_FULL_VERIFICATION_UNAVAILABLE"`) {
+		t.Fatalf("unconfigured Cosign verification problem: %s", cosign)
 	}
 	postJSON(t, server, secret, "/v1/signing-providers", "int-provider", map[string]any{"name": "dev", "type": "local_encrypted_dev", "key_ref": "file://dev.keys", "encrypted": true}, http.StatusCreated)
 	batchBody := postJSON(t, server, secret, "/v1/merkle-batches", "int-batch", map[string]any{}, http.StatusCreated)
@@ -1241,7 +1300,7 @@ func TestControlsAndReportsHTTPFlow(t *testing.T) {
 		"artifact_id": artifactID,
 		"payload": map[string]any{
 			"bomFormat": "CycloneDX", "specVersion": "1.6",
-			"components": []map[string]any{{"name": "api", "purl": "pkg:oci/payments-api"}},
+			"components": []map[string]any{{"type": "library", "name": "api", "purl": "pkg:oci/payments-api"}},
 		},
 	}, http.StatusCreated)
 	sbomID := dataField(t, sbomBody, "id")
@@ -1489,6 +1548,7 @@ func TestGovernancePackageAndBundleHTTPFlow(t *testing.T) {
 	bundle := dataMap(t, bundleBody)
 	postJSON(t, server, secret, "/v1/evidence-bundles/import", "gov-bundle-import", bundle, http.StatusCreated)
 	postJSON(t, server, secret, "/v1/dsse-trust-roots", "gov-bad-root", map[string]any{"name": "bad", "key_id": "root", "algorithm": "Ed25519", "public_key": "bad"}, http.StatusBadRequest)
+	postJSON(t, server, secret, "/v1/dsse-trust-roots", "gov-root-missing-policy", map[string]any{"name": "missing policy", "key_id": "root-2", "algorithm": "Ed25519", "public_key": base64.StdEncoding.EncodeToString(make([]byte, ed25519.PublicKeySize))}, http.StatusBadRequest)
 }
 
 func TestEnterprisePortalRetentionAndCommercialCollectorHTTPFlow(t *testing.T) {
@@ -1739,7 +1799,7 @@ func TestFutureExtensionAndReadAdminHTTPGaps(t *testing.T) {
 		t.Fatalf("anomaly missing limitations: %s", anomaly)
 	}
 
-	sbomBody := postJSON(t, server, secret, "/v1/sboms", "future-sbom", map[string]any{"release_id": releaseID, "artifact_id": artifactID, "payload": map[string]any{"bomFormat": "CycloneDX", "specVersion": "1.6", "components": []map[string]any{{"name": "api", "purl": "pkg:oci/api"}}}}, http.StatusCreated)
+	sbomBody := postJSON(t, server, secret, "/v1/sboms", "future-sbom", map[string]any{"release_id": releaseID, "artifact_id": artifactID, "payload": map[string]any{"bomFormat": "CycloneDX", "specVersion": "1.6", "components": []map[string]any{{"type": "library", "name": "api", "purl": "pkg:oci/api"}}}}, http.StatusCreated)
 	sbomID := dataField(t, sbomBody, "id")
 	getJSON(t, server, secret, "/v1/sboms/"+sbomID, http.StatusOK)
 	scanBody := postJSON(t, server, secret, "/v1/vulnerability-scans", "future-vuln-scan", map[string]any{"scanner": "grype", "target_ref": "pkg:oci/api", "release_id": releaseID, "findings": []map[string]any{}}, http.StatusCreated)
@@ -1768,10 +1828,7 @@ func TestFutureExtensionAndReadAdminHTTPGaps(t *testing.T) {
 
 	providerBody := postJSON(t, server, secret, "/v1/signing-providers", "future-provider", map[string]any{"name": "kms", "type": "aws_kms", "key_ref": "arn:aws:kms:example", "encrypted": true}, http.StatusCreated)
 	providerID := dataField(t, providerBody, "id")
-	op := postJSON(t, server, secret, "/v1/signing-operations", "future-sign-op", map[string]any{"provider_id": providerID, "subject_type": "release", "subject_id": releaseID, "payload_hash": digest, "external_signature": "sig"}, http.StatusCreated)
-	if !strings.Contains(op, `"result":"passed"`) {
-		t.Fatalf("signing operation did not pass: %s", op)
-	}
+	postJSON(t, server, secret, "/v1/signing-operations", "future-sign-op", map[string]any{"provider_id": providerID, "subject_type": "release", "subject_id": releaseID, "payload_hash": digest, "external_signature": "sig"}, http.StatusBadRequest)
 	saas := postJSON(t, server, secret, "/v1/saas/profiles", "future-saas", map[string]any{"name": "hosted", "region": "eu", "admin_tenant_id": dataField(t, productBody, "tenant_id"), "isolation_model": "shared-control-plane"}, http.StatusCreated)
 	if !strings.Contains(saas, `"config_hash"`) {
 		t.Fatalf("saas profile missing hash: %s", saas)
@@ -2415,9 +2472,11 @@ func dsseHTTP(t *testing.T, digest string) []byte {
 			"digest": map[string]string{"sha256": strings.TrimPrefix(digest, "sha256:")},
 		}},
 		"predicate": map[string]any{
-			"builder":   map[string]string{"id": "https://github.com/actions/runner"},
-			"buildType": "https://github.com/actions/workflow",
-			"materials": []map[string]any{{"uri": "git+https://github.com/aatuh/evydence"}},
+			"buildDefinition": map[string]any{
+				"buildType":          "https://github.com/actions/workflow",
+				"externalParameters": map[string]string{"mode": "release"},
+			},
+			"runDetails": map[string]any{"builder": map[string]string{"id": "https://github.com/actions/runner"}},
 		},
 	}
 	statementBody, err := json.Marshal(statement)

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	vexparser "github.com/aatuh/evydence/internal/app/parsers/vex"
 	"github.com/aatuh/evydence/internal/domain"
 )
 
@@ -105,19 +106,51 @@ type cycloneDXVEXDocument struct {
 	BOMFormat       string                      `json:"bomFormat"`
 	SpecVersion     string                      `json:"specVersion"`
 	Vulnerabilities []cycloneDXVEXVulnerability `json:"vulnerabilities"`
+	Warnings        []string                    `json:"-"`
 }
 
 type cycloneDXVEXVulnerability struct {
-	ID      string `json:"id"`
-	Affects []struct {
-		Ref string `json:"ref"`
-	} `json:"affects,omitempty"`
-	Analysis struct {
-		State         string   `json:"state"`
-		Justification string   `json:"justification"`
-		Detail        string   `json:"detail"`
-		Response      []string `json:"response"`
-	} `json:"analysis"`
+	ID       string               `json:"id"`
+	Affects  []cycloneDXVEXAffect `json:"affects,omitempty"`
+	Analysis cycloneDXVEXAnalysis `json:"analysis"`
+}
+
+type cycloneDXVEXAffect struct {
+	Ref string `json:"ref"`
+}
+
+type cycloneDXVEXAnalysis struct {
+	State, Justification, Detail string
+	Response                     []string
+}
+
+func parseCycloneDXVEX(raw []byte) (cycloneDXVEXDocument, error) {
+	parsed, err := vexparser.ParseCycloneDX(raw, vexparser.DefaultLimits(EvidenceDocumentLimit))
+	if err != nil {
+		return cycloneDXVEXDocument{}, ErrValidation
+	}
+	doc := cycloneDXVEXDocument{BOMFormat: "CycloneDX", SpecVersion: parsed.Version, Warnings: parsed.Warnings}
+	for _, statement := range parsed.Statements {
+		vulnerability := cycloneDXVEXVulnerability{ID: statement.Vulnerability, Analysis: cycloneDXVEXAnalysis{Justification: statement.Justification, Detail: statement.ImpactStatement}}
+		switch statement.Status {
+		case decisionStatusFixed:
+			vulnerability.Analysis.State = "resolved"
+		case decisionStatusNotAffected:
+			vulnerability.Analysis.State = "not_affected"
+		case decisionStatusAffected:
+			vulnerability.Analysis.State = "exploitable"
+		case decisionStatusUnderInvestigation:
+			vulnerability.Analysis.State = "in_triage"
+		}
+		if statement.ActionStatement != "" {
+			vulnerability.Analysis.Response = strings.Split(statement.ActionStatement, ",")
+		}
+		for _, product := range statement.Products {
+			vulnerability.Affects = append(vulnerability.Affects, cycloneDXVEXAffect{Ref: product})
+		}
+		doc.Vulnerabilities = append(doc.Vulnerabilities, vulnerability)
+	}
+	return doc, nil
 }
 
 func (l *Ledger) CreateIncident(ctx context.Context, actor domain.Actor, in CreateIncidentInput) (domain.Incident, error) {
@@ -813,88 +846,95 @@ func (l *Ledger) UploadManualSecurityDocument(ctx context.Context, actor domain.
 	return doc, nil
 }
 
-func (l *Ledger) UploadSPDXSBOM(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.SBOM, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.SBOM{}, err
-	}
-	if err := require(actor, ScopeEvidenceWrite); err != nil {
-		return domain.SBOM{}, err
-	}
-	if !ValidPayloadSize(int64(len(raw)), EvidenceDocumentLimit) {
-		return domain.SBOM{}, ErrValidation
-	}
-	var doc struct {
-		SPDXVersion string `json:"spdxVersion"`
-		Packages    []struct {
-			Name         string `json:"name"`
-			VersionInfo  string `json:"versionInfo"`
-			ExternalRefs []struct {
-				ReferenceType    string `json:"referenceType"`
-				ReferenceLocator string `json:"referenceLocator"`
-			} `json:"externalRefs"`
-		} `json:"packages"`
-	}
-	if err := strictDecode(raw, &doc); err != nil || !strings.HasPrefix(doc.SPDXVersion, "SPDX-") {
-		return domain.SBOM{}, ErrValidation
-	}
-	components := []domain.SBOMComponent{}
-	for _, pkg := range doc.Packages {
-		if strings.TrimSpace(pkg.Name) == "" {
-			return domain.SBOM{}, ErrValidation
-		}
-		purl := ""
-		for _, ref := range pkg.ExternalRefs {
-			if strings.EqualFold(ref.ReferenceType, "purl") {
-				purl = ref.ReferenceLocator
-				break
+// uploadSPDXSBOMLegacy is retained only as a compatibility assertion while
+// callers transition through the public Ledger facade.
+func (l *Ledger) uploadSPDXSBOMLegacy(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.SBOM, error) {
+	return l.UploadSPDXSBOMPayload(ctx, actor, releaseID, artifactID, BytesPayloadSource(raw))
+
+	/*
+			if err := ctx.Err(); err != nil {
+				return domain.SBOM{}, err
 			}
-		}
-		components = append(components, domain.SBOMComponent{Name: pkg.Name, Version: pkg.VersionInfo, PURL: purl})
-	}
-	l.mu.Lock()
-	if err := l.ensureScopeLocked(actor.TenantID, "", "", strings.TrimSpace(releaseID)); err != nil {
-		l.mu.Unlock()
-		return domain.SBOM{}, err
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, resourceRefs{ReleaseID: strings.TrimSpace(releaseID)}); err != nil {
-		l.mu.Unlock()
-		return domain.SBOM{}, err
-	}
-	l.mu.Unlock()
-	payloadHash := hashBytes(raw)
-	stagedPayload, err := l.stagePayload(ctx, actor.TenantID, "application/spdx+json", payloadHash, raw)
-	if err != nil {
-		return domain.SBOM{}, err
-	}
-	payloadRef := stagedPayload.Reference()
-	item, err := l.CreateEvidence(ctx, actor, CreateEvidenceInput{
-		ReleaseID:        releaseID,
-		Type:             "sbom",
-		Subtype:          "spdx",
-		Title:            "SPDX SBOM",
-		SourceSystem:     "api",
-		ObservedAt:       l.now(),
-		PayloadRef:       payloadRef,
-		PayloadHash:      payloadHash,
-		PayloadMediaType: "application/spdx+json",
-		PayloadSize:      int64(len(raw)),
-		StagedPayload:    stagedPayload,
-		SubjectRefs:      subjectForArtifact(artifactID),
-		Metadata:         map[string]any{"sbom_format": "spdx", "sbom_spec_version": doc.SPDXVersion, "component_count": len(components), "parser_version": "spdx-json.v1"},
-		Limitations:      []string{"SBOM ingestion validates document shape but does not prove SBOM completeness."},
-	})
-	if err != nil {
-		return domain.SBOM{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	sbom := domain.SBOM{ID: newID("sbom"), TenantID: actor.TenantID, EvidenceID: item.ID, ReleaseID: releaseID, ArtifactID: artifactID, Format: "spdx", SpecVersion: doc.SPDXVersion, ComponentCount: len(components), Components: components, CreatedAt: l.now()}
-	l.sboms[sbom.ID] = sbom
-	_, _ = l.appendChainLocked(actor.TenantID, "sbom.parsed", "sbom", sbom.ID, "api_key", actor.KeyID, payloadHash, "")
-	if err := l.persistReleaseLedgerStateLocked(ctx); err != nil {
-		return domain.SBOM{}, err
-	}
-	return sbom, nil
+			if err := require(actor, ScopeEvidenceWrite); err != nil {
+				return domain.SBOM{}, err
+			}
+			if !ValidPayloadSize(int64(len(raw)), EvidenceDocumentLimit) {
+				return domain.SBOM{}, ErrValidation
+			}
+			var doc struct {
+				SPDXVersion string `json:"spdxVersion"`
+				Packages    []struct {
+					Name         string `json:"name"`
+					VersionInfo  string `json:"versionInfo"`
+					ExternalRefs []struct {
+						ReferenceType    string `json:"referenceType"`
+						ReferenceLocator string `json:"referenceLocator"`
+					} `json:"externalRefs"`
+				} `json:"packages"`
+			}
+			if err := strictDecode(raw, &doc); err != nil || !strings.HasPrefix(doc.SPDXVersion, "SPDX-") {
+				return domain.SBOM{}, ErrValidation
+			}
+			components := []domain.SBOMComponent{}
+			for _, pkg := range doc.Packages {
+				if strings.TrimSpace(pkg.Name) == "" {
+					return domain.SBOM{}, ErrValidation
+				}
+				purl := ""
+				for _, ref := range pkg.ExternalRefs {
+					if strings.EqualFold(ref.ReferenceType, "purl") {
+						purl = ref.ReferenceLocator
+						break
+					}
+				}
+				components = append(components, domain.SBOMComponent{Name: pkg.Name, Version: pkg.VersionInfo, PURL: purl})
+			}
+			l.mu.Lock()
+			if err := l.ensureScopeLocked(actor.TenantID, "", "", strings.TrimSpace(releaseID)); err != nil {
+				l.mu.Unlock()
+				return domain.SBOM{}, err
+			}
+			if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, resourceRefs{ReleaseID: strings.TrimSpace(releaseID)}); err != nil {
+				l.mu.Unlock()
+				return domain.SBOM{}, err
+			}
+			l.mu.Unlock()
+			payloadHash := hashBytes(raw)
+			stagedPayload, err := l.stagePayload(ctx, actor.TenantID, "application/spdx+json", payloadHash, raw)
+			if err != nil {
+				return domain.SBOM{}, err
+			}
+			payloadRef := stagedPayload.Reference()
+			item, err := l.CreateEvidence(ctx, actor, CreateEvidenceInput{
+				ReleaseID:        releaseID,
+				Type:             "sbom",
+				Subtype:          "spdx",
+				Title:            "SPDX SBOM",
+				SourceSystem:     "api",
+				ObservedAt:       l.now(),
+				PayloadRef:       payloadRef,
+				PayloadHash:      payloadHash,
+				PayloadMediaType: "application/spdx+json",
+				PayloadSize:      int64(len(raw)),
+				StagedPayload:    stagedPayload,
+				SubjectRefs:      subjectForArtifact(artifactID),
+				Metadata:         map[string]any{"sbom_format": "spdx", "sbom_spec_version": doc.SPDXVersion, "component_count": len(components), "parser_version": "spdx-json.v1"},
+				Limitations:      []string{"SBOM ingestion validates document shape but does not prove SBOM completeness."},
+			})
+			if err != nil {
+				return domain.SBOM{}, err
+			}
+			l.mu.Lock()
+			defer l.mu.Unlock()
+			sbom := domain.SBOM{ID: newID("sbom"), TenantID: actor.TenantID, EvidenceID: item.ID, ReleaseID: releaseID, ArtifactID: artifactID, Format: "spdx", SpecVersion: doc.SPDXVersion, ComponentCount: len(components), Components: components, CreatedAt: l.now()}
+			l.sboms[sbom.ID] = sbom
+			_, _ = l.appendChainLocked(actor.TenantID, "sbom.parsed", "sbom", sbom.ID, "api_key", actor.KeyID, payloadHash, "")
+		if err := l.persistReleaseLedgerState
+			Locked(ctx); err != nil {
+				return domain.SBOM{}, err
+			}
+			return sbom, nil
+	*/
 }
 
 func (l *Ledger) CreateSBOMDiff(ctx context.Context, actor domain.Actor, in CreateSBOMDiffInput) (domain.SBOMDiff, error) {
@@ -978,8 +1018,8 @@ func (l *Ledger) UploadCycloneDXVEX(ctx context.Context, actor domain.Actor, rel
 	if !ValidPayloadSize(int64(len(raw)), EvidenceDocumentLimit) {
 		return domain.VEXDocument{}, ErrValidation
 	}
-	var doc cycloneDXVEXDocument
-	if err := strictDecode(raw, &doc); err != nil || !strings.EqualFold(strings.TrimSpace(doc.BOMFormat), "cyclonedx") || len(doc.Vulnerabilities) == 0 {
+	doc, err := parseCycloneDXVEX(raw)
+	if err != nil || len(doc.Vulnerabilities) == 0 {
 		return domain.VEXDocument{}, ErrValidation
 	}
 	statusSummary, invalidStatements, validStatements := analyzeCycloneDXVEXStatements(doc)
@@ -1007,7 +1047,7 @@ func (l *Ledger) UploadCycloneDXVEX(ctx context.Context, actor domain.Actor, rel
 	item, err := l.CreateEvidence(ctx, actor, CreateEvidenceInput{
 		ReleaseID: releaseID, Type: "vex", Subtype: "cyclonedx", Title: "CycloneDX VEX", SourceSystem: "api", ObservedAt: l.now(),
 		PayloadRef: payloadRef, PayloadHash: payloadHash, PayloadMediaType: "application/vnd.cyclonedx+json", PayloadSize: int64(len(raw)), StagedPayload: stagedPayload,
-		SubjectRefs: subjectForArtifact(artifactID), Metadata: map[string]any{"format": "cyclonedx", "spec_version": doc.SpecVersion},
+		SubjectRefs: subjectForArtifact(artifactID), Metadata: WithParserProvenance(map[string]any{"format": "cyclonedx", "spec_version": doc.SpecVersion}, ParserProvenance{Name: "cyclonedx-vex", Version: ParserVersionCycloneDXVEXJSON, SourceSchema: "cyclonedx-vex-" + doc.SpecVersion, NormalizedSchema: "evydence-vex.v1", Warnings: doc.Warnings, ReplayStatus: ParserReplayStatusOriginal}),
 	})
 	if err != nil {
 		return domain.VEXDocument{}, err
@@ -1027,11 +1067,15 @@ func (l *Ledger) UploadCycloneDXVEX(ctx context.Context, actor domain.Actor, rel
 	createdDecisions := 0
 	supersededDecisions := 0
 	mappingFailures := []domain.VEXImportIssue{}
-	warnings := []string{}
+	warnings := append([]string{}, doc.Warnings...)
 	createdForFinding := map[string]struct{}{}
 	duplicateWarningAdded := false
 	for _, statement := range validStatements {
-		matches := l.findCycloneDXVEXMatchingFindingsLocked(actor.TenantID, releaseID, statement)
+		matches, ambiguous := l.findCycloneDXVEXMatchingFindingsLocked(actor.TenantID, releaseID, statement)
+		if ambiguous {
+			mappingFailures = append(mappingFailures, vexImportIssue(statement.index, "ambiguous_finding", "Multiple plausible findings matched this CycloneDX VEX vulnerability; no decision was applied."))
+			continue
+		}
 		if len(matches) == 0 {
 			mappingFailures = append(mappingFailures, vexImportIssue(statement.index, "finding_not_found", "No matching vulnerability scan finding was found for this CycloneDX VEX vulnerability."))
 		}
@@ -1114,8 +1158,8 @@ func (l *Ledger) PreviewCycloneDXVEXImport(ctx context.Context, actor domain.Act
 	if !ValidPayloadSize(int64(len(raw)), EvidenceDocumentLimit) {
 		return domain.VEXImportPreview{}, ErrValidation
 	}
-	var doc cycloneDXVEXDocument
-	if err := strictDecode(raw, &doc); err != nil || !strings.EqualFold(strings.TrimSpace(doc.BOMFormat), "cyclonedx") || len(doc.Vulnerabilities) == 0 {
+	doc, err := parseCycloneDXVEX(raw)
+	if err != nil || len(doc.Vulnerabilities) == 0 {
 		return domain.VEXImportPreview{}, ErrValidation
 	}
 	statusSummary, invalidStatements, validStatements := analyzeCycloneDXVEXStatements(doc)
@@ -1142,6 +1186,7 @@ func (l *Ledger) PreviewCycloneDXVEXImport(ctx context.Context, actor domain.Act
 		return domain.VEXImportPreview{}, err
 	}
 	created, superseded, warnings, mappingFailures := l.previewCycloneDXVEXDecisionEffectsLocked(actor.TenantID, releaseID, validStatements)
+	warnings = append(append([]string{}, doc.Warnings...), warnings...)
 	if len(invalidStatements) > 0 {
 		warnings = append(warnings, "One or more CycloneDX VEX vulnerabilities were skipped because required analysis fields were missing or unsupported.")
 	}
@@ -1204,7 +1249,7 @@ func cycloneDXVEXAffectedRefs(vuln cycloneDXVEXVulnerability) map[string]struct{
 	return out
 }
 
-func (l *Ledger) findCycloneDXVEXMatchingFindingsLocked(tenantID, releaseID string, statement cycloneDXVEXStatement) []matchedFinding {
+func (l *Ledger) findCycloneDXVEXMatchingFindingsLocked(tenantID, releaseID string, statement cycloneDXVEXStatement) ([]matchedFinding, bool) {
 	out := []matchedFinding{}
 	for _, scan := range l.scans {
 		if scan.TenantID != tenantID || scan.ReleaseID != releaseID {
@@ -1222,7 +1267,7 @@ func (l *Ledger) findCycloneDXVEXMatchingFindingsLocked(tenantID, releaseID stri
 			out = append(out, matchedFinding{scan: scan, finding: finding})
 		}
 	}
-	return out
+	return unambiguousVEXMatches(out, statement.affectedRefs)
 }
 
 func (l *Ledger) previewCycloneDXVEXDecisionEffectsLocked(tenantID, releaseID string, statements []cycloneDXVEXStatement) (int, int, []string, []domain.VEXImportIssue) {
@@ -1232,7 +1277,11 @@ func (l *Ledger) previewCycloneDXVEXDecisionEffectsLocked(tenantID, releaseID st
 	createdForFinding := map[string]struct{}{}
 	duplicateWarningAdded := false
 	for _, statement := range statements {
-		matches := l.findCycloneDXVEXMatchingFindingsLocked(tenantID, releaseID, statement)
+		matches, ambiguous := l.findCycloneDXVEXMatchingFindingsLocked(tenantID, releaseID, statement)
+		if ambiguous {
+			mappingFailures = append(mappingFailures, vexImportIssue(statement.index, "ambiguous_finding", "Multiple plausible findings matched this CycloneDX VEX vulnerability; no decision would be applied."))
+			continue
+		}
 		if len(matches) == 0 {
 			mappingFailures = append(mappingFailures, vexImportIssue(statement.index, "finding_not_found", "No matching vulnerability scan finding was found for this CycloneDX VEX vulnerability."))
 		}
@@ -1666,6 +1715,9 @@ func sortComponents(values []domain.SBOMComponent) {
 }
 
 func componentKey(component domain.SBOMComponent) string {
+	if component.Identity != "" {
+		return component.Identity
+	}
 	if component.PURL != "" {
 		return component.PURL
 	}

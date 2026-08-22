@@ -43,6 +43,7 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 | Family | File | Function | Call |
 | --- | --- | --- | --- |
 | VEX and vulnerability decisions | `internal/app/vex.go` | `UploadVEXPayload` | `persistReleaseLedgerWithOutboxLocked` |
+| unclassified | `internal/app/cyclonedx_upload.go` | `uploadValidatedCycloneDXSBOMPayload` | `persistReleaseLedgerWithOutboxLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `RecordEvidenceLifecycleEvent` | `persistReleaseLedgerStateLocked` |
 | release ledger and signing | `internal/app/ledger.go` | `ApproveRelease` | `persistReleaseLedgerStateLocked` |
 | release ledger and signing | `internal/app/ledger.go` | `CreateEvidence` | `persistReleaseLedgerStateLocked` |
@@ -57,7 +58,7 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 | release ledger and signing | `internal/app/ledger.go` | `UploadSBOMPayload` | `persistReleaseLedgerWithOutboxLocked` |
 | release ledger and signing | `internal/app/ledger.go` | `UploadVulnerabilityScanPayload` | `persistReleaseLedgerWithOutboxLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `UploadCycloneDXVEX` | `persistReleaseLedgerWithOutboxLocked` |
-| risk and security workflows | `internal/app/risk_workflows.go` | `UploadSPDXSBOM` | `persistReleaseLedgerStateLocked` |
+| unclassified | `internal/app/spdx_upload.go` | `uploadValidatedSPDXSBOMPayload` | `persistReleaseLedgerWithOutboxLocked` |
 
 ## Remaining Broad Relational-State Mutations
 
@@ -126,11 +127,11 @@ These commands commit through focused repositories whenever `UnitOfWorkFactory` 
 | integrity and operations | `internal/app/integrity_runtime.go` | `CreateSigningProvider` | `persistLocked` |
 | integrity and operations | `internal/app/integrity_runtime.go` | `CreateTransparencyCheckpoint` | `persistLocked` |
 | integrity and operations | `internal/app/integrity_runtime.go` | `GenerateBackupManifest` | `persistLocked` |
-| integrity and operations | `internal/app/integrity_runtime.go` | `RevokeSigningKey` | `persistLocked` |
+| integrity and operations | `internal/app/integrity_runtime.go` | `RevokeSigningKeyWithPolicy` | `persistLocked` |
 | integrity and operations | `internal/app/integrity_runtime.go` | `VerifyBackupManifest` | `persistLocked` |
-| integrity and operations | `internal/app/integrity_runtime.go` | `VerifyCosignSignature` | `persistLocked` |
 | integrity and operations | `internal/app/integrity_runtime.go` | `VerifyMerkleBatch` | `persistLocked` |
 | integrity and operations | `internal/app/integrity_runtime.go` | `VerifyObjectRetentionPolicy` | `persistLocked` |
+| integrity and operations | `internal/app/integrity_runtime.go` | `persistCosignVerification` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `CreateArtifactSignature` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `CreateDeploymentEnvironment` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `CreateReleaseCandidate` | `persistLocked` |

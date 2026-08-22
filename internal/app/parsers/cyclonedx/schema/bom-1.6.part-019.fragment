@@ -1,0 +1,301 @@
+          },
+          "uniqueItems": true
+        },
+        "properties": {
+          "type": "array",
+          "title": "Properties",
+          "description": "Provides the ability to document properties in a name-value store. This provides flexibility to include data not officially supported in the standard without having to use additional namespaces or create extensions. Unlike key-value stores, properties support duplicate names, each potentially having different values. Property names of interest to the general public are encouraged to be registered in the [CycloneDX Property Taxonomy](https://github.com/CycloneDX/cyclonedx-property-taxonomy). Formal registration is optional.",
+          "items": {
+            "$ref": "#/definitions/property"
+          }
+        }
+      }
+    },
+    "event": {
+      "title": "Event",
+      "description": "Represents something that happened that may trigger a response.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "uid": {
+          "title": "Unique Identifier (UID)",
+          "description": "The unique identifier of the event.",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "description": "A description of the event.",
+          "type": "string"
+        },
+        "timeReceived": {
+          "title": "Time Received",
+          "description": "The date and time (timestamp) when the event was received.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "data": {
+          "title": "Data",
+          "description": "Encoding of the raw event data.",
+          "$ref": "#/definitions/attachment"
+        },
+        "source": {
+          "title": "Source",
+          "description": "References the component or service that was the source of the event",
+          "$ref": "#/definitions/resourceReferenceChoice"
+        },
+        "target": {
+          "title": "Target",
+          "description": "References the component or service that was the target of the event",
+          "$ref": "#/definitions/resourceReferenceChoice"
+        },
+        "properties": {
+          "type": "array",
+          "title": "Properties",
+          "description": "Provides the ability to document properties in a name-value store. This provides flexibility to include data not officially supported in the standard without having to use additional namespaces or create extensions. Unlike key-value stores, properties support duplicate names, each potentially having different values. Property names of interest to the general public are encouraged to be registered in the [CycloneDX Property Taxonomy](https://github.com/CycloneDX/cyclonedx-property-taxonomy). Formal registration is optional.",
+          "items": {
+            "$ref": "#/definitions/property"
+          }
+        }
+      }
+    },
+    "inputType": {
+      "title": "Input type",
+      "description": "Type that represents various input data types and formats.",
+      "type": "object",
+      "oneOf": [
+        {
+          "required": [
+            "resource"
+          ]
+        },
+        {
+          "required": [
+            "parameters"
+          ]
+        },
+        {
+          "required": [
+            "environmentVars"
+          ]
+        },
+        {
+          "required": [
+            "data"
+          ]
+        }
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "title": "Source",
+          "description": "A reference to the component or service that provided the input to the task (e.g., reference to a service with data flow value of `inbound`)",
+          "examples": [
+            "source code repository",
+            "database"
+          ],
+          "$ref": "#/definitions/resourceReferenceChoice"
+        },
+        "target": {
+          "title": "Target",
+          "description": "A reference to the component or service that received or stored the input if not the task itself (e.g., a local, named storage workspace)",
+          "examples": [
+            "workspace",
+            "directory"
+          ],
+          "$ref": "#/definitions/resourceReferenceChoice"
+        },
+        "resource": {
+          "title": "Resource",
+          "description": "A reference to an independent resource provided as an input to a task by the workflow runtime.",
+          "examples": [
+            "a reference to a configuration file in a repository (i.e., a bom-ref)",
+            "a reference to a scanning service used in a task (i.e., a bom-ref)"
+          ],
+          "$ref": "#/definitions/resourceReferenceChoice"
+        },
+        "parameters": {
+          "title": "Parameters",
+          "description": "Inputs that have the form of parameters with names and values.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/definitions/parameter"
+          }
+        },
+        "environmentVars": {
+          "title": "Environment variables",
+          "description": "Inputs that have the form of parameters with names and values.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/definitions/property"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "data": {
+          "title": "Data",
+          "description": "Inputs that have the form of data.",
+          "$ref": "#/definitions/attachment"
+        },
+        "properties": {
+          "type": "array",
+          "title": "Properties",
+          "description": "Provides the ability to document properties in a name-value store. This provides flexibility to include data not officially supported in the standard without having to use additional namespaces or create extensions. Unlike key-value stores, properties support duplicate names, each potentially having different values. Property names of interest to the general public are encouraged to be registered in the [CycloneDX Property Taxonomy](https://github.com/CycloneDX/cyclonedx-property-taxonomy). Formal registration is optional.",
+          "items": {
+            "$ref": "#/definitions/property"
+          }
+        }
+      }
+    },
+    "outputType": {
+      "type": "object",
+      "oneOf": [
+        {
+          "required": [
+            "resource"
+          ]
+        },
+        {
+          "required": [
+            "environmentVars"
+          ]
+        },
+        {
+          "required": [
+            "data"
+          ]
+        }
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "title": "Type",
+          "description": "Describes the type of data output.",
+          "type": "string",
+          "enum": [
+            "artifact",
+            "attestation",
+            "log",
+            "evidence",
+            "metrics",
+            "other"
+          ]
+        },
+        "source": {
+          "title": "Source",
+          "description": "Component or service that generated or provided the output from the task (e.g., a build tool)",
+          "$ref": "#/definitions/resourceReferenceChoice"
+        },
+        "target": {
+          "title": "Target",
+          "description": "Component or service that received the output from the task (e.g., reference to an artifactory service with data flow value of `outbound`)",
+          "examples": ["a log file described as an `externalReference` within its target domain."],
+          "$ref": "#/definitions/resourceReferenceChoice"
+        },
+        "resource": {
+          "title": "Resource",
+          "description": "A reference to an independent resource generated as output by the task.",
+          "examples": [
+            "configuration file",
+            "source code",
+            "scanning service"
+          ],
+          "$ref": "#/definitions/resourceReferenceChoice"
+        },
+        "data": {
+          "title": "Data",
+          "description": "Outputs that have the form of data.",
+          "$ref": "#/definitions/attachment"
+        },
+        "environmentVars": {
+          "title": "Environment variables",
+          "description": "Outputs that have the form of environment variables.",
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/definitions/property"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "uniqueItems": true
+        },
+        "properties": {
+          "type": "array",
+          "title": "Properties",
+          "description": "Provides the ability to document properties in a name-value store. This provides flexibility to include data not officially supported in the standard without having to use additional namespaces or create extensions. Unlike key-value stores, properties support duplicate names, each potentially having different values. Property names of interest to the general public are encouraged to be registered in the [CycloneDX Property Taxonomy](https://github.com/CycloneDX/cyclonedx-property-taxonomy). Formal registration is optional.",
+          "items": {
+            "$ref": "#/definitions/property"
+          }
+        }
+      }
+    },
+    "resourceReferenceChoice": {
+      "title": "Resource reference choice",
+      "description": "A reference to a locally defined resource (e.g., a bom-ref) or an externally accessible resource.",
+      "$comment": "Enables reference to a resource that participates in a workflow; using either internal (bom-ref) or external (externalReference) types.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ref": {
+          "title": "BOM Reference",
+          "description": "References an object by its bom-ref attribute",
+          "anyOf": [
+            {
+              "title": "Ref",
+              "$ref": "#/definitions/refLinkType"
+            },
+            {
+              "title": "BOM-Link Element",
+              "$ref": "#/definitions/bomLinkElementType"
+            }
+          ]
+        },
+        "externalReference": {
+          "title": "External reference",
+          "description": "Reference to an externally accessible resource.",
+          "$ref": "#/definitions/externalReference"
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "ref"
+          ]
+        },
+        {
+          "required": [
+            "externalReference"
+          ]
+        }
+      ]
+    },
+    "condition": {
+      "title": "Condition",
+      "description": "A condition that was used to determine a trigger should be activated.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "title": "Description",
+          "description": "Describes the set of conditions which cause the trigger to activate.",
+          "type": "string"
+        },
+        "expression": {
+          "title": "Expression",
+          "description": "The logical expression that was evaluated that determined the trigger should be fired.",
+          "type": "string"
+        },
+        "properties": {
+          "type": "array",
+          "title": "Properties",
+          "description": "Provides the ability to document properties in a name-value store. This provides flexibility to include data not officially supported in the standard without having to use additional namespaces or create extensions. Unlike key-value stores, properties support duplicate names, each potentially having different values. Property names of interest to the general public are encouraged to be registered in the [CycloneDX Property Taxonomy](https://github.com/CycloneDX/cyclonedx-property-taxonomy). Formal registration is optional.",

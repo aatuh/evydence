@@ -122,6 +122,10 @@ func (f *Fetcher) FetchTransparencyProof(ctx context.Context, req app.Transparen
 	if err := decoder.Decode(&decoded); err != nil {
 		return app.TransparencyProofResult{}, app.ErrVerificationFailed
 	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		return app.TransparencyProofResult{}, app.ErrVerificationFailed
+	}
 	if decoder.InputOffset() > maxBodyBytes {
 		return app.TransparencyProofResult{}, app.ErrVerificationFailed
 	}

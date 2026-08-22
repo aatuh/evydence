@@ -1,0 +1,1 @@
+{"scanner":"generic","target_ref":"pkg:oci/example@sha256:111","release_id":"rel_test","findings":[{"vulnerability":"CVE-2026-0001","component":"pkg:golang/example.com/demo@1.0.0","severity":"HIGH","state":"open","severity_source":"operator","fix_version":"1.0.1"}]}

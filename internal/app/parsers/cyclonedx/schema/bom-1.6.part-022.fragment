@@ -1,0 +1,276 @@
+              "title": "Implementation platform",
+              "description": "The target platform for which the algorithm is implemented. The implementation can be 'generic', running on any platform or for a specific platform.",
+              "enum": [
+                "generic",
+                "x86_32",
+                "x86_64",
+                "armv7-a",
+                "armv7-m",
+                "armv8-a",
+                "armv8-m",
+                "armv9-a",
+                "armv9-m",
+                "s390x",
+                "ppc64",
+                "ppc64le",
+                "other",
+                "unknown"
+              ]
+            },
+            "certificationLevel": {
+              "type": "array",
+              "title": "Certification Level",
+              "description": "The certification that the implementation of the cryptographic algorithm has received, if any. Certifications include revisions and levels of FIPS 140 or Common Criteria of different Extended Assurance Levels (CC-EAL).",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "fips140-1-l1",
+                  "fips140-1-l2",
+                  "fips140-1-l3",
+                  "fips140-1-l4",
+                  "fips140-2-l1",
+                  "fips140-2-l2",
+                  "fips140-2-l3",
+                  "fips140-2-l4",
+                  "fips140-3-l1",
+                  "fips140-3-l2",
+                  "fips140-3-l3",
+                  "fips140-3-l4",
+                  "cc-eal1",
+                  "cc-eal1+",
+                  "cc-eal2",
+                  "cc-eal2+",
+                  "cc-eal3",
+                  "cc-eal3+",
+                  "cc-eal4",
+                  "cc-eal4+",
+                  "cc-eal5",
+                  "cc-eal5+",
+                  "cc-eal6",
+                  "cc-eal6+",
+                  "cc-eal7",
+                  "cc-eal7+",
+                  "other",
+                  "unknown"
+                ],
+                "meta:enum": {
+                  "none": "No certification obtained",
+                  "fips140-1-l1": "FIPS 140-1 Level 1",
+                  "fips140-1-l2": "FIPS 140-1 Level 2",
+                  "fips140-1-l3": "FIPS 140-1 Level 3",
+                  "fips140-1-l4": "FIPS 140-1 Level 4",
+                  "fips140-2-l1": "FIPS 140-2 Level 1",
+                  "fips140-2-l2": "FIPS 140-2 Level 2",
+                  "fips140-2-l3": "FIPS 140-2 Level 3",
+                  "fips140-2-l4": "FIPS 140-2 Level 4",
+                  "fips140-3-l1": "FIPS 140-3 Level 1",
+                  "fips140-3-l2": "FIPS 140-3 Level 2",
+                  "fips140-3-l3": "FIPS 140-3 Level 3",
+                  "fips140-3-l4": "FIPS 140-3 Level 4",
+                  "cc-eal1": "Common Criteria - Evaluation Assurance Level 1",
+                  "cc-eal1+": "Common Criteria - Evaluation Assurance Level 1 (Augmented)",
+                  "cc-eal2": "Common Criteria - Evaluation Assurance Level 2",
+                  "cc-eal2+": "Common Criteria - Evaluation Assurance Level 2 (Augmented)",
+                  "cc-eal3": "Common Criteria - Evaluation Assurance Level 3",
+                  "cc-eal3+": "Common Criteria - Evaluation Assurance Level 3 (Augmented)",
+                  "cc-eal4": "Common Criteria - Evaluation Assurance Level 4",
+                  "cc-eal4+": "Common Criteria - Evaluation Assurance Level 4 (Augmented)",
+                  "cc-eal5": "Common Criteria - Evaluation Assurance Level 5",
+                  "cc-eal5+": "Common Criteria - Evaluation Assurance Level 5 (Augmented)",
+                  "cc-eal6": "Common Criteria - Evaluation Assurance Level 6",
+                  "cc-eal6+": "Common Criteria - Evaluation Assurance Level 6 (Augmented)",
+                  "cc-eal7": "Common Criteria - Evaluation Assurance Level 7",
+                  "cc-eal7+": "Common Criteria - Evaluation Assurance Level 7 (Augmented)",
+                  "other": "Another certification",
+                  "unknown": "The certification level is not known"
+                }
+              }
+            },
+            "mode": {
+              "type": "string",
+              "title": "Mode",
+              "description": "The mode of operation in which the cryptographic algorithm (block cipher) is used.",
+              "enum": [
+                "cbc",
+                "ecb",
+                "ccm",
+                "gcm",
+                "cfb",
+                "ofb",
+                "ctr",
+                "other",
+                "unknown"
+              ],
+              "meta:enum": {
+                "cbc": "Cipher block chaining",
+                "ecb": "Electronic codebook",
+                "ccm": "Counter with cipher block chaining message authentication code",
+                "gcm": "Galois/counter",
+                "cfb": "Cipher feedback",
+                "ofb": "Output feedback",
+                "ctr": "Counter",
+                "other": "Another mode of operation",
+                "unknown": "The mode of operation is not known"
+              }
+            },
+            "padding": {
+              "type": "string",
+              "title": "Padding",
+              "description": "The padding scheme that is used for the cryptographic algorithm.",
+              "enum": [
+                "pkcs5",
+                "pkcs7",
+                "pkcs1v15",
+                "oaep",
+                "raw",
+                "other",
+                "unknown"
+              ],
+              "meta:enum": {
+                "pkcs5": "Public Key Cryptography Standard: Password-Based Cryptography",
+                "pkcs7": "Public Key Cryptography Standard: Cryptographic Message Syntax",
+                "pkcs1v15": "Public Key Cryptography Standard: RSA Cryptography v1.5",
+                "oaep": "Optimal asymmetric encryption padding",
+                "raw": "Raw",
+                "other": "Another padding scheme",
+                "unknown": "The padding scheme is not known"
+              }
+            },
+            "cryptoFunctions": {
+              "type": "array",
+              "title": "Cryptographic functions",
+              "description": "The cryptographic functions implemented by the cryptographic algorithm.",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "generate",
+                  "keygen",
+                  "encrypt",
+                  "decrypt",
+                  "digest",
+                  "tag",
+                  "keyderive",
+                  "sign",
+                  "verify",
+                  "encapsulate",
+                  "decapsulate",
+                  "other",
+                  "unknown"
+                ]
+              }
+            },
+            "classicalSecurityLevel": {
+              "type": "integer",
+              "title": "classical security level",
+              "description": "The classical security level that a cryptographic algorithm provides (in bits).",
+              "minimum": 0
+            },
+            "nistQuantumSecurityLevel": {
+              "type": "integer",
+              "title": "NIST security strength category",
+              "description": "The NIST security strength category as defined in https://csrc.nist.gov/projects/post-quantum-cryptography/post-quantum-cryptography-standardization/evaluation-criteria/security-(evaluation-criteria). A value of 0 indicates that none of the categories are met.",
+              "minimum": 0,
+              "maximum": 6
+            }
+          }
+        },
+        "certificateProperties": {
+          "type": "object",
+          "title": "Certificate Properties",
+          "description": "Properties for cryptographic assets of asset type 'certificate'",
+          "additionalProperties": false,
+          "properties": {
+            "subjectName": {
+              "type": "string",
+              "title": "Subject Name",
+              "description": "The subject name for the certificate"
+            },
+            "issuerName": {
+              "type": "string",
+              "title": "Issuer Name",
+              "description": "The issuer name for the certificate"
+            },
+            "notValidBefore": {
+              "type": "string",
+              "format": "date-time",
+              "title": "Not Valid Before",
+              "description": "The date and time according to ISO-8601 standard from which the certificate is valid"
+            },
+            "notValidAfter": {
+              "type": "string",
+              "format": "date-time",
+              "title": "Not Valid After",
+              "description": "The date and time according to ISO-8601 standard from which the certificate is not valid anymore"
+            },
+            "signatureAlgorithmRef": {
+              "$ref": "#/definitions/refType",
+              "title": "Algorithm Reference",
+              "description": "The bom-ref to signature algorithm used by the certificate"
+            },
+            "subjectPublicKeyRef": {
+              "$ref": "#/definitions/refType",
+              "title": "Key reference",
+              "description": "The bom-ref to the public key of the subject"
+            },
+            "certificateFormat": {
+              "type": "string",
+              "title": "Certificate Format",
+              "description": "The format of the certificate",
+              "examples": [
+                "X.509",
+                "PEM",
+                "DER",
+                "CVC"
+              ]
+            },
+            "certificateExtension": {
+              "type": "string",
+              "title": "Certificate File Extension",
+              "description": "The file extension of the certificate",
+              "examples": [
+                "crt",
+                "pem",
+                "cer",
+                "der",
+                "p12"
+              ]
+            }
+          }
+        },
+        "relatedCryptoMaterialProperties": {
+          "type": "object",
+          "title": "Related Cryptographic Material Properties",
+          "description": "Properties for cryptographic assets of asset type: `related-crypto-material`",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string",
+              "title": "relatedCryptoMaterialType",
+              "description": "The type for the related cryptographic material",
+              "enum": [
+                "private-key",
+                "public-key",
+                "secret-key",
+                "key",
+                "ciphertext",
+                "signature",
+                "digest",
+                "initialization-vector",
+                "nonce",
+                "seed",
+                "salt",
+                "shared-secret",
+                "tag",
+                "additional-data",
+                "password",
+                "credential",
+                "token",
+                "other",
+                "unknown"
+              ],
+              "meta:enum": {
+                "private-key": "The confidential key of a key pair used in asymmetric cryptography.",
+                "public-key": "The non-confidential key of a key pair used in asymmetric cryptography.",
+                "secret-key": "A key used to encrypt and decrypt messages in symmetric cryptography.",
+                "key": "A piece of information, usually an octet string, which, when processed through a cryptographic algorithm, processes cryptographic data.",

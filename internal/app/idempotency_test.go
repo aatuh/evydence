@@ -341,6 +341,25 @@ func TestWithIdempotencyStoresOnlySafeFailedState(t *testing.T) {
 	}
 }
 
+func TestWithIdempotencyAllowsRetryAfterTransientSigningFailure(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	actor := domain.Actor{TenantID: "tenant-idempotency-retry", KeyID: "key-idempotency-retry"}
+	body := []byte(`{"provider_id":"provider"}`)
+	if _, _, err := ledger.WithIdempotency(context.Background(), actor, "POST", "/v1/signing-operations", "retry-key", body, func(context.Context, *Ledger) (int, any, error) {
+		return 503, nil, ErrRetryableSigning
+	}); !errors.Is(err, ErrRetryableSigning) {
+		t.Fatalf("first signing request err=%v, want retryable signing error", err)
+	}
+	ranAgain := false
+	status, response, err := ledger.WithIdempotency(context.Background(), actor, "POST", "/v1/signing-operations", "retry-key", body, func(context.Context, *Ledger) (int, any, error) {
+		ranAgain = true
+		return 201, map[string]any{"id": "sop_1"}, nil
+	})
+	if err != nil || !ranAgain || status != 201 || response.(map[string]any)["id"] != "sop_1" {
+		t.Fatalf("retry status=%d response=%#v ran=%t err=%v", status, response, ranAgain, err)
+	}
+}
+
 func TestWithIdempotencyReplaysLegacyRecordsAndReplacesExpiredKeys(t *testing.T) {
 	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	actor := domain.Actor{TenantID: "tenant-idempotency-legacy", KeyID: "key-idempotency-legacy"}

@@ -1,6 +1,9 @@
 package main
 
 import (
+	"encoding/base64"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -201,6 +204,34 @@ func TestBoolEnvRequiresExplicitTrue(t *testing.T) {
 	}
 }
 
+func TestOpenCosignVerifierRequiresBoundedVersionedTrustMaterial(t *testing.T) {
+	if verifier, err := openCosignVerifier(); err != nil || verifier != nil {
+		t.Fatalf("empty optional Cosign config verifier=%T err=%v", verifier, err)
+	}
+	t.Setenv("EVYDENCE_SIGSTORE_TRUST_ROOT_JSON_BASE64", base64.StdEncoding.EncodeToString([]byte("{}")))
+	if _, err := openCosignVerifier(); err == nil || !strings.Contains(err.Error(), "TRUST_ROOT_VERSION") {
+		t.Fatalf("missing trust-root version err=%v", err)
+	}
+	t.Setenv("EVYDENCE_SIGSTORE_TRUST_ROOT_VERSION", "test-root.v1")
+	t.Setenv("EVYDENCE_SIGSTORE_TRUST_ROOT_JSON_BASE64", "%%%")
+	if _, err := openCosignVerifier(); err == nil || !strings.Contains(err.Error(), "invalid") {
+		t.Fatalf("malformed trust-root encoding err=%v", err)
+	}
+	t.Setenv("EVYDENCE_SIGSTORE_TRUST_ROOT_JSON_BASE64", strings.Repeat("A", base64.StdEncoding.EncodedLen(maxSigstoreTrustConfigBytes)+1))
+	if _, err := openCosignVerifier(); err == nil || !strings.Contains(err.Error(), "invalid") {
+		t.Fatalf("oversized trust-root encoding err=%v", err)
+	}
+
+	root, err := os.ReadFile(filepath.Join("..", "..", "internal", "adapters", "verification", "sigstore", "testdata", "official-scaffolding.trusted-root.json"))
+	if err != nil {
+		t.Fatalf("read Sigstore fixture root: %v", err)
+	}
+	t.Setenv("EVYDENCE_SIGSTORE_TRUST_ROOT_JSON_BASE64", base64.StdEncoding.EncodeToString(root))
+	if verifier, err := openCosignVerifier(); err != nil || verifier == nil {
+		t.Fatalf("valid trust-root config verifier=%T err=%v", verifier, err)
+	}
+}
+
 func TestOpenObjectStoreRejectsIncompleteS3Config(t *testing.T) {
 	t.Setenv("EVYDENCE_OBJECT_STORE", "s3")
 	t.Setenv("EVYDENCE_S3_ENDPOINT", "localhost:9000")
@@ -216,6 +247,7 @@ func TestOpenSigningExecutorRequiresHTTPSUnlessLocalOverride(t *testing.T) {
 	}
 	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_URL", "http://127.0.0.1/sign")
 	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST", "true")
+	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_PUBLIC_KEY_BASE64", base64.StdEncoding.EncodeToString(make([]byte, 32)))
 	signer, err := openSigningExecutor()
 	if err != nil {
 		t.Fatalf("localhost signer should be accepted: %v", err)
@@ -229,6 +261,7 @@ func TestOpenSigningExecutorUsesGatewayForNonAWSKMSModes(t *testing.T) {
 	t.Setenv("EVYDENCE_SIGNING_KEY_MODE", "gcp-kms")
 	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_URL", "http://127.0.0.1/sign")
 	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST", "true")
+	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_PUBLIC_KEY_BASE64", base64.StdEncoding.EncodeToString(make([]byte, 32)))
 	signer, err := openSigningExecutor()
 	if err != nil {
 		t.Fatalf("gcp-kms gateway signer should be accepted: %v", err)
@@ -261,7 +294,6 @@ func TestOpenSigningExecutorConfiguresDirectGCPKMS(t *testing.T) {
 func TestOpenSigningExecutorConfiguresDirectAzureKeyVault(t *testing.T) {
 	t.Setenv("EVYDENCE_SIGNING_KEY_MODE", "azure-key-vault")
 	t.Setenv("EVYDENCE_AZURE_KEY_VAULT_URL", "https://vault.example.test")
-	t.Setenv("EVYDENCE_AZURE_KEY_VAULT_ACCESS_TOKEN", "access-token")
 	t.Setenv("EVYDENCE_AZURE_KEY_VAULT_KEY_NAME", "evydence")
 	t.Setenv("EVYDENCE_AZURE_KEY_VAULT_KEY_VERSION", "v1")
 	signer, err := openSigningExecutor()

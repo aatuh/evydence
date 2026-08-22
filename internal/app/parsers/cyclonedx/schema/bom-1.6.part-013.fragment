@@ -1,0 +1,273 @@
+          "title": "Impact Analysis",
+          "description": "An assessment of the impact and exploitability of the vulnerability.",
+          "additionalProperties": false,
+          "properties": {
+            "state": {
+              "$ref": "#/definitions/impactAnalysisState"
+            },
+            "justification": {
+              "$ref": "#/definitions/impactAnalysisJustification"
+            },
+            "response": {
+              "type": "array",
+              "title": "Response",
+              "description": "A response to the vulnerability by the manufacturer, supplier, or project responsible for the affected component or service. More than one response is allowed. Responses are strongly encouraged for vulnerabilities where the analysis state is exploitable.",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "can_not_fix",
+                  "will_not_fix",
+                  "update",
+                  "rollback",
+                  "workaround_available"
+                ],
+                "meta:enum": {
+                  "can_not_fix": "Can not fix",
+                  "will_not_fix": "Will not fix",
+                  "update": "Update to a different revision or release",
+                  "rollback": "Revert to a previous revision or release",
+                  "workaround_available": "There is a workaround available"
+                }
+              }
+            },
+            "detail": {
+              "type": "string",
+              "title": "Detail",
+              "description": "Detailed description of the impact including methods used during assessment. If a vulnerability is not exploitable, this field should include specific details on why the component or service is not impacted by this vulnerability."
+            },
+            "firstIssued": {
+              "type": "string",
+              "format": "date-time",
+              "title": "First Issued",
+              "description": "The date and time (timestamp) when the analysis was first issued."
+            },
+            "lastUpdated": {
+              "type": "string",
+              "format": "date-time",
+              "title": "Last Updated",
+              "description": "The date and time (timestamp) when the analysis was last updated."
+            }
+          }
+        },
+        "affects": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "required": [
+              "ref"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "ref": {
+                "anyOf": [
+                  {
+                    "title": "Ref",
+                    "$ref": "#/definitions/refLinkType"
+                  },
+                  {
+                    "title": "BOM-Link Element",
+                    "$ref": "#/definitions/bomLinkElementType"
+                  }
+                ],
+                "title": "Reference",
+                "description": "References a component or service by the objects bom-ref"
+              },
+              "versions": {
+                "type": "array",
+                "title": "Versions",
+                "description": "Zero or more individual versions or range of versions.",
+                "items": {
+                  "type": "object",
+                  "oneOf": [
+                    {
+                      "required": ["version"]
+                    },
+                    {
+                      "required": ["range"]
+                    }
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "version": {
+                      "title": "Version",
+                      "description": "A single version of a component or service.",
+                      "$ref": "#/definitions/version"
+                    },
+                    "range": {
+                      "title": "Version Range",
+                      "description": "A version range specified in Package URL Version Range syntax (vers) which is defined at https://github.com/package-url/vers-spec",
+                      "$ref": "#/definitions/versionRange"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "description": "The vulnerability status for the version or range of versions.",
+                      "$ref": "#/definitions/affectedStatus",
+                      "default": "affected"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "title": "Affects",
+          "description": "The components or services that are affected by the vulnerability."
+        },
+        "properties": {
+          "type": "array",
+          "title": "Properties",
+          "description": "Provides the ability to document properties in a name-value store. This provides flexibility to include data not officially supported in the standard without having to use additional namespaces or create extensions. Unlike key-value stores, properties support duplicate names, each potentially having different values. Property names of interest to the general public are encouraged to be registered in the [CycloneDX Property Taxonomy](https://github.com/CycloneDX/cyclonedx-property-taxonomy). Formal registration is optional.",
+          "items": {
+            "$ref": "#/definitions/property"
+          }
+        }
+      }
+    },
+    "affectedStatus": {
+      "description": "The vulnerability status of a given version or range of versions of a product. The statuses 'affected' and 'unaffected' indicate that the version is affected or unaffected by the vulnerability. The status 'unknown' indicates that it is unknown or unspecified whether the given version is affected. There can be many reasons for an 'unknown' status, including that an investigation has not been undertaken or that a vendor has not disclosed the status.",
+      "type": "string",
+      "enum": [
+        "affected",
+        "unaffected",
+        "unknown"
+      ],
+      "meta:enum": {
+        "affected": "The version is affected by the vulnerability.",
+        "unaffected": "The version is not affected by the vulnerability.",
+        "unknown": "It is unknown (or unspecified) whether the given version is affected."
+      }
+    },
+    "version": {
+      "description": "A single disjunctive version identifier, for a component or service.",
+      "type": "string",
+      "maxLength": 1024,
+      "examples": [
+        "9.0.14",
+        "v1.33.7",
+        "7.0.0-M1",
+        "2.0pre1",
+        "1.0.0-beta1",
+        "0.8.15"
+      ]
+    },
+    "versionRange": {
+      "description": "A version range specified in Package URL Version Range syntax (vers) which is defined at https://github.com/package-url/vers-spec",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "examples": [
+        "vers:cargo/9.0.14",
+        "vers:npm/1.2.3|>=2.0.0|<5.0.0",
+        "vers:pypi/0.0.0|0.0.1|0.0.2|0.0.3|1.0|2.0pre1",
+        "vers:tomee/>=1.0.0-beta1|<=1.7.5|>=7.0.0-M1|<=7.0.7|>=7.1.0|<=7.1.2|>=8.0.0-M1|<=8.0.1",
+        "vers:gem/>=2.2.0|!= 2.2.1|<2.3.0"
+      ]
+    },
+    "range": {
+      "deprecated": true,
+      "description": "Deprecated definition. use definition `versionRange` instead.",
+      "$ref": "#/definitions/versionRange"
+    },
+    "annotations": {
+      "type": "object",
+      "title": "Annotations",
+      "description": "A comment, note, explanation, or similar textual content which provides additional context to the object(s) being annotated.",
+      "required": [
+        "subjects",
+        "annotator",
+        "timestamp",
+        "text"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "bom-ref": {
+          "$ref": "#/definitions/refType",
+          "title": "BOM Reference",
+          "description": "An optional identifier which can be used to reference the annotation elsewhere in the BOM. Every bom-ref must be unique within the BOM.\nValue SHOULD not start with the BOM-Link intro 'urn:cdx:' to avoid conflicts with BOM-Links."
+        },
+        "subjects": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "anyOf": [
+              {
+                "title": "Ref",
+                "$ref": "#/definitions/refLinkType"
+              },
+              {
+                "title": "BOM-Link Element",
+                "$ref": "#/definitions/bomLinkElementType"
+              }
+            ]
+          },
+          "title": "Subjects",
+          "description": "The object in the BOM identified by its bom-ref. This is often a component or service, but may be any object type supporting bom-refs."
+        },
+        "annotator": {
+          "type": "object",
+          "title": "Annotator",
+          "description": "The organization, person, component, or service which created the textual content of the annotation.",
+          "oneOf": [
+            {
+              "required": [
+                "organization"
+              ]
+            },
+            {
+              "required": [
+                "individual"
+              ]
+            },
+            {
+              "required": [
+                "component"
+              ]
+            },
+            {
+              "required": [
+                "service"
+              ]
+            }
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "organization": {
+              "description": "The organization that created the annotation",
+              "$ref": "#/definitions/organizationalEntity"
+            },
+            "individual": {
+              "description": "The person that created the annotation",
+              "$ref": "#/definitions/organizationalContact"
+            },
+            "component": {
+              "description": "The tool or component that created the annotation",
+              "$ref": "#/definitions/component"
+            },
+            "service": {
+              "description": "The service that created the annotation",
+              "$ref": "#/definitions/service"
+            }
+          }
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "title": "Timestamp",
+          "description": "The date and time (timestamp) when the annotation was created."
+        },
+        "text": {
+          "type": "string",
+          "title": "Text",
+          "description": "The textual content of the annotation."
+        },
+        "signature": {
+          "$ref": "#/definitions/signature",
+          "title": "Signature",
+          "description": "Enveloped signature in [JSON Signature Format (JSF)](https://cyberphone.github.io/doc/security/jsf.html)."
+        }
+      }
+    },
+    "modelCard": {
+      "$comment": "Model card support in CycloneDX is derived from TensorFlow Model Card Toolkit released under the Apache 2.0 license and available from https://github.com/tensorflow/model-card-toolkit/blob/main/model_card_toolkit/schema/v0.0.2/model_card.schema.json. In addition, CycloneDX model card support includes portions of VerifyML, also released under the Apache 2.0 license and available from https://github.com/cylynx/verifyml/blob/main/verifyml/model_card_toolkit/schema/v0.0.4/model_card.schema.json.",
+      "type": "object",
+      "title": "Model Card",

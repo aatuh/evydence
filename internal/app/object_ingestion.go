@@ -73,18 +73,17 @@ func (l *Ledger) stagePayloadSource(ctx context.Context, tenantID, mediaType str
 func newStagedObjectPayload(tenantID, mediaType, digest string, now time.Time) (ObjectPayload, error) {
 	tenantID = strings.TrimSpace(tenantID)
 	mediaType = strings.TrimSpace(mediaType)
-	if tenantID == "" || !validDigest(digest) {
+	stagingKey, finalKey, err := CanonicalObjectPayloadKeys(tenantID, digest)
+	if err != nil || ValidateObjectMediaType(mediaType) != nil {
 		return ObjectPayload{}, ErrValidation
 	}
-	digestPart := strings.TrimPrefix(digest, "sha256:")
-	prefix := "tenants/" + tenantID + "/"
 	now = now.UTC()
 	return ObjectPayload{
 		TenantID:   tenantID,
 		Digest:     digest,
 		MediaType:  mediaType,
-		StagingKey: prefix + "staging/sha256/" + digestPart,
-		FinalKey:   prefix + "payloads/sha256/" + digestPart,
+		StagingKey: stagingKey,
+		FinalKey:   finalKey,
 		Status:     ObjectPayloadStaged,
 		CreatedAt:  now,
 		UpdatedAt:  now,
@@ -107,9 +106,9 @@ func (p ObjectPayload) present() bool {
 }
 
 func validateObjectPayload(payload ObjectPayload) error {
-	prefix := "tenants/" + strings.TrimSpace(payload.TenantID) + "/"
-	if strings.TrimSpace(payload.TenantID) == "" || !validDigest(payload.Digest) || payload.Size < 0 ||
-		!strings.HasPrefix(payload.StagingKey, prefix) || !strings.HasPrefix(payload.FinalKey, prefix) ||
+	stagingKey, finalKey, err := CanonicalObjectPayloadKeys(payload.TenantID, payload.Digest)
+	if err != nil || ValidateObjectMediaType(payload.MediaType) != nil || payload.Size < 0 ||
+		payload.StagingKey != stagingKey || payload.FinalKey != finalKey ||
 		payload.CreatedAt.IsZero() || payload.UpdatedAt.IsZero() {
 		return ErrValidation
 	}
@@ -219,8 +218,5 @@ func RequireFinalizedObjectPayload(ctx context.Context, lifecycle ObjectPayloadL
 }
 
 func verifyFinalizedPayloadObject(payload ObjectPayload, object Object) error {
-	if object.TenantID != payload.TenantID || object.Key != payload.FinalKey || object.Digest != payload.Digest || int64(len(object.Bytes)) != payload.Size {
-		return ErrValidation
-	}
-	return nil
+	return VerifyObjectPayloadRead(payload, object, payload.FinalKey)
 }

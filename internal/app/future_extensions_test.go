@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -93,6 +95,36 @@ func TestFutureExtensionsAreEvidenceBackedAndTenantScoped(t *testing.T) {
 	_ = artifact
 }
 
+func TestVerifyRFC6962StyleProofRejectsInvalidIrregularTreeShape(t *testing.T) {
+	body, err := os.ReadFile(filepath.Join("..", "..", "testdata", "verification", "rfc6962-tree-size-3.v1.json"))
+	if err != nil {
+		t.Fatalf("read verification vector: %v", err)
+	}
+	var vector struct {
+		SchemaVersion  string   `json:"schema_version"`
+		TreeSize       int      `json:"tree_size"`
+		LeafIndex      int      `json:"leaf_index"`
+		LeafHash       string   `json:"leaf_hash"`
+		InclusionProof []string `json:"inclusion_proof"`
+		RootHash       string   `json:"root_hash"`
+	}
+	if err := json.Unmarshal(body, &vector); err != nil {
+		t.Fatalf("decode verification vector: %v", err)
+	}
+	if vector.SchemaVersion != "evydence-rfc6962-style-proof-vector.v1" {
+		t.Fatalf("unsupported vector schema %q", vector.SchemaVersion)
+	}
+	if !verifyRFC6962StyleProof(vector.LeafHash, vector.RootHash, vector.LeafIndex, vector.TreeSize, vector.InclusionProof) {
+		t.Fatal("valid irregular-tree inclusion proof was rejected")
+	}
+	if verifyRFC6962StyleProof(vector.LeafHash, vector.RootHash, vector.LeafIndex, vector.TreeSize, append(vector.InclusionProof, hashBytes([]byte("extra")))) {
+		t.Fatal("proof with an extra hash was accepted")
+	}
+	if verifyRFC6962StyleProof(vector.LeafHash, vector.RootHash, vector.LeafIndex, vector.TreeSize, nil) {
+		t.Fatal("proof with a missing hash was accepted")
+	}
+}
+
 func TestFetchAndVerifyPublicTransparencyLogEntryUsesFetcher(t *testing.T) {
 	fetcher := &fakeTransparencyProofFetcher{}
 	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Transparency: fetcher})
@@ -132,7 +164,7 @@ func TestFetchAndVerifyPublicTransparencyLogEntryUsesFetcher(t *testing.T) {
 }
 
 func TestFutureOperationalExtensionsAndPartialTrustClosures(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Signer: &fakeSigningExecutor{}})
 	ctx := context.Background()
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*", ScopeInstanceAdmin})
 	if err != nil {
@@ -200,7 +232,7 @@ func TestFutureOperationalExtensionsAndPartialTrustClosures(t *testing.T) {
 	if err != nil {
 		t.Fatalf("signing provider: %v", err)
 	}
-	op, err := ledger.CreateSigningOperation(ctx, actor, CreateSigningOperationInput{ProviderID: provider.ID, SubjectType: "release", SubjectID: release.ID, PayloadHash: sampleDigest("payload"), ExternalSignature: "sig"})
+	op, err := ledger.CreateSigningOperation(ctx, actor, CreateSigningOperationInput{ProviderID: provider.ID, SubjectType: "release", SubjectID: release.ID, PayloadHash: sampleDigest("payload")})
 	if err != nil {
 		t.Fatalf("signing operation: %v", err)
 	}
@@ -279,7 +311,7 @@ func TestFutureOperationalExtensionsAndPartialTrustClosures(t *testing.T) {
 	if _, err := ledger.VerifyPublicTransparencyLogEntry(ctx, other, entry.ID, VerifyPublicTransparencyLogEntryInput{RootHash: rootHash, LeafIndex: 0, TreeSize: 2, InclusionProof: []string{siblingHash}}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("cross tenant transparency verification err=%v, want not found", err)
 	}
-	if _, err := ledger.CreateSigningOperation(ctx, other, CreateSigningOperationInput{ProviderID: provider.ID, SubjectType: "release", SubjectID: release.ID, PayloadHash: sampleDigest("payload"), ExternalSignature: "sig"}); !errors.Is(err, ErrNotFound) {
+	if _, err := ledger.CreateSigningOperation(ctx, other, CreateSigningOperationInput{ProviderID: provider.ID, SubjectType: "release", SubjectID: release.ID, PayloadHash: sampleDigest("payload")}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("cross tenant signing operation err=%v, want not found", err)
 	}
 	if _, err := ledger.CreateSaaSEditionProfile(ctx, other, CreateSaaSEditionProfileInput{Name: "bad", Region: "eu", AdminTenantID: other.TenantID, IsolationModel: "shared-control-plane"}); !errors.Is(err, ErrForbidden) {
@@ -294,10 +326,16 @@ type fakeSigningExecutor struct {
 func (f *fakeSigningExecutor) Sign(_ context.Context, request SigningRequest) (SigningResult, error) {
 	f.request = request
 	return SigningResult{
-		Signature: "sig_from_executor",
-		KeyID:     "kms-key-1",
-		Algorithm: "external-aws_kms",
-		Checks:    []domain.VerifyCheck{{Name: "fake_executor", Result: "passed"}},
+		Signature:            "sig_from_executor",
+		KeyID:                "kms-key-1",
+		Algorithm:            "external-aws_kms",
+		ProviderID:           request.ProviderID,
+		ProviderType:         request.ProviderType,
+		KeyRef:               request.KeyRef,
+		CanonicalPayloadHash: request.CanonicalPayloadHash,
+		RequestID:            request.RequestID,
+		ProviderRequestID:    "provider-request-123",
+		Checks:               []domain.VerifyCheck{{Name: "fake_executor", Result: "passed"}},
 	}, nil
 }
 
@@ -342,14 +380,66 @@ func TestSigningOperationCanExecuteConfiguredSignerWithoutPrivateKey(t *testing.
 	if err != nil {
 		t.Fatalf("signing operation: %v", err)
 	}
-	if op.Result != "passed" || op.SignatureRef == "" {
+	if op.Result != "passed" || op.SignatureRef == "" || op.CanonicalPayloadHash != signer.request.CanonicalPayloadHash || op.RequestID != signer.request.RequestID || op.ProviderRequestID != "provider-request-123" {
 		t.Fatalf("operation = %#v", op)
 	}
-	if signer.request.ProviderID != provider.ID || signer.request.KeyRef != provider.KeyRef || signer.request.PayloadHash != sampleDigest("payload") {
+	if signer.request.Profile != signingRequestProfile || signer.request.ProviderID != provider.ID || signer.request.KeyRef != provider.KeyRef || signer.request.PayloadHash != sampleDigest("payload") || signer.request.CanonicalPayloadHash == "" || signer.request.RequestID == "" || signer.request.Nonce == "" {
 		t.Fatalf("executor request = %#v", signer.request)
 	}
-	if !hasVerifyCheck(op.Checks, "signing_executor_invoked", "passed") || !hasVerifyCheck(op.Checks, "fake_executor", "passed") {
+	if !hasVerifyCheck(op.Checks, "canonical_signing_request", "passed") || !hasVerifyCheck(op.Checks, "signing_executor_invoked", "passed") || !hasVerifyCheck(op.Checks, "fake_executor", "passed") {
 		t.Fatalf("operation checks = %#v", op.Checks)
+	}
+}
+
+type mismatchedSigningExecutor struct{}
+
+func (mismatchedSigningExecutor) Sign(_ context.Context, request SigningRequest) (SigningResult, error) {
+	return SigningResult{
+		Signature:            "sig_from_executor",
+		Algorithm:            "external-aws_kms",
+		ProviderID:           request.ProviderID,
+		ProviderType:         request.ProviderType,
+		KeyRef:               request.KeyRef,
+		CanonicalPayloadHash: request.CanonicalPayloadHash,
+		RequestID:            "other-request",
+	}, nil
+}
+
+func TestSigningOperationRejectsMismatchedProviderReceiptBeforePersistence(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Signer: mismatchedSigningExecutor{}})
+	ctx := context.Background()
+	actor, release, _ := setupReleaseRiskFixture(t, ledger)
+	provider, err := ledger.CreateSigningProvider(ctx, actor, CreateSigningProviderInput{Name: "kms", Type: "aws_kms", KeyRef: "arn:aws:kms:example", Encrypted: true})
+	if err != nil {
+		t.Fatalf("provider: %v", err)
+	}
+	if _, err := ledger.CreateSigningOperation(ctx, actor, CreateSigningOperationInput{ProviderID: provider.ID, SubjectType: "release", SubjectID: release.ID, PayloadHash: sampleDigest("payload")}); !errors.Is(err, ErrVerificationFailed) {
+		t.Fatalf("mismatched receipt err=%v, want verification failure", err)
+	}
+	if len(ledger.signatures) != 0 || len(ledger.signingOperations) != 0 {
+		t.Fatalf("mismatched receipt was persisted: signatures=%#v operations=%#v", ledger.signatures, ledger.signingOperations)
+	}
+}
+
+func TestSigningOperationRejectsCallerSuppliedSignatureReceipt(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	actor, release, _ := setupReleaseRiskFixture(t, ledger)
+	provider, err := ledger.CreateSigningProvider(ctx, actor, CreateSigningProviderInput{Name: "kms", Type: "aws_kms", KeyRef: "arn:aws:kms:example", Encrypted: true})
+	if err != nil {
+		t.Fatalf("provider: %v", err)
+	}
+	if _, err := ledger.CreateSigningOperation(ctx, actor, CreateSigningOperationInput{
+		ProviderID:        provider.ID,
+		SubjectType:       "release",
+		SubjectID:         release.ID,
+		PayloadHash:       sampleDigest("payload"),
+		ExternalSignature: "unverified-caller-value",
+	}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("caller-supplied signature err=%v, want validation", err)
+	}
+	if len(ledger.signatures) != 0 || len(ledger.signingOperations) != 0 {
+		t.Fatalf("caller-supplied signature was persisted: signatures=%#v operations=%#v", ledger.signatures, ledger.signingOperations)
 	}
 }
 

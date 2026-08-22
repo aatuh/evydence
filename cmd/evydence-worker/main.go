@@ -25,6 +25,8 @@ import (
 	s3store "github.com/aatuh/evydence/internal/adapters/objectstore/s3"
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/app"
+	scannerparser "github.com/aatuh/evydence/internal/app/parsers/scanners"
+	vexparser "github.com/aatuh/evydence/internal/app/parsers/vex"
 	"github.com/aatuh/evydence/internal/domain"
 )
 
@@ -32,11 +34,25 @@ const defaultMaxWorkerPayloadBytes = 20 << 20
 
 var expectedParserVersions = map[string]string{
 	"parse_sbom":               app.ParserVersionCycloneDXJSON,
-	"parse_vulnerability_scan": app.ParserVersionGenericVulnerabilityJSON,
+	"parse_vulnerability_scan": app.ParserVersionScannerAdaptersJSON,
 	"parse_openapi_contract":   app.ParserVersionOpenAPIJSON,
 	"parse_vex":                app.ParserVersionOpenVEXJSON,
 	"verify_attestation":       app.ParserVersionDSSEInTotoJSON,
 }
+
+type parserReplayStore interface {
+	Close()
+	ApplyMigrations(context.Context, string) (int, error)
+	RequireNoPendingMigrations(context.Context, string) error
+	LoadState(context.Context) (app.PersistedState, bool, error)
+	SaveState(context.Context, app.PersistedState) error
+}
+
+var openParserReplayStore = func(ctx context.Context, databaseURL string, options postgres.StoreOptions) (parserReplayStore, error) {
+	return postgres.OpenWithOptions(ctx, databaseURL, options)
+}
+
+var openParserReplayObjects = openObjectStore
 
 func main() {
 	if err := runWithArgs(os.Args[1:]); err != nil {
@@ -55,6 +71,8 @@ func runWithArgs(args []string) error {
 			return nil
 		case "reconcile":
 			return runObjectReconciliation(args[1:])
+		case "parser-replay":
+			return runParserReplay(args[1:])
 		default:
 			return fmt.Errorf("unsupported worker command %q", args[0])
 		}
@@ -128,6 +146,88 @@ func runWithArgs(args []string) error {
 			}
 		}
 	}
+}
+
+// runParserReplay is an explicit operator command that appends a derived
+// normalization record. It cannot edit the source evidence or provider object.
+func runParserReplay(args []string) error {
+	request, err := parseParserReplayArgs(args)
+	if err != nil {
+		return err
+	}
+	production := strings.EqualFold(os.Getenv("ENV"), "production")
+	databaseURL := strings.TrimSpace(os.Getenv("EVYDENCE_DATABASE_URL"))
+	if databaseURL == "" {
+		return errors.New("parser-replay requires EVYDENCE_DATABASE_URL")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), durationEnv("EVYDENCE_PARSER_REPLAY_TIMEOUT", 2*time.Minute))
+	defer cancel()
+	loadMode, err := postgres.ResolveLoadMode(os.Getenv("EVYDENCE_POSTGRES_LOAD_MODE"), production)
+	if err != nil {
+		return err
+	}
+	if production {
+		if err := postgres.ValidateProductionLoadMode(loadMode); err != nil {
+			return err
+		}
+	}
+	store, err := openParserReplayStore(ctx, databaseURL, postgres.StoreOptions{LoadMode: loadMode, DisableSnapshotWrites: production})
+	if err != nil {
+		return errors.New("parser-replay could not open durable storage")
+	}
+	defer store.Close()
+	migrationsDir := envDefault("EVYDENCE_MIGRATIONS_DIR", "migrations")
+	if !strings.EqualFold(os.Getenv("EVYDENCE_SKIP_MIGRATIONS"), "true") {
+		if _, err := store.ApplyMigrations(ctx, migrationsDir); err != nil {
+			return errors.New("parser-replay could not apply migrations")
+		}
+	} else if err := store.RequireNoPendingMigrations(ctx, migrationsDir); err != nil {
+		return errors.New("parser-replay requires current migrations")
+	}
+	state, ok, err := store.LoadState(ctx)
+	if err != nil || !ok {
+		return errors.New("parser-replay could not load durable state")
+	}
+	key, err := app.ParserReplayPayloadKey(&state, app.ParserReplayRequest{TenantID: request.TenantID, EvidenceID: request.EvidenceID})
+	if err != nil {
+		return errors.New("parser-replay source evidence not found")
+	}
+	objects, _, err := openParserReplayObjects(ctx)
+	if err != nil {
+		return errors.New("parser-replay could not open object storage")
+	}
+	object, err := objects.Get(ctx, key)
+	if err != nil {
+		return errors.New("parser-replay source payload verification failed")
+	}
+	result, err := app.ReplayStoredParserEvidence(&state, object, app.ParserReplayRequest{TenantID: request.TenantID, EvidenceID: request.EvidenceID, ParserVersion: request.ParserVersion, ActorID: request.ActorID, Now: time.Now().UTC()})
+	if err != nil {
+		return errors.New("parser-replay rejected requested interpretation")
+	}
+	if result.Created {
+		if err := store.SaveState(ctx, state); err != nil {
+			return errors.New("parser-replay could not persist derived record")
+		}
+	}
+	return json.NewEncoder(os.Stdout).Encode(map[string]any{"evidence_id": result.EvidenceID, "created": result.Created, "parser_version": result.Parser.Version})
+}
+
+type parserReplayArgs struct {
+	TenantID, EvidenceID, ParserVersion, ActorID string
+}
+
+func parseParserReplayArgs(args []string) (parserReplayArgs, error) {
+	flags := flag.NewFlagSet("parser-replay", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	tenantID := flags.String("tenant", "", "tenant ID")
+	evidenceID := flags.String("evidence", "", "source evidence ID")
+	parserVersion := flags.String("parser-version", "", "installed parser version")
+	actorID := flags.String("actor", "", "operator actor ID")
+	apply := flags.Bool("apply", false, "append the derived replay record")
+	if err := flags.Parse(args); err != nil || flags.NArg() != 0 || !*apply || strings.TrimSpace(*tenantID) == "" || strings.TrimSpace(*evidenceID) == "" || strings.TrimSpace(*parserVersion) == "" || strings.TrimSpace(*actorID) == "" {
+		return parserReplayArgs{}, errors.New("parser-replay requires --tenant, --evidence, --parser-version, --actor, and --apply")
+	}
+	return parserReplayArgs{TenantID: strings.TrimSpace(*tenantID), EvidenceID: strings.TrimSpace(*evidenceID), ParserVersion: strings.TrimSpace(*parserVersion), ActorID: strings.TrimSpace(*actorID)}, nil
 }
 
 // runObjectReconciliation performs a bounded, tenant-scoped reconciliation
@@ -328,7 +428,7 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 			return errors.New("parsed sbom is not available in durable state")
 		}
 		if hasReplayedObject {
-			parsed, err := parseReplayedSBOM(replayed.Bytes)
+			parsed, err := parseReplayedSBOM(replayed.Bytes, payloadString(job, "parser_version"))
 			if err != nil {
 				return err
 			}
@@ -511,6 +611,12 @@ func requireParserVersion(job postgres.ClaimedJob) error {
 	if job.Kind == "parse_vex" && (got == app.ParserVersionOpenVEXJSON || got == app.ParserVersionCycloneDXVEXJSON) {
 		return nil
 	}
+	if job.Kind == "parse_sbom" && (got == app.ParserVersionCycloneDXJSON || got == app.ParserVersionSPDXJSON) {
+		return nil
+	}
+	if job.Kind == "parse_vulnerability_scan" && (got == app.ParserVersionScannerAdaptersJSON || got == app.ParserVersionGenericVulnerabilityJSON) {
+		return nil
+	}
 	if got != expected {
 		return errors.New("unsupported outbox parser version")
 	}
@@ -634,35 +740,31 @@ func mergeReplayedSBOM(sbom domain.SBOM, parsed replayedSBOM) (domain.SBOM, bool
 	return sbom, changed
 }
 
-func parseReplayedSBOM(raw []byte) (replayedSBOM, error) {
-	var doc struct {
-		BOMFormat   string `json:"bomFormat"`
-		SpecVersion string `json:"specVersion"`
-		Components  []struct {
-			Name    string `json:"name"`
-			Version string `json:"version"`
-			PURL    string `json:"purl"`
-		} `json:"components"`
+func parseReplayedSBOM(raw []byte, parserVersions ...string) (replayedSBOM, error) {
+	parserVersion := ""
+	if len(parserVersions) > 0 {
+		parserVersion = parserVersions[0]
 	}
-	if err := strictDecodeWorker(raw, &doc); err != nil || strings.ToLower(strings.TrimSpace(doc.BOMFormat)) != "cyclonedx" {
-		return replayedSBOM{}, errors.New("replayed sbom payload is invalid")
-	}
-	components := make([]domain.SBOMComponent, 0, len(doc.Components))
-	for _, component := range doc.Components {
-		if strings.TrimSpace(component.Name) == "" {
+	if parserVersion == "" || parserVersion == app.ParserVersionCycloneDXJSON {
+		parsed, err := app.ParseCycloneDXReplayProjection(raw, defaultMaxWorkerPayloadBytes)
+		if err != nil {
 			return replayedSBOM{}, errors.New("replayed sbom payload is invalid")
 		}
-		components = append(components, domain.SBOMComponent{Name: strings.TrimSpace(component.Name), Version: strings.TrimSpace(component.Version), PURL: strings.TrimSpace(component.PURL)})
+		return replayedSBOM{SpecVersion: parsed.SpecVersion, ComponentCount: len(parsed.Components), Components: append([]domain.SBOMComponent(nil), parsed.Components...)}, nil
 	}
-	return replayedSBOM{SpecVersion: strings.TrimSpace(doc.SpecVersion), ComponentCount: len(doc.Components), Components: components}, nil
+	parsed, err := app.ParseSPDXReplayProjection(raw, defaultMaxWorkerPayloadBytes)
+	if err != nil {
+		return replayedSBOM{}, errors.New("replayed sbom payload is invalid")
+	}
+	return replayedSBOM{SpecVersion: parsed.SpecVersion, ComponentCount: len(parsed.Components), Components: append([]domain.SBOMComponent(nil), parsed.Components...)}, nil
 }
 
 type replayedVulnerabilityScan struct {
-	Scanner      string
-	TargetRef    string
-	FindingCount int
-	Summary      map[string]int
-	Findings     []domain.VulnerabilityFinding
+	Scanner, Adapter, AdapterVersion, SourceSchema string
+	TargetRef                                      string
+	FindingCount                                   int
+	Summary                                        map[string]int
+	Findings                                       []domain.VulnerabilityFinding
 }
 
 func verifyReplayedVulnerabilityScan(parsed replayedVulnerabilityScan, scan domain.VulnerabilityScan) error {
@@ -670,6 +772,9 @@ func verifyReplayedVulnerabilityScan(parsed replayedVulnerabilityScan, scan doma
 		return errors.New("replayed vulnerability scan payload does not match durable state")
 	}
 	if scan.TargetRef != "" && parsed.TargetRef != scan.TargetRef {
+		return errors.New("replayed vulnerability scan payload does not match durable state")
+	}
+	if (scan.Adapter != "" && parsed.Adapter != scan.Adapter) || (scan.AdapterVersion != "" && parsed.AdapterVersion != scan.AdapterVersion) || (scan.SourceSchema != "" && parsed.SourceSchema != scan.SourceSchema) {
 		return errors.New("replayed vulnerability scan payload does not match durable state")
 	}
 	if len(scan.Findings) != 0 && parsed.FindingCount != len(scan.Findings) {
@@ -693,6 +798,18 @@ func mergeReplayedVulnerabilityScan(scan domain.VulnerabilityScan, parsed replay
 		scan.TargetRef = parsed.TargetRef
 		changed = true
 	}
+	if scan.Adapter == "" && parsed.Adapter != "" {
+		scan.Adapter = parsed.Adapter
+		changed = true
+	}
+	if scan.AdapterVersion == "" && parsed.AdapterVersion != "" {
+		scan.AdapterVersion = parsed.AdapterVersion
+		changed = true
+	}
+	if scan.SourceSchema == "" && parsed.SourceSchema != "" {
+		scan.SourceSchema = parsed.SourceSchema
+		changed = true
+	}
 	if scan.Summary == nil && parsed.Summary != nil {
 		scan.Summary = cloneIntMap(parsed.Summary)
 		changed = true
@@ -705,37 +822,21 @@ func mergeReplayedVulnerabilityScan(scan domain.VulnerabilityScan, parsed replay
 }
 
 func parseReplayedVulnerabilityScan(raw []byte, subjectID string) (replayedVulnerabilityScan, error) {
-	var doc struct {
-		Scanner   string `json:"scanner"`
-		TargetRef string `json:"target_ref"`
-		Findings  []struct {
-			Vulnerability string `json:"vulnerability"`
-			Component     string `json:"component"`
-			Severity      string `json:"severity"`
-			State         string `json:"state"`
-		} `json:"findings"`
-		ReleaseID string `json:"release_id"`
-	}
-	if err := strictDecodeWorker(raw, &doc); err != nil || strings.TrimSpace(doc.Scanner) == "" || strings.TrimSpace(doc.TargetRef) == "" || strings.TrimSpace(doc.ReleaseID) == "" {
+	doc, err := scannerparser.ParseBounded(raw, scannerparser.DefaultLimits(defaultMaxWorkerPayloadBytes))
+	if err != nil {
 		return replayedVulnerabilityScan{}, errors.New("replayed vulnerability scan payload is invalid")
 	}
 	summary := map[string]int{}
 	findings := make([]domain.VulnerabilityFinding, 0, len(doc.Findings))
 	for i, finding := range doc.Findings {
-		if strings.TrimSpace(finding.Vulnerability) == "" || strings.TrimSpace(finding.Severity) == "" {
-			return replayedVulnerabilityScan{}, errors.New("replayed vulnerability scan payload is invalid")
-		}
-		severity := strings.ToLower(strings.TrimSpace(finding.Severity))
-		summary[severity]++
+		summary[finding.Severity]++
 		findings = append(findings, domain.VulnerabilityFinding{
 			ID:            fmt.Sprintf("%s:finding:%d", strings.TrimSpace(subjectID), i+1),
-			Vulnerability: strings.TrimSpace(finding.Vulnerability),
-			Component:     strings.TrimSpace(finding.Component),
-			Severity:      severity,
-			State:         nonEmptyWorker(finding.State, "open"),
+			Vulnerability: finding.Vulnerability, Component: finding.Component, Severity: finding.Severity, State: finding.State, SeveritySource: finding.SeveritySource, FixVersion: finding.FixVersion,
+			Identity: domain.VulnerabilityIdentity{CVE: finding.Identity.CVE, GHSA: finding.Identity.GHSA, OSV: finding.Identity.OSV, VendorAdvisory: finding.Identity.VendorAdvisory, PURL: finding.Identity.PURL, CPE: finding.Identity.CPE},
 		})
 	}
-	return replayedVulnerabilityScan{Scanner: strings.TrimSpace(doc.Scanner), TargetRef: strings.TrimSpace(doc.TargetRef), FindingCount: len(doc.Findings), Summary: summary, Findings: findings}, nil
+	return replayedVulnerabilityScan{Scanner: doc.Scanner, Adapter: doc.Adapter, AdapterVersion: doc.AdapterVersion, SourceSchema: doc.SourceSchema, TargetRef: doc.TargetRef, FindingCount: len(doc.Findings), Summary: summary, Findings: findings}, nil
 }
 
 type replayedOpenAPIContract struct {
@@ -869,138 +970,36 @@ func parseReplayedVEX(raw []byte) (replayedVEX, error) {
 }
 
 func parseReplayedOpenVEX(raw []byte) (replayedVEX, error) {
-	var doc struct {
-		Context    any    `json:"@context"`
-		ID         string `json:"@id"`
-		Author     string `json:"author"`
-		Timestamp  string `json:"timestamp"`
-		Version    any    `json:"version"`
-		Statements []struct {
-			Vulnerability struct {
-				Name string `json:"name"`
-			} `json:"vulnerability"`
-			Products        []map[string]any `json:"products"`
-			Status          string           `json:"status"`
-			Justification   string           `json:"justification"`
-			ImpactStatement string           `json:"impact_statement"`
-			ActionStatement string           `json:"action_statement"`
-		} `json:"statements"`
-	}
-	if err := strictDecodeWorker(raw, &doc); err != nil || strings.TrimSpace(doc.Author) == "" || strings.TrimSpace(doc.Timestamp) == "" || len(doc.Statements) == 0 {
+	doc, err := vexparser.ParseOpenVEX(raw, vexparser.DefaultLimits(defaultMaxWorkerPayloadBytes))
+	if err != nil {
 		return replayedVEX{}, errors.New("replayed vex payload is invalid")
 	}
-	summary := map[string]int{}
-	statements := make([]replayedVEXStatement, 0, len(doc.Statements))
-	for _, statement := range doc.Statements {
-		status := strings.TrimSpace(statement.Status)
-		if strings.TrimSpace(statement.Vulnerability.Name) == "" || status == "" || len(statement.Products) == 0 {
-			return replayedVEX{}, errors.New("replayed vex payload is invalid")
-		}
-		switch status {
-		case "affected", "not_affected", "fixed", "under_investigation":
-		default:
-			return replayedVEX{}, errors.New("replayed vex payload is invalid")
-		}
-		summary[status]++
-		statements = append(statements, replayedVEXStatement{
-			Vulnerability:   strings.TrimSpace(statement.Vulnerability.Name),
-			Products:        replayedVEXProductIDs(statement.Products),
-			Status:          status,
-			Justification:   strings.TrimSpace(statement.Justification),
-			ImpactStatement: strings.TrimSpace(statement.ImpactStatement),
-			ActionStatement: strings.TrimSpace(statement.ActionStatement),
-		})
-	}
-	return replayedVEX{Author: strings.TrimSpace(doc.Author), StatementCount: len(doc.Statements), StatusSummary: summary, Statements: statements}, nil
+	return replayedVEXFromParsed(doc), nil
 }
 
 func parseReplayedCycloneDXVEX(raw []byte) (replayedVEX, error) {
-	var doc struct {
-		BOMFormat       string `json:"bomFormat"`
-		SpecVersion     string `json:"specVersion"`
-		Vulnerabilities []struct {
-			ID      string `json:"id"`
-			Affects []struct {
-				Ref string `json:"ref"`
-			} `json:"affects,omitempty"`
-			Analysis struct {
-				State         string   `json:"state"`
-				Justification string   `json:"justification"`
-				Detail        string   `json:"detail"`
-				Response      []string `json:"response"`
-			} `json:"analysis"`
-		} `json:"vulnerabilities"`
-	}
-	if err := strictDecodeWorker(raw, &doc); err != nil || !strings.EqualFold(strings.TrimSpace(doc.BOMFormat), "cyclonedx") || len(doc.Vulnerabilities) == 0 {
+	doc, err := vexparser.ParseCycloneDX(raw, vexparser.DefaultLimits(defaultMaxWorkerPayloadBytes))
+	if err != nil {
 		return replayedVEX{}, errors.New("replayed vex payload is invalid")
 	}
+	return replayedVEXFromParsed(doc), nil
+}
+
+func replayedVEXFromParsed(doc vexparser.Document) replayedVEX {
 	summary := map[string]int{}
-	statements := make([]replayedVEXStatement, 0, len(doc.Vulnerabilities))
-	for _, vuln := range doc.Vulnerabilities {
-		status := workerCycloneDXAnalysisStatus(vuln.Analysis.State)
-		if strings.TrimSpace(vuln.ID) == "" || status == "" {
+	statements := make([]replayedVEXStatement, 0, len(doc.Statements))
+	for _, statement := range doc.Statements {
+		if statement.Vulnerability == "" || statement.Status == "" {
 			continue
 		}
 		products := map[string]struct{}{}
-		for _, affect := range vuln.Affects {
-			if ref := strings.TrimSpace(affect.Ref); ref != "" {
-				products[ref] = struct{}{}
-			}
+		for _, product := range statement.Products {
+			products[product] = struct{}{}
 		}
-		summary[status]++
-		statements = append(statements, replayedVEXStatement{
-			Vulnerability:   strings.TrimSpace(vuln.ID),
-			Products:        products,
-			Status:          status,
-			Justification:   nonEmptyWorker(strings.TrimSpace(vuln.Analysis.Justification), "cyclonedx_vex"),
-			ImpactStatement: strings.TrimSpace(vuln.Analysis.Detail),
-			ActionStatement: strings.Join(vuln.Analysis.Response, ","),
-		})
+		summary[statement.Status]++
+		statements = append(statements, replayedVEXStatement{Vulnerability: statement.Vulnerability, Products: products, Status: statement.Status, Justification: nonEmptyWorker(statement.Justification, "cyclonedx_vex"), ImpactStatement: statement.ImpactStatement, ActionStatement: statement.ActionStatement})
 	}
-	if len(statements) == 0 {
-		return replayedVEX{}, errors.New("replayed vex payload is invalid")
-	}
-	return replayedVEX{Author: "cyclonedx", StatementCount: len(doc.Vulnerabilities), StatusSummary: summary, Statements: statements}, nil
-}
-
-func workerCycloneDXAnalysisStatus(state string) string {
-	switch strings.ToLower(strings.TrimSpace(state)) {
-	case "resolved", "fixed":
-		return "fixed"
-	case "not_affected":
-		return "not_affected"
-	case "exploitable", "affected":
-		return "affected"
-	case "in_triage", "under_investigation":
-		return "under_investigation"
-	default:
-		return ""
-	}
-}
-
-func replayedVEXProductIDs(products []map[string]any) map[string]struct{} {
-	out := map[string]struct{}{}
-	var walk func([]map[string]any)
-	walk = func(items []map[string]any) {
-		for _, item := range items {
-			if id, ok := item["@id"].(string); ok {
-				if id = strings.TrimSpace(id); id != "" {
-					out[id] = struct{}{}
-				}
-			}
-			if children, ok := item["subcomponents"].([]any); ok {
-				mapped := make([]map[string]any, 0, len(children))
-				for _, child := range children {
-					if childMap, ok := child.(map[string]any); ok {
-						mapped = append(mapped, childMap)
-					}
-				}
-				walk(mapped)
-			}
-		}
-	}
-	walk(products)
-	return out
+	return replayedVEX{Author: doc.Author, StatementCount: len(doc.Statements), StatusSummary: summary, Statements: statements}
 }
 
 func applyReplayedVEXDecisions(state *app.PersistedState, job postgres.ClaimedJob, vex domain.VEXDocument, parsed replayedVEX, payloadHash string) (int, int, []domain.VEXImportIssue, error) {
@@ -1022,6 +1021,10 @@ func applyReplayedVEXDecisions(state *app.PersistedState, job postgres.ClaimedJo
 	}
 	sort.Strings(scanIDs)
 	for index, statement := range parsed.Statements {
+		if !workerVEXStatementUnambiguous(state, scanIDs, statement) {
+			mappingFailures = append(mappingFailures, domain.VEXImportIssue{StatementIndex: index + 1, Code: "ambiguous_finding", Detail: "Multiple plausible findings matched this VEX statement; no decision was applied."})
+			continue
+		}
 		statementMatched := false
 		for _, scanID := range scanIDs {
 			scan := state.Scans[scanID]
@@ -1093,6 +1096,33 @@ func applyReplayedVEXDecisions(state *app.PersistedState, job postgres.ClaimedJo
 		}
 	}
 	return created, superseded, mappingFailures, nil
+}
+
+func workerVEXStatementUnambiguous(state *app.PersistedState, scanIDs []string, statement replayedVEXStatement) bool {
+	matchCount := 0
+	components := map[string]struct{}{}
+	for _, scanID := range scanIDs {
+		for _, finding := range state.Scans[scanID].Findings {
+			if finding.Vulnerability != statement.Vulnerability {
+				continue
+			}
+			if len(statement.Products) > 0 && finding.Component != "" {
+				if _, ok := statement.Products[finding.Component]; !ok {
+					continue
+				}
+			}
+			matchCount++
+			component := strings.TrimSpace(finding.Component)
+			if component == "" {
+				return matchCount < 2
+			}
+			if _, duplicate := components[component]; duplicate {
+				return false
+			}
+			components[component] = struct{}{}
+		}
+	}
+	return matchCount < 2 || (len(statement.Products) > 0 && matchCount <= len(statement.Products))
 }
 
 func replayedVEXDecisionExists(decisions map[string]domain.VulnerabilityDecision, tenantID, vexID, findingID string) bool {

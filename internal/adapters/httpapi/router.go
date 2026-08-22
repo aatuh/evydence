@@ -583,23 +583,21 @@ func (s *Server) getArtifactSignature(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) verifyCosignSignature(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		RekorUUID               string `json:"rekor_uuid"`
-		RekorLogIndex           string `json:"rekor_log_index"`
-		CertificateIdentity     string `json:"certificate_identity"`
-		CertificateIssuer       string `json:"certificate_issuer"`
-		RequireFullVerification bool   `json:"require_full_verification"`
+		ExpectedIdentity string `json:"expected_identity"`
+		ExpectedIssuer   string `json:"expected_issuer"`
+		Mode             string `json:"mode"`
+		Offline          bool   `json:"offline"`
 	}
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
 		result, err := s.ledger.VerifyCosignSignature(ctx, actor, app.VerifyCosignInput{
-			ArtifactSignatureID:     r.PathValue("id"),
-			RekorUUID:               req.RekorUUID,
-			RekorLogIndex:           req.RekorLogIndex,
-			CertificateIdentity:     req.CertificateIdentity,
-			CertificateIssuer:       req.CertificateIssuer,
-			RequireFullVerification: req.RequireFullVerification,
+			ArtifactSignatureID: r.PathValue("id"),
+			ExpectedIdentity:    req.ExpectedIdentity,
+			ExpectedIssuer:      req.ExpectedIssuer,
+			Mode:                app.CosignVerificationMode(req.Mode),
+			Offline:             req.Offline,
 		})
 		return http.StatusOK, result, err
 	})
@@ -685,16 +683,19 @@ func (s *Server) verifyBuildAttestationSignature(w http.ResponseWriter, r *http.
 
 func (s *Server) createDSSETrustRoot(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Name      string `json:"name"`
-		KeyID     string `json:"key_id"`
-		Algorithm string `json:"algorithm"`
-		PublicKey string `json:"public_key"`
+		Name                  string   `json:"name"`
+		KeyID                 string   `json:"key_id"`
+		Algorithm             string   `json:"algorithm"`
+		PublicKey             string   `json:"public_key"`
+		AllowedPredicateTypes []string `json:"allowed_predicate_types"`
+		ExpectedBuilderIDs    []string `json:"expected_builder_ids"`
+		RequiredClaims        []string `json:"required_claims"`
 	}
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		root, err := s.ledger.CreateDSSETrustRoot(ctx, actor, app.CreateDSSETrustRootInput{Name: req.Name, KeyID: req.KeyID, Algorithm: req.Algorithm, PublicKey: req.PublicKey})
+		root, err := s.ledger.CreateDSSETrustRoot(ctx, actor, app.CreateDSSETrustRootInput{Name: req.Name, KeyID: req.KeyID, Algorithm: req.Algorithm, PublicKey: req.PublicKey, AllowedPredicateTypes: req.AllowedPredicateTypes, ExpectedBuilderIDs: req.ExpectedBuilderIDs, RequiredClaims: req.RequiredClaims})
 		return http.StatusCreated, root, err
 	})
 }
@@ -1233,6 +1234,23 @@ func (s *Server) importEvidenceBundle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) uploadSPDXSBOM(w http.ResponseWriter, r *http.Request) {
+	if requestMediaType(r) == "application/spdx+json" {
+		releaseID, err := requiredSingleHeader(r, "X-Evydence-Release-ID")
+		if err != nil {
+			writeProblem(w, r, app.ErrValidation)
+			return
+		}
+		artifactID, err := optionalSingleHeader(r, "X-Evydence-Artifact-ID")
+		if err != nil {
+			writeProblem(w, r, app.ErrValidation)
+			return
+		}
+		s.createStreamedEvidence(w, r, app.EvidenceDocumentLimit, func(s *Server, ctx requestContext, actor domain.Actor, source app.PayloadSource) (int, any, error) {
+			sbom, err := s.ledger.UploadSPDXSBOMPayload(ctx, actor, releaseID, artifactID, source)
+			return http.StatusCreated, sbom, err
+		})
+		return
+	}
 	var req struct {
 		ReleaseID  string          `json:"release_id"`
 		ArtifactID string          `json:"artifact_id"`
@@ -2230,7 +2248,9 @@ func (s *Server) rotateSigningKey(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) revokeSigningKey(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Reason string `json:"reason"`
+		Reason                   string `json:"reason"`
+		Semantics                string `json:"semantics"`
+		HistoricalValidityPolicy string `json:"historical_validity_policy"`
 	}
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if len(bytes.TrimSpace(body)) > 0 {
@@ -2238,7 +2258,11 @@ func (s *Server) revokeSigningKey(w http.ResponseWriter, r *http.Request) {
 				return 0, nil, err
 			}
 		}
-		key, err := s.ledger.RevokeSigningKey(ctx, actor, r.PathValue("id"), req.Reason)
+		key, err := s.ledger.RevokeSigningKeyWithPolicy(ctx, actor, r.PathValue("id"), app.SigningKeyRevocationInput{
+			Reason:                   req.Reason,
+			Semantics:                req.Semantics,
+			HistoricalValidityPolicy: req.HistoricalValidityPolicy,
+		})
 		return http.StatusOK, key, err
 	})
 }

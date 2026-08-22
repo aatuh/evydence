@@ -1,0 +1,12 @@
+{
+  "schema_version": "evydence-parser-corpus.v1",
+  "change_control": "Changing a fixture hash, expected summary, or parser version requires an intentional golden update and a CHANGELOG.md entry.",
+  "fixtures": [
+    {"id":"cyclonedx-official-standard-1.6","kind":"cyclonedx","path":"internal/app/parsers/cyclonedx/testdata/official/valid-standard-1.6.json","sha256":"2efd6c828e69bd8fe3b283fe85d66b807b30abf4958ab8ff9618dac73046769b","license":"CC-BY-4.0","source":"internal/app/parsers/cyclonedx/testdata/official/SOURCE.md","expected_status":"accepted","expected_summary":{"spec_version":"1.6","component_count":0},"max_bytes":1048576},
+    {"id":"spdx-2.3-example","kind":"spdx","path":"internal/app/parsers/spdx/testdata/spdx-2.3-example.json","sha256":"e6890c0c8aaf922f3f52d7c737549ffc9d28bd45ead124bad9d997818f01a9f2","license":"CC-BY-3.0","source":"internal/app/parsers/spdx/testdata/SOURCE.md","expected_status":"accepted","expected_summary":{"spec_version":"SPDX-2.3","component_count":2},"max_bytes":1048576},
+    {"id":"openvex-minimal","kind":"openvex","path":"internal/app/parsers/vex/testdata/openvex/openvex-spec-minimal.json","sha256":"8ff8b3d12ec9c8eefa191e62c3f97c788e720f684a299ca81035e131ccb862a7","license":"Apache-2.0","source":"internal/app/parsers/vex/testdata/SOURCE.md","expected_status":"accepted","expected_summary":{"statement_count":1},"max_bytes":1048576},
+    {"id":"cyclonedx-vex-1.4","kind":"cyclonedx-vex","path":"internal/app/parsers/vex/testdata/cyclonedx-vex/official-vex-1.4.json","sha256":"d99e4aba51a231e5c3428d00be05dd05be05e7287bc4998a7eb67daa2bf55a25","license":"CC-BY-4.0","source":"internal/app/parsers/vex/testdata/SOURCE.md","expected_status":"accepted","expected_summary":{"statement_count":1},"max_bytes":1048576},
+    {"id":"scanner-generic","kind":"scanner","path":"internal/app/parsers/scanners/testdata/generic.json","sha256":"5971d3e80baece37ccb919a3ce64cac056f57f4d44919e6bd5ebad214e1c623e","license":"CC0-1.0","source":"internal/app/parsers/scanners/testdata/SOURCES.md","expected_status":"accepted","expected_summary":{"finding_count":1},"max_bytes":1048576},
+    {"id":"scanner-grype","kind":"scanner","path":"internal/app/parsers/scanners/testdata/grype.json","sha256":"d8ae4afc301f77448d5aa660d81f20004e63241432d4243553c0301f1271fe2b","license":"CC0-1.0","source":"internal/app/parsers/scanners/testdata/SOURCES.md","expected_status":"accepted","expected_summary":{"finding_count":1},"max_bytes":1048576}
+  ]
+}

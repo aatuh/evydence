@@ -3307,7 +3307,7 @@
       "method": "POST",
       "operation_id": "uploadVulnerabilityScan",
       "path": "/v1/vulnerability-scans",
-      "request_schema": "#/components/schemas/UploadVulnerabilityScanRequest",
+      "request_schema": "#/components/schemas/UploadVulnerabilityScanBody",
       "response_schemas": [
         "#/components/schemas/Problem",
         "#/components/schemas/VulnerabilityScanEnvelope"

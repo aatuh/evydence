@@ -31,9 +31,10 @@ func TestCosignVerificationUsesUnitOfWorkAndPublishesOnlyAfterCommit(t *testing.
 	}
 
 	chainEntriesBefore := len(ledger.chain[actor.TenantID])
-	record, err := ledger.VerifyCosignSignature(ctx, actor, VerifyCosignInput{ArtifactSignatureID: signature.ID, RekorUUID: "rekor", RekorLogIndex: "1"})
-	if err != nil {
-		t.Fatalf("verify Cosign signature: %v", err)
+	verifyInput := VerifyCosignInput{ArtifactSignatureID: signature.ID, Mode: CosignVerificationModeKeyless, Offline: true, ExpectedIdentity: "repo:example/cosign", ExpectedIssuer: "https://issuer.example.test"}
+	record, err := ledger.VerifyCosignSignature(ctx, actor, verifyInput)
+	if !errors.Is(err, ErrFullVerificationUnavailable) {
+		t.Fatalf("unconfigured Cosign verifier err=%v, want unavailable", err)
 	}
 	if _, ok := ledger.cosignVerifs[record.ID]; !ok {
 		t.Fatal("Cosign verification was not published after commit")
@@ -64,7 +65,7 @@ func TestCosignVerificationUsesUnitOfWorkAndPublishesOnlyAfterCommit(t *testing.
 	if err != nil {
 		t.Fatalf("snapshot before failure: %v", err)
 	}
-	if _, err := ledger.VerifyCosignSignature(ctx, actor, VerifyCosignInput{ArtifactSignatureID: signature.ID}); !errors.Is(err, errInjectedRepositoryFailure) {
+	if _, err := ledger.VerifyCosignSignature(ctx, actor, verifyInput); !errors.Is(err, errInjectedRepositoryFailure) {
 		t.Fatalf("failed Cosign verification err=%v, want injected repository failure", err)
 	}
 	if len(ledger.cosignVerifs) != beforeCosign || len(ledger.verifications) != beforeVerification || len(ledger.chain[actor.TenantID]) != chainEntriesBefore+1 {

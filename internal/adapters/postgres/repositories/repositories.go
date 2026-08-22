@@ -776,9 +776,9 @@ func (r evidence) InsertVulnerabilityScan(ctx context.Context, scan domain.Vulne
 		return fmt.Errorf("encode vulnerability scan findings: %w", err)
 	}
 	_, err = r.tx.Exec(ctx, `
-		INSERT INTO vulnerability_scans (id, tenant_id, evidence_id, release_id, scanner, target_ref, summary, findings, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-	`, scan.ID, scan.TenantID, scan.EvidenceID, nullableString(scan.ReleaseID), scan.Scanner, scan.TargetRef, summary, findings, scan.CreatedAt)
+		INSERT INTO vulnerability_scans (id, tenant_id, evidence_id, release_id, scanner, adapter, adapter_version, source_schema, target_ref, summary, findings, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+	`, scan.ID, scan.TenantID, scan.EvidenceID, nullableString(scan.ReleaseID), scan.Scanner, scan.Adapter, scan.AdapterVersion, scan.SourceSchema, scan.TargetRef, summary, findings, scan.CreatedAt)
 	return writeError("insert vulnerability scan", err)
 }
 
@@ -1327,7 +1327,7 @@ func (r governance) InsertRetentionOverride(ctx context.Context, override domain
 }
 
 func (r governance) InsertDSSETrustRoot(ctx context.Context, root domain.DSSETrustRoot) error {
-	if root.ID == "" || root.TenantID == "" || root.Name == "" || root.KeyID == "" || root.Algorithm != "Ed25519" || root.Status != "active" || root.SchemaVersion == "" || root.CreatedAt.IsZero() {
+	if root.ID == "" || root.TenantID == "" || root.Name == "" || root.KeyID == "" || root.Algorithm != "Ed25519" || root.Status != "active" || root.SchemaVersion != domain.DSSETrustRootSchemaVersion || len(root.AllowedPredicateTypes) == 0 || len(root.ExpectedBuilderIDs) == 0 || len(root.RequiredClaims) == 0 || root.CreatedAt.IsZero() {
 		return app.ErrValidation
 	}
 	publicKey, err := base64.StdEncoding.DecodeString(root.PublicKey)
@@ -1337,7 +1337,19 @@ func (r governance) InsertDSSETrustRoot(ctx context.Context, root domain.DSSETru
 	if err := requireTenant(ctx, r.tx, root.TenantID); err != nil {
 		return err
 	}
-	_, err = r.tx.Exec(ctx, `INSERT INTO dsse_trust_roots (id, tenant_id, name, key_id, algorithm, public_key, status, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, root.ID, root.TenantID, root.Name, root.KeyID, root.Algorithm, root.PublicKey, root.Status, root.SchemaVersion, root.CreatedAt)
+	predicateTypes, err := json.Marshal(root.AllowedPredicateTypes)
+	if err != nil {
+		return writeError("encode DSSE predicate policy", err)
+	}
+	builderIDs, err := json.Marshal(root.ExpectedBuilderIDs)
+	if err != nil {
+		return writeError("encode DSSE builder policy", err)
+	}
+	requiredClaims, err := json.Marshal(root.RequiredClaims)
+	if err != nil {
+		return writeError("encode DSSE required claims", err)
+	}
+	_, err = r.tx.Exec(ctx, `INSERT INTO dsse_trust_roots (id, tenant_id, name, key_id, algorithm, public_key, allowed_predicate_types, expected_builder_ids, required_claims, status, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, root.ID, root.TenantID, root.Name, root.KeyID, root.Algorithm, root.PublicKey, predicateTypes, builderIDs, requiredClaims, root.Status, root.SchemaVersion, root.CreatedAt)
 	return writeError("insert DSSE trust root", err)
 }
 
@@ -2180,13 +2192,19 @@ func (r signatures) InsertSigningKey(ctx context.Context, key domain.SigningKey)
 	if err := requireTenant(ctx, r.tx, key.TenantID); err != nil {
 		return err
 	}
+	validFrom := key.ValidFrom
+	if validFrom.IsZero() {
+		validFrom = key.CreatedAt
+	}
 	_, err := r.tx.Exec(ctx, `
 		INSERT INTO signing_keys (
 			id, tenant_id, kid, algorithm, status, public_key,
-			encrypted_private_key, created_at, revoked_at
+			public_key_fingerprint, version, provider, valid_from, valid_until,
+			encrypted_private_key, created_at, revoked_at, revocation_reason,
+			revocation_semantics, historical_validity_policy, compromised_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-	`, key.ID, key.TenantID, key.KID, key.Algorithm, key.Status, key.PublicKey, nullableBytes(key.Private), key.CreatedAt, key.RevokedAt)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, GREATEST($8, 1), COALESCE(NULLIF($9, ''), 'local_ed25519'), $10, $11, $12, $13, $14, $15, $16, COALESCE(NULLIF($17, ''), 'preserve'), $18)
+	`, key.ID, key.TenantID, key.KID, key.Algorithm, key.Status, key.PublicKey, key.PublicKeyFingerprint, key.Version, key.Provider, validFrom, key.ValidUntil, nullableBytes(key.Private), key.CreatedAt, key.RevokedAt, key.RevocationReason, key.RevocationSemantics, key.HistoricalValidityPolicy, key.CompromisedAt)
 	return writeError("insert signing key", err)
 }
 
@@ -2196,9 +2214,12 @@ func (r signatures) UpdateSigningKey(ctx context.Context, key domain.SigningKey,
 	}
 	result, err := r.tx.Exec(ctx, `
 		UPDATE signing_keys
-		SET status = $3, revoked_at = $4
-		WHERE id = $1 AND tenant_id = $2 AND status = $5
-	`, key.ID, key.TenantID, key.Status, key.RevokedAt, expectedStatus)
+		SET status = $3, revoked_at = $4, valid_until = $5,
+			revocation_reason = $6, revocation_semantics = $7,
+			historical_validity_policy = COALESCE(NULLIF($8, ''), 'preserve'),
+			compromised_at = $9
+		WHERE id = $1 AND tenant_id = $2 AND status = $10
+	`, key.ID, key.TenantID, key.Status, key.RevokedAt, key.ValidUntil, key.RevocationReason, key.RevocationSemantics, key.HistoricalValidityPolicy, key.CompromisedAt, expectedStatus)
 	if err != nil {
 		return writeError("update signing key", err)
 	}
@@ -2881,7 +2902,7 @@ func (r futureExtensions) InsertSigningOperation(ctx context.Context, signature 
 	if err != nil {
 		return writeError("insert provider signature receipt", err)
 	}
-	_, err = r.tx.Exec(ctx, `INSERT INTO signing_operations (id, tenant_id, provider_id, subject_type, subject_id, payload_hash, signature_ref, result, checks, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, operation.ID, operation.TenantID, operation.ProviderID, operation.SubjectType, operation.SubjectID, operation.PayloadHash, operation.SignatureRef, operation.Result, checks, operation.SchemaVersion, operation.CreatedAt)
+	_, err = r.tx.Exec(ctx, `INSERT INTO signing_operations (id, tenant_id, provider_id, subject_type, subject_id, payload_hash, canonical_payload_hash, request_id, provider_request_id, signature_ref, result, checks, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`, operation.ID, operation.TenantID, operation.ProviderID, operation.SubjectType, operation.SubjectID, operation.PayloadHash, operation.CanonicalPayloadHash, operation.RequestID, nullableString(operation.ProviderRequestID), operation.SignatureRef, operation.Result, checks, operation.SchemaVersion, operation.CreatedAt)
 	return writeError("insert signing operation", err)
 }
 

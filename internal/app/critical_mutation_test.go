@@ -278,7 +278,7 @@ func TestReleaseLedgerMutationStoreCoversParserMetadataAndOutbox(t *testing.T) {
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 
 	store.reset()
-	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.5","components":[{"name":"lib","version":"1.0.0"}]}`)); err != nil {
+	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"lib","version":"1.0.0"}]}`)); err != nil {
 		t.Fatalf("upload sbom: %v", err)
 	}
 	if store.saveCalls != 0 || store.releaseCalls == 0 || !releaseMutationsContainSBOMAndOutbox(store.releases, "parse_sbom") {

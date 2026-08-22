@@ -127,22 +127,22 @@ Then upload the exported CycloneDX document through the Syft/CycloneDX manifest
 path above. Keep the Dependency-Track API key in CI secrets and do not store
 the key or raw exported customer data in logs.
 
-If you export Dependency-Track findings, normalize them to Evydence generic
-vulnerability scan JSON before upload:
+For Dependency-Track findings, preserve the exported finding fields in the
+versioned adapter envelope rather than flattening them into generic JSON:
 
 ```json
 {
   "release_id": "rel_example",
   "scanner": "dependency-track",
   "target_ref": "pkg:github/acme/service@sha",
-  "findings": [
-    {
-      "vulnerability": "CVE-2026-0099",
-      "component": "pkg:maven/example/component@1.0.0",
-      "severity": "high",
+  "source_schema": "dependency-track-json.v1",
+  "payload": {
+    "findings": [{
+      "component": {"purl": "pkg:maven/example/component@1.0.0"},
+      "vulnerability": {"vulnId": "CVE-2026-0099", "source": "NVD", "severity": "high"},
       "state": "open"
-    }
-  ]
+    }]
+  }
 }
 ```
 

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -146,8 +147,8 @@ func TestPayloadStorageHelpersRejectInvalidAndInterruptedWork(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, key := range []string{"", "../escape", "/absolute"} {
-		if _, err := store.safePath(key); err == nil {
+	for _, key := range []string{"", "../escape", "/absolute", "tenants/ten_1/../ten_2/raw"} {
+		if _, err := safeObjectKey(key); err == nil {
 			t.Fatalf("unsafe key %q was accepted", key)
 		}
 	}
@@ -163,7 +164,12 @@ func TestPayloadStorageHelpersRejectInvalidAndInterruptedWork(t *testing.T) {
 	if _, err := copyWithContext(context.Background(), &bytes.Buffer{}, failingReader{err: readErr}); !errors.Is(err, readErr) {
 		t.Fatalf("reader failure error=%v", err)
 	}
-	payload := app.ObjectPayload{TenantID: "ten_1", Digest: "sha256:" + strings.Repeat("a", 64), Size: 1, StagingKey: "tenants/ten_1/staging/a", FinalKey: "tenants/ten_1/payloads/a", Status: app.ObjectPayloadStaged, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
+	digestForMissing := "sha256:" + strings.Repeat("a", 64)
+	stagingKey, finalKey, err := app.CanonicalObjectPayloadKeys("ten_1", digestForMissing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := app.ObjectPayload{TenantID: "ten_1", Digest: digestForMissing, Size: 1, MediaType: "application/octet-stream", StagingKey: stagingKey, FinalKey: finalKey, Status: app.ObjectPayloadStaged, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
 	if _, err := store.StagePayload(context.Background(), payload, nil); !errors.Is(err, app.ErrValidation) {
 		t.Fatalf("nil staged reader error=%v", err)
 	}
@@ -231,4 +237,93 @@ func TestStoreListsTenantObjectInventoryWithoutMetadataSidecars(t *testing.T) {
 func inventoryObject(tenantID, key string, body []byte) app.Object {
 	sum := sha256.Sum256(body)
 	return app.Object{Key: key, TenantID: tenantID, Digest: "sha256:" + hex.EncodeToString(sum[:]), Bytes: body, CreatedAt: time.Now().UTC()}
+}
+
+func TestStoreRootedOperationsRejectSymlinkEscape(t *testing.T) {
+	storeRoot := t.TempDir()
+	outside := t.TempDir()
+	store, err := New(storeRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(storeRoot, "tenants")); err != nil {
+		t.Fatal(err)
+	}
+	body := []byte("outside payload")
+	sum := sha256.Sum256(body)
+	digest := "sha256:" + hex.EncodeToString(sum[:])
+	key := "tenants/ten_1/payloads/sbom/" + strings.TrimPrefix(digest, "sha256:")
+	object := app.Object{Key: key, TenantID: "ten_1", MediaType: "application/json", Digest: digest, Bytes: body, CreatedAt: time.Now().UTC()}
+
+	if err := store.Put(t.Context(), object); err == nil {
+		t.Fatal("write through escaping symlink succeeded")
+	}
+	if _, err := os.Stat(filepath.Join(outside, "ten_1", "payloads", "sbom", strings.TrimPrefix(digest, "sha256:"))); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("escaping write created outside object: %v", err)
+	}
+
+	outsideObject := filepath.Join(outside, "ten_1", "payloads", "sbom", strings.TrimPrefix(digest, "sha256:"))
+	if err := os.MkdirAll(filepath.Dir(outsideObject), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(outsideObject, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	meta := metadata{Key: key, TenantID: "ten_1", MediaType: "application/json", Digest: digest, Size: int64(len(body)), CreatedAt: time.Now().UTC()}
+	metaBody, err := json.Marshal(meta)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(outsideObject+".json", metaBody, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := store.Get(t.Context(), key); err == nil {
+		t.Fatalf("read through escaping symlink succeeded: %#v", got)
+	}
+}
+
+func TestStoreGetRejectsTamperedPayloadAndMetadata(t *testing.T) {
+	store, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := []byte("trusted payload")
+	sum := sha256.Sum256(body)
+	digest := "sha256:" + hex.EncodeToString(sum[:])
+	key := "tenants/ten_tamper/payloads/sbom/" + strings.TrimPrefix(digest, "sha256:")
+	object := app.Object{Key: key, TenantID: "ten_tamper", MediaType: "application/json", Digest: digest, Bytes: body, CreatedAt: time.Now().UTC()}
+	if err := store.Put(t.Context(), object); err != nil {
+		t.Fatal(err)
+	}
+
+	objectPath := filepath.Join(store.root, filepath.FromSlash(key))
+	if err := os.WriteFile(objectPath, []byte("tampered payload"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Get(t.Context(), key); !errors.Is(err, app.ErrValidation) {
+		t.Fatalf("tampered body err=%v, want validation", err)
+	}
+
+	if err := store.Put(t.Context(), object); err != nil {
+		t.Fatal(err)
+	}
+	metaBody, err := os.ReadFile(objectPath + ".json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var meta metadata
+	if err := json.Unmarshal(metaBody, &meta); err != nil {
+		t.Fatal(err)
+	}
+	meta.TenantID = "ten_other"
+	metaBody, err = json.Marshal(meta)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(objectPath+".json", metaBody, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Get(t.Context(), key); !errors.Is(err, app.ErrValidation) {
+		t.Fatalf("tampered metadata err=%v, want validation", err)
+	}
 }

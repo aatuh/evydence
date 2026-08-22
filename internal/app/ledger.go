@@ -19,6 +19,7 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 
+	scannerparser "github.com/aatuh/evydence/internal/app/parsers/scanners"
 	"github.com/aatuh/evydence/internal/domain"
 )
 
@@ -73,6 +74,7 @@ type Config struct {
 	OIDC                  OIDCDiscoveryClient
 	ProviderAPI           ProviderIdentityValidator
 	Transparency          TransparencyProofFetcher
+	Cosign                CosignPolicyVerifier
 	Outbox                Outbox
 	OutboxAdmin           OutboxAdmin
 	ReconciliationMetrics ObjectReconciliationMetricsStore
@@ -96,6 +98,7 @@ type Ledger struct {
 	oidc                  OIDCDiscoveryClient
 	providerAPI           ProviderIdentityValidator
 	transparencyProofs    TransparencyProofFetcher
+	cosign                CosignPolicyVerifier
 	outbox                Outbox
 	outboxAdmin           OutboxAdmin
 	reconciliationMetrics ObjectReconciliationMetricsStore
@@ -245,6 +248,7 @@ func NewLedgerWithContext(ctx context.Context, cfg Config) (*Ledger, error) {
 		oidc:                  cfg.OIDC,
 		providerAPI:           cfg.ProviderAPI,
 		transparencyProofs:    cfg.Transparency,
+		cosign:                cfg.Cosign,
 		outbox:                cfg.Outbox,
 		outboxAdmin:           cfg.OutboxAdmin,
 		reconciliationMetrics: cfg.ReconciliationMetrics,
@@ -719,8 +723,8 @@ func (s releaseEvidenceService) RegisterArtifact(ctx context.Context, actor doma
 	if err := require(actor, ScopeEvidenceWrite); err != nil {
 		return domain.Artifact{}, err
 	}
-	name, digest = strings.TrimSpace(name), strings.TrimSpace(digest)
-	if name == "" || !validDigest(digest) || size < 0 {
+	name, mediaType, digest = strings.TrimSpace(name), strings.TrimSpace(mediaType), strings.TrimSpace(digest)
+	if name == "" || mediaType == "" || !validDigest(digest) || size < 0 {
 		return domain.Artifact{}, ErrValidation
 	}
 	l.mu.Lock()
@@ -1165,11 +1169,11 @@ func (s releaseEvidenceService) UploadSBOMPayload(ctx context.Context, actor dom
 		PayloadMediaType: "application/vnd.cyclonedx+json",
 		PayloadSize:      source.Size,
 		SubjectRefs:      subjectForArtifact(artifactID),
-		Metadata: map[string]any{
+		Metadata: WithParserProvenance(map[string]any{
 			"sbom_format":       "cyclonedx",
 			"sbom_spec_version": doc.SpecVersion,
 			"component_count":   len(components),
-		},
+		}, ParserProvenance{Name: "cyclonedx", Version: ParserVersionCycloneDXJSON, SourceSchema: "cyclonedx-" + doc.SpecVersion, NormalizedSchema: "evydence-sbom.v1", ReplayStatus: ParserReplayStatusOriginal}),
 	}
 	if l.unitOfWork != nil {
 		l.mu.Lock()
@@ -1261,32 +1265,17 @@ func (s releaseEvidenceService) UploadVulnerabilityScanPayload(ctx context.Conte
 	if err := validatePayloadSource(source, EvidenceDocumentLimit); err != nil {
 		return domain.VulnerabilityScan{}, ErrValidation
 	}
-	var doc struct {
-		Scanner   string `json:"scanner"`
-		TargetRef string `json:"target_ref"`
-		Findings  []struct {
-			Vulnerability string `json:"vulnerability"`
-			Component     string `json:"component"`
-			Severity      string `json:"severity"`
-			State         string `json:"state"`
-		} `json:"findings"`
-		ReleaseID string `json:"release_id"`
-	}
 	reader, err := source.Open()
 	if err != nil {
 		return domain.VulnerabilityScan{}, ErrValidation
 	}
 	defer reader.Close()
-	dec := json.NewDecoder(reader)
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&doc); err != nil || dec.Decode(&struct{}{}) != io.EOF || strings.TrimSpace(doc.Scanner) == "" || strings.TrimSpace(doc.TargetRef) == "" {
-		return domain.VulnerabilityScan{}, ErrValidation
-	}
-	if doc.ReleaseID == "" {
+	doc, err := scannerparser.ParseBoundedReader(reader, scannerparser.DefaultLimits(EvidenceDocumentLimit))
+	if err != nil {
 		return domain.VulnerabilityScan{}, ErrValidation
 	}
 	l.mu.Lock()
-	release, ok := l.releases[strings.TrimSpace(doc.ReleaseID)]
+	release, ok := l.releases[doc.ReleaseID]
 	if !ok || release.TenantID != actor.TenantID {
 		l.mu.Unlock()
 		return domain.VulnerabilityScan{}, ErrNotFound
@@ -1300,13 +1289,8 @@ func (s releaseEvidenceService) UploadVulnerabilityScanPayload(ctx context.Conte
 	summary := map[string]int{}
 	findings := make([]domain.VulnerabilityFinding, 0, len(doc.Findings))
 	for i, finding := range doc.Findings {
-		if finding.Vulnerability == "" || finding.Severity == "" {
-			return domain.VulnerabilityScan{}, ErrValidation
-		}
-		severity := strings.ToLower(finding.Severity)
-		summary[severity]++
-		state := nonEmpty(finding.State, "open")
-		findings = append(findings, domain.VulnerabilityFinding{ID: fmt.Sprintf("%s:finding:%d", scanID, i+1), Vulnerability: finding.Vulnerability, Component: finding.Component, Severity: severity, State: state})
+		summary[finding.Severity]++
+		findings = append(findings, domain.VulnerabilityFinding{ID: fmt.Sprintf("%s:finding:%d", scanID, i+1), Vulnerability: finding.Vulnerability, Component: finding.Component, Severity: finding.Severity, State: finding.State, SeveritySource: finding.SeveritySource, FixVersion: finding.FixVersion, Identity: domain.VulnerabilityIdentity{CVE: finding.Identity.CVE, GHSA: finding.Identity.GHSA, OSV: finding.Identity.OSV, VendorAdvisory: finding.Identity.VendorAdvisory, PURL: finding.Identity.PURL, CPE: finding.Identity.CPE}})
 	}
 	payloadHash := source.Digest
 	stagedPayload, err := l.stagePayloadSource(ctx, actor.TenantID, "application/json", source)
@@ -1317,15 +1301,15 @@ func (s releaseEvidenceService) UploadVulnerabilityScanPayload(ctx context.Conte
 	evidenceInput := CreateEvidenceInput{
 		ReleaseID:        doc.ReleaseID,
 		Type:             "vulnerability_scan",
-		Subtype:          "generic",
-		Title:            "Generic vulnerability scan",
+		Subtype:          doc.Adapter,
+		Title:            "Vulnerability scan",
 		SourceSystem:     doc.Scanner,
 		ObservedAt:       l.now(),
 		PayloadRef:       payloadRef,
 		PayloadHash:      payloadHash,
 		PayloadMediaType: "application/json",
 		PayloadSize:      source.Size,
-		Metadata:         map[string]any{"scanner": doc.Scanner, "target_ref": doc.TargetRef},
+		Metadata:         WithParserProvenance(map[string]any{"scanner": doc.Scanner, "adapter": doc.Adapter, "adapter_version": doc.AdapterVersion, "source_schema": doc.SourceSchema, "target_ref": doc.TargetRef}, ParserProvenance{Name: doc.Adapter, Version: doc.AdapterVersion, SourceSchema: doc.SourceSchema, NormalizedSchema: "evydence-vulnerability-finding.v1", ReplayStatus: ParserReplayStatusOriginal}),
 	}
 	if l.unitOfWork != nil {
 		l.mu.Lock()
@@ -1334,17 +1318,20 @@ func (s releaseEvidenceService) UploadVulnerabilityScanPayload(ctx context.Conte
 		if err != nil {
 			return domain.VulnerabilityScan{}, err
 		}
-		scan := domain.VulnerabilityScan{ID: scanID, TenantID: actor.TenantID, EvidenceID: item.ID, ReleaseID: doc.ReleaseID, Scanner: doc.Scanner, TargetRef: doc.TargetRef, Summary: summary, Findings: findings, CreatedAt: l.now()}
+		scan := domain.VulnerabilityScan{ID: scanID, TenantID: actor.TenantID, EvidenceID: item.ID, ReleaseID: doc.ReleaseID, Scanner: doc.Scanner, Adapter: doc.Adapter, AdapterVersion: doc.AdapterVersion, SourceSchema: doc.SourceSchema, TargetRef: doc.TargetRef, Summary: summary, Findings: findings, CreatedAt: l.now()}
 		persistedScan := scan
 		chainAction := "vulnerability_scan.parsed"
 		if l.workerOwnedParsers {
 			persistedScan.Scanner = ""
+			persistedScan.Adapter = ""
+			persistedScan.AdapterVersion = ""
+			persistedScan.SourceSchema = ""
 			persistedScan.TargetRef = ""
 			persistedScan.Summary = nil
 			persistedScan.Findings = nil
 			chainAction = "vulnerability_scan.accepted"
 		}
-		job := l.newOutboxJob(actor.TenantID, "parse_vulnerability_scan", "vulnerability_scan", scan.ID, addPayloadLifecycle(map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionGenericVulnerabilityJSON}, stagedPayload))
+		job := l.newOutboxJob(actor.TenantID, "parse_vulnerability_scan", "vulnerability_scan", scan.ID, addPayloadLifecycle(map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionScannerAdaptersJSON}, stagedPayload))
 		var evidenceEntry, scanEntry domain.AuditChainEntry
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
 			if err := l.persistStagedObjectPayload(ctx, repos, stagedPayload); err != nil {
@@ -1387,6 +1374,9 @@ func (s releaseEvidenceService) UploadVulnerabilityScanPayload(ctx context.Conte
 	chainAction := "vulnerability_scan.parsed"
 	if l.workerOwnedParsers {
 		persistedScan.Scanner = ""
+		persistedScan.Adapter = ""
+		persistedScan.AdapterVersion = ""
+		persistedScan.SourceSchema = ""
 		persistedScan.TargetRef = ""
 		persistedScan.Summary = nil
 		persistedScan.Findings = nil
@@ -1394,7 +1384,7 @@ func (s releaseEvidenceService) UploadVulnerabilityScanPayload(ctx context.Conte
 	}
 	l.scans[scan.ID] = persistedScan
 	_, _ = l.appendChainLocked(actor.TenantID, chainAction, "vulnerability_scan", scan.ID, "api_key", actor.KeyID, payloadHash, "")
-	job := l.newOutboxJob(actor.TenantID, "parse_vulnerability_scan", "vulnerability_scan", scan.ID, addPayloadLifecycle(map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionGenericVulnerabilityJSON}, stagedPayload))
+	job := l.newOutboxJob(actor.TenantID, "parse_vulnerability_scan", "vulnerability_scan", scan.ID, addPayloadLifecycle(map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionScannerAdaptersJSON}, stagedPayload))
 	if err := l.persistReleaseLedgerWithOutboxLocked(ctx, job); err != nil {
 		return domain.VulnerabilityScan{}, err
 	}
@@ -1460,7 +1450,7 @@ func (s releaseEvidenceService) UploadOpenAPIContractPayload(ctx context.Context
 		PayloadHash:      payloadHash,
 		PayloadMediaType: "application/vnd.oai.openapi+json",
 		PayloadSize:      source.Size,
-		Metadata:         map[string]any{"version": version, "path_count": len(doc.Paths.Map())},
+		Metadata:         WithParserProvenance(map[string]any{"version": version, "path_count": len(doc.Paths.Map())}, ParserProvenance{Name: "openapi", Version: ParserVersionOpenAPIJSON, SourceSchema: "openapi-" + doc.OpenAPI, NormalizedSchema: "evydence-openapi-contract.v1", ReplayStatus: ParserReplayStatusOriginal}),
 	}
 	if l.unitOfWork != nil {
 		l.mu.Lock()
@@ -1986,7 +1976,7 @@ func (l *Ledger) VerifySubject(ctx context.Context, actor domain.Actor, subjectT
 			return domain.VerificationResult{}, err
 		}
 		checks = l.verifyChainLocked(actor.TenantID)
-		profile = assuranceProfile("audit-chain-integrity.v1", requiredCheckNames(checks), []string{"Evydence audit-chain canonical hashes"}, "tenant-scoped verification authorization", "not_evaluated", "tenant audit-chain entries", "", []string{"Audit-chain verification does not prove external anchoring or third-party log inclusion."})
+		profile = assuranceProfile(domain.VerificationProfileAuditChainIntegrity, requiredCheckNames(checks), []string{"Evydence audit-chain canonical hashes"}, "tenant-scoped verification authorization", "not_evaluated", "tenant audit-chain entries", "", []string{"Audit-chain verification does not prove external anchoring or third-party log inclusion."})
 	case "audit_chain_checkpoint":
 		if err := l.authorizeResourceLocked(actor, ScopeVerifyRead, resourceRefs{}); err != nil {
 			return domain.VerificationResult{}, err
@@ -1996,7 +1986,7 @@ func (l *Ledger) VerifySubject(ctx context.Context, actor domain.Actor, subjectT
 		if !found {
 			return domain.VerificationResult{}, ErrNotFound
 		}
-		profile = assuranceProfile("audit-chain-merkle-checkpoint.v1", requiredCheckNames(checks), []string{"Evydence audit-chain hashes", "tenant signing keys"}, "tenant-scoped verification authorization", "not_evaluated", "tenant audit-chain range and signed Merkle root", "", []string{"This signed checkpoint detects truncation or rewrites within its covered sequence range, but does not prove external publication or third-party log inclusion."})
+		profile = assuranceProfile(domain.VerificationProfileAuditChainMerkleCheckpoint, requiredCheckNames(checks), []string{"Evydence audit-chain hashes", "tenant signing keys"}, "tenant-scoped verification authorization", "not_evaluated", "tenant audit-chain range and signed Merkle root", "", []string{"This signed checkpoint detects truncation or rewrites within its covered sequence range, but does not prove external publication or third-party log inclusion."})
 	case "audit_chain_release_manifest":
 		bundle, ok := l.bundles[strings.TrimSpace(subjectID)]
 		if !ok || bundle.TenantID != actor.TenantID {
@@ -2010,7 +2000,7 @@ func (l *Ledger) VerifySubject(ctx context.Context, actor domain.Actor, subjectT
 		if !found {
 			return domain.VerificationResult{}, ErrNotFound
 		}
-		profile = assuranceProfile("audit-chain-release-manifest-checkpoint.v1", requiredCheckNames(checks), []string{"release bundle manifest", "tenant signing keys"}, "tenant-scoped verification authorization", "not_evaluated", "signed release manifest audit-chain checkpoint", bundle.ManifestHash, []string{"This signed checkpoint detects truncation or rewrites within its covered sequence range, but does not prove external publication or third-party log inclusion."})
+		profile = assuranceProfile(domain.VerificationProfileAuditChainReleaseManifest, requiredCheckNames(checks), []string{"release bundle manifest", "tenant signing keys"}, "tenant-scoped verification authorization", "not_evaluated", "signed release manifest audit-chain checkpoint", bundle.ManifestHash, []string{"This signed checkpoint detects truncation or rewrites within its covered sequence range, but does not prove external publication or third-party log inclusion."})
 	case "evidence_item":
 		item, ok := l.evidence[strings.TrimSpace(subjectID)]
 		if !ok || item.TenantID != actor.TenantID {
@@ -2025,7 +2015,7 @@ func (l *Ledger) VerifySubject(ctx context.Context, actor domain.Actor, subjectT
 		} else {
 			checks = append(checks, domain.VerifyCheck{Name: "canonical_hash", Result: "passed"})
 		}
-		profile = assuranceProfile("evidence-canonical-hash.v1", []string{"canonical_hash"}, []string{domain.CanonicalizationProfileVersion}, "tenant-scoped verification authorization", "not_evaluated", "canonical evidence fields", item.CanonicalHash, []string{"Canonical evidence hashing does not validate the origin or completeness of the uploaded payload."})
+		profile = assuranceProfile(domain.VerificationProfileEvidenceCanonicalHash, []string{"canonical_hash"}, []string{domain.CanonicalizationProfileVersion}, "tenant-scoped verification authorization", "not_evaluated", "canonical evidence fields", item.CanonicalHash, []string{"Canonical evidence hashing does not validate the origin or completeness of the uploaded payload."})
 	case "release_bundle":
 		bundle, ok := l.bundles[strings.TrimSpace(subjectID)]
 		if !ok || bundle.TenantID != actor.TenantID {
@@ -2040,12 +2030,12 @@ func (l *Ledger) VerifySubject(ctx context.Context, actor domain.Actor, subjectT
 		} else {
 			checks = append(checks, domain.VerifyCheck{Name: "manifest_hash", Result: "passed"})
 		}
-		if !l.verifySignatureLocked(bundle.TenantID, bundle.SignatureRefs, []byte(bundle.ManifestHash)) {
+		if !l.verifySignatureForSubjectLocked(bundle.TenantID, bundle.SignatureRefs, "release_bundle", bundle.ID, []byte(bundle.ManifestHash)) {
 			checks = append(checks, domain.VerifyCheck{Name: "bundle_signature", Result: "failed"})
 		} else {
 			checks = append(checks, domain.VerifyCheck{Name: "bundle_signature", Result: "passed"})
 		}
-		profile = assuranceProfile("release-bundle-signature.v1", []string{"manifest_hash", "bundle_signature"}, []string{"active or historically valid tenant signing keys"}, "tenant-scoped verification authorization", "not_evaluated", "release bundle manifest canonical JSON", bundle.ManifestHash, []string{"Bundle verification does not establish external publication, registry provenance, or legal sufficiency."})
+		profile = assuranceProfile(domain.VerificationProfileReleaseBundleSignature, []string{"manifest_hash", "bundle_signature"}, []string{"active or historically valid tenant signing keys"}, "tenant-scoped verification authorization", "not_evaluated", "release bundle manifest canonical JSON", bundle.ManifestHash, []string{"Bundle verification does not establish external publication, registry provenance, or legal sufficiency."})
 	case "artifact_signature":
 		sig, ok := l.artifactSigs[strings.TrimSpace(subjectID)]
 		if !ok || sig.TenantID != actor.TenantID {
@@ -2068,7 +2058,7 @@ func (l *Ledger) VerifySubject(ctx context.Context, actor domain.Actor, subjectT
 		} else {
 			checks = append(checks, domain.VerifyCheck{Name: "signature_material_present", Result: "passed", Detail: "signature recorded; cryptographic trust-root verification is deferred"})
 		}
-		profile = assuranceProfile("artifact-signature-metadata.v1", []string{"digest_binding_assessed", "signature_material_present", "cryptographic_signature_verified", "certificate_identity_policy", "transparency_inclusion_proof"}, []string{"recorded artifact signature metadata"}, "no certificate identity policy evaluated", "not_evaluated", "artifact digest and detached signature metadata", sig.SubjectDigest, []string{"This profile is metadata-only and cannot verify cryptographic signature validity, certificate identity, trust roots, or transparency inclusion."})
+		profile = assuranceProfile(domain.VerificationProfileArtifactSignatureMetadata, []string{"digest_binding_assessed", "signature_material_present", "cryptographic_signature_verified", "certificate_identity_policy", "transparency_inclusion_proof"}, []string{"recorded artifact signature metadata"}, "no certificate identity policy evaluated", "not_evaluated", "artifact digest and detached signature metadata", sig.SubjectDigest, []string{"This profile is metadata-only and cannot verify cryptographic signature validity, certificate identity, trust roots, or transparency inclusion."})
 	default:
 		return domain.VerificationResult{}, ErrValidation
 	}
@@ -2123,6 +2113,9 @@ func (l *Ledger) RotateSigningKey(ctx context.Context, actor domain.Actor, reaso
 	}
 	if err := require(actor, ScopeKeysAdmin); err != nil {
 		return domain.SigningKey{}, err
+	}
+	if strings.TrimSpace(reason) == "" {
+		return domain.SigningKey{}, ErrValidation
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -2454,15 +2447,26 @@ func (l *Ledger) rotateSigningKeyLocked(tenantID, _ string) (domain.SigningKey, 
 }
 
 func (l *Ledger) planSigningKeyRotationLocked(tenantID string) (domain.SigningKey, []domain.SigningKey, error) {
+	now := l.now().UTC()
+	version := 1
 	retiring := make([]domain.SigningKey, 0)
 	for _, key := range l.signingKeys {
-		if key.TenantID == tenantID && key.Status == "active" {
-			key.Status = "retiring"
+		if key.TenantID != tenantID || signingKeyProvider(key) != domain.SigningKeyDefaultProvider {
+			continue
+		}
+		if key.Version < 1 && version < 2 {
+			version = 2
+		} else if key.Version >= version {
+			version = key.Version + 1
+		}
+		if key.Status == domain.SigningKeyStatusActive {
+			key.Status = domain.SigningKeyStatusRetiring
+			key.ValidUntil = &now
 			retiring = append(retiring, key)
 		}
 	}
 	sort.Slice(retiring, func(i, j int) bool { return retiring[i].ID < retiring[j].ID })
-	key, err := l.newSigningKey(tenantID)
+	key, err := l.newSigningKeyAt(tenantID, domain.SigningKeyDefaultProvider, version, now)
 	if err != nil {
 		return domain.SigningKey{}, nil, err
 	}
@@ -2472,17 +2476,29 @@ func (l *Ledger) planSigningKeyRotationLocked(tenantID string) (domain.SigningKe
 // newSigningKey creates private material without publishing it. Callers must
 // write it transactionally and must never return Private to normal callers.
 func (l *Ledger) newSigningKey(tenantID string) (domain.SigningKey, error) {
+	return l.newSigningKeyAt(tenantID, domain.SigningKeyDefaultProvider, 1, l.now().UTC())
+}
+
+func (l *Ledger) newSigningKeyAt(tenantID, provider string, version int, now time.Time) (domain.SigningKey, error) {
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		return domain.SigningKey{}, err
 	}
-	return domain.SigningKey{ID: newID("sk"), TenantID: tenantID, KID: time.Now().UTC().Format("20060102T150405Z"), Algorithm: "Ed25519", Status: "active", PublicKey: base64.RawStdEncoding.EncodeToString(pub), Private: priv, CreatedAt: l.now()}, nil
+	if provider == "" {
+		provider = domain.SigningKeyDefaultProvider
+	}
+	if version < 1 {
+		version = 1
+	}
+	now = now.UTC()
+	fingerprint := sha256.Sum256(pub)
+	return domain.SigningKey{ID: newID("sk"), TenantID: tenantID, KID: fmt.Sprintf("%s-v%d", now.Format("20060102T150405Z"), version), Version: version, Provider: provider, Algorithm: "Ed25519", Status: domain.SigningKeyStatusActive, PublicKey: base64.RawStdEncoding.EncodeToString(pub), PublicKeyFingerprint: "sha256:" + hex.EncodeToString(fingerprint[:]), Private: priv, ValidFrom: now, CreatedAt: now, HistoricalValidityPolicy: domain.SigningKeyHistoricalValidityPreserve}, nil
 }
 
 func (l *Ledger) signLocked(tenantID, subjectType, subjectID string, payload []byte) (domain.Signature, error) {
 	var active domain.SigningKey
 	for _, key := range l.signingKeys {
-		if key.TenantID == tenantID && key.Status == "active" {
+		if key.TenantID == tenantID && key.Status == domain.SigningKeyStatusActive {
 			active = key
 			break
 		}
@@ -2492,7 +2508,7 @@ func (l *Ledger) signLocked(tenantID, subjectType, subjectID string, payload []b
 			return domain.Signature{}, err
 		}
 		for _, key := range l.signingKeys {
-			if key.TenantID == tenantID && key.Status == "active" {
+			if key.TenantID == tenantID && key.Status == domain.SigningKeyStatusActive {
 				active = key
 				break
 			}
@@ -2505,16 +2521,27 @@ func (l *Ledger) signLocked(tenantID, subjectType, subjectID string, payload []b
 }
 
 func (l *Ledger) verifySignatureLocked(tenantID string, signatureRefs []string, payload []byte) bool {
+	return l.verifySignatureForSubjectLocked(tenantID, signatureRefs, "", "", payload)
+}
+
+// verifySignatureForSubjectLocked verifies both the cryptographic value and the
+// immutable subject recorded with the signature. Callers that verify an
+// identifiable ledger object must use this form so a valid signature for one
+// object cannot be replayed for another object with identical bytes.
+func (l *Ledger) verifySignatureForSubjectLocked(tenantID string, signatureRefs []string, subjectType, subjectID string, payload []byte) bool {
 	for _, ref := range signatureRefs {
 		sig, ok := l.signatures[ref]
 		if !ok || sig.TenantID != tenantID {
+			continue
+		}
+		if subjectType != "" && (sig.SubjectType != subjectType || sig.SubjectID != subjectID) {
 			continue
 		}
 		key, ok := l.signingKeys[sig.KeyID]
 		if !ok || key.TenantID != tenantID {
 			continue
 		}
-		if key.Status == "revoked" && (key.RevokedAt == nil || sig.CreatedAt.After(*key.RevokedAt)) {
+		if key.HistoricalValidityAt(sig.CreatedAt, l.now().UTC()) != domain.SigningKeyHistoricalValidityValid {
 			continue
 		}
 		pub, err := base64.RawStdEncoding.DecodeString(key.PublicKey)

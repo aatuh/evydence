@@ -3,7 +3,6 @@ package app
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"sort"
@@ -11,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	vexparser "github.com/aatuh/evydence/internal/app/parsers/vex"
 	"github.com/aatuh/evydence/internal/domain"
 )
 
@@ -67,6 +67,7 @@ type openVEXDocument struct {
 	Timestamp  string             `json:"timestamp"`
 	Version    any                `json:"version"`
 	Statements []openVEXStatement `json:"statements"`
+	Warnings   []string           `json:"-"`
 }
 
 type openVEXStatement struct {
@@ -155,10 +156,10 @@ func (s releaseEvidenceService) UploadVEXPayload(ctx context.Context, actor doma
 		PayloadMediaType: "application/vnd.openvex+json",
 		PayloadSize:      source.Size,
 		SubjectRefs:      subjectForArtifact(artifactID),
-		Metadata: map[string]any{
+		Metadata: WithParserProvenance(map[string]any{
 			"format":          "openvex",
 			"statement_count": len(doc.Statements),
-		},
+		}, ParserProvenance{Name: "openvex", Version: ParserVersionOpenVEXJSON, SourceSchema: "openvex-json", NormalizedSchema: "evydence-vex.v1", Warnings: doc.Warnings, ReplayStatus: ParserReplayStatusOriginal}),
 	}
 	if l.unitOfWork != nil {
 		l.mu.Lock()
@@ -186,12 +187,16 @@ func (s releaseEvidenceService) UploadVEXPayload(ctx context.Context, actor doma
 		}
 		effects := []decisionEffect{}
 		createdDecisions, supersededDecisions := 0, 0
-		mappingFailures, warnings := []domain.VEXImportIssue{}, []string{}
+		mappingFailures, warnings := []domain.VEXImportIssue{}, append([]string{}, doc.Warnings...)
 		if !l.workerOwnedParsers {
 			createdForFinding := map[string]struct{}{}
 			duplicateWarningAdded := false
 			for index, statement := range doc.Statements {
-				matches := l.findMatchingFindingsLocked(actor.TenantID, releaseID, statement)
+				matches, ambiguous := l.findMatchingFindingsLocked(actor.TenantID, releaseID, statement)
+				if ambiguous {
+					mappingFailures = append(mappingFailures, vexImportIssue(index+1, "ambiguous_finding", "Multiple plausible findings matched this VEX statement; no decision was applied."))
+					continue
+				}
 				if len(matches) == 0 {
 					mappingFailures = append(mappingFailures, vexImportIssue(index+1, "finding_not_found", "No matching vulnerability scan finding was found for this VEX statement."))
 				}
@@ -212,7 +217,10 @@ func (s releaseEvidenceService) UploadVEXPayload(ctx context.Context, actor doma
 			}
 		} else {
 			for index, statement := range doc.Statements {
-				if len(l.findMatchingFindingsLocked(actor.TenantID, releaseID, statement)) == 0 {
+				matches, ambiguous := l.findMatchingFindingsLocked(actor.TenantID, releaseID, statement)
+				if ambiguous {
+					mappingFailures = append(mappingFailures, vexImportIssue(index+1, "ambiguous_finding", "Multiple plausible findings matched this VEX statement; no decision will be applied by replay."))
+				} else if len(matches) == 0 {
 					mappingFailures = append(mappingFailures, vexImportIssue(index+1, "finding_not_found", "No matching vulnerability scan finding was found for this VEX statement at upload time."))
 				}
 			}
@@ -324,12 +332,16 @@ func (s releaseEvidenceService) UploadVEXPayload(ctx context.Context, actor doma
 	createdDecisions := 0
 	supersededDecisions := 0
 	mappingFailures := []domain.VEXImportIssue{}
-	warnings := []string{}
+	warnings := append([]string{}, doc.Warnings...)
 	if !l.workerOwnedParsers {
 		createdForFinding := map[string]struct{}{}
 		duplicateWarningAdded := false
 		for index, statement := range doc.Statements {
-			matches := l.findMatchingFindingsLocked(actor.TenantID, releaseID, statement)
+			matches, ambiguous := l.findMatchingFindingsLocked(actor.TenantID, releaseID, statement)
+			if ambiguous {
+				mappingFailures = append(mappingFailures, vexImportIssue(index+1, "ambiguous_finding", "Multiple plausible findings matched this VEX statement; no decision was applied."))
+				continue
+			}
 			if len(matches) == 0 {
 				mappingFailures = append(mappingFailures, vexImportIssue(index+1, "finding_not_found", "No matching vulnerability scan finding was found for this VEX statement."))
 			}
@@ -359,7 +371,10 @@ func (s releaseEvidenceService) UploadVEXPayload(ctx context.Context, actor doma
 		}
 	} else {
 		for index, statement := range doc.Statements {
-			if len(l.findMatchingFindingsLocked(actor.TenantID, releaseID, statement)) == 0 {
+			matches, ambiguous := l.findMatchingFindingsLocked(actor.TenantID, releaseID, statement)
+			if ambiguous {
+				mappingFailures = append(mappingFailures, vexImportIssue(index+1, "ambiguous_finding", "Multiple plausible findings matched this VEX statement; no decision will be applied by replay."))
+			} else if len(matches) == 0 {
 				mappingFailures = append(mappingFailures, vexImportIssue(index+1, "finding_not_found", "No matching vulnerability scan finding was found for this VEX statement at upload time."))
 			}
 		}
@@ -441,6 +456,7 @@ func (s releaseEvidenceService) PreviewVEXImport(ctx context.Context, actor doma
 		return domain.VEXImportPreview{}, err
 	}
 	created, superseded, warnings, mappingFailures := l.previewOpenVEXDecisionEffectsLocked(actor.TenantID, releaseID, doc.Statements)
+	warnings = append(append([]string{}, doc.Warnings...), warnings...)
 	return domain.VEXImportPreview{
 		TenantID:                actor.TenantID,
 		ReleaseID:               releaseID,
@@ -1023,7 +1039,7 @@ func (l *Ledger) releaseReadinessSectionsLocked(tenantID, releaseID string, eval
 		}),
 		readinessSection("provenance", "Build Provenance And Bundle", []domain.ReadinessQuestion{
 			readinessQuestionForCheck(checks["release_requires_passed_build"], "passed_build", "Is passed build provenance attached?", "A passed build is linked to a release artifact digest.", "No passed build with output digest linked to the release was found."),
-			readinessQuestionForCheck(checks["release_requires_build_attestation"], "build_attestation", "Is there a build attestation for a release artifact?", "A build attestation subject matches a release artifact digest.", "No build attestation subject matches a release artifact digest."),
+			readinessQuestionForCheck(checks["release_requires_build_attestation"], "build_attestation", "Is there a trusted build attestation for a release artifact?", "A passed trusted-attestation receipt covers a registered release artifact digest.", "No passed trusted-attestation receipt covers a registered release artifact digest."),
 			readinessQuestionForCheck(checks["release_requires_signed_bundle"], "signed_bundle", "Is there a signed release bundle?", "A signed release bundle exists for this release.", "A signed release bundle is missing for this release."),
 		}),
 		readinessSection("customer_review", "Customer Package Review", []domain.ReadinessQuestion{
@@ -1233,70 +1249,23 @@ func parseOpenVEX(raw []byte) (openVEXDocument, error) {
 }
 
 func parseOpenVEXReader(reader io.Reader) (openVEXDocument, error) {
-	var doc openVEXDocument
-	dec := json.NewDecoder(reader)
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&doc); err != nil {
-		return openVEXDocument{}, vexValidationError("openvex JSON is malformed or contains unsupported fields")
+	raw, err := io.ReadAll(io.LimitReader(reader, EvidenceDocumentLimit+1))
+	if err != nil || int64(len(raw)) > EvidenceDocumentLimit {
+		return openVEXDocument{}, vexValidationError("openvex JSON is malformed")
 	}
-	if err := dec.Decode(&struct{}{}); err != io.EOF {
-		return openVEXDocument{}, vexValidationError("openvex JSON must contain a single document")
+	parsed, err := vexparser.ParseOpenVEX(raw, vexparser.DefaultLimits(EvidenceDocumentLimit))
+	if err != nil {
+		return openVEXDocument{}, vexValidationError("openvex JSON is malformed or violates required OpenVEX fields")
 	}
-	doc.Author = strings.TrimSpace(doc.Author)
-	doc.Timestamp = strings.TrimSpace(doc.Timestamp)
-	if doc.Author == "" {
-		return openVEXDocument{}, vexValidationError("openvex author is required")
-	}
-	if doc.Timestamp == "" {
-		return openVEXDocument{}, vexValidationError("openvex timestamp is required")
-	}
-	if len(doc.Statements) == 0 {
-		return openVEXDocument{}, vexValidationError("openvex must include at least one statement")
-	}
-	if _, err := time.Parse(time.RFC3339, doc.Timestamp); err != nil {
-		return openVEXDocument{}, vexValidationError("openvex timestamp must be RFC3339")
-	}
-	for index := range doc.Statements {
-		statement := &doc.Statements[index]
-		statement.Vulnerability.Name = strings.TrimSpace(statement.Vulnerability.Name)
-		statement.Status = strings.TrimSpace(statement.Status)
-		statement.Justification = strings.TrimSpace(statement.Justification)
-		statement.ImpactStatement = strings.TrimSpace(statement.ImpactStatement)
-		statement.ActionStatement = strings.TrimSpace(statement.ActionStatement)
-		if statement.Vulnerability.Name == "" {
-			return openVEXDocument{}, vexStatementValidationError(index+1, "is missing a vulnerability name")
+	doc := openVEXDocument{Author: parsed.Author, Version: parsed.Version, Warnings: parsed.Warnings}
+	for _, statement := range parsed.Statements {
+		products := make([]openVEXProduct, 0, len(statement.Products))
+		for _, product := range statement.Products {
+			products = append(products, openVEXProduct{ID: product})
 		}
-		if !validDecisionStatus(statement.Status) {
-			return openVEXDocument{}, vexStatementValidationError(index+1, "has an unsupported status")
-		}
-		if statement.Justification == "" {
-			return openVEXDocument{}, vexStatementValidationError(index+1, "is missing a justification")
-		}
-		if len(statement.Products) == 0 {
-			return openVEXDocument{}, vexStatementValidationError(index+1, "is missing products")
-		}
-		if err := validateOpenVEXProducts(index+1, statement.Products); err != nil {
-			return openVEXDocument{}, err
-		}
+		doc.Statements = append(doc.Statements, openVEXStatement{Vulnerability: openVEXVulnerability{Name: statement.Vulnerability}, Products: products, Status: statement.Status, Justification: statement.Justification, ImpactStatement: statement.ImpactStatement, ActionStatement: statement.ActionStatement})
 	}
 	return doc, nil
-}
-
-func validateOpenVEXProducts(statementIndex int, products []openVEXProduct) error {
-	for index := range products {
-		products[index].ID = strings.TrimSpace(products[index].ID)
-		if products[index].ID == "" {
-			return vexValidationError(fmt.Sprintf("openvex statement %d product %d is missing an @id", statementIndex, index+1))
-		}
-		if err := validateOpenVEXProducts(statementIndex, products[index].Subcomponents); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func vexStatementValidationError(index int, detail string) error {
-	return vexValidationError(fmt.Sprintf("openvex statement %d %s", index, detail))
 }
 
 func vexValidationError(detail string) error {
@@ -1349,7 +1318,7 @@ type matchedFinding struct {
 	finding domain.VulnerabilityFinding
 }
 
-func (l *Ledger) findMatchingFindingsLocked(tenantID, releaseID string, statement openVEXStatement) []matchedFinding {
+func (l *Ledger) findMatchingFindingsLocked(tenantID, releaseID string, statement openVEXStatement) ([]matchedFinding, bool) {
 	out := []matchedFinding{}
 	products := openVEXProductIDs(statement.Products)
 	for _, scan := range l.scans {
@@ -1368,7 +1337,7 @@ func (l *Ledger) findMatchingFindingsLocked(tenantID, releaseID string, statemen
 			out = append(out, matchedFinding{scan: scan, finding: finding})
 		}
 	}
-	return out
+	return unambiguousVEXMatches(out, products)
 }
 
 func (l *Ledger) previewOpenVEXDecisionEffectsLocked(tenantID, releaseID string, statements []openVEXStatement) (int, int, []string, []domain.VEXImportIssue) {
@@ -1378,7 +1347,11 @@ func (l *Ledger) previewOpenVEXDecisionEffectsLocked(tenantID, releaseID string,
 	createdForFinding := map[string]struct{}{}
 	duplicateWarningAdded := false
 	for index, statement := range statements {
-		matches := l.findMatchingFindingsLocked(tenantID, releaseID, statement)
+		matches, ambiguous := l.findMatchingFindingsLocked(tenantID, releaseID, statement)
+		if ambiguous {
+			mappingFailures = append(mappingFailures, vexImportIssue(index+1, "ambiguous_finding", "Multiple plausible findings matched this VEX statement; no decision would be applied."))
+			continue
+		}
 		if len(matches) == 0 {
 			mappingFailures = append(mappingFailures, vexImportIssue(index+1, "finding_not_found", "No matching vulnerability scan finding was found for this VEX statement."))
 		}
@@ -1391,6 +1364,30 @@ func (l *Ledger) previewOpenVEXDecisionEffectsLocked(tenantID, releaseID string,
 		}
 	}
 	return created, superseded, warnings, mappingFailures
+}
+
+func unambiguousVEXMatches(matches []matchedFinding, productRefs map[string]struct{}) ([]matchedFinding, bool) {
+	if len(matches) < 2 {
+		return matches, false
+	}
+	if len(productRefs) == 0 || len(matches) > len(productRefs) {
+		return nil, true
+	}
+	seenComponents := map[string]struct{}{}
+	for _, match := range matches {
+		component := strings.TrimSpace(match.finding.Component)
+		if component == "" {
+			return nil, true
+		}
+		if _, allowed := productRefs[component]; !allowed {
+			return nil, true
+		}
+		if _, duplicate := seenComponents[component]; duplicate {
+			return nil, true
+		}
+		seenComponents[component] = struct{}{}
+	}
+	return matches, false
 }
 
 func (l *Ledger) previewDecisionEffectsForMatchesLocked(tenantID string, matches []matchedFinding, createdForFinding map[string]struct{}) (int, int, bool) {

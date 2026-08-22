@@ -95,7 +95,7 @@ func TestUploadSBOMPersistedStagingMetadataAndFinalizationJobAreAtomic(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	raw := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api","version":"1.0.0"}]}`)
+	raw := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api","version":"1.0.0"}]}`)
 	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, raw); err != nil {
 		t.Fatalf("upload SBOM: %v", err)
 	}
@@ -191,7 +191,7 @@ func TestUploadSBOMLeavesDiscoverableStagingObjectWhenTransactionFails(t *testin
 			return repos
 		},
 	}
-	raw := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api"}]}`)
+	raw := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api"}]}`)
 	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, raw); !errors.Is(err, errInjectedRepositoryFailure) {
 		t.Fatalf("upload SBOM error=%v, want injected transaction failure", err)
 	}

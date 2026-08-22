@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,11 +27,14 @@ import (
 	signinggateway "github.com/aatuh/evydence/internal/adapters/signing/httpgateway"
 	"github.com/aatuh/evydence/internal/adapters/transparency/httpfetcher"
 	transparencygateway "github.com/aatuh/evydence/internal/adapters/transparency/httpgateway"
+	cosignverification "github.com/aatuh/evydence/internal/adapters/verification/sigstore"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
 )
 
 const runtimeReadinessTimeout = 5 * time.Second
+
+const maxSigstoreTrustConfigBytes = 1 << 20
 
 func main() {
 	if err := run(); err != nil {
@@ -73,6 +77,11 @@ func run() error {
 		return err
 	}
 	cfg.Transparency = transparencyFetcher
+	cosignVerifier, err := openCosignVerifier()
+	if err != nil {
+		return err
+	}
+	cfg.Cosign = cosignVerifier
 	if signer, err := openSigningExecutor(); err != nil {
 		return err
 	} else {
@@ -208,27 +217,25 @@ func openSigningExecutor() (app.SigningExecutor, error) {
 		}
 		return executor, nil
 	}
-	if mode == "gcp_kms" && strings.TrimSpace(os.Getenv("EVYDENCE_GCP_KMS_ACCESS_TOKEN")) != "" {
-		executor, err := gcpkms.New(gcpkms.Config{
-			Endpoint:    os.Getenv("EVYDENCE_GCP_KMS_ENDPOINT"),
-			AccessToken: os.Getenv("EVYDENCE_GCP_KMS_ACCESS_TOKEN"),
-			KeyName:     os.Getenv("EVYDENCE_GCP_KMS_KEY_NAME"),
-			Timeout:     time.Duration(intEnv("EVYDENCE_GCP_KMS_TIMEOUT_SECONDS", 10)) * time.Second,
+	if mode == "gcp_kms" {
+		executor, err := gcpkms.New(context.Background(), gcpkms.Config{
+			Endpoint: os.Getenv("EVYDENCE_GCP_KMS_ENDPOINT"),
+			KeyName:  os.Getenv("EVYDENCE_GCP_KMS_KEY_NAME"),
+			Timeout:  time.Duration(intEnv("EVYDENCE_GCP_KMS_TIMEOUT_SECONDS", 10)) * time.Second,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("configure GCP KMS signing executor: %w", err)
 		}
 		return executor, nil
 	}
-	if mode == "azure_key_vault" && strings.TrimSpace(os.Getenv("EVYDENCE_AZURE_KEY_VAULT_ACCESS_TOKEN")) != "" {
+	if mode == "azure_key_vault" {
 		executor, err := azurekeyvault.New(azurekeyvault.Config{
-			VaultURL:    os.Getenv("EVYDENCE_AZURE_KEY_VAULT_URL"),
-			AccessToken: os.Getenv("EVYDENCE_AZURE_KEY_VAULT_ACCESS_TOKEN"),
-			KeyName:     os.Getenv("EVYDENCE_AZURE_KEY_VAULT_KEY_NAME"),
-			KeyVersion:  os.Getenv("EVYDENCE_AZURE_KEY_VAULT_KEY_VERSION"),
-			Algorithm:   os.Getenv("EVYDENCE_AZURE_KEY_VAULT_ALGORITHM"),
-			APIVersion:  os.Getenv("EVYDENCE_AZURE_KEY_VAULT_API_VERSION"),
-			Timeout:     time.Duration(intEnv("EVYDENCE_AZURE_KEY_VAULT_TIMEOUT_SECONDS", 10)) * time.Second,
+			VaultURL:   os.Getenv("EVYDENCE_AZURE_KEY_VAULT_URL"),
+			KeyName:    os.Getenv("EVYDENCE_AZURE_KEY_VAULT_KEY_NAME"),
+			KeyVersion: os.Getenv("EVYDENCE_AZURE_KEY_VAULT_KEY_VERSION"),
+			Algorithm:  os.Getenv("EVYDENCE_AZURE_KEY_VAULT_ALGORITHM"),
+			APIVersion: os.Getenv("EVYDENCE_AZURE_KEY_VAULT_API_VERSION"),
+			Timeout:    time.Duration(intEnv("EVYDENCE_AZURE_KEY_VAULT_TIMEOUT_SECONDS", 10)) * time.Second,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("configure Azure Key Vault signing executor: %w", err)
@@ -245,6 +252,7 @@ func openSigningExecutor() (app.SigningExecutor, error) {
 	executor, err := signinggateway.New(signinggateway.Config{
 		Endpoint:                  endpoint,
 		BearerToken:               os.Getenv("EVYDENCE_SIGNING_EXECUTOR_TOKEN"),
+		VerificationPublicKey:     os.Getenv("EVYDENCE_SIGNING_EXECUTOR_PUBLIC_KEY_BASE64"),
 		AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST"), "true"),
 		Timeout:                   time.Duration(intEnv("EVYDENCE_SIGNING_EXECUTOR_TIMEOUT_SECONDS", 10)) * time.Second,
 	})
@@ -272,6 +280,52 @@ func openTransparencyProofFetcher() (app.TransparencyProofFetcher, error) {
 		AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_TRANSPARENCY_FETCH_ALLOW_INSECURE_LOCALHOST"), "true"),
 		Timeout:                   time.Duration(intEnv("EVYDENCE_TRANSPARENCY_FETCH_TIMEOUT_SECONDS", 10)) * time.Second,
 	}), nil
+}
+
+// openCosignVerifier decodes public, operator-managed trust material from
+// bounded base64 environment variables. It deliberately has no network path:
+// the verification endpoint supports explicit offline bundles only.
+func openCosignVerifier() (app.CosignPolicyVerifier, error) {
+	rootValue := strings.TrimSpace(os.Getenv("EVYDENCE_SIGSTORE_TRUST_ROOT_JSON_BASE64"))
+	keyValue := strings.TrimSpace(os.Getenv("EVYDENCE_SIGSTORE_TRUSTED_PUBLIC_KEY_PEM_BASE64"))
+	if rootValue == "" && keyValue == "" {
+		return nil, nil
+	}
+	version := strings.TrimSpace(os.Getenv("EVYDENCE_SIGSTORE_TRUST_ROOT_VERSION"))
+	if version == "" {
+		return nil, errors.New("sigstore trust material requires EVYDENCE_SIGSTORE_TRUST_ROOT_VERSION")
+	}
+	rootJSON, err := decodeBoundedBase64Config(rootValue)
+	if err != nil {
+		return nil, errors.New("EVYDENCE_SIGSTORE_TRUST_ROOT_JSON_BASE64 is invalid")
+	}
+	publicKey, err := decodeBoundedBase64Config(keyValue)
+	if err != nil {
+		return nil, errors.New("EVYDENCE_SIGSTORE_TRUSTED_PUBLIC_KEY_PEM_BASE64 is invalid")
+	}
+	verifier, err := cosignverification.New(cosignverification.Config{
+		TrustedRootJSON:     rootJSON,
+		TrustRootVersion:    version,
+		TrustedPublicKeyPEM: publicKey,
+	})
+	if err != nil {
+		return nil, errors.New("configured Sigstore trust material is invalid")
+	}
+	return verifier, nil
+}
+
+func decodeBoundedBase64Config(value string) ([]byte, error) {
+	if value == "" {
+		return nil, nil
+	}
+	if len(value) > base64.StdEncoding.EncodedLen(maxSigstoreTrustConfigBytes) {
+		return nil, errors.New("configuration is too large")
+	}
+	decoded, err := base64.StdEncoding.Strict().DecodeString(value)
+	if err != nil || len(decoded) == 0 || len(decoded) > maxSigstoreTrustConfigBytes {
+		return nil, errors.New("invalid base64 configuration")
+	}
+	return decoded, nil
 }
 
 func openProviderIdentityValidator() (app.ProviderIdentityValidator, error) {

@@ -180,14 +180,13 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Project id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Project envelope.", "#/components/schemas/ProjectEnvelope")
 	case "createRelease":
-		operation.Description = "Creates an append-only release record under a product and optional project."
+		operation.Description = "Creates an append-only release record under a product."
 		operation.RequestBody = jsonRequest("Release creation request.", "#/components/schemas/CreateReleaseRequest")
 		addJSONRequestExamples(operation.RequestBody, map[string]any{
 			"release-candidate": specs.Example{
 				Summary: "Create a release for evidence collection",
 				Value: map[string]any{
 					"product_id": "prod_20260527120000",
-					"project_id": "proj_20260527120000",
 					"version":    "1.0.0-rc.1",
 				},
 			},
@@ -198,14 +197,13 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 				Summary: "Created release response",
 				Value: map[string]any{
 					"data": map[string]any{
-						"id":             "rel_20260527120000",
-						"tenant_id":      "ten_20260527120000",
-						"product_id":     "prod_20260527120000",
-						"project_id":     "proj_20260527120000",
-						"version":        "1.0.0-rc.1",
-						"status":         "draft",
-						"schema_version": "release.v1.0.0",
-						"created_at":     "2026-05-27T12:00:00Z",
+						"id":         "rel_20260527120000",
+						"tenant_id":  "ten_20260527120000",
+						"product_id": "prod_20260527120000",
+						"version":    "1.0.0-rc.1",
+						"revision":   1,
+						"state":      "draft",
+						"created_at": "2026-05-27T12:00:00Z",
 					},
 					"meta": map[string]any{"api_version": "v1"},
 				},
@@ -235,7 +233,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Approved release envelope.", "#/components/schemas/ReleaseEnvelope")
 	case "registerArtifact":
-		operation.Description = "Registers an artifact digest for release evidence and later build/attestation matching."
+		operation.Description = "Registers a tenant-scoped artifact digest for later evidence, build, and attestation matching."
 		operation.RequestBody = jsonRequest("Artifact registration request.", "#/components/schemas/RegisterArtifactRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Registered artifact envelope.", "#/components/schemas/ArtifactEnvelope")
 	case "getArtifact":
@@ -310,14 +308,15 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "VEX document id."))
 		operation.Responses[http.StatusOK] = jsonResponse("VEX import report envelope.", "#/components/schemas/VEXImportReportEnvelope")
 	case "uploadVulnerabilityScan":
-		operation.Description = "Uploads a generic vulnerability scan JSON payload and records normalized findings. The request is streamed to a private temporary file while hashing and is limited to 20 MiB."
-		operation.RequestBody = jsonRequest("Vulnerability scan upload payload.", "#/components/schemas/UploadVulnerabilityScanRequest")
+		operation.Description = "Uploads either the Evydence generic scan schema or a versioned native-scanner envelope (Grype, Trivy, OSV-Scanner, or Dependency-Track). Scanner output is preserved as raw evidence and is not treated as authoritative. The request is streamed to a private temporary file while hashing and is limited to 20 MiB."
+		operation.RequestBody = jsonRequest("Generic scan or versioned native-scanner envelope.", "#/components/schemas/UploadVulnerabilityScanBody")
 		setRequestBodyLimit(&operation, app.EvidenceDocumentLimit)
 		addJSONRequestExamples(operation.RequestBody, map[string]any{
 			"generic-critical-finding": specs.Example{
 				Summary: "Upload a generic scanner finding for release triage",
 				Value:   vulnerabilityScanUploadExample(),
 			},
+			"grype-envelope": specs.Example{Summary: "Preserve a Grype JSON report with explicit release scope", Value: map[string]any{"scanner": "grype", "target_ref": "pkg:oci/payments-api@sha256-ca978112", "release_id": "rel_20260527120000", "source_schema": "grype-json.v1", "payload": map[string]any{"matches": []any{}}}},
 		})
 		operation.Responses[http.StatusCreated] = jsonResponse("Created vulnerability scan envelope.", "#/components/schemas/VulnerabilityScanEnvelope")
 	case "getVulnerabilityScan":
@@ -540,11 +539,11 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Description = "Lists tenant signing public-key metadata without private key material."
 		operation.Responses[http.StatusOK] = jsonResponse("Signing key list envelope.", "#/components/schemas/SigningKeyListEnvelope")
 	case "rotateSigningKey":
-		operation.Description = "Rotates the active tenant signing key and returns public-key metadata only."
+		operation.Description = "Rotates the active tenant signing key, retires the prior key with an explicit validity window, and returns public-key metadata only."
 		operation.RequestBody = jsonRequest("Signing key rotation request.", "#/components/schemas/SigningKeyTransitionRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Rotated signing key envelope.", "#/components/schemas/SigningKeyEnvelope")
 	case "revokeSigningKey":
-		operation.Description = "Revokes a tenant signing key as an audited lifecycle transition."
+		operation.Description = "Revokes a tenant signing key as an audited lifecycle transition. Ordinary revocation preserves signatures valid at signing time; compromised-key policy is explicit and can invalidate historical results."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Signing key id."))
 		operation.RequestBody = jsonRequest("Signing key revocation request.", "#/components/schemas/SigningKeyTransitionRequest")
 		operation.Responses[http.StatusOK] = jsonResponse("Revoked signing key envelope.", "#/components/schemas/SigningKeyEnvelope")
@@ -553,7 +552,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Signing provider creation request.", "#/components/schemas/CreateSigningProviderRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created signing provider envelope.", "#/components/schemas/SigningProviderEnvelope")
 	case "createSigningOperation":
-		operation.Description = "Records an external signing operation receipt and checks payload/signature metadata without logging secrets. When the API is configured with a signing executor, external_signature may be omitted and the executor signs the payload hash."
+		operation.Description = "Requests a configured signing executor to sign a canonical request binding the provider, key reference, subject, payload digest, request id, and nonce. Caller-supplied signatures are rejected."
 		operation.RequestBody = jsonRequest("Signing operation creation request.", "#/components/schemas/CreateSigningOperationRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created signing operation envelope.", "#/components/schemas/SigningOperationEnvelope")
 	case "createArtifactSignature":
@@ -565,10 +564,9 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Artifact signature id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Artifact signature envelope.", "#/components/schemas/ArtifactSignatureEnvelope")
 	case "verifyCosignSignature":
-		operation.Description = "Deprecated compatibility metadata-assessment endpoint. It assesses stored digest binding, signature-material presence, and supplied Rekor metadata only. It never cryptographically verifies a Cosign signature, certificate identity, trust policy, Rekor inclusion, or checkpoint. Successful metadata assessment returns limited; require_full_verification=true returns COSIGN_FULL_VERIFICATION_UNAVAILABLE until a verifier and trust policy are configured."
-		operation.Deprecated = true
+		operation.Description = "Cryptographically verifies a stored Sigstore/Cosign bundle against operator-configured trust material and caller-supplied keyless identity policy. The explicit offline profile requires an embedded Rekor inclusion proof and does not silently downgrade an online-required request."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Artifact signature id."))
-		operation.RequestBody = jsonRequest("Cosign verification metadata request.", "#/components/schemas/VerifyCosignSignatureRequest")
+		operation.RequestBody = jsonRequest("Cosign policy verification request.", "#/components/schemas/VerifyCosignSignatureRequest")
 		operation.Responses[http.StatusOK] = jsonResponse("Cosign verification envelope.", "#/components/schemas/CosignVerificationEnvelope")
 	case "uploadBuildAttestation":
 		operation.Description = "Uploads a DSSE/in-toto build attestation for a tenant-scoped build and stores raw bytes in object storage."
@@ -576,12 +574,12 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("DSSE envelope.", "#/components/schemas/DSSEEnvelope")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created build attestation envelope.", "#/components/schemas/BuildAttestationEnvelope")
 	case "verifyBuildAttestationSignature":
-		operation.Description = "Verifies a build attestation signature against configured tenant DSSE trust roots."
+		operation.Description = "Offline-verifies DSSE PAE, an in-toto Statement v1/SLSA provenance v1 predicate, registered release-artifact subject digests, and immutable configured tenant-root policy."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Build attestation id."))
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Build attestation verification envelope.", "#/components/schemas/VerificationResultEnvelope")
 	case "createDSSETrustRoot":
-		operation.Description = "Creates a tenant-scoped DSSE trust root using public verification key material only."
+		operation.Description = "Creates a tenant-scoped immutable DSSE Ed25519 trust root with an explicit SLSA predicate, builder, and required-claims policy."
 		operation.RequestBody = jsonRequest("DSSE trust-root creation request.", "#/components/schemas/CreateDSSETrustRootRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created DSSE trust root envelope.", "#/components/schemas/DSSETrustRootEnvelope")
 	case "createReleaseCandidate":
@@ -711,8 +709,10 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Manual security document upload request.", "#/components/schemas/UploadManualSecurityDocumentRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created manual security document envelope.", "#/components/schemas/ManualSecurityDocumentEnvelope")
 	case "uploadSPDXSBOM":
-		operation.Description = "Uploads an SPDX JSON SBOM payload, stores raw bytes as evidence, and records normalized SBOM metadata."
-		operation.RequestBody = jsonRequest("SPDX SBOM upload request.", "#/components/schemas/UploadSPDXSBOMRequest")
+		operation.Description = "Uploads an SPDX 2.2 or 2.3 JSON SBOM payload, stores immutable raw bytes as evidence, and records deterministic normalization metadata. Use application/spdx+json with explicit metadata headers for streaming uploads up to 20 MiB; the JSON envelope remains limited to small requests."
+		operation.RequestBody = streamingDocumentRequest("SPDX SBOM upload request.", "#/components/schemas/UploadSPDXSBOMRequest", "application/spdx+json", app.EvidenceDocumentLimit)
+		operation.Parameters = append(operation.Parameters, optionalHeaderParam("X-Evydence-Release-ID", "Required for a native SPDX document upload."), optionalHeaderParam("X-Evydence-Artifact-ID", "Optional artifact id for a native SPDX document upload."))
+		setRequestBodyLimit(&operation, app.EvidenceDocumentLimit)
 		operation.Responses[http.StatusCreated] = jsonResponse("Created SBOM envelope.", "#/components/schemas/SBOMEnvelope")
 	case "createSBOMDiff":
 		operation.Description = "Creates a deterministic SBOM diff between two tenant-scoped SBOM records."

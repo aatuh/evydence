@@ -2,6 +2,7 @@ package filesystem
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -10,6 +11,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -42,6 +44,13 @@ func New(root string) (*Store, error) {
 	if err := os.MkdirAll(abs, 0o700); err != nil {
 		return nil, fmt.Errorf("create object store root: %w", err)
 	}
+	rootHandle, err := os.OpenRoot(abs)
+	if err != nil {
+		return nil, fmt.Errorf("open object store root: %w", err)
+	}
+	if err := rootHandle.Close(); err != nil {
+		return nil, fmt.Errorf("close object store root: %w", err)
+	}
 	return &Store{root: abs}, nil
 }
 
@@ -53,29 +62,22 @@ func (s *Store) Put(ctx context.Context, object app.Object) error {
 		return err
 	}
 	if got := digestBytes(object.Bytes); got != object.Digest {
-		return fmt.Errorf("object digest mismatch")
+		return app.ErrValidation
 	}
-	path, err := s.safePath(object.Key)
+	key, err := safeObjectKey(object.Key)
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+	root, err := s.openRoot()
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	name := rootName(key)
+	if err := root.MkdirAll(filepath.Dir(name), 0o700); err != nil {
 		return fmt.Errorf("create object directory: %w", err)
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".tmp-*")
-	if err != nil {
-		return fmt.Errorf("create object temp file: %w", err)
-	}
-	tmpName := tmp.Name()
-	defer func() { _ = os.Remove(tmpName) }()
-	if _, err := tmp.Write(object.Bytes); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("write object temp file: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("close object temp file: %w", err)
-	}
-	if err := os.Rename(tmpName, path); err != nil {
+	if err := writeRootFileAtomic(root, name, object.Bytes, 0o600, ".tmp-"); err != nil {
 		return fmt.Errorf("commit object file: %w", err)
 	}
 	meta := metadata{
@@ -89,12 +91,8 @@ func (s *Store) Put(ctx context.Context, object app.Object) error {
 	if meta.CreatedAt.IsZero() {
 		meta.CreatedAt = time.Now().UTC()
 	}
-	body, err := json.MarshalIndent(meta, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal object metadata: %w", err)
-	}
-	if err := os.WriteFile(path+".json", append(body, '\n'), 0o600); err != nil {
-		return fmt.Errorf("write object metadata: %w", err)
+	if err := writeMetadata(root, name, meta); err != nil {
+		return err
 	}
 	return nil
 }
@@ -103,22 +101,33 @@ func (s *Store) Get(ctx context.Context, key string) (app.Object, error) {
 	if err := ctx.Err(); err != nil {
 		return app.Object{}, err
 	}
-	path, err := s.safePath(key)
+	key, err := safeObjectKey(key)
 	if err != nil {
 		return app.Object{}, err
 	}
-	body, err := os.ReadFile(path) // #nosec G304 -- path is constrained under Store.root by safePath.
+	root, err := s.openRoot()
+	if err != nil {
+		return app.Object{}, err
+	}
+	defer root.Close()
+	name := rootName(key)
+	body, err := root.ReadFile(name)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return app.Object{}, app.ErrNotFound
 		}
 		return app.Object{}, fmt.Errorf("read object: %w", err)
 	}
+	metaBody, err := root.ReadFile(name + ".json")
+	if err != nil {
+		return app.Object{}, fmt.Errorf("read object metadata: %w", app.ErrValidation)
+	}
 	var meta metadata
-	if metaBody, err := os.ReadFile(path + ".json"); err == nil { // #nosec G304 -- metadata path shares the safe object path prefix.
-		if err := json.Unmarshal(metaBody, &meta); err != nil {
-			return app.Object{}, fmt.Errorf("decode object metadata: %w", err)
-		}
+	if err := json.Unmarshal(metaBody, &meta); err != nil {
+		return app.Object{}, fmt.Errorf("decode object metadata: %w", app.ErrValidation)
+	}
+	if err := validateStoredObject(key, meta, body); err != nil {
+		return app.Object{}, err
 	}
 	return app.Object{
 		Key:       key,
@@ -131,28 +140,33 @@ func (s *Store) Get(ctx context.Context, key string) (app.Object, error) {
 }
 
 // ListObjectInventory returns a bounded page of tenant-prefixed object
-// metadata without reading payload bytes. It deliberately does not offer
+// metadata without trusting a host path walk. It deliberately does not offer
 // deletion, and callers must treat an omitted object as an inventory gap—not
 // proof that a database-owned object is missing.
 func (s *Store) ListObjectInventory(ctx context.Context, tenantID string, cursor, limit int) (app.ObjectInventoryPage, error) {
-	tenantID = strings.TrimSpace(tenantID)
-	if s == nil || s.root == "" || !validInventoryTenantID(tenantID) || cursor < 0 || limit < 1 || limit > 10_000 {
+	if s == nil || s.root == "" || app.ValidateObjectTenantID(tenantID) != nil || cursor < 0 || limit < 1 || limit > 10_000 {
 		return app.ObjectInventoryPage{}, app.ErrValidation
 	}
 	if err := ctx.Err(); err != nil {
 		return app.ObjectInventoryPage{}, err
 	}
-	prefix := "tenants/" + tenantID + "/"
-	root, err := s.safePath(strings.TrimSuffix(prefix, "/"))
+	prefix, err := app.TenantObjectPrefix(tenantID)
 	if err != nil {
 		return app.ObjectInventoryPage{}, err
 	}
+	root, err := s.openRoot()
+	if err != nil {
+		return app.ObjectInventoryPage{}, err
+	}
+	defer root.Close()
+	rootFS := root.FS()
+	walkRoot := strings.TrimSuffix(prefix, "/")
 	page := app.ObjectInventoryPage{Objects: make([]app.ObjectInventoryItem, 0, limit)}
 	matched := 0
-	walkErr := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+	walkErr := fs.WalkDir(rootFS, walkRoot, func(name string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
-			if errors.Is(walkErr, os.ErrNotExist) && path == root {
-				return filepath.SkipDir
+			if errors.Is(walkErr, fs.ErrNotExist) && name == walkRoot {
+				return fs.SkipDir
 			}
 			return walkErr
 		}
@@ -162,12 +176,11 @@ func (s *Store) ListObjectInventory(ctx context.Context, tenantID string, cursor
 		if entry.IsDir() || !entry.Type().IsRegular() {
 			return nil
 		}
-		rel, err := filepath.Rel(s.root, path)
-		if err != nil {
+		key := filepath.ToSlash(name)
+		if err := app.ValidateTenantObjectKey(tenantID, key); err != nil {
 			return err
 		}
-		key := filepath.ToSlash(rel)
-		if !strings.HasPrefix(key, prefix) || filesystemMetadataSidecar(path, key) {
+		if filesystemMetadataSidecar(rootFS, name, key) {
 			return nil
 		}
 		if matched < cursor {
@@ -176,22 +189,31 @@ func (s *Store) ListObjectInventory(ctx context.Context, tenantID string, cursor
 		}
 		if len(page.Objects) == limit {
 			page.NextCursor = cursor + limit
-			return filepath.SkipAll
+			return fs.SkipAll
 		}
 		info, err := entry.Info()
 		if err != nil {
 			return err
 		}
-		page.Objects = append(page.Objects, app.ObjectInventoryItem{
+		item := app.ObjectInventoryItem{
 			TenantID:  tenantID,
 			Key:       key,
 			Size:      info.Size(),
 			CreatedAt: info.ModTime().UTC(),
-		})
+		}
+		if meta, err := readMetadataFS(rootFS, name+".json"); err == nil && meta.Key == key && meta.TenantID == tenantID {
+			item.Digest = meta.Digest
+			item.Size = meta.Size
+			item.CreatedAt = meta.CreatedAt.UTC()
+		}
+		page.Objects = append(page.Objects, item)
 		matched++
 		return nil
 	})
 	if walkErr != nil {
+		if errors.Is(walkErr, fs.ErrNotExist) {
+			return page, nil
+		}
 		return app.ObjectInventoryPage{}, fmt.Errorf("list filesystem object inventory: %w", walkErr)
 	}
 	return page, nil
@@ -207,19 +229,24 @@ func (s *Store) StagePayload(ctx context.Context, payload app.ObjectPayload, rea
 	if reader == nil || app.ValidateObjectPayloadForRepository(payload) != nil || payload.Status != app.ObjectPayloadStaged {
 		return app.ObjectPayload{}, app.ErrValidation
 	}
-	path, err := s.safePath(payload.StagingKey)
+	key, err := safeObjectKey(payload.StagingKey)
 	if err != nil {
 		return app.ObjectPayload{}, err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+	root, err := s.openRoot()
+	if err != nil {
+		return app.ObjectPayload{}, err
+	}
+	defer root.Close()
+	name := rootName(key)
+	if err := root.MkdirAll(filepath.Dir(name), 0o700); err != nil {
 		return app.ObjectPayload{}, fmt.Errorf("create staged object directory: %w", err)
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".stage-*")
+	tmp, tmpName, err := createRootTemp(root, filepath.Dir(name), ".stage-", 0o600)
 	if err != nil {
 		return app.ObjectPayload{}, fmt.Errorf("create staged object temp file: %w", err)
 	}
-	tmpName := tmp.Name()
-	defer func() { _ = os.Remove(tmpName) }()
+	defer func() { _ = root.Remove(tmpName) }()
 	hash := sha256.New()
 	size, err := copyWithContext(ctx, io.MultiWriter(tmp, hash), reader)
 	if err != nil {
@@ -233,7 +260,7 @@ func (s *Store) StagePayload(ctx context.Context, payload app.ObjectPayload, rea
 	if actualDigest != payload.Digest {
 		return app.ObjectPayload{}, app.ErrValidation
 	}
-	if err := os.Rename(tmpName, path); err != nil {
+	if err := root.Rename(tmpName, name); err != nil {
 		return app.ObjectPayload{}, fmt.Errorf("commit staged object: %w", err)
 	}
 	now := time.Now().UTC()
@@ -242,7 +269,7 @@ func (s *Store) StagePayload(ctx context.Context, payload app.ObjectPayload, rea
 	if payload.CreatedAt.IsZero() {
 		payload.CreatedAt = now
 	}
-	if err := s.writeMetadata(path, metadata{Key: payload.StagingKey, TenantID: payload.TenantID, MediaType: payload.MediaType, Digest: payload.Digest, Size: payload.Size, CreatedAt: payload.CreatedAt}); err != nil {
+	if err := writeMetadata(root, name, metadata{Key: payload.StagingKey, TenantID: payload.TenantID, MediaType: payload.MediaType, Digest: payload.Digest, Size: payload.Size, CreatedAt: payload.CreatedAt}); err != nil {
 		return app.ObjectPayload{}, err
 	}
 	return payload, nil
@@ -286,76 +313,117 @@ func (s *Store) FinalizePayload(ctx context.Context, payload app.ObjectPayload) 
 }
 
 // CheckReadiness verifies that the configured object-store root is available
-// for a small create-and-remove operation. It never includes the root path in
-// an error intended for a public health response.
+// for a small rooted create-and-remove operation. It never includes the root
+// path in an error intended for a public health response.
 func (s *Store) CheckReadiness(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if s == nil || strings.TrimSpace(s.root) == "" {
-		return app.ErrValidation
-	}
-	info, err := os.Stat(s.root)
+	root, err := s.openRoot()
 	if err != nil {
-		return fmt.Errorf("stat object store root: %w", err)
+		return err
 	}
-	if !info.IsDir() {
-		return errors.New("object store root is not a directory")
-	}
-	temp, err := os.CreateTemp(s.root, ".evydence-readiness-*")
+	defer root.Close()
+	temp, name, err := createRootTemp(root, ".", ".evydence-readiness-", 0o600)
 	if err != nil {
 		return fmt.Errorf("write object store readiness marker: %w", err)
 	}
-	name := temp.Name()
 	if err := temp.Close(); err != nil {
-		_ = os.Remove(name)
+		_ = root.Remove(name)
 		return fmt.Errorf("close object store readiness marker: %w", err)
 	}
-	if err := os.Remove(name); err != nil {
+	if err := root.Remove(name); err != nil {
 		return fmt.Errorf("remove object store readiness marker: %w", err)
 	}
 	return nil
 }
 
-func (s *Store) safePath(key string) (string, error) {
-	key = strings.TrimSpace(key)
-	if key == "" || strings.ContainsRune(key, 0) || filepath.IsAbs(key) {
-		return "", fmt.Errorf("invalid object key")
+func (s *Store) openRoot() (*os.Root, error) {
+	if s == nil || strings.TrimSpace(s.root) == "" {
+		return nil, app.ErrValidation
 	}
-	clean := filepath.Clean(filepath.FromSlash(key))
-	if clean == "." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) || clean == ".." {
-		return "", fmt.Errorf("invalid object key")
+	root, err := os.OpenRoot(s.root)
+	if err != nil {
+		return nil, fmt.Errorf("open object store root: %w", err)
 	}
-	path := filepath.Join(s.root, clean)
-	rel, err := filepath.Rel(s.root, path)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("invalid object key")
-	}
-	return path, nil
+	return root, nil
 }
 
-func (s *Store) writeMetadata(path string, meta metadata) error {
+func safeObjectKey(key string) (string, error) {
+	if _, err := app.TenantIDFromObjectKey(key); err != nil {
+		return "", app.ErrValidation
+	}
+	return key, nil
+}
+
+func rootName(key string) string {
+	return filepath.FromSlash(key)
+}
+
+func writeMetadata(root *os.Root, name string, meta metadata) error {
 	body, err := json.MarshalIndent(meta, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal object metadata: %w", err)
 	}
-	if err := os.WriteFile(path+".json", append(body, '\n'), 0o600); err != nil {
+	if err := writeRootFileAtomic(root, name+".json", append(body, '\n'), 0o600, ".meta-"); err != nil {
 		return fmt.Errorf("write object metadata: %w", err)
 	}
 	return nil
 }
 
 func (s *Store) remove(key string) error {
-	path, err := s.safePath(key)
+	key, err := safeObjectKey(key)
 	if err != nil {
 		return err
 	}
-	for _, target := range []string{path, path + ".json"} {
-		if err := os.Remove(target); err != nil && !errors.Is(err, os.ErrNotExist) {
+	root, err := s.openRoot()
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	name := rootName(key)
+	for _, target := range []string{name, name + ".json"} {
+		if err := root.Remove(target); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("remove staged object: %w", err)
 		}
 	}
 	return nil
+}
+
+func writeRootFileAtomic(root *os.Root, name string, body []byte, perm fs.FileMode, prefix string) error {
+	dir := filepath.Dir(name)
+	tmp, tmpName, err := createRootTemp(root, dir, prefix, perm)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = root.Remove(tmpName) }()
+	if _, err := tmp.Write(body); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return root.Rename(tmpName, name)
+}
+
+func createRootTemp(root *os.Root, dir, prefix string, perm fs.FileMode) (*os.File, string, error) {
+	for range 10 {
+		var random [12]byte
+		if _, err := rand.Read(random[:]); err != nil {
+			return nil, "", err
+		}
+		name := path.Join(filepath.ToSlash(dir), prefix+hex.EncodeToString(random[:]))
+		name = rootName(name)
+		file, err := root.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
+		if err == nil {
+			return file, name, nil
+		}
+		if !errors.Is(err, fs.ErrExist) {
+			return nil, "", err
+		}
+	}
+	return nil, "", errors.New("temporary object name collision")
 }
 
 func copyWithContext(ctx context.Context, dst io.Writer, src io.Reader) (int64, error) {
@@ -386,21 +454,34 @@ func copyWithContext(ctx context.Context, dst io.Writer, src io.Reader) (int64, 
 }
 
 func verifyPayloadObject(payload app.ObjectPayload, object app.Object, key string) error {
-	if object.Key != key || object.TenantID != payload.TenantID || object.Digest != payload.Digest || int64(len(object.Bytes)) != payload.Size {
+	return app.VerifyObjectPayloadRead(payload, object, key)
+}
+
+func validateObject(object app.Object) error {
+	if err := app.ValidateTenantObjectKey(object.TenantID, object.Key); err != nil {
+		return app.ErrValidation
+	}
+	if err := app.ValidateCanonicalObjectDigest(object.Digest); err != nil {
+		return app.ErrValidation
+	}
+	if err := app.ValidateObjectMediaType(object.MediaType); err != nil {
 		return app.ErrValidation
 	}
 	return nil
 }
 
-func validateObject(object app.Object) error {
-	if strings.TrimSpace(object.Key) == "" || strings.TrimSpace(object.TenantID) == "" {
-		return fmt.Errorf("invalid object")
+func validateStoredObject(key string, meta metadata, body []byte) error {
+	if meta.Key != key || meta.Size != int64(len(body)) || meta.CreatedAt.IsZero() {
+		return app.ErrValidation
 	}
-	if !strings.HasPrefix(object.Key, "tenants/"+object.TenantID+"/") {
-		return fmt.Errorf("object key must be tenant-prefixed")
+	if err := app.ValidateTenantObjectKey(meta.TenantID, key); err != nil {
+		return app.ErrValidation
 	}
-	if !strings.HasPrefix(object.Digest, "sha256:") {
-		return fmt.Errorf("invalid object digest")
+	if err := app.ValidateObjectMediaType(meta.MediaType); err != nil {
+		return app.ErrValidation
+	}
+	if err := app.VerifyObjectDigestBytes(meta.Digest, body); err != nil {
+		return app.ErrValidation
 	}
 	return nil
 }
@@ -410,28 +491,32 @@ func digestBytes(body []byte) string {
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
-func validInventoryTenantID(tenantID string) bool {
-	return tenantID != "" && !strings.ContainsAny(tenantID, "/\\\x00") && tenantID != "." && tenantID != ".."
+func readMetadataFS(rootFS fs.FS, name string) (metadata, error) {
+	file, err := rootFS.Open(filepath.ToSlash(name))
+	if err != nil {
+		return metadata{}, err
+	}
+	defer file.Close()
+	var meta metadata
+	if err := json.NewDecoder(io.LimitReader(file, 64<<10)).Decode(&meta); err != nil {
+		return metadata{}, err
+	}
+	return meta, nil
 }
 
 // filesystemMetadataSidecar recognizes only sidecars generated by this store.
 // A user payload whose key happens to end in .json remains visible unless its
 // adjacent JSON also names it as a metadata sidecar.
-func filesystemMetadataSidecar(path, key string) bool {
+func filesystemMetadataSidecar(rootFS fs.FS, name, key string) bool {
 	if !strings.HasSuffix(key, ".json") {
 		return false
 	}
-	info, err := os.Stat(path) // #nosec G304 -- path originates from WalkDir under Store.root.
+	info, err := fs.Stat(rootFS, filepath.ToSlash(name))
 	if err != nil || info.Size() > 64<<10 {
 		return false
 	}
-	file, err := os.Open(path) // #nosec G304 -- path originates from WalkDir under Store.root.
+	meta, err := readMetadataFS(rootFS, name)
 	if err != nil {
-		return false
-	}
-	defer file.Close()
-	var meta metadata
-	if err := json.NewDecoder(io.LimitReader(file, 64<<10)).Decode(&meta); err != nil {
 		return false
 	}
 	return meta.Key != "" && meta.Key == strings.TrimSuffix(key, ".json")

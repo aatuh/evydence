@@ -16,6 +16,7 @@ var (
 	ErrIdempotencyInProgress       = errors.New("idempotency request is in progress")
 	ErrIdempotencyFailed           = errors.New("idempotency request previously failed")
 	ErrVerificationFailed          = errors.New("verification failed")
+	ErrRetryableSigning            = errors.New("signing provider temporarily unavailable")
 	ErrFullVerificationUnavailable = errors.New("full cosign verification is unavailable because no verifier or trust policy is configured")
 	ErrRateLimited                 = errors.New("rate limited")
 )
