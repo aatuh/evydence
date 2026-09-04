@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -50,6 +51,79 @@ func TestParseRejectsAmbiguousAndUnknown(t *testing.T) {
 		if _, err := ParseBounded([]byte(raw), DefaultLimits(1<<20)); err == nil {
 			t.Fatalf("accepted unsafe input %s", raw)
 		}
+	}
+}
+
+func TestProbeReleaseIDBoundedReaderPreservesTopLevelFieldOrder(t *testing.T) {
+	raw := []byte(`{"scanner":"generic","findings":[{"vulnerability":"CVE-2026-0001","severity":"high"}],"target_ref":"pkg:oci/example","release_id":" rel_late "}`)
+
+	got, err := ProbeReleaseIDBoundedReader(bytes.NewReader(raw), DefaultLimits(1<<20))
+	if err != nil {
+		t.Fatalf("ProbeReleaseIDBoundedReader: %v", err)
+	}
+	if got != "rel_late" {
+		t.Fatalf("release id = %q, want rel_late", got)
+	}
+}
+
+func TestProbeReleaseIDBoundedReaderRejectsMissingAmbiguousAndUnboundedInput(t *testing.T) {
+	tests := []struct {
+		name   string
+		raw    string
+		limits Limits
+	}{
+		{name: "missing", raw: `{"scanner":"generic","findings":[]}`, limits: DefaultLimits(1 << 20)},
+		{name: "empty", raw: `{"release_id":"   ","findings":[]}`, limits: DefaultLimits(1 << 20)},
+		{name: "wrong type", raw: `{"release_id":42,"findings":[]}`, limits: DefaultLimits(1 << 20)},
+		{name: "duplicate", raw: `{"release_id":"rel_a","release_id":"rel_b","findings":[]}`, limits: DefaultLimits(1 << 20)},
+		{name: "byte limit", raw: `{"findings":[{"component":"` + strings.Repeat("x", 256) + `"}],"release_id":"rel_late"}`, limits: DefaultLimits(128)},
+		{name: "depth limit", raw: `{"findings":[[[[]]]],"release_id":"rel_late"}`, limits: Limits{MaxBytes: 1 << 20, MaxDepth: 3, MaxFindings: 10, MaxStringBytes: 100, MaxValues: 100}},
+		{name: "value limit", raw: `{"findings":[1,2,3,4],"release_id":"rel_late"}`, limits: Limits{MaxBytes: 1 << 20, MaxDepth: 10, MaxFindings: 10, MaxStringBytes: 100, MaxValues: 4}},
+		{name: "string limit", raw: `{"findings":[],"release_id":"release-too-long"}`, limits: Limits{MaxBytes: 1 << 20, MaxDepth: 10, MaxFindings: 10, MaxStringBytes: 5, MaxValues: 100}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got, err := ProbeReleaseIDBoundedReader(strings.NewReader(test.raw), test.limits); err == nil {
+				t.Fatalf("ProbeReleaseIDBoundedReader accepted input with release id %q", got)
+			}
+		})
+	}
+}
+
+func TestProbeReleaseIDBoundedReaderEnforcesSelectedAdapterFindingLimit(t *testing.T) {
+	limits := DefaultLimits(1 << 20)
+	limits.MaxFindings = 1
+	tests := []struct {
+		name string
+		raw  string
+	}{
+		{name: "generic", raw: `{"findings":[{},{}],"release_id":"rel_1","scanner":"generic","target_ref":"target"}`},
+		{name: "grype", raw: `{"payload":{"matches":[{},{}]},"release_id":"rel_1","scanner":"grype","source_schema":"grype-json.v1","target_ref":"target"}`},
+		{name: "trivy", raw: `{"payload":{"Results":[{"Vulnerabilities":[{},{}]}]},"release_id":"rel_1","scanner":"trivy","source_schema":"trivy-json.v1","target_ref":"target"}`},
+		{name: "osv scanner", raw: `{"payload":{"results":[{"packages":[{"vulnerabilities":[{},{}]}]}]},"release_id":"rel_1","scanner":"osv-scanner","source_schema":"osv-scanner-json.v1","target_ref":"target"}`},
+		{name: "dependency track", raw: `{"payload":{"findings":[{},{}]},"release_id":"rel_1","scanner":"dependency-track","source_schema":"dependency-track-json.v1","target_ref":"target"}`},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got, err := ProbeReleaseIDBoundedReader(strings.NewReader(test.raw), limits); err == nil {
+				t.Fatalf("ProbeReleaseIDBoundedReader accepted %s over finding limit with release %q", test.name, got)
+			}
+		})
+	}
+}
+
+func TestProbeReleaseIDBoundedReaderIgnoresInactiveAdapterArrays(t *testing.T) {
+	limits := DefaultLimits(1 << 20)
+	limits.MaxFindings = 1
+	raw := []byte(`{"payload":{"matches":[],"Results":[{},{}]},"release_id":"rel_1","scanner":"grype","source_schema":"grype-json.v1","target_ref":"target"}`)
+
+	if _, err := ParseBounded(raw, limits); err != nil {
+		t.Fatalf("ParseBounded compatibility fixture: %v", err)
+	}
+	if got, err := ProbeReleaseIDBoundedReader(bytes.NewReader(raw), limits); err != nil || got != "rel_1" {
+		t.Fatalf("ProbeReleaseIDBoundedReader release=%q error=%v", got, err)
 	}
 }
 

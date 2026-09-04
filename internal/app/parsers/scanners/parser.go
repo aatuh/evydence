@@ -59,7 +59,7 @@ func ParseBounded(raw []byte, limits Limits) (Result, error) {
 }
 
 func ParseBoundedReader(reader io.Reader, limits Limits) (Result, error) {
-	if reader == nil || limits.MaxBytes <= 0 || limits.MaxDepth <= 0 || limits.MaxFindings <= 0 || limits.MaxStringBytes <= 0 || limits.MaxValues <= 0 {
+	if reader == nil || !validLimits(limits) {
 		return Result{}, ErrInvalid
 	}
 	limited := &io.LimitedReader{R: reader, N: limits.MaxBytes + 1}
@@ -80,6 +80,37 @@ func ParseBoundedReader(reader io.Reader, limits Limits) (Result, error) {
 	return parseRoot(root, limits)
 }
 
+// ProbeReleaseIDBoundedReader extracts the top-level release scope without
+// materializing or normalizing scanner findings. It deliberately traverses the
+// complete JSON token stream so release_id can appear in any field order while
+// duplicate fields and the parser's byte, depth, value, string, and selected
+// adapter finding limits still fail closed.
+func ProbeReleaseIDBoundedReader(reader io.Reader, limits Limits) (string, error) {
+	if reader == nil || !validLimits(limits) {
+		return "", ErrInvalid
+	}
+	limited := &io.LimitedReader{R: reader, N: limits.MaxBytes + 1}
+	dec := json.NewDecoder(limited)
+	dec.UseNumber()
+	start, err := dec.Token()
+	if err != nil || start != json.Delim('{') {
+		return "", ErrInvalid
+	}
+	probe := vulnerabilityScopeProbe{}
+	count := 0
+	if err := scanValueWithProbe(dec, start, 1, limits, &count, probeRoot, &probe); err != nil {
+		return "", err
+	}
+	if _, err := dec.Token(); !errors.Is(err, io.EOF) || limited.N == 0 || probe.releaseID == "" || probe.findingCount() > limits.MaxFindings {
+		return "", ErrInvalid
+	}
+	return probe.releaseID, nil
+}
+
+func validLimits(limits Limits) bool {
+	return limits.MaxBytes > 0 && limits.MaxDepth > 0 && limits.MaxFindings > 0 && limits.MaxStringBytes > 0 && limits.MaxValues > 0
+}
+
 func preflight(reader io.Reader, limits Limits) error {
 	dec := json.NewDecoder(reader)
 	dec.UseNumber()
@@ -97,6 +128,140 @@ func preflight(reader io.Reader, limits Limits) error {
 	return nil
 }
 func scanValue(dec *json.Decoder, token json.Token, depth int, limits Limits, count *int) error {
+	return scanValueWithProbe(dec, token, depth, limits, count, probeOther, nil)
+}
+
+type probeLocation uint8
+
+const (
+	probeOther probeLocation = iota
+	probeRoot
+	probePayload
+	probeGenericFindings
+	probeGrypeMatches
+	probeTrivyResults
+	probeTrivyResult
+	probeTrivyVulnerabilities
+	probeOSVResults
+	probeOSVResult
+	probeOSVPackages
+	probeOSVPackage
+	probeOSVVulnerabilities
+	probeDependencyTrackFindings
+)
+
+type vulnerabilityScopeProbe struct {
+	releaseID               string
+	scanner                 string
+	hasPayload              bool
+	genericFindings         int
+	grypeMatches            int
+	trivyVulnerabilities    int
+	osvVulnerabilities      int
+	dependencyTrackFindings int
+}
+
+func (p *vulnerabilityScopeProbe) observeRootField(key string, value json.Token) error {
+	switch key {
+	case "release_id":
+		text, ok := value.(string)
+		if !ok || strings.TrimSpace(text) == "" {
+			return ErrInvalid
+		}
+		p.releaseID = strings.TrimSpace(text)
+	case "scanner":
+		if text, ok := value.(string); ok {
+			p.scanner = strings.ToLower(strings.TrimSpace(text))
+		}
+	case "payload":
+		p.hasPayload = true
+	}
+	return nil
+}
+
+func (p vulnerabilityScopeProbe) findingCount() int {
+	if !p.hasPayload {
+		return p.genericFindings
+	}
+	switch p.scanner {
+	case "grype":
+		return p.grypeMatches
+	case "trivy":
+		return p.trivyVulnerabilities
+	case "osv-scanner":
+		return p.osvVulnerabilities
+	case "dependency-track":
+		return p.dependencyTrackFindings
+	default:
+		return 0
+	}
+}
+
+func probeChildLocation(parent probeLocation, key string) probeLocation {
+	switch parent {
+	case probeRoot:
+		switch key {
+		case "payload":
+			return probePayload
+		case "findings":
+			return probeGenericFindings
+		}
+	case probePayload:
+		switch key {
+		case "matches":
+			return probeGrypeMatches
+		case "Results":
+			return probeTrivyResults
+		case "results":
+			return probeOSVResults
+		case "findings":
+			return probeDependencyTrackFindings
+		}
+	case probeTrivyResult:
+		if key == "Vulnerabilities" {
+			return probeTrivyVulnerabilities
+		}
+	case probeOSVResult:
+		if key == "packages" {
+			return probeOSVPackages
+		}
+	case probeOSVPackage:
+		if key == "vulnerabilities" {
+			return probeOSVVulnerabilities
+		}
+	}
+	return probeOther
+}
+
+func probeElementLocation(parent probeLocation) probeLocation {
+	switch parent {
+	case probeTrivyResults:
+		return probeTrivyResult
+	case probeOSVResults:
+		return probeOSVResult
+	case probeOSVPackages:
+		return probeOSVPackage
+	default:
+		return probeOther
+	}
+}
+
+func (p *vulnerabilityScopeProbe) observeArrayElement(location probeLocation) {
+	switch location {
+	case probeGenericFindings:
+		p.genericFindings++
+	case probeGrypeMatches:
+		p.grypeMatches++
+	case probeTrivyVulnerabilities:
+		p.trivyVulnerabilities++
+	case probeOSVVulnerabilities:
+		p.osvVulnerabilities++
+	case probeDependencyTrackFindings:
+		p.dependencyTrackFindings++
+	}
+}
+
+func scanValueWithProbe(dec *json.Decoder, token json.Token, depth int, limits Limits, count *int, location probeLocation, probe *vulnerabilityScopeProbe) error {
 	*count++
 	if *count > limits.MaxValues || depth > limits.MaxDepth {
 		return ErrInvalid
@@ -113,12 +278,13 @@ func scanValue(dec *json.Decoder, token json.Token, depth int, limits Limits, co
 		if depth >= limits.MaxDepth {
 			return ErrInvalid
 		}
+		key := ""
 		if delim == '{' {
-			key, err := dec.Token()
+			keyToken, err := dec.Token()
 			if err != nil {
 				return ErrInvalid
 			}
-			text, ok := key.(string)
+			text, ok := keyToken.(string)
 			if !ok || len(text) > limits.MaxStringBytes {
 				return ErrInvalid
 			}
@@ -126,12 +292,28 @@ func scanValue(dec *json.Decoder, token json.Token, depth int, limits Limits, co
 				return ErrInvalid
 			}
 			seen[text] = struct{}{}
+			key = text
 		}
 		next, err := dec.Token()
 		if err != nil {
 			return ErrInvalid
 		}
-		if err := scanValue(dec, next, depth+1, limits, count); err != nil {
+		childLocation := probeOther
+		if probe != nil {
+			switch delim {
+			case '{':
+				if location == probeRoot {
+					if err := probe.observeRootField(key, next); err != nil {
+						return err
+					}
+				}
+				childLocation = probeChildLocation(location, key)
+			case '[':
+				probe.observeArrayElement(location)
+				childLocation = probeElementLocation(location)
+			}
+		}
+		if err := scanValueWithProbe(dec, next, depth+1, limits, count, childLocation, probe); err != nil {
 			return err
 		}
 	}

@@ -37,6 +37,19 @@ class APIInventoryTests(unittest.TestCase):
         self.assertEqual(entry["error_statuses"], ["400"])
         self.assertEqual(entry["response_schemas"], {"200": ["ProductListEnvelope"], "400": ["Problem"]})
 
+    def test_explicit_operation_owner_overrides_path_family(self) -> None:
+        spec = {
+            "paths": {
+                "/v1/products": {
+                    "get": operation(**{"x-evydence-owner": "release-catalog"})
+                }
+            }
+        }
+
+        entry = api_inventory.inventory_from_spec(spec)["operations"][0]
+
+        self.assertEqual(entry["owner"], "release-catalog")
+
     def test_validation_reports_duplicate_and_missing_contract_fields(self) -> None:
         spec = {
             "paths": {

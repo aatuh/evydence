@@ -12,6 +12,7 @@ import (
 
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
+	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
 )
 
 type contextRecordingStore struct {
@@ -183,6 +184,66 @@ func TestSearchEvidencePageUsesPersistencePortAndPreservesGranularAuthorization(
 	}
 }
 
+func TestEvidencePagesValidateParserNormalizationsBeforeExposure(t *testing.T) {
+	initial, projection, derivedID := parserNormalizationProjectionFixture(t, "ten_parser_page")
+	derived := projection.ParserNormalizations[0]
+	actor := domain.Actor{TenantID: "ten_parser_page", KeyID: "key_parser_page", Scopes: []string{ScopeEvidenceRead}}
+
+	for _, test := range []struct {
+		name string
+		read func(*Ledger) (appquery.Result[domain.EvidenceItem], error)
+	}{
+		{
+			name: "list",
+			read: func(ledger *Ledger) (appquery.Result[domain.EvidenceItem], error) {
+				return ledger.ListEvidencePage(context.Background(), actor, EvidencePageRequest{
+					Page: appquery.PageRequest{PageSize: 10, Sort: appquery.SortCreatedAt, Direction: appquery.Ascending},
+				})
+			},
+		},
+		{
+			name: "search",
+			read: func(ledger *Ledger) (appquery.Result[domain.EvidenceItem], error) {
+				return ledger.SearchEvidencePage(context.Background(), actor, EvidenceSearchPageRequest{
+					Filter: EvidenceSearchInput{Type: "parser_normalization"},
+					Page:   appquery.PageRequest{PageSize: 10, Sort: appquery.SortCreatedAt, Direction: appquery.Ascending},
+				})
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			store := &parserEvidencePageStoreSpy{
+				evidencePageStoreSpy: &evidencePageStoreSpy{
+					contextRecordingStore: contextRecordingStore{state: initial, ok: true},
+					result:                appquery.Result[domain.EvidenceItem]{Items: []domain.EvidenceItem{derived}},
+				},
+				workerProjections: map[string]WorkerProjection{actor.TenantID: projection},
+			}
+			ledger := newLedgerWithStore(t, Config{APIKeyPepper: "test", Store: store})
+			page, err := test.read(ledger)
+			if err != nil || len(page.Items) != 1 || page.Items[0].ID != derivedID {
+				t.Fatalf("valid parser normalization page=%#v error=%v", page, err)
+			}
+
+			forged := derived
+			forged.Title = "Caller-controlled replay marker"
+			store.result = appquery.Result[domain.EvidenceItem]{Items: []domain.EvidenceItem{forged}}
+			if _, err := test.read(ledger); !errors.Is(err, ErrConflict) {
+				t.Fatalf("forged parser normalization error=%v, want conflict", err)
+			}
+		})
+	}
+}
+
+type parserEvidencePageStoreSpy struct {
+	*evidencePageStoreSpy
+	workerProjections map[string]WorkerProjection
+}
+
+func (s *parserEvidencePageStoreSpy) LoadWorkerProjection(_ context.Context, tenantID string) (WorkerProjection, error) {
+	return s.workerProjections[tenantID], nil
+}
+
 func TestMemoryStoreRetainsCommittedStateWhenCloneFails(t *testing.T) {
 	store := NewMemoryStore()
 	committed := PersistedState{Tenants: map[string]domain.Tenant{"ten_committed": {ID: "ten_committed", Name: "Committed"}}}
@@ -206,6 +267,40 @@ type recordingOutbox struct {
 func (r *recordingOutbox) Enqueue(_ context.Context, job OutboxJob) error {
 	r.jobs = append(r.jobs, job)
 	return nil
+}
+
+type testNormalizedVEXDecisionStatement struct {
+	StatementIndex  int      `json:"statement_index"`
+	Vulnerability   string   `json:"vulnerability"`
+	Products        []string `json:"products"`
+	Status          string   `json:"status"`
+	Justification   string   `json:"justification"`
+	ImpactStatement string   `json:"impact_statement"`
+	ActionStatement string   `json:"action_statement"`
+}
+
+func requireVEXDecisionRequest(t *testing.T, payload map[string]any, wantStatements int) []testNormalizedVEXDecisionStatement {
+	t.Helper()
+	if payload["worker_create_decisions"] != true || payload["decision_request_schema"] != evidenceapp.VEXDecisionRequestSchemaVersion {
+		t.Fatalf("VEX decision request metadata = %#v", payload)
+	}
+	encoded, err := json.Marshal(payload["decision_statements"])
+	if err != nil {
+		t.Fatalf("marshal normalized VEX decision statements: %v", err)
+	}
+	var statements []testNormalizedVEXDecisionStatement
+	if err := json.Unmarshal(encoded, &statements); err != nil {
+		t.Fatalf("decode normalized VEX decision statements: %v", err)
+	}
+	if len(statements) != wantStatements {
+		t.Fatalf("normalized VEX decision statements = %#v, want %d", statements, wantStatements)
+	}
+	for _, statement := range statements {
+		if statement.StatementIndex <= 0 || statement.Vulnerability == "" || statement.Status == "" {
+			t.Fatalf("incomplete normalized VEX decision statement = %#v", statement)
+		}
+	}
+	return statements
 }
 
 func TestTenantScopedEvidenceAndAPIKeyAuth(t *testing.T) {
@@ -1667,8 +1762,9 @@ func TestVulnerabilityDecisionEvidenceLinksAreTenantAndReleaseScoped(t *testing.
 	}
 }
 
-func TestOpenVEXIngestionCreatesDecisionAndRejectsMalformedInput(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+func TestOpenVEXIngestionQueuesNoObjectDecisionRequestAndRejectsMalformedInput(t *testing.T) {
+	outbox := &recordingOutbox{}
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Outbox: outbox})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	if _, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{
@@ -1679,6 +1775,7 @@ func TestOpenVEXIngestionCreatesDecisionAndRejectsMalformedInput(t *testing.T) {
 	}`)); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
+	outbox.jobs = nil
 	vex, err := ledger.UploadVEX(ctx, actor, release.ID, artifact.ID, []byte(`{
 		"@context":"https://openvex.dev/ns/v0.2.0",
 		"@id":"https://example.test/vex/1",
@@ -1701,23 +1798,31 @@ func TestOpenVEXIngestionCreatesDecisionAndRejectsMalformedInput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("import report: %v", err)
 	}
-	if importReport.Status != "parsed" || importReport.StatementCount != 1 || importReport.DecisionsCreated != 1 || importReport.DecisionsSuperseded != 0 || len(importReport.MappingFailures) != 0 {
+	if importReport.Status != "accepted" || importReport.StatementCount != 1 || importReport.DecisionsCreated != 0 || importReport.DecisionsSuperseded != 0 || len(importReport.MappingFailures) != 0 || !stringSliceContains(importReport.Warnings, evidenceapp.VEXAsyncDecisionWarning) {
 		t.Fatalf("unexpected import report: %#v", importReport)
+	}
+	if len(outbox.jobs) != 1 || outbox.jobs[0].Kind != "parse_vex" || outbox.jobs[0].Payload["payload_ref"] != "" {
+		t.Fatalf("no-object VEX outbox jobs = %#v", outbox.jobs)
+	}
+	statements := requireVEXDecisionRequest(t, outbox.jobs[0].Payload, 1)
+	if statements[0].StatementIndex != 1 || statements[0].Vulnerability != "CVE-2026-0002" || len(statements[0].Products) != 1 || statements[0].Products[0] != "pkg:apk/openssl@3.1.0" || statements[0].Status != decisionStatusFixed {
+		t.Fatalf("normalized no-object VEX request = %#v", statements)
 	}
 	report, err := ledger.ReleaseReadinessReport(ctx, actor, release.ID)
 	if err != nil {
 		t.Fatalf("readiness: %v", err)
 	}
-	if len(report.BlockingFindings) != 0 {
-		t.Fatalf("VEX decision did not handle finding: %#v", report.BlockingFindings)
+	if len(report.BlockingFindings) != 1 {
+		t.Fatalf("finding must remain open until asynchronous decision processing: %#v", report.BlockingFindings)
 	}
 	if _, err := ledger.UploadVEX(ctx, actor, release.ID, artifact.ID, []byte(`{"author":"a","timestamp":"2026-05-27T12:00:00Z","statements":[],"extra":true}`)); !errors.Is(err, ErrValidation) {
 		t.Fatalf("malformed VEX err = %v, want validation", err)
 	}
 }
 
-func TestOpenVEXImportReportTracksSupersessionAndMappingFailures(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+func TestOpenVEXPreviewTracksSupersessionAndMappingFailuresBeforeAsyncUpload(t *testing.T) {
+	outbox := &recordingOutbox{}
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Outbox: outbox})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	scan, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{
@@ -1737,7 +1842,8 @@ func TestOpenVEXImportReportTracksSupersessionAndMappingFailures(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("manual decision: %v", err)
 	}
-	vex, err := ledger.UploadVEX(ctx, actor, release.ID, artifact.ID, []byte(`{
+	outbox.jobs = nil
+	raw := []byte(`{
 		"@context":"https://openvex.dev/ns/v0.2.0",
 		"@id":"https://example.test/vex/2",
 		"author":"security@example.test",
@@ -1756,7 +1862,18 @@ func TestOpenVEXImportReportTracksSupersessionAndMappingFailures(t *testing.T) {
 			"justification":"component not present",
 			"impact_statement":"not present in this release"
 		}]
-	}`))
+	}`)
+	preview, err := ledger.PreviewVEXImport(ctx, actor, release.ID, artifact.ID, raw)
+	if err != nil {
+		t.Fatalf("preview vex: %v", err)
+	}
+	if preview.StatementCount != 2 || preview.DecisionsWouldCreate != 1 || preview.DecisionsWouldSupersede != 1 {
+		t.Fatalf("preview counts = %#v", preview)
+	}
+	if len(preview.MappingFailures) != 1 || preview.MappingFailures[0].StatementIndex != 2 || preview.MappingFailures[0].Code != "finding_not_found" {
+		t.Fatalf("preview mapping failures = %#v", preview.MappingFailures)
+	}
+	vex, err := ledger.UploadVEX(ctx, actor, release.ID, artifact.ID, raw)
 	if err != nil {
 		t.Fatalf("vex: %v", err)
 	}
@@ -1764,22 +1881,29 @@ func TestOpenVEXImportReportTracksSupersessionAndMappingFailures(t *testing.T) {
 	if err != nil {
 		t.Fatalf("import report: %v", err)
 	}
-	if report.StatementCount != 2 || report.DecisionsCreated != 1 || report.DecisionsSuperseded != 1 {
+	if report.StatementCount != 2 || report.DecisionsCreated != 0 || report.DecisionsSuperseded != 0 || report.Status != "accepted" {
 		t.Fatalf("report counts = %#v", report)
 	}
-	if len(report.MappingFailures) != 1 || report.MappingFailures[0].StatementIndex != 2 || report.MappingFailures[0].Code != "finding_not_found" {
+	if len(report.MappingFailures) != 0 || !stringSliceContains(report.Warnings, evidenceapp.VEXAsyncDecisionWarning) {
 		t.Fatalf("mapping failures = %#v", report.MappingFailures)
+	}
+	if len(outbox.jobs) != 1 || outbox.jobs[0].Kind != "parse_vex" || outbox.jobs[0].Payload["payload_ref"] != "" {
+		t.Fatalf("no-object VEX outbox jobs = %#v", outbox.jobs)
+	}
+	statements := requireVEXDecisionRequest(t, outbox.jobs[0].Payload, 2)
+	if statements[0].StatementIndex != 1 || statements[0].Vulnerability != "CVE-2026-0003" || statements[1].StatementIndex != 2 || statements[1].Vulnerability != "CVE-2026-9999" {
+		t.Fatalf("normalized VEX decision statements = %#v", statements)
 	}
 	body, err := json.Marshal(report)
 	if err != nil {
 		t.Fatalf("marshal report: %v", err)
 	}
-	if strings.Contains(string(body), "payload") || strings.Contains(string(body), "manual triage") {
+	if strings.Contains(string(body), "payload_ref") || strings.Contains(string(body), "manual triage") {
 		t.Fatalf("import report leaked raw payload or internal triage details: %s", body)
 	}
 }
 
-func TestUploadVEXCanDeferDocumentParserSideEffectsToWorker(t *testing.T) {
+func TestUploadVEXQueuesDecisionSideEffectsAndPersistsNormalizedDocument(t *testing.T) {
 	outbox := &recordingOutbox{}
 	store := NewMemoryStore()
 	objects := newTestObjectStore()
@@ -1834,8 +1958,8 @@ func TestUploadVEXCanDeferDocumentParserSideEffectsToWorker(t *testing.T) {
 		t.Fatalf("load state ok=%v err=%v", ok, err)
 	}
 	persisted := state.VEXDocuments[vex.ID]
-	if persisted.Author != "" || persisted.StatementCount != 0 || persisted.StatusSummary != nil {
-		t.Fatalf("persisted vex document should wait for worker parser side effects: %#v", persisted)
+	if persisted.Author != "security@example.test" || persisted.StatementCount != 1 || persisted.StatusSummary["fixed"] != 1 {
+		t.Fatalf("persisted vex document should retain the verified normalized projection: %#v", persisted)
 	}
 	importReport, err := ledger.GetVEXImportReport(ctx, actor, vex.ID)
 	if err != nil {
@@ -1857,8 +1981,12 @@ func TestUploadVEXCanDeferDocumentParserSideEffectsToWorker(t *testing.T) {
 		t.Fatalf("outbox jobs = %d, want 1", len(outbox.jobs))
 	}
 	job := outbox.jobs[0]
-	if job.Kind != "parse_vex" || job.Payload["payload_ref"] == "" || job.Payload["payload_hash"] == "" || job.Payload["parser_version"] != ParserVersionOpenVEXJSON || job.Payload["worker_create_decisions"] != true || job.Payload["import_report_id"] == "" {
+	if job.Kind != "parse_vex" || job.Payload["payload_ref"] == "" || job.Payload["payload_hash"] == "" || job.Payload["parser_version"] != ParserVersionOpenVEXJSON || job.Payload["import_report_id"] == "" {
 		t.Fatalf("outbox job missing replay metadata: %#v", job)
+	}
+	statements := requireVEXDecisionRequest(t, job.Payload, 1)
+	if statements[0].Vulnerability != "CVE-2026-0002" || statements[0].Status != decisionStatusFixed {
+		t.Fatalf("normalized replayable VEX request = %#v", statements)
 	}
 	payloadRef, ok := job.Payload["payload_ref"].(string)
 	payloadKey := strings.TrimPrefix(payloadRef, "object://")

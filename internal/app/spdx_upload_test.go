@@ -4,10 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
-	"strings"
 	"testing"
-
-	"github.com/aatuh/evydence/internal/domain"
 )
 
 const validSPDXUpload = `{"spdxVersion":"SPDX-2.3","SPDXID":"SPDXRef-DOCUMENT","name":"example","documentNamespace":"https://example.test/spdx","dataLicense":"CC0-1.0","creationInfo":{"created":"2026-01-01T00:00:00Z","creators":["Tool: test"]},"packages":[{"SPDXID":"SPDXRef-Package","name":"api","versionInfo":"1.0.0","licenseDeclared":"MIT","checksums":[{"algorithm":"SHA256","checksumValue":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}],"externalRefs":[{"referenceCategory":"PACKAGE-MANAGER","referenceType":"purl","referenceLocator":"pkg:generic/api@1.0.0"}]}],"relationships":[{"spdxElementId":"SPDXRef-DOCUMENT","relationshipType":"DESCRIBES","relatedSpdxElement":"SPDXRef-Package"}],"x-legal-extension":"retain"}`
@@ -91,23 +88,14 @@ func TestValidatedSPDXUploadRejectsForeignTargetBeforeOpeningPayload(t *testing.
 	}
 }
 
-func TestSBOMDiffDoesNotMergePURLlessSPDXAndCycloneDXComponents(t *testing.T) {
-	base := []domain.SBOMComponent{{Identity: "spdx:SPDXRef-Package", Name: "api", Version: "1.0.0"}}
-	target := []domain.SBOMComponent{{Identity: "cyclonedx:pkg-ref", Name: "api", Version: "1.0.0"}}
-	added, removed, unchanged := diffComponents(base, target)
-	if len(added) != 1 || len(removed) != 1 || unchanged != 0 {
-		t.Fatalf("added=%#v removed=%#v unchanged=%d", added, removed, unchanged)
-	}
-	if strings.TrimSpace(added[0].Identity) == "" || strings.TrimSpace(removed[0].Identity) == "" {
-		t.Fatal("component identities were not retained")
-	}
-}
-
-func TestValidatedSPDXUploadUsesUnitOfWorkAndWorkerOwnedProjection(t *testing.T) {
+func TestValidatedSPDXUploadRetainsNoObjectProjectionAndQueuesParserJob(t *testing.T) {
 	ctx := context.Background()
 	memory := NewMemoryUnitOfWorkFactory()
 	ledger, _, actor := newReleaseEvidenceUnitOfWorkFixture(t, memory)
 	ledger.workerOwnedParsers = true
+	if err := ledger.configureEvidenceCommands(); err != nil {
+		t.Fatal(err)
+	}
 	product, err := ledger.CreateProduct(ctx, actor, "UOW SPDX", "uow-spdx")
 	if err != nil {
 		t.Fatal(err)
@@ -132,8 +120,8 @@ func TestValidatedSPDXUploadUsesUnitOfWorkAndWorkerOwnedProjection(t *testing.T)
 		t.Fatal(err)
 	}
 	persisted := snapshot.SBOMs[sbom.ID]
-	if persisted.ComponentCount != 0 || len(persisted.Components) != 0 || len(snapshot.OutboxJobs) == 0 {
-		t.Fatalf("worker-owned durable state=%#v jobs=%#v", persisted, snapshot.OutboxJobs)
+	if persisted.SpecVersion != "SPDX-2.3" || persisted.ComponentCount != 1 || len(persisted.Components) != 1 || persisted.Components[0].PURL != "pkg:generic/api@1.0.0" || len(snapshot.OutboxJobs) == 0 {
+		t.Fatalf("no-object durable SPDX state=%#v jobs=%#v", persisted, snapshot.OutboxJobs)
 	}
 	var job OutboxJob
 	for _, candidate := range snapshot.OutboxJobs {
@@ -142,7 +130,7 @@ func TestValidatedSPDXUploadUsesUnitOfWorkAndWorkerOwnedProjection(t *testing.T)
 			break
 		}
 	}
-	if job.Kind != "parse_sbom" || job.Payload["parser_version"] != ParserVersionSPDXJSON {
+	if job.Kind != "parse_sbom" || job.Payload["parser_version"] != ParserVersionSPDXJSON || job.Payload["payload_ref"] != "" {
 		t.Fatalf("outbox job=%#v", job)
 	}
 }

@@ -71,6 +71,24 @@ compared to an expectation supplied by the caller or tenant policy.
 | Customer package | Package manifest JSON, archive member hashes, and optional bundle | Offline verification checks integrity and redaction shape; it does not currently require a package-manifest signature. |
 | Release artifact manifest | Canonical manifest JSON, artifact hashes, and detached release signature | The CLI verifier uses an explicitly supplied public key; it has no live revocation source. |
 
+Evidence created after the bounded-context extraction uses
+`evidence-canonicalization-profile.v2.0.0`. This profile hashes immutable
+evidence content and creation-time origin references. The product, project,
+release, build, and deployment columns are query projections; link and
+supersession projections are excluded from the immutable hash and are recorded
+as append-only lifecycle events plus audit-chain entries. Creation-time scope
+is copied into immutable `subject_refs`, so excluding mutable projections does
+not remove the origin binding.
+
+Historical `canonicalization-profile.v1.0.0` evidence remains readable,
+linkable, supersedable, and verifiable. Before its first relationship mutation,
+Evydence records the original v1 relationship projection in the same atomic,
+append-only lifecycle transaction. Subsequent mutations carry the same origin,
+and v1 verification reconstructs that original canonical input. The stored
+canonical hash is never rewritten, so an existing signature, citation, or
+historical receipt continues to refer to the same value. Conflicting or
+malformed origin records fail verification rather than selecting one.
+
 ### Trust inputs and failure policy
 
 - Trust roots are operator- or tenant-configured references. Receipts record

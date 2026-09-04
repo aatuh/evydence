@@ -8,20 +8,19 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/getkin/kin-openapi/openapi3"
-
-	scannerparser "github.com/aatuh/evydence/internal/app/parsers/scanners"
 	"github.com/aatuh/evydence/internal/domain"
+	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
+	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
+	identityapp "github.com/aatuh/evydence/internal/identity/app"
+	releaseapp "github.com/aatuh/evydence/internal/release/app"
 )
 
 const (
@@ -85,6 +84,9 @@ type Config struct {
 	WorkerOwnedParserSideEffects bool
 }
 
+// Ledger is the compatibility facade used while bounded-context services and
+// query adapters migrate. Deprecated: new command behavior belongs in the
+// owning context application package.
 type Ledger struct {
 	mu              sync.Mutex
 	transactionGate sync.RWMutex
@@ -93,6 +95,7 @@ type Ledger struct {
 	now                   func() time.Time
 	store                 Store
 	evidencePages         EvidencePageStore
+	workerProjections     WorkerProjectionStore
 	unitOfWork            UnitOfWorkFactory
 	objects               ObjectStore
 	retention             ObjectRetentionVerifier
@@ -106,6 +109,9 @@ type Ledger struct {
 	reconciliationMetrics ObjectReconciliationMetricsStore
 	readinessChecks       []ReadinessCheck
 	workerOwnedParsers    bool
+	releaseCommands       *releaseapp.Service
+	evidenceCommands      *evidenceapp.Service
+	identityCommands      *identityapp.Service
 
 	tenants               map[string]domain.Tenant
 	organizations         map[string]domain.Organization
@@ -198,6 +204,10 @@ type Ledger struct {
 	verifications         map[string]domain.VerificationResult
 	chain                 map[string][]domain.AuditChainEntry
 	idempotency           map[string]IdempotencyRecord
+	// localVEXJobs is a compatibility-only, per-ledger handoff used when the
+	// DB-less runtime has no durable outbox worker. The evidence transaction
+	// adapter drains each job in a separate post-commit command.
+	localVEXJobs map[string]OutboxJob
 }
 
 // NewLedger creates an in-memory ledger. Durable state loading can fail, so
@@ -244,6 +254,7 @@ func NewLedgerWithContext(ctx context.Context, cfg Config) (*Ledger, error) {
 		now:                   now,
 		store:                 cfg.Store,
 		evidencePages:         evidencePageStore(cfg.Store),
+		workerProjections:     workerProjectionStore(cfg.Store),
 		unitOfWork:            unitOfWork,
 		objects:               cfg.ObjectStore,
 		retention:             retention,
@@ -348,6 +359,7 @@ func NewLedgerWithContext(ctx context.Context, cfg Config) (*Ledger, error) {
 		verifications:         map[string]domain.VerificationResult{},
 		chain:                 map[string][]domain.AuditChainEntry{},
 		idempotency:           map[string]IdempotencyRecord{},
+		localVEXJobs:          map[string]OutboxJob{},
 	}
 	if ledger.outbox == nil {
 		ledger.outbox = nopOutbox{}
@@ -363,6 +375,15 @@ func NewLedgerWithContext(ctx context.Context, cfg Config) (*Ledger, error) {
 			}
 		}
 	}
+	if err := ledger.configureReleaseCommands(); err != nil {
+		return nil, err
+	}
+	if err := ledger.configureEvidenceCommands(); err != nil {
+		return nil, err
+	}
+	if err := ledger.configureIdentityCommands(); err != nil {
+		return nil, err
+	}
 	return ledger, nil
 }
 
@@ -371,420 +392,43 @@ func evidencePageStore(store Store) EvidencePageStore {
 	return pages
 }
 
-func (l *Ledger) HasTenants() bool {
-	return l.identityService().HasTenants()
+func workerProjectionStore(store Store) WorkerProjectionStore {
+	projections, _ := store.(WorkerProjectionStore)
+	return projections
+}
+
+func (l *Ledger) HasTenants(ctx context.Context) bool {
+	hasTenants, _ := l.identityCommands.HasTenants(ctx)
+	return hasTenants
 }
 
 func (l *Ledger) BootstrapTenant(ctx context.Context, name, keyName string, scopes []string) (domain.Tenant, domain.APIKey, string, error) {
-	return l.identityService().BootstrapTenant(ctx, name, keyName, scopes)
+	tenant, key, secret, err := l.identityCommands.BootstrapTenant(ctx, identityapp.BootstrapTenantInput{
+		TenantName: name, APIKeyName: keyName, Scopes: scopes,
+	})
+	return tenantFromIdentityContext(tenant), apiKeyFromIdentityContext(key), secret, fromIdentityContextError(err)
 }
 
 func (l *Ledger) Authenticate(ctx context.Context, secret string) (domain.Actor, error) {
-	return l.identityService().Authenticate(ctx, secret)
+	actor, err := l.identityCommands.Authenticate(ctx, secret)
+	return actor, fromIdentityContextError(err)
 }
 
 func (l *Ledger) CreateAPIKey(ctx context.Context, actor domain.Actor, name string, scopes []string, expiresAt *time.Time) (domain.APIKey, string, error) {
-	return l.identityService().CreateAPIKey(ctx, actor, name, scopes, expiresAt)
+	key, secret, err := l.identityCommands.CreateAPIKey(ctx, actor, identityapp.CreateAPIKeyInput{Name: name, Scopes: scopes, ExpiresAt: expiresAt})
+	return apiKeyFromIdentityContext(key), secret, fromIdentityContextError(err)
 }
 
 func (l *Ledger) ListAPIKeys(ctx context.Context, actor domain.Actor) ([]domain.APIKey, error) {
-	return l.identityService().ListAPIKeys(ctx, actor)
-}
-
-func (s releaseEvidenceService) CreateProduct(ctx context.Context, actor domain.Actor, name, slug string) (domain.Product, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.Product{}, err
-	}
-	if err := require(actor, ScopeProductWrite); err != nil {
-		return domain.Product{}, err
-	}
-	name, slug = strings.TrimSpace(name), strings.TrimSpace(slug)
-	if name == "" || slug == "" {
-		return domain.Product{}, ErrValidation
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if err := l.authorizeResourceLocked(actor, ScopeProductWrite, resourceRefs{}); err != nil {
-		return domain.Product{}, err
-	}
-	for _, existing := range l.products {
-		if existing.TenantID == actor.TenantID && existing.Slug == slug {
-			return domain.Product{}, ErrConflict
-		}
-	}
-	product := domain.Product{ID: newID("prod"), TenantID: actor.TenantID, Name: name, Slug: slug, CreatedAt: l.now()}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.ReleaseCatalog.InsertProduct(ctx, product); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(product.CreatedAt, actor.TenantID, "product.created", "product", product.ID, "api_key", actor.KeyID, "", ""))
-			return err
-		}); err != nil {
-			return domain.Product{}, err
-		}
-		l.products[product.ID] = product
-		l.publishCommittedAuditEntryLocked(entry)
-		return product, nil
-	}
-	l.products[product.ID] = product
-	_, _ = l.appendChainLocked(actor.TenantID, "product.created", "product", product.ID, "api_key", actor.KeyID, "", "")
-	if err := l.persistReleaseLedgerStateLocked(ctx); err != nil {
-		return domain.Product{}, err
-	}
-	return product, nil
-}
-
-func (s releaseEvidenceService) ListProducts(ctx context.Context, actor domain.Actor) ([]domain.Product, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	if err := require(actor, ScopeProductRead); err != nil {
-		return nil, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	out := []domain.Product{}
-	for _, product := range l.products {
-		if product.TenantID == actor.TenantID && l.resourceAllowedLocked(actor, ScopeProductRead, resourceRefs{ProductID: product.ID}) {
-			out = append(out, product)
-		}
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
-	return out, nil
-}
-
-func (s releaseEvidenceService) GetProduct(ctx context.Context, actor domain.Actor, id string) (domain.Product, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.Product{}, err
-	}
-	if err := require(actor, ScopeProductRead); err != nil {
-		return domain.Product{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	product, ok := l.products[strings.TrimSpace(id)]
-	if !ok || product.TenantID != actor.TenantID {
-		return domain.Product{}, ErrNotFound
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeProductRead, resourceRefs{ProductID: product.ID}); err != nil {
-		return domain.Product{}, err
-	}
-	return product, nil
-}
-
-func (s releaseEvidenceService) CreateProject(ctx context.Context, actor domain.Actor, productID, name string) (domain.Project, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.Project{}, err
-	}
-	if err := require(actor, ScopeProjectWrite); err != nil {
-		return domain.Project{}, err
-	}
-	productID, name = strings.TrimSpace(productID), strings.TrimSpace(name)
-	if productID == "" || name == "" {
-		return domain.Project{}, ErrValidation
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	product, ok := l.products[productID]
-	if !ok || product.TenantID != actor.TenantID {
-		return domain.Project{}, ErrNotFound
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeProjectWrite, resourceRefs{ProductID: product.ID}); err != nil {
-		return domain.Project{}, err
-	}
-	project := domain.Project{ID: newID("proj"), TenantID: actor.TenantID, ProductID: productID, Name: name, CreatedAt: l.now()}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.ReleaseCatalog.InsertProject(ctx, project); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(project.CreatedAt, actor.TenantID, "project.created", "project", project.ID, "api_key", actor.KeyID, "", ""))
-			return err
-		}); err != nil {
-			return domain.Project{}, err
-		}
-		l.projects[project.ID] = project
-		l.publishCommittedAuditEntryLocked(entry)
-		return project, nil
-	}
-	l.projects[project.ID] = project
-	_, _ = l.appendChainLocked(actor.TenantID, "project.created", "project", project.ID, "api_key", actor.KeyID, "", "")
-	if err := l.persistReleaseLedgerStateLocked(ctx); err != nil {
-		return domain.Project{}, err
-	}
-	return project, nil
-}
-
-func (s releaseEvidenceService) GetProject(ctx context.Context, actor domain.Actor, id string) (domain.Project, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.Project{}, err
-	}
-	if err := require(actor, ScopeProjectRead); err != nil {
-		return domain.Project{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	project, ok := l.projects[strings.TrimSpace(id)]
-	if !ok || project.TenantID != actor.TenantID {
-		return domain.Project{}, ErrNotFound
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeProjectRead, resourceRefs{ProductID: project.ProductID, ProjectID: project.ID}); err != nil {
-		return domain.Project{}, err
-	}
-	return project, nil
-}
-
-func (s releaseEvidenceService) CreateRelease(ctx context.Context, actor domain.Actor, productID, version string) (domain.Release, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.Release{}, err
-	}
-	if err := require(actor, ScopeReleaseWrite); err != nil {
-		return domain.Release{}, err
-	}
-	productID, version = strings.TrimSpace(productID), strings.TrimSpace(version)
-	if productID == "" || version == "" {
-		return domain.Release{}, ErrValidation
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	product, ok := l.products[productID]
-	if !ok || product.TenantID != actor.TenantID {
-		return domain.Release{}, ErrNotFound
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeReleaseWrite, resourceRefs{ProductID: product.ID}); err != nil {
-		return domain.Release{}, err
-	}
-	for _, existing := range l.releases {
-		if existing.TenantID == actor.TenantID && existing.ProductID == productID && existing.Version == version {
-			return domain.Release{}, ErrConflict
-		}
-	}
-	release := domain.Release{ID: newID("rel"), TenantID: actor.TenantID, ProductID: productID, Version: version, Revision: 1, State: "draft", CreatedAt: l.now()}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.ReleaseCatalog.InsertRelease(ctx, release); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(release.CreatedAt, actor.TenantID, "release.created", "release", release.ID, "api_key", actor.KeyID, "", ""))
-			return err
-		}); err != nil {
-			return domain.Release{}, err
-		}
-		l.releases[release.ID] = release
-		l.publishCommittedAuditEntryLocked(entry)
-		return release, nil
-	}
-	l.releases[release.ID] = release
-	_, _ = l.appendChainLocked(actor.TenantID, "release.created", "release", release.ID, "api_key", actor.KeyID, "", "")
-	if err := l.persistReleaseLedgerStateLocked(ctx); err != nil {
-		return domain.Release{}, err
-	}
-	return release, nil
-}
-
-func (s releaseEvidenceService) GetRelease(ctx context.Context, actor domain.Actor, releaseID string) (domain.Release, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.Release{}, err
-	}
-	if err := require(actor, ScopeReleaseRead); err != nil {
-		return domain.Release{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	release, ok := l.releases[strings.TrimSpace(releaseID)]
-	if !ok || release.TenantID != actor.TenantID {
-		return domain.Release{}, ErrNotFound
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeReleaseRead, resourceRefs{ReleaseID: release.ID}); err != nil {
-		return domain.Release{}, err
-	}
-	return release, nil
-}
-
-func (s releaseEvidenceService) FreezeRelease(ctx context.Context, actor domain.Actor, releaseID string, expectedRevision int64) (domain.Release, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.Release{}, err
-	}
-	if err := require(actor, ScopeReleaseWrite); err != nil {
-		return domain.Release{}, err
-	}
-	if expectedRevision < 1 {
-		return domain.Release{}, ErrValidation
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	release, ok := l.releases[strings.TrimSpace(releaseID)]
-	if !ok || release.TenantID != actor.TenantID {
-		return domain.Release{}, ErrNotFound
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeReleaseWrite, resourceRefs{ReleaseID: release.ID}); err != nil {
-		return domain.Release{}, err
-	}
-	if release.Revision != expectedRevision {
-		return domain.Release{}, NewVersionConflict(release.Revision)
-	}
-	if release.State != "draft" {
-		return domain.Release{}, ErrConflict
-	}
-	now := l.now()
-	release.State = "frozen"
-	release.Revision++
-	release.FrozenAt = &now
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.ReleaseCatalog.UpdateReleaseState(ctx, release, "draft"); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, actor.TenantID, "release.frozen", "release", release.ID, "api_key", actor.KeyID, "", ""))
-			return err
-		}); err != nil {
-			return domain.Release{}, err
-		}
-		l.releases[release.ID] = release
-		l.publishCommittedAuditEntryLocked(entry)
-		return release, nil
-	}
-	l.releases[release.ID] = release
-	_, _ = l.appendChainLocked(actor.TenantID, "release.frozen", "release", release.ID, "api_key", actor.KeyID, "", "")
-	if err := l.persistReleaseLedgerStateLocked(ctx); err != nil {
-		return domain.Release{}, err
-	}
-	return release, nil
-}
-
-func (s releaseEvidenceService) ApproveRelease(ctx context.Context, actor domain.Actor, releaseID string, expectedRevision int64) (domain.Release, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.Release{}, err
-	}
-	if err := require(actor, ScopeReleaseWrite); err != nil {
-		return domain.Release{}, err
-	}
-	if expectedRevision < 1 {
-		return domain.Release{}, ErrValidation
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	release, ok := l.releases[strings.TrimSpace(releaseID)]
-	if !ok || release.TenantID != actor.TenantID {
-		return domain.Release{}, ErrNotFound
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeReleaseWrite, resourceRefs{ReleaseID: release.ID}); err != nil {
-		return domain.Release{}, err
-	}
-	if release.Revision != expectedRevision {
-		return domain.Release{}, NewVersionConflict(release.Revision)
-	}
-	if release.State != "frozen" {
-		return domain.Release{}, ErrConflict
-	}
-	now := l.now()
-	release.State = "approved"
-	release.Revision++
-	release.ApprovedAt = &now
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.ReleaseCatalog.UpdateReleaseState(ctx, release, "frozen"); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, actor.TenantID, "release.approved", "release", release.ID, "api_key", actor.KeyID, "", ""))
-			return err
-		}); err != nil {
-			return domain.Release{}, err
-		}
-		l.releases[release.ID] = release
-		l.publishCommittedAuditEntryLocked(entry)
-		return release, nil
-	}
-	l.releases[release.ID] = release
-	_, _ = l.appendChainLocked(actor.TenantID, "release.approved", "release", release.ID, "api_key", actor.KeyID, "", "")
-	if err := l.persistReleaseLedgerStateLocked(ctx); err != nil {
-		return domain.Release{}, err
-	}
-	return release, nil
-}
-
-func (s releaseEvidenceService) RegisterArtifact(ctx context.Context, actor domain.Actor, name, mediaType, digest string, size int64) (domain.Artifact, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.Artifact{}, err
-	}
-	if err := require(actor, ScopeEvidenceWrite); err != nil {
-		return domain.Artifact{}, err
-	}
-	name, mediaType, digest = strings.TrimSpace(name), strings.TrimSpace(mediaType), strings.TrimSpace(digest)
-	if name == "" || mediaType == "" || !validDigest(digest) || size < 0 {
-		return domain.Artifact{}, ErrValidation
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	for _, existing := range l.artifacts {
-		if existing.TenantID == actor.TenantID && existing.Digest == digest {
-			return existing, nil
-		}
-	}
-	artifact := domain.Artifact{ID: newID("art"), TenantID: actor.TenantID, Name: name, MediaType: mediaType, Size: size, Digest: digest, CreatedAt: l.now()}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.ReleaseCatalog.InsertArtifact(ctx, artifact); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(artifact.CreatedAt, actor.TenantID, "artifact.created", "artifact", artifact.ID, "api_key", actor.KeyID, artifact.Digest, ""))
-			return err
-		}); err != nil {
-			return domain.Artifact{}, err
-		}
-		l.artifacts[artifact.ID] = artifact
-		l.publishCommittedAuditEntryLocked(entry)
-		return artifact, nil
-	}
-	l.artifacts[artifact.ID] = artifact
-	_, _ = l.appendChainLocked(actor.TenantID, "artifact.created", "artifact", artifact.ID, "api_key", actor.KeyID, digest, "")
-	if err := l.persistReleaseLedgerStateLocked(ctx); err != nil {
-		return domain.Artifact{}, err
-	}
-	return artifact, nil
-}
-
-func (s releaseEvidenceService) GetArtifact(ctx context.Context, actor domain.Actor, id string) (domain.Artifact, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.Artifact{}, err
-	}
-	if err := require(actor, ScopeEvidenceRead); err != nil {
-		return domain.Artifact{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	artifact, ok := l.artifacts[strings.TrimSpace(id)]
-	if !ok || artifact.TenantID != actor.TenantID {
-		return domain.Artifact{}, ErrNotFound
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeEvidenceRead, resourceRefs{ArtifactID: artifact.ID}); err != nil {
-		return domain.Artifact{}, err
-	}
-	return artifact, nil
+	keys, err := l.identityCommands.ListAPIKeys(ctx, actor)
+	if err != nil {
+		return nil, fromIdentityContextError(err)
+	}
+	result := make([]domain.APIKey, 0, len(keys))
+	for _, key := range keys {
+		result = append(result, apiKeyFromIdentityContext(key))
+	}
+	return result, nil
 }
 
 type CreateEvidenceInput struct {
@@ -811,16 +455,23 @@ type CreateEvidenceInput struct {
 	Limitations      []string
 }
 
-// newEvidenceItemLocked validates tenant-scoped references and constructs an
-// immutable evidence value without publishing it to the local read model.
-// Callers can therefore include the evidence row, its audit entry, and any
-// derived parser record in one transaction before updating process state.
-func (s releaseEvidenceService) newEvidenceItemLocked(actor domain.Actor, in CreateEvidenceInput) (domain.EvidenceItem, error) {
+// newEvidenceItemForScopeLocked keeps composite command authorization explicit.
+// The build-attestation and deployment compatibility bridges use their
+// documented command scopes and must not introduce a hidden evidence:write
+// requirement.
+func (s releaseEvidenceService) newEvidenceItemForScopeLocked(actor domain.Actor, authorizationScope string, in CreateEvidenceInput) (domain.EvidenceItem, error) {
+	if authorizationScope != ScopeEvidenceWrite && authorizationScope != ScopeBuildWrite && authorizationScope != ScopeDeploymentWrite {
+		return domain.EvidenceItem{}, ErrValidation
+	}
+	deploymentEvent := strings.TrimSpace(in.Type) == "deployment" && strings.TrimSpace(in.Subtype) == "event" && strings.TrimSpace(in.DeploymentID) != ""
+	if (authorizationScope == ScopeDeploymentWrite) != deploymentEvent {
+		return domain.EvidenceItem{}, ErrValidation
+	}
 	l := s.ledger
 	if err := l.ensureScopeLocked(actor.TenantID, in.ProductID, in.ProjectID, in.ReleaseID); err != nil {
 		return domain.EvidenceItem{}, err
 	}
-	if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, resourceRefs{ProductID: in.ProductID, ProjectID: in.ProjectID, ReleaseID: in.ReleaseID}); err != nil {
+	if err := l.authorizeResourceLocked(actor, authorizationScope, resourceRefs{ProductID: in.ProductID, ProjectID: in.ProjectID, ReleaseID: in.ReleaseID}); err != nil {
 		return domain.EvidenceItem{}, err
 	}
 	now := l.now()
@@ -846,7 +497,7 @@ func (s releaseEvidenceService) newEvidenceItemLocked(actor domain.Actor, in Cre
 		PayloadHash:         in.PayloadHash,
 		PayloadMediaType:    strings.TrimSpace(in.PayloadMediaType),
 		PayloadSize:         in.PayloadSize,
-		Canonicalization:    domain.CanonicalizationProfileVersion,
+		Canonicalization:    evidencedomain.EvidenceCanonicalizationProfileVersion,
 		SubjectRefs:         append([]domain.SubjectRef(nil), in.SubjectRefs...),
 		TrustLevel:          "L2",
 		VerificationStatus:  "pending",
@@ -856,771 +507,13 @@ func (s releaseEvidenceService) newEvidenceItemLocked(actor domain.Actor, in Cre
 		CreatedAt:           now,
 		RelatedEvidenceRefs: nil,
 	}
+	item = withEvidenceCanonicalOriginRefs(item)
 	hash, err := canonicalHash(item)
 	if err != nil {
 		return domain.EvidenceItem{}, err
 	}
 	item.CanonicalHash = hash
 	return item, nil
-}
-
-func (s releaseEvidenceService) CreateEvidence(ctx context.Context, actor domain.Actor, in CreateEvidenceInput) (domain.EvidenceItem, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.EvidenceItem{}, err
-	}
-	if err := require(actor, ScopeEvidenceWrite); err != nil {
-		return domain.EvidenceItem{}, err
-	}
-	in.Type = strings.TrimSpace(in.Type)
-	in.Title = strings.TrimSpace(in.Title)
-	in.PayloadHash = strings.TrimSpace(in.PayloadHash)
-	if in.Type == "" || in.Title == "" || !validDigest(in.PayloadHash) {
-		return domain.EvidenceItem{}, ErrValidation
-	}
-	if in.ObservedAt.IsZero() {
-		in.ObservedAt = l.now()
-	}
-	if in.StagedPayload.present() {
-		if err := validateObjectPayload(in.StagedPayload); err != nil || in.StagedPayload.TenantID != actor.TenantID || in.StagedPayload.Digest != in.PayloadHash || in.StagedPayload.Reference() != in.PayloadRef || in.StagedPayload.Size != in.PayloadSize || in.StagedPayload.MediaType != in.PayloadMediaType {
-			return domain.EvidenceItem{}, ErrValidation
-		}
-		if (l.unitOfWork != nil && in.StagedPayload.Status != ObjectPayloadStaged) || (l.unitOfWork == nil && in.StagedPayload.Status != ObjectPayloadFinalized) {
-			return domain.EvidenceItem{}, ErrValidation
-		}
-	}
-	if actor.CollectorID != "" {
-		in.CollectorID = actor.CollectorID
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	item, err := s.newEvidenceItemLocked(actor, in)
-	if err != nil {
-		return domain.EvidenceItem{}, err
-	}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := l.persistStagedObjectPayload(ctx, repos, in.StagedPayload); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(item.CreatedAt, actor.TenantID, "evidence.created", "evidence_item", item.ID, "api_key", actor.KeyID, item.PayloadHash, ""))
-			if err != nil {
-				return err
-			}
-			item.ChainEntryID = entry.ID
-			return repos.Evidence.InsertEvidence(ctx, item)
-		}); err != nil {
-			return domain.EvidenceItem{}, err
-		}
-		l.evidence[item.ID] = item
-		l.publishCommittedAuditEntryLocked(entry)
-		return item, nil
-	}
-	entry, err := l.appendChainLocked(actor.TenantID, "evidence.created", "evidence_item", item.ID, "api_key", actor.KeyID, item.PayloadHash, "")
-	if err != nil {
-		return domain.EvidenceItem{}, err
-	}
-	item.ChainEntryID = entry.ID
-	l.evidence[item.ID] = item
-	if err := l.persistReleaseLedgerStateLocked(ctx); err != nil {
-		return domain.EvidenceItem{}, err
-	}
-	return item, nil
-}
-
-func (s releaseEvidenceService) GetEvidence(ctx context.Context, actor domain.Actor, id string) (domain.EvidenceItem, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.EvidenceItem{}, err
-	}
-	if err := require(actor, ScopeEvidenceRead); err != nil {
-		return domain.EvidenceItem{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	item, ok := l.evidence[strings.TrimSpace(id)]
-	if !ok || item.TenantID != actor.TenantID {
-		return domain.EvidenceItem{}, ErrNotFound
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeEvidenceRead, refsForEvidence(item)); err != nil {
-		return domain.EvidenceItem{}, err
-	}
-	return item, nil
-}
-
-func (s releaseEvidenceService) ListEvidence(ctx context.Context, actor domain.Actor, releaseID, typ string) ([]domain.EvidenceItem, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	if err := require(actor, ScopeEvidenceRead); err != nil {
-		return nil, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	out := []domain.EvidenceItem{}
-	for _, item := range l.evidence {
-		if item.TenantID != actor.TenantID {
-			continue
-		}
-		if releaseID != "" && item.ReleaseID != releaseID {
-			continue
-		}
-		if typ != "" && item.Type != typ {
-			continue
-		}
-		if !l.resourceAllowedLocked(actor, ScopeEvidenceRead, refsForEvidence(item)) {
-			continue
-		}
-		out = append(out, item)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
-	return out, nil
-}
-
-func (s releaseEvidenceService) SupersedeEvidence(ctx context.Context, actor domain.Actor, id, replacementID, reason string) (domain.EvidenceItem, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.EvidenceItem{}, err
-	}
-	if err := require(actor, ScopeEvidenceWrite); err != nil {
-		return domain.EvidenceItem{}, err
-	}
-	if strings.TrimSpace(reason) == "" {
-		return domain.EvidenceItem{}, ErrValidation
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	item, ok := l.evidence[strings.TrimSpace(id)]
-	replacement, rok := l.evidence[strings.TrimSpace(replacementID)]
-	if !ok || !rok || item.TenantID != actor.TenantID || replacement.TenantID != actor.TenantID {
-		return domain.EvidenceItem{}, ErrNotFound
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, refsForEvidence(item)); err != nil {
-		return domain.EvidenceItem{}, err
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, refsForEvidence(replacement)); err != nil {
-		return domain.EvidenceItem{}, err
-	}
-	if item.SupersededBy != "" {
-		return domain.EvidenceItem{}, ErrConflict
-	}
-	item.SupersededBy = replacement.ID
-	replacement.Supersedes = item.ID
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		now := l.now()
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Evidence.RecordSupersession(ctx, item, replacement); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, actor.TenantID, "evidence.superseded", "evidence_item", item.ID, "api_key", actor.KeyID, item.PayloadHash, ""))
-			return err
-		}); err != nil {
-			return domain.EvidenceItem{}, err
-		}
-		l.evidence[item.ID] = item
-		l.evidence[replacement.ID] = replacement
-		l.publishCommittedAuditEntryLocked(entry)
-		return item, nil
-	}
-	l.evidence[item.ID] = item
-	l.evidence[replacement.ID] = replacement
-	_, _ = l.appendChainLocked(actor.TenantID, "evidence.superseded", "evidence_item", item.ID, "api_key", actor.KeyID, item.PayloadHash, "")
-	if err := l.persistReleaseLedgerStateLocked(ctx); err != nil {
-		return domain.EvidenceItem{}, err
-	}
-	return item, nil
-}
-
-func (s releaseEvidenceService) LinkEvidence(ctx context.Context, actor domain.Actor, id, targetType, targetID string) (domain.EvidenceItem, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.EvidenceItem{}, err
-	}
-	if err := require(actor, ScopeEvidenceWrite); err != nil {
-		return domain.EvidenceItem{}, err
-	}
-	targetType, targetID = strings.TrimSpace(targetType), strings.TrimSpace(targetID)
-	if targetType == "" || targetID == "" {
-		return domain.EvidenceItem{}, ErrValidation
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	item, ok := l.evidence[strings.TrimSpace(id)]
-	if !ok || item.TenantID != actor.TenantID {
-		return domain.EvidenceItem{}, ErrNotFound
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, refsForEvidence(item)); err != nil {
-		return domain.EvidenceItem{}, err
-	}
-	switch targetType {
-	case "release":
-		rel, ok := l.releases[targetID]
-		if !ok || rel.TenantID != actor.TenantID {
-			return domain.EvidenceItem{}, ErrNotFound
-		}
-		if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, resourceRefs{ReleaseID: rel.ID}); err != nil {
-			return domain.EvidenceItem{}, err
-		}
-		item.ReleaseID = targetID
-	case "product":
-		prod, ok := l.products[targetID]
-		if !ok || prod.TenantID != actor.TenantID {
-			return domain.EvidenceItem{}, ErrNotFound
-		}
-		if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, resourceRefs{ProductID: prod.ID}); err != nil {
-			return domain.EvidenceItem{}, err
-		}
-		item.ProductID = targetID
-	default:
-		return domain.EvidenceItem{}, ErrValidation
-	}
-	item.RelatedEvidenceRefs = append(item.RelatedEvidenceRefs, domain.EvidenceRef{Type: targetType, ID: targetID, Relationship: "linked_to"})
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		now := l.now()
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Evidence.UpdateEvidenceLinks(ctx, item); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, actor.TenantID, "evidence.linked", "evidence_item", item.ID, "api_key", actor.KeyID, item.PayloadHash, ""))
-			return err
-		}); err != nil {
-			return domain.EvidenceItem{}, err
-		}
-		l.evidence[item.ID] = item
-		l.publishCommittedAuditEntryLocked(entry)
-		return item, nil
-	}
-	l.evidence[item.ID] = item
-	_, _ = l.appendChainLocked(actor.TenantID, "evidence.linked", "evidence_item", item.ID, "api_key", actor.KeyID, item.PayloadHash, "")
-	if err := l.persistReleaseLedgerStateLocked(ctx); err != nil {
-		return domain.EvidenceItem{}, err
-	}
-	return item, nil
-}
-
-func (s releaseEvidenceService) UploadSBOM(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.SBOM, error) {
-	return s.UploadSBOMPayload(ctx, actor, releaseID, artifactID, BytesPayloadSource(raw))
-}
-
-// UploadSBOMPayload accepts a file-backed or in-memory source so CycloneDX
-// documents can be decoded and staged without duplicating their raw bytes.
-func (s releaseEvidenceService) UploadSBOMPayload(ctx context.Context, actor domain.Actor, releaseID, artifactID string, source PayloadSource) (domain.SBOM, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.SBOM{}, err
-	}
-	if err := require(actor, ScopeEvidenceWrite); err != nil {
-		return domain.SBOM{}, err
-	}
-	if err := validatePayloadSource(source, EvidenceDocumentLimit); err != nil {
-		return domain.SBOM{}, ErrValidation
-	}
-	var doc struct {
-		BOMFormat   string `json:"bomFormat"`
-		SpecVersion string `json:"specVersion"`
-		Components  []struct {
-			Type    string `json:"type"`
-			Name    string `json:"name"`
-			Version string `json:"version"`
-			PURL    string `json:"purl"`
-		} `json:"components"`
-	}
-	reader, err := source.Open()
-	if err != nil {
-		return domain.SBOM{}, ErrValidation
-	}
-	defer reader.Close()
-	dec := json.NewDecoder(reader)
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&doc); err != nil || dec.Decode(&struct{}{}) != io.EOF || strings.ToLower(doc.BOMFormat) != "cyclonedx" {
-		return domain.SBOM{}, ErrValidation
-	}
-	components := make([]domain.SBOMComponent, 0, len(doc.Components))
-	for _, component := range doc.Components {
-		if strings.TrimSpace(component.Name) == "" {
-			return domain.SBOM{}, ErrValidation
-		}
-		components = append(components, domain.SBOMComponent{Name: component.Name, Version: component.Version, PURL: component.PURL})
-	}
-	l.mu.Lock()
-	if err := l.ensureScopeLocked(actor.TenantID, "", "", strings.TrimSpace(releaseID)); err != nil {
-		l.mu.Unlock()
-		return domain.SBOM{}, err
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, resourceRefs{ReleaseID: strings.TrimSpace(releaseID)}); err != nil {
-		l.mu.Unlock()
-		return domain.SBOM{}, err
-	}
-	l.mu.Unlock()
-	payloadHash := source.Digest
-	stagedPayload, err := l.stagePayloadSource(ctx, actor.TenantID, "application/vnd.cyclonedx+json", source)
-	if err != nil {
-		return domain.SBOM{}, err
-	}
-	payloadRef := stagedPayload.Reference()
-	evidenceInput := CreateEvidenceInput{
-		ReleaseID:        releaseID,
-		Type:             "sbom",
-		Subtype:          "cyclonedx",
-		Title:            "CycloneDX SBOM",
-		SourceSystem:     "api",
-		ObservedAt:       l.now(),
-		PayloadRef:       payloadRef,
-		PayloadHash:      payloadHash,
-		PayloadMediaType: "application/vnd.cyclonedx+json",
-		PayloadSize:      source.Size,
-		SubjectRefs:      subjectForArtifact(artifactID),
-		Metadata: WithParserProvenance(map[string]any{
-			"sbom_format":       "cyclonedx",
-			"sbom_spec_version": doc.SpecVersion,
-			"component_count":   len(components),
-		}, ParserProvenance{Name: "cyclonedx", Version: ParserVersionCycloneDXJSON, SourceSchema: "cyclonedx-" + doc.SpecVersion, NormalizedSchema: "evydence-sbom.v1", ReplayStatus: ParserReplayStatusOriginal}),
-	}
-	if l.unitOfWork != nil {
-		l.mu.Lock()
-		defer l.mu.Unlock()
-		item, err := s.newEvidenceItemLocked(actor, evidenceInput)
-		if err != nil {
-			return domain.SBOM{}, err
-		}
-		sbom := domain.SBOM{ID: newID("sbom"), TenantID: actor.TenantID, EvidenceID: item.ID, ReleaseID: releaseID, ArtifactID: artifactID, Format: "cyclonedx", SpecVersion: doc.SpecVersion, ComponentCount: len(components), Components: components, CreatedAt: l.now()}
-		persistedSBOM := sbom
-		chainAction := "sbom.parsed"
-		if l.workerOwnedParsers {
-			persistedSBOM.SpecVersion = ""
-			persistedSBOM.ComponentCount = 0
-			persistedSBOM.Components = nil
-			chainAction = "sbom.accepted"
-		}
-		job := l.newOutboxJob(actor.TenantID, "parse_sbom", "sbom", sbom.ID, addPayloadLifecycle(map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionCycloneDXJSON}, stagedPayload))
-		var evidenceEntry, sbomEntry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := l.persistStagedObjectPayload(ctx, repos, stagedPayload); err != nil {
-				return err
-			}
-			var err error
-			evidenceEntry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(item.CreatedAt, actor.TenantID, "evidence.created", "evidence_item", item.ID, "api_key", actor.KeyID, item.PayloadHash, ""))
-			if err != nil {
-				return err
-			}
-			item.ChainEntryID = evidenceEntry.ID
-			if err := repos.Evidence.InsertEvidence(ctx, item); err != nil {
-				return err
-			}
-			sbomEntry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(sbom.CreatedAt, actor.TenantID, chainAction, "sbom", sbom.ID, "api_key", actor.KeyID, payloadHash, ""))
-			if err != nil {
-				return err
-			}
-			if err := repos.Evidence.InsertSBOM(ctx, persistedSBOM); err != nil {
-				return err
-			}
-			return repos.Outbox.Enqueue(ctx, job)
-		}); err != nil {
-			return domain.SBOM{}, err
-		}
-		l.evidence[item.ID] = item
-		l.sboms[sbom.ID] = persistedSBOM
-		l.publishCommittedAuditEntryLocked(evidenceEntry)
-		l.publishCommittedAuditEntryLocked(sbomEntry)
-		return sbom, nil
-	}
-	item, err := l.CreateEvidence(ctx, actor, evidenceInput)
-	if err != nil {
-		return domain.SBOM{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	sbom := domain.SBOM{ID: newID("sbom"), TenantID: actor.TenantID, EvidenceID: item.ID, ReleaseID: releaseID, ArtifactID: artifactID, Format: "cyclonedx", SpecVersion: doc.SpecVersion, ComponentCount: len(components), Components: components, CreatedAt: l.now()}
-	persistedSBOM := sbom
-	chainAction := "sbom.parsed"
-	if l.workerOwnedParsers {
-		persistedSBOM.SpecVersion = ""
-		persistedSBOM.ComponentCount = 0
-		persistedSBOM.Components = nil
-		chainAction = "sbom.accepted"
-	}
-	l.sboms[sbom.ID] = persistedSBOM
-	_, _ = l.appendChainLocked(actor.TenantID, chainAction, "sbom", sbom.ID, "api_key", actor.KeyID, payloadHash, "")
-	job := l.newOutboxJob(actor.TenantID, "parse_sbom", "sbom", sbom.ID, addPayloadLifecycle(map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionCycloneDXJSON}, stagedPayload))
-	if err := l.persistReleaseLedgerWithOutboxLocked(ctx, job); err != nil {
-		return domain.SBOM{}, err
-	}
-	return sbom, nil
-}
-
-func (s releaseEvidenceService) UploadVulnerabilityScan(ctx context.Context, actor domain.Actor, raw []byte) (domain.VulnerabilityScan, error) {
-	return s.UploadVulnerabilityScanPayload(ctx, actor, BytesPayloadSource(raw))
-}
-
-// UploadVulnerabilityScanPayload validates and stages a repeatable streamed
-// payload. HTTP ingestion supplies a file-backed source so this service does
-// not require a second raw-document allocation.
-func (s releaseEvidenceService) UploadVulnerabilityScanPayload(ctx context.Context, actor domain.Actor, source PayloadSource) (domain.VulnerabilityScan, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.VulnerabilityScan{}, err
-	}
-	if err := require(actor, ScopeEvidenceWrite); err != nil {
-		return domain.VulnerabilityScan{}, err
-	}
-	if err := validatePayloadSource(source, EvidenceDocumentLimit); err != nil {
-		return domain.VulnerabilityScan{}, ErrValidation
-	}
-	reader, err := source.Open()
-	if err != nil {
-		return domain.VulnerabilityScan{}, ErrValidation
-	}
-	defer reader.Close()
-	doc, err := scannerparser.ParseBoundedReader(reader, scannerparser.DefaultLimits(EvidenceDocumentLimit))
-	if err != nil {
-		return domain.VulnerabilityScan{}, ErrValidation
-	}
-	l.mu.Lock()
-	release, ok := l.releases[doc.ReleaseID]
-	if !ok || release.TenantID != actor.TenantID {
-		l.mu.Unlock()
-		return domain.VulnerabilityScan{}, ErrNotFound
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, resourceRefs{ProductID: release.ProductID, ReleaseID: release.ID}); err != nil {
-		l.mu.Unlock()
-		return domain.VulnerabilityScan{}, err
-	}
-	l.mu.Unlock()
-	scanID := newID("scan")
-	summary := map[string]int{}
-	findings := make([]domain.VulnerabilityFinding, 0, len(doc.Findings))
-	for i, finding := range doc.Findings {
-		summary[finding.Severity]++
-		findings = append(findings, domain.VulnerabilityFinding{ID: fmt.Sprintf("%s:finding:%d", scanID, i+1), Vulnerability: finding.Vulnerability, Component: finding.Component, Severity: finding.Severity, State: finding.State, SeveritySource: finding.SeveritySource, FixVersion: finding.FixVersion, Identity: domain.VulnerabilityIdentity{CVE: finding.Identity.CVE, GHSA: finding.Identity.GHSA, OSV: finding.Identity.OSV, VendorAdvisory: finding.Identity.VendorAdvisory, PURL: finding.Identity.PURL, CPE: finding.Identity.CPE}})
-	}
-	payloadHash := source.Digest
-	stagedPayload, err := l.stagePayloadSource(ctx, actor.TenantID, "application/json", source)
-	if err != nil {
-		return domain.VulnerabilityScan{}, err
-	}
-	payloadRef := stagedPayload.Reference()
-	evidenceInput := CreateEvidenceInput{
-		ReleaseID:        doc.ReleaseID,
-		Type:             "vulnerability_scan",
-		Subtype:          doc.Adapter,
-		Title:            "Vulnerability scan",
-		SourceSystem:     doc.Scanner,
-		ObservedAt:       l.now(),
-		PayloadRef:       payloadRef,
-		PayloadHash:      payloadHash,
-		PayloadMediaType: "application/json",
-		PayloadSize:      source.Size,
-		Metadata:         WithParserProvenance(map[string]any{"scanner": doc.Scanner, "adapter": doc.Adapter, "adapter_version": doc.AdapterVersion, "source_schema": doc.SourceSchema, "target_ref": doc.TargetRef}, ParserProvenance{Name: doc.Adapter, Version: doc.AdapterVersion, SourceSchema: doc.SourceSchema, NormalizedSchema: "evydence-vulnerability-finding.v1", ReplayStatus: ParserReplayStatusOriginal}),
-	}
-	if l.unitOfWork != nil {
-		l.mu.Lock()
-		defer l.mu.Unlock()
-		item, err := s.newEvidenceItemLocked(actor, evidenceInput)
-		if err != nil {
-			return domain.VulnerabilityScan{}, err
-		}
-		scan := domain.VulnerabilityScan{ID: scanID, TenantID: actor.TenantID, EvidenceID: item.ID, ReleaseID: doc.ReleaseID, Scanner: doc.Scanner, Adapter: doc.Adapter, AdapterVersion: doc.AdapterVersion, SourceSchema: doc.SourceSchema, TargetRef: doc.TargetRef, Summary: summary, Findings: findings, CreatedAt: l.now()}
-		persistedScan := scan
-		chainAction := "vulnerability_scan.parsed"
-		if l.workerOwnedParsers {
-			persistedScan.Scanner = ""
-			persistedScan.Adapter = ""
-			persistedScan.AdapterVersion = ""
-			persistedScan.SourceSchema = ""
-			persistedScan.TargetRef = ""
-			persistedScan.Summary = nil
-			persistedScan.Findings = nil
-			chainAction = "vulnerability_scan.accepted"
-		}
-		job := l.newOutboxJob(actor.TenantID, "parse_vulnerability_scan", "vulnerability_scan", scan.ID, addPayloadLifecycle(map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionScannerAdaptersJSON}, stagedPayload))
-		var evidenceEntry, scanEntry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := l.persistStagedObjectPayload(ctx, repos, stagedPayload); err != nil {
-				return err
-			}
-			var err error
-			evidenceEntry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(item.CreatedAt, actor.TenantID, "evidence.created", "evidence_item", item.ID, "api_key", actor.KeyID, item.PayloadHash, ""))
-			if err != nil {
-				return err
-			}
-			item.ChainEntryID = evidenceEntry.ID
-			if err := repos.Evidence.InsertEvidence(ctx, item); err != nil {
-				return err
-			}
-			scanEntry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(scan.CreatedAt, actor.TenantID, chainAction, "vulnerability_scan", scan.ID, "api_key", actor.KeyID, payloadHash, ""))
-			if err != nil {
-				return err
-			}
-			if err := repos.Evidence.InsertVulnerabilityScan(ctx, persistedScan); err != nil {
-				return err
-			}
-			return repos.Outbox.Enqueue(ctx, job)
-		}); err != nil {
-			return domain.VulnerabilityScan{}, err
-		}
-		l.evidence[item.ID] = item
-		l.scans[scan.ID] = persistedScan
-		l.publishCommittedAuditEntryLocked(evidenceEntry)
-		l.publishCommittedAuditEntryLocked(scanEntry)
-		return scan, nil
-	}
-	item, err := l.CreateEvidence(ctx, actor, evidenceInput)
-	if err != nil {
-		return domain.VulnerabilityScan{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	scan := domain.VulnerabilityScan{ID: scanID, TenantID: actor.TenantID, EvidenceID: item.ID, ReleaseID: doc.ReleaseID, Scanner: doc.Scanner, TargetRef: doc.TargetRef, Summary: summary, Findings: findings, CreatedAt: l.now()}
-	persistedScan := scan
-	chainAction := "vulnerability_scan.parsed"
-	if l.workerOwnedParsers {
-		persistedScan.Scanner = ""
-		persistedScan.Adapter = ""
-		persistedScan.AdapterVersion = ""
-		persistedScan.SourceSchema = ""
-		persistedScan.TargetRef = ""
-		persistedScan.Summary = nil
-		persistedScan.Findings = nil
-		chainAction = "vulnerability_scan.accepted"
-	}
-	l.scans[scan.ID] = persistedScan
-	_, _ = l.appendChainLocked(actor.TenantID, chainAction, "vulnerability_scan", scan.ID, "api_key", actor.KeyID, payloadHash, "")
-	job := l.newOutboxJob(actor.TenantID, "parse_vulnerability_scan", "vulnerability_scan", scan.ID, addPayloadLifecycle(map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionScannerAdaptersJSON}, stagedPayload))
-	if err := l.persistReleaseLedgerWithOutboxLocked(ctx, job); err != nil {
-		return domain.VulnerabilityScan{}, err
-	}
-	return scan, nil
-}
-
-func (s releaseEvidenceService) UploadOpenAPIContract(ctx context.Context, actor domain.Actor, productID, releaseID, version string, raw []byte) (domain.OpenAPIContract, error) {
-	return s.UploadOpenAPIContractPayload(ctx, actor, productID, releaseID, version, BytesPayloadSource(raw))
-}
-
-// UploadOpenAPIContractPayload loads a repeatable source directly so streamed
-// contracts do not need to be materialized as an additional byte slice.
-func (s releaseEvidenceService) UploadOpenAPIContractPayload(ctx context.Context, actor domain.Actor, productID, releaseID, version string, source PayloadSource) (domain.OpenAPIContract, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.OpenAPIContract{}, err
-	}
-	if err := require(actor, ScopeEvidenceWrite); err != nil {
-		return domain.OpenAPIContract{}, err
-	}
-	if err := validatePayloadSource(source, EvidenceDocumentLimit); err != nil {
-		return domain.OpenAPIContract{}, ErrValidation
-	}
-	reader, err := source.Open()
-	if err != nil {
-		return domain.OpenAPIContract{}, ErrValidation
-	}
-	defer reader.Close()
-	loader := openapi3.NewLoader()
-	doc, err := loader.LoadFromIoReader(reader)
-	if err != nil {
-		return domain.OpenAPIContract{}, ErrValidation
-	}
-	if err := doc.Validate(ctx); err != nil {
-		return domain.OpenAPIContract{}, ErrValidation
-	}
-	operations := extractOpenAPIOperations(doc)
-	l.mu.Lock()
-	if err := l.ensureScopeLocked(actor.TenantID, strings.TrimSpace(productID), "", strings.TrimSpace(releaseID)); err != nil {
-		l.mu.Unlock()
-		return domain.OpenAPIContract{}, err
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, resourceRefs{ProductID: strings.TrimSpace(productID), ReleaseID: strings.TrimSpace(releaseID)}); err != nil {
-		l.mu.Unlock()
-		return domain.OpenAPIContract{}, err
-	}
-	l.mu.Unlock()
-	payloadHash := source.Digest
-	stagedPayload, err := l.stagePayloadSource(ctx, actor.TenantID, "application/vnd.oai.openapi+json", source)
-	if err != nil {
-		return domain.OpenAPIContract{}, err
-	}
-	payloadRef := stagedPayload.Reference()
-	evidenceInput := CreateEvidenceInput{
-		ProductID:        productID,
-		ReleaseID:        releaseID,
-		Type:             "openapi_contract",
-		Subtype:          "openapi",
-		Title:            "OpenAPI contract",
-		SourceSystem:     "api",
-		ObservedAt:       l.now(),
-		PayloadRef:       payloadRef,
-		PayloadHash:      payloadHash,
-		PayloadMediaType: "application/vnd.oai.openapi+json",
-		PayloadSize:      source.Size,
-		Metadata:         WithParserProvenance(map[string]any{"version": version, "path_count": len(doc.Paths.Map())}, ParserProvenance{Name: "openapi", Version: ParserVersionOpenAPIJSON, SourceSchema: "openapi-" + doc.OpenAPI, NormalizedSchema: "evydence-openapi-contract.v1", ReplayStatus: ParserReplayStatusOriginal}),
-	}
-	if l.unitOfWork != nil {
-		l.mu.Lock()
-		defer l.mu.Unlock()
-		item, err := s.newEvidenceItemLocked(actor, evidenceInput)
-		if err != nil {
-			return domain.OpenAPIContract{}, err
-		}
-		contract := domain.OpenAPIContract{ID: newID("oas"), TenantID: actor.TenantID, ProductID: productID, ReleaseID: releaseID, Version: version, Hash: payloadHash, PathCount: len(doc.Paths.Map()), Operations: operations, EvidenceID: item.ID, CreatedAt: l.now()}
-		persistedContract := contract
-		chainAction := "openapi_contract.parsed"
-		if l.workerOwnedParsers {
-			persistedContract.PathCount = 0
-			persistedContract.Operations = nil
-			chainAction = "openapi_contract.accepted"
-		}
-		job := l.newOutboxJob(actor.TenantID, "parse_openapi_contract", "openapi_contract", contract.ID, addPayloadLifecycle(map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionOpenAPIJSON}, stagedPayload))
-		var evidenceEntry, contractEntry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := l.persistStagedObjectPayload(ctx, repos, stagedPayload); err != nil {
-				return err
-			}
-			var err error
-			evidenceEntry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(item.CreatedAt, actor.TenantID, "evidence.created", "evidence_item", item.ID, "api_key", actor.KeyID, item.PayloadHash, ""))
-			if err != nil {
-				return err
-			}
-			item.ChainEntryID = evidenceEntry.ID
-			if err := repos.Evidence.InsertEvidence(ctx, item); err != nil {
-				return err
-			}
-			contractEntry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(contract.CreatedAt, actor.TenantID, chainAction, "openapi_contract", contract.ID, "api_key", actor.KeyID, contract.Hash, ""))
-			if err != nil {
-				return err
-			}
-			if err := repos.Evidence.InsertOpenAPIContract(ctx, persistedContract); err != nil {
-				return err
-			}
-			return repos.Outbox.Enqueue(ctx, job)
-		}); err != nil {
-			return domain.OpenAPIContract{}, err
-		}
-		l.evidence[item.ID] = item
-		l.contracts[contract.ID] = persistedContract
-		l.publishCommittedAuditEntryLocked(evidenceEntry)
-		l.publishCommittedAuditEntryLocked(contractEntry)
-		return contract, nil
-	}
-	item, err := l.CreateEvidence(ctx, actor, evidenceInput)
-	if err != nil {
-		return domain.OpenAPIContract{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	contract := domain.OpenAPIContract{ID: newID("oas"), TenantID: actor.TenantID, ProductID: productID, ReleaseID: releaseID, Version: version, Hash: payloadHash, PathCount: len(doc.Paths.Map()), Operations: operations, EvidenceID: item.ID, CreatedAt: l.now()}
-	persistedContract := contract
-	chainAction := "openapi_contract.parsed"
-	if l.workerOwnedParsers {
-		persistedContract.PathCount = 0
-		persistedContract.Operations = nil
-		chainAction = "openapi_contract.accepted"
-	}
-	l.contracts[contract.ID] = persistedContract
-	_, _ = l.appendChainLocked(actor.TenantID, chainAction, "openapi_contract", contract.ID, "api_key", actor.KeyID, contract.Hash, "")
-	job := l.newOutboxJob(actor.TenantID, "parse_openapi_contract", "openapi_contract", contract.ID, addPayloadLifecycle(map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionOpenAPIJSON}, stagedPayload))
-	if err := l.persistReleaseLedgerWithOutboxLocked(ctx, job); err != nil {
-		return domain.OpenAPIContract{}, err
-	}
-	return contract, nil
-}
-
-func extractOpenAPIOperations(doc *openapi3.T) []domain.OpenAPIOperation {
-	if doc == nil || doc.Paths == nil {
-		return nil
-	}
-	paths := doc.Paths.Map()
-	pathNames := make([]string, 0, len(paths))
-	for path := range paths {
-		pathNames = append(pathNames, path)
-	}
-	sort.Strings(pathNames)
-	out := make([]domain.OpenAPIOperation, 0)
-	for _, path := range pathNames {
-		item := paths[path]
-		for _, methodOperation := range openAPIMethodOperations(item) {
-			operation := methodOperation.operation
-			if operation == nil {
-				continue
-			}
-			out = append(out, domain.OpenAPIOperation{
-				Path:                  path,
-				Method:                strings.ToUpper(methodOperation.method),
-				OperationID:           operation.OperationID,
-				Deprecated:            operation.Deprecated,
-				RequestBodyRequired:   openAPIRequestBodyRequired(operation),
-				RequiredRequestFields: openAPIRequiredRequestFields(operation),
-				ResponseStatuses:      openAPIResponseStatuses(operation),
-			})
-		}
-	}
-	return out
-}
-
-type openAPIMethodOperation struct {
-	method    string
-	operation *openapi3.Operation
-}
-
-func openAPIMethodOperations(item *openapi3.PathItem) []openAPIMethodOperation {
-	if item == nil {
-		return nil
-	}
-	return []openAPIMethodOperation{
-		{method: "connect", operation: item.Connect},
-		{method: "delete", operation: item.Delete},
-		{method: "get", operation: item.Get},
-		{method: "head", operation: item.Head},
-		{method: "options", operation: item.Options},
-		{method: "patch", operation: item.Patch},
-		{method: "post", operation: item.Post},
-		{method: "put", operation: item.Put},
-		{method: "trace", operation: item.Trace},
-	}
-}
-
-func openAPIRequestBodyRequired(operation *openapi3.Operation) bool {
-	return operation != nil && operation.RequestBody != nil && operation.RequestBody.Value != nil && operation.RequestBody.Value.Required
-}
-
-func openAPIRequiredRequestFields(operation *openapi3.Operation) []string {
-	if operation == nil || operation.RequestBody == nil || operation.RequestBody.Value == nil {
-		return nil
-	}
-	fields := map[string]struct{}{}
-	for _, media := range operation.RequestBody.Value.Content {
-		if media == nil || media.Schema == nil || media.Schema.Value == nil {
-			continue
-		}
-		for _, field := range media.Schema.Value.Required {
-			if strings.TrimSpace(field) != "" {
-				fields[strings.TrimSpace(field)] = struct{}{}
-			}
-		}
-	}
-	out := make([]string, 0, len(fields))
-	for field := range fields {
-		out = append(out, field)
-	}
-	sort.Strings(out)
-	return out
-}
-
-func openAPIResponseStatuses(operation *openapi3.Operation) []string {
-	if operation == nil || operation.Responses == nil {
-		return nil
-	}
-	statuses := make([]string, 0, len(operation.Responses.Map()))
-	for status := range operation.Responses.Map() {
-		statuses = append(statuses, status)
-	}
-	sort.Strings(statuses)
-	return statuses
 }
 
 func (l *Ledger) EvaluateRelease(ctx context.Context, actor domain.Actor, releaseID string) (domain.PolicyEvaluation, error) {
@@ -1632,6 +525,9 @@ func (l *Ledger) EvaluateRelease(ctx context.Context, actor domain.Actor, releas
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return domain.PolicyEvaluation{}, err
+	}
 	release, ok := l.releases[strings.TrimSpace(releaseID)]
 	if !ok || release.TenantID != actor.TenantID {
 		return domain.PolicyEvaluation{}, ErrNotFound
@@ -1702,6 +598,9 @@ func (l *Ledger) CreateReleaseBundle(ctx context.Context, actor domain.Actor, re
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return domain.ReleaseBundle{}, err
+	}
 	release, ok := l.releases[strings.TrimSpace(releaseID)]
 	if !ok || release.TenantID != actor.TenantID {
 		return domain.ReleaseBundle{}, ErrNotFound
@@ -1834,6 +733,9 @@ func (s releaseEvidenceService) GetSBOM(ctx context.Context, actor domain.Actor,
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return domain.SBOM{}, err
+	}
 	sbom, ok := l.sboms[strings.TrimSpace(id)]
 	if !ok || sbom.TenantID != actor.TenantID {
 		return domain.SBOM{}, ErrNotFound
@@ -1874,6 +776,9 @@ func (s releaseEvidenceService) ListSBOMComponents(ctx context.Context, actor do
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return nil, err
+	}
 	if in.SBOMID != "" {
 		sbom, ok := l.sboms[in.SBOMID]
 		if !ok || sbom.TenantID != actor.TenantID {
@@ -1937,6 +842,9 @@ func (s releaseEvidenceService) GetVulnerabilityScan(ctx context.Context, actor 
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return domain.VulnerabilityScan{}, err
+	}
 	scan, ok := l.scans[strings.TrimSpace(id)]
 	if !ok || scan.TenantID != actor.TenantID {
 		return domain.VulnerabilityScan{}, ErrNotFound
@@ -1957,6 +865,9 @@ func (s releaseEvidenceService) GetOpenAPIContract(ctx context.Context, actor do
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return domain.OpenAPIContract{}, err
+	}
 	contract, ok := l.contracts[strings.TrimSpace(id)]
 	if !ok || contract.TenantID != actor.TenantID {
 		return domain.OpenAPIContract{}, ErrNotFound
@@ -1976,6 +887,9 @@ func (l *Ledger) VerifySubject(ctx context.Context, actor domain.Actor, subjectT
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return domain.VerificationResult{}, err
+	}
 	checks := []domain.VerifyCheck{}
 	var profile domain.VerificationProfile
 	switch strings.TrimSpace(subjectType) {
@@ -2017,13 +931,17 @@ func (l *Ledger) VerifySubject(ctx context.Context, actor domain.Actor, subjectT
 		if err := l.authorizeResourceLocked(actor, ScopeVerifyRead, refsForEvidence(item)); err != nil {
 			return domain.VerificationResult{}, err
 		}
-		hash, err := canonicalHash(item)
+		canonicalItem, err := evidenceForCanonicalVerification(item, l.lifecycle)
+		var hash string
+		if err == nil {
+			hash, err = canonicalHash(canonicalItem)
+		}
 		if err != nil || hash != item.CanonicalHash {
 			checks = append(checks, domain.VerifyCheck{Name: "canonical_hash", Result: "failed"})
 		} else {
 			checks = append(checks, domain.VerifyCheck{Name: "canonical_hash", Result: "passed"})
 		}
-		profile = assuranceProfile(domain.VerificationProfileEvidenceCanonicalHash, []string{"canonical_hash"}, []string{domain.CanonicalizationProfileVersion}, "tenant-scoped verification authorization", "not_evaluated", "canonical evidence fields", item.CanonicalHash, []string{"Canonical evidence hashing does not validate the origin or completeness of the uploaded payload."})
+		profile = assuranceProfile(domain.VerificationProfileEvidenceCanonicalHash, []string{"canonical_hash"}, []string{item.Canonicalization}, "tenant-scoped verification authorization", "not_evaluated", "canonical evidence fields", item.CanonicalHash, []string{"Canonical evidence hashing does not validate the origin or completeness of the uploaded payload."})
 	case "release_bundle":
 		bundle, ok := l.bundles[strings.TrimSpace(subjectID)]
 		if !ok || bundle.TenantID != actor.TenantID {

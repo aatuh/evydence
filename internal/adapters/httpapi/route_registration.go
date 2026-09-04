@@ -43,6 +43,12 @@ func (s *Server) routeDefinitions() []routeDef {
 	for _, group := range groups {
 		routes = append(routes, group...)
 	}
+	for index := range routes {
+		routes[index].op.Extensions = withBoundedContextOperationOwner(
+			routes[index].op.OperationID,
+			routes[index].op.Extensions,
+		)
+	}
 	return routes
 }
 

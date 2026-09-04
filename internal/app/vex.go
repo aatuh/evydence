@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -88,335 +87,6 @@ type openVEXProduct struct {
 	Subcomponents []openVEXProduct `json:"subcomponents,omitempty"`
 }
 
-func (s releaseEvidenceService) UploadVEX(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.VEXDocument, error) {
-	return s.UploadVEXPayload(ctx, actor, releaseID, artifactID, BytesPayloadSource(raw))
-}
-
-// UploadVEXPayload parses and stages a repeatable source. Streaming HTTP
-// ingestion supplies a file-backed source, avoiding a second full raw-document
-// allocation in the application service.
-func (s releaseEvidenceService) UploadVEXPayload(ctx context.Context, actor domain.Actor, releaseID, artifactID string, source PayloadSource) (domain.VEXDocument, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.VEXDocument{}, err
-	}
-	if err := require(actor, ScopeEvidenceWrite); err != nil {
-		return domain.VEXDocument{}, err
-	}
-	if err := validatePayloadSource(source, EvidenceDocumentLimit); err != nil {
-		return domain.VEXDocument{}, ErrValidation
-	}
-	reader, err := source.Open()
-	if err != nil {
-		return domain.VEXDocument{}, ErrValidation
-	}
-	defer reader.Close()
-	doc, err := parseOpenVEXReader(reader)
-	if err != nil {
-		return domain.VEXDocument{}, err
-	}
-	releaseID = strings.TrimSpace(releaseID)
-	artifactID = strings.TrimSpace(artifactID)
-	if releaseID == "" {
-		return domain.VEXDocument{}, ErrValidation
-	}
-	l.mu.Lock()
-	if err := l.ensureScopeLocked(actor.TenantID, "", "", releaseID); err != nil {
-		l.mu.Unlock()
-		return domain.VEXDocument{}, err
-	}
-	if artifactID != "" {
-		artifact, ok := l.artifacts[artifactID]
-		if !ok || artifact.TenantID != actor.TenantID {
-			l.mu.Unlock()
-			return domain.VEXDocument{}, ErrNotFound
-		}
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, resourceRefs{ReleaseID: releaseID}); err != nil {
-		l.mu.Unlock()
-		return domain.VEXDocument{}, err
-	}
-	l.mu.Unlock()
-
-	payloadHash := source.Digest
-	stagedPayload, err := l.stagePayloadSource(ctx, actor.TenantID, "application/vnd.openvex+json", source)
-	if err != nil {
-		return domain.VEXDocument{}, err
-	}
-	payloadRef := stagedPayload.Reference()
-	evidenceInput := CreateEvidenceInput{
-		ReleaseID:        releaseID,
-		Type:             "vex",
-		Subtype:          "openvex",
-		Title:            "OpenVEX document",
-		SourceSystem:     "api",
-		ObservedAt:       l.now(),
-		PayloadRef:       payloadRef,
-		PayloadHash:      payloadHash,
-		PayloadMediaType: "application/vnd.openvex+json",
-		PayloadSize:      source.Size,
-		SubjectRefs:      subjectForArtifact(artifactID),
-		Metadata: WithParserProvenance(map[string]any{
-			"format":          "openvex",
-			"statement_count": len(doc.Statements),
-		}, ParserProvenance{Name: "openvex", Version: ParserVersionOpenVEXJSON, SourceSchema: "openvex-json", NormalizedSchema: "evydence-vex.v1", Warnings: doc.Warnings, ReplayStatus: ParserReplayStatusOriginal}),
-	}
-	if l.unitOfWork != nil {
-		l.mu.Lock()
-		defer l.mu.Unlock()
-		item, err := s.newEvidenceItemLocked(actor, evidenceInput)
-		if err != nil {
-			return domain.VEXDocument{}, err
-		}
-		statusSummary := map[string]int{}
-		for _, statement := range doc.Statements {
-			statusSummary[statement.Status]++
-		}
-		vex := domain.VEXDocument{ID: newID("vex"), TenantID: actor.TenantID, EvidenceID: item.ID, ReleaseID: releaseID, ArtifactID: artifactID, Format: "openvex", Author: doc.Author, Version: versionString(doc.Version), StatementCount: len(doc.Statements), StatusSummary: statusSummary, SchemaVersion: domain.VEXDocumentSchemaVersion, CreatedAt: l.now()}
-		persistedVEX := vex
-		chainAction := "vex.parsed"
-		if l.workerOwnedParsers {
-			persistedVEX.Author = ""
-			persistedVEX.StatementCount = 0
-			persistedVEX.StatusSummary = nil
-			chainAction = "vex.accepted"
-		}
-		type decisionEffect struct {
-			decision   domain.VulnerabilityDecision
-			superseded []domain.VulnerabilityDecision
-		}
-		effects := []decisionEffect{}
-		createdDecisions, supersededDecisions := 0, 0
-		mappingFailures, warnings := []domain.VEXImportIssue{}, append([]string{}, doc.Warnings...)
-		if !l.workerOwnedParsers {
-			createdForFinding := map[string]struct{}{}
-			duplicateWarningAdded := false
-			for index, statement := range doc.Statements {
-				matches, ambiguous := l.findMatchingFindingsLocked(actor.TenantID, releaseID, statement)
-				if ambiguous {
-					mappingFailures = append(mappingFailures, vexImportIssue(index+1, "ambiguous_finding", "Multiple plausible findings matched this VEX statement; no decision was applied."))
-					continue
-				}
-				if len(matches) == 0 {
-					mappingFailures = append(mappingFailures, vexImportIssue(index+1, "finding_not_found", "No matching vulnerability scan finding was found for this VEX statement."))
-				}
-				for _, matched := range matches {
-					if _, seen := createdForFinding[matched.finding.ID]; seen {
-						if !duplicateWarningAdded {
-							warnings = append(warnings, "Duplicate VEX statements for an already mapped finding were ignored.")
-							duplicateWarningAdded = true
-						}
-						continue
-					}
-					createdForFinding[matched.finding.ID] = struct{}{}
-					decision, superseded := l.newDecisionLocked(actor.TenantID, matched.scan, matched.finding, CreateVulnerabilityDecisionInput{Status: statement.Status, Justification: statement.Justification, ImpactStatement: statement.ImpactStatement, ActionStatement: statement.ActionStatement, CustomerVisible: strings.TrimSpace(statement.ImpactStatement) != ""}, "vex", actorID(actor), item.ID, vex.ID)
-					effects = append(effects, decisionEffect{decision: decision, superseded: superseded})
-					supersededDecisions += len(superseded)
-					createdDecisions++
-				}
-			}
-		} else {
-			for index, statement := range doc.Statements {
-				matches, ambiguous := l.findMatchingFindingsLocked(actor.TenantID, releaseID, statement)
-				if ambiguous {
-					mappingFailures = append(mappingFailures, vexImportIssue(index+1, "ambiguous_finding", "Multiple plausible findings matched this VEX statement; no decision will be applied by replay."))
-				} else if len(matches) == 0 {
-					mappingFailures = append(mappingFailures, vexImportIssue(index+1, "finding_not_found", "No matching vulnerability scan finding was found for this VEX statement at upload time."))
-				}
-			}
-			warnings = append(warnings, "Worker-owned parser side effects are enabled; decisions are created asynchronously after payload replay.")
-		}
-		now := l.now()
-		report := domain.VEXImportReport{ID: newID("vexrep"), TenantID: actor.TenantID, VEXDocumentID: vex.ID, EvidenceID: item.ID, ReleaseID: releaseID, ArtifactID: artifactID, ParserVersion: ParserVersionOpenVEXJSON, Status: ternary(l.workerOwnedParsers, "accepted", "parsed"), StatementCount: len(doc.Statements), DecisionsCreated: createdDecisions, DecisionsSuperseded: supersededDecisions, UnsupportedFields: []string{}, Warnings: warnings, MappingFailures: mappingFailures, SchemaVersion: domain.VEXImportReportSchemaVersion, CreatedAt: now, UpdatedAt: now}
-		jobPayload := addPayloadLifecycle(map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionOpenVEXJSON, "decisions_created": createdDecisions, "import_report_id": report.ID}, stagedPayload)
-		if l.workerOwnedParsers {
-			jobPayload["worker_create_decisions"] = true
-			jobPayload["actor_type"] = actorType(actor)
-			jobPayload["actor_id"] = actorID(actor)
-			jobPayload["evidence_id"] = item.ID
-		}
-		job := l.newOutboxJob(actor.TenantID, "parse_vex", "vex_document", vex.ID, jobPayload)
-		entries := []domain.AuditChainEntry{}
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := l.persistStagedObjectPayload(ctx, repos, stagedPayload); err != nil {
-				return err
-			}
-			appendAudit := func(entryType, subjectType, subjectID, payload string) error {
-				entry, err := repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, actor.TenantID, entryType, subjectType, subjectID, actorType(actor), actorID(actor), payload, ""))
-				if err == nil {
-					entries = append(entries, entry)
-				}
-				return err
-			}
-			if err := appendAudit("evidence.created", "evidence_item", item.ID, item.PayloadHash); err != nil {
-				return err
-			}
-			item.ChainEntryID = entries[len(entries)-1].ID
-			if err := repos.Evidence.InsertEvidence(ctx, item); err != nil {
-				return err
-			}
-			if err := appendAudit(chainAction, "vex_document", vex.ID, payloadHash); err != nil {
-				return err
-			}
-			if err := repos.Evidence.InsertVEXDocument(ctx, persistedVEX); err != nil {
-				return err
-			}
-			for _, effect := range effects {
-				if err := repos.Decisions.SupersedeAndInsert(ctx, effect.decision, effect.superseded); err != nil {
-					return err
-				}
-				for _, prior := range effect.superseded {
-					if err := appendAudit("vulnerability_decision.superseded", "vulnerability_decision", prior.ID, payloadHash); err != nil {
-						return err
-					}
-				}
-				if err := appendAudit("vulnerability_decision.created", "vulnerability_finding", effect.decision.FindingID, payloadHash); err != nil {
-					return err
-				}
-			}
-			if err := repos.Evidence.InsertVEXImportReport(ctx, report); err != nil {
-				return err
-			}
-			return repos.Outbox.Enqueue(ctx, job)
-		}); err != nil {
-			return domain.VEXDocument{}, err
-		}
-		l.evidence[item.ID] = item
-		l.vexDocuments[vex.ID] = persistedVEX
-		l.vexImportReports[report.ID] = report
-		for _, effect := range effects {
-			for _, prior := range effect.superseded {
-				l.decisions[prior.ID] = prior
-			}
-			l.decisions[effect.decision.ID] = effect.decision
-		}
-		for _, entry := range entries {
-			l.publishCommittedAuditEntryLocked(entry)
-		}
-		return vex, nil
-	}
-	item, err := l.CreateEvidence(ctx, actor, evidenceInput)
-	if err != nil {
-		return domain.VEXDocument{}, err
-	}
-
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	statusSummary := map[string]int{}
-	for _, statement := range doc.Statements {
-		statusSummary[statement.Status]++
-	}
-	vex := domain.VEXDocument{
-		ID:             newID("vex"),
-		TenantID:       actor.TenantID,
-		EvidenceID:     item.ID,
-		ReleaseID:      releaseID,
-		ArtifactID:     artifactID,
-		Format:         "openvex",
-		Author:         doc.Author,
-		Version:        versionString(doc.Version),
-		StatementCount: len(doc.Statements),
-		StatusSummary:  statusSummary,
-		SchemaVersion:  domain.VEXDocumentSchemaVersion,
-		CreatedAt:      l.now(),
-	}
-	persistedVEX := vex
-	chainAction := "vex.parsed"
-	if l.workerOwnedParsers {
-		persistedVEX.Author = ""
-		persistedVEX.StatementCount = 0
-		persistedVEX.StatusSummary = nil
-		chainAction = "vex.accepted"
-	}
-	l.vexDocuments[vex.ID] = persistedVEX
-	createdDecisions := 0
-	supersededDecisions := 0
-	mappingFailures := []domain.VEXImportIssue{}
-	warnings := append([]string{}, doc.Warnings...)
-	if !l.workerOwnedParsers {
-		createdForFinding := map[string]struct{}{}
-		duplicateWarningAdded := false
-		for index, statement := range doc.Statements {
-			matches, ambiguous := l.findMatchingFindingsLocked(actor.TenantID, releaseID, statement)
-			if ambiguous {
-				mappingFailures = append(mappingFailures, vexImportIssue(index+1, "ambiguous_finding", "Multiple plausible findings matched this VEX statement; no decision was applied."))
-				continue
-			}
-			if len(matches) == 0 {
-				mappingFailures = append(mappingFailures, vexImportIssue(index+1, "finding_not_found", "No matching vulnerability scan finding was found for this VEX statement."))
-			}
-			for _, matched := range matches {
-				if _, seen := createdForFinding[matched.finding.ID]; seen {
-					if !duplicateWarningAdded {
-						warnings = append(warnings, "Duplicate VEX statements for an already mapped finding were ignored.")
-						duplicateWarningAdded = true
-					}
-					continue
-				}
-				createdForFinding[matched.finding.ID] = struct{}{}
-				decision := l.createDecisionLocked(actor.TenantID, matched.scan, matched.finding, CreateVulnerabilityDecisionInput{
-					Status:          statement.Status,
-					Justification:   statement.Justification,
-					ImpactStatement: statement.ImpactStatement,
-					ActionStatement: statement.ActionStatement,
-					CustomerVisible: strings.TrimSpace(statement.ImpactStatement) != "",
-				}, "vex", actorID(actor), item.ID, vex.ID)
-				l.decisions[decision.ID] = decision
-				if decision.Supersedes != "" {
-					supersededDecisions++
-				}
-				l.appendDecisionLifecycleAuditLocked(actor.TenantID, decision, matched.finding.ID, actorType(actor), actorID(actor), payloadHash)
-				createdDecisions++
-			}
-		}
-	} else {
-		for index, statement := range doc.Statements {
-			matches, ambiguous := l.findMatchingFindingsLocked(actor.TenantID, releaseID, statement)
-			if ambiguous {
-				mappingFailures = append(mappingFailures, vexImportIssue(index+1, "ambiguous_finding", "Multiple plausible findings matched this VEX statement; no decision will be applied by replay."))
-			} else if len(matches) == 0 {
-				mappingFailures = append(mappingFailures, vexImportIssue(index+1, "finding_not_found", "No matching vulnerability scan finding was found for this VEX statement at upload time."))
-			}
-		}
-	}
-	if l.workerOwnedParsers {
-		warnings = append(warnings, "Worker-owned parser side effects are enabled; decisions are created asynchronously after payload replay.")
-	}
-	report := domain.VEXImportReport{
-		ID:                  newID("vexrep"),
-		TenantID:            actor.TenantID,
-		VEXDocumentID:       vex.ID,
-		EvidenceID:          item.ID,
-		ReleaseID:           releaseID,
-		ArtifactID:          artifactID,
-		ParserVersion:       ParserVersionOpenVEXJSON,
-		Status:              ternary(l.workerOwnedParsers, "accepted", "parsed"),
-		StatementCount:      len(doc.Statements),
-		DecisionsCreated:    createdDecisions,
-		DecisionsSuperseded: supersededDecisions,
-		UnsupportedFields:   []string{},
-		Warnings:            warnings,
-		MappingFailures:     mappingFailures,
-		SchemaVersion:       domain.VEXImportReportSchemaVersion,
-		CreatedAt:           l.now(),
-		UpdatedAt:           l.now(),
-	}
-	l.vexImportReports[report.ID] = report
-	_, _ = l.appendChainLocked(actor.TenantID, chainAction, "vex_document", vex.ID, actorType(actor), actorID(actor), payloadHash, "")
-	jobPayload := addPayloadLifecycle(map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionOpenVEXJSON, "decisions_created": createdDecisions, "import_report_id": report.ID}, stagedPayload)
-	if l.workerOwnedParsers {
-		jobPayload["worker_create_decisions"] = true
-		jobPayload["actor_type"] = actorType(actor)
-		jobPayload["actor_id"] = actorID(actor)
-		jobPayload["evidence_id"] = item.ID
-	}
-	job := l.newOutboxJob(actor.TenantID, "parse_vex", "vex_document", vex.ID, jobPayload)
-	if err := l.persistReleaseLedgerWithOutboxLocked(ctx, job); err != nil {
-		return domain.VEXDocument{}, err
-	}
-	return vex, nil
-}
-
 func (s releaseEvidenceService) PreviewVEXImport(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.VEXImportPreview, error) {
 	l := s.ledger
 	if err := ctx.Err(); err != nil {
@@ -443,6 +113,9 @@ func (s releaseEvidenceService) PreviewVEXImport(ctx context.Context, actor doma
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return domain.VEXImportPreview{}, err
+	}
 	if err := l.ensureScopeLocked(actor.TenantID, "", "", releaseID); err != nil {
 		return domain.VEXImportPreview{}, err
 	}
@@ -487,6 +160,9 @@ func (s releaseEvidenceService) GetVEXImportReport(ctx context.Context, actor do
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return domain.VEXImportReport{}, err
+	}
 	vex, ok := l.vexDocuments[strings.TrimSpace(vexID)]
 	if !ok || vex.TenantID != actor.TenantID {
 		return domain.VEXImportReport{}, ErrNotFound
@@ -512,6 +188,9 @@ func (s releaseEvidenceService) GetVEXDocument(ctx context.Context, actor domain
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return domain.VEXDocument{}, err
+	}
 	vex, ok := l.vexDocuments[strings.TrimSpace(id)]
 	if !ok || vex.TenantID != actor.TenantID {
 		return domain.VEXDocument{}, ErrNotFound
@@ -544,6 +223,9 @@ func (s releaseEvidenceService) CreateVulnerabilityDecision(ctx context.Context,
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return domain.VulnerabilityDecision{}, err
+	}
 	scan, finding, ok := l.findFindingLocked(actor.TenantID, strings.TrimSpace(findingID))
 	if !ok {
 		return domain.VulnerabilityDecision{}, ErrNotFound
@@ -632,6 +314,9 @@ func (s releaseEvidenceService) ListVulnerabilityDecisions(ctx context.Context, 
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return nil, err
+	}
 	filterProductID := in.ProductID
 	if filterProductID != "" {
 		product, ok := l.products[filterProductID]
@@ -715,6 +400,9 @@ func (s releaseEvidenceService) VulnerabilityDecisionSummaryReport(ctx context.C
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return domain.VulnerabilityDecisionSummaryReport{}, err
+	}
 	release, ok := l.releases[releaseID]
 	if !ok || release.TenantID != actor.TenantID {
 		return domain.VulnerabilityDecisionSummaryReport{}, ErrNotFound
@@ -798,6 +486,11 @@ func (s releaseEvidenceService) CreateException(ctx context.Context, actor domai
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if in.FindingID != "" {
+		if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+			return domain.Exception{}, err
+		}
+	}
 	release, ok := l.releases[in.ReleaseID]
 	if !ok || release.TenantID != actor.TenantID {
 		return domain.Exception{}, ErrNotFound
@@ -1300,17 +993,6 @@ func decisionStatusSet(statuses ...string) map[string]struct{} {
 		set[status] = struct{}{}
 	}
 	return set
-}
-
-func versionString(version any) string {
-	switch v := version.(type) {
-	case string:
-		return v
-	case float64:
-		return strconv.FormatFloat(v, 'f', -1, 64)
-	default:
-		return ""
-	}
 }
 
 type matchedFinding struct {

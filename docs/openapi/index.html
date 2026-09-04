@@ -1299,13 +1299,13 @@
               <div><dt>Responses</dt><dd>201 application/json: EvidenceLifecycleEventEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/evidence/{id}/link link evidence creates an append-only relationship from evidence to another tenant-scoped subject. linkevidence evydence evidence:write">
+          <article class="operation" data-operation data-search="post /v1/evidence/{id}/link link evidence creates an append-only relationship from evidence to another tenant-scoped subject. worker-owned parser and build-attestation evidence has fixed projection relationships and returns a conflict instead. linkevidence evydence evidence:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/evidence/{id}/link</code>
             </div>
             <h3>Link evidence</h3>
-            <p>Creates an append-only relationship from evidence to another tenant-scoped subject.</p>
+            <p>Creates an append-only relationship from evidence to another tenant-scoped subject. Worker-owned parser and build-attestation evidence has fixed projection relationships and returns a conflict instead.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>linkEvidence</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -1316,13 +1316,13 @@
               <div><dt>Responses</dt><dd>201 application/json: EvidenceItemEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/evidence/{id}/supersede supersede evidence supersedes immutable evidence by linking it to replacement evidence and appending lifecycle metadata. supersedeevidence evydence evidence:write">
+          <article class="operation" data-operation data-search="post /v1/evidence/{id}/supersede supersede evidence supersedes immutable evidence by linking it to replacement evidence and appending lifecycle metadata. worker-owned parser and build-attestation evidence has fixed projection relationships and returns a conflict instead. supersedeevidence evydence evidence:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/evidence/{id}/supersede</code>
             </div>
             <h3>Supersede evidence</h3>
-            <p>Supersedes immutable evidence by linking it to replacement evidence and appending lifecycle metadata.</p>
+            <p>Supersedes immutable evidence by linking it to replacement evidence and appending lifecycle metadata. Worker-owned parser and build-attestation evidence has fixed projection relationships and returns a conflict instead.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>supersedeEvidence</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -3152,13 +3152,13 @@
               <div><dt>Responses</dt><dd>200 application/json: VersionInfoEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/vex upload openvex document uploads vex payload bytes, stores raw evidence in object storage, and records normalized vex metadata and decisions where applicable. use application/vnd.openvex+json with the explicit metadata headers for streaming uploads up to 20 mib; the json envelope remains limited to small requests. uploadvex evydence evidence:write">
+          <article class="operation" data-operation data-search="post /v1/vex upload openvex document uploads openvex payload bytes and atomically records normalized vex metadata, an accepted import report, and a versioned bounded decision request. decision mapping always runs asynchronously after commit. when a durable object payload is available, the worker replays it and verifies that it matches the normalized request; otherwise the worker consumes the normalized request directly. poll the import-report endpoint for parsed or failed status. use application/vnd.openvex+json with the explicit metadata headers for streaming uploads up to 20 mib; the json envelope remains limited to small requests. uploadvex evydence evidence:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/vex</code>
             </div>
             <h3>Upload OpenVEX document</h3>
-            <p>Uploads VEX payload bytes, stores raw evidence in object storage, and records normalized VEX metadata and decisions where applicable. Use application/vnd.openvex+json with the explicit metadata headers for streaming uploads up to 20 MiB; the JSON envelope remains limited to small requests.</p>
+            <p>Uploads OpenVEX payload bytes and atomically records normalized VEX metadata, an accepted import report, and a versioned bounded decision request. Decision mapping always runs asynchronously after commit. When a durable object payload is available, the worker replays it and verifies that it matches the normalized request; otherwise the worker consumes the normalized request directly. Poll the import-report endpoint for parsed or failed status. Use application/vnd.openvex+json with the explicit metadata headers for streaming uploads up to 20 MiB; the JSON envelope remains limited to small requests.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>uploadVEX</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -3169,13 +3169,13 @@
               <div><dt>Responses</dt><dd>201 application/json: VEXDocumentEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/vex/cyclonedx upload cyclonedx vex document uploads vex payload bytes, stores raw evidence in object storage, and records normalized vex metadata and decisions where applicable. uploadcyclonedxvex evydence evidence:write">
+          <article class="operation" data-operation data-search="post /v1/vex/cyclonedx upload cyclonedx vex document uploads cyclonedx vex json and atomically records normalized vex metadata, an accepted import report, and a versioned bounded decision request. decision mapping always runs asynchronously after commit. when a durable object payload is available, the worker replays it and verifies that it matches the normalized request; otherwise the worker consumes the normalized request directly. poll the import-report endpoint for parsed or failed status. uploadcyclonedxvex evydence evidence:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/vex/cyclonedx</code>
             </div>
             <h3>Upload CycloneDX VEX document</h3>
-            <p>Uploads VEX payload bytes, stores raw evidence in object storage, and records normalized VEX metadata and decisions where applicable.</p>
+            <p>Uploads CycloneDX VEX JSON and atomically records normalized VEX metadata, an accepted import report, and a versioned bounded decision request. Decision mapping always runs asynchronously after commit. When a durable object payload is available, the worker replays it and verifies that it matches the normalized request; otherwise the worker consumes the normalized request directly. Poll the import-report endpoint for parsed or failed status.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>uploadCycloneDXVEX</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -3237,13 +3237,13 @@
               <div><dt>Responses</dt><dd>200 application/json: VEXDocumentEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/vex/{id}/import-report get vex import report returns the persisted parser report for a tenant-scoped vex import, including counts, warnings, and mapping failures without raw payload bytes. getveximportreport evydence evidence:read">
+          <article class="operation" data-operation data-search="get /v1/vex/{id}/import-report get vex import report returns the persisted parser report for a tenant-scoped vex import. uploads begin as accepted and become parsed or failed after asynchronous decision processing; the report includes safe counts, warnings, and mapping failures without raw payload bytes. getveximportreport evydence evidence:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/vex/{id}/import-report</code>
             </div>
             <h3>Get VEX import report</h3>
-            <p>Returns the persisted parser report for a tenant-scoped VEX import, including counts, warnings, and mapping failures without raw payload bytes.</p>
+            <p>Returns the persisted parser report for a tenant-scoped VEX import. Uploads begin as accepted and become parsed or failed after asynchronous decision processing; the report includes safe counts, warnings, and mapping failures without raw payload bytes.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>getVEXImportReport</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

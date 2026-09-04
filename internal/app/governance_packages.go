@@ -210,6 +210,11 @@ func (l *Ledger) CreateWaiver(ctx context.Context, actor domain.Actor, in Create
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if in.ScopeType == "finding" {
+		if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+			return domain.Waiver{}, err
+		}
+	}
 	if err := l.ensureWaiverScopeLocked(actor.TenantID, in.ScopeType, in.ScopeID); err != nil {
 		return domain.Waiver{}, err
 	}
@@ -439,6 +444,9 @@ func (s packageReportService) CreateCustomerSecurityPackage(ctx context.Context,
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return domain.CustomerSecurityPackage{}, err
+	}
 	if err := l.ensureScopeLocked(actor.TenantID, in.ProductID, "", in.ReleaseID); err != nil {
 		return domain.CustomerSecurityPackage{}, err
 	}
@@ -2106,6 +2114,9 @@ func (s packageReportService) ExportEvidenceBundle(ctx context.Context, actor do
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return domain.EvidenceBundle{}, err
+	}
 	ids := []string{}
 	if len(evidenceIDs) == 0 {
 		if releaseID != "" {

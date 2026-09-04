@@ -180,7 +180,7 @@ func runWithContext(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("create ledger: %w", err)
 	}
-	if !ledger.HasTenants() && !strings.EqualFold(os.Getenv("EVYDENCE_BOOTSTRAP_DISABLED"), "true") {
+	if !ledger.HasTenants(ctx) && !strings.EqualFold(os.Getenv("EVYDENCE_BOOTSTRAP_DISABLED"), "true") {
 		tenant, key, secret, err := ledger.BootstrapTenant(ctx, envDefault("EVYDENCE_BOOTSTRAP_TENANT", "Local Tenant"), "local-admin", []string{"*"})
 		if err != nil {
 			return fmt.Errorf("bootstrap tenant: %w", err)

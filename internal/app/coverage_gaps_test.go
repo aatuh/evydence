@@ -14,7 +14,7 @@ func TestAppReadListLifecycleAndReportGaps(t *testing.T) {
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 
-	if !ledger.HasTenants() {
+	if !ledger.HasTenants(ctx) {
 		t.Fatal("bootstrap fixture should create a tenant")
 	}
 	if _, err := ledger.ApproveRelease(ctx, actor, release.ID, release.Revision); !errors.Is(err, ErrConflict) {

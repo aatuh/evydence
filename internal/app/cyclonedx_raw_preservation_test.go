@@ -33,9 +33,7 @@ func TestValidatedCycloneDXUploadPreservesRawBytesExactly(t *testing.T) {
 	}
 
 	raw := []byte("{\n  \"bomFormat\": \"CycloneDX\",\n  \"specVersion\": \"1.6\",\n  \"components\": [\n    {\"type\":\"library\", \"name\":\"api\", \"properties\":[{\"name\":\"source\",\"value\":\"exact bytes\"}]}\n  ]\n}\n")
-	sbom, err := ledger.releaseEvidenceService().uploadValidatedCycloneDXSBOMPayload(
-		ctx, actor, release.ID, artifact.ID, BytesPayloadSource(raw), uploadCycloneDXValidator(t),
-	)
+	sbom, err := ledger.UploadSBOMPayload(ctx, actor, release.ID, artifact.ID, BytesPayloadSource(raw))
 	if err != nil {
 		t.Fatal(err)
 	}

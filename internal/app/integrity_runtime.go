@@ -396,6 +396,9 @@ func (l *Ledger) CreateMerkleBatch(ctx context.Context, actor domain.Actor, in C
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return domain.MerkleBatch{}, err
+	}
 	entries := l.chain[actor.TenantID]
 	if len(entries) == 0 {
 		return domain.MerkleBatch{}, ErrValidation
@@ -456,6 +459,9 @@ func (l *Ledger) VerifyMerkleBatch(ctx context.Context, actor domain.Actor, id s
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return domain.VerificationResult{}, err
+	}
 	batch, ok := l.merkleBatches[strings.TrimSpace(id)]
 	if !ok || batch.TenantID != actor.TenantID {
 		return domain.VerificationResult{}, ErrNotFound
@@ -938,6 +944,9 @@ func (l *Ledger) GenerateBackupManifest(ctx context.Context, actor domain.Actor)
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return domain.BackupManifest{}, err
+	}
 	state, err := l.snapshotLocked()
 	if err != nil {
 		return domain.BackupManifest{}, err
@@ -1101,6 +1110,10 @@ func (l *Ledger) Metrics(ctx context.Context, actor domain.Actor) (map[string]an
 		return nil, err
 	}
 	l.mu.Lock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		l.mu.Unlock()
+		return nil, err
+	}
 	portalFailures := 0
 	portalRevoked := 0
 	for _, access := range l.portalAccess {
@@ -1170,6 +1183,9 @@ func (l *Ledger) ListAuditLog(ctx context.Context, actor domain.Actor, filter Au
 	subjectType, subjectID := strings.TrimSpace(filter.SubjectType), strings.TrimSpace(filter.SubjectID)
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return nil, err
+	}
 	entries := l.chain[actor.TenantID]
 	out := []domain.AuditChainEntry{}
 	for i := len(entries) - 1; i >= 0; i-- {

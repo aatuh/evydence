@@ -274,7 +274,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "SBOM id."))
 		operation.Responses[http.StatusOK] = jsonResponse("SBOM envelope.", "#/components/schemas/SBOMEnvelope")
 	case "uploadVEX":
-		operation.Description = "Uploads VEX payload bytes, stores raw evidence in object storage, and records normalized VEX metadata and decisions where applicable. Use application/vnd.openvex+json with the explicit metadata headers for streaming uploads up to 20 MiB; the JSON envelope remains limited to small requests."
+		operation.Description = "Uploads OpenVEX payload bytes and atomically records normalized VEX metadata, an accepted import report, and a versioned bounded decision request. Decision mapping always runs asynchronously after commit. When a durable object payload is available, the worker replays it and verifies that it matches the normalized request; otherwise the worker consumes the normalized request directly. Poll the import-report endpoint for parsed or failed status. Use application/vnd.openvex+json with the explicit metadata headers for streaming uploads up to 20 MiB; the JSON envelope remains limited to small requests."
 		operation.RequestBody = streamingDocumentRequest("OpenVEX upload request.", "#/components/schemas/EvidenceUploadRequest", "application/vnd.openvex+json", app.EvidenceDocumentLimit)
 		operation.Parameters = append(operation.Parameters, optionalHeaderParam("X-Evydence-Release-ID", "Required for a native OpenVEX document upload."), optionalHeaderParam("X-Evydence-Artifact-ID", "Optional artifact id for a native OpenVEX document upload."))
 		setRequestBodyLimit(&operation, app.EvidenceDocumentLimit)
@@ -282,7 +282,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 			SchemaRef: "#/components/schemas/EvidenceUploadRequest",
 			Examples: map[string]any{
 				"openvex-fixed-decision": specs.Example{
-					Summary: "Imported OpenVEX fixed decision",
+					Summary: "Upload OpenVEX for asynchronous decision mapping",
 					Value:   openVEXUploadExample(),
 				},
 			},
@@ -293,7 +293,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("OpenVEX import preview request.", "#/components/schemas/EvidenceUploadRequest")
 		operation.Responses[http.StatusOK] = jsonResponse("Advisory VEX import preview envelope.", "#/components/schemas/VEXImportPreviewEnvelope")
 	case "uploadCycloneDXVEX":
-		operation.Description = "Uploads VEX payload bytes, stores raw evidence in object storage, and records normalized VEX metadata and decisions where applicable."
+		operation.Description = "Uploads CycloneDX VEX JSON and atomically records normalized VEX metadata, an accepted import report, and a versioned bounded decision request. Decision mapping always runs asynchronously after commit. When a durable object payload is available, the worker replays it and verifies that it matches the normalized request; otherwise the worker consumes the normalized request directly. Poll the import-report endpoint for parsed or failed status."
 		operation.RequestBody = jsonRequest("CycloneDX VEX upload request.", "#/components/schemas/EvidenceUploadRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created VEX document envelope.", "#/components/schemas/VEXDocumentEnvelope")
 	case "previewCycloneDXVEXImport":
@@ -305,7 +305,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "VEX document id."))
 		operation.Responses[http.StatusOK] = jsonResponse("VEX document envelope.", "#/components/schemas/VEXDocumentEnvelope")
 	case "getVEXImportReport":
-		operation.Description = "Returns the persisted parser report for a tenant-scoped VEX import, including counts, warnings, and mapping failures without raw payload bytes."
+		operation.Description = "Returns the persisted parser report for a tenant-scoped VEX import. Uploads begin as accepted and become parsed or failed after asynchronous decision processing; the report includes safe counts, warnings, and mapping failures without raw payload bytes."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "VEX document id."))
 		operation.Responses[http.StatusOK] = jsonResponse("VEX import report envelope.", "#/components/schemas/VEXImportReportEnvelope")
 	case "uploadVulnerabilityScan":
@@ -610,12 +610,12 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Release candidate transition request.", "#/components/schemas/ReleaseCandidateTransitionRequest")
 		operation.Responses[http.StatusOK] = jsonResponse("Transitioned release candidate envelope.", "#/components/schemas/ReleaseCandidateEnvelope")
 	case "supersedeEvidence":
-		operation.Description = "Supersedes immutable evidence by linking it to replacement evidence and appending lifecycle metadata."
+		operation.Description = "Supersedes immutable evidence by linking it to replacement evidence and appending lifecycle metadata. Worker-owned parser and build-attestation evidence has fixed projection relationships and returns a conflict instead."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Evidence item id."))
 		operation.RequestBody = jsonRequest("Evidence supersession request.", "#/components/schemas/SupersedeEvidenceRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Superseded evidence item envelope.", "#/components/schemas/EvidenceItemEnvelope")
 	case "linkEvidence":
-		operation.Description = "Creates an append-only relationship from evidence to another tenant-scoped subject."
+		operation.Description = "Creates an append-only relationship from evidence to another tenant-scoped subject. Worker-owned parser and build-attestation evidence has fixed projection relationships and returns a conflict instead."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Evidence item id."))
 		operation.RequestBody = jsonRequest("Evidence link request.", "#/components/schemas/LinkEvidenceRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Linked evidence item envelope.", "#/components/schemas/EvidenceItemEnvelope")

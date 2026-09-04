@@ -53,6 +53,171 @@ func TestReplayParserEvidenceAppendsIdempotentDerivedEvidence(t *testing.T) {
 	}
 }
 
+func TestReplayParserEvidenceUsesStableIDsAcrossConcurrentSnapshots(t *testing.T) {
+	raw := []byte(`{"scanner":"generic","target_ref":"pkg:oci/api","release_id":"rel_test","findings":[]}`)
+	initial := PersistedState{
+		Evidence: map[string]domain.EvidenceItem{"ev_source": {
+			ID: "ev_source", TenantID: "ten_test", ReleaseID: "rel_test", Type: "vulnerability_scan", Subtype: "generic",
+			PayloadHash: "sha256:source", PayloadRef: "object://tenants/ten_test/payloads/source", CreatedAt: fixedNow(),
+		}},
+		Chain: map[string][]domain.AuditChainEntry{},
+	}
+	left, err := cloneState(initial)
+	if err != nil {
+		t.Fatalf("clone left snapshot: %v", err)
+	}
+	right, err := cloneState(initial)
+	if err != nil {
+		t.Fatalf("clone right snapshot: %v", err)
+	}
+	request := ParserReplayRequest{
+		TenantID: "ten_test", EvidenceID: "ev_source", ParserVersion: ParserVersionScannerAdaptersJSON,
+		ActorID: "operator_test", Now: fixedNow().Add(time.Minute),
+	}
+	first, err := ReplayParserEvidence(&left, raw, request)
+	if err != nil {
+		t.Fatalf("first concurrent replay: %v", err)
+	}
+	request.Now = request.Now.Add(time.Second)
+	second, err := ReplayParserEvidence(&right, raw, request)
+	if err != nil {
+		t.Fatalf("second concurrent replay: %v", err)
+	}
+	if first.EvidenceID != second.EvidenceID {
+		t.Fatalf("concurrent evidence IDs = %q and %q, want one stable ID", first.EvidenceID, second.EvidenceID)
+	}
+	firstEntry := left.Chain[request.TenantID][0]
+	secondEntry := right.Chain[request.TenantID][0]
+	if firstEntry.ID != secondEntry.ID {
+		t.Fatalf("concurrent audit IDs = %q and %q, want one stable ID", firstEntry.ID, secondEntry.ID)
+	}
+}
+
+func TestReplayParserEvidencePreservesEverySourceScopeCoordinate(t *testing.T) {
+	raw := []byte(`{"scanner":"generic","target_ref":"pkg:oci/api","release_id":"rel_test","findings":[]}`)
+	request := ParserReplayRequest{
+		TenantID: "ten_test", EvidenceID: "ev_source", ParserVersion: ParserVersionScannerAdaptersJSON,
+		ActorID: "operator_test", Now: fixedNow().Add(time.Minute),
+	}
+	state := &PersistedState{
+		Evidence: map[string]domain.EvidenceItem{request.EvidenceID: {
+			ID: request.EvidenceID, TenantID: request.TenantID, ProductID: "prod_test", ProjectID: "proj_test",
+			ReleaseID: "rel_test", BuildID: "build_test", DeploymentID: "dep_test", Type: "vulnerability_scan",
+			PayloadHash: "sha256:source", PayloadRef: "object://tenants/ten_test/payloads/source", CreatedAt: fixedNow(),
+		}},
+		Chain: map[string][]domain.AuditChainEntry{},
+	}
+	result, err := ReplayParserEvidence(state, raw, request)
+	if err != nil {
+		t.Fatalf("ReplayParserEvidence: %v", err)
+	}
+	derived := state.Evidence[result.EvidenceID]
+	source := state.Evidence[request.EvidenceID]
+	if derived.ProductID != source.ProductID || derived.ProjectID != source.ProjectID || derived.ReleaseID != source.ReleaseID || derived.BuildID != source.BuildID || derived.DeploymentID != source.DeploymentID {
+		t.Fatalf("derived scope = (%q,%q,%q,%q,%q), want source scope (%q,%q,%q,%q,%q)", derived.ProductID, derived.ProjectID, derived.ReleaseID, derived.BuildID, derived.DeploymentID, source.ProductID, source.ProjectID, source.ReleaseID, source.BuildID, source.DeploymentID)
+	}
+	if _, err := ParserReplayMutation(state, request, result); err != nil {
+		t.Fatalf("ParserReplayMutation: %v", err)
+	}
+	for _, mutate := range []func(*domain.EvidenceItem){
+		func(item *domain.EvidenceItem) { item.BuildID = "build_other" },
+		func(item *domain.EvidenceItem) { item.DeploymentID = "dep_other" },
+	} {
+		item := state.Evidence[result.EvidenceID]
+		mutate(&item)
+		state.Evidence[result.EvidenceID] = item
+		if _, err := ParserReplayMutation(state, request, result); err == nil {
+			t.Fatal("accepted parser replay mutation with changed build/deployment scope")
+		}
+		state.Evidence[result.EvidenceID] = derived
+	}
+}
+
+func TestParserReplayMutationContainsOnlyDerivedAppendOnlyFacts(t *testing.T) {
+	raw := []byte(`{"scanner":"generic","target_ref":"pkg:oci/api","release_id":"rel_test","findings":[]}`)
+	request := ParserReplayRequest{TenantID: "ten_test", EvidenceID: "ev_source", ParserVersion: ParserVersionScannerAdaptersJSON, ActorID: "operator", Now: fixedNow()}
+	state := &PersistedState{
+		Products: map[string]domain.Product{"prod_unrelated": {ID: "prod_unrelated", TenantID: request.TenantID}},
+		Evidence: map[string]domain.EvidenceItem{request.EvidenceID: {
+			ID: request.EvidenceID, TenantID: request.TenantID, Type: "vulnerability_scan",
+			PayloadHash: "sha256:source", PayloadRef: "object://tenants/ten_test/payloads/source", CreatedAt: fixedNow(),
+		}},
+		Scans: map[string]domain.VulnerabilityScan{"scan_unrelated": {ID: "scan_unrelated", TenantID: request.TenantID}},
+		Chain: map[string][]domain.AuditChainEntry{},
+	}
+	result, err := ReplayParserEvidence(state, raw, request)
+	if err != nil {
+		t.Fatalf("replay evidence: %v", err)
+	}
+	mutation, err := ParserReplayMutation(state, request, result)
+	if err != nil {
+		t.Fatalf("derive focused mutation: %v", err)
+	}
+	if len(mutation.Evidence) != 1 || mutation.Evidence[0].ID != result.EvidenceID || len(mutation.AuditChainEntries) != 1 || mutation.AuditChainEntries[0].SubjectID != result.EvidenceID {
+		t.Fatalf("focused mutation = %#v", mutation)
+	}
+	if len(mutation.Products) != 0 || len(mutation.Projects) != 0 || len(mutation.Releases) != 0 || len(mutation.Artifacts) != 0 || len(mutation.EvidenceLifecycle) != 0 || len(mutation.SBOMs) != 0 || len(mutation.Scans) != 0 || len(mutation.Contracts) != 0 || len(mutation.VEXDocuments) != 0 || len(mutation.VEXImportReports) != 0 || len(mutation.BuildAttestations) != 0 || len(mutation.VulnerabilityDecisions) != 0 || len(mutation.OutboxJobs) != 0 {
+		t.Fatalf("focused mutation included unrelated state: %#v", mutation)
+	}
+
+	noOp, err := ParserReplayMutation(state, request, ParserReplayResult{EvidenceID: result.EvidenceID, Parser: result.Parser})
+	if err != nil || len(noOp.Evidence) != 0 || len(noOp.AuditChainEntries) != 0 {
+		t.Fatalf("idempotent no-op mutation = %#v err=%v", noOp, err)
+	}
+}
+
+func TestParserReplayMutationRejectsInvalidScopeAndLinkage(t *testing.T) {
+	raw := []byte(`{"scanner":"generic","target_ref":"pkg:oci/api","release_id":"rel_test","findings":[]}`)
+	request := ParserReplayRequest{TenantID: "ten_test", EvidenceID: "ev_source", ParserVersion: ParserVersionScannerAdaptersJSON, ActorID: "operator", Now: fixedNow()}
+	newReplay := func(t *testing.T) (*PersistedState, ParserReplayResult) {
+		t.Helper()
+		state := &PersistedState{Evidence: map[string]domain.EvidenceItem{request.EvidenceID: {
+			ID: request.EvidenceID, TenantID: request.TenantID, Type: "vulnerability_scan",
+			PayloadHash: "sha256:source", PayloadRef: "object://tenants/ten_test/payloads/source", CreatedAt: fixedNow(),
+		}}, Chain: map[string][]domain.AuditChainEntry{}}
+		result, err := ReplayParserEvidence(state, raw, request)
+		if err != nil {
+			t.Fatalf("replay evidence: %v", err)
+		}
+		return state, result
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(*PersistedState, ParserReplayResult)
+	}{
+		{"derived tenant", func(state *PersistedState, result ParserReplayResult) {
+			item := state.Evidence[result.EvidenceID]
+			item.TenantID = "ten_other"
+			state.Evidence[item.ID] = item
+		}},
+		{"derived type", func(state *PersistedState, result ParserReplayResult) {
+			item := state.Evidence[result.EvidenceID]
+			item.Type = "note"
+			state.Evidence[item.ID] = item
+		}},
+		{"source relationship", func(state *PersistedState, result ParserReplayResult) {
+			item := state.Evidence[result.EvidenceID]
+			item.RelatedEvidenceRefs = nil
+			state.Evidence[item.ID] = item
+		}},
+		{"audit subject", func(state *PersistedState, _ ParserReplayResult) {
+			entry := state.Chain[request.TenantID][0]
+			entry.SubjectID = request.EvidenceID
+			state.Chain[request.TenantID][0] = entry
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state, result := newReplay(t)
+			tt.mutate(state, result)
+			if _, err := ParserReplayMutation(state, request, result); err == nil {
+				t.Fatal("accepted malformed replay mutation")
+			}
+		})
+	}
+}
+
 func TestReplayParserEvidenceRejectsInvalidScopeAndPayload(t *testing.T) {
 	request := ParserReplayRequest{TenantID: "ten_test", EvidenceID: "ev_source", ParserVersion: ParserVersionScannerAdaptersJSON, ActorID: "operator", Now: fixedNow()}
 	state := &PersistedState{Evidence: map[string]domain.EvidenceItem{"ev_source": {ID: "ev_source", TenantID: "ten_test", Type: "vulnerability_scan"}}}

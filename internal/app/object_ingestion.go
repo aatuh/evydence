@@ -101,10 +101,6 @@ func (p ObjectPayload) managed() bool {
 	return p.Status == ObjectPayloadStaged && p.TenantID != "" && p.Digest != "" && p.StagingKey != "" && p.FinalKey != ""
 }
 
-func (p ObjectPayload) present() bool {
-	return p.TenantID != "" || p.Digest != "" || p.Size != 0 || p.MediaType != "" || p.StagingKey != "" || p.FinalKey != "" || p.Status != "" || p.FailureCode != "" || !p.CreatedAt.IsZero() || !p.UpdatedAt.IsZero() || p.FinalizedAt != nil || p.FailedAt != nil || p.OrphanedAt != nil
-}
-
 func validateObjectPayload(payload ObjectPayload) error {
 	stagingKey, finalKey, err := CanonicalObjectPayloadKeys(payload.TenantID, payload.Digest)
 	if err != nil || ValidateObjectMediaType(payload.MediaType) != nil || payload.Size < 0 ||
@@ -144,18 +140,6 @@ func (l *Ledger) persistStagedObjectPayload(ctx context.Context, repos Repositor
 		"payload_digest":    payload.Digest,
 		"payload_lifecycle": PayloadLifecycleVersion,
 	}))
-}
-
-// addPayloadLifecycle records that a worker must verify durable finalization
-// before reading a payload object. Legacy jobs intentionally omit this marker
-// and retain their historical behavior until separately migrated.
-func addPayloadLifecycle(payload map[string]any, staged ObjectPayload) map[string]any {
-	if !staged.managed() {
-		return payload
-	}
-	payload["payload_lifecycle"] = PayloadLifecycleVersion
-	payload["payload_digest"] = staged.Digest
-	return payload
 }
 
 // FinalizeStagedObjectPayload makes finalization repeatable after crashes. A

@@ -21,16 +21,8 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 | --- | --- | --- | --- |
 | VEX and vulnerability decisions | `internal/app/vex.go` | `CreateVulnerabilityDecision` | `persistCriticalStateLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateCustomerPortalAccess` | `persistCriticalStateLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `CreateSSOSession` | `persistCriticalStateLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `ExchangeSSOCredential` | `persistCriticalStateLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `RevokeCurrentSSOSession` | `persistCriticalStateLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `RevokeCustomerPortalAccess` | `persistCriticalStateLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `RevokeSSOSession` | `persistCriticalStateLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `persistCustomerPortalAccessUpdateLocked` | `persistCriticalStateLocked` |
-| identity | `internal/app/identity_service.go` | `Authenticate` | `persistCriticalStateLocked` |
-| identity | `internal/app/identity_service.go` | `Authenticate` | `persistCriticalStateLocked` |
-| identity | `internal/app/identity_service.go` | `BootstrapTenant` | `persistCriticalStateLocked` |
-| identity | `internal/app/identity_service.go` | `CreateAPIKey` | `persistCriticalStateLocked` |
 | identity and idempotency | `internal/app/idempotency.go` | `completeInMemoryIdempotency` | `persistCriticalStateLocked` |
 | identity and idempotency | `internal/app/idempotency.go` | `failInMemoryIdempotency` | `persistCriticalStateLocked` |
 | identity and idempotency | `internal/app/idempotency.go` | `reserveInMemoryIdempotency` | `persistCriticalStateLocked` |
@@ -42,29 +34,13 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 
 | Family | File | Function | Call |
 | --- | --- | --- | --- |
-| VEX and vulnerability decisions | `internal/app/vex.go` | `UploadVEXPayload` | `persistReleaseLedgerWithOutboxLocked` |
-| unclassified | `internal/app/cyclonedx_upload.go` | `uploadValidatedCycloneDXSBOMPayload` | `persistReleaseLedgerWithOutboxLocked` |
-| release extensions, source, and deployment | `internal/app/implementation_increments.go` | `RecordEvidenceLifecycleEvent` | `persistReleaseLedgerStateLocked` |
-| release ledger and signing | `internal/app/ledger.go` | `ApproveRelease` | `persistReleaseLedgerStateLocked` |
-| release ledger and signing | `internal/app/ledger.go` | `CreateEvidence` | `persistReleaseLedgerStateLocked` |
-| release ledger and signing | `internal/app/ledger.go` | `CreateProduct` | `persistReleaseLedgerStateLocked` |
-| release ledger and signing | `internal/app/ledger.go` | `CreateProject` | `persistReleaseLedgerStateLocked` |
-| release ledger and signing | `internal/app/ledger.go` | `CreateRelease` | `persistReleaseLedgerStateLocked` |
-| release ledger and signing | `internal/app/ledger.go` | `FreezeRelease` | `persistReleaseLedgerStateLocked` |
-| release ledger and signing | `internal/app/ledger.go` | `LinkEvidence` | `persistReleaseLedgerStateLocked` |
-| release ledger and signing | `internal/app/ledger.go` | `RegisterArtifact` | `persistReleaseLedgerStateLocked` |
-| release ledger and signing | `internal/app/ledger.go` | `SupersedeEvidence` | `persistReleaseLedgerStateLocked` |
-| release ledger and signing | `internal/app/ledger.go` | `UploadOpenAPIContractPayload` | `persistReleaseLedgerWithOutboxLocked` |
-| release ledger and signing | `internal/app/ledger.go` | `UploadSBOMPayload` | `persistReleaseLedgerWithOutboxLocked` |
-| release ledger and signing | `internal/app/ledger.go` | `UploadVulnerabilityScanPayload` | `persistReleaseLedgerWithOutboxLocked` |
-| risk and security workflows | `internal/app/risk_workflows.go` | `UploadCycloneDXVEX` | `persistReleaseLedgerWithOutboxLocked` |
-| unclassified | `internal/app/spdx_upload.go` | `uploadValidatedSPDXSBOMPayload` | `persistReleaseLedgerWithOutboxLocked` |
+| unclassified | `internal/app/evidence_context_adapter.go` | `commitCompatibility` | `persistReleaseLedgerLocked` |
 
 ## Remaining Broad Relational-State Mutations
 
 | Family | File | Function | Call |
 | --- | --- | --- | --- |
-| none | none | none | none |
+| unclassified | `internal/app/evidence_context_adapter.go` | `commitCompatibility` | `persistLocked` |
 
 ## Compatibility-Only Broad Fallbacks
 
@@ -74,28 +50,17 @@ These commands commit through focused repositories whenever `UnitOfWorkFactory` 
 | --- | --- | --- | --- |
 | VEX and vulnerability decisions | `internal/app/vex.go` | `ApproveException` | `persistLocked` |
 | VEX and vulnerability decisions | `internal/app/vex.go` | `CreateException` | `persistLocked` |
-| build provenance | `internal/app/builds.go` | `CreateBuildRun` | `persistLocked` |
 | build provenance | `internal/app/builds.go` | `CreateCollector` | `persistLocked` |
 | build provenance | `internal/app/builds.go` | `RecordCollectorRelease` | `persistLocked` |
-| build provenance | `internal/app/builds.go` | `UploadBuildAttestation` | `persistLocked` |
 | controls | `internal/app/controls.go` | `CreateControlFramework` | `persistLocked` |
 | controls | `internal/app/controls.go` | `CreateSecurityControl` | `persistLocked` |
 | controls | `internal/app/controls.go` | `LinkControlEvidence` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateCommercialCollectorDefinition` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateLegalHold` | `persistLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `CreateOrganization` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateQuestionnaireAnswerLibraryEntry` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateQuestionnairePackage` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateQuestionnaireTemplate` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateRetentionOverride` | `persistLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `CreateRoleBinding` | `persistLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `CreateSSOProvider` | `persistLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `CreateUser` | `persistLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `DeactivateUser` | `persistLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `LinkSSOIdentity` | `persistLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `RefreshSSOProviderOIDCTrustMaterial` | `persistLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `UpdateSSOProviderTrustMaterial` | `persistLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `persistProviderVerificationLocked` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `CreateEvidenceSummary` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `CreateGraphSnapshot` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `CreateMarketplaceCollector` | `persistLocked` |
@@ -134,29 +99,22 @@ These commands commit through focused repositories whenever `UnitOfWorkFactory` 
 | integrity and operations | `internal/app/integrity_runtime.go` | `persistCosignVerification` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `CreateArtifactSignature` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `CreateDeploymentEnvironment` | `persistLocked` |
-| release extensions, source, and deployment | `internal/app/implementation_increments.go` | `CreateReleaseCandidate` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `CreateSourceRepository` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `RecordDeployment` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `RecordPullRequest` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `RecordSourceCommit` | `persistLocked` |
-| release extensions, source, and deployment | `internal/app/implementation_increments.go` | `RegisterContainerImage` | `persistLocked` |
-| release extensions, source, and deployment | `internal/app/implementation_increments.go` | `UpdateReleaseCandidateState` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `UpsertSourceBranch` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `UpsertSourceBranch` | `persistLocked` |
 | release ledger and signing | `internal/app/ledger.go` | `EvaluateRelease` | `persistLocked` |
 | release ledger and signing | `internal/app/ledger.go` | `RotateSigningKey` | `persistLocked` |
-| risk and security workflows | `internal/app/risk_workflows.go` | `CreateContractDiff` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `CreateCustomPolicy` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `CreateIncident` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `CreateIncidentWebhookReceiver` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `CreateRemediationTask` | `persistLocked` |
-| risk and security workflows | `internal/app/risk_workflows.go` | `CreateSBOMDiff` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `EvaluateCustomPolicy` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `HandleIncidentWebhook` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `RecordIncidentTimelineEvent` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `RecordVulnerabilityWorkflow` | `persistLocked` |
-| risk and security workflows | `internal/app/risk_workflows.go` | `UploadManualSecurityDocument` | `persistLocked` |
-| risk and security workflows | `internal/app/risk_workflows.go` | `uploadSecurityScan` | `persistLocked` |
 
 ## Next Decomposition Order
 

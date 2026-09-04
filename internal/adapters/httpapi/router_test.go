@@ -1359,7 +1359,7 @@ func TestVEXAndExceptionHTTPValidation(t *testing.T) {
 	vexID := dataField(t, vexBody, "id")
 	getJSON(t, server, secret, "/v1/vex/"+vexID, http.StatusOK)
 	importReport := getJSON(t, server, secret, "/v1/vex/"+vexID+"/import-report", http.StatusOK)
-	if !strings.Contains(importReport, `"status":"parsed"`) || !strings.Contains(importReport, `"decisions_created":1`) || strings.Contains(importReport, "payload_ref") {
+	if !strings.Contains(importReport, `"status":"parsed"`) || !strings.Contains(importReport, `"decisions_created":1`) || strings.Contains(importReport, "created asynchronously") || strings.Contains(importReport, "unavailable") || strings.Contains(importReport, "payload_ref") {
 		t.Fatalf("unsafe or incomplete VEX import report: %s", importReport)
 	}
 	postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "manual-vex-link-bad", map[string]any{
@@ -1416,6 +1416,13 @@ func TestCollectorBuildAttestationHTTPFlow(t *testing.T) {
 	}
 	buildBody := postJSON(t, server, collectorSecret, "/v1/builds", "prov-build", buildPayload, http.StatusCreated)
 	buildID := dataField(t, buildBody, "id")
+	buildEvidence := postJSON(t, server, secret, "/v1/evidence", "prov-build-evidence", map[string]any{
+		"product_id": productID, "project_id": projectID, "release_id": releaseID, "build_id": buildID,
+		"type": "build", "subtype": "log", "title": "Build log", "payload_hash": artifactDigest,
+	}, http.StatusCreated)
+	if got := dataField(t, buildEvidence, "build_id"); got != buildID {
+		t.Fatalf("created evidence build_id = %q, want %q", got, buildID)
+	}
 	replayed := postJSON(t, server, collectorSecret, "/v1/builds", "prov-build", buildPayload, http.StatusCreated)
 	if replayed != buildBody {
 		t.Fatalf("build idempotency replay changed response\nfirst=%s\nsecond=%s", buildBody, replayed)
@@ -1592,6 +1599,13 @@ func TestEvidenceLifecycleSourceDeploymentHTTPFlow(t *testing.T) {
 	}
 	deploymentBody := postJSON(t, server, secret, "/v1/deployments", "inc-deploy", map[string]any{"environment_id": envID, "release_id": releaseID, "artifact_ids": []string{artifactID}, "status": "succeeded", "started_at": "2026-05-28T12:00:00Z"}, http.StatusCreated)
 	deploymentID := dataField(t, deploymentBody, "id")
+	deploymentEvidence := postJSON(t, server, secret, "/v1/evidence", "inc-deployment-evidence", map[string]any{
+		"product_id": productID, "release_id": releaseID, "deployment_id": deploymentID,
+		"type": "deployment", "subtype": "observation", "title": "Deployment observation", "payload_hash": digest,
+	}, http.StatusCreated)
+	if got := dataField(t, deploymentEvidence, "deployment_id"); got != deploymentID {
+		t.Fatalf("created evidence deployment_id = %q, want %q", got, deploymentID)
+	}
 	getJSON(t, server, secret, "/v1/deployments/"+deploymentID, http.StatusOK)
 	getJSON(t, server, secret, "/v1/deployments?release_id="+releaseID+"&environment_id="+envID, http.StatusOK)
 }
@@ -1639,7 +1653,9 @@ func TestRiskWorkflowHTTPFlow(t *testing.T) {
 
 	baseSBOM := postJSON(t, server, secret, "/v1/sboms/spdx", "risk2-spdx-base", map[string]any{"release_id": releaseID, "artifact_id": artifactID, "payload": map[string]any{"spdxVersion": "SPDX-2.3", "packages": []map[string]any{{"name": "openssl", "versionInfo": "3.1.0"}}}}, http.StatusCreated)
 	targetSBOM := postJSON(t, server, secret, "/v1/sboms/spdx", "risk2-spdx-target", map[string]any{"release_id": releaseID, "artifact_id": artifactID, "payload": map[string]any{"spdxVersion": "SPDX-2.3", "packages": []map[string]any{{"name": "openssl", "versionInfo": "3.1.0"}, {"name": "curl", "versionInfo": "8.0.0"}}}}, http.StatusCreated)
-	diffBody := postJSON(t, server, secret, "/v1/sbom-diffs", "risk2-sbom-diff", map[string]any{"base_sbom_id": dataField(t, baseSBOM, "id"), "target_sbom_id": dataField(t, targetSBOM, "id"), "release_id": releaseID}, http.StatusCreated)
+	readKey := postJSON(t, server, secret, "/v1/api-keys", "risk2-read-key", map[string]any{"name": "Risk evidence reader", "scopes": []string{app.ScopeEvidenceRead}}, http.StatusCreated)
+	readSecret := nestedDataField(t, readKey, "secret")
+	diffBody := postJSON(t, server, readSecret, "/v1/sbom-diffs", "risk2-sbom-diff", map[string]any{"base_sbom_id": dataField(t, baseSBOM, "id"), "target_sbom_id": dataField(t, targetSBOM, "id"), "release_id": releaseID}, http.StatusCreated)
 	if !strings.Contains(diffBody, `"added_components"`) {
 		t.Fatalf("sbom diff missing added components: %s", diffBody)
 	}
@@ -1656,7 +1672,7 @@ func TestRiskWorkflowHTTPFlow(t *testing.T) {
 
 	baseContract := postJSON(t, server, secret, "/v1/openapi-contracts", "risk2-oas-base", map[string]any{"product_id": productID, "release_id": releaseID, "version": "1", "spec": map[string]any{"openapi": "3.1.0", "info": map[string]any{"title": "API", "version": "1"}, "paths": map[string]any{"/v1/a": map[string]any{"get": map[string]any{"responses": map[string]any{"200": map[string]any{"description": "ok"}}}}}}}, http.StatusCreated)
 	targetContract := postJSON(t, server, secret, "/v1/openapi-contracts", "risk2-oas-target", map[string]any{"product_id": productID, "release_id": releaseID, "version": "2", "spec": map[string]any{"openapi": "3.1.0", "info": map[string]any{"title": "API", "version": "2"}, "paths": map[string]any{}}}, http.StatusCreated)
-	contractDiff := postJSON(t, server, secret, "/v1/openapi-diffs", "risk2-oas-diff", map[string]any{"base_contract_id": dataField(t, baseContract, "id"), "target_contract_id": dataField(t, targetContract, "id"), "release_id": releaseID}, http.StatusCreated)
+	contractDiff := postJSON(t, server, readSecret, "/v1/openapi-diffs", "risk2-oas-diff", map[string]any{"base_contract_id": dataField(t, baseContract, "id"), "target_contract_id": dataField(t, targetContract, "id"), "release_id": releaseID}, http.StatusCreated)
 	if !strings.Contains(contractDiff, `"result":"breaking"`) {
 		t.Fatalf("contract diff should be breaking: %s", contractDiff)
 	}

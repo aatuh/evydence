@@ -857,6 +857,9 @@ func TestResourceGrantHelperBranchCoverage(t *testing.T) {
 	if !ledger.projectCoversRefsLocked(admin.TenantID, project.ID, resourceRefs{BuildID: build.ID}) {
 		t.Fatalf("project grant should cover build ref")
 	}
+	if !ledger.projectCoversRefsLocked(admin.TenantID, project.ID, resourceRefs{ArtifactID: artifact.ID}) {
+		t.Fatalf("project grant should cover an artifact produced by its build")
+	}
 	if !ledger.releaseCoversRefsLocked(admin.TenantID, release.ID, resourceRefs{ReleaseID: release.ID}) {
 		t.Fatalf("release grant should cover direct release ref")
 	}

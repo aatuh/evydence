@@ -66,6 +66,10 @@ func ReplayParserEvidence(state *PersistedState, raw []byte, request ParserRepla
 	if state == nil || strings.TrimSpace(request.TenantID) == "" || strings.TrimSpace(request.EvidenceID) == "" || strings.TrimSpace(request.ParserVersion) == "" || strings.TrimSpace(request.ActorID) == "" || request.Now.IsZero() {
 		return ParserReplayResult{}, ErrValidation
 	}
+	// PostgreSQL persists timestamptz values at microsecond precision. Normalize
+	// before hashing so the immutable evidence hash survives a durable
+	// round-trip and can be verified by API projection readers.
+	request.Now = request.Now.UTC().Truncate(time.Microsecond)
 	original, ok := state.Evidence[request.EvidenceID]
 	if !ok || original.TenantID != request.TenantID {
 		return ParserReplayResult{}, ErrNotFound
@@ -82,19 +86,93 @@ func ReplayParserEvidence(state *PersistedState, raw []byte, request ParserRepla
 	if state.Evidence == nil {
 		state.Evidence = map[string]domain.EvidenceItem{}
 	}
-	derived := domain.EvidenceItem{ID: newID("ev"), TenantID: original.TenantID, ProductID: original.ProductID, ProjectID: original.ProjectID, ReleaseID: original.ReleaseID, Type: "parser_normalization", Subtype: provenance.Name, Title: "Parser normalization replay", SourceSystem: "operator", UploadedBy: request.ActorID, ObservedAt: request.Now.UTC(), EvidenceVersion: 1, SchemaVersion: domain.EvidenceItemSchemaVersion, PayloadRef: original.PayloadRef, PayloadHash: original.PayloadHash, PayloadMediaType: original.PayloadMediaType, PayloadSize: original.PayloadSize, Canonicalization: domain.CanonicalizationProfileVersion, TrustLevel: original.TrustLevel, VerificationStatus: "derived", RelatedEvidenceRefs: []domain.EvidenceRef{{Type: "evidence_item", ID: original.ID, Relationship: "replayed_from"}}, Metadata: map[string]any{"parser": provenance.Metadata(), "replay_of": original.ID, "normalized_summary": summary}, Limitations: []string{"Derived normalization records do not replace or mutate the immutable source evidence."}, CreatedAt: request.Now.UTC()}
+	derived := domain.EvidenceItem{ID: parserReplayStableID("ev", request), TenantID: original.TenantID, ProductID: original.ProductID, ProjectID: original.ProjectID, ReleaseID: original.ReleaseID, BuildID: original.BuildID, DeploymentID: original.DeploymentID, Type: "parser_normalization", Subtype: provenance.Name, Title: "Parser normalization replay", SourceSystem: "operator", UploadedBy: request.ActorID, ObservedAt: request.Now.UTC(), EvidenceVersion: 1, SchemaVersion: domain.EvidenceItemSchemaVersion, PayloadRef: original.PayloadRef, PayloadHash: original.PayloadHash, PayloadMediaType: original.PayloadMediaType, PayloadSize: original.PayloadSize, Canonicalization: domain.CanonicalizationProfileVersion, TrustLevel: original.TrustLevel, VerificationStatus: "derived", SubjectRefs: append([]domain.SubjectRef(nil), original.SubjectRefs...), RelatedEvidenceRefs: []domain.EvidenceRef{{Type: "evidence_item", ID: original.ID, Relationship: "replayed_from"}}, Metadata: map[string]any{"parser": provenance.Metadata(), "replay_of": original.ID, "normalized_summary": summary}, Limitations: []string{"Derived normalization records do not replace or mutate the immutable source evidence."}, CreatedAt: request.Now.UTC()}
+	derived = withEvidenceCanonicalOriginRefs(derived)
 	var hashErr error
 	derived.CanonicalHash, hashErr = canonicalHash(derived)
 	if hashErr != nil {
 		return ParserReplayResult{}, hashErr
 	}
-	entry, err := AppendPersistedChainEntry(state, request.Now, request.TenantID, "parser.replayed", "evidence_item", derived.ID, "operator", request.ActorID, derived.PayloadHash, "")
+	entry, err := appendPersistedChainEntryWithID(state, parserReplayStableID("ace", request), request.Now, request.TenantID, "parser.replayed", "evidence_item", derived.ID, "operator", request.ActorID, derived.PayloadHash, "")
 	if err != nil {
 		return ParserReplayResult{}, err
 	}
 	derived.ChainEntryID = entry.ID
 	state.Evidence[derived.ID] = derived
 	return ParserReplayResult{EvidenceID: derived.ID, Created: true, Parser: provenance, Summary: summary}, nil
+}
+
+func parserReplayStableID(prefix string, request ParserReplayRequest) string {
+	digest := strings.TrimPrefix(hashBytes([]byte("parser-replay-id.v1\x00"+prefix+"\x00"+request.TenantID+"\x00"+request.EvidenceID+"\x00"+request.ParserVersion)), "sha256:")
+	return prefix + "_" + digest[:32]
+}
+
+// ParserReplayMutation extracts only the append-only evidence and audit facts
+// created by ReplayParserEvidence. The validation keeps a malformed or
+// cross-tenant in-memory snapshot from widening a focused durable write.
+func ParserReplayMutation(state *PersistedState, request ParserReplayRequest, result ParserReplayResult) (ReleaseLedgerMutation, error) {
+	if !result.Created {
+		return ReleaseLedgerMutation{}, nil
+	}
+	if state == nil || strings.TrimSpace(request.TenantID) == "" || strings.TrimSpace(request.EvidenceID) == "" || strings.TrimSpace(request.ParserVersion) == "" || strings.TrimSpace(request.ActorID) == "" || request.Now.IsZero() || strings.TrimSpace(result.EvidenceID) == "" || !result.Parser.Valid() {
+		return ReleaseLedgerMutation{}, ErrValidation
+	}
+
+	derived, ok := state.Evidence[result.EvidenceID]
+	if !ok || derived.ID != result.EvidenceID || derived.TenantID != request.TenantID || derived.Type != "parser_normalization" || derived.Subtype != result.Parser.Name || derived.UploadedBy != request.ActorID || derived.ChainEntryID == "" {
+		return ReleaseLedgerMutation{}, ErrValidation
+	}
+	if parserReplayOf(derived.Metadata) != request.EvidenceID || parserReplayVersion(derived.Metadata) != request.ParserVersion || result.Parser.Version != request.ParserVersion {
+		return ReleaseLedgerMutation{}, ErrValidation
+	}
+
+	source, ok := state.Evidence[request.EvidenceID]
+	if !ok || source.ID != request.EvidenceID || source.ID == derived.ID || source.TenantID != request.TenantID ||
+		derived.ProductID != source.ProductID || derived.ProjectID != source.ProjectID || derived.ReleaseID != source.ReleaseID || derived.BuildID != source.BuildID || derived.DeploymentID != source.DeploymentID ||
+		derived.PayloadRef != source.PayloadRef || derived.PayloadHash != source.PayloadHash || derived.PayloadMediaType != source.PayloadMediaType || derived.PayloadSize != source.PayloadSize ||
+		!hasParserReplaySourceLink(derived.RelatedEvidenceRefs, source.ID) {
+		return ReleaseLedgerMutation{}, ErrValidation
+	}
+	canonical, err := canonicalHash(derived)
+	if err != nil || canonical != derived.CanonicalHash {
+		return ReleaseLedgerMutation{}, ErrValidation
+	}
+
+	var matched domain.AuditChainEntry
+	matches := 0
+	for chainTenantID, entries := range state.Chain {
+		for _, entry := range entries {
+			if entry.ID != derived.ChainEntryID {
+				continue
+			}
+			if chainTenantID != entry.TenantID {
+				return ReleaseLedgerMutation{}, ErrValidation
+			}
+			matched = entry
+			matches++
+		}
+	}
+	if matches != 1 || matched.TenantID != request.TenantID || matched.EntryType != "parser.replayed" || matched.SubjectType != "evidence_item" || matched.SubjectID != derived.ID || matched.ActorType != "operator" || matched.ActorID != request.ActorID || matched.PayloadHash != derived.PayloadHash {
+		return ReleaseLedgerMutation{}, ErrValidation
+	}
+	verifiedEntry := matched
+	if err := RehashAuditChainEntry(&verifiedEntry); err != nil || verifiedEntry.CanonicalEntryHash != matched.CanonicalEntryHash || verifiedEntry.EntryHash != matched.EntryHash {
+		return ReleaseLedgerMutation{}, ErrValidation
+	}
+
+	return ReleaseLedgerMutation{
+		Evidence:          []domain.EvidenceItem{derived},
+		AuditChainEntries: []domain.AuditChainEntry{matched},
+	}, nil
+}
+
+func hasParserReplaySourceLink(refs []domain.EvidenceRef, sourceID string) bool {
+	for _, ref := range refs {
+		if ref.Type == "evidence_item" && ref.ID == sourceID && ref.Relationship == "replayed_from" {
+			return true
+		}
+	}
+	return false
 }
 
 func parserReplayOf(metadata map[string]any) string {

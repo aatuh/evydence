@@ -29,9 +29,7 @@ func TestValidatedCycloneDXUploadRejectsSchemaInvalidBeforeObjectStaging(t *test
 
 	raw := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"missing-type"}]}`)
 	source := BytesPayloadSource(raw)
-	_, err = ledger.releaseEvidenceService().uploadValidatedCycloneDXSBOMPayload(
-		ctx, actor, release.ID, "", source, uploadCycloneDXValidator(t),
-	)
+	_, err = ledger.UploadSBOMPayload(ctx, actor, release.ID, "", source)
 	if !errors.Is(err, ErrValidation) {
 		t.Fatalf("err=%v, want validation", err)
 	}

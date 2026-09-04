@@ -28,8 +28,8 @@ func TestManualDecisionCanLinkImportedVEXAndExportCustomerPackage(t *testing.T) 
 	if err != nil {
 		t.Fatalf("import report: %v", err)
 	}
-	if report.DecisionsCreated != 0 || len(report.MappingFailures) != 1 {
-		t.Fatalf("import report should show unmapped VEX statement: %#v", report)
+	if report.Status != "parsed" || report.DecisionsCreated != 0 || len(report.MappingFailures) != 1 || report.MappingFailures[0].Code != "finding_not_found" {
+		t.Fatalf("local import report should record the completed mapping result: %#v", report)
 	}
 
 	decision, err := ledger.CreateVulnerabilityDecision(ctx, actor, scan.Findings[0].ID, CreateVulnerabilityDecisionInput{

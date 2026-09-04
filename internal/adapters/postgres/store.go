@@ -2727,6 +2727,9 @@ func (s *Store) saveState(ctx context.Context, state app.PersistedState, writeSn
 		return nil, fmt.Errorf("begin save ledger state transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockPersistedStateProjectionMutations(ctx, tx, state); err != nil {
+		return nil, err
+	}
 	state, err = reconcileAuditChainSequences(ctx, tx, state)
 	if err != nil {
 		return nil, err
@@ -2796,6 +2799,9 @@ func (s *Store) applyCriticalMutation(ctx context.Context, mutation app.Critical
 		return nil, fmt.Errorf("begin critical mutation transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockCriticalProjectionMutation(ctx, tx, mutation); err != nil {
+		return nil, err
+	}
 	state := criticalMutationState(mutation)
 	state, err = reconcileAuditChainSequences(ctx, tx, state)
 	if err != nil {
@@ -2845,8 +2851,22 @@ func (s *Store) applyReleaseLedgerMutation(ctx context.Context, mutation app.Rel
 		return nil, fmt.Errorf("begin release ledger mutation transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	chain, err := applyReleaseLedgerMutationTx(ctx, tx, mutation)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit release ledger mutation transaction: %w", err)
+	}
+	return chain, nil
+}
+
+func applyReleaseLedgerMutationTx(ctx context.Context, tx pgx.Tx, mutation app.ReleaseLedgerMutation) (map[string][]domain.AuditChainEntry, error) {
+	if err := lockWorkerProjectionMutation(ctx, tx, mutation); err != nil {
+		return nil, err
+	}
 	state := releaseLedgerMutationState(mutation)
-	state, err = reconcileAuditChainSequences(ctx, tx, state)
+	state, err := reconcileAuditChainSequences(ctx, tx, state)
 	if err != nil {
 		return nil, err
 	}
@@ -2869,9 +2889,6 @@ func (s *Store) applyReleaseLedgerMutation(ctx context.Context, mutation app.Rel
 	}
 	if err := syncAuditSequenceRows(ctx, tx, state); err != nil {
 		return nil, err
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("commit release ledger mutation transaction: %w", err)
 	}
 	return state.Chain, nil
 }
@@ -2966,6 +2983,9 @@ func releaseLedgerMutationState(mutation app.ReleaseLedgerMutation) app.Persiste
 	}
 	for _, report := range mutation.VEXImportReports {
 		state.VEXImportReports[report.ID] = report
+	}
+	for _, attestation := range mutation.BuildAttestations {
+		state.BuildAttestations[attestation.ID] = attestation
 	}
 	for _, decision := range mutation.VulnerabilityDecisions {
 		state.Decisions[decision.ID] = decision
@@ -3355,7 +3375,10 @@ func syncReleaseLedgerCore(ctx context.Context, tx pgx.Tx, state app.PersistedSt
 				spec_version, component_count, components, created_at
 			)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-			ON CONFLICT (id) DO UPDATE SET components = EXCLUDED.components, component_count = EXCLUDED.component_count
+			ON CONFLICT (id) DO UPDATE SET
+				spec_version = EXCLUDED.spec_version,
+				components = EXCLUDED.components,
+				component_count = EXCLUDED.component_count
 		`, sbom.ID, sbom.TenantID, sbom.EvidenceID, nullableString(sbom.ReleaseID), nullableString(sbom.ArtifactID), sbom.Format, sbom.SpecVersion, sbom.ComponentCount, components, nonZeroTime(sbom.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert sbom row: %w", err)
 		}
@@ -3378,7 +3401,14 @@ func syncReleaseLedgerCore(ctx context.Context, tx pgx.Tx, state app.PersistedSt
 				summary, findings, created_at
 			)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-			ON CONFLICT (id) DO UPDATE SET adapter = EXCLUDED.adapter, adapter_version = EXCLUDED.adapter_version, source_schema = EXCLUDED.source_schema, summary = EXCLUDED.summary, findings = EXCLUDED.findings
+			ON CONFLICT (id) DO UPDATE SET
+				scanner = EXCLUDED.scanner,
+				target_ref = EXCLUDED.target_ref,
+				adapter = EXCLUDED.adapter,
+				adapter_version = EXCLUDED.adapter_version,
+				source_schema = EXCLUDED.source_schema,
+				summary = EXCLUDED.summary,
+				findings = EXCLUDED.findings
 		`, scan.ID, scan.TenantID, scan.EvidenceID, nullableString(scan.ReleaseID), scan.Scanner, scan.Adapter, scan.AdapterVersion, scan.SourceSchema, scan.TargetRef, summary, findings, nonZeroTime(scan.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert vulnerability scan row: %w", err)
 		}
@@ -3566,6 +3596,7 @@ func syncRiskBuildControlRows(ctx context.Context, tx pgx.Tx, state app.Persiste
 				payload_ref = EXCLUDED.payload_ref,
 				payload_hash = EXCLUDED.payload_hash,
 				payload_size = EXCLUDED.payload_size,
+				payload_type = EXCLUDED.payload_type,
 				predicate_type = EXCLUDED.predicate_type,
 				subject_digests = EXCLUDED.subject_digests,
 				builder_id = EXCLUDED.builder_id,
@@ -3652,7 +3683,7 @@ func syncRiskBuildControlRows(ctx context.Context, tx pgx.Tx, state app.Persiste
 			return fmt.Errorf("upsert vex import report row: %w", err)
 		}
 	}
-	for _, decision := range state.Decisions {
+	for _, decision := range orderedVulnerabilityDecisions(state.Decisions) {
 		if decision.ID == "" || decision.TenantID == "" || decision.FindingID == "" || decision.ScanID == "" {
 			continue
 		}
@@ -3800,6 +3831,22 @@ func syncRiskBuildControlRows(ctx context.Context, tx pgx.Tx, state app.Persiste
 		}
 	}
 	return nil
+}
+
+func orderedVulnerabilityDecisions(values map[string]domain.VulnerabilityDecision) []domain.VulnerabilityDecision {
+	result := make([]domain.VulnerabilityDecision, 0, len(values))
+	for _, decision := range values {
+		result = append(result, decision)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		leftSuperseded := strings.TrimSpace(result[i].SupersededBy) != ""
+		rightSuperseded := strings.TrimSpace(result[j].SupersededBy) != ""
+		if leftSuperseded != rightSuperseded {
+			return leftSuperseded
+		}
+		return result[i].ID < result[j].ID
+	})
+	return result
 }
 
 func syncSourceDeploymentLifecycleRows(ctx context.Context, tx pgx.Tx, state app.PersistedState) error {

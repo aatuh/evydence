@@ -5,36 +5,7 @@ import (
 	"io"
 	"strings"
 	"testing"
-
-	cyclonedxparser "github.com/aatuh/evydence/internal/app/parsers/cyclonedx"
 )
-
-const uploadCycloneDXSchema = `{
-  "$schema":"http://json-schema.org/draft-07/schema#",
-  "$id":"http://cyclonedx.org/schema/bom-1.6.schema.json",
-  "type":"object",
-  "required":["bomFormat","specVersion","components"],
-  "properties":{
-    "bomFormat":{"const":"CycloneDX"},
-    "specVersion":{"const":"1.6"},
-    "components":{"type":"array","items":{"type":"object","required":["type","name"],"properties":{"type":{"type":"string"},"name":{"type":"string"},"version":{"type":"string"},"purl":{"type":"string"}}}},
-    "dependencies":{"type":"array"}
-  }
-}`
-
-func uploadCycloneDXValidator(t *testing.T) *cyclonedxparser.SchemaValidator {
-	t.Helper()
-	companion := `{"$schema":"http://json-schema.org/draft-07/schema#","type":"object","definitions":{}}`
-	validator, err := cyclonedxparser.NewSchemaValidator(
-		strings.NewReader(uploadCycloneDXSchema),
-		strings.NewReader(companion),
-		strings.NewReader(companion),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return validator
-}
 
 func TestValidatedCycloneDXUploadPersistsNormalizationMetadata(t *testing.T) {
 	ctx := context.Background()
@@ -61,9 +32,7 @@ func TestValidatedCycloneDXUploadPersistsNormalizationMetadata(t *testing.T) {
 	}
 	raw := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api","version":"1.0.0","purl":"pkg:generic/api@1.0.0","properties":[{"name":"source","value":"generator"}]}],"dependencies":[{"ref":"pkg:generic/api@1.0.0","dependsOn":[]}]}`)
 
-	sbom, err := ledger.releaseEvidenceService().uploadValidatedCycloneDXSBOMPayload(
-		ctx, actor, release.ID, artifact.ID, BytesPayloadSource(raw), uploadCycloneDXValidator(t),
-	)
+	sbom, err := ledger.UploadSBOMPayload(ctx, actor, release.ID, artifact.ID, BytesPayloadSource(raw))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,11 +77,8 @@ func TestValidatedCycloneDXUploadRejectsSchemaInvalidBeforePublication(t *testin
 		t.Fatal(err)
 	}
 	before := len(beforeItems)
-	_, err = ledger.releaseEvidenceService().uploadValidatedCycloneDXSBOMPayload(
-		ctx, actor, release.ID, artifact.ID,
-		BytesPayloadSource([]byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"missing-type"}]}`)),
-		uploadCycloneDXValidator(t),
-	)
+	_, err = ledger.UploadSBOMPayload(ctx, actor, release.ID, artifact.ID,
+		BytesPayloadSource([]byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"missing-type"}]}`)))
 	if err != ErrValidation {
 		t.Fatalf("err=%v, want validation", err)
 	}
@@ -145,9 +111,7 @@ func TestValidatedCycloneDXUploadRejectsUnknownTargetBeforeOpeningPayload(t *tes
 		return io.NopCloser(strings.NewReader(string(raw))), nil
 	}
 
-	if _, err := ledger.releaseEvidenceService().uploadValidatedCycloneDXSBOMPayload(
-		ctx, actor, "missing-release", "", source, uploadCycloneDXValidator(t),
-	); err == nil {
+	if _, err := ledger.UploadSBOMPayload(ctx, actor, "missing-release", "", source); err == nil {
 		t.Fatal("missing release unexpectedly accepted")
 	}
 	if openCount != 0 {

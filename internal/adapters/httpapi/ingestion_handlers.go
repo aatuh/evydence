@@ -3,10 +3,12 @@ package httpapi
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"io"
 	"mime"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/aatuh/evydence/internal/app"
@@ -20,7 +22,7 @@ type streamedUpload func(*Server, requestContext, domain.Actor, app.PayloadSourc
 // repeatable source, so it can validate and stage the document without a
 // second request-sized memory allocation. The temporary file is always removed
 // before the handler returns and its path is never included in an error.
-func (s *Server) createStreamedEvidence(w http.ResponseWriter, r *http.Request, limit int64, run streamedUpload) {
+func (s *Server) createStreamedEvidence(ctx requestContext, w http.ResponseWriter, r *http.Request, limit int64, semanticFields map[string]string, run streamedUpload) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
 		return
@@ -31,11 +33,23 @@ func (s *Server) createStreamedEvidence(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	defer cleanup()
-	status, response, err := s.ledger.WithIdempotencyRequestHash(r.Context(), actor, r.Method, r.URL.Path, r.Header.Get("Idempotency-Key"), source.Digest, func(commandCtx requestContext, commandLedger *app.Ledger) (int, any, error) {
-		commandServer := *s
-		commandServer.ledger = commandLedger
-		return run(&commandServer, commandCtx, actor, source)
-	})
+	fingerprint := streamedRequestFingerprint(source.Digest, semanticFields)
+	execute := func(requestFingerprint string) (int, any, error) {
+		return s.idempotency.WithBodyDigest(ctx, actor, r.Method, r.URL.Path, r.Header.Get("Idempotency-Key"), requestFingerprint, func(commandCtx requestContext, scope commandScope) (int, any, error) {
+			commandServer := *s
+			scope.bind(&commandServer)
+			return run(&commandServer, commandCtx, actor, source)
+		})
+	}
+	status, response, err := execute(fingerprint)
+	if errors.Is(err, app.ErrIdempotencyConflict) && fingerprint != source.Digest {
+		// Before semantic metadata headers became part of native-document
+		// fingerprints, retained records used the body digest alone. Retry the
+		// reservation with that legacy digest only after the current fingerprint
+		// conflicts. New records keep the stronger fingerprint, so a later header
+		// change still conflicts instead of replaying another resource's result.
+		status, response, err = execute(source.Digest)
+	}
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -44,6 +58,23 @@ func (s *Server) createStreamedEvidence(w http.ResponseWriter, r *http.Request, 
 		w.Header().Set("Idempotency-Key", r.Header.Get("Idempotency-Key"))
 	}
 	writeData(w, status, response)
+}
+
+func streamedRequestFingerprint(bodyDigest string, semanticFields map[string]string) string {
+	if len(semanticFields) == 0 {
+		return bodyDigest
+	}
+	keys := make([]string, 0, len(semanticFields))
+	for key := range semanticFields {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	hash := sha256.New()
+	_, _ = io.WriteString(hash, bodyDigest)
+	for _, key := range keys {
+		_, _ = io.WriteString(hash, "\x00"+key+"\x00"+semanticFields[key])
+	}
+	return "sha256:" + hex.EncodeToString(hash.Sum(nil))
 }
 
 func streamRequestPayload(r *http.Request, limit int64) (app.PayloadSource, func(), error) {

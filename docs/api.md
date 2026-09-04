@@ -32,6 +32,13 @@ authenticated tenant, actor, HTTP method, and path. The service stores a
 request digest, not the raw request body, and uses an internal hashed lease
 owner while a command is pending.
 
+Native document uploads also bind their media type and relationship/version
+headers into the request digest. During the bounded retention window, a retry
+of a record created before those headers were included can fall back to the
+legacy body-only digest only after the current fingerprint conflicts. Newly
+created records always retain the stronger fingerprint, so changing a semantic
+header while reusing their key still returns a conflict.
+
 For 24 hours after reservation:
 
 - Reusing a completed key with the same request returns the original safe
@@ -225,7 +232,13 @@ Upload generic evidence:
 }
 ```
 
-`POST /v1/evidence` creates immutable evidence metadata. Later changes are represented by supersession, lifecycle events, links, or new evidence records.
+`POST /v1/evidence` creates immutable evidence metadata. Later changes are
+represented by supersession, lifecycle events, links, or new evidence records.
+Parser-normalization records are internal and cannot be created through this
+generic route. SBOM, vulnerability-scan, OpenAPI-contract, VEX, parser-
+normalization, and build-attestation evidence has fixed relationships because
+those coordinates bind worker-owned projections; generic link and supersession
+requests for those evidence types return a conflict.
 
 ### 3. Upload SBOM And Vulnerability Evidence
 
@@ -322,6 +335,13 @@ GET /v1/vex/{id}/import-report
 
 The import report records parser version, statement counts, decision counts,
 supersession counts, warnings, invalid statement issues, and mapping failures.
+Every upload starts as `accepted`; the `parse_vex` worker creates any mapped
+decisions from a bounded versioned request after the upload transaction commits
+and changes the report to `parsed` or `failed`. When durable object storage is
+available, the worker also reparses the raw payload and rejects a normalized
+request that does not match it. Without a replayable object, decision processing
+still occurs from the normalized request, but independent raw-payload replay is
+not available. Upload never writes vulnerability decisions directly.
 When worker replay fails it records safe `failure_code` and `failure_detail`
 fields. It does not include raw VEX payload bytes, object-store payload
 references, backend error strings, or bearer tokens.
@@ -666,9 +686,9 @@ they do not establish legal compliance or complete WORM enforcement.
 | `POST` | `/v1/security-scans` | Upload SAST, DAST, secret scan, license scan, or API-security scan JSON. |
 | `POST` | `/v1/api-security-scans` | Convenience API-security scan route. |
 | `POST` | `/v1/security-documents` | Upload sensitive manual security document metadata/payload. |
-| `POST` | `/v1/vex` | Upload OpenVEX. |
+| `POST` | `/v1/vex` | Upload OpenVEX; decisions are mapped asynchronously by the worker. |
 | `POST` | `/v1/vex/preview` | Preview OpenVEX mapping without storing evidence. |
-| `POST` | `/v1/vex/cyclonedx` | Upload CycloneDX VEX. |
+| `POST` | `/v1/vex/cyclonedx` | Upload CycloneDX VEX; decisions are mapped asynchronously by the worker. |
 | `POST` | `/v1/vex/cyclonedx/preview` | Preview CycloneDX VEX mapping without storing evidence. |
 | `GET` | `/v1/vex/{id}` | Read VEX metadata. |
 | `GET` | `/v1/vex/{id}/import-report` | Read VEX parser report with safe counts, warnings, and mapping failures. |

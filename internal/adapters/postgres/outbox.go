@@ -16,7 +16,10 @@ import (
 	"github.com/aatuh/evydence/internal/domain"
 )
 
-const outboxLeaseDuration = 5 * time.Minute
+const (
+	outboxLeaseDuration           = 5 * time.Minute
+	outboxDependencyDeferralDelay = 30 * time.Second
+)
 
 type JobFailureClass string
 
@@ -59,6 +62,153 @@ type ClaimedJob struct {
 	Attempts    int
 	LeaseToken  string
 	Payload     map[string]any
+}
+
+// HasActiveJobDependency reports whether at least one durable dependency job
+// can still publish the requested subject projection. A missing, succeeded, or
+// dead-letter dependency is not active; callers decide whether an unprojected
+// subject is therefore terminal.
+func (s *Store) HasActiveJobDependency(ctx context.Context, tenantID, kind, subjectType, subjectID string) (bool, error) {
+	if s == nil || s.pool == nil || ctx == nil {
+		return false, app.ErrValidation
+	}
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	tenantID = strings.TrimSpace(tenantID)
+	kind = strings.TrimSpace(kind)
+	subjectType = strings.TrimSpace(subjectType)
+	subjectID = strings.TrimSpace(subjectID)
+	if tenantID == "" || kind == "" || subjectType == "" || subjectID == "" {
+		return false, app.ErrValidation
+	}
+	var active bool
+	if err := s.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM outbox_jobs
+			WHERE tenant_id = $1
+			  AND kind = $2
+			  AND subject_type = $3
+			  AND subject_id = $4
+			  AND status IN ('queued', 'retrying', 'running')
+		)
+	`, tenantID, kind, subjectType, subjectID).Scan(&active); err != nil {
+		return false, fmt.Errorf("inspect active outbox dependency: %w", err)
+	}
+	return active, nil
+}
+
+// ApplyClaimedReleaseLedgerMutation persists parser side effects only while the
+// caller still owns an unexpired outbox lease. The lease row and all release
+// mutations are locked and committed together, so a reclaimed worker cannot
+// overwrite the successor's durable result.
+func (s *Store) ApplyClaimedReleaseLedgerMutation(ctx context.Context, jobID, leaseToken string, mutation app.ReleaseLedgerMutation) error {
+	jobID = strings.TrimSpace(jobID)
+	leaseToken = strings.TrimSpace(leaseToken)
+	if jobID == "" || leaseToken == "" {
+		return app.ErrValidation
+	}
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("begin claimed release ledger mutation transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	var tenantID string
+	err = tx.QueryRow(ctx, `
+		SELECT tenant_id
+		FROM outbox_jobs
+		WHERE id = $1
+		  AND status = 'running'
+		  AND lease_token = $2
+		  AND locked_at > now() - $3 * interval '1 second'
+		FOR UPDATE
+	`, jobID, leaseToken, int(outboxLeaseDuration/time.Second)).Scan(&tenantID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return app.ErrConflict
+	}
+	if err != nil {
+		return fmt.Errorf("lock claimed outbox job: %w", err)
+	}
+	if !releaseLedgerMutationMatchesTenant(mutation, tenantID) {
+		return app.ErrConflict
+	}
+	if _, err := applyReleaseLedgerMutationTx(ctx, tx, mutation); err != nil {
+		return err
+	}
+	tag, err := tx.Exec(ctx, `
+		UPDATE outbox_jobs
+		SET locked_at = now(), updated_at = now()
+		WHERE id = $1 AND status = 'running' AND lease_token = $2
+	`, jobID, leaseToken)
+	if err != nil {
+		return fmt.Errorf("renew claimed outbox lease: %w", err)
+	}
+	if tag.RowsAffected() != 1 {
+		return app.ErrConflict
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit claimed release ledger mutation transaction: %w", err)
+	}
+	return nil
+}
+
+func releaseLedgerMutationMatchesTenant(mutation app.ReleaseLedgerMutation, tenantID string) bool {
+	if tenantID == "" {
+		return false
+	}
+	matches := true
+	check := func(candidate string) {
+		if candidate != tenantID {
+			matches = false
+		}
+	}
+	for _, value := range mutation.Products {
+		check(value.TenantID)
+	}
+	for _, value := range mutation.Projects {
+		check(value.TenantID)
+	}
+	for _, value := range mutation.Releases {
+		check(value.TenantID)
+	}
+	for _, value := range mutation.Artifacts {
+		check(value.TenantID)
+	}
+	for _, value := range mutation.Evidence {
+		check(value.TenantID)
+	}
+	for _, value := range mutation.EvidenceLifecycle {
+		check(value.TenantID)
+	}
+	for _, value := range mutation.SBOMs {
+		check(value.TenantID)
+	}
+	for _, value := range mutation.Scans {
+		check(value.TenantID)
+	}
+	for _, value := range mutation.Contracts {
+		check(value.TenantID)
+	}
+	for _, value := range mutation.VEXDocuments {
+		check(value.TenantID)
+	}
+	for _, value := range mutation.VEXImportReports {
+		check(value.TenantID)
+	}
+	for _, value := range mutation.BuildAttestations {
+		check(value.TenantID)
+	}
+	for _, value := range mutation.VulnerabilityDecisions {
+		check(value.TenantID)
+	}
+	for _, value := range mutation.AuditChainEntries {
+		check(value.TenantID)
+	}
+	for _, value := range mutation.OutboxJobs {
+		check(value.TenantID)
+	}
+	return matches
 }
 
 func (s *Store) Enqueue(ctx context.Context, job app.OutboxJob) error {
@@ -199,6 +349,66 @@ func (s *Store) CompleteJob(ctx context.Context, id, leaseToken string) error {
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit complete outbox job transaction: %w", err)
+	}
+	return nil
+}
+
+// DeferJob releases a live dependency-pending claim without consuming the
+// bounded retry budget used for ordinary worker failures. Only the current,
+// unexpired lease holder may defer a job, and only the stable
+// transient/dependency_pending classification is eligible.
+func (s *Store) DeferJob(ctx context.Context, id, leaseToken string, failure JobFailure) error {
+	id = strings.TrimSpace(id)
+	leaseToken = strings.TrimSpace(leaseToken)
+	if id == "" || leaseToken == "" {
+		return app.ErrValidation
+	}
+	failure, err := failure.normalized()
+	if err != nil {
+		return err
+	}
+	if failure.Class != JobFailureTransient || failure.Code != "dependency_pending" {
+		return app.ErrValidation
+	}
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("begin defer outbox job transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	var claimedAttempt int
+	err = tx.QueryRow(ctx, `
+		UPDATE outbox_jobs
+		SET status = 'retrying',
+		    attempts = attempts - 1,
+		    run_after = now() + $3 * interval '1 second',
+		    locked_at = NULL,
+		    lease_token = NULL,
+		    last_error = $4,
+		    failure_class = $5,
+		    failure_code = $4,
+		    terminal_at = NULL,
+		    updated_at = now()
+		WHERE id = $1
+		  AND status = 'running'
+		  AND lease_token = $2
+		  AND locked_at > now() - $6 * interval '1 second'
+		  AND attempts > 0
+		RETURNING attempts + 1
+	`, id, leaseToken, int(outboxDependencyDeferralDelay/time.Second), failure.Code, failure.Class, int(outboxLeaseDuration/time.Second)).Scan(&claimedAttempt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return app.ErrConflict
+	}
+	if err != nil {
+		return fmt.Errorf("defer outbox job: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO outbox_job_attempts (job_id, attempt, outcome, failure_class, failure_code)
+		VALUES ($1, $2, 'deferred', $3, $4)
+	`, id, claimedAttempt, failure.Class, failure.Code); err != nil {
+		return fmt.Errorf("record outbox deferral: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit defer outbox job transaction: %w", err)
 	}
 	return nil
 }

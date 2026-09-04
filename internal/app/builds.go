@@ -7,8 +7,9 @@ import (
 	"strings"
 	"time"
 
-	verificationdsse "github.com/aatuh/evydence/internal/adapters/verification/dsse"
 	"github.com/aatuh/evydence/internal/domain"
+	releaseapp "github.com/aatuh/evydence/internal/release/app"
+	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 )
 
 const (
@@ -18,11 +19,7 @@ const (
 	collectorTypeImportBundle  = "import_bundle"
 	collectorStatusActive      = "active"
 
-	buildStatusQueued    = "queued"
-	buildStatusRunning   = "running"
-	buildStatusPassed    = "passed"
-	buildStatusFailed    = "failed"
-	buildStatusCancelled = "cancelled"
+	buildStatusPassed = "passed"
 )
 
 type CreateCollectorInput struct {
@@ -336,248 +333,40 @@ func (l *Ledger) CollectorHealthReport(ctx context.Context, actor domain.Actor, 
 }
 
 func (l *Ledger) CreateBuildRun(ctx context.Context, actor domain.Actor, in CreateBuildRunInput) (domain.BuildRun, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.BuildRun{}, err
+	outputs := make([]releasedomain.BuildOutput, 0, len(in.Outputs))
+	for _, output := range in.Outputs {
+		outputs = append(outputs, releasedomain.BuildOutput{ArtifactID: output.ArtifactID, Digest: output.Digest})
 	}
-	if err := require(actor, ScopeBuildWrite); err != nil {
-		return domain.BuildRun{}, err
-	}
-	build, err := normalizeBuildInput(in)
-	if err != nil {
-		return domain.BuildRun{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	project, ok := l.projects[build.ProjectID]
-	if !ok || project.TenantID != actor.TenantID {
-		return domain.BuildRun{}, ErrNotFound
-	}
-	release, ok := l.releases[build.ReleaseID]
-	if !ok || release.TenantID != actor.TenantID {
-		return domain.BuildRun{}, ErrNotFound
-	}
-	if project.ProductID != release.ProductID {
-		return domain.BuildRun{}, ErrValidation
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeBuildWrite, resourceRefs{ProductID: project.ProductID, ProjectID: project.ID, ReleaseID: release.ID}); err != nil {
-		return domain.BuildRun{}, err
-	}
-	for _, output := range build.Outputs {
-		if !validDigest(output.Digest) {
-			return domain.BuildRun{}, ErrValidation
-		}
-		if output.ArtifactID == "" {
-			continue
-		}
-		artifact, ok := l.artifacts[output.ArtifactID]
-		if !ok || artifact.TenantID != actor.TenantID {
-			return domain.BuildRun{}, ErrNotFound
-		}
-		if artifact.Digest != output.Digest {
-			return domain.BuildRun{}, ErrValidation
-		}
-	}
-	build.ID = newID("build")
-	build.TenantID = actor.TenantID
-	build.CollectorID = actor.CollectorID
-	build.SchemaVersion = domain.BuildRunSchemaVersion
-	build.CreatedAt = l.now()
-	build.SourceIdentity = buildSourceIdentity(build, actor)
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Builds.InsertBuildRun(ctx, build); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(build.CreatedAt, actor.TenantID, "build.created", "build_run", build.ID, actorType(actor), actorID(actor), "", ""))
-			return err
-		}); err != nil {
-			return domain.BuildRun{}, err
-		}
-		l.buildRuns[build.ID] = build
-		l.publishCommittedAuditEntryLocked(entry)
-		return build, nil
-	}
-	l.buildRuns[build.ID] = build
-	_, _ = l.appendChainLocked(actor.TenantID, "build.created", "build_run", build.ID, actorType(actor), actorID(actor), "", "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.BuildRun{}, err
-	}
-	return build, nil
+	value, err := l.releaseCommands.CreateBuildRun(ctx, actor, releaseapp.CreateBuildRunInput{
+		ProjectID: in.ProjectID, ReleaseID: in.ReleaseID, Provider: in.Provider, CommitSHA: in.CommitSHA,
+		Repository: in.Repository, WorkflowRef: in.WorkflowRef, RunID: in.RunID, RunAttempt: in.RunAttempt,
+		JobID: in.JobID, GitHubActor: in.GitHubActor, Ref: in.Ref, OIDCSubject: in.OIDCSubject,
+		Status: in.Status, StartedAt: in.StartedAt, FinishedAt: cloneTimePtr(in.FinishedAt),
+		ParametersHash: in.ParametersHash, EnvironmentHash: in.EnvironmentHash,
+		ProviderMetadata: cloneIdentityAnyMap(in.ProviderMetadata), Outputs: outputs,
+	})
+	return buildRunFromReleaseContext(value), fromReleaseContextError(err)
 }
 
 func (l *Ledger) GetBuildRun(ctx context.Context, actor domain.Actor, id string) (domain.BuildRun, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.BuildRun{}, err
-	}
-	if err := require(actor, ScopeBuildRead); err != nil {
-		return domain.BuildRun{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	build, ok := l.buildRuns[strings.TrimSpace(id)]
-	if !ok || build.TenantID != actor.TenantID {
-		return domain.BuildRun{}, ErrNotFound
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeBuildRead, resourceRefs{ProjectID: build.ProjectID, ReleaseID: build.ReleaseID, BuildID: build.ID}); err != nil {
-		return domain.BuildRun{}, err
-	}
-	return build, nil
+	value, err := l.releaseCommands.GetBuildRun(ctx, actor, id)
+	return buildRunFromReleaseContext(value), fromReleaseContextError(err)
 }
 
+// UploadBuildAttestation is retained as an HTTP compatibility facade.
+// Deprecated: use the focused release application service.
 func (l *Ledger) UploadBuildAttestation(ctx context.Context, actor domain.Actor, buildID string, raw []byte) (domain.BuildAttestation, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.BuildAttestation{}, err
-	}
-	if err := require(actor, ScopeBuildWrite); err != nil {
-		return domain.BuildAttestation{}, err
-	}
-	if !ValidPayloadSize(int64(len(raw)), EvidenceDocumentLimit) {
-		return domain.BuildAttestation{}, ErrValidation
-	}
-	parsed, err := parseDSSEAttestation(raw)
-	if err != nil {
-		return domain.BuildAttestation{}, err
-	}
-	buildID = strings.TrimSpace(buildID)
-	l.mu.Lock()
-	build, ok := l.buildRuns[buildID]
-	if !ok || build.TenantID != actor.TenantID {
-		l.mu.Unlock()
-		return domain.BuildAttestation{}, ErrNotFound
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeBuildWrite, resourceRefs{ProjectID: build.ProjectID, ReleaseID: build.ReleaseID, BuildID: build.ID}); err != nil {
-		l.mu.Unlock()
-		return domain.BuildAttestation{}, err
-	}
-	if !subjectsMatchBuildOutputs(parsed.SubjectDigests, build.Outputs) {
-		l.mu.Unlock()
-		return domain.BuildAttestation{}, ErrValidation
-	}
-	l.mu.Unlock()
+	value, err := l.releaseCommands.UploadBuildAttestation(ctx, actor, buildID, raw)
+	return buildAttestationFromReleaseContext(value), fromReleaseContextError(err)
+}
 
-	payloadHash := hashBytes(raw)
-	stagedPayload, err := l.stagePayload(ctx, actor.TenantID, "application/vnd.dsse.envelope+json", payloadHash, raw)
-	if err != nil {
-		return domain.BuildAttestation{}, err
-	}
-	payloadRef := stagedPayload.Reference()
-	evidenceInput := CreateEvidenceInput{
-		ProjectID:        build.ProjectID,
-		ReleaseID:        build.ReleaseID,
-		BuildID:          build.ID,
-		Type:             "build_attestation",
-		Subtype:          "dsse_in_toto",
-		Title:            "DSSE in-toto build attestation",
-		SourceSystem:     build.Provider,
-		SourceIdentity:   build.SourceIdentity,
-		CollectorID:      actor.CollectorID,
-		ObservedAt:       l.now(),
-		PayloadRef:       payloadRef,
-		PayloadHash:      payloadHash,
-		PayloadMediaType: "application/vnd.dsse.envelope+json",
-		PayloadSize:      int64(len(raw)),
-		SubjectRefs:      buildOutputSubjects(build.Outputs),
-		Metadata: WithParserProvenance(map[string]any{
-			"payload_type":    parsed.PayloadType,
-			"predicate_type":  parsed.PredicateType,
-			"signature_count": parsed.SignatureCount,
-		}, ParserProvenance{Name: "dsse-in-toto", Version: ParserVersionDSSEInTotoJSON, SourceSchema: "in-toto-statement.v1", NormalizedSchema: "evydence-build-attestation.v1", ReplayStatus: ParserReplayStatusOriginal}),
-		Limitations: []string{"Structural DSSE/in-toto parsing does not assign trust. A separately recorded offline verification receipt is required for release readiness."},
-	}
-
-	l.mu.Lock()
-	attestation := domain.BuildAttestation{
-		ID:                 newID("att"),
-		TenantID:           actor.TenantID,
-		BuildID:            build.ID,
-		EvidenceID:         "",
-		PayloadRef:         payloadRef,
-		PayloadHash:        payloadHash,
-		PayloadSize:        int64(len(raw)),
-		PayloadType:        parsed.PayloadType,
-		PredicateType:      parsed.PredicateType,
-		SubjectDigests:     append([]string(nil), parsed.SubjectDigests...),
-		BuilderID:          parsed.BuilderID,
-		BuildType:          parsed.BuildType,
-		MaterialsCount:     parsed.MaterialsCount,
-		SignatureCount:     parsed.SignatureCount,
-		VerificationStatus: "structurally_valid",
-		SchemaVersion:      domain.BuildAttestationSchemaVersion,
-		CreatedAt:          l.now(),
-	}
-	persistedAttestation := attestation
-	chainAction := "build_attestation.created"
-	if l.workerOwnedParsers {
-		persistedAttestation.PayloadType = ""
-		persistedAttestation.PredicateType = ""
-		persistedAttestation.SubjectDigests = nil
-		persistedAttestation.BuilderID = ""
-		persistedAttestation.BuildType = ""
-		persistedAttestation.MaterialsCount = 0
-		persistedAttestation.SignatureCount = 0
-		persistedAttestation.VerificationStatus = "accepted"
-		chainAction = "build_attestation.accepted"
-	}
-	if l.unitOfWork != nil {
-		defer l.mu.Unlock()
-		item, err := l.releaseEvidenceService().newEvidenceItemLocked(actor, evidenceInput)
-		if err != nil {
-			return domain.BuildAttestation{}, err
-		}
-		attestation.EvidenceID = item.ID
-		persistedAttestation.EvidenceID = item.ID
-		job := l.newOutboxJob(actor.TenantID, "verify_attestation", "build_attestation", attestation.ID, addPayloadLifecycle(map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionDSSEInTotoJSON}, stagedPayload))
-		var evidenceEntry, attestationEntry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := l.persistStagedObjectPayload(ctx, repos, stagedPayload); err != nil {
-				return err
-			}
-			var err error
-			evidenceEntry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(item.CreatedAt, actor.TenantID, "evidence.created", "evidence_item", item.ID, "api_key", actor.KeyID, item.PayloadHash, ""))
-			if err != nil {
-				return err
-			}
-			item.ChainEntryID = evidenceEntry.ID
-			if err := repos.Evidence.InsertEvidence(ctx, item); err != nil {
-				return err
-			}
-			attestationEntry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(attestation.CreatedAt, actor.TenantID, chainAction, "build_attestation", attestation.ID, "api_key", actor.KeyID, payloadHash, ""))
-			if err != nil {
-				return err
-			}
-			if err := repos.Builds.InsertBuildAttestation(ctx, persistedAttestation); err != nil {
-				return err
-			}
-			return repos.Outbox.Enqueue(ctx, job)
-		}); err != nil {
-			return domain.BuildAttestation{}, err
-		}
-		l.evidence[item.ID] = item
-		l.attestations[attestation.ID] = persistedAttestation
-		l.publishCommittedAuditEntryLocked(evidenceEntry)
-		l.publishCommittedAuditEntryLocked(attestationEntry)
-		return attestation, nil
-	}
-	l.mu.Unlock()
-	item, err := l.CreateEvidence(ctx, actor, evidenceInput)
-	if err != nil {
-		return domain.BuildAttestation{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	attestation.EvidenceID = item.ID
-	persistedAttestation.EvidenceID = item.ID
-	l.attestations[attestation.ID] = persistedAttestation
-	_, _ = l.appendChainLocked(actor.TenantID, chainAction, "build_attestation", attestation.ID, actorType(actor), actorID(actor), payloadHash, "")
-	if err := l.enqueue(ctx, actor.TenantID, "verify_attestation", "build_attestation", attestation.ID, addPayloadLifecycle(map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionDSSEInTotoJSON}, stagedPayload)); err != nil {
-		return domain.BuildAttestation{}, err
-	}
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.BuildAttestation{}, err
-	}
-	return attestation, nil
+// UploadBuildAttestationPayload is retained for streamed compatibility callers.
+// Deprecated: use the focused release application service.
+func (l *Ledger) UploadBuildAttestationPayload(ctx context.Context, actor domain.Actor, buildID string, source PayloadSource) (domain.BuildAttestation, error) {
+	value, err := l.releaseCommands.UploadBuildAttestationPayload(ctx, actor, buildID, releaseapp.BuildAttestationPayloadSource{
+		Digest: source.Digest, Size: source.Size, Open: source.Open,
+	})
+	return buildAttestationFromReleaseContext(value), fromReleaseContextError(err)
 }
 
 func validCollectorScopes(scopes []string) bool {
@@ -594,78 +383,6 @@ func validCollectorScopes(scopes []string) bool {
 func validCollectorType(typ string) bool {
 	switch strings.TrimSpace(typ) {
 	case collectorTypeGitHubActions, collectorTypeGitLabCI, collectorTypeGenericCI, collectorTypeImportBundle:
-		return true
-	default:
-		return false
-	}
-}
-
-func normalizeBuildInput(in CreateBuildRunInput) (domain.BuildRun, error) {
-	build := domain.BuildRun{
-		ProjectID:       strings.TrimSpace(in.ProjectID),
-		ReleaseID:       strings.TrimSpace(in.ReleaseID),
-		Provider:        strings.TrimSpace(in.Provider),
-		CommitSHA:       strings.TrimSpace(in.CommitSHA),
-		Repository:      strings.TrimSpace(in.Repository),
-		WorkflowRef:     strings.TrimSpace(in.WorkflowRef),
-		RunID:           strings.TrimSpace(in.RunID),
-		RunAttempt:      in.RunAttempt,
-		JobID:           strings.TrimSpace(in.JobID),
-		Actor:           strings.TrimSpace(in.GitHubActor),
-		Ref:             strings.TrimSpace(in.Ref),
-		OIDCSubject:     strings.TrimSpace(in.OIDCSubject),
-		Status:          strings.TrimSpace(in.Status),
-		StartedAt:       in.StartedAt.UTC(),
-		FinishedAt:      in.FinishedAt,
-		ParametersHash:  strings.TrimSpace(in.ParametersHash),
-		EnvironmentHash: strings.TrimSpace(in.EnvironmentHash),
-		SourceIdentity:  cloneMap(in.ProviderMetadata),
-		Outputs:         normalizeBuildOutputs(in.Outputs),
-	}
-	if build.ProjectID == "" || build.ReleaseID == "" || build.Provider == "" || build.CommitSHA == "" || build.Status == "" || build.StartedAt.IsZero() {
-		return domain.BuildRun{}, ErrValidation
-	}
-	if !validCommitSHA(build.CommitSHA) || !validBuildStatus(build.Status) {
-		return domain.BuildRun{}, ErrValidation
-	}
-	if build.ParametersHash != "" && !validDigest(build.ParametersHash) {
-		return domain.BuildRun{}, ErrValidation
-	}
-	if build.EnvironmentHash != "" && !validDigest(build.EnvironmentHash) {
-		return domain.BuildRun{}, ErrValidation
-	}
-	if build.Provider == collectorTypeGitHubActions {
-		if build.Repository == "" || build.WorkflowRef == "" || build.RunID == "" || build.RunAttempt <= 0 {
-			return domain.BuildRun{}, ErrValidation
-		}
-	}
-	if build.Provider == collectorTypeGitLabCI {
-		if build.Repository == "" || build.RunID == "" {
-			return domain.BuildRun{}, ErrValidation
-		}
-	}
-	for _, output := range build.Outputs {
-		if !validDigest(output.Digest) {
-			return domain.BuildRun{}, ErrValidation
-		}
-	}
-	return build, nil
-}
-
-func normalizeBuildOutputs(outputs []domain.BuildOutput) []domain.BuildOutput {
-	out := make([]domain.BuildOutput, 0, len(outputs))
-	for _, output := range outputs {
-		out = append(out, domain.BuildOutput{
-			ArtifactID: strings.TrimSpace(output.ArtifactID),
-			Digest:     strings.TrimSpace(output.Digest),
-		})
-	}
-	return out
-}
-
-func validBuildStatus(status string) bool {
-	switch strings.TrimSpace(status) {
-	case buildStatusQueued, buildStatusRunning, buildStatusPassed, buildStatusFailed, buildStatusCancelled:
 		return true
 	default:
 		return false
@@ -698,101 +415,6 @@ func actorID(actor domain.Actor) string {
 		return actor.UserID
 	}
 	return actor.KeyID
-}
-
-func buildSourceIdentity(build domain.BuildRun, actor domain.Actor) map[string]any {
-	source := "api"
-	if actor.CollectorID != "" {
-		source = "collector"
-	}
-	identity := map[string]any{
-		"source":        source,
-		"provider":      build.Provider,
-		"commit_sha":    build.CommitSHA,
-		"oidc_verified": false,
-	}
-	if actor.CollectorID != "" {
-		identity["collector_id"] = actor.CollectorID
-	}
-	if build.Repository != "" {
-		identity["repository"] = build.Repository
-	}
-	if build.WorkflowRef != "" {
-		identity["workflow_ref"] = build.WorkflowRef
-	}
-	if build.RunID != "" {
-		identity["run_id"] = build.RunID
-	}
-	if build.RunAttempt > 0 {
-		identity["run_attempt"] = build.RunAttempt
-	}
-	if build.JobID != "" {
-		identity["job_id"] = build.JobID
-	}
-	if build.Actor != "" {
-		identity["actor"] = build.Actor
-	}
-	if build.Ref != "" {
-		identity["ref"] = build.Ref
-	}
-	if build.OIDCSubject != "" {
-		identity["oidc_subject"] = build.OIDCSubject
-	}
-	for key, value := range build.SourceIdentity {
-		if _, exists := identity[key]; !exists {
-			identity[key] = value
-		}
-	}
-	return identity
-}
-
-type parsedAttestation struct {
-	PayloadType    string
-	PredicateType  string
-	SubjectDigests []string
-	BuilderID      string
-	BuildType      string
-	MaterialsCount int
-	SignatureCount int
-}
-
-func parseDSSEAttestation(raw []byte) (parsedAttestation, error) {
-	parsed, err := verificationdsse.Parse(raw)
-	if err != nil {
-		return parsedAttestation{}, ErrValidation
-	}
-	return parsedAttestation{
-		PayloadType:    parsed.PayloadType,
-		PredicateType:  parsed.PredicateType,
-		SubjectDigests: parsed.SubjectDigests,
-		BuilderID:      parsed.BuilderID,
-		BuildType:      parsed.BuildType,
-		MaterialsCount: parsed.MaterialsCount,
-		SignatureCount: parsed.SignatureCount,
-	}, nil
-}
-
-func subjectsMatchBuildOutputs(subjectDigests []string, outputs []domain.BuildOutput) bool {
-	outputSet := map[string]struct{}{}
-	for _, output := range outputs {
-		if output.Digest != "" {
-			outputSet[output.Digest] = struct{}{}
-		}
-	}
-	for _, digest := range subjectDigests {
-		if _, ok := outputSet[digest]; ok {
-			return true
-		}
-	}
-	return false
-}
-
-func buildOutputSubjects(outputs []domain.BuildOutput) []domain.SubjectRef {
-	refs := []domain.SubjectRef{}
-	for _, output := range outputs {
-		refs = append(refs, domain.SubjectRef{Type: "artifact", ID: output.ArtifactID, Digest: output.Digest})
-	}
-	return refs
 }
 
 func (l *Ledger) checkReleaseHasPassedBuildLocked(tenantID, releaseID string) domain.PolicyCheck {
@@ -854,9 +476,8 @@ func (l *Ledger) releaseArtifactDigestsLocked(tenantID, releaseID string) map[st
 			if ref.Type != "artifact" {
 				continue
 			}
-			if validDigest(ref.Digest) {
-				digests[ref.Digest] = struct{}{}
-			}
+			// SubjectRef.Digest remains an opaque compatibility field. Only a
+			// tenant-owned registered artifact can contribute a trusted digest.
 			if ref.ID != "" {
 				if artifact, ok := l.artifacts[ref.ID]; ok && artifact.TenantID == tenantID && validDigest(artifact.Digest) {
 					digests[artifact.Digest] = struct{}{}

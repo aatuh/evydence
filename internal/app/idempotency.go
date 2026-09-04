@@ -269,6 +269,7 @@ func (l *Ledger) persistDurableIdempotencyFailure(ctx context.Context, reservati
 func (l *Ledger) cloneForIdempotencyCommand(ctx context.Context) (*Ledger, error) {
 	l.mu.Lock()
 	state, err := l.snapshotLocked()
+	workerProjections := l.workerProjections
 	config := Config{
 		APIKeyPepper:                 string(l.pepper),
 		Now:                          l.now,
@@ -291,6 +292,11 @@ func (l *Ledger) cloneForIdempotencyCommand(ctx context.Context) (*Ledger, error
 	if err != nil {
 		return nil, err
 	}
+	// The command clone intentionally does not own the aggregate Store, but it
+	// must retain the read-only worker projection capability. Otherwise signed
+	// bundles and customer packages created through idempotent HTTP routes can
+	// observe the clone's stale snapshot instead of durable worker output.
+	clone.workerProjections = workerProjections
 	if err := clone.applyState(state); err != nil {
 		return nil, err
 	}

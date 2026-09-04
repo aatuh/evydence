@@ -2,9 +2,11 @@
 
 Evydence follows a ports-and-adapters shape:
 
-- `internal/domain` defines release-ledger resource types and schema version constants.
-- `internal/app` owns tenant isolation, API key authorization, evidence immutability, canonical hashes, audit-chain entries, signing, release bundles, deterministic policy and control checks, report generation, and storage ports.
-- `internal/adapters/httpapi` adapts the application service to HTTP and OpenAPI.
+- `internal/{identity,release,evidence,risk,package,verification,operations,integration,experimental}/domain` contains the context-owned core models and schema constants.
+- `internal/{identity,release,evidence}/app` owns the focused Identity, Release, and Evidence command services implemented by EVY-903.
+- `internal/domain` supplies compatibility DTOs at HTTP, persistence, and legacy-facade boundaries while callers migrate.
+- `internal/app` is the deprecated Ledger compatibility facade, the shared transaction and storage port surface, and the temporary home of contexts not yet migrated.
+- `internal/adapters/httpapi` adapts application services to HTTP and OpenAPI; migrated Identity, Release, and Evidence handlers depend on context-specific interfaces.
 - `internal/adapters/postgres` provides the durable ledger-state store, migration runner, tenant-scoped relational resource projection, and persisted outbox.
 - `internal/adapters/objectstore/filesystem` stores raw uploaded payload bytes under tenant-prefixed object keys for local and self-hosted deployments.
 - `internal/adapters/objectstore/s3` stores the same tenant-prefixed object keys in S3/MinIO-compatible buckets.
@@ -31,11 +33,18 @@ The context-owned model layer is implemented under
 Those packages contain tag-free core models, context schema constants, and the
 validated lifecycle and verification behavior moved by EVY-902. The legacy
 `internal/domain` package remains the JSON and persistence compatibility
-boundary through explicit aliases and copying mappers; application services,
-handlers, and adapters continue using it until their staged migrations in
-EVY-903 through EVY-906. `make domain-context-check` prevents model ownership,
-field compatibility, schema ownership, import, and transport-tag drift during
-that transition.
+boundary through explicit aliases and copying mappers.
+
+EVY-903 implemented transport-neutral command services under
+`internal/{identity,release,evidence}/app`. The corresponding 15 Identity, 21
+Release, and 27 Evidence HTTP operations now enter through context-specific
+handler interfaces. The deprecated Ledger facade forwards to those services and
+maps their models to compatibility DTOs while idempotency and the composition
+root still use the legacy application boundary. Decision, package, and
+verification services remain EVY-904 work; database-backed context queries and
+composition-root replacement remain EVY-905 work. `make domain-context-check`
+prevents model ownership, field compatibility, schema ownership, import, and
+transport-tag drift during the remaining transition.
 
 ## Tenant And Auth Boundaries
 
@@ -47,13 +56,13 @@ Instance diagnostics require explicit `instance:admin` scope. Tenant admin and o
 
 ## Storage And Append-Only Behavior
 
-When `EVYDENCE_DATABASE_URL` is set, mutations are saved to PostgreSQL before successful responses return. Upload payload bytes, including raw SBOM, vulnerability scan, OpenAPI, OpenVEX, CycloneDX VEX, and DSSE build-attestation payloads, are written to the configured object store with tenant-prefixed keys and SHA-256 digest checks before metadata is accepted.
+When `EVYDENCE_DATABASE_URL` is set, mutations are saved to PostgreSQL before successful responses return. When object storage is configured, upload payload bytes, including raw SBOM, vulnerability scan, OpenAPI, OpenVEX, CycloneDX VEX, and DSSE build-attestation payloads, are written with tenant-prefixed keys and SHA-256 digest checks before metadata is accepted.
 
 Managed payload identity uses the versioned `evydence-object-key.v1` layout. Canonical SHA-256 digests are lowercase `sha256:<64 hex>` values; staging and finalized payload keys are exactly `tenants/<tenant>/staging/sha256/<hex>` and `tenants/<tenant>/payloads/sha256/<hex>`. Tenant identifiers and logical object keys reject traversal, path separators inside tenant IDs, control characters, empty/dot path components, and cross-tenant ownership. Filesystem operations are rooted beneath `EVYDENCE_OBJECT_DIR` without following symlinks outside that root. S3/MinIO reads validate tenant metadata, provider byte count, media type syntax, and the SHA-256 digest against the returned bytes before content is trusted.
 
 Evidence, evidence lifecycle events, incidents, remediation tasks, security scans, manual security documents, SBOM diffs, VEX documents, vulnerability decisions/workflow records, organizations, users, role bindings, SSO providers, SSO sessions, legal holds, retention overrides, customer portal access records, questionnaire packages and drafts, evidence summaries, evidence graph snapshots, commercial and marketplace collector definitions, waivers, approvals, customer packages, report templates, evidence bundles, exceptions, build runs, build attestations, release candidates, artifact signatures, source-control records, deployment events, contract diffs, custom policy evaluations, provider verifications, signing operations, control evidence links, public transparency log entries, and release bundle records are append-only in behavior. Changes are represented by supersession, lifecycle events, approval transitions, session revocation, package access records, links, verification receipts, rollback-as-new-event records, or new audit-chain entries.
 
-Outbox jobs are persisted in PostgreSQL and claimed by workers with `FOR UPDATE SKIP LOCKED`. Parser jobs re-read tenant-prefixed object-store payloads, verify size and digest, validate durable state, persist missing parser-derived normalized fields, and fail closed on mismatches. With `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`, parser-backed uploads store accepted records and workers populate normalized document fields from replayed payloads. VEX-derived vulnerability decisions are created idempotently by the `parse_vex` worker in that mode.
+Outbox jobs are persisted in PostgreSQL and claimed by workers with `FOR UPDATE SKIP LOCKED`. Parser jobs re-read tenant-prefixed object-store payloads, verify size and digest, validate durable state, persist missing parser-derived normalized fields, and fail closed on mismatches. With `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`, non-VEX parser-backed uploads store accepted records and workers populate normalized document fields from replayed payloads. VEX uploads always store their verified normalized document, an accepted import report, and a bounded versioned decision request in the upload transaction. The `parse_vex` worker creates vulnerability decisions idempotently after commit and completes the report; it verifies the request against replayed raw bytes when available and otherwise consumes the normalized request directly. A tenant-scoped PostgreSQL projection repository refreshes worker-owned records for the compatibility read model. It is bound to the active command transaction when one exists, and a per-tenant shared/exclusive advisory fence keeps projection reads, worker mutations, and audit appends from interleaving inconsistently. The exact behavior and compatibility limit are documented in the [worker outbox contract](reference/worker-outbox.md).
 
 ## Verification And Trust
 

@@ -19,6 +19,14 @@ a compliance or release-security determination.
 Parser acceptance alone is not standards support. EVY-502 through EVY-506 own
 the broader conformance, fixture-corpus, replay, and parser-version work.
 
+Accepted evidence records created by the current service use
+`evidence-canonicalization-profile.v2.0.0`. Creation-time scope is retained in
+hash-bound subject references, while later links and supersession projections
+are append-only lifecycle/audit facts outside that immutable hash. Legacy
+`canonicalization-profile.v1.0.0` records retain their original hash during
+new link or supersession operations; an atomic lifecycle origin snapshot lets
+the legacy verifier reconstruct the originally hashed projection.
+
 ## Current matrix
 
 | Input | Stability | Tested contract | Retained parser identity | Public HTTP form / effective limit |
@@ -140,10 +148,24 @@ Duplicate candidates for an identifier, a candidate with no identifier, or any
 other multi-candidate case produces `ambiguous_finding` in the import report or
 preview and creates no decision. This policy also applies during worker replay.
 
-Evidence: `internal/app/vex.go`, `ParserVersionOpenVEXJSON`,
-`TestOpenVEXIngestionCreatesDecisionAndRejectsMalformedInput`,
-`TestOpenVEXImportReportTracksSupersessionAndMappingFailures`, and
-`TestVEXImportPreviewIsAdvisoryAndDoesNotMutateLedger`.
+The mutating upload command belongs to the evidence context. It authorizes the
+tenant-scoped release and optional artifact before opening or staging bytes,
+independently verifies the declared size and SHA-256 while parsing, and writes
+the staged-payload metadata, backing evidence, normalized VEX document, initial
+import report, audit entries, finalization job, and `parse_vex` job in one
+transaction. It does not access the decision repository. Every upload starts
+with an `accepted` report and is mapped after commit by the worker from the
+bounded `vex-decision-request.v1.0.0` request stored in that transaction. When
+raw object storage is available, the worker also reparses the payload and
+requires it to match the normalized request; without it, decision processing
+continues from the normalized request without independent raw replay.
+
+Evidence: `internal/evidence/app/vex_commands.go`,
+`internal/app/evidence_parser_adapter.go`,
+`internal/app/evidence_context_adapter.go`, `cmd/evydence-worker/main.go`,
+`TestUploadVEXPayloadPersistsInitialRecordsAndReplayJobAtomically`,
+`TestReleaseEvidenceVEXAtomicallyStagesPayloadAndQueuesReplayDecisions`, and
+worker VEX replay tests.
 
 ### CycloneDX VEX JSON
 
@@ -157,12 +179,17 @@ state/justification/detail/response. It maps `resolved` and
 and extensions remain in raw evidence and are reported as warnings. Missing IDs
 or unsupported states become import-report issues and are skipped; all-invalid
 input fails. The same explicit ambiguity policy above prevents a VEX statement
-from silently changing more than one plausible finding.
+from silently changing more than one plausible finding. Original statement
+indexes are retained in invalid-statement and worker mapping issues. As with
+OpenVEX, the upload itself writes no decisions; all valid normalized statements
+are mapped post-commit by `parse_vex`, with raw replay verification when the
+payload object is available.
 
-Evidence: `internal/app/risk_workflows.go`,
-`ParserVersionCycloneDXVEXJSON`,
-`TestCycloneDXVEXVulnerabilityWorkflowContractDiffAndPolicyV2`, and
-`TestCycloneDXVEXImportReportTracksIssuesDuplicatesAndOutbox`.
+Evidence: `internal/evidence/app/vex_commands.go`,
+`internal/app/evidence_parser_adapter.go`, `ParserVersionCycloneDXVEXJSON`,
+`TestEvidenceVEXParserRetainsCycloneDXInvalidStatementIndexes`,
+`TestUploadCycloneDXVEXRollsBackEvidenceDocumentReportAuditsAndJobsTogether`,
+and worker CycloneDX VEX replay tests.
 
 ### DSSE and in-toto JSON
 

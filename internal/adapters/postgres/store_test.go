@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	fsobject "github.com/aatuh/evydence/internal/adapters/objectstore/filesystem"
+	postgresrepositories "github.com/aatuh/evydence/internal/adapters/postgres/repositories"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 )
@@ -1292,12 +1293,12 @@ func TestApplyReleaseLedgerMutationWithPostgres(t *testing.T) {
 		}},
 		SBOMs: []domain.SBOM{{
 			ID: "sbom_focus", TenantID: "ten_release_focus", EvidenceID: "ev_focus", ReleaseID: "rel_focus", ArtifactID: "art_focus",
-			Format: "cyclonedx", SpecVersion: "1.5", ComponentCount: 1,
+			Format: "cyclonedx", ComponentCount: 1,
 			Components: []domain.SBOMComponent{{Name: "lib", Version: "1.0.0"}}, CreatedAt: now,
 		}},
 		Scans: []domain.VulnerabilityScan{{
 			ID: "scan_focus", TenantID: "ten_release_focus", EvidenceID: "ev_focus", ReleaseID: "rel_focus",
-			Scanner: "generic", TargetRef: "api", Summary: map[string]int{"critical": 1},
+			Summary:   map[string]int{"critical": 1},
 			Findings:  []domain.VulnerabilityFinding{{ID: "finding_focus", Vulnerability: "CVE-2099-0001", Component: "lib", Severity: "critical", State: "open"}},
 			CreatedAt: now,
 		}},
@@ -1340,6 +1341,39 @@ func TestApplyReleaseLedgerMutationWithPostgres(t *testing.T) {
 	if err := store.ApplyReleaseLedgerMutation(ctx, mutation); err != nil {
 		t.Fatalf("retry release ledger mutation: %v", err)
 	}
+	build := domain.BuildRun{
+		ID: "build_parser_focus", TenantID: "ten_release_focus", ProjectID: "proj_focus", ReleaseID: "rel_focus",
+		Provider: "local", CommitSHA: strings.Repeat("1", 40), Status: "passed", StartedAt: now,
+		Outputs: []domain.BuildOutput{{ArtifactID: "art_focus", Digest: hash}}, SchemaVersion: domain.BuildRunSchemaVersion, CreatedAt: now,
+	}
+	buildWrite, err := store.BeginUnitOfWork(ctx)
+	if err != nil {
+		t.Fatalf("begin parser build seed: %v", err)
+	}
+	if err := buildWrite.Repositories().Builds.InsertBuildRun(ctx, build); err != nil {
+		_ = buildWrite.Rollback(ctx)
+		t.Fatalf("seed parser build: %v", err)
+	}
+	if err := buildWrite.Commit(ctx); err != nil {
+		t.Fatalf("commit parser build: %v", err)
+	}
+	attestationEvidence := mutation.Evidence[0]
+	attestationEvidence.ID = "ev_attestation_focus"
+	attestationEvidence.BuildID = build.ID
+	attestationEvidence.Type = "build_attestation"
+	attestationEvidence.Subtype = "dsse"
+	attestationEvidence.Title = "Build attestation"
+	if err := store.ApplyReleaseLedgerMutation(ctx, app.ReleaseLedgerMutation{Evidence: []domain.EvidenceItem{attestationEvidence}}); err != nil {
+		t.Fatalf("seed attestation evidence: %v", err)
+	}
+	initialAttestation := domain.BuildAttestation{
+		ID: "att_parser_focus", TenantID: "ten_release_focus", BuildID: build.ID, EvidenceID: attestationEvidence.ID,
+		PayloadHash: hash, PayloadSize: 100, VerificationStatus: "pending",
+		SchemaVersion: domain.BuildAttestationSchemaVersion, CreatedAt: now,
+	}
+	if err := store.ApplyReleaseLedgerMutation(ctx, app.ReleaseLedgerMutation{BuildAttestations: []domain.BuildAttestation{initialAttestation}}); err != nil {
+		t.Fatalf("seed parser-owned attestation projection: %v", err)
+	}
 
 	var snapshotRows int
 	if err := store.pool.QueryRow(ctx, `SELECT count(*) FROM ledger_state`).Scan(&snapshotRows); err != nil {
@@ -1360,6 +1394,7 @@ func TestApplyReleaseLedgerMutationWithPostgres(t *testing.T) {
 		{name: "lifecycle", query: `SELECT count(*) FROM evidence_lifecycle_events WHERE id = 'elc_focus' AND action = 'amendment'`},
 		{name: "sbom", query: `SELECT count(*) FROM sboms WHERE id = 'sbom_focus' AND component_count = 1`},
 		{name: "scan", query: `SELECT count(*) FROM vulnerability_scans WHERE id = 'scan_focus' AND release_id = 'rel_focus'`},
+		{name: "parser attestation", query: `SELECT count(*) FROM build_attestations WHERE id = 'att_parser_focus' AND payload_type = ''`},
 		{name: "contract", query: `SELECT count(*) FROM openapi_contracts WHERE id = 'oas_focus' AND path_count = 1`},
 		{name: "vex", query: `SELECT count(*) FROM vex_documents WHERE id = 'vex_focus' AND statement_count = 1`},
 		{name: "vex report", query: `SELECT count(*) FROM vex_import_reports WHERE id = 'vex_report_focus' AND decisions_created = 1`},
@@ -1394,8 +1429,65 @@ func TestApplyReleaseLedgerMutationWithPostgres(t *testing.T) {
 	if loaded.SBOMs["sbom_focus"].ComponentCount != 1 || loaded.Scans["scan_focus"].ReleaseID != "rel_focus" || loaded.Contracts["oas_focus"].PathCount != 1 || loaded.VEXDocuments["vex_focus"].StatementCount != 1 || loaded.VEXImportReports["vex_report_focus"].DecisionsCreated != 1 {
 		t.Fatalf("loaded parser metadata missing: sbom=%#v scan=%#v contract=%#v vex=%#v report=%#v", loaded.SBOMs["sbom_focus"], loaded.Scans["scan_focus"], loaded.Contracts["oas_focus"], loaded.VEXDocuments["vex_focus"], loaded.VEXImportReports["vex_report_focus"])
 	}
+	if loaded.SBOMs["sbom_focus"].SpecVersion != "" || loaded.Scans["scan_focus"].Scanner != "" || loaded.Scans["scan_focus"].TargetRef != "" || loaded.BuildAttestations[initialAttestation.ID].PayloadType != "" {
+		t.Fatalf("initial parser projections were not blank: sbom=%#v scan=%#v attestation=%#v", loaded.SBOMs["sbom_focus"], loaded.Scans["scan_focus"], loaded.BuildAttestations[initialAttestation.ID])
+	}
 	if loaded.Decisions["decision_release_focus"].Status != "not_affected" || len(loaded.Chain["ten_release_focus"]) != 1 {
 		t.Fatalf("loaded decision/chain missing: decision=%#v chain=%#v", loaded.Decisions["decision_release_focus"], loaded.Chain["ten_release_focus"])
+	}
+
+	// Model a worker that loaded its projections before a concurrent API link
+	// update. Its focused mutation must update every parser-owned field without
+	// replacing the newer evidence links.
+	linkTx, err := store.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		t.Fatalf("begin concurrent evidence link transaction: %v", err)
+	}
+	linkRepository := postgresrepositories.New(linkTx).Evidence
+	concurrentEvidence, err := linkRepository.GetEvidence(ctx, "ten_release_focus", "ev_focus")
+	if err != nil {
+		_ = linkTx.Rollback(context.Background())
+		t.Fatalf("load concurrent evidence link state: %v", err)
+	}
+	linkedEvidence := concurrentEvidence
+	linkedEvidence.RelatedEvidenceRefs = []domain.EvidenceRef{{Type: "release", ID: "rel_focus", Relationship: "linked_to"}}
+	if err := linkRepository.CompareAndSwapEvidenceLinks(ctx, concurrentEvidence, linkedEvidence); err != nil {
+		_ = linkTx.Rollback(context.Background())
+		t.Fatalf("persist concurrent evidence link: %v", err)
+	}
+	if err := linkTx.Commit(ctx); err != nil {
+		t.Fatalf("commit concurrent evidence link: %v", err)
+	}
+	workerSBOM := mutation.SBOMs[0]
+	workerSBOM.SpecVersion = "1.6"
+	workerSBOM.ComponentCount = 2
+	workerSBOM.Components = append(workerSBOM.Components, domain.SBOMComponent{Name: "worker-normalized", Version: "2.0.0"})
+	workerScan := mutation.Scans[0]
+	workerScan.Scanner = "grype"
+	workerScan.TargetRef = "api.tar.gz"
+	workerAttestation := initialAttestation
+	workerAttestation.PayloadType = "application/vnd.dsse.envelope.v1+json"
+	if err := store.ApplyReleaseLedgerMutation(ctx, app.ReleaseLedgerMutation{
+		SBOMs: []domain.SBOM{workerSBOM}, Scans: []domain.VulnerabilityScan{workerScan},
+		BuildAttestations: []domain.BuildAttestation{workerAttestation},
+	}); err != nil {
+		t.Fatalf("persist focused worker projections: %v", err)
+	}
+	loaded, ok, err = store.LoadState(ctx)
+	if err != nil || !ok {
+		t.Fatalf("reload focused worker mutation ok=%v err=%v", ok, err)
+	}
+	if got := loaded.Evidence["ev_focus"].RelatedEvidenceRefs; len(got) != 1 || got[0].ID != "rel_focus" {
+		t.Fatalf("focused worker mutation replaced concurrent evidence links: %#v", got)
+	}
+	if loaded.SBOMs[workerSBOM.ID].SpecVersion != workerSBOM.SpecVersion || loaded.SBOMs[workerSBOM.ID].ComponentCount != 2 {
+		t.Fatalf("focused worker SBOM fields were not persisted: %#v", loaded.SBOMs[workerSBOM.ID])
+	}
+	if loaded.Scans[workerScan.ID].Scanner != workerScan.Scanner || loaded.Scans[workerScan.ID].TargetRef != workerScan.TargetRef {
+		t.Fatalf("focused worker scan fields were not persisted: %#v", loaded.Scans[workerScan.ID])
+	}
+	if loaded.BuildAttestations[workerAttestation.ID].PayloadType != workerAttestation.PayloadType {
+		t.Fatalf("focused worker attestation payload type was not persisted: %#v", loaded.BuildAttestations[workerAttestation.ID])
 	}
 }
 

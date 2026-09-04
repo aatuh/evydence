@@ -30,13 +30,18 @@ type requestContext = context.Context
 const requestIDHeader = "X-Request-ID"
 
 type Server struct {
-	ledger   *app.Ledger
-	mux      *http.ServeMux
-	specs    *specs.Registry
-	routes   *routecontracts.Registry
-	ingress  *ingressControl
-	identity runtimeinfo.Identity
-	cursors  appquery.CursorCodec
+	ledger            *app.Ledger
+	authn             authenticator
+	idempotency       idempotencyExecutor
+	identityAccess    identityAccessService
+	releaseCatalog    releaseCatalogService
+	evidenceIngestion evidenceIngestionService
+	mux               *http.ServeMux
+	specs             *specs.Registry
+	routes            *routecontracts.Registry
+	ingress           *ingressControl
+	identity          runtimeinfo.Identity
+	cursors           appquery.CursorCodec
 }
 
 type ServerOptions struct {
@@ -101,11 +106,25 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{ledger: ledger, mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors}
+	server.bindLedger(ledger)
 	if err := server.registerRoutes(); err != nil {
 		return nil, err
 	}
 	return server, nil
+}
+
+// bindLedger updates both the shrinking compatibility facade and every
+// context-specific transport dependency. Idempotent commands must bind the
+// isolated command ledger so domain changes and the replay record share the
+// same transaction and are published only after commit.
+func (s *Server) bindLedger(ledger *app.Ledger) {
+	s.ledger = ledger
+	s.authn = ledger
+	s.idempotency = ledgerIdempotencyExecutor{ledger: ledger}
+	s.identityAccess = ledger
+	s.releaseCatalog = ledger
+	s.evidenceIngestion = ledger
 }
 
 func (s *Server) Handler() http.Handler {
@@ -341,7 +360,7 @@ func (s *Server) createProduct(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		product, err := s.ledger.CreateProduct(ctx, actor, req.Name, req.Slug)
+		product, err := s.releaseCatalog.CreateProduct(ctx, actor, req.Name, req.Slug)
 		return http.StatusCreated, product, err
 	})
 }
@@ -351,7 +370,7 @@ func (s *Server) listProducts(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	products, err := s.ledger.ListProducts(r.Context(), actor)
+	products, err := s.releaseCatalog.ListProducts(r.Context(), actor)
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -366,7 +385,7 @@ func (s *Server) getProduct(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	product, err := s.ledger.GetProduct(r.Context(), actor, r.PathValue("id"))
+	product, err := s.releaseCatalog.GetProduct(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -383,7 +402,7 @@ func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		project, err := s.ledger.CreateProject(ctx, actor, req.ProductID, req.Name)
+		project, err := s.releaseCatalog.CreateProject(ctx, actor, req.ProductID, req.Name)
 		return http.StatusCreated, project, err
 	})
 }
@@ -393,7 +412,7 @@ func (s *Server) getProject(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	project, err := s.ledger.GetProject(r.Context(), actor, r.PathValue("id"))
+	project, err := s.releaseCatalog.GetProject(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -410,7 +429,7 @@ func (s *Server) createRelease(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		release, err := s.ledger.CreateRelease(ctx, actor, req.ProductID, req.Version)
+		release, err := s.releaseCatalog.CreateRelease(ctx, actor, req.ProductID, req.Version)
 		return http.StatusCreated, release, err
 	})
 }
@@ -420,7 +439,7 @@ func (s *Server) getRelease(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	release, err := s.ledger.GetRelease(r.Context(), actor, r.PathValue("id"))
+	release, err := s.releaseCatalog.GetRelease(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -433,7 +452,7 @@ func (s *Server) startReleaseEvidenceFlow(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	flow, err := s.ledger.ReleaseEvidenceFlowPlan(r.Context(), actor, r.PathValue("id"))
+	flow, err := s.releaseCatalog.ReleaseEvidenceFlowPlan(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -460,7 +479,7 @@ func (s *Server) freezeRelease(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return 0, nil, err
 		}
-		release, err := s.ledger.FreezeRelease(ctx, actor, r.PathValue("id"), expectedRevision)
+		release, err := s.releaseCatalog.FreezeRelease(ctx, actor, r.PathValue("id"), expectedRevision)
 		return http.StatusOK, release, err
 	})
 }
@@ -471,7 +490,7 @@ func (s *Server) approveRelease(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return 0, nil, err
 		}
-		release, err := s.ledger.ApproveRelease(ctx, actor, r.PathValue("id"), expectedRevision)
+		release, err := s.releaseCatalog.ApproveRelease(ctx, actor, r.PathValue("id"), expectedRevision)
 		return http.StatusOK, release, err
 	})
 }
@@ -492,7 +511,7 @@ func (s *Server) createReleaseCandidate(w http.ResponseWriter, r *http.Request) 
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		candidate, err := s.ledger.CreateReleaseCandidate(ctx, actor, app.CreateReleaseCandidateInput{
+		candidate, err := s.releaseCatalog.CreateReleaseCandidate(ctx, actor, app.CreateReleaseCandidateInput{
 			ReleaseID: req.ReleaseID, Name: req.Name, BuildIDs: req.BuildIDs, ArtifactIDs: req.ArtifactIDs,
 			SBOMIDs: req.SBOMIDs, ScanIDs: req.ScanIDs, VEXIDs: req.VEXIDs, ContractIDs: req.ContractIDs, BundleIDs: req.BundleIDs,
 		})
@@ -505,7 +524,7 @@ func (s *Server) listReleaseCandidates(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	candidates, err := s.ledger.ListReleaseCandidates(r.Context(), actor, r.URL.Query().Get("release_id"))
+	candidates, err := s.releaseCatalog.ListReleaseCandidates(r.Context(), actor, r.URL.Query().Get("release_id"))
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -520,7 +539,7 @@ func (s *Server) getReleaseCandidate(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	candidate, err := s.ledger.GetReleaseCandidate(r.Context(), actor, r.PathValue("id"))
+	candidate, err := s.releaseCatalog.GetReleaseCandidate(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -548,7 +567,7 @@ func (s *Server) transitionReleaseCandidate(w http.ResponseWriter, r *http.Reque
 		if err != nil {
 			return 0, nil, err
 		}
-		candidate, err := s.ledger.UpdateReleaseCandidateState(ctx, actor, r.PathValue("id"), state, req.Reason, expectedRevision)
+		candidate, err := s.releaseCatalog.UpdateReleaseCandidateState(ctx, actor, r.PathValue("id"), state, req.Reason, expectedRevision)
 		return http.StatusOK, candidate, err
 	})
 }
@@ -564,7 +583,7 @@ func (s *Server) registerArtifact(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		artifact, err := s.ledger.RegisterArtifact(ctx, actor, req.Name, req.MediaType, req.Digest, req.Size)
+		artifact, err := s.releaseCatalog.RegisterArtifact(ctx, actor, req.Name, req.MediaType, req.Digest, req.Size)
 		return http.StatusCreated, artifact, err
 	})
 }
@@ -574,7 +593,7 @@ func (s *Server) getArtifact(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	artifact, err := s.ledger.GetArtifact(r.Context(), actor, r.PathValue("id"))
+	artifact, err := s.releaseCatalog.GetArtifact(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -594,7 +613,7 @@ func (s *Server) registerContainerImage(w http.ResponseWriter, r *http.Request) 
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		image, err := s.ledger.RegisterContainerImage(ctx, actor, app.RegisterContainerImageInput{
+		image, err := s.releaseCatalog.RegisterContainerImage(ctx, actor, app.RegisterContainerImageInput{
 			ArtifactID: req.ArtifactID, Repository: req.Repository, Tag: req.Tag, Digest: req.Digest, Platform: req.Platform,
 		})
 		return http.StatusCreated, image, err
@@ -683,7 +702,7 @@ func (s *Server) createBuild(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		build, err := s.ledger.CreateBuildRun(ctx, actor, app.CreateBuildRunInput{
+		build, err := s.releaseCatalog.CreateBuildRun(ctx, actor, app.CreateBuildRunInput{
 			ProjectID:        req.ProjectID,
 			ReleaseID:        req.ReleaseID,
 			Provider:         req.Provider,
@@ -713,7 +732,7 @@ func (s *Server) getBuild(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	build, err := s.ledger.GetBuildRun(r.Context(), actor, r.PathValue("id"))
+	build, err := s.releaseCatalog.GetBuildRun(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -723,7 +742,7 @@ func (s *Server) getBuild(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) uploadBuildAttestation(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		attestation, err := s.ledger.UploadBuildAttestation(ctx, actor, r.PathValue("id"), body)
+		attestation, err := s.releaseCatalog.UploadBuildAttestation(ctx, actor, r.PathValue("id"), body)
 		return http.StatusCreated, attestation, err
 	})
 }
@@ -1063,7 +1082,7 @@ func (s *Server) uploadSecurityScan(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		scan, err := s.ledger.UploadSecurityScan(ctx, actor, app.UploadSecurityScanInput{ProductID: req.ProductID, ReleaseID: req.ReleaseID, ArtifactID: req.ArtifactID, Category: req.Category, Format: req.Format, Scanner: req.Scanner, TargetRef: req.TargetRef, Raw: req.Payload})
+		scan, err := s.evidenceIngestion.UploadSecurityScan(ctx, actor, app.UploadSecurityScanInput{ProductID: req.ProductID, ReleaseID: req.ReleaseID, ArtifactID: req.ArtifactID, Category: req.Category, Format: req.Format, Scanner: req.Scanner, TargetRef: req.TargetRef, Raw: req.Payload})
 		return http.StatusCreated, scan, err
 	})
 }
@@ -1082,7 +1101,7 @@ func (s *Server) uploadAPISecurityScan(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		scan, err := s.ledger.UploadAPISecurityScan(ctx, actor, app.UploadSecurityScanInput{ProductID: req.ProductID, ReleaseID: req.ReleaseID, ArtifactID: req.ArtifactID, Format: req.Format, Scanner: req.Scanner, TargetRef: req.TargetRef, Raw: req.Payload})
+		scan, err := s.evidenceIngestion.UploadAPISecurityScan(ctx, actor, app.UploadSecurityScanInput{ProductID: req.ProductID, ReleaseID: req.ReleaseID, ArtifactID: req.ArtifactID, Format: req.Format, Scanner: req.Scanner, TargetRef: req.TargetRef, Raw: req.Payload})
 		return http.StatusCreated, scan, err
 	})
 }
@@ -1101,7 +1120,7 @@ func (s *Server) uploadManualSecurityDocument(w http.ResponseWriter, r *http.Req
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		doc, err := s.ledger.UploadManualSecurityDocument(ctx, actor, app.UploadManualSecurityDocumentInput{ProductID: req.ProductID, ReleaseID: req.ReleaseID, DocumentType: req.DocumentType, Title: req.Title, Sensitivity: req.Sensitivity, Raw: req.Payload, MediaType: req.MediaType})
+		doc, err := s.evidenceIngestion.UploadManualSecurityDocument(ctx, actor, app.UploadManualSecurityDocumentInput{ProductID: req.ProductID, ReleaseID: req.ReleaseID, DocumentType: req.DocumentType, Title: req.Title, Sensitivity: req.Sensitivity, Raw: req.Payload, MediaType: req.MediaType})
 		return http.StatusCreated, doc, err
 	})
 }
@@ -1305,8 +1324,10 @@ func (s *Server) uploadSPDXSBOM(w http.ResponseWriter, r *http.Request) {
 			writeProblem(w, r, app.ErrValidation)
 			return
 		}
-		s.createStreamedEvidence(w, r, app.EvidenceDocumentLimit, func(s *Server, ctx requestContext, actor domain.Actor, source app.PayloadSource) (int, any, error) {
-			sbom, err := s.ledger.UploadSPDXSBOMPayload(ctx, actor, releaseID, artifactID, source)
+		s.createStreamedEvidence(r.Context(), w, r, app.EvidenceDocumentLimit, map[string]string{
+			"artifact_id": artifactID, "media_type": requestMediaType(r), "release_id": releaseID,
+		}, func(s *Server, ctx requestContext, actor domain.Actor, source app.PayloadSource) (int, any, error) {
+			sbom, err := s.evidenceIngestion.UploadSPDXSBOMPayload(ctx, actor, releaseID, artifactID, source)
 			return http.StatusCreated, sbom, err
 		})
 		return
@@ -1320,7 +1341,7 @@ func (s *Server) uploadSPDXSBOM(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		sbom, err := s.ledger.UploadSPDXSBOM(ctx, actor, req.ReleaseID, req.ArtifactID, req.Payload)
+		sbom, err := s.evidenceIngestion.UploadSPDXSBOM(ctx, actor, req.ReleaseID, req.ArtifactID, req.Payload)
 		return http.StatusCreated, sbom, err
 	})
 }
@@ -1335,7 +1356,7 @@ func (s *Server) createSBOMDiff(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		diff, err := s.ledger.CreateSBOMDiff(ctx, actor, app.CreateSBOMDiffInput{BaseSBOMID: req.BaseSBOMID, TargetSBOMID: req.TargetSBOMID, ReleaseID: req.ReleaseID})
+		diff, err := s.evidenceIngestion.CreateSBOMDiff(ctx, actor, app.CreateSBOMDiffInput{BaseSBOMID: req.BaseSBOMID, TargetSBOMID: req.TargetSBOMID, ReleaseID: req.ReleaseID})
 		return http.StatusCreated, diff, err
 	})
 }
@@ -1345,6 +1366,8 @@ func (s *Server) createEvidence(w http.ResponseWriter, r *http.Request) {
 		ProductID        string              `json:"product_id"`
 		ProjectID        string              `json:"project_id"`
 		ReleaseID        string              `json:"release_id"`
+		BuildID          string              `json:"build_id"`
+		DeploymentID     string              `json:"deployment_id"`
 		Type             string              `json:"type"`
 		Subtype          string              `json:"subtype"`
 		Title            string              `json:"title"`
@@ -1365,8 +1388,9 @@ func (s *Server) createEvidence(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		item, err := s.ledger.CreateEvidence(ctx, actor, app.CreateEvidenceInput{
-			ProductID: req.ProductID, ProjectID: req.ProjectID, ReleaseID: req.ReleaseID, Type: req.Type, Subtype: req.Subtype, Title: req.Title,
+		item, err := s.evidenceIngestion.CreateEvidence(ctx, actor, app.CreateEvidenceInput{
+			ProductID: req.ProductID, ProjectID: req.ProjectID, ReleaseID: req.ReleaseID, BuildID: req.BuildID, DeploymentID: req.DeploymentID,
+			Type: req.Type, Subtype: req.Subtype, Title: req.Title,
 			SourceSystem: req.SourceSystem, SourceIdentity: req.SourceIdentity, CollectorID: req.CollectorID, ObservedAt: req.ObservedAt,
 			PayloadRef: req.PayloadRef, PayloadHash: req.PayloadHash, PayloadMediaType: req.PayloadMediaType, PayloadSize: req.PayloadSize,
 			SubjectRefs: req.SubjectRefs, Metadata: req.Metadata, Tags: req.Tags, Limitations: req.Limitations,
@@ -1386,7 +1410,7 @@ func (s *Server) listEvidence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	query := r.URL.Query()
-	page, err := s.ledger.ListEvidencePage(r.Context(), actor, app.EvidencePageRequest{
+	page, err := s.evidenceIngestion.ListEvidencePage(r.Context(), actor, app.EvidencePageRequest{
 		ReleaseID: query.Get("release_id"),
 		Type:      query.Get("type"),
 		Page: appquery.PageRequest{
@@ -1432,7 +1456,7 @@ func (s *Server) searchEvidence(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, err)
 		return
 	}
-	page, err := s.ledger.SearchEvidencePage(r.Context(), actor, app.EvidenceSearchPageRequest{
+	page, err := s.evidenceIngestion.SearchEvidencePage(r.Context(), actor, app.EvidenceSearchPageRequest{
 		Filter: app.EvidenceSearchInput{
 			ProductID:          query.Get("product_id"),
 			ProjectID:          query.Get("project_id"),
@@ -1469,7 +1493,7 @@ func (s *Server) getEvidence(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	item, err := s.ledger.GetEvidence(r.Context(), actor, r.PathValue("id"))
+	item, err := s.evidenceIngestion.GetEvidence(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -1486,7 +1510,7 @@ func (s *Server) supersedeEvidence(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		item, err := s.ledger.SupersedeEvidence(ctx, actor, r.PathValue("id"), req.ReplacementEvidenceID, req.Reason)
+		item, err := s.evidenceIngestion.SupersedeEvidence(ctx, actor, r.PathValue("id"), req.ReplacementEvidenceID, req.Reason)
 		return http.StatusCreated, item, err
 	})
 }
@@ -1500,7 +1524,7 @@ func (s *Server) linkEvidence(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		item, err := s.ledger.LinkEvidence(ctx, actor, r.PathValue("id"), req.TargetType, req.TargetID)
+		item, err := s.evidenceIngestion.LinkEvidence(ctx, actor, r.PathValue("id"), req.TargetType, req.TargetID)
 		return http.StatusCreated, item, err
 	})
 }
@@ -1516,7 +1540,7 @@ func (s *Server) recordEvidenceLifecycleEvent(w http.ResponseWriter, r *http.Req
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		event, err := s.ledger.RecordEvidenceLifecycleEvent(ctx, actor, r.PathValue("id"), app.RecordEvidenceLifecycleInput{
+		event, err := s.evidenceIngestion.RecordEvidenceLifecycleEvent(ctx, actor, r.PathValue("id"), app.RecordEvidenceLifecycleInput{
 			Action: req.Action, Reason: req.Reason, Details: req.Details, ReplacementID: req.ReplacementID,
 		})
 		return http.StatusCreated, event, err
@@ -1528,7 +1552,7 @@ func (s *Server) listEvidenceLifecycleEvents(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return
 	}
-	events, err := s.ledger.ListEvidenceLifecycleEvents(r.Context(), actor, r.PathValue("id"))
+	events, err := s.evidenceIngestion.ListEvidenceLifecycleEvents(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -1550,8 +1574,10 @@ func (s *Server) uploadSBOM(w http.ResponseWriter, r *http.Request) {
 			writeProblem(w, r, app.ErrValidation)
 			return
 		}
-		s.createStreamedEvidence(w, r, app.EvidenceDocumentLimit, func(s *Server, ctx requestContext, actor domain.Actor, source app.PayloadSource) (int, any, error) {
-			sbom, err := s.ledger.UploadSBOMPayload(ctx, actor, releaseID, artifactID, source)
+		s.createStreamedEvidence(r.Context(), w, r, app.EvidenceDocumentLimit, map[string]string{
+			"artifact_id": artifactID, "media_type": requestMediaType(r), "release_id": releaseID,
+		}, func(s *Server, ctx requestContext, actor domain.Actor, source app.PayloadSource) (int, any, error) {
+			sbom, err := s.evidenceIngestion.UploadSBOMPayload(ctx, actor, releaseID, artifactID, source)
 			return http.StatusCreated, sbom, err
 		})
 		return
@@ -1565,7 +1591,7 @@ func (s *Server) uploadSBOM(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		sbom, err := s.ledger.UploadSBOM(ctx, actor, req.ReleaseID, req.ArtifactID, req.Payload)
+		sbom, err := s.evidenceIngestion.UploadSBOM(ctx, actor, req.ReleaseID, req.ArtifactID, req.Payload)
 		return http.StatusCreated, sbom, err
 	})
 }
@@ -1575,7 +1601,7 @@ func (s *Server) getSBOM(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	sbom, err := s.ledger.GetSBOM(r.Context(), actor, r.PathValue("id"))
+	sbom, err := s.evidenceIngestion.GetSBOM(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -1589,7 +1615,7 @@ func (s *Server) listSBOMComponents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	query := r.URL.Query()
-	components, err := s.ledger.ListSBOMComponents(r.Context(), actor, app.ListSBOMComponentsInput{
+	components, err := s.evidenceIngestion.ListSBOMComponents(r.Context(), actor, app.ListSBOMComponentsInput{
 		SBOMID:     query.Get("sbom_id"),
 		ReleaseID:  query.Get("release_id"),
 		ArtifactID: query.Get("artifact_id"),
@@ -1618,8 +1644,10 @@ func (s *Server) uploadVEX(w http.ResponseWriter, r *http.Request) {
 			writeProblem(w, r, app.ErrValidation)
 			return
 		}
-		s.createStreamedEvidence(w, r, app.EvidenceDocumentLimit, func(s *Server, ctx requestContext, actor domain.Actor, source app.PayloadSource) (int, any, error) {
-			vex, err := s.ledger.UploadVEXPayload(ctx, actor, releaseID, artifactID, source)
+		s.createStreamedEvidence(r.Context(), w, r, app.EvidenceDocumentLimit, map[string]string{
+			"artifact_id": artifactID, "media_type": requestMediaType(r), "release_id": releaseID,
+		}, func(s *Server, ctx requestContext, actor domain.Actor, source app.PayloadSource) (int, any, error) {
+			vex, err := s.evidenceIngestion.UploadVEXPayload(ctx, actor, releaseID, artifactID, source)
 			return http.StatusCreated, vex, err
 		})
 		return
@@ -1633,7 +1661,7 @@ func (s *Server) uploadVEX(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		vex, err := s.ledger.UploadVEX(ctx, actor, req.ReleaseID, req.ArtifactID, req.Payload)
+		vex, err := s.evidenceIngestion.UploadVEX(ctx, actor, req.ReleaseID, req.ArtifactID, req.Payload)
 		return http.StatusCreated, vex, err
 	})
 }
@@ -1657,7 +1685,7 @@ func (s *Server) previewVEXImport(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, err)
 		return
 	}
-	preview, err := s.ledger.PreviewVEXImport(r.Context(), actor, req.ReleaseID, req.ArtifactID, req.Payload)
+	preview, err := s.evidenceIngestion.PreviewVEXImport(r.Context(), actor, req.ReleaseID, req.ArtifactID, req.Payload)
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -1670,7 +1698,7 @@ func (s *Server) getVEX(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	vex, err := s.ledger.GetVEXDocument(r.Context(), actor, r.PathValue("id"))
+	vex, err := s.evidenceIngestion.GetVEXDocument(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -1683,7 +1711,7 @@ func (s *Server) getVEXImportReport(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	report, err := s.ledger.GetVEXImportReport(r.Context(), actor, r.PathValue("id"))
+	report, err := s.evidenceIngestion.GetVEXImportReport(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -1701,7 +1729,7 @@ func (s *Server) uploadCycloneDXVEX(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		vex, err := s.ledger.UploadCycloneDXVEX(ctx, actor, req.ReleaseID, req.ArtifactID, req.Payload)
+		vex, err := s.evidenceIngestion.UploadCycloneDXVEX(ctx, actor, req.ReleaseID, req.ArtifactID, req.Payload)
 		return http.StatusCreated, vex, err
 	})
 }
@@ -1725,7 +1753,7 @@ func (s *Server) previewCycloneDXVEXImport(w http.ResponseWriter, r *http.Reques
 		writeProblem(w, r, err)
 		return
 	}
-	preview, err := s.ledger.PreviewCycloneDXVEXImport(r.Context(), actor, req.ReleaseID, req.ArtifactID, req.Payload)
+	preview, err := s.evidenceIngestion.PreviewCycloneDXVEXImport(r.Context(), actor, req.ReleaseID, req.ArtifactID, req.Payload)
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -1734,8 +1762,8 @@ func (s *Server) previewCycloneDXVEXImport(w http.ResponseWriter, r *http.Reques
 }
 
 func (s *Server) uploadVulnerabilityScan(w http.ResponseWriter, r *http.Request) {
-	s.createStreamedEvidence(w, r, app.EvidenceDocumentLimit, func(s *Server, ctx requestContext, actor domain.Actor, source app.PayloadSource) (int, any, error) {
-		scan, err := s.ledger.UploadVulnerabilityScanPayload(ctx, actor, source)
+	s.createStreamedEvidence(r.Context(), w, r, app.EvidenceDocumentLimit, nil, func(s *Server, ctx requestContext, actor domain.Actor, source app.PayloadSource) (int, any, error) {
+		scan, err := s.evidenceIngestion.UploadVulnerabilityScanPayload(ctx, actor, source)
 		return http.StatusCreated, scan, err
 	})
 }
@@ -1745,7 +1773,7 @@ func (s *Server) getVulnerabilityScan(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	scan, err := s.ledger.GetVulnerabilityScan(r.Context(), actor, r.PathValue("id"))
+	scan, err := s.evidenceIngestion.GetVulnerabilityScan(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -1949,8 +1977,10 @@ func (s *Server) uploadOpenAPIContract(w http.ResponseWriter, r *http.Request) {
 			writeProblem(w, r, app.ErrValidation)
 			return
 		}
-		s.createStreamedEvidence(w, r, app.EvidenceDocumentLimit, func(s *Server, ctx requestContext, actor domain.Actor, source app.PayloadSource) (int, any, error) {
-			contract, err := s.ledger.UploadOpenAPIContractPayload(ctx, actor, productID, releaseID, version, source)
+		s.createStreamedEvidence(r.Context(), w, r, app.EvidenceDocumentLimit, map[string]string{
+			"media_type": requestMediaType(r), "product_id": productID, "release_id": releaseID, "version": version,
+		}, func(s *Server, ctx requestContext, actor domain.Actor, source app.PayloadSource) (int, any, error) {
+			contract, err := s.evidenceIngestion.UploadOpenAPIContractPayload(ctx, actor, productID, releaseID, version, source)
 			return http.StatusCreated, contract, err
 		})
 		return
@@ -1965,7 +1995,7 @@ func (s *Server) uploadOpenAPIContract(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		contract, err := s.ledger.UploadOpenAPIContract(ctx, actor, req.ProductID, req.ReleaseID, req.Version, req.Spec)
+		contract, err := s.evidenceIngestion.UploadOpenAPIContract(ctx, actor, req.ProductID, req.ReleaseID, req.Version, req.Spec)
 		return http.StatusCreated, contract, err
 	})
 }
@@ -1975,7 +2005,7 @@ func (s *Server) getOpenAPIContract(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	contract, err := s.ledger.GetOpenAPIContract(r.Context(), actor, r.PathValue("id"))
+	contract, err := s.evidenceIngestion.GetOpenAPIContract(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -1993,7 +2023,7 @@ func (s *Server) createOpenAPIDiff(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		diff, err := s.ledger.CreateContractDiff(ctx, actor, app.CreateContractDiffInput{BaseContractID: req.BaseContractID, TargetContractID: req.TargetContractID, ReleaseID: req.ReleaseID})
+		diff, err := s.evidenceIngestion.CreateContractDiff(ctx, actor, app.CreateContractDiffInput{BaseContractID: req.BaseContractID, TargetContractID: req.TargetContractID, ReleaseID: req.ReleaseID})
 		return http.StatusCreated, diff, err
 	})
 }
@@ -2497,7 +2527,7 @@ func (s *Server) createAPIKey(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		key, secret, err := s.ledger.CreateAPIKey(ctx, actor, req.Name, req.Scopes, req.ExpiresAt)
+		key, secret, err := s.identityAccess.CreateAPIKey(ctx, actor, req.Name, req.Scopes, req.ExpiresAt)
 		return http.StatusCreated, map[string]any{"api_key": key, "secret": secret}, err
 	})
 }
@@ -2507,7 +2537,7 @@ func (s *Server) listAPIKeys(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	keys, err := s.ledger.ListAPIKeys(r.Context(), actor)
+	keys, err := s.identityAccess.ListAPIKeys(r.Context(), actor)
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -2532,9 +2562,9 @@ func (s *Server) createWithLimit(w http.ResponseWriter, r *http.Request, limit i
 		writeProblem(w, r, err)
 		return
 	}
-	status, response, err := s.ledger.WithIdempotency(ctx, actor, r.Method, r.URL.Path, r.Header.Get("Idempotency-Key"), body, func(commandCtx context.Context, commandLedger *app.Ledger) (int, any, error) {
+	status, response, err := s.idempotency.WithBody(ctx, actor, r.Method, r.URL.Path, r.Header.Get("Idempotency-Key"), body, func(commandCtx context.Context, scope commandScope) (int, any, error) {
 		commandServer := *s
-		commandServer.ledger = commandLedger
+		scope.bind(&commandServer)
 		return run(&commandServer, commandCtx, actor, body)
 	})
 	if err != nil {
@@ -2555,7 +2585,7 @@ func (s *Server) authenticate(w http.ResponseWriter, r *http.Request) (domain.Ac
 			token = strings.TrimSpace(cookie.Value)
 		}
 	}
-	actor, err := s.ledger.Authenticate(r.Context(), token)
+	actor, err := s.authn.Authenticate(r.Context(), token)
 	if err != nil {
 		writeProblem(w, r, err)
 		return domain.Actor{}, false

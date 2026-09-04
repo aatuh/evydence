@@ -117,6 +117,13 @@ def owner_for_path(path: str) -> str:
     return ""
 
 
+def owner_for_operation(path: str, operation: dict[str, Any]) -> str:
+    explicit = operation.get("x-evydence-owner")
+    if isinstance(explicit, str) and explicit.strip():
+        return explicit.strip()
+    return owner_for_path(path)
+
+
 def auth_for_operation(path: str, operation: dict[str, Any]) -> str:
     if operation.get("security"):
         return "bearer"
@@ -171,7 +178,7 @@ def operation_rows(spec: dict[str, Any]) -> list[dict[str, Any]]:
                     "method": method.upper(),
                     "path": path,
                     "stability": str(operation.get("x-evydence-stability") or ""),
-                    "owner": owner_for_path(path),
+                    "owner": owner_for_operation(path, operation),
                     "auth": auth_for_operation(path, operation),
                     "scopes": sorted(str(scope) for scope in operation.get("x-scopes") or []),
                     "idempotency": bool((operation.get("x-idempotency-key") or {}).get("required")),

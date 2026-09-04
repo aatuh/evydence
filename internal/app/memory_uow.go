@@ -309,7 +309,11 @@ func (r memoryIdentityRepository) UpdateAPIKeyLastUsed(ctx context.Context, key 
 		if !ok || stored.TenantID != cloned.TenantID || stored.Prefix != cloned.Prefix || stored.Hash != cloned.Hash || stored.RevokedAt != nil || cloned.LastUsedAt == nil {
 			return ErrConflict
 		}
-		state.APIKeys[cloned.ID] = cloned
+		observedAt := cloned.LastUsedAt.UTC()
+		if stored.LastUsedAt == nil || observedAt.After(stored.LastUsedAt.UTC()) {
+			stored.LastUsedAt = &observedAt
+		}
+		state.APIKeys[cloned.ID] = stored
 		return nil
 	})
 }
@@ -327,7 +331,11 @@ func (r memoryIdentityRepository) UpdateCollectorLastSeen(ctx context.Context, c
 		if !ok || stored.TenantID != cloned.TenantID || stored.APIKeyID != cloned.APIKeyID || cloned.LastSeenAt == nil {
 			return ErrConflict
 		}
-		state.Collectors[cloned.ID] = cloned
+		observedAt := cloned.LastSeenAt.UTC()
+		if stored.LastSeenAt == nil || observedAt.After(stored.LastSeenAt.UTC()) {
+			stored.LastSeenAt = &observedAt
+		}
+		state.Collectors[cloned.ID] = stored
 		return nil
 	})
 }
@@ -446,7 +454,11 @@ func (r memoryIdentityRepository) InsertSSOProvider(ctx context.Context, provide
 	})
 }
 
-func (r memoryIdentityRepository) UpdateSSOProviderTrustMaterial(ctx context.Context, provider domain.SSOProvider) error {
+func (r memoryIdentityRepository) CompareAndSwapSSOProviderTrustMaterial(ctx context.Context, expected, provider domain.SSOProvider) error {
+	expectedClone, err := cloneMemoryJSON(expected)
+	if err != nil {
+		return err
+	}
 	cloned, err := cloneMemoryJSON(provider)
 	if err != nil {
 		return err
@@ -456,7 +468,7 @@ func (r memoryIdentityRepository) UpdateSSOProviderTrustMaterial(ctx context.Con
 			return err
 		}
 		stored, ok := state.SSOProviders[cloned.ID]
-		if !ok || stored.TenantID != cloned.TenantID || stored.Type != cloned.Type || cloned.TrustMaterialUpdatedAt == nil {
+		if !ok || !sameSSOProviderTrustState(stored, expectedClone) || expectedClone.ID != cloned.ID || expectedClone.TenantID != cloned.TenantID || expectedClone.Type != cloned.Type || expectedClone.Issuer != cloned.Issuer || expectedClone.ClientID != cloned.ClientID || expectedClone.Status != cloned.Status || cloned.TrustMaterialUpdatedAt == nil {
 			return ErrConflict
 		}
 		state.SSOProviders[cloned.ID] = cloned
@@ -489,6 +501,52 @@ func (r memoryIdentityRepository) InsertUserIdentityLink(ctx context.Context, li
 		}
 		state.IdentityLinks[cloned.ID] = cloned
 		return nil
+	})
+}
+
+func (r memoryIdentityRepository) ValidateSSOExchangeState(ctx context.Context, snapshot SSOExchangeSnapshot) error {
+	if err := ValidateSSOExchangeSnapshot(snapshot); err != nil {
+		return err
+	}
+	cloned, err := cloneMemoryJSON(snapshot)
+	if err != nil {
+		return err
+	}
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		provider, ok := state.SSOProviders[cloned.Provider.ID]
+		if !ok || provider.TenantID != cloned.Provider.TenantID {
+			return ErrConflict
+		}
+
+		var link domain.UserIdentityLink
+		linkFound := false
+		for _, candidate := range state.IdentityLinks {
+			if candidate.TenantID == cloned.Provider.TenantID && candidate.ProviderID == cloned.Provider.ID && candidate.Subject == cloned.Subject {
+				link = candidate
+				linkFound = true
+				break
+			}
+		}
+
+		var user domain.HumanUser
+		userFound := false
+		if cloned.UserLoaded && linkFound {
+			user, userFound = state.Users[link.UserID]
+			if userFound && user.TenantID != cloned.Provider.TenantID {
+				user = domain.HumanUser{}
+				userFound = false
+			}
+		}
+
+		var bindings []domain.RoleBinding
+		if cloned.UserGrantsLoaded && userFound {
+			for _, binding := range state.RoleBindings {
+				if binding.TenantID == cloned.Provider.TenantID && binding.SubjectType == "user" && binding.SubjectID == user.ID {
+					bindings = append(bindings, binding)
+				}
+			}
+		}
+		return CompareSSOExchangeSnapshot(cloned, provider, link, linkFound, user, userFound, bindings)
 	})
 }
 
@@ -652,6 +710,19 @@ func memoryRetentionScopeBelongsToTenant(state MemoryUnitOfWorkSnapshot, tenantI
 }
 
 type memoryReleaseCatalogRepository struct{ uow *memoryUnitOfWork }
+
+func (r memoryReleaseCatalogRepository) GetArtifact(ctx context.Context, tenantID, artifactID string) (domain.Artifact, error) {
+	var artifact domain.Artifact
+	err := r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		value, ok := state.Artifacts[strings.TrimSpace(artifactID)]
+		if !ok || value.TenantID != strings.TrimSpace(tenantID) {
+			return ErrNotFound
+		}
+		artifact = value
+		return nil
+	})
+	return artifact, err
+}
 
 func (r memoryReleaseCatalogRepository) InsertProduct(ctx context.Context, product domain.Product) error {
 	cloned, err := cloneMemoryJSON(product)
@@ -841,20 +912,130 @@ func (r memoryReleaseCatalogRepository) UpdateReleaseCandidateState(ctx context.
 
 type memoryEvidenceRepository struct{ uow *memoryUnitOfWork }
 
+func (r memoryEvidenceRepository) ValidateEvidenceScope(ctx context.Context, tenantID, productID, projectID, releaseID, buildID, deploymentID string) error {
+	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		return validateMemoryEvidenceScope(*state, tenantID, productID, projectID, releaseID, buildID, deploymentID)
+	})
+}
+
+func (r memoryEvidenceRepository) GetEvidence(ctx context.Context, tenantID, id string) (domain.EvidenceItem, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.EvidenceItem{}, err
+	}
+	r.uow.mu.Lock()
+	defer r.uow.mu.Unlock()
+	if r.uow.closed {
+		return domain.EvidenceItem{}, ErrConflict
+	}
+	value, ok := r.uow.state.Evidence[id]
+	if !ok || value.TenantID != tenantID {
+		return domain.EvidenceItem{}, ErrNotFound
+	}
+	return cloneMemoryJSON(value)
+}
+
+func (r memoryEvidenceRepository) GetSBOM(ctx context.Context, tenantID, id string) (domain.SBOM, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.SBOM{}, err
+	}
+	r.uow.mu.Lock()
+	defer r.uow.mu.Unlock()
+	if r.uow.closed {
+		return domain.SBOM{}, ErrConflict
+	}
+	value, ok := r.uow.state.SBOMs[id]
+	if !ok || value.TenantID != tenantID {
+		return domain.SBOM{}, ErrNotFound
+	}
+	return cloneMemoryJSON(value)
+}
+
+func (r memoryEvidenceRepository) GetOpenAPIContract(ctx context.Context, tenantID, id string) (domain.OpenAPIContract, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.OpenAPIContract{}, err
+	}
+	r.uow.mu.Lock()
+	defer r.uow.mu.Unlock()
+	if r.uow.closed {
+		return domain.OpenAPIContract{}, ErrConflict
+	}
+	value, ok := r.uow.state.OpenAPIContracts[id]
+	if !ok || value.TenantID != tenantID {
+		return domain.OpenAPIContract{}, ErrNotFound
+	}
+	return cloneMemoryJSON(value)
+}
+
+func validateMemoryEvidenceScope(state MemoryUnitOfWorkSnapshot, tenantID, productID, projectID, releaseID, buildID, deploymentID string) error {
+	if err := requireMemoryTenant(state, tenantID); err != nil {
+		return err
+	}
+	var project domain.Project
+	if productID != "" && !memoryResourceBelongsToTenant(productID, tenantID, state.Products) {
+		return ErrNotFound
+	}
+	if projectID != "" {
+		var ok bool
+		project, ok = state.Projects[projectID]
+		if !ok || project.TenantID != tenantID || (productID != "" && project.ProductID != productID) {
+			return ErrNotFound
+		}
+	}
+	var release domain.Release
+	if releaseID != "" {
+		var ok bool
+		release, ok = state.Releases[releaseID]
+		if !ok || release.TenantID != tenantID || (productID != "" && release.ProductID != productID) || (projectID != "" && release.ProductID != project.ProductID) {
+			return ErrNotFound
+		}
+	}
+	var build domain.BuildRun
+	if buildID != "" {
+		var ok bool
+		build, ok = state.BuildRuns[buildID]
+		if !ok || build.TenantID != tenantID || (projectID != "" && build.ProjectID != projectID) || (releaseID != "" && build.ReleaseID != releaseID) {
+			return ErrNotFound
+		}
+		buildProject, projectOK := state.Projects[build.ProjectID]
+		buildRelease, releaseOK := state.Releases[build.ReleaseID]
+		if !projectOK || !releaseOK || buildProject.TenantID != tenantID || buildRelease.TenantID != tenantID || buildProject.ProductID != buildRelease.ProductID || (productID != "" && buildProject.ProductID != productID) {
+			return ErrNotFound
+		}
+	}
+	if deploymentID != "" {
+		deployment, ok := state.DeploymentEvents[deploymentID]
+		if !ok || deployment.TenantID != tenantID || (releaseID != "" && deployment.ReleaseID != releaseID) || (buildID != "" && deployment.ReleaseID != build.ReleaseID) {
+			return ErrNotFound
+		}
+		environment, environmentOK := state.DeploymentEnvironments[deployment.EnvironmentID]
+		deploymentRelease, releaseOK := state.Releases[deployment.ReleaseID]
+		if !environmentOK || !releaseOK || environment.TenantID != tenantID || deploymentRelease.TenantID != tenantID || environment.ProductID != deploymentRelease.ProductID || (productID != "" && environment.ProductID != productID) || (projectID != "" && project.ProductID != environment.ProductID) {
+			return ErrNotFound
+		}
+	}
+	return nil
+}
+
 func (r memoryEvidenceRepository) InsertEvidence(ctx context.Context, evidence domain.EvidenceItem) error {
 	cloned, err := cloneMemoryJSON(evidence)
 	if err != nil {
 		return err
 	}
 	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
-		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
-			return err
-		}
-		if !memoryResourceBelongsToTenant(cloned.ProductID, cloned.TenantID, state.Products) || !memoryResourceBelongsToTenant(cloned.ProjectID, cloned.TenantID, state.Projects) || !memoryResourceBelongsToTenant(cloned.ReleaseID, cloned.TenantID, state.Releases) {
-			return ErrNotFound
-		}
 		if cloned.ID == "" || cloned.Type == "" || cloned.Title == "" || cloned.PayloadHash == "" || cloned.CanonicalHash == "" || cloned.CreatedAt.IsZero() {
 			return ErrValidation
+		}
+		deploymentID := cloned.DeploymentID
+		if deploymentID != "" && cloned.Type == "deployment" && cloned.Subtype == "event" {
+			if _, exists := state.DeploymentEvents[deploymentID]; !exists {
+				// Deployment evidence is inserted immediately before its event in
+				// the same unit of work. The deployment repository validates the
+				// pending back-reference and its release/product coordinates.
+				deploymentID = ""
+			}
+		}
+		if err := validateMemoryEvidenceScope(*state, cloned.TenantID, cloned.ProductID, cloned.ProjectID, cloned.ReleaseID, cloned.BuildID, deploymentID); err != nil {
+			return err
 		}
 		if _, exists := state.Evidence[cloned.ID]; exists {
 			return ErrConflict
@@ -864,25 +1045,53 @@ func (r memoryEvidenceRepository) InsertEvidence(ctx context.Context, evidence d
 	})
 }
 
-func (r memoryEvidenceRepository) UpdateEvidenceLinks(ctx context.Context, evidence domain.EvidenceItem) error {
-	cloned, err := cloneMemoryJSON(evidence)
+func (r memoryEvidenceRepository) CompareAndSwapEvidenceLinks(ctx context.Context, expected, replacement domain.EvidenceItem) error {
+	expectedClone, err := cloneMemoryJSON(expected)
+	if err != nil {
+		return err
+	}
+	cloned, err := cloneMemoryJSON(replacement)
 	if err != nil {
 		return err
 	}
 	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
-		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
-			return err
+		if !validEvidenceLinkReplacement(expectedClone, cloned) {
+			return ErrValidation
 		}
 		stored, ok := state.Evidence[cloned.ID]
 		if !ok || stored.TenantID != cloned.TenantID {
 			return ErrNotFound
 		}
-		if !memoryResourceBelongsToTenant(cloned.ProductID, cloned.TenantID, state.Products) || !memoryResourceBelongsToTenant(cloned.ReleaseID, cloned.TenantID, state.Releases) {
-			return ErrNotFound
+		if !sameEvidenceLinkState(stored, expectedClone) {
+			return ErrConflict
 		}
-		state.Evidence[cloned.ID] = cloned
+		if err := validateMemoryEvidenceScope(*state, cloned.TenantID, cloned.ProductID, cloned.ProjectID, cloned.ReleaseID, cloned.BuildID, cloned.DeploymentID); err != nil {
+			return err
+		}
+		stored.ProductID = cloned.ProductID
+		stored.ReleaseID = cloned.ReleaseID
+		stored.RelatedEvidenceRefs = append([]domain.EvidenceRef(nil), cloned.RelatedEvidenceRefs...)
+		state.Evidence[stored.ID] = stored
 		return nil
 	})
+}
+
+func validEvidenceLinkReplacement(expected, replacement domain.EvidenceItem) bool {
+	return expected.ID != "" && expected.TenantID != "" &&
+		expected.ID == replacement.ID && expected.TenantID == replacement.TenantID &&
+		expected.ProjectID == replacement.ProjectID && expected.BuildID == replacement.BuildID && expected.DeploymentID == replacement.DeploymentID
+}
+
+func sameEvidenceLinkState(left, right domain.EvidenceItem) bool {
+	if left.ID != right.ID || left.TenantID != right.TenantID || left.ProductID != right.ProductID || left.ProjectID != right.ProjectID || left.ReleaseID != right.ReleaseID || left.BuildID != right.BuildID || left.DeploymentID != right.DeploymentID {
+		return false
+	}
+	if len(left.RelatedEvidenceRefs) == 0 && len(right.RelatedEvidenceRefs) == 0 {
+		return true
+	}
+	leftRefs, leftErr := json.Marshal(left.RelatedEvidenceRefs)
+	rightRefs, rightErr := json.Marshal(right.RelatedEvidenceRefs)
+	return leftErr == nil && rightErr == nil && string(leftRefs) == string(rightRefs)
 }
 
 func (r memoryEvidenceRepository) RecordSupersession(ctx context.Context, superseded, replacement domain.EvidenceItem) error {
@@ -974,7 +1183,9 @@ func (r memoryEvidenceRepository) InsertVulnerabilityScan(ctx context.Context, s
 		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
 			return err
 		}
-		if cloned.ID == "" || cloned.EvidenceID == "" || cloned.Scanner == "" || cloned.TargetRef == "" || cloned.CreatedAt.IsZero() {
+		parsedProjection := cloned.Scanner != "" && cloned.TargetRef != ""
+		acceptedProjection := cloned.Scanner == "" && cloned.Adapter == "" && cloned.AdapterVersion == "" && cloned.SourceSchema == "" && cloned.TargetRef == "" && cloned.Summary == nil && cloned.Findings == nil
+		if cloned.ID == "" || cloned.EvidenceID == "" || (!parsedProjection && !acceptedProjection) || cloned.CreatedAt.IsZero() {
 			return ErrValidation
 		}
 		if !memoryResourceBelongsToTenant(cloned.EvidenceID, cloned.TenantID, state.Evidence) || !memoryResourceBelongsToTenant(cloned.ReleaseID, cloned.TenantID, state.Releases) {
@@ -2177,7 +2388,7 @@ func (r memoryDeploymentRepository) InsertDeploymentEvent(ctx context.Context, d
 			return ErrNotFound
 		}
 		evidence, ok := state.Evidence[cloned.EvidenceID]
-		if !ok || evidence.TenantID != cloned.TenantID || evidence.DeploymentID != cloned.ID {
+		if !ok || evidence.TenantID != cloned.TenantID || evidence.DeploymentID != cloned.ID || evidence.ProductID != env.ProductID || evidence.ReleaseID != release.ID {
 			return ErrNotFound
 		}
 		for _, artifactID := range cloned.ArtifactIDs {

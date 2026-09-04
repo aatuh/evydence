@@ -10,7 +10,8 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/domain"
-	"github.com/aatuh/evydence/internal/platform/redaction"
+	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
+	releaseapp "github.com/aatuh/evydence/internal/release/app"
 )
 
 const (
@@ -171,351 +172,61 @@ func (l *Ledger) SearchEvidence(ctx context.Context, actor domain.Actor, in Evid
 }
 
 func (l *Ledger) RecordEvidenceLifecycleEvent(ctx context.Context, actor domain.Actor, evidenceID string, in RecordEvidenceLifecycleInput) (domain.EvidenceLifecycleEvent, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.EvidenceLifecycleEvent{}, err
-	}
-	if err := require(actor, ScopeEvidenceWrite); err != nil {
-		return domain.EvidenceLifecycleEvent{}, err
-	}
-	in.Action = strings.TrimSpace(in.Action)
-	in.Reason = strings.TrimSpace(in.Reason)
-	if !validLifecycleAction(in.Action) || in.Reason == "" {
-		return domain.EvidenceLifecycleEvent{}, ErrValidation
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	item, ok := l.evidence[strings.TrimSpace(evidenceID)]
-	if !ok || item.TenantID != actor.TenantID {
-		return domain.EvidenceLifecycleEvent{}, ErrNotFound
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, refsForEvidence(item)); err != nil {
-		return domain.EvidenceLifecycleEvent{}, err
-	}
-	if in.ReplacementID != "" {
-		replacement, ok := l.evidence[strings.TrimSpace(in.ReplacementID)]
-		if !ok || replacement.TenantID != actor.TenantID {
-			return domain.EvidenceLifecycleEvent{}, ErrNotFound
-		}
-		if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, refsForEvidence(replacement)); err != nil {
-			return domain.EvidenceLifecycleEvent{}, err
-		}
-	}
-	event := domain.EvidenceLifecycleEvent{
-		ID:            newID("elc"),
-		TenantID:      actor.TenantID,
-		EvidenceID:    item.ID,
-		Action:        in.Action,
-		Reason:        in.Reason,
-		Details:       cloneMap(in.Details),
-		ReplacementID: strings.TrimSpace(in.ReplacementID),
-		ActorID:       actorID(actor),
-		SchemaVersion: domain.EvidenceLifecycleSchemaVersion,
-		CreatedAt:     l.now(),
-	}
-	event = safeEvidenceLifecycleEvent(event)
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Evidence.AppendLifecycle(ctx, event); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(event.CreatedAt, actor.TenantID, "evidence."+event.Action, "evidence_item", item.ID, actorType(actor), actorID(actor), item.PayloadHash, ""))
-			return err
-		}); err != nil {
-			return domain.EvidenceLifecycleEvent{}, err
-		}
-		l.lifecycle[event.ID] = event
-		l.publishCommittedAuditEntryLocked(entry)
-		return event, nil
-	}
-	l.lifecycle[event.ID] = event
-	_, _ = l.appendChainLocked(actor.TenantID, "evidence."+event.Action, "evidence_item", item.ID, actorType(actor), actorID(actor), item.PayloadHash, "")
-	if err := l.persistReleaseLedgerStateLocked(ctx); err != nil {
-		return domain.EvidenceLifecycleEvent{}, err
-	}
-	return event, nil
+	event, err := l.evidenceCommands.RecordLifecycleEvent(ctx, actor, evidenceID, evidenceapp.RecordLifecycleInput{
+		Action: in.Action, Reason: in.Reason, Details: cloneMap(in.Details), ReplacementID: in.ReplacementID,
+	})
+	return lifecycleFromEvidenceContext(event), fromEvidenceContextError(err)
 }
 
 func (l *Ledger) ListEvidenceLifecycleEvents(ctx context.Context, actor domain.Actor, evidenceID string) ([]domain.EvidenceLifecycleEvent, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
+	events, err := l.evidenceCommands.ListLifecycleEvents(ctx, actor, evidenceID)
+	if err != nil {
+		return nil, fromEvidenceContextError(err)
 	}
-	if err := require(actor, ScopeEvidenceRead); err != nil {
-		return nil, err
+	result := make([]domain.EvidenceLifecycleEvent, 0, len(events))
+	for _, event := range events {
+		result = append(result, lifecycleFromEvidenceContext(event))
 	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	item, ok := l.evidence[strings.TrimSpace(evidenceID)]
-	if !ok || item.TenantID != actor.TenantID {
-		return nil, ErrNotFound
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeEvidenceRead, refsForEvidence(item)); err != nil {
-		return nil, err
-	}
-	out := []domain.EvidenceLifecycleEvent{}
-	for _, event := range l.lifecycle {
-		if event.TenantID == actor.TenantID && event.EvidenceID == item.ID {
-			out = append(out, safeEvidenceLifecycleEvent(event))
-		}
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
-	return out, nil
-}
-
-// safeEvidenceLifecycleEvent applies the same sensitive-data policy before
-// new append-only lifecycle records are persisted and when older records are
-// projected externally. This prevents historical audit details from bypassing
-// the current output policy without rewriting the underlying evidence item.
-func safeEvidenceLifecycleEvent(event domain.EvidenceLifecycleEvent) domain.EvidenceLifecycleEvent {
-	event.Reason = redaction.RedactString(event.Reason)
-	safeDetails, _ := redaction.RemoveSensitive(event.Details)
-	if safeDetails == nil {
-		event.Details = nil
-		return event
-	}
-	if details, ok := safeDetails.(map[string]any); ok {
-		event.Details = details
-	} else {
-		event.Details = nil
-	}
-	return event
+	return result, nil
 }
 
 func (l *Ledger) CreateReleaseCandidate(ctx context.Context, actor domain.Actor, in CreateReleaseCandidateInput) (domain.ReleaseCandidate, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.ReleaseCandidate{}, err
-	}
-	if err := require(actor, ScopeReleaseWrite); err != nil {
-		return domain.ReleaseCandidate{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	release, ok := l.releases[strings.TrimSpace(in.ReleaseID)]
-	if !ok || release.TenantID != actor.TenantID {
-		return domain.ReleaseCandidate{}, ErrNotFound
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeReleaseWrite, resourceRefs{ProductID: release.ProductID, ReleaseID: release.ID}); err != nil {
-		return domain.ReleaseCandidate{}, err
-	}
-	if strings.TrimSpace(in.Name) == "" {
-		return domain.ReleaseCandidate{}, ErrValidation
-	}
-	if err := l.validateCandidateRefsLocked(actor.TenantID, release.ID, in); err != nil {
-		return domain.ReleaseCandidate{}, err
-	}
-	candidate := domain.ReleaseCandidate{
-		ID:            newID("rc"),
-		TenantID:      actor.TenantID,
-		ReleaseID:     release.ID,
-		Name:          strings.TrimSpace(in.Name),
-		Revision:      1,
-		State:         candidateOpen,
-		BuildIDs:      sortedStrings(in.BuildIDs),
-		ArtifactIDs:   sortedStrings(in.ArtifactIDs),
-		SBOMIDs:       sortedStrings(in.SBOMIDs),
-		ScanIDs:       sortedStrings(in.ScanIDs),
-		VEXIDs:        sortedStrings(in.VEXIDs),
-		ContractIDs:   sortedStrings(in.ContractIDs),
-		BundleIDs:     sortedStrings(in.BundleIDs),
-		SchemaVersion: domain.ReleaseCandidateSchemaVersion,
-		CreatedAt:     l.now(),
-	}
-	hash, err := canonicalAnyHash(candidate)
-	if err != nil {
-		return domain.ReleaseCandidate{}, err
-	}
-	candidate.SnapshotHash = hash
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.ReleaseCatalog.InsertReleaseCandidate(ctx, candidate); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(candidate.CreatedAt, actor.TenantID, "release_candidate.created", "release_candidate", candidate.ID, "api_key", actor.KeyID, hash, ""))
-			return err
-		}); err != nil {
-			return domain.ReleaseCandidate{}, err
-		}
-		l.candidates[candidate.ID] = candidate
-		l.publishCommittedAuditEntryLocked(entry)
-		return candidate, nil
-	}
-	l.candidates[candidate.ID] = candidate
-	_, _ = l.appendChainLocked(actor.TenantID, "release_candidate.created", "release_candidate", candidate.ID, "api_key", actor.KeyID, hash, "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.ReleaseCandidate{}, err
-	}
-	return candidate, nil
+	value, err := l.releaseCommands.CreateReleaseCandidate(ctx, actor, releaseapp.CreateReleaseCandidateInput{
+		ReleaseID: in.ReleaseID, Name: in.Name, BuildIDs: append([]string(nil), in.BuildIDs...),
+		ArtifactIDs: append([]string(nil), in.ArtifactIDs...), SBOMIDs: append([]string(nil), in.SBOMIDs...),
+		ScanIDs: append([]string(nil), in.ScanIDs...), VEXIDs: append([]string(nil), in.VEXIDs...),
+		ContractIDs: append([]string(nil), in.ContractIDs...), BundleIDs: append([]string(nil), in.BundleIDs...),
+	})
+	return releaseCandidateFromReleaseContext(value), fromReleaseContextError(err)
 }
 
 func (l *Ledger) GetReleaseCandidate(ctx context.Context, actor domain.Actor, id string) (domain.ReleaseCandidate, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.ReleaseCandidate{}, err
-	}
-	if err := require(actor, ScopeReleaseRead); err != nil {
-		return domain.ReleaseCandidate{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	candidate, ok := l.candidates[strings.TrimSpace(id)]
-	if !ok || candidate.TenantID != actor.TenantID {
-		return domain.ReleaseCandidate{}, ErrNotFound
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeReleaseRead, resourceRefs{ReleaseID: candidate.ReleaseID}); err != nil {
-		return domain.ReleaseCandidate{}, err
-	}
-	return candidate, nil
+	value, err := l.releaseCommands.GetReleaseCandidate(ctx, actor, id)
+	return releaseCandidateFromReleaseContext(value), fromReleaseContextError(err)
 }
 
 func (l *Ledger) ListReleaseCandidates(ctx context.Context, actor domain.Actor, releaseID string) ([]domain.ReleaseCandidate, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
+	values, err := l.releaseCommands.ListReleaseCandidates(ctx, actor, releaseID)
+	if err != nil {
+		return nil, fromReleaseContextError(err)
 	}
-	if err := require(actor, ScopeReleaseRead); err != nil {
-		return nil, err
+	result := make([]domain.ReleaseCandidate, 0, len(values))
+	for _, value := range values {
+		result = append(result, releaseCandidateFromReleaseContext(value))
 	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	out := []domain.ReleaseCandidate{}
-	for _, candidate := range l.candidates {
-		if candidate.TenantID != actor.TenantID {
-			continue
-		}
-		if releaseID != "" && candidate.ReleaseID != releaseID {
-			continue
-		}
-		if !l.resourceAllowedLocked(actor, ScopeReleaseRead, resourceRefs{ReleaseID: candidate.ReleaseID}) {
-			continue
-		}
-		out = append(out, candidate)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
-	return out, nil
+	return result, nil
 }
 
 func (l *Ledger) UpdateReleaseCandidateState(ctx context.Context, actor domain.Actor, id, state, reason string, expectedRevision int64) (domain.ReleaseCandidate, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.ReleaseCandidate{}, err
-	}
-	if err := require(actor, ScopeReleaseWrite); err != nil {
-		return domain.ReleaseCandidate{}, err
-	}
-	state, reason = strings.TrimSpace(state), strings.TrimSpace(reason)
-	if reason == "" || (state != candidatePromoted && state != candidateRejected) {
-		return domain.ReleaseCandidate{}, ErrValidation
-	}
-	if expectedRevision < 1 {
-		return domain.ReleaseCandidate{}, ErrValidation
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	candidate, ok := l.candidates[strings.TrimSpace(id)]
-	if !ok || candidate.TenantID != actor.TenantID {
-		return domain.ReleaseCandidate{}, ErrNotFound
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeReleaseWrite, resourceRefs{ReleaseID: candidate.ReleaseID}); err != nil {
-		return domain.ReleaseCandidate{}, err
-	}
-	if candidate.Revision != expectedRevision {
-		return domain.ReleaseCandidate{}, NewVersionConflict(candidate.Revision)
-	}
-	if candidate.State != candidateOpen {
-		return domain.ReleaseCandidate{}, ErrConflict
-	}
-	now := l.now()
-	candidate.State = state
-	candidate.Revision++
-	if state == candidatePromoted {
-		candidate.PromotedAt = &now
-	} else {
-		candidate.RejectedAt = &now
-	}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.ReleaseCatalog.UpdateReleaseCandidateState(ctx, candidate, candidateOpen); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, actor.TenantID, "release_candidate."+state, "release_candidate", candidate.ID, "api_key", actor.KeyID, candidate.SnapshotHash, ""))
-			return err
-		}); err != nil {
-			return domain.ReleaseCandidate{}, err
-		}
-		l.candidates[candidate.ID] = candidate
-		l.publishCommittedAuditEntryLocked(entry)
-		return candidate, nil
-	}
-	l.candidates[candidate.ID] = candidate
-	_, _ = l.appendChainLocked(actor.TenantID, "release_candidate."+state, "release_candidate", candidate.ID, "api_key", actor.KeyID, candidate.SnapshotHash, "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.ReleaseCandidate{}, err
-	}
-	return candidate, nil
+	value, err := l.releaseCommands.UpdateReleaseCandidateState(ctx, actor, id, state, reason, expectedRevision)
+	return releaseCandidateFromReleaseContext(value), fromReleaseContextError(err)
 }
 
 func (l *Ledger) RegisterContainerImage(ctx context.Context, actor domain.Actor, in RegisterContainerImageInput) (domain.ContainerImage, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.ContainerImage{}, err
-	}
-	if err := require(actor, ScopeEvidenceWrite); err != nil {
-		return domain.ContainerImage{}, err
-	}
-	in.Repository, in.Digest = strings.TrimSpace(in.Repository), strings.TrimSpace(in.Digest)
-	if in.Repository == "" || !validDigest(in.Digest) {
-		return domain.ContainerImage{}, ErrValidation
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if in.ArtifactID != "" {
-		artifact, ok := l.artifacts[strings.TrimSpace(in.ArtifactID)]
-		if !ok || artifact.TenantID != actor.TenantID || artifact.Digest != in.Digest {
-			return domain.ContainerImage{}, ErrNotFound
-		}
-		if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, resourceRefs{ArtifactID: artifact.ID}); err != nil {
-			return domain.ContainerImage{}, err
-		}
-	}
-	for _, existing := range l.images {
-		if existing.TenantID == actor.TenantID && existing.Repository == in.Repository && existing.Digest == in.Digest {
-			return existing, nil
-		}
-	}
-	image := domain.ContainerImage{
-		ID:            newID("img"),
-		TenantID:      actor.TenantID,
-		ArtifactID:    strings.TrimSpace(in.ArtifactID),
-		Repository:    in.Repository,
-		Tag:           strings.TrimSpace(in.Tag),
-		Digest:        in.Digest,
-		Platform:      strings.TrimSpace(in.Platform),
-		SchemaVersion: domain.ContainerImageSchemaVersion,
-		CreatedAt:     l.now(),
-	}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.SupplyChain.InsertContainerImage(ctx, image); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(image.CreatedAt, actor.TenantID, "container_image.created", "container_image", image.ID, "api_key", actor.KeyID, image.Digest, ""))
-			return err
-		}); err != nil {
-			return domain.ContainerImage{}, err
-		}
-		l.images[image.ID] = image
-		l.publishCommittedAuditEntryLocked(entry)
-		return image, nil
-	}
-	l.images[image.ID] = image
-	_, _ = l.appendChainLocked(actor.TenantID, "container_image.created", "container_image", image.ID, "api_key", actor.KeyID, image.Digest, "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.ContainerImage{}, err
-	}
-	return image, nil
+	value, err := l.releaseCommands.RegisterContainerImage(ctx, actor, releaseapp.RegisterContainerImageInput{
+		ArtifactID: in.ArtifactID, Repository: in.Repository, Tag: in.Tag, Digest: in.Digest, Platform: in.Platform,
+	})
+	return containerImageFromReleaseContext(value), fromReleaseContextError(err)
 }
 
 func (l *Ledger) CreateArtifactSignature(ctx context.Context, actor domain.Actor, in CreateArtifactSignatureInput) (domain.ArtifactSignature, error) {
@@ -1056,6 +767,9 @@ func (l *Ledger) RecordDeployment(ctx context.Context, actor domain.Actor, in Re
 	for _, artifactID := range sortedStrings(in.ArtifactIDs) {
 		refs = append(refs, domain.SubjectRef{Type: "artifact", ID: artifactID})
 	}
+	// ADR 0003 limits this compatibility bridge to the fixed deployment/event
+	// evidence shape. The deployment and its immediately readable evidence
+	// back-reference remain atomic until EVY-906 introduces the durable saga.
 	evidenceInput := CreateEvidenceInput{
 		ProductID:    env.ProductID,
 		ReleaseID:    release.ID,
@@ -1087,7 +801,7 @@ func (l *Ledger) RecordDeployment(ctx context.Context, actor domain.Actor, in Re
 	if l.unitOfWork != nil {
 		l.mu.Lock()
 		defer l.mu.Unlock()
-		item, err := l.releaseEvidenceService().newEvidenceItemLocked(actor, evidenceInput)
+		item, err := l.releaseEvidenceService().newEvidenceItemForScopeLocked(actor, ScopeDeploymentWrite, evidenceInput)
 		if err != nil {
 			return domain.DeploymentEvent{}, err
 		}
@@ -1117,13 +831,19 @@ func (l *Ledger) RecordDeployment(ctx context.Context, actor domain.Actor, in Re
 		l.publishCommittedAuditEntryLocked(deploymentEntry)
 		return deployment, nil
 	}
-	item, err := l.CreateEvidence(ctx, actor, evidenceInput)
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	item, err := l.releaseEvidenceService().newEvidenceItemForScopeLocked(actor, ScopeDeploymentWrite, evidenceInput)
 	if err != nil {
 		return domain.DeploymentEvent{}, err
 	}
 	deployment.EvidenceID = item.ID
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	evidenceEntry, err := l.appendChainLocked(actor.TenantID, "evidence.created", "evidence_item", item.ID, actorType(actor), actorID(actor), item.PayloadHash, "")
+	if err != nil {
+		return domain.DeploymentEvent{}, err
+	}
+	item.ChainEntryID = evidenceEntry.ID
+	l.evidence[item.ID] = item
 	l.deployments[deployment.ID] = deployment
 	_, _ = l.appendChainLocked(actor.TenantID, "deployment.recorded", "deployment", deployment.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {

@@ -29,6 +29,9 @@ func (s releaseEvidenceService) ReleaseEvidenceFlowPlan(ctx context.Context, act
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return domain.ReleaseEvidenceFlow{}, err
+	}
 	release, ok := l.releases[releaseID]
 	if !ok || release.TenantID != actor.TenantID {
 		return domain.ReleaseEvidenceFlow{}, ErrNotFound
@@ -179,6 +182,9 @@ func (s releaseEvidenceService) ReleaseSecuritySummary(ctx context.Context, acto
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return domain.ReleaseSecuritySummary{}, err
+	}
 	release, ok := l.releases[releaseID]
 	if !ok || release.TenantID != actor.TenantID {
 		return domain.ReleaseSecuritySummary{}, ErrNotFound

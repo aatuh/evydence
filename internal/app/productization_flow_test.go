@@ -80,7 +80,7 @@ func TestVEXFirstReleaseEvidenceFlowEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("vex import report: %v", err)
 	}
-	if importReport.DecisionsCreated != 1 || len(importReport.MappingFailures) != 0 {
+	if importReport.Status != "parsed" || importReport.DecisionsCreated != 1 || len(importReport.MappingFailures) != 0 {
 		t.Fatalf("vex import report = %#v", importReport)
 	}
 	active := true

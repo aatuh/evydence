@@ -23,7 +23,9 @@ func (s *Store) BeginUnitOfWork(ctx context.Context) (app.UnitOfWork, error) {
 	if err != nil {
 		return nil, fmt.Errorf("begin unit of work: %w", err)
 	}
-	return &unitOfWork{tx: tx, repositories: repositories.New(tx)}, nil
+	repos := repositories.New(tx)
+	repos.WorkerProjection = transactionWorkerProjectionStore{tx: tx}
+	return &unitOfWork{tx: tx, repositories: repos}, nil
 }
 
 type unitOfWork struct {

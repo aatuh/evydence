@@ -244,6 +244,9 @@ func (l *Ledger) LinkControlEvidence(ctx context.Context, actor domain.Actor, co
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return domain.ControlEvidence{}, err
+	}
 	control, ok := l.controls[controlID]
 	if !ok || control.TenantID != actor.TenantID {
 		return domain.ControlEvidence{}, ErrNotFound
@@ -343,6 +346,9 @@ func (s packageReportService) ControlCoverageReport(ctx context.Context, actor d
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return domain.ControlCoverageReport{}, err
+	}
 	report, err := l.controlCoverageReportLocked(actor.TenantID, in)
 	if err != nil {
 		return domain.ControlCoverageReport{}, err
@@ -363,6 +369,9 @@ func (s packageReportService) CRAReadinessReport(ctx context.Context, actor doma
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return domain.CRAReadinessReport{}, err
+	}
 	if strings.TrimSpace(in.ProductID) == "" {
 		return domain.CRAReadinessReport{}, ErrValidation
 	}
@@ -406,6 +415,9 @@ func (s packageReportService) CRAVulnerabilityHandlingReport(ctx context.Context
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return domain.CRAVulnerabilityHandlingReport{}, err
+	}
 	if err := l.ensureScopeLocked(actor.TenantID, productID, "", releaseID); err != nil {
 		return domain.CRAVulnerabilityHandlingReport{}, err
 	}
@@ -486,6 +498,9 @@ func (s packageReportService) SecurityUpdateEvidenceReport(ctx context.Context, 
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return domain.SecurityUpdateEvidenceReport{}, err
+	}
 	if err := l.ensureScopeLocked(actor.TenantID, productID, "", releaseID); err != nil {
 		return domain.SecurityUpdateEvidenceReport{}, err
 	}

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/aatuh/evydence/internal/domain"
+	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
 )
 
 type commitFailingUnitOfWorkFactory struct {
@@ -88,7 +89,7 @@ func (failingEvidenceRepository) InsertEvidence(context.Context, domain.Evidence
 	return errInjectedRepositoryFailure
 }
 
-func (failingEvidenceRepository) UpdateEvidenceLinks(context.Context, domain.EvidenceItem) error {
+func (failingEvidenceRepository) CompareAndSwapEvidenceLinks(context.Context, domain.EvidenceItem, domain.EvidenceItem) error {
 	return errInjectedRepositoryFailure
 }
 
@@ -468,7 +469,7 @@ func TestReleaseEvidenceScanAndOpenAPIUseOneUnitOfWork(t *testing.T) {
 	}
 }
 
-func TestReleaseEvidenceVEXUsesOneUnitOfWorkForDecisionEffects(t *testing.T) {
+func TestReleaseEvidenceVEXUsesOneUnitOfWorkForInitialAsyncRecords(t *testing.T) {
 	ctx := context.Background()
 	memory := NewMemoryUnitOfWorkFactory()
 	ledger, _, actor := newReleaseEvidenceUnitOfWorkFixture(t, memory)
@@ -498,11 +499,93 @@ func TestReleaseEvidenceVEXUsesOneUnitOfWorkForDecisionEffects(t *testing.T) {
 	if stored, ok := snapshot.VEXDocuments[vex.ID]; !ok || stored.EvidenceID == "" || snapshot.Evidence[stored.EvidenceID].ChainEntryID == "" {
 		t.Fatalf("VEX and backing evidence were not committed together: vex=%#v", stored)
 	}
-	if len(snapshot.VEXImportReports) != 1 || len(snapshot.Decisions) != 1 {
-		t.Fatalf("VEX report/decision effects were not transactionally committed: reports=%#v decisions=%#v", snapshot.VEXImportReports, snapshot.Decisions)
+	if len(snapshot.VEXImportReports) != 1 || len(snapshot.Decisions) != 0 {
+		t.Fatalf("VEX report must commit without pre-worker decisions: reports=%#v decisions=%#v", snapshot.VEXImportReports, snapshot.Decisions)
 	}
-	if len(snapshot.OutboxJobs) != 2 || len(snapshot.AuditEntries[actor.TenantID]) != 8 {
+	if len(snapshot.OutboxJobs) != 2 || len(snapshot.AuditEntries[actor.TenantID]) != 7 {
 		t.Fatalf("VEX outbox/audit effects were not transactionally committed: scan=%#v jobs=%#v audit=%#v", scan, snapshot.OutboxJobs, snapshot.AuditEntries[actor.TenantID])
+	}
+	var report domain.VEXImportReport
+	for _, value := range snapshot.VEXImportReports {
+		report = value
+	}
+	if report.Status != "accepted" || !stringSliceContains(report.Warnings, evidenceapp.VEXAsyncDecisionWarning) {
+		t.Fatalf("initial VEX import report = %#v", report)
+	}
+	var parseJob OutboxJob
+	for _, job := range snapshot.OutboxJobs {
+		if job.Kind == "parse_vex" {
+			parseJob = job
+		}
+	}
+	if parseJob.ID == "" || parseJob.Payload["payload_ref"] != "" || parseJob.Payload["import_report_id"] != report.ID {
+		t.Fatalf("no-object VEX parse job = %#v", parseJob)
+	}
+	statements := requireVEXDecisionRequest(t, parseJob.Payload, 1)
+	if statements[0].Vulnerability != "CVE-2026-1000" || statements[0].Status != decisionStatusNotAffected {
+		t.Fatalf("normalized no-object VEX request = %#v", statements)
+	}
+}
+
+func TestReleaseEvidenceVEXAtomicallyStagesPayloadAndQueuesReplayDecisions(t *testing.T) {
+	ctx := context.Background()
+	memory := NewMemoryUnitOfWorkFactory()
+	ledger, _, actor := newReleaseEvidenceUnitOfWorkFixture(t, memory)
+	product, err := ledger.CreateProduct(ctx, actor, "Payments", "payments")
+	if err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	release, err := ledger.CreateRelease(ctx, actor, product.ID, "1.0.0")
+	if err != nil {
+		t.Fatalf("create release: %v", err)
+	}
+	artifact, err := ledger.RegisterArtifact(ctx, actor, "payments", "application/octet-stream", sampleDigest("payments-vex"), 42)
+	if err != nil {
+		t.Fatalf("register artifact: %v", err)
+	}
+	before, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot before upload: %v", err)
+	}
+	objects := newTestObjectStore()
+	ledger.objects = objects
+
+	vex, err := ledger.UploadVEX(ctx, actor, release.ID, artifact.ID, openVEXFixture(t, []map[string]any{
+		openVEXStatementFixture("CVE-2026-1903", []map[string]any{{"@id": "pkg:generic/payments@1"}}, decisionStatusFixed, "fixed_in_release"),
+	}))
+	if err != nil {
+		t.Fatalf("upload VEX: %v", err)
+	}
+	after, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot after upload: %v", err)
+	}
+	stored := after.VEXDocuments[vex.ID]
+	if stored.EvidenceID == "" || stored.StatementCount != 1 || stored.StatusSummary[decisionStatusFixed] != 1 || after.Evidence[stored.EvidenceID].ChainEntryID == "" {
+		t.Fatalf("normalized VEX/evidence were not committed together: vex=%#v evidence=%#v", stored, after.Evidence[stored.EvidenceID])
+	}
+	if len(after.VEXImportReports) != 1 || len(after.ObjectPayloads) != 1 || len(after.OutboxJobs) != 2 || len(after.Decisions) != 0 || len(after.AuditEntries[actor.TenantID]) != len(before.AuditEntries[actor.TenantID])+2 {
+		t.Fatalf("initial VEX transaction was incomplete: reports=%#v payloads=%#v jobs=%#v decisions=%#v audit=%#v", after.VEXImportReports, after.ObjectPayloads, after.OutboxJobs, after.Decisions, after.AuditEntries[actor.TenantID])
+	}
+	var report domain.VEXImportReport
+	for _, value := range after.VEXImportReports {
+		report = value
+	}
+	if report.Status != "accepted" || report.DecisionsCreated != 0 || report.DecisionsSuperseded != 0 {
+		t.Fatalf("initial replayable report = %#v", report)
+	}
+	var parseJob OutboxJob
+	for _, job := range after.OutboxJobs {
+		if job.Kind == "parse_vex" {
+			parseJob = job
+		}
+	}
+	if parseJob.ID == "" || parseJob.Payload["evidence_id"] != vex.EvidenceID || parseJob.Payload["import_report_id"] != report.ID || parseJob.Payload["actor_type"] != "api_key" || parseJob.Payload["actor_id"] != actor.KeyID {
+		t.Fatalf("parse VEX job = %#v", parseJob)
+	}
+	statements := requireVEXDecisionRequest(t, parseJob.Payload, 1)
+	if statements[0].Vulnerability != "CVE-2026-1903" || statements[0].Status != decisionStatusFixed {
+		t.Fatalf("normalized replayable VEX request = %#v", statements)
 	}
 }
 
@@ -538,7 +621,7 @@ func TestReleaseEvidenceReleaseCandidateUsesUnitOfWork(t *testing.T) {
 	}
 }
 
-func TestReleaseEvidenceVEXSupersedesDecisionWithinUnitOfWork(t *testing.T) {
+func TestReleaseEvidenceVEXLeavesExistingDecisionForPostCommitWorker(t *testing.T) {
 	ctx := context.Background()
 	memory := NewMemoryUnitOfWorkFactory()
 	ledger, _, actor := newReleaseEvidenceUnitOfWorkFixture(t, memory)
@@ -568,10 +651,10 @@ func TestReleaseEvidenceVEXSupersedesDecisionWithinUnitOfWork(t *testing.T) {
 		t.Fatalf("snapshot: %v", err)
 	}
 	storedOriginal := snapshot.Decisions[original.ID]
-	if storedOriginal.SupersededBy == "" || len(snapshot.Decisions) != 2 {
-		t.Fatalf("VEX supersession was not atomic: original=%#v decisions=%#v", storedOriginal, snapshot.Decisions)
+	if storedOriginal.SupersededBy != "" || len(snapshot.Decisions) != 1 {
+		t.Fatalf("upload mutated decisions before worker replay: original=%#v decisions=%#v", storedOriginal, snapshot.Decisions)
 	}
-	if len(snapshot.OutboxJobs) != 2 || len(snapshot.AuditEntries[actor.TenantID]) != 10 {
-		t.Fatalf("VEX decision audit/outbox effects were not committed: jobs=%#v audit=%#v", snapshot.OutboxJobs, snapshot.AuditEntries[actor.TenantID])
+	if len(snapshot.OutboxJobs) != 2 || len(snapshot.AuditEntries[actor.TenantID]) != 8 {
+		t.Fatalf("VEX initial audit/outbox effects were not committed: jobs=%#v audit=%#v", snapshot.OutboxJobs, snapshot.AuditEntries[actor.TenantID])
 	}
 }

@@ -150,6 +150,19 @@ func TestCreateEvidenceRejectsMismatchedStagedPayloadBinding(t *testing.T) {
 	}); !errors.Is(err, ErrValidation) {
 		t.Fatalf("mismatched staged payload binding error=%v, want validation", err)
 	}
+	payload.Size = 11
+	payload.Status = ObjectPayloadFinalized
+	if _, err := ledger.CreateEvidence(ctx, actor, CreateEvidenceInput{
+		Type:             "build",
+		Title:            "prematurely finalized payload",
+		PayloadRef:       "object://" + payload.FinalKey,
+		PayloadHash:      payload.Digest,
+		PayloadMediaType: payload.MediaType,
+		PayloadSize:      payload.Size,
+		StagedPayload:    payload,
+	}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("finalized payload under unit of work error=%v, want validation", err)
+	}
 	snapshot, err := memory.Snapshot()
 	if err != nil {
 		t.Fatal(err)

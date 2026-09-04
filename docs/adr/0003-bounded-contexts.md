@@ -1,17 +1,20 @@
 # ADR 0003: Bounded Context Ownership And Dependency Rules
 
 Status: accepted. EVY-902 implemented the context-owned model layer described
-below. The command-service, handler, composition-root, and legacy-facade
-retirement steps remain assigned to EVY-903 through EVY-906.
+below. EVY-903 implemented focused Identity, Release, and Evidence command
+services and moved their HTTP handlers behind context-specific interfaces.
+Decision, package, and verification services, the composition-root and query
+migration, and legacy-facade retirement remain assigned to EVY-904 through
+EVY-906.
 
 ## Context
 
-The implementation has useful transaction-scoped repository ports, but much of
-its command/query behaviour remains behind `internal/app.Ledger`. The legacy
-`internal/domain` package also remains the JSON and persistence compatibility
-surface while callers migrate. Without explicit context-owned models and
-checked adapters, those transition paths make ownership hard to see and permit
-accidental broad access to unrelated state.
+The implementation has useful transaction-scoped repository ports, but the
+commands and queries not yet migrated to focused services remain behind
+`internal/app.Ledger`. The legacy `internal/domain` package also remains the
+JSON and persistence compatibility surface while callers migrate. Without
+explicit context-owned models and checked adapters, those transition paths make
+ownership hard to see and permit accidental broad access to unrelated state.
 
 [ADR 0001](0001-database-authoritative-transactions.md) remains the transaction
 contract: one production command owns one PostgreSQL unit of work, including
@@ -29,7 +32,7 @@ service. Contexts exchange identifiers and committed, versioned integration
 events rather than importing each other's aggregates or writing each other's
 repositories.
 
-### Implemented model boundary
+### Implemented model and command boundaries
 
 EVY-902 created tag-free, standard-library-only domain packages at
 `internal/{identity,release,evidence,risk,package,verification,operations,integration,experimental}/domain`.
@@ -47,16 +50,26 @@ policy definitions, and signing-key historical-validity evaluation are owned by
 the verification context. Signing-key core metadata deliberately excludes
 private key bytes.
 
-`internal/domain` remains a compatibility DTO boundary while the application,
-HTTP, and PostgreSQL callers migrate in EVY-903 through EVY-906. It retains the
-existing JSON tags and public field shapes, uses aliases where exact identity is
-safe, and uses explicit copying mappers where validated values or local report
-projections differ. `make domain-context-check` verifies unique ADR ownership,
-package import/tag boundaries, field-by-field compatibility, stable field
-types, schema ownership, and the required mappers. JSON round-trip tests and
-the unchanged generated OpenAPI contract cover the current API/persistence
-representation. No database migration is required because EVY-902 does not
-change stored fields or values.
+EVY-903 added transport-neutral command services under
+`internal/{identity,release,evidence}/app`. They depend on focused reader,
+repository, transaction, authorization, clock, identifier, object-ingestion,
+audit, and outbox ports. The HTTP handlers for the 15 Identity, 21 Release, and
+27 Evidence operations now depend on context-specific interfaces rather than
+on `*app.Ledger`. Temporary Ledger-backed adapters map the legacy DTOs and
+preserve the existing idempotent command scope until the EVY-905 composition
+root migration. Decision, package, and verification workflows remain assigned
+to EVY-904.
+
+`internal/domain` remains a compatibility DTO boundary at the HTTP,
+persistence, and legacy-facade edges while remaining callers migrate in EVY-904
+through EVY-906. It retains the existing JSON tags and public field shapes,
+uses aliases where exact identity is safe, and uses explicit copying mappers
+where validated values or local report projections differ.
+`make domain-context-check` verifies unique ADR ownership, package import/tag
+boundaries, field-by-field compatibility, stable field types, schema ownership,
+and the required mappers. JSON round-trip tests and the unchanged public field
+shapes cover the current API/persistence representation. No database migration
+was required for the EVY-902 model split.
 
 ### Context ownership
 
@@ -66,9 +79,9 @@ belong to the row that owns the resource they support.
 
 | Context | Owns these current domain types | Current implementation and port ownership |
 | --- | --- | --- |
-| Identity and access | `Actor`, `ResourceGrant`, `Tenant`, `Organization`, `HumanUser`, `RoleBinding`, `SSOProvider`, `UserIdentityLink`, `SSOSession`, `APIKey`, `ProviderVerification` | `identityService`; `IdentityRepository`; identity portions of `EnterpriseRepository` are temporary. |
-| Release catalog | `Product`, `Project`, `Release`, `ReleaseEvidenceFlow`, `ReleaseEvidenceFlowStep`, `Artifact`, `BuildRun`, `BuildOutput`, `BuildAttestation`, `ReleaseCandidate`, `ContainerImage` | `Ledger`, `releaseEvidenceService`, and build handling; `ReleaseCatalogRepository`, `BuildRepository`, and `SupplyChainRepository` except artifact-signature writes. |
-| Evidence ingestion | `EvidenceItem`, `SubjectRef`, `EvidenceRef`, `EvidenceNotice`, `EvidenceLifecycleEvent`, `SBOM`, `SBOMComponent`, `SBOMComponentRecord`, `VulnerabilityScan`, `VulnerabilityFinding`, `VulnerabilityIdentity`, `VEXDocument`, `VEXImportIssue`, `VEXImportReport`, `VEXImportPreview`, `OpenAPIContract`, `OpenAPIOperation`, `SecurityScan`, `ManualSecurityDocument`, `SBOMDiff`, `DependencyChange`, `ContractDiff` | Ingestion and parser paths in `Ledger`; `EvidenceRepository`, `ObjectPayloadRepository`; the evidence-facing methods of `RiskRepository` are transitional. |
+| Identity and access | `Actor`, `ResourceGrant`, `Tenant`, `Organization`, `HumanUser`, `RoleBinding`, `SSOProvider`, `UserIdentityLink`, `SSOSession`, `APIKey`, `ProviderVerification` | `internal/identity/app.Service`; `IdentityRepository`; identity portions of `EnterpriseRepository` and the Ledger DTO adapter are temporary. |
+| Release catalog | `Product`, `Project`, `Release`, `ReleaseEvidenceFlow`, `ReleaseEvidenceFlowStep`, `Artifact`, `BuildRun`, `BuildOutput`, `BuildAttestation`, `ReleaseCandidate`, `ContainerImage` | `internal/release/app.Service`; `ReleaseCatalogRepository`, `BuildRepository`, and `SupplyChainRepository` except artifact-signature writes. Ledger query and DTO adapters remain transitional. |
+| Evidence ingestion | `EvidenceItem`, `SubjectRef`, `EvidenceRef`, `EvidenceNotice`, `EvidenceLifecycleEvent`, `SBOM`, `SBOMComponent`, `SBOMComponentRecord`, `VulnerabilityScan`, `VulnerabilityFinding`, `VulnerabilityIdentity`, `VEXDocument`, `VEXImportIssue`, `VEXImportReport`, `VEXImportPreview`, `OpenAPIContract`, `OpenAPIOperation`, `SecurityScan`, `ManualSecurityDocument`, `SBOMDiff`, `DependencyChange`, `ContractDiff` | `internal/evidence/app.Service`; `EvidenceRepository` and `ObjectPayloadRepository`. Ledger query and DTO adapters and the evidence-facing methods of `RiskRepository` remain transitional. |
 | Vulnerability decisions and governance | `VulnerabilityDecision`, `VulnerabilityDecisionCustomerSummary`, `VulnerabilityDecisionSummaryReport`, `Exception`, `PolicyEvaluation`, `PolicyCheck`, `CustomPolicy`, `PolicyRule`, `CustomPolicyEvaluation`, `Waiver`, `ApprovalRecord`, `ControlFramework`, `SecurityControl`, `ControlEvidenceRequirement`, `ControlEvidence`, `ControlFrameworkTemplatePack`, `VulnerabilityWorkflowRecord`, `ReleaseSecuritySummary`, `ReleaseSecurityProductSummary`, `ReleaseSecurityReleaseSummary`, `ReleaseSecurityMissingDecision`, `ReleaseSecurityApprovalSummary`, `ReleaseSecurityExceptionSummary` | `vex.go`, governance paths, and policy paths; `DecisionRepository`, `ControlRepository`, and the decision methods of `GovernanceRepository` and `RiskRepository`. |
 | Package and reporting | `CustomerPortalAccess`, `QuestionnaireTemplate`, `QuestionnaireQuestion`, `QuestionnairePackage`, `QuestionnaireResponse`, `QuestionnaireAnswerLibraryEntry`, `RedactionProfile`, `CustomerSecurityPackage`, `SecurityReviewPackageReport`, `HTMLReportPackage`, `PDFReportPackage`, `CustomReportTemplate`, `RenderedCustomReport`, `EvidenceBundle`, `EvidenceBundleImport`, `ReleaseBundle`, `EvidenceCitation`, `EvidenceSummary`, `QuestionnaireDraft`, `GraphNode`, `GraphEdge`, `EvidenceGraphSnapshot`, `ControlCoverageReport`, `ControlCoverageItem`, `CRAReadinessReport`, `CRAVulnerabilityHandlingReport`, `SecurityUpdateEvidenceReport`, `ReleaseReadinessReport`, `ReadinessSummary`, `ReadinessSection`, `ReadinessQuestion`, `BlockingFinding`, `IncidentReport`, `VulnerabilityPostureReport` | `packageReportService` and package/report portions of `enterprise.go`, `governance_packages.go`, and `risk_workflows.go`; `PackageRepository`. |
 | Verification and signing | `AuditChainEntry`, `SigningKey`, `SigningProvider`, `Signature`, `ArtifactSignature`, `CosignVerification`, `MerkleBatch`, `TransparencyCheckpoint`, `ObjectRetentionPolicy`, `SigningCustodyReviewReport`, `BackupManifest`, `DSSETrustRoot`, `SigningOperation`, `VerificationResult`, `VerifyCheck` | `integrity_runtime.go`, audit-chain and verification paths; `SignatureRepository`, `IntegrityRepository`, and `VerificationRepository`. Audit append is a required transaction side effect, not an authority to change another context's record. |
@@ -78,8 +91,9 @@ belong to the row that owns the resource they support.
 
 `GovernanceRepository`, `RiskRepository`, `EnterpriseRepository`, and
 `FutureExtensionsRepository` are explicitly transitional mixed ports. Their
-row above assigns one accountable owner today, while the named exception
-methods move to their target context in EVY-903 and EVY-904. No new method may
+row above assigns one accountable owner today. EVY-903 moved the Identity,
+Release, and Evidence command capabilities it required; the remaining named
+exception methods move to their target context in EVY-904. No new method may
 be added to a mixed port.
 
 ### Public operations and internal work
@@ -93,7 +107,9 @@ the generated OpenAPI owner labels are changed atomically with their handlers.
 | Current OpenAPI owner (operation count) | Target context | Transition rule |
 | --- | --- | --- |
 | `identity-access` (15) | Identity and access | Direct mapping. |
-| `release-ledger` (63) | Release catalog, Evidence ingestion, Vulnerability decisions and governance, or Package and reporting | Transitional aggregate label. Catalog resources (`products`, `projects`, `releases`, `artifacts`, `builds`, `release-candidates`, and `container-images`) go to Release catalog; evidence and document resources go to Evidence ingestion; decision/policy resources go to Vulnerability decisions and governance; bundle, summary, graph, and report resources go to Package and reporting. The route's resource, not the old label, selects the service. |
+| `release-catalog` (21) | Release catalog | Direct mapping introduced with the EVY-903 handler migration. |
+| `evidence-ingestion` (27) | Evidence ingestion | Direct mapping introduced with the EVY-903 handler migration. |
+| `release-ledger` (15) | Vulnerability decisions and governance, Package and reporting, Verification and signing, or Operations and incidents | Remaining transitional aggregate label. Decision resources go to Vulnerability decisions and governance; bundle, summary, graph, and report resources go to Package and reporting; verification operations go to Verification and signing; remediation tasks go to Operations and incidents. The route's resource, not the old label, selects the future service. |
 | `integration-ingestion` (17) | Integration ingestion | Direct mapping. |
 | `governance` (25) | Vulnerability decisions and governance | Direct mapping, except redaction and customer-package rendering, which move to Package and reporting. |
 | `customer-delivery` (12) | Package and reporting | Direct mapping. |
@@ -104,17 +120,17 @@ the generated OpenAPI owner labels are changed atomically with their handlers.
 
 The table above is intentionally a mapping, not a second handwritten route
 catalog. The generated inventory remains the source of individual operation
-IDs, paths, methods, auth, idempotency, and current labels. Its nine counts
-sum to 189. EVY-903 through EVY-905 must update a route's OpenAPI owner and
+IDs, paths, methods, auth, idempotency, and current labels. Its eleven counts
+sum to 189. Later migration tickets must update a route's OpenAPI owner and
 handler in the same compatible change; no handler may be silently re-owned.
 
 Current non-HTTP commands and queries are assigned by the same owner rule:
 
 | Current source surface | Owner | Required split outcome |
 | --- | --- | --- |
-| `internal/app/identity_service.go` and identity operations in `enterprise.go` | Identity and access | Focused identity service. |
-| `internal/app/ledger.go`, `release_evidence_service.go`, and build paths | Release catalog and Evidence ingestion | Two focused services; the old facade only forwards during migration. |
-| `internal/app/vex.go`, document parsers, object ingestion, and reconciliation | Evidence ingestion, with decision effects emitted after commit | Parsing owns normalized evidence; decision creation is a separate decision command. |
+| `internal/identity/app` with adapters in `internal/app/identity_service.go` and `identity_context_adapter.go` | Identity and access | Focused service owns commands; the old facade forwards and still supplies compatibility queries and DTO mapping. |
+| `internal/release/app` with adapters in `internal/app/release_evidence_service.go`, `release_context_adapter.go`, and build paths | Release catalog | Focused service owns release/catalog/build commands; the old facade forwards during migration. |
+| `internal/evidence/app` with adapters in `internal/app/evidence_context_adapter.go`, parser adapters, and remaining `vex.go` compatibility | Evidence ingestion, with decision effects emitted after commit | Focused service owns evidence/document commands and normalization; decision creation remains a separate decision command. |
 | `internal/app/governance_packages.go`, `controls.go`, and policy paths | Vulnerability decisions and governance; Package and reporting for output/rendering | Policy mutation and read-only package rendering separate. |
 | `internal/app/integrity_runtime.go`, audit chain, and verification profiles | Verification and signing | Provider adapters remain outside the application package. |
 | `internal/app/risk_workflows.go` | Operations and incidents, Evidence ingestion, and Vulnerability decisions and governance | Split incidents, raw security evidence, and policy workflow methods. |
@@ -139,6 +155,7 @@ use only its own business port plus the platform `Audit`, `Idempotency`, and
 
 | Repository field | Owner | Transitional note |
 | --- | --- | --- |
+| `WorkerProjection` | Operations and incidents — shared transaction/query platform | Temporary read-only bridge for worker-owned records needed by the Ledger compatibility model; it grants no mutation authority. |
 | `Identity` | Identity and access | — |
 | `Idempotency` | Operations and incidents | The platform owns expiry and replay mechanics; callers use it within their own transaction. |
 | `ReleaseCatalog`, `Builds`, `SupplyChain` | Release catalog | `ArtifactSignature` moves from `SupplyChain` to Verification and signing. |
@@ -159,7 +176,7 @@ exactly one context while preserving existing data and migration history.
 | Migration | Steward context |
 | --- | --- |
 | `20260527000100_initial_ledger`, `20260527000200_runtime_foundation`, `20260528000200_increment_6_15`, `20260528000300_increment_16_25`, `20260528000400_increment_26_35`, `20260528000500_increment_36_45`, `20260528000600_increment_46_55`, `20260528000700_increment_56_65`, `20260528001600_remaining_relational_recovery_columns` | Operations and incidents — historical platform transition. |
-| `20260527000300_vex_decisions_exceptions`, `20260528000100_controls_reports`, `20260601000100_vulnerability_decision_customer_fields`, `20260601000200_vulnerability_decision_evidence_ids`, `20260601000300_vex_import_reports`, `20260601000600_vulnerability_decision_review_times`, `20260601000700_vulnerability_decision_sbom_context`, `20260601000800_vulnerability_decision_supporting_refs`, `20260601000900_vex_import_report_failures` | Vulnerability decisions and governance. |
+| `20260527000300_vex_decisions_exceptions`, `20260528000100_controls_reports`, `20260601000100_vulnerability_decision_customer_fields`, `20260601000200_vulnerability_decision_evidence_ids`, `20260601000300_vex_import_reports`, `20260601000600_vulnerability_decision_review_times`, `20260601000700_vulnerability_decision_sbom_context`, `20260601000800_vulnerability_decision_supporting_refs`, `20260601000900_vex_import_report_failures`, `20260904000100_vulnerability_decision_active_unique` | Vulnerability decisions and governance. |
 | `20260527000400_collectors_builds_attestations`, `20260528001400_release_core_relational_columns` | Release catalog. |
 | `20260815000100_vulnerability_scan_adapter_identity` | Evidence ingestion. |
 | `20260528000800_customer_portal_access_counters`, `20260528001500_package_retention_relational_columns`, `20260601000400_customer_portal_nda_answer_library`, `20260601000500_customer_portal_reviewers` | Package and reporting. |
@@ -202,12 +219,70 @@ only implementation truth. Every event must contain schema version, event ID,
 tenant ID, subject type/ID, occurrence time, causation ID, and canonical
 request or subject digest as applicable.
 
-For every command, authorization and tenant validation occur before the unit
-of work. The owner validates its invariants, writes its data plus the required
-audit/idempotency/outbox effects, commits, then publishes. Cross-context
-effects are requested by an outbox event after commit. A command requiring an
-atomic change to two business owners must be redesigned around one owning
-record or a durable saga; it must not create a cross-context repository write.
+Every command performs its required scope and tenant preflight before opening a
+unit of work. Resource coordinates already resolved at that point are also
+authorized during preflight. When a uniqueness lookup or concurrent row read
+discovers the exact existing resource inside the transaction, the command
+revalidates tenant ownership, relationships, and resource authorization against
+that transaction-local record before returning it or writing dependent state.
+This transaction-local revalidation does not replace the earlier scope
+preflight. The owner validates its invariants, writes its data plus the required
+audit/idempotency/outbox effects, commits, then publishes. Cross-context effects
+are requested by an outbox event after commit. A command requiring an atomic
+change to two business owners must be redesigned around one owning record or a
+durable saga; it must not create a cross-context repository write.
+
+`Repositories.WorkerProjection` is a temporary read-only compatibility port for
+records that an outbox worker may commit after an API process built its local
+Ledger read model. A PostgreSQL unit of work binds this port to the same
+transaction as the command repositories. The adapter constrains every
+projection query by tenant and coordinates a stable snapshot with a per-tenant
+advisory fence: standalone read-only refreshes use a repeatable-read transaction
+and shared fence, while transaction-bound projection reads, worker projection
+mutations, and audit appends use the exclusive fence. Audit append takes the
+projection fence before its audit-chain sequencing lock. This prevents a
+worker/API mutation from interleaving between a transaction-local projection
+read and the command's dependent write or audit append. It protects the legacy
+read bridge; it does not complete the EVY-904 decision/package/verification
+service split or the EVY-905 database-backed query migration. The detailed
+runtime contract is in [Worker Outbox Contract](../reference/worker-outbox.md).
+
+The EVY-903 focused command-service migration has exactly three temporary
+synchronous cross-context write exceptions. Tenant bootstrap is the first: the
+focused Identity service owns tenant and initial
+API-key preparation and writes, but invokes a narrowly typed composition-layer
+compatibility capability to insert the initial signing key in the same legacy
+shared unit of work. This preserves the existing all-or-nothing bootstrap and
+bearer-secret issuance contract; it is not available to other Identity
+commands. EVY-904 must move initial signing-key creation to Verification and
+signing and remove that compatibility capability.
+
+Build-attestation upload is the second exception. The public compatibility
+contract atomically creates a release-owned `BuildAttestation` and its
+evidence-owned `EvidenceItem`; the attestation repository requires the evidence
+identifier to resolve in the same transaction. Splitting the operation during
+EVY-903 would either expose a partially created upload, violate ADR 0001, or
+require a new saga and API/persistence state model. The focused Release service
+therefore receives only a transaction-scoped,
+`BuildAttestationEvidenceWriter` capability for this one evidence shape. It
+does not receive `EvidenceRepository`, evidence aggregates, or any other
+evidence mutation. EVY-906 must replace this bridge with a durable
+`BuildAttestationAccepted` ingestion saga (including an explicit pending state
+and compatible API transition), then remove the capability before the
+architecture boundary check becomes mandatory. No other release command may
+use this exception.
+
+Deployment recording is the third exception. Its existing public contract
+returns a deployment event whose evidence identifier is immediately readable,
+and persistence validates both sides of that deployment/evidence back-reference
+inside one transaction. The operations-owned command may therefore create only
+the fixed `deployment/event` evidence shape and insert it with the deployment
+event in the shared compatibility unit of work. This bridge does not permit an
+operations command to accept arbitrary evidence fields or mutate existing
+evidence. EVY-906 must replace it with a durable `DeploymentRecorded` ingestion
+saga, an explicit pending-evidence state, and a compatible API transition before
+the architecture boundary check becomes mandatory. No other operations command
+may use this exception.
 
 Go dependency cycles are prohibited. A context domain package may depend only
 on standard library and small shared value/event packages. An application
@@ -224,9 +299,9 @@ API-compatible.
 1. EVY-902 created context-owned packages and adapters/types at the new paths.
    Old `internal/domain` names remain type aliases or compatibility mappers;
    persisted and OpenAPI DTOs remain at adapter boundaries.
-2. EVY-903 moves identity, release, and evidence commands to focused services.
-   `Ledger` becomes a deprecated forwarding facade; no new behaviour is added
-   to it.
+2. EVY-903 moved identity, release, and evidence commands to focused services
+   and their handlers behind context-specific interfaces. `Ledger` is now a
+   deprecated forwarding facade; no new command behaviour is added to it.
 3. EVY-904 moves decision, package, and verification workflows, splits mixed
    repository methods, and makes package reads transaction-consistent.
 4. EVY-905 installs one composition root and database-backed context query
@@ -249,6 +324,7 @@ and worker job a current accountable owner without pretending that the code has
 already reached the target package tree. It also makes mixed ports and
 experimental surfaces visible technical debt with a removal or graduation path.
 
-The first implementation work is EVY-902. Until the later tickets land,
-`internal/domain`, `internal/app`, and `*app.Ledger` remain transition paths,
-not examples for new production dependencies.
+EVY-902 and EVY-903 implemented the model boundary and the first three focused
+command-service boundaries. Until the later tickets land, `internal/domain`,
+the compatibility portions of `internal/app`, and `*app.Ledger` remain
+transition paths, not examples for new production dependencies.

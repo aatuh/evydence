@@ -14,6 +14,26 @@ type Store interface {
 	SaveState(context.Context, PersistedState) error
 }
 
+// WorkerProjectionStore exposes the tenant-scoped records that background
+// workers may append or hydrate after an API process has loaded its local read
+// model. Implementations must return one consistent database snapshot and must
+// constrain every query by tenant ID.
+type WorkerProjectionStore interface {
+	LoadWorkerProjection(context.Context, string) (WorkerProjection, error)
+}
+
+type WorkerProjection struct {
+	ParserNormalizations   []domain.EvidenceItem
+	SBOMs                  []domain.SBOM
+	Scans                  []domain.VulnerabilityScan
+	Contracts              []domain.OpenAPIContract
+	VEXDocuments           []domain.VEXDocument
+	VEXImportReports       []domain.VEXImportReport
+	BuildAttestations      []domain.BuildAttestation
+	VulnerabilityDecisions []domain.VulnerabilityDecision
+	AuditChainEntries      []domain.AuditChainEntry
+}
+
 type CriticalMutationStore interface {
 	ApplyCriticalMutation(context.Context, CriticalMutation) error
 }
@@ -214,27 +234,28 @@ type UnitOfWork interface {
 // expose bounded contexts rather than PersistedState so application services
 // cannot accidentally perform a whole-ledger write.
 type Repositories struct {
-	Identity       IdentityRepository
-	ReleaseCatalog ReleaseCatalogRepository
-	Evidence       EvidenceRepository
-	Decisions      DecisionRepository
-	Audit          AuditRepository
-	Idempotency    IdempotencyRepository
-	Outbox         OutboxRepository
-	Payloads       ObjectPayloadRepository
-	Controls       ControlRepository
-	Governance     GovernanceRepository
-	Builds         BuildRepository
-	SupplyChain    SupplyChainRepository
-	Source         SourceRepository
-	Deployments    DeploymentRepository
-	Packages       PackageRepository
-	Risk           RiskRepository
-	Signatures     SignatureRepository
-	Integrity      IntegrityRepository
-	Verification   VerificationRepository
-	Enterprise     EnterpriseRepository
-	Future         FutureExtensionsRepository
+	WorkerProjection WorkerProjectionStore
+	Identity         IdentityRepository
+	ReleaseCatalog   ReleaseCatalogRepository
+	Evidence         EvidenceRepository
+	Decisions        DecisionRepository
+	Audit            AuditRepository
+	Idempotency      IdempotencyRepository
+	Outbox           OutboxRepository
+	Payloads         ObjectPayloadRepository
+	Controls         ControlRepository
+	Governance       GovernanceRepository
+	Builds           BuildRepository
+	SupplyChain      SupplyChainRepository
+	Source           SourceRepository
+	Deployments      DeploymentRepository
+	Packages         PackageRepository
+	Risk             RiskRepository
+	Signatures       SignatureRepository
+	Integrity        IntegrityRepository
+	Verification     VerificationRepository
+	Enterprise       EnterpriseRepository
+	Future           FutureExtensionsRepository
 }
 
 type IdentityRepository interface {
@@ -247,8 +268,9 @@ type IdentityRepository interface {
 	DeactivateHumanUser(context.Context, domain.HumanUser) error
 	InsertRoleBinding(context.Context, domain.RoleBinding) error
 	InsertSSOProvider(context.Context, domain.SSOProvider) error
-	UpdateSSOProviderTrustMaterial(context.Context, domain.SSOProvider) error
+	CompareAndSwapSSOProviderTrustMaterial(context.Context, domain.SSOProvider, domain.SSOProvider) error
 	InsertUserIdentityLink(context.Context, domain.UserIdentityLink) error
+	ValidateSSOExchangeState(context.Context, SSOExchangeSnapshot) error
 	InsertProviderVerification(context.Context, domain.ProviderVerification) error
 	InsertSSOSession(context.Context, domain.SSOSession) error
 	ValidateActiveSSOSession(context.Context, domain.SSOSession, time.Time) error
@@ -257,7 +279,27 @@ type IdentityRepository interface {
 	UpdateCustomerPortalAccess(context.Context, domain.CustomerPortalAccess, domain.CustomerPortalAccess) error
 }
 
+// SSOExchangeSnapshot captures the mutable persisted identity state used to
+// decide an SSO credential exchange. It deliberately excludes the raw
+// credential and the generated session secret.
+//
+// Repository validation must compare the requested identity-link presence,
+// including absence, and keep the compared rows or ranges stable through the
+// surrounding unit-of-work commit. UserGrants are compared as a set.
+type SSOExchangeSnapshot struct {
+	Provider          domain.SSOProvider
+	Subject           string
+	IdentityLink      domain.UserIdentityLink
+	IdentityLinkFound bool
+	User              domain.HumanUser
+	UserLoaded        bool
+	UserFound         bool
+	UserGrants        []domain.ResourceGrant
+	UserGrantsLoaded  bool
+}
+
 type ReleaseCatalogRepository interface {
+	GetArtifact(context.Context, string, string) (domain.Artifact, error)
 	InsertProduct(context.Context, domain.Product) error
 	InsertProject(context.Context, domain.Project) error
 	InsertRelease(context.Context, domain.Release) error
@@ -268,8 +310,20 @@ type ReleaseCatalogRepository interface {
 }
 
 type EvidenceRepository interface {
+	// Transaction-scoped getters read tenant-owned durable rows. Implementations
+	// keep the returned evidence link/scope and parsed projections stable through
+	// the surrounding unit of work so authorization and derived writes cannot
+	// race a concurrent process.
+	ValidateEvidenceScope(context.Context, string, string, string, string, string, string) error
+	GetEvidence(context.Context, string, string) (domain.EvidenceItem, error)
+	GetSBOM(context.Context, string, string) (domain.SBOM, error)
+	GetOpenAPIContract(context.Context, string, string) (domain.OpenAPIContract, error)
 	InsertEvidence(context.Context, domain.EvidenceItem) error
-	UpdateEvidenceLinks(context.Context, domain.EvidenceItem) error
+	// CompareAndSwapEvidenceLinks updates only product/release/related-reference
+	// links when the expected prior product, project, release, build, deployment,
+	// and related-reference state still matches. Nil and empty reference slices
+	// both represent no links.
+	CompareAndSwapEvidenceLinks(context.Context, domain.EvidenceItem, domain.EvidenceItem) error
 	RecordSupersession(context.Context, domain.EvidenceItem, domain.EvidenceItem) error
 	AppendLifecycle(context.Context, domain.EvidenceLifecycleEvent) error
 	InsertSBOM(context.Context, domain.SBOM) error
@@ -615,6 +669,10 @@ type PersistedState struct {
 }
 
 func AppendPersistedChainEntry(state *PersistedState, now time.Time, tenantID, entryType, subjectType, subjectID, actorType, actorID, payloadHash, signatureRef string) (domain.AuditChainEntry, error) {
+	return appendPersistedChainEntryWithID(state, newID("ace"), now, tenantID, entryType, subjectType, subjectID, actorType, actorID, payloadHash, signatureRef)
+}
+
+func appendPersistedChainEntryWithID(state *PersistedState, id string, now time.Time, tenantID, entryType, subjectType, subjectID, actorType, actorID, payloadHash, signatureRef string) (domain.AuditChainEntry, error) {
 	if state.Chain == nil {
 		state.Chain = map[string][]domain.AuditChainEntry{}
 	}
@@ -624,7 +682,7 @@ func AppendPersistedChainEntry(state *PersistedState, now time.Time, tenantID, e
 		previous = entries[len(entries)-1].EntryHash
 	}
 	entry := domain.AuditChainEntry{
-		ID:                newID("ace"),
+		ID:                id,
 		TenantID:          tenantID,
 		Sequence:          int64(len(entries) + 1),
 		EntryType:         entryType,
@@ -715,6 +773,7 @@ type ReleaseLedgerMutation struct {
 	Contracts              []domain.OpenAPIContract
 	VEXDocuments           []domain.VEXDocument
 	VEXImportReports       []domain.VEXImportReport
+	BuildAttestations      []domain.BuildAttestation
 	VulnerabilityDecisions []domain.VulnerabilityDecision
 	AuditChainEntries      []domain.AuditChainEntry
 	OutboxJobs             []OutboxJob
