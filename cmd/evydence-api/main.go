@@ -105,6 +105,7 @@ func runWithContext(ctx context.Context) error {
 	}
 	var closeStore func()
 	var releaseWriterLease func()
+	var queryStore *postgres.Store
 	if profile == wiring.PostgreSQL {
 		startupCtx, cancelStartup := context.WithTimeout(ctx, 30*time.Second)
 		defer cancelStartup()
@@ -122,6 +123,7 @@ func runWithContext(ctx context.Context) error {
 			return err
 		}
 		closeStore = pgStore.Close
+		queryStore = pgStore
 		if production {
 			releaseWriterLease, err = pgStore.AcquireAPIWriterLease(startupCtx)
 			if err != nil {
@@ -178,7 +180,7 @@ func runWithContext(ctx context.Context) error {
 			cfg.ObjectStore = objectStore
 		}
 		for _, limitation := range profile.Limitations() {
-			log.Print(limitation)
+			log.Print(redaction.RedactString(limitation)) // #nosec G706 -- Limitations returns compiled literals; redaction removes line breaks.
 		}
 	}
 	if production {
@@ -211,6 +213,13 @@ func runWithContext(ctx context.Context) error {
 			log.Printf("bootstrapped tenant %s and key %s; set EVYDENCE_PRINT_BOOTSTRAP_SECRET=true for local-only secret output", tenant.ID, key.ID)
 		}
 	}
+	var productPages httpapi.ProductPageQuery
+	if queryStore != nil {
+		productPages, err = wiring.BuildProductPageQuery(queryStore, ledger)
+		if err != nil {
+			return fmt.Errorf("create product query: %w", err)
+		}
+	}
 	server, err := httpapi.NewServerWithOptionsContext(ctx, ledger, httpapi.ServerOptions{
 		RateLimitRequestsPerMinute:       httpConfig.RateLimitRequestsPerMinute,
 		ExpensiveTenantRequestsPerMinute: httpConfig.ExpensiveTenantRequestsPerMinute,
@@ -222,6 +231,7 @@ func runWithContext(ctx context.Context) error {
 		MaxConcurrentUploads:             httpConfig.MaxConcurrentUploads,
 		BuildIdentity:                    identity,
 		PaginationSecret:                 []byte(pepper),
+		ProductPages:                     productPages,
 	})
 	if err != nil {
 		return fmt.Errorf("create server: %w", err)

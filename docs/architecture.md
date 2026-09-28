@@ -43,9 +43,12 @@ and custom report rendering, signing-key lifecycle, and verification workflows.
 Migrated HTTP operations enter through
 context-specific handler interfaces. The deprecated Ledger facade forwards
 these commands and maps their models to compatibility DTOs while idempotency,
-specialized report/query paths, and the composition root still use the legacy
-application boundary. Database-backed context queries and composition-root
-replacement remain EVY-905 work. `make domain-context-check`
+specialized report/query paths, and most composition still use the legacy
+application boundary. EVY-905 now routes production product-list pages through
+a focused release query service and a tenant/grant-filtered PostgreSQL keyset
+query. Other production reads still reconstruct the broad Ledger state at
+startup; their database-backed query and composition replacement remain open
+EVY-905 work. `make domain-context-check`
 prevents model ownership, field compatibility, schema ownership, import, and
 transport-tag drift during the remaining transition.
 
@@ -59,7 +62,7 @@ Instance diagnostics require explicit `instance:admin` scope. Tenant admin and o
 
 ## Storage And Append-Only Behavior
 
-When `EVYDENCE_DATABASE_URL` is set, mutations are saved to PostgreSQL before successful responses return. When object storage is configured, upload payload bytes, including raw SBOM, vulnerability scan, OpenAPI, OpenVEX, CycloneDX VEX, and DSSE build-attestation payloads, are written with tenant-prefixed keys and SHA-256 digest checks before metadata is accepted.
+With `EVYDENCE_RUNTIME_PROFILE=postgres` and `EVYDENCE_DATABASE_URL` set, mutations are saved to PostgreSQL before successful responses return. When object storage is configured, upload payload bytes, including raw SBOM, vulnerability scan, OpenAPI, OpenVEX, CycloneDX VEX, and DSSE build-attestation payloads, are written with tenant-prefixed keys and SHA-256 digest checks before metadata is accepted.
 
 Managed payload identity uses the versioned `evydence-object-key.v1` layout. Canonical SHA-256 digests are lowercase `sha256:<64 hex>` values; staging and finalized payload keys are exactly `tenants/<tenant>/staging/sha256/<hex>` and `tenants/<tenant>/payloads/sha256/<hex>`. Tenant identifiers and logical object keys reject traversal, path separators inside tenant IDs, control characters, empty/dot path components, and cross-tenant ownership. Filesystem operations are rooted beneath `EVYDENCE_OBJECT_DIR` without following symlinks outside that root. S3/MinIO reads validate tenant metadata, provider byte count, media type syntax, and the SHA-256 digest against the returned bytes before content is trusted.
 
@@ -91,6 +94,6 @@ Air-gapped import-bundle workflows preserve the same tenant-scoped import path a
 
 ## Limitations
 
-The in-process store remains available only when `EVYDENCE_DATABASE_URL` is unset. S3/MinIO runtime object storage is available through the object-store port. Signing-provider operation receipts, an optional HTTPS signing gateway executor, built-in AWS KMS, GCP Cloud KMS, and Azure Key Vault signing executors, gateway-backed `pkcs11-hsm` mode, native PKCS#11/HSM custody profile records, OIDC discovery refresh, optional live OIDC UserInfo validation, an optional provider validation gateway, SSO credential exchange with session-scoped OIDC group-role mapping, public-transparency proof fetching, an optional transparency proof gateway, and optional worker-owned parser side effects are implemented, but native HSM module loading/execution, direct provider-specific management API clients, and external group synchronization remain deployment hardening work. Hand-tuned per-resource repository implementations remain production-readiness work. `ENV=production` rejects the in-process store, default API-key pepper, unsupported API writer modes or replica counts above one, local plaintext signing-key mode, and bootstrap secret printing.
+The in-process store requires `EVYDENCE_RUNTIME_PROFILE=local_memory` and an unset `EVYDENCE_DATABASE_URL`; it is non-durable and cannot run the worker. Explicitly configured local filesystem payload files may remain after in-memory metadata is lost. S3/MinIO runtime object storage is available through the object-store port in PostgreSQL mode. Signing-provider operation receipts, an optional HTTPS signing gateway executor, built-in AWS KMS, GCP Cloud KMS, and Azure Key Vault signing executors, gateway-backed `pkcs11-hsm` mode, native PKCS#11/HSM custody profile records, OIDC discovery refresh, optional live OIDC UserInfo validation, an optional provider validation gateway, SSO credential exchange with session-scoped OIDC group-role mapping, public-transparency proof fetching, an optional transparency proof gateway, and optional worker-owned parser side effects are implemented, but native HSM module loading/execution, direct provider-specific management API clients, and external group synchronization remain deployment hardening work. Hand-tuned per-resource repository implementations remain production-readiness work. `ENV=production` rejects the in-process store, default API-key pepper, unsupported API writer modes or replica counts above one, local plaintext signing-key mode, and bootstrap secret printing.
 
 Evydence does not prove provider truth, scanner authority, runtime security, legal compliance, or release security by itself.

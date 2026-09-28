@@ -104,6 +104,16 @@ func (ledgerReleaseCandidateCanonicalizer) HashReleaseCandidate(_ context.Contex
 
 type ledgerContextAuthorizer struct{ ledger *Ledger }
 
+// NewContextAuthorizer exposes the existing policy as a narrow transitional
+// port for context-owned query services. It does not expose Ledger internals to
+// transport handlers and will be retired with the compatibility aggregate.
+func NewContextAuthorizer(ledger *Ledger) (application.Authorizer, error) {
+	if ledger == nil {
+		return nil, ErrValidation
+	}
+	return ledgerContextAuthorizer{ledger: ledger}, nil
+}
+
 func (a ledgerContextAuthorizer) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
 	if err := ctx.Err(); err != nil {
 		return err

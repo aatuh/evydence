@@ -33,3 +33,21 @@ func TestLedgerContextAuthorizerRequiresTenantWideHumanGrantWhenRequested(t *tes
 		t.Fatalf("API-key tenant admin: %v", err)
 	}
 }
+
+func TestNewContextAuthorizerExposesOnlyTheExistingAuthorizationPort(t *testing.T) {
+	if _, err := NewContextAuthorizer(nil); !errors.Is(err, ErrValidation) {
+		t.Fatalf("nil compatibility ledger error=%v, want validation", err)
+	}
+	ledger := &Ledger{}
+	authorizer, err := NewContextAuthorizer(ledger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor := identitydomain.Actor{TenantID: "ten_1", UserID: "usr_1", Scopes: []string{ScopeProductRead}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "product", ResourceID: "prod_allowed", Scopes: []string{ScopeProductRead}}}}
+	if err := authorizer.Authorize(t.Context(), actor, application.AuthorizationRequest{Scope: ScopeProductRead, Resources: application.ResourceReferences{ProductID: "prod_allowed"}}); err != nil {
+		t.Fatalf("allowed product authorization: %v", err)
+	}
+	if err := authorizer.Authorize(t.Context(), actor, application.AuthorizationRequest{Scope: ScopeProductRead, Resources: application.ResourceReferences{ProductID: "prod_other"}}); !errors.Is(err, application.ErrForbidden) {
+		t.Fatalf("foreign product authorization=%v, want forbidden", err)
+	}
+}

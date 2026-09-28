@@ -177,6 +177,20 @@ curl -fsS "$api_url/v1/reports/release-readiness?release_id=$release_id" \
   >"$workdir/restarted-readiness.json"
 jq -e --arg release_id "$release_id" '.data.release_id == $release_id' "$workdir/restarted-readiness.json" >/dev/null
 
+# The product page must read a bounded, tenant-scoped database snapshot rather
+# than the Ledger image reconstructed when the API process started.
+tenant_id="$(jq -er '.data.tenant_id' "$workdir/demo/product.json")"
+if ! printf '%s\n' "$tenant_id" | grep -Eq '^[A-Za-z0-9_]+$'; then
+  printf '%s\n' 'black-box-demo-check: unsafe tenant id in product fixture' >&2
+  exit 1
+fi
+psql "$EVYDENCE_TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -q -c "INSERT INTO $schema.products (id, tenant_id, name, slug) VALUES ('prod_db_only_probe', '$tenant_id', 'Database-only probe', 'database-only-probe')" >/dev/null
+psql "$EVYDENCE_TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -q -c "INSERT INTO $schema.tenants (id, name) VALUES ('ten_query_foreign', 'Foreign query probe'); INSERT INTO $schema.products (id, tenant_id, name, slug) VALUES ('prod_foreign_probe', 'ten_query_foreign', 'Foreign probe', 'foreign-probe')" >/dev/null
+curl -fsS "$api_url/v1/products?page_size=50" \
+  -H "Authorization: Bearer $api_key" \
+  >"$workdir/database-product-page.json"
+jq -e '([.data[].id] | index("prod_db_only_probe") != null) and ([.data[].id] | index("prod_foreign_probe") == null)' "$workdir/database-product-page.json" >/dev/null
+
 pending_jobs="$(psql "$EVYDENCE_TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -qAt -c "SELECT count(*) FROM $schema.outbox_jobs WHERE status IN ('queued', 'retrying', 'running')")"
 if [ "$pending_jobs" != "0" ]; then
   printf '%s\n' "black-box-demo-check: pending outbox jobs remain after demo: $pending_jobs" >&2

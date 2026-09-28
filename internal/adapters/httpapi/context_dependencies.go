@@ -7,6 +7,7 @@ import (
 	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
+	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 )
 
 // authenticator is the transport's identity-verification boundary. Keeping it
@@ -14,6 +15,12 @@ import (
 // explicit dependency of every protected route.
 type authenticator interface {
 	Authenticate(context.Context, string) (domain.Actor, error)
+}
+
+// ProductPageQuery is a focused, pre-authorized catalog read. Production
+// bindings apply tenant/grant filters in PostgreSQL before pagination.
+type ProductPageQuery interface {
+	ListProductsPage(context.Context, domain.Actor, appquery.PageRequest, *appquery.SortKey) (appquery.Result[releasedomain.Product], error)
 }
 
 // commandScope binds transaction-local command services without exposing the
