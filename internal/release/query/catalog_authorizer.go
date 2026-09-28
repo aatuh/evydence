@@ -42,7 +42,7 @@ func (catalogAuthorizer) Authorize(ctx context.Context, actor identitydomain.Act
 }
 
 func catalogScope(scope string) bool {
-	return scope == ScopeProductRead || scope == scopeProjectRead || scope == scopeReleaseRead
+	return scope == ScopeProductRead || scope == scopeProjectRead || scope == scopeReleaseRead || scope == scopeBuildRead
 }
 
 func validCatalogReferences(scope string, refs application.ResourceReferences) bool {
@@ -53,6 +53,8 @@ func validCatalogReferences(scope string, refs application.ResourceReferences) b
 		return refs.ProductID != "" && refs.ProjectID != "" && refs == (application.ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID})
 	case scopeReleaseRead:
 		return refs.ProductID != "" && refs.ReleaseID != "" && refs == (application.ResourceReferences{ProductID: refs.ProductID, ReleaseID: refs.ReleaseID})
+	case scopeBuildRead:
+		return refs.ProductID != "" && refs.ProjectID != "" && refs.ReleaseID != "" && refs.BuildID != "" && refs == (application.ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID, BuildID: refs.BuildID})
 	default:
 		return false
 	}

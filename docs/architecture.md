@@ -57,11 +57,12 @@ inventories. API and worker runtime commands,
 including reconciliation and parser replay, now share a composition root for
 profile/load-mode validation, PostgreSQL migrations, object-store selection,
 and the production API writer lease.
-EVY-905 also routes production product-list pages and product, project, and
-release point reads through focused release query services with tenant-bound
-PostgreSQL queries. Their actor-scope and catalog-grant checks no longer read
-the Ledger's product, project, or release maps; SQL validates the tenant and
-parent-product coordinates before the query service applies resource grants.
+EVY-905 also routes production product-list pages and product, project,
+release, and build point reads through focused release query services with
+tenant-bound PostgreSQL queries. Their actor-scope and catalog-grant checks
+no longer read the Ledger's product, project, release, or build maps. The
+build query joins its project, release, and product in one statement before
+the service applies resource grants.
 The production process still reconstructs broad Ledger state at startup for
 remaining compatibility operations; removing that startup load and migrating
 other reads remain open EVY-905 work. Evidence list and search pages now use

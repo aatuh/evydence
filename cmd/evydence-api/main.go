@@ -176,6 +176,7 @@ func runWithContext(ctx context.Context) error {
 	}
 	var productQuery httpapi.ProductQuery
 	var catalogPointQuery httpapi.CatalogPointQuery
+	var buildPointQuery httpapi.BuildPointQuery
 	var auditLogQuery httpapi.AuditLogQuery
 	var apiKeyQuery httpapi.APIKeyQuery
 	var roleBindingQuery httpapi.RoleBindingQuery
@@ -192,6 +193,10 @@ func runWithContext(ctx context.Context) error {
 		catalogPointQuery, err = wiring.BuildCatalogPointQuery(runtime.Postgres)
 		if err != nil {
 			return fmt.Errorf("create catalog point query: %w", err)
+		}
+		buildPointQuery, err = wiring.BuildBuildPointQuery(runtime.Postgres)
+		if err != nil {
+			return fmt.Errorf("create build point query: %w", err)
 		}
 		auditLogQuery, err = wiring.BuildAuditLogQuery(runtime.Postgres)
 		if err != nil {
@@ -220,6 +225,7 @@ func runWithContext(ctx context.Context) error {
 		PaginationSecret:                 []byte(pepper),
 		ProductQuery:                     productQuery,
 		CatalogPointQuery:                catalogPointQuery,
+		BuildPointQuery:                  buildPointQuery,
 		AuditLogQuery:                    auditLogQuery,
 		APIKeyQuery:                      apiKeyQuery,
 		RoleBindingQuery:                 roleBindingQuery,

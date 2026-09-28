@@ -34,6 +34,11 @@ type CatalogPointQuery interface {
 	GetRelease(context.Context, domain.Actor, string) (releasedomain.Release, error)
 }
 
+// BuildPointQuery authorizes a build using one tenant-verified durable parent projection.
+type BuildPointQuery interface {
+	GetBuildRun(context.Context, domain.Actor, string) (releasedomain.BuildRun, error)
+}
+
 // AuditLogQuery pages current tenant audit entries without loading the Ledger.
 type AuditLogQuery interface {
 	ListPage(context.Context, domain.Actor, verificationquery.AuditFilter, appquery.PageRequest, *appquery.SortKey) (appquery.Result[verificationdomain.AuditChainEntry], error)

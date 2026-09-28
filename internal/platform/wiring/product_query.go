@@ -15,3 +15,9 @@ func BuildProductQuery(reader releasequery.ProductReader) (*releasequery.Product
 func BuildCatalogPointQuery(reader releasequery.CatalogPointReader) (*releasequery.CatalogPoints, error) {
 	return releasequery.NewCatalogPoints(reader, releasequery.NewCatalogAuthorizer())
 }
+
+// BuildBuildPointQuery binds the build and its authorization coordinates to one
+// tenant-scoped database projection.
+func BuildBuildPointQuery(reader releasequery.BuildPointReader) (*releasequery.BuildPoints, error) {
+	return releasequery.NewBuildPoints(reader, releasequery.NewCatalogAuthorizer())
+}

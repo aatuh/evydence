@@ -13,6 +13,7 @@ func TestCatalogAuthorizerPreservesActorScopeAndGrantBoundaries(t *testing.T) {
 	product := application.ResourceReferences{ProductID: "prod_1"}
 	project := application.ResourceReferences{ProductID: "prod_1", ProjectID: "proj_1"}
 	release := application.ResourceReferences{ProductID: "prod_1", ReleaseID: "rel_1"}
+	build := application.ResourceReferences{ProductID: "prod_1", ProjectID: "proj_1", ReleaseID: "rel_1", BuildID: "bld_1"}
 	for _, test := range []struct {
 		name    string
 		actor   identitydomain.Actor
@@ -41,6 +42,12 @@ func TestCatalogAuthorizerPreservesActorScopeAndGrantBoundaries(t *testing.T) {
 		{name: "project grant not product", actor: catalogActor("product:read", "project", "proj_1", "product:read"), request: application.AuthorizationRequest{Scope: "product:read", Resources: product}, want: application.ErrForbidden},
 		{name: "release grant", actor: catalogActor("release:read", "release", "rel_1", "release:read"), request: application.AuthorizationRequest{Scope: "release:read", Resources: release}},
 		{name: "release grant not project", actor: catalogActor("project:read", "release", "rel_1", "project:read"), request: application.AuthorizationRequest{Scope: "project:read", Resources: project}, want: application.ErrForbidden},
+		{name: "build key scope", actor: identitydomain.Actor{TenantID: "ten_1", KeyID: "key_1", Scopes: []string{"build:read"}}, request: application.AuthorizationRequest{Scope: "build:read", Resources: build}},
+		{name: "build product grant", actor: catalogActor("build:read", "product", "prod_1", "build:read"), request: application.AuthorizationRequest{Scope: "build:read", Resources: build}},
+		{name: "build project grant", actor: catalogActor("build:read", "project", "proj_1", "build:read"), request: application.AuthorizationRequest{Scope: "build:read", Resources: build}},
+		{name: "build release grant", actor: catalogActor("build:read", "release", "rel_1", "build:read"), request: application.AuthorizationRequest{Scope: "build:read", Resources: build}},
+		{name: "build wrong project grant", actor: catalogActor("build:read", "project", "proj_other", "build:read"), request: application.AuthorizationRequest{Scope: "build:read", Resources: build}, want: application.ErrForbidden},
+		{name: "build wrong release grant", actor: catalogActor("build:read", "release", "rel_other", "build:read"), request: application.AuthorizationRequest{Scope: "build:read", Resources: build}, want: application.ErrForbidden},
 		{name: "grant wrong scope", actor: catalogActor("product:read", "product", "prod_1", "project:read"), request: application.AuthorizationRequest{Scope: "product:read", Resources: product}, want: application.ErrForbidden},
 		{name: "admin grant scope", actor: catalogActor("product:read", "product", "prod_1", "admin"), request: application.AuthorizationRequest{Scope: "product:read", Resources: product}},
 		{name: "wildcard grant scope", actor: catalogActor("product:read", "product", "prod_1", "*"), request: application.AuthorizationRequest{Scope: "product:read", Resources: product}},
@@ -56,12 +63,14 @@ func TestCatalogAuthorizerPreservesActorScopeAndGrantBoundaries(t *testing.T) {
 
 func TestCatalogAuthorizerFailsClosedOnInvalidProjectionAndCancellation(t *testing.T) {
 	authorizer := NewCatalogAuthorizer()
-	actor := identitydomain.Actor{TenantID: "ten_1", KeyID: "key_1", Scopes: []string{"product:read", "project:read", "release:read"}}
+	actor := identitydomain.Actor{TenantID: "ten_1", KeyID: "key_1", Scopes: []string{"product:read", "project:read", "release:read", "build:read"}}
 	for _, request := range []application.AuthorizationRequest{
 		{Scope: "project:read", Resources: application.ResourceReferences{ProductID: "prod_1"}},
 		{Scope: "project:read", Resources: application.ResourceReferences{ProductID: "prod_1", ProjectID: "proj_1", ReleaseID: "rel_1"}},
 		{Scope: "release:read", Resources: application.ResourceReferences{ReleaseID: "rel_1"}},
 		{Scope: "product:read", Resources: application.ResourceReferences{ProductID: "prod_1", ProjectID: "proj_1"}},
+		{Scope: "build:read", Resources: application.ResourceReferences{ProductID: "prod_1", ProjectID: "proj_1", ReleaseID: "rel_1"}},
+		{Scope: "build:read", Resources: application.ResourceReferences{ProductID: "prod_1", ProjectID: "proj_1", ReleaseID: "rel_1", BuildID: "bld_1", ArtifactID: "art_1"}},
 		{Scope: "evidence:read", ScopeOnly: true},
 	} {
 		if err := authorizer.Authorize(t.Context(), actor, request); !errors.Is(err, application.ErrForbidden) {

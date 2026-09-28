@@ -42,6 +42,7 @@ type Server struct {
 	releaseCatalog    releaseCatalogService
 	productQuery      ProductQuery
 	catalogPointQuery CatalogPointQuery
+	buildPointQuery   BuildPointQuery
 	auditLogQuery     AuditLogQuery
 	apiKeyQuery       APIKeyQuery
 	roleBindingQuery  RoleBindingQuery
@@ -84,6 +85,8 @@ type ServerOptions struct {
 	// CatalogPointQuery enables tenant-filtered PostgreSQL project/release
 	// reads. Local-memory servers use the compatibility service instead.
 	CatalogPointQuery CatalogPointQuery
+	// BuildPointQuery reads current build and parent coordinates in PostgreSQL.
+	BuildPointQuery BuildPointQuery
 	// AuditLogQuery pages tenant audit records in PostgreSQL for the durable profile.
 	AuditLogQuery AuditLogQuery
 	// APIKeyQuery pages public key metadata in PostgreSQL for the durable profile.
@@ -134,7 +137,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
 		server.authn = opts.Authenticator
@@ -842,6 +845,15 @@ func (s *Server) createBuild(w http.ResponseWriter, r *http.Request) {
 func (s *Server) getBuild(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
+		return
+	}
+	if s.buildPointQuery != nil {
+		build, err := s.buildPointQuery.GetBuildRun(r.Context(), actor, r.PathValue("id"))
+		if err != nil {
+			writeProblem(w, r, mapCatalogPointQueryError(err))
+			return
+		}
+		writeData(w, http.StatusOK, buildRunFromQuery(build))
 		return
 	}
 	build, err := s.releaseCatalog.GetBuildRun(r.Context(), actor, r.PathValue("id"))
