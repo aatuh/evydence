@@ -134,6 +134,7 @@ type Config struct {
 }
 
 type Service struct {
+	authenticator      *Authenticator
 	reader             Reader
 	transactions       TransactionRunner
 	authorizer         application.Authorizer
@@ -155,8 +156,16 @@ func NewService(config Config) (*Service, error) {
 	if config.Reader == nil || config.Transactions == nil || config.Authorizer == nil || config.GrantPolicy == nil || config.Credentials == nil || config.SessionCredentials == nil || config.GrantTargets == nil || config.SessionGrants == nil || config.TrustMaterial == nil || config.CanonicalHasher == nil || config.CredentialVerifier == nil || config.VerificationPolicy == nil || config.Clock == nil || config.IDs == nil {
 		return nil, ErrValidation
 	}
+	authenticator, err := NewAuthenticator(AuthenticationConfig{
+		Reader: config.Reader, Activity: transactionAuthenticationActivity{transactions: config.Transactions},
+		Credentials: config.Credentials, Clock: config.Clock,
+	})
+	if err != nil {
+		return nil, err
+	}
 	return &Service{
-		reader: config.Reader, transactions: config.Transactions, authorizer: config.Authorizer,
+		authenticator: authenticator,
+		reader:        config.Reader, transactions: config.Transactions, authorizer: config.Authorizer,
 		grantPolicy: config.GrantPolicy, credentials: config.Credentials, sessionCredentials: config.SessionCredentials,
 		grantTargets: config.GrantTargets, sessionGrants: config.SessionGrants, trustMaterial: config.TrustMaterial,
 		canonicalHasher: config.CanonicalHasher, oidcDiscovery: config.OIDCDiscovery,
@@ -337,83 +346,7 @@ func (s *Service) ListAPIKeys(ctx context.Context, actor identitydomain.Actor) (
 }
 
 func (s *Service) Authenticate(ctx context.Context, secret string) (identitydomain.Actor, error) {
-	if err := contextError(ctx); err != nil {
-		return identitydomain.Actor{}, err
-	}
-	secret = strings.TrimSpace(strings.TrimPrefix(secret, "Bearer "))
-	if secret == "" {
-		return identitydomain.Actor{}, ErrUnauthorized
-	}
-	prefix := s.credentials.Prefix(secret)
-	hash := s.credentials.Hash(secret)
-	keys, err := s.reader.APIKeysByPrefix(ctx, prefix)
-	if err != nil {
-		return identitydomain.Actor{}, authenticationError(ctx)
-	}
-	for _, key := range keys {
-		if key.Prefix != prefix || !s.credentials.Equal(key.Hash, hash) || key.RevokedAt != nil {
-			continue
-		}
-		now := s.clock.Now().UTC()
-		if key.ExpiresAt != nil && !key.ExpiresAt.After(now) {
-			return identitydomain.Actor{}, ErrUnauthorized
-		}
-		updated := cloneAPIKey(key)
-		lastUsedAt := now
-		if key.LastUsedAt != nil && key.LastUsedAt.UTC().After(lastUsedAt) {
-			lastUsedAt = key.LastUsedAt.UTC()
-		}
-		updated.LastUsedAt = &lastUsedAt
-		collector := CollectorActivity{}
-		binding, found, err := s.reader.CollectorByAPIKey(ctx, key.TenantID, key.ID)
-		if err != nil {
-			return identitydomain.Actor{}, authenticationError(ctx)
-		}
-		if found {
-			if binding.TenantID != key.TenantID || binding.APIKeyID != key.ID {
-				return identitydomain.Actor{}, ErrUnauthorized
-			}
-			collector = CollectorActivity{ID: binding.ID, TenantID: binding.TenantID, LastSeenAt: now}
-		}
-		if err := s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-			return tx.Identity().UpdateAPIKeyActivity(ctx, updated, collector)
-		}); err != nil {
-			return identitydomain.Actor{}, authenticationError(ctx)
-		}
-		return identitydomain.Actor{TenantID: key.TenantID, KeyID: key.ID, Name: key.Name, Scopes: append([]string(nil), key.Scopes...), CollectorID: collector.ID}, nil
-	}
-	sessions, err := s.reader.SessionsByPrefix(ctx, prefix)
-	if err != nil {
-		return identitydomain.Actor{}, authenticationError(ctx)
-	}
-	for _, session := range sessions {
-		now := s.clock.Now().UTC()
-		if session.Prefix != prefix || !s.credentials.Equal(session.Hash, hash) || session.RevokedAt != nil || !session.ExpiresAt.After(now) {
-			continue
-		}
-		identity, err := s.reader.SessionIdentity(ctx, session)
-		if err != nil {
-			return identitydomain.Actor{}, authenticationError(ctx)
-		}
-		if identity.User.TenantID != session.TenantID || identity.User.ID != session.UserID || identity.User.Status != "active" {
-			return identitydomain.Actor{}, ErrUnauthorized
-		}
-		if err := s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-			return tx.Identity().ValidateActiveSession(ctx, session, now)
-		}); err != nil {
-			return identitydomain.Actor{}, authenticationError(ctx)
-		}
-		grants := cloneGrants(identity.Grants)
-		scopes := scopesFromGrants(grants)
-		if len(scopes) == 0 {
-			return identitydomain.Actor{}, ErrForbidden
-		}
-		return identitydomain.Actor{
-			TenantID: identity.User.TenantID, UserID: identity.User.ID, SessionID: session.ID, Name: identity.User.Email,
-			Scopes: scopes, ResourceGrants: grants,
-		}, nil
-	}
-	return identitydomain.Actor{}, ErrUnauthorized
+	return s.authenticator.Authenticate(ctx, secret)
 }
 
 func authenticationError(ctx context.Context) error {
