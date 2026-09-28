@@ -90,40 +90,23 @@ func runWithArgs(args []string) error {
 	if databaseURL == "" {
 		return errors.New("worker requires EVYDENCE_DATABASE_URL")
 	}
-	if _, err := wiring.ResolveRuntimeProfile(os.Getenv("EVYDENCE_RUNTIME_PROFILE"), production, databaseURL, wiring.Worker); err != nil {
-		return err
-	}
 	ctx := context.Background()
-	loadMode, err := postgres.ResolveLoadMode(os.Getenv("EVYDENCE_POSTGRES_LOAD_MODE"), production)
+	runtime, err := wiring.OpenRuntime(ctx, wiring.RuntimeConfig{
+		Process:        wiring.Worker,
+		Profile:        wiring.Profile(os.Getenv("EVYDENCE_RUNTIME_PROFILE")),
+		Production:     production,
+		DatabaseURL:    databaseURL,
+		LoadMode:       os.Getenv("EVYDENCE_POSTGRES_LOAD_MODE"),
+		MigrationsDir:  envDefault("EVYDENCE_MIGRATIONS_DIR", "migrations"),
+		SkipMigrations: strings.EqualFold(os.Getenv("EVYDENCE_SKIP_MIGRATIONS"), "true"),
+		ObjectStore:    wiring.ObjectStoreConfigFromEnv(),
+	})
 	if err != nil {
 		return err
 	}
-	if production {
-		if err := postgres.ValidateProductionLoadMode(loadMode); err != nil {
-			return err
-		}
-	}
-	store, err := postgres.OpenWithOptions(ctx, databaseURL, postgres.StoreOptions{LoadMode: loadMode, DisableSnapshotWrites: production})
-	if err != nil {
-		return err
-	}
-	defer store.Close()
-	migrationsDir := envDefault("EVYDENCE_MIGRATIONS_DIR", "migrations")
-	migrateCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	if !strings.EqualFold(os.Getenv("EVYDENCE_SKIP_MIGRATIONS"), "true") {
-		if _, err := store.ApplyMigrations(migrateCtx, migrationsDir); err != nil {
-			cancel()
-			return err
-		}
-	} else if err := store.RequireNoPendingMigrations(migrateCtx, migrationsDir); err != nil {
-		cancel()
-		return fmt.Errorf("check migrations: %w", err)
-	}
-	cancel()
-	objectStore, _, err := openObjectStore(ctx)
-	if err != nil {
-		return err
-	}
+	defer runtime.Close()
+	store := runtime.Postgres
+	objectStore := runtime.Objects
 	pollInterval := durationEnv("EVYDENCE_WORKER_POLL_INTERVAL", time.Second)
 	batchSize := intEnv("EVYDENCE_WORKER_BATCH_SIZE", 10)
 	log.Printf("evydence worker started with postgres outbox, configured object store, polling interval %s", pollInterval)

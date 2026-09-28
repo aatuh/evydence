@@ -21,7 +21,6 @@ import (
 	"github.com/aatuh/evydence/internal/adapters/identity/httpvalidator"
 	"github.com/aatuh/evydence/internal/adapters/identity/oidcdiscovery"
 	"github.com/aatuh/evydence/internal/adapters/identity/oidcuserinfo"
-	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/adapters/signing/awskms"
 	"github.com/aatuh/evydence/internal/adapters/signing/azurekeyvault"
 	"github.com/aatuh/evydence/internal/adapters/signing/gcpkms"
@@ -103,49 +102,26 @@ func runWithContext(ctx context.Context) error {
 	} else {
 		cfg.Signer = signer
 	}
-	var closeStore func()
-	var releaseWriterLease func()
-	var queryStore *postgres.Store
+	startupCtx, cancelStartup := context.WithTimeout(ctx, 30*time.Second)
+	defer cancelStartup()
+	migrationsDir := envDefault("EVYDENCE_MIGRATIONS_DIR", "migrations")
+	runtime, err := wiring.OpenRuntime(startupCtx, wiring.RuntimeConfig{
+		Process:        wiring.API,
+		Profile:        profile,
+		Production:     production,
+		DatabaseURL:    databaseURL,
+		LoadMode:       os.Getenv("EVYDENCE_POSTGRES_LOAD_MODE"),
+		MigrationsDir:  migrationsDir,
+		SkipMigrations: strings.EqualFold(os.Getenv("EVYDENCE_SKIP_MIGRATIONS"), "true"),
+		ObjectStore:    wiring.ObjectStoreConfigFromEnv(),
+	})
+	if err != nil {
+		return err
+	}
+	defer runtime.Close()
 	if profile == wiring.PostgreSQL {
-		startupCtx, cancelStartup := context.WithTimeout(ctx, 30*time.Second)
-		defer cancelStartup()
-		loadMode, err := postgres.ResolveLoadMode(os.Getenv("EVYDENCE_POSTGRES_LOAD_MODE"), production)
-		if err != nil {
-			return err
-		}
-		if production {
-			if err := postgres.ValidateProductionLoadMode(loadMode); err != nil {
-				return err
-			}
-		}
-		pgStore, err := postgres.OpenWithOptions(startupCtx, databaseURL, postgres.StoreOptions{LoadMode: loadMode, DisableSnapshotWrites: production})
-		if err != nil {
-			return err
-		}
-		closeStore = pgStore.Close
-		queryStore = pgStore
-		if production {
-			releaseWriterLease, err = pgStore.AcquireAPIWriterLease(startupCtx)
-			if err != nil {
-				closeStore()
-				return fmt.Errorf("acquire api writer lease: %w", err)
-			}
-		}
-		migrationsDir := envDefault("EVYDENCE_MIGRATIONS_DIR", "migrations")
-		if !strings.EqualFold(os.Getenv("EVYDENCE_SKIP_MIGRATIONS"), "true") {
-			if _, err := pgStore.ApplyMigrations(startupCtx, migrationsDir); err != nil {
-				closeStore()
-				return fmt.Errorf("apply migrations: %w", err)
-			}
-		} else if err := pgStore.RequireNoPendingMigrations(startupCtx, migrationsDir); err != nil {
-			closeStore()
-			return fmt.Errorf("check migrations: %w", err)
-		}
-		objectStore, _, err := openObjectStore(startupCtx)
-		if err != nil {
-			closeStore()
-			return err
-		}
+		pgStore := runtime.Postgres
+		objectStore := runtime.Objects
 		cfg.Store = pgStore
 		cfg.UnitOfWork = pgStore
 		cfg.Outbox = pgStore
@@ -163,34 +139,18 @@ func runWithContext(ctx context.Context) error {
 		}
 		objectReadiness, ok := objectStore.(interface{ CheckReadiness(context.Context) error })
 		if !ok {
-			closeStore()
 			return errors.New("configured object store does not provide readiness checks")
 		}
 		cfg.ReadinessChecks = append(cfg.ReadinessChecks, app.ReadinessCheck{Name: "object_store", Timeout: runtimeReadinessTimeout, FailureDetail: "object store access is unavailable", Check: objectReadiness.CheckReadiness})
 		log.Print("evydence api using postgres state store and configured object store")
 	} else {
-		if kind := strings.TrimSpace(os.Getenv("EVYDENCE_OBJECT_STORE")); kind != "" {
-			if kind != "filesystem" {
-				return errors.New("EVYDENCE_RUNTIME_PROFILE=local_memory supports only EVYDENCE_OBJECT_STORE=filesystem")
-			}
-			objectStore, _, err := openObjectStore(ctx)
-			if err != nil {
-				return err
-			}
-			cfg.ObjectStore = objectStore
-		}
+		cfg.ObjectStore = runtime.Objects
 		for _, limitation := range profile.Limitations() {
 			log.Print(redaction.RedactString(limitation)) // #nosec G706 -- Limitations returns compiled literals; redaction removes line breaks.
 		}
 	}
 	if production {
 		cfg.ReadinessChecks = append(cfg.ReadinessChecks, app.ReadinessCheck{Name: "signing_config", Timeout: runtimeReadinessTimeout, FailureDetail: "required signing configuration is unavailable", Check: signingConfigurationReadiness(cfg.Signer)})
-	}
-	if closeStore != nil {
-		defer closeStore()
-	}
-	if releaseWriterLease != nil {
-		defer releaseWriterLease()
 	}
 	ledgerContext, cancelLedgerLoad := context.WithTimeout(ctx, 30*time.Second)
 	defer cancelLedgerLoad()
@@ -214,8 +174,8 @@ func runWithContext(ctx context.Context) error {
 		}
 	}
 	var productQuery httpapi.ProductQuery
-	if queryStore != nil {
-		productQuery, err = wiring.BuildProductQuery(queryStore, ledger)
+	if runtime.Postgres != nil {
+		productQuery, err = wiring.BuildProductQuery(runtime.Postgres, ledger)
 		if err != nil {
 			return fmt.Errorf("create product query: %w", err)
 		}

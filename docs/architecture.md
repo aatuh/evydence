@@ -43,8 +43,11 @@ and custom report rendering, signing-key lifecycle, and verification workflows.
 Migrated HTTP operations enter through
 context-specific handler interfaces. The deprecated Ledger facade forwards
 these commands and maps their models to compatibility DTOs while idempotency,
-specialized report/query paths, and most composition still use the legacy
-application boundary. EVY-905 now routes production product-list pages and
+specialized report/query paths, and most service composition still use the
+legacy application boundary. API and background worker startup now share a
+runtime composition root for profile/load-mode validation, PostgreSQL
+migrations, object-store selection, and the production API writer lease.
+EVY-905 also routes production product-list pages and
 product point reads through a focused release query service with tenant-bound
 PostgreSQL queries and grant checks. Other production reads still reconstruct
 the broad Ledger state at startup; their database-backed query and composition
