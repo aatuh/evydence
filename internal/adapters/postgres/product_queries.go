@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -14,6 +15,68 @@ import (
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 	releasequery "github.com/aatuh/evydence/internal/release/query"
 )
+
+// GetProject requires both the project and its parent product to belong to
+// the requested tenant. The join prevents a mismatched foreign key from
+// becoming a visible cross-tenant projection.
+func (s *Store) GetProject(ctx context.Context, tenantID, id string) (releasedomain.Project, error) {
+	if s == nil || s.pool == nil || ctx == nil || strings.TrimSpace(tenantID) == "" {
+		return releasedomain.Project{}, app.ErrValidation
+	}
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return releasedomain.Project{}, releasequery.ErrNotFound
+	}
+	var project releasedomain.Project
+	err := s.pool.QueryRow(ctx, `
+		SELECT j.id, j.tenant_id, j.product_id, j.name, j.created_at
+		FROM projects AS j
+		JOIN products AS p ON p.id = j.product_id AND p.tenant_id = j.tenant_id
+		WHERE j.tenant_id = $1 AND j.id = $2`, tenantID, id).
+		Scan(&project.ID, &project.TenantID, &project.ProductID, &project.Name, &project.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return releasedomain.Project{}, releasequery.ErrNotFound
+	}
+	if err != nil {
+		return releasedomain.Project{}, fmt.Errorf("get project: %w", err)
+	}
+	return project, nil
+}
+
+// GetRelease reads the release and its tenant-bound parent in one statement.
+func (s *Store) GetRelease(ctx context.Context, tenantID, id string) (releasedomain.Release, error) {
+	if s == nil || s.pool == nil || ctx == nil || strings.TrimSpace(tenantID) == "" {
+		return releasedomain.Release{}, app.ErrValidation
+	}
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return releasedomain.Release{}, releasequery.ErrNotFound
+	}
+	var release releasedomain.Release
+	var state string
+	var frozenAt, approvedAt sql.NullTime
+	err := s.pool.QueryRow(ctx, `
+		SELECT r.id, r.tenant_id, r.product_id, r.version, r.state,
+		       r.frozen_at, r.approved_at, r.revision, r.created_at
+		FROM releases AS r
+		JOIN products AS p ON p.id = r.product_id AND p.tenant_id = r.tenant_id
+		WHERE r.tenant_id = $1 AND r.id = $2`, tenantID, id).
+		Scan(&release.ID, &release.TenantID, &release.ProductID, &release.Version,
+			&state, &frozenAt, &approvedAt, &release.Revision, &release.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return releasedomain.Release{}, releasequery.ErrNotFound
+	}
+	if err != nil {
+		return releasedomain.Release{}, fmt.Errorf("get release: %w", err)
+	}
+	release.State, err = releasedomain.ParseReleaseState(state)
+	if err != nil {
+		return releasedomain.Release{}, fmt.Errorf("get release state: %w", err)
+	}
+	release.FrozenAt = nullableSQLTime(frozenAt)
+	release.ApprovedAt = nullableSQLTime(approvedAt)
+	return release, nil
+}
 
 // GetProduct scopes the point read in SQL before a product can be authorized
 // or returned by the application query service.

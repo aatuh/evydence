@@ -24,6 +24,13 @@ type ProductQuery interface {
 	GetProduct(context.Context, domain.Actor, string) (releasedomain.Product, error)
 }
 
+// CatalogPointQuery reads projects and releases from tenant-filtered durable
+// storage while the local-memory profile retains compatibility readers.
+type CatalogPointQuery interface {
+	GetProject(context.Context, domain.Actor, string) (releasedomain.Project, error)
+	GetRelease(context.Context, domain.Actor, string) (releasedomain.Release, error)
+}
+
 // commandScope binds transaction-local command services without exposing the
 // compatibility Ledger type to HTTP command wrappers or context-owned
 // handlers. The Ledger-backed implementation remains an adapter until the

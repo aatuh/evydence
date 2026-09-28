@@ -17,3 +17,16 @@ func BuildProductQuery(reader releasequery.ProductReader, ledger *app.Ledger) (*
 	}
 	return releasequery.NewProducts(reader, authorizer)
 }
+
+// BuildCatalogPointQuery shares the current authorization policy with
+// tenant-bound project and release point readers.
+func BuildCatalogPointQuery(reader releasequery.CatalogPointReader, ledger *app.Ledger) (*releasequery.CatalogPoints, error) {
+	if reader == nil {
+		return nil, app.ErrValidation
+	}
+	authorizer, err := app.NewContextAuthorizer(ledger)
+	if err != nil {
+		return nil, err
+	}
+	return releasequery.NewCatalogPoints(reader, authorizer)
+}

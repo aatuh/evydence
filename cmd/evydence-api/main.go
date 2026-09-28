@@ -174,10 +174,15 @@ func runWithContext(ctx context.Context) error {
 		}
 	}
 	var productQuery httpapi.ProductQuery
+	var catalogPointQuery httpapi.CatalogPointQuery
 	if runtime.Postgres != nil {
 		productQuery, err = wiring.BuildProductQuery(runtime.Postgres, ledger)
 		if err != nil {
 			return fmt.Errorf("create product query: %w", err)
+		}
+		catalogPointQuery, err = wiring.BuildCatalogPointQuery(runtime.Postgres, ledger)
+		if err != nil {
+			return fmt.Errorf("create catalog point query: %w", err)
 		}
 	}
 	server, err := httpapi.NewServerWithOptionsContext(ctx, ledger, httpapi.ServerOptions{
@@ -192,6 +197,7 @@ func runWithContext(ctx context.Context) error {
 		BuildIdentity:                    identity,
 		PaginationSecret:                 []byte(pepper),
 		ProductQuery:                     productQuery,
+		CatalogPointQuery:                catalogPointQuery,
 	})
 	if err != nil {
 		return fmt.Errorf("create server: %w", err)

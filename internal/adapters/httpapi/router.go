@@ -38,6 +38,7 @@ type Server struct {
 	identityAccess    identityAccessService
 	releaseCatalog    releaseCatalogService
 	productQuery      ProductQuery
+	catalogPointQuery CatalogPointQuery
 	evidenceIngestion evidenceIngestionService
 	riskDecisions     riskDecisionService
 	packages          packageService
@@ -71,6 +72,9 @@ type ServerOptions struct {
 	// ProductQuery enables bounded PostgreSQL-backed catalog reads.
 	// Local-memory servers retain the legacy in-process query path.
 	ProductQuery ProductQuery
+	// CatalogPointQuery enables tenant-filtered PostgreSQL project/release
+	// reads. Local-memory servers use the compatibility service instead.
+	CatalogPointQuery CatalogPointQuery
 }
 
 func NewServer(ledger *app.Ledger) (*Server, error) {
@@ -115,7 +119,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery}
 	server.bindLedger(ledger)
 	if err := server.registerRoutes(); err != nil {
 		return nil, err
@@ -465,6 +469,15 @@ func (s *Server) getProject(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if s.catalogPointQuery != nil {
+		project, err := s.catalogPointQuery.GetProject(r.Context(), actor, r.PathValue("id"))
+		if err != nil {
+			writeProblem(w, r, mapCatalogPointQueryError(err))
+			return
+		}
+		writeData(w, http.StatusOK, domain.Project{ID: project.ID, TenantID: project.TenantID, ProductID: project.ProductID, Name: project.Name, CreatedAt: project.CreatedAt})
+		return
+	}
 	project, err := s.releaseCatalog.GetProject(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
 		writeProblem(w, r, err)
@@ -492,12 +505,34 @@ func (s *Server) getRelease(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if s.catalogPointQuery != nil {
+		release, err := s.catalogPointQuery.GetRelease(r.Context(), actor, r.PathValue("id"))
+		if err != nil {
+			writeProblem(w, r, mapCatalogPointQueryError(err))
+			return
+		}
+		writeData(w, http.StatusOK, domain.ReleaseFromContextModel(release))
+		return
+	}
 	release, err := s.releaseCatalog.GetRelease(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
 	writeData(w, http.StatusOK, release)
+}
+
+func mapCatalogPointQueryError(err error) error {
+	switch {
+	case errors.Is(err, releasequery.ErrValidation):
+		return app.ErrValidation
+	case errors.Is(err, releasequery.ErrNotFound):
+		return app.ErrNotFound
+	case errors.Is(err, application.ErrForbidden):
+		return app.ErrForbidden
+	default:
+		return err
+	}
 }
 
 func (s *Server) startReleaseEvidenceFlow(w http.ResponseWriter, r *http.Request) {

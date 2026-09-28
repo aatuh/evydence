@@ -48,8 +48,8 @@ legacy application boundary. API and worker runtime commands, including
 reconciliation and parser replay, now share a composition root for
 profile/load-mode validation, PostgreSQL migrations, object-store selection,
 and the production API writer lease.
-EVY-905 also routes production product-list pages and
-product point reads through a focused release query service with tenant-bound
+EVY-905 also routes production product-list pages and product, project, and
+release point reads through focused release query services with tenant-bound
 PostgreSQL queries and grant checks. Other production reads still reconstruct
 the broad Ledger state at startup; their database-backed query and composition
 replacement remain open EVY-905 work. `make domain-context-check`
