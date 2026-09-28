@@ -115,66 +115,48 @@ type TransactionRunner interface {
 	Execute(context.Context, TransactionCommand) error
 }
 
-// BootstrapTransaction is the temporary composition compatibility boundary
-// for creating the first verification/signing key in the same durable unit of
-// work as a tenant and its first API credential. Only BootstrapTenant receives
-// this capability; ordinary identity commands cannot write signing state. The
-// boundary is removed when verification/signing bootstrap moves in EVY-904.
-type BootstrapTransaction interface {
-	Transaction
-	InsertInitialSigningKey(context.Context, identitydomain.Tenant) error
-}
-
-type BootstrapTransactionCommand func(context.Context, BootstrapTransaction) error
-
-type BootstrapTransactionRunner interface {
-	ExecuteBootstrap(context.Context, BootstrapTransactionCommand) error
-}
-
 type Config struct {
-	Reader                Reader
-	Transactions          TransactionRunner
-	BootstrapTransactions BootstrapTransactionRunner
-	Authorizer            application.Authorizer
-	GrantPolicy           GrantPolicy
-	Credentials           CredentialManager
-	SessionCredentials    SessionCredentialManager
-	GrantTargets          GrantTargetResolver
-	SessionGrants         SessionGrantPolicy
-	TrustMaterial         TrustMaterialValidator
-	CanonicalHasher       CanonicalHasher
-	OIDCDiscovery         OIDCDiscovery
-	CredentialVerifier    CredentialVerifier
-	VerificationPolicy    ProviderVerificationPolicy
-	Clock                 application.Clock
-	IDs                   application.IDGenerator
+	Reader             Reader
+	Transactions       TransactionRunner
+	Authorizer         application.Authorizer
+	GrantPolicy        GrantPolicy
+	Credentials        CredentialManager
+	SessionCredentials SessionCredentialManager
+	GrantTargets       GrantTargetResolver
+	SessionGrants      SessionGrantPolicy
+	TrustMaterial      TrustMaterialValidator
+	CanonicalHasher    CanonicalHasher
+	OIDCDiscovery      OIDCDiscovery
+	CredentialVerifier CredentialVerifier
+	VerificationPolicy ProviderVerificationPolicy
+	Clock              application.Clock
+	IDs                application.IDGenerator
 }
 
 type Service struct {
-	reader                Reader
-	transactions          TransactionRunner
-	bootstrapTransactions BootstrapTransactionRunner
-	authorizer            application.Authorizer
-	grantPolicy           GrantPolicy
-	credentials           CredentialManager
-	sessionCredentials    SessionCredentialManager
-	grantTargets          GrantTargetResolver
-	sessionGrants         SessionGrantPolicy
-	trustMaterial         TrustMaterialValidator
-	canonicalHasher       CanonicalHasher
-	oidcDiscovery         OIDCDiscovery
-	credentialVerifier    CredentialVerifier
-	verificationPolicy    ProviderVerificationPolicy
-	clock                 application.Clock
-	ids                   application.IDGenerator
+	reader             Reader
+	transactions       TransactionRunner
+	authorizer         application.Authorizer
+	grantPolicy        GrantPolicy
+	credentials        CredentialManager
+	sessionCredentials SessionCredentialManager
+	grantTargets       GrantTargetResolver
+	sessionGrants      SessionGrantPolicy
+	trustMaterial      TrustMaterialValidator
+	canonicalHasher    CanonicalHasher
+	oidcDiscovery      OIDCDiscovery
+	credentialVerifier CredentialVerifier
+	verificationPolicy ProviderVerificationPolicy
+	clock              application.Clock
+	ids                application.IDGenerator
 }
 
 func NewService(config Config) (*Service, error) {
-	if config.Reader == nil || config.Transactions == nil || config.BootstrapTransactions == nil || config.Authorizer == nil || config.GrantPolicy == nil || config.Credentials == nil || config.SessionCredentials == nil || config.GrantTargets == nil || config.SessionGrants == nil || config.TrustMaterial == nil || config.CanonicalHasher == nil || config.CredentialVerifier == nil || config.VerificationPolicy == nil || config.Clock == nil || config.IDs == nil {
+	if config.Reader == nil || config.Transactions == nil || config.Authorizer == nil || config.GrantPolicy == nil || config.Credentials == nil || config.SessionCredentials == nil || config.GrantTargets == nil || config.SessionGrants == nil || config.TrustMaterial == nil || config.CanonicalHasher == nil || config.CredentialVerifier == nil || config.VerificationPolicy == nil || config.Clock == nil || config.IDs == nil {
 		return nil, ErrValidation
 	}
 	return &Service{
-		reader: config.Reader, transactions: config.Transactions, bootstrapTransactions: config.BootstrapTransactions, authorizer: config.Authorizer,
+		reader: config.Reader, transactions: config.Transactions, authorizer: config.Authorizer,
 		grantPolicy: config.GrantPolicy, credentials: config.Credentials, sessionCredentials: config.SessionCredentials,
 		grantTargets: config.GrantTargets, sessionGrants: config.SessionGrants, trustMaterial: config.TrustMaterial,
 		canonicalHasher: config.CanonicalHasher, oidcDiscovery: config.OIDCDiscovery,
@@ -196,17 +178,36 @@ type BootstrapTenantInput struct {
 	Scopes     []string
 }
 
-// BootstrapTenant owns validation and all identity writes for first-tenant
-// creation. Its runner preserves the legacy all-or-nothing bootstrap contract
-// while EVY-904 moves initial signing-key creation to its owning context.
-func (s *Service) BootstrapTenant(ctx context.Context, input BootstrapTenantInput) (identitydomain.Tenant, identitydomain.APIKey, string, error) {
+// PreparedTenantBootstrap is sensitive composition-layer state. Secret and the
+// API-key hash must be retained only until CommitTenantBootstrap succeeds; only
+// PublicResult may cross the public API boundary.
+type PreparedTenantBootstrap struct {
+	Tenant identitydomain.Tenant
+	APIKey identitydomain.APIKey
+	Secret string
+}
+
+// PublicResult returns the bootstrap response without the stored credential
+// hash. Callers must invoke it only after the shared bootstrap transaction has
+// committed successfully.
+func (p PreparedTenantBootstrap) PublicResult() (identitydomain.Tenant, identitydomain.APIKey, string) {
+	tenant := p.Tenant
+	key := cloneAPIKey(p.APIKey)
+	key.Hash = ""
+	return tenant, key, p.Secret
+}
+
+// PrepareTenantBootstrap validates and prepares only Identity-owned state. It
+// does not persist anything; the composition layer combines it with the
+// Verification-owned initial signing key in one shared transaction.
+func (s *Service) PrepareTenantBootstrap(ctx context.Context, input BootstrapTenantInput) (PreparedTenantBootstrap, error) {
 	if err := contextError(ctx); err != nil {
-		return identitydomain.Tenant{}, identitydomain.APIKey{}, "", err
+		return PreparedTenantBootstrap{}, err
 	}
 	input.TenantName = strings.TrimSpace(input.TenantName)
 	input.APIKeyName = strings.TrimSpace(input.APIKeyName)
 	if input.TenantName == "" || input.APIKeyName == "" {
-		return identitydomain.Tenant{}, identitydomain.APIKey{}, "", ErrValidation
+		return PreparedTenantBootstrap{}, ErrValidation
 	}
 	if len(input.Scopes) == 0 {
 		input.Scopes = []string{"*"}
@@ -215,9 +216,9 @@ func (s *Service) BootstrapTenant(ctx context.Context, input BootstrapTenantInpu
 	credential, err := s.credentials.Generate()
 	if err != nil || strings.TrimSpace(credential.Secret) == "" || strings.TrimSpace(credential.Prefix) == "" || strings.TrimSpace(credential.Hash) == "" {
 		if err != nil {
-			return identitydomain.Tenant{}, identitydomain.APIKey{}, "", err
+			return PreparedTenantBootstrap{}, err
 		}
-		return identitydomain.Tenant{}, identitydomain.APIKey{}, "", ErrValidation
+		return PreparedTenantBootstrap{}, ErrValidation
 	}
 	now := s.clock.Now().UTC()
 	tenant := identitydomain.Tenant{ID: s.ids.NewID("ten"), Name: input.TenantName, CreatedAt: now}
@@ -225,28 +226,39 @@ func (s *Service) BootstrapTenant(ctx context.Context, input BootstrapTenantInpu
 		ID: s.ids.NewID("key"), TenantID: tenant.ID, Name: input.APIKeyName, Prefix: credential.Prefix,
 		Scopes: append([]string(nil), input.Scopes...), CreatedAt: now, Hash: credential.Hash,
 	}
-	err = s.bootstrapTransactions.ExecuteBootstrap(ctx, func(ctx context.Context, tx BootstrapTransaction) error {
-		if err := tx.Identity().InsertTenant(ctx, tenant); err != nil {
-			return err
-		}
-		if err := tx.Identity().InsertAPIKey(ctx, key); err != nil {
-			return err
-		}
-		if err := tx.InsertInitialSigningKey(ctx, tenant); err != nil {
-			return err
-		}
-		_, err := tx.Audit().AppendAudit(ctx, application.AuditEvent{
-			ID: s.ids.NewID("ace"), TenantID: tenant.ID, EntryType: "tenant.created", SubjectType: "tenant", SubjectID: tenant.ID,
-			ActorType: "system", ActorID: "bootstrap", OccurredAt: now,
-		})
+	return PreparedTenantBootstrap{Tenant: tenant, APIKey: key, Secret: credential.Secret}, nil
+}
+
+// CommitTenantBootstrap writes only Identity-owned bootstrap records and their
+// audit entry into a transaction supplied by the composition layer.
+func (s *Service) CommitTenantBootstrap(ctx context.Context, tx Transaction, prepared PreparedTenantBootstrap) error {
+	if err := contextError(ctx); err != nil {
 		return err
-	})
-	if err != nil {
-		return identitydomain.Tenant{}, identitydomain.APIKey{}, "", err
 	}
-	public := cloneAPIKey(key)
-	public.Hash = ""
-	return tenant, public, credential.Secret, nil
+	if tx == nil || !s.validPreparedTenantBootstrap(prepared) {
+		return ErrValidation
+	}
+	if err := tx.Identity().InsertTenant(ctx, prepared.Tenant); err != nil {
+		return err
+	}
+	if err := tx.Identity().InsertAPIKey(ctx, prepared.APIKey); err != nil {
+		return err
+	}
+	_, err := tx.Audit().AppendAudit(ctx, application.AuditEvent{
+		ID: s.ids.NewID("ace"), TenantID: prepared.Tenant.ID, EntryType: "tenant.created", SubjectType: "tenant", SubjectID: prepared.Tenant.ID,
+		ActorType: "system", ActorID: "bootstrap", OccurredAt: prepared.Tenant.CreatedAt.UTC(),
+	})
+	return err
+}
+
+func (s *Service) validPreparedTenantBootstrap(prepared PreparedTenantBootstrap) bool {
+	tenant := prepared.Tenant
+	key := prepared.APIKey
+	secret := strings.TrimSpace(prepared.Secret)
+	if tenant.ID == "" || strings.TrimSpace(tenant.Name) == "" || tenant.CreatedAt.IsZero() || key.ID == "" || key.TenantID != tenant.ID || strings.TrimSpace(key.Name) == "" || strings.TrimSpace(key.Prefix) == "" || strings.TrimSpace(key.Hash) == "" || key.CreatedAt.IsZero() || !key.CreatedAt.Equal(tenant.CreatedAt) || len(key.Scopes) == 0 || secret == "" {
+		return false
+	}
+	return s.credentials.Prefix(secret) == key.Prefix && s.credentials.Equal(key.Hash, s.credentials.Hash(secret))
 }
 
 type CreateAPIKeyInput struct {

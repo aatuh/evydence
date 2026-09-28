@@ -8,6 +8,8 @@ import (
 	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	releaseapp "github.com/aatuh/evydence/internal/release/app"
+	riskapp "github.com/aatuh/evydence/internal/risk/app"
+	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
 
 type releaseEvidenceService struct {
@@ -365,29 +367,96 @@ func (l *Ledger) GetVEXImportReport(ctx context.Context, actor domain.Actor, vex
 }
 
 func (l *Ledger) CreateVulnerabilityDecision(ctx context.Context, actor domain.Actor, findingID string, in CreateVulnerabilityDecisionInput) (domain.VulnerabilityDecision, error) {
-	return l.releaseEvidenceService().CreateVulnerabilityDecision(ctx, actor, findingID, in)
+	value, err := l.riskCommands.CreateVulnerabilityDecision(ctx, actor, findingID, riskapp.CreateVulnerabilityDecisionInput{
+		Status: in.Status, Justification: in.Justification, ImpactStatement: in.ImpactStatement,
+		ActionStatement: in.ActionStatement, CustomerVisible: in.CustomerVisible, InternalNotes: in.InternalNotes,
+		EvidenceIDs: append([]string(nil), in.EvidenceIDs...), SupportingRefs: supportingRefsToRiskContext(in.SupportingRefs),
+		VEXDocumentID: in.VEXDocumentID, ReviewedAt: cloneTimePtr(in.ReviewedAt), ReviewDueAt: cloneTimePtr(in.ReviewDueAt),
+	})
+	return domain.VulnerabilityDecisionFromContextModel(value), fromRiskContextError(err)
 }
 
 func (l *Ledger) ListVulnerabilityDecisions(ctx context.Context, actor domain.Actor, in ListVulnerabilityDecisionsInput) ([]domain.VulnerabilityDecision, error) {
-	return l.releaseEvidenceService().ListVulnerabilityDecisions(ctx, actor, in)
+	values, err := l.riskCommands.ListVulnerabilityDecisions(ctx, actor, riskapp.ListVulnerabilityDecisionsInput{
+		ProductID: in.ProductID, ReleaseID: in.ReleaseID, Vulnerability: in.Vulnerability,
+		Component: in.Component, Status: in.Status, Active: in.Active,
+	})
+	if err != nil {
+		return nil, fromRiskContextError(err)
+	}
+	result := make([]domain.VulnerabilityDecision, 0, len(values))
+	for _, value := range values {
+		result = append(result, domain.VulnerabilityDecisionFromContextModel(value))
+	}
+	return result, nil
 }
 
 func (l *Ledger) VulnerabilityDecisionSummaryReport(ctx context.Context, actor domain.Actor, releaseID string) (domain.VulnerabilityDecisionSummaryReport, error) {
-	return l.releaseEvidenceService().VulnerabilityDecisionSummaryReport(ctx, actor, releaseID)
+	value, err := l.riskCommands.VulnerabilityDecisionSummaryReport(ctx, actor, releaseID)
+	if err != nil {
+		return domain.VulnerabilityDecisionSummaryReport{}, fromRiskContextError(err)
+	}
+	decisions := make([]domain.VulnerabilityDecisionCustomerSummary, 0, len(value.Decisions))
+	for _, decision := range value.Decisions {
+		decisions = append(decisions, riskDecisionSummaryToLegacy(decision))
+	}
+	return domain.VulnerabilityDecisionSummaryReport{
+		ReportType: value.ReportType, TemplateVersion: value.TemplateVersion, ProductID: value.ProductID,
+		ReleaseID: value.ReleaseID, Decisions: decisions, Assumptions: append([]string(nil), value.Assumptions...),
+		Limitations: append([]string(nil), value.Limitations...), GeneratedAt: value.GeneratedAt,
+	}, nil
 }
 
 func (l *Ledger) CreateException(ctx context.Context, actor domain.Actor, in CreateExceptionInput) (domain.Exception, error) {
-	return l.releaseEvidenceService().CreateException(ctx, actor, in)
+	value, err := l.riskCommands.CreateException(ctx, actor, riskapp.CreateExceptionInput{
+		ReleaseID: in.ReleaseID, FindingID: in.FindingID, ControlID: in.ControlID,
+		Reason: in.Reason, Owner: in.Owner, ExpiresAt: in.ExpiresAt,
+	})
+	return exceptionFromRiskContext(value), fromRiskContextError(err)
 }
 
 func (l *Ledger) ListExceptions(ctx context.Context, actor domain.Actor, releaseID string) ([]domain.Exception, error) {
-	return l.releaseEvidenceService().ListExceptions(ctx, actor, releaseID)
+	values, err := l.riskCommands.ListExceptions(ctx, actor, releaseID)
+	if err != nil {
+		return nil, fromRiskContextError(err)
+	}
+	result := make([]domain.Exception, 0, len(values))
+	for _, value := range values {
+		result = append(result, exceptionFromRiskContext(value))
+	}
+	return result, nil
 }
 
 func (l *Ledger) ApproveException(ctx context.Context, actor domain.Actor, id string) (domain.Exception, error) {
-	return l.releaseEvidenceService().ApproveException(ctx, actor, id)
+	value, err := l.riskCommands.ApproveException(ctx, actor, id)
+	return exceptionFromRiskContext(value), fromRiskContextError(err)
 }
 
-func (l *Ledger) ReleaseReadinessReport(ctx context.Context, actor domain.Actor, releaseID string) (domain.ReleaseReadinessReport, error) {
-	return l.releaseEvidenceService().ReleaseReadinessReport(ctx, actor, releaseID)
+func supportingRefsToRiskContext(values []domain.SubjectRef) []riskdomain.SupportingReference {
+	result := make([]riskdomain.SupportingReference, 0, len(values))
+	for _, value := range values {
+		result = append(result, riskdomain.SupportingReference{Type: value.Type, ID: value.ID, Digest: value.Digest})
+	}
+	return result
+}
+
+func riskDecisionSummaryToLegacy(value riskdomain.VulnerabilityDecisionCustomerSummary) domain.VulnerabilityDecisionCustomerSummary {
+	return domain.VulnerabilityDecisionCustomerSummary{
+		ID: value.ID, FindingID: value.FindingID, ScanID: value.ScanID, ReleaseID: value.ReleaseID,
+		Vulnerability: value.Vulnerability, Component: value.Component, SBOMID: value.SBOMID,
+		SBOMComponentPURL: value.SBOMComponentPURL, SBOMComponentName: value.SBOMComponentName,
+		Status: value.Status, Justification: value.Justification, ImpactStatement: value.ImpactStatement,
+		ActionStatement: value.ActionStatement, Source: value.Source, EvidenceID: value.EvidenceID,
+		EvidenceIDs: append([]string(nil), value.EvidenceIDs...), SupportingRefs: riskSupportingRefsToLegacy(value.SupportingRefs),
+		VEXDocumentID: value.VEXDocumentID, ReviewedAt: cloneTimePtr(value.ReviewedAt), ReviewDueAt: cloneTimePtr(value.ReviewDueAt),
+		CreatedAt: value.CreatedAt,
+	}
+}
+
+func riskSupportingRefsToLegacy(values []riskdomain.SupportingReference) []domain.SubjectRef {
+	result := make([]domain.SubjectRef, 0, len(values))
+	for _, value := range values {
+		result = append(result, domain.SubjectRef{Type: value.Type, ID: value.ID, Digest: value.Digest})
+	}
+	return result
 }

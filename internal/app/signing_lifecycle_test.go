@@ -38,8 +38,9 @@ func TestSigningKeyLifecycleUsesInjectedClockAndDistinguishesCompromise(t *testi
 	if _, err := ledger.RevokeSigningKey(ctx, actor, original.ID, "routine retirement"); err != nil {
 		t.Fatalf("ordinary revoke: %v", err)
 	}
-	if _, err := ledger.VerifySubject(ctx, actor, "release_bundle", bundle.ID); err != nil {
-		t.Fatalf("ordinary revocation must preserve valid historical signature: %v", err)
+	if result, err := ledger.VerifySubject(ctx, actor, "release_bundle", bundle.ID); err != nil {
+		actualHash, hashErr := canonicalAnyHash(bundle.Manifest)
+		t.Fatalf("ordinary revocation must preserve valid historical signature: manifest_hash=%q actual_hash=%q hash_err=%v manifest=%#v result=%#v err=%v", bundle.ManifestHash, actualHash, hashErr, bundle.Manifest, result, err)
 	}
 	compromisedBundle, err := ledger.CreateReleaseBundle(ctx, actor, release.ID)
 	if err != nil {

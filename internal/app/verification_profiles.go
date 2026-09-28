@@ -2,7 +2,6 @@ package app
 
 import (
 	"sort"
-	"time"
 
 	"github.com/aatuh/evydence/internal/domain"
 )
@@ -34,22 +33,6 @@ func requiredCheckNames(checks []domain.VerifyCheck) []string {
 	}
 	sort.Strings(names)
 	return names
-}
-
-func verificationResult(id, tenantID, subjectType, subjectID string, checks []domain.VerifyCheck, profile domain.VerificationProfile, at time.Time) domain.VerificationResult {
-	profile = domain.NormalizeVerificationProfile(profile)
-	return domain.VerificationResult{
-		ID:            id,
-		TenantID:      tenantID,
-		SubjectType:   subjectType,
-		SubjectID:     subjectID,
-		Result:        string(domain.AggregateVerificationState(profile, checks)),
-		Checks:        append([]domain.VerifyCheck(nil), checks...),
-		Profile:       profile,
-		Limitations:   append([]string(nil), profile.Limitations...),
-		SchemaVersion: domain.VerificationResultSchemaVersion,
-		VerifiedAt:    at,
-	}
 }
 
 func verificationReturnsFailure(result string) bool {

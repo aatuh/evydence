@@ -1,11 +1,14 @@
 package httpapi
 
 const (
-	operationOwnerExtension         = "x-evydence-owner"
-	operationOwnerIdentityAccess    = "identity-access"
-	operationOwnerReleaseCatalog    = "release-catalog"
-	operationOwnerEvidenceIngestion = "evidence-ingestion"
-	operationOwnerReleaseLedger     = "release-ledger"
+	operationOwnerExtension             = "x-evydence-owner"
+	operationOwnerIdentityAccess        = "identity-access"
+	operationOwnerReleaseCatalog        = "release-catalog"
+	operationOwnerEvidenceIngestion     = "evidence-ingestion"
+	operationOwnerGovernance            = "governance"
+	operationOwnerCustomerDelivery      = "customer-delivery"
+	operationOwnerIntegrityVerification = "integrity-verification"
+	operationOwnerReleaseLedger         = "release-ledger"
 )
 
 // boundedContextOperationOwner records context ownership by operation id.
@@ -42,12 +45,19 @@ func boundedContextOperationOwner(operationID string) (string, bool) {
 		"uploadOpenAPIContract", "getOpenAPIContract", "createOpenAPIDiff":
 		return operationOwnerEvidenceIngestion, true
 
-	case "verifyBuildAttestationSignature",
-		"exportEvidenceBundle", "importEvidenceBundle",
-		"createGraphSnapshot", "createEvidenceSummary", "evaluatePolicy",
-		"createReleaseBundle", "getReleaseBundle", "getReleaseBundleManifest", "verifyReleaseBundle",
+	case "evaluatePolicy", "listVulnerabilityDecisions", "createVulnerabilityDecision":
+		return operationOwnerGovernance, true
+
+	case "exportEvidenceBundle", "importEvidenceBundle", "createReleaseBundle":
+		return operationOwnerCustomerDelivery, true
+
+	case "verifyBuildAttestationSignature", "verifyReleaseBundle":
+		return operationOwnerIntegrityVerification, true
+
+	case "createGraphSnapshot", "createEvidenceSummary",
+		"getReleaseBundle", "getReleaseBundleManifest",
 		"releaseSecuritySummary", "createRemediationTask",
-		"listVulnerabilityDecisions", "createVulnerabilityDecision", "recordVulnerabilityWorkflow":
+		"recordVulnerabilityWorkflow":
 		return operationOwnerReleaseLedger, true
 
 	default:

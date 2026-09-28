@@ -13,15 +13,25 @@ import (
 
 var errIdentityCommit = errors.New("commit failed")
 
-func TestBootstrapTenantCommitsIdentityAndInitialSigningTogetherBeforeReturningSecret(t *testing.T) {
+func TestPrepareAndCommitTenantBootstrapOwnsOnlyIdentityState(t *testing.T) {
 	fixture := newIdentityServiceFixture(t)
 
-	tenant, key, secret, err := fixture.service.BootstrapTenant(context.Background(), BootstrapTenantInput{
+	prepared, err := fixture.service.PrepareTenantBootstrap(context.Background(), BootstrapTenantInput{
 		TenantName: " Design Partner ", APIKeyName: " local admin ",
 	})
 	if err != nil {
-		t.Fatalf("BootstrapTenant: %v", err)
+		t.Fatalf("PrepareTenantBootstrap: %v", err)
 	}
+	if len(fixture.transactions.state.tenants) != 0 || len(fixture.transactions.state.apiKeys) != 0 || len(fixture.transactions.state.audit) != 0 {
+		t.Fatalf("preparation published state=%#v", fixture.transactions.state)
+	}
+	err = fixture.transactions.Execute(context.Background(), func(ctx context.Context, tx Transaction) error {
+		return fixture.service.CommitTenantBootstrap(ctx, tx, prepared)
+	})
+	if err != nil {
+		t.Fatalf("CommitTenantBootstrap: %v", err)
+	}
+	tenant, key, secret := prepared.PublicResult()
 	if tenant.ID != "ten_1" || tenant.Name != "Design Partner" || key.ID != "key_1" || key.Name != "local admin" {
 		t.Fatalf("tenant=%#v key=%#v", tenant, key)
 	}
@@ -33,8 +43,8 @@ func TestBootstrapTenantCommitsIdentityAndInitialSigningTogetherBeforeReturningS
 	if !tenantCommitted || !keyCommitted || storedTenant.Name != tenant.Name || storedKey.Hash != "stored-hash" {
 		t.Fatalf("committed tenant=%#v key=%#v state=%#v", storedTenant, storedKey, fixture.transactions.state)
 	}
-	if fixture.transactions.initialSigningRequests != 1 || fixture.transactions.initialSigningTenant != tenant || fixture.transactions.commits != 1 {
-		t.Fatalf("signing requests=%d tenant=%#v commits=%d", fixture.transactions.initialSigningRequests, fixture.transactions.initialSigningTenant, fixture.transactions.commits)
+	if fixture.transactions.commits != 1 {
+		t.Fatalf("commits=%d", fixture.transactions.commits)
 	}
 	if len(fixture.transactions.state.audit) != 1 {
 		t.Fatalf("audit=%#v", fixture.transactions.state.audit)
@@ -45,21 +55,26 @@ func TestBootstrapTenantCommitsIdentityAndInitialSigningTogetherBeforeReturningS
 	}
 }
 
-func TestBootstrapTenantSigningCompatibilityFailureRollsBackIdentityAndReturnsNoSecret(t *testing.T) {
+func TestCommitTenantBootstrapFailureRollsBackIdentity(t *testing.T) {
 	fixture := newIdentityServiceFixture(t)
-	fixture.transactions.initialSigningErr = errIdentityCommit
-
-	tenant, key, secret, err := fixture.service.BootstrapTenant(context.Background(), BootstrapTenantInput{
+	prepared, err := fixture.service.PrepareTenantBootstrap(context.Background(), BootstrapTenantInput{
 		TenantName: "Tenant", APIKeyName: "admin", Scopes: []string{"*"},
 	})
-	if !errors.Is(err, errIdentityCommit) || tenant.ID != "" || key.ID != "" || secret != "" {
-		t.Fatalf("tenant=%#v key=%#v secret=%q err=%v", tenant, key, secret, err)
+	if err != nil {
+		t.Fatalf("PrepareTenantBootstrap: %v", err)
+	}
+	fixture.transactions.err = errIdentityCommit
+	err = fixture.transactions.Execute(context.Background(), func(ctx context.Context, tx Transaction) error {
+		return fixture.service.CommitTenantBootstrap(ctx, tx, prepared)
+	})
+	if !errors.Is(err, errIdentityCommit) {
+		t.Fatalf("commit error=%v", err)
 	}
 	if len(fixture.transactions.state.tenants) != 0 || len(fixture.transactions.state.apiKeys) != 0 || len(fixture.transactions.state.audit) != 0 {
 		t.Fatalf("failed bootstrap published state=%#v", fixture.transactions.state)
 	}
-	if fixture.transactions.initialSigningRequests != 1 || fixture.transactions.commits != 0 || fixture.transactions.rollbacks != 1 {
-		t.Fatalf("signing requests=%d commits=%d rollbacks=%d", fixture.transactions.initialSigningRequests, fixture.transactions.commits, fixture.transactions.rollbacks)
+	if fixture.transactions.commits != 0 || fixture.transactions.rollbacks != 1 {
+		t.Fatalf("commits=%d rollbacks=%d", fixture.transactions.commits, fixture.transactions.rollbacks)
 	}
 }
 
@@ -273,7 +288,7 @@ func newIdentityServiceFixture(t *testing.T) *identityServiceFixture {
 	verificationPolicy := fakeProviderVerificationPolicy{}
 	transactions := &fakeIdentityTransactions{state: newFakeIdentityState()}
 	service, err := NewService(Config{
-		Reader: reader, Transactions: transactions, BootstrapTransactions: transactions, Authorizer: authorizer, GrantPolicy: grants,
+		Reader: reader, Transactions: transactions, Authorizer: authorizer, GrantPolicy: grants,
 		Credentials: fakeCredentials{}, SessionCredentials: sessionCredentials, GrantTargets: targets,
 		SessionGrants: sessionGrants, TrustMaterial: trust, CanonicalHasher: hasher,
 		OIDCDiscovery: discovery, CredentialVerifier: verifier, VerificationPolicy: verificationPolicy,
@@ -624,32 +639,13 @@ func (s fakeIdentityState) clone() fakeIdentityState {
 }
 
 type fakeIdentityTransactions struct {
-	state                  fakeIdentityState
-	err                    error
-	auditErr               error
-	validateExchange       func(SSOExchangeSnapshot) error
-	exchangeValidations    int
-	initialSigningErr      error
-	initialSigningTenant   identitydomain.Tenant
-	initialSigningRequests int
-	commits                int
-	rollbacks              int
-}
-
-func (f *fakeIdentityTransactions) ExecuteBootstrap(ctx context.Context, command BootstrapTransactionCommand) error {
-	pending := f.state.clone()
-	tx := &fakeIdentityTransaction{state: &pending, auditErr: f.auditErr, transactions: f}
-	if err := command(ctx, tx); err != nil {
-		f.rollbacks++
-		return err
-	}
-	if f.err != nil {
-		f.rollbacks++
-		return f.err
-	}
-	f.state = pending
-	f.commits++
-	return nil
+	state               fakeIdentityState
+	err                 error
+	auditErr            error
+	validateExchange    func(SSOExchangeSnapshot) error
+	exchangeValidations int
+	commits             int
+	rollbacks           int
 }
 
 func (f *fakeIdentityTransactions) Execute(ctx context.Context, command TransactionCommand) error {
@@ -679,12 +675,6 @@ func (f *fakeIdentityTransaction) Identity() Repository {
 }
 func (f *fakeIdentityTransaction) Audit() application.AuditAppender {
 	return fakeIdentityAudit{state: f.state, err: f.auditErr}
-}
-
-func (f *fakeIdentityTransaction) InsertInitialSigningKey(_ context.Context, tenant identitydomain.Tenant) error {
-	f.transactions.initialSigningRequests++
-	f.transactions.initialSigningTenant = tenant
-	return f.transactions.initialSigningErr
 }
 
 type fakeIdentityRepository struct {

@@ -21,8 +21,7 @@ func (l *Ledger) configureIdentityCommands() error {
 	}
 	service, err := identityapp.NewService(identityapp.Config{
 		Reader: ledgerIdentityReader{ledger: l}, Transactions: ledgerIdentityTransactions{ledger: l},
-		BootstrapTransactions: ledgerIdentityTransactions{ledger: l},
-		Authorizer:            ledgerContextAuthorizer{ledger: l}, GrantPolicy: ledgerIdentityGrantPolicy{},
+		Authorizer: ledgerContextAuthorizer{ledger: l}, GrantPolicy: ledgerIdentityGrantPolicy{},
 		Credentials: ledgerCredentialManager{ledger: l}, SessionCredentials: ledgerSessionCredentialManager{ledger: l},
 		GrantTargets: ledgerIdentityGrantTargets{ledger: l}, SessionGrants: ledgerIdentitySessionGrants{},
 		TrustMaterial: ledgerIdentityTrustMaterial{}, CanonicalHasher: ledgerIdentityCanonicalHasher{},
@@ -376,12 +375,6 @@ func (r ledgerIdentityTransactions) Execute(ctx context.Context, command identit
 	})
 }
 
-func (r ledgerIdentityTransactions) ExecuteBootstrap(ctx context.Context, command identityapp.BootstrapTransactionCommand) error {
-	return r.execute(ctx, func(ctx context.Context, tx *ledgerIdentityTransaction) error {
-		return command(ctx, tx)
-	})
-}
-
 func (r ledgerIdentityTransactions) execute(ctx context.Context, command func(context.Context, *ledgerIdentityTransaction) error) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -412,7 +405,6 @@ type ledgerIdentityTransaction struct {
 	repositories          *Repositories
 	tenants               map[string]domain.Tenant
 	apiKeys               map[string]domain.APIKey
-	signingKeys           map[string]domain.SigningKey
 	collectors            map[string]domain.Collector
 	organizations         map[string]domain.Organization
 	users                 map[string]domain.HumanUser
@@ -427,7 +419,7 @@ type ledgerIdentityTransaction struct {
 func newLedgerIdentityTransaction(ledger *Ledger) *ledgerIdentityTransaction {
 	return &ledgerIdentityTransaction{
 		ledger: ledger, tenants: map[string]domain.Tenant{}, apiKeys: map[string]domain.APIKey{},
-		signingKeys: map[string]domain.SigningKey{}, collectors: map[string]domain.Collector{},
+		collectors:    map[string]domain.Collector{},
 		organizations: map[string]domain.Organization{}, users: map[string]domain.HumanUser{},
 		roleBindings: map[string]domain.RoleBinding{}, ssoProviders: map[string]domain.SSOProvider{},
 		identityLinks: map[string]domain.UserIdentityLink{}, providerVerifications: map[string]domain.ProviderVerification{},
@@ -452,30 +444,6 @@ func (t *ledgerIdentityTransaction) InsertTenant(ctx context.Context, tenant ide
 		}
 	}
 	t.tenants[legacy.ID] = legacy
-	return nil
-}
-
-// InsertInitialSigningKey is one of EVY-903's three temporary compatibility
-// exceptions to the one-owner transaction rule. BootstrapTenant calls it
-// through the narrower BootstrapTransaction capability so tenant, credential,
-// key, and audit remain atomic. EVY-904 removes this bridge when
-// verification/signing owns bootstrap.
-func (t *ledgerIdentityTransaction) InsertInitialSigningKey(ctx context.Context, tenant identitydomain.Tenant) error {
-	legacyTenant := tenantFromIdentityContext(tenant)
-	pending, ok := t.tenants[legacyTenant.ID]
-	if !ok || !reflect.DeepEqual(pending, legacyTenant) {
-		return identityapp.ErrConflict
-	}
-	key, err := t.ledger.newSigningKey(legacyTenant.ID)
-	if err != nil {
-		return err
-	}
-	if t.repositories != nil {
-		if err := t.repositories.Signatures.InsertSigningKey(ctx, key); err != nil {
-			return toIdentityContextError(err)
-		}
-	}
-	t.signingKeys[key.ID] = key
 	return nil
 }
 
@@ -938,9 +906,6 @@ func (t *ledgerIdentityTransaction) publish() {
 	for id, key := range t.apiKeys {
 		t.ledger.apiKeys[id] = key
 	}
-	for id, key := range t.signingKeys {
-		t.ledger.signingKeys[id] = key
-	}
 	for id, collector := range t.collectors {
 		t.ledger.collectors[id] = collector
 	}
@@ -973,7 +938,6 @@ func (t *ledgerIdentityTransaction) publish() {
 func (t *ledgerIdentityTransaction) commitCompatibility(ctx context.Context) error {
 	tenants := cloneTenantMap(t.ledger.tenants)
 	keys := cloneAPIKeyMap(t.ledger.apiKeys)
-	signingKeys := cloneSigningKeyMap(t.ledger.signingKeys)
 	collectors := cloneCollectorMap(t.ledger.collectors)
 	organizations := cloneOrganizationMap(t.ledger.organizations)
 	users := cloneHumanUserMap(t.ledger.users)
@@ -991,7 +955,6 @@ func (t *ledgerIdentityTransaction) commitCompatibility(ctx context.Context) err
 	if err := persist(ctx); err != nil {
 		t.ledger.tenants = tenants
 		t.ledger.apiKeys = keys
-		t.ledger.signingKeys = signingKeys
 		t.ledger.collectors = collectors
 		t.ledger.organizations = organizations
 		t.ledger.users = users

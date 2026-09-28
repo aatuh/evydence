@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/aatuh/evydence/internal/domain"
+	riskapp "github.com/aatuh/evydence/internal/risk/app"
 )
 
 func (l *Ledger) ReleaseEvidenceFlowPlan(ctx context.Context, actor domain.Actor, releaseID string) (domain.ReleaseEvidenceFlow, error) {
@@ -209,8 +210,15 @@ func (s releaseEvidenceService) ReleaseSecuritySummary(ctx context.Context, acto
 			State:         nonEmpty(finding.State, "open"),
 		})
 	}
-	checks := l.releasePolicyChecksLocked(actor.TenantID, release.ID)
-	readiness := releasePolicyResult(checks)
+	readinessSnapshot, err := buildRiskReadinessSnapshotLocked(l, actor.TenantID, release.ID)
+	if err != nil {
+		return domain.ReleaseSecuritySummary{}, fromRiskContextError(err)
+	}
+	readinessEvaluation, err := riskapp.EvaluateReadinessSnapshot(readinessSnapshot, l.now().UTC())
+	if err != nil {
+		return domain.ReleaseSecuritySummary{}, fromRiskContextError(err)
+	}
+	readiness := readinessEvaluation.Result
 	packageStatus := "not_generated"
 	if counts["customer_packages"] > 0 {
 		packageStatus = "generated"

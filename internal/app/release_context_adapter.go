@@ -122,13 +122,14 @@ func (a ledgerContextAuthorizer) Authorize(ctx context.Context, actor identitydo
 	a.ledger.mu.Lock()
 	defer a.ledger.mu.Unlock()
 	return toApplicationAuthorizationError(a.ledger.authorizeResourceLocked(actor, request.Scope, resourceRefs{
-		ProductID:     request.Resources.ProductID,
-		ProjectID:     request.Resources.ProjectID,
-		ReleaseID:     request.Resources.ReleaseID,
-		ArtifactID:    request.Resources.ArtifactID,
-		BuildID:       request.Resources.BuildID,
-		DeploymentID:  request.Resources.DeploymentID,
-		EnvironmentID: request.Resources.EnvironmentID,
+		ProductID:         request.Resources.ProductID,
+		ProjectID:         request.Resources.ProjectID,
+		ReleaseID:         request.Resources.ReleaseID,
+		ArtifactID:        request.Resources.ArtifactID,
+		BuildID:           request.Resources.BuildID,
+		DeploymentID:      request.Resources.DeploymentID,
+		EnvironmentID:     request.Resources.EnvironmentID,
+		CustomerPackageID: request.Resources.CustomerPackageID,
 	}))
 }
 
@@ -337,13 +338,14 @@ func (a ledgerLockedContextAuthorizer) Authorize(ctx context.Context, actor iden
 		return nil
 	}
 	return toApplicationAuthorizationError(a.ledger.authorizeResourceLocked(actor, request.Scope, resourceRefs{
-		ProductID:     request.Resources.ProductID,
-		ProjectID:     request.Resources.ProjectID,
-		ReleaseID:     request.Resources.ReleaseID,
-		ArtifactID:    request.Resources.ArtifactID,
-		BuildID:       request.Resources.BuildID,
-		DeploymentID:  request.Resources.DeploymentID,
-		EnvironmentID: request.Resources.EnvironmentID,
+		ProductID:         request.Resources.ProductID,
+		ProjectID:         request.Resources.ProjectID,
+		ReleaseID:         request.Resources.ReleaseID,
+		ArtifactID:        request.Resources.ArtifactID,
+		BuildID:           request.Resources.BuildID,
+		DeploymentID:      request.Resources.DeploymentID,
+		EnvironmentID:     request.Resources.EnvironmentID,
+		CustomerPackageID: request.Resources.CustomerPackageID,
 	}))
 }
 

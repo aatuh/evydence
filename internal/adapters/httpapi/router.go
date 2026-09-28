@@ -36,6 +36,9 @@ type Server struct {
 	identityAccess    identityAccessService
 	releaseCatalog    releaseCatalogService
 	evidenceIngestion evidenceIngestionService
+	riskDecisions     riskDecisionService
+	packages          packageService
+	verification      verificationService
 	mux               *http.ServeMux
 	specs             *specs.Registry
 	routes            *routecontracts.Registry
@@ -125,6 +128,9 @@ func (s *Server) bindLedger(ledger *app.Ledger) {
 	s.identityAccess = ledger
 	s.releaseCatalog = ledger
 	s.evidenceIngestion = ledger
+	s.riskDecisions = ledger
+	s.packages = ledger
+	s.verification = ledger
 }
 
 func (s *Server) Handler() http.Handler {
@@ -665,7 +671,7 @@ func (s *Server) verifyCosignSignature(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		result, err := s.ledger.VerifyCosignSignature(ctx, actor, app.VerifyCosignInput{
+		result, err := s.verification.VerifyCosignSignature(ctx, actor, app.VerifyCosignInput{
 			ArtifactSignatureID: r.PathValue("id"),
 			ExpectedIdentity:    req.ExpectedIdentity,
 			ExpectedIssuer:      req.ExpectedIssuer,
@@ -749,7 +755,7 @@ func (s *Server) uploadBuildAttestation(w http.ResponseWriter, r *http.Request) 
 
 func (s *Server) verifyBuildAttestationSignature(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
-		result, err := s.ledger.VerifyDSSEAttestationSignature(ctx, actor, r.PathValue("id"))
+		result, err := s.verification.VerifyDSSEAttestationSignature(ctx, actor, r.PathValue("id"))
 		return http.StatusOK, result, err
 	})
 }
@@ -768,7 +774,7 @@ func (s *Server) createDSSETrustRoot(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		root, err := s.ledger.CreateDSSETrustRoot(ctx, actor, app.CreateDSSETrustRootInput{Name: req.Name, KeyID: req.KeyID, Algorithm: req.Algorithm, PublicKey: req.PublicKey, AllowedPredicateTypes: req.AllowedPredicateTypes, ExpectedBuilderIDs: req.ExpectedBuilderIDs, RequiredClaims: req.RequiredClaims})
+		root, err := s.verification.CreateDSSETrustRoot(ctx, actor, app.CreateDSSETrustRootInput{Name: req.Name, KeyID: req.KeyID, Algorithm: req.Algorithm, PublicKey: req.PublicKey, AllowedPredicateTypes: req.AllowedPredicateTypes, ExpectedBuilderIDs: req.ExpectedBuilderIDs, RequiredClaims: req.RequiredClaims})
 		return http.StatusCreated, root, err
 	})
 }
@@ -1141,14 +1147,14 @@ func (s *Server) createWaiver(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		waiver, err := s.ledger.CreateWaiver(ctx, actor, app.CreateWaiverInput{ScopeType: req.ScopeType, ScopeID: req.ScopeID, ControlID: req.ControlID, PolicyID: req.PolicyID, Owner: req.Owner, Risk: req.Risk, Reason: req.Reason, ExpiresAt: req.ExpiresAt, Supersedes: req.Supersedes})
+		waiver, err := s.riskDecisions.CreateWaiver(ctx, actor, app.CreateWaiverInput{ScopeType: req.ScopeType, ScopeID: req.ScopeID, ControlID: req.ControlID, PolicyID: req.PolicyID, Owner: req.Owner, Risk: req.Risk, Reason: req.Reason, ExpiresAt: req.ExpiresAt, Supersedes: req.Supersedes})
 		return http.StatusCreated, waiver, err
 	})
 }
 
 func (s *Server) approveWaiver(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
-		waiver, err := s.ledger.ApproveWaiver(ctx, actor, r.PathValue("id"))
+		waiver, err := s.riskDecisions.ApproveWaiver(ctx, actor, r.PathValue("id"))
 		return http.StatusOK, waiver, err
 	})
 }
@@ -1165,7 +1171,7 @@ func (s *Server) createApproval(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		approval, err := s.ledger.CreateApprovalRecord(ctx, actor, app.CreateApprovalInput{SubjectType: req.SubjectType, SubjectID: req.SubjectID, Decision: req.Decision, Reason: req.Reason, EvidenceID: req.EvidenceID})
+		approval, err := s.riskDecisions.CreateApprovalRecord(ctx, actor, app.CreateApprovalInput{SubjectType: req.SubjectType, SubjectID: req.SubjectID, Decision: req.Decision, Reason: req.Reason, EvidenceID: req.EvidenceID})
 		return http.StatusCreated, approval, err
 	})
 }
@@ -1182,7 +1188,7 @@ func (s *Server) createRedactionProfile(w http.ResponseWriter, r *http.Request) 
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		profile, err := s.ledger.CreateRedactionProfile(ctx, actor, app.CreateRedactionProfileInput{Name: req.Name, Description: req.Description, Preset: req.Preset, AllowedTypes: req.AllowedTypes, ExcludedFields: req.ExcludedFields})
+		profile, err := s.packages.CreateRedactionProfile(ctx, actor, app.CreateRedactionProfileInput{Name: req.Name, Description: req.Description, Preset: req.Preset, AllowedTypes: req.AllowedTypes, ExcludedFields: req.ExcludedFields})
 		return http.StatusCreated, profile, err
 	})
 }
@@ -1199,7 +1205,7 @@ func (s *Server) createCustomerPackage(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		pkg, err := s.ledger.CreateCustomerSecurityPackage(ctx, actor, app.CreateCustomerPackageInput{ProductID: req.ProductID, ReleaseID: req.ReleaseID, RedactionProfileID: req.RedactionProfileID, Title: req.Title, ExpiresAt: req.ExpiresAt})
+		pkg, err := s.packages.CreateCustomerSecurityPackage(ctx, actor, app.CreateCustomerPackageInput{ProductID: req.ProductID, ReleaseID: req.ReleaseID, RedactionProfileID: req.RedactionProfileID, Title: req.Title, ExpiresAt: req.ExpiresAt})
 		return http.StatusCreated, pkg, err
 	})
 }
@@ -1209,7 +1215,7 @@ func (s *Server) getCustomerPackage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	pkg, err := s.ledger.AccessCustomerSecurityPackage(r.Context(), actor, r.PathValue("id"))
+	pkg, err := s.packages.AccessCustomerSecurityPackage(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -1248,7 +1254,7 @@ func (s *Server) craReadinessHTMLPackage(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	report, err := s.ledger.CRAReadinessHTMLPackage(r.Context(), actor, r.URL.Query().Get("product_id"), r.URL.Query().Get("release_id"))
+	report, err := s.packages.CRAReadinessHTMLPackage(r.Context(), actor, r.URL.Query().Get("product_id"), r.URL.Query().Get("release_id"))
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -1268,7 +1274,7 @@ func (s *Server) createReportTemplate(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		tpl, err := s.ledger.CreateCustomReportTemplate(ctx, actor, app.CreateReportTemplateInput{Name: req.Name, Version: req.Version, ReportType: req.ReportType, AllowedFields: req.AllowedFields, Template: req.Template})
+		tpl, err := s.packages.CreateCustomReportTemplate(ctx, actor, app.CreateReportTemplateInput{Name: req.Name, Version: req.Version, ReportType: req.ReportType, AllowedFields: req.AllowedFields, Template: req.Template})
 		return http.StatusCreated, tpl, err
 	})
 }
@@ -1282,7 +1288,7 @@ func (s *Server) renderReportTemplate(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		report, err := s.ledger.RenderCustomReport(ctx, actor, app.RenderReportInput{TemplateID: r.PathValue("id"), SubjectType: req.SubjectType, SubjectID: req.SubjectID})
+		report, err := s.packages.RenderCustomReport(ctx, actor, app.RenderReportInput{TemplateID: r.PathValue("id"), SubjectType: req.SubjectType, SubjectID: req.SubjectID})
 		return http.StatusCreated, report, err
 	})
 }
@@ -1296,7 +1302,7 @@ func (s *Server) exportEvidenceBundle(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		bundle, err := s.ledger.ExportEvidenceBundle(ctx, actor, req.ReleaseID, req.EvidenceIDs)
+		bundle, err := s.packages.ExportEvidenceBundle(ctx, actor, req.ReleaseID, req.EvidenceIDs)
 		return http.StatusCreated, bundle, err
 	})
 }
@@ -1307,7 +1313,7 @@ func (s *Server) importEvidenceBundle(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		record, err := s.ledger.ImportEvidenceBundle(ctx, actor, req)
+		record, err := s.packages.ImportEvidenceBundle(ctx, actor, req)
 		return http.StatusCreated, record, err
 	})
 }
@@ -1799,7 +1805,7 @@ func (s *Server) createVulnerabilityDecision(w http.ResponseWriter, r *http.Requ
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		decision, err := s.ledger.CreateVulnerabilityDecision(ctx, actor, r.PathValue("id"), app.CreateVulnerabilityDecisionInput{
+		decision, err := s.riskDecisions.CreateVulnerabilityDecision(ctx, actor, r.PathValue("id"), app.CreateVulnerabilityDecisionInput{
 			Status:          req.Status,
 			Justification:   req.Justification,
 			ImpactStatement: req.ImpactStatement,
@@ -1834,7 +1840,7 @@ func (s *Server) listVulnerabilityDecisions(w http.ResponseWriter, r *http.Reque
 		}
 		active = &parsed
 	}
-	decisions, err := s.ledger.ListVulnerabilityDecisions(r.Context(), actor, app.ListVulnerabilityDecisionsInput{
+	decisions, err := s.riskDecisions.ListVulnerabilityDecisions(r.Context(), actor, app.ListVulnerabilityDecisionsInput{
 		ProductID:     query.Get("product_id"),
 		ReleaseID:     query.Get("release_id"),
 		Vulnerability: query.Get("vulnerability"),
@@ -1952,7 +1958,7 @@ func (s *Server) vulnerabilityDecisionSummaryReport(w http.ResponseWriter, r *ht
 	if !ok {
 		return
 	}
-	report, err := s.ledger.VulnerabilityDecisionSummaryReport(r.Context(), actor, r.URL.Query().Get("release_id"))
+	report, err := s.riskDecisions.VulnerabilityDecisionSummaryReport(r.Context(), actor, r.URL.Query().Get("release_id"))
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -2036,7 +2042,7 @@ func (s *Server) evaluatePolicy(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		eval, err := s.ledger.EvaluateRelease(ctx, actor, req.ReleaseID)
+		eval, err := s.riskDecisions.EvaluateRelease(ctx, actor, req.ReleaseID)
 		return http.StatusCreated, eval, err
 	})
 }
@@ -2096,7 +2102,7 @@ func (s *Server) createException(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		exception, err := s.ledger.CreateException(ctx, actor, app.CreateExceptionInput{
+		exception, err := s.riskDecisions.CreateException(ctx, actor, app.CreateExceptionInput{
 			ReleaseID: req.ReleaseID,
 			FindingID: req.FindingID,
 			ControlID: req.ControlID,
@@ -2113,7 +2119,7 @@ func (s *Server) listExceptions(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	exceptions, err := s.ledger.ListExceptions(r.Context(), actor, r.URL.Query().Get("release_id"))
+	exceptions, err := s.riskDecisions.ListExceptions(r.Context(), actor, r.URL.Query().Get("release_id"))
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -2125,7 +2131,7 @@ func (s *Server) listExceptions(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) approveException(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
-		exception, err := s.ledger.ApproveException(ctx, actor, r.PathValue("id"))
+		exception, err := s.riskDecisions.ApproveException(ctx, actor, r.PathValue("id"))
 		return http.StatusOK, exception, err
 	})
 }
@@ -2135,7 +2141,7 @@ func (s *Server) releaseReadinessReport(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	report, err := s.ledger.ReleaseReadinessReport(r.Context(), actor, r.URL.Query().Get("release_id"))
+	report, err := s.packages.ReleaseReadinessReport(r.Context(), actor, r.URL.Query().Get("release_id"))
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -2210,7 +2216,7 @@ func (s *Server) createReleaseBundle(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		bundle, err := s.ledger.CreateReleaseBundle(ctx, actor, req.ReleaseID)
+		bundle, err := s.packages.CreateReleaseBundle(ctx, actor, req.ReleaseID)
 		return http.StatusCreated, bundle, err
 	})
 }
@@ -2246,7 +2252,7 @@ func (s *Server) verifyReleaseBundle(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	result, err := s.ledger.VerifySubject(r.Context(), actor, "release_bundle", r.PathValue("id"))
+	result, err := s.verification.VerifySubject(r.Context(), actor, "release_bundle", r.PathValue("id"))
 	if err != nil && !errors.Is(err, app.ErrVerificationFailed) {
 		writeProblem(w, r, err)
 		return
@@ -2259,7 +2265,7 @@ func (s *Server) verifyAuditChain(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	result, err := s.ledger.VerifySubject(r.Context(), actor, "audit_chain", "")
+	result, err := s.verification.VerifySubject(r.Context(), actor, "audit_chain", "")
 	if err != nil && !errors.Is(err, app.ErrVerificationFailed) {
 		writeProblem(w, r, err)
 		return
@@ -2305,7 +2311,7 @@ func (s *Server) createMerkleBatch(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		batch, err := s.ledger.CreateMerkleBatch(ctx, actor, app.CreateMerkleBatchInput{FromSequence: req.FromSequence, ToSequence: req.ToSequence})
+		batch, err := s.verification.CreateMerkleBatch(ctx, actor, app.CreateMerkleBatchInput{FromSequence: req.FromSequence, ToSequence: req.ToSequence})
 		return http.StatusCreated, batch, err
 	})
 }
@@ -2315,7 +2321,7 @@ func (s *Server) verifyMerkleBatch(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	result, err := s.ledger.VerifyMerkleBatch(r.Context(), actor, r.PathValue("id"))
+	result, err := s.verification.VerifyMerkleBatch(r.Context(), actor, r.PathValue("id"))
 	if err != nil && !errors.Is(err, app.ErrVerificationFailed) {
 		writeProblem(w, r, err)
 		return
@@ -2334,7 +2340,7 @@ func (s *Server) createTransparencyCheckpoint(w http.ResponseWriter, r *http.Req
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		checkpoint, err := s.ledger.CreateTransparencyCheckpoint(ctx, actor, app.CreateTransparencyCheckpointInput{BatchID: req.BatchID, Provider: req.Provider, ExternalURL: req.ExternalURL, ExternalID: req.ExternalID})
+		checkpoint, err := s.verification.CreateTransparencyCheckpoint(ctx, actor, app.CreateTransparencyCheckpointInput{BatchID: req.BatchID, Provider: req.Provider, ExternalURL: req.ExternalURL, ExternalID: req.ExternalID})
 		return http.StatusCreated, checkpoint, err
 	})
 }
@@ -2353,14 +2359,14 @@ func (s *Server) createObjectRetentionPolicy(w http.ResponseWriter, r *http.Requ
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		policy, err := s.ledger.CreateObjectRetentionPolicy(ctx, actor, app.CreateObjectRetentionPolicyInput{Name: req.Name, ObjectPrefix: req.ObjectPrefix, ObjectKey: req.ObjectKey, RequireLegalHold: req.RequireLegalHold, Mode: req.Mode, RetentionDays: req.RetentionDays, MaxVerificationAgeHours: req.MaxVerificationAgeHours})
+		policy, err := s.verification.CreateObjectRetentionPolicy(ctx, actor, app.CreateObjectRetentionPolicyInput{Name: req.Name, ObjectPrefix: req.ObjectPrefix, ObjectKey: req.ObjectKey, RequireLegalHold: req.RequireLegalHold, Mode: req.Mode, RetentionDays: req.RetentionDays, MaxVerificationAgeHours: req.MaxVerificationAgeHours})
 		return http.StatusCreated, policy, err
 	})
 }
 
 func (s *Server) verifyObjectRetentionPolicy(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
-		policy, err := s.ledger.VerifyObjectRetentionPolicy(ctx, actor, r.PathValue("id"))
+		policy, err := s.verification.VerifyObjectRetentionPolicy(ctx, actor, r.PathValue("id"))
 		return http.StatusOK, policy, err
 	})
 }
@@ -2370,7 +2376,7 @@ func (s *Server) signingCustodyReviewReport(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	report, err := s.ledger.SigningCustodyReviewReport(r.Context(), actor)
+	report, err := s.verification.SigningCustodyReviewReport(r.Context(), actor)
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -2380,7 +2386,7 @@ func (s *Server) signingCustodyReviewReport(w http.ResponseWriter, r *http.Reque
 
 func (s *Server) generateBackupManifest(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
-		manifest, err := s.ledger.GenerateBackupManifest(ctx, actor)
+		manifest, err := s.verification.GenerateBackupManifest(ctx, actor)
 		return http.StatusCreated, manifest, err
 	})
 }
@@ -2390,7 +2396,7 @@ func (s *Server) verifyBackupManifest(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	result, err := s.ledger.VerifyBackupManifest(r.Context(), actor, r.PathValue("id"))
+	result, err := s.verification.VerifyBackupManifest(r.Context(), actor, r.PathValue("id"))
 	if err != nil && !errors.Is(err, app.ErrVerificationFailed) {
 		writeProblem(w, r, err)
 		return
@@ -2403,7 +2409,7 @@ func (s *Server) listSigningKeys(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	keys, err := s.ledger.ListSigningKeys(r.Context(), actor)
+	keys, err := s.verification.ListSigningKeys(r.Context(), actor)
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -2423,7 +2429,7 @@ func (s *Server) rotateSigningKey(w http.ResponseWriter, r *http.Request) {
 				return 0, nil, err
 			}
 		}
-		key, err := s.ledger.RotateSigningKey(ctx, actor, req.Reason)
+		key, err := s.verification.RotateSigningKey(ctx, actor, req.Reason)
 		return http.StatusCreated, key, err
 	})
 }
@@ -2440,7 +2446,7 @@ func (s *Server) revokeSigningKey(w http.ResponseWriter, r *http.Request) {
 				return 0, nil, err
 			}
 		}
-		key, err := s.ledger.RevokeSigningKeyWithPolicy(ctx, actor, r.PathValue("id"), app.SigningKeyRevocationInput{
+		key, err := s.verification.RevokeSigningKeyWithPolicy(ctx, actor, r.PathValue("id"), app.SigningKeyRevocationInput{
 			Reason:                   req.Reason,
 			Semantics:                req.Semantics,
 			HistoricalValidityPolicy: req.HistoricalValidityPolicy,
@@ -2460,7 +2466,7 @@ func (s *Server) createSigningProvider(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		provider, err := s.ledger.CreateSigningProvider(ctx, actor, app.CreateSigningProviderInput{Name: req.Name, Type: req.Type, KeyRef: req.KeyRef, Encrypted: req.Encrypted})
+		provider, err := s.verification.CreateSigningProvider(ctx, actor, app.CreateSigningProviderInput{Name: req.Name, Type: req.Type, KeyRef: req.KeyRef, Encrypted: req.Encrypted})
 		return http.StatusCreated, provider, err
 	})
 }
@@ -2512,7 +2518,7 @@ func (s *Server) verifySubject(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		result, err := s.ledger.VerifySubject(ctx, actor, req.SubjectType, req.SubjectID)
+		result, err := s.verification.VerifySubject(ctx, actor, req.SubjectType, req.SubjectID)
 		return http.StatusOK, result, err
 	})
 }

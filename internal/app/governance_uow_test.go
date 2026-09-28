@@ -11,6 +11,12 @@ import (
 
 type failingGovernanceRepository struct{ GovernanceRepository }
 
+type failingRedactionPackageRepository struct{ PackageRepository }
+
+func (failingRedactionPackageRepository) InsertRedactionProfile(context.Context, domain.RedactionProfile) error {
+	return errInjectedRepositoryFailure
+}
+
 func (failingGovernanceRepository) InsertWaiver(context.Context, domain.Waiver) error {
 	return errInjectedRepositoryFailure
 }
@@ -78,6 +84,7 @@ func TestGovernanceWritesUseUnitOfWorkAndPublishOnlyAfterCommit(t *testing.T) {
 
 	ledger.unitOfWork = repositoryFailingUnitOfWorkFactory{inner: memory, decorate: func(repositories Repositories) Repositories {
 		repositories.Governance = failingGovernanceRepository{GovernanceRepository: repositories.Governance}
+		repositories.Packages = failingRedactionPackageRepository{PackageRepository: repositories.Packages}
 		return repositories
 	}}
 	before, err := memory.Snapshot()

@@ -1815,7 +1815,7 @@ func (r memoryGovernanceRepository) InsertRetentionOverride(ctx context.Context,
 	})
 }
 
-func (r memoryGovernanceRepository) InsertDSSETrustRoot(ctx context.Context, root domain.DSSETrustRoot) error {
+func (r memoryIntegrityRepository) InsertDSSETrustRoot(ctx context.Context, root domain.DSSETrustRoot) error {
 	cloned, err := cloneMemoryJSON(root)
 	if err != nil {
 		return err
@@ -1976,6 +1976,10 @@ func (r memoryBuildRepository) InsertBuildAttestation(ctx context.Context, attes
 }
 
 type memoryPackageRepository struct{ uow *memoryUnitOfWork }
+
+func (r memoryPackageRepository) InsertRedactionProfile(ctx context.Context, profile domain.RedactionProfile) error {
+	return memoryGovernanceRepository(r).InsertRedactionProfile(ctx, profile)
+}
 
 type memoryRiskRepository struct{ uow *memoryUnitOfWork }
 

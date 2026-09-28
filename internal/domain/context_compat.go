@@ -276,13 +276,21 @@ func cloneJSONValue(value any) any {
 	case map[string]any:
 		return cloneJSONMap(typed)
 	case []any:
+		if typed == nil {
+			return []any(nil)
+		}
 		cloned := make([]any, len(typed))
 		for index, nested := range typed {
 			cloned[index] = cloneJSONValue(nested)
 		}
 		return cloned
 	case []string:
-		return append([]string(nil), typed...)
+		if typed == nil {
+			return []string(nil)
+		}
+		cloned := make([]string, len(typed))
+		copy(cloned, typed)
+		return cloned
 	default:
 		return value
 	}

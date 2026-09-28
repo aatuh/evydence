@@ -75,22 +75,24 @@ func TestBoundedContextOperationOwnershipMetadata(t *testing.T) {
 		"getOpenAPIContract":           operationOwnerEvidenceIngestion,
 		"createOpenAPIDiff":            operationOwnerEvidenceIngestion,
 
-		// Operations not migrated by EVY-903 remain on the compatibility facade.
-		"verifyBuildAttestationSignature": operationOwnerReleaseLedger,
-		"exportEvidenceBundle":            operationOwnerReleaseLedger,
-		"importEvidenceBundle":            operationOwnerReleaseLedger,
-		"createGraphSnapshot":             operationOwnerReleaseLedger,
-		"createEvidenceSummary":           operationOwnerReleaseLedger,
-		"evaluatePolicy":                  operationOwnerReleaseLedger,
-		"createReleaseBundle":             operationOwnerReleaseLedger,
-		"getReleaseBundle":                operationOwnerReleaseLedger,
-		"getReleaseBundleManifest":        operationOwnerReleaseLedger,
-		"verifyReleaseBundle":             operationOwnerReleaseLedger,
-		"releaseSecuritySummary":          operationOwnerReleaseLedger,
-		"createRemediationTask":           operationOwnerReleaseLedger,
-		"listVulnerabilityDecisions":      operationOwnerReleaseLedger,
-		"createVulnerabilityDecision":     operationOwnerReleaseLedger,
-		"recordVulnerabilityWorkflow":     operationOwnerReleaseLedger,
+		// EVY-904 operations enter focused services.
+		"verifyBuildAttestationSignature": operationOwnerIntegrityVerification,
+		"exportEvidenceBundle":            operationOwnerCustomerDelivery,
+		"importEvidenceBundle":            operationOwnerCustomerDelivery,
+		"evaluatePolicy":                  operationOwnerGovernance,
+		"createReleaseBundle":             operationOwnerCustomerDelivery,
+		"verifyReleaseBundle":             operationOwnerIntegrityVerification,
+		"listVulnerabilityDecisions":      operationOwnerGovernance,
+		"createVulnerabilityDecision":     operationOwnerGovernance,
+
+		// Query and operations routes remain on the compatibility facade.
+		"createGraphSnapshot":         operationOwnerReleaseLedger,
+		"createEvidenceSummary":       operationOwnerReleaseLedger,
+		"getReleaseBundle":            operationOwnerReleaseLedger,
+		"getReleaseBundleManifest":    operationOwnerReleaseLedger,
+		"releaseSecuritySummary":      operationOwnerReleaseLedger,
+		"createRemediationTask":       operationOwnerReleaseLedger,
+		"recordVulnerabilityWorkflow": operationOwnerReleaseLedger,
 	}
 
 	server, _ := testServer(t)
@@ -116,10 +118,13 @@ func TestBoundedContextOperationOwnershipMetadata(t *testing.T) {
 		counts[owner]++
 	}
 	for owner, want := range map[string]int{
-		"identity-access":    15,
-		"release-catalog":    21,
-		"evidence-ingestion": 27,
-		"release-ledger":     15,
+		"identity-access":        15,
+		"release-catalog":        21,
+		"evidence-ingestion":     27,
+		"release-ledger":         7,
+		"customer-delivery":      3,
+		"governance":             3,
+		"integrity-verification": 2,
 	} {
 		if got := counts[owner]; got != want {
 			t.Errorf("owner %s operation count = %d, want %d", owner, got, want)

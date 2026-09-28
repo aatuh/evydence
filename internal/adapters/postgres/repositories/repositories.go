@@ -1789,7 +1789,7 @@ func (r governance) InsertRetentionOverride(ctx context.Context, override domain
 	return writeError("insert retention override", err)
 }
 
-func (r governance) InsertDSSETrustRoot(ctx context.Context, root domain.DSSETrustRoot) error {
+func (r integrity) InsertDSSETrustRoot(ctx context.Context, root domain.DSSETrustRoot) error {
 	if root.ID == "" || root.TenantID == "" || root.Name == "" || root.KeyID == "" || root.Algorithm != "Ed25519" || root.Status != "active" || root.SchemaVersion != domain.DSSETrustRootSchemaVersion || len(root.AllowedPredicateTypes) == 0 || len(root.ExpectedBuilderIDs) == 0 || len(root.RequiredClaims) == 0 || root.CreatedAt.IsZero() {
 		return app.ErrValidation
 	}
@@ -1994,6 +1994,10 @@ func (r builds) InsertBuildAttestation(ctx context.Context, attestation domain.B
 }
 
 type packages struct{ tx pgx.Tx }
+
+func (r packages) InsertRedactionProfile(ctx context.Context, profile domain.RedactionProfile) error {
+	return governance(r).InsertRedactionProfile(ctx, profile)
+}
 
 type risk struct{ tx pgx.Tx }
 

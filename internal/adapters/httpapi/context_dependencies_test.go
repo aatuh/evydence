@@ -45,6 +45,15 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	if server.evidenceIngestion != ledger {
 		t.Fatal("evidence ingestion service was not rebound")
 	}
+	if server.riskDecisions != ledger {
+		t.Fatal("risk decision service was not rebound")
+	}
+	if server.packages != ledger {
+		t.Fatal("package service was not rebound")
+	}
+	if server.verification != ledger {
+		t.Fatal("verification service was not rebound")
+	}
 }
 
 func TestIdempotencyCommandWrappersUseOpaqueContextRebinding(t *testing.T) {
@@ -136,6 +145,18 @@ func TestContextOwnedHandlersDoNotCallLedgerDirectly(t *testing.T) {
 		"uploadVEX", "previewVEXImport", "getVEX", "getVEXImportReport", "uploadCycloneDXVEX",
 		"previewCycloneDXVEXImport", "uploadVulnerabilityScan", "getVulnerabilityScan", "uploadOpenAPIContract",
 		"getOpenAPIContract", "createOpenAPIDiff",
+		// Risk decisions and governance.
+		"createWaiver", "approveWaiver", "createApproval", "createVulnerabilityDecision",
+		"listVulnerabilityDecisions", "vulnerabilityDecisionSummaryReport", "evaluatePolicy",
+		"createException", "listExceptions", "approveException",
+		// Package generation and read-only readiness reporting.
+		"createReleaseBundle", "createRedactionProfile", "createCustomerPackage", "getCustomerPackage", "exportEvidenceBundle",
+		"importEvidenceBundle", "createReportTemplate", "renderReportTemplate", "craReadinessHTMLPackage", "releaseReadinessReport",
+		// Verification policy and signing-key administration.
+		"verifyReleaseBundle", "verifyAuditChain", "verifyCosignSignature", "verifyBuildAttestationSignature", "createDSSETrustRoot",
+		"createMerkleBatch", "verifyMerkleBatch", "createTransparencyCheckpoint", "createObjectRetentionPolicy",
+		"verifyObjectRetentionPolicy", "signingCustodyReviewReport", "generateBackupManifest", "verifyBackupManifest",
+		"listSigningKeys", "rotateSigningKey", "revokeSigningKey", "createSigningProvider", "verifySubject",
 	} {
 		handlers[name] = struct{}{}
 	}

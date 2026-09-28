@@ -35,7 +35,7 @@ This generated reference is the complete operation-level inventory for the commi
 | listAuditLog | GET | `/v1/audit-log` | `experimental` | `integrity-verification` | `bearer` | admin | not required | - | 200:AuditChainEntryListEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | generateBackupManifest | POST | `/v1/backup-manifests` | `experimental` | `integrity-verification` | `bearer` | admin | required | EmptyObject | 201:BackupManifestEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | verifyBackupManifest | GET | `/v1/backup-manifests/{id}/verify` | `experimental` | `integrity-verification` | `bearer` | verify:read | not required | - | 200:VerificationResultEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
-| verifyBuildAttestationSignature | POST | `/v1/build-attestations/{id}/verify-signature` | `experimental` | `release-ledger` | `bearer` | verify:read | required | EmptyObject | 200:VerificationResultEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
+| verifyBuildAttestationSignature | POST | `/v1/build-attestations/{id}/verify-signature` | `experimental` | `integrity-verification` | `bearer` | verify:read | required | EmptyObject | 200:VerificationResultEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | createBuild | POST | `/v1/builds` | `core` | `release-catalog` | `bearer` | build:write | required | CreateBuildRequest | 201:BuildRunEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | getBuild | GET | `/v1/builds/{id}` | `core` | `release-catalog` | `bearer` | build:read | not required | - | 200:BuildRunEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | uploadBuildAttestation | POST | `/v1/builds/{id}/attestations` | `core` | `release-catalog` | `bearer` | build:write | required | DSSEEnvelope | 201:BuildAttestationEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
@@ -77,8 +77,8 @@ This generated reference is the complete operation-level inventory for the commi
 | createDeploymentEnvironment | POST | `/v1/environments` | `experimental` | `operations-incidents` | `bearer` | deployment:write | required | CreateDeploymentEnvironmentRequest | 201:DeploymentEnvironmentEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | listEvidence | GET | `/v1/evidence` | `core` | `evidence-ingestion` | `bearer` | evidence:read | not required | - | 200:EvidenceItemListEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | createEvidence | POST | `/v1/evidence` | `core` | `evidence-ingestion` | `bearer` | evidence:write | required | CreateEvidenceRequest | 201:EvidenceItemEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
-| exportEvidenceBundle | POST | `/v1/evidence-bundles` | `experimental` | `release-ledger` | `bearer` | bundle:read | required | ExportEvidenceBundleRequest | 201:EvidenceBundleEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
-| importEvidenceBundle | POST | `/v1/evidence-bundles/import` | `experimental` | `release-ledger` | `bearer` | bundle:write | required | EvidenceBundle | 201:EvidenceBundleImportEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
+| exportEvidenceBundle | POST | `/v1/evidence-bundles` | `experimental` | `customer-delivery` | `bearer` | bundle:read | required | ExportEvidenceBundleRequest | 201:EvidenceBundleEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
+| importEvidenceBundle | POST | `/v1/evidence-bundles/import` | `experimental` | `customer-delivery` | `bearer` | bundle:write | required | EvidenceBundle | 201:EvidenceBundleImportEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | createGraphSnapshot | POST | `/v1/evidence-graph-snapshots` | `experimental` | `release-ledger` | `bearer` | evidence:read | required | CreateGraphSnapshotRequest | 201:EvidenceGraphSnapshotEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | createEvidenceSummary | POST | `/v1/evidence-summaries` | `experimental` | `release-ledger` | `bearer` | report:read | required | CreateEvidenceSummaryRequest | 201:EvidenceSummaryEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | searchEvidence | GET | `/v1/evidence/search` | `experimental` | `evidence-ingestion` | `bearer` | evidence:read | not required | - | 200:EvidenceSearchEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
@@ -109,7 +109,7 @@ This generated reference is the complete operation-level inventory for the commi
 | createOpenAPIDiff | POST | `/v1/openapi-diffs` | `experimental` | `evidence-ingestion` | `bearer` | evidence:read | required | CreateOpenAPIDiffRequest | 201:ContractDiffEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | openapi | GET | `/v1/openapi.json` | `supported` | `platform-operations` | `public` | - | not required | - | 200:OpenAPIDocument | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | createOrganization | POST | `/v1/organizations` | `experimental` | `identity-access` | `bearer` | identity:admin | required | CreateOrganizationRequest | 201:OrganizationEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
-| evaluatePolicy | POST | `/v1/policies/evaluate` | `experimental` | `release-ledger` | `bearer` | verify:read | required | EvaluatePolicyRequest | 201:PolicyEvaluationEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
+| evaluatePolicy | POST | `/v1/policies/evaluate` | `experimental` | `governance` | `bearer` | verify:read | required | EvaluatePolicyRequest | 201:PolicyEvaluationEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | listProducts | GET | `/v1/products` | `core` | `release-catalog` | `bearer` | product:read | not required | - | 200:ProductListEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | createProduct | POST | `/v1/products` | `core` | `release-catalog` | `bearer` | product:write | required | CreateProductRequest | 201:ProductEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | getProduct | GET | `/v1/products/{id}` | `core` | `release-catalog` | `bearer` | product:read | not required | - | 200:ProductEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
@@ -127,10 +127,10 @@ This generated reference is the complete operation-level inventory for the commi
 | createQuestionnaireTemplate | POST | `/v1/questionnaire-templates` | `experimental` | `governance` | `bearer` | package:write | required | CreateQuestionnaireTemplateRequest | 201:QuestionnaireTemplateEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | ready | GET | `/v1/ready` | `supported` | `platform-operations` | `public` | - | not required | - | 200:ReadinessStatusEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | createRedactionProfile | POST | `/v1/redaction-profiles` | `experimental` | `customer-delivery` | `bearer` | package:write | required | CreateRedactionProfileRequest | 201:RedactionProfileEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
-| createReleaseBundle | POST | `/v1/release-bundles` | `core` | `release-ledger` | `bearer` | bundle:write | required | CreateReleaseBundleRequest | 201:ReleaseBundleEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
+| createReleaseBundle | POST | `/v1/release-bundles` | `core` | `customer-delivery` | `bearer` | bundle:write | required | CreateReleaseBundleRequest | 201:ReleaseBundleEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | getReleaseBundle | GET | `/v1/release-bundles/{id}` | `core` | `release-ledger` | `bearer` | bundle:read | not required | - | 200:ReleaseBundleEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | getReleaseBundleManifest | GET | `/v1/release-bundles/{id}/manifest` | `core` | `release-ledger` | `bearer` | bundle:read | not required | - | 200:ReleaseBundleManifestEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
-| verifyReleaseBundle | GET | `/v1/release-bundles/{id}/verify` | `core` | `release-ledger` | `bearer` | verify:read | not required | - | 200:VerificationResultEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
+| verifyReleaseBundle | GET | `/v1/release-bundles/{id}/verify` | `core` | `integrity-verification` | `bearer` | verify:read | not required | - | 200:VerificationResultEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | listReleaseCandidates | GET | `/v1/release-candidates` | `experimental` | `release-catalog` | `bearer` | release:read | not required | - | 200:ReleaseCandidateListEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | createReleaseCandidate | POST | `/v1/release-candidates` | `experimental` | `release-catalog` | `bearer` | release:write | required | CreateReleaseCandidateRequest | 201:ReleaseCandidateEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | getReleaseCandidate | GET | `/v1/release-candidates/{id}` | `experimental` | `release-catalog` | `bearer` | release:read | not required | - | 200:ReleaseCandidateEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
@@ -200,8 +200,8 @@ This generated reference is the complete operation-level inventory for the commi
 | previewVEXImport | POST | `/v1/vex/preview` | `experimental` | `evidence-ingestion` | `bearer` | evidence:read | not required | EvidenceUploadRequest | 200:VEXImportPreviewEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | getVEX | GET | `/v1/vex/{id}` | `core` | `evidence-ingestion` | `bearer` | evidence:read | not required | - | 200:VEXDocumentEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | getVEXImportReport | GET | `/v1/vex/{id}/import-report` | `experimental` | `evidence-ingestion` | `bearer` | evidence:read | not required | - | 200:VEXImportReportEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
-| listVulnerabilityDecisions | GET | `/v1/vulnerability-decisions` | `core` | `release-ledger` | `bearer` | evidence:read | not required | - | 200:VulnerabilityDecisionListEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
-| createVulnerabilityDecision | POST | `/v1/vulnerability-findings/{id}/decisions` | `core` | `release-ledger` | `bearer` | evidence:write | required | CreateVulnerabilityDecisionRequest | 201:VulnerabilityDecisionEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
+| listVulnerabilityDecisions | GET | `/v1/vulnerability-decisions` | `core` | `governance` | `bearer` | evidence:read | not required | - | 200:VulnerabilityDecisionListEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
+| createVulnerabilityDecision | POST | `/v1/vulnerability-findings/{id}/decisions` | `core` | `governance` | `bearer` | evidence:write | required | CreateVulnerabilityDecisionRequest | 201:VulnerabilityDecisionEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | recordVulnerabilityWorkflow | POST | `/v1/vulnerability-findings/{id}/workflow` | `experimental` | `release-ledger` | `bearer` | security:write | required | RecordVulnerabilityWorkflowRequest | 201:VulnerabilityWorkflowRecordEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | uploadVulnerabilityScan | POST | `/v1/vulnerability-scans` | `core` | `evidence-ingestion` | `bearer` | evidence:write | required | UploadVulnerabilityScanBody | 201:VulnerabilityScanEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | getVulnerabilityScan | GET | `/v1/vulnerability-scans/{id}` | `core` | `evidence-ingestion` | `bearer` | evidence:read | not required | - | 200:VulnerabilityScanEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
@@ -226,7 +226,7 @@ Every `experimental` operation is an explicit candidate for a maintainer decisio
 | listAuditLog | `integrity-verification` | review experimental scope |
 | generateBackupManifest | `integrity-verification` | review experimental scope |
 | verifyBackupManifest | `integrity-verification` | review experimental scope |
-| verifyBuildAttestationSignature | `release-ledger` | review experimental scope |
+| verifyBuildAttestationSignature | `integrity-verification` | review experimental scope |
 | listCollectors | `integration-ingestion` | review experimental scope |
 | createCollector | `integration-ingestion` | review experimental scope |
 | uploadGitHubSourceSnapshot | `integration-ingestion` | review experimental scope |
@@ -257,8 +257,8 @@ Every `experimental` operation is an explicit candidate for a maintainer decisio
 | createDSSETrustRoot | `integrity-verification` | review experimental scope |
 | listDeploymentEnvironments | `operations-incidents` | review experimental scope |
 | createDeploymentEnvironment | `operations-incidents` | review experimental scope |
-| exportEvidenceBundle | `release-ledger` | review experimental scope |
-| importEvidenceBundle | `release-ledger` | review experimental scope |
+| exportEvidenceBundle | `customer-delivery` | review experimental scope |
+| importEvidenceBundle | `customer-delivery` | review experimental scope |
 | createGraphSnapshot | `release-ledger` | review experimental scope |
 | createEvidenceSummary | `release-ledger` | review experimental scope |
 | searchEvidence | `evidence-ingestion` | review experimental scope |
@@ -282,7 +282,7 @@ Every `experimental` operation is an explicit candidate for a maintainer decisio
 | getOpenAPIContract | `evidence-ingestion` | review experimental scope |
 | createOpenAPIDiff | `evidence-ingestion` | review experimental scope |
 | createOrganization | `identity-access` | review experimental scope |
-| evaluatePolicy | `release-ledger` | review experimental scope |
+| evaluatePolicy | `governance` | review experimental scope |
 | verifyProviderIdentity | `integrity-verification` | review experimental scope |
 | publishPublicTransparencyLogEntry | `integrity-verification` | review experimental scope |
 | fetchPublicTransparencyLogEntryProof | `integrity-verification` | review experimental scope |

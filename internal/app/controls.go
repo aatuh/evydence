@@ -381,16 +381,23 @@ func (s packageReportService) CRAReadinessReport(ctx context.Context, actor doma
 	if err := l.authorizeResourceLocked(actor, ScopeReportRead, resourceRefs{ProductID: in.ProductID, ReleaseID: in.ReleaseID}); err != nil {
 		return domain.CRAReadinessReport{}, err
 	}
-	frameworkID := l.firstFrameworkIDLocked(actor.TenantID)
-	coverage, err := l.controlCoverageReportLocked(actor.TenantID, ControlCoverageReportInput{FrameworkID: frameworkID, ProductID: in.ProductID, ReleaseID: in.ReleaseID})
+	return l.craReadinessReportLocked(actor.TenantID, in.ProductID, in.ReleaseID)
+}
+
+// craReadinessReportLocked produces one report from a single committed
+// compatibility read view. The caller owns the read-model lock and performs
+// authorization before returning the result to an actor.
+func (l *Ledger) craReadinessReportLocked(tenantID, productID, releaseID string) (domain.CRAReadinessReport, error) {
+	frameworkID := l.firstFrameworkIDLocked(tenantID)
+	coverage, err := l.controlCoverageReportLocked(tenantID, ControlCoverageReportInput{FrameworkID: frameworkID, ProductID: productID, ReleaseID: releaseID})
 	if err != nil {
 		return domain.CRAReadinessReport{}, err
 	}
 	return domain.CRAReadinessReport{
 		ReportType:         "cra_readiness",
 		TemplateVersion:    domain.CRAReadinessTemplateVersion,
-		ProductID:          in.ProductID,
-		ReleaseID:          in.ReleaseID,
+		ProductID:          productID,
+		ReleaseID:          releaseID,
 		Result:             coverage.Result,
 		Controls:           coverage.Controls,
 		MissingEvidence:    coverage.MissingEvidence,

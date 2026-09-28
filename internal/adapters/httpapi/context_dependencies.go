@@ -143,10 +143,64 @@ type evidenceIngestionService interface {
 	CreateContractDiff(context.Context, domain.Actor, app.CreateContractDiffInput) (domain.ContractDiff, error)
 }
 
+// riskDecisionService is the transport boundary for append-only decisions,
+// exceptions, waivers, approvals, and readiness evaluation.
+type riskDecisionService interface {
+	CreateWaiver(context.Context, domain.Actor, app.CreateWaiverInput) (domain.Waiver, error)
+	ApproveWaiver(context.Context, domain.Actor, string) (domain.Waiver, error)
+	CreateApprovalRecord(context.Context, domain.Actor, app.CreateApprovalInput) (domain.ApprovalRecord, error)
+	CreateVulnerabilityDecision(context.Context, domain.Actor, string, app.CreateVulnerabilityDecisionInput) (domain.VulnerabilityDecision, error)
+	ListVulnerabilityDecisions(context.Context, domain.Actor, app.ListVulnerabilityDecisionsInput) ([]domain.VulnerabilityDecision, error)
+	VulnerabilityDecisionSummaryReport(context.Context, domain.Actor, string) (domain.VulnerabilityDecisionSummaryReport, error)
+	EvaluateRelease(context.Context, domain.Actor, string) (domain.PolicyEvaluation, error)
+	CreateException(context.Context, domain.Actor, app.CreateExceptionInput) (domain.Exception, error)
+	ListExceptions(context.Context, domain.Actor, string) ([]domain.Exception, error)
+	ApproveException(context.Context, domain.Actor, string) (domain.Exception, error)
+}
+
+// packageService contains the package generation, access, and read-only
+// readiness-report operations migrated by EVY-904.
+type packageService interface {
+	CreateReleaseBundle(context.Context, domain.Actor, string) (domain.ReleaseBundle, error)
+	CreateRedactionProfile(context.Context, domain.Actor, app.CreateRedactionProfileInput) (domain.RedactionProfile, error)
+	CreateCustomerSecurityPackage(context.Context, domain.Actor, app.CreateCustomerPackageInput) (domain.CustomerSecurityPackage, error)
+	AccessCustomerSecurityPackage(context.Context, domain.Actor, string) (domain.CustomerSecurityPackage, error)
+	ExportEvidenceBundle(context.Context, domain.Actor, string, []string) (domain.EvidenceBundle, error)
+	ImportEvidenceBundle(context.Context, domain.Actor, domain.EvidenceBundle) (domain.EvidenceBundleImport, error)
+	CreateCustomReportTemplate(context.Context, domain.Actor, app.CreateReportTemplateInput) (domain.CustomReportTemplate, error)
+	RenderCustomReport(context.Context, domain.Actor, app.RenderReportInput) (domain.RenderedCustomReport, error)
+	CRAReadinessHTMLPackage(context.Context, domain.Actor, string, string) (domain.HTMLReportPackage, error)
+	ReleaseReadinessReport(context.Context, domain.Actor, string) (domain.ReleaseReadinessReport, error)
+}
+
+// verificationService exposes provider-independent verification policy and
+// signing-key administration without giving handlers unrelated Ledger methods.
+type verificationService interface {
+	VerifySubject(context.Context, domain.Actor, string, string) (domain.VerificationResult, error)
+	VerifyCosignSignature(context.Context, domain.Actor, app.VerifyCosignInput) (domain.CosignVerification, error)
+	VerifyDSSEAttestationSignature(context.Context, domain.Actor, string) (domain.VerificationResult, error)
+	CreateDSSETrustRoot(context.Context, domain.Actor, app.CreateDSSETrustRootInput) (domain.DSSETrustRoot, error)
+	CreateMerkleBatch(context.Context, domain.Actor, app.CreateMerkleBatchInput) (domain.MerkleBatch, error)
+	VerifyMerkleBatch(context.Context, domain.Actor, string) (domain.VerificationResult, error)
+	CreateTransparencyCheckpoint(context.Context, domain.Actor, app.CreateTransparencyCheckpointInput) (domain.TransparencyCheckpoint, error)
+	CreateObjectRetentionPolicy(context.Context, domain.Actor, app.CreateObjectRetentionPolicyInput) (domain.ObjectRetentionPolicy, error)
+	VerifyObjectRetentionPolicy(context.Context, domain.Actor, string) (domain.ObjectRetentionPolicy, error)
+	SigningCustodyReviewReport(context.Context, domain.Actor) (domain.SigningCustodyReviewReport, error)
+	GenerateBackupManifest(context.Context, domain.Actor) (domain.BackupManifest, error)
+	VerifyBackupManifest(context.Context, domain.Actor, string) (domain.VerificationResult, error)
+	ListSigningKeys(context.Context, domain.Actor) ([]domain.SigningKey, error)
+	RotateSigningKey(context.Context, domain.Actor, string) (domain.SigningKey, error)
+	RevokeSigningKeyWithPolicy(context.Context, domain.Actor, string, app.SigningKeyRevocationInput) (domain.SigningKey, error)
+	CreateSigningProvider(context.Context, domain.Actor, app.CreateSigningProviderInput) (domain.SigningProvider, error)
+}
+
 var (
 	_ authenticator            = (*app.Ledger)(nil)
 	_ idempotencyExecutor      = ledgerIdempotencyExecutor{}
 	_ identityAccessService    = (*app.Ledger)(nil)
 	_ releaseCatalogService    = (*app.Ledger)(nil)
 	_ evidenceIngestionService = (*app.Ledger)(nil)
+	_ riskDecisionService      = (*app.Ledger)(nil)
+	_ packageService           = (*app.Ledger)(nil)
+	_ verificationService      = (*app.Ledger)(nil)
 )

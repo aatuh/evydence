@@ -7,6 +7,7 @@ import (
 	application "github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
+	riskapp "github.com/aatuh/evydence/internal/risk/app"
 )
 
 // completeLocalVEXDecision drains the compatibility handoff only after the
@@ -60,56 +61,81 @@ func (t *ledgerEvidenceTransaction) processLocalVEXDecisionJob(ctx context.Conte
 		return err
 	}
 
-	createdForFinding := map[string]struct{}{}
-	created, superseded := 0, 0
-	mappingFailures := []domain.VEXImportIssue{}
-	duplicateStatements := false
 	source := "vex"
 	if vex.Format == "cyclonedx" {
 		source = "cyclonedx_vex"
 	}
+	mappingInput := riskapp.VEXMappingInput{
+		TenantID: event.TenantID, ReleaseID: vex.ReleaseID, VEXDocumentID: vex.ID, EvidenceID: evidence.ID,
+		ActorID: actorIDValue, Source: source, CreatedAt: t.ledger.now().UTC(),
+	}
 	for _, normalized := range statements {
 		statement := normalized.statement
-		matches, ambiguous := t.ledger.findMatchingFindingsLocked(event.TenantID, vex.ReleaseID, statement)
-		if ambiguous {
-			mappingFailures = append(mappingFailures, vexImportIssue(normalized.index, "ambiguous_finding", "Multiple plausible findings matched this VEX statement; no decision was applied."))
+		products := openVEXProductIDs(statement.Products)
+		productIDs := make([]string, 0, len(products))
+		for productID := range products {
+			productIDs = append(productIDs, productID)
+		}
+		mappingInput.Statements = append(mappingInput.Statements, riskapp.VEXStatement{
+			Index: normalized.index, Vulnerability: statement.Vulnerability.Name, Products: productIDs,
+			Status: statement.Status, Justification: statement.Justification,
+			ImpactStatement: statement.ImpactStatement, ActionStatement: statement.ActionStatement,
+		})
+	}
+	for _, scan := range t.ledger.scans {
+		if scan.TenantID != event.TenantID || scan.ReleaseID != vex.ReleaseID {
 			continue
 		}
-		if len(matches) == 0 {
-			mappingFailures = append(mappingFailures, vexImportIssue(normalized.index, "finding_not_found", "No matching vulnerability scan finding was found for this VEX statement."))
-		}
-		for _, matched := range matches {
-			if _, duplicate := createdForFinding[matched.finding.ID]; duplicate {
-				duplicateStatements = true
-				continue
-			}
-			createdForFinding[matched.finding.ID] = struct{}{}
-			decision, replaced := t.ledger.newDecisionLocked(event.TenantID, matched.scan, matched.finding, CreateVulnerabilityDecisionInput{
-				Status: statement.Status, Justification: statement.Justification, ImpactStatement: statement.ImpactStatement,
-				ActionStatement: statement.ActionStatement, CustomerVisible: strings.TrimSpace(statement.ImpactStatement) != "",
-			}, source, actorIDValue, evidence.ID, vex.ID)
-			for _, prior := range replaced {
-				t.decisions[prior.ID] = prior
-				if _, err := t.AppendAudit(ctx, application.AuditEvent{
-					ID: newID("ace"), TenantID: event.TenantID, EntryType: "vulnerability_decision.superseded",
-					SubjectType: "vulnerability_decision", SubjectID: prior.ID, ActorType: actorTypeValue,
-					ActorID: actorIDValue, OccurredAt: decision.CreatedAt, PayloadHash: payloadHash,
-				}); err != nil {
-					return err
-				}
-			}
-			t.decisions[decision.ID] = decision
-			if _, err := t.AppendAudit(ctx, application.AuditEvent{
-				ID: newID("ace"), TenantID: event.TenantID, EntryType: "vulnerability_decision.created",
-				SubjectType: "vulnerability_finding", SubjectID: matched.finding.ID, ActorType: actorTypeValue,
-				ActorID: actorIDValue, OccurredAt: decision.CreatedAt, PayloadHash: payloadHash,
-			}); err != nil {
-				return err
-			}
-			created++
-			superseded += len(replaced)
+		for _, finding := range scan.Findings {
+			sbomID, purl, name := t.ledger.decisionSBOMContextLocked(event.TenantID, vex.ReleaseID, finding.Component)
+			mappingInput.Findings = append(mappingInput.Findings, riskapp.VEXFinding{
+				ID: finding.ID, ScanID: scan.ID, TenantID: scan.TenantID, ReleaseID: scan.ReleaseID,
+				Vulnerability: finding.Vulnerability, Component: finding.Component,
+				SBOMID: sbomID, SBOMComponentPURL: purl, SBOMComponentName: name,
+			})
 		}
 	}
+	for _, existing := range t.ledger.decisions {
+		if existing.TenantID != event.TenantID || existing.ReleaseID != vex.ReleaseID {
+			continue
+		}
+		mapped, err := domain.VulnerabilityDecisionToContextModel(existing)
+		if err != nil {
+			return evidenceapp.ErrValidation
+		}
+		mappingInput.ExistingDecisions = append(mappingInput.ExistingDecisions, mapped)
+	}
+	mapping, err := riskapp.MapVEXDecisions(mappingInput, riskapp.VEXDecisionIDFunc(func(_, _, _ string) string { return newID("vd") }))
+	if err != nil {
+		return err
+	}
+	for _, prior := range mapping.Superseded {
+		legacy := domain.VulnerabilityDecisionFromContextModel(prior)
+		t.decisions[legacy.ID] = legacy
+		if _, err := t.AppendAudit(ctx, application.AuditEvent{
+			ID: newID("ace"), TenantID: event.TenantID, EntryType: "vulnerability_decision.superseded",
+			SubjectType: "vulnerability_decision", SubjectID: legacy.ID, ActorType: actorTypeValue,
+			ActorID: actorIDValue, OccurredAt: mappingInput.CreatedAt, PayloadHash: payloadHash,
+		}); err != nil {
+			return err
+		}
+	}
+	for _, decision := range mapping.Created {
+		legacy := domain.VulnerabilityDecisionFromContextModel(decision)
+		t.decisions[legacy.ID] = legacy
+		if _, err := t.AppendAudit(ctx, application.AuditEvent{
+			ID: newID("ace"), TenantID: event.TenantID, EntryType: "vulnerability_decision.created",
+			SubjectType: "vulnerability_finding", SubjectID: legacy.FindingID, ActorType: actorTypeValue,
+			ActorID: actorIDValue, OccurredAt: legacy.CreatedAt, PayloadHash: payloadHash,
+		}); err != nil {
+			return err
+		}
+	}
+	mappingFailures := make([]domain.VEXImportIssue, 0, len(mapping.Failures))
+	for _, failure := range mapping.Failures {
+		mappingFailures = append(mappingFailures, domain.VEXImportIssue{StatementIndex: failure.StatementIndex, Code: failure.Code, Detail: failure.Detail})
+	}
+	created, superseded, duplicateStatements := len(mapping.Created), len(mapping.Superseded), mapping.HadDuplicate
 
 	report.Status = "parsed"
 	report.DecisionsCreated = created

@@ -6,7 +6,7 @@ Evydence follows a ports-and-adapters shape:
 - `internal/{identity,release,evidence}/app` owns the focused Identity, Release, and Evidence command services implemented by EVY-903.
 - `internal/domain` supplies compatibility DTOs at HTTP, persistence, and legacy-facade boundaries while callers migrate.
 - `internal/app` is the deprecated Ledger compatibility facade, the shared transaction and storage port surface, and the temporary home of contexts not yet migrated.
-- `internal/adapters/httpapi` adapts application services to HTTP and OpenAPI; migrated Identity, Release, and Evidence handlers depend on context-specific interfaces.
+- `internal/adapters/httpapi` adapts application services to HTTP and OpenAPI; migrated Identity, Release, Evidence, Decision, Package, and Verification handlers depend on context-specific interfaces.
 - `internal/adapters/postgres` provides the durable ledger-state store, migration runner, tenant-scoped relational resource projection, and persisted outbox.
 - `internal/adapters/objectstore/filesystem` stores raw uploaded payload bytes under tenant-prefixed object keys for local and self-hosted deployments.
 - `internal/adapters/objectstore/s3` stores the same tenant-prefixed object keys in S3/MinIO-compatible buckets.
@@ -36,13 +36,16 @@ validated lifecycle and verification behavior moved by EVY-902. The legacy
 boundary through explicit aliases and copying mappers.
 
 EVY-903 implemented transport-neutral command services under
-`internal/{identity,release,evidence}/app`. The corresponding 15 Identity, 21
-Release, and 27 Evidence HTTP operations now enter through context-specific
-handler interfaces. The deprecated Ledger facade forwards to those services and
-maps their models to compatibility DTOs while idempotency and the composition
-root still use the legacy application boundary. Decision, package, and
-verification services remain EVY-904 work; database-backed context queries and
-composition-root replacement remain EVY-905 work. `make domain-context-check`
+`internal/{identity,release,evidence}/app`. EVY-904 added focused
+`internal/{risk,package,verification}/app` services for decision lifecycle,
+policy readiness, redaction, package and bundle generation, persisted CRA HTML
+and custom report rendering, signing-key lifecycle, and verification workflows.
+Migrated HTTP operations enter through
+context-specific handler interfaces. The deprecated Ledger facade forwards
+these commands and maps their models to compatibility DTOs while idempotency,
+specialized report/query paths, and the composition root still use the legacy
+application boundary. Database-backed context queries and composition-root
+replacement remain EVY-905 work. `make domain-context-check`
 prevents model ownership, field compatibility, schema ownership, import, and
 transport-tag drift during the remaining transition.
 

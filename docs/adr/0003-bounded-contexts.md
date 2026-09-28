@@ -2,10 +2,10 @@
 
 Status: accepted. EVY-902 implemented the context-owned model layer described
 below. EVY-903 implemented focused Identity, Release, and Evidence command
-services and moved their HTTP handlers behind context-specific interfaces.
-Decision, package, and verification services, the composition-root and query
-migration, and legacy-facade retirement remain assigned to EVY-904 through
-EVY-906.
+services. EVY-904 has added focused Decision, Package, and Verification
+services and moved their migrated HTTP workflows behind context-specific
+interfaces. The composition-root and database-backed query migration and
+legacy-facade retirement remain assigned to EVY-905 and EVY-906.
 
 ## Context
 
@@ -57,8 +57,13 @@ audit, and outbox ports. The HTTP handlers for the 15 Identity, 21 Release, and
 27 Evidence operations now depend on context-specific interfaces rather than
 on `*app.Ledger`. Temporary Ledger-backed adapters map the legacy DTOs and
 preserve the existing idempotent command scope until the EVY-905 composition
-root migration. Decision, package, and verification workflows remain assigned
-to EVY-904.
+root migration. EVY-904 added focused `internal/{risk,package,verification}/app`
+services for decisions, policy readiness, customer and release packages,
+evidence bundles, CRA HTML and custom report materialization, signing-key
+lifecycle, and verification receipts. Committed
+read snapshots and transaction ports keep these services independent of the
+legacy Ledger maps; the compatibility adapters still translate persisted and
+HTTP DTOs.
 
 `internal/domain` remains a compatibility DTO boundary at the HTTP,
 persistence, and legacy-facade edges while remaining callers migrate in EVY-904
@@ -82,9 +87,9 @@ belong to the row that owns the resource they support.
 | Identity and access | `Actor`, `ResourceGrant`, `Tenant`, `Organization`, `HumanUser`, `RoleBinding`, `SSOProvider`, `UserIdentityLink`, `SSOSession`, `APIKey`, `ProviderVerification` | `internal/identity/app.Service`; `IdentityRepository`; identity portions of `EnterpriseRepository` and the Ledger DTO adapter are temporary. |
 | Release catalog | `Product`, `Project`, `Release`, `ReleaseEvidenceFlow`, `ReleaseEvidenceFlowStep`, `Artifact`, `BuildRun`, `BuildOutput`, `BuildAttestation`, `ReleaseCandidate`, `ContainerImage` | `internal/release/app.Service`; `ReleaseCatalogRepository`, `BuildRepository`, and `SupplyChainRepository` except artifact-signature writes. Ledger query and DTO adapters remain transitional. |
 | Evidence ingestion | `EvidenceItem`, `SubjectRef`, `EvidenceRef`, `EvidenceNotice`, `EvidenceLifecycleEvent`, `SBOM`, `SBOMComponent`, `SBOMComponentRecord`, `VulnerabilityScan`, `VulnerabilityFinding`, `VulnerabilityIdentity`, `VEXDocument`, `VEXImportIssue`, `VEXImportReport`, `VEXImportPreview`, `OpenAPIContract`, `OpenAPIOperation`, `SecurityScan`, `ManualSecurityDocument`, `SBOMDiff`, `DependencyChange`, `ContractDiff` | `internal/evidence/app.Service`; `EvidenceRepository` and `ObjectPayloadRepository`. Ledger query and DTO adapters and the evidence-facing methods of `RiskRepository` remain transitional. |
-| Vulnerability decisions and governance | `VulnerabilityDecision`, `VulnerabilityDecisionCustomerSummary`, `VulnerabilityDecisionSummaryReport`, `Exception`, `PolicyEvaluation`, `PolicyCheck`, `CustomPolicy`, `PolicyRule`, `CustomPolicyEvaluation`, `Waiver`, `ApprovalRecord`, `ControlFramework`, `SecurityControl`, `ControlEvidenceRequirement`, `ControlEvidence`, `ControlFrameworkTemplatePack`, `VulnerabilityWorkflowRecord`, `ReleaseSecuritySummary`, `ReleaseSecurityProductSummary`, `ReleaseSecurityReleaseSummary`, `ReleaseSecurityMissingDecision`, `ReleaseSecurityApprovalSummary`, `ReleaseSecurityExceptionSummary` | `vex.go`, governance paths, and policy paths; `DecisionRepository`, `ControlRepository`, and the decision methods of `GovernanceRepository` and `RiskRepository`. |
-| Package and reporting | `CustomerPortalAccess`, `QuestionnaireTemplate`, `QuestionnaireQuestion`, `QuestionnairePackage`, `QuestionnaireResponse`, `QuestionnaireAnswerLibraryEntry`, `RedactionProfile`, `CustomerSecurityPackage`, `SecurityReviewPackageReport`, `HTMLReportPackage`, `PDFReportPackage`, `CustomReportTemplate`, `RenderedCustomReport`, `EvidenceBundle`, `EvidenceBundleImport`, `ReleaseBundle`, `EvidenceCitation`, `EvidenceSummary`, `QuestionnaireDraft`, `GraphNode`, `GraphEdge`, `EvidenceGraphSnapshot`, `ControlCoverageReport`, `ControlCoverageItem`, `CRAReadinessReport`, `CRAVulnerabilityHandlingReport`, `SecurityUpdateEvidenceReport`, `ReleaseReadinessReport`, `ReadinessSummary`, `ReadinessSection`, `ReadinessQuestion`, `BlockingFinding`, `IncidentReport`, `VulnerabilityPostureReport` | `packageReportService` and package/report portions of `enterprise.go`, `governance_packages.go`, and `risk_workflows.go`; `PackageRepository`. |
-| Verification and signing | `AuditChainEntry`, `SigningKey`, `SigningProvider`, `Signature`, `ArtifactSignature`, `CosignVerification`, `MerkleBatch`, `TransparencyCheckpoint`, `ObjectRetentionPolicy`, `SigningCustodyReviewReport`, `BackupManifest`, `DSSETrustRoot`, `SigningOperation`, `VerificationResult`, `VerifyCheck` | `integrity_runtime.go`, audit-chain and verification paths; `SignatureRepository`, `IntegrityRepository`, and `VerificationRepository`. Audit append is a required transaction side effect, not an authority to change another context's record. |
+| Vulnerability decisions and governance | `VulnerabilityDecision`, `VulnerabilityDecisionCustomerSummary`, `VulnerabilityDecisionSummaryReport`, `Exception`, `PolicyEvaluation`, `PolicyCheck`, `CustomPolicy`, `PolicyRule`, `CustomPolicyEvaluation`, `Waiver`, `ApprovalRecord`, `ControlFramework`, `SecurityControl`, `ControlEvidenceRequirement`, `ControlEvidence`, `ControlFrameworkTemplatePack`, `VulnerabilityWorkflowRecord`, `ReleaseSecuritySummary`, `ReleaseSecurityProductSummary`, `ReleaseSecurityReleaseSummary`, `ReleaseSecurityMissingDecision`, `ReleaseSecurityApprovalSummary`, `ReleaseSecurityExceptionSummary` | `internal/risk/app.Service` owns decision, exception, waiver, approval, and readiness commands; `DecisionRepository`, `ControlRepository`, and remaining policy/query methods of `GovernanceRepository` and `RiskRepository` are compatibility paths. |
+| Package and reporting | `CustomerPortalAccess`, `QuestionnaireTemplate`, `QuestionnaireQuestion`, `QuestionnairePackage`, `QuestionnaireResponse`, `QuestionnaireAnswerLibraryEntry`, `RedactionProfile`, `CustomerSecurityPackage`, `SecurityReviewPackageReport`, `HTMLReportPackage`, `PDFReportPackage`, `CustomReportTemplate`, `RenderedCustomReport`, `EvidenceBundle`, `EvidenceBundleImport`, `ReleaseBundle`, `EvidenceCitation`, `EvidenceSummary`, `QuestionnaireDraft`, `GraphNode`, `GraphEdge`, `EvidenceGraphSnapshot`, `ControlCoverageReport`, `ControlCoverageItem`, `CRAReadinessReport`, `CRAVulnerabilityHandlingReport`, `SecurityUpdateEvidenceReport`, `ReleaseReadinessReport`, `ReadinessSummary`, `ReadinessSection`, `ReadinessQuestion`, `BlockingFinding`, `IncidentReport`, `VulnerabilityPostureReport` | `internal/package/app.Service` owns redaction, customer-package, release-bundle, evidence-bundle, release-readiness, CRA HTML, and custom report-template workflows; `packageReportService`, `PackageRepository`, and specialized report/questionnaire query paths remain compatibility paths. |
+| Verification and signing | `AuditChainEntry`, `SigningKey`, `SigningProvider`, `Signature`, `ArtifactSignature`, `CosignVerification`, `MerkleBatch`, `TransparencyCheckpoint`, `ObjectRetentionPolicy`, `SigningCustodyReviewReport`, `BackupManifest`, `DSSETrustRoot`, `SigningOperation`, `VerificationResult`, `VerifyCheck` | `internal/verification/app.Service` owns signing-key lifecycle, verification receipts, DSSE/Cosign, Merkle/checkpoints, retention, custody, and backup workflows; `SignatureRepository`, `IntegrityRepository`, `VerificationRepository`, and remaining audit/query paths are compatibility adapters. Audit append is a required transaction side effect, not an authority to change another context's record. |
 | Operations and incidents | `InstanceAdminSnapshot`, `LegalHold`, `RetentionOverride`, `RetentionReport`, `DeploymentEnvironment`, `DeploymentEvent`, `Incident`, `IncidentTimelineEvent`, `IncidentWebhookReceiver`, `IncidentWebhookEvent`, `RemediationTask` | `risk_workflows.go`, runtime/readiness, outbox administration and object reconciliation; `DeploymentRepository`. `AuditRepository`, `IdempotencyRepository`, and `OutboxRepository` are platform services owned here and used inside the caller's unit of work. |
 | Integration ingestion | `Collector`, `CollectorRelease`, `CollectorHealthReport`, `SourceRepository`, `SourceCommit`, `SourceBranch`, `PullRequest`, `CommercialCollectorDefinition` | Collector, source-snapshot, and commercial-collector paths; `SourceRepository` and the collector methods of `BuildRepository`. |
 | Experimental peripherals | `SaaSEditionProfile`, `PublicTransparencyLog`, `PublicTransparencyLogEntry`, `MarketplaceCollector`, `MarketplaceCollectorHealthReport`, `AnomalySignal`, `AnomalyReport` | `FutureExtensionsRepository` is a temporary quarantine port. These surfaces remain experimental until a named owning context accepts them; no new production dependency may target this port. |
@@ -92,9 +97,10 @@ belong to the row that owns the resource they support.
 `GovernanceRepository`, `RiskRepository`, `EnterpriseRepository`, and
 `FutureExtensionsRepository` are explicitly transitional mixed ports. Their
 row above assigns one accountable owner today. EVY-903 moved the Identity,
-Release, and Evidence command capabilities it required; the remaining named
-exception methods move to their target context in EVY-904. No new method may
-be added to a mixed port.
+Release, and Evidence command capabilities it required. EVY-904 added focused
+decision, package, and verification transaction ports while the legacy mixed
+repository interfaces remain for compatibility. No new method may be added to
+a mixed port.
 
 ### Public operations and internal work
 
@@ -109,12 +115,12 @@ the generated OpenAPI owner labels are changed atomically with their handlers.
 | `identity-access` (15) | Identity and access | Direct mapping. |
 | `release-catalog` (21) | Release catalog | Direct mapping introduced with the EVY-903 handler migration. |
 | `evidence-ingestion` (27) | Evidence ingestion | Direct mapping introduced with the EVY-903 handler migration. |
-| `release-ledger` (15) | Vulnerability decisions and governance, Package and reporting, Verification and signing, or Operations and incidents | Remaining transitional aggregate label. Decision resources go to Vulnerability decisions and governance; bundle, summary, graph, and report resources go to Package and reporting; verification operations go to Verification and signing; remediation tasks go to Operations and incidents. The route's resource, not the old label, selects the future service. |
+| `release-ledger` (7) | Package and reporting, Vulnerability decisions and governance, or Operations and incidents | Remaining transitional query and operations label. Bundle reads, summaries, and graph/report creation go to Package and reporting; vulnerability workflow records go to Vulnerability decisions and governance; remediation tasks go to Operations and incidents. The route's resource selects the future service. |
 | `integration-ingestion` (17) | Integration ingestion | Direct mapping. |
-| `governance` (25) | Vulnerability decisions and governance | Direct mapping, except redaction and customer-package rendering, which move to Package and reporting. |
-| `customer-delivery` (12) | Package and reporting | Direct mapping. |
+| `governance` (28) | Vulnerability decisions and governance | Direct mapping, except redaction and customer-package rendering, which move to Package and reporting. |
+| `customer-delivery` (15) | Package and reporting | Direct mapping. |
 | `reporting` (17) | Package and reporting | Direct mapping. |
-| `integrity-verification` (22) | Verification and signing | Direct mapping. |
+| `integrity-verification` (24) | Verification and signing | Direct mapping. |
 | `operations-incidents` (9) | Operations and incidents | Direct mapping. |
 | `platform-operations` (9) | Operations and incidents | Direct mapping. |
 
@@ -243,19 +249,17 @@ mutations, and audit appends use the exclusive fence. Audit append takes the
 projection fence before its audit-chain sequencing lock. This prevents a
 worker/API mutation from interleaving between a transaction-local projection
 read and the command's dependent write or audit append. It protects the legacy
-read bridge; it does not complete the EVY-904 decision/package/verification
-service split or the EVY-905 database-backed query migration. The detailed
+read bridge; it does not replace the EVY-904 decision/package/verification
+service split or complete the EVY-905 database-backed query migration. The detailed
 runtime contract is in [Worker Outbox Contract](../reference/worker-outbox.md).
 
 The EVY-903 focused command-service migration has exactly three temporary
-synchronous cross-context write exceptions. Tenant bootstrap is the first: the
-focused Identity service owns tenant and initial
-API-key preparation and writes, but invokes a narrowly typed composition-layer
-compatibility capability to insert the initial signing key in the same legacy
-shared unit of work. This preserves the existing all-or-nothing bootstrap and
-bearer-secret issuance contract; it is not available to other Identity
-commands. EVY-904 must move initial signing-key creation to Verification and
-signing and remove that compatibility capability.
+synchronous cross-context write exceptions. Tenant bootstrap is the first:
+the focused Identity service owns tenant and initial API-key preparation and
+writes, while the composition adapter invokes Verification-owned initial
+signing-key preparation and commit in the same unit of work. This preserves
+the existing all-or-nothing bootstrap and bearer-secret issuance contract;
+Identity has no signing-key repository capability.
 
 Build-attestation upload is the second exception. The public compatibility
 contract atomically creates a release-owned `BuildAttestation` and its

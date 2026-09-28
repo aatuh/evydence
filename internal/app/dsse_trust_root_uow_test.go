@@ -10,7 +10,7 @@ import (
 	"github.com/aatuh/evydence/internal/domain"
 )
 
-type failingDSSETrustRootRepository struct{ GovernanceRepository }
+type failingDSSETrustRootRepository struct{ IntegrityRepository }
 
 func (failingDSSETrustRootRepository) InsertDSSETrustRoot(context.Context, domain.DSSETrustRoot) error {
 	return errInjectedRepositoryFailure
@@ -36,7 +36,7 @@ func TestDSSETrustRootUsesUnitOfWorkAndPublishesOnlyAfterCommit(t *testing.T) {
 	}
 
 	ledger.unitOfWork = repositoryFailingUnitOfWorkFactory{inner: memory, decorate: func(repositories Repositories) Repositories {
-		repositories.Governance = failingDSSETrustRootRepository{GovernanceRepository: repositories.Governance}
+		repositories.Integrity = failingDSSETrustRootRepository{IntegrityRepository: repositories.Integrity}
 		return repositories
 	}}
 	beforeRoots, beforeAudit := len(ledger.dsseTrustRoots), len(ledger.chain[actor.TenantID])
@@ -55,13 +55,13 @@ func TestDSSETrustRootUsesUnitOfWorkAndPublishesOnlyAfterCommit(t *testing.T) {
 	repositories := uow.Repositories()
 	duplicate := root
 	duplicate.ID = "dsse_trust_root_duplicate"
-	if err := repositories.Governance.InsertDSSETrustRoot(ctx, duplicate); !errors.Is(err, ErrConflict) {
+	if err := repositories.Integrity.InsertDSSETrustRoot(ctx, duplicate); !errors.Is(err, ErrConflict) {
 		t.Fatalf("duplicate DSSE trust root err=%v, want conflict", err)
 	}
 	invalid := root
 	invalid.ID = "dsse_trust_root_invalid"
 	invalid.PublicKey = "not-base64"
-	if err := repositories.Governance.InsertDSSETrustRoot(ctx, invalid); !errors.Is(err, ErrValidation) {
+	if err := repositories.Integrity.InsertDSSETrustRoot(ctx, invalid); !errors.Is(err, ErrValidation) {
 		t.Fatalf("invalid DSSE trust root err=%v, want validation", err)
 	}
 }

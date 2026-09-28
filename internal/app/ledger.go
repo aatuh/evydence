@@ -20,7 +20,10 @@ import (
 	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
+	packageapp "github.com/aatuh/evydence/internal/package/app"
 	releaseapp "github.com/aatuh/evydence/internal/release/app"
+	riskapp "github.com/aatuh/evydence/internal/risk/app"
+	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 )
 
 const (
@@ -112,6 +115,9 @@ type Ledger struct {
 	releaseCommands       *releaseapp.Service
 	evidenceCommands      *evidenceapp.Service
 	identityCommands      *identityapp.Service
+	riskCommands          *riskapp.Service
+	packageCommands       *packageapp.Service
+	verificationCommands  *verificationapp.Service
 
 	tenants               map[string]domain.Tenant
 	organizations         map[string]domain.Organization
@@ -384,6 +390,15 @@ func NewLedgerWithContext(ctx context.Context, cfg Config) (*Ledger, error) {
 	if err := ledger.configureIdentityCommands(); err != nil {
 		return nil, err
 	}
+	if err := ledger.configureRiskCommands(); err != nil {
+		return nil, err
+	}
+	if err := ledger.configurePackageCommands(); err != nil {
+		return nil, err
+	}
+	if err := ledger.configureVerificationCommands(); err != nil {
+		return nil, err
+	}
 	return ledger, nil
 }
 
@@ -403,10 +418,9 @@ func (l *Ledger) HasTenants(ctx context.Context) bool {
 }
 
 func (l *Ledger) BootstrapTenant(ctx context.Context, name, keyName string, scopes []string) (domain.Tenant, domain.APIKey, string, error) {
-	tenant, key, secret, err := l.identityCommands.BootstrapTenant(ctx, identityapp.BootstrapTenantInput{
+	return l.bootstrapTenant(ctx, identityapp.BootstrapTenantInput{
 		TenantName: name, APIKeyName: keyName, Scopes: scopes,
 	})
-	return tenantFromIdentityContext(tenant), apiKeyFromIdentityContext(key), secret, fromIdentityContextError(err)
 }
 
 func (l *Ledger) Authenticate(ctx context.Context, secret string) (domain.Actor, error) {
@@ -514,194 +528,6 @@ func (s releaseEvidenceService) newEvidenceItemForScopeLocked(actor domain.Actor
 	}
 	item.CanonicalHash = hash
 	return item, nil
-}
-
-func (l *Ledger) EvaluateRelease(ctx context.Context, actor domain.Actor, releaseID string) (domain.PolicyEvaluation, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.PolicyEvaluation{}, err
-	}
-	if err := require(actor, ScopeVerifyRead); err != nil {
-		return domain.PolicyEvaluation{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
-		return domain.PolicyEvaluation{}, err
-	}
-	release, ok := l.releases[strings.TrimSpace(releaseID)]
-	if !ok || release.TenantID != actor.TenantID {
-		return domain.PolicyEvaluation{}, ErrNotFound
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeVerifyRead, resourceRefs{ReleaseID: release.ID}); err != nil {
-		return domain.PolicyEvaluation{}, err
-	}
-	checks := l.releasePolicyChecksLocked(actor.TenantID, release.ID)
-	result := releasePolicyResult(checks)
-	eval := domain.PolicyEvaluation{ID: newID("pe"), TenantID: actor.TenantID, ReleaseID: release.ID, Result: result, PolicySet: domain.PolicySetVersion, Checks: checks, CreatedAt: l.now()}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Verification.InsertPolicyEvaluation(ctx, eval); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(eval.CreatedAt, actor.TenantID, "policy.evaluated", "policy_evaluation", eval.ID, "api_key", actor.KeyID, "", ""))
-			return err
-		}); err != nil {
-			return domain.PolicyEvaluation{}, err
-		}
-		l.policies[eval.ID] = eval
-		l.publishCommittedAuditEntryLocked(entry)
-		return eval, nil
-	}
-	l.policies[eval.ID] = eval
-	_, _ = l.appendChainLocked(actor.TenantID, "policy.evaluated", "policy_evaluation", eval.ID, "api_key", actor.KeyID, "", "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.PolicyEvaluation{}, err
-	}
-	return eval, nil
-}
-
-func (l *Ledger) releasePolicyChecksLocked(tenantID, releaseID string) []domain.PolicyCheck {
-	return []domain.PolicyCheck{
-		l.checkReleaseHasArtifactLocked(tenantID, releaseID),
-		l.checkReleaseHasEvidenceLocked(tenantID, releaseID, "sbom", "release_requires_sbom", "high"),
-		l.checkReleaseHasEvidenceLocked(tenantID, releaseID, "vulnerability_scan", "release_requires_vulnerability_scan", "high"),
-		l.checkReleaseHasArtifactDigestLocked(tenantID, releaseID),
-		l.checkReleaseHasSignedBundleLocked(tenantID, releaseID),
-		l.checkReleaseHasPassedBuildLocked(tenantID, releaseID),
-		l.checkReleaseHasBuildAttestationLocked(tenantID, releaseID),
-		l.checkNoOpenCriticalLocked(tenantID, releaseID),
-		l.checkNoOpenHighLocked(tenantID, releaseID),
-		l.checkCustomerVisibleDecisionsHaveStatementsLocked(tenantID, releaseID),
-		l.checkNotAffectedDecisionsHaveJustificationLocked(tenantID, releaseID),
-		l.checkExceptionsCompleteLocked(tenantID, releaseID),
-		l.checkPackageRedactionProfilesValidLocked(tenantID, releaseID),
-	}
-}
-
-func releasePolicyResult(checks []domain.PolicyCheck) string {
-	for _, check := range checks {
-		if check.Result == "failed" {
-			return "failed"
-		}
-	}
-	return "passed"
-}
-
-func (l *Ledger) CreateReleaseBundle(ctx context.Context, actor domain.Actor, releaseID string) (domain.ReleaseBundle, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.ReleaseBundle{}, err
-	}
-	if err := require(actor, ScopeBundleWrite); err != nil {
-		return domain.ReleaseBundle{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
-		return domain.ReleaseBundle{}, err
-	}
-	release, ok := l.releases[strings.TrimSpace(releaseID)]
-	if !ok || release.TenantID != actor.TenantID {
-		return domain.ReleaseBundle{}, ErrNotFound
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeBundleWrite, resourceRefs{ReleaseID: release.ID}); err != nil {
-		return domain.ReleaseBundle{}, err
-	}
-	evidenceIDs := []string{}
-	for _, item := range l.evidence {
-		if item.TenantID == actor.TenantID && item.ReleaseID == release.ID {
-			evidenceIDs = append(evidenceIDs, item.ID)
-		}
-	}
-	sort.Strings(evidenceIDs)
-	head := ""
-	entries := l.chain[actor.TenantID]
-	if len(entries) > 0 {
-		head = entries[len(entries)-1].EntryHash
-	}
-	bundleID := newID("rb")
-	manifest := map[string]any{
-		"manifest_version": domain.ReleaseBundleSchemaVersion,
-		"bundle_id":        bundleID,
-		"tenant_id":        actor.TenantID,
-		"release": map[string]any{
-			"id":      release.ID,
-			"version": release.Version,
-			"state":   release.State,
-		},
-		"evidence_ids": evidenceIDs,
-		"chain_checkpoint": map[string]any{
-			"sequence":  len(entries),
-			"head_hash": head,
-		},
-		"generated_at": l.now().UTC().Format(time.RFC3339Nano),
-		"generator": map[string]any{
-			"name":    "evydence",
-			"version": "dev",
-		},
-		"object_lock_proofs": l.packageObjectLockProofsLocked(actor.TenantID),
-	}
-	manifestHash, err := canonicalAnyHash(manifest)
-	if err != nil {
-		return domain.ReleaseBundle{}, err
-	}
-	var stateBeforeUnitOfWork PersistedState
-	if l.unitOfWork != nil {
-		stateBeforeUnitOfWork, err = l.snapshotLocked()
-		if err != nil {
-			return domain.ReleaseBundle{}, err
-		}
-	}
-	sig, err := l.signLocked(actor.TenantID, "release_bundle", bundleID, []byte(manifestHash))
-	if err != nil {
-		if l.unitOfWork != nil {
-			_ = l.applyState(stateBeforeUnitOfWork)
-		}
-		return domain.ReleaseBundle{}, err
-	}
-	bundle := domain.ReleaseBundle{ID: bundleID, TenantID: actor.TenantID, ReleaseID: release.ID, State: "generated", Manifest: manifest, ManifestHash: manifestHash, SignatureRefs: []string{sig.ID}, CreatedAt: l.now()}
-	if l.unitOfWork != nil {
-		job := l.newOutboxJob(actor.TenantID, "sign_bundle", "release_bundle", bundle.ID, map[string]any{"manifest_hash": manifestHash})
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Signatures.InsertSignature(ctx, sig); err != nil {
-				return err
-			}
-			if err := repos.Packages.InsertReleaseBundle(ctx, bundle); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(bundle.CreatedAt, actor.TenantID, "bundle.generated", "release_bundle", bundle.ID, "api_key", actor.KeyID, manifestHash, sig.ID))
-			if err != nil {
-				return err
-			}
-			return repos.Outbox.Enqueue(ctx, job)
-		}); err != nil {
-			_ = l.applyState(stateBeforeUnitOfWork)
-			return domain.ReleaseBundle{}, err
-		}
-		l.bundles[bundle.ID] = bundle
-		l.publishCommittedAuditEntryLocked(entry)
-		return bundle, nil
-	}
-	l.bundles[bundle.ID] = bundle
-	_, _ = l.appendChainLocked(actor.TenantID, "bundle.generated", "release_bundle", bundle.ID, "api_key", actor.KeyID, manifestHash, sig.ID)
-	job := l.newOutboxJob(actor.TenantID, "sign_bundle", "release_bundle", bundle.ID, map[string]any{"manifest_hash": manifestHash})
-	mutation, err := l.criticalMutationLocked()
-	if err != nil {
-		return domain.ReleaseBundle{}, err
-	}
-	mutation.OutboxJobs = append(mutation.OutboxJobs, job)
-	if _, ok := l.store.(CriticalMutationStore); !ok {
-		if err := l.enqueueJob(ctx, job); err != nil {
-			return domain.ReleaseBundle{}, err
-		}
-	}
-	if err := l.persistCriticalLocked(ctx, mutation); err != nil {
-		return domain.ReleaseBundle{}, err
-	}
-	return bundle, nil
 }
 
 func (l *Ledger) GetReleaseBundle(ctx context.Context, actor domain.Actor, id string) (domain.ReleaseBundle, error) {
@@ -876,233 +702,6 @@ func (s releaseEvidenceService) GetOpenAPIContract(ctx context.Context, actor do
 		return domain.OpenAPIContract{}, err
 	}
 	return contract, nil
-}
-
-func (l *Ledger) VerifySubject(ctx context.Context, actor domain.Actor, subjectType, subjectID string) (domain.VerificationResult, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.VerificationResult{}, err
-	}
-	if err := require(actor, ScopeVerifyRead); err != nil {
-		return domain.VerificationResult{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
-		return domain.VerificationResult{}, err
-	}
-	checks := []domain.VerifyCheck{}
-	var profile domain.VerificationProfile
-	switch strings.TrimSpace(subjectType) {
-	case "audit_chain":
-		if err := l.authorizeResourceLocked(actor, ScopeVerifyRead, resourceRefs{}); err != nil {
-			return domain.VerificationResult{}, err
-		}
-		checks = l.verifyChainLocked(actor.TenantID)
-		profile = assuranceProfile(domain.VerificationProfileAuditChainIntegrity, requiredCheckNames(checks), []string{"Evydence audit-chain canonical hashes"}, "tenant-scoped verification authorization", "not_evaluated", "tenant audit-chain entries", "", []string{"Audit-chain verification does not prove external anchoring or third-party log inclusion."})
-	case "audit_chain_checkpoint":
-		if err := l.authorizeResourceLocked(actor, ScopeVerifyRead, resourceRefs{}); err != nil {
-			return domain.VerificationResult{}, err
-		}
-		var found bool
-		checks, found = l.verifyMerkleAuditChainCheckpointLocked(actor.TenantID, strings.TrimSpace(subjectID))
-		if !found {
-			return domain.VerificationResult{}, ErrNotFound
-		}
-		profile = assuranceProfile(domain.VerificationProfileAuditChainMerkleCheckpoint, requiredCheckNames(checks), []string{"Evydence audit-chain hashes", "tenant signing keys"}, "tenant-scoped verification authorization", "not_evaluated", "tenant audit-chain range and signed Merkle root", "", []string{"This signed checkpoint detects truncation or rewrites within its covered sequence range, but does not prove external publication or third-party log inclusion."})
-	case "audit_chain_release_manifest":
-		bundle, ok := l.bundles[strings.TrimSpace(subjectID)]
-		if !ok || bundle.TenantID != actor.TenantID {
-			return domain.VerificationResult{}, ErrNotFound
-		}
-		if err := l.authorizeResourceLocked(actor, ScopeVerifyRead, resourceRefs{ReleaseID: bundle.ReleaseID}); err != nil {
-			return domain.VerificationResult{}, err
-		}
-		var found bool
-		checks, found = l.verifyReleaseManifestAuditChainCheckpointLocked(actor.TenantID, bundle.ID)
-		if !found {
-			return domain.VerificationResult{}, ErrNotFound
-		}
-		profile = assuranceProfile(domain.VerificationProfileAuditChainReleaseManifest, requiredCheckNames(checks), []string{"release bundle manifest", "tenant signing keys"}, "tenant-scoped verification authorization", "not_evaluated", "signed release manifest audit-chain checkpoint", bundle.ManifestHash, []string{"This signed checkpoint detects truncation or rewrites within its covered sequence range, but does not prove external publication or third-party log inclusion."})
-	case "evidence_item":
-		item, ok := l.evidence[strings.TrimSpace(subjectID)]
-		if !ok || item.TenantID != actor.TenantID {
-			return domain.VerificationResult{}, ErrNotFound
-		}
-		if err := l.authorizeResourceLocked(actor, ScopeVerifyRead, refsForEvidence(item)); err != nil {
-			return domain.VerificationResult{}, err
-		}
-		canonicalItem, err := evidenceForCanonicalVerification(item, l.lifecycle)
-		var hash string
-		if err == nil {
-			hash, err = canonicalHash(canonicalItem)
-		}
-		if err != nil || hash != item.CanonicalHash {
-			checks = append(checks, domain.VerifyCheck{Name: "canonical_hash", Result: "failed"})
-		} else {
-			checks = append(checks, domain.VerifyCheck{Name: "canonical_hash", Result: "passed"})
-		}
-		profile = assuranceProfile(domain.VerificationProfileEvidenceCanonicalHash, []string{"canonical_hash"}, []string{item.Canonicalization}, "tenant-scoped verification authorization", "not_evaluated", "canonical evidence fields", item.CanonicalHash, []string{"Canonical evidence hashing does not validate the origin or completeness of the uploaded payload."})
-	case "release_bundle":
-		bundle, ok := l.bundles[strings.TrimSpace(subjectID)]
-		if !ok || bundle.TenantID != actor.TenantID {
-			return domain.VerificationResult{}, ErrNotFound
-		}
-		if err := l.authorizeResourceLocked(actor, ScopeVerifyRead, resourceRefs{ReleaseID: bundle.ReleaseID}); err != nil {
-			return domain.VerificationResult{}, err
-		}
-		hash, err := canonicalAnyHash(bundle.Manifest)
-		if err != nil || hash != bundle.ManifestHash {
-			checks = append(checks, domain.VerifyCheck{Name: "manifest_hash", Result: "failed"})
-		} else {
-			checks = append(checks, domain.VerifyCheck{Name: "manifest_hash", Result: "passed"})
-		}
-		if !l.verifySignatureForSubjectLocked(bundle.TenantID, bundle.SignatureRefs, "release_bundle", bundle.ID, []byte(bundle.ManifestHash)) {
-			checks = append(checks, domain.VerifyCheck{Name: "bundle_signature", Result: "failed"})
-		} else {
-			checks = append(checks, domain.VerifyCheck{Name: "bundle_signature", Result: "passed"})
-		}
-		profile = assuranceProfile(domain.VerificationProfileReleaseBundleSignature, []string{"manifest_hash", "bundle_signature"}, []string{"active or historically valid tenant signing keys"}, "tenant-scoped verification authorization", "not_evaluated", "release bundle manifest canonical JSON", bundle.ManifestHash, []string{"Bundle verification does not establish external publication, registry provenance, or legal sufficiency."})
-	case "artifact_signature":
-		sig, ok := l.artifactSigs[strings.TrimSpace(subjectID)]
-		if !ok || sig.TenantID != actor.TenantID {
-			return domain.VerificationResult{}, ErrNotFound
-		}
-		if err := l.authorizeResourceLocked(actor, ScopeVerifyRead, resourceRefs{ArtifactID: sig.ArtifactID}); err != nil {
-			return domain.VerificationResult{}, err
-		}
-		artifact, ok := l.artifacts[sig.ArtifactID]
-		if !ok || artifact.TenantID != actor.TenantID {
-			return domain.VerificationResult{}, ErrNotFound
-		}
-		if artifact.Digest != sig.SubjectDigest {
-			checks = append(checks, domain.VerifyCheck{Name: "digest_binding_assessed", Result: "failed"})
-		} else {
-			checks = append(checks, domain.VerifyCheck{Name: "digest_binding_assessed", Result: "passed"})
-		}
-		if sig.Algorithm == "" || sig.Signature == "" {
-			checks = append(checks, domain.VerifyCheck{Name: "signature_material_present", Result: "failed"})
-		} else {
-			checks = append(checks, domain.VerifyCheck{Name: "signature_material_present", Result: "passed", Detail: "signature recorded; cryptographic trust-root verification is deferred"})
-		}
-		profile = assuranceProfile(domain.VerificationProfileArtifactSignatureMetadata, []string{"digest_binding_assessed", "signature_material_present", "cryptographic_signature_verified", "certificate_identity_policy", "transparency_inclusion_proof"}, []string{"recorded artifact signature metadata"}, "no certificate identity policy evaluated", "not_evaluated", "artifact digest and detached signature metadata", sig.SubjectDigest, []string{"This profile is metadata-only and cannot verify cryptographic signature validity, certificate identity, trust roots, or transparency inclusion."})
-	default:
-		return domain.VerificationResult{}, ErrValidation
-	}
-	vr := verificationResult(newID("vr"), actor.TenantID, subjectType, subjectID, checks, profile, l.now())
-	if l.unitOfWork != nil {
-		job := l.newOutboxJob(actor.TenantID, "verify_subject", subjectType, subjectID, map[string]any{"result_id": vr.ID})
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Verification.InsertVerificationResult(ctx, vr); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(vr.VerifiedAt, actor.TenantID, "subject.verified", "verification_result", vr.ID, actorType(actor), actorID(actor), "", ""))
-			if err != nil {
-				return err
-			}
-			return repos.Outbox.Enqueue(ctx, job)
-		}); err != nil {
-			return domain.VerificationResult{}, err
-		}
-		l.verifications[vr.ID] = vr
-		l.publishCommittedAuditEntryLocked(entry)
-		if verificationReturnsFailure(vr.Result) {
-			return vr, ErrVerificationFailed
-		}
-		return vr, nil
-	}
-	l.verifications[vr.ID] = vr
-	job := l.newOutboxJob(actor.TenantID, "verify_subject", subjectType, subjectID, map[string]any{"result_id": vr.ID})
-	mutation, err := l.criticalMutationLocked()
-	if err != nil {
-		return domain.VerificationResult{}, err
-	}
-	mutation.OutboxJobs = append(mutation.OutboxJobs, job)
-	if _, ok := l.store.(CriticalMutationStore); !ok {
-		if err := l.enqueueJob(ctx, job); err != nil {
-			return domain.VerificationResult{}, err
-		}
-	}
-	if err := l.persistCriticalLocked(ctx, mutation); err != nil {
-		return domain.VerificationResult{}, err
-	}
-	if verificationReturnsFailure(vr.Result) {
-		return vr, ErrVerificationFailed
-	}
-	return vr, nil
-}
-
-func (l *Ledger) RotateSigningKey(ctx context.Context, actor domain.Actor, reason string) (domain.SigningKey, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.SigningKey{}, err
-	}
-	if err := require(actor, ScopeKeysAdmin); err != nil {
-		return domain.SigningKey{}, err
-	}
-	if strings.TrimSpace(reason) == "" {
-		return domain.SigningKey{}, ErrValidation
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if l.unitOfWork != nil {
-		key, retiring, err := l.planSigningKeyRotationLocked(actor.TenantID)
-		if err != nil {
-			return domain.SigningKey{}, err
-		}
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			for _, prior := range retiring {
-				if err := repos.Signatures.UpdateSigningKey(ctx, prior, "active"); err != nil {
-					return err
-				}
-			}
-			if err := repos.Signatures.InsertSigningKey(ctx, key); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(key.CreatedAt, actor.TenantID, "signing_key.rotated", "signing_key", key.ID, "api_key", actor.KeyID, "", ""))
-			return err
-		}); err != nil {
-			return domain.SigningKey{}, err
-		}
-		for _, prior := range retiring {
-			l.signingKeys[prior.ID] = prior
-		}
-		l.signingKeys[key.ID] = key
-		l.publishCommittedAuditEntryLocked(entry)
-		key.Private = nil
-		return key, nil
-	}
-	key, err := l.rotateSigningKeyLocked(actor.TenantID, reason)
-	if err != nil {
-		return domain.SigningKey{}, err
-	}
-	_, _ = l.appendChainLocked(actor.TenantID, "signing_key.rotated", "signing_key", key.ID, "api_key", actor.KeyID, "", "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.SigningKey{}, err
-	}
-	return key, nil
-}
-
-func (l *Ledger) ListSigningKeys(ctx context.Context, actor domain.Actor) ([]domain.SigningKey, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	if err := require(actor, ScopeVerifyRead); err != nil {
-		return nil, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	out := []domain.SigningKey{}
-	for _, key := range l.signingKeys {
-		if key.TenantID == actor.TenantID {
-			key.Private = nil
-			out = append(out, key)
-		}
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
-	return out, nil
 }
 
 func (s packageReportService) MissingEvidenceReport(ctx context.Context, actor domain.Actor, releaseID string) (map[string]any, error) {
@@ -1358,53 +957,8 @@ func (l *Ledger) verifyChainLocked(tenantID string) []domain.VerifyCheck {
 	return checks
 }
 
-func (l *Ledger) rotateSigningKeyLocked(tenantID, _ string) (domain.SigningKey, error) {
-	key, retiring, err := l.planSigningKeyRotationLocked(tenantID)
-	if err != nil {
-		return domain.SigningKey{}, err
-	}
-	for _, prior := range retiring {
-		l.signingKeys[prior.ID] = prior
-	}
-	l.signingKeys[key.ID] = key
-	public := key
-	public.Private = nil
-	return public, nil
-}
-
-func (l *Ledger) planSigningKeyRotationLocked(tenantID string) (domain.SigningKey, []domain.SigningKey, error) {
-	now := l.now().UTC()
-	version := 1
-	retiring := make([]domain.SigningKey, 0)
-	for _, key := range l.signingKeys {
-		if key.TenantID != tenantID || signingKeyProvider(key) != domain.SigningKeyDefaultProvider {
-			continue
-		}
-		if key.Version < 1 && version < 2 {
-			version = 2
-		} else if key.Version >= version {
-			version = key.Version + 1
-		}
-		if key.Status == domain.SigningKeyStatusActive {
-			key.Status = domain.SigningKeyStatusRetiring
-			key.ValidUntil = &now
-			retiring = append(retiring, key)
-		}
-	}
-	sort.Slice(retiring, func(i, j int) bool { return retiring[i].ID < retiring[j].ID })
-	key, err := l.newSigningKeyAt(tenantID, domain.SigningKeyDefaultProvider, version, now)
-	if err != nil {
-		return domain.SigningKey{}, nil, err
-	}
-	return key, retiring, nil
-}
-
 // newSigningKey creates private material without publishing it. Callers must
 // write it transactionally and must never return Private to normal callers.
-func (l *Ledger) newSigningKey(tenantID string) (domain.SigningKey, error) {
-	return l.newSigningKeyAt(tenantID, domain.SigningKeyDefaultProvider, 1, l.now().UTC())
-}
-
 func (l *Ledger) newSigningKeyAt(tenantID, provider string, version int, now time.Time) (domain.SigningKey, error) {
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
@@ -1419,31 +973,6 @@ func (l *Ledger) newSigningKeyAt(tenantID, provider string, version int, now tim
 	now = now.UTC()
 	fingerprint := sha256.Sum256(pub)
 	return domain.SigningKey{ID: newID("sk"), TenantID: tenantID, KID: fmt.Sprintf("%s-v%d", now.Format("20060102T150405Z"), version), Version: version, Provider: provider, Algorithm: "Ed25519", Status: domain.SigningKeyStatusActive, PublicKey: base64.RawStdEncoding.EncodeToString(pub), PublicKeyFingerprint: "sha256:" + hex.EncodeToString(fingerprint[:]), Private: priv, ValidFrom: now, CreatedAt: now, HistoricalValidityPolicy: domain.SigningKeyHistoricalValidityPreserve}, nil
-}
-
-func (l *Ledger) signLocked(tenantID, subjectType, subjectID string, payload []byte) (domain.Signature, error) {
-	var active domain.SigningKey
-	for _, key := range l.signingKeys {
-		if key.TenantID == tenantID && key.Status == domain.SigningKeyStatusActive {
-			active = key
-			break
-		}
-	}
-	if active.ID == "" {
-		if _, err := l.rotateSigningKeyLocked(tenantID, "auto"); err != nil {
-			return domain.Signature{}, err
-		}
-		for _, key := range l.signingKeys {
-			if key.TenantID == tenantID && key.Status == domain.SigningKeyStatusActive {
-				active = key
-				break
-			}
-		}
-	}
-	sigBytes := ed25519.Sign(ed25519.PrivateKey(active.Private), payload)
-	sig := domain.Signature{ID: newID("sig"), TenantID: tenantID, SubjectType: subjectType, SubjectID: subjectID, KeyID: active.ID, Algorithm: "Ed25519", Value: base64.RawStdEncoding.EncodeToString(sigBytes), CreatedAt: l.now()}
-	l.signatures[sig.ID] = sig
-	return sig, nil
 }
 
 func (l *Ledger) verifySignatureLocked(tenantID string, signatureRefs []string, payload []byte) bool {
@@ -1483,43 +1012,4 @@ func (l *Ledger) verifySignatureForSubjectLocked(tenantID string, signatureRefs 
 		}
 	}
 	return false
-}
-
-func (l *Ledger) checkReleaseHasArtifactLocked(tenantID, releaseID string) domain.PolicyCheck {
-	for _, item := range l.evidence {
-		if item.TenantID != tenantID || item.ReleaseID != releaseID {
-			continue
-		}
-		for _, ref := range item.SubjectRefs {
-			if ref.Type == "artifact" && ref.ID != "" {
-				return domain.PolicyCheck{Name: "release_has_artifact", Result: "passed", Severity: "high", Explanation: "artifact evidence is linked to the release"}
-			}
-		}
-	}
-	return domain.PolicyCheck{Name: "release_has_artifact", Result: "failed", Severity: "high", Missing: []string{"artifact"}, Explanation: "release artifact evidence is missing", Remediation: "Register an artifact digest and link it to release evidence such as SBOM, scan, build output, or artifact digest evidence."}
-}
-
-func (l *Ledger) checkReleaseHasEvidenceLocked(tenantID, releaseID, typ, name, severity string) domain.PolicyCheck {
-	for _, item := range l.evidence {
-		if item.TenantID == tenantID && item.ReleaseID == releaseID && item.Type == typ {
-			return domain.PolicyCheck{Name: name, Result: "passed", Severity: severity, Explanation: typ + " evidence exists"}
-		}
-	}
-	return domain.PolicyCheck{Name: name, Result: "failed", Severity: severity, Missing: []string{typ}, Explanation: typ + " evidence is missing", Remediation: "Upload " + typ + " evidence for this release."}
-}
-
-func (l *Ledger) checkNoOpenCriticalLocked(tenantID, releaseID string) domain.PolicyCheck {
-	blocking := l.unhandledCriticalFindingsLocked(tenantID, releaseID)
-	if len(blocking) > 0 {
-		return domain.PolicyCheck{Name: "critical_exploitable_blocks_release", Result: "failed", Severity: "critical", Missing: []string{"vulnerability_decision"}, Explanation: "open critical finding requires remediation, a valid VEX decision, or an approved unexpired exception", Remediation: "Record a fixed or not_affected vulnerability decision, upload VEX evidence, remediate the finding, or approve an unexpired scoped exception."}
-	}
-	return domain.PolicyCheck{Name: "critical_exploitable_blocks_release", Result: "passed", Severity: "critical", Explanation: "no open critical findings recorded"}
-}
-
-func (l *Ledger) checkNoOpenHighLocked(tenantID, releaseID string) domain.PolicyCheck {
-	blocking := l.unhandledFindingsBySeverityLocked(tenantID, releaseID, "high")
-	if len(blocking) > 0 {
-		return domain.PolicyCheck{Name: "high_findings_require_triage", Result: "failed", Severity: "high", Missing: []string{"vulnerability_decision"}, Explanation: "open high finding requires a valid decision, remediation, or an approved unexpired exception", Remediation: "Record a fixed or not_affected vulnerability decision, upload VEX evidence, remediate the finding, or approve an unexpired scoped exception."}
-	}
-	return domain.PolicyCheck{Name: "high_findings_require_triage", Result: "passed", Severity: "high", Explanation: "no unhandled open high findings recorded"}
 }

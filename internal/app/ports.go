@@ -375,7 +375,6 @@ type GovernanceRepository interface {
 	InsertRedactionProfile(context.Context, domain.RedactionProfile) error
 	InsertLegalHold(context.Context, domain.LegalHold) error
 	InsertRetentionOverride(context.Context, domain.RetentionOverride) error
-	InsertDSSETrustRoot(context.Context, domain.DSSETrustRoot) error
 }
 
 type BuildRepository interface {
@@ -404,6 +403,7 @@ type DeploymentRepository interface {
 }
 
 type PackageRepository interface {
+	InsertRedactionProfile(context.Context, domain.RedactionProfile) error
 	InsertReleaseBundle(context.Context, domain.ReleaseBundle) error
 	InsertEvidenceBundle(context.Context, domain.EvidenceBundle) error
 	InsertCustomerSecurityPackage(context.Context, domain.CustomerSecurityPackage) error
@@ -436,6 +436,7 @@ type SignatureRepository interface {
 }
 
 type IntegrityRepository interface {
+	InsertDSSETrustRoot(context.Context, domain.DSSETrustRoot) error
 	InsertCosignVerification(context.Context, domain.CosignVerification) error
 	InsertSigningProvider(context.Context, domain.SigningProvider) error
 	InsertObjectRetentionPolicy(context.Context, domain.ObjectRetentionPolicy) error
