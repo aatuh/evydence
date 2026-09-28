@@ -10,10 +10,10 @@ import (
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 )
 
-// authenticator is the transport's identity-verification boundary. Keeping it
+// Authenticator is the transport's identity-verification boundary. Keeping it
 // separate from the identity administration surface makes authentication an
 // explicit dependency of every protected route.
-type authenticator interface {
+type Authenticator interface {
 	Authenticate(context.Context, string) (domain.Actor, error)
 }
 
@@ -210,7 +210,7 @@ type verificationService interface {
 }
 
 var (
-	_ authenticator            = (*app.Ledger)(nil)
+	_ Authenticator            = (*app.Ledger)(nil)
 	_ idempotencyExecutor      = ledgerIdempotencyExecutor{}
 	_ identityAccessService    = (*app.Ledger)(nil)
 	_ releaseCatalogService    = (*app.Ledger)(nil)

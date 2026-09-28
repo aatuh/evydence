@@ -46,10 +46,11 @@ these commands and maps their models to compatibility DTOs while idempotency,
 specialized report/query paths, and most service composition still use the
 legacy application boundary. API-key and SSO-session verification now has a
 standalone identity application service with narrow credential-read and
-activity-write ports, but the production API still binds those ports through
-the Ledger until a durable identity adapter is composed. API and worker runtime
-commands, including
-reconciliation and parser replay, now share a composition root for
+activity-write ports. The PostgreSQL profile binds those ports to current
+credential, session, user, role-binding, and provider rows; API-key and collector
+activity updates commit atomically. Local-memory mode retains the Ledger-backed
+adapter. API and worker runtime commands, including reconciliation and parser
+replay, now share a composition root for
 profile/load-mode validation, PostgreSQL migrations, object-store selection,
 and the production API writer lease.
 EVY-905 also routes production product-list pages and product, project, and
@@ -57,9 +58,9 @@ release point reads through focused release query services with tenant-bound
 PostgreSQL queries. Their actor-scope and catalog-grant checks no longer read
 the Ledger's product, project, or release maps; SQL validates the tenant and
 parent-product coordinates before the query service applies resource grants.
-Other production reads still reconstruct
-the broad Ledger state at startup; their database-backed query and composition
-replacement remain open EVY-905 work. Evidence list and search pages now use
+The production process still reconstructs broad Ledger state at startup for
+remaining compatibility operations; removing that startup load and migrating
+other reads remain open EVY-905 work. Evidence list and search pages now use
 bounded PostgreSQL keyset batches under one read-only snapshot for restricted
 human grants, with grant checks before pagination. The compatibility Ledger
 still holds authorization relationships and parser-normalization validation

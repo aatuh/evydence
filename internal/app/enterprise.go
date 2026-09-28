@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/domain"
+	identityapp "github.com/aatuh/evydence/internal/identity/app"
 )
 
 type CreateOrganizationInput struct {
@@ -943,22 +944,7 @@ func (l *Ledger) resourceGrantsForSSOSessionLocked(session domain.SSOSession) []
 }
 
 func resourceGrantsForProviderGroups(provider domain.SSOProvider, groups []string) []domain.ResourceGrant {
-	if provider.GroupsClaim == "" || len(provider.RoleMapping) == 0 || len(groups) == 0 {
-		return nil
-	}
-	grants := []domain.ResourceGrant{}
-	for _, group := range groups {
-		role := strings.TrimSpace(provider.RoleMapping[group])
-		if !validRole(role) {
-			continue
-		}
-		scopes := scopesForRole(role)
-		if len(scopes) == 0 {
-			continue
-		}
-		grants = append(grants, domain.ResourceGrant{Role: role, Scopes: scopes})
-	}
-	return grants
+	return identityapp.ProviderGroupGrants(ssoProviderToIdentityContext(provider), groups)
 }
 
 func scopesFromResourceGrants(grants []domain.ResourceGrant) []string {
@@ -1287,32 +1273,7 @@ func evidenceReferencesArtifact(item domain.EvidenceItem, artifactID string) boo
 }
 
 func scopesForRole(role string) []string {
-	switch role {
-	case "tenant_admin":
-		return []string{"*"}
-	case "security_engineer":
-		return []string{
-			ScopeEvidenceRead, ScopeEvidenceWrite,
-			ScopeSecurityRead, ScopeSecurityWrite,
-			ScopeControlsRead, ScopeControlsWrite,
-			ScopePolicyRead, ScopePolicyWrite,
-			ScopeVerifyRead, ScopeReportRead,
-		}
-	case "release_manager":
-		return []string{
-			ScopeProductRead, ScopeProjectRead,
-			ScopeReleaseRead, ScopeReleaseWrite,
-			ScopeEvidenceRead, ScopeEvidenceWrite,
-			ScopeBuildRead, ScopeBundleRead, ScopeBundleWrite,
-			ScopeVerifyRead, ScopeReportRead,
-		}
-	case "customer_verifier":
-		return []string{ScopePackageRead, ScopeBundleRead, ScopeVerifyRead, ScopeReportRead}
-	case "collector":
-		return []string{ScopeEvidenceWrite, ScopeBuildWrite, ScopeBundleWrite}
-	default:
-		return nil
-	}
+	return identityapp.RoleScopes(role)
 }
 
 func oidcGroupsFromVerifiedToken(provider domain.SSOProvider, token string) []string {

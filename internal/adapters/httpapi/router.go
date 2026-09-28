@@ -22,6 +22,7 @@ import (
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	application "github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
+	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	"github.com/aatuh/evydence/internal/platform/jsonbounds"
 	releasequery "github.com/aatuh/evydence/internal/release/query"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
@@ -33,7 +34,7 @@ const requestIDHeader = "X-Request-ID"
 
 type Server struct {
 	ledger            *app.Ledger
-	authn             authenticator
+	authn             Authenticator
 	idempotency       idempotencyExecutor
 	identityAccess    identityAccessService
 	releaseCatalog    releaseCatalogService
@@ -66,6 +67,9 @@ type ServerOptions struct {
 	MaxInFlightRequests              int
 	MaxConcurrentUploads             int
 	BuildIdentity                    runtimeinfo.Identity
+	// Authenticator overrides the local-memory Ledger authentication adapter.
+	// Production binds it to current PostgreSQL credential and grant rows.
+	Authenticator Authenticator
 	// PaginationSecret authenticates opaque cursor tokens. Production callers
 	// should supply a stable, non-public secret so tokens survive restarts.
 	PaginationSecret []byte
@@ -121,6 +125,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	}
 	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery}
 	server.bindLedger(ledger)
+	if opts.Authenticator != nil {
+		server.authn = opts.Authenticator
+	}
 	if err := server.registerRoutes(); err != nil {
 		return nil, err
 	}
@@ -2681,6 +2688,12 @@ func (s *Server) authenticate(w http.ResponseWriter, r *http.Request) (domain.Ac
 	}
 	actor, err := s.authn.Authenticate(r.Context(), token)
 	if err != nil {
+		switch {
+		case errors.Is(err, identityapp.ErrUnauthorized):
+			err = app.ErrUnauthorized
+		case errors.Is(err, identityapp.ErrForbidden):
+			err = app.ErrForbidden
+		}
 		writeProblem(w, r, err)
 		return domain.Actor{}, false
 	}

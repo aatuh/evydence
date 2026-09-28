@@ -241,7 +241,7 @@ func NewLedgerWithContext(ctx context.Context, cfg Config) (*Ledger, error) {
 	}
 	pepper := strings.TrimSpace(cfg.APIKeyPepper)
 	if pepper == "" {
-		pepper = "local-dev-pepper-change-me"
+		pepper = identityapp.LocalDevelopmentPepper
 	}
 	retention := cfg.Retention
 	if retention == nil && cfg.ObjectStore != nil {

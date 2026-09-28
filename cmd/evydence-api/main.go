@@ -29,6 +29,7 @@ import (
 	transparencygateway "github.com/aatuh/evydence/internal/adapters/transparency/httpgateway"
 	cosignverification "github.com/aatuh/evydence/internal/adapters/verification/sigstore"
 	"github.com/aatuh/evydence/internal/app"
+	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	"github.com/aatuh/evydence/internal/platform/redaction"
 	"github.com/aatuh/evydence/internal/platform/wiring"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
@@ -175,7 +176,12 @@ func runWithContext(ctx context.Context) error {
 	}
 	var productQuery httpapi.ProductQuery
 	var catalogPointQuery httpapi.CatalogPointQuery
+	var authenticator httpapi.Authenticator
 	if runtime.Postgres != nil {
+		authenticator, err = wiring.BuildAuthenticator(runtime.Postgres, runtime.Postgres, pepper, production)
+		if err != nil {
+			return fmt.Errorf("create authenticator: %w", err)
+		}
 		productQuery, err = wiring.BuildProductQuery(runtime.Postgres)
 		if err != nil {
 			return fmt.Errorf("create product query: %w", err)
@@ -186,6 +192,7 @@ func runWithContext(ctx context.Context) error {
 		}
 	}
 	server, err := httpapi.NewServerWithOptionsContext(ctx, ledger, httpapi.ServerOptions{
+		Authenticator:                    authenticator,
 		RateLimitRequestsPerMinute:       httpConfig.RateLimitRequestsPerMinute,
 		ExpensiveTenantRequestsPerMinute: httpConfig.ExpensiveTenantRequestsPerMinute,
 		RateLimitBucketCapacity:          httpConfig.RateLimitBucketCapacity,
@@ -365,7 +372,7 @@ func validateRuntimeConfig(production bool, databaseURL, pepper, signingKeyMode,
 	if strings.TrimSpace(databaseURL) == "" {
 		return errors.New("production requires EVYDENCE_DATABASE_URL")
 	}
-	if strings.TrimSpace(pepper) == "" || strings.TrimSpace(pepper) == "local-dev-pepper-change-me" {
+	if strings.TrimSpace(pepper) == "" || strings.TrimSpace(pepper) == identityapp.LocalDevelopmentPepper {
 		return errors.New("production requires a non-default EVYDENCE_API_KEY_PEPPER")
 	}
 	normalizedMode := normalizeSigningKeyMode(signingKeyMode)
