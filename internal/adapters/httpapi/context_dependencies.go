@@ -8,6 +8,8 @@ import (
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
+	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
+	verificationquery "github.com/aatuh/evydence/internal/verification/query"
 )
 
 // Authenticator is the transport's identity-verification boundary. Keeping it
@@ -29,6 +31,11 @@ type ProductQuery interface {
 type CatalogPointQuery interface {
 	GetProject(context.Context, domain.Actor, string) (releasedomain.Project, error)
 	GetRelease(context.Context, domain.Actor, string) (releasedomain.Release, error)
+}
+
+// AuditLogQuery pages current tenant audit entries without loading the Ledger.
+type AuditLogQuery interface {
+	ListPage(context.Context, domain.Actor, verificationquery.AuditFilter, appquery.PageRequest, *appquery.SortKey) (appquery.Result[verificationdomain.AuditChainEntry], error)
 }
 
 // commandScope binds transaction-local command services without exposing the

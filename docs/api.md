@@ -118,6 +118,10 @@ component, and audit-log routes. Do not combine it with `page_size`; new
 clients should use `page_size`. Unsupported, repeated, or blank query
 parameters are rejected rather than silently ignored.
 
+In the PostgreSQL profile, admin audit-log pages query the tenant's committed
+chain with bounded keyset pagination, including entries beyond the newest 500.
+The local-memory profile retains its legacy in-process 500-entry preselection.
+
 Finite resource `GET` responses expose private ETags. For immutable resources
 the tag is a representation digest; resources with a positive `revision` use
 that revision as a strong decimal ETag. Send `If-None-Match` from a previous

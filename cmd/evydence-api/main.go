@@ -176,6 +176,7 @@ func runWithContext(ctx context.Context) error {
 	}
 	var productQuery httpapi.ProductQuery
 	var catalogPointQuery httpapi.CatalogPointQuery
+	var auditLogQuery httpapi.AuditLogQuery
 	var authenticator httpapi.Authenticator
 	if runtime.Postgres != nil {
 		authenticator, err = wiring.BuildAuthenticator(runtime.Postgres, runtime.Postgres, pepper, production)
@@ -189,6 +190,10 @@ func runWithContext(ctx context.Context) error {
 		catalogPointQuery, err = wiring.BuildCatalogPointQuery(runtime.Postgres)
 		if err != nil {
 			return fmt.Errorf("create catalog point query: %w", err)
+		}
+		auditLogQuery, err = wiring.BuildAuditLogQuery(runtime.Postgres)
+		if err != nil {
+			return fmt.Errorf("create audit log query: %w", err)
 		}
 	}
 	server, err := httpapi.NewServerWithOptionsContext(ctx, ledger, httpapi.ServerOptions{
@@ -205,6 +210,7 @@ func runWithContext(ctx context.Context) error {
 		PaginationSecret:                 []byte(pepper),
 		ProductQuery:                     productQuery,
 		CatalogPointQuery:                catalogPointQuery,
+		AuditLogQuery:                    auditLogQuery,
 	})
 	if err != nil {
 		return fmt.Errorf("create server: %w", err)

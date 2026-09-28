@@ -64,7 +64,11 @@ other reads remain open EVY-905 work. Evidence list and search pages now use
 bounded PostgreSQL keyset batches under one read-only snapshot for restricted
 human grants, with grant checks before pagination. The compatibility Ledger
 still holds authorization relationships and parser-normalization validation
-state; removing its full startup load remains open. `make domain-context-check`
+state; removing its full startup load remains open. Admin audit-log pages use
+tenant-filtered PostgreSQL keyset queries in the durable profile, while local
+memory mode retains its in-process chain reader. The audit-log response shape
+and admin scope remain unchanged; durable paging is no longer limited to the
+newest 500 entries before pagination. `make domain-context-check`
 prevents model ownership, field compatibility, schema ownership, import, and
 transport-tag drift during the remaining transition.
 

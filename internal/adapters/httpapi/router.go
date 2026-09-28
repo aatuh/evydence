@@ -26,6 +26,7 @@ import (
 	"github.com/aatuh/evydence/internal/platform/jsonbounds"
 	releasequery "github.com/aatuh/evydence/internal/release/query"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
+	verificationquery "github.com/aatuh/evydence/internal/verification/query"
 )
 
 type requestContext = context.Context
@@ -40,6 +41,7 @@ type Server struct {
 	releaseCatalog    releaseCatalogService
 	productQuery      ProductQuery
 	catalogPointQuery CatalogPointQuery
+	auditLogQuery     AuditLogQuery
 	evidenceIngestion evidenceIngestionService
 	riskDecisions     riskDecisionService
 	packages          packageService
@@ -79,6 +81,8 @@ type ServerOptions struct {
 	// CatalogPointQuery enables tenant-filtered PostgreSQL project/release
 	// reads. Local-memory servers use the compatibility service instead.
 	CatalogPointQuery CatalogPointQuery
+	// AuditLogQuery pages tenant audit records in PostgreSQL for the durable profile.
+	AuditLogQuery AuditLogQuery
 }
 
 func NewServer(ledger *app.Ledger) (*Server, error) {
@@ -123,7 +127,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, auditLogQuery: opts.AuditLogQuery}
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
 		server.authn = opts.Authenticator
@@ -2373,6 +2377,15 @@ func (s *Server) listAuditLog(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	var pageRequest pageRequest
+	if s.auditLogQuery != nil {
+		var err error
+		pageRequest, err = s.parsePageRequestWithLegacyLimit(r, actor, "audit-log", true, "subject_type", "subject_id", "since")
+		if err != nil {
+			writeProblem(w, r, err)
+			return
+		}
+	}
 	var since *time.Time
 	if value := strings.TrimSpace(r.URL.Query().Get("since")); value != "" {
 		parsed, err := time.Parse(time.RFC3339, value)
@@ -2381,6 +2394,29 @@ func (s *Server) listAuditLog(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		since = &parsed
+	}
+	if s.auditLogQuery != nil {
+		result, err := s.auditLogQuery.ListPage(r.Context(), actor, verificationquery.AuditFilter{
+			SubjectType: r.URL.Query().Get("subject_type"), SubjectID: r.URL.Query().Get("subject_id"), Since: since,
+		}, appquery.PageRequest{PageSize: pageRequest.pageSize, Sort: pageRequest.sort, Direction: pageRequest.direction}, pageRequest.after)
+		if err != nil {
+			switch {
+			case errors.Is(err, verificationquery.ErrValidation), errors.Is(err, appquery.ErrInvalidPage), errors.Is(err, appquery.ErrInvalidCursor):
+				err = app.ErrValidation
+			case errors.Is(err, application.ErrUnauthorized):
+				err = app.ErrUnauthorized
+			case errors.Is(err, application.ErrForbidden):
+				err = app.ErrForbidden
+			}
+			writeProblem(w, r, err)
+			return
+		}
+		page := appquery.Result[domain.AuditChainEntry]{Next: result.Next, Items: make([]domain.AuditChainEntry, 0, len(result.Items))}
+		for _, entry := range result.Items {
+			page.Items = append(page.Items, auditChainEntryFromQuery(entry))
+		}
+		writePage(s, w, r, actor, "audit-log", pageRequest, page)
+		return
 	}
 	entries, err := s.ledger.ListAuditLog(r.Context(), actor, app.AuditLogFilter{
 		SubjectType: r.URL.Query().Get("subject_type"),

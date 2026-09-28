@@ -17,7 +17,7 @@ import (
 )
 
 func TestPostgresAuthenticationAPIKeyRevocationAndAtomicActivity(t *testing.T) {
-	store := authenticationTestStore(t)
+	store := isolatedRelationalTestStore(t)
 	ctx := t.Context()
 	now := time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC)
 	credentials, err := identityapp.NewHMACAuthenticationCredentials("test-pepper")
@@ -83,7 +83,7 @@ func TestPostgresAuthenticationAPIKeyRevocationAndAtomicActivity(t *testing.T) {
 }
 
 func TestPostgresAuthenticationSessionUsesCurrentTenantGrants(t *testing.T) {
-	store := authenticationTestStore(t)
+	store := isolatedRelationalTestStore(t)
 	ctx := t.Context()
 	now := time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC)
 	credentials, err := identityapp.NewHMACAuthenticationCredentials("test-pepper")
@@ -154,7 +154,7 @@ func TestPostgresAuthenticationSessionUsesCurrentTenantGrants(t *testing.T) {
 }
 
 func TestPostgresAuthenticationHasActivePrefixIndexes(t *testing.T) {
-	store := authenticationTestStore(t)
+	store := isolatedRelationalTestStore(t)
 	checkIndexes := func(want bool) {
 		t.Helper()
 		rows, err := store.pool.Query(t.Context(), `
@@ -205,7 +205,7 @@ func TestPostgresAuthenticationHasActivePrefixIndexes(t *testing.T) {
 	}
 }
 
-func authenticationTestStore(t *testing.T) *Store {
+func isolatedRelationalTestStore(t *testing.T) *Store {
 	t.Helper()
 	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
 	if databaseURL == "" {
@@ -217,7 +217,7 @@ func authenticationTestStore(t *testing.T) *Store {
 	if err != nil {
 		t.Fatal(err)
 	}
-	schema := "evydence_auth_query_" + strings.ReplaceAll(time.Now().UTC().Format("20060102150405.000000000"), ".", "_")
+	schema := "evydence_query_" + strings.ReplaceAll(time.Now().UTC().Format("20060102150405.000000000"), ".", "_")
 	quotedSchema := pgx.Identifier{schema}.Sanitize()
 	if _, err := admin.pool.Exec(ctx, "CREATE SCHEMA "+quotedSchema); err != nil {
 		admin.Close()
