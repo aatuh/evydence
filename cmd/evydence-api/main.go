@@ -177,6 +177,7 @@ func runWithContext(ctx context.Context) error {
 	var productQuery httpapi.ProductQuery
 	var catalogPointQuery httpapi.CatalogPointQuery
 	var auditLogQuery httpapi.AuditLogQuery
+	var apiKeyQuery httpapi.APIKeyQuery
 	var authenticator httpapi.Authenticator
 	if runtime.Postgres != nil {
 		authenticator, err = wiring.BuildAuthenticator(runtime.Postgres, runtime.Postgres, pepper, production)
@@ -195,6 +196,10 @@ func runWithContext(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("create audit log query: %w", err)
 		}
+		apiKeyQuery, err = wiring.BuildAPIKeyQuery(runtime.Postgres)
+		if err != nil {
+			return fmt.Errorf("create API-key query: %w", err)
+		}
 	}
 	server, err := httpapi.NewServerWithOptionsContext(ctx, ledger, httpapi.ServerOptions{
 		Authenticator:                    authenticator,
@@ -211,6 +216,7 @@ func runWithContext(ctx context.Context) error {
 		ProductQuery:                     productQuery,
 		CatalogPointQuery:                catalogPointQuery,
 		AuditLogQuery:                    auditLogQuery,
+		APIKeyQuery:                      apiKeyQuery,
 	})
 	if err != nil {
 		return fmt.Errorf("create server: %w", err)

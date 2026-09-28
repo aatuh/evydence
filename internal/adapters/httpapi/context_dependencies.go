@@ -7,6 +7,7 @@ import (
 	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
+	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 	verificationquery "github.com/aatuh/evydence/internal/verification/query"
@@ -36,6 +37,11 @@ type CatalogPointQuery interface {
 // AuditLogQuery pages current tenant audit entries without loading the Ledger.
 type AuditLogQuery interface {
 	ListPage(context.Context, domain.Actor, verificationquery.AuditFilter, appquery.PageRequest, *appquery.SortKey) (appquery.Result[verificationdomain.AuditChainEntry], error)
+}
+
+// APIKeyQuery returns only public key metadata from a bounded tenant page.
+type APIKeyQuery interface {
+	ListPage(context.Context, domain.Actor, appquery.PageRequest, *appquery.SortKey) (appquery.Result[identitydomain.APIKey], error)
 }
 
 // commandScope binds transaction-local command services without exposing the

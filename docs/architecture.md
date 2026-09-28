@@ -49,8 +49,10 @@ standalone identity application service with narrow credential-read and
 activity-write ports. The PostgreSQL profile binds those ports to current
 credential, session, user, role-binding, and provider rows; API-key and collector
 activity updates commit atomically. Local-memory mode retains the Ledger-backed
-adapter. API and worker runtime commands, including reconciliation and parser
-replay, now share a composition root for
+adapter. Production API-key inventory pages read public metadata from tenant-
+filtered PostgreSQL rows without selecting credential hashes; local memory
+retains the Ledger-backed inventory. API and worker runtime commands,
+including reconciliation and parser replay, now share a composition root for
 profile/load-mode validation, PostgreSQL migrations, object-store selection,
 and the production API writer lease.
 EVY-905 also routes production product-list pages and product, project, and
@@ -67,7 +69,8 @@ still holds authorization relationships and parser-normalization validation
 state; removing its full startup load remains open. Admin audit-log pages use
 tenant-filtered PostgreSQL keyset queries in the durable profile, while local
 memory mode retains its in-process chain reader. The audit-log response shape
-and admin scope remain unchanged; durable paging is no longer limited to the
+remains unchanged, and both modes require a tenant-wide human admin grant;
+durable paging is no longer limited to the
 newest 500 entries before pagination. `make domain-context-check`
 prevents model ownership, field compatibility, schema ownership, import, and
 transport-tag drift during the remaining transition.

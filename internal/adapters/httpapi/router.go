@@ -23,6 +23,7 @@ import (
 	application "github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
+	identityquery "github.com/aatuh/evydence/internal/identity/query"
 	"github.com/aatuh/evydence/internal/platform/jsonbounds"
 	releasequery "github.com/aatuh/evydence/internal/release/query"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
@@ -42,6 +43,7 @@ type Server struct {
 	productQuery      ProductQuery
 	catalogPointQuery CatalogPointQuery
 	auditLogQuery     AuditLogQuery
+	apiKeyQuery       APIKeyQuery
 	evidenceIngestion evidenceIngestionService
 	riskDecisions     riskDecisionService
 	packages          packageService
@@ -83,6 +85,8 @@ type ServerOptions struct {
 	CatalogPointQuery CatalogPointQuery
 	// AuditLogQuery pages tenant audit records in PostgreSQL for the durable profile.
 	AuditLogQuery AuditLogQuery
+	// APIKeyQuery pages public key metadata in PostgreSQL for the durable profile.
+	APIKeyQuery APIKeyQuery
 }
 
 func NewServer(ledger *app.Ledger) (*Server, error) {
@@ -127,7 +131,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, auditLogQuery: opts.AuditLogQuery}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery}
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
 		server.authn = opts.Authenticator
@@ -2672,6 +2676,32 @@ func (s *Server) createAPIKey(w http.ResponseWriter, r *http.Request) {
 func (s *Server) listAPIKeys(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
+		return
+	}
+	if s.apiKeyQuery != nil {
+		request, err := s.parsePageRequest(r, actor, "api-keys")
+		if err != nil {
+			writeProblem(w, r, err)
+			return
+		}
+		result, err := s.apiKeyQuery.ListPage(r.Context(), actor, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+		if err != nil {
+			switch {
+			case errors.Is(err, identityquery.ErrValidation), errors.Is(err, appquery.ErrInvalidPage), errors.Is(err, appquery.ErrInvalidCursor):
+				err = app.ErrValidation
+			case errors.Is(err, application.ErrUnauthorized):
+				err = app.ErrUnauthorized
+			case errors.Is(err, application.ErrForbidden):
+				err = app.ErrForbidden
+			}
+			writeProblem(w, r, err)
+			return
+		}
+		page := appquery.Result[domain.APIKey]{Next: result.Next, Items: make([]domain.APIKey, 0, len(result.Items))}
+		for _, key := range result.Items {
+			page.Items = append(page.Items, apiKeyFromQuery(key))
+		}
+		writePage(s, w, r, actor, "api-keys", request, page)
 		return
 	}
 	keys, err := s.identityAccess.ListAPIKeys(r.Context(), actor)
