@@ -29,6 +29,51 @@ type evidencePageStoreSpy struct {
 	result         appquery.Result[domain.EvidenceItem]
 }
 
+type visibleEvidencePageStoreSpy struct {
+	evidencePageStoreSpy
+	items           []domain.EvidenceItem
+	visibleLists    int
+	visibleSearches int
+	override        *appquery.Result[domain.EvidenceItem]
+}
+
+func (s *visibleEvidencePageStoreSpy) ListEvidencePageVisible(_ context.Context, request EvidencePageRequest, visible EvidenceVisibility) (appquery.Result[domain.EvidenceItem], error) {
+	s.visibleLists++
+	s.requests = append(s.requests, request)
+	if s.override != nil {
+		return *s.override, nil
+	}
+	return s.pageVisible(request.TenantID, request.Page, request.After, visible)
+}
+
+func (s *visibleEvidencePageStoreSpy) SearchEvidencePageVisible(_ context.Context, request EvidenceSearchPageRequest, visible EvidenceVisibility) (appquery.Result[domain.EvidenceItem], error) {
+	s.visibleSearches++
+	s.searchRequests = append(s.searchRequests, request)
+	if s.override != nil {
+		return *s.override, nil
+	}
+	return s.pageVisible(request.TenantID, request.Page, request.After, visible)
+}
+
+func (s *visibleEvidencePageStoreSpy) pageVisible(tenantID string, page appquery.PageRequest, after *appquery.SortKey, visible EvidenceVisibility) (appquery.Result[domain.EvidenceItem], error) {
+	items := make([]domain.EvidenceItem, 0, len(s.items))
+	for _, item := range s.items {
+		if item.TenantID != tenantID {
+			continue
+		}
+		allowed, err := visible(item)
+		if err != nil {
+			return appquery.Result[domain.EvidenceItem]{}, err
+		}
+		if allowed {
+			items = append(items, item)
+		}
+	}
+	return appquery.Page(items, page, after, func(item domain.EvidenceItem, sort appquery.Sort) appquery.SortKey {
+		return appquery.RecordSortKey(item.ID, item.CreatedAt, sort)
+	})
+}
+
 func (s *evidencePageStoreSpy) ListEvidencePage(_ context.Context, request EvidencePageRequest) (appquery.Result[domain.EvidenceItem], error) {
 	s.requests = append(s.requests, request)
 	return s.result, nil
@@ -181,6 +226,114 @@ func TestSearchEvidencePageUsesPersistencePortAndPreservesGranularAuthorization(
 	page, err = ledger.SearchEvidencePage(context.Background(), humanActor, request)
 	if err != nil || len(store.searchRequests) != 0 || len(page.Items) != 1 || page.Items[0].ID != matching.ID {
 		t.Fatalf("granular human search page=%#v persistence requests=%#v err=%v", page, store.searchRequests, err)
+	}
+}
+
+func TestEvidencePagesUseVisibleDatabasePortForRestrictedHuman(t *testing.T) {
+	createdAt := time.Date(2026, 8, 22, 12, 0, 0, 0, time.UTC)
+	items := []domain.EvidenceItem{
+		{ID: "ev_hidden", TenantID: "ten_visible", ProductID: "prod_hidden", Type: "build", CreatedAt: createdAt},
+		{ID: "ev_allowed", TenantID: "ten_visible", ProductID: "prod_allowed", Type: "build", CreatedAt: createdAt.Add(time.Second)},
+		{ID: "ev_foreign", TenantID: "ten_other", ProductID: "prod_allowed", Type: "build", CreatedAt: createdAt.Add(2 * time.Second)},
+	}
+	store := &visibleEvidencePageStoreSpy{
+		evidencePageStoreSpy: evidencePageStoreSpy{contextRecordingStore: contextRecordingStore{state: PersistedState{
+			Products: map[string]domain.Product{
+				"prod_allowed": {ID: "prod_allowed", TenantID: "ten_visible"},
+				"prod_hidden":  {ID: "prod_hidden", TenantID: "ten_visible"},
+			},
+			Evidence: map[string]domain.EvidenceItem{"ev_hidden": items[0], "ev_allowed": items[1]},
+		}, ok: true}},
+		items: items,
+	}
+	ledger := newLedgerWithStore(t, Config{APIKeyPepper: "test", Store: store})
+	actor := domain.Actor{
+		TenantID: "ten_visible", UserID: "usr_visible", Scopes: []string{ScopeEvidenceRead},
+		ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: "prod_allowed", Scopes: []string{ScopeEvidenceRead}}},
+	}
+	pageRequest := appquery.PageRequest{PageSize: 1, Sort: appquery.SortCreatedAt, Direction: appquery.Ascending}
+	page, err := ledger.ListEvidencePage(context.Background(), actor, EvidencePageRequest{Page: pageRequest})
+	if err != nil || len(page.Items) != 1 || page.Items[0].ID != "ev_allowed" || store.visibleLists != 1 || len(store.requests) != 1 || store.requests[0].TenantID != actor.TenantID {
+		t.Fatalf("visible list=%#v calls=%d requests=%#v error=%v", page, store.visibleLists, store.requests, err)
+	}
+	search, err := ledger.SearchEvidencePage(context.Background(), actor, EvidenceSearchPageRequest{Filter: EvidenceSearchInput{Type: "build"}, Page: pageRequest})
+	if err != nil || len(search.Items) != 1 || search.Items[0].ID != "ev_allowed" || store.visibleSearches != 1 || len(store.searchRequests) != 1 || store.searchRequests[0].TenantID != actor.TenantID {
+		t.Fatalf("visible search=%#v calls=%d requests=%#v error=%v", search, store.visibleSearches, store.searchRequests, err)
+	}
+	actor.ResourceGrants = nil
+	page, err = ledger.ListEvidencePage(context.Background(), actor, EvidencePageRequest{Page: pageRequest})
+	if err != nil || len(page.Items) != 0 || store.visibleLists != 2 {
+		t.Fatalf("revoked grant page=%#v calls=%d error=%v", page, store.visibleLists, err)
+	}
+}
+
+func TestEvidenceVisiblePageRejectsUnauthorizedAdapterProjection(t *testing.T) {
+	for _, item := range []domain.EvidenceItem{
+		{ID: "ev_foreign", TenantID: "ten_other", ProductID: "prod_allowed"},
+		{ID: "ev_hidden", TenantID: "ten_visible", ProductID: "prod_hidden"},
+	} {
+		t.Run(item.ID, func(t *testing.T) {
+			result := appquery.Result[domain.EvidenceItem]{Items: []domain.EvidenceItem{item}}
+			store := &visibleEvidencePageStoreSpy{
+				evidencePageStoreSpy: evidencePageStoreSpy{contextRecordingStore: contextRecordingStore{state: PersistedState{
+					Products: map[string]domain.Product{"prod_allowed": {ID: "prod_allowed", TenantID: "ten_visible"}},
+				}, ok: true}},
+				override: &result,
+			}
+			ledger := newLedgerWithStore(t, Config{APIKeyPepper: "test", Store: store})
+			actor := domain.Actor{
+				TenantID: "ten_visible", UserID: "usr_visible", Scopes: []string{ScopeEvidenceRead},
+				ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: "prod_allowed", Scopes: []string{ScopeEvidenceRead}}},
+			}
+			page, err := ledger.ListEvidencePage(context.Background(), actor, EvidencePageRequest{
+				Page: appquery.PageRequest{PageSize: 1, Sort: appquery.SortID, Direction: appquery.Ascending},
+			})
+			if err == nil || len(page.Items) != 0 {
+				t.Fatalf("unsafe projection returned: page=%#v error=%v", page, err)
+			}
+		})
+	}
+}
+
+func TestEvidenceTenantWidePageRejectsForeignAdapterProjection(t *testing.T) {
+	foreign := domain.EvidenceItem{ID: "ev_foreign", TenantID: "ten_other"}
+	store := &evidencePageStoreSpy{
+		contextRecordingStore: contextRecordingStore{state: PersistedState{}, ok: true},
+		result:                appquery.Result[domain.EvidenceItem]{Items: []domain.EvidenceItem{foreign}},
+	}
+	ledger := newLedgerWithStore(t, Config{APIKeyPepper: "test", Store: store})
+	actor := domain.Actor{TenantID: "ten_visible", KeyID: "key_visible", Scopes: []string{ScopeEvidenceRead}}
+	pageRequest := appquery.PageRequest{PageSize: 1, Sort: appquery.SortID, Direction: appquery.Ascending}
+	page, err := ledger.ListEvidencePage(context.Background(), actor, EvidencePageRequest{Page: pageRequest})
+	if err == nil || len(page.Items) != 0 {
+		t.Fatalf("foreign list projection returned: page=%#v error=%v", page, err)
+	}
+	page, err = ledger.SearchEvidencePage(context.Background(), actor, EvidenceSearchPageRequest{Page: pageRequest})
+	if err == nil || len(page.Items) != 0 {
+		t.Fatalf("foreign search projection returned: page=%#v error=%v", page, err)
+	}
+}
+
+func TestEvidenceVisiblePageStillValidatesParserNormalizations(t *testing.T) {
+	derived := domain.EvidenceItem{ID: "ev_derived", TenantID: "ten_visible", ProductID: "prod_allowed", Type: "parser_normalization"}
+	result := appquery.Result[domain.EvidenceItem]{Items: []domain.EvidenceItem{derived}}
+	store := &visibleEvidencePageStoreSpy{
+		evidencePageStoreSpy: evidencePageStoreSpy{contextRecordingStore: contextRecordingStore{state: PersistedState{
+			Products: map[string]domain.Product{"prod_allowed": {ID: "prod_allowed", TenantID: "ten_visible"}},
+			Evidence: map[string]domain.EvidenceItem{"ev_derived": derived},
+		}, ok: true}},
+		override: &result,
+	}
+	ledger := newLedgerWithStore(t, Config{APIKeyPepper: "test", Store: store})
+	actor := domain.Actor{
+		TenantID: "ten_visible", UserID: "usr_visible", Scopes: []string{ScopeEvidenceRead},
+		ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: "prod_allowed", Scopes: []string{ScopeEvidenceRead}}},
+	}
+	page, err := ledger.ListEvidencePage(context.Background(), actor, EvidencePageRequest{
+		Page: appquery.PageRequest{PageSize: 1, Sort: appquery.SortID, Direction: appquery.Ascending},
+	})
+	if err == nil || len(page.Items) != 0 {
+		t.Fatalf("unverified parser normalization returned: items=%d error=%v", len(page.Items), err)
 	}
 }
 

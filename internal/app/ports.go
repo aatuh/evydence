@@ -48,10 +48,23 @@ type RelationalStateStore interface {
 
 // EvidencePageStore is the bounded, index-oriented read port used for large
 // evidence collections. Authorization remains in Ledger; adapters receive a
-// tenant-bound request only after that policy has been evaluated.
+// tenant-bound request only after scope policy has been evaluated.
 type EvidencePageStore interface {
 	ListEvidencePage(context.Context, EvidencePageRequest) (appquery.Result[domain.EvidenceItem], error)
 	SearchEvidencePage(context.Context, EvidenceSearchPageRequest) (appquery.Result[domain.EvidenceItem], error)
+}
+
+// EvidenceVisibility is evaluated before a row can contribute to a page.
+// Implementations must keep result memory bounded and use one consistent
+// storage snapshot across any internal keyset batches.
+type EvidenceVisibility func(domain.EvidenceItem) (bool, error)
+
+// EvidenceVisiblePageStore supports granular human grants without materializing
+// all tenant evidence in the application. The caller owns authorization policy;
+// the adapter owns tenant filtering, snapshot consistency, and pagination.
+type EvidenceVisiblePageStore interface {
+	ListEvidencePageVisible(context.Context, EvidencePageRequest, EvidenceVisibility) (appquery.Result[domain.EvidenceItem], error)
+	SearchEvidencePageVisible(context.Context, EvidenceSearchPageRequest, EvidenceVisibility) (appquery.Result[domain.EvidenceItem], error)
 }
 
 type EvidencePageRequest struct {

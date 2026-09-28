@@ -52,7 +52,11 @@ EVY-905 also routes production product-list pages and product, project, and
 release point reads through focused release query services with tenant-bound
 PostgreSQL queries and grant checks. Other production reads still reconstruct
 the broad Ledger state at startup; their database-backed query and composition
-replacement remain open EVY-905 work. `make domain-context-check`
+replacement remain open EVY-905 work. Evidence list and search pages now use
+bounded PostgreSQL keyset batches under one read-only snapshot for restricted
+human grants, with grant checks before pagination. The compatibility Ledger
+still holds authorization relationships and parser-normalization validation
+state; removing its full startup load remains open. `make domain-context-check`
 prevents model ownership, field compatibility, schema ownership, import, and
 transport-tag drift during the remaining transition.
 

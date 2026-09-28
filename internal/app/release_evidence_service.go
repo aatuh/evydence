@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
@@ -119,10 +120,10 @@ func (l *Ledger) ListEvidence(ctx context.Context, actor domain.Actor, releaseID
 	return result, nil
 }
 
-// ListEvidencePage uses an indexed persistence query when the actor has
-// tenant-wide read authority. Granular human grants keep the established
-// in-memory authorization path, whose cross-resource grant semantics depend
-// on ledger relationship maps.
+// ListEvidencePage uses an indexed persistence query for tenant-wide actors.
+// Production stores can also scan bounded, snapshot-consistent batches for
+// granular human grants, authorizing rows before they contribute to a page.
+// Local-memory stores retain the compatibility in-process query path.
 func (l *Ledger) ListEvidencePage(ctx context.Context, actor domain.Actor, request EvidencePageRequest) (appquery.Result[domain.EvidenceItem], error) {
 	if err := ctx.Err(); err != nil {
 		return appquery.Result[domain.EvidenceItem]{}, err
@@ -140,6 +141,25 @@ func (l *Ledger) ListEvidencePage(ctx context.Context, actor domain.Actor, reque
 	if l.evidencePages != nil && actorHasTenantWideRead(actor, ScopeEvidenceRead) {
 		page, err := l.evidencePages.ListEvidencePage(ctx, request)
 		if err != nil {
+			return appquery.Result[domain.EvidenceItem]{}, err
+		}
+		if err := l.validateEvidencePageProjection(ctx, actor, request.Page, page, false); err != nil {
+			return appquery.Result[domain.EvidenceItem]{}, err
+		}
+		if err := l.validatePagedParserNormalizations(ctx, actor.TenantID, page.Items); err != nil {
+			return appquery.Result[domain.EvidenceItem]{}, err
+		}
+		return page, nil
+	}
+	if pages, ok := l.evidencePages.(EvidenceVisiblePageStore); ok {
+		if err := l.refreshEvidencePageAuthorization(ctx, actor.TenantID); err != nil {
+			return appquery.Result[domain.EvidenceItem]{}, err
+		}
+		page, err := pages.ListEvidencePageVisible(ctx, request, l.evidencePageVisibility(ctx, actor))
+		if err != nil {
+			return appquery.Result[domain.EvidenceItem]{}, err
+		}
+		if err := l.validateEvidencePageProjection(ctx, actor, request.Page, page, true); err != nil {
 			return appquery.Result[domain.EvidenceItem]{}, err
 		}
 		if err := l.validatePagedParserNormalizations(ctx, actor.TenantID, page.Items); err != nil {
@@ -195,6 +215,25 @@ func (l *Ledger) SearchEvidencePage(ctx context.Context, actor domain.Actor, req
 		if err != nil {
 			return appquery.Result[domain.EvidenceItem]{}, err
 		}
+		if err := l.validateEvidencePageProjection(ctx, actor, request.Page, page, false); err != nil {
+			return appquery.Result[domain.EvidenceItem]{}, err
+		}
+		if err := l.validatePagedParserNormalizations(ctx, actor.TenantID, page.Items); err != nil {
+			return appquery.Result[domain.EvidenceItem]{}, err
+		}
+		return page, nil
+	}
+	if pages, ok := l.evidencePages.(EvidenceVisiblePageStore); ok {
+		if err := l.refreshEvidencePageAuthorization(ctx, actor.TenantID); err != nil {
+			return appquery.Result[domain.EvidenceItem]{}, err
+		}
+		page, err := pages.SearchEvidencePageVisible(ctx, request, l.evidencePageVisibility(ctx, actor))
+		if err != nil {
+			return appquery.Result[domain.EvidenceItem]{}, err
+		}
+		if err := l.validateEvidencePageProjection(ctx, actor, request.Page, page, true); err != nil {
+			return appquery.Result[domain.EvidenceItem]{}, err
+		}
 		if err := l.validatePagedParserNormalizations(ctx, actor.TenantID, page.Items); err != nil {
 			return appquery.Result[domain.EvidenceItem]{}, err
 		}
@@ -223,6 +262,62 @@ func (l *Ledger) SearchEvidencePage(ctx context.Context, actor domain.Actor, req
 		return appquery.Result[domain.EvidenceItem]{}, ErrValidation
 	}
 	return page, nil
+}
+
+func (l *Ledger) refreshEvidencePageAuthorization(ctx context.Context, tenantID string) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.refreshWorkerProjectionLocked(ctx, tenantID)
+}
+
+func (l *Ledger) evidencePageVisibility(ctx context.Context, actor domain.Actor) EvidenceVisibility {
+	return func(item domain.EvidenceItem) (bool, error) {
+		if err := ctx.Err(); err != nil {
+			return false, err
+		}
+		if item.ID == "" || item.TenantID != actor.TenantID {
+			return false, evidencePageConflict("tenant")
+		}
+		l.mu.Lock()
+		defer l.mu.Unlock()
+		return l.resourceAllowedLocked(actor, ScopeEvidenceRead, refsForEvidence(item)), nil
+	}
+}
+
+func (l *Ledger) validateEvidencePageProjection(ctx context.Context, actor domain.Actor, request appquery.PageRequest, page appquery.Result[domain.EvidenceItem], granular bool) error {
+	if len(page.Items) > request.PageSize {
+		return evidencePageConflict("size")
+	}
+	seen := make(map[string]struct{}, len(page.Items))
+	visible := l.evidencePageVisibility(ctx, actor)
+	for _, item := range page.Items {
+		if item.ID == "" || item.TenantID != actor.TenantID {
+			return evidencePageConflict("tenant")
+		}
+		if _, duplicate := seen[item.ID]; duplicate {
+			return evidencePageConflict("duplicate")
+		}
+		seen[item.ID] = struct{}{}
+		if granular {
+			allowed, err := visible(item)
+			if err != nil {
+				return err
+			}
+			if !allowed {
+				return evidencePageConflict("visibility")
+			}
+		}
+	}
+	if page.Next != nil {
+		if len(page.Items) == 0 || *page.Next != appquery.RecordSortKey(page.Items[len(page.Items)-1].ID, page.Items[len(page.Items)-1].CreatedAt, request.Sort) {
+			return evidencePageConflict("cursor")
+		}
+	}
+	return nil
+}
+
+func evidencePageConflict(subject string) error {
+	return fmt.Errorf("invalid evidence page %s: %w", subject, ErrConflict)
 }
 
 func (l *Ledger) validatePagedParserNormalizations(ctx context.Context, tenantID string, items []domain.EvidenceItem) error {

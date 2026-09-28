@@ -2,6 +2,8 @@ package postgres
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -128,6 +130,126 @@ func TestStoreListEvidencePageUsesTenantBoundKeyset(t *testing.T) {
 	})
 	if err != nil || evidenceIDs(filtered.Items) != "ev_c" {
 		t.Fatalf("filtered search items=%q err=%v, want ev_c", evidenceIDs(filtered.Items), err)
+	}
+	visible := func(item domain.EvidenceItem) (bool, error) {
+		if item.TenantID != "ten_page" {
+			t.Fatalf("foreign tenant row reached visibility policy: %#v", item)
+		}
+		return item.ID == "ev_b" || item.ID == "ev_c", nil
+	}
+	visibleRequest := app.EvidencePageRequest{TenantID: "ten_page", Page: appquery.PageRequest{PageSize: 1, Sort: appquery.SortCreatedAt, Direction: appquery.Ascending}}
+	visibleFirst, err := store.ListEvidencePageVisible(ctx, visibleRequest, visible)
+	if err != nil || evidenceIDs(visibleFirst.Items) != "ev_b" || visibleFirst.Next == nil {
+		t.Fatalf("first grant-filtered page=%#v error=%v", visibleFirst, err)
+	}
+	visibleRequest.After = visibleFirst.Next
+	visibleSecond, err := store.ListEvidencePageVisible(ctx, visibleRequest, visible)
+	if err != nil || evidenceIDs(visibleSecond.Items) != "ev_c" || visibleSecond.Next != nil {
+		t.Fatalf("second grant-filtered page=%#v error=%v", visibleSecond, err)
+	}
+	visibleSearch, err := store.SearchEvidencePageVisible(ctx, app.EvidenceSearchPageRequest{
+		TenantID: "ten_page", Filter: app.EvidenceSearchInput{Type: "build", Tag: "ci"},
+		Page: appquery.PageRequest{PageSize: 1, Sort: appquery.SortID, Direction: appquery.Ascending},
+	}, visible)
+	if err != nil || evidenceIDs(visibleSearch.Items) != "ev_c" || visibleSearch.Next != nil {
+		t.Fatalf("grant-filtered search=%#v error=%v", visibleSearch, err)
+	}
+	if _, err := store.ListEvidencePageVisible(ctx, visibleRequest, nil); err == nil {
+		t.Fatal("visibility query accepted a missing authorization policy")
+	}
+	deniedErr := errors.New("authorization lookup failed")
+	failed, err := store.ListEvidencePageVisible(ctx, app.EvidencePageRequest{
+		TenantID: "ten_page", Page: visibleRequest.Page,
+	}, func(domain.EvidenceItem) (bool, error) { return false, deniedErr })
+	if !errors.Is(err, deniedErr) || len(failed.Items) != 0 {
+		t.Fatalf("failed policy returned data: page=%#v error=%v", failed, err)
+	}
+	for i := range 70 {
+		id := fmt.Sprintf("ev_hidden_%03d", i)
+		if _, err := store.pool.Exec(ctx, `
+			INSERT INTO evidence_items (
+				id, tenant_id, type, title, source_system, observed_at,
+				evidence_version, schema_version, payload_hash, canonical_hash,
+				canonicalization, trust_level, verification_status, created_at
+			) VALUES ($1, 'ten_page', 'build', 'hidden', 'test', $2, 1,
+				'evidence-item.v1.0.0', 'sha256:payload', 'sha256:canonical',
+				'canonical-json.v1', 'uploaded', 'pending', $2)`, id, base); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO evidence_items (
+			id, tenant_id, type, title, source_system, observed_at,
+			evidence_version, schema_version, payload_hash, canonical_hash,
+			canonicalization, trust_level, verification_status, created_at
+		) VALUES ('ev_visible_z', 'ten_page', 'build', 'visible', 'test', $1, 1,
+			'evidence-item.v1.0.0', 'sha256:payload', 'sha256:canonical',
+			'canonical-json.v1', 'uploaded', 'pending', $1)`, base); err != nil {
+		t.Fatal(err)
+	}
+	inserted := false
+	seenInserted := false
+	snapshotVisible := func(item domain.EvidenceItem) (bool, error) {
+		if !inserted {
+			inserted = true
+			if _, err := store.pool.Exec(ctx, `
+				INSERT INTO evidence_items (
+					id, tenant_id, type, title, source_system, observed_at,
+					evidence_version, schema_version, payload_hash, canonical_hash,
+					canonicalization, trust_level, verification_status, created_at
+				) VALUES ('ev_visible_mid', 'ten_page', 'build', 'late', 'test', $1, 1,
+					'evidence-item.v1.0.0', 'sha256:payload', 'sha256:canonical',
+					'canonical-json.v1', 'uploaded', 'pending', $1)`, base); err != nil {
+				return false, err
+			}
+		}
+		if item.ID == "ev_visible_mid" {
+			seenInserted = true
+		}
+		return item.ID == "ev_visible_mid" || item.ID == "ev_visible_z", nil
+	}
+	snapshot, err := store.ListEvidencePageVisible(ctx, app.EvidencePageRequest{
+		TenantID: "ten_page", Page: appquery.PageRequest{PageSize: 1, Sort: appquery.SortID, Direction: appquery.Ascending},
+	}, snapshotVisible)
+	if err != nil || evidenceIDs(snapshot.Items) != "ev_visible_z" || snapshot.Next != nil || seenInserted {
+		t.Fatalf("snapshot page=%#v late row seen=%v error=%v", snapshot, seenInserted, err)
+	}
+	for _, product := range []string{"prod_allowed", "prod_hidden"} {
+		if _, err := store.pool.Exec(ctx, `INSERT INTO products (id, tenant_id, name, slug, created_at) VALUES ($1, 'ten_page', $1, $1, $2)`, product, base); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := store.pool.Exec(ctx, `UPDATE evidence_items SET product_id = 'prod_allowed' WHERE id IN ('ev_b', 'ev_c')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.pool.Exec(ctx, `UPDATE evidence_items SET product_id = 'prod_hidden' WHERE id = 'ev_a'`); err != nil {
+		t.Fatal(err)
+	}
+	ledger, err := app.NewLedgerWithContext(ctx, app.Config{APIKeyPepper: "test", Store: store})
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor := domain.Actor{
+		TenantID: "ten_page", UserID: "usr_restricted", Scopes: []string{app.ScopeEvidenceRead},
+		ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: "prod_allowed", Scopes: []string{app.ScopeEvidenceRead}}},
+	}
+	boundRequest := app.EvidencePageRequest{Page: appquery.PageRequest{PageSize: 1, Sort: appquery.SortID, Direction: appquery.Ascending}}
+	firstBound, err := ledger.ListEvidencePage(ctx, actor, boundRequest)
+	if err != nil || evidenceIDs(firstBound.Items) != "ev_b" || firstBound.Next == nil {
+		t.Fatalf("restricted ledger first page=%#v error=%v", firstBound, err)
+	}
+	boundRequest.After = firstBound.Next
+	secondBound, err := ledger.ListEvidencePage(ctx, actor, boundRequest)
+	if err != nil || evidenceIDs(secondBound.Items) != "ev_c" || secondBound.Next != nil {
+		t.Fatalf("restricted ledger second page=%#v error=%v", secondBound, err)
+	}
+	actor.ResourceGrants = nil
+	revoked, err := ledger.SearchEvidencePage(ctx, actor, app.EvidenceSearchPageRequest{
+		Filter: app.EvidenceSearchInput{Type: "build"},
+		Page:   appquery.PageRequest{PageSize: 1, Sort: appquery.SortID, Direction: appquery.Ascending},
+	})
+	if err != nil || len(revoked.Items) != 0 || revoked.Next != nil {
+		t.Fatalf("revoked ledger search=%#v error=%v", revoked, err)
 	}
 }
 

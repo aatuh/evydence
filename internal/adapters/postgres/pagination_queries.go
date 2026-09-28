@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
@@ -22,6 +24,11 @@ func (s *Store) ListEvidencePage(ctx context.Context, request app.EvidencePageRe
 		return appquery.Result[domain.EvidenceItem]{}, err
 	}
 
+	where, args := listEvidenceWhere(request)
+	return s.pageEvidenceWhere(ctx, request.Page, request.After, where, args)
+}
+
+func listEvidenceWhere(request app.EvidencePageRequest) ([]string, []any) {
 	where := []string{"tenant_id = $1"}
 	args := []any{request.TenantID}
 	if request.ReleaseID != "" {
@@ -32,8 +39,7 @@ func (s *Store) ListEvidencePage(ctx context.Context, request app.EvidencePageRe
 		args = append(args, request.Type)
 		where = append(where, fmt.Sprintf("type = $%d", len(args)))
 	}
-
-	return s.pageEvidenceWhere(ctx, request.Page, request.After, where, args)
+	return where, args
 }
 
 // SearchEvidencePage executes the full deterministic evidence search in
@@ -46,6 +52,11 @@ func (s *Store) SearchEvidencePage(ctx context.Context, request app.EvidenceSear
 	if err := appquery.Validate(request.Page, request.After); err != nil {
 		return appquery.Result[domain.EvidenceItem]{}, err
 	}
+	where, args := searchEvidenceWhere(request)
+	return s.pageEvidenceWhere(ctx, request.Page, request.After, where, args)
+}
+
+func searchEvidenceWhere(request app.EvidenceSearchPageRequest) ([]string, []any) {
 	where := []string{"tenant_id = $1"}
 	args := []any{request.TenantID}
 	addEquals := func(column, value string) {
@@ -86,10 +97,97 @@ func (s *Store) SearchEvidencePage(ctx context.Context, request app.EvidenceSear
 			  AND ($%d = '' OR subject_ref ->> 'id' = $%d OR subject_ref ->> 'digest' = $%d)
 		)`, len(args)-1, len(args)-1, len(args), len(args), len(args)))
 	}
-	return s.pageEvidenceWhere(ctx, request.Page, request.After, where, args)
+	return where, args
+}
+
+// ListEvidencePageVisible keeps granular authorization ahead of page limits.
+// It scans bounded keyset batches in a single read-only database snapshot;
+// only accepted rows contribute to the returned page and cursor.
+func (s *Store) ListEvidencePageVisible(ctx context.Context, request app.EvidencePageRequest, visible app.EvidenceVisibility) (appquery.Result[domain.EvidenceItem], error) {
+	if s == nil || s.pool == nil || ctx == nil || request.TenantID == "" || visible == nil {
+		return appquery.Result[domain.EvidenceItem]{}, app.ErrValidation
+	}
+	if err := appquery.Validate(request.Page, request.After); err != nil {
+		return appquery.Result[domain.EvidenceItem]{}, err
+	}
+	where, args := listEvidenceWhere(request)
+	return s.pageEvidenceVisible(ctx, request.TenantID, request.Page, request.After, where, args, visible)
+}
+
+// SearchEvidencePageVisible applies search predicates in SQL before invoking
+// the caller's authorization policy on each bounded candidate batch.
+func (s *Store) SearchEvidencePageVisible(ctx context.Context, request app.EvidenceSearchPageRequest, visible app.EvidenceVisibility) (appquery.Result[domain.EvidenceItem], error) {
+	if s == nil || s.pool == nil || ctx == nil || request.TenantID == "" || visible == nil {
+		return appquery.Result[domain.EvidenceItem]{}, app.ErrValidation
+	}
+	if err := appquery.Validate(request.Page, request.After); err != nil {
+		return appquery.Result[domain.EvidenceItem]{}, err
+	}
+	where, args := searchEvidenceWhere(request)
+	return s.pageEvidenceVisible(ctx, request.TenantID, request.Page, request.After, where, args, visible)
+}
+
+func (s *Store) pageEvidenceVisible(ctx context.Context, tenantID string, page appquery.PageRequest, after *appquery.SortKey, where []string, args []any, visible app.EvidenceVisibility) (appquery.Result[domain.EvidenceItem], error) {
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return appquery.Result[domain.EvidenceItem]{}, fmt.Errorf("begin evidence read snapshot: %w", err)
+	}
+	defer func() {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		_ = tx.Rollback(cleanupCtx)
+	}()
+
+	const minimumBatchSize = 64
+	fetch := page
+	fetch.PageSize = max(page.PageSize+1, minimumBatchSize)
+	items := make([]domain.EvidenceItem, 0, page.PageSize+1)
+	cursor := after
+	for {
+		batch, err := pageEvidenceWhereWithQuerier(ctx, tx, fetch, cursor, where, args)
+		if err != nil {
+			return appquery.Result[domain.EvidenceItem]{}, err
+		}
+		for _, item := range batch.Items {
+			if item.ID == "" || item.TenantID != tenantID {
+				return appquery.Result[domain.EvidenceItem]{}, app.ErrConflict
+			}
+			allowed, err := visible(item)
+			if err != nil {
+				return appquery.Result[domain.EvidenceItem]{}, err
+			}
+			if !allowed {
+				continue
+			}
+			items = append(items, item)
+			if len(items) > page.PageSize {
+				key := appquery.RecordSortKey(items[page.PageSize-1].ID, items[page.PageSize-1].CreatedAt, page.Sort)
+				if err := tx.Commit(ctx); err != nil {
+					return appquery.Result[domain.EvidenceItem]{}, fmt.Errorf("commit evidence read snapshot: %w", err)
+				}
+				return appquery.Result[domain.EvidenceItem]{Items: items[:page.PageSize], Next: &key}, nil
+			}
+		}
+		if batch.Next == nil {
+			break
+		}
+		cursor = batch.Next
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return appquery.Result[domain.EvidenceItem]{}, fmt.Errorf("commit evidence read snapshot: %w", err)
+	}
+	return appquery.Result[domain.EvidenceItem]{Items: items}, nil
 }
 
 func (s *Store) pageEvidenceWhere(ctx context.Context, pageRequest appquery.PageRequest, after *appquery.SortKey, where []string, args []any) (appquery.Result[domain.EvidenceItem], error) {
+	return pageEvidenceWhereWithQuerier(ctx, s.pool, pageRequest, after, where, args)
+}
+
+type evidencePageQuerier interface {
+	Query(context.Context, string, ...any) (pgx.Rows, error)
+}
+
+func pageEvidenceWhereWithQuerier(ctx context.Context, querier evidencePageQuerier, pageRequest appquery.PageRequest, after *appquery.SortKey, where []string, args []any) (appquery.Result[domain.EvidenceItem], error) {
 	orderBy := "created_at ASC, id ASC"
 	if pageRequest.Direction == appquery.Descending {
 		orderBy = "created_at DESC, id DESC"
@@ -140,7 +238,7 @@ func (s *Store) pageEvidenceWhere(ctx context.Context, pageRequest appquery.Page
 		WHERE %s
 		ORDER BY %s
 		LIMIT $%d`, joinAnd(where), orderBy, len(args))
-	rows, err := s.pool.Query(ctx, statement, args...)
+	rows, err := querier.Query(ctx, statement, args...)
 	if err != nil {
 		return appquery.Result[domain.EvidenceItem]{}, fmt.Errorf("page evidence items: %w", err)
 	}
