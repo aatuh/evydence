@@ -49,18 +49,36 @@ var expectedParserVersions = map[string]string{
 }
 
 type parserReplayStore interface {
-	Close()
-	ApplyMigrations(context.Context, string) (int, error)
-	RequireNoPendingMigrations(context.Context, string) error
 	LoadState(context.Context) (app.PersistedState, bool, error)
 	ApplyParserReplay(context.Context, app.ParserReplayRequest, app.ReleaseLedgerMutation) (string, bool, error)
 }
 
-var openParserReplayStore = func(ctx context.Context, databaseURL string, options postgres.StoreOptions) (parserReplayStore, error) {
-	return postgres.OpenWithOptions(ctx, databaseURL, options)
+type parserReplayRuntime struct {
+	store   parserReplayStore
+	objects app.ObjectStore
+	close   func()
 }
 
-var openParserReplayObjects = openObjectStore
+var openParserReplayRuntime = func(ctx context.Context, config wiring.RuntimeConfig) (parserReplayRuntime, error) {
+	runtime, err := wiring.OpenRuntime(ctx, config)
+	if err != nil {
+		return parserReplayRuntime{}, err
+	}
+	return parserReplayRuntime{store: runtime.Postgres, objects: runtime.Objects, close: runtime.Close}, nil
+}
+
+func workerRuntimeConfig(databaseURL string, production bool) wiring.RuntimeConfig {
+	return wiring.RuntimeConfig{
+		Process:        wiring.Worker,
+		Profile:        wiring.Profile(os.Getenv("EVYDENCE_RUNTIME_PROFILE")),
+		Production:     production,
+		DatabaseURL:    databaseURL,
+		LoadMode:       os.Getenv("EVYDENCE_POSTGRES_LOAD_MODE"),
+		MigrationsDir:  envDefault("EVYDENCE_MIGRATIONS_DIR", "migrations"),
+		SkipMigrations: strings.EqualFold(os.Getenv("EVYDENCE_SKIP_MIGRATIONS"), "true"),
+		ObjectStore:    wiring.ObjectStoreConfigFromEnv(),
+	}
+}
 
 func main() {
 	if err := runWithArgs(os.Args[1:]); err != nil {
@@ -91,16 +109,7 @@ func runWithArgs(args []string) error {
 		return errors.New("worker requires EVYDENCE_DATABASE_URL")
 	}
 	ctx := context.Background()
-	runtime, err := wiring.OpenRuntime(ctx, wiring.RuntimeConfig{
-		Process:        wiring.Worker,
-		Profile:        wiring.Profile(os.Getenv("EVYDENCE_RUNTIME_PROFILE")),
-		Production:     production,
-		DatabaseURL:    databaseURL,
-		LoadMode:       os.Getenv("EVYDENCE_POSTGRES_LOAD_MODE"),
-		MigrationsDir:  envDefault("EVYDENCE_MIGRATIONS_DIR", "migrations"),
-		SkipMigrations: strings.EqualFold(os.Getenv("EVYDENCE_SKIP_MIGRATIONS"), "true"),
-		ObjectStore:    wiring.ObjectStoreConfigFromEnv(),
-	})
+	runtime, err := wiring.OpenRuntime(ctx, workerRuntimeConfig(databaseURL, production))
 	if err != nil {
 		return err
 	}
@@ -158,33 +167,17 @@ func runParserReplay(args []string) error {
 	if databaseURL == "" {
 		return errors.New("parser-replay requires EVYDENCE_DATABASE_URL")
 	}
-	if _, err := wiring.ResolveRuntimeProfile(os.Getenv("EVYDENCE_RUNTIME_PROFILE"), production, databaseURL, wiring.Worker); err != nil {
-		return err
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), durationEnv("EVYDENCE_PARSER_REPLAY_TIMEOUT", 2*time.Minute))
 	defer cancel()
-	loadMode, err := postgres.ResolveLoadMode(os.Getenv("EVYDENCE_POSTGRES_LOAD_MODE"), production)
+	runtime, err := openParserReplayRuntime(ctx, workerRuntimeConfig(databaseURL, production))
 	if err != nil {
 		return err
 	}
-	if production {
-		if err := postgres.ValidateProductionLoadMode(loadMode); err != nil {
-			return err
-		}
+	if runtime.store == nil || runtime.objects == nil || runtime.close == nil {
+		return errors.New("parser-replay runtime is incomplete")
 	}
-	store, err := openParserReplayStore(ctx, databaseURL, postgres.StoreOptions{LoadMode: loadMode, DisableSnapshotWrites: production})
-	if err != nil {
-		return errors.New("parser-replay could not open durable storage")
-	}
-	defer store.Close()
-	migrationsDir := envDefault("EVYDENCE_MIGRATIONS_DIR", "migrations")
-	if !strings.EqualFold(os.Getenv("EVYDENCE_SKIP_MIGRATIONS"), "true") {
-		if _, err := store.ApplyMigrations(ctx, migrationsDir); err != nil {
-			return errors.New("parser-replay could not apply migrations")
-		}
-	} else if err := store.RequireNoPendingMigrations(ctx, migrationsDir); err != nil {
-		return errors.New("parser-replay requires current migrations")
-	}
+	defer runtime.close()
+	store := runtime.store
 	state, ok, err := store.LoadState(ctx)
 	if err != nil || !ok {
 		return errors.New("parser-replay could not load durable state")
@@ -200,11 +193,7 @@ func runParserReplay(args []string) error {
 	if err != nil {
 		return errors.New("parser-replay source evidence not found")
 	}
-	objects, _, err := openParserReplayObjects(ctx)
-	if err != nil {
-		return errors.New("parser-replay could not open object storage")
-	}
-	object, err := objects.Get(ctx, key)
+	object, err := runtime.objects.Get(ctx, key)
 	if err != nil {
 		return errors.New("parser-replay source payload verification failed")
 	}
@@ -258,38 +247,14 @@ func runObjectReconciliation(args []string) error {
 	if databaseURL == "" {
 		return errors.New("reconcile requires EVYDENCE_DATABASE_URL")
 	}
-	if _, err := wiring.ResolveRuntimeProfile(os.Getenv("EVYDENCE_RUNTIME_PROFILE"), production, databaseURL, wiring.Worker); err != nil {
-		return err
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), durationEnv("EVYDENCE_RECONCILIATION_TIMEOUT", 10*time.Minute))
 	defer cancel()
-	loadMode, err := postgres.ResolveLoadMode(os.Getenv("EVYDENCE_POSTGRES_LOAD_MODE"), production)
+	runtime, err := wiring.OpenRuntime(ctx, workerRuntimeConfig(databaseURL, production))
 	if err != nil {
 		return err
 	}
-	if production {
-		if err := postgres.ValidateProductionLoadMode(loadMode); err != nil {
-			return err
-		}
-	}
-	store, err := postgres.OpenWithOptions(ctx, databaseURL, postgres.StoreOptions{LoadMode: loadMode, DisableSnapshotWrites: production})
-	if err != nil {
-		return errors.New("reconcile could not open durable storage")
-	}
-	defer store.Close()
-	migrationsDir := envDefault("EVYDENCE_MIGRATIONS_DIR", "migrations")
-	if !strings.EqualFold(os.Getenv("EVYDENCE_SKIP_MIGRATIONS"), "true") {
-		if _, err := store.ApplyMigrations(ctx, migrationsDir); err != nil {
-			return errors.New("reconcile could not apply migrations")
-		}
-	} else if err := store.RequireNoPendingMigrations(ctx, migrationsDir); err != nil {
-		return errors.New("reconcile requires current migrations")
-	}
-	objects, _, err := openObjectStore(ctx)
-	if err != nil {
-		return errors.New("reconcile could not open object storage")
-	}
-	receipt, err := app.ReconcileObjectPayloads(ctx, store, store, objects, request)
+	defer runtime.Close()
+	receipt, err := app.ReconcileObjectPayloads(ctx, runtime.Postgres, runtime.Postgres, runtime.Objects, request)
 	if err != nil {
 		return errors.New("payload reconciliation failed")
 	}

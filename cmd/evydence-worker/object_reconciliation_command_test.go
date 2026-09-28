@@ -177,8 +177,14 @@ func TestRunObjectReconciliationRejectsUnsafeRuntimeConfiguration(t *testing.T) 
 
 	t.Setenv("ENV", "")
 	t.Setenv("EVYDENCE_POSTGRES_LOAD_MODE", "relational_only")
-	if err := runObjectReconciliation([]string{"--tenant", "ten_runtime"}); err == nil || !strings.Contains(err.Error(), "durable storage") {
+	if err := runObjectReconciliation([]string{"--tenant", "ten_runtime"}); err == nil || !strings.Contains(err.Error(), "open PostgreSQL runtime") {
 		t.Fatalf("unreachable database err=%v", err)
+	}
+
+	t.Setenv("EVYDENCE_DATABASE_URL", "postgres://operator:private-password@127.0.0.1:1/evydence?connect_timeout=1")
+	t.Setenv("EVYDENCE_OBJECT_STORE", "unsupported")
+	if err := runObjectReconciliation([]string{"--tenant", "ten_runtime"}); err == nil || !strings.Contains(err.Error(), "EVYDENCE_OBJECT_STORE") || strings.Contains(err.Error(), "private-password") {
+		t.Fatalf("unsafe object-store selection err=%v", err)
 	}
 }
 

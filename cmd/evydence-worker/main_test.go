@@ -17,6 +17,7 @@ import (
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
+	"github.com/aatuh/evydence/internal/platform/wiring"
 )
 
 type fakeStateLoader struct {
@@ -2089,6 +2090,18 @@ func TestParserReplayRequiresExplicitScopedApply(t *testing.T) {
 	}
 }
 
+func TestRunParserReplayRejectsUnsafeObjectStoreBeforeDatabaseOpen(t *testing.T) {
+	t.Setenv("ENV", "")
+	t.Setenv("EVYDENCE_RUNTIME_PROFILE", "postgres")
+	t.Setenv("EVYDENCE_POSTGRES_LOAD_MODE", "relational_only")
+	t.Setenv("EVYDENCE_DATABASE_URL", "postgres://operator:private-password@127.0.0.1:1/evydence?connect_timeout=1")
+	t.Setenv("EVYDENCE_OBJECT_STORE", "unsupported")
+	args := []string{"--tenant", "ten_test", "--evidence", "ev_test", "--parser-version", app.ParserVersionSPDXJSON, "--actor", "operator", "--apply"}
+	if err := runParserReplay(args); err == nil || !strings.Contains(err.Error(), "EVYDENCE_OBJECT_STORE") || strings.Contains(err.Error(), "private-password") {
+		t.Fatalf("unsafe parser-replay storage selection err=%v", err)
+	}
+}
+
 func TestParseParserReplayArgsRejectsUnsafeInputAndNormalizesScope(t *testing.T) {
 	request, err := parseParserReplayArgs([]string{"--tenant", " ten_test ", "--evidence", " ev_test ", "--parser-version", " " + app.ParserVersionSPDXJSON + " ", "--actor", " operator ", "--apply"})
 	if err != nil || request.TenantID != "ten_test" || request.EvidenceID != "ev_test" || request.ParserVersion != app.ParserVersionSPDXJSON || request.ActorID != "operator" {
@@ -2178,16 +2191,20 @@ type replayObjectStoreStub struct{ object app.Object }
 func (s replayObjectStoreStub) Put(context.Context, app.Object) error           { return nil }
 func (s replayObjectStoreStub) Get(context.Context, string) (app.Object, error) { return s.object, nil }
 
+func useParserReplayRuntimeStub(t *testing.T, store *replayStoreStub, object app.Object) {
+	t.Helper()
+	previous := openParserReplayRuntime
+	t.Cleanup(func() { openParserReplayRuntime = previous })
+	openParserReplayRuntime = func(context.Context, wiring.RuntimeConfig) (parserReplayRuntime, error) {
+		return parserReplayRuntime{store: store, objects: replayObjectStoreStub{object: object}, close: store.Close}, nil
+	}
+}
+
 func TestRunParserReplayAppendsVerifiedDerivedRecordAndIsIdempotent(t *testing.T) {
 	raw := []byte(`{"scanner":"generic","target_ref":"pkg:oci/api","release_id":"rel_test","findings":[]}`)
 	digest := digestBytes(raw)
 	stub := &replayStoreStub{state: app.PersistedState{Evidence: map[string]domain.EvidenceItem{"ev_source": {ID: "ev_source", TenantID: "ten_test", Type: "vulnerability_scan", PayloadHash: digest, PayloadRef: "object://tenants/ten_test/payloads/source", CreatedAt: time.Now().UTC()}}, Chain: map[string][]domain.AuditChainEntry{}}}
-	previousStore, previousObjects := openParserReplayStore, openParserReplayObjects
-	t.Cleanup(func() { openParserReplayStore, openParserReplayObjects = previousStore, previousObjects })
-	openParserReplayStore = func(context.Context, string, postgres.StoreOptions) (parserReplayStore, error) { return stub, nil }
-	openParserReplayObjects = func(context.Context) (app.ObjectStore, string, error) {
-		return replayObjectStoreStub{object: app.Object{Key: "tenants/ten_test/payloads/source", TenantID: "ten_test", Digest: digest, Bytes: raw}}, "test", nil
-	}
+	useParserReplayRuntimeStub(t, stub, app.Object{Key: "tenants/ten_test/payloads/source", TenantID: "ten_test", Digest: digest, Bytes: raw})
 	t.Setenv("EVYDENCE_DATABASE_URL", "postgres://test")
 	t.Setenv("EVYDENCE_RUNTIME_PROFILE", "postgres")
 	args := []string{"--tenant", "ten_test", "--evidence", "ev_source", "--parser-version", app.ParserVersionScannerAdaptersJSON, "--actor", "operator", "--apply"}
@@ -2221,12 +2238,7 @@ func TestRunParserReplayRoutesExistingMarkerThroughDurableValidation(t *testing.
 		}, Chain: map[string][]domain.AuditChainEntry{}},
 		applyErr: errors.New("invalid durable parser replay marker"),
 	}
-	previousStore, previousObjects := openParserReplayStore, openParserReplayObjects
-	t.Cleanup(func() { openParserReplayStore, openParserReplayObjects = previousStore, previousObjects })
-	openParserReplayStore = func(context.Context, string, postgres.StoreOptions) (parserReplayStore, error) { return stub, nil }
-	openParserReplayObjects = func(context.Context) (app.ObjectStore, string, error) {
-		return replayObjectStoreStub{object: app.Object{Key: "tenants/ten_test/payloads/source", TenantID: "ten_test", Digest: digest, Bytes: raw}}, "test", nil
-	}
+	useParserReplayRuntimeStub(t, stub, app.Object{Key: "tenants/ten_test/payloads/source", TenantID: "ten_test", Digest: digest, Bytes: raw})
 	t.Setenv("EVYDENCE_DATABASE_URL", "postgres://test")
 	t.Setenv("EVYDENCE_RUNTIME_PROFILE", "postgres")
 	args := []string{"--tenant", "ten_test", "--evidence", "ev_source", "--parser-version", app.ParserVersionScannerAdaptersJSON, "--actor", "operator", "--apply"}
@@ -2260,12 +2272,7 @@ func TestRunParserReplayDoesNotOverwriteConcurrentWorkerProjection(t *testing.T)
 		scan.Summary = map[string]int{}
 		state.Scans[scan.ID] = scan
 	}
-	previousStore, previousObjects := openParserReplayStore, openParserReplayObjects
-	t.Cleanup(func() { openParserReplayStore, openParserReplayObjects = previousStore, previousObjects })
-	openParserReplayStore = func(context.Context, string, postgres.StoreOptions) (parserReplayStore, error) { return stub, nil }
-	openParserReplayObjects = func(context.Context) (app.ObjectStore, string, error) {
-		return replayObjectStoreStub{object: app.Object{Key: "tenants/ten_test/payloads/source", TenantID: "ten_test", Digest: digest, Bytes: raw}}, "test", nil
-	}
+	useParserReplayRuntimeStub(t, stub, app.Object{Key: "tenants/ten_test/payloads/source", TenantID: "ten_test", Digest: digest, Bytes: raw})
 	t.Setenv("EVYDENCE_DATABASE_URL", "postgres://test")
 	t.Setenv("EVYDENCE_RUNTIME_PROFILE", "postgres")
 	args := []string{"--tenant", "ten_test", "--evidence", "ev_source", "--parser-version", app.ParserVersionScannerAdaptersJSON, "--actor", "operator", "--apply"}
