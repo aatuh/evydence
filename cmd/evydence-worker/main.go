@@ -30,6 +30,7 @@ import (
 	"github.com/aatuh/evydence/internal/domain"
 	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
 	"github.com/aatuh/evydence/internal/platform/redaction"
+	"github.com/aatuh/evydence/internal/platform/wiring"
 	riskapp "github.com/aatuh/evydence/internal/risk/app"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
@@ -91,6 +92,9 @@ func runWithArgs(args []string) error {
 	databaseURL := strings.TrimSpace(os.Getenv("EVYDENCE_DATABASE_URL"))
 	if databaseURL == "" {
 		return errors.New("worker requires EVYDENCE_DATABASE_URL")
+	}
+	if _, err := wiring.ResolveRuntimeProfile(os.Getenv("EVYDENCE_RUNTIME_PROFILE"), production, databaseURL, wiring.Worker); err != nil {
+		return err
 	}
 	ctx := context.Background()
 	loadMode, err := postgres.ResolveLoadMode(os.Getenv("EVYDENCE_POSTGRES_LOAD_MODE"), production)
@@ -173,6 +177,9 @@ func runParserReplay(args []string) error {
 	databaseURL := strings.TrimSpace(os.Getenv("EVYDENCE_DATABASE_URL"))
 	if databaseURL == "" {
 		return errors.New("parser-replay requires EVYDENCE_DATABASE_URL")
+	}
+	if _, err := wiring.ResolveRuntimeProfile(os.Getenv("EVYDENCE_RUNTIME_PROFILE"), production, databaseURL, wiring.Worker); err != nil {
+		return err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), durationEnv("EVYDENCE_PARSER_REPLAY_TIMEOUT", 2*time.Minute))
 	defer cancel()
@@ -270,6 +277,9 @@ func runObjectReconciliation(args []string) error {
 	databaseURL := strings.TrimSpace(os.Getenv("EVYDENCE_DATABASE_URL"))
 	if databaseURL == "" {
 		return errors.New("reconcile requires EVYDENCE_DATABASE_URL")
+	}
+	if _, err := wiring.ResolveRuntimeProfile(os.Getenv("EVYDENCE_RUNTIME_PROFILE"), production, databaseURL, wiring.Worker); err != nil {
+		return err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), durationEnv("EVYDENCE_RECONCILIATION_TIMEOUT", 10*time.Minute))
 	defer cancel()

@@ -20,8 +20,9 @@ In terminal 1:
 
 ```sh
 cp .api.env.example .api.env
-unset EVYDENCE_DATABASE_URL
 set -a; . ./.api.env; set +a
+unset EVYDENCE_DATABASE_URL
+export EVYDENCE_RUNTIME_PROFILE=local_memory
 EVYDENCE_PRINT_BOOTSTRAP_SECRET=true go run ./cmd/evydence-api
 ```
 
@@ -29,7 +30,7 @@ Expected result:
 
 - The process prints a one-time JSON object containing `tenant_id`, `api_key`, and `secret`.
 - The API listens on `http://localhost:8080` unless `EVYDENCE_ADDR` says otherwise.
-- Because `EVYDENCE_DATABASE_URL` is unset, the tutorial uses in-process state.
+- The explicit `local_memory` profile uses in-process state without a durable worker or outbox; all metadata is lost on exit. The configured filesystem object directory can retain payload bytes and should be discarded with the local demo state.
 
 In terminal 2, store the printed secret:
 

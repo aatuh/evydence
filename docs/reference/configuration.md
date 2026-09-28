@@ -33,7 +33,8 @@ process, or equivalent deployment control.
 | `ENV` | Production only | unset locally | Set `ENV=production` to enable production-safety checks. |
 | `EVYDENCE_ADDR` | No | `:8080` | API bind address. |
 | `EVYDENCE_API_KEY_PEPPER` | Production yes | `change-me-long-random-pepper` | HMAC pepper for API key, session, and portal-token hashes. Use a long random value. |
-| `EVYDENCE_DATABASE_URL` | Production yes | `postgres://evydence:change-me@localhost:5432/evydence?sslmode=disable` | Enables PostgreSQL durable state, projections, migrations, and persisted outbox jobs. If unset, the API uses in-process state. |
+| `EVYDENCE_RUNTIME_PROFILE` | API and worker yes | `postgres` in deployment examples | Explicit runtime selection. `postgres` requires `EVYDENCE_DATABASE_URL`; `local_memory` is only accepted by the non-production API with the database URL unset. The worker and its operator commands require `postgres`. Local-memory API can use an explicitly configured filesystem object store for payload verification, but metadata is still lost on exit and the remaining payload files must be discarded separately. |
+| `EVYDENCE_DATABASE_URL` | PostgreSQL profile | `postgres://evydence:change-me@localhost:5432/evydence?sslmode=disable` | PostgreSQL durable state, projections, migrations, and persisted outbox jobs. Connection settings alone do not select the runtime profile. |
 | `EVYDENCE_POSTGRES_LOAD_MODE` | No | `snapshot_preferred` locally, `relational_only` when `ENV=production` | PostgreSQL state load mode. Supported values are `snapshot_preferred`, `relational_preferred`, and `relational_only`. Production defaults to relational-only startup reads, refuses snapshot fallback modes, and disables compatibility snapshot writes; snapshots remain available for local compatibility and non-production migration checks. |
 | `EVYDENCE_API_WRITER_MODE` | No | `single` | API writer concurrency mode. Production supports only `single` or `single-writer` until multi-writer concurrency controls are implemented. |
 | `EVYDENCE_API_WRITER_REPLICAS` | No | unset, chart sets `1` | Optional self-declared API writer replica count used by startup safety checks. Production rejects values other than `1`. |
@@ -156,6 +157,7 @@ rate limiter when multiple API processes are introduced.
 
 When `ENV=production`, the API refuses to start unless:
 
+- `EVYDENCE_RUNTIME_PROFILE=postgres` is set.
 - `EVYDENCE_DATABASE_URL` is set.
 - `EVYDENCE_API_KEY_PEPPER` is non-empty and not the local default.
 - `EVYDENCE_SIGNING_KEY_MODE` is `external`, `aws-kms`, `gcp-kms`,

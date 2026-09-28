@@ -93,6 +93,7 @@ func TestRunObjectReconciliationDryRunAndApplyWithLivePostgres(t *testing.T) {
 
 	t.Setenv("ENV", "")
 	t.Setenv("EVYDENCE_DATABASE_URL", databaseURL)
+	t.Setenv("EVYDENCE_RUNTIME_PROFILE", "postgres")
 	t.Setenv("EVYDENCE_POSTGRES_LOAD_MODE", "relational_only")
 	t.Setenv("EVYDENCE_MIGRATIONS_DIR", "../../migrations")
 	t.Setenv("EVYDENCE_SKIP_MIGRATIONS", "true")
@@ -162,6 +163,7 @@ func TestRunObjectReconciliationDryRunAndApplyWithLivePostgres(t *testing.T) {
 
 func TestRunObjectReconciliationRejectsUnsafeRuntimeConfiguration(t *testing.T) {
 	t.Setenv("EVYDENCE_DATABASE_URL", "postgres://unused.invalid/evydence")
+	t.Setenv("EVYDENCE_RUNTIME_PROFILE", "postgres")
 	t.Setenv("EVYDENCE_POSTGRES_LOAD_MODE", "not-a-load-mode")
 	if err := runObjectReconciliation([]string{"--tenant", "ten_runtime"}); err == nil {
 		t.Fatal("invalid postgres load mode was accepted")

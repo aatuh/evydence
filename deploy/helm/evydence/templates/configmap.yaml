@@ -4,6 +4,7 @@ metadata:
   name: {{ include "evydence.fullname" . }}-config
 data:
   ENV: {{ ternary "production" "development" .Values.env.production | quote }}
+  EVYDENCE_RUNTIME_PROFILE: "postgres"
   EVYDENCE_ADDR: {{ .Values.api.addr | quote }}
   EVYDENCE_API_WRITER_MODE: {{ .Values.api.writerMode | quote }}
   EVYDENCE_API_WRITER_REPLICAS: {{ .Values.api.replicas | quote }}

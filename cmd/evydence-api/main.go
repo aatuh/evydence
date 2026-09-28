@@ -34,6 +34,7 @@ import (
 	cosignverification "github.com/aatuh/evydence/internal/adapters/verification/sigstore"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/platform/redaction"
+	"github.com/aatuh/evydence/internal/platform/wiring"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
 )
 
@@ -55,6 +56,10 @@ func runWithContext(ctx context.Context) error {
 	production := strings.EqualFold(os.Getenv("ENV"), "production")
 	databaseURL := strings.TrimSpace(os.Getenv("EVYDENCE_DATABASE_URL"))
 	pepper := strings.TrimSpace(os.Getenv("EVYDENCE_API_KEY_PEPPER"))
+	profile, err := wiring.ResolveRuntimeProfile(os.Getenv("EVYDENCE_RUNTIME_PROFILE"), production, databaseURL, wiring.API)
+	if err != nil {
+		return err
+	}
 	if err := validateRuntimeConfig(
 		production,
 		databaseURL,
@@ -103,7 +108,7 @@ func runWithContext(ctx context.Context) error {
 	}
 	var closeStore func()
 	var releaseWriterLease func()
-	if databaseURL != "" {
+	if profile == wiring.PostgreSQL {
 		startupCtx, cancelStartup := context.WithTimeout(ctx, 30*time.Second)
 		defer cancelStartup()
 		loadMode, err := postgres.ResolveLoadMode(os.Getenv("EVYDENCE_POSTGRES_LOAD_MODE"), production)
@@ -164,6 +169,20 @@ func runWithContext(ctx context.Context) error {
 		}
 		cfg.ReadinessChecks = append(cfg.ReadinessChecks, app.ReadinessCheck{Name: "object_store", Timeout: runtimeReadinessTimeout, FailureDetail: "object store access is unavailable", Check: objectReadiness.CheckReadiness})
 		log.Print("evydence api using postgres state store and configured object store")
+	} else {
+		if kind := strings.TrimSpace(os.Getenv("EVYDENCE_OBJECT_STORE")); kind != "" {
+			if kind != "filesystem" {
+				return errors.New("EVYDENCE_RUNTIME_PROFILE=local_memory supports only EVYDENCE_OBJECT_STORE=filesystem")
+			}
+			objectStore, _, err := openObjectStore(ctx)
+			if err != nil {
+				return err
+			}
+			cfg.ObjectStore = objectStore
+		}
+		for _, limitation := range profile.Limitations() {
+			log.Print(limitation)
+		}
 	}
 	if production {
 		cfg.ReadinessChecks = append(cfg.ReadinessChecks, app.ReadinessCheck{Name: "signing_config", Timeout: runtimeReadinessTimeout, FailureDetail: "required signing configuration is unavailable", Check: signingConfigurationReadiness(cfg.Signer)})

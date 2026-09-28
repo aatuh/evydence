@@ -27,6 +27,28 @@ func TestValidateRuntimeConfigRejectsProductionBootstrapSecretPrinting(t *testin
 	}
 }
 
+func TestRunRequiresExplicitRuntimeProfileBeforeOpeningStorage(t *testing.T) {
+	t.Setenv("ENV", "")
+	t.Setenv("EVYDENCE_RUNTIME_PROFILE", "")
+	t.Setenv("EVYDENCE_DATABASE_URL", "postgres://operator:private-password@127.0.0.1:1/evydence?connect_timeout=1")
+	err := runWithContext(t.Context())
+	if err == nil || !strings.Contains(err.Error(), "EVYDENCE_RUNTIME_PROFILE") || strings.Contains(err.Error(), "private-password") {
+		t.Fatalf("missing runtime profile error = %v", err)
+	}
+}
+
+func TestLocalMemoryProfileRejectsRemoteObjectStoreBeforeConnecting(t *testing.T) {
+	t.Setenv("ENV", "")
+	t.Setenv("EVYDENCE_RUNTIME_PROFILE", "local_memory")
+	t.Setenv("EVYDENCE_DATABASE_URL", "")
+	t.Setenv("EVYDENCE_OBJECT_STORE", "s3")
+	t.Setenv("EVYDENCE_S3_ENDPOINT", "127.0.0.1:1")
+	err := runWithContext(t.Context())
+	if err == nil || !strings.Contains(err.Error(), "EVYDENCE_OBJECT_STORE=filesystem") {
+		t.Fatalf("unsafe local-memory object-store error = %v", err)
+	}
+}
+
 func TestValidateRuntimeConfigAllowsLocalBootstrapSecretPrinting(t *testing.T) {
 	if err := validateRuntimeConfig(false, "", "", "", "", true); err != nil {
 		t.Fatalf("local config should allow explicit bootstrap secret printing: %v", err)

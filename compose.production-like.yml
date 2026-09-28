@@ -73,6 +73,7 @@ services:
         condition: service_completed_successfully
     environment:
       ENV: production
+      EVYDENCE_RUNTIME_PROFILE: postgres
       EVYDENCE_ADDR: :8080
       EVYDENCE_API_KEY_PEPPER: ${EVYDENCE_API_KEY_PEPPER:?EVYDENCE_API_KEY_PEPPER is required}
       EVYDENCE_DATABASE_URL: postgres://${POSTGRES_USER:-evydence}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-evydence}?sslmode=disable
@@ -103,6 +104,7 @@ services:
         condition: service_completed_successfully
     environment:
       ENV: production
+      EVYDENCE_RUNTIME_PROFILE: postgres
       EVYDENCE_API_KEY_PEPPER: ${EVYDENCE_API_KEY_PEPPER:?EVYDENCE_API_KEY_PEPPER is required}
       EVYDENCE_DATABASE_URL: postgres://${POSTGRES_USER:-evydence}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-evydence}?sslmode=disable
       EVYDENCE_OBJECT_STORE: minio

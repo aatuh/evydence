@@ -1942,9 +1942,44 @@ func TestRunRequiresDatabaseURLAndWrapsOpenFailure(t *testing.T) {
 		t.Fatalf("missing database err=%v", err)
 	}
 	t.Setenv("EVYDENCE_DATABASE_URL", "postgres://invalid-host.invalid/evydence")
+	t.Setenv("EVYDENCE_RUNTIME_PROFILE", "postgres")
 	t.Setenv("EVYDENCE_SKIP_MIGRATIONS", "true")
 	if err := run(); err == nil {
 		t.Fatal("expected postgres open failure")
+	}
+}
+
+func TestWorkerRejectsLocalMemoryProfileBeforeOpeningStorage(t *testing.T) {
+	t.Setenv("ENV", "")
+	t.Setenv("EVYDENCE_RUNTIME_PROFILE", "local_memory")
+	t.Setenv("EVYDENCE_DATABASE_URL", "postgres://operator:private-password@127.0.0.1:1/evydence?connect_timeout=1")
+	err := run()
+	if err == nil || !strings.Contains(err.Error(), "EVYDENCE_RUNTIME_PROFILE") || strings.Contains(err.Error(), "private-password") {
+		t.Fatalf("worker profile error = %v", err)
+	}
+}
+
+func TestWorkerOperatorCommandsRejectLocalMemoryProfileBeforeOpeningStorage(t *testing.T) {
+	t.Setenv("ENV", "")
+	t.Setenv("EVYDENCE_RUNTIME_PROFILE", "local_memory")
+	t.Setenv("EVYDENCE_DATABASE_URL", "postgres://operator:private-password@127.0.0.1:1/evydence?connect_timeout=1")
+	commands := []struct {
+		name string
+		run  func() error
+	}{
+		{"parser replay", func() error {
+			return runParserReplay([]string{"--tenant", "ten_1", "--evidence", "ev_1", "--parser-version", "v1", "--actor", "operator", "--apply"})
+		}},
+		{"reconciliation", func() error {
+			return runObjectReconciliation([]string{"--tenant", "ten_1"})
+		}},
+	}
+	for _, command := range commands {
+		t.Run(command.name, func(t *testing.T) {
+			if err := command.run(); err == nil || !strings.Contains(err.Error(), "EVYDENCE_RUNTIME_PROFILE") || strings.Contains(err.Error(), "private-password") {
+				t.Fatalf("unsafe operator profile error = %v", err)
+			}
+		})
 	}
 }
 
@@ -2154,6 +2189,7 @@ func TestRunParserReplayAppendsVerifiedDerivedRecordAndIsIdempotent(t *testing.T
 		return replayObjectStoreStub{object: app.Object{Key: "tenants/ten_test/payloads/source", TenantID: "ten_test", Digest: digest, Bytes: raw}}, "test", nil
 	}
 	t.Setenv("EVYDENCE_DATABASE_URL", "postgres://test")
+	t.Setenv("EVYDENCE_RUNTIME_PROFILE", "postgres")
 	args := []string{"--tenant", "ten_test", "--evidence", "ev_source", "--parser-version", app.ParserVersionScannerAdaptersJSON, "--actor", "operator", "--apply"}
 	if err := runParserReplay(args); err != nil || stub.saved != 1 || stub.focusedMutations != 1 || stub.broadSaves != 0 || len(stub.state.Evidence) != 2 || !stub.closed {
 		t.Fatalf("first replay err=%v saved=%d state=%#v closed=%v", err, stub.saved, stub.state, stub.closed)
@@ -2192,6 +2228,7 @@ func TestRunParserReplayRoutesExistingMarkerThroughDurableValidation(t *testing.
 		return replayObjectStoreStub{object: app.Object{Key: "tenants/ten_test/payloads/source", TenantID: "ten_test", Digest: digest, Bytes: raw}}, "test", nil
 	}
 	t.Setenv("EVYDENCE_DATABASE_URL", "postgres://test")
+	t.Setenv("EVYDENCE_RUNTIME_PROFILE", "postgres")
 	args := []string{"--tenant", "ten_test", "--evidence", "ev_source", "--parser-version", app.ParserVersionScannerAdaptersJSON, "--actor", "operator", "--apply"}
 
 	if err := runParserReplay(args); err == nil || !strings.Contains(err.Error(), "could not persist") {
@@ -2230,6 +2267,7 @@ func TestRunParserReplayDoesNotOverwriteConcurrentWorkerProjection(t *testing.T)
 		return replayObjectStoreStub{object: app.Object{Key: "tenants/ten_test/payloads/source", TenantID: "ten_test", Digest: digest, Bytes: raw}}, "test", nil
 	}
 	t.Setenv("EVYDENCE_DATABASE_URL", "postgres://test")
+	t.Setenv("EVYDENCE_RUNTIME_PROFILE", "postgres")
 	args := []string{"--tenant", "ten_test", "--evidence", "ev_source", "--parser-version", app.ParserVersionScannerAdaptersJSON, "--actor", "operator", "--apply"}
 	if err := runParserReplay(args); err != nil {
 		t.Fatalf("runParserReplay: %v", err)

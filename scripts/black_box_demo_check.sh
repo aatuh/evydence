@@ -99,6 +99,7 @@ start_api() {
   stdout="$workdir/api-$label.stdout"
   stderr="$workdir/api-$label.stderr"
   EVYDENCE_ADDR="127.0.0.1:$port" \
+  EVYDENCE_RUNTIME_PROFILE=postgres \
   EVYDENCE_DATABASE_URL="$database_url" \
   EVYDENCE_POSTGRES_LOAD_MODE=relational_only \
   EVYDENCE_API_KEY_PEPPER="black-box-demo-pepper" \
@@ -125,6 +126,7 @@ start_api() {
 }
 
 start_worker() {
+  EVYDENCE_RUNTIME_PROFILE=postgres \
   EVYDENCE_DATABASE_URL="$database_url" \
   EVYDENCE_POSTGRES_LOAD_MODE=relational_only \
   EVYDENCE_SKIP_MIGRATIONS=true \
