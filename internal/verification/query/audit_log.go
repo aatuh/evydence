@@ -53,11 +53,8 @@ func (s *AuditLog) ListPage(ctx context.Context, actor identitydomain.Actor, fil
 	if err := ctx.Err(); err != nil {
 		return appquery.Result[verificationdomain.AuditChainEntry]{}, err
 	}
-	if actor.TenantID == "" || actor.KeyID == "" && actor.UserID == "" && actor.CollectorID == "" {
-		return appquery.Result[verificationdomain.AuditChainEntry]{}, application.ErrUnauthorized
-	}
-	if !actor.HasScope("admin") {
-		return appquery.Result[verificationdomain.AuditChainEntry]{}, application.ErrForbidden
+	if err := application.AuthorizeTenantWideScope(ctx, actor, "admin"); err != nil {
+		return appquery.Result[verificationdomain.AuditChainEntry]{}, err
 	}
 	if err := appquery.Validate(page, after); err != nil {
 		return appquery.Result[verificationdomain.AuditChainEntry]{}, ErrValidation

@@ -277,6 +277,9 @@ func (l *Ledger) ListAuditLog(ctx context.Context, actor domain.Actor, filter Au
 	subjectType, subjectID := strings.TrimSpace(filter.SubjectType), strings.TrimSpace(filter.SubjectID)
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.authorizeResourceLocked(actor, ScopeAdmin, resourceRefs{}); err != nil {
+		return nil, err
+	}
 	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
 		return nil, err
 	}

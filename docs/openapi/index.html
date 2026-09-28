@@ -398,13 +398,13 @@
               <div><dt>Responses</dt><dd>200 application/json: VerificationResultEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/audit-log list tenant audit log lists tenant-scoped append-only audit-chain entries in reverse chronological order. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listauditlog evydence admin">
+          <article class="operation" data-operation data-search="get /v1/audit-log list tenant audit log lists tenant-scoped append-only audit-chain entries in reverse chronological order. human sessions require a tenant-wide admin grant. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listauditlog evydence admin">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/audit-log</code>
             </div>
             <h3>List tenant audit log</h3>
-            <p>Lists tenant-scoped append-only audit-chain entries in reverse chronological order. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
+            <p>Lists tenant-scoped append-only audit-chain entries in reverse chronological order. Human sessions require a tenant-wide admin grant. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listAuditLog</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

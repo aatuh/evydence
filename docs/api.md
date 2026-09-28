@@ -630,7 +630,7 @@ presets; preset policy fields cannot be overridden in the create request.
 | `POST` | `/v1/evidence-bundles/import` | Import evidence bundle. |
 | `POST` | `/v1/verify` | Verify supported subject types. |
 | `GET` | `/v1/audit-chain/verify` | Verify tenant audit chain. |
-| `GET` | `/v1/audit-log` | List tenant audit entries; admin scope required. |
+| `GET` | `/v1/audit-log` | List tenant audit entries; admin scope required, including a tenant-wide grant for human sessions. |
 | `GET` | `/v1/signing-keys` | List keys. |
 | `POST` | `/v1/signing-keys/rotate` | Rotate signing key. |
 | `POST` | `/v1/signing-keys/{id}/revoke` | Revoke key for new signatures. |

@@ -37,6 +37,8 @@ func TestAuditLogQueryRequiresAdminAndTenantBeforeRead(t *testing.T) {
 	}{
 		{actor: identitydomain.Actor{}, want: application.ErrUnauthorized},
 		{actor: identitydomain.Actor{TenantID: "ten_1", KeyID: "key_1", Scopes: []string{"evidence:read"}}, want: application.ErrForbidden},
+		{actor: identitydomain.Actor{TenantID: "ten_1", UserID: "usr_1", Scopes: []string{"admin"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "product", ResourceID: "prod_1", Scopes: []string{"admin"}}}}, want: application.ErrForbidden},
+		{actor: identitydomain.Actor{TenantID: "ten_1", UserID: "usr_1", Scopes: []string{"admin"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "tenant", ResourceID: "ten_2", Scopes: []string{"admin"}}}}, want: application.ErrForbidden},
 	} {
 		if _, err := service.ListPage(t.Context(), test.actor, AuditFilter{}, page, nil); !errors.Is(err, test.want) {
 			t.Fatalf("actor=%#v error=%v, want %v", test.actor, err, test.want)

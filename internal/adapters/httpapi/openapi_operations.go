@@ -435,7 +435,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Subject verification request.", "#/components/schemas/VerifySubjectRequest")
 		operation.Responses[http.StatusOK] = jsonResponse("Subject verification envelope.", "#/components/schemas/VerificationResultEnvelope")
 	case "listAuditLog":
-		operation.Description = "Lists tenant-scoped append-only audit-chain entries in reverse chronological order."
+		operation.Description = "Lists tenant-scoped append-only audit-chain entries in reverse chronological order. Human sessions require a tenant-wide admin grant."
 		operation.Parameters = append(operation.Parameters,
 			queryParam("subject_type", "Filter by audited subject type.", "string"),
 			queryParam("subject_id", "Filter by audited subject id.", "string"),
