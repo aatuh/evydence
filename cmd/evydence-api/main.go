@@ -12,7 +12,6 @@ import (
 	"net/netip"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -22,8 +21,6 @@ import (
 	"github.com/aatuh/evydence/internal/adapters/identity/httpvalidator"
 	"github.com/aatuh/evydence/internal/adapters/identity/oidcdiscovery"
 	"github.com/aatuh/evydence/internal/adapters/identity/oidcuserinfo"
-	"github.com/aatuh/evydence/internal/adapters/objectstore/filesystem"
-	s3store "github.com/aatuh/evydence/internal/adapters/objectstore/s3"
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/adapters/signing/awskms"
 	"github.com/aatuh/evydence/internal/adapters/signing/azurekeyvault"
@@ -701,28 +698,5 @@ func boolEnv(name string) bool {
 }
 
 func openObjectStore(ctx context.Context) (app.ObjectStore, string, error) {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv("EVYDENCE_OBJECT_STORE"))) {
-	case "", "file", "filesystem":
-		objectRoot := envDefault("EVYDENCE_OBJECT_DIR", filepath.Join("tmp", "objects"))
-		objectStore, err := filesystem.New(objectRoot)
-		if err != nil {
-			return nil, "", err
-		}
-		return objectStore, "filesystem root " + objectRoot, nil
-	case "s3", "minio":
-		objectStore, err := s3store.New(ctx, s3store.Config{
-			Endpoint:        os.Getenv("EVYDENCE_S3_ENDPOINT"),
-			AccessKeyID:     os.Getenv("EVYDENCE_S3_ACCESS_KEY_ID"),
-			SecretAccessKey: os.Getenv("EVYDENCE_S3_SECRET_ACCESS_KEY"),
-			Bucket:          os.Getenv("EVYDENCE_S3_BUCKET"),
-			Region:          os.Getenv("EVYDENCE_S3_REGION"),
-			UseSSL:          strings.EqualFold(os.Getenv("EVYDENCE_S3_USE_SSL"), "true"),
-		})
-		if err != nil {
-			return nil, "", err
-		}
-		return objectStore, "S3-compatible bucket " + envDefault("EVYDENCE_S3_BUCKET", ""), nil
-	default:
-		return nil, "", errors.New("unsupported EVYDENCE_OBJECT_STORE")
-	}
+	return wiring.OpenObjectStore(ctx, wiring.ObjectStoreConfigFromEnv())
 }
