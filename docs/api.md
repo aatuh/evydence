@@ -455,7 +455,7 @@ Important scope boundaries:
 | `POST` | `/v1/users` | Create normalized human user. |
 | `POST` | `/v1/users/{id}/deactivate` | Record deactivation transition. |
 | `POST` | `/v1/role-bindings` | Assign role to user or collector. |
-| `GET` | `/v1/role-bindings` | List tenant-scoped bindings. |
+| `GET` | `/v1/role-bindings` | Page tenant-scoped bindings; `identity:admin` (or admin) scope and a tenant-wide grant for human sessions are required. |
 | `POST` | `/v1/sso/providers` | Record OIDC or SAML provider metadata. |
 | `POST` | `/v1/sso/providers/{id}/trust-material` | Rotate OIDC JWKS or SAML signing certificates used for local verification. |
 | `POST` | `/v1/sso/providers/{id}/discover-oidc` | Fetch OIDC discovery metadata and refresh public JWKS trust material. |

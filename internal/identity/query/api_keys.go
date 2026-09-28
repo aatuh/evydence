@@ -11,8 +11,8 @@ import (
 )
 
 var (
-	ErrValidation        = errors.New("invalid API-key query")
-	ErrInvalidProjection = errors.New("invalid API-key projection")
+	ErrValidation        = errors.New("invalid identity query")
+	ErrInvalidProjection = errors.New("invalid identity projection")
 )
 
 type APIKeyPageRequest struct {

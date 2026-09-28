@@ -1,11 +1,15 @@
 package httpapi
 
 import (
+	"errors"
 	"net/http"
 	"time"
 
 	"github.com/aatuh/evydence/internal/app"
+	appquery "github.com/aatuh/evydence/internal/app/query"
+	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
+	identityquery "github.com/aatuh/evydence/internal/identity/query"
 )
 
 const ssoSessionCookieName = "evydence_session"
@@ -99,6 +103,32 @@ func (s *Server) createRoleBinding(w http.ResponseWriter, r *http.Request) {
 func (s *Server) listRoleBindings(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
+		return
+	}
+	if s.roleBindingQuery != nil {
+		request, err := s.parsePageRequest(r, actor, "role-bindings")
+		if err != nil {
+			writeProblem(w, r, err)
+			return
+		}
+		result, err := s.roleBindingQuery.ListPage(r.Context(), actor, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+		if err != nil {
+			switch {
+			case errors.Is(err, identityquery.ErrValidation), errors.Is(err, appquery.ErrInvalidPage), errors.Is(err, appquery.ErrInvalidCursor):
+				err = app.ErrValidation
+			case errors.Is(err, application.ErrUnauthorized):
+				err = app.ErrUnauthorized
+			case errors.Is(err, application.ErrForbidden):
+				err = app.ErrForbidden
+			}
+			writeProblem(w, r, err)
+			return
+		}
+		page := appquery.Result[domain.RoleBinding]{Next: result.Next, Items: make([]domain.RoleBinding, 0, len(result.Items))}
+		for _, binding := range result.Items {
+			page.Items = append(page.Items, roleBindingFromQuery(binding))
+		}
+		writePage(s, w, r, actor, "role-bindings", request, page)
 		return
 	}
 	bindings, err := s.identityAccess.ListRoleBindings(r.Context(), actor)

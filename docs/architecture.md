@@ -50,8 +50,10 @@ activity-write ports. The PostgreSQL profile binds those ports to current
 credential, session, user, role-binding, and provider rows; API-key and collector
 activity updates commit atomically. Local-memory mode retains the Ledger-backed
 adapter. Production API-key inventory pages read public metadata from tenant-
-filtered PostgreSQL rows without selecting credential hashes; local memory
-retains the Ledger-backed inventory. API and worker runtime commands,
+filtered PostgreSQL rows without selecting credential hashes. Role-binding
+inventory also pages current tenant rows in PostgreSQL instead of reading
+the startup Ledger snapshot. Local memory retains the Ledger-backed
+inventories. API and worker runtime commands,
 including reconciliation and parser replay, now share a composition root for
 profile/load-mode validation, PostgreSQL migrations, object-store selection,
 and the production API writer lease.

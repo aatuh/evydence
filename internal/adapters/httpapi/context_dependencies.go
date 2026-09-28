@@ -44,6 +44,11 @@ type APIKeyQuery interface {
 	ListPage(context.Context, domain.Actor, appquery.PageRequest, *appquery.SortKey) (appquery.Result[identitydomain.APIKey], error)
 }
 
+// RoleBindingQuery returns one authorized tenant page of current bindings.
+type RoleBindingQuery interface {
+	ListPage(context.Context, domain.Actor, appquery.PageRequest, *appquery.SortKey) (appquery.Result[identitydomain.RoleBinding], error)
+}
+
 // commandScope binds transaction-local command services without exposing the
 // compatibility Ledger type to HTTP command wrappers or context-owned
 // handlers. The Ledger-backed implementation remains an adapter until the

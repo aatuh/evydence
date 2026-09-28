@@ -44,6 +44,7 @@ type Server struct {
 	catalogPointQuery CatalogPointQuery
 	auditLogQuery     AuditLogQuery
 	apiKeyQuery       APIKeyQuery
+	roleBindingQuery  RoleBindingQuery
 	evidenceIngestion evidenceIngestionService
 	riskDecisions     riskDecisionService
 	packages          packageService
@@ -87,6 +88,8 @@ type ServerOptions struct {
 	AuditLogQuery AuditLogQuery
 	// APIKeyQuery pages public key metadata in PostgreSQL for the durable profile.
 	APIKeyQuery APIKeyQuery
+	// RoleBindingQuery pages current tenant bindings in PostgreSQL for the durable profile.
+	RoleBindingQuery RoleBindingQuery
 }
 
 func NewServer(ledger *app.Ledger) (*Server, error) {
@@ -131,7 +134,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
 		server.authn = opts.Authenticator

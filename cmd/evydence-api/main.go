@@ -178,6 +178,7 @@ func runWithContext(ctx context.Context) error {
 	var catalogPointQuery httpapi.CatalogPointQuery
 	var auditLogQuery httpapi.AuditLogQuery
 	var apiKeyQuery httpapi.APIKeyQuery
+	var roleBindingQuery httpapi.RoleBindingQuery
 	var authenticator httpapi.Authenticator
 	if runtime.Postgres != nil {
 		authenticator, err = wiring.BuildAuthenticator(runtime.Postgres, runtime.Postgres, pepper, production)
@@ -200,6 +201,10 @@ func runWithContext(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("create API-key query: %w", err)
 		}
+		roleBindingQuery, err = wiring.BuildRoleBindingQuery(runtime.Postgres)
+		if err != nil {
+			return fmt.Errorf("create role-binding query: %w", err)
+		}
 	}
 	server, err := httpapi.NewServerWithOptionsContext(ctx, ledger, httpapi.ServerOptions{
 		Authenticator:                    authenticator,
@@ -217,6 +222,7 @@ func runWithContext(ctx context.Context) error {
 		CatalogPointQuery:                catalogPointQuery,
 		AuditLogQuery:                    auditLogQuery,
 		APIKeyQuery:                      apiKeyQuery,
+		RoleBindingQuery:                 roleBindingQuery,
 	})
 	if err != nil {
 		return fmt.Errorf("create server: %w", err)
