@@ -10,10 +10,12 @@ import (
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
-// ErrForbidden is the canonical authorization visibility denial shared by
-// context services. Adapters must map platform-specific denial sentinels to it;
-// operational and context errors remain distinguishable and are propagated.
-var ErrForbidden = errors.New("forbidden")
+// Authorization sentinels are transport-neutral. Adapters map them to the
+// public problem catalog without exposing actor or grant details.
+var (
+	ErrUnauthorized = errors.New("unauthorized")
+	ErrForbidden    = errors.New("forbidden")
+)
 
 // Clock supplies command timestamps without hidden process-global state.
 type Clock interface {

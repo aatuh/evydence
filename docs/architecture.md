@@ -50,7 +50,10 @@ profile/load-mode validation, PostgreSQL migrations, object-store selection,
 and the production API writer lease.
 EVY-905 also routes production product-list pages and product, project, and
 release point reads through focused release query services with tenant-bound
-PostgreSQL queries and grant checks. Other production reads still reconstruct
+PostgreSQL queries. Their actor-scope and catalog-grant checks no longer read
+the Ledger's product, project, or release maps; SQL validates the tenant and
+parent-product coordinates before the query service applies resource grants.
+Other production reads still reconstruct
 the broad Ledger state at startup; their database-backed query and composition
 replacement remain open EVY-905 work. Evidence list and search pages now use
 bounded PostgreSQL keyset batches under one read-only snapshot for restricted

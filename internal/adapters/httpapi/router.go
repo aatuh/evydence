@@ -397,6 +397,8 @@ func (s *Server) listProducts(w http.ResponseWriter, r *http.Request) {
 			switch {
 			case errors.Is(err, releasequery.ErrValidation), errors.Is(err, appquery.ErrInvalidPage), errors.Is(err, appquery.ErrInvalidCursor):
 				err = app.ErrValidation
+			case errors.Is(err, application.ErrUnauthorized):
+				err = app.ErrUnauthorized
 			case errors.Is(err, application.ErrForbidden):
 				err = app.ErrForbidden
 			}
@@ -433,6 +435,8 @@ func (s *Server) getProduct(w http.ResponseWriter, r *http.Request) {
 				err = app.ErrValidation
 			case errors.Is(err, releasequery.ErrNotFound):
 				err = app.ErrNotFound
+			case errors.Is(err, application.ErrUnauthorized):
+				err = app.ErrUnauthorized
 			case errors.Is(err, application.ErrForbidden):
 				err = app.ErrForbidden
 			}
@@ -528,6 +532,8 @@ func mapCatalogPointQueryError(err error) error {
 		return app.ErrValidation
 	case errors.Is(err, releasequery.ErrNotFound):
 		return app.ErrNotFound
+	case errors.Is(err, application.ErrUnauthorized):
+		return app.ErrUnauthorized
 	case errors.Is(err, application.ErrForbidden):
 		return app.ErrForbidden
 	default:

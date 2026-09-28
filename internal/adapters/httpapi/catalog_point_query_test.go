@@ -47,8 +47,10 @@ func TestCatalogPointHandlersMapValidationAndVisibilityErrors(t *testing.T) {
 	}{
 		{name: "project not found", path: "/v1/projects/proj_missing", err: releasequery.ErrNotFound, status: http.StatusNotFound},
 		{name: "project denied", path: "/v1/projects/proj_denied", err: application.ErrForbidden, status: http.StatusForbidden},
+		{name: "project missing identity", path: "/v1/projects/proj_unauthorized", err: application.ErrUnauthorized, status: http.StatusUnauthorized},
 		{name: "release not found", path: "/v1/releases/rel_missing", err: releasequery.ErrNotFound, status: http.StatusNotFound},
 		{name: "release denied", path: "/v1/releases/rel_denied", err: application.ErrForbidden, status: http.StatusForbidden},
+		{name: "release missing identity", path: "/v1/releases/rel_unauthorized", err: application.ErrUnauthorized, status: http.StatusUnauthorized},
 		{name: "invalid release", path: "/v1/releases/rel_invalid", err: releasequery.ErrValidation, status: http.StatusBadRequest},
 	} {
 		t.Run(test.name, func(t *testing.T) {

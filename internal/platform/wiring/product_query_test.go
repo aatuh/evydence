@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 	releasequery "github.com/aatuh/evydence/internal/release/query"
@@ -20,15 +19,11 @@ func (productPageReaderStub) GetProduct(context.Context, string, string) (releas
 	return releasedomain.Product{}, nil
 }
 
-func TestBuildProductQueryRequiresReaderAndAuthorizationBoundary(t *testing.T) {
-	ledger := app.NewLedger(app.Config{})
-	if _, err := BuildProductQuery(nil, ledger); err == nil {
+func TestBuildProductQueryRequiresReader(t *testing.T) {
+	if _, err := BuildProductQuery(nil); err == nil {
 		t.Fatal("query service accepted a missing database reader")
 	}
-	if _, err := BuildProductQuery(productPageReaderStub{}, nil); err == nil {
-		t.Fatal("query service accepted a missing authorization boundary")
-	}
-	query, err := BuildProductQuery(productPageReaderStub{}, ledger)
+	query, err := BuildProductQuery(productPageReaderStub{})
 	if err != nil || query == nil {
 		t.Fatalf("compose product query=%T error=%v", query, err)
 	}

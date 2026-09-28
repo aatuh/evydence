@@ -176,11 +176,11 @@ func runWithContext(ctx context.Context) error {
 	var productQuery httpapi.ProductQuery
 	var catalogPointQuery httpapi.CatalogPointQuery
 	if runtime.Postgres != nil {
-		productQuery, err = wiring.BuildProductQuery(runtime.Postgres, ledger)
+		productQuery, err = wiring.BuildProductQuery(runtime.Postgres)
 		if err != nil {
 			return fmt.Errorf("create product query: %w", err)
 		}
-		catalogPointQuery, err = wiring.BuildCatalogPointQuery(runtime.Postgres, ledger)
+		catalogPointQuery, err = wiring.BuildCatalogPointQuery(runtime.Postgres)
 		if err != nil {
 			return fmt.Errorf("create catalog point query: %w", err)
 		}

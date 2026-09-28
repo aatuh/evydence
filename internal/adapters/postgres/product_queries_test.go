@@ -12,6 +12,8 @@ import (
 
 	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
+	application "github.com/aatuh/evydence/internal/application"
+	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasequery "github.com/aatuh/evydence/internal/release/query"
 )
 
@@ -93,6 +95,20 @@ func TestPageProductsUsesTenantBoundKeysetAndGrantFilter(t *testing.T) {
 	if _, err := store.PageProducts(ctx, request); !errors.Is(err, appquery.ErrInvalidCursor) {
 		t.Fatalf("malformed cursor error=%v, want invalid cursor", err)
 	}
+	query, err := releasequery.NewProducts(store, releasequery.NewCatalogAuthorizer())
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor := identitydomain.Actor{TenantID: "ten_page", UserID: "usr_page", Scopes: []string{"product:read"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "product", ResourceID: "prod_a", Scopes: []string{"product:read"}}}}
+	visible, err := query.ListProductsPage(ctx, actor, appquery.PageRequest{PageSize: 2, Sort: appquery.SortCreatedAt, Direction: appquery.Ascending}, nil)
+	if err != nil || len(visible.Items) != 1 || visible.Items[0].ID != "prod_a" {
+		t.Fatalf("authorized product page=%#v error=%v", visible, err)
+	}
+	actor.ResourceGrants = []identitydomain.ResourceGrant{{ResourceType: "product", ResourceID: "prod_other", Scopes: []string{"product:read"}}}
+	visible, err = query.ListProductsPage(ctx, actor, appquery.PageRequest{PageSize: 2, Sort: appquery.SortCreatedAt, Direction: appquery.Ascending}, nil)
+	if err != nil || len(visible.Items) != 0 {
+		t.Fatalf("foreign product grant page=%#v error=%v", visible, err)
+	}
 }
 
 func TestGetCatalogPointsRequiresTenantBoundParentProduct(t *testing.T) {
@@ -173,5 +189,30 @@ func TestGetCatalogPointsRequiresTenantBoundParentProduct(t *testing.T) {
 	}
 	if release, err := store.GetRelease(ctx, "ten_one", "rel_bad_state"); err == nil || release.ID != "" {
 		t.Fatalf("invalid release state=%#v error=%v", release, err)
+	}
+	query, err := releasequery.NewCatalogPoints(store, releasequery.NewCatalogAuthorizer())
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor := identitydomain.Actor{TenantID: "ten_one", UserID: "usr_one", Scopes: []string{"project:read", "release:read"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "product", ResourceID: "prod_one", Scopes: []string{"project:read", "release:read"}}}}
+	if project, err := query.GetProject(ctx, actor, "proj_one"); err != nil || project.ID != "proj_one" {
+		t.Fatalf("authorized project=%#v error=%v", project, err)
+	}
+	if release, err := query.GetRelease(ctx, actor, "rel_one"); err != nil || release.ID != "rel_one" {
+		t.Fatalf("authorized release=%#v error=%v", release, err)
+	}
+	if project, err := query.GetProject(ctx, actor, "proj_bad_parent"); !errors.Is(err, releasequery.ErrNotFound) || project.ID != "" {
+		t.Fatalf("mismatched parent project=%#v error=%v", project, err)
+	}
+	if release, err := query.GetRelease(ctx, actor, "rel_foreign"); !errors.Is(err, releasequery.ErrNotFound) || release.ID != "" {
+		t.Fatalf("foreign release=%#v error=%v", release, err)
+	}
+	actor.ResourceGrants = nil
+	if project, err := query.GetProject(ctx, actor, "proj_one"); !errors.Is(err, application.ErrForbidden) || project.ID != "" {
+		t.Fatalf("revoked project grant=%#v error=%v", project, err)
+	}
+	actor.ResourceGrants = []identitydomain.ResourceGrant{{ResourceType: "product", ResourceID: "prod_two", Scopes: []string{"project:read", "release:read"}}}
+	if release, err := query.GetRelease(ctx, actor, "rel_one"); !errors.Is(err, application.ErrForbidden) || release.ID != "" {
+		t.Fatalf("foreign parent grant release=%#v error=%v", release, err)
 	}
 }
