@@ -35,27 +35,28 @@ type requestContext = context.Context
 const requestIDHeader = "X-Request-ID"
 
 type Server struct {
-	ledger            *app.Ledger
-	authn             Authenticator
-	idempotency       idempotencyExecutor
-	identityAccess    identityAccessService
-	releaseCatalog    releaseCatalogService
-	productQuery      ProductQuery
-	catalogPointQuery CatalogPointQuery
-	buildPointQuery   BuildPointQuery
-	auditLogQuery     AuditLogQuery
-	apiKeyQuery       APIKeyQuery
-	roleBindingQuery  RoleBindingQuery
-	evidenceIngestion evidenceIngestionService
-	riskDecisions     riskDecisionService
-	packages          packageService
-	verification      verificationService
-	mux               *http.ServeMux
-	specs             *specs.Registry
-	routes            *routecontracts.Registry
-	ingress           *ingressControl
-	identity          runtimeinfo.Identity
-	cursors           appquery.CursorCodec
+	ledger               *app.Ledger
+	authn                Authenticator
+	idempotency          idempotencyExecutor
+	identityAccess       identityAccessService
+	releaseCatalog       releaseCatalogService
+	productQuery         ProductQuery
+	catalogPointQuery    CatalogPointQuery
+	buildPointQuery      BuildPointQuery
+	deploymentPointQuery DeploymentPointQuery
+	auditLogQuery        AuditLogQuery
+	apiKeyQuery          APIKeyQuery
+	roleBindingQuery     RoleBindingQuery
+	evidenceIngestion    evidenceIngestionService
+	riskDecisions        riskDecisionService
+	packages             packageService
+	verification         verificationService
+	mux                  *http.ServeMux
+	specs                *specs.Registry
+	routes               *routecontracts.Registry
+	ingress              *ingressControl
+	identity             runtimeinfo.Identity
+	cursors              appquery.CursorCodec
 }
 
 type ServerOptions struct {
@@ -87,6 +88,8 @@ type ServerOptions struct {
 	CatalogPointQuery CatalogPointQuery
 	// BuildPointQuery reads current build and parent coordinates in PostgreSQL.
 	BuildPointQuery BuildPointQuery
+	// DeploymentPointQuery reads one tenant-owned deployment and parent projection.
+	DeploymentPointQuery DeploymentPointQuery
 	// AuditLogQuery pages tenant audit records in PostgreSQL for the durable profile.
 	AuditLogQuery AuditLogQuery
 	// APIKeyQuery pages public key metadata in PostgreSQL for the durable profile.
@@ -137,7 +140,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, deploymentPointQuery: opts.DeploymentPointQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
 		server.authn = opts.Authenticator
@@ -1077,6 +1080,15 @@ func (s *Server) listDeployments(w http.ResponseWriter, r *http.Request) {
 func (s *Server) getDeployment(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
+		return
+	}
+	if s.deploymentPointQuery != nil {
+		deployment, err := s.deploymentPointQuery.GetDeployment(r.Context(), actor, r.PathValue("id"))
+		if err != nil {
+			writeProblem(w, r, mapDeploymentPointQueryError(err))
+			return
+		}
+		writeData(w, http.StatusOK, deploymentEventFromQuery(deployment))
 		return
 	}
 	deployment, err := s.ledger.GetDeployment(r.Context(), actor, r.PathValue("id"))

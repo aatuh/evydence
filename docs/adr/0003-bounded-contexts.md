@@ -65,6 +65,12 @@ read snapshots and transaction ports keep these services independent of the
 legacy Ledger maps; the compatibility adapters still translate persisted and
 HTTP DTOs.
 
+EVY-905 is in progress. PostgreSQL-backed point reads for products, projects,
+releases, and builds use release-catalog queries; deployment point reads use an
+operations-owned query. The deployment reader joins its tenant-owned release
+and environment through one product before grant evaluation. Local-memory
+mode and other unmigrated handlers still use the Ledger compatibility model.
+
 `internal/domain` remains a compatibility DTO boundary at the HTTP,
 persistence, and legacy-facade edges while remaining callers migrate in EVY-904
 through EVY-906. It retains the existing JSON tags and public field shapes,

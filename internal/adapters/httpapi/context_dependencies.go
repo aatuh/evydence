@@ -8,6 +8,7 @@ import (
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
+	operationsdomain "github.com/aatuh/evydence/internal/operations/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 	verificationquery "github.com/aatuh/evydence/internal/verification/query"
@@ -37,6 +38,12 @@ type CatalogPointQuery interface {
 // BuildPointQuery authorizes a build using one tenant-verified durable parent projection.
 type BuildPointQuery interface {
 	GetBuildRun(context.Context, domain.Actor, string) (releasedomain.BuildRun, error)
+}
+
+// DeploymentPointQuery authorizes a deployment against its current tenant-owned
+// release and environment without consulting the Ledger projection.
+type DeploymentPointQuery interface {
+	GetDeployment(context.Context, domain.Actor, string) (operationsdomain.DeploymentEvent, error)
 }
 
 // AuditLogQuery pages current tenant audit entries without loading the Ledger.
