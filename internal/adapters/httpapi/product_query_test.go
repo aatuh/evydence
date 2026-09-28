@@ -14,9 +14,11 @@ import (
 )
 
 type productPageQueryFake struct {
-	calls  int
-	tenant string
-	after  *appquery.SortKey
+	calls     int
+	tenant    string
+	after     *appquery.SortKey
+	getTenant string
+	getID     string
 }
 
 func (f *productPageQueryFake) ListProductsPage(_ context.Context, actor identitydomain.Actor, page appquery.PageRequest, after *appquery.SortKey) (appquery.Result[releasedomain.Product], error) {
@@ -31,10 +33,15 @@ func (f *productPageQueryFake) ListProductsPage(_ context.Context, actor identit
 	return appquery.Result[releasedomain.Product]{Items: []releasedomain.Product{{ID: "prod_b", TenantID: actor.TenantID, Name: "B", CreatedAt: createdAt.Add(time.Second)}}}, nil
 }
 
+func (f *productPageQueryFake) GetProduct(_ context.Context, actor identitydomain.Actor, id string) (releasedomain.Product, error) {
+	f.getTenant, f.getID = actor.TenantID, id
+	return releasedomain.Product{ID: id, TenantID: actor.TenantID, Name: "Database product"}, nil
+}
+
 func TestProductHandlerUsesFocusedPageQueryAndRejectsMalformedInputBeforeRead(t *testing.T) {
 	server, secret := testServer(t)
 	query := &productPageQueryFake{}
-	server.productPages = query
+	server.productQuery = query
 	first := getRaw(t, server, secret, "/v1/products?page_size=1&sort=created_at&direction=asc", http.StatusOK)
 	var response struct {
 		Data []struct {
@@ -54,5 +61,20 @@ func TestProductHandlerUsesFocusedPageQueryAndRejectsMalformedInputBeforeRead(t 
 	getRaw(t, server, secret, "/v1/products?page_size=1&page_size=2", http.StatusBadRequest)
 	if query.calls != 2 {
 		t.Fatalf("malformed page reached focused query: calls=%d", query.calls)
+	}
+}
+
+func TestGetProductHandlerUsesFocusedPointQuery(t *testing.T) {
+	server, secret := testServer(t)
+	query := &productPageQueryFake{}
+	server.productQuery = query
+	response := getRaw(t, server, secret, "/v1/products/prod_db_only", http.StatusOK)
+	var body struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil || body.Data.ID != "prod_db_only" || query.getTenant == "" || query.getID != "prod_db_only" {
+		t.Fatalf("focused point read=%#v tenant=%q id=%q error=%v", body, query.getTenant, query.getID, err)
 	}
 }

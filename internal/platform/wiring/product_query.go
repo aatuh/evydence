@@ -5,9 +5,9 @@ import (
 	releasequery "github.com/aatuh/evydence/internal/release/query"
 )
 
-// BuildProductPageQuery binds a focused database reader to the existing
+// BuildProductQuery binds a focused database reader to the existing
 // authorization policy while the production compatibility Ledger is retired.
-func BuildProductPageQuery(reader releasequery.ProductPageReader, ledger *app.Ledger) (*releasequery.Products, error) {
+func BuildProductQuery(reader releasequery.ProductReader, ledger *app.Ledger) (*releasequery.Products, error) {
 	if reader == nil {
 		return nil, app.ErrValidation
 	}

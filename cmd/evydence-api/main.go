@@ -213,9 +213,9 @@ func runWithContext(ctx context.Context) error {
 			log.Printf("bootstrapped tenant %s and key %s; set EVYDENCE_PRINT_BOOTSTRAP_SECRET=true for local-only secret output", tenant.ID, key.ID)
 		}
 	}
-	var productPages httpapi.ProductPageQuery
+	var productQuery httpapi.ProductQuery
 	if queryStore != nil {
-		productPages, err = wiring.BuildProductPageQuery(queryStore, ledger)
+		productQuery, err = wiring.BuildProductQuery(queryStore, ledger)
 		if err != nil {
 			return fmt.Errorf("create product query: %w", err)
 		}
@@ -231,7 +231,7 @@ func runWithContext(ctx context.Context) error {
 		MaxConcurrentUploads:             httpConfig.MaxConcurrentUploads,
 		BuildIdentity:                    identity,
 		PaginationSecret:                 []byte(pepper),
-		ProductPages:                     productPages,
+		ProductQuery:                     productQuery,
 	})
 	if err != nil {
 		return fmt.Errorf("create server: %w", err)

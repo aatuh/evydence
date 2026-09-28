@@ -190,6 +190,15 @@ curl -fsS "$api_url/v1/products?page_size=50" \
   -H "Authorization: Bearer $api_key" \
   >"$workdir/database-product-page.json"
 jq -e '([.data[].id] | index("prod_db_only_probe") != null) and ([.data[].id] | index("prod_foreign_probe") == null)' "$workdir/database-product-page.json" >/dev/null
+curl -fsS "$api_url/v1/products/prod_db_only_probe" \
+  -H "Authorization: Bearer $api_key" \
+  >"$workdir/database-product-detail.json"
+jq -e '.data.id == "prod_db_only_probe"' "$workdir/database-product-detail.json" >/dev/null
+foreign_detail_status="$(curl -sS -o "$workdir/foreign-product-detail.json" -w '%{http_code}' "$api_url/v1/products/prod_foreign_probe" -H "Authorization: Bearer $api_key")"
+if [ "$foreign_detail_status" != "404" ]; then
+  printf '%s\n' "black-box-demo-check: foreign product detail status $foreign_detail_status, want 404" >&2
+  exit 1
+fi
 
 pending_jobs="$(psql "$EVYDENCE_TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -qAt -c "SELECT count(*) FROM $schema.outbox_jobs WHERE status IN ('queued', 'retrying', 'running')")"
 if [ "$pending_jobs" != "0" ]; then

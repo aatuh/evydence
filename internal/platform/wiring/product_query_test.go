@@ -16,15 +16,19 @@ func (productPageReaderStub) PageProducts(context.Context, releasequery.ProductP
 	return appquery.Result[releasedomain.Product]{}, nil
 }
 
-func TestBuildProductPageQueryRequiresReaderAndAuthorizationBoundary(t *testing.T) {
+func (productPageReaderStub) GetProduct(context.Context, string, string) (releasedomain.Product, error) {
+	return releasedomain.Product{}, nil
+}
+
+func TestBuildProductQueryRequiresReaderAndAuthorizationBoundary(t *testing.T) {
 	ledger := app.NewLedger(app.Config{})
-	if _, err := BuildProductPageQuery(nil, ledger); err == nil {
+	if _, err := BuildProductQuery(nil, ledger); err == nil {
 		t.Fatal("query service accepted a missing database reader")
 	}
-	if _, err := BuildProductPageQuery(productPageReaderStub{}, nil); err == nil {
+	if _, err := BuildProductQuery(productPageReaderStub{}, nil); err == nil {
 		t.Fatal("query service accepted a missing authorization boundary")
 	}
-	query, err := BuildProductPageQuery(productPageReaderStub{}, ledger)
+	query, err := BuildProductQuery(productPageReaderStub{}, ledger)
 	if err != nil || query == nil {
 		t.Fatalf("compose product query=%T error=%v", query, err)
 	}

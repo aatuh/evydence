@@ -44,11 +44,11 @@ Migrated HTTP operations enter through
 context-specific handler interfaces. The deprecated Ledger facade forwards
 these commands and maps their models to compatibility DTOs while idempotency,
 specialized report/query paths, and most composition still use the legacy
-application boundary. EVY-905 now routes production product-list pages through
-a focused release query service and a tenant/grant-filtered PostgreSQL keyset
-query. Other production reads still reconstruct the broad Ledger state at
-startup; their database-backed query and composition replacement remain open
-EVY-905 work. `make domain-context-check`
+application boundary. EVY-905 now routes production product-list pages and
+product point reads through a focused release query service with tenant-bound
+PostgreSQL queries and grant checks. Other production reads still reconstruct
+the broad Ledger state at startup; their database-backed query and composition
+replacement remain open EVY-905 work. `make domain-context-check`
 prevents model ownership, field compatibility, schema ownership, import, and
 transport-tag drift during the remaining transition.
 

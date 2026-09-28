@@ -13,16 +13,25 @@ import (
 )
 
 type productPageReaderFake struct {
-	request ProductPageRequest
-	result  appquery.Result[releasedomain.Product]
-	calls   int
-	err     error
+	request   ProductPageRequest
+	result    appquery.Result[releasedomain.Product]
+	calls     int
+	err       error
+	getTenant string
+	getID     string
+	product   releasedomain.Product
+	getErr    error
 }
 
 func (f *productPageReaderFake) PageProducts(_ context.Context, request ProductPageRequest) (appquery.Result[releasedomain.Product], error) {
 	f.calls++
 	f.request = request
 	return f.result, f.err
+}
+
+func (f *productPageReaderFake) GetProduct(_ context.Context, tenantID, id string) (releasedomain.Product, error) {
+	f.getTenant, f.getID = tenantID, id
+	return f.product, f.getErr
 }
 
 type productAuthorizerFake struct {
@@ -143,5 +152,42 @@ func TestListProductsPageRejectsInvalidInputsAndPropagatesBackendFailure(t *test
 	reader.err = backendErr
 	if _, err := service.ListProductsPage(t.Context(), actor, productPageRequest(), nil); !errors.Is(err, backendErr) {
 		t.Fatalf("backend error was suppressed: %v", err)
+	}
+}
+
+func TestGetProductUsesTenantBoundReaderAndAuthorizesProjection(t *testing.T) {
+	reader := &productPageReaderFake{product: releasedomain.Product{ID: "prod_allowed", TenantID: "ten_1", Name: "Allowed"}}
+	service, err := NewProducts(reader, productAuthorizerFake{allowed: map[string]bool{"prod_allowed": true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor := identitydomain.Actor{TenantID: "ten_1", UserID: "usr_1", Scopes: []string{"product:read"}}
+	product, err := service.GetProduct(t.Context(), actor, "prod_allowed")
+	if err != nil || product.ID != "prod_allowed" || reader.getTenant != actor.TenantID || reader.getID != "prod_allowed" {
+		t.Fatalf("tenant-bound product=%#v reader=%#v error=%v", product, reader, err)
+	}
+}
+
+func TestGetProductFailsClosedOnForeignOrUnauthorizedProjection(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		requestID string
+		product   releasedomain.Product
+	}{
+		{name: "foreign tenant", requestID: "prod_allowed", product: releasedomain.Product{ID: "prod_allowed", TenantID: "ten_2"}},
+		{name: "wrong id", requestID: "prod_allowed", product: releasedomain.Product{ID: "prod_other", TenantID: "ten_1"}},
+		{name: "unauthorized", requestID: "prod_denied", product: releasedomain.Product{ID: "prod_denied", TenantID: "ten_1"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			reader := &productPageReaderFake{product: test.product}
+			service, err := NewProducts(reader, productAuthorizerFake{allowed: map[string]bool{"prod_allowed": true}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			product, err := service.GetProduct(t.Context(), identitydomain.Actor{TenantID: "ten_1", UserID: "usr_1"}, test.requestID)
+			if err == nil || product.ID != "" {
+				t.Fatalf("unsafe product=%#v error=%v", product, err)
+			}
+		})
 	}
 }

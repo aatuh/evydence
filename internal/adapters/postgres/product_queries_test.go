@@ -60,6 +60,13 @@ func TestPageProductsUsesTenantBoundKeysetAndGrantFilter(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	product, err := store.GetProduct(ctx, "ten_page", "prod_a")
+	if err != nil || product.ID != "prod_a" || product.TenantID != "ten_page" {
+		t.Fatalf("tenant-bound product=%#v error=%v", product, err)
+	}
+	if product, err := store.GetProduct(ctx, "ten_page", "prod_other"); !errors.Is(err, releasequery.ErrNotFound) || product.ID != "" {
+		t.Fatalf("cross-tenant product=%#v error=%v", product, err)
+	}
 	request := releasequery.ProductPageRequest{TenantID: "ten_page", TenantWide: true, Page: appquery.PageRequest{PageSize: 2, Sort: appquery.SortCreatedAt, Direction: appquery.Ascending}}
 	first, err := store.PageProducts(ctx, request)
 	if err != nil || len(first.Items) != 2 || first.Items[0].ID != "prod_a" || first.Items[1].ID != "prod_b" || first.Next == nil {

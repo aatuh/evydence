@@ -2,15 +2,43 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 	releasequery "github.com/aatuh/evydence/internal/release/query"
 )
+
+// GetProduct scopes the point read in SQL before a product can be authorized
+// or returned by the application query service.
+func (s *Store) GetProduct(ctx context.Context, tenantID, id string) (releasedomain.Product, error) {
+	if s == nil || s.pool == nil || ctx == nil || strings.TrimSpace(tenantID) == "" {
+		return releasedomain.Product{}, app.ErrValidation
+	}
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return releasedomain.Product{}, releasequery.ErrNotFound
+	}
+	var product releasedomain.Product
+	err := s.pool.QueryRow(ctx, `
+		SELECT id, tenant_id, name, slug, created_at
+		FROM products
+		WHERE tenant_id = $1 AND id = $2`, tenantID, id).
+		Scan(&product.ID, &product.TenantID, &product.Name, &product.Slug, &product.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return releasedomain.Product{}, releasequery.ErrNotFound
+	}
+	if err != nil {
+		return releasedomain.Product{}, fmt.Errorf("get product: %w", err)
+	}
+	return product, nil
+}
 
 // PageProducts performs the visibility filter and keyset limit in one SQL
 // statement, so all returned product rows are from one PostgreSQL snapshot.

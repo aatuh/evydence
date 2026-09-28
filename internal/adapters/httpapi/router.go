@@ -37,7 +37,7 @@ type Server struct {
 	idempotency       idempotencyExecutor
 	identityAccess    identityAccessService
 	releaseCatalog    releaseCatalogService
-	productPages      ProductPageQuery
+	productQuery      ProductQuery
 	evidenceIngestion evidenceIngestionService
 	riskDecisions     riskDecisionService
 	packages          packageService
@@ -68,9 +68,9 @@ type ServerOptions struct {
 	// PaginationSecret authenticates opaque cursor tokens. Production callers
 	// should supply a stable, non-public secret so tokens survive restarts.
 	PaginationSecret []byte
-	// ProductPages enables bounded PostgreSQL-backed catalog pagination.
+	// ProductQuery enables bounded PostgreSQL-backed catalog reads.
 	// Local-memory servers retain the legacy in-process query path.
-	ProductPages ProductPageQuery
+	ProductQuery ProductQuery
 }
 
 func NewServer(ledger *app.Ledger) (*Server, error) {
@@ -115,7 +115,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productPages: opts.ProductPages}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery}
 	server.bindLedger(ledger)
 	if err := server.registerRoutes(); err != nil {
 		return nil, err
@@ -382,13 +382,13 @@ func (s *Server) listProducts(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.productPages != nil {
+	if s.productQuery != nil {
 		request, err := s.parsePageRequest(r, actor, "products")
 		if err != nil {
 			writeProblem(w, r, err)
 			return
 		}
-		page, err := s.productPages.ListProductsPage(r.Context(), actor, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+		page, err := s.productQuery.ListProductsPage(r.Context(), actor, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
 		if err != nil {
 			switch {
 			case errors.Is(err, releasequery.ErrValidation), errors.Is(err, appquery.ErrInvalidPage), errors.Is(err, appquery.ErrInvalidCursor):
@@ -419,6 +419,23 @@ func (s *Server) listProducts(w http.ResponseWriter, r *http.Request) {
 func (s *Server) getProduct(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
+		return
+	}
+	if s.productQuery != nil {
+		product, err := s.productQuery.GetProduct(r.Context(), actor, r.PathValue("id"))
+		if err != nil {
+			switch {
+			case errors.Is(err, releasequery.ErrValidation):
+				err = app.ErrValidation
+			case errors.Is(err, releasequery.ErrNotFound):
+				err = app.ErrNotFound
+			case errors.Is(err, application.ErrForbidden):
+				err = app.ErrForbidden
+			}
+			writeProblem(w, r, err)
+			return
+		}
+		writeData(w, http.StatusOK, domain.Product{ID: product.ID, TenantID: product.TenantID, Name: product.Name, Slug: product.Slug, CreatedAt: product.CreatedAt})
 		return
 	}
 	product, err := s.releaseCatalog.GetProduct(r.Context(), actor, r.PathValue("id"))

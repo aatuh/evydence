@@ -18,6 +18,7 @@ const ScopeProductRead = "product:read"
 var (
 	ErrValidation        = errors.New("invalid product query")
 	ErrInvalidProjection = errors.New("invalid product projection")
+	ErrNotFound          = errors.New("product not found")
 )
 
 // ProductPageRequest is constructed by the service, not from client-provided
@@ -31,20 +32,48 @@ type ProductPageRequest struct {
 	After             *appquery.SortKey
 }
 
-type ProductPageReader interface {
+type ProductReader interface {
 	PageProducts(context.Context, ProductPageRequest) (appquery.Result[releasedomain.Product], error)
+	GetProduct(context.Context, string, string) (releasedomain.Product, error)
 }
 
 type Products struct {
-	reader     ProductPageReader
+	reader     ProductReader
 	authorizer application.Authorizer
 }
 
-func NewProducts(reader ProductPageReader, authorizer application.Authorizer) (*Products, error) {
+func NewProducts(reader ProductReader, authorizer application.Authorizer) (*Products, error) {
 	if reader == nil || authorizer == nil {
 		return nil, ErrValidation
 	}
 	return &Products{reader: reader, authorizer: authorizer}, nil
+}
+
+func (s *Products) GetProduct(ctx context.Context, actor identitydomain.Actor, id string) (releasedomain.Product, error) {
+	if s == nil || ctx == nil || strings.TrimSpace(actor.TenantID) == "" {
+		return releasedomain.Product{}, ErrValidation
+	}
+	if err := ctx.Err(); err != nil {
+		return releasedomain.Product{}, err
+	}
+	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeProductRead, ScopeOnly: true}); err != nil {
+		return releasedomain.Product{}, err
+	}
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return releasedomain.Product{}, ErrNotFound
+	}
+	product, err := s.reader.GetProduct(ctx, actor.TenantID, id)
+	if err != nil {
+		return releasedomain.Product{}, err
+	}
+	if product.TenantID != actor.TenantID || product.ID != id {
+		return releasedomain.Product{}, ErrNotFound
+	}
+	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeProductRead, Resources: application.ResourceReferences{ProductID: id}}); err != nil {
+		return releasedomain.Product{}, err
+	}
+	return product, nil
 }
 
 func (s *Products) ListProductsPage(ctx context.Context, actor identitydomain.Actor, page appquery.PageRequest, after *appquery.SortKey) (appquery.Result[releasedomain.Product], error) {

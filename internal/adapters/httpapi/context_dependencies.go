@@ -17,10 +17,11 @@ type authenticator interface {
 	Authenticate(context.Context, string) (domain.Actor, error)
 }
 
-// ProductPageQuery is a focused, pre-authorized catalog read. Production
-// bindings apply tenant/grant filters in PostgreSQL before pagination.
-type ProductPageQuery interface {
+// ProductQuery is a focused, authorized catalog read. Production bindings
+// apply tenant/grant filters in PostgreSQL before returning records.
+type ProductQuery interface {
 	ListProductsPage(context.Context, domain.Actor, appquery.PageRequest, *appquery.SortKey) (appquery.Result[releasedomain.Product], error)
+	GetProduct(context.Context, domain.Actor, string) (releasedomain.Product, error)
 }
 
 // commandScope binds transaction-local command services without exposing the
