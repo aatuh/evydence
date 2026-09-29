@@ -92,6 +92,10 @@ one tenant-filtered statement before applying human
 resource grants. They preserve accepted, not-yet-parsed rows and return one
 document with its stored components when available, not a
 tenant-wide projection; local-memory mode retains the Ledger reader.
+Vulnerability-scan point reads now use a repeatable-read tenant snapshot to
+validate the scan's source evidence, current release/product ownership,
+parsed finding identities, and human resource grants. Accepted pending scans
+retain their empty parser fields; local-memory mode retains the Ledger reader.
 SBOM component pages now expand tenant-owned JSONB component arrays in a
 repeatable-read PostgreSQL snapshot, apply current resource grants before the
 keyset limit, and transfer only a bounded page to the API. This removes the

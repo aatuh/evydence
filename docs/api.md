@@ -528,7 +528,7 @@ Current SSO endpoints model admin-managed provider, identity-link, trust-materia
 | `GET` | `/v1/sbom-components` | Page stored SBOM components by SBOM, release, artifact, query, and exact PURL; `limit` is a transitional alias for `page_size`. PostgreSQL applies current tenant and grant filters before pagination. |
 | `POST` | `/v1/sbom-diffs` | Compare stored SBOMs. |
 | `POST` | `/v1/vulnerability-scans` | Upload normalized vulnerability scan. |
-| `GET` | `/v1/vulnerability-scans/{id}` | Read vulnerability scan metadata. |
+| `GET` | `/v1/vulnerability-scans/{id}` | Read one scan and its stored findings when parsed; accepted pending records have empty parser fields. PostgreSQL validates tenant-owned source evidence and current release/product ownership before resource-grant authorization. Scanner coverage is not independently verified. |
 | `POST` | `/v1/vulnerability-findings/{id}/decisions` | Superseding decision record. |
 | `GET` | `/v1/vulnerability-decisions` | List decision history by product, release, vulnerability, component, status, and active state. |
 | `POST` | `/v1/vulnerability-findings/{id}/workflow` | Append workflow event. |

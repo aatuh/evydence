@@ -55,6 +55,7 @@ type Server struct {
 	lifecycleEventsQuery              LifecycleEventsQuery
 	openAPIContractPointQuery         OpenAPIContractPointQuery
 	sbomPointQuery                    SBOMPointQuery
+	vulnerabilityScanPointQuery       VulnerabilityScanPointQuery
 	sbomComponentsQuery               SBOMComponentsQuery
 	sourceRepositoryQuery             SourceRepositoryQuery
 	collectorQuery                    CollectorQuery
@@ -134,6 +135,8 @@ type ServerOptions struct {
 	OpenAPIContractPointQuery OpenAPIContractPointQuery
 	// SBOMPointQuery reads one tenant-verified parsed SBOM.
 	SBOMPointQuery SBOMPointQuery
+	// VulnerabilityScanPointQuery reads one tenant-verified parsed scan.
+	VulnerabilityScanPointQuery VulnerabilityScanPointQuery
 	// SBOMComponentsQuery pages components against current tenant and grants.
 	SBOMComponentsQuery SBOMComponentsQuery
 	// SourceRepositoryQuery pages current tenant-owned source repositories.
@@ -218,7 +221,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, instanceAdminQuery: opts.InstanceAdminQuery, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, artifactPointQuery: opts.ArtifactPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, lifecycleEventsQuery: opts.LifecycleEventsQuery, openAPIContractPointQuery: opts.OpenAPIContractPointQuery, sbomPointQuery: opts.SBOMPointQuery, sbomComponentsQuery: opts.SBOMComponentsQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, collectorHealthQuery: opts.CollectorHealthQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, marketplaceCollectorQuery: opts.MarketplaceCollectorQuery, vulnerabilityPostureQuery: opts.VulnerabilityPostureQuery, controlsQuery: opts.ControlsQuery, exceptionsQuery: opts.ExceptionsQuery, vulnerabilityDecisionQuery: opts.VulnerabilityDecisionQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, instanceAdminQuery: opts.InstanceAdminQuery, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, artifactPointQuery: opts.ArtifactPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, lifecycleEventsQuery: opts.LifecycleEventsQuery, openAPIContractPointQuery: opts.OpenAPIContractPointQuery, sbomPointQuery: opts.SBOMPointQuery, vulnerabilityScanPointQuery: opts.VulnerabilityScanPointQuery, sbomComponentsQuery: opts.SBOMComponentsQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, collectorHealthQuery: opts.CollectorHealthQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, marketplaceCollectorQuery: opts.MarketplaceCollectorQuery, vulnerabilityPostureQuery: opts.VulnerabilityPostureQuery, controlsQuery: opts.ControlsQuery, exceptionsQuery: opts.ExceptionsQuery, vulnerabilityDecisionQuery: opts.VulnerabilityDecisionQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
 	server.vulnerabilityDecisionSummaryQuery = opts.VulnerabilityDecisionSummaryQuery
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
@@ -2221,6 +2224,15 @@ func (s *Server) uploadVulnerabilityScan(w http.ResponseWriter, r *http.Request)
 func (s *Server) getVulnerabilityScan(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
+		return
+	}
+	if s.vulnerabilityScanPointQuery != nil {
+		scan, err := s.vulnerabilityScanPointQuery.GetVulnerabilityScan(r.Context(), actor, r.PathValue("id"))
+		if err != nil {
+			writeProblem(w, r, mapEvidencePointQueryError(err))
+			return
+		}
+		writeData(w, http.StatusOK, vulnerabilityScanFromQuery(scan))
 		return
 	}
 	scan, err := s.evidenceIngestion.GetVulnerabilityScan(r.Context(), actor, r.PathValue("id"))

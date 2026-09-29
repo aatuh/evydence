@@ -103,6 +103,12 @@ type SBOMPointQuery interface {
 	GetSBOM(context.Context, domain.Actor, string) (evidencedomain.SBOM, error)
 }
 
+// VulnerabilityScanPointQuery resolves one parsed scan against current source
+// evidence and tenant-owned release coordinates.
+type VulnerabilityScanPointQuery interface {
+	GetVulnerabilityScan(context.Context, domain.Actor, string) (evidencedomain.VulnerabilityScan, error)
+}
+
 // SBOMComponentsQuery returns an authorized, bounded component page from
 // current tenant-owned SBOM and artifact associations.
 type SBOMComponentsQuery interface {

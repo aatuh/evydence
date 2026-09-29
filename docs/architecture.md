@@ -70,7 +70,10 @@ other reads remain open EVY-905 work. Evidence list and search pages now use
 bounded PostgreSQL keyset batches under one read-only snapshot for restricted
 human grants, with grant checks before pagination. The compatibility Ledger
 still holds authorization relationships and parser-normalization validation
-state; removing its full startup load remains open. Admin audit-log pages use
+state; removing its full startup load remains open. A focused PostgreSQL
+vulnerability-scan point read now checks source evidence and current parent
+ownership in a repeatable-read snapshot before grant authorization; it does
+not independently verify scanner coverage. Admin audit-log pages use
 tenant-filtered PostgreSQL keyset queries in the durable profile, while local
 memory mode retains its in-process chain reader. The audit-log response shape
 remains unchanged, and both modes require a tenant-wide human admin grant;

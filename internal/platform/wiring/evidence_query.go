@@ -25,6 +25,12 @@ func BuildSBOMPointQuery(reader evidencequery.SBOMPointReader) (*evidencequery.S
 	return evidencequery.NewSBOMPoints(reader)
 }
 
+// BuildVulnerabilityScanPointQuery binds parsed scans to current source and
+// release ownership without loading the worker's tenant-wide projection.
+func BuildVulnerabilityScanPointQuery(reader evidencequery.VulnerabilityScanPointReader) (*evidencequery.VulnerabilityScanPoints, error) {
+	return evidencequery.NewVulnerabilityScanPoints(reader)
+}
+
 // BuildSBOMComponentsQuery binds tenant- and grant-scoped component pages to
 // the durable reader without loading the Ledger snapshot.
 func BuildSBOMComponentsQuery(reader evidencequery.SBOMComponentReader) (*evidencequery.SBOMComponents, error) {
