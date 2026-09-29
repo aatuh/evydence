@@ -23,3 +23,15 @@ func TestNewActorNormalizesScopesAndRejectsMissingTenant(t *testing.T) {
 		t.Fatal("empty tenant was accepted")
 	}
 }
+
+func TestActorHasExplicitScopeDoesNotTreatWildcardAsInstanceAuthority(t *testing.T) {
+	if (Actor{Scopes: []string{"*"}}).HasExplicitScope("instance:admin") {
+		t.Fatal("wildcard granted explicit instance authority")
+	}
+	if !(Actor{Scopes: []string{"*", "instance:admin"}}).HasExplicitScope("instance:admin") {
+		t.Fatal("explicit instance authority was missed")
+	}
+	if (Actor{Scopes: []string{"instance:admin"}}).HasExplicitScope("") {
+		t.Fatal("empty scope matched")
+	}
+}

@@ -46,12 +46,7 @@ func requiresExplicitScope(scope string) bool {
 }
 
 func actorHasExactScope(actor domain.Actor, scope string) bool {
-	for _, got := range actor.Scopes {
-		if got == scope {
-			return true
-		}
-	}
-	return false
+	return actor.HasExplicitScope(scope)
 }
 
 func canonicalHash(item domain.EvidenceItem) (string, error) {

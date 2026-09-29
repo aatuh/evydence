@@ -52,6 +52,10 @@ release artifacts.
 
 ### Changed
 
+- The instance-admin snapshot now counts current PostgreSQL records in one
+  aggregate read instead of relying on the in-process Ledger projection.
+  The explicit `instance:admin` requirement and counts-only response remain.
+
 - Collector health reports now read one tenant-owned collector plus its latest
   and pinned release through a bounded, consistent PostgreSQL snapshot.
   Human sessions need a current tenant-level `collector:read` grant in both

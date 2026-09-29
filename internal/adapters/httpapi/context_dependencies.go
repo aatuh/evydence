@@ -28,6 +28,12 @@ type Authenticator interface {
 	Authenticate(context.Context, string) (domain.Actor, error)
 }
 
+// InstanceAdminQuery returns aggregate operational counts only after the
+// focused service verifies explicit instance-wide authority.
+type InstanceAdminQuery interface {
+	Snapshot(context.Context, domain.Actor) (operationsdomain.InstanceAdminSnapshot, error)
+}
+
 // ProductQuery is a focused, authorized catalog read. Production bindings
 // apply tenant/grant filters in PostgreSQL before returning records.
 type ProductQuery interface {

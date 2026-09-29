@@ -19,6 +19,15 @@ func (s *Server) instanceAdminSnapshot(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if s.instanceAdminQuery != nil {
+		snapshot, err := s.instanceAdminQuery.Snapshot(r.Context(), actor)
+		if err != nil {
+			writeProblem(w, r, mapInstanceAdminQueryError(err))
+			return
+		}
+		writeData(w, http.StatusOK, instanceAdminSnapshotFromQuery(snapshot))
+		return
+	}
 	snapshot, err := s.ledger.InstanceAdminSnapshot(r.Context(), actor)
 	if err != nil {
 		writeProblem(w, r, err)

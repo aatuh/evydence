@@ -444,7 +444,7 @@ Important scope boundaries:
 | `GET` | `/v1/version` | Immutable build identity and release-input-manifest digest. |
 | `GET` | `/v1/metrics` | Tenant-safe counts; admin scope required. |
 | `GET` | `/v1/openapi.json` | Generated OpenAPI. |
-| `GET` | `/v1/admin/instance` | Low-detail instance counts; `instance:admin` required. |
+| `GET` | `/v1/admin/instance` | Low-detail instance counts from one PostgreSQL snapshot in the durable profile; explicit `instance:admin` required. No tenant identifiers, evidence payloads, or credential material are returned. |
 | `GET` | `/v1/admin/readiness` | Vetted readiness diagnostics; `instance:admin` required. |
 
 ### Identity And Administration

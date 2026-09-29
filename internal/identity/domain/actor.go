@@ -40,3 +40,18 @@ func (actor Actor) HasScope(scope string) bool {
 	}
 	return false
 }
+
+// HasExplicitScope never treats a tenant wildcard as authority for an
+// instance-wide operation.
+func (actor Actor) HasExplicitScope(scope string) bool {
+	scope = strings.TrimSpace(scope)
+	if scope == "" {
+		return false
+	}
+	for _, candidate := range actor.Scopes {
+		if candidate == scope {
+			return true
+		}
+	}
+	return false
+}

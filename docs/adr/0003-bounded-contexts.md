@@ -350,8 +350,10 @@ API-compatible.
 4. EVY-905 installs one composition root and database-backed context query
    services. HTTP and worker wiring then receive only focused services.
    Collector health now reads the tenant-owned collector and latest/pinned
-   release records under one PostgreSQL snapshot; other Ledger-compatible
-   reads remain transitional until their focused queries are installed.
+   release records under one PostgreSQL snapshot. Instance-admin counts now
+   come from a single aggregate database snapshot guarded by an explicit
+   instance scope; other Ledger-compatible reads remain transitional until
+   their focused queries are installed.
 5. EVY-906 removes production `Ledger` construction and its forwarding
    methods, deletes obsolete aliases only after every caller has moved, and
    makes an import-graph violation fail the build gate.

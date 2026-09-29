@@ -37,6 +37,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string) (httpapi.ServerOption
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create authenticator: %w", err)
 	}
+	options.InstanceAdminQuery, err = BuildInstanceAdminQuery(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create instance admin query: %w", err)
+	}
 	options.ProductQuery, err = BuildProductQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create product query: %w", err)

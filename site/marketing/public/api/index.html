@@ -160,13 +160,13 @@
         </div>
         <div class="operations" id="operations">
           
-          <article class="operation" data-operation data-search="get /v1/admin/instance instance admin snapshot returns instance-level diagnostic counts. requires the explicit instance:admin scope; tenant admin and ordinary wildcard tenant keys are insufficient. instanceadminsnapshot evydence instance:admin">
+          <article class="operation" data-operation data-search="get /v1/admin/instance instance admin snapshot returns instance-level diagnostic counts from one current database snapshot in the postgresql profile. requires the explicit instance:admin scope; tenant admin and ordinary wildcard tenant keys are insufficient. the response omits tenant identifiers, evidence payloads, and credential material. instanceadminsnapshot evydence instance:admin">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/admin/instance</code>
             </div>
             <h3>Instance admin snapshot</h3>
-            <p>Returns instance-level diagnostic counts. Requires the explicit instance:admin scope; tenant admin and ordinary wildcard tenant keys are insufficient.</p>
+            <p>Returns instance-level diagnostic counts from one current database snapshot in the PostgreSQL profile. Requires the explicit instance:admin scope; tenant admin and ordinary wildcard tenant keys are insufficient. The response omits tenant identifiers, evidence payloads, and credential material.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>instanceAdminSnapshot</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
