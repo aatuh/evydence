@@ -42,6 +42,13 @@ type BuildPointQuery interface {
 	GetBuildRun(context.Context, domain.Actor, string) (releasedomain.BuildRun, error)
 }
 
+// ReleaseCandidateQuery reads one tenant-verified candidate or a SQL-filtered
+// page using current release and product ownership.
+type ReleaseCandidateQuery interface {
+	GetReleaseCandidate(context.Context, domain.Actor, string) (releasedomain.ReleaseCandidate, error)
+	ListPage(context.Context, domain.Actor, string, appquery.PageRequest, *appquery.SortKey) (appquery.Result[releasedomain.ReleaseCandidate], error)
+}
+
 // DeploymentPointQuery authorizes a deployment against its current tenant-owned
 // release and environment without consulting the Ledger projection.
 type DeploymentPointQuery interface {

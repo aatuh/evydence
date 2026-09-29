@@ -177,6 +177,7 @@ func runWithContext(ctx context.Context) error {
 	var productQuery httpapi.ProductQuery
 	var catalogPointQuery httpapi.CatalogPointQuery
 	var buildPointQuery httpapi.BuildPointQuery
+	var releaseCandidateQuery httpapi.ReleaseCandidateQuery
 	var deploymentPointQuery httpapi.DeploymentPointQuery
 	var deploymentListQuery httpapi.DeploymentListQuery
 	var evidencePointQuery httpapi.EvidencePointQuery
@@ -201,6 +202,10 @@ func runWithContext(ctx context.Context) error {
 		buildPointQuery, err = wiring.BuildBuildPointQuery(runtime.Postgres)
 		if err != nil {
 			return fmt.Errorf("create build point query: %w", err)
+		}
+		releaseCandidateQuery, err = wiring.BuildReleaseCandidateQuery(runtime.Postgres)
+		if err != nil {
+			return fmt.Errorf("create release candidate query: %w", err)
 		}
 		deploymentPointQuery, err = wiring.BuildDeploymentPointQuery(runtime.Postgres)
 		if err != nil {
@@ -246,6 +251,7 @@ func runWithContext(ctx context.Context) error {
 		ProductQuery:                     productQuery,
 		CatalogPointQuery:                catalogPointQuery,
 		BuildPointQuery:                  buildPointQuery,
+		ReleaseCandidateQuery:            releaseCandidateQuery,
 		DeploymentPointQuery:             deploymentPointQuery,
 		DeploymentListQuery:              deploymentListQuery,
 		EvidencePointQuery:               evidencePointQuery,

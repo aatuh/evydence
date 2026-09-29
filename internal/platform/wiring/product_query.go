@@ -21,3 +21,9 @@ func BuildCatalogPointQuery(reader releasequery.CatalogPointReader) (*releaseque
 func BuildBuildPointQuery(reader releasequery.BuildPointReader) (*releasequery.BuildPoints, error) {
 	return releasequery.NewBuildPoints(reader, releasequery.NewCatalogAuthorizer())
 }
+
+// BuildReleaseCandidateQuery binds current tenant-owned release/product
+// projections to the release-catalog read policy.
+func BuildReleaseCandidateQuery(reader releasequery.ReleaseCandidateReader) (*releasequery.ReleaseCandidates, error) {
+	return releasequery.NewReleaseCandidates(reader, releasequery.NewCatalogAuthorizer())
+}

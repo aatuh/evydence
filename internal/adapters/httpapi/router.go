@@ -44,6 +44,7 @@ type Server struct {
 	productQuery          ProductQuery
 	catalogPointQuery     CatalogPointQuery
 	buildPointQuery       BuildPointQuery
+	releaseCandidateQuery ReleaseCandidateQuery
 	deploymentPointQuery  DeploymentPointQuery
 	deploymentListQuery   DeploymentListQuery
 	evidencePointQuery    EvidencePointQuery
@@ -92,6 +93,8 @@ type ServerOptions struct {
 	CatalogPointQuery CatalogPointQuery
 	// BuildPointQuery reads current build and parent coordinates in PostgreSQL.
 	BuildPointQuery BuildPointQuery
+	// ReleaseCandidateQuery reads candidate points and pages from PostgreSQL.
+	ReleaseCandidateQuery ReleaseCandidateQuery
 	// DeploymentPointQuery reads one tenant-owned deployment and parent projection.
 	DeploymentPointQuery DeploymentPointQuery
 	// DeploymentListQuery pages environments and events with SQL-side grants.
@@ -150,7 +153,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
 		server.authn = opts.Authenticator
@@ -652,6 +655,24 @@ func (s *Server) listReleaseCandidates(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if s.releaseCandidateQuery != nil {
+		request, err := s.parsePageRequest(r, actor, "release-candidates", "release_id")
+		if err != nil {
+			writeProblem(w, r, err)
+			return
+		}
+		page, err := s.releaseCandidateQuery.ListPage(r.Context(), actor, r.URL.Query().Get("release_id"), appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+		if err != nil {
+			writeProblem(w, r, mapReleaseCandidateQueryError(err))
+			return
+		}
+		mapped := appquery.Result[domain.ReleaseCandidate]{Next: page.Next, Items: make([]domain.ReleaseCandidate, 0, len(page.Items))}
+		for _, candidate := range page.Items {
+			mapped.Items = append(mapped.Items, releaseCandidateFromQuery(candidate))
+		}
+		writePage(s, w, r, actor, "release-candidates", request, mapped)
+		return
+	}
 	candidates, err := s.releaseCatalog.ListReleaseCandidates(r.Context(), actor, r.URL.Query().Get("release_id"))
 	if err != nil {
 		writeProblem(w, r, err)
@@ -665,6 +686,15 @@ func (s *Server) listReleaseCandidates(w http.ResponseWriter, r *http.Request) {
 func (s *Server) getReleaseCandidate(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
+		return
+	}
+	if s.releaseCandidateQuery != nil {
+		candidate, err := s.releaseCandidateQuery.GetReleaseCandidate(r.Context(), actor, r.PathValue("id"))
+		if err != nil {
+			writeProblem(w, r, mapReleaseCandidateQueryError(err))
+			return
+		}
+		writeData(w, http.StatusOK, releaseCandidateFromQuery(candidate))
 		return
 	}
 	candidate, err := s.releaseCatalog.GetReleaseCandidate(r.Context(), actor, r.PathValue("id"))
