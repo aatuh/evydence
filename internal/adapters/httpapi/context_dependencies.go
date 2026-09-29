@@ -81,6 +81,11 @@ type CollectorQuery interface {
 	ListPage(context.Context, domain.Actor, appquery.PageRequest, *appquery.SortKey) (appquery.Result[integrationdomain.Collector], error)
 }
 
+// CommercialCollectorQuery pages tenant-owned integration definitions.
+type CommercialCollectorQuery interface {
+	ListPage(context.Context, domain.Actor, appquery.PageRequest, *appquery.SortKey) (appquery.Result[integrationdomain.CommercialCollectorDefinition], error)
+}
+
 // ControlsQuery reads tenant-wide governance definitions from durable storage.
 type ControlsQuery interface {
 	ListFrameworksPage(context.Context, domain.Actor, appquery.PageRequest, *appquery.SortKey) (appquery.Result[riskdomain.ControlFramework], error)

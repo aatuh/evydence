@@ -534,7 +534,7 @@ Current SSO endpoints model admin-managed provider, identity-link, trust-materia
 | `POST` | `/v1/collectors/{id}/releases` | Record collector release evidence. |
 | `GET` | `/v1/collectors/{id}/health` | Collector health report. |
 | `POST` | `/v1/commercial-collectors` | Create commercial collector definition. |
-| `GET` | `/v1/commercial-collectors` | List commercial collector definitions. |
+| `GET` | `/v1/commercial-collectors` | List tenant-owned commercial collector definitions; human sessions need a tenant-level `collector:read` grant. |
 | `POST` | `/v1/marketplace-collectors` | Register marketplace collector package metadata. |
 | `GET` | `/v1/marketplace-collectors` | List marketplace collector package records. |
 | `GET` | `/v1/marketplace-collectors/{id}/health` | Review marketplace collector package evidence gaps. |

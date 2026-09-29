@@ -41,7 +41,7 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if options.Authenticator == nil || options.ProductQuery == nil || options.CatalogPointQuery == nil ||
 		options.BuildPointQuery == nil || options.ReleaseCandidateQuery == nil || options.DeploymentPointQuery == nil ||
 		options.DeploymentListQuery == nil || options.EvidencePointQuery == nil || options.SourceRepositoryQuery == nil ||
-		options.CollectorQuery == nil || options.ControlsQuery == nil || options.ArtifactSignatureQuery == nil ||
+		options.CollectorQuery == nil || options.CommercialCollectorQuery == nil || options.ControlsQuery == nil || options.ArtifactSignatureQuery == nil ||
 		options.ReleaseBundleQuery == nil || options.AnswerLibraryQuery == nil || options.AuditLogQuery == nil ||
 		options.SigningKeyQuery == nil ||
 		options.PortalAccessQuery == nil || options.APIKeyQuery == nil || options.RoleBindingQuery == nil {

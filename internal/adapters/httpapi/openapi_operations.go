@@ -685,7 +685,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Commercial collector definition request.", "#/components/schemas/CreateCommercialCollectorRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created commercial collector definition envelope.", "#/components/schemas/CommercialCollectorDefinitionEnvelope")
 	case "listCommercialCollectors":
-		operation.Description = "Lists tenant-scoped commercial collector definitions."
+		operation.Description = "Lists tenant-scoped commercial collector definitions under collector:read; human sessions require a current tenant-level grant. PostgreSQL results are keyset-paginated."
 		operation.Responses[http.StatusOK] = jsonResponse("Commercial collector definition list envelope.", "#/components/schemas/CommercialCollectorDefinitionListEnvelope")
 	case "createMarketplaceCollector":
 		operation.Description = "Creates tenant-scoped marketplace collector package metadata and evidence references."

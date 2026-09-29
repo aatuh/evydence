@@ -619,13 +619,13 @@
               <div><dt>Responses</dt><dd>201 application/json: CollectorReleaseEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/commercial-collectors list commercial collector definitions lists tenant-scoped commercial collector definitions. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listcommercialcollectors evydence collector:read">
+          <article class="operation" data-operation data-search="get /v1/commercial-collectors list commercial collector definitions lists tenant-scoped commercial collector definitions under collector:read; human sessions require a current tenant-level grant. postgresql results are keyset-paginated. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listcommercialcollectors evydence collector:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/commercial-collectors</code>
             </div>
             <h3>List commercial collector definitions</h3>
-            <p>Lists tenant-scoped commercial collector definitions. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
+            <p>Lists tenant-scoped commercial collector definitions under collector:read; human sessions require a current tenant-level grant. PostgreSQL results are keyset-paginated. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listCommercialCollectors</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

@@ -73,6 +73,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string) (httpapi.ServerOption
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create collector query: %w", err)
 	}
+	options.CommercialCollectorQuery, err = BuildCommercialCollectorQuery(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create commercial collector query: %w", err)
+	}
 	options.ControlsQuery, err = BuildControlsQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create controls query: %w", err)

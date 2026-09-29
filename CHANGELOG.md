@@ -52,6 +52,10 @@ release artifacts.
 
 ### Changed
 
+- Commercial collector-definition lists now use tenant-filtered PostgreSQL
+  keyset pagination. Human sessions require a current tenant-level
+  `collector:read` grant in both PostgreSQL and local-memory modes.
+
 - Signing-key lists now use tenant-filtered, keyset-paginated PostgreSQL reads
   that never select encrypted private key material; local-memory mode retains
   its compatibility list.

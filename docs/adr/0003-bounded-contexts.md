@@ -84,6 +84,8 @@ parentage and filters grants before the keyset limit. Collector inventory
 pages use an integration-owned tenant-scoped query; human sessions
 need a current tenant-level `collector:read` grant, while issued credentials
 remain scope-bound. The query does not select credential secrets or hashes.
+Commercial collector-definition pages use the same integration-owned tenant
+authorization boundary and a SQL-side keyset limit.
 Governance framework pages and control points use a risk-owned query; a
 control must resolve to a framework in the same tenant before it is returned.
 Signing-key pages use a verification-owned tenant-scoped query that selects

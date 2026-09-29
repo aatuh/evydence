@@ -36,39 +36,40 @@ type requestContext = context.Context
 const requestIDHeader = "X-Request-ID"
 
 type Server struct {
-	ledger                 *app.Ledger
-	authn                  Authenticator
-	idempotency            idempotencyExecutor
-	identityAccess         identityAccessService
-	releaseCatalog         releaseCatalogService
-	productQuery           ProductQuery
-	catalogPointQuery      CatalogPointQuery
-	buildPointQuery        BuildPointQuery
-	releaseCandidateQuery  ReleaseCandidateQuery
-	deploymentPointQuery   DeploymentPointQuery
-	deploymentListQuery    DeploymentListQuery
-	evidencePointQuery     EvidencePointQuery
-	sourceRepositoryQuery  SourceRepositoryQuery
-	collectorQuery         CollectorQuery
-	controlsQuery          ControlsQuery
-	artifactSignatureQuery ArtifactSignatureQuery
-	signingKeyQuery        SigningKeyQuery
-	releaseBundleQuery     ReleaseBundleQuery
-	answerLibraryQuery     AnswerLibraryQuery
-	portalAccessQuery      PortalAccessQuery
-	auditLogQuery          AuditLogQuery
-	apiKeyQuery            APIKeyQuery
-	roleBindingQuery       RoleBindingQuery
-	evidenceIngestion      evidenceIngestionService
-	riskDecisions          riskDecisionService
-	packages               packageService
-	verification           verificationService
-	mux                    *http.ServeMux
-	specs                  *specs.Registry
-	routes                 *routecontracts.Registry
-	ingress                *ingressControl
-	identity               runtimeinfo.Identity
-	cursors                appquery.CursorCodec
+	ledger                   *app.Ledger
+	authn                    Authenticator
+	idempotency              idempotencyExecutor
+	identityAccess           identityAccessService
+	releaseCatalog           releaseCatalogService
+	productQuery             ProductQuery
+	catalogPointQuery        CatalogPointQuery
+	buildPointQuery          BuildPointQuery
+	releaseCandidateQuery    ReleaseCandidateQuery
+	deploymentPointQuery     DeploymentPointQuery
+	deploymentListQuery      DeploymentListQuery
+	evidencePointQuery       EvidencePointQuery
+	sourceRepositoryQuery    SourceRepositoryQuery
+	collectorQuery           CollectorQuery
+	commercialCollectorQuery CommercialCollectorQuery
+	controlsQuery            ControlsQuery
+	artifactSignatureQuery   ArtifactSignatureQuery
+	signingKeyQuery          SigningKeyQuery
+	releaseBundleQuery       ReleaseBundleQuery
+	answerLibraryQuery       AnswerLibraryQuery
+	portalAccessQuery        PortalAccessQuery
+	auditLogQuery            AuditLogQuery
+	apiKeyQuery              APIKeyQuery
+	roleBindingQuery         RoleBindingQuery
+	evidenceIngestion        evidenceIngestionService
+	riskDecisions            riskDecisionService
+	packages                 packageService
+	verification             verificationService
+	mux                      *http.ServeMux
+	specs                    *specs.Registry
+	routes                   *routecontracts.Registry
+	ingress                  *ingressControl
+	identity                 runtimeinfo.Identity
+	cursors                  appquery.CursorCodec
 }
 
 type ServerOptions struct {
@@ -112,6 +113,8 @@ type ServerOptions struct {
 	SourceRepositoryQuery SourceRepositoryQuery
 	// CollectorQuery pages durable collector inventory for the PostgreSQL profile.
 	CollectorQuery CollectorQuery
+	// CommercialCollectorQuery pages tenant-owned integration definitions.
+	CommercialCollectorQuery CommercialCollectorQuery
 	// ControlsQuery reads framework pages and tenant-owned control points.
 	ControlsQuery ControlsQuery
 	// ArtifactSignatureQuery reads tenant-owned signature points from PostgreSQL.
@@ -174,7 +177,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, controlsQuery: opts.ControlsQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, controlsQuery: opts.ControlsQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
 		server.authn = opts.Authenticator
@@ -2875,6 +2878,24 @@ func (s *Server) createCommercialCollector(w http.ResponseWriter, r *http.Reques
 func (s *Server) listCommercialCollectors(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
+		return
+	}
+	if s.commercialCollectorQuery != nil {
+		request, err := s.parsePageRequest(r, actor, "commercial-collectors")
+		if err != nil {
+			writeProblem(w, r, err)
+			return
+		}
+		result, err := s.commercialCollectorQuery.ListPage(r.Context(), actor, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+		if err != nil {
+			writeProblem(w, r, mapCommercialCollectorQueryError(err))
+			return
+		}
+		page := appquery.Result[domain.CommercialCollectorDefinition]{Next: result.Next, Items: make([]domain.CommercialCollectorDefinition, 0, len(result.Items))}
+		for _, definition := range result.Items {
+			page.Items = append(page.Items, commercialCollectorFromQuery(definition))
+		}
+		writePage(s, w, r, actor, "commercial-collectors", request, page)
 		return
 	}
 	definitions, err := s.ledger.ListCommercialCollectorDefinitions(r.Context(), actor)

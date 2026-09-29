@@ -837,6 +837,9 @@ func (l *Ledger) ListCommercialCollectorDefinitions(ctx context.Context, actor d
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.authorizeResourceLocked(actor, ScopeCollectorRead, resourceRefs{}); err != nil {
+		return nil, err
+	}
 	out := []domain.CommercialCollectorDefinition{}
 	for _, def := range l.commercialCollectors {
 		if def.TenantID == actor.TenantID {
