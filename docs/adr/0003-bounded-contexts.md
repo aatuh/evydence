@@ -103,8 +103,9 @@ bundle point reader, and verification jobs read one tenant- and subject-bound
 result. Attestation jobs read one source-validated, tenant-scoped build
 attestation before lease-fenced replay. VEX jobs use a claimed-document and
 same-release dependency snapshot, while their audit append still loads the
-tenant's full chain. Operator replay and API startup retain broader
-compatibility reads pending EVY-905.
+tenant's full chain. Operator replay uses a focused source/marker read but
+also loads the tenant's full audit chain. API startup retains a broad
+compatibility read pending EVY-905.
 OpenAPI contract point reads require the linked source evidence to have the
 `openapi_contract` type.
 VEX document and import-report point reads validate tenant-owned source,

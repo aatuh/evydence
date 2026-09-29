@@ -66,6 +66,14 @@ func TestStoreApplyParserReplayIsIdempotentAcrossStaleConcurrentSnapshots(t *tes
 	if err := store.ApplyReleaseLedgerMutation(ctx, app.ReleaseLedgerMutation{Evidence: []domain.EvidenceItem{source}}); err != nil {
 		t.Fatalf("seed source evidence: %v", err)
 	}
+	focused, ok, err := store.LoadParserReplayState(ctx, tenantID, source.ID, app.ParserVersionScannerAdaptersJSON)
+	if err != nil || !ok || len(focused.Evidence) != 1 || focused.Evidence[source.ID].ID != source.ID || len(focused.Chain[tenantID]) != 0 || len(focused.Scans) != 0 {
+		t.Fatalf("focused parser replay source=%#v chain=%#v ok=%v error=%v", focused.Evidence, focused.Chain, ok, err)
+	}
+	foreign, ok, err := store.LoadParserReplayState(ctx, "ten_other", source.ID, app.ParserVersionScannerAdaptersJSON)
+	if err != nil || !ok || len(foreign.Evidence) != 0 || len(foreign.Chain) != 0 {
+		t.Fatalf("foreign parser replay source=%#v chain=%#v ok=%v error=%v", foreign.Evidence, foreign.Chain, ok, err)
+	}
 
 	raw := []byte(`{"scanner":"generic","target_ref":"pkg:oci/api","release_id":"rel_parser","findings":[]}`)
 	staleSource := source
@@ -169,6 +177,10 @@ func TestStoreApplyParserReplayIsIdempotentAcrossStaleConcurrentSnapshots(t *tes
 	}
 	if got := state.Chain[tenantID]; len(got) != 1 || got[0].SubjectID != persistedID {
 		t.Fatalf("durable parser replay audit chain = %#v", got)
+	}
+	focused, ok, err = store.LoadParserReplayState(ctx, tenantID, source.ID, app.ParserVersionScannerAdaptersJSON)
+	if err != nil || !ok || len(focused.Evidence) != 2 || focused.Evidence[persistedID].ID != persistedID || len(focused.Chain[tenantID]) != 1 {
+		t.Fatalf("focused existing replay marker=%#v chain=%#v ok=%v error=%v", focused.Evidence, focused.Chain, ok, err)
 	}
 }
 

@@ -2326,6 +2326,8 @@ func TestParseParserReplayArgsRejectsUnsafeInputAndNormalizesScope(t *testing.T)
 
 type replayStoreStub struct {
 	state            app.PersistedState
+	broadLoads       int
+	focusedLoads     int
 	saved            int
 	broadSaves       int
 	focusedMutations int
@@ -2339,6 +2341,7 @@ func (s *replayStoreStub) Close()                                               
 func (s *replayStoreStub) ApplyMigrations(context.Context, string) (int, error)     { return 0, nil }
 func (s *replayStoreStub) RequireNoPendingMigrations(context.Context, string) error { return nil }
 func (s *replayStoreStub) LoadState(context.Context) (app.PersistedState, bool, error) {
+	s.broadLoads++
 	body, err := json.Marshal(s.state)
 	if err != nil {
 		return app.PersistedState{}, false, err
@@ -2346,6 +2349,28 @@ func (s *replayStoreStub) LoadState(context.Context) (app.PersistedState, bool, 
 	var snapshot app.PersistedState
 	if err := json.Unmarshal(body, &snapshot); err != nil {
 		return app.PersistedState{}, false, err
+	}
+	if s.afterLoad != nil {
+		afterLoad := s.afterLoad
+		s.afterLoad = nil
+		afterLoad(&s.state)
+	}
+	return snapshot, true, nil
+}
+func (s *replayStoreStub) LoadParserReplayState(_ context.Context, tenantID, evidenceID, parserVersion string) (app.PersistedState, bool, error) {
+	s.focusedLoads++
+	item, ok := s.state.Evidence[evidenceID]
+	if !ok || item.TenantID != tenantID {
+		return app.PersistedState{}, true, nil
+	}
+	snapshot := app.PersistedState{Evidence: map[string]domain.EvidenceItem{evidenceID: item}, Chain: map[string][]domain.AuditChainEntry{tenantID: append([]domain.AuditChainEntry(nil), s.state.Chain[tenantID]...)}}
+	for id, candidate := range s.state.Evidence {
+		parser, _ := candidate.Metadata["parser"].(map[string]any)
+		version, _ := parser["version"].(string)
+		replayOf, _ := candidate.Metadata["replay_of"].(string)
+		if candidate.TenantID == tenantID && candidate.Type == "parser_normalization" && replayOf == evidenceID && version == parserVersion {
+			snapshot.Evidence[id] = candidate
+		}
 	}
 	if s.afterLoad != nil {
 		afterLoad := s.afterLoad
@@ -2414,7 +2439,7 @@ func TestRunParserReplayAppendsVerifiedDerivedRecordAndIsIdempotent(t *testing.T
 	t.Setenv("EVYDENCE_DATABASE_URL", "postgres://test")
 	t.Setenv("EVYDENCE_RUNTIME_PROFILE", "postgres")
 	args := []string{"--tenant", "ten_test", "--evidence", "ev_source", "--parser-version", app.ParserVersionScannerAdaptersJSON, "--actor", "operator", "--apply"}
-	if err := runParserReplay(args); err != nil || stub.saved != 1 || stub.focusedMutations != 1 || stub.broadSaves != 0 || len(stub.state.Evidence) != 2 || !stub.closed {
+	if err := runParserReplay(args); err != nil || stub.saved != 1 || stub.focusedMutations != 1 || stub.broadSaves != 0 || stub.broadLoads != 0 || stub.focusedLoads != 1 || len(stub.state.Evidence) != 2 || !stub.closed {
 		t.Fatalf("first replay err=%v saved=%d state=%#v closed=%v", err, stub.saved, stub.state, stub.closed)
 	}
 	if err := runParserReplay(args); err != nil || stub.saved != 1 {

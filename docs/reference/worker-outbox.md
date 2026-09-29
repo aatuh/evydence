@@ -125,8 +125,10 @@ tenant-scoped attestation only when its current build/project/release/product
 and immutable source evidence agree on ownership, source type, payload digest,
 size, and reference. Its replay mutation remains lease-fenced. VEX decision
 and report mutations remain lease-fenced too. Operator-triggered parser replay
-and the API's startup Ledger construction still use broad compatibility state
-reads; removing those reads remains EVY-905 work.
+reads its tenant-owned source, same-version marker if present, and tenant audit
+chain under a repeatable-read snapshot; the apply transaction revalidates the
+current source and marker. API startup still constructs broad Ledger state,
+and bounding audit-chain reads remains EVY-905 work.
 
 ## PostgreSQL projection consistency
 

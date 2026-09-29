@@ -49,7 +49,7 @@ var expectedParserVersions = map[string]string{
 }
 
 type parserReplayStore interface {
-	LoadState(context.Context) (app.PersistedState, bool, error)
+	LoadParserReplayState(context.Context, string, string, string) (app.PersistedState, bool, error)
 	ApplyParserReplay(context.Context, app.ParserReplayRequest, app.ReleaseLedgerMutation) (string, bool, error)
 }
 
@@ -178,7 +178,7 @@ func runParserReplay(args []string) error {
 	}
 	defer runtime.close()
 	store := runtime.store
-	state, ok, err := store.LoadState(ctx)
+	state, ok, err := store.LoadParserReplayState(ctx, request.TenantID, request.EvidenceID, request.ParserVersion)
 	if err != nil || !ok {
 		return errors.New("parser-replay could not load durable state")
 	}

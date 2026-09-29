@@ -45,7 +45,7 @@ func TestRunParserReplayUsesSharedRuntimeWithLivePostgres(t *testing.T) {
 	t.Setenv("EVYDENCE_OBJECT_STORE", "filesystem")
 	t.Setenv("EVYDENCE_OBJECT_DIR", t.TempDir())
 	args := []string{"--tenant", "ten_missing", "--evidence", "ev_missing", "--parser-version", app.ParserVersionSPDXJSON, "--actor", "operator", "--apply"}
-	if err := runParserReplay(args); err == nil || !strings.Contains(err.Error(), "could not load durable state") {
+	if err := runParserReplay(args); err == nil || !strings.Contains(err.Error(), "source evidence not found") {
 		t.Fatalf("parser replay did not reach the empty durable state: %v", err)
 	}
 	store, err := postgres.Open(ctx, databaseURL)
