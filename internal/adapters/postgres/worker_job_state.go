@@ -65,6 +65,11 @@ func (s *Store) LoadWorkerJobState(ctx context.Context, job ClaimedJob) (app.Per
 		if err == nil {
 			state.BuildAttestations = map[string]domain.BuildAttestation{job.SubjectID: attestation}
 		}
+	case "parse_vex":
+		if job.SubjectType != "" && job.SubjectType != "vex_document" {
+			return state, false, app.ErrValidation
+		}
+		state, err = s.loadWorkerVEXJobState(ctx, job)
 	case "sign_bundle":
 		if job.SubjectType != "" && job.SubjectType != "release_bundle" {
 			return state, false, app.ErrValidation

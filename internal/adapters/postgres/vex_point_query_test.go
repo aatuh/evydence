@@ -6,7 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/domain"
 	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
@@ -73,6 +75,40 @@ func TestPostgresVEXPointsCheckCurrentParentsAndReportLinkage(t *testing.T) {
 	if err != nil || report.ID != "report_good" || report.Status != "parsed" || len(report.MappingFailures) != 1 || report.MappingFailures[0].Code != "unmatched" || len(report.Warnings) != 1 || len(report.UnsupportedFields) != 1 {
 		t.Fatalf("report=%#v error=%v", report, err)
 	}
+	job := ClaimedJob{TenantID: "ten_vex_point", Kind: "parse_vex", SubjectType: "vex_document", SubjectID: "vex_good", Payload: map[string]any{"import_report_id": "report_good"}}
+	state, ok, err := store.LoadWorkerJobState(ctx, job)
+	if err != nil || !ok || len(state.VEXDocuments) != 1 || state.VEXDocuments[job.SubjectID].EvidenceID != "ev_a" || len(state.VEXImportReports) != 1 || state.VEXImportReports["report_good"].Status != "parsed" || state.Evidence["ev_a"].TenantID != job.TenantID {
+		t.Fatalf("focused VEX state document=%#v report=%#v evidence=%#v ok=%v error=%v", state.VEXDocuments, state.VEXImportReports, state.Evidence, ok, err)
+	}
+	job.TenantID = "ten_other"
+	state, ok, err = store.LoadWorkerJobState(ctx, job)
+	if err != nil || !ok || len(state.VEXDocuments) != 0 || len(state.VEXImportReports) != 0 {
+		t.Fatalf("foreign VEX state document=%#v report=%#v ok=%v error=%v", state.VEXDocuments, state.VEXImportReports, ok, err)
+	}
+	for _, record := range []struct{ suffix, release, product, finding string }{{"a", "rel_a", "prod_a", "finding_a"}, {"b", "rel_b", "prod_b", "finding_b"}} {
+		if _, err := store.pool.Exec(ctx, `INSERT INTO evidence_items (id, tenant_id, product_id, release_id, type, title, source_system, observed_at, evidence_version, schema_version, payload_hash, canonical_hash, canonicalization, trust_level, verification_status, created_at) VALUES ($1, 'ten_vex_point', $2, $3, 'vulnerability_scan', 'Scan', 'test', $4, 1, 'evidence-item.v1.0.0', $5, $5, 'canonical-json.v1', 'L2', 'pending', $4)`, "ev_scan_"+record.suffix, record.product, record.release, now, "sha256:"+strings.Repeat("d", 64)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.pool.Exec(ctx, `INSERT INTO vulnerability_scans (id, tenant_id, evidence_id, release_id, scanner, target_ref, summary, findings, created_at) VALUES ($1, 'ten_vex_point', $2, $3, 'scanner', 'target', '{}'::jsonb, jsonb_build_array(jsonb_build_object('id', $4::text, 'vulnerability', 'CVE-1', 'component', 'pkg:oci/api')), $5)`, "scan_"+record.suffix, "ev_scan_"+record.suffix, record.release, record.finding, now); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.pool.Exec(ctx, `INSERT INTO vulnerability_decisions (id, tenant_id, finding_id, scan_id, release_id, vulnerability, status, justification, source, schema_version, created_at) VALUES ($1, 'ten_vex_point', $2, $3, $4, 'CVE-1', 'affected', 'test', 'manual', 'v1', $5)`, "decision_"+record.suffix, record.finding, "scan_"+record.suffix, record.release, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	auditState := app.PersistedState{Chain: map[string][]domain.AuditChainEntry{}}
+	accepted, err := app.AppendPersistedChainEntry(&auditState, now, "ten_vex_point", "vex.accepted", "vex_document", "vex_good", "api_key", "key_a", "sha256:"+strings.Repeat("a", 64), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.ApplyReleaseLedgerMutation(ctx, app.ReleaseLedgerMutation{AuditChainEntries: []domain.AuditChainEntry{accepted}}); err != nil {
+		t.Fatal(err)
+	}
+	job.TenantID = "ten_vex_point"
+	state, ok, err = store.LoadWorkerJobState(ctx, job)
+	if err != nil || !ok || len(state.Scans) != 1 || state.Scans["scan_a"].ID != "scan_a" || len(state.Decisions) != 1 || state.Decisions["decision_a"].ID != "decision_a" || len(state.Chain[job.TenantID]) != 1 || state.Chain[job.TenantID][0].ID != accepted.ID {
+		t.Fatalf("release-scoped VEX dependencies scans=%#v decisions=%#v chain=%#v ok=%v error=%v", state.Scans, state.Decisions, state.Chain, ok, err)
+	}
 	actor.ResourceGrants[0].ResourceID = "prod_b"
 	if _, err := service.GetVEXDocument(ctx, actor, "vex_good"); !errors.Is(err, application.ErrForbidden) {
 		t.Fatalf("wrong document grant error=%v", err)
@@ -98,6 +134,9 @@ func TestPostgresVEXPointsCheckCurrentParentsAndReportLinkage(t *testing.T) {
 	}
 	if _, err := service.GetVEXImportReport(ctx, actor, "vex_good"); !errors.Is(err, evidencequery.ErrConflict) {
 		t.Fatalf("unlinked report error=%v", err)
+	}
+	if _, _, err := store.LoadWorkerJobState(ctx, job); !errors.Is(err, app.ErrConflict) {
+		t.Fatalf("focused worker accepted unlinked report: %v", err)
 	}
 	if _, err := store.pool.Exec(ctx, `UPDATE vex_import_reports SET evidence_id='ev_a' WHERE id='report_good'`); err != nil {
 		t.Fatal(err)

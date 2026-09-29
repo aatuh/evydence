@@ -101,8 +101,10 @@ OpenAPI contract point readers to hydrate only a claimed parser subject.
 Parser writes remain lease-fenced. Signing jobs reuse the tenant-scoped release
 bundle point reader, and verification jobs read one tenant- and subject-bound
 result. Attestation jobs read one source-validated, tenant-scoped build
-attestation before lease-fenced replay. VEX jobs still use broader
-compatibility reads.
+attestation before lease-fenced replay. VEX jobs use a claimed-document and
+same-release dependency snapshot, while their audit append still loads the
+tenant's full chain. Operator replay and API startup retain broader
+compatibility reads pending EVY-905.
 OpenAPI contract point reads require the linked source evidence to have the
 `openapi_contract` type.
 VEX document and import-report point reads validate tenant-owned source,

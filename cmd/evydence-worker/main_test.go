@@ -189,6 +189,44 @@ func TestProcessFocusedAttestationReplayKeepsClaimedMutationFence(t *testing.T) 
 	}
 }
 
+func TestProcessVEXDecisionJobUsesFocusedClaimedState(t *testing.T) {
+	t.Parallel()
+	job, state := normalizedVEXWorkerFixture(t,
+		[]map[string]any{normalizedVEXTestStatement(1, "CVE-1", "pkg:oci/api", "fixed")},
+		map[string]int{"fixed": 1})
+	job.LeaseToken = "lease_vex"
+	state.Scans = map[string]domain.VulnerabilityScan{
+		"scan_test": {ID: "scan_test", TenantID: job.TenantID, ReleaseID: "rel_test", Findings: []domain.VulnerabilityFinding{{ID: "finding_1", Vulnerability: "CVE-1", Component: "pkg:oci/api"}}},
+	}
+	store := &fakeFocusedParserStateStore{state: state}
+	if err := processJobWithObjects(t.Context(), store, nil, job); err != nil {
+		t.Fatalf("process focused VEX decision job: %v", err)
+	}
+	if store.loadCalls != 0 || len(store.focusedJobs) < 2 || store.jobID != job.ID || store.leaseToken != job.LeaseToken || len(store.mutation.VulnerabilityDecisions) != 1 || len(store.mutation.VEXImportReports) != 1 || store.mutation.VEXImportReports[0].Status != "parsed" {
+		t.Fatalf("focused VEX loads=%d jobs=%d claimed=%q/%q mutation=%#v", store.loadCalls, len(store.focusedJobs), store.jobID, store.leaseToken, store.mutation)
+	}
+}
+
+func TestProcessVEXObjectFailureUsesFocusedClaimedReportMutation(t *testing.T) {
+	t.Parallel()
+	job, state := normalizedVEXWorkerFixture(t,
+		[]map[string]any{normalizedVEXTestStatement(1, "CVE-1", "pkg:oci/api", "fixed")},
+		map[string]int{"fixed": 1})
+	job.LeaseToken = "lease_vex"
+	ref := "object://tenants/ten_test/payloads/vex.json"
+	job.Payload["payload_ref"] = ref
+	evidence := state.Evidence["ev_vex"]
+	evidence.PayloadRef = ref
+	state.Evidence[evidence.ID] = evidence
+	store := &fakeFocusedParserStateStore{state: state}
+	if err := processJobWithObjects(t.Context(), store, fakeObjectGetter{err: errors.New("object unavailable")}, job); err == nil {
+		t.Fatal("missing VEX object was accepted")
+	}
+	if store.loadCalls != 0 || len(store.focusedJobs) < 2 || store.jobID != job.ID || store.leaseToken != job.LeaseToken || len(store.mutation.VEXImportReports) != 1 || store.mutation.VEXImportReports[0].Status != "failed" {
+		t.Fatalf("focused VEX failure loads=%d jobs=%d claimed=%q/%q mutation=%#v", store.loadCalls, len(store.focusedJobs), store.jobID, store.leaseToken, store.mutation)
+	}
+}
+
 func TestProcessFocusedParserRejectsForeignTenantSubject(t *testing.T) {
 	t.Parallel()
 	job := postgres.ClaimedJob{ID: "job_test", TenantID: "ten_test", Kind: "parse_sbom", SubjectID: "sbom_test", LeaseToken: "lease_test"}

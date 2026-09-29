@@ -111,14 +111,22 @@ production worker reads only the claimed tenant's subject through a
 source-validated PostgreSQL point query before replay. This transitional
 one-subject state shape is used only when the store supports lease-fenced
 focused mutations; otherwise the compatibility loader remains in use.
+`parse_vex` reads the claimed document and source, its import reports,
+same-release scans and finding decisions under one tenant-filtered snapshot.
+It validates current source and parent ownership before replay and rejects
+report/document linkage mismatches. The current audit-append contract still
+loads that tenant's full audit chain to check the accepted event and derive the
+next entry; bounding that read remains EVY-905 work.
 `sign_bundle` and `verify_subject` also use focused tenant-filtered reads;
 their read-only paths do not require a mutation interface. When a signing job
 contains `manifest_hash`, the worker requires it to match the durable bundle;
 older jobs without that field remain supported. `verify_attestation` reads one
 tenant-scoped attestation only when its current build/project/release/product
 and immutable source evidence agree on ownership, source type, payload digest,
-size, and reference. Its replay mutation remains lease-fenced. VEX jobs still
-use broader state reads and remain part of the EVY-905 query migration.
+size, and reference. Its replay mutation remains lease-fenced. VEX decision
+and report mutations remain lease-fenced too. Operator-triggered parser replay
+and the API's startup Ledger construction still use broad compatibility state
+reads; removing those reads remains EVY-905 work.
 
 ## PostgreSQL projection consistency
 

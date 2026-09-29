@@ -381,7 +381,7 @@ func completedVEXDecisionJob(ctx context.Context, state jobStateLoader, job post
 	if job.Kind != "parse_vex" || !payloadBool(job, "worker_create_decisions") {
 		return false, nil
 	}
-	snapshot, ok, err := state.LoadState(ctx)
+	snapshot, ok, err := loadOutboxJobState(ctx, state, job)
 	if err != nil {
 		return false, errors.New("load durable state for vex decision job")
 	}
@@ -405,7 +405,7 @@ func completedVEXDecisionJob(ctx context.Context, state jobStateLoader, job post
 	if report.Status == "parsed" {
 		return true, nil
 	}
-	if err := vexDecisionDependencyError(ctx, state, &snapshot, job.TenantID, vex.ReleaseID); err != nil {
+	if err := vexDecisionDependencyError(ctx, state, &snapshot, job, vex.ReleaseID); err != nil {
 		if errors.Is(err, errVEXDecisionDependencyJobTerminal) {
 			return false, failVEXImportReportWithSnapshot(ctx, state, &snapshot, job, vex, err)
 		}
@@ -559,7 +559,7 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 			return nil
 		}
 		if payloadBool(job, "worker_create_decisions") {
-			if err := vexDecisionDependencyError(ctx, state, &snapshot, job.TenantID, vex.ReleaseID); err != nil {
+			if err := vexDecisionDependencyError(ctx, state, &snapshot, job, vex.ReleaseID); err != nil {
 				if errors.Is(err, errVEXDecisionDependencyJobTerminal) {
 					return failVEXImportReportWithSnapshot(ctx, state, &snapshot, job, vex, err)
 				}
@@ -688,7 +688,7 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 
 func loadOutboxJobState(ctx context.Context, state jobStateLoader, job postgres.ClaimedJob) (app.PersistedState, bool, error) {
 	switch job.Kind {
-	case "parse_sbom", "parse_vulnerability_scan", "parse_openapi_contract", "verify_attestation":
+	case "parse_sbom", "parse_vulnerability_scan", "parse_openapi_contract", "verify_attestation", "parse_vex":
 		if _, claimed := state.(jobClaimedReleaseLedgerMutationStore); claimed {
 			if focused, ok := state.(jobFocusedStateLoader); ok {
 				return focused.LoadWorkerJobState(ctx, job)
@@ -1717,10 +1717,11 @@ func validVEXDecisionActor(actorType, actorID string) bool {
 	}
 }
 
-func vexDecisionDependencyError(ctx context.Context, loader jobStateLoader, state *app.PersistedState, tenantID, releaseID string) error {
+func vexDecisionDependencyError(ctx context.Context, loader jobStateLoader, state *app.PersistedState, job postgres.ClaimedJob, releaseID string) error {
 	if state == nil {
 		return errVEXDecisionDependencyJobTerminal
 	}
+	tenantID := job.TenantID
 	pendingScanIDs := make([]string, 0)
 	for id, scan := range state.Scans {
 		if scan.TenantID != tenantID || scan.ReleaseID != releaseID {
@@ -1754,7 +1755,7 @@ func vexDecisionDependencyError(ctx context.Context, loader jobStateLoader, stat
 			return errors.New("inspect vex decision prerequisite job")
 		}
 		if !active {
-			refreshed, ok, err := loader.LoadState(ctx)
+			refreshed, ok, err := loadOutboxJobState(ctx, loader, job)
 			if err != nil || !ok {
 				return errors.New("recheck vex decision prerequisite projection")
 			}
@@ -1946,7 +1947,7 @@ func recordVEXImportReportFailure(ctx context.Context, state jobStateLoader, job
 	if job.Kind != "parse_vex" || state == nil {
 		return
 	}
-	snapshot, ok, err := state.LoadState(ctx)
+	snapshot, ok, err := loadOutboxJobState(ctx, state, job)
 	if err != nil || !ok {
 		return
 	}
