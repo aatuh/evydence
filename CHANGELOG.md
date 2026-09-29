@@ -52,6 +52,11 @@ release artifacts.
 
 ### Changed
 
+- PostgreSQL-backed exception lists now resolve current release ownership and
+  `verify:read` grants before bounded keyset pagination. Unknown filtered
+  releases remain `404`; existing releases outside the actor's grants remain
+  `403`. Local-memory mode retains the compatibility reader.
+
 - PostgreSQL-backed lifecycle-event lists for ordinary evidence now page from
   one tenant-scoped snapshot instead of materializing all events through the
   Ledger. Worker-owned evidence retains its validated projection fallback;

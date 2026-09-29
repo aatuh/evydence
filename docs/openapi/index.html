@@ -1333,13 +1333,13 @@
               <div><dt>Responses</dt><dd>201 application/json: EvidenceItemEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/exceptions list exceptions lists tenant-scoped exceptions, optionally filtered by release. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listexceptions evydence verify:read">
+          <article class="operation" data-operation data-search="get /v1/exceptions list exceptions lists tenant- and current verify-grant-scoped exceptions, optionally filtered by release. in the postgresql profile, release ownership and bounded keyset pages are resolved in one database snapshot before results are returned. a missing filtered release returns 404; an existing release outside the actor&#x27;s grants returns 403. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listexceptions evydence verify:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/exceptions</code>
             </div>
             <h3>List exceptions</h3>
-            <p>Lists tenant-scoped exceptions, optionally filtered by release. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
+            <p>Lists tenant- and current verify-grant-scoped exceptions, optionally filtered by release. In the PostgreSQL profile, release ownership and bounded keyset pages are resolved in one database snapshot before results are returned. A missing filtered release returns 404; an existing release outside the actor&#x27;s grants returns 403. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listExceptions</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

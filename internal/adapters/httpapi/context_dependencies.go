@@ -150,6 +150,12 @@ type ControlsQuery interface {
 	GetSecurityControl(context.Context, domain.Actor, string) (riskdomain.SecurityControl, error)
 }
 
+// ExceptionsQuery applies current verify grants before returning a bounded
+// page of tenant-owned decision records.
+type ExceptionsQuery interface {
+	ListPage(context.Context, domain.Actor, string, appquery.PageRequest, *appquery.SortKey) (appquery.Result[riskdomain.Exception], error)
+}
+
 // ControlEvidenceQuery pages current tenant-owned links after subject and
 // resource-grant validation in the durable query boundary.
 type ControlEvidenceQuery interface {

@@ -596,7 +596,7 @@ Source snapshots capture submitted provider metadata. They do not call provider 
 | `GET` | `/v1/reports/security-update-evidence` | Release-scoped security update evidence report with limitations. |
 | `POST` | `/v1/exceptions` | Create exception. |
 | `POST` | `/v1/exceptions/{id}/approve` | Approve exception. |
-| `GET` | `/v1/exceptions` | List exceptions. |
+| `GET` | `/v1/exceptions` | Page exceptions within current `verify:read` product/release grants; an unknown filtered release returns `404`, and an existing release outside those grants returns `403`. PostgreSQL filters grants before the keyset limit. |
 | `POST` | `/v1/waivers` | Create waiver. |
 | `POST` | `/v1/waivers/{id}/approve` | Approve waiver. |
 | `POST` | `/v1/approvals` | Create immutable approval record. |

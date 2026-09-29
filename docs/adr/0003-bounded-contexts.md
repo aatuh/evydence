@@ -104,6 +104,10 @@ one SQL statement resolves current control/framework/subject ownership and
 applies actor grants before keyset pagination. Broken parent relationships are
 excluded. The local-memory profile retains the Ledger compatibility reader;
 the remaining production Ledger reads still belong to EVY-905.
+Exception lists also use a risk-owned PostgreSQL query. One repeatable-read
+snapshot resolves an optional release filter and applies current tenant,
+product, and release grants before the bounded keyset page. Local-memory mode
+retains the compatibility reader.
 Worker-owned evidence types still use the Ledger projection so their parser,
 document, and audit provenance checks are not bypassed. Source-repository
 pages use an integration-owned query that validates current project/product

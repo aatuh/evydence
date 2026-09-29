@@ -62,6 +62,7 @@ type Server struct {
 	marketplaceCollectorQuery MarketplaceCollectorQuery
 	vulnerabilityPostureQuery VulnerabilityPostureQuery
 	controlsQuery             ControlsQuery
+	exceptionsQuery           ExceptionsQuery
 	controlEvidenceQuery      ControlEvidenceQuery
 	artifactSignatureQuery    ArtifactSignatureQuery
 	signingKeyQuery           SigningKeyQuery
@@ -146,6 +147,8 @@ type ServerOptions struct {
 	VulnerabilityPostureQuery VulnerabilityPostureQuery
 	// ControlsQuery reads framework pages and tenant-owned control points.
 	ControlsQuery ControlsQuery
+	// ExceptionsQuery pages current tenant-owned decisions before HTTP encoding.
+	ExceptionsQuery ExceptionsQuery
 	// ControlEvidenceQuery pages links from current subject ownership.
 	ControlEvidenceQuery ControlEvidenceQuery
 	// ArtifactSignatureQuery reads tenant-owned signature points from PostgreSQL.
@@ -208,7 +211,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, instanceAdminQuery: opts.InstanceAdminQuery, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, artifactPointQuery: opts.ArtifactPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, lifecycleEventsQuery: opts.LifecycleEventsQuery, openAPIContractPointQuery: opts.OpenAPIContractPointQuery, sbomPointQuery: opts.SBOMPointQuery, sbomComponentsQuery: opts.SBOMComponentsQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, collectorHealthQuery: opts.CollectorHealthQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, marketplaceCollectorQuery: opts.MarketplaceCollectorQuery, vulnerabilityPostureQuery: opts.VulnerabilityPostureQuery, controlsQuery: opts.ControlsQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, instanceAdminQuery: opts.InstanceAdminQuery, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, artifactPointQuery: opts.ArtifactPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, lifecycleEventsQuery: opts.LifecycleEventsQuery, openAPIContractPointQuery: opts.OpenAPIContractPointQuery, sbomPointQuery: opts.SBOMPointQuery, sbomComponentsQuery: opts.SBOMComponentsQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, collectorHealthQuery: opts.CollectorHealthQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, marketplaceCollectorQuery: opts.MarketplaceCollectorQuery, vulnerabilityPostureQuery: opts.VulnerabilityPostureQuery, controlsQuery: opts.ControlsQuery, exceptionsQuery: opts.ExceptionsQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
 		server.authn = opts.Authenticator
@@ -2573,6 +2576,24 @@ func (s *Server) createException(w http.ResponseWriter, r *http.Request) {
 func (s *Server) listExceptions(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
+		return
+	}
+	if s.exceptionsQuery != nil {
+		request, err := s.parsePageRequest(r, actor, "exceptions", "release_id")
+		if err != nil {
+			writeProblem(w, r, err)
+			return
+		}
+		page, err := s.exceptionsQuery.ListPage(r.Context(), actor, r.URL.Query().Get("release_id"), appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+		if err != nil {
+			writeProblem(w, r, mapControlsQueryError(err))
+			return
+		}
+		mapped := appquery.Result[domain.Exception]{Next: page.Next, Items: make([]domain.Exception, 0, len(page.Items))}
+		for _, item := range page.Items {
+			mapped.Items = append(mapped.Items, exceptionFromQuery(item))
+		}
+		writePage(s, w, r, actor, "exceptions", request, mapped)
 		return
 	}
 	exceptions, err := s.riskDecisions.ListExceptions(r.Context(), actor, r.URL.Query().Get("release_id"))

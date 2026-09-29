@@ -501,7 +501,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Exception creation request.", "#/components/schemas/CreateExceptionRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created exception envelope.", "#/components/schemas/ExceptionEnvelope")
 	case "listExceptions":
-		operation.Description = "Lists tenant-scoped exceptions, optionally filtered by release."
+		operation.Description = "Lists tenant- and current verify-grant-scoped exceptions, optionally filtered by release. In the PostgreSQL profile, release ownership and bounded keyset pages are resolved in one database snapshot before results are returned. A missing filtered release returns 404; an existing release outside the actor's grants returns 403."
 		operation.Parameters = append(operation.Parameters, queryParam("release_id", "Release id.", "string"))
 		operation.Responses[http.StatusOK] = jsonResponse("Exception list envelope.", "#/components/schemas/ExceptionListEnvelope")
 	case "approveException":
