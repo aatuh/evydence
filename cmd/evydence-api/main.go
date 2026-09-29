@@ -185,6 +185,7 @@ func runWithContext(ctx context.Context) error {
 	var collectorQuery httpapi.CollectorQuery
 	var controlsQuery httpapi.ControlsQuery
 	var artifactSignatureQuery httpapi.ArtifactSignatureQuery
+	var releaseBundleQuery httpapi.ReleaseBundleQuery
 	var answerLibraryQuery httpapi.AnswerLibraryQuery
 	var auditLogQuery httpapi.AuditLogQuery
 	var apiKeyQuery httpapi.APIKeyQuery
@@ -239,6 +240,10 @@ func runWithContext(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("create artifact signature query: %w", err)
 		}
+		releaseBundleQuery, err = wiring.BuildReleaseBundleQuery(runtime.Postgres)
+		if err != nil {
+			return fmt.Errorf("create release bundle query: %w", err)
+		}
 		answerLibraryQuery, err = wiring.BuildAnswerLibraryQuery(runtime.Postgres)
 		if err != nil {
 			return fmt.Errorf("create answer library query: %w", err)
@@ -279,6 +284,7 @@ func runWithContext(ctx context.Context) error {
 		CollectorQuery:                   collectorQuery,
 		ControlsQuery:                    controlsQuery,
 		ArtifactSignatureQuery:           artifactSignatureQuery,
+		ReleaseBundleQuery:               releaseBundleQuery,
 		AnswerLibraryQuery:               answerLibraryQuery,
 		AuditLogQuery:                    auditLogQuery,
 		APIKeyQuery:                      apiKeyQuery,

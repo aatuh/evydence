@@ -632,8 +632,8 @@ presets; preset policy fields cannot be overridden in the create request.
 | Method | Path | Notes |
 |--------|------|-------|
 | `POST` | `/v1/release-bundles` | Create signed release bundle. |
-| `GET` | `/v1/release-bundles/{id}` | Read bundle metadata. |
-| `GET` | `/v1/release-bundles/{id}/manifest` | Read bundle manifest. |
+| `GET` | `/v1/release-bundles/{id}` | Read a tenant-owned bundle with a current release and `bundle:read` grant. |
+| `GET` | `/v1/release-bundles/{id}/manifest` | Read its manifest under the same grant. |
 | `GET` | `/v1/release-bundles/{id}/verify` | Verify bundle. |
 | `POST` | `/v1/evidence-bundles` | Export evidence bundle. |
 | `POST` | `/v1/evidence-bundles/import` | Import evidence bundle. |
@@ -665,6 +665,12 @@ presets; preset policy fields cannot be overridden in the create request.
 | `GET` | `/v1/reports/custody-review` | Review tenant signing-provider and object-lock verification metadata for deployment custody review. |
 | `POST` | `/v1/backup-manifests` | Generate backup manifest. |
 | `GET` | `/v1/backup-manifests/{id}/verify` | Verify backup manifest. |
+
+In the PostgreSQL profile, both release-bundle reads use a single bundle/release/product
+database statement. A human session needs a current tenant, product, or release
+`bundle:read` grant; issued credentials use their `bundle:read` scope. A bundle
+with a missing or cross-tenant release is not returned. The manifest response
+shape is unchanged, and local-memory mode retains its Ledger-backed path.
 
 In the PostgreSQL profile, `GET /v1/artifact-signatures/{id}` reads one
 signature and its current artifact in one database statement. A human session

@@ -416,11 +416,11 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Release bundle creation request.", "#/components/schemas/CreateReleaseBundleRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created release bundle envelope.", "#/components/schemas/ReleaseBundleEnvelope")
 	case "getReleaseBundle":
-		operation.Description = "Returns a tenant-scoped immutable release bundle by id."
+		operation.Description = "Returns an immutable release bundle by id only when its current tenant-owned release is covered by the caller's bundle:read grant."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Release bundle id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Release bundle envelope.", "#/components/schemas/ReleaseBundleEnvelope")
 	case "getReleaseBundleManifest":
-		operation.Description = "Returns the deterministic release bundle manifest by bundle id."
+		operation.Description = "Returns the deterministic release bundle manifest by id under the same current-release and bundle:read authorization as the bundle read."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Release bundle id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Release bundle manifest envelope.", "#/components/schemas/ReleaseBundleManifestEnvelope")
 	case "verifyReleaseBundle":

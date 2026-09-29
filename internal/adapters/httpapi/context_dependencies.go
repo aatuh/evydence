@@ -93,6 +93,12 @@ type ArtifactSignatureQuery interface {
 	GetArtifactSignature(context.Context, domain.Actor, string) (verificationdomain.ArtifactSignature, error)
 }
 
+// ReleaseBundleQuery reads a bundle and its manifest from a current
+// tenant-owned release after applying the actor's bundle-read grant.
+type ReleaseBundleQuery interface {
+	GetReleaseBundle(context.Context, domain.Actor, string) (packagedomain.ReleaseBundle, error)
+}
+
 // AnswerLibraryQuery pages tenant/grant-filtered reusable drafts without
 // exposing private answer text from unrelated product or release scopes.
 type AnswerLibraryQuery interface {

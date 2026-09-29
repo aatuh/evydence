@@ -52,6 +52,7 @@ type Server struct {
 	collectorQuery         CollectorQuery
 	controlsQuery          ControlsQuery
 	artifactSignatureQuery ArtifactSignatureQuery
+	releaseBundleQuery     ReleaseBundleQuery
 	answerLibraryQuery     AnswerLibraryQuery
 	auditLogQuery          AuditLogQuery
 	apiKeyQuery            APIKeyQuery
@@ -113,6 +114,8 @@ type ServerOptions struct {
 	ControlsQuery ControlsQuery
 	// ArtifactSignatureQuery reads tenant-owned signature points from PostgreSQL.
 	ArtifactSignatureQuery ArtifactSignatureQuery
+	// ReleaseBundleQuery reads tenant-owned bundle points from PostgreSQL.
+	ReleaseBundleQuery ReleaseBundleQuery
 	// AnswerLibraryQuery pages authorized questionnaire drafts from PostgreSQL.
 	AnswerLibraryQuery AnswerLibraryQuery
 	// AuditLogQuery pages tenant audit records in PostgreSQL for the durable profile.
@@ -165,7 +168,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, controlsQuery: opts.ControlsQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, answerLibraryQuery: opts.AnswerLibraryQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, controlsQuery: opts.ControlsQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
 		server.authn = opts.Authenticator
@@ -2527,6 +2530,15 @@ func (s *Server) getReleaseBundle(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if s.releaseBundleQuery != nil {
+		bundle, err := s.releaseBundleQuery.GetReleaseBundle(r.Context(), actor, r.PathValue("id"))
+		if err != nil {
+			writeProblem(w, r, mapReleaseBundleQueryError(err))
+			return
+		}
+		writeData(w, http.StatusOK, releaseBundleFromQuery(bundle))
+		return
+	}
 	bundle, err := s.ledger.GetReleaseBundle(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
 		writeProblem(w, r, err)
@@ -2538,6 +2550,15 @@ func (s *Server) getReleaseBundle(w http.ResponseWriter, r *http.Request) {
 func (s *Server) getReleaseBundleManifest(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
+		return
+	}
+	if s.releaseBundleQuery != nil {
+		bundle, err := s.releaseBundleQuery.GetReleaseBundle(r.Context(), actor, r.PathValue("id"))
+		if err != nil {
+			writeProblem(w, r, mapReleaseBundleQueryError(err))
+			return
+		}
+		writeData(w, http.StatusOK, bundle.Manifest)
 		return
 	}
 	bundle, err := s.ledger.GetReleaseBundle(r.Context(), actor, r.PathValue("id"))

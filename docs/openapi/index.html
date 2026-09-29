@@ -2030,13 +2030,13 @@
               <div><dt>Responses</dt><dd>201 application/json: ReleaseBundleEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/release-bundles/{id} get release bundle returns a tenant-scoped immutable release bundle by id. getreleasebundle evydence bundle:read">
+          <article class="operation" data-operation data-search="get /v1/release-bundles/{id} get release bundle returns an immutable release bundle by id only when its current tenant-owned release is covered by the caller&#x27;s bundle:read grant. getreleasebundle evydence bundle:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/release-bundles/{id}</code>
             </div>
             <h3>Get release bundle</h3>
-            <p>Returns a tenant-scoped immutable release bundle by id.</p>
+            <p>Returns an immutable release bundle by id only when its current tenant-owned release is covered by the caller&#x27;s bundle:read grant.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>getReleaseBundle</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2047,13 +2047,13 @@
               <div><dt>Responses</dt><dd>200 application/json: ReleaseBundleEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/release-bundles/{id}/manifest get release bundle manifest returns the deterministic release bundle manifest by bundle id. getreleasebundlemanifest evydence bundle:read">
+          <article class="operation" data-operation data-search="get /v1/release-bundles/{id}/manifest get release bundle manifest returns the deterministic release bundle manifest by id under the same current-release and bundle:read authorization as the bundle read. getreleasebundlemanifest evydence bundle:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/release-bundles/{id}/manifest</code>
             </div>
             <h3>Get release bundle manifest</h3>
-            <p>Returns the deterministic release bundle manifest by bundle id.</p>
+            <p>Returns the deterministic release bundle manifest by id under the same current-release and bundle:read authorization as the bundle read.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>getReleaseBundleManifest</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
