@@ -366,7 +366,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Evidence graph snapshot creation request.", "#/components/schemas/CreateGraphSnapshotRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created evidence graph snapshot envelope.", "#/components/schemas/EvidenceGraphSnapshotEnvelope")
 	case "listSBOMComponents":
-		operation.Description = "Lists tenant- and resource-grant-scoped SBOM components by SBOM, release, artifact, name/version/PURL query, or exact PURL. In the PostgreSQL profile, results use durable keyset pages without the legacy 500-component preselection cap; an inaccessible or missing filtered SBOM returns 404."
+		operation.Description = "Lists tenant- and resource-grant-scoped SBOM components by SBOM, release, artifact, name/version/PURL query, or exact PURL. In the PostgreSQL profile, results use durable keyset pages without the legacy 500-component preselection cap. Source evidence must be an SBOM with matching release and artifact subject; an inaccessible, missing, or inconsistently linked filtered SBOM returns 404."
 		operation.Parameters = append(operation.Parameters,
 			queryParam("sbom_id", "Filter by SBOM id.", "string"),
 			queryParam("release_id", "Filter by release id.", "string"),

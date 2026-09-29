@@ -126,6 +126,9 @@ ownership and resource grants before the SQL keyset limit, so pagination can
 reach components beyond the former 500-result preselection cap. Components
 remain JSONB arrays inside each SBOM; the database expands matching rows for
 the query, so this is bounded transfer to the API, not a component-level index.
+The source evidence must be an SBOM with matching release and artifact subject;
+its optional build and deployment parents must resolve consistently in the
+same tenant. Inconsistently linked rows are excluded from unfiltered pages.
 The local-memory profile retains the legacy 500-component preselection cap.
 When `sbom_id` is supplied in PostgreSQL mode, a nonexistent, inaccessible, or
 inconsistently linked SBOM returns `404`; a visible SBOM with no matching

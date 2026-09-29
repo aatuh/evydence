@@ -61,7 +61,9 @@ release artifacts.
   grants before bounded keyset pagination, allowing clients to continue beyond
   the former 500-result preselection cap. The local-memory profile retains that
   cap; PostgreSQL still expands JSONB component arrays rather than using a
-  dedicated component search index.
+  dedicated component search index. The list now excludes rows whose source
+  evidence type, release, artifact subject, or build/deployment parents disagree
+  with the stored SBOM, matching the SBOM point-read safety checks.
 
 - PostgreSQL-backed OpenAPI-contract point reads now verify current tenant,
   source-evidence, product, and optional release relationships in one query

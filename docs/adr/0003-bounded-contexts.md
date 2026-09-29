@@ -92,7 +92,9 @@ SBOM component pages now expand tenant-owned JSONB component arrays in a
 repeatable-read PostgreSQL snapshot, apply current resource grants before the
 keyset limit, and transfer only a bounded page to the API. This removes the
 production Ledger's 500-component preselection cap, but does not provide a
-component-level search index; local-memory mode retains the cap.
+component-level search index; local-memory mode retains the cap. The page
+query applies the same source-type, release, artifact-subject, and optional
+build/deployment parent checks as the parsed SBOM point read before expansion.
 Control-evidence lists now use a risk-owned query service in PostgreSQL mode:
 one SQL statement resolves current control/framework/subject ownership and
 applies actor grants before keyset pagination. Broken parent relationships are

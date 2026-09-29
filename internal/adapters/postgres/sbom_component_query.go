@@ -65,15 +65,36 @@ func (s *Store) PageSBOMComponents(ctx context.Context, request evidencequery.SB
 		    LEFT JOIN artifacts AS a ON a.id = s.artifact_id AND a.tenant_id = s.tenant_id
 		    LEFT JOIN products AS source_product ON source_product.id = source.product_id AND source_product.tenant_id = s.tenant_id
 		    LEFT JOIN projects AS source_project ON source_project.id = source.project_id AND source_project.tenant_id = s.tenant_id
-		    WHERE s.tenant_id = $1
+		    LEFT JOIN build_runs AS source_build ON source_build.id = source.build_id AND source_build.tenant_id = s.tenant_id
+		    LEFT JOIN projects AS source_build_project ON source_build_project.id = source_build.project_id AND source_build_project.tenant_id = s.tenant_id
+		    LEFT JOIN releases AS source_build_release ON source_build_release.id = source_build.release_id AND source_build_release.tenant_id = s.tenant_id
+		    LEFT JOIN deployment_events AS source_deployment ON source_deployment.id = source.deployment_id AND source_deployment.tenant_id = s.tenant_id
+		    LEFT JOIN deployment_environments AS source_environment ON source_environment.id = source_deployment.environment_id AND source_environment.tenant_id = s.tenant_id
+		    LEFT JOIN releases AS source_deployment_release ON source_deployment_release.id = source_deployment.release_id AND source_deployment_release.tenant_id = s.tenant_id
+		    LEFT JOIN LATERAL (
+		        SELECT COUNT(DISTINCT ref.value->>'id') FILTER (WHERE ref.value->>'type' = 'artifact' AND ref.value->>'id' <> '') AS count
+		        FROM jsonb_array_elements(CASE WHEN jsonb_typeof(source.subject_refs) = 'array' THEN source.subject_refs ELSE '[]'::jsonb END) AS ref(value)
+		    ) AS source_artifacts ON true
+		    WHERE s.tenant_id = $1 AND source.type = 'sbom'
 		      AND (s.release_id IS NULL OR sr.id IS NOT NULL AND rp.id IS NOT NULL)
 		      AND (s.artifact_id IS NULL OR a.id IS NOT NULL)
+		      AND (s.artifact_id IS NULL AND source_artifacts.count = 0 OR
+		           s.artifact_id IS NOT NULL AND source_artifacts.count = 1 AND
+		           source.subject_refs @> jsonb_build_array(jsonb_build_object('type', 'artifact', 'id', s.artifact_id)))
 		      AND (source.product_id IS NULL OR source_product.id IS NOT NULL)
 		      AND (source.project_id IS NULL OR source_project.id IS NOT NULL)
 		      AND (source.product_id IS NULL OR source.project_id IS NULL OR source.product_id = source_project.product_id)
-		      AND (source.release_id IS NULL OR source.release_id = s.release_id)
+		      AND source.release_id IS NOT DISTINCT FROM s.release_id
 		      AND (source.product_id IS NULL OR s.release_id IS NULL OR source.product_id = sr.product_id)
 		      AND (source.project_id IS NULL OR s.release_id IS NULL OR source_project.product_id = sr.product_id)
+		      AND (source.build_id IS NULL OR source_build_project.id IS NOT NULL AND source_build_release.id IS NOT NULL AND source_build_project.product_id = source_build_release.product_id)
+		      AND (source.build_id IS NULL OR s.release_id IS NULL OR source_build.release_id = s.release_id)
+		      AND (source.deployment_id IS NULL OR source_environment.id IS NOT NULL AND source_deployment_release.id IS NOT NULL AND source_environment.product_id = source_deployment_release.product_id)
+		      AND (source.deployment_id IS NULL OR s.release_id IS NULL OR source_deployment.release_id = s.release_id)
+		      AND (source.build_id IS NULL OR source.project_id IS NULL OR source.project_id = source_build.project_id)
+		      AND (source.build_id IS NULL OR source.release_id IS NULL OR source.release_id = source_build.release_id)
+		      AND (source.deployment_id IS NULL OR source.release_id IS NULL OR source.release_id = source_deployment.release_id)
+		      AND (source.build_id IS NULL OR source.deployment_id IS NULL OR source_build.release_id = source_deployment.release_id)
 		      AND ($6 = '' OR s.id = $6)
 		      AND ($7 = '' OR s.release_id = $7)
 		      AND ($8 = '' OR s.artifact_id = $8)

@@ -41,6 +41,9 @@ func TestPostgresSBOMComponentsPageBeyondLegacyCapAndScopesGrants(t *testing.T) 
 	if _, err := store.pool.Exec(ctx, `INSERT INTO artifacts (id, tenant_id, name, media_type, size, digest, created_at) VALUES ('art_a', 'ten_sbom', 'Artifact', 'application/octet-stream', 1, $1, $2)`, hash, now); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := store.pool.Exec(ctx, `UPDATE evidence_items SET subject_refs = '[{"type":"artifact","id":"art_a"}]'::jsonb WHERE id = 'ev_a'`); err != nil {
+		t.Fatal(err)
+	}
 	components := make([]map[string]string, 501)
 	for index := range components {
 		components[index] = map[string]string{"identity": fmt.Sprintf("component-%03d", index), "name": fmt.Sprintf("lib-%03d", index), "version": "1.0", "purl": fmt.Sprintf("pkg:generic/lib-%03d@1.0", index)}
@@ -88,8 +91,8 @@ func TestPostgresSBOMComponentsPageBeyondLegacyCapAndScopesGrants(t *testing.T) 
 	}
 	actor.ResourceGrants[0] = identitydomain.ResourceGrant{ResourceType: "product", ResourceID: "prod_a", Scopes: []string{"evidence:read"}}
 	beforeLink, err := service.ListPage(ctx, actor, evidencequery.SBOMComponentFilter{SBOMID: "sbom_a"}, page, nil)
-	if !errors.Is(err, evidencequery.ErrNotFound) || len(beforeLink.Items) != 0 {
-		t.Fatalf("unlinked artifact product page=%#v error=%v", beforeLink, err)
+	if err != nil || len(beforeLink.Items) != 500 {
+		t.Fatalf("source-linked artifact product page count=%d error=%v", len(beforeLink.Items), err)
 	}
 	if _, err := store.pool.Exec(ctx, `INSERT INTO evidence_items (id, tenant_id, product_id, project_id, release_id, type, title, source_system, observed_at, evidence_version, schema_version, payload_hash, canonical_hash, canonicalization, subject_refs, trust_level, verification_status, created_at) VALUES ('ev_art', 'ten_sbom', 'prod_a', 'proj_a', 'rel_a', 'document', 'Artifact', 'test', $1, 1, 'evidence-item.v1.0.0', $2, $2, 'canonical-json.v1', '[{"type":"artifact","id":"art_a"}]'::jsonb, 'L2', 'pending', $1)`, now, hash); err != nil {
 		t.Fatal(err)
@@ -110,6 +113,37 @@ func TestPostgresSBOMComponentsPageBeyondLegacyCapAndScopesGrants(t *testing.T) 
 		t.Fatalf("same-tenant hidden SBOM error=%v", err)
 	}
 	actor.ResourceGrants[0] = identitydomain.ResourceGrant{ResourceType: "tenant", ResourceID: "ten_sbom", Scopes: []string{"evidence:read"}}
+	if _, err := store.pool.Exec(ctx, `INSERT INTO artifacts (id, tenant_id, name, media_type, size, digest, created_at) VALUES ('art_b', 'ten_sbom', 'Artifact B', 'application/octet-stream', 1, $1, $2)`, "sha256:"+strings.Repeat("b", 64), now); err != nil {
+		t.Fatal(err)
+	}
+	for _, evidence := range []struct{ id, release, kind string }{{"ev_wrong_type", "rel_a", "document"}, {"ev_no_release", "", "sbom"}} {
+		if _, err := store.pool.Exec(ctx, `INSERT INTO evidence_items (id, tenant_id, product_id, release_id, type, title, source_system, observed_at, evidence_version, schema_version, payload_hash, canonical_hash, canonicalization, trust_level, verification_status, created_at) VALUES ($1, 'ten_sbom', 'prod_a', NULLIF($2, ''), $3, 'Source', 'test', $4, 1, 'evidence-item.v1.0.0', $5, $5, 'canonical-json.v1', 'L2', 'pending', $4)`, evidence.id, evidence.release, evidence.kind, now, hash); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, parent := range []struct{ id, column string }{{"ev_missing_build", "build_id"}, {"ev_missing_deployment", "deployment_id"}} {
+		statement := fmt.Sprintf(`INSERT INTO evidence_items (id, tenant_id, product_id, release_id, %s, type, title, source_system, observed_at, evidence_version, schema_version, payload_hash, canonical_hash, canonicalization, trust_level, verification_status, created_at) VALUES ($1, 'ten_sbom', 'prod_a', 'rel_a', $2, 'sbom', 'Source', 'test', $3, 1, 'evidence-item.v1.0.0', $4, $4, 'canonical-json.v1', 'L2', 'pending', $3)`, parent.column)
+		if _, err := store.pool.Exec(ctx, statement, parent.id, "missing_parent", now, hash); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, sbom := range []struct{ id, evidence, artifact string }{
+		{"sbom_wrong_type", "ev_wrong_type", ""},
+		{"sbom_missing_source_release", "ev_no_release", ""},
+		{"sbom_missing_source_build", "ev_missing_build", ""},
+		{"sbom_missing_source_deployment", "ev_missing_deployment", ""},
+		{"sbom_wrong_artifact", "ev_a", "art_b"},
+		{"sbom_missing_artifact_link", "ev_a", ""},
+	} {
+		if _, err := store.pool.Exec(ctx, `INSERT INTO sboms (id, tenant_id, evidence_id, release_id, artifact_id, format, spec_version, component_count, components, created_at) VALUES ($1, 'ten_sbom', $2, 'rel_a', NULLIF($3, ''), 'cyclonedx', '1.6', 1, '[{"name":"bad"}]'::jsonb, $4)`, sbom.id, sbom.evidence, sbom.artifact, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, id := range []string{"sbom_wrong_type", "sbom_missing_source_release", "sbom_missing_source_build", "sbom_missing_source_deployment", "sbom_wrong_artifact", "sbom_missing_artifact_link"} {
+		if _, err := service.ListPage(ctx, actor, evidencequery.SBOMComponentFilter{SBOMID: id}, page, nil); !errors.Is(err, evidencequery.ErrNotFound) {
+			t.Fatalf("unsafe SBOM source %s error=%v", id, err)
+		}
+	}
 	largeComponent, err := json.Marshal([]map[string]string{{"name": strings.Repeat("n", 700000), "version": strings.Repeat("v", 700000)}})
 	if err != nil {
 		t.Fatal(err)
@@ -142,5 +176,11 @@ func TestPostgresSBOMComponentsPageBeyondLegacyCapAndScopesGrants(t *testing.T) 
 	noScope.Scopes = nil
 	if _, err := service.ListPage(ctx, noScope, evidencequery.SBOMComponentFilter{}, page, nil); !errors.Is(err, application.ErrForbidden) {
 		t.Fatalf("missing scope error=%v", err)
+	}
+	if _, err := store.pool.Exec(ctx, `UPDATE evidence_items SET subject_refs = '[{"type":"artifact","id":"art_a"},{"type":"artifact","id":"art_b"}]'::jsonb WHERE id = 'ev_a'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ListPage(ctx, actor, evidencequery.SBOMComponentFilter{SBOMID: "sbom_a"}, page, nil); !errors.Is(err, evidencequery.ErrNotFound) {
+		t.Fatalf("ambiguous source artifact references error=%v", err)
 	}
 }
