@@ -52,6 +52,11 @@ release artifacts.
 
 ### Changed
 
+- PostgreSQL-backed SBOM point reads now verify source evidence, release, and
+  artifact parentage and source artifact references under one tenant before applying current `evidence:read`
+  resource grants. The response still contains the stored component array;
+  inconsistently linked historical rows are no longer returned.
+
 - PostgreSQL-backed SBOM component lists now apply current tenant and resource
   grants before bounded keyset pagination, allowing clients to continue beyond
   the former 500-result preselection cap. The local-memory profile retains that

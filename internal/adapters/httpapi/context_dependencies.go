@@ -91,6 +91,12 @@ type OpenAPIContractPointQuery interface {
 	GetOpenAPIContract(context.Context, domain.Actor, string) (evidencedomain.OpenAPIContract, error)
 }
 
+// SBOMPointQuery reads one parsed document against current tenant-owned
+// evidence and release parents.
+type SBOMPointQuery interface {
+	GetSBOM(context.Context, domain.Actor, string) (evidencedomain.SBOM, error)
+}
+
 // SBOMComponentsQuery returns an authorized, bounded component page from
 // current tenant-owned SBOM and artifact associations.
 type SBOMComponentsQuery interface {

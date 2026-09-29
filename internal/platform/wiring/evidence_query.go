@@ -14,6 +14,11 @@ func BuildOpenAPIContractPointQuery(reader evidencequery.OpenAPIContractPointRea
 	return evidencequery.NewOpenAPIContractPoints(reader)
 }
 
+// BuildSBOMPointQuery binds parsed SBOM reads to current tenant-owned parents.
+func BuildSBOMPointQuery(reader evidencequery.SBOMPointReader) (*evidencequery.SBOMPoints, error) {
+	return evidencequery.NewSBOMPoints(reader)
+}
+
 // BuildSBOMComponentsQuery binds tenant- and grant-scoped component pages to
 // the durable reader without loading the Ledger snapshot.
 func BuildSBOMComponentsQuery(reader evidencequery.SBOMComponentReader) (*evidencequery.SBOMComponents, error) {

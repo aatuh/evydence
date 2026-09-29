@@ -82,6 +82,12 @@ Ordinary evidence point reads use a tenant-scoped, snapshot-consistent query.
 OpenAPI contract point reads verify their source evidence, product, and optional
 release in one tenant-filtered statement before applying human resource grants;
 local-memory mode retains the Ledger reader.
+Parsed SBOM point reads also verify current source evidence, release, and
+artifact parentage and require sole artifact/source-evidence subject agreement in
+one tenant-filtered statement before applying human
+resource grants. They preserve accepted, not-yet-parsed rows and return one
+document with its stored components when available, not a
+tenant-wide projection; local-memory mode retains the Ledger reader.
 SBOM component pages now expand tenant-owned JSONB component arrays in a
 repeatable-read PostgreSQL snapshot, apply current resource grants before the
 keyset limit, and transfer only a bounded page to the API. This removes the

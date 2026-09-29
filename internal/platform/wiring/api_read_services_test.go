@@ -30,7 +30,7 @@ func TestBuildAPIReadServicesRejectsIncompleteRuntimeWithoutLeakingSecrets(t *te
 
 func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T) {
 	memory, err := BuildAPIReadServices(&Runtime{Process: API, Profile: LocalMemory}, "")
-	if err != nil || memory.Authenticator != nil || memory.InstanceAdminQuery != nil || memory.ProductQuery != nil || memory.ArtifactPointQuery != nil || memory.OpenAPIContractPointQuery != nil || memory.SBOMComponentsQuery != nil || memory.ReleaseBundleQuery != nil || memory.ControlEvidenceQuery != nil || memory.MarketplaceCollectorQuery != nil || memory.CollectorHealthQuery != nil || memory.VulnerabilityPostureQuery != nil {
+	if err != nil || memory.Authenticator != nil || memory.InstanceAdminQuery != nil || memory.ProductQuery != nil || memory.ArtifactPointQuery != nil || memory.OpenAPIContractPointQuery != nil || memory.SBOMPointQuery != nil || memory.SBOMComponentsQuery != nil || memory.ReleaseBundleQuery != nil || memory.ControlEvidenceQuery != nil || memory.MarketplaceCollectorQuery != nil || memory.CollectorHealthQuery != nil || memory.VulnerabilityPostureQuery != nil {
 		t.Fatalf("local memory dependencies=%#v error=%v", memory, err)
 	}
 	store := &postgres.Store{}
@@ -40,7 +40,7 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.Authenticator == nil || options.InstanceAdminQuery == nil || options.ProductQuery == nil || options.CatalogPointQuery == nil ||
 		options.BuildPointQuery == nil || options.ArtifactPointQuery == nil || options.ReleaseCandidateQuery == nil || options.DeploymentPointQuery == nil ||
-		options.DeploymentListQuery == nil || options.EvidencePointQuery == nil || options.OpenAPIContractPointQuery == nil || options.SBOMComponentsQuery == nil || options.SourceRepositoryQuery == nil ||
+		options.DeploymentListQuery == nil || options.EvidencePointQuery == nil || options.OpenAPIContractPointQuery == nil || options.SBOMPointQuery == nil || options.SBOMComponentsQuery == nil || options.SourceRepositoryQuery == nil ||
 		options.CollectorQuery == nil || options.CollectorHealthQuery == nil || options.CommercialCollectorQuery == nil || options.MarketplaceCollectorQuery == nil || options.VulnerabilityPostureQuery == nil || options.ControlsQuery == nil || options.ControlEvidenceQuery == nil || options.ArtifactSignatureQuery == nil ||
 		options.ReleaseBundleQuery == nil || options.AnswerLibraryQuery == nil || options.AuditLogQuery == nil ||
 		options.SigningKeyQuery == nil ||

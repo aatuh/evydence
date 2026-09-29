@@ -270,7 +270,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		})
 		operation.Responses[http.StatusCreated] = jsonResponse("Created SBOM envelope.", "#/components/schemas/SBOMEnvelope")
 	case "getSBOM":
-		operation.Description = "Returns a tenant-scoped SBOM metadata record by id."
+		operation.Description = "Returns a tenant-scoped SBOM record and its stored components when parsed; an accepted pending record may have an empty spec version and no components. In the PostgreSQL profile, source evidence and optional release/artifact parents must resolve within the same tenant, and the optional artifact must match the source evidence's sole artifact subject, before current resource grants are applied."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "SBOM id."))
 		operation.Responses[http.StatusOK] = jsonResponse("SBOM envelope.", "#/components/schemas/SBOMEnvelope")
 	case "uploadVEX":

@@ -508,7 +508,7 @@ Current SSO endpoints model admin-managed provider, identity-link, trust-materia
 | `GET` | `/v1/evidence/{id}/lifecycle-events` | Read lifecycle timeline. |
 | `POST` | `/v1/sboms` | Upload CycloneDX SBOM. |
 | `POST` | `/v1/sboms/spdx` | Upload SPDX SBOM. |
-| `GET` | `/v1/sboms/{id}` | Read SBOM metadata. |
+| `GET` | `/v1/sboms/{id}` | Read one SBOM and its stored components when parsed; accepted pending records can have an empty spec version and no components. PostgreSQL validates tenant-owned source evidence, release, artifact, and matching source artifact reference before resource-grant authorization. |
 | `GET` | `/v1/sbom-components` | Page stored SBOM components by SBOM, release, artifact, query, and exact PURL; `limit` is a transitional alias for `page_size`. PostgreSQL applies current tenant and grant filters before pagination. |
 | `POST` | `/v1/sbom-diffs` | Compare stored SBOMs. |
 | `POST` | `/v1/vulnerability-scans` | Upload normalized vulnerability scan. |

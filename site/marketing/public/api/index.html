@@ -2710,13 +2710,13 @@
               <div><dt>Responses</dt><dd>201 application/json: SBOMEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/sboms/{id} get sbom returns a tenant-scoped sbom metadata record by id. getsbom evydence evidence:read">
+          <article class="operation" data-operation data-search="get /v1/sboms/{id} get sbom returns a tenant-scoped sbom record and its stored components when parsed; an accepted pending record may have an empty spec version and no components. in the postgresql profile, source evidence and optional release/artifact parents must resolve within the same tenant, and the optional artifact must match the source evidence&#x27;s sole artifact subject, before current resource grants are applied. getsbom evydence evidence:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/sboms/{id}</code>
             </div>
             <h3>Get SBOM</h3>
-            <p>Returns a tenant-scoped SBOM metadata record by id.</p>
+            <p>Returns a tenant-scoped SBOM record and its stored components when parsed; an accepted pending record may have an empty spec version and no components. In the PostgreSQL profile, source evidence and optional release/artifact parents must resolve within the same tenant, and the optional artifact must match the source evidence&#x27;s sole artifact subject, before current resource grants are applied.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>getSBOM</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

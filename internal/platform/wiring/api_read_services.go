@@ -77,6 +77,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string) (httpapi.ServerOption
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create OpenAPI contract point query: %w", err)
 	}
+	options.SBOMPointQuery, err = BuildSBOMPointQuery(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create SBOM point query: %w", err)
+	}
 	options.SBOMComponentsQuery, err = BuildSBOMComponentsQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create SBOM components query: %w", err)
