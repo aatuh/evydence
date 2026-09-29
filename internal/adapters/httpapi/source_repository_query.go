@@ -19,7 +19,7 @@ func sourceRepositoryFromQuery(item integrationdomain.SourceRepository) domain.S
 	}
 }
 
-func mapSourceRepositoryQueryError(err error) error {
+func mapIntegrationQueryError(err error) error {
 	switch {
 	case errors.Is(err, integrationquery.ErrValidation), errors.Is(err, appquery.ErrInvalidPage), errors.Is(err, appquery.ErrInvalidCursor):
 		return app.ErrValidation

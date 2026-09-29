@@ -530,7 +530,7 @@ Current SSO endpoints model admin-managed provider, identity-link, trust-materia
 | Method | Path | Notes |
 |--------|------|-------|
 | `POST` | `/v1/collectors` | Create collector and one-time key. |
-| `GET` | `/v1/collectors` | List collectors without secrets. |
+| `GET` | `/v1/collectors` | List collectors without secrets. Human sessions need a current tenant-level `collector:read` grant; scoped credentials need that issued scope. |
 | `POST` | `/v1/collectors/{id}/releases` | Record collector release evidence. |
 | `GET` | `/v1/collectors/{id}/health` | Collector health report. |
 | `POST` | `/v1/commercial-collectors` | Create commercial collector definition. |

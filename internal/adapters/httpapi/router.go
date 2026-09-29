@@ -49,6 +49,7 @@ type Server struct {
 	deploymentListQuery   DeploymentListQuery
 	evidencePointQuery    EvidencePointQuery
 	sourceRepositoryQuery SourceRepositoryQuery
+	collectorQuery        CollectorQuery
 	auditLogQuery         AuditLogQuery
 	apiKeyQuery           APIKeyQuery
 	roleBindingQuery      RoleBindingQuery
@@ -103,6 +104,8 @@ type ServerOptions struct {
 	EvidencePointQuery EvidencePointQuery
 	// SourceRepositoryQuery pages current tenant-owned source repositories.
 	SourceRepositoryQuery SourceRepositoryQuery
+	// CollectorQuery pages durable collector inventory for the PostgreSQL profile.
+	CollectorQuery CollectorQuery
 	// AuditLogQuery pages tenant audit records in PostgreSQL for the durable profile.
 	AuditLogQuery AuditLogQuery
 	// APIKeyQuery pages public key metadata in PostgreSQL for the durable profile.
@@ -153,7 +156,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
 		server.authn = opts.Authenticator
@@ -216,6 +219,24 @@ func (s *Server) createCollector(w http.ResponseWriter, r *http.Request) {
 func (s *Server) listCollectors(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
+		return
+	}
+	if s.collectorQuery != nil {
+		request, err := s.parsePageRequest(r, actor, "collectors")
+		if err != nil {
+			writeProblem(w, r, err)
+			return
+		}
+		page, err := s.collectorQuery.ListPage(r.Context(), actor, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+		if err != nil {
+			writeProblem(w, r, mapIntegrationQueryError(err))
+			return
+		}
+		mapped := appquery.Result[domain.Collector]{Next: page.Next, Items: make([]domain.Collector, 0, len(page.Items))}
+		for _, collector := range page.Items {
+			mapped.Items = append(mapped.Items, collectorFromQuery(collector))
+		}
+		writePage(s, w, r, actor, "collectors", request, mapped)
 		return
 	}
 	collectors, err := s.ledger.ListCollectors(r.Context(), actor)
@@ -972,7 +993,7 @@ func (s *Server) listSourceRepositories(w http.ResponseWriter, r *http.Request) 
 		}
 		page, err := s.sourceRepositoryQuery.ListPage(r.Context(), actor, r.URL.Query().Get("project_id"), appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
 		if err != nil {
-			writeProblem(w, r, mapSourceRepositoryQueryError(err))
+			writeProblem(w, r, mapIntegrationQueryError(err))
 			return
 		}
 		mapped := appquery.Result[domain.SourceRepository]{Next: page.Next, Items: make([]domain.SourceRepository, 0, len(page.Items))}

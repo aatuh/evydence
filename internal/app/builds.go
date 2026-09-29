@@ -151,6 +151,9 @@ func (l *Ledger) ListCollectors(ctx context.Context, actor domain.Actor) ([]doma
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.authorizeResourceLocked(actor, ScopeCollectorRead, resourceRefs{}); err != nil {
+		return nil, err
+	}
 	out := []domain.Collector{}
 	for _, collector := range l.collectors {
 		if collector.TenantID == actor.TenantID {

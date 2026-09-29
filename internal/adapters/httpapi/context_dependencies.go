@@ -72,6 +72,12 @@ type SourceRepositoryQuery interface {
 	ListPage(context.Context, domain.Actor, string, appquery.PageRequest, *appquery.SortKey) (appquery.Result[integrationdomain.SourceRepository], error)
 }
 
+// CollectorQuery pages tenant inventory without loading Ledger state or
+// selecting credential secrets from PostgreSQL.
+type CollectorQuery interface {
+	ListPage(context.Context, domain.Actor, appquery.PageRequest, *appquery.SortKey) (appquery.Result[integrationdomain.Collector], error)
+}
+
 // AuditLogQuery pages current tenant audit entries without loading the Ledger.
 type AuditLogQuery interface {
 	ListPage(context.Context, domain.Actor, verificationquery.AuditFilter, appquery.PageRequest, *appquery.SortKey) (appquery.Result[verificationdomain.AuditChainEntry], error)
