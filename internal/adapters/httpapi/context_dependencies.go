@@ -87,6 +87,12 @@ type ControlsQuery interface {
 	GetSecurityControl(context.Context, domain.Actor, string) (riskdomain.SecurityControl, error)
 }
 
+// ArtifactSignatureQuery reads one tenant-owned signature against its current
+// artifact digest and the actor's current resource visibility.
+type ArtifactSignatureQuery interface {
+	GetArtifactSignature(context.Context, domain.Actor, string) (verificationdomain.ArtifactSignature, error)
+}
+
 // AnswerLibraryQuery pages tenant/grant-filtered reusable drafts without
 // exposing private answer text from unrelated product or release scopes.
 type AnswerLibraryQuery interface {

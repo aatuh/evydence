@@ -648,7 +648,7 @@ presets; preset policy fields cannot be overridden in the create request.
 | `POST` | `/v1/provider-verifications` | Verify stored provider identity metadata and optional local OIDC ID-token signature/claims. |
 | `POST` | `/v1/saas/profiles` | Create explicit-instance-admin SaaS edition profile record. |
 | `POST` | `/v1/artifact-signatures` | Create artifact signature metadata. |
-| `GET` | `/v1/artifact-signatures/{id}` | Read artifact signature. |
+| `GET` | `/v1/artifact-signatures/{id}` | Read a tenant-owned artifact signature with a current artifact/digest and scoped association. |
 | `POST` | `/v1/artifact-signatures/{id}/verify-cosign` | Verify a finalized offline Sigstore/Cosign bundle against configured trust material and explicit policy inputs. |
 | `POST` | `/v1/merkle-batches` | Create signed checkpoint batch. |
 | `GET` | `/v1/merkle-batches/{id}/verify` | Verify batch. |
@@ -665,6 +665,14 @@ presets; preset policy fields cannot be overridden in the create request.
 | `GET` | `/v1/reports/custody-review` | Review tenant signing-provider and object-lock verification metadata for deployment custody review. |
 | `POST` | `/v1/backup-manifests` | Generate backup manifest. |
 | `GET` | `/v1/backup-manifests/{id}/verify` | Verify backup manifest. |
+
+In the PostgreSQL profile, `GET /v1/artifact-signatures/{id}` reads one
+signature and its current artifact in one database statement. A human session
+needs an `evidence:read` grant covering a current evidence or build association
+with that artifact; a tenant grant or issued credential with `evidence:read`
+does not need a narrower association. The existing response can include a
+`payload_ref`, so treat it as tenant-scoped metadata rather than a public
+object URL. Local-memory mode retains its Ledger-backed authorization path.
 
 `POST /v1/artifact-signatures/{id}/verify-cosign` verifies a finalized stored
 Sigstore bundle. Requests use `mode`, `offline`, and—for `keyless`—exact

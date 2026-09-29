@@ -570,7 +570,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Artifact signature creation request.", "#/components/schemas/CreateArtifactSignatureRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created artifact signature envelope.", "#/components/schemas/ArtifactSignatureEnvelope")
 	case "getArtifactSignature":
-		operation.Description = "Returns tenant-scoped artifact signature metadata by id."
+		operation.Description = "Returns artifact signature metadata by id only when the current tenant owns the signature and its artifact digest still matches. A human session additionally needs an evidence:read grant covering a current evidence or build association; issued credentials use their evidence:read scope."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Artifact signature id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Artifact signature envelope.", "#/components/schemas/ArtifactSignatureEnvelope")
 	case "verifyCosignSignature":

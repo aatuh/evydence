@@ -36,35 +36,36 @@ type requestContext = context.Context
 const requestIDHeader = "X-Request-ID"
 
 type Server struct {
-	ledger                *app.Ledger
-	authn                 Authenticator
-	idempotency           idempotencyExecutor
-	identityAccess        identityAccessService
-	releaseCatalog        releaseCatalogService
-	productQuery          ProductQuery
-	catalogPointQuery     CatalogPointQuery
-	buildPointQuery       BuildPointQuery
-	releaseCandidateQuery ReleaseCandidateQuery
-	deploymentPointQuery  DeploymentPointQuery
-	deploymentListQuery   DeploymentListQuery
-	evidencePointQuery    EvidencePointQuery
-	sourceRepositoryQuery SourceRepositoryQuery
-	collectorQuery        CollectorQuery
-	controlsQuery         ControlsQuery
-	answerLibraryQuery    AnswerLibraryQuery
-	auditLogQuery         AuditLogQuery
-	apiKeyQuery           APIKeyQuery
-	roleBindingQuery      RoleBindingQuery
-	evidenceIngestion     evidenceIngestionService
-	riskDecisions         riskDecisionService
-	packages              packageService
-	verification          verificationService
-	mux                   *http.ServeMux
-	specs                 *specs.Registry
-	routes                *routecontracts.Registry
-	ingress               *ingressControl
-	identity              runtimeinfo.Identity
-	cursors               appquery.CursorCodec
+	ledger                 *app.Ledger
+	authn                  Authenticator
+	idempotency            idempotencyExecutor
+	identityAccess         identityAccessService
+	releaseCatalog         releaseCatalogService
+	productQuery           ProductQuery
+	catalogPointQuery      CatalogPointQuery
+	buildPointQuery        BuildPointQuery
+	releaseCandidateQuery  ReleaseCandidateQuery
+	deploymentPointQuery   DeploymentPointQuery
+	deploymentListQuery    DeploymentListQuery
+	evidencePointQuery     EvidencePointQuery
+	sourceRepositoryQuery  SourceRepositoryQuery
+	collectorQuery         CollectorQuery
+	controlsQuery          ControlsQuery
+	artifactSignatureQuery ArtifactSignatureQuery
+	answerLibraryQuery     AnswerLibraryQuery
+	auditLogQuery          AuditLogQuery
+	apiKeyQuery            APIKeyQuery
+	roleBindingQuery       RoleBindingQuery
+	evidenceIngestion      evidenceIngestionService
+	riskDecisions          riskDecisionService
+	packages               packageService
+	verification           verificationService
+	mux                    *http.ServeMux
+	specs                  *specs.Registry
+	routes                 *routecontracts.Registry
+	ingress                *ingressControl
+	identity               runtimeinfo.Identity
+	cursors                appquery.CursorCodec
 }
 
 type ServerOptions struct {
@@ -110,6 +111,8 @@ type ServerOptions struct {
 	CollectorQuery CollectorQuery
 	// ControlsQuery reads framework pages and tenant-owned control points.
 	ControlsQuery ControlsQuery
+	// ArtifactSignatureQuery reads tenant-owned signature points from PostgreSQL.
+	ArtifactSignatureQuery ArtifactSignatureQuery
 	// AnswerLibraryQuery pages authorized questionnaire drafts from PostgreSQL.
 	AnswerLibraryQuery AnswerLibraryQuery
 	// AuditLogQuery pages tenant audit records in PostgreSQL for the durable profile.
@@ -162,7 +165,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, controlsQuery: opts.ControlsQuery, answerLibraryQuery: opts.AnswerLibraryQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, controlsQuery: opts.ControlsQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, answerLibraryQuery: opts.AnswerLibraryQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
 		server.authn = opts.Authenticator
@@ -856,6 +859,15 @@ func (s *Server) createArtifactSignature(w http.ResponseWriter, r *http.Request)
 func (s *Server) getArtifactSignature(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
+		return
+	}
+	if s.artifactSignatureQuery != nil {
+		signature, err := s.artifactSignatureQuery.GetArtifactSignature(r.Context(), actor, r.PathValue("id"))
+		if err != nil {
+			writeProblem(w, r, mapArtifactSignatureQueryError(err))
+			return
+		}
+		writeData(w, http.StatusOK, artifactSignatureFromQuery(signature))
 		return
 	}
 	sig, err := s.ledger.GetArtifactSignature(r.Context(), actor, r.PathValue("id"))
