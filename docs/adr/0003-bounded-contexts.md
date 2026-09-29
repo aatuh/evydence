@@ -72,7 +72,9 @@ limits are applied in PostgreSQL; release and environment joins must resolve to
 one tenant-owned product before grant evaluation. Ordinary evidence
 point reads use a tenant-scoped, snapshot-consistent query. Worker-owned
 evidence types still use the Ledger projection so their parser, document, and
-audit provenance checks are not bypassed. Local-memory mode and other
+audit provenance checks are not bypassed. Source-repository pages use an
+integration-owned query that validates current project/product parentage and
+filters grants before the keyset limit. Local-memory mode and other
 unmigrated handlers still use the Ledger compatibility model.
 
 `internal/domain` remains a compatibility DTO boundary at the HTTP,

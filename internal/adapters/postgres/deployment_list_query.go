@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
@@ -35,7 +34,7 @@ func (s *Store) PageDeploymentEnvironments(ctx context.Context, request operatio
 		args = append(args, request.AllowedProductIDs)
 		where = append(where, fmt.Sprintf("e.product_id = ANY($%d::text[])", len(args)))
 	}
-	where, args, order, err := appendDeploymentKeyset("e", where, args, request.Page, request.After)
+	where, args, order, err := appendCreatedAtKeyset("e", where, args, request.Page, request.After)
 	if err != nil {
 		return appquery.Result[operationsdomain.DeploymentEnvironment]{}, err
 	}
@@ -97,7 +96,7 @@ func (s *Store) PageDeployments(ctx context.Context, request operationsquery.Dep
 		args = append(args, request.AllowedProductIDs, request.AllowedReleaseIDs)
 		where = append(where, fmt.Sprintf("(p.id = ANY($%d::text[]) OR d.release_id = ANY($%d::text[]))", len(args)-1, len(args)))
 	}
-	where, args, order, err := appendDeploymentKeyset("d", where, args, request.Page, request.After)
+	where, args, order, err := appendCreatedAtKeyset("d", where, args, request.Page, request.After)
 	if err != nil {
 		return appquery.Result[operationsquery.DeploymentPoint]{}, err
 	}
@@ -145,35 +144,4 @@ func (s *Store) PageDeployments(ctx context.Context, request operationsquery.Dep
 		result.Next = &key
 	}
 	return result, nil
-}
-
-func appendDeploymentKeyset(alias string, where []string, args []any, page appquery.PageRequest, after *appquery.SortKey) ([]string, []any, string, error) {
-	operator, direction := ">", "ASC"
-	if page.Direction == appquery.Descending {
-		operator, direction = "<", "DESC"
-	}
-	order := alias + ".created_at " + direction + ", " + alias + ".id " + direction
-	switch page.Sort {
-	case appquery.SortCreatedAt:
-		if after != nil {
-			createdAt, err := time.Parse(time.RFC3339Nano, after.Value)
-			if err != nil || createdAt.UTC().Format(time.RFC3339Nano) != after.Value {
-				return nil, nil, "", appquery.ErrInvalidCursor
-			}
-			args = append(args, createdAt, after.ID)
-			where = append(where, fmt.Sprintf("(%s.created_at %s $%d OR (%s.created_at = $%d AND %s.id %s $%d))", alias, operator, len(args)-1, alias, len(args)-1, alias, operator, len(args)))
-		}
-	case appquery.SortID:
-		order = alias + ".id " + direction
-		if after != nil {
-			if after.Value != after.ID {
-				return nil, nil, "", appquery.ErrInvalidCursor
-			}
-			args = append(args, after.ID)
-			where = append(where, fmt.Sprintf("%s.id %s $%d", alias, operator, len(args)))
-		}
-	default:
-		return nil, nil, "", appquery.ErrInvalidPage
-	}
-	return where, args, order, nil
 }

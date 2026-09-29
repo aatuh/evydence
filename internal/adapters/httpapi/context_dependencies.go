@@ -9,6 +9,7 @@ import (
 	"github.com/aatuh/evydence/internal/domain"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
+	integrationdomain "github.com/aatuh/evydence/internal/integration/domain"
 	operationsdomain "github.com/aatuh/evydence/internal/operations/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
@@ -57,6 +58,11 @@ type DeploymentListQuery interface {
 // PostgreSQL snapshot. Worker-owned records retain the validated projection.
 type EvidencePointQuery interface {
 	GetEvidence(context.Context, domain.Actor, string) (evidencedomain.EvidenceItem, error)
+}
+
+// SourceRepositoryQuery returns one tenant/grant-filtered durable page.
+type SourceRepositoryQuery interface {
+	ListPage(context.Context, domain.Actor, string, appquery.PageRequest, *appquery.SortKey) (appquery.Result[integrationdomain.SourceRepository], error)
 }
 
 // AuditLogQuery pages current tenant audit entries without loading the Ledger.

@@ -36,30 +36,31 @@ type requestContext = context.Context
 const requestIDHeader = "X-Request-ID"
 
 type Server struct {
-	ledger               *app.Ledger
-	authn                Authenticator
-	idempotency          idempotencyExecutor
-	identityAccess       identityAccessService
-	releaseCatalog       releaseCatalogService
-	productQuery         ProductQuery
-	catalogPointQuery    CatalogPointQuery
-	buildPointQuery      BuildPointQuery
-	deploymentPointQuery DeploymentPointQuery
-	deploymentListQuery  DeploymentListQuery
-	evidencePointQuery   EvidencePointQuery
-	auditLogQuery        AuditLogQuery
-	apiKeyQuery          APIKeyQuery
-	roleBindingQuery     RoleBindingQuery
-	evidenceIngestion    evidenceIngestionService
-	riskDecisions        riskDecisionService
-	packages             packageService
-	verification         verificationService
-	mux                  *http.ServeMux
-	specs                *specs.Registry
-	routes               *routecontracts.Registry
-	ingress              *ingressControl
-	identity             runtimeinfo.Identity
-	cursors              appquery.CursorCodec
+	ledger                *app.Ledger
+	authn                 Authenticator
+	idempotency           idempotencyExecutor
+	identityAccess        identityAccessService
+	releaseCatalog        releaseCatalogService
+	productQuery          ProductQuery
+	catalogPointQuery     CatalogPointQuery
+	buildPointQuery       BuildPointQuery
+	deploymentPointQuery  DeploymentPointQuery
+	deploymentListQuery   DeploymentListQuery
+	evidencePointQuery    EvidencePointQuery
+	sourceRepositoryQuery SourceRepositoryQuery
+	auditLogQuery         AuditLogQuery
+	apiKeyQuery           APIKeyQuery
+	roleBindingQuery      RoleBindingQuery
+	evidenceIngestion     evidenceIngestionService
+	riskDecisions         riskDecisionService
+	packages              packageService
+	verification          verificationService
+	mux                   *http.ServeMux
+	specs                 *specs.Registry
+	routes                *routecontracts.Registry
+	ingress               *ingressControl
+	identity              runtimeinfo.Identity
+	cursors               appquery.CursorCodec
 }
 
 type ServerOptions struct {
@@ -97,6 +98,8 @@ type ServerOptions struct {
 	DeploymentListQuery DeploymentListQuery
 	// EvidencePointQuery reads ordinary evidence from tenant-scoped PostgreSQL.
 	EvidencePointQuery EvidencePointQuery
+	// SourceRepositoryQuery pages current tenant-owned source repositories.
+	SourceRepositoryQuery SourceRepositoryQuery
 	// AuditLogQuery pages tenant audit records in PostgreSQL for the durable profile.
 	AuditLogQuery AuditLogQuery
 	// APIKeyQuery pages public key metadata in PostgreSQL for the durable profile.
@@ -147,7 +150,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
 		server.authn = opts.Authenticator
@@ -929,6 +932,24 @@ func (s *Server) createSourceRepository(w http.ResponseWriter, r *http.Request) 
 func (s *Server) listSourceRepositories(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
+		return
+	}
+	if s.sourceRepositoryQuery != nil {
+		request, err := s.parsePageRequest(r, actor, "source-repositories", "project_id")
+		if err != nil {
+			writeProblem(w, r, err)
+			return
+		}
+		page, err := s.sourceRepositoryQuery.ListPage(r.Context(), actor, r.URL.Query().Get("project_id"), appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+		if err != nil {
+			writeProblem(w, r, mapSourceRepositoryQueryError(err))
+			return
+		}
+		mapped := appquery.Result[domain.SourceRepository]{Next: page.Next, Items: make([]domain.SourceRepository, 0, len(page.Items))}
+		for _, repository := range page.Items {
+			mapped.Items = append(mapped.Items, sourceRepositoryFromQuery(repository))
+		}
+		writePage(s, w, r, actor, "source-repositories", request, mapped)
 		return
 	}
 	repos, err := s.ledger.ListSourceRepositories(r.Context(), actor, r.URL.Query().Get("project_id"))
