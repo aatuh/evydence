@@ -22,6 +22,7 @@ import (
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	application "github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
+	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	identityquery "github.com/aatuh/evydence/internal/identity/query"
 	"github.com/aatuh/evydence/internal/platform/jsonbounds"
@@ -44,6 +45,7 @@ type Server struct {
 	catalogPointQuery    CatalogPointQuery
 	buildPointQuery      BuildPointQuery
 	deploymentPointQuery DeploymentPointQuery
+	evidencePointQuery   EvidencePointQuery
 	auditLogQuery        AuditLogQuery
 	apiKeyQuery          APIKeyQuery
 	roleBindingQuery     RoleBindingQuery
@@ -90,6 +92,8 @@ type ServerOptions struct {
 	BuildPointQuery BuildPointQuery
 	// DeploymentPointQuery reads one tenant-owned deployment and parent projection.
 	DeploymentPointQuery DeploymentPointQuery
+	// EvidencePointQuery reads ordinary evidence from tenant-scoped PostgreSQL.
+	EvidencePointQuery EvidencePointQuery
 	// AuditLogQuery pages tenant audit records in PostgreSQL for the durable profile.
 	AuditLogQuery AuditLogQuery
 	// APIKeyQuery pages public key metadata in PostgreSQL for the durable profile.
@@ -140,7 +144,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, deploymentPointQuery: opts.DeploymentPointQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, deploymentPointQuery: opts.DeploymentPointQuery, evidencePointQuery: opts.EvidencePointQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
 		server.authn = opts.Authenticator
@@ -1628,6 +1632,17 @@ func (s *Server) getEvidence(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
 		return
+	}
+	if s.evidencePointQuery != nil {
+		item, err := s.evidencePointQuery.GetEvidence(r.Context(), actor, r.PathValue("id"))
+		if !errors.Is(err, evidencequery.ErrRequiresProjection) {
+			if err != nil {
+				writeProblem(w, r, mapEvidencePointQueryError(err))
+				return
+			}
+			writeData(w, http.StatusOK, domain.EvidenceFromContextModel(item))
+			return
+		}
 	}
 	item, err := s.evidenceIngestion.GetEvidence(r.Context(), actor, r.PathValue("id"))
 	if err != nil {

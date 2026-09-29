@@ -7,6 +7,7 @@ import (
 	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
+	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	operationsdomain "github.com/aatuh/evydence/internal/operations/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
@@ -44,6 +45,12 @@ type BuildPointQuery interface {
 // release and environment without consulting the Ledger projection.
 type DeploymentPointQuery interface {
 	GetDeployment(context.Context, domain.Actor, string) (operationsdomain.DeploymentEvent, error)
+}
+
+// EvidencePointQuery reads authorized ordinary evidence from a bounded
+// PostgreSQL snapshot. Worker-owned records retain the validated projection.
+type EvidencePointQuery interface {
+	GetEvidence(context.Context, domain.Actor, string) (evidencedomain.EvidenceItem, error)
 }
 
 // AuditLogQuery pages current tenant audit entries without loading the Ledger.

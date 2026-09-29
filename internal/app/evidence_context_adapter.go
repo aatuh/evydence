@@ -773,55 +773,11 @@ func cloneOutboxJobMap(values map[string]OutboxJob) map[string]OutboxJob {
 }
 
 func evidenceToContext(value domain.EvidenceItem) evidencedomain.EvidenceItem {
-	subjects := make([]evidencedomain.SubjectRef, 0, len(value.SubjectRefs))
-	for _, subject := range value.SubjectRefs {
-		subjects = append(subjects, evidencedomain.SubjectRef{Type: subject.Type, ID: subject.ID, Digest: subject.Digest})
-	}
-	related := make([]evidencedomain.EvidenceRef, 0, len(value.RelatedEvidenceRefs))
-	for _, reference := range value.RelatedEvidenceRefs {
-		related = append(related, evidencedomain.EvidenceRef{Type: reference.Type, ID: reference.ID, Relationship: reference.Relationship})
-	}
-	warnings := make([]evidencedomain.EvidenceNotice, 0, len(value.Warnings))
-	for _, warning := range value.Warnings {
-		warnings = append(warnings, evidencedomain.EvidenceNotice{Code: warning.Code, Message: warning.Message})
-	}
-	return evidencedomain.EvidenceItem{
-		ID: value.ID, TenantID: value.TenantID, ProductID: value.ProductID, ProjectID: value.ProjectID, ReleaseID: value.ReleaseID,
-		BuildID: value.BuildID, DeploymentID: value.DeploymentID, Type: value.Type, Subtype: value.Subtype, Title: value.Title,
-		SourceSystem: value.SourceSystem, SourceIdentity: cloneMap(value.SourceIdentity), CollectorID: value.CollectorID, UploadedBy: value.UploadedBy,
-		ObservedAt: value.ObservedAt, EvidenceVersion: value.EvidenceVersion, SchemaVersion: value.SchemaVersion,
-		PayloadRef: value.PayloadRef, PayloadHash: value.PayloadHash, PayloadMediaType: value.PayloadMediaType, PayloadSize: value.PayloadSize,
-		CanonicalHash: value.CanonicalHash, Canonicalization: value.Canonicalization, SubjectRefs: subjects, RelatedEvidenceRefs: related,
-		Supersedes: value.Supersedes, SupersededBy: value.SupersededBy, TrustLevel: value.TrustLevel, VerificationStatus: value.VerificationStatus,
-		SignatureRefs: append([]string(nil), value.SignatureRefs...), ChainEntryID: value.ChainEntryID, Tags: append([]string(nil), value.Tags...),
-		Metadata: cloneMap(value.Metadata), Warnings: warnings, Limitations: append([]string(nil), value.Limitations...), CreatedAt: value.CreatedAt,
-	}
+	return domain.EvidenceToContextModel(value)
 }
 
 func evidenceFromContext(value evidencedomain.EvidenceItem) domain.EvidenceItem {
-	subjects := make([]domain.SubjectRef, 0, len(value.SubjectRefs))
-	for _, subject := range value.SubjectRefs {
-		subjects = append(subjects, domain.SubjectRef{Type: subject.Type, ID: subject.ID, Digest: subject.Digest})
-	}
-	related := make([]domain.EvidenceRef, 0, len(value.RelatedEvidenceRefs))
-	for _, reference := range value.RelatedEvidenceRefs {
-		related = append(related, domain.EvidenceRef{Type: reference.Type, ID: reference.ID, Relationship: reference.Relationship})
-	}
-	warnings := make([]domain.EvidenceNotice, 0, len(value.Warnings))
-	for _, warning := range value.Warnings {
-		warnings = append(warnings, domain.EvidenceNotice{Code: warning.Code, Message: warning.Message})
-	}
-	return domain.EvidenceItem{
-		ID: value.ID, TenantID: value.TenantID, ProductID: value.ProductID, ProjectID: value.ProjectID, ReleaseID: value.ReleaseID,
-		BuildID: value.BuildID, DeploymentID: value.DeploymentID, Type: value.Type, Subtype: value.Subtype, Title: value.Title,
-		SourceSystem: value.SourceSystem, SourceIdentity: cloneMap(value.SourceIdentity), CollectorID: value.CollectorID, UploadedBy: value.UploadedBy,
-		ObservedAt: value.ObservedAt, EvidenceVersion: value.EvidenceVersion, SchemaVersion: value.SchemaVersion,
-		PayloadRef: value.PayloadRef, PayloadHash: value.PayloadHash, PayloadMediaType: value.PayloadMediaType, PayloadSize: value.PayloadSize,
-		CanonicalHash: value.CanonicalHash, Canonicalization: value.Canonicalization, SubjectRefs: subjects, RelatedEvidenceRefs: related,
-		Supersedes: value.Supersedes, SupersededBy: value.SupersededBy, TrustLevel: value.TrustLevel, VerificationStatus: value.VerificationStatus,
-		SignatureRefs: append([]string(nil), value.SignatureRefs...), ChainEntryID: value.ChainEntryID, Tags: append([]string(nil), value.Tags...),
-		Metadata: cloneMap(value.Metadata), Warnings: warnings, Limitations: append([]string(nil), value.Limitations...), CreatedAt: value.CreatedAt,
-	}
+	return domain.EvidenceFromContextModel(value)
 }
 
 func sbomToEvidenceContext(value domain.SBOM) evidencedomain.SBOM {

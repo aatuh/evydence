@@ -72,6 +72,69 @@ func SubjectRefFromEvidenceModel(value evidencedomain.SubjectRef) SubjectRef {
 	return SubjectRef{Type: value.Type, ID: value.ID, Digest: value.Digest}
 }
 
+// EvidenceToContextModel converts the legacy persisted/transport shape into
+// the evidence-owned model without sharing mutable JSON or reference values.
+func EvidenceToContextModel(value EvidenceItem) evidencedomain.EvidenceItem {
+	subjects := make([]evidencedomain.SubjectRef, 0, len(value.SubjectRefs))
+	for _, subject := range value.SubjectRefs {
+		subjects = append(subjects, evidencedomain.SubjectRef{Type: subject.Type, ID: subject.ID, Digest: subject.Digest})
+	}
+	related := make([]evidencedomain.EvidenceRef, 0, len(value.RelatedEvidenceRefs))
+	for _, reference := range value.RelatedEvidenceRefs {
+		related = append(related, evidencedomain.EvidenceRef{Type: reference.Type, ID: reference.ID, Relationship: reference.Relationship})
+	}
+	warnings := make([]evidencedomain.EvidenceNotice, 0, len(value.Warnings))
+	for _, warning := range value.Warnings {
+		warnings = append(warnings, evidencedomain.EvidenceNotice{Code: warning.Code, Message: warning.Message})
+	}
+	return evidencedomain.EvidenceItem{
+		ID: value.ID, TenantID: value.TenantID, ProductID: value.ProductID, ProjectID: value.ProjectID, ReleaseID: value.ReleaseID,
+		BuildID: value.BuildID, DeploymentID: value.DeploymentID, Type: value.Type, Subtype: value.Subtype, Title: value.Title,
+		SourceSystem: value.SourceSystem, SourceIdentity: cloneEvidenceJSONMap(value.SourceIdentity), CollectorID: value.CollectorID, UploadedBy: value.UploadedBy,
+		ObservedAt: value.ObservedAt, EvidenceVersion: value.EvidenceVersion, SchemaVersion: value.SchemaVersion,
+		PayloadRef: value.PayloadRef, PayloadHash: value.PayloadHash, PayloadMediaType: value.PayloadMediaType, PayloadSize: value.PayloadSize,
+		CanonicalHash: value.CanonicalHash, Canonicalization: value.Canonicalization, SubjectRefs: subjects, RelatedEvidenceRefs: related,
+		Supersedes: value.Supersedes, SupersededBy: value.SupersededBy, TrustLevel: value.TrustLevel, VerificationStatus: value.VerificationStatus,
+		SignatureRefs: append([]string(nil), value.SignatureRefs...), ChainEntryID: value.ChainEntryID, Tags: append([]string(nil), value.Tags...),
+		Metadata: cloneEvidenceJSONMap(value.Metadata), Warnings: warnings, Limitations: append([]string(nil), value.Limitations...), CreatedAt: value.CreatedAt,
+	}
+}
+
+// EvidenceFromContextModel preserves the public JSON field shape at the
+// compatibility boundary while isolating mutable context values.
+func EvidenceFromContextModel(value evidencedomain.EvidenceItem) EvidenceItem {
+	subjects := make([]SubjectRef, 0, len(value.SubjectRefs))
+	for _, subject := range value.SubjectRefs {
+		subjects = append(subjects, SubjectRef{Type: subject.Type, ID: subject.ID, Digest: subject.Digest})
+	}
+	related := make([]EvidenceRef, 0, len(value.RelatedEvidenceRefs))
+	for _, reference := range value.RelatedEvidenceRefs {
+		related = append(related, EvidenceRef{Type: reference.Type, ID: reference.ID, Relationship: reference.Relationship})
+	}
+	warnings := make([]EvidenceNotice, 0, len(value.Warnings))
+	for _, warning := range value.Warnings {
+		warnings = append(warnings, EvidenceNotice{Code: warning.Code, Message: warning.Message})
+	}
+	return EvidenceItem{
+		ID: value.ID, TenantID: value.TenantID, ProductID: value.ProductID, ProjectID: value.ProjectID, ReleaseID: value.ReleaseID,
+		BuildID: value.BuildID, DeploymentID: value.DeploymentID, Type: value.Type, Subtype: value.Subtype, Title: value.Title,
+		SourceSystem: value.SourceSystem, SourceIdentity: cloneEvidenceJSONMap(value.SourceIdentity), CollectorID: value.CollectorID, UploadedBy: value.UploadedBy,
+		ObservedAt: value.ObservedAt, EvidenceVersion: value.EvidenceVersion, SchemaVersion: value.SchemaVersion,
+		PayloadRef: value.PayloadRef, PayloadHash: value.PayloadHash, PayloadMediaType: value.PayloadMediaType, PayloadSize: value.PayloadSize,
+		CanonicalHash: value.CanonicalHash, Canonicalization: value.Canonicalization, SubjectRefs: subjects, RelatedEvidenceRefs: related,
+		Supersedes: value.Supersedes, SupersededBy: value.SupersededBy, TrustLevel: value.TrustLevel, VerificationStatus: value.VerificationStatus,
+		SignatureRefs: append([]string(nil), value.SignatureRefs...), ChainEntryID: value.ChainEntryID, Tags: append([]string(nil), value.Tags...),
+		Metadata: cloneEvidenceJSONMap(value.Metadata), Warnings: warnings, Limitations: append([]string(nil), value.Limitations...), CreatedAt: value.CreatedAt,
+	}
+}
+
+func cloneEvidenceJSONMap(value map[string]any) map[string]any {
+	if len(value) == 0 {
+		return nil
+	}
+	return cloneJSONMap(value)
+}
+
 func VulnerabilityDecisionToContextModel(value VulnerabilityDecision) (riskdomain.VulnerabilityDecision, error) {
 	status, err := riskdomain.ParseDecisionStatus(value.Status)
 	if err != nil {

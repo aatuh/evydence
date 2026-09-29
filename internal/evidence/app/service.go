@@ -956,12 +956,7 @@ func (s *Service) supportsMutableRelationships(item evidencedomain.EvidenceItem)
 }
 
 func workerOwnedEvidenceType(evidenceType string) bool {
-	switch evidenceType {
-	case parserNormalizationType, "sbom", "vulnerability_scan", "openapi_contract", "vex", "build_attestation":
-		return true
-	default:
-		return false
-	}
+	return evidencedomain.RequiresWorkerProjection(evidenceType)
 }
 
 type canonicalRelationshipOrigin struct {

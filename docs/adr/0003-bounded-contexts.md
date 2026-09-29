@@ -68,8 +68,11 @@ HTTP DTOs.
 EVY-905 is in progress. PostgreSQL-backed point reads for products, projects,
 releases, and builds use release-catalog queries; deployment point reads use an
 operations-owned query. The deployment reader joins its tenant-owned release
-and environment through one product before grant evaluation. Local-memory
-mode and other unmigrated handlers still use the Ledger compatibility model.
+and environment through one product before grant evaluation. Ordinary evidence
+point reads use a tenant-scoped, snapshot-consistent query. Worker-owned
+evidence types still use the Ledger projection so their parser, document, and
+audit provenance checks are not bypassed. Local-memory mode and other
+unmigrated handlers still use the Ledger compatibility model.
 
 `internal/domain` remains a compatibility DTO boundary at the HTTP,
 persistence, and legacy-facade edges while remaining callers migrate in EVY-904

@@ -16,6 +16,14 @@ func TestContextCompatibilityMappersPreserveLegacyContracts(t *testing.T) {
 		roundTrip func() (any, error)
 	}{
 		{
+			name:   "evidence",
+			legacy: EvidenceItem{ID: "ev_1", TenantID: "ten_1", ProductID: "prod_1", ReleaseID: "rel_1", Type: "document", Title: "Evidence", SourceSystem: "api", SourceIdentity: map[string]any{"provider": "test"}, ObservedAt: now, EvidenceVersion: 1, SchemaVersion: EvidenceItemSchemaVersion, PayloadHash: "sha256:payload", CanonicalHash: "sha256:canonical", Canonicalization: CanonicalizationProfileVersion, SubjectRefs: []SubjectRef{{Type: "artifact", ID: "art_1", Digest: "sha256:abc"}}, RelatedEvidenceRefs: []EvidenceRef{{Type: "evidence_item", ID: "ev_2", Relationship: "supports"}}, TrustLevel: "L2", VerificationStatus: "pending", SignatureRefs: []string{"sig_1"}, Metadata: map[string]any{"nested": map[string]any{"value": "original"}}, Warnings: []EvidenceNotice{{Code: "note", Message: "review"}}, Limitations: []string{"manual"}, CreatedAt: now},
+			roundTrip: func() (any, error) {
+				legacy := EvidenceItem{ID: "ev_1", TenantID: "ten_1", ProductID: "prod_1", ReleaseID: "rel_1", Type: "document", Title: "Evidence", SourceSystem: "api", SourceIdentity: map[string]any{"provider": "test"}, ObservedAt: now, EvidenceVersion: 1, SchemaVersion: EvidenceItemSchemaVersion, PayloadHash: "sha256:payload", CanonicalHash: "sha256:canonical", Canonicalization: CanonicalizationProfileVersion, SubjectRefs: []SubjectRef{{Type: "artifact", ID: "art_1", Digest: "sha256:abc"}}, RelatedEvidenceRefs: []EvidenceRef{{Type: "evidence_item", ID: "ev_2", Relationship: "supports"}}, TrustLevel: "L2", VerificationStatus: "pending", SignatureRefs: []string{"sig_1"}, Metadata: map[string]any{"nested": map[string]any{"value": "original"}}, Warnings: []EvidenceNotice{{Code: "note", Message: "review"}}, Limitations: []string{"manual"}, CreatedAt: now}
+				return EvidenceFromContextModel(EvidenceToContextModel(legacy)), nil
+			},
+		},
+		{
 			name:   "release",
 			legacy: Release{ID: "rel_1", TenantID: "ten_1", ProductID: "prod_1", Version: "1.0.0", Revision: 2, State: "frozen", CreatedAt: now, FrozenAt: &reviewedAt},
 			roundTrip: func() (any, error) {
@@ -106,6 +114,16 @@ func TestContextCompatibilityMappersRejectUnknownPersistedStates(t *testing.T) {
 }
 
 func TestContextCompatibilityMappersCopyMutableValues(t *testing.T) {
+	evidence := EvidenceItem{SourceIdentity: map[string]any{"nested": map[string]any{"value": "original"}}, Metadata: map[string]any{"nested": []any{"original"}}, SubjectRefs: []SubjectRef{{Type: "artifact", ID: "art_1"}}, SignatureRefs: []string{"sig_1"}}
+	evidenceModel := EvidenceToContextModel(evidence)
+	evidenceModel.SourceIdentity["nested"].(map[string]any)["value"] = "changed"
+	evidenceModel.Metadata["nested"].([]any)[0] = "changed"
+	evidenceModel.SubjectRefs[0].ID = "art_changed"
+	evidenceModel.SignatureRefs[0] = "sig_changed"
+	if evidence.SourceIdentity["nested"].(map[string]any)["value"] != "original" || evidence.Metadata["nested"].([]any)[0] != "original" || evidence.SubjectRefs[0].ID != "art_1" || evidence.SignatureRefs[0] != "sig_1" {
+		t.Fatalf("evidence mapper aliased mutable values: %#v", evidence)
+	}
+
 	legacy := ReleaseBundle{State: "generated", Manifest: map[string]any{"nested": []any{"original"}}, SignatureRefs: []string{"sig_1"}}
 	model, err := ReleaseBundleToContextModel(legacy)
 	if err != nil {
