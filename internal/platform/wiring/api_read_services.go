@@ -121,6 +121,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string) (httpapi.ServerOption
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create exceptions query: %w", err)
 	}
+	options.VulnerabilityDecisionQuery, err = BuildVulnerabilityDecisionQuery(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create vulnerability decision query: %w", err)
+	}
 	options.ControlEvidenceQuery, err = BuildControlEvidenceQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create control evidence query: %w", err)

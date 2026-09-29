@@ -108,6 +108,10 @@ Exception lists also use a risk-owned PostgreSQL query. One repeatable-read
 snapshot resolves an optional release filter and applies current tenant,
 product, and release grants before the bounded keyset page. Local-memory mode
 retains the compatibility reader.
+Vulnerability-decision history also uses a risk-owned PostgreSQL query. It
+validates filtered product/release coordinates in one snapshot, applies current
+evidence-read grants and filters before keyset pagination, and never selects
+tenant-internal notes. Local-memory mode retains its compatibility reader.
 Worker-owned evidence types still use the Ledger projection so their parser,
 document, and audit provenance checks are not bypassed. Source-repository
 pages use an integration-owned query that validates current project/product
@@ -247,7 +251,7 @@ exactly one context while preserving existing data and migration history.
 | Migration | Steward context |
 | --- | --- |
 | `20260527000100_initial_ledger`, `20260527000200_runtime_foundation`, `20260528000200_increment_6_15`, `20260528000300_increment_16_25`, `20260528000400_increment_26_35`, `20260528000500_increment_36_45`, `20260528000600_increment_46_55`, `20260528000700_increment_56_65`, `20260528001600_remaining_relational_recovery_columns` | Operations and incidents — historical platform transition. |
-| `20260527000300_vex_decisions_exceptions`, `20260528000100_controls_reports`, `20260601000100_vulnerability_decision_customer_fields`, `20260601000200_vulnerability_decision_evidence_ids`, `20260601000300_vex_import_reports`, `20260601000600_vulnerability_decision_review_times`, `20260601000700_vulnerability_decision_sbom_context`, `20260601000800_vulnerability_decision_supporting_refs`, `20260601000900_vex_import_report_failures`, `20260904000100_vulnerability_decision_active_unique` | Vulnerability decisions and governance. |
+| `20260527000300_vex_decisions_exceptions`, `20260528000100_controls_reports`, `20260601000100_vulnerability_decision_customer_fields`, `20260601000200_vulnerability_decision_evidence_ids`, `20260601000300_vex_import_reports`, `20260601000600_vulnerability_decision_review_times`, `20260601000700_vulnerability_decision_sbom_context`, `20260601000800_vulnerability_decision_supporting_refs`, `20260601000900_vex_import_report_failures`, `20260904000100_vulnerability_decision_active_unique`, `20260929000600_vulnerability_decision_query_indexes` | Vulnerability decisions and governance. |
 | `20260527000400_collectors_builds_attestations`, `20260528001400_release_core_relational_columns` | Release catalog. |
 | `20260815000100_vulnerability_scan_adapter_identity` | Evidence ingestion. |
 | `20260528000800_customer_portal_access_counters`, `20260528001500_package_retention_relational_columns`, `20260601000400_customer_portal_nda_answer_library`, `20260601000500_customer_portal_reviewers` | Package and reporting. |

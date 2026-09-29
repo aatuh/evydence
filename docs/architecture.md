@@ -78,6 +78,10 @@ durable paging is no longer limited to the
 newest 500 entries before pagination. `make domain-context-check`
 prevents model ownership, field compatibility, schema ownership, import, and
 transport-tag drift during the remaining transition.
+Vulnerability-decision history also uses a risk-owned PostgreSQL page query:
+one read snapshot validates filter coordinates and applies current
+tenant/product/release grants before the keyset limit. Internal notes are not
+selected or serialized. Local-memory mode retains the Ledger reader.
 
 ## Tenant And Auth Boundaries
 

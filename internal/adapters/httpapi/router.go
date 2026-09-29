@@ -27,6 +27,7 @@ import (
 	identityquery "github.com/aatuh/evydence/internal/identity/query"
 	"github.com/aatuh/evydence/internal/platform/jsonbounds"
 	releasequery "github.com/aatuh/evydence/internal/release/query"
+	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 	riskquery "github.com/aatuh/evydence/internal/risk/query"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
 	verificationquery "github.com/aatuh/evydence/internal/verification/query"
@@ -37,51 +38,52 @@ type requestContext = context.Context
 const requestIDHeader = "X-Request-ID"
 
 type Server struct {
-	ledger                    *app.Ledger
-	authn                     Authenticator
-	instanceAdminQuery        InstanceAdminQuery
-	idempotency               idempotencyExecutor
-	identityAccess            identityAccessService
-	releaseCatalog            releaseCatalogService
-	productQuery              ProductQuery
-	catalogPointQuery         CatalogPointQuery
-	buildPointQuery           BuildPointQuery
-	artifactPointQuery        ArtifactPointQuery
-	releaseCandidateQuery     ReleaseCandidateQuery
-	deploymentPointQuery      DeploymentPointQuery
-	deploymentListQuery       DeploymentListQuery
-	evidencePointQuery        EvidencePointQuery
-	lifecycleEventsQuery      LifecycleEventsQuery
-	openAPIContractPointQuery OpenAPIContractPointQuery
-	sbomPointQuery            SBOMPointQuery
-	sbomComponentsQuery       SBOMComponentsQuery
-	sourceRepositoryQuery     SourceRepositoryQuery
-	collectorQuery            CollectorQuery
-	collectorHealthQuery      CollectorHealthQuery
-	commercialCollectorQuery  CommercialCollectorQuery
-	marketplaceCollectorQuery MarketplaceCollectorQuery
-	vulnerabilityPostureQuery VulnerabilityPostureQuery
-	controlsQuery             ControlsQuery
-	exceptionsQuery           ExceptionsQuery
-	controlEvidenceQuery      ControlEvidenceQuery
-	artifactSignatureQuery    ArtifactSignatureQuery
-	signingKeyQuery           SigningKeyQuery
-	releaseBundleQuery        ReleaseBundleQuery
-	answerLibraryQuery        AnswerLibraryQuery
-	portalAccessQuery         PortalAccessQuery
-	auditLogQuery             AuditLogQuery
-	apiKeyQuery               APIKeyQuery
-	roleBindingQuery          RoleBindingQuery
-	evidenceIngestion         evidenceIngestionService
-	riskDecisions             riskDecisionService
-	packages                  packageService
-	verification              verificationService
-	mux                       *http.ServeMux
-	specs                     *specs.Registry
-	routes                    *routecontracts.Registry
-	ingress                   *ingressControl
-	identity                  runtimeinfo.Identity
-	cursors                   appquery.CursorCodec
+	ledger                     *app.Ledger
+	authn                      Authenticator
+	instanceAdminQuery         InstanceAdminQuery
+	idempotency                idempotencyExecutor
+	identityAccess             identityAccessService
+	releaseCatalog             releaseCatalogService
+	productQuery               ProductQuery
+	catalogPointQuery          CatalogPointQuery
+	buildPointQuery            BuildPointQuery
+	artifactPointQuery         ArtifactPointQuery
+	releaseCandidateQuery      ReleaseCandidateQuery
+	deploymentPointQuery       DeploymentPointQuery
+	deploymentListQuery        DeploymentListQuery
+	evidencePointQuery         EvidencePointQuery
+	lifecycleEventsQuery       LifecycleEventsQuery
+	openAPIContractPointQuery  OpenAPIContractPointQuery
+	sbomPointQuery             SBOMPointQuery
+	sbomComponentsQuery        SBOMComponentsQuery
+	sourceRepositoryQuery      SourceRepositoryQuery
+	collectorQuery             CollectorQuery
+	collectorHealthQuery       CollectorHealthQuery
+	commercialCollectorQuery   CommercialCollectorQuery
+	marketplaceCollectorQuery  MarketplaceCollectorQuery
+	vulnerabilityPostureQuery  VulnerabilityPostureQuery
+	controlsQuery              ControlsQuery
+	exceptionsQuery            ExceptionsQuery
+	vulnerabilityDecisionQuery VulnerabilityDecisionQuery
+	controlEvidenceQuery       ControlEvidenceQuery
+	artifactSignatureQuery     ArtifactSignatureQuery
+	signingKeyQuery            SigningKeyQuery
+	releaseBundleQuery         ReleaseBundleQuery
+	answerLibraryQuery         AnswerLibraryQuery
+	portalAccessQuery          PortalAccessQuery
+	auditLogQuery              AuditLogQuery
+	apiKeyQuery                APIKeyQuery
+	roleBindingQuery           RoleBindingQuery
+	evidenceIngestion          evidenceIngestionService
+	riskDecisions              riskDecisionService
+	packages                   packageService
+	verification               verificationService
+	mux                        *http.ServeMux
+	specs                      *specs.Registry
+	routes                     *routecontracts.Registry
+	ingress                    *ingressControl
+	identity                   runtimeinfo.Identity
+	cursors                    appquery.CursorCodec
 }
 
 type ServerOptions struct {
@@ -147,8 +149,10 @@ type ServerOptions struct {
 	VulnerabilityPostureQuery VulnerabilityPostureQuery
 	// ControlsQuery reads framework pages and tenant-owned control points.
 	ControlsQuery ControlsQuery
-	// ExceptionsQuery pages current tenant-owned decisions before HTTP encoding.
+	// ExceptionsQuery pages current tenant-owned exceptions before HTTP encoding.
 	ExceptionsQuery ExceptionsQuery
+	// VulnerabilityDecisionQuery pages durable decisions after tenant and grant filtering.
+	VulnerabilityDecisionQuery VulnerabilityDecisionQuery
 	// ControlEvidenceQuery pages links from current subject ownership.
 	ControlEvidenceQuery ControlEvidenceQuery
 	// ArtifactSignatureQuery reads tenant-owned signature points from PostgreSQL.
@@ -211,7 +215,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, instanceAdminQuery: opts.InstanceAdminQuery, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, artifactPointQuery: opts.ArtifactPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, lifecycleEventsQuery: opts.LifecycleEventsQuery, openAPIContractPointQuery: opts.OpenAPIContractPointQuery, sbomPointQuery: opts.SBOMPointQuery, sbomComponentsQuery: opts.SBOMComponentsQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, collectorHealthQuery: opts.CollectorHealthQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, marketplaceCollectorQuery: opts.MarketplaceCollectorQuery, vulnerabilityPostureQuery: opts.VulnerabilityPostureQuery, controlsQuery: opts.ControlsQuery, exceptionsQuery: opts.ExceptionsQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, instanceAdminQuery: opts.InstanceAdminQuery, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, artifactPointQuery: opts.ArtifactPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, lifecycleEventsQuery: opts.LifecycleEventsQuery, openAPIContractPointQuery: opts.OpenAPIContractPointQuery, sbomPointQuery: opts.SBOMPointQuery, sbomComponentsQuery: opts.SBOMComponentsQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, collectorHealthQuery: opts.CollectorHealthQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, marketplaceCollectorQuery: opts.MarketplaceCollectorQuery, vulnerabilityPostureQuery: opts.VulnerabilityPostureQuery, controlsQuery: opts.ControlsQuery, exceptionsQuery: opts.ExceptionsQuery, vulnerabilityDecisionQuery: opts.VulnerabilityDecisionQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
 		server.authn = opts.Authenticator
@@ -2264,6 +2268,42 @@ func (s *Server) createVulnerabilityDecision(w http.ResponseWriter, r *http.Requ
 func (s *Server) listVulnerabilityDecisions(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
+		return
+	}
+	if s.vulnerabilityDecisionQuery != nil {
+		request, err := s.parsePageRequest(r, actor, "vulnerability-decisions", "product_id", "release_id", "vulnerability", "component", "status", "active")
+		if err != nil {
+			writeProblem(w, r, err)
+			return
+		}
+		filter := riskquery.DecisionFilter{
+			ProductID: r.URL.Query().Get("product_id"), ReleaseID: r.URL.Query().Get("release_id"),
+			Vulnerability: r.URL.Query().Get("vulnerability"), Component: r.URL.Query().Get("component"), Status: r.URL.Query().Get("status"),
+		}
+		if filter.Status != "" {
+			if _, err := riskdomain.ParseDecisionStatus(filter.Status); err != nil {
+				writeProblem(w, r, app.ErrValidation)
+				return
+			}
+		}
+		if raw := r.URL.Query().Get("active"); raw != "" {
+			active, err := strconv.ParseBool(raw)
+			if err != nil {
+				writeProblem(w, r, app.ErrValidation)
+				return
+			}
+			filter.Active = &active
+		}
+		page, err := s.vulnerabilityDecisionQuery.ListPage(r.Context(), actor, filter, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+		if err != nil {
+			writeProblem(w, r, mapControlsQueryError(err))
+			return
+		}
+		mapped := appquery.Result[vulnerabilityDecisionResponse]{Next: page.Next, Items: make([]vulnerabilityDecisionResponse, 0, len(page.Items))}
+		for _, item := range page.Items {
+			mapped.Items = append(mapped.Items, externalRiskVulnerabilityDecision(item))
+		}
+		writePage(s, w, r, actor, "vulnerability-decisions", request, mapped)
 		return
 	}
 	query := r.URL.Query()

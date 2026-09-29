@@ -151,9 +151,15 @@ type ControlsQuery interface {
 }
 
 // ExceptionsQuery applies current verify grants before returning a bounded
-// page of tenant-owned decision records.
+// page of tenant-owned exception records.
 type ExceptionsQuery interface {
 	ListPage(context.Context, domain.Actor, string, appquery.PageRequest, *appquery.SortKey) (appquery.Result[riskdomain.Exception], error)
+}
+
+// VulnerabilityDecisionQuery returns a grant-filtered durable page without
+// selecting tenant-internal notes or materializing all tenant decisions.
+type VulnerabilityDecisionQuery interface {
+	ListPage(context.Context, domain.Actor, riskquery.DecisionFilter, appquery.PageRequest, *appquery.SortKey) (appquery.Result[riskdomain.VulnerabilityDecision], error)
 }
 
 // ControlEvidenceQuery pages current tenant-owned links after subject and

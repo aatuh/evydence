@@ -348,7 +348,10 @@ GET /v1/vulnerability-decisions?release_id=rel_...&vulnerability=CVE-2026-0099&a
 The history endpoint supports `product_id`, `release_id`, `vulnerability`,
 `component`, `status`, and `active` filters. It returns append-only decision
 records, including timestamps and supersession fields. It is tenant-scoped and
-requires `evidence:read`.
+requires `evidence:read`. In PostgreSQL mode, current product/release grants and
+filters are applied before bounded keyset pagination. The response excludes
+tenant-internal `internal_notes`; local-memory mode retains the compatibility
+reader.
 
 VEX import parser report:
 
