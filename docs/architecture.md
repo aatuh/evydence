@@ -64,6 +64,10 @@ tenant-bound PostgreSQL queries. Their actor-scope and catalog-grant checks
 no longer read the Ledger's product, project, release, or build maps. The
 build query joins its project, release, and product in one statement before
 the service applies resource grants.
+The built-in control-template catalog is owned by the risk context and read
+without the Ledger in the PostgreSQL profile. It contains static starter
+definitions, not tenant state; installation still uses the transactional
+compatibility command path. Local-memory mode retains the Ledger list path.
 The production process still reconstructs broad Ledger state at startup for
 remaining compatibility operations; removing that startup load and migrating
 other reads remain open EVY-905 work. Evidence list and search pages now use

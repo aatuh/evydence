@@ -35,6 +35,14 @@ func securityControlFromQuery(value riskdomain.SecurityControl) domain.SecurityC
 	}
 }
 
+func controlTemplatePackFromQuery(value riskdomain.ControlFrameworkTemplatePack) domain.ControlFrameworkTemplatePack {
+	pack := domain.ControlFrameworkTemplatePack{ID: value.ID, Name: value.Name, Slug: value.Slug, Version: value.Version, Description: value.Description, SchemaVersion: value.SchemaVersion}
+	for _, control := range value.Controls {
+		pack.Controls = append(pack.Controls, securityControlFromQuery(control))
+	}
+	return pack
+}
+
 func controlEvidenceFromQuery(value riskdomain.ControlEvidence) domain.ControlEvidence {
 	return domain.ControlEvidence{
 		ID: value.ID, TenantID: value.TenantID, ControlID: value.ControlID,

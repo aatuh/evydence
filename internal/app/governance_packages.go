@@ -17,6 +17,7 @@ import (
 	verificationdsse "github.com/aatuh/evydence/internal/adapters/verification/dsse"
 	"github.com/aatuh/evydence/internal/domain"
 	"github.com/aatuh/evydence/internal/platform/redaction"
+	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
 
 type CreateWaiverInput struct {
@@ -1520,23 +1521,20 @@ func profileExcludedFields(profile domain.RedactionProfile) map[string]bool {
 }
 
 func builtinTemplatePacks() []domain.ControlFrameworkTemplatePack {
-	return []domain.ControlFrameworkTemplatePack{
-		{ID: "tpl_cra_readiness", Name: "Evydence CRA Readiness", Slug: "evydence-cra-readiness", Version: "2026.05", Description: "Starter technical evidence controls for CRA readiness tracking.", SchemaVersion: "control-framework-template-pack.v1.0.0", Controls: []domain.SecurityControl{
-			{Code: "CRA-SBOM", Title: "SBOM evidence", Objective: "Release records SBOM evidence.", EvidenceRequirements: []domain.ControlEvidenceRequirement{{Type: "sbom", Required: true}}, Limitations: []string{"SBOM presence does not prove completeness."}},
-			{Code: "CRA-VULN", Title: "Vulnerability evidence", Objective: "Release records vulnerability scan and decisions.", EvidenceRequirements: []domain.ControlEvidenceRequirement{{Type: "vulnerability_scan", Required: true}}},
-		}},
-		{ID: "tpl_nist_ssdf_lite", Name: "NIST SSDF Lite", Slug: "nist-ssdf-lite", Version: "2026.05", Description: "Small starter control pack for secure development evidence.", SchemaVersion: "control-framework-template-pack.v1.0.0", Controls: []domain.SecurityControl{
-			{Code: "SSDF-BUILD", Title: "Build provenance", Objective: "Release has build and attestation evidence.", EvidenceRequirements: []domain.ControlEvidenceRequirement{{Type: "build", Required: true}, {Type: "build_attestation", Required: true}}},
-		}},
-		{ID: "tpl_soc2_technical_lite", Name: "SOC 2 Technical Evidence Lite", Slug: "soc2-technical-lite", Version: "2026.05", Description: "Starter technical evidence controls for SOC 2-style review preparation.", SchemaVersion: "control-framework-template-pack.v1.0.0", Controls: []domain.SecurityControl{
-			{Code: "SOC2-CHANGE", Title: "Change evidence", Objective: "Release records source, build, and approval evidence for change review.", EvidenceRequirements: []domain.ControlEvidenceRequirement{{Type: "build", Required: true}, {Type: "artifact", Required: true}, {Type: "release_bundle", Required: true}}, Limitations: []string{"This pack organizes technical evidence only and does not state SOC 2 control effectiveness."}},
-			{Code: "SOC2-VULN", Title: "Vulnerability review evidence", Objective: "Release records vulnerability scan evidence and decisions or exceptions.", EvidenceRequirements: []domain.ControlEvidenceRequirement{{Type: "vulnerability_scan", Required: true}, {Type: "vulnerability_decision", Required: false}, {Type: "exception", Required: false}}},
-		}},
-		{ID: "tpl_iso27001_technical_lite", Name: "ISO 27001 Technical Evidence Lite", Slug: "iso27001-technical-lite", Version: "2026.05", Description: "Starter technical evidence controls for ISO 27001-style evidence organization.", SchemaVersion: "control-framework-template-pack.v1.0.0", Controls: []domain.SecurityControl{
-			{Code: "ISO-ASSET", Title: "Software asset evidence", Objective: "Release records artifacts, SBOM, and dependency evidence.", EvidenceRequirements: []domain.ControlEvidenceRequirement{{Type: "artifact", Required: true}, {Type: "sbom", Required: true}}, Limitations: []string{"Artifact and SBOM evidence does not prove inventory completeness."}},
-			{Code: "ISO-CHANGE", Title: "Release change evidence", Objective: "Release records build provenance and bundle verification evidence.", EvidenceRequirements: []domain.ControlEvidenceRequirement{{Type: "build", Required: true}, {Type: "build_attestation", Required: false}, {Type: "release_bundle", Required: true}}},
-		}},
+	owned := riskdomain.BuiltinTemplatePacks()
+	packs := make([]domain.ControlFrameworkTemplatePack, 0, len(owned))
+	for _, pack := range owned {
+		converted := domain.ControlFrameworkTemplatePack{ID: pack.ID, Name: pack.Name, Slug: pack.Slug, Version: pack.Version, Description: pack.Description, SchemaVersion: pack.SchemaVersion}
+		for _, control := range pack.Controls {
+			item := domain.SecurityControl{ID: control.ID, TenantID: control.TenantID, FrameworkID: control.FrameworkID, Code: control.Code, Title: control.Title, Objective: control.Objective, Applicability: append([]string(nil), control.Applicability...), Limitations: append([]string(nil), control.Limitations...), SchemaVersion: control.SchemaVersion, CreatedAt: control.CreatedAt}
+			for _, requirement := range control.EvidenceRequirements {
+				item.EvidenceRequirements = append(item.EvidenceRequirements, domain.ControlEvidenceRequirement{Type: requirement.Type, FreshnessDays: requirement.FreshnessDays, Required: requirement.Required})
+			}
+			converted.Controls = append(converted.Controls, item)
+		}
+		packs = append(packs, converted)
 	}
+	return packs
 }
 
 func validWaiverScope(scope string) bool {

@@ -121,10 +121,12 @@ func BuildAPIReadServices(runtime *Runtime, pepper string) (httpapi.ServerOption
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create vulnerability posture query: %w", err)
 	}
-	options.ControlsQuery, err = BuildControlsQuery(store)
+	controls, err := BuildControlsQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create controls query: %w", err)
 	}
+	options.ControlsQuery = controls
+	options.ControlTemplateQuery = controls
 	options.ExceptionsQuery, err = BuildExceptionsQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create exceptions query: %w", err)

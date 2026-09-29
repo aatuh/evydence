@@ -90,3 +90,22 @@ func (s *Controls) GetSecurityControl(ctx context.Context, actor identitydomain.
 	}
 	return control, nil
 }
+
+// ListTemplatePacks exposes static starter definitions. Unlike tenant-owned
+// control inventory, the catalog requires a credential scope but no resource
+// grant because no tenant data is read.
+func (s *Controls) ListTemplatePacks(ctx context.Context, actor identitydomain.Actor) ([]riskdomain.ControlFrameworkTemplatePack, error) {
+	if s == nil || ctx == nil {
+		return nil, ErrValidation
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if actor.TenantID == "" || actor.KeyID == "" && actor.UserID == "" && actor.CollectorID == "" {
+		return nil, application.ErrUnauthorized
+	}
+	if !actor.HasScope(scopeControlsRead) && !actor.HasScope("admin") {
+		return nil, application.ErrForbidden
+	}
+	return riskdomain.BuiltinTemplatePacks(), nil
+}

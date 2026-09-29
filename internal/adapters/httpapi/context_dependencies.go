@@ -163,6 +163,12 @@ type ControlsQuery interface {
 	GetSecurityControl(context.Context, domain.Actor, string) (riskdomain.SecurityControl, error)
 }
 
+// ControlTemplateQuery lists static, risk-owned starter definitions without
+// reaching the compatibility Ledger's tenant state.
+type ControlTemplateQuery interface {
+	ListTemplatePacks(context.Context, domain.Actor) ([]riskdomain.ControlFrameworkTemplatePack, error)
+}
+
 // ExceptionsQuery applies current verify grants before returning a bounded
 // page of tenant-owned exception records.
 type ExceptionsQuery interface {

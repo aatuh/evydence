@@ -104,3 +104,28 @@ func TestControlsQueriesRejectUnsafeProjections(t *testing.T) {
 		t.Fatalf("nil reader error=%v", err)
 	}
 }
+
+func TestControlTemplateCatalogPreservesScopeAndReturnsIndependentValues(t *testing.T) {
+	service, err := NewControls(&controlsReaderFake{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor := identitydomain.Actor{TenantID: "ten_1", UserID: "usr_1", Scopes: []string{"controls:read"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "product", ResourceID: "prod_1", Scopes: []string{"controls:read"}}}}
+	packs, err := service.ListTemplatePacks(t.Context(), actor)
+	if err != nil || len(packs) != 4 || packs[0].Slug != "evydence-cra-readiness" || len(packs[0].Controls) == 0 {
+		t.Fatalf("template packs=%#v error=%v", packs, err)
+	}
+	packs[0].Controls[0].EvidenceRequirements[0].Type = "corrupted"
+	again, err := service.ListTemplatePacks(t.Context(), actor)
+	if err != nil || again[0].Controls[0].EvidenceRequirements[0].Type != "sbom" {
+		t.Fatalf("template catalog was mutated: packs=%#v error=%v", again, err)
+	}
+	for _, denied := range []identitydomain.Actor{
+		{TenantID: "ten_1", Scopes: []string{"controls:read"}},
+		{TenantID: "ten_1", KeyID: "key_1", Scopes: []string{"evidence:read"}},
+	} {
+		if _, err := service.ListTemplatePacks(t.Context(), denied); err == nil {
+			t.Fatalf("unauthorized template list accepted: %#v", denied)
+		}
+	}
+}

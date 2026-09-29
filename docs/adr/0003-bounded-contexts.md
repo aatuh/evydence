@@ -152,7 +152,9 @@ tenant-filtered PostgreSQL reads, with current evidence-reference ownership
 resolved in one statement. Human sessions need a current tenant-level
 `collector:read` grant in both runtime profiles. These presence checks do not
 prove package safety, marketplace trust, or provider endorsement.
-Governance framework pages and control points use a risk-owned query; a
+Governance framework pages, control points, and the static starter-template
+catalog use risk-owned queries. Template listing does not read tenant state;
+the installation command remains on the compatibility Ledger path. A
 control must resolve to a framework in the same tenant before it is returned.
 Signing-key pages use a verification-owned tenant-scoped query that selects
 only public lifecycle metadata and applies a keyset limit in PostgreSQL;
