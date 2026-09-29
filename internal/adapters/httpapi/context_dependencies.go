@@ -85,6 +85,12 @@ type EvidencePointQuery interface {
 	GetEvidence(context.Context, domain.Actor, string) (evidencedomain.EvidenceItem, error)
 }
 
+// LifecycleEventsQuery pages ordinary evidence events from one tenant-bound
+// database snapshot. Worker-owned evidence retains the provenance projection.
+type LifecycleEventsQuery interface {
+	ListPage(context.Context, domain.Actor, string, appquery.PageRequest, *appquery.SortKey) (appquery.Result[evidencedomain.EvidenceLifecycleEvent], error)
+}
+
 // OpenAPIContractPointQuery reads one parsed contract against current
 // tenant-owned evidence, product, and release parents.
 type OpenAPIContractPointQuery interface {

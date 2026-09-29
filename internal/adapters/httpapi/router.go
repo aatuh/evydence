@@ -51,6 +51,7 @@ type Server struct {
 	deploymentPointQuery      DeploymentPointQuery
 	deploymentListQuery       DeploymentListQuery
 	evidencePointQuery        EvidencePointQuery
+	lifecycleEventsQuery      LifecycleEventsQuery
 	openAPIContractPointQuery OpenAPIContractPointQuery
 	sbomPointQuery            SBOMPointQuery
 	sbomComponentsQuery       SBOMComponentsQuery
@@ -123,6 +124,8 @@ type ServerOptions struct {
 	DeploymentListQuery DeploymentListQuery
 	// EvidencePointQuery reads ordinary evidence from tenant-scoped PostgreSQL.
 	EvidencePointQuery EvidencePointQuery
+	// LifecycleEventsQuery pages ordinary evidence events from PostgreSQL.
+	LifecycleEventsQuery LifecycleEventsQuery
 	// OpenAPIContractPointQuery reads current tenant-verified parsed contracts.
 	OpenAPIContractPointQuery OpenAPIContractPointQuery
 	// SBOMPointQuery reads one tenant-verified parsed SBOM.
@@ -205,7 +208,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, instanceAdminQuery: opts.InstanceAdminQuery, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, artifactPointQuery: opts.ArtifactPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, openAPIContractPointQuery: opts.OpenAPIContractPointQuery, sbomPointQuery: opts.SBOMPointQuery, sbomComponentsQuery: opts.SBOMComponentsQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, collectorHealthQuery: opts.CollectorHealthQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, marketplaceCollectorQuery: opts.MarketplaceCollectorQuery, vulnerabilityPostureQuery: opts.VulnerabilityPostureQuery, controlsQuery: opts.ControlsQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, instanceAdminQuery: opts.InstanceAdminQuery, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, artifactPointQuery: opts.ArtifactPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, lifecycleEventsQuery: opts.LifecycleEventsQuery, openAPIContractPointQuery: opts.OpenAPIContractPointQuery, sbomPointQuery: opts.SBOMPointQuery, sbomComponentsQuery: opts.SBOMComponentsQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, collectorHealthQuery: opts.CollectorHealthQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, marketplaceCollectorQuery: opts.MarketplaceCollectorQuery, vulnerabilityPostureQuery: opts.VulnerabilityPostureQuery, controlsQuery: opts.ControlsQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
 		server.authn = opts.Authenticator
@@ -1936,12 +1939,33 @@ func (s *Server) listEvidenceLifecycleEvents(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return
 	}
+	resource := "evidence/" + r.PathValue("id") + "/lifecycle-events"
+	if s.lifecycleEventsQuery != nil {
+		request, err := s.parsePageRequest(r, actor, resource)
+		if err != nil {
+			writeProblem(w, r, err)
+			return
+		}
+		page, err := s.lifecycleEventsQuery.ListPage(r.Context(), actor, r.PathValue("id"), appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+		if !errors.Is(err, evidencequery.ErrRequiresProjection) {
+			if err != nil {
+				writeProblem(w, r, mapEvidencePointQueryError(err))
+				return
+			}
+			mapped := appquery.Result[domain.EvidenceLifecycleEvent]{Next: page.Next, Items: make([]domain.EvidenceLifecycleEvent, 0, len(page.Items))}
+			for _, event := range page.Items {
+				mapped.Items = append(mapped.Items, lifecycleEventFromQuery(event))
+			}
+			writePage(s, w, r, actor, resource, request, mapped)
+			return
+		}
+	}
 	events, err := s.evidenceIngestion.ListEvidenceLifecycleEvents(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writeCreatedAtPaginated(s, w, r, actor, "evidence/"+r.PathValue("id")+"/lifecycle-events", nil, events, func(event domain.EvidenceLifecycleEvent) (string, time.Time) {
+	writeCreatedAtPaginated(s, w, r, actor, resource, nil, events, func(event domain.EvidenceLifecycleEvent) (string, time.Time) {
 		return event.ID, event.CreatedAt
 	})
 }

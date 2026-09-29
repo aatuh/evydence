@@ -52,6 +52,11 @@ release artifacts.
 
 ### Changed
 
+- PostgreSQL-backed lifecycle-event lists for ordinary evidence now page from
+  one tenant-scoped snapshot instead of materializing all events through the
+  Ledger. Worker-owned evidence retains its validated projection fallback;
+  response details continue to remove sensitive and internal fields.
+
 - PostgreSQL-backed SBOM point reads now verify source evidence, release, and
   artifact parentage and source artifact references under one tenant before applying current `evidence:read`
   resource grants. The response still contains the stored component array;

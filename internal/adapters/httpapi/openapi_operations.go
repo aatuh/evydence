@@ -625,7 +625,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Evidence lifecycle event request.", "#/components/schemas/RecordEvidenceLifecycleEventRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created evidence lifecycle event envelope.", "#/components/schemas/EvidenceLifecycleEventEnvelope")
 	case "listEvidenceLifecycleEvents":
-		operation.Description = "Lists append-only lifecycle events for a tenant-scoped evidence item."
+		operation.Description = "Lists append-only lifecycle events for a tenant-scoped evidence item. PostgreSQL pages ordinary evidence events from a consistent snapshot without loading all lifecycle records; worker-owned evidence retains its validated projection path. Sensitive detail fields are removed from responses."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Evidence item id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Evidence lifecycle event list envelope.", "#/components/schemas/EvidenceLifecycleEventListEnvelope")
 	case "createSourceRepository":

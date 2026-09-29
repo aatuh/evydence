@@ -38,6 +38,10 @@ func (s *Store) GetEvidencePoint(ctx context.Context, tenantID, id string) (evid
 		defer cancel()
 		_ = tx.Rollback(cleanupCtx)
 	}()
+	return loadEvidencePointInTx(ctx, tx, tenantID, id)
+}
+
+func loadEvidencePointInTx(ctx context.Context, tx pgx.Tx, tenantID, id string) (evidencequery.EvidencePoint, error) {
 	item, err := loadParserReplayEvidence(ctx, tx, tenantID, id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return evidencequery.EvidencePoint{}, evidencequery.ErrNotFound

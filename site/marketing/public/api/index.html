@@ -1265,13 +1265,13 @@
               <div><dt>Responses</dt><dd>200 application/json: EvidenceItemEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/evidence/{id}/lifecycle-events list evidence lifecycle events lists append-only lifecycle events for a tenant-scoped evidence item. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listevidencelifecycleevents evydence evidence:read">
+          <article class="operation" data-operation data-search="get /v1/evidence/{id}/lifecycle-events list evidence lifecycle events lists append-only lifecycle events for a tenant-scoped evidence item. postgresql pages ordinary evidence events from a consistent snapshot without loading all lifecycle records; worker-owned evidence retains its validated projection path. sensitive detail fields are removed from responses. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listevidencelifecycleevents evydence evidence:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/evidence/{id}/lifecycle-events</code>
             </div>
             <h3>List evidence lifecycle events</h3>
-            <p>Lists append-only lifecycle events for a tenant-scoped evidence item. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
+            <p>Lists append-only lifecycle events for a tenant-scoped evidence item. PostgreSQL pages ordinary evidence events from a consistent snapshot without loading all lifecycle records; worker-owned evidence retains its validated projection path. Sensitive detail fields are removed from responses. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listEvidenceLifecycleEvents</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

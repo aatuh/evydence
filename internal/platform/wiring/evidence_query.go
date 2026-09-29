@@ -8,6 +8,12 @@ func BuildEvidencePointQuery(reader evidencequery.EvidencePointReader) (*evidenc
 	return evidencequery.NewEvidencePoints(reader)
 }
 
+// BuildLifecycleEventsQuery pages ordinary evidence events from a durable
+// snapshot while worker-owned evidence keeps its provenance projection.
+func BuildLifecycleEventsQuery(reader evidencequery.LifecycleEventReader) (*evidencequery.LifecycleEvents, error) {
+	return evidencequery.NewLifecycleEvents(reader)
+}
+
 // BuildOpenAPIContractPointQuery binds parsed contract metadata to current
 // tenant-owned evidence and release-catalog parents.
 func BuildOpenAPIContractPointQuery(reader evidencequery.OpenAPIContractPointReader) (*evidencequery.OpenAPIContractPoints, error) {

@@ -135,6 +135,12 @@ inconsistently linked SBOM returns `404`; a visible SBOM with no matching
 components returns an empty page. This avoids exposing other product scopes
 through filtered-list existence checks.
 
+Evidence lifecycle-event pages in PostgreSQL mode read ordinary evidence
+parentage and a bounded event page from one tenant-scoped snapshot. The API
+checks current `evidence:read` grants and removes sensitive detail fields and
+internal canonical-origin metadata before returning events. Worker-owned
+evidence retains its legacy projection path until its provenance checks move.
+
 Finite resource `GET` responses expose private ETags. For immutable resources
 the tag is a representation digest; resources with a positive `revision` use
 that revision as a strong decimal ETag. Send `If-None-Match` from a previous
