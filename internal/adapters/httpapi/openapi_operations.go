@@ -677,7 +677,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Collector release record request.", "#/components/schemas/RecordCollectorReleaseRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created collector release envelope.", "#/components/schemas/CollectorReleaseEnvelope")
 	case "collectorHealthReport":
-		operation.Description = "Returns collector supply-chain health from recorded tenant evidence, assumptions, and limitations."
+		operation.Description = "Returns collector supply-chain health from recorded tenant evidence, assumptions, and limitations. Production resolves the collector and its latest and pinned releases in one tenant-scoped database snapshot; human sessions require a tenant-wide collector:read grant."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Collector id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Collector health report envelope.", "#/components/schemas/CollectorHealthReportEnvelope")
 	case "createCommercialCollector":

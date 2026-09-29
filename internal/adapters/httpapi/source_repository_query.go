@@ -23,6 +23,8 @@ func mapIntegrationQueryError(err error) error {
 	switch {
 	case errors.Is(err, integrationquery.ErrValidation), errors.Is(err, appquery.ErrInvalidPage), errors.Is(err, appquery.ErrInvalidCursor):
 		return app.ErrValidation
+	case errors.Is(err, integrationquery.ErrNotFound):
+		return app.ErrNotFound
 	case errors.Is(err, integrationquery.ErrInvalidProjection):
 		return app.ErrConflict
 	case errors.Is(err, application.ErrUnauthorized):

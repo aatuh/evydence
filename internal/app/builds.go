@@ -272,6 +272,9 @@ func (l *Ledger) CollectorHealthReport(ctx context.Context, actor domain.Actor, 
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.authorizeResourceLocked(actor, ScopeCollectorRead, resourceRefs{}); err != nil {
+		return domain.CollectorHealthReport{}, err
+	}
 	collector, ok := l.collectors[strings.TrimSpace(collectorID)]
 	if !ok || collector.TenantID != actor.TenantID {
 		return domain.CollectorHealthReport{}, ErrNotFound

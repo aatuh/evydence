@@ -51,6 +51,7 @@ type Server struct {
 	evidencePointQuery        EvidencePointQuery
 	sourceRepositoryQuery     SourceRepositoryQuery
 	collectorQuery            CollectorQuery
+	collectorHealthQuery      CollectorHealthQuery
 	commercialCollectorQuery  CommercialCollectorQuery
 	marketplaceCollectorQuery MarketplaceCollectorQuery
 	controlsQuery             ControlsQuery
@@ -116,6 +117,8 @@ type ServerOptions struct {
 	SourceRepositoryQuery SourceRepositoryQuery
 	// CollectorQuery pages durable collector inventory for the PostgreSQL profile.
 	CollectorQuery CollectorQuery
+	// CollectorHealthQuery reads a bounded durable health point.
+	CollectorHealthQuery CollectorHealthQuery
 	// CommercialCollectorQuery pages tenant-owned integration definitions.
 	CommercialCollectorQuery CommercialCollectorQuery
 	// MarketplaceCollectorQuery reads tenant-owned marketplace metadata and health.
@@ -184,7 +187,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, marketplaceCollectorQuery: opts.MarketplaceCollectorQuery, controlsQuery: opts.ControlsQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, collectorHealthQuery: opts.CollectorHealthQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, marketplaceCollectorQuery: opts.MarketplaceCollectorQuery, controlsQuery: opts.ControlsQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
 		server.authn = opts.Authenticator
@@ -306,6 +309,15 @@ func (s *Server) recordCollectorRelease(w http.ResponseWriter, r *http.Request) 
 func (s *Server) collectorHealthReport(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
+		return
+	}
+	if s.collectorHealthQuery != nil {
+		report, err := s.collectorHealthQuery.Report(r.Context(), actor, r.PathValue("id"))
+		if err != nil {
+			writeProblem(w, r, mapIntegrationQueryError(err))
+			return
+		}
+		writeData(w, http.StatusOK, collectorHealthFromQuery(report))
 		return
 	}
 	report, err := s.ledger.CollectorHealthReport(r.Context(), actor, r.PathValue("id"))

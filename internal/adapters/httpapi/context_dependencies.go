@@ -83,6 +83,12 @@ type CollectorQuery interface {
 	ListPage(context.Context, domain.Actor, appquery.PageRequest, *appquery.SortKey) (appquery.Result[integrationdomain.Collector], error)
 }
 
+// CollectorHealthQuery reads one tenant-owned collector and its latest and
+// pinned release from a consistent durable snapshot.
+type CollectorHealthQuery interface {
+	Report(context.Context, domain.Actor, string) (integrationdomain.CollectorHealthReport, error)
+}
+
 // CommercialCollectorQuery pages tenant-owned integration definitions.
 type CommercialCollectorQuery interface {
 	ListPage(context.Context, domain.Actor, appquery.PageRequest, *appquery.SortKey) (appquery.Result[integrationdomain.CommercialCollectorDefinition], error)

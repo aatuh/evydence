@@ -52,6 +52,12 @@ release artifacts.
 
 ### Changed
 
+- Collector health reports now read one tenant-owned collector plus its latest
+  and pinned release through a bounded, consistent PostgreSQL snapshot.
+  Human sessions need a current tenant-level `collector:read` grant in both
+  PostgreSQL and local-memory modes; recorded evidence is not proof of runtime
+  integrity or vulnerability absence.
+
 - Marketplace collector lists and health reads now use bounded, tenant-filtered
   PostgreSQL queries. Human sessions need a current tenant-level `collector:read`
   grant in both PostgreSQL and local-memory modes; health reference presence

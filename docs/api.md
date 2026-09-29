@@ -532,7 +532,7 @@ Current SSO endpoints model admin-managed provider, identity-link, trust-materia
 | `POST` | `/v1/collectors` | Create collector and one-time key. |
 | `GET` | `/v1/collectors` | List collectors without secrets. Human sessions need a current tenant-level `collector:read` grant; scoped credentials need that issued scope. |
 | `POST` | `/v1/collectors/{id}/releases` | Record collector release evidence. |
-| `GET` | `/v1/collectors/{id}/health` | Collector health report. |
+| `GET` | `/v1/collectors/{id}/health` | Collector health report from current tenant-owned collector and latest/pinned release records. Human sessions require a tenant-wide `collector:read` grant; the report does not prove runtime integrity or vulnerability absence. |
 | `POST` | `/v1/commercial-collectors` | Create commercial collector definition. |
 | `GET` | `/v1/commercial-collectors` | List tenant-owned commercial collector definitions; human sessions need a tenant-level `collector:read` grant. |
 | `POST` | `/v1/marketplace-collectors` | Register marketplace collector package metadata. |

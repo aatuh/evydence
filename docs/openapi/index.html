@@ -585,13 +585,13 @@
               <div><dt>Responses</dt><dd>201 application/json: SourceSnapshotEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/collectors/{id}/health collector health report returns collector supply-chain health from recorded tenant evidence, assumptions, and limitations. collectorhealthreport evydence collector:read">
+          <article class="operation" data-operation data-search="get /v1/collectors/{id}/health collector health report returns collector supply-chain health from recorded tenant evidence, assumptions, and limitations. production resolves the collector and its latest and pinned releases in one tenant-scoped database snapshot; human sessions require a tenant-wide collector:read grant. collectorhealthreport evydence collector:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/collectors/{id}/health</code>
             </div>
             <h3>Collector health report</h3>
-            <p>Returns collector supply-chain health from recorded tenant evidence, assumptions, and limitations.</p>
+            <p>Returns collector supply-chain health from recorded tenant evidence, assumptions, and limitations. Production resolves the collector and its latest and pinned releases in one tenant-scoped database snapshot; human sessions require a tenant-wide collector:read grant.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>collectorHealthReport</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
