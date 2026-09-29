@@ -100,7 +100,9 @@ The PostgreSQL worker reuses the source-validated SBOM, vulnerability-scan, and
 OpenAPI contract point readers to hydrate only a claimed parser subject.
 Parser writes remain lease-fenced. Signing jobs reuse the tenant-scoped release
 bundle point reader, and verification jobs read one tenant- and subject-bound
-result. VEX and attestation jobs still use broader compatibility reads.
+result. Attestation jobs read one source-validated, tenant-scoped build
+attestation before lease-fenced replay. VEX jobs still use broader
+compatibility reads.
 OpenAPI contract point reads require the linked source evidence to have the
 `openapi_contract` type.
 VEX document and import-report point reads validate tenant-owned source,

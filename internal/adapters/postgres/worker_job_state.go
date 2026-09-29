@@ -56,6 +56,15 @@ func (s *Store) LoadWorkerJobState(ctx context.Context, job ClaimedJob) (app.Per
 		if err == nil {
 			state.Contracts = map[string]domain.OpenAPIContract{job.SubjectID: parserOpenAPIContract(point.Contract)}
 		}
+	case "verify_attestation":
+		if job.SubjectType != "" && job.SubjectType != "build_attestation" {
+			return state, false, app.ErrValidation
+		}
+		var attestation domain.BuildAttestation
+		attestation, err = s.loadWorkerAttestation(ctx, job.TenantID, job.SubjectID)
+		if err == nil {
+			state.BuildAttestations = map[string]domain.BuildAttestation{job.SubjectID: attestation}
+		}
 	case "sign_bundle":
 		if job.SubjectType != "" && job.SubjectType != "release_bundle" {
 			return state, false, app.ErrValidation

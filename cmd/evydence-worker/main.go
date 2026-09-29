@@ -688,7 +688,7 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 
 func loadOutboxJobState(ctx context.Context, state jobStateLoader, job postgres.ClaimedJob) (app.PersistedState, bool, error) {
 	switch job.Kind {
-	case "parse_sbom", "parse_vulnerability_scan", "parse_openapi_contract":
+	case "parse_sbom", "parse_vulnerability_scan", "parse_openapi_contract", "verify_attestation":
 		if _, claimed := state.(jobClaimedReleaseLedgerMutationStore); claimed {
 			if focused, ok := state.(jobFocusedStateLoader); ok {
 				return focused.LoadWorkerJobState(ctx, job)

@@ -114,7 +114,10 @@ focused mutations; otherwise the compatibility loader remains in use.
 `sign_bundle` and `verify_subject` also use focused tenant-filtered reads;
 their read-only paths do not require a mutation interface. When a signing job
 contains `manifest_hash`, the worker requires it to match the durable bundle;
-older jobs without that field remain supported. VEX and attestation jobs still
+older jobs without that field remain supported. `verify_attestation` reads one
+tenant-scoped attestation only when its current build/project/release/product
+and immutable source evidence agree on ownership, source type, payload digest,
+size, and reference. Its replay mutation remains lease-fenced. VEX jobs still
 use broader state reads and remain part of the EVY-905 query migration.
 
 ## PostgreSQL projection consistency

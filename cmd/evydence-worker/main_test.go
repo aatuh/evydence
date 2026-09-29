@@ -131,6 +131,7 @@ func TestProcessParserJobsReadOnlyClaimedSubjectState(t *testing.T) {
 		{"parse_sbom", "sbom_test", app.PersistedState{SBOMs: map[string]domain.SBOM{"sbom_test": {ID: "sbom_test", TenantID: "ten_test", SpecVersion: "1.6"}}}},
 		{"parse_vulnerability_scan", "scan_test", app.PersistedState{Scans: map[string]domain.VulnerabilityScan{"scan_test": {ID: "scan_test", TenantID: "ten_test", Scanner: "scanner", TargetRef: "release", Summary: map[string]int{}}}}},
 		{"parse_openapi_contract", "contract_test", app.PersistedState{Contracts: map[string]domain.OpenAPIContract{"contract_test": {ID: "contract_test", TenantID: "ten_test", Operations: []domain.OpenAPIOperation{}, Hash: "sha256:" + strings.Repeat("a", 64)}}}},
+		{"verify_attestation", "att_test", app.PersistedState{BuildAttestations: map[string]domain.BuildAttestation{"att_test": {ID: "att_test", TenantID: "ten_test", PayloadHash: "sha256:" + strings.Repeat("a", 64), VerificationStatus: "structurally_valid"}}}},
 	} {
 		t.Run(tc.kind, func(t *testing.T) {
 			t.Parallel()
@@ -164,6 +165,27 @@ func TestProcessFocusedParserReplayKeepsClaimedMutationFence(t *testing.T) {
 	}
 	if store.loadCalls != 0 || len(store.focusedJobs) != 1 || store.jobID != job.ID || store.leaseToken != job.LeaseToken || len(store.mutation.SBOMs) != 1 || store.mutation.SBOMs[0].SpecVersion != "1.6" {
 		t.Fatalf("focused replay loads=%d jobs=%d claimed=%q/%q mutation=%#v", store.loadCalls, len(store.focusedJobs), store.jobID, store.leaseToken, store.mutation)
+	}
+}
+
+func TestProcessFocusedAttestationReplayKeepsClaimedMutationFence(t *testing.T) {
+	t.Parallel()
+	body := dsseEnvelopeForTest(t, "sha256:"+strings.Repeat("a", 64))
+	hash := digestBytes(body)
+	job := postgres.ClaimedJob{
+		ID: "job_att", TenantID: "ten_test", Kind: "verify_attestation", SubjectType: "build_attestation",
+		SubjectID: "att_test", LeaseToken: "lease_att",
+		Payload: map[string]any{"payload_ref": "object://tenants/ten_test/payloads/att.json", "payload_hash": hash},
+	}
+	store := &fakeFocusedParserStateStore{state: app.PersistedState{BuildAttestations: map[string]domain.BuildAttestation{
+		"att_test": {ID: "att_test", TenantID: "ten_test", PayloadHash: hash, VerificationStatus: "accepted"},
+	}}}
+	object := app.Object{Key: "tenants/ten_test/payloads/att.json", TenantID: "ten_test", Digest: hash, Bytes: body}
+	if err := processJobWithObjects(t.Context(), store, fakeObjectGetter{object: object}, job); err != nil {
+		t.Fatalf("process focused attestation replay: %v", err)
+	}
+	if store.loadCalls != 0 || len(store.focusedJobs) != 1 || store.jobID != job.ID || store.leaseToken != job.LeaseToken || len(store.mutation.BuildAttestations) != 1 || store.mutation.BuildAttestations[0].PayloadType == "" {
+		t.Fatalf("attestation replay loads=%d jobs=%d claimed=%q/%q mutation=%#v", store.loadCalls, len(store.focusedJobs), store.jobID, store.leaseToken, store.mutation)
 	}
 }
 
