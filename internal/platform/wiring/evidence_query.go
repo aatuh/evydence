@@ -13,3 +13,9 @@ func BuildEvidencePointQuery(reader evidencequery.EvidencePointReader) (*evidenc
 func BuildOpenAPIContractPointQuery(reader evidencequery.OpenAPIContractPointReader) (*evidencequery.OpenAPIContractPoints, error) {
 	return evidencequery.NewOpenAPIContractPoints(reader)
 }
+
+// BuildSBOMComponentsQuery binds tenant- and grant-scoped component pages to
+// the durable reader without loading the Ledger snapshot.
+func BuildSBOMComponentsQuery(reader evidencequery.SBOMComponentReader) (*evidencequery.SBOMComponents, error) {
+	return evidencequery.NewSBOMComponents(reader)
+}

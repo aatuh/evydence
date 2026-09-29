@@ -52,6 +52,12 @@ release artifacts.
 
 ### Changed
 
+- PostgreSQL-backed SBOM component lists now apply current tenant and resource
+  grants before bounded keyset pagination, allowing clients to continue beyond
+  the former 500-result preselection cap. The local-memory profile retains that
+  cap; PostgreSQL still expands JSONB component arrays rather than using a
+  dedicated component search index.
+
 - PostgreSQL-backed OpenAPI-contract point reads now verify current tenant,
   source-evidence, product, and optional release relationships in one query
   before applying human `evidence:read` resource grants. Response fields are

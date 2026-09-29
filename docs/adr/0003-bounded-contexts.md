@@ -82,6 +82,11 @@ Ordinary evidence point reads use a tenant-scoped, snapshot-consistent query.
 OpenAPI contract point reads verify their source evidence, product, and optional
 release in one tenant-filtered statement before applying human resource grants;
 local-memory mode retains the Ledger reader.
+SBOM component pages now expand tenant-owned JSONB component arrays in a
+repeatable-read PostgreSQL snapshot, apply current resource grants before the
+keyset limit, and transfer only a bounded page to the API. This removes the
+production Ledger's 500-component preselection cap, but does not provide a
+component-level search index; local-memory mode retains the cap.
 Control-evidence lists now use a risk-owned query service in PostgreSQL mode:
 one SQL statement resolves current control/framework/subject ownership and
 applies actor grants before keyset pagination. Broken parent relationships are

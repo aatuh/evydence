@@ -8,6 +8,7 @@ import (
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
+	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 	experimentaldomain "github.com/aatuh/evydence/internal/experimental/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	integrationdomain "github.com/aatuh/evydence/internal/integration/domain"
@@ -88,6 +89,12 @@ type EvidencePointQuery interface {
 // tenant-owned evidence, product, and release parents.
 type OpenAPIContractPointQuery interface {
 	GetOpenAPIContract(context.Context, domain.Actor, string) (evidencedomain.OpenAPIContract, error)
+}
+
+// SBOMComponentsQuery returns an authorized, bounded component page from
+// current tenant-owned SBOM and artifact associations.
+type SBOMComponentsQuery interface {
+	ListPage(context.Context, domain.Actor, evidencequery.SBOMComponentFilter, appquery.PageRequest, *appquery.SortKey) (appquery.Result[evidencedomain.SBOMComponentRecord], error)
 }
 
 // SourceRepositoryQuery returns one tenant/grant-filtered durable page.

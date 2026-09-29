@@ -121,6 +121,16 @@ parameters are rejected rather than silently ignored.
 In the PostgreSQL profile, admin audit-log pages query the tenant's committed
 chain with bounded keyset pagination, including entries beyond the newest 500.
 The local-memory profile retains its legacy in-process 500-entry preselection.
+SBOM component pages in the PostgreSQL profile likewise apply current tenant
+ownership and resource grants before the SQL keyset limit, so pagination can
+reach components beyond the former 500-result preselection cap. Components
+remain JSONB arrays inside each SBOM; the database expands matching rows for
+the query, so this is bounded transfer to the API, not a component-level index.
+The local-memory profile retains the legacy 500-component preselection cap.
+When `sbom_id` is supplied in PostgreSQL mode, a nonexistent, inaccessible, or
+inconsistently linked SBOM returns `404`; a visible SBOM with no matching
+components returns an empty page. This avoids exposing other product scopes
+through filtered-list existence checks.
 
 Finite resource `GET` responses expose private ETags. For immutable resources
 the tag is a representation digest; resources with a positive `revision` use
@@ -499,7 +509,7 @@ Current SSO endpoints model admin-managed provider, identity-link, trust-materia
 | `POST` | `/v1/sboms` | Upload CycloneDX SBOM. |
 | `POST` | `/v1/sboms/spdx` | Upload SPDX SBOM. |
 | `GET` | `/v1/sboms/{id}` | Read SBOM metadata. |
-| `GET` | `/v1/sbom-components` | Search stored SBOM components by SBOM, release, artifact, query, exact PURL, and limit. |
+| `GET` | `/v1/sbom-components` | Page stored SBOM components by SBOM, release, artifact, query, and exact PURL; `limit` is a transitional alias for `page_size`. PostgreSQL applies current tenant and grant filters before pagination. |
 | `POST` | `/v1/sbom-diffs` | Compare stored SBOMs. |
 | `POST` | `/v1/vulnerability-scans` | Upload normalized vulnerability scan. |
 | `GET` | `/v1/vulnerability-scans/{id}` | Read vulnerability scan metadata. |

@@ -52,6 +52,7 @@ type Server struct {
 	deploymentListQuery       DeploymentListQuery
 	evidencePointQuery        EvidencePointQuery
 	openAPIContractPointQuery OpenAPIContractPointQuery
+	sbomComponentsQuery       SBOMComponentsQuery
 	sourceRepositoryQuery     SourceRepositoryQuery
 	collectorQuery            CollectorQuery
 	collectorHealthQuery      CollectorHealthQuery
@@ -123,6 +124,8 @@ type ServerOptions struct {
 	EvidencePointQuery EvidencePointQuery
 	// OpenAPIContractPointQuery reads current tenant-verified parsed contracts.
 	OpenAPIContractPointQuery OpenAPIContractPointQuery
+	// SBOMComponentsQuery pages components against current tenant and grants.
+	SBOMComponentsQuery SBOMComponentsQuery
 	// SourceRepositoryQuery pages current tenant-owned source repositories.
 	SourceRepositoryQuery SourceRepositoryQuery
 	// CollectorQuery pages durable collector inventory for the PostgreSQL profile.
@@ -199,7 +202,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, instanceAdminQuery: opts.InstanceAdminQuery, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, artifactPointQuery: opts.ArtifactPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, openAPIContractPointQuery: opts.OpenAPIContractPointQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, collectorHealthQuery: opts.CollectorHealthQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, marketplaceCollectorQuery: opts.MarketplaceCollectorQuery, vulnerabilityPostureQuery: opts.VulnerabilityPostureQuery, controlsQuery: opts.ControlsQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, instanceAdminQuery: opts.InstanceAdminQuery, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, artifactPointQuery: opts.ArtifactPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, openAPIContractPointQuery: opts.OpenAPIContractPointQuery, sbomComponentsQuery: opts.SBOMComponentsQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, collectorHealthQuery: opts.CollectorHealthQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, marketplaceCollectorQuery: opts.MarketplaceCollectorQuery, vulnerabilityPostureQuery: opts.VulnerabilityPostureQuery, controlsQuery: opts.ControlsQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
 		server.authn = opts.Authenticator
@@ -1990,6 +1993,28 @@ func (s *Server) getSBOM(w http.ResponseWriter, r *http.Request) {
 func (s *Server) listSBOMComponents(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
+		return
+	}
+	if s.sbomComponentsQuery != nil {
+		request, err := s.parsePageRequestWithLegacyLimit(r, actor, "sbom-components", true, "sbom_id", "release_id", "artifact_id", "query", "purl")
+		if err != nil {
+			writeProblem(w, r, err)
+			return
+		}
+		query := r.URL.Query()
+		page, err := s.sbomComponentsQuery.ListPage(r.Context(), actor, evidencequery.SBOMComponentFilter{
+			SBOMID: query.Get("sbom_id"), ReleaseID: query.Get("release_id"), ArtifactID: query.Get("artifact_id"),
+			Query: query.Get("query"), PURL: query.Get("purl"),
+		}, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+		if err != nil {
+			writeProblem(w, r, mapEvidencePointQueryError(err))
+			return
+		}
+		mapped := appquery.Result[domain.SBOMComponentRecord]{Next: page.Next, Items: make([]domain.SBOMComponentRecord, 0, len(page.Items))}
+		for _, component := range page.Items {
+			mapped.Items = append(mapped.Items, sbomComponentFromQuery(component))
+		}
+		writePage(s, w, r, actor, "sbom-components", request, mapped)
 		return
 	}
 	query := r.URL.Query()

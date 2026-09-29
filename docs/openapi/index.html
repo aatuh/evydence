@@ -2642,13 +2642,13 @@
               <div><dt>Responses</dt><dd>201 application/json: SaaSEditionProfileEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/sbom-components list sbom components lists tenant-scoped sbom components by sbom, release, artifact, name/version/purl query, or exact purl. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listsbomcomponents evydence evidence:read">
+          <article class="operation" data-operation data-search="get /v1/sbom-components list sbom components lists tenant- and resource-grant-scoped sbom components by sbom, release, artifact, name/version/purl query, or exact purl. in the postgresql profile, results use durable keyset pages without the legacy 500-component preselection cap; an inaccessible or missing filtered sbom returns 404. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listsbomcomponents evydence evidence:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/sbom-components</code>
             </div>
             <h3>List SBOM components</h3>
-            <p>Lists tenant-scoped SBOM components by SBOM, release, artifact, name/version/PURL query, or exact PURL. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
+            <p>Lists tenant- and resource-grant-scoped SBOM components by SBOM, release, artifact, name/version/PURL query, or exact PURL. In the PostgreSQL profile, results use durable keyset pages without the legacy 500-component preselection cap; an inaccessible or missing filtered SBOM returns 404. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listSBOMComponents</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
