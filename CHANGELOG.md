@@ -50,6 +50,9 @@ release artifacts.
 
 ### Changed
 
+- Questionnaire answer-library lists now enforce current human resource grants
+  for every draft, including unfiltered reads. Creating a tenant-wide draft
+  with only a product or release grant is now forbidden.
 - The `/v1` OpenAPI contract is now compared against a checksum-verified
   release-artifact baseline in CI. Unapproved breaking changes fail; the
   current pre-release reconciliation is exact and documented in

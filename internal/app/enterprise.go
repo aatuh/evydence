@@ -662,9 +662,9 @@ func (s packageReportService) CreateQuestionnaireAnswerLibraryEntry(ctx context.
 		if err := l.ensureScopeLocked(actor.TenantID, in.ProductID, "", in.ReleaseID); err != nil {
 			return domain.QuestionnaireAnswerLibraryEntry{}, err
 		}
-		if err := l.authorizeResourceLocked(actor, ScopePackageWrite, resourceRefs{ProductID: in.ProductID, ReleaseID: in.ReleaseID}); err != nil {
-			return domain.QuestionnaireAnswerLibraryEntry{}, err
-		}
+	}
+	if err := l.authorizeResourceLocked(actor, ScopePackageWrite, resourceRefs{ProductID: in.ProductID, ReleaseID: in.ReleaseID}); err != nil {
+		return domain.QuestionnaireAnswerLibraryEntry{}, err
 	}
 	if in.ControlID != "" {
 		control, ok := l.controls[in.ControlID]
@@ -751,6 +751,9 @@ func (s packageReportService) ListQuestionnaireAnswerLibrary(ctx context.Context
 			continue
 		}
 		if in.ReleaseID != "" && entry.ReleaseID != "" && entry.ReleaseID != in.ReleaseID {
+			continue
+		}
+		if !l.resourceAllowedLocked(actor, ScopePackageRead, resourceRefs{ProductID: entry.ProductID, ReleaseID: entry.ReleaseID}) {
 			continue
 		}
 		out = append(out, entry)

@@ -609,6 +609,12 @@ Source snapshots capture submitted provider metadata. They do not call provider 
 | `POST` | `/v1/incidents/{id}/webhook-receivers` | Create incident-scoped Ed25519 webhook receiver. |
 | `POST` | `/v1/incident-webhooks/{receiver_id}` | Receive signed incident timeline webhook without bearer authentication. |
 
+Questionnaire answer drafts are scoped per entry. A human session with a
+product or release grant can read and create only drafts in that scope; drafts
+without a product or release require a tenant grant. Filtering a list does not
+broaden the caller's grant. Issued credentials still require `package:read` or
+`package:write` as applicable.
+
 Customer package manifests use the documented
 [`customer-security-package.v2.0.0`](reference/customer-package-manifest.md)
 schema. They include scoped release metadata, evidence summaries, redaction

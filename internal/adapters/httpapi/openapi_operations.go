@@ -940,11 +940,11 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Questionnaire draft creation request.", "#/components/schemas/CreateQuestionnaireDraftRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created questionnaire draft envelope.", "#/components/schemas/QuestionnaireDraftEnvelope")
 	case "createQuestionnaireAnswerLibraryEntry":
-		operation.Description = "Creates a tenant-scoped reusable questionnaire answer draft linked to optional evidence, product, release, or control scope."
+		operation.Description = "Creates a reusable questionnaire answer draft linked to optional evidence, product, release, or control scope. A human session needs a matching product or release grant; a draft without product or release scope requires a tenant grant."
 		operation.RequestBody = jsonRequest("Questionnaire answer library entry creation request.", "#/components/schemas/CreateQuestionnaireAnswerLibraryEntryRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created questionnaire answer library entry envelope.", "#/components/schemas/QuestionnaireAnswerLibraryEntryEnvelope")
 	case "listQuestionnaireAnswerLibrary":
-		operation.Description = "Lists tenant-scoped questionnaire answer library entries with optional question, product, and release filters."
+		operation.Description = "Lists questionnaire answer drafts with optional question, product, and release filters. Human sessions see only entries covered by their current resource grants; tenant-wide drafts require a tenant grant."
 		operation.Parameters = append(operation.Parameters,
 			queryParam("question_id", "Filter by questionnaire question id.", "string"),
 			queryParam("product_id", "Filter by product id.", "string"),

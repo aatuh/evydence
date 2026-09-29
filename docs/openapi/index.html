@@ -1894,13 +1894,13 @@
               <div><dt>Responses</dt><dd>201 application/json: PublicTransparencyLogEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/questionnaire-answer-library list questionnaire answer library entries lists tenant-scoped questionnaire answer library entries with optional question, product, and release filters. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listquestionnaireanswerlibrary evydence package:read">
+          <article class="operation" data-operation data-search="get /v1/questionnaire-answer-library list questionnaire answer library entries lists questionnaire answer drafts with optional question, product, and release filters. human sessions see only entries covered by their current resource grants; tenant-wide drafts require a tenant grant. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listquestionnaireanswerlibrary evydence package:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/questionnaire-answer-library</code>
             </div>
             <h3>List questionnaire answer library entries</h3>
-            <p>Lists tenant-scoped questionnaire answer library entries with optional question, product, and release filters. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
+            <p>Lists questionnaire answer drafts with optional question, product, and release filters. Human sessions see only entries covered by their current resource grants; tenant-wide drafts require a tenant grant. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listQuestionnaireAnswerLibrary</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -1911,13 +1911,13 @@
               <div><dt>Responses</dt><dd>200 application/json: QuestionnaireAnswerLibraryEntryListEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/questionnaire-answer-library create questionnaire answer library entry creates a tenant-scoped reusable questionnaire answer draft linked to optional evidence, product, release, or control scope. createquestionnaireanswerlibraryentry evydence package:write">
+          <article class="operation" data-operation data-search="post /v1/questionnaire-answer-library create questionnaire answer library entry creates a reusable questionnaire answer draft linked to optional evidence, product, release, or control scope. a human session needs a matching product or release grant; a draft without product or release scope requires a tenant grant. createquestionnaireanswerlibraryentry evydence package:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/questionnaire-answer-library</code>
             </div>
             <h3>Create questionnaire answer library entry</h3>
-            <p>Creates a tenant-scoped reusable questionnaire answer draft linked to optional evidence, product, release, or control scope.</p>
+            <p>Creates a reusable questionnaire answer draft linked to optional evidence, product, release, or control scope. A human session needs a matching product or release grant; a draft without product or release scope requires a tenant grant.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createQuestionnaireAnswerLibraryEntry</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
