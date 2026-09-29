@@ -174,122 +174,21 @@ func runWithContext(ctx context.Context) error {
 			log.Printf("bootstrapped tenant %s and key %s; set EVYDENCE_PRINT_BOOTSTRAP_SECRET=true for local-only secret output", tenant.ID, key.ID)
 		}
 	}
-	var productQuery httpapi.ProductQuery
-	var catalogPointQuery httpapi.CatalogPointQuery
-	var buildPointQuery httpapi.BuildPointQuery
-	var releaseCandidateQuery httpapi.ReleaseCandidateQuery
-	var deploymentPointQuery httpapi.DeploymentPointQuery
-	var deploymentListQuery httpapi.DeploymentListQuery
-	var evidencePointQuery httpapi.EvidencePointQuery
-	var sourceRepositoryQuery httpapi.SourceRepositoryQuery
-	var collectorQuery httpapi.CollectorQuery
-	var controlsQuery httpapi.ControlsQuery
-	var artifactSignatureQuery httpapi.ArtifactSignatureQuery
-	var releaseBundleQuery httpapi.ReleaseBundleQuery
-	var answerLibraryQuery httpapi.AnswerLibraryQuery
-	var auditLogQuery httpapi.AuditLogQuery
-	var apiKeyQuery httpapi.APIKeyQuery
-	var roleBindingQuery httpapi.RoleBindingQuery
-	var authenticator httpapi.Authenticator
-	if runtime.Postgres != nil {
-		authenticator, err = wiring.BuildAuthenticator(runtime.Postgres, runtime.Postgres, pepper, production)
-		if err != nil {
-			return fmt.Errorf("create authenticator: %w", err)
-		}
-		productQuery, err = wiring.BuildProductQuery(runtime.Postgres)
-		if err != nil {
-			return fmt.Errorf("create product query: %w", err)
-		}
-		catalogPointQuery, err = wiring.BuildCatalogPointQuery(runtime.Postgres)
-		if err != nil {
-			return fmt.Errorf("create catalog point query: %w", err)
-		}
-		buildPointQuery, err = wiring.BuildBuildPointQuery(runtime.Postgres)
-		if err != nil {
-			return fmt.Errorf("create build point query: %w", err)
-		}
-		releaseCandidateQuery, err = wiring.BuildReleaseCandidateQuery(runtime.Postgres)
-		if err != nil {
-			return fmt.Errorf("create release candidate query: %w", err)
-		}
-		deploymentPointQuery, err = wiring.BuildDeploymentPointQuery(runtime.Postgres)
-		if err != nil {
-			return fmt.Errorf("create deployment point query: %w", err)
-		}
-		deploymentListQuery, err = wiring.BuildDeploymentListQuery(runtime.Postgres)
-		if err != nil {
-			return fmt.Errorf("create deployment list query: %w", err)
-		}
-		evidencePointQuery, err = wiring.BuildEvidencePointQuery(runtime.Postgres)
-		if err != nil {
-			return fmt.Errorf("create evidence point query: %w", err)
-		}
-		sourceRepositoryQuery, err = wiring.BuildSourceRepositoryQuery(runtime.Postgres)
-		if err != nil {
-			return fmt.Errorf("create source repository query: %w", err)
-		}
-		collectorQuery, err = wiring.BuildCollectorQuery(runtime.Postgres)
-		if err != nil {
-			return fmt.Errorf("create collector query: %w", err)
-		}
-		controlsQuery, err = wiring.BuildControlsQuery(runtime.Postgres)
-		if err != nil {
-			return fmt.Errorf("create controls query: %w", err)
-		}
-		artifactSignatureQuery, err = wiring.BuildArtifactSignatureQuery(runtime.Postgres)
-		if err != nil {
-			return fmt.Errorf("create artifact signature query: %w", err)
-		}
-		releaseBundleQuery, err = wiring.BuildReleaseBundleQuery(runtime.Postgres)
-		if err != nil {
-			return fmt.Errorf("create release bundle query: %w", err)
-		}
-		answerLibraryQuery, err = wiring.BuildAnswerLibraryQuery(runtime.Postgres)
-		if err != nil {
-			return fmt.Errorf("create answer library query: %w", err)
-		}
-		auditLogQuery, err = wiring.BuildAuditLogQuery(runtime.Postgres)
-		if err != nil {
-			return fmt.Errorf("create audit log query: %w", err)
-		}
-		apiKeyQuery, err = wiring.BuildAPIKeyQuery(runtime.Postgres)
-		if err != nil {
-			return fmt.Errorf("create API-key query: %w", err)
-		}
-		roleBindingQuery, err = wiring.BuildRoleBindingQuery(runtime.Postgres)
-		if err != nil {
-			return fmt.Errorf("create role-binding query: %w", err)
-		}
+	options, err := wiring.BuildAPIReadServices(runtime, pepper)
+	if err != nil {
+		return fmt.Errorf("compose API read services: %w", err)
 	}
-	server, err := httpapi.NewServerWithOptionsContext(ctx, ledger, httpapi.ServerOptions{
-		Authenticator:                    authenticator,
-		RateLimitRequestsPerMinute:       httpConfig.RateLimitRequestsPerMinute,
-		ExpensiveTenantRequestsPerMinute: httpConfig.ExpensiveTenantRequestsPerMinute,
-		RateLimitBucketCapacity:          httpConfig.RateLimitBucketCapacity,
-		TrustedProxyCIDRs:                httpConfig.TrustedProxyCIDRs,
-		MaxURLBytes:                      httpConfig.MaxURLBytes,
-		MaxInboundRequestBytes:           httpConfig.MaxInboundRequestBytes,
-		MaxInFlightRequests:              httpConfig.MaxInFlightRequests,
-		MaxConcurrentUploads:             httpConfig.MaxConcurrentUploads,
-		BuildIdentity:                    identity,
-		PaginationSecret:                 []byte(pepper),
-		ProductQuery:                     productQuery,
-		CatalogPointQuery:                catalogPointQuery,
-		BuildPointQuery:                  buildPointQuery,
-		ReleaseCandidateQuery:            releaseCandidateQuery,
-		DeploymentPointQuery:             deploymentPointQuery,
-		DeploymentListQuery:              deploymentListQuery,
-		EvidencePointQuery:               evidencePointQuery,
-		SourceRepositoryQuery:            sourceRepositoryQuery,
-		CollectorQuery:                   collectorQuery,
-		ControlsQuery:                    controlsQuery,
-		ArtifactSignatureQuery:           artifactSignatureQuery,
-		ReleaseBundleQuery:               releaseBundleQuery,
-		AnswerLibraryQuery:               answerLibraryQuery,
-		AuditLogQuery:                    auditLogQuery,
-		APIKeyQuery:                      apiKeyQuery,
-		RoleBindingQuery:                 roleBindingQuery,
-	})
+	options.RateLimitRequestsPerMinute = httpConfig.RateLimitRequestsPerMinute
+	options.ExpensiveTenantRequestsPerMinute = httpConfig.ExpensiveTenantRequestsPerMinute
+	options.RateLimitBucketCapacity = httpConfig.RateLimitBucketCapacity
+	options.TrustedProxyCIDRs = httpConfig.TrustedProxyCIDRs
+	options.MaxURLBytes = httpConfig.MaxURLBytes
+	options.MaxInboundRequestBytes = httpConfig.MaxInboundRequestBytes
+	options.MaxInFlightRequests = httpConfig.MaxInFlightRequests
+	options.MaxConcurrentUploads = httpConfig.MaxConcurrentUploads
+	options.BuildIdentity = identity
+	options.PaginationSecret = []byte(pepper)
+	server, err := httpapi.NewServerWithOptionsContext(ctx, ledger, options)
 	if err != nil {
 		return fmt.Errorf("create server: %w", err)
 	}

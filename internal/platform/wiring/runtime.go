@@ -43,11 +43,13 @@ type RuntimeConfig struct {
 // Runtime owns the shared API/worker infrastructure lifetime. The API's
 // transitional Ledger and the worker's job processor compose on these ports.
 type Runtime struct {
-	Profile  Profile
-	Postgres *postgres.Store
-	Objects  app.ObjectStore
-	lease    func()
-	closed   sync.Once
+	Process    Process
+	Profile    Profile
+	Production bool
+	Postgres   *postgres.Store
+	Objects    app.ObjectStore
+	lease      func()
+	closed     sync.Once
 }
 
 func (r *Runtime) Close() {
@@ -84,7 +86,7 @@ func OpenRuntime(ctx context.Context, config RuntimeConfig) (_ *Runtime, err err
 		if backend != "" && backend != "filesystem" {
 			return nil, errors.New("EVYDENCE_RUNTIME_PROFILE=local_memory supports only EVYDENCE_OBJECT_STORE=filesystem")
 		}
-		runtime := &Runtime{Profile: profile}
+		runtime := &Runtime{Process: config.Process, Profile: profile, Production: config.Production}
 		if backend != "" {
 			objects, _, err := OpenObjectStore(ctx, config.ObjectStore)
 			if err != nil {
@@ -110,7 +112,7 @@ func OpenRuntime(ctx context.Context, config RuntimeConfig) (_ *Runtime, err err
 	if err != nil {
 		return nil, runtimeAdapterError("open PostgreSQL runtime", err)
 	}
-	runtime := &Runtime{Profile: profile, Postgres: store}
+	runtime := &Runtime{Process: config.Process, Profile: profile, Production: config.Production, Postgres: store}
 	defer func() {
 		if err != nil {
 			runtime.Close()

@@ -46,7 +46,7 @@ func TestOpenRuntimeBuildsExplicitLocalMemoryMode(t *testing.T) {
 		t.Fatalf("local runtime=%#v error=%v", runtime, err)
 	}
 	defer runtime.Close()
-	if runtime.Profile != LocalMemory || runtime.Postgres != nil || runtime.Objects == nil || len(runtime.Profile.Limitations()) == 0 {
+	if runtime.Process != API || runtime.Production || runtime.Profile != LocalMemory || runtime.Postgres != nil || runtime.Objects == nil || len(runtime.Profile.Limitations()) == 0 {
 		t.Fatalf("local runtime did not retain explicit limitations: %#v", runtime)
 	}
 }
@@ -109,7 +109,7 @@ func TestOpenRuntimeSharesPostgresMigrationAndObjectRules(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if runtime.Profile != PostgreSQL || runtime.Postgres == nil || runtime.Objects == nil {
+	if runtime.Process != Worker || runtime.Production || runtime.Profile != PostgreSQL || runtime.Postgres == nil || runtime.Objects == nil {
 		t.Fatalf("incomplete durable runtime: %#v", runtime)
 	}
 	if err := runtime.Postgres.CheckMigrationState(ctx, config.MigrationsDir); err != nil {

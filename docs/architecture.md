@@ -8,6 +8,7 @@ Evydence follows a ports-and-adapters shape:
 - `internal/app` is the deprecated Ledger compatibility facade, the shared transaction and storage port surface, and the temporary home of contexts not yet migrated.
 - `internal/adapters/httpapi` adapts application services to HTTP and OpenAPI; migrated Identity, Release, Evidence, Decision, Package, and Verification handlers depend on context-specific interfaces.
 - `internal/adapters/postgres` provides the durable ledger-state store, migration runner, tenant-scoped relational resource projection, and persisted outbox.
+- `internal/platform/wiring` validates the explicit API/worker runtime profile, opens PostgreSQL and object-store adapters, and composes the API's focused durable authentication/query ports from that runtime. Local-memory mode deliberately has no durable query ports and retains the compatibility Ledger path.
 - `internal/adapters/objectstore/filesystem` stores raw uploaded payload bytes under tenant-prefixed object keys for local and self-hosted deployments.
 - `internal/adapters/objectstore/s3` stores the same tenant-prefixed object keys in S3/MinIO-compatible buckets.
 - `cmd/*` contains process entry points.
