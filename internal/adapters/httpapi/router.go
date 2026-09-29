@@ -45,6 +45,7 @@ type Server struct {
 	catalogPointQuery    CatalogPointQuery
 	buildPointQuery      BuildPointQuery
 	deploymentPointQuery DeploymentPointQuery
+	deploymentListQuery  DeploymentListQuery
 	evidencePointQuery   EvidencePointQuery
 	auditLogQuery        AuditLogQuery
 	apiKeyQuery          APIKeyQuery
@@ -92,6 +93,8 @@ type ServerOptions struct {
 	BuildPointQuery BuildPointQuery
 	// DeploymentPointQuery reads one tenant-owned deployment and parent projection.
 	DeploymentPointQuery DeploymentPointQuery
+	// DeploymentListQuery pages environments and events with SQL-side grants.
+	DeploymentListQuery DeploymentListQuery
 	// EvidencePointQuery reads ordinary evidence from tenant-scoped PostgreSQL.
 	EvidencePointQuery EvidencePointQuery
 	// AuditLogQuery pages tenant audit records in PostgreSQL for the durable profile.
@@ -144,7 +147,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, deploymentPointQuery: opts.DeploymentPointQuery, evidencePointQuery: opts.EvidencePointQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
 		server.authn = opts.Authenticator
@@ -1034,6 +1037,24 @@ func (s *Server) listDeploymentEnvironments(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
+	if s.deploymentListQuery != nil {
+		request, err := s.parsePageRequest(r, actor, "deployment-environments", "product_id")
+		if err != nil {
+			writeProblem(w, r, err)
+			return
+		}
+		page, err := s.deploymentListQuery.ListEnvironmentsPage(r.Context(), actor, r.URL.Query().Get("product_id"), appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+		if err != nil {
+			writeProblem(w, r, mapDeploymentPointQueryError(err))
+			return
+		}
+		mapped := appquery.Result[domain.DeploymentEnvironment]{Next: page.Next, Items: make([]domain.DeploymentEnvironment, 0, len(page.Items))}
+		for _, environment := range page.Items {
+			mapped.Items = append(mapped.Items, deploymentEnvironmentFromQuery(environment))
+		}
+		writePage(s, w, r, actor, "deployment-environments", request, mapped)
+		return
+	}
 	envs, err := s.ledger.ListDeploymentEnvironments(r.Context(), actor, r.URL.Query().Get("product_id"))
 	if err != nil {
 		writeProblem(w, r, err)
@@ -1069,6 +1090,24 @@ func (s *Server) recordDeployment(w http.ResponseWriter, r *http.Request) {
 func (s *Server) listDeployments(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
+		return
+	}
+	if s.deploymentListQuery != nil {
+		request, err := s.parsePageRequest(r, actor, "deployments", "release_id", "environment_id")
+		if err != nil {
+			writeProblem(w, r, err)
+			return
+		}
+		page, err := s.deploymentListQuery.ListDeploymentsPage(r.Context(), actor, r.URL.Query().Get("release_id"), r.URL.Query().Get("environment_id"), appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+		if err != nil {
+			writeProblem(w, r, mapDeploymentPointQueryError(err))
+			return
+		}
+		mapped := appquery.Result[domain.DeploymentEvent]{Next: page.Next, Items: make([]domain.DeploymentEvent, 0, len(page.Items))}
+		for _, deployment := range page.Items {
+			mapped.Items = append(mapped.Items, deploymentEventFromQuery(deployment))
+		}
+		writePage(s, w, r, actor, "deployments", request, mapped)
 		return
 	}
 	deployments, err := s.ledger.ListDeployments(r.Context(), actor, r.URL.Query().Get("release_id"), r.URL.Query().Get("environment_id"))

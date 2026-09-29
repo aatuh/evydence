@@ -66,9 +66,10 @@ legacy Ledger maps; the compatibility adapters still translate persisted and
 HTTP DTOs.
 
 EVY-905 is in progress. PostgreSQL-backed point reads for products, projects,
-releases, and builds use release-catalog queries; deployment point reads use an
-operations-owned query. The deployment reader joins its tenant-owned release
-and environment through one product before grant evaluation. Ordinary evidence
+releases, and builds use release-catalog queries; deployment point and list
+reads use operations-owned queries. Deployment list visibility and keyset
+limits are applied in PostgreSQL; release and environment joins must resolve to
+one tenant-owned product before grant evaluation. Ordinary evidence
 point reads use a tenant-scoped, snapshot-consistent query. Worker-owned
 evidence types still use the Ledger projection so their parser, document, and
 audit provenance checks are not bypassed. Local-memory mode and other

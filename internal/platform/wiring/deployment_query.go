@@ -7,3 +7,9 @@ import operationsquery "github.com/aatuh/evydence/internal/operations/query"
 func BuildDeploymentPointQuery(reader operationsquery.DeploymentPointReader) (*operationsquery.DeploymentPoints, error) {
 	return operationsquery.NewDeploymentPoints(reader)
 }
+
+// BuildDeploymentListQuery binds SQL-side grant filtering and bounded keyset
+// pages for deployment environments and events.
+func BuildDeploymentListQuery(reader operationsquery.DeploymentListReader) (*operationsquery.DeploymentLists, error) {
+	return operationsquery.NewDeploymentLists(reader)
+}

@@ -47,6 +47,12 @@ type DeploymentPointQuery interface {
 	GetDeployment(context.Context, domain.Actor, string) (operationsdomain.DeploymentEvent, error)
 }
 
+// DeploymentListQuery returns tenant/grant-filtered pages from PostgreSQL.
+type DeploymentListQuery interface {
+	ListEnvironmentsPage(context.Context, domain.Actor, string, appquery.PageRequest, *appquery.SortKey) (appquery.Result[operationsdomain.DeploymentEnvironment], error)
+	ListDeploymentsPage(context.Context, domain.Actor, string, string, appquery.PageRequest, *appquery.SortKey) (appquery.Result[operationsdomain.DeploymentEvent], error)
+}
+
 // EvidencePointQuery reads authorized ordinary evidence from a bounded
 // PostgreSQL snapshot. Worker-owned records retain the validated projection.
 type EvidencePointQuery interface {
