@@ -733,8 +733,8 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, queryParam("release_id", "Optional single release id; blank or duplicate values are rejected.", "string"))
 		operation.Responses[http.StatusOK] = jsonResponse("Vulnerability posture report envelope.", "#/components/schemas/VulnerabilityPostureReportEnvelope")
 	case "vulnerabilityDecisionSummaryReport":
-		operation.Description = "Returns customer-safe active vulnerability decision summaries for a release with assumptions and limitations. Raw payloads and internal notes are excluded."
-		operation.Parameters = append(operation.Parameters, queryParam("release_id", "Release id.", "string"))
+		operation.Description = "Returns customer-safe active vulnerability decision summaries for one tenant-owned release with assumptions and limitations. Raw payloads and internal notes are excluded."
+		operation.Parameters = append(operation.Parameters, queryParam("release_id", "Single release id; missing, blank, duplicate, or unknown query parameters are rejected.", "string"))
 		operation.Responses[http.StatusOK] = jsonResponse("Vulnerability decision summary report envelope.", "#/components/schemas/VulnerabilityDecisionSummaryReportEnvelope")
 	case "generateAnomalyReport":
 		operation.Description = "Creates a deterministic anomaly report over existing tenant evidence and metrics with assumptions and limitations."

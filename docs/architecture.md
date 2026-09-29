@@ -81,7 +81,10 @@ transport-tag drift during the remaining transition.
 Vulnerability-decision history also uses a risk-owned PostgreSQL page query:
 one read snapshot validates filter coordinates and applies current
 tenant/product/release grants before the keyset limit. Internal notes are not
-selected or serialized. Local-memory mode retains the Ledger reader.
+selected or serialized. Its customer-safe summary report reads only active,
+visible decisions for one release under the current `report:read` grant, using
+the same versioned wording as local-memory mode. Local memory retains the
+Ledger readers.
 
 ## Tenant And Auth Boundaries
 

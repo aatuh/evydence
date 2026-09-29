@@ -376,7 +376,7 @@ func (s *Service) VulnerabilityDecisionSummaryReport(ctx context.Context, actor 
 		if value.TenantID != actor.TenantID || value.ReleaseID != release.ID || value.SupersededBy != "" || !value.CustomerVisible {
 			continue
 		}
-		decisions = append(decisions, customerDecisionSummary(value))
+		decisions = append(decisions, riskdomain.CustomerDecisionSummary(value))
 	}
 	sort.Slice(decisions, func(i, j int) bool {
 		if decisions[i].CreatedAt.Equal(decisions[j].CreatedAt) {
@@ -384,21 +384,7 @@ func (s *Service) VulnerabilityDecisionSummaryReport(ctx context.Context, actor 
 		}
 		return decisions[i].CreatedAt.Before(decisions[j].CreatedAt)
 	})
-	return riskdomain.VulnerabilityDecisionSummaryReport{
-		ReportType: "vulnerability_decision_summary", TemplateVersion: "vulnerability-decision-summary.v1.0.0",
-		ProductID: release.ProductID, ReleaseID: release.ID, Decisions: decisions,
-		Assumptions: []string{
-			"Only active vulnerability decisions marked customer_visible are included.",
-			"Evidence identifiers point to records in this Evydence instance; raw evidence payload bytes are not included.",
-			"reviewed_at records when the decision was reviewed; missing review_due_at means no scheduled follow-up review was recorded.",
-		},
-		Limitations: []string{
-			"This summary supports compliance-readiness review; it is not certification, legal advice, complete SBOM proof, or authoritative vulnerability coverage.",
-			"Decision accuracy depends on tenant-supplied evidence, scanner inputs, and review quality.",
-			"Review dates are tenant-supplied metadata and do not prove that the underlying vulnerability analysis is still correct.",
-		},
-		GeneratedAt: s.clock.Now().UTC(),
-	}, nil
+	return riskdomain.NewVulnerabilityDecisionSummaryReport(release.ProductID, release.ID, decisions, s.clock.Now()), nil
 }
 
 type CreateExceptionInput struct {
@@ -828,19 +814,6 @@ func cloneDecision(value riskdomain.VulnerabilityDecision) riskdomain.Vulnerabil
 func cloneException(value riskdomain.Exception) riskdomain.Exception {
 	value.ApprovedAt = cloneTimePointer(value.ApprovedAt)
 	return value
-}
-
-func customerDecisionSummary(value riskdomain.VulnerabilityDecision) riskdomain.VulnerabilityDecisionCustomerSummary {
-	return riskdomain.VulnerabilityDecisionCustomerSummary{
-		ID: value.ID, FindingID: value.FindingID, ScanID: value.ScanID, ReleaseID: value.ReleaseID,
-		Vulnerability: value.Vulnerability, Component: value.Component, SBOMID: value.SBOMID,
-		SBOMComponentPURL: value.SBOMComponentPURL, SBOMComponentName: value.SBOMComponentName,
-		Status: value.Status.String(), Justification: value.Justification, ImpactStatement: value.ImpactStatement,
-		ActionStatement: value.ActionStatement, Source: value.Source, EvidenceID: value.EvidenceID,
-		EvidenceIDs: append([]string(nil), value.EvidenceIDs...), SupportingRefs: append([]riskdomain.SupportingReference(nil), value.SupportingRefs...),
-		VEXDocumentID: value.VEXDocumentID, ReviewedAt: cloneTimePointer(value.ReviewedAt), ReviewDueAt: cloneTimePointer(value.ReviewDueAt),
-		CreatedAt: value.CreatedAt,
-	}
 }
 
 func cloneTimePointer(value *time.Time) *time.Time {

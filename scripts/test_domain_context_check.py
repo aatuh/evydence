@@ -35,6 +35,24 @@ class DomainContextCheckTests(unittest.TestCase):
         self.assertTrue(any("tag" in failure for failure in failures))
         self.assertTrue(any("non-standard" in failure for failure in failures))
 
+    def test_source_boundary_ignores_string_literals_outside_imports(self) -> None:
+        source = (
+            'package domain\nimport "time"\n'
+            'func report() []string { return []string{\n'
+            '    "This example.test/text is report copy, not an import.",\n'
+            '} }\n'
+        )
+        self.assertEqual(domain_context_check.source_boundary_failures("internal/risk/domain/report.go", source), [])
+
+    def test_source_boundary_checks_block_import_aliases(self) -> None:
+        source = (
+            'package domain\nimport (\n    "time"\n'
+            '    adapter "example.test/project/internal/adapter"\n)\n'
+        )
+        failures = domain_context_check.source_boundary_failures("internal/risk/domain/report.go", source)
+        self.assertEqual(len(failures), 1)
+        self.assertIn("example.test/project/internal/adapter", failures[0])
+
     def test_field_compatibility_rejects_missing_and_changed_fields(self) -> None:
         failures = domain_context_check.context_field_compatibility_failures(
             "release",

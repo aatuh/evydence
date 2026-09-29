@@ -160,7 +160,20 @@ STRUCT_PATTERN = re.compile(
 CONST_BLOCK_PATTERN = re.compile(r"(?ms)^const\s*\((.*?)^\)")
 CONST_LINE_PATTERN = re.compile(r"(?m)^\s*([A-Z][A-Za-z0-9_]*)\b")
 SINGLE_CONST_PATTERN = re.compile(r"(?m)^const\s+([A-Z][A-Za-z0-9_]*)\b")
-IMPORT_PATTERN = re.compile(r'(?m)^\s*(?:[A-Za-z_][A-Za-z0-9_]*\s+)?"([^"]+)"')
+SINGLE_IMPORT_PATTERN = re.compile(
+    r'(?m)^import[ \t]+(?:[._A-Za-z][A-Za-z0-9_]*[ \t]+)?"([^"]+)"'
+)
+IMPORT_BLOCK_PATTERN = re.compile(r"(?ms)^import[ \t]*\(\s*(.*?)^[ \t]*\)")
+IMPORT_ENTRY_PATTERN = re.compile(
+    r'(?m)^[ \t]*(?:[._A-Za-z][A-Za-z0-9_]*[ \t]+)?"([^"]+)"'
+)
+
+
+def imported_packages(body: str) -> list[str]:
+    packages = SINGLE_IMPORT_PATTERN.findall(body)
+    for block in IMPORT_BLOCK_PATTERN.findall(body):
+        packages.extend(IMPORT_ENTRY_PATTERN.findall(block))
+    return packages
 
 
 def parse_adr_ownership(body: str) -> dict[str, set[str]]:
@@ -279,7 +292,7 @@ def source_boundary_failures(relative_path: str, body: str) -> list[str]:
     for tag in ("`json:", "`db:", "`yaml:", "`form:"):
         if tag in body:
             failures.append(f"{relative_path}: transport or persistence tag {tag!r} is forbidden")
-    for imported in IMPORT_PATTERN.findall(body):
+    for imported in imported_packages(body):
         if "." in imported.split("/")[0] or "/internal/" in imported:
             failures.append(f"{relative_path}: domain imports non-standard package {imported}")
     return failures

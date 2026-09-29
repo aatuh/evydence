@@ -162,6 +162,12 @@ type VulnerabilityDecisionQuery interface {
 	ListPage(context.Context, domain.Actor, riskquery.DecisionFilter, appquery.PageRequest, *appquery.SortKey) (appquery.Result[riskdomain.VulnerabilityDecision], error)
 }
 
+// VulnerabilityDecisionSummaryQuery reads one release's customer-safe active
+// decision snapshot after applying the actor's report grant.
+type VulnerabilityDecisionSummaryQuery interface {
+	SummaryReport(context.Context, domain.Actor, string) (riskdomain.VulnerabilityDecisionSummaryReport, error)
+}
+
 // ControlEvidenceQuery pages current tenant-owned links after subject and
 // resource-grant validation in the durable query boundary.
 type ControlEvidenceQuery interface {

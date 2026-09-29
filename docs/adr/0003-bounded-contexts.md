@@ -112,6 +112,11 @@ Vulnerability-decision history also uses a risk-owned PostgreSQL query. It
 validates filtered product/release coordinates in one snapshot, applies current
 evidence-read grants and filters before keyset pagination, and never selects
 tenant-internal notes. Local-memory mode retains its compatibility reader.
+The customer-safe vulnerability-decision summary uses a separate risk-owned
+read snapshot: it checks the release and `report:read` grant before loading
+only active, customer-visible decisions for that release. The versioned report
+wording and field redaction are shared with the local-memory compatibility
+path.
 Worker-owned evidence types still use the Ledger projection so their parser,
 document, and audit provenance checks are not bypassed. Source-repository
 pages use an integration-owned query that validates current project/product

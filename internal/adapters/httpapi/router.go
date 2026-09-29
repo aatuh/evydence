@@ -38,52 +38,53 @@ type requestContext = context.Context
 const requestIDHeader = "X-Request-ID"
 
 type Server struct {
-	ledger                     *app.Ledger
-	authn                      Authenticator
-	instanceAdminQuery         InstanceAdminQuery
-	idempotency                idempotencyExecutor
-	identityAccess             identityAccessService
-	releaseCatalog             releaseCatalogService
-	productQuery               ProductQuery
-	catalogPointQuery          CatalogPointQuery
-	buildPointQuery            BuildPointQuery
-	artifactPointQuery         ArtifactPointQuery
-	releaseCandidateQuery      ReleaseCandidateQuery
-	deploymentPointQuery       DeploymentPointQuery
-	deploymentListQuery        DeploymentListQuery
-	evidencePointQuery         EvidencePointQuery
-	lifecycleEventsQuery       LifecycleEventsQuery
-	openAPIContractPointQuery  OpenAPIContractPointQuery
-	sbomPointQuery             SBOMPointQuery
-	sbomComponentsQuery        SBOMComponentsQuery
-	sourceRepositoryQuery      SourceRepositoryQuery
-	collectorQuery             CollectorQuery
-	collectorHealthQuery       CollectorHealthQuery
-	commercialCollectorQuery   CommercialCollectorQuery
-	marketplaceCollectorQuery  MarketplaceCollectorQuery
-	vulnerabilityPostureQuery  VulnerabilityPostureQuery
-	controlsQuery              ControlsQuery
-	exceptionsQuery            ExceptionsQuery
-	vulnerabilityDecisionQuery VulnerabilityDecisionQuery
-	controlEvidenceQuery       ControlEvidenceQuery
-	artifactSignatureQuery     ArtifactSignatureQuery
-	signingKeyQuery            SigningKeyQuery
-	releaseBundleQuery         ReleaseBundleQuery
-	answerLibraryQuery         AnswerLibraryQuery
-	portalAccessQuery          PortalAccessQuery
-	auditLogQuery              AuditLogQuery
-	apiKeyQuery                APIKeyQuery
-	roleBindingQuery           RoleBindingQuery
-	evidenceIngestion          evidenceIngestionService
-	riskDecisions              riskDecisionService
-	packages                   packageService
-	verification               verificationService
-	mux                        *http.ServeMux
-	specs                      *specs.Registry
-	routes                     *routecontracts.Registry
-	ingress                    *ingressControl
-	identity                   runtimeinfo.Identity
-	cursors                    appquery.CursorCodec
+	ledger                            *app.Ledger
+	authn                             Authenticator
+	instanceAdminQuery                InstanceAdminQuery
+	idempotency                       idempotencyExecutor
+	identityAccess                    identityAccessService
+	releaseCatalog                    releaseCatalogService
+	productQuery                      ProductQuery
+	catalogPointQuery                 CatalogPointQuery
+	buildPointQuery                   BuildPointQuery
+	artifactPointQuery                ArtifactPointQuery
+	releaseCandidateQuery             ReleaseCandidateQuery
+	deploymentPointQuery              DeploymentPointQuery
+	deploymentListQuery               DeploymentListQuery
+	evidencePointQuery                EvidencePointQuery
+	lifecycleEventsQuery              LifecycleEventsQuery
+	openAPIContractPointQuery         OpenAPIContractPointQuery
+	sbomPointQuery                    SBOMPointQuery
+	sbomComponentsQuery               SBOMComponentsQuery
+	sourceRepositoryQuery             SourceRepositoryQuery
+	collectorQuery                    CollectorQuery
+	collectorHealthQuery              CollectorHealthQuery
+	commercialCollectorQuery          CommercialCollectorQuery
+	marketplaceCollectorQuery         MarketplaceCollectorQuery
+	vulnerabilityPostureQuery         VulnerabilityPostureQuery
+	controlsQuery                     ControlsQuery
+	exceptionsQuery                   ExceptionsQuery
+	vulnerabilityDecisionQuery        VulnerabilityDecisionQuery
+	vulnerabilityDecisionSummaryQuery VulnerabilityDecisionSummaryQuery
+	controlEvidenceQuery              ControlEvidenceQuery
+	artifactSignatureQuery            ArtifactSignatureQuery
+	signingKeyQuery                   SigningKeyQuery
+	releaseBundleQuery                ReleaseBundleQuery
+	answerLibraryQuery                AnswerLibraryQuery
+	portalAccessQuery                 PortalAccessQuery
+	auditLogQuery                     AuditLogQuery
+	apiKeyQuery                       APIKeyQuery
+	roleBindingQuery                  RoleBindingQuery
+	evidenceIngestion                 evidenceIngestionService
+	riskDecisions                     riskDecisionService
+	packages                          packageService
+	verification                      verificationService
+	mux                               *http.ServeMux
+	specs                             *specs.Registry
+	routes                            *routecontracts.Registry
+	ingress                           *ingressControl
+	identity                          runtimeinfo.Identity
+	cursors                           appquery.CursorCodec
 }
 
 type ServerOptions struct {
@@ -153,6 +154,8 @@ type ServerOptions struct {
 	ExceptionsQuery ExceptionsQuery
 	// VulnerabilityDecisionQuery pages durable decisions after tenant and grant filtering.
 	VulnerabilityDecisionQuery VulnerabilityDecisionQuery
+	// VulnerabilityDecisionSummaryQuery reads a scoped customer-safe report.
+	VulnerabilityDecisionSummaryQuery VulnerabilityDecisionSummaryQuery
 	// ControlEvidenceQuery pages links from current subject ownership.
 	ControlEvidenceQuery ControlEvidenceQuery
 	// ArtifactSignatureQuery reads tenant-owned signature points from PostgreSQL.
@@ -216,6 +219,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 		return nil, err
 	}
 	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, instanceAdminQuery: opts.InstanceAdminQuery, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, artifactPointQuery: opts.ArtifactPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, lifecycleEventsQuery: opts.LifecycleEventsQuery, openAPIContractPointQuery: opts.OpenAPIContractPointQuery, sbomPointQuery: opts.SBOMPointQuery, sbomComponentsQuery: opts.SBOMComponentsQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, collectorHealthQuery: opts.CollectorHealthQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, marketplaceCollectorQuery: opts.MarketplaceCollectorQuery, vulnerabilityPostureQuery: opts.VulnerabilityPostureQuery, controlsQuery: opts.ControlsQuery, exceptionsQuery: opts.ExceptionsQuery, vulnerabilityDecisionQuery: opts.VulnerabilityDecisionQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
+	server.vulnerabilityDecisionSummaryQuery = opts.VulnerabilityDecisionSummaryQuery
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
 		server.authn = opts.Authenticator
@@ -2448,7 +2452,21 @@ func (s *Server) vulnerabilityDecisionSummaryReport(w http.ResponseWriter, r *ht
 	if !ok {
 		return
 	}
-	report, err := s.riskDecisions.VulnerabilityDecisionSummaryReport(r.Context(), actor, r.URL.Query().Get("release_id"))
+	releaseID, err := optionalSingletonQuery(r, "release_id")
+	if err != nil || releaseID == "" {
+		writeProblem(w, r, app.ErrValidation)
+		return
+	}
+	if s.vulnerabilityDecisionSummaryQuery != nil {
+		report, err := s.vulnerabilityDecisionSummaryQuery.SummaryReport(r.Context(), actor, releaseID)
+		if err != nil {
+			writeProblem(w, r, mapControlsQueryError(err))
+			return
+		}
+		writeData(w, http.StatusOK, decisionSummaryFromQuery(report))
+		return
+	}
+	report, err := s.riskDecisions.VulnerabilityDecisionSummaryReport(r.Context(), actor, releaseID)
 	if err != nil {
 		writeProblem(w, r, err)
 		return

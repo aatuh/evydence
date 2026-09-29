@@ -393,7 +393,11 @@ GET /v1/reports/vulnerability-decision-summary?release_id=rel_...
 The summary endpoint returns only active decisions marked `customer_visible`.
 It excludes `internal_notes`, raw payload bytes, object-store references, bearer
 tokens, and private review context. The response includes assumptions and
-limitations and is intended for package viewers and exports.
+limitations and is intended for package viewers and exports. `release_id` is
+required; blank, duplicate, and unknown query parameters are rejected. In
+PostgreSQL mode, one release-scoped read snapshot checks current `report:read`
+grants before selecting customer-visible decisions. Local-memory mode keeps
+the compatibility reader.
 
 ### 4. Readiness And Bundle Retrieval
 
