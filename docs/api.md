@@ -755,8 +755,8 @@ they do not establish legal compliance or complete WORM enforcement.
 | `POST` | `/v1/vex/preview` | Preview OpenVEX mapping without storing evidence. |
 | `POST` | `/v1/vex/cyclonedx` | Upload CycloneDX VEX; decisions are mapped asynchronously by the worker. |
 | `POST` | `/v1/vex/cyclonedx/preview` | Preview CycloneDX VEX mapping without storing evidence. |
-| `GET` | `/v1/vex/{id}` | Read VEX metadata. |
-| `GET` | `/v1/vex/{id}/import-report` | Read VEX parser report with safe counts, warnings, and mapping failures. |
+| `GET` | `/v1/vex/{id}` | Read VEX metadata. PostgreSQL validates current tenant-owned source evidence, release, artifact, and matching artifact subject before resource-grant authorization. |
+| `GET` | `/v1/vex/{id}/import-report` | Read the VEX parser report with counts, warnings, and mapping failures. PostgreSQL validates the document and report linkage in one snapshot; missing or ambiguous reports fail closed. |
 | `POST` | `/v1/openapi-contracts` | Upload OpenAPI contract. |
 | `GET` | `/v1/openapi-contracts/{id}` | Read contract metadata. |
 | `POST` | `/v1/openapi-diffs` | Compare stored contracts. |

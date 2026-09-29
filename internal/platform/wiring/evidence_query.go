@@ -31,6 +31,12 @@ func BuildVulnerabilityScanPointQuery(reader evidencequery.VulnerabilityScanPoin
 	return evidencequery.NewVulnerabilityScanPoints(reader)
 }
 
+// BuildVEXPointQuery binds documents and parser reports to one tenant-scoped
+// source and parent snapshot per request.
+func BuildVEXPointQuery(reader evidencequery.VEXPointReader) (*evidencequery.VEXPoints, error) {
+	return evidencequery.NewVEXPoints(reader)
+}
+
 // BuildSBOMComponentsQuery binds tenant- and grant-scoped component pages to
 // the durable reader without loading the Ledger snapshot.
 func BuildSBOMComponentsQuery(reader evidencequery.SBOMComponentReader) (*evidencequery.SBOMComponents, error) {

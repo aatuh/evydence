@@ -96,6 +96,10 @@ Vulnerability-scan point reads now use a repeatable-read tenant snapshot to
 validate the scan's source evidence, current release/product ownership,
 parsed finding identities, and human resource grants. Accepted pending scans
 retain their empty parser fields; local-memory mode retains the Ledger reader.
+VEX document and import-report point reads validate tenant-owned source,
+release, artifact subject, and report/document identity under one repeatable-
+read snapshot. Ambiguous reports fail closed; local-memory mode keeps its
+compatibility reader.
 SBOM component pages now expand tenant-owned JSONB component arrays in a
 repeatable-read PostgreSQL snapshot, apply current resource grants before the
 keyset limit, and transfer only a bounded page to the API. This removes the

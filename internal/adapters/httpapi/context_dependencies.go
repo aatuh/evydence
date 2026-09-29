@@ -109,6 +109,13 @@ type VulnerabilityScanPointQuery interface {
 	GetVulnerabilityScan(context.Context, domain.Actor, string) (evidencedomain.VulnerabilityScan, error)
 }
 
+// VEXPointQuery authorizes a document or its import report against the same
+// current source evidence and tenant-owned parent coordinates.
+type VEXPointQuery interface {
+	GetVEXDocument(context.Context, domain.Actor, string) (evidencedomain.VEXDocument, error)
+	GetVEXImportReport(context.Context, domain.Actor, string) (evidencedomain.VEXImportReport, error)
+}
+
 // SBOMComponentsQuery returns an authorized, bounded component page from
 // current tenant-owned SBOM and artifact associations.
 type SBOMComponentsQuery interface {
