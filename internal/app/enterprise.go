@@ -330,13 +330,21 @@ func (s identityService) ListCustomerPortalAccess(ctx context.Context, actor dom
 	defer l.mu.Unlock()
 	if packageID != "" {
 		pkg, ok := l.customerPackages[packageID]
-		if !ok || pkg.TenantID != actor.TenantID {
+		if !ok || !l.currentPortalPackageLocked(actor.TenantID, pkg) {
 			return nil, ErrNotFound
+		}
+		if !l.resourceAllowedLocked(actor, ScopePackageRead, resourceRefs{ProductID: pkg.ProductID, ReleaseID: pkg.ReleaseID, CustomerPackageID: pkg.ID}) {
+			return nil, ErrForbidden
 		}
 	}
 	accesses := []domain.CustomerPortalAccess{}
 	for _, access := range l.portalAccess {
 		if access.TenantID != actor.TenantID || (packageID != "" && access.PackageID != packageID) {
+			continue
+		}
+		pkg, ok := l.customerPackages[access.PackageID]
+		if !ok || !l.currentPortalPackageLocked(actor.TenantID, pkg) ||
+			!l.resourceAllowedLocked(actor, ScopePackageRead, resourceRefs{ProductID: pkg.ProductID, ReleaseID: pkg.ReleaseID, CustomerPackageID: pkg.ID}) {
 			continue
 		}
 		access.Hash = ""
@@ -349,6 +357,21 @@ func (s identityService) ListCustomerPortalAccess(ctx context.Context, actor dom
 		return accesses[i].CreatedAt.Before(accesses[j].CreatedAt)
 	})
 	return accesses, nil
+}
+
+func (l *Ledger) currentPortalPackageLocked(tenantID string, pkg domain.CustomerSecurityPackage) bool {
+	if pkg.TenantID != tenantID || pkg.ProductID == "" {
+		return false
+	}
+	product, ok := l.products[pkg.ProductID]
+	if !ok || product.TenantID != tenantID {
+		return false
+	}
+	if pkg.ReleaseID != "" {
+		release, ok := l.releases[pkg.ReleaseID]
+		return ok && release.TenantID == tenantID && release.ProductID == pkg.ProductID
+	}
+	return true
 }
 
 func (s identityService) RevokeCustomerPortalAccess(ctx context.Context, actor domain.Actor, id string) (domain.CustomerPortalAccess, error) {

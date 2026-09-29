@@ -15,6 +15,8 @@ release artifacts.
 
 ### Added
 
+- PostgreSQL-backed customer-portal access listing now pages within current tenant and resource grants without selecting token hashes; local-memory listing also enforces resource grants.
+
 - Added a versioned parser conformance corpus manifest and gate that records
   fixture provenance, redistribution rights, hashes, bounded limits, and
   expected normalized summaries for supported parser formats.

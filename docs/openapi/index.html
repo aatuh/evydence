@@ -891,13 +891,13 @@
               <div><dt>Responses</dt><dd>200 application/zip: string; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/customer-portal/access list customer portal access records lists tenant-scoped external reviewer access records without token hashes or token secrets. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listcustomerportalaccess evydence package:read">
+          <article class="operation" data-operation data-search="get /v1/customer-portal/access list customer portal access records lists tenant-scoped external reviewer access records visible under the caller&#x27;s current package, product, release, or tenant-level package:read grant. token hashes and secrets are never returned. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listcustomerportalaccess evydence package:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/customer-portal/access</code>
             </div>
             <h3>List customer portal access records</h3>
-            <p>Lists tenant-scoped external reviewer access records without token hashes or token secrets. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
+            <p>Lists tenant-scoped external reviewer access records visible under the caller&#x27;s current package, product, release, or tenant-level package:read grant. Token hashes and secrets are never returned. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listCustomerPortalAccess</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

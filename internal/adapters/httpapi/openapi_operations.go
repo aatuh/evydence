@@ -853,7 +853,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Customer portal access creation request.", "#/components/schemas/CreateCustomerPortalAccessRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created portal access and one-time token envelope.", "#/components/schemas/CustomerPortalAccessCreateEnvelope")
 	case "listCustomerPortalAccess":
-		operation.Description = "Lists tenant-scoped external reviewer access records without token hashes or token secrets."
+		operation.Description = "Lists tenant-scoped external reviewer access records visible under the caller's current package, product, release, or tenant-level package:read grant. Token hashes and secrets are never returned."
 		operation.Parameters = append(operation.Parameters, queryParam("package_id", "Optional customer package id filter.", "string"))
 		operation.Responses[http.StatusOK] = jsonResponse("Customer portal access list envelope.", "#/components/schemas/CustomerPortalAccessListEnvelope")
 	case "revokeCustomerPortalAccess":

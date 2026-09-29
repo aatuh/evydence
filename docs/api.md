@@ -586,13 +586,14 @@ Source snapshots capture submitted provider metadata. They do not call provider 
 | `GET` | `/v1/customer-packages/{id}` | Read package manifest and record access. |
 | `GET` | `/v1/customer-packages/{id}/download` | Download scoped ZIP package with manifest metadata and verification guidance. |
 | `POST` | `/v1/customer-portal/access` | Create named external reviewer access with one-time package token. |
-| `GET` | `/v1/customer-portal/access` | List external reviewer access records without token hashes or secrets. |
+| `GET` | `/v1/customer-portal/access` | List grant-visible external reviewer access records without token hashes or secrets. |
 | `POST` | `/v1/customer-portal/access/{id}/revoke` | Revoke an external reviewer access record. |
 | `POST` | `/v1/customer-portal/package` | Exchange package token for scoped manifest. |
 | `POST` | `/v1/customer-portal/package/download` | Exchange package token for scoped ZIP package download. |
 | `GET` | `/v1/customer-portal/package/view` | Render public token-entry page for scoped package review. |
 | `POST` | `/v1/customer-portal/package/view` | Exchange package token from a form body for scoped HTML package review. |
 | `POST` | `/v1/customer-portal/package/view/download` | Exchange package token from a form body for scoped ZIP package download. |
+
 | `POST` | `/v1/questionnaire-templates` | Create questionnaire template. |
 | `POST` | `/v1/questionnaire-packages` | Generate evidence-backed responses. |
 | `POST` | `/v1/questionnaire-drafts` | Create evidence-backed draft answers for review. |
@@ -608,6 +609,8 @@ Source snapshots capture submitted provider metadata. They do not call provider 
 | `POST` | `/v1/incidents/{id}/timeline` | Append incident timeline event. |
 | `POST` | `/v1/incidents/{id}/webhook-receivers` | Create incident-scoped Ed25519 webhook receiver. |
 | `POST` | `/v1/incident-webhooks/{receiver_id}` | Receive signed incident timeline webhook without bearer authentication. |
+
+The customer-portal access list requires `package:read` and a current tenant, product, release, or customer-package grant for human sessions. An existing `package_id` outside the caller's grants returns `403`; a missing or cross-tenant package returns `404` when the caller has at least one applicable resource grant. Without any grant, a filtered request fails with `403` before package lookup. PostgreSQL mode applies tenant and grant filters before keyset pagination in one read-only snapshot and does not select token hashes. Local-memory mode applies the same grant visibility before returning records, but retains its compatibility pagination path.
 
 Questionnaire answer drafts are scoped per entry. A human session with a
 product or release grant can read and create only drafts in that scope; drafts

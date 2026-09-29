@@ -89,6 +89,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string) (httpapi.ServerOption
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create answer library query: %w", err)
 	}
+	options.PortalAccessQuery, err = BuildPortalAccessQuery(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create portal access query: %w", err)
+	}
 	options.AuditLogQuery, err = BuildAuditLogQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create audit log query: %w", err)

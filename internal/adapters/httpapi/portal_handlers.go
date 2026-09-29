@@ -42,6 +42,24 @@ func (s *Server) listCustomerPortalAccess(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
+	if s.portalAccessQuery != nil {
+		request, err := s.parsePageRequest(r, actor, "customer-portal-access", "package_id")
+		if err != nil {
+			writeProblem(w, r, err)
+			return
+		}
+		page, err := s.portalAccessQuery.ListPage(r.Context(), actor, r.URL.Query().Get("package_id"), appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+		if err != nil {
+			writeProblem(w, r, mapPortalAccessQueryError(err))
+			return
+		}
+		mapped := appquery.Result[domain.CustomerPortalAccess]{Next: page.Next, Items: make([]domain.CustomerPortalAccess, 0, len(page.Items))}
+		for _, access := range page.Items {
+			mapped.Items = append(mapped.Items, portalAccessFromQuery(access))
+		}
+		writePage(s, w, r, actor, "customer-portal-access", request, mapped)
+		return
+	}
 	access, err := s.ledger.ListCustomerPortalAccess(r.Context(), actor, r.URL.Query().Get("package_id"))
 	if err != nil {
 		writeProblem(w, r, err)

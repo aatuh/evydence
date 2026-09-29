@@ -43,7 +43,7 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 		options.DeploymentListQuery == nil || options.EvidencePointQuery == nil || options.SourceRepositoryQuery == nil ||
 		options.CollectorQuery == nil || options.ControlsQuery == nil || options.ArtifactSignatureQuery == nil ||
 		options.ReleaseBundleQuery == nil || options.AnswerLibraryQuery == nil || options.AuditLogQuery == nil ||
-		options.APIKeyQuery == nil || options.RoleBindingQuery == nil {
+		options.PortalAccessQuery == nil || options.APIKeyQuery == nil || options.RoleBindingQuery == nil {
 		t.Fatalf("incomplete durable dependencies=%#v", options)
 	}
 	if _, err := BuildAPIReadServices(&Runtime{Process: API, Profile: PostgreSQL, Postgres: store, Production: true}, ""); err == nil {

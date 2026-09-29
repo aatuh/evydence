@@ -105,6 +105,12 @@ type AnswerLibraryQuery interface {
 	ListPage(context.Context, domain.Actor, packagequery.AnswerLibraryFilter, appquery.PageRequest, *appquery.SortKey) (appquery.Result[packagedomain.QuestionnaireAnswerLibraryEntry], error)
 }
 
+// PortalAccessQuery pages only grant-visible customer package access metadata
+// and never exposes the underlying portal token hash.
+type PortalAccessQuery interface {
+	ListPage(context.Context, domain.Actor, string, appquery.PageRequest, *appquery.SortKey) (appquery.Result[packagedomain.CustomerPortalAccess], error)
+}
+
 // AuditLogQuery pages current tenant audit entries without loading the Ledger.
 type AuditLogQuery interface {
 	ListPage(context.Context, domain.Actor, verificationquery.AuditFilter, appquery.PageRequest, *appquery.SortKey) (appquery.Result[verificationdomain.AuditChainEntry], error)
