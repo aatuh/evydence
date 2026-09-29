@@ -2761,13 +2761,13 @@
               <div><dt>Responses</dt><dd>201 application/json: SecurityScanEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/signing-keys list signing keys lists tenant signing public-key metadata without private key material. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listsigningkeys evydence verify:read">
+          <article class="operation" data-operation data-search="get /v1/signing-keys list signing keys lists tenant signing public-key lifecycle metadata under verify:read; human sessions require a current tenant-level grant. postgresql reads are keyset-paginated and never select encrypted private key material. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listsigningkeys evydence verify:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/signing-keys</code>
             </div>
             <h3>List signing keys</h3>
-            <p>Lists tenant signing public-key metadata without private key material. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
+            <p>Lists tenant signing public-key lifecycle metadata under verify:read; human sessions require a current tenant-level grant. PostgreSQL reads are keyset-paginated and never select encrypted private key material. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listSigningKeys</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

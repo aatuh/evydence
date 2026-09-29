@@ -52,6 +52,7 @@ type Server struct {
 	collectorQuery         CollectorQuery
 	controlsQuery          ControlsQuery
 	artifactSignatureQuery ArtifactSignatureQuery
+	signingKeyQuery        SigningKeyQuery
 	releaseBundleQuery     ReleaseBundleQuery
 	answerLibraryQuery     AnswerLibraryQuery
 	portalAccessQuery      PortalAccessQuery
@@ -115,6 +116,8 @@ type ServerOptions struct {
 	ControlsQuery ControlsQuery
 	// ArtifactSignatureQuery reads tenant-owned signature points from PostgreSQL.
 	ArtifactSignatureQuery ArtifactSignatureQuery
+	// SigningKeyQuery pages public lifecycle metadata from PostgreSQL.
+	SigningKeyQuery SigningKeyQuery
 	// ReleaseBundleQuery reads tenant-owned bundle points from PostgreSQL.
 	ReleaseBundleQuery ReleaseBundleQuery
 	// AnswerLibraryQuery pages authorized questionnaire drafts from PostgreSQL.
@@ -171,7 +174,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, controlsQuery: opts.ControlsQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, controlsQuery: opts.ControlsQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
 		server.authn = opts.Authenticator
@@ -2764,6 +2767,24 @@ func (s *Server) verifyBackupManifest(w http.ResponseWriter, r *http.Request) {
 func (s *Server) listSigningKeys(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
+		return
+	}
+	if s.signingKeyQuery != nil {
+		request, err := s.parsePageRequest(r, actor, "signing-keys")
+		if err != nil {
+			writeProblem(w, r, err)
+			return
+		}
+		result, err := s.signingKeyQuery.ListPage(r.Context(), actor, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+		if err != nil {
+			writeProblem(w, r, mapSigningKeyQueryError(err))
+			return
+		}
+		page := appquery.Result[domain.SigningKey]{Next: result.Next, Items: make([]domain.SigningKey, 0, len(result.Items))}
+		for _, key := range result.Items {
+			page.Items = append(page.Items, signingKeyFromQuery(key))
+		}
+		writePage(s, w, r, actor, "signing-keys", request, page)
 		return
 	}
 	keys, err := s.verification.ListSigningKeys(r.Context(), actor)

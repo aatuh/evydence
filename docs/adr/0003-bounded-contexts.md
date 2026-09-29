@@ -86,6 +86,9 @@ need a current tenant-level `collector:read` grant, while issued credentials
 remain scope-bound. The query does not select credential secrets or hashes.
 Governance framework pages and control points use a risk-owned query; a
 control must resolve to a framework in the same tenant before it is returned.
+Signing-key pages use a verification-owned tenant-scoped query that selects
+only public lifecycle metadata and applies a keyset limit in PostgreSQL;
+human sessions need a current tenant-level `verify:read` grant.
 Local-memory mode and other unmigrated handlers still use the Ledger
 compatibility model.
 

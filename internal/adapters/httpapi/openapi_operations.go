@@ -546,7 +546,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("OpenAPI contract diff request.", "#/components/schemas/CreateOpenAPIDiffRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created OpenAPI contract diff envelope.", "#/components/schemas/ContractDiffEnvelope")
 	case "listSigningKeys":
-		operation.Description = "Lists tenant signing public-key metadata without private key material."
+		operation.Description = "Lists tenant signing public-key lifecycle metadata under verify:read; human sessions require a current tenant-level grant. PostgreSQL reads are keyset-paginated and never select encrypted private key material."
 		operation.Responses[http.StatusOK] = jsonResponse("Signing key list envelope.", "#/components/schemas/SigningKeyListEnvelope")
 	case "rotateSigningKey":
 		operation.Description = "Rotates the active tenant signing key, retires the prior key with an explicit validity window, and returns public-key metadata only."

@@ -52,6 +52,10 @@ release artifacts.
 
 ### Changed
 
+- Signing-key lists now use tenant-filtered, keyset-paginated PostgreSQL reads
+  that never select encrypted private key material; local-memory mode retains
+  its compatibility list.
+
 - PostgreSQL-backed release-bundle and manifest reads now resolve the current
   tenant-owned release before enforcing human `bundle:read` resource grants.
   Their response shapes remain unchanged.

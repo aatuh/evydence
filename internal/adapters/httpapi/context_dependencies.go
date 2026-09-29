@@ -93,6 +93,11 @@ type ArtifactSignatureQuery interface {
 	GetArtifactSignature(context.Context, domain.Actor, string) (verificationdomain.ArtifactSignature, error)
 }
 
+// SigningKeyQuery pages public signing-key metadata without reading private material.
+type SigningKeyQuery interface {
+	ListPage(context.Context, domain.Actor, appquery.PageRequest, *appquery.SortKey) (appquery.Result[verificationdomain.SigningKey], error)
+}
+
 // ReleaseBundleQuery reads a bundle and its manifest from a current
 // tenant-owned release after applying the actor's bundle-read grant.
 type ReleaseBundleQuery interface {

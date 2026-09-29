@@ -643,7 +643,7 @@ presets; preset policy fields cannot be overridden in the create request.
 | `POST` | `/v1/verify` | Verify supported subject types. |
 | `GET` | `/v1/audit-chain/verify` | Verify tenant audit chain. |
 | `GET` | `/v1/audit-log` | List tenant audit entries; admin scope required, including a tenant-wide grant for human sessions. |
-| `GET` | `/v1/signing-keys` | List keys. |
+| `GET` | `/v1/signing-keys` | List tenant signing-key public metadata; `verify:read` and a tenant-level grant are required for human sessions. |
 | `POST` | `/v1/signing-keys/rotate` | Rotate signing key. |
 | `POST` | `/v1/signing-keys/{id}/revoke` | Revoke key for new signatures. |
 | `POST` | `/v1/signing-providers` | Record external signing-provider metadata. |
@@ -668,6 +668,8 @@ presets; preset policy fields cannot be overridden in the create request.
 | `GET` | `/v1/reports/custody-review` | Review tenant signing-provider and object-lock verification metadata for deployment custody review. |
 | `POST` | `/v1/backup-manifests` | Generate backup manifest. |
 | `GET` | `/v1/backup-manifests/{id}/verify` | Verify backup manifest. |
+
+The signing-key list pages public lifecycle metadata by tenant in PostgreSQL. It does not select encrypted private key bytes; local-memory mode retains the compatibility list and in-memory pagination. A human session must have a current tenant-level `verify:read` grant, while issued credentials use their `verify:read` scope.
 
 In the PostgreSQL profile, both release-bundle reads use a single bundle/release/product
 database statement. A human session needs a current tenant, product, or release
