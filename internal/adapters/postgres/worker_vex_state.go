@@ -16,8 +16,9 @@ import (
 )
 
 // loadWorkerVEXJobState reads the document's source, reports, release scans,
-// related decisions, and tenant audit history under one stable snapshot. It
-// never reconstructs unrelated tenant resources or another tenant's state.
+// related decisions, the matching acceptance audit entry, and audit tail under
+// one stable snapshot. It never reconstructs unrelated tenant resources or
+// another tenant's state.
 func (s *Store) loadWorkerVEXJobState(ctx context.Context, job ClaimedJob) (app.PersistedState, error) {
 	tx, err := s.beginVEXPointSnapshot(ctx, job.TenantID, job.SubjectID)
 	if err != nil {
@@ -54,7 +55,10 @@ func (s *Store) loadWorkerVEXJobState(ctx context.Context, job ClaimedJob) (app.
 	if err := loadWorkerVEXFindingDecisions(ctx, tx, job.TenantID, &state); err != nil {
 		return app.PersistedState{}, err
 	}
-	entries, err := loadAuditChainEntriesForTenant(ctx, tx, job.TenantID)
+	actorType, _ := job.Payload["actor_type"].(string)
+	actorID, _ := job.Payload["actor_id"].(string)
+	payloadHash, _ := job.Payload["payload_hash"].(string)
+	entries, err := loadVEXAcceptedAuditPoints(ctx, tx, job.TenantID, job.SubjectID, actorType, actorID, payloadHash)
 	if err != nil {
 		return app.PersistedState{}, err
 	}

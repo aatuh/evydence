@@ -114,9 +114,10 @@ focused mutations; otherwise the compatibility loader remains in use.
 `parse_vex` reads the claimed document and source, its import reports,
 same-release scans and finding decisions under one tenant-filtered snapshot.
 It validates current source and parent ownership before replay and rejects
-report/document linkage mismatches. The current audit-append contract still
-loads that tenant's full audit chain to check the accepted event and derive the
-next entry; bounding that read remains EVY-905 work.
+report/document linkage mismatches. The worker reads only the matching
+`vex.accepted` entry and current audit tip; the durable append transaction
+checks committed sequence and predecessor continuity before rebasing and
+writing new entries.
 `sign_bundle` and `verify_subject` also use focused tenant-filtered reads;
 their read-only paths do not require a mutation interface. When a signing job
 contains `manifest_hash`, the worker requires it to match the durable bundle;
@@ -126,9 +127,10 @@ and immutable source evidence agree on ownership, source type, payload digest,
 size, and reference. Its replay mutation remains lease-fenced. VEX decision
 and report mutations remain lease-fenced too. Operator-triggered parser replay
 reads its tenant-owned source, same-version marker if present, and tenant audit
-chain under a repeatable-read snapshot; the apply transaction revalidates the
-current source and marker. API startup still constructs broad Ledger state,
-and bounding audit-chain reads remains EVY-905 work.
+tip under a repeatable-read snapshot; the apply transaction revalidates the
+current source and marker and checks committed chain continuity before
+appending. API startup still constructs broad Ledger state, which remains
+EVY-905 work.
 
 ## PostgreSQL projection consistency
 

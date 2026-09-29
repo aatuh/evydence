@@ -75,7 +75,7 @@ func TestPostgresVEXPointsCheckCurrentParentsAndReportLinkage(t *testing.T) {
 	if err != nil || report.ID != "report_good" || report.Status != "parsed" || len(report.MappingFailures) != 1 || report.MappingFailures[0].Code != "unmatched" || len(report.Warnings) != 1 || len(report.UnsupportedFields) != 1 {
 		t.Fatalf("report=%#v error=%v", report, err)
 	}
-	job := ClaimedJob{TenantID: "ten_vex_point", Kind: "parse_vex", SubjectType: "vex_document", SubjectID: "vex_good", Payload: map[string]any{"import_report_id": "report_good"}}
+	job := ClaimedJob{TenantID: "ten_vex_point", Kind: "parse_vex", SubjectType: "vex_document", SubjectID: "vex_good", Payload: map[string]any{"import_report_id": "report_good", "actor_type": "api_key", "actor_id": "key_a", "payload_hash": "sha256:" + strings.Repeat("a", 64)}}
 	state, ok, err := store.LoadWorkerJobState(ctx, job)
 	if err != nil || !ok || len(state.VEXDocuments) != 1 || state.VEXDocuments[job.SubjectID].EvidenceID != "ev_a" || len(state.VEXImportReports) != 1 || state.VEXImportReports["report_good"].Status != "parsed" || state.Evidence["ev_a"].TenantID != job.TenantID {
 		t.Fatalf("focused VEX state document=%#v report=%#v evidence=%#v ok=%v error=%v", state.VEXDocuments, state.VEXImportReports, state.Evidence, ok, err)
@@ -108,6 +108,31 @@ func TestPostgresVEXPointsCheckCurrentParentsAndReportLinkage(t *testing.T) {
 	state, ok, err = store.LoadWorkerJobState(ctx, job)
 	if err != nil || !ok || len(state.Scans) != 1 || state.Scans["scan_a"].ID != "scan_a" || len(state.Decisions) != 1 || state.Decisions["decision_a"].ID != "decision_a" || len(state.Chain[job.TenantID]) != 1 || state.Chain[job.TenantID][0].ID != accepted.ID {
 		t.Fatalf("release-scoped VEX dependencies scans=%#v decisions=%#v chain=%#v ok=%v error=%v", state.Scans, state.Decisions, state.Chain, ok, err)
+	}
+	var last domain.AuditChainEntry
+	for index := range 3 {
+		last, err = app.AppendPersistedChainEntry(&auditState, now.Add(time.Duration(index+1)*time.Second), job.TenantID, "unrelated.event", "release", "rel_b", "api_key", "key_a", "", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := store.ApplyReleaseLedgerMutation(ctx, app.ReleaseLedgerMutation{AuditChainEntries: []domain.AuditChainEntry{last}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	state, ok, err = store.LoadWorkerJobState(ctx, job)
+	if err != nil || !ok || len(state.Chain[job.TenantID]) != 2 || state.Chain[job.TenantID][0].ID != accepted.ID || state.Chain[job.TenantID][1].ID != last.ID {
+		t.Fatalf("VEX job loaded more than accepted entry and tip: chain=%#v ok=%v error=%v", state.Chain, ok, err)
+	}
+	proposed, err := app.AppendPersistedChainEntry(&state, now.Add(4*time.Second), job.TenantID, "unrelated.event", "release", "rel_a", "api_key", "key_a", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.ApplyReleaseLedgerMutation(ctx, app.ReleaseLedgerMutation{AuditChainEntries: []domain.AuditChainEntry{proposed}}); err != nil {
+		t.Fatalf("rebase sparse VEX audit append: %v", err)
+	}
+	state, ok, err = store.LoadWorkerJobState(ctx, job)
+	if err != nil || !ok || len(state.Chain[job.TenantID]) != 2 || state.Chain[job.TenantID][1].ID != proposed.ID || state.Chain[job.TenantID][1].Sequence != 5 {
+		t.Fatalf("rebased sparse VEX append chain=%#v ok=%v error=%v", state.Chain, ok, err)
 	}
 	actor.ResourceGrants[0].ResourceID = "prod_b"
 	if _, err := service.GetVEXDocument(ctx, actor, "vex_good"); !errors.Is(err, application.ErrForbidden) {

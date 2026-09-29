@@ -14,7 +14,7 @@ import (
 )
 
 // LoadParserReplayState reads only the requested source evidence and its
-// tenant's audit history for an explicit operator replay. The durable apply
+// tenant's audit tail for an explicit operator replay. The durable apply
 // transaction still validates the current source and any existing marker.
 func (s *Store) LoadParserReplayState(ctx context.Context, tenantID, evidenceID, parserVersion string) (app.PersistedState, bool, error) {
 	if s == nil || s.pool == nil || ctx == nil || tenantID == "" || evidenceID == "" || parserVersion == "" ||
@@ -77,7 +77,7 @@ func (s *Store) LoadParserReplayState(ctx context.Context, tenantID, evidenceID,
 		}
 		evidence[marker.ID] = marker
 	}
-	chain, err := loadAuditChainEntriesForTenant(ctx, tx, tenantID)
+	chain, err := loadAuditChainTailForTenant(ctx, tx, tenantID)
 	if err != nil {
 		return app.PersistedState{}, false, err
 	}

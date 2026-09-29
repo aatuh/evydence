@@ -182,6 +182,41 @@ func TestStoreApplyParserReplayIsIdempotentAcrossStaleConcurrentSnapshots(t *tes
 	if err != nil || !ok || len(focused.Evidence) != 2 || focused.Evidence[persistedID].ID != persistedID || len(focused.Chain[tenantID]) != 1 {
 		t.Fatalf("focused existing replay marker=%#v chain=%#v ok=%v error=%v", focused.Evidence, focused.Chain, ok, err)
 	}
+	auditState := app.PersistedState{Chain: map[string][]domain.AuditChainEntry{tenantID: append([]domain.AuditChainEntry(nil), state.Chain[tenantID]...)}}
+	var last domain.AuditChainEntry
+	for index := range 3 {
+		last, err = app.AppendPersistedChainEntry(&auditState, now.Add(time.Duration(index+2)*time.Minute), tenantID, "unrelated.event", "tenant", tenantID, "operator", "operator", "", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := store.ApplyReleaseLedgerMutation(ctx, app.ReleaseLedgerMutation{AuditChainEntries: []domain.AuditChainEntry{last}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	focused, ok, err = store.LoadParserReplayState(ctx, tenantID, source.ID, app.ParserVersionScannerAdaptersJSON)
+	if err != nil || !ok || len(focused.Chain[tenantID]) != 1 || focused.Chain[tenantID][0].ID != last.ID {
+		t.Fatalf("parser replay loaded more than the audit tip: chain=%#v ok=%v error=%v", focused.Chain, ok, err)
+	}
+	newVersion := app.ParserReplayRequest{TenantID: tenantID, EvidenceID: source.ID, ParserVersion: app.ParserVersionGenericVulnerabilityJSON, ActorID: "operator", Now: now.Add(10 * time.Minute)}
+	focused, ok, err = store.LoadParserReplayState(ctx, tenantID, source.ID, newVersion.ParserVersion)
+	if err != nil || !ok || len(focused.Evidence) != 1 || len(focused.Chain[tenantID]) != 1 {
+		t.Fatalf("new-version parser replay state=%#v ok=%v error=%v", focused, ok, err)
+	}
+	newResult, err := app.ReplayParserEvidence(&focused, raw, newVersion)
+	if err != nil || !newResult.Created {
+		t.Fatalf("new-version sparse replay result=%#v error=%v", newResult, err)
+	}
+	newMutation, err := app.ParserReplayMutation(&focused, newVersion, newResult)
+	if err != nil {
+		t.Fatalf("new-version sparse replay mutation: %v", err)
+	}
+	if _, created, err := store.ApplyParserReplay(ctx, newVersion, newMutation); err != nil || !created {
+		t.Fatalf("rebase sparse parser replay created=%v error=%v", created, err)
+	}
+	focused, ok, err = store.LoadParserReplayState(ctx, tenantID, source.ID, newVersion.ParserVersion)
+	if err != nil || !ok || len(focused.Chain[tenantID]) != 1 || focused.Chain[tenantID][0].Sequence != 5 || focused.Chain[tenantID][0].SubjectID != newResult.EvidenceID {
+		t.Fatalf("rebased sparse parser replay chain=%#v ok=%v error=%v", focused.Chain, ok, err)
+	}
 }
 
 func TestStoreApplyParserReplayRejectsForgedExistingMarker(t *testing.T) {
