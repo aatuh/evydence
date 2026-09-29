@@ -22,6 +22,12 @@ func BuildBuildPointQuery(reader releasequery.BuildPointReader) (*releasequery.B
 	return releasequery.NewBuildPoints(reader, releasequery.NewCatalogAuthorizer())
 }
 
+// BuildArtifactPointQuery binds artifact reads to current, tenant-verified
+// evidence and build associations for scoped human grants.
+func BuildArtifactPointQuery(reader releasequery.ArtifactPointReader) (*releasequery.ArtifactPoints, error) {
+	return releasequery.NewArtifactPoints(reader)
+}
+
 // BuildReleaseCandidateQuery binds current tenant-owned release/product
 // projections to the release-catalog read policy.
 func BuildReleaseCandidateQuery(reader releasequery.ReleaseCandidateReader) (*releasequery.ReleaseCandidates, error) {

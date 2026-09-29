@@ -66,13 +66,15 @@ legacy Ledger maps; the compatibility adapters still translate persisted and
 HTTP DTOs.
 
 EVY-905 is in progress. PostgreSQL-backed point reads for products, projects,
-releases, builds, and release candidates use release-catalog queries. The
+releases, builds, artifacts, and release candidates use release-catalog queries. The
 API's read dependencies are now assembled by `internal/platform/wiring.BuildAPIReadServices`
 from the same validated runtime that opens API and worker infrastructure; the
 API entry point supplies HTTP limits and bootstrap configuration separately.
 This centralizes the durable read ports but does not yet remove the production
 Ledger compatibility surface or finish all database-backed queries. Release
 candidate pages filter current product/release grants before the SQL limit;
+artifact point reads resolve current evidence/build associations in the same
+tenant-filtered statement before granting scoped human access;
 deployment point and list reads use operations-owned queries. Deployment list
 visibility and keyset limits are applied in PostgreSQL; release and environment
 joins must resolve to one tenant-owned product before grant evaluation.

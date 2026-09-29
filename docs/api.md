@@ -685,6 +685,13 @@ does not need a narrower association. The existing response can include a
 `payload_ref`, so treat it as tenant-scoped metadata rather than a public
 object URL. Local-memory mode retains its Ledger-backed authorization path.
 
+In the PostgreSQL profile, `GET /v1/artifacts/{id}` reads artifact metadata
+without loading tenant-wide Ledger state. Human sessions need an `evidence:read`
+grant for the tenant or a current evidence/build association to the artifact
+within a granted product, project, or release. A build association must match
+the artifact digest. Issued credentials remain scope-bound, and local-memory
+mode retains the Ledger-backed read. The response shape is unchanged.
+
 `POST /v1/artifact-signatures/{id}/verify-cosign` verifies a finalized stored
 Sigstore bundle. Requests use `mode`, `offline`, and—for `keyless`—exact
 `expected_identity` and `expected_issuer` values. The implemented profile

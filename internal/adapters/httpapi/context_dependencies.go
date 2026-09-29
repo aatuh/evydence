@@ -53,6 +53,12 @@ type BuildPointQuery interface {
 	GetBuildRun(context.Context, domain.Actor, string) (releasedomain.BuildRun, error)
 }
 
+// ArtifactPointQuery checks current evidence/build associations for scoped
+// human grants in a tenant-filtered PostgreSQL read.
+type ArtifactPointQuery interface {
+	GetArtifact(context.Context, domain.Actor, string) (releasedomain.Artifact, error)
+}
+
 // ReleaseCandidateQuery reads one tenant-verified candidate or a SQL-filtered
 // page using current release and product ownership.
 type ReleaseCandidateQuery interface {

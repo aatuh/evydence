@@ -94,6 +94,10 @@ release artifacts.
   tenant-owned artifact and matching digest. Scoped human sessions need a
   current evidence or build association covered by their `evidence:read`
   grant; the response shape is unchanged.
+- PostgreSQL-backed artifact point reads now use one tenant-filtered database
+  statement. Scoped human sessions need a current, consistent evidence or
+  digest-matching build association covered by their `evidence:read` grant;
+  the response shape is unchanged.
 - Questionnaire answer-library lists now enforce current human resource grants
   for every draft, including unfiltered reads. Creating a tenant-wide draft
   with only a product or release grant is now forbidden. PostgreSQL-backed list

@@ -53,6 +53,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string) (httpapi.ServerOption
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create build point query: %w", err)
 	}
+	options.ArtifactPointQuery, err = BuildArtifactPointQuery(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create artifact point query: %w", err)
+	}
 	options.ReleaseCandidateQuery, err = BuildReleaseCandidateQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create release candidate query: %w", err)

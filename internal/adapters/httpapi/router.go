@@ -46,6 +46,7 @@ type Server struct {
 	productQuery              ProductQuery
 	catalogPointQuery         CatalogPointQuery
 	buildPointQuery           BuildPointQuery
+	artifactPointQuery        ArtifactPointQuery
 	releaseCandidateQuery     ReleaseCandidateQuery
 	deploymentPointQuery      DeploymentPointQuery
 	deploymentListQuery       DeploymentListQuery
@@ -109,6 +110,8 @@ type ServerOptions struct {
 	CatalogPointQuery CatalogPointQuery
 	// BuildPointQuery reads current build and parent coordinates in PostgreSQL.
 	BuildPointQuery BuildPointQuery
+	// ArtifactPointQuery reads a tenant-owned artifact and current grant visibility.
+	ArtifactPointQuery ArtifactPointQuery
 	// ReleaseCandidateQuery reads candidate points and pages from PostgreSQL.
 	ReleaseCandidateQuery ReleaseCandidateQuery
 	// DeploymentPointQuery reads one tenant-owned deployment and parent projection.
@@ -193,7 +196,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, instanceAdminQuery: opts.InstanceAdminQuery, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, collectorHealthQuery: opts.CollectorHealthQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, marketplaceCollectorQuery: opts.MarketplaceCollectorQuery, vulnerabilityPostureQuery: opts.VulnerabilityPostureQuery, controlsQuery: opts.ControlsQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, instanceAdminQuery: opts.InstanceAdminQuery, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, artifactPointQuery: opts.ArtifactPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, collectorHealthQuery: opts.CollectorHealthQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, marketplaceCollectorQuery: opts.MarketplaceCollectorQuery, vulnerabilityPostureQuery: opts.VulnerabilityPostureQuery, controlsQuery: opts.ControlsQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
 		server.authn = opts.Authenticator
@@ -862,6 +865,15 @@ func (s *Server) registerArtifact(w http.ResponseWriter, r *http.Request) {
 func (s *Server) getArtifact(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
+		return
+	}
+	if s.artifactPointQuery != nil {
+		artifact, err := s.artifactPointQuery.GetArtifact(r.Context(), actor, r.PathValue("id"))
+		if err != nil {
+			writeProblem(w, r, mapArtifactPointQueryError(err))
+			return
+		}
+		writeData(w, http.StatusOK, artifactFromQuery(artifact))
 		return
 	}
 	artifact, err := s.releaseCatalog.GetArtifact(r.Context(), actor, r.PathValue("id"))
