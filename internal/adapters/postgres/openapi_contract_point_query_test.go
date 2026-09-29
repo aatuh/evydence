@@ -51,12 +51,12 @@ func TestPostgresOpenAPIContractPointScopesCurrentParents(t *testing.T) {
 		t.Fatalf("contract=%#v error=%v", contract, err)
 	}
 	job := ClaimedJob{TenantID: "ten_contract", Kind: "parse_openapi_contract", SubjectID: "con_good"}
-	state, ok, err := store.LoadParserJobState(ctx, job)
+	state, ok, err := store.LoadWorkerJobState(ctx, job)
 	if err != nil || !ok || len(state.Contracts) != 1 || len(state.Contracts[job.SubjectID].Operations) != 1 {
 		t.Fatalf("focused parser state=%#v ok=%v error=%v", state.Contracts, ok, err)
 	}
 	job.TenantID = "ten_other"
-	state, ok, err = store.LoadParserJobState(ctx, job)
+	state, ok, err = store.LoadWorkerJobState(ctx, job)
 	if err != nil || !ok || len(state.Contracts) != 0 {
 		t.Fatalf("foreign parser state=%#v ok=%v error=%v", state.Contracts, ok, err)
 	}

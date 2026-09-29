@@ -74,12 +74,12 @@ func TestPostgresSBOMPointScopesCurrentParentsAndGrants(t *testing.T) {
 		t.Fatalf("SBOM point=%#v error=%v", value, err)
 	}
 	job := ClaimedJob{TenantID: "ten_sbom_point", Kind: "parse_sbom", SubjectID: "sbom_good"}
-	state, ok, err := store.LoadParserJobState(ctx, job)
+	state, ok, err := store.LoadWorkerJobState(ctx, job)
 	if err != nil || !ok || len(state.SBOMs) != 1 || state.SBOMs[job.SubjectID].Components[0].Name != "openssl" {
 		t.Fatalf("focused parser state=%#v ok=%v error=%v", state.SBOMs, ok, err)
 	}
 	job.TenantID = "ten_other"
-	state, ok, err = store.LoadParserJobState(ctx, job)
+	state, ok, err = store.LoadWorkerJobState(ctx, job)
 	if err != nil || !ok || len(state.SBOMs) != 0 {
 		t.Fatalf("foreign parser state=%#v ok=%v error=%v", state.SBOMs, ok, err)
 	}

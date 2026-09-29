@@ -51,6 +51,16 @@ func TestPostgresReleaseBundlePointRequiresCurrentTenantParent(t *testing.T) {
 	if err != nil || bundle.Manifest["private"] != "manifest" || len(bundle.SignatureRefs) != 1 {
 		t.Fatalf("allowed bundle=%#v error=%v", bundle, err)
 	}
+	job := ClaimedJob{TenantID: "ten_bundle", Kind: "sign_bundle", SubjectType: "release_bundle", SubjectID: "bun_a"}
+	state, ok, err := store.LoadWorkerJobState(ctx, job)
+	if err != nil || !ok || len(state.Bundles) != 1 || state.Bundles[job.SubjectID].SignatureRefs[0] != "sig_1" {
+		t.Fatalf("focused bundle state=%#v ok=%v error=%v", state.Bundles, ok, err)
+	}
+	job.TenantID = "ten_other"
+	state, ok, err = store.LoadWorkerJobState(ctx, job)
+	if err != nil || !ok || len(state.Bundles) != 0 {
+		t.Fatalf("foreign bundle state=%#v ok=%v error=%v", state.Bundles, ok, err)
+	}
 	if _, err := service.GetReleaseBundle(ctx, actor, "bun_b"); !errors.Is(err, application.ErrForbidden) {
 		t.Fatalf("other product error=%v", err)
 	}

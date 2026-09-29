@@ -9,14 +9,17 @@ import (
 	"github.com/aatuh/evydence/internal/domain"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
+	packagequery "github.com/aatuh/evydence/internal/package/query"
 )
 
-// LoadParserJobState is a transitional adapter for the worker's legacy parser
+// LoadWorkerJobState is a transitional adapter for the worker's legacy job
 // functions. It loads only the claimed subject, never a tenant-wide snapshot.
 // Parser mutations must be persisted through ApplyClaimedReleaseLedgerMutation.
-func (s *Store) LoadParserJobState(ctx context.Context, job ClaimedJob) (app.PersistedState, bool, error) {
+func (s *Store) LoadWorkerJobState(ctx context.Context, job ClaimedJob) (app.PersistedState, bool, error) {
+	emptySubjectAllowed := job.Kind == "verify_subject" && job.SubjectType == "audit_chain"
 	if s == nil || s.pool == nil || ctx == nil || strings.TrimSpace(job.TenantID) == "" ||
-		strings.TrimSpace(job.SubjectID) == "" || strings.TrimSpace(job.TenantID) != job.TenantID ||
+		(strings.TrimSpace(job.SubjectID) == "" && !emptySubjectAllowed) ||
+		strings.TrimSpace(job.TenantID) != job.TenantID ||
 		strings.TrimSpace(job.SubjectID) != job.SubjectID {
 		return app.PersistedState{}, false, app.ErrValidation
 	}
@@ -53,10 +56,39 @@ func (s *Store) LoadParserJobState(ctx context.Context, job ClaimedJob) (app.Per
 		if err == nil {
 			state.Contracts = map[string]domain.OpenAPIContract{job.SubjectID: parserOpenAPIContract(point.Contract)}
 		}
+	case "sign_bundle":
+		if job.SubjectType != "" && job.SubjectType != "release_bundle" {
+			return state, false, app.ErrValidation
+		}
+		var point packagequery.ReleaseBundlePoint
+		point, err = s.GetReleaseBundlePoint(ctx, job.TenantID, job.SubjectID)
+		if err == nil {
+			bundle := point.Bundle
+			state.Bundles = map[string]domain.ReleaseBundle{job.SubjectID: {
+				ID: bundle.ID, TenantID: bundle.TenantID, ReleaseID: bundle.ReleaseID,
+				State: bundle.State.String(), Manifest: bundle.Manifest,
+				ManifestHash: bundle.ManifestHash, SignatureRefs: append([]string(nil), bundle.SignatureRefs...),
+				CreatedAt: bundle.CreatedAt, PublishedAt: bundle.PublishedAt, RevokedAt: bundle.RevokedAt,
+			}}
+		}
+	case "verify_subject":
+		if strings.TrimSpace(job.SubjectType) == "" || strings.TrimSpace(job.SubjectType) != job.SubjectType {
+			return state, false, app.ErrValidation
+		}
+		resultID, _ := job.Payload["result_id"].(string)
+		resultID = strings.TrimSpace(resultID)
+		if resultID == "" {
+			return state, true, nil
+		}
+		var result domain.VerificationResult
+		result, err = s.loadWorkerVerificationResult(ctx, job.TenantID, resultID, job.SubjectType, job.SubjectID)
+		if err == nil {
+			state.Verifications = map[string]domain.VerificationResult{resultID: result}
+		}
 	default:
 		return state, false, app.ErrValidation
 	}
-	if errors.Is(err, evidencequery.ErrNotFound) {
+	if errors.Is(err, evidencequery.ErrNotFound) || errors.Is(err, packagequery.ErrReleaseBundleNotFound) || errors.Is(err, app.ErrNotFound) {
 		return state, true, nil
 	}
 	if err != nil {

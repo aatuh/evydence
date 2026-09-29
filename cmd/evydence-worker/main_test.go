@@ -91,12 +91,28 @@ type fakeFocusedParserStateStore struct {
 	leaseToken  string
 }
 
+type fakeFocusedReadOnlyStateStore struct {
+	state      app.PersistedState
+	loadCalls  int
+	focusCalls int
+}
+
+func (f *fakeFocusedReadOnlyStateStore) LoadState(context.Context) (app.PersistedState, bool, error) {
+	f.loadCalls++
+	return app.PersistedState{}, false, errors.New("whole-state load must not be used")
+}
+
+func (f *fakeFocusedReadOnlyStateStore) LoadWorkerJobState(context.Context, postgres.ClaimedJob) (app.PersistedState, bool, error) {
+	f.focusCalls++
+	return f.state, true, nil
+}
+
 func (f *fakeFocusedParserStateStore) LoadState(context.Context) (app.PersistedState, bool, error) {
 	f.loadCalls++
 	return app.PersistedState{}, false, errors.New("whole-state load must not be used")
 }
 
-func (f *fakeFocusedParserStateStore) LoadParserJobState(_ context.Context, job postgres.ClaimedJob) (app.PersistedState, bool, error) {
+func (f *fakeFocusedParserStateStore) LoadWorkerJobState(_ context.Context, job postgres.ClaimedJob) (app.PersistedState, bool, error) {
 	f.focusedJobs = append(f.focusedJobs, job)
 	return f.state, true, nil
 }
@@ -162,6 +178,53 @@ func TestProcessFocusedParserRejectsForeignTenantSubject(t *testing.T) {
 	}
 	if store.loadCalls != 0 || store.jobID != "" {
 		t.Fatalf("foreign subject loaded whole state or wrote mutation: loads=%d job=%q", store.loadCalls, store.jobID)
+	}
+}
+
+func TestProcessReadOnlyJobsUseFocusedSubjectState(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		job   postgres.ClaimedJob
+		state app.PersistedState
+	}{
+		{
+			name:  "sign bundle",
+			job:   postgres.ClaimedJob{ID: "job_bundle", TenantID: "ten_test", Kind: "sign_bundle", SubjectType: "release_bundle", SubjectID: "bundle_test", Payload: map[string]any{"payload_hash": "sha256:manifest"}},
+			state: app.PersistedState{Bundles: map[string]domain.ReleaseBundle{"bundle_test": {ID: "bundle_test", TenantID: "ten_test", ManifestHash: "sha256:manifest", SignatureRefs: []string{"sig_test"}}}},
+		},
+		{
+			name:  "verify subject",
+			job:   postgres.ClaimedJob{ID: "job_verify", TenantID: "ten_test", Kind: "verify_subject", SubjectType: "release_bundle", SubjectID: "bundle_test", Payload: map[string]any{"result_id": "vr_test"}},
+			state: app.PersistedState{Verifications: map[string]domain.VerificationResult{"vr_test": {ID: "vr_test", TenantID: "ten_test", SubjectType: "release_bundle", SubjectID: "bundle_test", Result: "passed"}}},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			store := &fakeFocusedReadOnlyStateStore{state: tc.state}
+			if err := processJobWithObjects(t.Context(), store, nil, tc.job); err != nil {
+				t.Fatalf("process focused job: %v", err)
+			}
+			if store.loadCalls != 0 || store.focusCalls != 1 {
+				t.Fatalf("whole loads=%d focused loads=%d", store.loadCalls, store.focusCalls)
+			}
+		})
+	}
+}
+
+func TestProcessSignBundleChecksQueuedManifestHash(t *testing.T) {
+	t.Parallel()
+	for _, value := range []any{"sha256:different", "", 17} {
+		store := &fakeFocusedReadOnlyStateStore{state: app.PersistedState{Bundles: map[string]domain.ReleaseBundle{
+			"bundle_test": {ID: "bundle_test", TenantID: "ten_test", ManifestHash: "sha256:actual", SignatureRefs: []string{"sig_test"}},
+		}}}
+		job := postgres.ClaimedJob{
+			ID: "job_bundle", TenantID: "ten_test", Kind: "sign_bundle", SubjectType: "release_bundle",
+			SubjectID: "bundle_test", Payload: map[string]any{"manifest_hash": value},
+		}
+		if err := processJobWithObjects(t.Context(), store, nil, job); err == nil || !strings.Contains(err.Error(), "hash") {
+			t.Fatalf("invalid queued manifest hash %v error=%v", value, err)
+		}
 	}
 }
 

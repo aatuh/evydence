@@ -357,8 +357,8 @@ type jobClaimedReleaseLedgerMutationStore interface {
 	ApplyClaimedReleaseLedgerMutation(context.Context, string, string, app.ReleaseLedgerMutation) error
 }
 
-type jobParserStateLoader interface {
-	LoadParserJobState(context.Context, postgres.ClaimedJob) (app.PersistedState, bool, error)
+type jobFocusedStateLoader interface {
+	LoadWorkerJobState(context.Context, postgres.ClaimedJob) (app.PersistedState, bool, error)
 }
 
 type jobObjectGetter interface {
@@ -638,7 +638,7 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 		if len(bundle.SignatureRefs) == 0 {
 			return errors.New("release bundle signature is missing")
 		}
-		return requirePayloadHash(job, bundle.ManifestHash)
+		return requireBundleManifestHash(job, bundle.ManifestHash)
 	case "verify_subject":
 		resultID := payloadString(job, "result_id")
 		if resultID == "" {
@@ -690,9 +690,13 @@ func loadOutboxJobState(ctx context.Context, state jobStateLoader, job postgres.
 	switch job.Kind {
 	case "parse_sbom", "parse_vulnerability_scan", "parse_openapi_contract":
 		if _, claimed := state.(jobClaimedReleaseLedgerMutationStore); claimed {
-			if focused, ok := state.(jobParserStateLoader); ok {
-				return focused.LoadParserJobState(ctx, job)
+			if focused, ok := state.(jobFocusedStateLoader); ok {
+				return focused.LoadWorkerJobState(ctx, job)
 			}
+		}
+	case "sign_bundle", "verify_subject":
+		if focused, ok := state.(jobFocusedStateLoader); ok {
+			return focused.LoadWorkerJobState(ctx, job)
 		}
 	}
 	return state.LoadState(ctx)
@@ -832,6 +836,16 @@ func requirePayloadHash(job postgres.ClaimedJob, recordedHash string) error {
 		return errors.New("outbox payload hash does not match durable state")
 	}
 	return nil
+}
+
+func requireBundleManifestHash(job postgres.ClaimedJob, recordedHash string) error {
+	if value, present := job.Payload["manifest_hash"]; present {
+		want, ok := value.(string)
+		if !ok || strings.TrimSpace(want) == "" || strings.TrimSpace(want) != recordedHash {
+			return errors.New("outbox bundle manifest hash does not match durable state")
+		}
+	}
+	return requirePayloadHash(job, recordedHash)
 }
 
 func payloadString(job postgres.ClaimedJob, key string) string {

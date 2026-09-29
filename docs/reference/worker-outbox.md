@@ -107,12 +107,15 @@ that do not implement focused release-ledger mutations; production wiring does
 implement the focused mutation contract.
 
 For `parse_sbom`, `parse_vulnerability_scan`, and `parse_openapi_contract`, the
-production worker also reads only the claimed tenant's subject through a
+production worker reads only the claimed tenant's subject through a
 source-validated PostgreSQL point query before replay. This transitional
 one-subject state shape is used only when the store supports lease-fenced
-focused mutations; otherwise the compatibility loader remains in use. VEX,
-attestation, signing, and verification jobs still use broader state reads and
-remain part of the EVY-905 query migration.
+focused mutations; otherwise the compatibility loader remains in use.
+`sign_bundle` and `verify_subject` also use focused tenant-filtered reads;
+their read-only paths do not require a mutation interface. When a signing job
+contains `manifest_hash`, the worker requires it to match the durable bundle;
+older jobs without that field remain supported. VEX and attestation jobs still
+use broader state reads and remain part of the EVY-905 query migration.
 
 ## PostgreSQL projection consistency
 
