@@ -738,6 +738,12 @@ they do not establish legal compliance or complete WORM enforcement.
 | `POST` | `/v1/custom-policies` | Create deterministic custom policy. |
 | `POST` | `/v1/custom-policies/{id}/evaluate` | Store replayable policy evaluation. |
 
+In the PostgreSQL profile, an OpenAPI-contract read requires its stored source
+evidence, product, and optional release to resolve under the same tenant and
+product. Human sessions need a current `evidence:read` grant for the product
+or release; issued credentials remain scope-bound. Local-memory mode retains
+the Ledger-backed read. The response shape is unchanged.
+
 ## Current Contract Limitations
 
 - `openapi.yaml` is generated as compact JSON-style YAML and is optimized for drift checks and tooling, not prose review.

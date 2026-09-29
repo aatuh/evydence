@@ -84,6 +84,12 @@ type EvidencePointQuery interface {
 	GetEvidence(context.Context, domain.Actor, string) (evidencedomain.EvidenceItem, error)
 }
 
+// OpenAPIContractPointQuery reads one parsed contract against current
+// tenant-owned evidence, product, and release parents.
+type OpenAPIContractPointQuery interface {
+	GetOpenAPIContract(context.Context, domain.Actor, string) (evidencedomain.OpenAPIContract, error)
+}
+
 // SourceRepositoryQuery returns one tenant/grant-filtered durable page.
 type SourceRepositoryQuery interface {
 	ListPage(context.Context, domain.Actor, string, appquery.PageRequest, *appquery.SortKey) (appquery.Result[integrationdomain.SourceRepository], error)

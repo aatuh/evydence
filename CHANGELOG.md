@@ -52,6 +52,11 @@ release artifacts.
 
 ### Changed
 
+- PostgreSQL-backed OpenAPI-contract point reads now verify current tenant,
+  source-evidence, product, and optional release relationships in one query
+  before applying human `evidence:read` resource grants. Response fields are
+  unchanged; inconsistent historical parent links are no longer returned.
+
 - Vulnerability-posture reports now aggregate stored scan findings inside
   PostgreSQL without loading raw findings into the API. Tenant-wide reports
   require a tenant-level human grant; release-filtered reports accept matching

@@ -51,6 +51,7 @@ type Server struct {
 	deploymentPointQuery      DeploymentPointQuery
 	deploymentListQuery       DeploymentListQuery
 	evidencePointQuery        EvidencePointQuery
+	openAPIContractPointQuery OpenAPIContractPointQuery
 	sourceRepositoryQuery     SourceRepositoryQuery
 	collectorQuery            CollectorQuery
 	collectorHealthQuery      CollectorHealthQuery
@@ -120,6 +121,8 @@ type ServerOptions struct {
 	DeploymentListQuery DeploymentListQuery
 	// EvidencePointQuery reads ordinary evidence from tenant-scoped PostgreSQL.
 	EvidencePointQuery EvidencePointQuery
+	// OpenAPIContractPointQuery reads current tenant-verified parsed contracts.
+	OpenAPIContractPointQuery OpenAPIContractPointQuery
 	// SourceRepositoryQuery pages current tenant-owned source repositories.
 	SourceRepositoryQuery SourceRepositoryQuery
 	// CollectorQuery pages durable collector inventory for the PostgreSQL profile.
@@ -196,7 +199,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, instanceAdminQuery: opts.InstanceAdminQuery, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, artifactPointQuery: opts.ArtifactPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, collectorHealthQuery: opts.CollectorHealthQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, marketplaceCollectorQuery: opts.MarketplaceCollectorQuery, vulnerabilityPostureQuery: opts.VulnerabilityPostureQuery, controlsQuery: opts.ControlsQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, instanceAdminQuery: opts.InstanceAdminQuery, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, artifactPointQuery: opts.ArtifactPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, openAPIContractPointQuery: opts.OpenAPIContractPointQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, collectorHealthQuery: opts.CollectorHealthQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, marketplaceCollectorQuery: opts.MarketplaceCollectorQuery, vulnerabilityPostureQuery: opts.VulnerabilityPostureQuery, controlsQuery: opts.ControlsQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
 		server.authn = opts.Authenticator
@@ -2392,6 +2395,15 @@ func (s *Server) uploadOpenAPIContract(w http.ResponseWriter, r *http.Request) {
 func (s *Server) getOpenAPIContract(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
+		return
+	}
+	if s.openAPIContractPointQuery != nil {
+		contract, err := s.openAPIContractPointQuery.GetOpenAPIContract(r.Context(), actor, r.PathValue("id"))
+		if err != nil {
+			writeProblem(w, r, mapEvidencePointQueryError(err))
+			return
+		}
+		writeData(w, http.StatusOK, openAPIContractFromQuery(contract))
 		return
 	}
 	contract, err := s.evidenceIngestion.GetOpenAPIContract(r.Context(), actor, r.PathValue("id"))

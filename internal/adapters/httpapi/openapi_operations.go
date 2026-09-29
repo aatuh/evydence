@@ -538,7 +538,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		setRequestBodyLimit(&operation, app.EvidenceDocumentLimit)
 		operation.Responses[http.StatusCreated] = jsonResponse("Created OpenAPI contract envelope.", "#/components/schemas/OpenAPIContractEnvelope")
 	case "getOpenAPIContract":
-		operation.Description = "Returns a tenant-scoped OpenAPI contract metadata record by id."
+		operation.Description = "Returns tenant-scoped OpenAPI contract metadata by id. PostgreSQL reads require current same-tenant source evidence, product, and optional release parentage; human sessions need an evidence:read grant covering the product or release."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "OpenAPI contract id."))
 		operation.Responses[http.StatusOK] = jsonResponse("OpenAPI contract envelope.", "#/components/schemas/OpenAPIContractEnvelope")
 	case "createOpenAPIDiff":

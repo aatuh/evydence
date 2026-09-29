@@ -7,3 +7,9 @@ import evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 func BuildEvidencePointQuery(reader evidencequery.EvidencePointReader) (*evidencequery.EvidencePoints, error) {
 	return evidencequery.NewEvidencePoints(reader)
 }
+
+// BuildOpenAPIContractPointQuery binds parsed contract metadata to current
+// tenant-owned evidence and release-catalog parents.
+func BuildOpenAPIContractPointQuery(reader evidencequery.OpenAPIContractPointReader) (*evidencequery.OpenAPIContractPoints, error) {
+	return evidencequery.NewOpenAPIContractPoints(reader)
+}

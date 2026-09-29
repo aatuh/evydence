@@ -73,6 +73,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string) (httpapi.ServerOption
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create evidence point query: %w", err)
 	}
+	options.OpenAPIContractPointQuery, err = BuildOpenAPIContractPointQuery(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create OpenAPI contract point query: %w", err)
+	}
 	options.SourceRepositoryQuery, err = BuildSourceRepositoryQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create source repository query: %w", err)

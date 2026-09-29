@@ -1639,13 +1639,13 @@
               <div><dt>Responses</dt><dd>201 application/json: OpenAPIContractEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/openapi-contracts/{id} get openapi contract returns a tenant-scoped openapi contract metadata record by id. getopenapicontract evydence evidence:read">
+          <article class="operation" data-operation data-search="get /v1/openapi-contracts/{id} get openapi contract returns tenant-scoped openapi contract metadata by id. postgresql reads require current same-tenant source evidence, product, and optional release parentage; human sessions need an evidence:read grant covering the product or release. getopenapicontract evydence evidence:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/openapi-contracts/{id}</code>
             </div>
             <h3>Get OpenAPI contract</h3>
-            <p>Returns a tenant-scoped OpenAPI contract metadata record by id.</p>
+            <p>Returns tenant-scoped OpenAPI contract metadata by id. PostgreSQL reads require current same-tenant source evidence, product, and optional release parentage; human sessions need an evidence:read grant covering the product or release.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>getOpenAPIContract</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

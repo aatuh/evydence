@@ -79,6 +79,9 @@ deployment point and list reads use operations-owned queries. Deployment list
 visibility and keyset limits are applied in PostgreSQL; release and environment
 joins must resolve to one tenant-owned product before grant evaluation.
 Ordinary evidence point reads use a tenant-scoped, snapshot-consistent query.
+OpenAPI contract point reads verify their source evidence, product, and optional
+release in one tenant-filtered statement before applying human resource grants;
+local-memory mode retains the Ledger reader.
 Control-evidence lists now use a risk-owned query service in PostgreSQL mode:
 one SQL statement resolves current control/framework/subject ownership and
 applies actor grants before keyset pagination. Broken parent relationships are
