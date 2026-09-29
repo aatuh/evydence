@@ -570,7 +570,7 @@ Source snapshots capture submitted provider metadata. They do not call provider 
 | `POST` | `/v1/controls` | Create control. |
 | `GET` | `/v1/controls/{id}` | Read a control through its tenant-owned framework; uses the same `controls:read` grant rule. |
 | `POST` | `/v1/controls/{id}/evidence` | Append control evidence link. |
-| `GET` | `/v1/control-evidence` | List tenant/grant-visible links whose control, framework, scope, and subject ownership still resolve. |
+| `GET` | `/v1/control-evidence` | Keyset-page tenant/grant-visible links whose control, framework, scope, and current subject ownership still resolve. Supports `control_id`, `product_id`, and `release_id` filters. PostgreSQL applies visibility before the page limit; local-memory mode uses the Ledger compatibility reader. |
 | `GET` | `/v1/reports/control-coverage` | Deterministic control coverage. |
 | `GET` | `/v1/reports/cra-readiness` | Technical evidence readiness report with limitations. |
 | `GET` | `/v1/reports/cra-vulnerability-handling` | CRA-oriented vulnerability handling evidence report with limitations. |

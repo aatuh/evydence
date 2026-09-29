@@ -15,6 +15,7 @@ import (
 	packagequery "github.com/aatuh/evydence/internal/package/query"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
+	riskquery "github.com/aatuh/evydence/internal/risk/query"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 	verificationquery "github.com/aatuh/evydence/internal/verification/query"
 )
@@ -90,6 +91,12 @@ type CommercialCollectorQuery interface {
 type ControlsQuery interface {
 	ListFrameworksPage(context.Context, domain.Actor, appquery.PageRequest, *appquery.SortKey) (appquery.Result[riskdomain.ControlFramework], error)
 	GetSecurityControl(context.Context, domain.Actor, string) (riskdomain.SecurityControl, error)
+}
+
+// ControlEvidenceQuery pages current tenant-owned links after subject and
+// resource-grant validation in the durable query boundary.
+type ControlEvidenceQuery interface {
+	ListPage(context.Context, domain.Actor, riskquery.ControlEvidenceFilter, appquery.PageRequest, *appquery.SortKey) (appquery.Result[riskdomain.ControlEvidence], error)
 }
 
 // ArtifactSignatureQuery reads one tenant-owned signature against its current

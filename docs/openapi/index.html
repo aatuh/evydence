@@ -670,13 +670,13 @@
               <div><dt>Responses</dt><dd>201 application/json: ContainerImageEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/control-evidence list control evidence lists tenant-scoped control evidence links with optional control, product, and release filters. links with missing or mismatched current control, framework, scope, or subject ownership are excluded. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listcontrolevidence evydence controls:read">
+          <article class="operation" data-operation data-search="get /v1/control-evidence list control evidence keyset-pages tenant and grant-visible control evidence links with optional control, product, and release filters. postgresql validates current control, framework, scope, and subject ownership before the page limit; broken links are excluded. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listcontrolevidence evydence controls:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/control-evidence</code>
             </div>
             <h3>List control evidence</h3>
-            <p>Lists tenant-scoped control evidence links with optional control, product, and release filters. Links with missing or mismatched current control, framework, scope, or subject ownership are excluded. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
+            <p>Keyset-pages tenant and grant-visible control evidence links with optional control, product, and release filters. PostgreSQL validates current control, framework, scope, and subject ownership before the page limit; broken links are excluded. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listControlEvidence</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

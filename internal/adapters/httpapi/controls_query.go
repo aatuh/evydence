@@ -35,6 +35,15 @@ func securityControlFromQuery(value riskdomain.SecurityControl) domain.SecurityC
 	}
 }
 
+func controlEvidenceFromQuery(value riskdomain.ControlEvidence) domain.ControlEvidence {
+	return domain.ControlEvidence{
+		ID: value.ID, TenantID: value.TenantID, ControlID: value.ControlID,
+		EvidenceType: value.EvidenceType, SubjectType: value.SubjectType, SubjectID: value.SubjectID,
+		ProductID: value.ProductID, ReleaseID: value.ReleaseID, Confidence: value.Confidence,
+		Notes: value.Notes, SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt,
+	}
+}
+
 func mapControlsQueryError(err error) error {
 	switch {
 	case errors.Is(err, riskquery.ErrValidation), errors.Is(err, appquery.ErrInvalidPage), errors.Is(err, appquery.ErrInvalidCursor):

@@ -27,6 +27,7 @@ import (
 	identityquery "github.com/aatuh/evydence/internal/identity/query"
 	"github.com/aatuh/evydence/internal/platform/jsonbounds"
 	releasequery "github.com/aatuh/evydence/internal/release/query"
+	riskquery "github.com/aatuh/evydence/internal/risk/query"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
 	verificationquery "github.com/aatuh/evydence/internal/verification/query"
 )
@@ -52,6 +53,7 @@ type Server struct {
 	collectorQuery           CollectorQuery
 	commercialCollectorQuery CommercialCollectorQuery
 	controlsQuery            ControlsQuery
+	controlEvidenceQuery     ControlEvidenceQuery
 	artifactSignatureQuery   ArtifactSignatureQuery
 	signingKeyQuery          SigningKeyQuery
 	releaseBundleQuery       ReleaseBundleQuery
@@ -117,6 +119,8 @@ type ServerOptions struct {
 	CommercialCollectorQuery CommercialCollectorQuery
 	// ControlsQuery reads framework pages and tenant-owned control points.
 	ControlsQuery ControlsQuery
+	// ControlEvidenceQuery pages links from current subject ownership.
+	ControlEvidenceQuery ControlEvidenceQuery
 	// ArtifactSignatureQuery reads tenant-owned signature points from PostgreSQL.
 	ArtifactSignatureQuery ArtifactSignatureQuery
 	// SigningKeyQuery pages public lifecycle metadata from PostgreSQL.
@@ -177,7 +181,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, controlsQuery: opts.ControlsQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, controlsQuery: opts.ControlsQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
 		server.authn = opts.Authenticator
@@ -464,6 +468,25 @@ func (s *Server) linkControlEvidence(w http.ResponseWriter, r *http.Request) {
 func (s *Server) listControlEvidence(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
+		return
+	}
+	if s.controlEvidenceQuery != nil {
+		request, err := s.parsePageRequest(r, actor, "control-evidence", "control_id", "product_id", "release_id")
+		if err != nil {
+			writeProblem(w, r, err)
+			return
+		}
+		filter := riskquery.ControlEvidenceFilter{ControlID: r.URL.Query().Get("control_id"), ProductID: r.URL.Query().Get("product_id"), ReleaseID: r.URL.Query().Get("release_id")}
+		result, err := s.controlEvidenceQuery.ListPage(r.Context(), actor, filter, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+		if err != nil {
+			writeProblem(w, r, mapControlsQueryError(err))
+			return
+		}
+		page := appquery.Result[domain.ControlEvidence]{Next: result.Next, Items: make([]domain.ControlEvidence, 0, len(result.Items))}
+		for _, link := range result.Items {
+			page.Items = append(page.Items, controlEvidenceFromQuery(link))
+		}
+		writePage(s, w, r, actor, "control-evidence", request, page)
 		return
 	}
 	links, err := s.ledger.ListControlEvidence(r.Context(), actor, r.URL.Query().Get("control_id"), r.URL.Query().Get("product_id"), r.URL.Query().Get("release_id"))

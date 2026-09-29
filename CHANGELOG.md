@@ -52,8 +52,10 @@ release artifacts.
 
 ### Changed
 
-- Control-evidence lists now omit links with missing or cross-tenant controls,
-  frameworks, subject records, or mismatched product/release ownership.
+- PostgreSQL-backed control-evidence lists now apply current tenant and resource
+  grants before keyset pagination. Links with missing or cross-tenant controls,
+  frameworks, subject records, or mismatched product/release ownership are
+  excluded. Local-memory mode retains the Ledger compatibility reader.
 
 - Commercial collector-definition lists now use tenant-filtered PostgreSQL
   keyset pagination. Human sessions require a current tenant-level

@@ -81,6 +81,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string) (httpapi.ServerOption
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create controls query: %w", err)
 	}
+	options.ControlEvidenceQuery, err = BuildControlEvidenceQuery(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create control evidence query: %w", err)
+	}
 	options.ArtifactSignatureQuery, err = BuildArtifactSignatureQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create artifact signature query: %w", err)
