@@ -184,6 +184,7 @@ func runWithContext(ctx context.Context) error {
 	var sourceRepositoryQuery httpapi.SourceRepositoryQuery
 	var collectorQuery httpapi.CollectorQuery
 	var controlsQuery httpapi.ControlsQuery
+	var answerLibraryQuery httpapi.AnswerLibraryQuery
 	var auditLogQuery httpapi.AuditLogQuery
 	var apiKeyQuery httpapi.APIKeyQuery
 	var roleBindingQuery httpapi.RoleBindingQuery
@@ -233,6 +234,10 @@ func runWithContext(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("create controls query: %w", err)
 		}
+		answerLibraryQuery, err = wiring.BuildAnswerLibraryQuery(runtime.Postgres)
+		if err != nil {
+			return fmt.Errorf("create answer library query: %w", err)
+		}
 		auditLogQuery, err = wiring.BuildAuditLogQuery(runtime.Postgres)
 		if err != nil {
 			return fmt.Errorf("create audit log query: %w", err)
@@ -268,6 +273,7 @@ func runWithContext(ctx context.Context) error {
 		SourceRepositoryQuery:            sourceRepositoryQuery,
 		CollectorQuery:                   collectorQuery,
 		ControlsQuery:                    controlsQuery,
+		AnswerLibraryQuery:               answerLibraryQuery,
 		AuditLogQuery:                    auditLogQuery,
 		APIKeyQuery:                      apiKeyQuery,
 		RoleBindingQuery:                 roleBindingQuery,

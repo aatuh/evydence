@@ -51,6 +51,7 @@ type Server struct {
 	sourceRepositoryQuery SourceRepositoryQuery
 	collectorQuery        CollectorQuery
 	controlsQuery         ControlsQuery
+	answerLibraryQuery    AnswerLibraryQuery
 	auditLogQuery         AuditLogQuery
 	apiKeyQuery           APIKeyQuery
 	roleBindingQuery      RoleBindingQuery
@@ -109,6 +110,8 @@ type ServerOptions struct {
 	CollectorQuery CollectorQuery
 	// ControlsQuery reads framework pages and tenant-owned control points.
 	ControlsQuery ControlsQuery
+	// AnswerLibraryQuery pages authorized questionnaire drafts from PostgreSQL.
+	AnswerLibraryQuery AnswerLibraryQuery
 	// AuditLogQuery pages tenant audit records in PostgreSQL for the durable profile.
 	AuditLogQuery AuditLogQuery
 	// APIKeyQuery pages public key metadata in PostgreSQL for the durable profile.
@@ -159,7 +162,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, controlsQuery: opts.ControlsQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, controlsQuery: opts.ControlsQuery, answerLibraryQuery: opts.AnswerLibraryQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
 		server.authn = opts.Authenticator

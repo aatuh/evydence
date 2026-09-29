@@ -944,7 +944,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Questionnaire answer library entry creation request.", "#/components/schemas/CreateQuestionnaireAnswerLibraryEntryRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created questionnaire answer library entry envelope.", "#/components/schemas/QuestionnaireAnswerLibraryEntryEnvelope")
 	case "listQuestionnaireAnswerLibrary":
-		operation.Description = "Lists questionnaire answer drafts with optional question, product, and release filters. Human sessions see only entries covered by their current resource grants; tenant-wide drafts require a tenant grant."
+		operation.Description = "Lists questionnaire answer drafts with optional question, product, and release filters. Product and release filters must reference current tenant-owned parents and agree when combined. Human sessions see only entries covered by their current resource grants; tenant-wide drafts require a tenant grant."
 		operation.Parameters = append(operation.Parameters,
 			queryParam("question_id", "Filter by questionnaire question id.", "string"),
 			queryParam("product_id", "Filter by product id.", "string"),

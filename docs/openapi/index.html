@@ -1894,13 +1894,13 @@
               <div><dt>Responses</dt><dd>201 application/json: PublicTransparencyLogEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/questionnaire-answer-library list questionnaire answer library entries lists questionnaire answer drafts with optional question, product, and release filters. human sessions see only entries covered by their current resource grants; tenant-wide drafts require a tenant grant. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listquestionnaireanswerlibrary evydence package:read">
+          <article class="operation" data-operation data-search="get /v1/questionnaire-answer-library list questionnaire answer library entries lists questionnaire answer drafts with optional question, product, and release filters. product and release filters must reference current tenant-owned parents and agree when combined. human sessions see only entries covered by their current resource grants; tenant-wide drafts require a tenant grant. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listquestionnaireanswerlibrary evydence package:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/questionnaire-answer-library</code>
             </div>
             <h3>List questionnaire answer library entries</h3>
-            <p>Lists questionnaire answer drafts with optional question, product, and release filters. Human sessions see only entries covered by their current resource grants; tenant-wide drafts require a tenant grant. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
+            <p>Lists questionnaire answer drafts with optional question, product, and release filters. Product and release filters must reference current tenant-owned parents and agree when combined. Human sessions see only entries covered by their current resource grants; tenant-wide drafts require a tenant grant. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listQuestionnaireAnswerLibrary</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

@@ -11,6 +11,8 @@ import (
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	integrationdomain "github.com/aatuh/evydence/internal/integration/domain"
 	operationsdomain "github.com/aatuh/evydence/internal/operations/domain"
+	packagedomain "github.com/aatuh/evydence/internal/package/domain"
+	packagequery "github.com/aatuh/evydence/internal/package/query"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
@@ -83,6 +85,12 @@ type CollectorQuery interface {
 type ControlsQuery interface {
 	ListFrameworksPage(context.Context, domain.Actor, appquery.PageRequest, *appquery.SortKey) (appquery.Result[riskdomain.ControlFramework], error)
 	GetSecurityControl(context.Context, domain.Actor, string) (riskdomain.SecurityControl, error)
+}
+
+// AnswerLibraryQuery pages tenant/grant-filtered reusable drafts without
+// exposing private answer text from unrelated product or release scopes.
+type AnswerLibraryQuery interface {
+	ListPage(context.Context, domain.Actor, packagequery.AnswerLibraryFilter, appquery.PageRequest, *appquery.SortKey) (appquery.Result[packagedomain.QuestionnaireAnswerLibraryEntry], error)
 }
 
 // AuditLogQuery pages current tenant audit entries without loading the Ledger.

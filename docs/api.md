@@ -613,7 +613,10 @@ Questionnaire answer drafts are scoped per entry. A human session with a
 product or release grant can read and create only drafts in that scope; drafts
 without a product or release require a tenant grant. Filtering a list does not
 broaden the caller's grant. Issued credentials still require `package:read` or
-`package:write` as applicable.
+`package:write` as applicable. The PostgreSQL profile applies tenant, current
+parent, linked-control/evidence, and grant filters before the page limit;
+product and release filters must agree on the current tenant-owned parent.
+Local-memory mode retains per-entry grant checks but uses an in-memory page.
 
 Customer package manifests use the documented
 [`customer-security-package.v2.0.0`](reference/customer-package-manifest.md)
