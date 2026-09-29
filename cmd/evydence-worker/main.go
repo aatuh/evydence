@@ -357,6 +357,10 @@ type jobClaimedReleaseLedgerMutationStore interface {
 	ApplyClaimedReleaseLedgerMutation(context.Context, string, string, app.ReleaseLedgerMutation) error
 }
 
+type jobParserStateLoader interface {
+	LoadParserJobState(context.Context, postgres.ClaimedJob) (app.PersistedState, bool, error)
+}
+
 type jobObjectGetter interface {
 	Get(context.Context, string) (app.Object, error)
 }
@@ -446,7 +450,7 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 		}
 		replayed, hasReplayedObject = object, ok
 	}
-	snapshot, ok, err := state.LoadState(ctx)
+	snapshot, ok, err := loadOutboxJobState(ctx, state, job)
 	if err != nil {
 		return errors.New("load durable state for outbox job")
 	}
@@ -680,6 +684,18 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 		return persistParserSideEffects(ctx, state, snapshot, job, sideEffects)
 	}
 	return nil
+}
+
+func loadOutboxJobState(ctx context.Context, state jobStateLoader, job postgres.ClaimedJob) (app.PersistedState, bool, error) {
+	switch job.Kind {
+	case "parse_sbom", "parse_vulnerability_scan", "parse_openapi_contract":
+		if _, claimed := state.(jobClaimedReleaseLedgerMutationStore); claimed {
+			if focused, ok := state.(jobParserStateLoader); ok {
+				return focused.LoadParserJobState(ctx, job)
+			}
+		}
+	}
+	return state.LoadState(ctx)
 }
 
 func requireParserPayloadReference(job postgres.ClaimedJob, snapshot app.PersistedState) error {

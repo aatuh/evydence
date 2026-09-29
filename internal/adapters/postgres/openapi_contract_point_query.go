@@ -53,7 +53,7 @@ func (s *Store) GetOpenAPIContractPoint(ctx context.Context, tenantID, id string
 		    AND ede.product_id = p.id
 		LEFT JOIN releases AS edr ON edr.id = ed.release_id AND edr.tenant_id = ed.tenant_id
 		    AND edr.product_id = p.id
-		WHERE c.tenant_id = $1 AND c.id = $2
+		WHERE c.tenant_id = $1 AND c.id = $2 AND e.type = 'openapi_contract'
 		  AND (c.release_id IS NULL OR r.id IS NOT NULL)
 		  AND (e.product_id IS NULL OR e.product_id = p.id)
 		  AND (e.project_id IS NULL OR ej.id IS NOT NULL)

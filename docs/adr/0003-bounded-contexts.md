@@ -96,6 +96,11 @@ Vulnerability-scan point reads now use a repeatable-read tenant snapshot to
 validate the scan's source evidence, current release/product ownership,
 parsed finding identities, and human resource grants. Accepted pending scans
 retain their empty parser fields; local-memory mode retains the Ledger reader.
+The PostgreSQL worker reuses the source-validated SBOM, vulnerability-scan, and
+OpenAPI contract point readers to hydrate only a claimed parser subject.
+Parser writes remain lease-fenced; other worker job kinds still use broader
+compatibility reads. OpenAPI contract point reads require the linked source
+evidence to have the `openapi_contract` type.
 VEX document and import-report point reads validate tenant-owned source,
 release, artifact subject, and report/document identity under one repeatable-
 read snapshot. Ambiguous reports fail closed; local-memory mode keeps its

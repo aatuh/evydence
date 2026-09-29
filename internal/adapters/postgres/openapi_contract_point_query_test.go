@@ -50,6 +50,16 @@ func TestPostgresOpenAPIContractPointScopesCurrentParents(t *testing.T) {
 	if err != nil || contract.ID != "con_good" || len(contract.Operations) != 1 || contract.Operations[0].OperationID != "listItems" || len(contract.Operations[0].RequiredRequestFields) != 1 {
 		t.Fatalf("contract=%#v error=%v", contract, err)
 	}
+	job := ClaimedJob{TenantID: "ten_contract", Kind: "parse_openapi_contract", SubjectID: "con_good"}
+	state, ok, err := store.LoadParserJobState(ctx, job)
+	if err != nil || !ok || len(state.Contracts) != 1 || len(state.Contracts[job.SubjectID].Operations) != 1 {
+		t.Fatalf("focused parser state=%#v ok=%v error=%v", state.Contracts, ok, err)
+	}
+	job.TenantID = "ten_other"
+	state, ok, err = store.LoadParserJobState(ctx, job)
+	if err != nil || !ok || len(state.Contracts) != 0 {
+		t.Fatalf("foreign parser state=%#v ok=%v error=%v", state.Contracts, ok, err)
+	}
 	actor.ResourceGrants[0] = identitydomain.ResourceGrant{ResourceType: "release", ResourceID: "rel_a", Scopes: []string{"evidence:read"}}
 	if _, err := service.GetOpenAPIContract(ctx, actor, "con_good"); err != nil {
 		t.Fatalf("release grant error=%v", err)
@@ -74,6 +84,15 @@ func TestPostgresOpenAPIContractPointScopesCurrentParents(t *testing.T) {
 		t.Fatalf("cross-product evidence project error=%v", err)
 	}
 	if _, err := store.pool.Exec(ctx, `UPDATE evidence_items SET project_id = NULL WHERE id = 'ev_a'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.pool.Exec(ctx, `UPDATE evidence_items SET type = 'sbom' WHERE id = 'ev_a'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.GetOpenAPIContract(ctx, actor, "con_good"); !errors.Is(err, evidencequery.ErrNotFound) {
+		t.Fatalf("wrong source type error=%v", err)
+	}
+	if _, err := store.pool.Exec(ctx, `UPDATE evidence_items SET type = 'openapi_contract' WHERE id = 'ev_a'`); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.pool.Exec(ctx, `UPDATE openapi_contracts SET operations = '{}'::jsonb WHERE id = 'con_good'`); err != nil {

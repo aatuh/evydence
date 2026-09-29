@@ -106,6 +106,14 @@ the replay cannot be overwritten by stale worker state. The full-snapshot
 that do not implement focused release-ledger mutations; production wiring does
 implement the focused mutation contract.
 
+For `parse_sbom`, `parse_vulnerability_scan`, and `parse_openapi_contract`, the
+production worker also reads only the claimed tenant's subject through a
+source-validated PostgreSQL point query before replay. This transitional
+one-subject state shape is used only when the store supports lease-fenced
+focused mutations; otherwise the compatibility loader remains in use. VEX,
+attestation, signing, and verification jobs still use broader state reads and
+remain part of the EVY-905 query migration.
+
 ## PostgreSQL projection consistency
 
 Worker-owned parser and decision records can commit after an API process has

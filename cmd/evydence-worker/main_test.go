@@ -82,6 +82,89 @@ type fakeClaimedReleaseLedgerMutationStore struct {
 	err        error
 }
 
+type fakeFocusedParserStateStore struct {
+	state       app.PersistedState
+	loadCalls   int
+	focusedJobs []postgres.ClaimedJob
+	mutation    app.ReleaseLedgerMutation
+	jobID       string
+	leaseToken  string
+}
+
+func (f *fakeFocusedParserStateStore) LoadState(context.Context) (app.PersistedState, bool, error) {
+	f.loadCalls++
+	return app.PersistedState{}, false, errors.New("whole-state load must not be used")
+}
+
+func (f *fakeFocusedParserStateStore) LoadParserJobState(_ context.Context, job postgres.ClaimedJob) (app.PersistedState, bool, error) {
+	f.focusedJobs = append(f.focusedJobs, job)
+	return f.state, true, nil
+}
+
+func (f *fakeFocusedParserStateStore) ApplyClaimedReleaseLedgerMutation(_ context.Context, jobID, leaseToken string, mutation app.ReleaseLedgerMutation) error {
+	f.jobID, f.leaseToken, f.mutation = jobID, leaseToken, mutation
+	return nil
+}
+
+func TestProcessParserJobsReadOnlyClaimedSubjectState(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		kind, subjectID string
+		state           app.PersistedState
+	}{
+		{"parse_sbom", "sbom_test", app.PersistedState{SBOMs: map[string]domain.SBOM{"sbom_test": {ID: "sbom_test", TenantID: "ten_test", SpecVersion: "1.6"}}}},
+		{"parse_vulnerability_scan", "scan_test", app.PersistedState{Scans: map[string]domain.VulnerabilityScan{"scan_test": {ID: "scan_test", TenantID: "ten_test", Scanner: "scanner", TargetRef: "release", Summary: map[string]int{}}}}},
+		{"parse_openapi_contract", "contract_test", app.PersistedState{Contracts: map[string]domain.OpenAPIContract{"contract_test": {ID: "contract_test", TenantID: "ten_test", Operations: []domain.OpenAPIOperation{}, Hash: "sha256:" + strings.Repeat("a", 64)}}}},
+	} {
+		t.Run(tc.kind, func(t *testing.T) {
+			t.Parallel()
+			job := postgres.ClaimedJob{ID: "job_test", TenantID: "ten_test", Kind: tc.kind, SubjectID: tc.subjectID, LeaseToken: "lease_test"}
+			store := &fakeFocusedParserStateStore{state: tc.state}
+			if err := processJobWithObjects(t.Context(), store, nil, job); err != nil {
+				t.Fatalf("process focused parser job: %v", err)
+			}
+			if store.loadCalls != 0 || len(store.focusedJobs) != 1 || store.focusedJobs[0].TenantID != job.TenantID || store.focusedJobs[0].SubjectID != job.SubjectID || store.focusedJobs[0].Kind != job.Kind {
+				t.Fatalf("whole loads=%d focused=%#v", store.loadCalls, store.focusedJobs)
+			}
+		})
+	}
+}
+
+func TestProcessFocusedParserReplayKeepsClaimedMutationFence(t *testing.T) {
+	t.Parallel()
+	body := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api","version":"1.0.0"}]}`)
+	hash := digestBytes(body)
+	job := postgres.ClaimedJob{
+		ID: "job_test", TenantID: "ten_test", Kind: "parse_sbom", SubjectType: "sbom",
+		SubjectID: "sbom_test", LeaseToken: "lease_test",
+		Payload: map[string]any{"payload_ref": "object://tenants/ten_test/payloads/sbom.json", "payload_hash": hash},
+	}
+	store := &fakeFocusedParserStateStore{state: app.PersistedState{SBOMs: map[string]domain.SBOM{
+		"sbom_test": {ID: "sbom_test", TenantID: "ten_test"},
+	}}}
+	object := app.Object{Key: "tenants/ten_test/payloads/sbom.json", TenantID: "ten_test", Digest: hash, Bytes: body}
+	if err := processJobWithObjects(t.Context(), store, fakeObjectGetter{object: object}, job); err != nil {
+		t.Fatalf("process focused replay: %v", err)
+	}
+	if store.loadCalls != 0 || len(store.focusedJobs) != 1 || store.jobID != job.ID || store.leaseToken != job.LeaseToken || len(store.mutation.SBOMs) != 1 || store.mutation.SBOMs[0].SpecVersion != "1.6" {
+		t.Fatalf("focused replay loads=%d jobs=%d claimed=%q/%q mutation=%#v", store.loadCalls, len(store.focusedJobs), store.jobID, store.leaseToken, store.mutation)
+	}
+}
+
+func TestProcessFocusedParserRejectsForeignTenantSubject(t *testing.T) {
+	t.Parallel()
+	job := postgres.ClaimedJob{ID: "job_test", TenantID: "ten_test", Kind: "parse_sbom", SubjectID: "sbom_test", LeaseToken: "lease_test"}
+	store := &fakeFocusedParserStateStore{state: app.PersistedState{SBOMs: map[string]domain.SBOM{
+		"sbom_test": {ID: "sbom_test", TenantID: "ten_other", SpecVersion: "1.6"},
+	}}}
+	if err := processJobWithObjects(t.Context(), store, nil, job); err == nil || !strings.Contains(err.Error(), "parsed sbom is not available") {
+		t.Fatalf("foreign subject error=%v", err)
+	}
+	if store.loadCalls != 0 || store.jobID != "" {
+		t.Fatalf("foreign subject loaded whole state or wrote mutation: loads=%d job=%q", store.loadCalls, store.jobID)
+	}
+}
+
 func (f *fakeClaimedReleaseLedgerMutationStore) LoadState(context.Context) (app.PersistedState, bool, error) {
 	return f.state, f.ok, nil
 }

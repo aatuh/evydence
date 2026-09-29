@@ -73,6 +73,16 @@ func TestPostgresSBOMPointScopesCurrentParentsAndGrants(t *testing.T) {
 	if err != nil || value.ID != "sbom_good" || value.ComponentCount != 1 || len(value.Components) != 1 || value.Components[0].Name != "openssl" {
 		t.Fatalf("SBOM point=%#v error=%v", value, err)
 	}
+	job := ClaimedJob{TenantID: "ten_sbom_point", Kind: "parse_sbom", SubjectID: "sbom_good"}
+	state, ok, err := store.LoadParserJobState(ctx, job)
+	if err != nil || !ok || len(state.SBOMs) != 1 || state.SBOMs[job.SubjectID].Components[0].Name != "openssl" {
+		t.Fatalf("focused parser state=%#v ok=%v error=%v", state.SBOMs, ok, err)
+	}
+	job.TenantID = "ten_other"
+	state, ok, err = store.LoadParserJobState(ctx, job)
+	if err != nil || !ok || len(state.SBOMs) != 0 {
+		t.Fatalf("foreign parser state=%#v ok=%v error=%v", state.SBOMs, ok, err)
+	}
 	if _, err := service.GetSBOM(ctx, actor, "sbom_art_good"); err != nil {
 		t.Fatalf("matched artifact reference error=%v", err)
 	}
