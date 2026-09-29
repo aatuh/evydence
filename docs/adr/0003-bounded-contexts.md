@@ -91,6 +91,11 @@ need a current tenant-level `collector:read` grant, while issued credentials
 remain scope-bound. The query does not select credential secrets or hashes.
 Commercial collector-definition pages use the same integration-owned tenant
 authorization boundary and a SQL-side keyset limit.
+Experimental marketplace collector metadata pages and health points now use
+tenant-filtered PostgreSQL reads, with current evidence-reference ownership
+resolved in one statement. Human sessions need a current tenant-level
+`collector:read` grant in both runtime profiles. These presence checks do not
+prove package safety, marketplace trust, or provider endorsement.
 Governance framework pages and control points use a risk-owned query; a
 control must resolve to a framework in the same tenant before it is returned.
 Signing-key pages use a verification-owned tenant-scoped query that selects

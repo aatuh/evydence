@@ -1486,13 +1486,13 @@
               <div><dt>Responses</dt><dd>201 application/json: LegalHoldEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/marketplace-collectors list marketplace collector records lists tenant-scoped marketplace collector package metadata. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listmarketplacecollectors evydence collector:read">
+          <article class="operation" data-operation data-search="get /v1/marketplace-collectors list marketplace collector records keyset-pages tenant-scoped marketplace collector metadata. human sessions need a current tenant-level collector:read grant; postgresql applies the tenant limit in sql. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listmarketplacecollectors evydence collector:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/marketplace-collectors</code>
             </div>
             <h3>List marketplace collector records</h3>
-            <p>Lists tenant-scoped marketplace collector package metadata. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
+            <p>Keyset-pages tenant-scoped marketplace collector metadata. Human sessions need a current tenant-level collector:read grant; PostgreSQL applies the tenant limit in SQL. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listMarketplaceCollectors</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -1520,13 +1520,13 @@
               <div><dt>Responses</dt><dd>201 application/json: MarketplaceCollectorEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/marketplace-collectors/{id}/health marketplace collector health report returns marketplace collector package health from recorded signature, sbom, and scan evidence. marketplacecollectorhealth evydence collector:read">
+          <article class="operation" data-operation data-search="get /v1/marketplace-collectors/{id}/health marketplace collector health report returns marketplace collector package health from current tenant-owned signature, sbom, and scan references. presence does not prove package safety, marketplace trust, or provider endorsement. marketplacecollectorhealth evydence collector:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/marketplace-collectors/{id}/health</code>
             </div>
             <h3>Marketplace collector health report</h3>
-            <p>Returns marketplace collector package health from recorded signature, SBOM, and scan evidence.</p>
+            <p>Returns marketplace collector package health from current tenant-owned signature, SBOM, and scan references. Presence does not prove package safety, marketplace trust, or provider endorsement.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>marketplaceCollectorHealth</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

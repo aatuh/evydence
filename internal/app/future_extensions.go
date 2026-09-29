@@ -896,6 +896,9 @@ func (l *Ledger) ListMarketplaceCollectors(ctx context.Context, actor domain.Act
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if !l.resourceAllowedLocked(actor, ScopeCollectorRead, resourceRefs{}) {
+		return nil, ErrForbidden
+	}
 	out := []domain.MarketplaceCollector{}
 	for _, collector := range l.marketplaceCollectors {
 		if collector.TenantID == actor.TenantID {
@@ -915,6 +918,9 @@ func (l *Ledger) MarketplaceCollectorHealth(ctx context.Context, actor domain.Ac
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if !l.resourceAllowedLocked(actor, ScopeCollectorRead, resourceRefs{}) {
+		return domain.MarketplaceCollectorHealthReport{}, ErrForbidden
+	}
 	collector, ok := l.marketplaceCollectors[strings.TrimSpace(id)]
 	if !ok || collector.TenantID != actor.TenantID {
 		return domain.MarketplaceCollectorHealthReport{}, ErrNotFound

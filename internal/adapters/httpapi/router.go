@@ -37,41 +37,42 @@ type requestContext = context.Context
 const requestIDHeader = "X-Request-ID"
 
 type Server struct {
-	ledger                   *app.Ledger
-	authn                    Authenticator
-	idempotency              idempotencyExecutor
-	identityAccess           identityAccessService
-	releaseCatalog           releaseCatalogService
-	productQuery             ProductQuery
-	catalogPointQuery        CatalogPointQuery
-	buildPointQuery          BuildPointQuery
-	releaseCandidateQuery    ReleaseCandidateQuery
-	deploymentPointQuery     DeploymentPointQuery
-	deploymentListQuery      DeploymentListQuery
-	evidencePointQuery       EvidencePointQuery
-	sourceRepositoryQuery    SourceRepositoryQuery
-	collectorQuery           CollectorQuery
-	commercialCollectorQuery CommercialCollectorQuery
-	controlsQuery            ControlsQuery
-	controlEvidenceQuery     ControlEvidenceQuery
-	artifactSignatureQuery   ArtifactSignatureQuery
-	signingKeyQuery          SigningKeyQuery
-	releaseBundleQuery       ReleaseBundleQuery
-	answerLibraryQuery       AnswerLibraryQuery
-	portalAccessQuery        PortalAccessQuery
-	auditLogQuery            AuditLogQuery
-	apiKeyQuery              APIKeyQuery
-	roleBindingQuery         RoleBindingQuery
-	evidenceIngestion        evidenceIngestionService
-	riskDecisions            riskDecisionService
-	packages                 packageService
-	verification             verificationService
-	mux                      *http.ServeMux
-	specs                    *specs.Registry
-	routes                   *routecontracts.Registry
-	ingress                  *ingressControl
-	identity                 runtimeinfo.Identity
-	cursors                  appquery.CursorCodec
+	ledger                    *app.Ledger
+	authn                     Authenticator
+	idempotency               idempotencyExecutor
+	identityAccess            identityAccessService
+	releaseCatalog            releaseCatalogService
+	productQuery              ProductQuery
+	catalogPointQuery         CatalogPointQuery
+	buildPointQuery           BuildPointQuery
+	releaseCandidateQuery     ReleaseCandidateQuery
+	deploymentPointQuery      DeploymentPointQuery
+	deploymentListQuery       DeploymentListQuery
+	evidencePointQuery        EvidencePointQuery
+	sourceRepositoryQuery     SourceRepositoryQuery
+	collectorQuery            CollectorQuery
+	commercialCollectorQuery  CommercialCollectorQuery
+	marketplaceCollectorQuery MarketplaceCollectorQuery
+	controlsQuery             ControlsQuery
+	controlEvidenceQuery      ControlEvidenceQuery
+	artifactSignatureQuery    ArtifactSignatureQuery
+	signingKeyQuery           SigningKeyQuery
+	releaseBundleQuery        ReleaseBundleQuery
+	answerLibraryQuery        AnswerLibraryQuery
+	portalAccessQuery         PortalAccessQuery
+	auditLogQuery             AuditLogQuery
+	apiKeyQuery               APIKeyQuery
+	roleBindingQuery          RoleBindingQuery
+	evidenceIngestion         evidenceIngestionService
+	riskDecisions             riskDecisionService
+	packages                  packageService
+	verification              verificationService
+	mux                       *http.ServeMux
+	specs                     *specs.Registry
+	routes                    *routecontracts.Registry
+	ingress                   *ingressControl
+	identity                  runtimeinfo.Identity
+	cursors                   appquery.CursorCodec
 }
 
 type ServerOptions struct {
@@ -117,6 +118,8 @@ type ServerOptions struct {
 	CollectorQuery CollectorQuery
 	// CommercialCollectorQuery pages tenant-owned integration definitions.
 	CommercialCollectorQuery CommercialCollectorQuery
+	// MarketplaceCollectorQuery reads tenant-owned marketplace metadata and health.
+	MarketplaceCollectorQuery MarketplaceCollectorQuery
 	// ControlsQuery reads framework pages and tenant-owned control points.
 	ControlsQuery ControlsQuery
 	// ControlEvidenceQuery pages links from current subject ownership.
@@ -181,7 +184,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, controlsQuery: opts.ControlsQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, marketplaceCollectorQuery: opts.MarketplaceCollectorQuery, controlsQuery: opts.ControlsQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
 		server.authn = opts.Authenticator

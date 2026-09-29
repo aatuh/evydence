@@ -8,6 +8,7 @@ import (
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
+	experimentaldomain "github.com/aatuh/evydence/internal/experimental/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	integrationdomain "github.com/aatuh/evydence/internal/integration/domain"
 	operationsdomain "github.com/aatuh/evydence/internal/operations/domain"
@@ -85,6 +86,13 @@ type CollectorQuery interface {
 // CommercialCollectorQuery pages tenant-owned integration definitions.
 type CommercialCollectorQuery interface {
 	ListPage(context.Context, domain.Actor, appquery.PageRequest, *appquery.SortKey) (appquery.Result[integrationdomain.CommercialCollectorDefinition], error)
+}
+
+// MarketplaceCollectorQuery reads tenant-owned package metadata and current
+// linked evidence through one bounded PostgreSQL read boundary.
+type MarketplaceCollectorQuery interface {
+	ListPage(context.Context, domain.Actor, appquery.PageRequest, *appquery.SortKey) (appquery.Result[experimentaldomain.MarketplaceCollector], error)
+	Health(context.Context, domain.Actor, string) (experimentaldomain.MarketplaceCollectorHealthReport, error)
 }
 
 // ControlsQuery reads tenant-wide governance definitions from durable storage.

@@ -692,10 +692,10 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Marketplace collector creation request.", "#/components/schemas/CreateMarketplaceCollectorRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created marketplace collector envelope.", "#/components/schemas/MarketplaceCollectorEnvelope")
 	case "listMarketplaceCollectors":
-		operation.Description = "Lists tenant-scoped marketplace collector package metadata."
+		operation.Description = "Keyset-pages tenant-scoped marketplace collector metadata. Human sessions need a current tenant-level collector:read grant; PostgreSQL applies the tenant limit in SQL."
 		operation.Responses[http.StatusOK] = jsonResponse("Marketplace collector list envelope.", "#/components/schemas/MarketplaceCollectorListEnvelope")
 	case "marketplaceCollectorHealth":
-		operation.Description = "Returns marketplace collector package health from recorded signature, SBOM, and scan evidence."
+		operation.Description = "Returns marketplace collector package health from current tenant-owned signature, SBOM, and scan references. Presence does not prove package safety, marketplace trust, or provider endorsement."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Marketplace collector id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Marketplace collector health report envelope.", "#/components/schemas/MarketplaceCollectorHealthReportEnvelope")
 	case "listControlFrameworkTemplatePacks":

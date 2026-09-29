@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/app"
+	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
 )
 
@@ -153,6 +154,24 @@ func (s *Server) listMarketplaceCollectors(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
+	if s.marketplaceCollectorQuery != nil {
+		request, err := s.parsePageRequest(r, actor, "marketplace-collectors")
+		if err != nil {
+			writeProblem(w, r, err)
+			return
+		}
+		result, err := s.marketplaceCollectorQuery.ListPage(r.Context(), actor, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+		if err != nil {
+			writeProblem(w, r, mapMarketplaceCollectorQueryError(err))
+			return
+		}
+		page := appquery.Result[domain.MarketplaceCollector]{Next: result.Next, Items: make([]domain.MarketplaceCollector, 0, len(result.Items))}
+		for _, collector := range result.Items {
+			page.Items = append(page.Items, marketplaceCollectorFromQuery(collector))
+		}
+		writePage(s, w, r, actor, "marketplace-collectors", request, page)
+		return
+	}
 	collectors, err := s.ledger.ListMarketplaceCollectors(r.Context(), actor)
 	if err != nil {
 		writeProblem(w, r, err)
@@ -166,6 +185,15 @@ func (s *Server) listMarketplaceCollectors(w http.ResponseWriter, r *http.Reques
 func (s *Server) marketplaceCollectorHealth(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
+		return
+	}
+	if s.marketplaceCollectorQuery != nil {
+		report, err := s.marketplaceCollectorQuery.Health(r.Context(), actor, r.PathValue("id"))
+		if err != nil {
+			writeProblem(w, r, mapMarketplaceCollectorQueryError(err))
+			return
+		}
+		writeData(w, http.StatusOK, marketplaceCollectorHealthFromQuery(report))
 		return
 	}
 	report, err := s.ledger.MarketplaceCollectorHealth(r.Context(), actor, r.PathValue("id"))

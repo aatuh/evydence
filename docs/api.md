@@ -536,8 +536,8 @@ Current SSO endpoints model admin-managed provider, identity-link, trust-materia
 | `POST` | `/v1/commercial-collectors` | Create commercial collector definition. |
 | `GET` | `/v1/commercial-collectors` | List tenant-owned commercial collector definitions; human sessions need a tenant-level `collector:read` grant. |
 | `POST` | `/v1/marketplace-collectors` | Register marketplace collector package metadata. |
-| `GET` | `/v1/marketplace-collectors` | List marketplace collector package records. |
-| `GET` | `/v1/marketplace-collectors/{id}/health` | Review marketplace collector package evidence gaps. |
+| `GET` | `/v1/marketplace-collectors` | Keyset-page tenant-owned marketplace collector package records. Human sessions need a current tenant-level `collector:read` grant; PostgreSQL mode limits rows in SQL. |
+| `GET` | `/v1/marketplace-collectors/{id}/health` | Review marketplace collector package evidence gaps from current tenant-owned signature, SBOM, and scan references. Reference presence is not proof of package safety or provider endorsement. |
 | `POST` | `/v1/builds` | Record immutable build run. |
 | `GET` | `/v1/builds/{id}` | Read build run. |
 | `POST` | `/v1/builds/{id}/attestations` | Upload DSSE in-toto attestation JSON. |

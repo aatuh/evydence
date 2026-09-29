@@ -52,6 +52,11 @@ release artifacts.
 
 ### Changed
 
+- Marketplace collector lists and health reads now use bounded, tenant-filtered
+  PostgreSQL queries. Human sessions need a current tenant-level `collector:read`
+  grant in both PostgreSQL and local-memory modes; health reference presence
+  remains limited evidence, not a trust or safety conclusion.
+
 - PostgreSQL-backed control-evidence lists now apply current tenant and resource
   grants before keyset pagination. Links with missing or cross-tenant controls,
   frameworks, subject records, or mismatched product/release ownership are
