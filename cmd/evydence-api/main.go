@@ -183,6 +183,7 @@ func runWithContext(ctx context.Context) error {
 	var evidencePointQuery httpapi.EvidencePointQuery
 	var sourceRepositoryQuery httpapi.SourceRepositoryQuery
 	var collectorQuery httpapi.CollectorQuery
+	var controlsQuery httpapi.ControlsQuery
 	var auditLogQuery httpapi.AuditLogQuery
 	var apiKeyQuery httpapi.APIKeyQuery
 	var roleBindingQuery httpapi.RoleBindingQuery
@@ -228,6 +229,10 @@ func runWithContext(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("create collector query: %w", err)
 		}
+		controlsQuery, err = wiring.BuildControlsQuery(runtime.Postgres)
+		if err != nil {
+			return fmt.Errorf("create controls query: %w", err)
+		}
 		auditLogQuery, err = wiring.BuildAuditLogQuery(runtime.Postgres)
 		if err != nil {
 			return fmt.Errorf("create audit log query: %w", err)
@@ -262,6 +267,7 @@ func runWithContext(ctx context.Context) error {
 		EvidencePointQuery:               evidencePointQuery,
 		SourceRepositoryQuery:            sourceRepositoryQuery,
 		CollectorQuery:                   collectorQuery,
+		ControlsQuery:                    controlsQuery,
 		AuditLogQuery:                    auditLogQuery,
 		APIKeyQuery:                      apiKeyQuery,
 		RoleBindingQuery:                 roleBindingQuery,

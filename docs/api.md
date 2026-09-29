@@ -564,11 +564,11 @@ Source snapshots capture submitted provider metadata. They do not call provider 
 | Method | Path | Notes |
 |--------|------|-------|
 | `POST` | `/v1/control-frameworks` | Create framework version. |
-| `GET` | `/v1/control-frameworks` | List frameworks. |
+| `GET` | `/v1/control-frameworks` | List frameworks. Human sessions need a current tenant-level `controls:read` grant; scoped credentials need that issued scope. |
 | `GET` | `/v1/control-framework-template-packs` | List built-in starter packs. |
 | `POST` | `/v1/control-framework-template-packs/{slug}/install` | Copy starter pack to tenant records. |
 | `POST` | `/v1/controls` | Create control. |
-| `GET` | `/v1/controls/{id}` | Read control. |
+| `GET` | `/v1/controls/{id}` | Read a control through its tenant-owned framework; uses the same `controls:read` grant rule. |
 | `POST` | `/v1/controls/{id}/evidence` | Append control evidence link. |
 | `GET` | `/v1/control-evidence` | List links. |
 | `GET` | `/v1/reports/control-coverage` | Deterministic control coverage. |

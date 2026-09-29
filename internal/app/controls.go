@@ -128,6 +128,9 @@ func (l *Ledger) ListControlFrameworks(ctx context.Context, actor domain.Actor) 
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.authorizeResourceLocked(actor, ScopeControlsRead, resourceRefs{}); err != nil {
+		return nil, err
+	}
 	out := []domain.ControlFramework{}
 	for _, framework := range l.frameworks {
 		if framework.TenantID == actor.TenantID {
@@ -218,6 +221,9 @@ func (l *Ledger) GetSecurityControl(ctx context.Context, actor domain.Actor, id 
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.authorizeResourceLocked(actor, ScopeControlsRead, resourceRefs{}); err != nil {
+		return domain.SecurityControl{}, err
+	}
 	control, ok := l.controls[strings.TrimSpace(id)]
 	if !ok || control.TenantID != actor.TenantID {
 		return domain.SecurityControl{}, ErrNotFound

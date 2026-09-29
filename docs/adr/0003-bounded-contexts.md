@@ -79,6 +79,8 @@ parentage and filters grants before the keyset limit. Collector inventory
 pages use an integration-owned tenant-scoped query; human sessions
 need a current tenant-level `collector:read` grant, while issued credentials
 remain scope-bound. The query does not select credential secrets or hashes.
+Governance framework pages and control points use a risk-owned query; a
+control must resolve to a framework in the same tenant before it is returned.
 Local-memory mode and other unmigrated handlers still use the Ledger
 compatibility model.
 

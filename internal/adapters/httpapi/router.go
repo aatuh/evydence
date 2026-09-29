@@ -50,6 +50,7 @@ type Server struct {
 	evidencePointQuery    EvidencePointQuery
 	sourceRepositoryQuery SourceRepositoryQuery
 	collectorQuery        CollectorQuery
+	controlsQuery         ControlsQuery
 	auditLogQuery         AuditLogQuery
 	apiKeyQuery           APIKeyQuery
 	roleBindingQuery      RoleBindingQuery
@@ -106,6 +107,8 @@ type ServerOptions struct {
 	SourceRepositoryQuery SourceRepositoryQuery
 	// CollectorQuery pages durable collector inventory for the PostgreSQL profile.
 	CollectorQuery CollectorQuery
+	// ControlsQuery reads framework pages and tenant-owned control points.
+	ControlsQuery ControlsQuery
 	// AuditLogQuery pages tenant audit records in PostgreSQL for the durable profile.
 	AuditLogQuery AuditLogQuery
 	// APIKeyQuery pages public key metadata in PostgreSQL for the durable profile.
@@ -156,7 +159,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, controlsQuery: opts.ControlsQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
 		server.authn = opts.Authenticator
@@ -314,6 +317,24 @@ func (s *Server) listControlFrameworks(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if s.controlsQuery != nil {
+		request, err := s.parsePageRequest(r, actor, "control-frameworks")
+		if err != nil {
+			writeProblem(w, r, err)
+			return
+		}
+		page, err := s.controlsQuery.ListFrameworksPage(r.Context(), actor, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+		if err != nil {
+			writeProblem(w, r, mapControlsQueryError(err))
+			return
+		}
+		mapped := appquery.Result[domain.ControlFramework]{Next: page.Next, Items: make([]domain.ControlFramework, 0, len(page.Items))}
+		for _, framework := range page.Items {
+			mapped.Items = append(mapped.Items, controlFrameworkFromQuery(framework))
+		}
+		writePage(s, w, r, actor, "control-frameworks", request, mapped)
+		return
+	}
 	frameworks, err := s.ledger.ListControlFrameworks(r.Context(), actor)
 	if err != nil {
 		writeProblem(w, r, err)
@@ -376,6 +397,15 @@ func (s *Server) createSecurityControl(w http.ResponseWriter, r *http.Request) {
 func (s *Server) getSecurityControl(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
+		return
+	}
+	if s.controlsQuery != nil {
+		control, err := s.controlsQuery.GetSecurityControl(r.Context(), actor, r.PathValue("id"))
+		if err != nil {
+			writeProblem(w, r, mapControlsQueryError(err))
+			return
+		}
+		writeData(w, http.StatusOK, securityControlFromQuery(control))
 		return
 	}
 	control, err := s.ledger.GetSecurityControl(r.Context(), actor, r.PathValue("id"))

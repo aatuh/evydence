@@ -12,6 +12,7 @@ import (
 	integrationdomain "github.com/aatuh/evydence/internal/integration/domain"
 	operationsdomain "github.com/aatuh/evydence/internal/operations/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
+	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 	verificationquery "github.com/aatuh/evydence/internal/verification/query"
 )
@@ -76,6 +77,12 @@ type SourceRepositoryQuery interface {
 // selecting credential secrets from PostgreSQL.
 type CollectorQuery interface {
 	ListPage(context.Context, domain.Actor, appquery.PageRequest, *appquery.SortKey) (appquery.Result[integrationdomain.Collector], error)
+}
+
+// ControlsQuery reads tenant-wide governance definitions from durable storage.
+type ControlsQuery interface {
+	ListFrameworksPage(context.Context, domain.Actor, appquery.PageRequest, *appquery.SortKey) (appquery.Result[riskdomain.ControlFramework], error)
+	GetSecurityControl(context.Context, domain.Actor, string) (riskdomain.SecurityControl, error)
 }
 
 // AuditLogQuery pages current tenant audit entries without loading the Ledger.
