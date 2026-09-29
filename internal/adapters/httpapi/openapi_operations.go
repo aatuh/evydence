@@ -729,8 +729,8 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("SBOM diff creation request.", "#/components/schemas/CreateSBOMDiffRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created SBOM diff envelope.", "#/components/schemas/SBOMDiffEnvelope")
 	case "vulnerabilityPostureReport":
-		operation.Description = "Returns a vulnerability posture report derived from stored scan, decision, VEX, exception, and workflow records."
-		operation.Parameters = append(operation.Parameters, queryParam("release_id", "Release id.", "string"))
+		operation.Description = "Returns aggregate severity counts and open-critical counts from stored vulnerability-scan findings only; decisions, VEX, exceptions, and workflow records are not included. Without release_id, human sessions require a tenant-wide security:read grant; a release filter permits a matching tenant, product, or release grant. Raw findings are not returned, and scanner coverage is not independently verified."
+		operation.Parameters = append(operation.Parameters, queryParam("release_id", "Optional single release id; blank or duplicate values are rejected.", "string"))
 		operation.Responses[http.StatusOK] = jsonResponse("Vulnerability posture report envelope.", "#/components/schemas/VulnerabilityPostureReportEnvelope")
 	case "vulnerabilityDecisionSummaryReport":
 		operation.Description = "Returns customer-safe active vulnerability decision summaries for a release with assumptions and limitations. Raw payloads and internal notes are excluded."

@@ -107,6 +107,12 @@ type MarketplaceCollectorQuery interface {
 	Health(context.Context, domain.Actor, string) (experimentaldomain.MarketplaceCollectorHealthReport, error)
 }
 
+// VulnerabilityPostureQuery reads aggregate scan counts from one tenant-bound
+// database snapshot; no raw findings cross this transport boundary.
+type VulnerabilityPostureQuery interface {
+	Report(context.Context, domain.Actor, string) (packagedomain.VulnerabilityPostureReport, error)
+}
+
 // ControlsQuery reads tenant-wide governance definitions from durable storage.
 type ControlsQuery interface {
 	ListFrameworksPage(context.Context, domain.Actor, appquery.PageRequest, *appquery.SortKey) (appquery.Result[riskdomain.ControlFramework], error)

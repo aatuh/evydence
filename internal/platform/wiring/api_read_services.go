@@ -89,6 +89,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string) (httpapi.ServerOption
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create marketplace collector query: %w", err)
 	}
+	options.VulnerabilityPostureQuery, err = BuildVulnerabilityPostureQuery(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create vulnerability posture query: %w", err)
+	}
 	options.ControlsQuery, err = BuildControlsQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create controls query: %w", err)

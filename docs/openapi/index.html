@@ -2557,13 +2557,13 @@
               <div><dt>Responses</dt><dd>200 application/json: VulnerabilityDecisionSummaryReportEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/reports/vulnerability-posture vulnerability posture report returns a vulnerability posture report derived from stored scan, decision, vex, exception, and workflow records. vulnerabilityposturereport evydence security:read">
+          <article class="operation" data-operation data-search="get /v1/reports/vulnerability-posture vulnerability posture report returns aggregate severity counts and open-critical counts from stored vulnerability-scan findings only; decisions, vex, exceptions, and workflow records are not included. without release_id, human sessions require a tenant-wide security:read grant; a release filter permits a matching tenant, product, or release grant. raw findings are not returned, and scanner coverage is not independently verified. vulnerabilityposturereport evydence security:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/reports/vulnerability-posture</code>
             </div>
             <h3>Vulnerability posture report</h3>
-            <p>Returns a vulnerability posture report derived from stored scan, decision, VEX, exception, and workflow records.</p>
+            <p>Returns aggregate severity counts and open-critical counts from stored vulnerability-scan findings only; decisions, VEX, exceptions, and workflow records are not included. Without release_id, human sessions require a tenant-wide security:read grant; a release filter permits a matching tenant, product, or release grant. Raw findings are not returned, and scanner coverage is not independently verified.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>vulnerabilityPostureReport</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

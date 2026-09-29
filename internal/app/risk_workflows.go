@@ -871,13 +871,19 @@ func (s packageReportService) VulnerabilityPostureReport(ctx context.Context, ac
 	if err := require(actor, ScopeSecurityRead); err != nil {
 		return domain.VulnerabilityPostureReport{}, err
 	}
+	releaseID = strings.TrimSpace(releaseID)
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if releaseID == "" {
+		if err := l.authorizeResourceLocked(actor, ScopeSecurityRead, resourceRefs{}); err != nil {
+			return domain.VulnerabilityPostureReport{}, err
+		}
+	}
 	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
 		return domain.VulnerabilityPostureReport{}, err
 	}
-	if strings.TrimSpace(releaseID) != "" {
-		release, ok := l.releases[strings.TrimSpace(releaseID)]
+	if releaseID != "" {
+		release, ok := l.releases[releaseID]
 		if !ok || release.TenantID != actor.TenantID {
 			return domain.VulnerabilityPostureReport{}, ErrNotFound
 		}

@@ -506,7 +506,7 @@ Current SSO endpoints model admin-managed provider, identity-link, trust-materia
 | `POST` | `/v1/vulnerability-findings/{id}/decisions` | Superseding decision record. |
 | `GET` | `/v1/vulnerability-decisions` | List decision history by product, release, vulnerability, component, status, and active state. |
 | `POST` | `/v1/vulnerability-findings/{id}/workflow` | Append workflow event. |
-| `GET` | `/v1/reports/vulnerability-posture` | Summarize findings for a release. |
+| `GET` | `/v1/reports/vulnerability-posture` | Aggregate stored scan-finding severities and open-critical counts. Optional single `release_id` filters one tenant-owned release; without it, human sessions need a tenant-wide `security:read` grant. This does not include decisions or VEX and does not verify scanner coverage. |
 | `GET` | `/v1/reports/vulnerability-decision-summary` | Customer-safe active vulnerability decision summary for a release. |
 | `GET` | `/v1/reports/release-readiness` | Deterministic readiness report. |
 | `GET` | `/v1/reports/missing-evidence` | Missing evidence report for review. |

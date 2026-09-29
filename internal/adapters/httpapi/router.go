@@ -55,6 +55,7 @@ type Server struct {
 	collectorHealthQuery      CollectorHealthQuery
 	commercialCollectorQuery  CommercialCollectorQuery
 	marketplaceCollectorQuery MarketplaceCollectorQuery
+	vulnerabilityPostureQuery VulnerabilityPostureQuery
 	controlsQuery             ControlsQuery
 	controlEvidenceQuery      ControlEvidenceQuery
 	artifactSignatureQuery    ArtifactSignatureQuery
@@ -126,6 +127,8 @@ type ServerOptions struct {
 	CommercialCollectorQuery CommercialCollectorQuery
 	// MarketplaceCollectorQuery reads tenant-owned marketplace metadata and health.
 	MarketplaceCollectorQuery MarketplaceCollectorQuery
+	// VulnerabilityPostureQuery reports tenant/release-scoped scan aggregates.
+	VulnerabilityPostureQuery VulnerabilityPostureQuery
 	// ControlsQuery reads framework pages and tenant-owned control points.
 	ControlsQuery ControlsQuery
 	// ControlEvidenceQuery pages links from current subject ownership.
@@ -190,7 +193,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, instanceAdminQuery: opts.InstanceAdminQuery, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, collectorHealthQuery: opts.CollectorHealthQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, marketplaceCollectorQuery: opts.MarketplaceCollectorQuery, controlsQuery: opts.ControlsQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, instanceAdminQuery: opts.InstanceAdminQuery, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, collectorHealthQuery: opts.CollectorHealthQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, marketplaceCollectorQuery: opts.MarketplaceCollectorQuery, vulnerabilityPostureQuery: opts.VulnerabilityPostureQuery, controlsQuery: opts.ControlsQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
 		server.authn = opts.Authenticator
@@ -2299,7 +2302,21 @@ func (s *Server) vulnerabilityPostureReport(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	report, err := s.ledger.VulnerabilityPostureReport(r.Context(), actor, r.URL.Query().Get("release_id"))
+	releaseID, err := optionalSingletonQuery(r, "release_id")
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	if s.vulnerabilityPostureQuery != nil {
+		report, err := s.vulnerabilityPostureQuery.Report(r.Context(), actor, releaseID)
+		if err != nil {
+			writeProblem(w, r, mapVulnerabilityPostureQueryError(err))
+			return
+		}
+		writeData(w, http.StatusOK, vulnerabilityPostureFromQuery(report))
+		return
+	}
+	report, err := s.ledger.VulnerabilityPostureReport(r.Context(), actor, releaseID)
 	if err != nil {
 		writeProblem(w, r, err)
 		return

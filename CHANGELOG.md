@@ -52,6 +52,13 @@ release artifacts.
 
 ### Changed
 
+- Vulnerability-posture reports now aggregate stored scan findings inside
+  PostgreSQL without loading raw findings into the API. Tenant-wide reports
+  require a tenant-level human grant; release-filtered reports accept matching
+  product or release grants. Duplicate, blank, and unknown query parameters
+  are rejected, and the report documentation now states that decisions and
+  VEX records are not included.
+
 - The instance-admin snapshot now counts current PostgreSQL records in one
   aggregate read instead of relying on the in-process Ledger projection.
   The explicit `instance:admin` requirement and counts-only response remain.
