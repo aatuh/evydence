@@ -333,6 +333,23 @@ func (l *Ledger) ListControlEvidence(ctx context.Context, actor domain.Actor, co
 		if releaseID != "" && link.ReleaseID != releaseID {
 			continue
 		}
+		control, ok := l.controls[link.ControlID]
+		if !ok || control.TenantID != actor.TenantID {
+			continue
+		}
+		framework, ok := l.frameworks[control.FrameworkID]
+		if !ok || framework.TenantID != actor.TenantID {
+			continue
+		}
+		if err := l.ensureScopeLocked(actor.TenantID, link.ProductID, "", link.ReleaseID); err != nil {
+			continue
+		}
+		if link.ProductID != "" && link.ReleaseID != "" && l.releases[link.ReleaseID].ProductID != link.ProductID {
+			continue
+		}
+		if !l.controlSubjectExistsLocked(actor.TenantID, link.SubjectType, link.SubjectID, link.ProductID, link.ReleaseID) {
+			continue
+		}
 		if !l.resourceAllowedLocked(actor, ScopeControlsRead, l.refsForControlEvidenceSubjectLocked(link.SubjectType, link.SubjectID, link.ProductID, link.ReleaseID)) {
 			continue
 		}

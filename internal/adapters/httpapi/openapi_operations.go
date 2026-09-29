@@ -154,7 +154,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Control evidence link request.", "#/components/schemas/LinkControlEvidenceRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created control evidence link envelope.", "#/components/schemas/ControlEvidenceEnvelope")
 	case "listControlEvidence":
-		operation.Description = "Lists tenant-scoped control evidence links with optional control, product, and release filters."
+		operation.Description = "Lists tenant-scoped control evidence links with optional control, product, and release filters. Links with missing or mismatched current control, framework, scope, or subject ownership are excluded."
 		operation.Parameters = append(operation.Parameters,
 			queryParam("control_id", "Filter by security control id.", "string"),
 			queryParam("product_id", "Filter by product id.", "string"),

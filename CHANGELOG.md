@@ -52,6 +52,9 @@ release artifacts.
 
 ### Changed
 
+- Control-evidence lists now omit links with missing or cross-tenant controls,
+  frameworks, subject records, or mismatched product/release ownership.
+
 - Commercial collector-definition lists now use tenant-filtered PostgreSQL
   keyset pagination. Human sessions require a current tenant-level
   `collector:read` grant in both PostgreSQL and local-memory modes.
