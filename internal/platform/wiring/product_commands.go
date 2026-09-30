@@ -21,29 +21,38 @@ func BuildProductCommands(factory app.UnitOfWorkFactory) (*releaseapp.ProductCom
 	}
 	return releaseapp.NewProductCommands(releaseapp.ProductCommandConfig{
 		Authorizer:   releasequery.NewCatalogAuthorizer(),
-		Transactions: productTransactions{factory: factory},
+		Transactions: catalogTransactions{factory: factory},
 		Clock:        application.ClockFunc(time.Now),
 		IDs:          application.IDGeneratorFunc(application.NewID),
 	})
 }
 
-type productTransactions struct{ factory app.UnitOfWorkFactory }
+type catalogTransactions struct{ factory app.UnitOfWorkFactory }
 
-func (t productTransactions) ExecuteProduct(ctx context.Context, command func(context.Context, releaseapp.ProductTransaction) error) error {
+func (t catalogTransactions) ExecuteProduct(ctx context.Context, command func(context.Context, releaseapp.ProductTransaction) error) error {
 	return mapProductWriteError(app.ExecuteUnitOfWork(ctx, t.factory, func(ctx context.Context, repositories app.Repositories) error {
 		if repositories.ReleaseCatalog == nil || repositories.Audit == nil {
 			return app.ErrValidation
 		}
-		return command(ctx, productTransaction{catalog: repositories.ReleaseCatalog, audit: repositories.Audit})
+		return command(ctx, catalogTransaction{catalog: repositories.ReleaseCatalog, audit: repositories.Audit})
 	}))
 }
 
-type productTransaction struct {
+func (t catalogTransactions) ExecuteProject(ctx context.Context, command func(context.Context, releaseapp.ProjectTransaction) error) error {
+	return mapProductWriteError(app.ExecuteUnitOfWork(ctx, t.factory, func(ctx context.Context, repositories app.Repositories) error {
+		if repositories.ReleaseCatalog == nil || repositories.Audit == nil {
+			return app.ErrValidation
+		}
+		return command(ctx, catalogTransaction{catalog: repositories.ReleaseCatalog, audit: repositories.Audit})
+	}))
+}
+
+type catalogTransaction struct {
 	catalog app.ReleaseCatalogRepository
 	audit   app.AuditRepository
 }
 
-func (t productTransaction) ProductBySlug(ctx context.Context, tenantID, slug string) (releasedomain.Product, bool, error) {
+func (t catalogTransaction) ProductBySlug(ctx context.Context, tenantID, slug string) (releasedomain.Product, bool, error) {
 	product, found, err := t.catalog.ProductBySlug(ctx, tenantID, slug)
 	if err != nil {
 		return releasedomain.Product{}, false, mapProductWriteError(err)
@@ -54,13 +63,28 @@ func (t productTransaction) ProductBySlug(ctx context.Context, tenantID, slug st
 	return releasedomain.Product{ID: product.ID, TenantID: product.TenantID, Name: product.Name, Slug: product.Slug, CreatedAt: product.CreatedAt}, true, nil
 }
 
-func (t productTransaction) InsertProduct(ctx context.Context, product releasedomain.Product) error {
+func (t catalogTransaction) InsertProduct(ctx context.Context, product releasedomain.Product) error {
 	return mapProductWriteError(t.catalog.InsertProduct(ctx, domain.Product{
 		ID: product.ID, TenantID: product.TenantID, Name: product.Name, Slug: product.Slug, CreatedAt: product.CreatedAt,
 	}))
 }
 
-func (t productTransaction) AppendAudit(ctx context.Context, event application.AuditEvent) (application.AuditReceipt, error) {
+func (t catalogTransaction) GetProduct(ctx context.Context, tenantID, id string) (releasedomain.Product, error) {
+	product, err := t.catalog.GetProduct(ctx, tenantID, id)
+	if err != nil {
+		return releasedomain.Product{}, mapProductWriteError(err)
+	}
+	return releasedomain.Product{ID: product.ID, TenantID: product.TenantID, Name: product.Name, Slug: product.Slug, CreatedAt: product.CreatedAt}, nil
+}
+
+func (t catalogTransaction) InsertProject(ctx context.Context, project releasedomain.Project) error {
+	return mapProductWriteError(t.catalog.InsertProject(ctx, domain.Project{
+		ID: project.ID, TenantID: project.TenantID, ProductID: project.ProductID,
+		Name: project.Name, CreatedAt: project.CreatedAt,
+	}))
+}
+
+func (t catalogTransaction) AppendAudit(ctx context.Context, event application.AuditEvent) (application.AuditReceipt, error) {
 	entry, err := t.audit.Append(ctx, domain.AuditChainEntry{
 		ID: event.ID, TenantID: event.TenantID, EntryType: event.EntryType,
 		SubjectType: event.SubjectType, SubjectID: event.SubjectID,

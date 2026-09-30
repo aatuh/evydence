@@ -623,6 +623,27 @@ func (r releaseCatalog) ProductBySlug(ctx context.Context, tenantID, slug string
 	return product, true, nil
 }
 
+func (r releaseCatalog) GetProduct(ctx context.Context, tenantID, id string) (domain.Product, error) {
+	tenantID, id = strings.TrimSpace(tenantID), strings.TrimSpace(id)
+	if tenantID == "" || id == "" {
+		return domain.Product{}, app.ErrValidation
+	}
+	var product domain.Product
+	err := r.tx.QueryRow(ctx, `
+		SELECT id, tenant_id, name, slug, created_at
+		FROM products
+		WHERE tenant_id = $1 AND id = $2
+		FOR SHARE
+	`, tenantID, id).Scan(&product.ID, &product.TenantID, &product.Name, &product.Slug, &product.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Product{}, app.ErrNotFound
+	}
+	if err != nil {
+		return domain.Product{}, writeError("load scoped product", err)
+	}
+	return product, nil
+}
+
 func (r releaseCatalog) GetArtifact(ctx context.Context, tenantID, artifactID string) (domain.Artifact, error) {
 	var artifact domain.Artifact
 	err := r.tx.QueryRow(ctx, `

@@ -259,49 +259,15 @@ type CreateProjectInput struct {
 }
 
 func (s *Service) CreateProject(ctx context.Context, actor identitydomain.Actor, input CreateProjectInput) (releasedomain.Project, error) {
-	if err := contextError(ctx); err != nil {
-		return releasedomain.Project{}, err
-	}
-	if err := s.authorize(ctx, actor, ScopeProjectWrite, application.ResourceReferences{}, true); err != nil {
-		return releasedomain.Project{}, err
-	}
-	input.ProductID = strings.TrimSpace(input.ProductID)
-	input.Name = strings.TrimSpace(input.Name)
-	if input.ProductID == "" || input.Name == "" {
-		return releasedomain.Project{}, ErrValidation
-	}
-	product, err := s.reader.GetProduct(ctx, actor.TenantID, input.ProductID)
-	if err != nil {
-		return releasedomain.Project{}, err
-	}
-	if !productBelongsToTenant(product, actor.TenantID, input.ProductID) {
-		return releasedomain.Project{}, ErrNotFound
-	}
-	if err := s.authorize(ctx, actor, ScopeProjectWrite, application.ResourceReferences{ProductID: product.ID}, false); err != nil {
-		return releasedomain.Project{}, err
-	}
-	project := releasedomain.Project{ID: s.ids.NewID("proj"), TenantID: actor.TenantID, ProductID: product.ID, Name: input.Name, CreatedAt: s.clock.Now().UTC()}
-	err = s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-		current, err := tx.Catalog().GetProduct(ctx, actor.TenantID, product.ID)
-		if err != nil {
-			return err
-		}
-		if !productBelongsToTenant(current, actor.TenantID, product.ID) {
-			return ErrNotFound
-		}
-		if !sameProductCoordinates(current, product) {
-			return ErrConflict
-		}
-		if err := tx.Catalog().InsertProject(ctx, project); err != nil {
-			return err
-		}
-		_, err = tx.Audit().AppendAudit(ctx, s.auditEvent(actor, project.CreatedAt, "project.created", "project", project.ID, ""))
-		return err
+	commands, err := NewProjectCommands(ProjectCommandConfig{
+		Reader: s.reader, Authorizer: s.authorizer,
+		Transactions: releaseProjectTransactions{runner: s.transactions},
+		Clock:        s.clock, IDs: s.ids,
 	})
 	if err != nil {
 		return releasedomain.Project{}, err
 	}
-	return project, nil
+	return commands.CreateProject(ctx, actor, input)
 }
 
 func (s *Service) GetProject(ctx context.Context, actor identitydomain.Actor, id string) (releasedomain.Project, error) {

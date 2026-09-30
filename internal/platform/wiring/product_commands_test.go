@@ -18,6 +18,7 @@ import (
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releaseapp "github.com/aatuh/evydence/internal/release/app"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
+	releasequery "github.com/aatuh/evydence/internal/release/query"
 )
 
 func TestProductCommandsUseFocusedRepositoriesInsideIdempotencyTransaction(t *testing.T) {
@@ -61,7 +62,7 @@ func TestProductCommandsUseFocusedRepositoriesInsideIdempotencyTransaction(t *te
 	}
 }
 
-func TestPostgresProductCommandsCommitProductAuditAndReplayWithoutLedger(t *testing.T) {
+func TestPostgresCatalogCommandsCommitProductProjectAuditAndReplayWithoutLedger(t *testing.T) {
 	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("EVYDENCE_TEST_DATABASE_URL is not set")
@@ -108,7 +109,7 @@ func TestPostgresProductCommandsCommitProductAuditAndReplayWithoutLedger(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	actor := domain.Actor{TenantID: "ten_product_live", KeyID: "key_product_live", Scopes: []string{"product:write"}}
+	actor := domain.Actor{TenantID: "ten_product_live", KeyID: "key_product_live", Scopes: []string{"product:write", "project:write"}}
 	idempotency := app.IdempotencyUnitOfWork{Transactions: runtime.Postgres}
 	runs := 0
 	create := func(ctx context.Context, _ app.Repositories) (int, any, error) {
@@ -137,5 +138,39 @@ func TestPostgresProductCommandsCommitProductAuditAndReplayWithoutLedger(t *test
 	}
 	if _, _, err := idempotency.WithBody(ctx, actor, "POST", "/v1/products", "live-product", []byte(`{"name":"Live"}`), create); err != nil || runs != 1 {
 		t.Fatalf("durable replay runs=%d err=%v", runs, err)
+	}
+	projects, err := BuildProjectCommands(runtime.Postgres, runtime.Postgres)
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectRuns := 0
+	createProject := func(ctx context.Context, _ app.Repositories) (int, any, error) {
+		projectRuns++
+		project, err := projects.CreateProject(ctx, actor, releaseapp.CreateProjectInput{ProductID: product.ID, Name: "Child"})
+		return 201, project, err
+	}
+	status, response, err = idempotency.WithBody(ctx, actor, "POST", "/v1/projects", "live-project", []byte(`{"name":"Child"}`), createProject)
+	if err != nil || status != 201 {
+		t.Fatalf("live project status=%d response=%#v err=%v", status, response, err)
+	}
+	project := response.(releasedomain.Project)
+	storedProject, err := runtime.Postgres.GetProject(ctx, actor.TenantID, project.ID)
+	if err != nil || storedProject.ProductID != product.ID || storedProject.Name != "Child" {
+		t.Fatalf("durable project=%#v err=%v", storedProject, err)
+	}
+	if _, err := runtime.Postgres.GetProject(ctx, "ten_other", project.ID); !errors.Is(err, releasequery.ErrNotFound) {
+		t.Fatalf("foreign tenant project read err=%v, want not found", err)
+	}
+	if _, _, err := idempotency.WithBody(ctx, actor, "POST", "/v1/projects", "live-project", []byte(`{"name":"Child"}`), createProject); err != nil || projectRuns != 1 {
+		t.Fatalf("durable project replay runs=%d err=%v", projectRuns, err)
+	}
+	if err := admin.QueryRow(ctx, "SELECT count(*) FROM "+quotedSchema+".audit_chain_entries WHERE tenant_id = $1", actor.TenantID).Scan(&auditCount); err != nil {
+		t.Fatalf("count catalog audits: %v", err)
+	}
+	if err := admin.QueryRow(ctx, "SELECT count(*) FROM "+quotedSchema+".idempotency_records WHERE tenant_id = $1 AND state = 'completed'", actor.TenantID).Scan(&replayCount); err != nil {
+		t.Fatalf("count catalog replays: %v", err)
+	}
+	if auditCount != 2 || replayCount != 2 {
+		t.Fatalf("catalog commits audit=%d replay=%d, want two each", auditCount, replayCount)
 	}
 }

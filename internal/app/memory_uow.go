@@ -730,6 +730,23 @@ func (r memoryReleaseCatalogRepository) ProductBySlug(ctx context.Context, tenan
 	return product, found, err
 }
 
+func (r memoryReleaseCatalogRepository) GetProduct(ctx context.Context, tenantID, id string) (domain.Product, error) {
+	tenantID, id = strings.TrimSpace(tenantID), strings.TrimSpace(id)
+	if tenantID == "" || id == "" {
+		return domain.Product{}, ErrValidation
+	}
+	var product domain.Product
+	err := r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		value, ok := state.Products[id]
+		if !ok || value.TenantID != tenantID {
+			return ErrNotFound
+		}
+		product = value
+		return nil
+	})
+	return product, err
+}
+
 func (r memoryReleaseCatalogRepository) GetArtifact(ctx context.Context, tenantID, artifactID string) (domain.Artifact, error) {
 	var artifact domain.Artifact
 	err := r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {

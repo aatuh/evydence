@@ -79,6 +79,12 @@ func TestMemoryProductBySlugSeesOnlyCurrentTenantInsideTransaction(t *testing.T)
 	if foreign, ok, err := repos.ReleaseCatalog.ProductBySlug(ctx, "ten_second", "shared"); err != nil || ok || foreign.ID != "" {
 		t.Fatalf("foreign-tenant lookup product=%#v found=%t err=%v", foreign, ok, err)
 	}
+	if found, err := repos.ReleaseCatalog.GetProduct(ctx, "ten_first", product.ID); err != nil || found != product {
+		t.Fatalf("same-tenant point product=%#v err=%v", found, err)
+	}
+	if _, err := repos.ReleaseCatalog.GetProduct(ctx, "ten_second", product.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("foreign-tenant point err=%v, want not found", err)
+	}
 }
 
 func TestMemoryUnitOfWorkCommitsTenantScopedDomainAuditAndOutboxTogether(t *testing.T) {

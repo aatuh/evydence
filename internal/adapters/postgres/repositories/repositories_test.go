@@ -58,6 +58,12 @@ func TestProductBySlugReadsOnlyCurrentTenantWithinTransaction(t *testing.T) {
 	if foreign, ok, err := repositories.ReleaseCatalog.ProductBySlug(ctx, "ten_second", "shared"); err != nil || ok || foreign.ID != "" {
 		t.Fatalf("foreign-tenant lookup product=%#v found=%t err=%v", foreign, ok, err)
 	}
+	if found, err := repositories.ReleaseCatalog.GetProduct(ctx, "ten_first", product.ID); err != nil || found.ID != product.ID || found.TenantID != product.TenantID {
+		t.Fatalf("same-tenant point product=%#v err=%v", found, err)
+	}
+	if _, err := repositories.ReleaseCatalog.GetProduct(ctx, "ten_second", product.ID); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("foreign-tenant point err=%v, want not found", err)
+	}
 }
 
 func TestIdentityActivityUpdatesAreMonotonic(t *testing.T) {
