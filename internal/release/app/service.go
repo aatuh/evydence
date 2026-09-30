@@ -307,63 +307,15 @@ type CreateReleaseInput struct {
 }
 
 func (s *Service) CreateRelease(ctx context.Context, actor identitydomain.Actor, input CreateReleaseInput) (releasedomain.Release, error) {
-	if err := contextError(ctx); err != nil {
-		return releasedomain.Release{}, err
-	}
-	if err := s.authorize(ctx, actor, ScopeReleaseWrite, application.ResourceReferences{}, true); err != nil {
-		return releasedomain.Release{}, err
-	}
-	input.ProductID = strings.TrimSpace(input.ProductID)
-	input.Version = strings.TrimSpace(input.Version)
-	if input.ProductID == "" || input.Version == "" {
-		return releasedomain.Release{}, ErrValidation
-	}
-	product, err := s.reader.GetProduct(ctx, actor.TenantID, input.ProductID)
-	if err != nil {
-		return releasedomain.Release{}, err
-	}
-	if !productBelongsToTenant(product, actor.TenantID, input.ProductID) {
-		return releasedomain.Release{}, ErrNotFound
-	}
-	if err := s.authorize(ctx, actor, ScopeReleaseWrite, application.ResourceReferences{ProductID: product.ID}, false); err != nil {
-		return releasedomain.Release{}, err
-	}
-	release, err := releasedomain.NewRelease(s.ids.NewID("rel"), actor.TenantID, product.ID, input.Version, s.clock.Now())
-	if err != nil {
-		return releasedomain.Release{}, ErrValidation
-	}
-	err = s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-		currentProduct, err := tx.Catalog().GetProduct(ctx, actor.TenantID, product.ID)
-		if err != nil {
-			return err
-		}
-		if !productBelongsToTenant(currentProduct, actor.TenantID, product.ID) {
-			return ErrNotFound
-		}
-		if !sameProductCoordinates(currentProduct, product) {
-			return ErrConflict
-		}
-		if existing, exists, err := tx.Catalog().ReleaseByVersion(ctx, actor.TenantID, product.ID, input.Version); err != nil {
-			return err
-		} else if exists {
-			if existing.TenantID != actor.TenantID || strings.TrimSpace(existing.ID) == "" {
-				return ErrNotFound
-			}
-			if existing.ProductID != product.ID || existing.Version != input.Version {
-				return ErrConflict
-			}
-			return ErrConflict
-		}
-		if err := tx.Catalog().InsertRelease(ctx, release); err != nil {
-			return err
-		}
-		_, err = tx.Audit().AppendAudit(ctx, s.auditEvent(actor, release.CreatedAt, "release.created", "release", release.ID, ""))
-		return err
+	commands, err := NewReleaseCommands(ReleaseCommandConfig{
+		Reader: s.reader, Authorizer: s.authorizer,
+		Transactions: releaseCreationTransactions{runner: s.transactions},
+		Clock:        s.clock, IDs: s.ids,
 	})
 	if err != nil {
 		return releasedomain.Release{}, err
 	}
-	return release, nil
+	return commands.CreateRelease(ctx, actor, input)
 }
 
 func (s *Service) GetRelease(ctx context.Context, actor identitydomain.Actor, id string) (releasedomain.Release, error) {

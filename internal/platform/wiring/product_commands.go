@@ -47,6 +47,15 @@ func (t catalogTransactions) ExecuteProject(ctx context.Context, command func(co
 	}))
 }
 
+func (t catalogTransactions) ExecuteReleaseCreation(ctx context.Context, command func(context.Context, releaseapp.ReleaseCreationTransaction) error) error {
+	return mapProductWriteError(app.ExecuteUnitOfWork(ctx, t.factory, func(ctx context.Context, repositories app.Repositories) error {
+		if repositories.ReleaseCatalog == nil || repositories.Audit == nil {
+			return app.ErrValidation
+		}
+		return command(ctx, catalogTransaction{catalog: repositories.ReleaseCatalog, audit: repositories.Audit})
+	}))
+}
+
 type catalogTransaction struct {
 	catalog app.ReleaseCatalogRepository
 	audit   app.AuditRepository
@@ -81,6 +90,33 @@ func (t catalogTransaction) InsertProject(ctx context.Context, project releasedo
 	return mapProductWriteError(t.catalog.InsertProject(ctx, domain.Project{
 		ID: project.ID, TenantID: project.TenantID, ProductID: project.ProductID,
 		Name: project.Name, CreatedAt: project.CreatedAt,
+	}))
+}
+
+func (t catalogTransaction) ReleaseByVersion(ctx context.Context, tenantID, productID, version string) (releasedomain.Release, bool, error) {
+	release, found, err := t.catalog.ReleaseByVersion(ctx, tenantID, productID, version)
+	if err != nil {
+		return releasedomain.Release{}, false, mapProductWriteError(err)
+	}
+	if !found {
+		return releasedomain.Release{}, false, nil
+	}
+	state, err := releasedomain.ParseReleaseState(release.State)
+	if err != nil {
+		return releasedomain.Release{}, false, releaseapp.ErrValidation
+	}
+	return releasedomain.Release{
+		ID: release.ID, TenantID: release.TenantID, ProductID: release.ProductID,
+		Version: release.Version, Revision: release.Revision, State: state,
+		CreatedAt: release.CreatedAt, FrozenAt: release.FrozenAt, ApprovedAt: release.ApprovedAt,
+	}, true, nil
+}
+
+func (t catalogTransaction) InsertRelease(ctx context.Context, release releasedomain.Release) error {
+	return mapProductWriteError(t.catalog.InsertRelease(ctx, domain.Release{
+		ID: release.ID, TenantID: release.TenantID, ProductID: release.ProductID,
+		Version: release.Version, Revision: release.Revision, State: release.State.String(),
+		CreatedAt: release.CreatedAt, FrozenAt: release.FrozenAt, ApprovedAt: release.ApprovedAt,
 	}))
 }
 

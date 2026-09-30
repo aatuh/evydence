@@ -5,6 +5,7 @@ package repositories
 import (
 	"context"
 	"crypto/ed25519"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -642,6 +643,39 @@ func (r releaseCatalog) GetProduct(ctx context.Context, tenantID, id string) (do
 		return domain.Product{}, writeError("load scoped product", err)
 	}
 	return product, nil
+}
+
+func (r releaseCatalog) ReleaseByVersion(ctx context.Context, tenantID, productID, version string) (domain.Release, bool, error) {
+	tenantID, productID, version = strings.TrimSpace(tenantID), strings.TrimSpace(productID), strings.TrimSpace(version)
+	if tenantID == "" || productID == "" || version == "" {
+		return domain.Release{}, false, app.ErrValidation
+	}
+	var release domain.Release
+	var frozenAt, approvedAt sql.NullTime
+	err := r.tx.QueryRow(ctx, `
+		SELECT r.id, r.tenant_id, r.product_id, r.version, r.state,
+		       r.frozen_at, r.approved_at, r.revision, r.created_at
+		FROM releases AS r
+		JOIN products AS p ON p.id = r.product_id AND p.tenant_id = r.tenant_id
+		WHERE r.tenant_id = $1 AND r.product_id = $2 AND r.version = $3
+		FOR SHARE OF r
+	`, tenantID, productID, version).Scan(
+		&release.ID, &release.TenantID, &release.ProductID, &release.Version, &release.State,
+		&frozenAt, &approvedAt, &release.Revision, &release.CreatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Release{}, false, nil
+	}
+	if err != nil {
+		return domain.Release{}, false, writeError("load scoped release by version", err)
+	}
+	if frozenAt.Valid {
+		release.FrozenAt = &frozenAt.Time
+	}
+	if approvedAt.Valid {
+		release.ApprovedAt = &approvedAt.Time
+	}
+	return release, true, nil
 }
 
 func (r releaseCatalog) GetArtifact(ctx context.Context, tenantID, artifactID string) (domain.Artifact, error) {

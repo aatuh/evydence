@@ -19,7 +19,7 @@ func BuildProjectCommands(reader releaseapp.ProjectReader, factory app.UnitOfWor
 		return nil, errors.New("project reader and transactions are required")
 	}
 	return releaseapp.NewProjectCommands(releaseapp.ProjectCommandConfig{
-		Reader:       projectParentReader{source: reader},
+		Reader:       catalogParentReader{source: reader},
 		Authorizer:   releasequery.NewCatalogAuthorizer(),
 		Transactions: catalogTransactions{factory: factory},
 		Clock:        application.ClockFunc(time.Now),
@@ -27,9 +27,9 @@ func BuildProjectCommands(reader releaseapp.ProjectReader, factory app.UnitOfWor
 	})
 }
 
-type projectParentReader struct{ source releaseapp.ProjectReader }
+type catalogParentReader struct{ source releaseapp.ProjectReader }
 
-func (r projectParentReader) GetProduct(ctx context.Context, tenantID, id string) (releasedomain.Product, error) {
+func (r catalogParentReader) GetProduct(ctx context.Context, tenantID, id string) (releasedomain.Product, error) {
 	product, err := r.source.GetProduct(ctx, tenantID, id)
 	if err != nil {
 		return releasedomain.Product{}, mapProjectReadError(err)

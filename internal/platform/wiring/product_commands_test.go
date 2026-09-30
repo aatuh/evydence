@@ -62,7 +62,7 @@ func TestProductCommandsUseFocusedRepositoriesInsideIdempotencyTransaction(t *te
 	}
 }
 
-func TestPostgresCatalogCommandsCommitProductProjectAuditAndReplayWithoutLedger(t *testing.T) {
+func TestPostgresCatalogCommandsCommitProductProjectReleaseAuditAndReplayWithoutLedger(t *testing.T) {
 	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("EVYDENCE_TEST_DATABASE_URL is not set")
@@ -109,7 +109,7 @@ func TestPostgresCatalogCommandsCommitProductProjectAuditAndReplayWithoutLedger(
 	if err != nil {
 		t.Fatal(err)
 	}
-	actor := domain.Actor{TenantID: "ten_product_live", KeyID: "key_product_live", Scopes: []string{"product:write", "project:write"}}
+	actor := domain.Actor{TenantID: "ten_product_live", KeyID: "key_product_live", Scopes: []string{"product:write", "project:write", "release:write"}}
 	idempotency := app.IdempotencyUnitOfWork{Transactions: runtime.Postgres}
 	runs := 0
 	create := func(ctx context.Context, _ app.Repositories) (int, any, error) {
@@ -172,5 +172,42 @@ func TestPostgresCatalogCommandsCommitProductProjectAuditAndReplayWithoutLedger(
 	}
 	if auditCount != 2 || replayCount != 2 {
 		t.Fatalf("catalog commits audit=%d replay=%d, want two each", auditCount, replayCount)
+	}
+	releases, err := BuildReleaseCommands(runtime.Postgres, runtime.Postgres)
+	if err != nil {
+		t.Fatal(err)
+	}
+	releaseRuns := 0
+	createRelease := func(ctx context.Context, _ app.Repositories) (int, any, error) {
+		releaseRuns++
+		release, err := releases.CreateRelease(ctx, actor, releaseapp.CreateReleaseInput{ProductID: product.ID, Version: "1.0.0"})
+		return 201, release, err
+	}
+	status, response, err = idempotency.WithBody(ctx, actor, "POST", "/v1/releases", "live-release", []byte(`{"version":"1.0.0"}`), createRelease)
+	if err != nil || status != 201 {
+		t.Fatalf("live release status=%d response=%#v err=%v", status, response, err)
+	}
+	release := response.(releasedomain.Release)
+	storedRelease, err := runtime.Postgres.GetRelease(ctx, actor.TenantID, release.ID)
+	if err != nil || storedRelease.ProductID != product.ID || storedRelease.Version != "1.0.0" {
+		t.Fatalf("durable release=%#v err=%v", storedRelease, err)
+	}
+	if _, err := runtime.Postgres.GetRelease(ctx, "ten_other", release.ID); !errors.Is(err, releasequery.ErrNotFound) {
+		t.Fatalf("foreign tenant release read err=%v, want not found", err)
+	}
+	if _, _, err := idempotency.WithBody(ctx, actor, "POST", "/v1/releases", "live-release", []byte(`{"version":"1.0.0"}`), createRelease); err != nil || releaseRuns != 1 {
+		t.Fatalf("durable release replay runs=%d err=%v", releaseRuns, err)
+	}
+	if _, err := releases.CreateRelease(ctx, actor, releaseapp.CreateReleaseInput{ProductID: product.ID, Version: "1.0.0"}); !errors.Is(err, releaseapp.ErrConflict) {
+		t.Fatalf("duplicate durable release version err=%v, want conflict", err)
+	}
+	if err := admin.QueryRow(ctx, "SELECT count(*) FROM "+quotedSchema+".audit_chain_entries WHERE tenant_id = $1", actor.TenantID).Scan(&auditCount); err != nil {
+		t.Fatalf("count catalog audits: %v", err)
+	}
+	if err := admin.QueryRow(ctx, "SELECT count(*) FROM "+quotedSchema+".idempotency_records WHERE tenant_id = $1 AND state = 'completed'", actor.TenantID).Scan(&replayCount); err != nil {
+		t.Fatalf("count catalog replays: %v", err)
+	}
+	if auditCount != 3 || replayCount != 3 {
+		t.Fatalf("catalog commits audit=%d replay=%d, want three each", auditCount, replayCount)
 	}
 }

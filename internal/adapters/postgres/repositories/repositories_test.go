@@ -64,6 +64,16 @@ func TestProductBySlugReadsOnlyCurrentTenantWithinTransaction(t *testing.T) {
 	if _, err := repositories.ReleaseCatalog.GetProduct(ctx, "ten_second", product.ID); !errors.Is(err, app.ErrNotFound) {
 		t.Fatalf("foreign-tenant point err=%v, want not found", err)
 	}
+	release := domain.Release{ID: "rel_first", TenantID: product.TenantID, ProductID: product.ID, Version: "1.0.0", Revision: 1, State: "draft", CreatedAt: now}
+	if err := repositories.ReleaseCatalog.InsertRelease(ctx, release); err != nil {
+		t.Fatal(err)
+	}
+	if found, ok, err := repositories.ReleaseCatalog.ReleaseByVersion(ctx, product.TenantID, product.ID, release.Version); err != nil || !ok || found.ID != release.ID || found.ProductID != product.ID {
+		t.Fatalf("same-tenant release=%#v found=%t err=%v", found, ok, err)
+	}
+	if found, ok, err := repositories.ReleaseCatalog.ReleaseByVersion(ctx, "ten_second", product.ID, release.Version); err != nil || ok || found.ID != "" {
+		t.Fatalf("foreign-tenant release=%#v found=%t err=%v", found, ok, err)
+	}
 }
 
 func TestIdentityActivityUpdatesAreMonotonic(t *testing.T) {

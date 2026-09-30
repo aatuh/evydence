@@ -50,14 +50,15 @@ owns the atomic reservation, command, and redacted replay protocol without
 loading Ledger state; the current HTTP compatibility adapter uses that same
 protocol but still clones and reloads Ledger state for its command view.
 Migrating the HTTP command bindings to focused services remains EVY-905 work.
-The release context now has standalone product- and project-create commands
-with narrow tenant-scoped repositories and audit transactions. Project
-creation checks the parent product both before and inside its write
-transaction. Their database adapters and the idempotency executor have been
-exercised together without constructing a Ledger. Production HTTP still uses
-the compatibility command binding because later Ledger-backed commands must
-be migrated to current database reads before they can safely consume products
-and projects created outside its cache.
+The release context now has standalone product-, project-, and release-create
+commands with narrow tenant-scoped repositories and audit transactions.
+Project and release creation check the parent product both before and inside
+the write transaction; release versions remain unique per product. Their
+database adapters and the idempotency executor have been exercised together
+without constructing a Ledger. Production HTTP still uses the compatibility
+command binding because later Ledger-backed commands must be migrated to
+current database reads before they can safely consume products, projects, and
+releases created outside its cache.
 API-key and SSO-session verification now has a
 standalone identity application service with narrow credential-read and
 activity-write ports. The PostgreSQL profile binds those ports to current

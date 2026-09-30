@@ -747,6 +747,25 @@ func (r memoryReleaseCatalogRepository) GetProduct(ctx context.Context, tenantID
 	return product, err
 }
 
+func (r memoryReleaseCatalogRepository) ReleaseByVersion(ctx context.Context, tenantID, productID, version string) (domain.Release, bool, error) {
+	tenantID, productID, version = strings.TrimSpace(tenantID), strings.TrimSpace(productID), strings.TrimSpace(version)
+	if tenantID == "" || productID == "" || version == "" {
+		return domain.Release{}, false, ErrValidation
+	}
+	var release domain.Release
+	var found bool
+	err := r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		for _, value := range state.Releases {
+			if value.TenantID == tenantID && value.ProductID == productID && value.Version == version {
+				release, found = value, true
+				return nil
+			}
+		}
+		return nil
+	})
+	return release, found, err
+}
+
 func (r memoryReleaseCatalogRepository) GetArtifact(ctx context.Context, tenantID, artifactID string) (domain.Artifact, error) {
 	var artifact domain.Artifact
 	err := r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
