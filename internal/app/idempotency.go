@@ -166,104 +166,37 @@ func replayableIdempotencyRecord(record IdempotencyRecord) (IdempotencyRecord, e
 	return record, nil
 }
 
-// withDurableIdempotency keeps reservation, command writes, and the completed
-// replay envelope in one transaction. The command receives an isolated ledger
-// read model, which is published to the process cache only after commit.
+// withDurableIdempotency retains the compatibility Ledger command view while
+// using the same repository-scoped transaction protocol as focused commands.
 func (l *Ledger) withDurableIdempotency(ctx context.Context, reservation IdempotencyReservation, run IdempotencyCommand) (int, any, error) {
 	l.transactionGate.Lock()
 	defer l.transactionGate.Unlock()
 
-	var result IdempotencyReservationResult
 	var commandLedger *Ledger
-	var status int
-	var response any
-	var commandErr error
-	commandRan := false
-	err := ExecuteUnitOfWork(ctx, l.unitOfWork, func(ctx context.Context, repositories Repositories) error {
-		txCtx := withActiveRepositories(ctx, repositories)
+	executor := IdempotencyUnitOfWork{Transactions: l.unitOfWork, Now: l.now}
+	execution, err := executor.withReservation(ctx, reservation, func(txCtx context.Context, _ Repositories) (IdempotentUnitOfWorkCommand, error) {
 		var err error
-		result, err = repositories.Idempotency.Reserve(txCtx, reservation)
+		commandLedger, err = l.cloneForIdempotencyCommand(txCtx)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		switch result.Outcome {
-		case IdempotencyReservationReplay, IdempotencyReservationPending, IdempotencyReservationFailure:
-			return nil
-		case IdempotencyReservationAcquired, IdempotencyReservationRecovered:
-			commandLedger, err = l.cloneForIdempotencyCommand(txCtx)
-			if err != nil {
-				return err
-			}
-			commandRan = true
-			status, response, commandErr = run(txCtx, commandLedger)
-			if commandErr != nil {
-				return commandErr
-			}
-			replayResponse, err := safeIdempotencyReplayResponse(response)
-			if err != nil {
-				return err
-			}
-			completedAt := l.now().UTC()
-			if err := repositories.Idempotency.Complete(txCtx, reservation.Key, reservation.OwnerTokenHash, status, replayResponse, completedAt); err != nil {
-				return err
-			}
-			commandLedger.publishCompletedIdempotency(reservation, status, replayResponse, completedAt)
-			return nil
-		default:
-			return ErrValidation
-		}
+		return func(txCtx context.Context, _ Repositories) (int, any, error) {
+			return run(txCtx, commandLedger)
+		}, nil
 	})
-	if commandRan && commandErr != nil && !errors.Is(commandErr, ErrRetryableSigning) {
-		// The command transaction was rolled back, so recording the safe failed
-		// state happens separately and cannot commit a partial domain mutation.
-		_ = l.persistDurableIdempotencyFailure(context.WithoutCancel(ctx), reservation)
-		return status, response, commandErr
-	}
 	if err != nil {
-		return 0, nil, err
+		return execution.status, execution.response, err
 	}
-	switch result.Outcome {
-	case IdempotencyReservationReplay:
-		record, err := replayableIdempotencyRecord(result.Record)
-		if err != nil {
-			return 0, nil, err
-		}
-		return record.Status, record.Response, nil
-	case IdempotencyReservationPending:
-		return 0, nil, ErrIdempotencyInProgress
-	case IdempotencyReservationFailure:
-		return 0, nil, ErrIdempotencyFailed
-	case IdempotencyReservationAcquired, IdempotencyReservationRecovered:
+	if execution.executed {
 		if commandLedger == nil {
 			return 0, nil, ErrValidation
 		}
+		commandLedger.publishCompletedIdempotency(reservation, execution.status, execution.replay, execution.completedAt)
 		if err := l.publishCommittedIdempotencyCommand(context.WithoutCancel(ctx), commandLedger); err != nil {
 			return 0, nil, err
 		}
-		return status, response, nil
-	default:
-		return 0, nil, ErrValidation
 	}
-}
-
-// persistDurableIdempotencyFailure records no command output. It is used only
-// after the command transaction has rolled back, so a failed state cannot make
-// partial domain writes durable.
-func (l *Ledger) persistDurableIdempotencyFailure(ctx context.Context, reservation IdempotencyReservation) error {
-	return ExecuteUnitOfWork(ctx, l.unitOfWork, func(ctx context.Context, repositories Repositories) error {
-		result, err := repositories.Idempotency.Reserve(ctx, reservation)
-		if err != nil {
-			return err
-		}
-		switch result.Outcome {
-		case IdempotencyReservationAcquired, IdempotencyReservationRecovered:
-			return repositories.Idempotency.Fail(ctx, reservation.Key, reservation.OwnerTokenHash, l.now().UTC())
-		case IdempotencyReservationReplay, IdempotencyReservationPending, IdempotencyReservationFailure:
-			return nil
-		default:
-			return ErrValidation
-		}
-	})
+	return execution.status, execution.response, nil
 }
 
 func (l *Ledger) cloneForIdempotencyCommand(ctx context.Context) (*Ledger, error) {

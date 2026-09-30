@@ -45,7 +45,12 @@ Migrated HTTP operations enter through
 context-specific handler interfaces. The deprecated Ledger facade forwards
 these commands and maps their models to compatibility DTOs while idempotency,
 specialized report/query paths, and most service composition still use the
-legacy application boundary. API-key and SSO-session verification now has a
+legacy application boundary. A repository-scoped idempotency executor now
+owns the atomic reservation, command, and redacted replay protocol without
+loading Ledger state; the current HTTP compatibility adapter uses that same
+protocol but still clones and reloads Ledger state for its command view.
+Migrating the HTTP command bindings to focused services remains EVY-905 work.
+API-key and SSO-session verification now has a
 standalone identity application service with narrow credential-read and
 activity-write ports. The PostgreSQL profile binds those ports to current
 credential, session, user, role-binding, and provider rows; API-key and collector
