@@ -645,6 +645,61 @@ func (r releaseCatalog) GetProduct(ctx context.Context, tenantID, id string) (do
 	return product, nil
 }
 
+func (r releaseCatalog) GetProject(ctx context.Context, tenantID, id string) (domain.Project, error) {
+	tenantID, id = strings.TrimSpace(tenantID), strings.TrimSpace(id)
+	if tenantID == "" || id == "" {
+		return domain.Project{}, app.ErrValidation
+	}
+	var project domain.Project
+	err := r.tx.QueryRow(ctx, `
+		SELECT j.id, j.tenant_id, j.product_id, j.name, j.created_at
+		FROM projects AS j
+		JOIN products AS p ON p.id = j.product_id AND p.tenant_id = j.tenant_id
+		WHERE j.tenant_id = $1 AND j.id = $2
+		FOR SHARE OF j, p
+	`, tenantID, id).Scan(&project.ID, &project.TenantID, &project.ProductID, &project.Name, &project.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Project{}, app.ErrNotFound
+	}
+	if err != nil {
+		return domain.Project{}, writeError("load scoped project", err)
+	}
+	return project, nil
+}
+
+func (r releaseCatalog) GetRelease(ctx context.Context, tenantID, id string) (domain.Release, error) {
+	tenantID, id = strings.TrimSpace(tenantID), strings.TrimSpace(id)
+	if tenantID == "" || id == "" {
+		return domain.Release{}, app.ErrValidation
+	}
+	var release domain.Release
+	var frozenAt, approvedAt sql.NullTime
+	err := r.tx.QueryRow(ctx, `
+		SELECT r.id, r.tenant_id, r.product_id, r.version, r.state,
+		       r.frozen_at, r.approved_at, r.revision, r.created_at
+		FROM releases AS r
+		JOIN products AS p ON p.id = r.product_id AND p.tenant_id = r.tenant_id
+		WHERE r.tenant_id = $1 AND r.id = $2
+		FOR SHARE OF r, p
+	`, tenantID, id).Scan(
+		&release.ID, &release.TenantID, &release.ProductID, &release.Version, &release.State,
+		&frozenAt, &approvedAt, &release.Revision, &release.CreatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Release{}, app.ErrNotFound
+	}
+	if err != nil {
+		return domain.Release{}, writeError("load scoped release", err)
+	}
+	if frozenAt.Valid {
+		release.FrozenAt = &frozenAt.Time
+	}
+	if approvedAt.Valid {
+		release.ApprovedAt = &approvedAt.Time
+	}
+	return release, nil
+}
+
 func (r releaseCatalog) ReleaseByVersion(ctx context.Context, tenantID, productID, version string) (domain.Release, bool, error) {
 	tenantID, productID, version = strings.TrimSpace(tenantID), strings.TrimSpace(productID), strings.TrimSpace(version)
 	if tenantID == "" || productID == "" || version == "" {

@@ -28,7 +28,7 @@ func (failingIdempotencyWriteTx) Exec(context.Context, string, ...any) (pgconn.C
 	return pgconn.CommandTag{}, errIdempotencyWrite
 }
 
-func TestProductBySlugReadsOnlyCurrentTenantWithinTransaction(t *testing.T) {
+func TestCatalogPointReadsOnlyCurrentTenantWithinTransaction(t *testing.T) {
 	ctx, pool := openRepositoryTestPool(t)
 	defer pool.Close()
 	tx, err := pool.BeginTx(ctx, pgx.TxOptions{})
@@ -64,6 +64,16 @@ func TestProductBySlugReadsOnlyCurrentTenantWithinTransaction(t *testing.T) {
 	if _, err := repositories.ReleaseCatalog.GetProduct(ctx, "ten_second", product.ID); !errors.Is(err, app.ErrNotFound) {
 		t.Fatalf("foreign-tenant point err=%v, want not found", err)
 	}
+	project := domain.Project{ID: "proj_first", TenantID: product.TenantID, ProductID: product.ID, Name: "First Project", CreatedAt: now}
+	if err := repositories.ReleaseCatalog.InsertProject(ctx, project); err != nil {
+		t.Fatal(err)
+	}
+	if found, err := repositories.ReleaseCatalog.GetProject(ctx, product.TenantID, project.ID); err != nil || found.ID != project.ID || found.ProductID != product.ID {
+		t.Fatalf("same-tenant project=%#v err=%v", found, err)
+	}
+	if _, err := repositories.ReleaseCatalog.GetProject(ctx, "ten_second", project.ID); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("foreign-tenant project err=%v, want not found", err)
+	}
 	release := domain.Release{ID: "rel_first", TenantID: product.TenantID, ProductID: product.ID, Version: "1.0.0", Revision: 1, State: "draft", CreatedAt: now}
 	if err := repositories.ReleaseCatalog.InsertRelease(ctx, release); err != nil {
 		t.Fatal(err)
@@ -73,6 +83,26 @@ func TestProductBySlugReadsOnlyCurrentTenantWithinTransaction(t *testing.T) {
 	}
 	if found, ok, err := repositories.ReleaseCatalog.ReleaseByVersion(ctx, "ten_second", product.ID, release.Version); err != nil || ok || found.ID != "" {
 		t.Fatalf("foreign-tenant release=%#v found=%t err=%v", found, ok, err)
+	}
+	if found, err := repositories.ReleaseCatalog.GetRelease(ctx, product.TenantID, release.ID); err != nil || found.ID != release.ID || found.ProductID != product.ID {
+		t.Fatalf("same-tenant release point=%#v err=%v", found, err)
+	}
+	if _, err := repositories.ReleaseCatalog.GetRelease(ctx, "ten_second", release.ID); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("foreign-tenant release point err=%v, want not found", err)
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO projects (id, tenant_id, product_id, name, created_at) VALUES ($1, $2, $3, $4, $5)`,
+		"proj_mismatched", "ten_second", product.ID, "Mismatched", now); err != nil {
+		t.Fatalf("seed mismatched project: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO releases (id, tenant_id, product_id, version, state, revision, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		"rel_mismatched", "ten_second", product.ID, "2.0.0", "draft", 1, now); err != nil {
+		t.Fatalf("seed mismatched release: %v", err)
+	}
+	if _, err := repositories.ReleaseCatalog.GetProject(ctx, "ten_second", "proj_mismatched"); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("mismatched project parent err=%v, want not found", err)
+	}
+	if _, err := repositories.ReleaseCatalog.GetRelease(ctx, "ten_second", "rel_mismatched"); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("mismatched release parent err=%v, want not found", err)
 	}
 }
 

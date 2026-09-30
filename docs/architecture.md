@@ -59,6 +59,10 @@ without constructing a Ledger. Production HTTP still uses the compatibility
 command binding because later Ledger-backed commands must be migrated to
 current database reads before they can safely consume products, projects, and
 releases created outside its cache.
+The transactional catalog repositories now expose tenant-filtered project and
+release point reads that verify the parent product in the same read and lock
+the selected rows. Build creation still uses the compatibility service; these
+bounded reads are prerequisites for migrating its parent rechecks.
 API-key and SSO-session verification now has a
 standalone identity application service with narrow credential-read and
 activity-write ports. The PostgreSQL profile binds those ports to current

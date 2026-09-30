@@ -3,7 +3,9 @@ package app
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
+	"time"
 
 	"github.com/aatuh/evydence/internal/domain"
 )
@@ -50,7 +52,7 @@ func TestMemoryUnitOfWorkRollbackDiscardsDomainAuditAndOutboxMutations(t *testin
 	}
 }
 
-func TestMemoryProductBySlugSeesOnlyCurrentTenantInsideTransaction(t *testing.T) {
+func TestMemoryCatalogPointReadsStayTenantScopedInsideTransaction(t *testing.T) {
 	ctx := context.Background()
 	factory := NewMemoryUnitOfWorkFactory()
 	uow, err := factory.BeginUnitOfWork(ctx)
@@ -85,15 +87,46 @@ func TestMemoryProductBySlugSeesOnlyCurrentTenantInsideTransaction(t *testing.T)
 	if _, err := repos.ReleaseCatalog.GetProduct(ctx, "ten_second", product.ID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("foreign-tenant point err=%v, want not found", err)
 	}
-	release := domain.Release{ID: "rel_first", TenantID: product.TenantID, ProductID: product.ID, Version: "1.0.0", Revision: 1, State: "draft", CreatedAt: fixedNow()}
+	project := domain.Project{ID: "proj_first", TenantID: product.TenantID, ProductID: product.ID, Name: "First Project", CreatedAt: fixedNow()}
+	if err := repos.ReleaseCatalog.InsertProject(ctx, project); err != nil {
+		t.Fatal(err)
+	}
+	if found, err := repos.ReleaseCatalog.GetProject(ctx, product.TenantID, project.ID); err != nil || found != project {
+		t.Fatalf("same-tenant project=%#v err=%v", found, err)
+	}
+	if _, err := repos.ReleaseCatalog.GetProject(ctx, "ten_second", project.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("foreign-tenant project err=%v, want not found", err)
+	}
+	frozenAt := fixedNow().Add(time.Hour)
+	release := domain.Release{ID: "rel_first", TenantID: product.TenantID, ProductID: product.ID, Version: "1.0.0", Revision: 1, State: "frozen", FrozenAt: &frozenAt, CreatedAt: fixedNow()}
 	if err := repos.ReleaseCatalog.InsertRelease(ctx, release); err != nil {
 		t.Fatal(err)
 	}
-	if found, ok, err := repos.ReleaseCatalog.ReleaseByVersion(ctx, product.TenantID, product.ID, release.Version); err != nil || !ok || found != release {
+	if found, ok, err := repos.ReleaseCatalog.ReleaseByVersion(ctx, product.TenantID, product.ID, release.Version); err != nil || !ok || !reflect.DeepEqual(found, release) {
 		t.Fatalf("same-tenant release=%#v found=%t err=%v", found, ok, err)
 	}
 	if found, ok, err := repos.ReleaseCatalog.ReleaseByVersion(ctx, "ten_second", product.ID, release.Version); err != nil || ok || found.ID != "" {
 		t.Fatalf("foreign-tenant release=%#v found=%t err=%v", found, ok, err)
+	}
+	if found, err := repos.ReleaseCatalog.GetRelease(ctx, product.TenantID, release.ID); err != nil || !reflect.DeepEqual(found, release) {
+		t.Fatalf("same-tenant release point=%#v err=%v", found, err)
+	}
+	if _, err := repos.ReleaseCatalog.GetRelease(ctx, "ten_second", release.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("foreign-tenant release point err=%v, want not found", err)
+	}
+	point, err := repos.ReleaseCatalog.GetRelease(ctx, product.TenantID, release.ID)
+	if err != nil || point.FrozenAt == nil {
+		t.Fatalf("release point for mutation check=%#v err=%v", point, err)
+	}
+	*point.FrozenAt = point.FrozenAt.Add(time.Hour)
+	versioned, ok, err := repos.ReleaseCatalog.ReleaseByVersion(ctx, product.TenantID, product.ID, release.Version)
+	if err != nil || !ok || versioned.FrozenAt == nil || !versioned.FrozenAt.Equal(frozenAt) {
+		t.Fatalf("point read mutated stored release=%#v found=%t err=%v", versioned, ok, err)
+	}
+	*versioned.FrozenAt = versioned.FrozenAt.Add(time.Hour)
+	point, err = repos.ReleaseCatalog.GetRelease(ctx, product.TenantID, release.ID)
+	if err != nil || point.FrozenAt == nil || !point.FrozenAt.Equal(frozenAt) {
+		t.Fatalf("version lookup mutated stored release=%#v err=%v", point, err)
 	}
 }
 

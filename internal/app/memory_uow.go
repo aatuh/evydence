@@ -747,6 +747,52 @@ func (r memoryReleaseCatalogRepository) GetProduct(ctx context.Context, tenantID
 	return product, err
 }
 
+func (r memoryReleaseCatalogRepository) GetProject(ctx context.Context, tenantID, id string) (domain.Project, error) {
+	tenantID, id = strings.TrimSpace(tenantID), strings.TrimSpace(id)
+	if tenantID == "" || id == "" {
+		return domain.Project{}, ErrValidation
+	}
+	var project domain.Project
+	err := r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		value, ok := state.Projects[id]
+		if !ok || value.TenantID != tenantID {
+			return ErrNotFound
+		}
+		parent, ok := state.Products[value.ProductID]
+		if !ok || parent.TenantID != tenantID {
+			return ErrNotFound
+		}
+		project = value
+		return nil
+	})
+	return project, err
+}
+
+func (r memoryReleaseCatalogRepository) GetRelease(ctx context.Context, tenantID, id string) (domain.Release, error) {
+	tenantID, id = strings.TrimSpace(tenantID), strings.TrimSpace(id)
+	if tenantID == "" || id == "" {
+		return domain.Release{}, ErrValidation
+	}
+	var release domain.Release
+	err := r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		value, ok := state.Releases[id]
+		if !ok || value.TenantID != tenantID {
+			return ErrNotFound
+		}
+		parent, ok := state.Products[value.ProductID]
+		if !ok || parent.TenantID != tenantID {
+			return ErrNotFound
+		}
+		cloned, err := cloneMemoryJSON(value)
+		if err != nil {
+			return err
+		}
+		release = cloned
+		return nil
+	})
+	return release, err
+}
+
 func (r memoryReleaseCatalogRepository) ReleaseByVersion(ctx context.Context, tenantID, productID, version string) (domain.Release, bool, error) {
 	tenantID, productID, version = strings.TrimSpace(tenantID), strings.TrimSpace(productID), strings.TrimSpace(version)
 	if tenantID == "" || productID == "" || version == "" {
@@ -757,7 +803,11 @@ func (r memoryReleaseCatalogRepository) ReleaseByVersion(ctx context.Context, te
 	err := r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
 		for _, value := range state.Releases {
 			if value.TenantID == tenantID && value.ProductID == productID && value.Version == version {
-				release, found = value, true
+				cloned, err := cloneMemoryJSON(value)
+				if err != nil {
+					return err
+				}
+				release, found = cloned, true
 				return nil
 			}
 		}
