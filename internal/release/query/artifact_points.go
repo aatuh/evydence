@@ -91,19 +91,16 @@ func validArtifactPoint(artifact releasedomain.Artifact) bool {
 }
 
 func artifactVisibility(actor identitydomain.Actor) (bool, []string, []string, []string) {
+	return artifactVisibilityForScope(actor, "evidence:read")
+}
+
+func artifactVisibilityForScope(actor identitydomain.Actor, scope string) (bool, []string, []string, []string) {
 	if actor.UserID == "" || actor.KeyID != "" || actor.CollectorID != "" {
 		return true, nil, nil, nil
 	}
 	products, projects, releases := map[string]struct{}{}, map[string]struct{}{}, map[string]struct{}{}
 	for _, grant := range actor.ResourceGrants {
-		allowedScope := false
-		for _, scope := range grant.Scopes {
-			if scope == "evidence:read" || scope == "admin" || scope == "*" {
-				allowedScope = true
-				break
-			}
-		}
-		if !allowedScope {
+		if !catalogGrantHasScope(grant, scope) {
 			continue
 		}
 		switch grant.ResourceType {

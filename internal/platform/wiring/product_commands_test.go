@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -62,7 +63,7 @@ func TestProductCommandsUseFocusedRepositoriesInsideIdempotencyTransaction(t *te
 	}
 }
 
-func TestPostgresCatalogCommandsCommitProductProjectReleaseAuditAndReplayWithoutLedger(t *testing.T) {
+func TestPostgresCatalogCommandsCommitProductProjectReleaseBuildAuditAndReplayWithoutLedger(t *testing.T) {
 	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("EVYDENCE_TEST_DATABASE_URL is not set")
@@ -109,7 +110,7 @@ func TestPostgresCatalogCommandsCommitProductProjectReleaseAuditAndReplayWithout
 	if err != nil {
 		t.Fatal(err)
 	}
-	actor := domain.Actor{TenantID: "ten_product_live", KeyID: "key_product_live", Scopes: []string{"product:write", "project:write", "release:write"}}
+	actor := domain.Actor{TenantID: "ten_product_live", KeyID: "key_product_live", Scopes: []string{"product:write", "project:write", "release:write", "build:write"}}
 	idempotency := app.IdempotencyUnitOfWork{Transactions: runtime.Postgres}
 	runs := 0
 	create := func(ctx context.Context, _ app.Repositories) (int, any, error) {
@@ -209,5 +210,76 @@ func TestPostgresCatalogCommandsCommitProductProjectReleaseAuditAndReplayWithout
 	}
 	if auditCount != 3 || replayCount != 3 {
 		t.Fatalf("catalog commits audit=%d replay=%d, want three each", auditCount, replayCount)
+	}
+	digest := "sha256:" + strings.Repeat("a", 64)
+	artifact := domain.Artifact{ID: "art_catalog_live", TenantID: actor.TenantID, Name: "Output", MediaType: "application/octet-stream", Digest: digest, Size: 1, CreatedAt: now}
+	if err := app.ExecuteUnitOfWork(ctx, runtime.Postgres, func(ctx context.Context, repositories app.Repositories) error {
+		return repositories.ReleaseCatalog.InsertArtifact(ctx, artifact)
+	}); err != nil {
+		t.Fatalf("seed output artifact: %v", err)
+	}
+	buildAuthorizer, err := releasequery.NewBuildAuthorizer(runtime.Postgres)
+	if err != nil {
+		t.Fatal(err)
+	}
+	human := identitydomain.Actor{
+		TenantID: actor.TenantID, UserID: "usr_product", Scopes: []string{"build:write"},
+		ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "product", ResourceID: product.ID, Scopes: []string{"build:write"}}},
+	}
+	artifactWrite := application.AuthorizationRequest{Scope: "build:write", Resources: application.ResourceReferences{ArtifactID: artifact.ID}}
+	if err := buildAuthorizer.Authorize(ctx, human, artifactWrite); !errors.Is(err, application.ErrForbidden) {
+		t.Fatalf("unlinked output artifact authorized: %v", err)
+	}
+	builds, err := BuildBuildCommands(runtime.Postgres, runtime.Postgres)
+	if err != nil {
+		t.Fatal(err)
+	}
+	buildRuns := 0
+	createBuild := func(ctx context.Context, _ app.Repositories) (int, any, error) {
+		buildRuns++
+		build, err := builds.CreateBuildRun(ctx, actor, releaseapp.CreateBuildRunInput{
+			ProjectID: project.ID, ReleaseID: release.ID, Provider: "generic_ci", CommitSHA: strings.Repeat("b", 40),
+			Status: "passed", StartedAt: now, Outputs: []releasedomain.BuildOutput{{ArtifactID: artifact.ID, Digest: digest}},
+		})
+		return 201, build, err
+	}
+	status, response, err = idempotency.WithBody(ctx, actor, "POST", "/v1/builds", "live-build", []byte(`{"status":"passed"}`), createBuild)
+	if err != nil || status != 201 {
+		t.Fatalf("live build status=%d response=%#v err=%v", status, response, err)
+	}
+	build := response.(releasedomain.BuildRun)
+	point, err := runtime.Postgres.GetBuildPoint(ctx, actor.TenantID, build.ID)
+	if err != nil || point.Build.ProjectID != project.ID || point.Build.ReleaseID != release.ID ||
+		len(point.Build.Outputs) != 1 || point.Build.Outputs[0].Digest != digest || point.Build.SourceIdentity["oidc_verified"] != false {
+		t.Fatalf("durable build point=%#v err=%v", point, err)
+	}
+	if _, err := runtime.Postgres.GetBuildPoint(ctx, "ten_other", build.ID); !errors.Is(err, releasequery.ErrNotFound) {
+		t.Fatalf("foreign tenant build read err=%v, want not found", err)
+	}
+	if err := buildAuthorizer.Authorize(ctx, human, artifactWrite); err != nil {
+		t.Fatalf("linked output artifact denied to current product grant: %v", err)
+	}
+	wrongGrant := human
+	wrongGrant.ResourceGrants = []identitydomain.ResourceGrant{{ResourceType: "product", ResourceID: "prod_other", Scopes: []string{"build:write"}}}
+	if err := buildAuthorizer.Authorize(ctx, wrongGrant, artifactWrite); !errors.Is(err, application.ErrForbidden) {
+		t.Fatalf("wrong-product grant authorized output: %v", err)
+	}
+	if _, err := builds.CreateBuildRun(ctx, actor, releaseapp.CreateBuildRunInput{
+		ProjectID: project.ID, ReleaseID: release.ID, Provider: "generic_ci", CommitSHA: strings.Repeat("b", 40),
+		Status: "passed", StartedAt: now, Outputs: []releasedomain.BuildOutput{{ArtifactID: artifact.ID, Digest: "sha256:" + strings.Repeat("c", 64)}},
+	}); !errors.Is(err, releaseapp.ErrValidation) {
+		t.Fatalf("mismatched output digest err=%v, want validation", err)
+	}
+	if _, _, err := idempotency.WithBody(ctx, actor, "POST", "/v1/builds", "live-build", []byte(`{"status":"passed"}`), createBuild); err != nil || buildRuns != 1 {
+		t.Fatalf("durable build replay runs=%d err=%v", buildRuns, err)
+	}
+	if err := admin.QueryRow(ctx, "SELECT count(*) FROM "+quotedSchema+".audit_chain_entries WHERE tenant_id = $1", actor.TenantID).Scan(&auditCount); err != nil {
+		t.Fatalf("count catalog audits: %v", err)
+	}
+	if err := admin.QueryRow(ctx, "SELECT count(*) FROM "+quotedSchema+".idempotency_records WHERE tenant_id = $1 AND state = 'completed'", actor.TenantID).Scan(&replayCount); err != nil {
+		t.Fatalf("count catalog replays: %v", err)
+	}
+	if auditCount != 4 || replayCount != 4 {
+		t.Fatalf("catalog commits audit=%d replay=%d, want four each", auditCount, replayCount)
 	}
 }

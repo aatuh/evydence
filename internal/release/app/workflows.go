@@ -47,112 +47,15 @@ type CreateBuildRunInput struct {
 }
 
 func (s *Service) CreateBuildRun(ctx context.Context, actor identitydomain.Actor, input CreateBuildRunInput) (releasedomain.BuildRun, error) {
-	if err := contextError(ctx); err != nil {
-		return releasedomain.BuildRun{}, err
-	}
-	if err := s.authorize(ctx, actor, ScopeBuildWrite, application.ResourceReferences{}, true); err != nil {
-		return releasedomain.BuildRun{}, err
-	}
-	build, err := normalizeBuildInput(input)
-	if err != nil {
-		return releasedomain.BuildRun{}, err
-	}
-	project, err := s.reader.GetProject(ctx, actor.TenantID, build.ProjectID)
-	if err != nil {
-		return releasedomain.BuildRun{}, err
-	}
-	if !projectBelongsToTenant(project, actor.TenantID, build.ProjectID) {
-		return releasedomain.BuildRun{}, ErrNotFound
-	}
-	release, err := s.reader.GetRelease(ctx, actor.TenantID, build.ReleaseID)
-	if err != nil {
-		return releasedomain.BuildRun{}, err
-	}
-	if !releaseBelongsToTenant(release, actor.TenantID, build.ReleaseID) {
-		return releasedomain.BuildRun{}, ErrNotFound
-	}
-	if project.ProductID != release.ProductID {
-		return releasedomain.BuildRun{}, ErrValidation
-	}
-	resources := application.ResourceReferences{ProductID: project.ProductID, ProjectID: project.ID, ReleaseID: release.ID}
-	if err := s.authorize(ctx, actor, ScopeBuildWrite, resources, false); err != nil {
-		return releasedomain.BuildRun{}, err
-	}
-	artifacts := make(map[string]releasedomain.Artifact)
-	for _, output := range build.Outputs {
-		if output.ArtifactID == "" {
-			continue
-		}
-		artifact, err := s.reader.GetArtifact(ctx, actor.TenantID, output.ArtifactID)
-		if err != nil {
-			return releasedomain.BuildRun{}, err
-		}
-		if !artifactBelongsToTenant(artifact, actor.TenantID, output.ArtifactID) {
-			return releasedomain.BuildRun{}, ErrNotFound
-		}
-		if artifact.Digest != output.Digest {
-			return releasedomain.BuildRun{}, ErrValidation
-		}
-		if _, authorized := artifacts[artifact.ID]; !authorized {
-			if err := s.authorize(ctx, actor, ScopeBuildWrite, application.ResourceReferences{ArtifactID: artifact.ID}, false); err != nil {
-				return releasedomain.BuildRun{}, err
-			}
-		}
-		artifacts[artifact.ID] = artifact
-	}
-	commandAt := s.clock.Now().UTC()
-	build.ID = s.ids.NewID("build")
-	build.TenantID = actor.TenantID
-	build.CollectorID = actor.CollectorID
-	build.SourceIdentity = buildSourceIdentity(build, actor)
-	build.SchemaVersion = releasedomain.BuildRunSchemaVersion
-	build.CreatedAt = commandAt
-
-	err = s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-		currentProject, err := tx.Catalog().GetProject(ctx, actor.TenantID, project.ID)
-		if err != nil {
-			return err
-		}
-		if !projectBelongsToTenant(currentProject, actor.TenantID, project.ID) {
-			return ErrNotFound
-		}
-		if !sameProjectCoordinates(currentProject, project) {
-			return ErrConflict
-		}
-		currentRelease, err := tx.Catalog().GetRelease(ctx, actor.TenantID, release.ID)
-		if err != nil {
-			return err
-		}
-		if !releaseBelongsToTenant(currentRelease, actor.TenantID, release.ID) {
-			return ErrNotFound
-		}
-		if !sameReleaseCoordinates(currentRelease, release) || currentProject.ProductID != currentRelease.ProductID {
-			return ErrConflict
-		}
-		for id, artifact := range artifacts {
-			current, err := tx.Catalog().GetArtifact(ctx, actor.TenantID, id)
-			if err != nil {
-				return err
-			}
-			if !artifactBelongsToTenant(current, actor.TenantID, id) {
-				return ErrNotFound
-			}
-			if !sameArtifactCoordinates(current, artifact) {
-				return ErrConflict
-			}
-		}
-		if err := tx.Builds().InsertBuildRun(ctx, build); err != nil {
-			return err
-		}
-		event := s.auditEvent(actor, commandAt, "build.created", "build_run", build.ID, "")
-		event.ActorType, event.ActorID = auditActor(actor)
-		_, err = tx.Audit().AppendAudit(ctx, event)
-		return err
+	commands, err := NewBuildCommands(BuildCommandConfig{
+		Reader: s.reader, Authorizer: s.authorizer,
+		Transactions: releaseBuildTransactions{runner: s.transactions},
+		Clock:        s.clock, IDs: s.ids,
 	})
 	if err != nil {
 		return releasedomain.BuildRun{}, err
 	}
-	return build, nil
+	return commands.CreateBuildRun(ctx, actor, input)
 }
 
 func (s *Service) GetBuildRun(ctx context.Context, actor identitydomain.Actor, id string) (releasedomain.BuildRun, error) {

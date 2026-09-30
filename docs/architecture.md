@@ -61,8 +61,12 @@ current database reads before they can safely consume products, projects, and
 releases created outside its cache.
 The transactional catalog repositories now expose tenant-filtered project and
 release point reads that verify the parent product in the same read and lock
-the selected rows. Build creation still uses the compatibility service; these
-bounded reads are prerequisites for migrating its parent rechecks.
+the selected rows. A standalone build-create command uses those points and
+rechecks output artifact digests in the write transaction. Human output grants
+are checked against current tenant-valid evidence or build associations, not
+the Ledger's cached artifact links. CI-provided source metadata remains
+unverified metadata. Production HTTP still uses the compatibility command
+binding until downstream consumers can read these durable builds.
 API-key and SSO-session verification now has a
 standalone identity application service with narrow credential-read and
 activity-write ports. The PostgreSQL profile binds those ports to current

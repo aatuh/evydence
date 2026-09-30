@@ -14,6 +14,7 @@ func TestCatalogAuthorizerPreservesActorScopeAndGrantBoundaries(t *testing.T) {
 	project := application.ResourceReferences{ProductID: "prod_1", ProjectID: "proj_1"}
 	release := application.ResourceReferences{ProductID: "prod_1", ReleaseID: "rel_1"}
 	build := application.ResourceReferences{ProductID: "prod_1", ProjectID: "proj_1", ReleaseID: "rel_1", BuildID: "bld_1"}
+	buildCreate := application.ResourceReferences{ProductID: "prod_1", ProjectID: "proj_1", ReleaseID: "rel_1"}
 	for _, test := range []struct {
 		name    string
 		actor   identitydomain.Actor
@@ -59,6 +60,11 @@ func TestCatalogAuthorizerPreservesActorScopeAndGrantBoundaries(t *testing.T) {
 		{name: "release grant", actor: catalogActor("release:read", "release", "rel_1", "release:read"), request: application.AuthorizationRequest{Scope: "release:read", Resources: release}},
 		{name: "release grant not project", actor: catalogActor("project:read", "release", "rel_1", "project:read"), request: application.AuthorizationRequest{Scope: "project:read", Resources: project}, want: application.ErrForbidden},
 		{name: "build key scope", actor: identitydomain.Actor{TenantID: "ten_1", KeyID: "key_1", Scopes: []string{"build:read"}}, request: application.AuthorizationRequest{Scope: "build:read", Resources: build}},
+		{name: "build create key scope", actor: identitydomain.Actor{TenantID: "ten_1", KeyID: "key_1", Scopes: []string{"build:write"}}, request: application.AuthorizationRequest{Scope: "build:write", ScopeOnly: true}},
+		{name: "build create product grant", actor: catalogActor("build:write", "product", "prod_1", "build:write"), request: application.AuthorizationRequest{Scope: "build:write", Resources: buildCreate}},
+		{name: "build create wrong product grant", actor: catalogActor("build:write", "product", "prod_other", "build:write"), request: application.AuthorizationRequest{Scope: "build:write", Resources: buildCreate}, want: application.ErrForbidden},
+		{name: "build create project grant", actor: catalogActor("build:write", "project", "proj_1", "build:write"), request: application.AuthorizationRequest{Scope: "build:write", Resources: buildCreate}},
+		{name: "build create release grant", actor: catalogActor("build:write", "release", "rel_1", "build:write"), request: application.AuthorizationRequest{Scope: "build:write", Resources: buildCreate}},
 		{name: "build product grant", actor: catalogActor("build:read", "product", "prod_1", "build:read"), request: application.AuthorizationRequest{Scope: "build:read", Resources: build}},
 		{name: "build project grant", actor: catalogActor("build:read", "project", "proj_1", "build:read"), request: application.AuthorizationRequest{Scope: "build:read", Resources: build}},
 		{name: "build release grant", actor: catalogActor("build:read", "release", "rel_1", "build:read"), request: application.AuthorizationRequest{Scope: "build:read", Resources: build}},

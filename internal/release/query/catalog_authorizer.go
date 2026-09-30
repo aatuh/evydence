@@ -48,7 +48,7 @@ func (catalogAuthorizer) Authorize(ctx context.Context, actor identitydomain.Act
 }
 
 func catalogScope(scope string) bool {
-	return scope == ScopeProductRead || scope == "product:write" || scope == scopeProjectRead || scope == "project:write" || scope == scopeReleaseRead || scope == "release:write" || scope == scopeBuildRead
+	return scope == ScopeProductRead || scope == "product:write" || scope == scopeProjectRead || scope == "project:write" || scope == scopeReleaseRead || scope == "release:write" || scope == scopeBuildRead || scope == "build:write"
 }
 
 func validCatalogReferences(scope string, refs application.ResourceReferences) bool {
@@ -63,6 +63,8 @@ func validCatalogReferences(scope string, refs application.ResourceReferences) b
 		return refs.ProductID != "" && refs.ReleaseID != "" && refs == (application.ResourceReferences{ProductID: refs.ProductID, ReleaseID: refs.ReleaseID})
 	case scopeBuildRead:
 		return refs.ProductID != "" && refs.ProjectID != "" && refs.ReleaseID != "" && refs.BuildID != "" && refs == (application.ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID, BuildID: refs.BuildID})
+	case "build:write":
+		return refs.ProductID != "" && refs.ProjectID != "" && refs.ReleaseID != "" && refs == (application.ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID})
 	default:
 		return false
 	}
