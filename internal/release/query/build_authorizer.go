@@ -2,7 +2,6 @@ package query
 
 import (
 	"context"
-	"errors"
 
 	application "github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -33,25 +32,5 @@ func (a buildAuthorizer) Authorize(ctx context.Context, actor identitydomain.Act
 	if err := a.catalog.Authorize(ctx, actor, application.AuthorizationRequest{Scope: request.Scope, ScopeOnly: true}); err != nil {
 		return err
 	}
-	if actor.UserID == "" || actor.KeyID != "" || actor.CollectorID != "" {
-		return nil
-	}
-	tenantWide, products, projects, releases := artifactVisibilityForScope(actor, request.Scope)
-	if !tenantWide && len(products) == 0 && len(projects) == 0 && len(releases) == 0 {
-		return application.ErrForbidden
-	}
-	point, err := a.artifacts.GetArtifactPoint(ctx, ArtifactReadRequest{
-		TenantID: actor.TenantID, ID: refs.ArtifactID, TenantWide: tenantWide,
-		AllowedProductIDs: products, AllowedProjectIDs: projects, AllowedReleaseIDs: releases,
-	})
-	if errors.Is(err, ErrNotFound) {
-		return application.ErrForbidden
-	}
-	if err != nil {
-		return err
-	}
-	if point.Artifact.ID != refs.ArtifactID || point.Artifact.TenantID != actor.TenantID || !point.Visible {
-		return application.ErrForbidden
-	}
-	return nil
+	return authorizeArtifactGrant(ctx, actor, request.Scope, refs.ArtifactID, a.artifacts)
 }

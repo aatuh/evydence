@@ -829,6 +829,25 @@ func (r memoryReleaseCatalogRepository) GetArtifact(ctx context.Context, tenantI
 	return artifact, err
 }
 
+func (r memoryReleaseCatalogRepository) ArtifactByDigest(ctx context.Context, tenantID, digest string) (domain.Artifact, bool, error) {
+	tenantID, digest = strings.TrimSpace(tenantID), strings.TrimSpace(digest)
+	if tenantID == "" || digest == "" {
+		return domain.Artifact{}, false, ErrValidation
+	}
+	var artifact domain.Artifact
+	var found bool
+	err := r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		for _, value := range state.Artifacts {
+			if value.TenantID == tenantID && value.Digest == digest {
+				artifact, found = value, true
+				return nil
+			}
+		}
+		return nil
+	})
+	return artifact, found, err
+}
+
 func (r memoryReleaseCatalogRepository) InsertProduct(ctx context.Context, product domain.Product) error {
 	cloned, err := cloneMemoryJSON(product)
 	if err != nil {

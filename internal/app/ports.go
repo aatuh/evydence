@@ -313,6 +313,7 @@ type SSOExchangeSnapshot struct {
 
 type ReleaseCatalogRepository interface {
 	GetArtifact(context.Context, string, string) (domain.Artifact, error)
+	ArtifactByDigest(context.Context, string, string) (domain.Artifact, bool, error)
 	ProductBySlug(context.Context, string, string) (domain.Product, bool, error)
 	GetProduct(context.Context, string, string) (domain.Product, error)
 	GetProject(context.Context, string, string) (domain.Project, error)

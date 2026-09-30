@@ -90,6 +90,16 @@ func TestCatalogPointReadsOnlyCurrentTenantWithinTransaction(t *testing.T) {
 	if _, err := repositories.ReleaseCatalog.GetRelease(ctx, "ten_second", release.ID); !errors.Is(err, app.ErrNotFound) {
 		t.Fatalf("foreign-tenant release point err=%v, want not found", err)
 	}
+	artifact := domain.Artifact{ID: "art_first", TenantID: product.TenantID, Name: "Output", MediaType: "application/octet-stream", Digest: "sha256:" + strings.Repeat("a", 64), Size: 1, CreatedAt: now}
+	if err := repositories.ReleaseCatalog.InsertArtifact(ctx, artifact); err != nil {
+		t.Fatal(err)
+	}
+	if found, ok, err := repositories.ReleaseCatalog.ArtifactByDigest(ctx, product.TenantID, artifact.Digest); err != nil || !ok || found.ID != artifact.ID || found.Digest != artifact.Digest {
+		t.Fatalf("same-tenant digest artifact=%#v found=%t err=%v", found, ok, err)
+	}
+	if found, ok, err := repositories.ReleaseCatalog.ArtifactByDigest(ctx, "ten_second", artifact.Digest); err != nil || ok || found.ID != "" {
+		t.Fatalf("foreign-tenant digest artifact=%#v found=%t err=%v", found, ok, err)
+	}
 	if _, err := tx.Exec(ctx, `INSERT INTO projects (id, tenant_id, product_id, name, created_at) VALUES ($1, $2, $3, $4, $5)`,
 		"proj_mismatched", "ten_second", product.ID, "Mismatched", now); err != nil {
 		t.Fatalf("seed mismatched project: %v", err)
@@ -103,6 +113,54 @@ func TestCatalogPointReadsOnlyCurrentTenantWithinTransaction(t *testing.T) {
 	}
 	if _, err := repositories.ReleaseCatalog.GetRelease(ctx, "ten_second", "rel_mismatched"); !errors.Is(err, app.ErrNotFound) {
 		t.Fatalf("mismatched release parent err=%v, want not found", err)
+	}
+}
+
+func TestArtifactDigestConflictKeepsTransactionReadable(t *testing.T) {
+	ctx, pool := openRepositoryTestPool(t)
+	defer pool.Close()
+	now := time.Now().UTC()
+	if _, err := pool.Exec(ctx, `INSERT INTO tenants (id, name, created_at) VALUES ($1, $2, $3)`, "ten_artifact_race", "Artifact race", now); err != nil {
+		t.Fatal(err)
+	}
+	first, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := first.Rollback(context.Background()); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+			t.Errorf("rollback first artifact transaction: %v", err)
+		}
+	}()
+	second, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := second.Rollback(context.Background()); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+			t.Errorf("rollback second artifact transaction: %v", err)
+		}
+	}()
+	digest := "sha256:" + strings.Repeat("b", 64)
+	for _, tx := range []pgx.Tx{first, second} {
+		if artifact, found, err := postgresrepositories.New(tx).ReleaseCatalog.ArtifactByDigest(ctx, "ten_artifact_race", digest); err != nil || found || artifact.ID != "" {
+			t.Fatalf("expected digest miss before competing insert: artifact=%#v found=%t err=%v", artifact, found, err)
+		}
+	}
+	winner := domain.Artifact{ID: "art_winner", TenantID: "ten_artifact_race", Name: "Winner", MediaType: "application/octet-stream", Digest: digest, Size: 1, CreatedAt: now}
+	if err := postgresrepositories.New(first).ReleaseCatalog.InsertArtifact(ctx, winner); err != nil {
+		t.Fatal(err)
+	}
+	if err := first.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	loser := winner
+	loser.ID = "art_loser"
+	if err := postgresrepositories.New(second).ReleaseCatalog.InsertArtifact(ctx, loser); !errors.Is(err, app.ErrConflict) {
+		t.Fatalf("competing digest insert err=%v, want conflict", err)
+	}
+	if artifact, found, err := postgresrepositories.New(second).ReleaseCatalog.ArtifactByDigest(ctx, winner.TenantID, digest); err != nil || !found || artifact.ID != winner.ID {
+		t.Fatalf("winner cannot be reloaded after insert conflict: artifact=%#v found=%t err=%v", artifact, found, err)
 	}
 }
 

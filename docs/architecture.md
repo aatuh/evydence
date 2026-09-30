@@ -61,7 +61,10 @@ current database reads before they can safely consume products, projects, and
 releases created outside its cache.
 The transactional catalog repositories now expose tenant-filtered project and
 release point reads that verify the parent product in the same read and lock
-the selected rows. A standalone build-create command uses those points and
+the selected rows. Standalone artifact registration now looks up digests in
+current tenant-scoped rows, authorizes reuse of an existing artifact, and
+recovers from concurrent digest inserts without a duplicate audit entry. A
+standalone build-create command uses the project and release points and
 rechecks output artifact digests in the write transaction. Human output grants
 are checked against current tenant-valid evidence or build associations, not
 the Ledger's cached artifact links. CI-provided source metadata remains

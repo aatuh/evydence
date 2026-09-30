@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -113,6 +114,16 @@ func TestMemoryCatalogPointReadsStayTenantScopedInsideTransaction(t *testing.T) 
 	}
 	if _, err := repos.ReleaseCatalog.GetRelease(ctx, "ten_second", release.ID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("foreign-tenant release point err=%v, want not found", err)
+	}
+	artifact := domain.Artifact{ID: "art_first", TenantID: product.TenantID, Name: "Output", MediaType: "application/octet-stream", Digest: "sha256:" + strings.Repeat("a", 64), Size: 1, CreatedAt: fixedNow()}
+	if err := repos.ReleaseCatalog.InsertArtifact(ctx, artifact); err != nil {
+		t.Fatal(err)
+	}
+	if found, ok, err := repos.ReleaseCatalog.ArtifactByDigest(ctx, product.TenantID, artifact.Digest); err != nil || !ok || found != artifact {
+		t.Fatalf("same-tenant digest artifact=%#v found=%t err=%v", found, ok, err)
+	}
+	if found, ok, err := repos.ReleaseCatalog.ArtifactByDigest(ctx, "ten_second", artifact.Digest); err != nil || ok || found.ID != "" {
+		t.Fatalf("foreign-tenant digest artifact=%#v found=%t err=%v", found, ok, err)
 	}
 	point, err := repos.ReleaseCatalog.GetRelease(ctx, product.TenantID, release.ID)
 	if err != nil || point.FrozenAt == nil {

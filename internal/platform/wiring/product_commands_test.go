@@ -63,7 +63,7 @@ func TestProductCommandsUseFocusedRepositoriesInsideIdempotencyTransaction(t *te
 	}
 }
 
-func TestPostgresCatalogCommandsCommitProductProjectReleaseBuildAuditAndReplayWithoutLedger(t *testing.T) {
+func TestPostgresCatalogCommandsCommitProductProjectReleaseArtifactBuildAuditAndReplayWithoutLedger(t *testing.T) {
 	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("EVYDENCE_TEST_DATABASE_URL is not set")
@@ -110,7 +110,7 @@ func TestPostgresCatalogCommandsCommitProductProjectReleaseBuildAuditAndReplayWi
 	if err != nil {
 		t.Fatal(err)
 	}
-	actor := domain.Actor{TenantID: "ten_product_live", KeyID: "key_product_live", Scopes: []string{"product:write", "project:write", "release:write", "build:write"}}
+	actor := domain.Actor{TenantID: "ten_product_live", KeyID: "key_product_live", Scopes: []string{"product:write", "project:write", "release:write", "build:write", "evidence:write"}}
 	idempotency := app.IdempotencyUnitOfWork{Transactions: runtime.Postgres}
 	runs := 0
 	create := func(ctx context.Context, _ app.Repositories) (int, any, error) {
@@ -212,11 +212,31 @@ func TestPostgresCatalogCommandsCommitProductProjectReleaseBuildAuditAndReplayWi
 		t.Fatalf("catalog commits audit=%d replay=%d, want three each", auditCount, replayCount)
 	}
 	digest := "sha256:" + strings.Repeat("a", 64)
-	artifact := domain.Artifact{ID: "art_catalog_live", TenantID: actor.TenantID, Name: "Output", MediaType: "application/octet-stream", Digest: digest, Size: 1, CreatedAt: now}
-	if err := app.ExecuteUnitOfWork(ctx, runtime.Postgres, func(ctx context.Context, repositories app.Repositories) error {
-		return repositories.ReleaseCatalog.InsertArtifact(ctx, artifact)
-	}); err != nil {
-		t.Fatalf("seed output artifact: %v", err)
+	artifacts, err := BuildArtifactCommands(runtime.Postgres, runtime.Postgres)
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifactInput := releaseapp.RegisterArtifactInput{Name: "Output", MediaType: "application/octet-stream", Digest: digest, Size: 1}
+	artifactRuns := 0
+	createArtifact := func(ctx context.Context, _ app.Repositories) (int, any, error) {
+		artifactRuns++
+		artifact, err := artifacts.RegisterArtifact(ctx, actor, artifactInput)
+		return 201, artifact, err
+	}
+	status, response, err = idempotency.WithBody(ctx, actor, "POST", "/v1/artifacts", "live-artifact", []byte(`{"name":"Output"}`), createArtifact)
+	if err != nil || status != 201 {
+		t.Fatalf("live artifact status=%d response=%#v err=%v", status, response, err)
+	}
+	artifact := response.(releasedomain.Artifact)
+	if _, _, err := idempotency.WithBody(ctx, actor, "POST", "/v1/artifacts", "live-artifact", []byte(`{"name":"Output"}`), createArtifact); err != nil || artifactRuns != 1 {
+		t.Fatalf("durable artifact replay runs=%d err=%v", artifactRuns, err)
+	}
+	humanEvidence := identitydomain.Actor{
+		TenantID: actor.TenantID, UserID: "usr_evidence", Scopes: []string{"evidence:write"},
+		ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "product", ResourceID: product.ID, Scopes: []string{"evidence:write"}}},
+	}
+	if _, err := artifacts.RegisterArtifact(ctx, humanEvidence, artifactInput); !errors.Is(err, application.ErrForbidden) {
+		t.Fatalf("unlinked duplicate artifact exposed to human: %v", err)
 	}
 	buildAuthorizer, err := releasequery.NewBuildAuthorizer(runtime.Postgres)
 	if err != nil {
@@ -259,6 +279,9 @@ func TestPostgresCatalogCommandsCommitProductProjectReleaseBuildAuditAndReplayWi
 	if err := buildAuthorizer.Authorize(ctx, human, artifactWrite); err != nil {
 		t.Fatalf("linked output artifact denied to current product grant: %v", err)
 	}
+	if duplicate, err := artifacts.RegisterArtifact(ctx, humanEvidence, artifactInput); err != nil || duplicate.ID != artifact.ID {
+		t.Fatalf("linked duplicate artifact=%#v err=%v", duplicate, err)
+	}
 	wrongGrant := human
 	wrongGrant.ResourceGrants = []identitydomain.ResourceGrant{{ResourceType: "product", ResourceID: "prod_other", Scopes: []string{"build:write"}}}
 	if err := buildAuthorizer.Authorize(ctx, wrongGrant, artifactWrite); !errors.Is(err, application.ErrForbidden) {
@@ -279,7 +302,7 @@ func TestPostgresCatalogCommandsCommitProductProjectReleaseBuildAuditAndReplayWi
 	if err := admin.QueryRow(ctx, "SELECT count(*) FROM "+quotedSchema+".idempotency_records WHERE tenant_id = $1 AND state = 'completed'", actor.TenantID).Scan(&replayCount); err != nil {
 		t.Fatalf("count catalog replays: %v", err)
 	}
-	if auditCount != 4 || replayCount != 4 {
-		t.Fatalf("catalog commits audit=%d replay=%d, want four each", auditCount, replayCount)
+	if auditCount != 5 || replayCount != 5 {
+		t.Fatalf("catalog commits audit=%d replay=%d, want five each", auditCount, replayCount)
 	}
 }

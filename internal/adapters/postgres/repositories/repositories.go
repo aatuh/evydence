@@ -753,6 +753,30 @@ func (r releaseCatalog) GetArtifact(ctx context.Context, tenantID, artifactID st
 	return artifact, nil
 }
 
+func (r releaseCatalog) ArtifactByDigest(ctx context.Context, tenantID, digest string) (domain.Artifact, bool, error) {
+	tenantID, digest = strings.TrimSpace(tenantID), strings.TrimSpace(digest)
+	if tenantID == "" || digest == "" {
+		return domain.Artifact{}, false, app.ErrValidation
+	}
+	var artifact domain.Artifact
+	err := r.tx.QueryRow(ctx, `
+		SELECT id, tenant_id, name, media_type, size, digest, created_at
+		FROM artifacts
+		WHERE tenant_id = $1 AND digest = $2
+		FOR SHARE
+	`, tenantID, digest).Scan(
+		&artifact.ID, &artifact.TenantID, &artifact.Name, &artifact.MediaType,
+		&artifact.Size, &artifact.Digest, &artifact.CreatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Artifact{}, false, nil
+	}
+	if err != nil {
+		return domain.Artifact{}, false, writeError("load scoped artifact by digest", err)
+	}
+	return artifact, true, nil
+}
+
 func (r releaseCatalog) InsertProduct(ctx context.Context, product domain.Product) error {
 	if product.ID == "" || product.TenantID == "" || product.Name == "" || product.Slug == "" || product.CreatedAt.IsZero() {
 		return app.ErrValidation
@@ -842,11 +866,18 @@ func (r releaseCatalog) InsertArtifact(ctx context.Context, artifact domain.Arti
 	if err := requireTenant(ctx, r.tx, artifact.TenantID); err != nil {
 		return err
 	}
-	_, err := r.tx.Exec(ctx, `
+	result, err := r.tx.Exec(ctx, `
 		INSERT INTO artifacts (id, tenant_id, name, media_type, size, digest, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		ON CONFLICT DO NOTHING
 	`, artifact.ID, artifact.TenantID, artifact.Name, artifact.MediaType, artifact.Size, artifact.Digest, artifact.CreatedAt)
-	return writeError("insert artifact", err)
+	if err != nil {
+		return writeError("insert artifact", err)
+	}
+	if result.RowsAffected() != 1 {
+		return app.ErrConflict
+	}
+	return nil
 }
 
 func (r releaseCatalog) InsertReleaseCandidate(ctx context.Context, candidate domain.ReleaseCandidate) error {

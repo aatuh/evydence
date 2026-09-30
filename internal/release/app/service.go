@@ -441,45 +441,15 @@ type RegisterArtifactInput struct {
 }
 
 func (s *Service) RegisterArtifact(ctx context.Context, actor identitydomain.Actor, input RegisterArtifactInput) (releasedomain.Artifact, error) {
-	if err := contextError(ctx); err != nil {
-		return releasedomain.Artifact{}, err
-	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceWrite, application.ResourceReferences{}, true); err != nil {
-		return releasedomain.Artifact{}, err
-	}
-	input.Name = strings.TrimSpace(input.Name)
-	input.MediaType = strings.TrimSpace(input.MediaType)
-	input.Digest = strings.TrimSpace(input.Digest)
-	if input.Name == "" || input.MediaType == "" || !validDigest(input.Digest) || input.Size < 0 {
-		return releasedomain.Artifact{}, ErrValidation
-	}
-	artifact := releasedomain.Artifact{ID: s.ids.NewID("art"), TenantID: actor.TenantID, Name: input.Name, MediaType: input.MediaType, Size: input.Size, Digest: input.Digest, CreatedAt: s.clock.Now().UTC()}
-	err := s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-		if existing, exists, err := tx.Catalog().ArtifactByDigest(ctx, actor.TenantID, input.Digest); err != nil {
-			return err
-		} else if exists {
-			if existing.TenantID != actor.TenantID || strings.TrimSpace(existing.ID) == "" {
-				return ErrNotFound
-			}
-			if existing.Digest != input.Digest {
-				return ErrConflict
-			}
-			if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeEvidenceWrite, Resources: application.ResourceReferences{ArtifactID: existing.ID}}); err != nil {
-				return err
-			}
-			artifact = existing
-			return nil
-		}
-		if err := tx.Catalog().InsertArtifact(ctx, artifact); err != nil {
-			return err
-		}
-		_, err := tx.Audit().AppendAudit(ctx, s.auditEvent(actor, artifact.CreatedAt, "artifact.created", "artifact", artifact.ID, artifact.Digest))
-		return err
+	commands, err := NewArtifactCommands(ArtifactCommandConfig{
+		Authorizer:   s.authorizer,
+		Transactions: releaseArtifactTransactions{runner: s.transactions},
+		Clock:        s.clock, IDs: s.ids,
 	})
 	if err != nil {
 		return releasedomain.Artifact{}, err
 	}
-	return artifact, nil
+	return commands.RegisterArtifact(ctx, actor, input)
 }
 
 func (s *Service) GetArtifact(ctx context.Context, actor identitydomain.Actor, id string) (releasedomain.Artifact, error) {
