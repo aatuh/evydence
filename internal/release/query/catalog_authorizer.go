@@ -29,6 +29,12 @@ func (catalogAuthorizer) Authorize(ctx context.Context, actor identitydomain.Act
 	if !catalogScope(request.Scope) || !actor.HasScope(request.Scope) && !actor.HasScope("admin") {
 		return application.ErrForbidden
 	}
+	if request.Scope == "product:write" {
+		if !request.TenantWide || request.ScopeOnly || request.Resources != (application.ResourceReferences{}) {
+			return application.ErrForbidden
+		}
+		return authorizeCatalogGrant(actor, request.Scope, application.ResourceReferences{}, true)
+	}
 	if request.TenantWide {
 		return authorizeCatalogGrant(actor, request.Scope, application.ResourceReferences{}, true)
 	}
@@ -42,7 +48,7 @@ func (catalogAuthorizer) Authorize(ctx context.Context, actor identitydomain.Act
 }
 
 func catalogScope(scope string) bool {
-	return scope == ScopeProductRead || scope == scopeProjectRead || scope == scopeReleaseRead || scope == scopeBuildRead
+	return scope == ScopeProductRead || scope == "product:write" || scope == scopeProjectRead || scope == scopeReleaseRead || scope == scopeBuildRead
 }
 
 func validCatalogReferences(scope string, refs application.ResourceReferences) bool {

@@ -158,6 +158,7 @@ type Config struct {
 }
 
 type Service struct {
+	productCommands     *ProductCommands
 	reader              Reader
 	transactions        TransactionRunner
 	authorizer          application.Authorizer
@@ -174,8 +175,16 @@ func NewService(config Config) (*Service, error) {
 	if config.Reader == nil || config.Transactions == nil || config.Authorizer == nil || config.CandidateReferences == nil || config.Canonicalizer == nil || config.AttestationParser == nil || config.PayloadStager == nil || config.Clock == nil || config.IDs == nil {
 		return nil, ErrValidation
 	}
+	productCommands, err := NewProductCommands(ProductCommandConfig{
+		Authorizer: config.Authorizer, Transactions: releaseProductTransactions{runner: config.Transactions},
+		Clock: config.Clock, IDs: config.IDs,
+	})
+	if err != nil {
+		return nil, err
+	}
 	return &Service{
-		reader: config.Reader, transactions: config.Transactions, authorizer: config.Authorizer,
+		productCommands: productCommands,
+		reader:          config.Reader, transactions: config.Transactions, authorizer: config.Authorizer,
 		candidateReferences: config.CandidateReferences, canonicalizer: config.Canonicalizer,
 		attestationParser: config.AttestationParser, payloadStager: config.PayloadStager,
 		workerOwnedParsers: config.WorkerOwnedParsers,
@@ -189,34 +198,7 @@ type CreateProductInput struct {
 }
 
 func (s *Service) CreateProduct(ctx context.Context, actor identitydomain.Actor, input CreateProductInput) (releasedomain.Product, error) {
-	if err := contextError(ctx); err != nil {
-		return releasedomain.Product{}, err
-	}
-	if err := s.authorize(ctx, actor, ScopeProductWrite, application.ResourceReferences{}, false); err != nil {
-		return releasedomain.Product{}, err
-	}
-	input.Name = strings.TrimSpace(input.Name)
-	input.Slug = strings.TrimSpace(input.Slug)
-	if input.Name == "" || input.Slug == "" {
-		return releasedomain.Product{}, ErrValidation
-	}
-	product := releasedomain.Product{ID: s.ids.NewID("prod"), TenantID: actor.TenantID, Name: input.Name, Slug: input.Slug, CreatedAt: s.clock.Now().UTC()}
-	err := s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-		if _, exists, err := tx.Catalog().ProductBySlug(ctx, actor.TenantID, input.Slug); err != nil {
-			return err
-		} else if exists {
-			return ErrConflict
-		}
-		if err := tx.Catalog().InsertProduct(ctx, product); err != nil {
-			return err
-		}
-		_, err := tx.Audit().AppendAudit(ctx, s.auditEvent(actor, product.CreatedAt, "product.created", "product", product.ID, ""))
-		return err
-	})
-	if err != nil {
-		return releasedomain.Product{}, err
-	}
-	return product, nil
+	return s.productCommands.CreateProduct(ctx, actor, input)
 }
 
 func (s *Service) ListProducts(ctx context.Context, actor identitydomain.Actor) ([]releasedomain.Product, error) {
@@ -614,9 +596,13 @@ func (s *Service) authorize(ctx context.Context, actor identitydomain.Actor, sco
 }
 
 func (s *Service) auditEvent(actor identitydomain.Actor, occurredAt time.Time, entryType, subjectType, subjectID, payloadHash string) application.AuditEvent {
+	return auditEventFor(s.ids, actor, occurredAt, entryType, subjectType, subjectID, payloadHash)
+}
+
+func auditEventFor(ids application.IDGenerator, actor identitydomain.Actor, occurredAt time.Time, entryType, subjectType, subjectID, payloadHash string) application.AuditEvent {
 	actorType, actorID := auditActor(actor)
 	return application.AuditEvent{
-		ID: s.ids.NewID("ace"), TenantID: actor.TenantID, EntryType: entryType,
+		ID: ids.NewID("ace"), TenantID: actor.TenantID, EntryType: entryType,
 		SubjectType: subjectType, SubjectID: subjectID, ActorType: actorType, ActorID: actorID,
 		OccurredAt: occurredAt.UTC(), PayloadHash: payloadHash,
 	}

@@ -711,6 +711,25 @@ func memoryRetentionScopeBelongsToTenant(state MemoryUnitOfWorkSnapshot, tenantI
 
 type memoryReleaseCatalogRepository struct{ uow *memoryUnitOfWork }
 
+func (r memoryReleaseCatalogRepository) ProductBySlug(ctx context.Context, tenantID, slug string) (domain.Product, bool, error) {
+	tenantID, slug = strings.TrimSpace(tenantID), strings.TrimSpace(slug)
+	if tenantID == "" || slug == "" {
+		return domain.Product{}, false, ErrValidation
+	}
+	var product domain.Product
+	var found bool
+	err := r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		for _, value := range state.Products {
+			if value.TenantID == tenantID && value.Slug == slug {
+				product, found = value, true
+				break
+			}
+		}
+		return nil
+	})
+	return product, found, err
+}
+
 func (r memoryReleaseCatalogRepository) GetArtifact(ctx context.Context, tenantID, artifactID string) (domain.Artifact, error) {
 	var artifact domain.Artifact
 	err := r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {

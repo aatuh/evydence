@@ -28,6 +28,38 @@ func (failingIdempotencyWriteTx) Exec(context.Context, string, ...any) (pgconn.C
 	return pgconn.CommandTag{}, errIdempotencyWrite
 }
 
+func TestProductBySlugReadsOnlyCurrentTenantWithinTransaction(t *testing.T) {
+	ctx, pool := openRepositoryTestPool(t)
+	defer pool.Close()
+	tx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := tx.Rollback(context.Background()); err != nil {
+			t.Errorf("rollback product lookup transaction: %v", err)
+		}
+	}()
+	repositories := postgresrepositories.New(tx)
+	now := time.Now().UTC()
+	for _, tenantID := range []string{"ten_first", "ten_second"} {
+		if err := repositories.Identity.InsertTenant(ctx, domain.Tenant{ID: tenantID, Name: tenantID, CreatedAt: now}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	product := domain.Product{ID: "prod_first", TenantID: "ten_first", Name: "First", Slug: "shared", CreatedAt: now}
+	if err := repositories.ReleaseCatalog.InsertProduct(ctx, product); err != nil {
+		t.Fatal(err)
+	}
+	found, ok, err := repositories.ReleaseCatalog.ProductBySlug(ctx, "ten_first", "shared")
+	if err != nil || !ok || found.ID != product.ID || found.TenantID != product.TenantID {
+		t.Fatalf("same-tenant lookup product=%#v found=%t err=%v", found, ok, err)
+	}
+	if foreign, ok, err := repositories.ReleaseCatalog.ProductBySlug(ctx, "ten_second", "shared"); err != nil || ok || foreign.ID != "" {
+		t.Fatalf("foreign-tenant lookup product=%#v found=%t err=%v", foreign, ok, err)
+	}
+}
+
 func TestIdentityActivityUpdatesAreMonotonic(t *testing.T) {
 	ctx, pool := openRepositoryTestPool(t)
 	defer pool.Close()

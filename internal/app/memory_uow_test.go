@@ -50,6 +50,37 @@ func TestMemoryUnitOfWorkRollbackDiscardsDomainAuditAndOutboxMutations(t *testin
 	}
 }
 
+func TestMemoryProductBySlugSeesOnlyCurrentTenantInsideTransaction(t *testing.T) {
+	ctx := context.Background()
+	factory := NewMemoryUnitOfWorkFactory()
+	uow, err := factory.BeginUnitOfWork(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := uow.Rollback(ctx); err != nil {
+			t.Errorf("rollback product lookup transaction: %v", err)
+		}
+	}()
+	repos := uow.Repositories()
+	for _, tenantID := range []string{"ten_first", "ten_second"} {
+		if err := repos.Identity.InsertTenant(ctx, domain.Tenant{ID: tenantID, Name: tenantID, CreatedAt: fixedNow()}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	product := domain.Product{ID: "prod_first", TenantID: "ten_first", Name: "First", Slug: "shared", CreatedAt: fixedNow()}
+	if err := repos.ReleaseCatalog.InsertProduct(ctx, product); err != nil {
+		t.Fatal(err)
+	}
+	found, ok, err := repos.ReleaseCatalog.ProductBySlug(ctx, "ten_first", "shared")
+	if err != nil || !ok || found != product {
+		t.Fatalf("same-tenant lookup product=%#v found=%t err=%v", found, ok, err)
+	}
+	if foreign, ok, err := repos.ReleaseCatalog.ProductBySlug(ctx, "ten_second", "shared"); err != nil || ok || foreign.ID != "" {
+		t.Fatalf("foreign-tenant lookup product=%#v found=%t err=%v", foreign, ok, err)
+	}
+}
+
 func TestMemoryUnitOfWorkCommitsTenantScopedDomainAuditAndOutboxTogether(t *testing.T) {
 	factory := NewMemoryUnitOfWorkFactory()
 	uow, err := factory.BeginUnitOfWork(context.Background())

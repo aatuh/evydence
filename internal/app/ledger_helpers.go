@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 )
@@ -181,11 +182,7 @@ func validDigest(value string) bool {
 }
 
 func newID(prefix string) string {
-	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		panic(err)
-	}
-	return prefix + "_" + hex.EncodeToString(b[:])
+	return application.NewID(prefix)
 }
 
 func randomToken(n int) string {

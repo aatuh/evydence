@@ -602,6 +602,27 @@ func (r identity) UpdateCustomerPortalAccess(ctx context.Context, previous, curr
 
 type releaseCatalog struct{ tx pgx.Tx }
 
+func (r releaseCatalog) ProductBySlug(ctx context.Context, tenantID, slug string) (domain.Product, bool, error) {
+	tenantID, slug = strings.TrimSpace(tenantID), strings.TrimSpace(slug)
+	if tenantID == "" || slug == "" {
+		return domain.Product{}, false, app.ErrValidation
+	}
+	var product domain.Product
+	err := r.tx.QueryRow(ctx, `
+		SELECT id, tenant_id, name, slug, created_at
+		FROM products
+		WHERE tenant_id = $1 AND slug = $2
+		FOR SHARE
+	`, tenantID, slug).Scan(&product.ID, &product.TenantID, &product.Name, &product.Slug, &product.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Product{}, false, nil
+	}
+	if err != nil {
+		return domain.Product{}, false, writeError("load scoped product by slug", err)
+	}
+	return product, true, nil
+}
+
 func (r releaseCatalog) GetArtifact(ctx context.Context, tenantID, artifactID string) (domain.Artifact, error) {
 	var artifact domain.Artifact
 	err := r.tx.QueryRow(ctx, `
