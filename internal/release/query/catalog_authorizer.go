@@ -55,8 +55,11 @@ func validCatalogReferences(scope string, refs application.ResourceReferences) b
 	switch scope {
 	case ScopeProductRead:
 		return refs.ProductID != "" && refs == (application.ResourceReferences{ProductID: refs.ProductID})
-	case "project:write", "release:write":
+	case "project:write":
 		return refs.ProductID != "" && refs == (application.ResourceReferences{ProductID: refs.ProductID})
+	case "release:write":
+		return refs.ProductID != "" && (refs == (application.ResourceReferences{ProductID: refs.ProductID}) ||
+			refs.ReleaseID != "" && refs == (application.ResourceReferences{ProductID: refs.ProductID, ReleaseID: refs.ReleaseID}))
 	case scopeProjectRead:
 		return refs.ProductID != "" && refs.ProjectID != "" && refs == (application.ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID})
 	case scopeReleaseRead:

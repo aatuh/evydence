@@ -59,6 +59,11 @@ without constructing a Ledger. Production HTTP still uses the compatibility
 command binding because later Ledger-backed commands must be migrated to
 current database reads before they can safely consume products, projects, and
 releases created outside its cache.
+Standalone release freeze and approval commands read current tenant-owned
+release and product coordinates, recheck the expected revision under a
+PostgreSQL row lock, and commit the transition with its audit entry. Live
+composition tests exercise those commands inside durable idempotency
+transactions; production HTTP still uses the compatibility command binding.
 The transactional catalog repositories now expose tenant-filtered project and
 release point reads that verify the parent product in the same read and lock
 the selected rows. Standalone artifact registration now looks up digests in

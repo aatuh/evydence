@@ -101,15 +101,8 @@ func (t catalogTransaction) ReleaseByVersion(ctx context.Context, tenantID, prod
 	if !found {
 		return releasedomain.Release{}, false, nil
 	}
-	state, err := releasedomain.ParseReleaseState(release.State)
-	if err != nil {
-		return releasedomain.Release{}, false, releaseapp.ErrValidation
-	}
-	return releasedomain.Release{
-		ID: release.ID, TenantID: release.TenantID, ProductID: release.ProductID,
-		Version: release.Version, Revision: release.Revision, State: state,
-		CreatedAt: release.CreatedAt, FrozenAt: release.FrozenAt, ApprovedAt: release.ApprovedAt,
-	}, true, nil
+	converted, err := releaseFromCatalogRow(release)
+	return converted, true, err
 }
 
 func (t catalogTransaction) InsertRelease(ctx context.Context, release releasedomain.Release) error {

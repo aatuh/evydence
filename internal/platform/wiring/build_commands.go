@@ -96,15 +96,7 @@ func (t buildTransaction) GetRelease(ctx context.Context, tenantID, id string) (
 	if err != nil {
 		return releasedomain.Release{}, mapProductWriteError(err)
 	}
-	state, err := releasedomain.ParseReleaseState(release.State)
-	if err != nil {
-		return releasedomain.Release{}, releaseapp.ErrValidation
-	}
-	return releasedomain.Release{
-		ID: release.ID, TenantID: release.TenantID, ProductID: release.ProductID,
-		Version: release.Version, Revision: release.Revision, State: state,
-		CreatedAt: release.CreatedAt, FrozenAt: release.FrozenAt, ApprovedAt: release.ApprovedAt,
-	}, nil
+	return releaseFromCatalogRow(release)
 }
 
 func (t buildTransaction) GetArtifact(ctx context.Context, tenantID, id string) (releasedomain.Artifact, error) {

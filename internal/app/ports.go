@@ -318,6 +318,7 @@ type ReleaseCatalogRepository interface {
 	GetProduct(context.Context, string, string) (domain.Product, error)
 	GetProject(context.Context, string, string) (domain.Project, error)
 	GetRelease(context.Context, string, string) (domain.Release, error)
+	GetReleaseForUpdate(context.Context, string, string) (domain.Release, error)
 	ReleaseByVersion(context.Context, string, string, string) (domain.Release, bool, error)
 	InsertProduct(context.Context, domain.Product) error
 	InsertProject(context.Context, domain.Project) error

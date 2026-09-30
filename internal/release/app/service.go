@@ -350,87 +350,27 @@ func (s *Service) GetRelease(ctx context.Context, actor identitydomain.Actor, id
 }
 
 func (s *Service) FreezeRelease(ctx context.Context, actor identitydomain.Actor, id string, expectedRevision int64) (releasedomain.Release, error) {
-	return s.transitionRelease(ctx, actor, id, expectedRevision, releasedomain.ReleaseStateDraftValue, "release.frozen", func(release releasedomain.Release, at time.Time) (releasedomain.Release, error) {
-		return release.Freeze(at)
+	commands, err := NewReleaseStateCommands(ReleaseStateCommandConfig{
+		Reader: s.reader, Authorizer: s.authorizer,
+		Transactions: releaseStateTransactions{runner: s.transactions},
+		Clock:        s.clock, IDs: s.ids,
 	})
+	if err != nil {
+		return releasedomain.Release{}, err
+	}
+	return commands.FreezeRelease(ctx, actor, id, expectedRevision)
 }
 
 func (s *Service) ApproveRelease(ctx context.Context, actor identitydomain.Actor, id string, expectedRevision int64) (releasedomain.Release, error) {
-	return s.transitionRelease(ctx, actor, id, expectedRevision, releasedomain.ReleaseStateFrozenValue, "release.approved", func(release releasedomain.Release, at time.Time) (releasedomain.Release, error) {
-		return release.Approve(at)
-	})
-}
-
-func (s *Service) transitionRelease(ctx context.Context, actor identitydomain.Actor, id string, expectedRevision int64, expectedState, eventType string, transition func(releasedomain.Release, time.Time) (releasedomain.Release, error)) (releasedomain.Release, error) {
-	if err := contextError(ctx); err != nil {
-		return releasedomain.Release{}, err
-	}
-	if err := s.authorize(ctx, actor, ScopeReleaseWrite, application.ResourceReferences{}, true); err != nil {
-		return releasedomain.Release{}, err
-	}
-	if expectedRevision < 1 {
-		return releasedomain.Release{}, ErrValidation
-	}
-	id = strings.TrimSpace(id)
-	if id == "" {
-		return releasedomain.Release{}, ErrNotFound
-	}
-	release, err := s.reader.GetRelease(ctx, actor.TenantID, id)
-	if err != nil {
-		return releasedomain.Release{}, err
-	}
-	if !releaseBelongsToTenant(release, actor.TenantID, id) || strings.TrimSpace(release.ProductID) == "" {
-		return releasedomain.Release{}, ErrNotFound
-	}
-	product, err := s.reader.GetProduct(ctx, actor.TenantID, release.ProductID)
-	if err != nil {
-		return releasedomain.Release{}, err
-	}
-	if !productBelongsToTenant(product, actor.TenantID, release.ProductID) {
-		return releasedomain.Release{}, ErrNotFound
-	}
-	if err := s.authorize(ctx, actor, ScopeReleaseWrite, application.ResourceReferences{ProductID: release.ProductID, ReleaseID: release.ID}, false); err != nil {
-		return releasedomain.Release{}, err
-	}
-	if release.Revision != expectedRevision {
-		return releasedomain.Release{}, NewVersionConflict(release.Revision)
-	}
-	if release.State.String() != expectedState {
-		return releasedomain.Release{}, ErrConflict
-	}
-	transitionedAt := s.clock.Now().UTC()
-	var updated releasedomain.Release
-	err = s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-		current, err := tx.Catalog().GetRelease(ctx, actor.TenantID, release.ID)
-		if err != nil {
-			return err
-		}
-		if !releaseBelongsToTenant(current, actor.TenantID, release.ID) {
-			return ErrNotFound
-		}
-		if !sameReleaseCoordinates(current, release) {
-			return ErrConflict
-		}
-		if current.Revision != expectedRevision {
-			return NewVersionConflict(current.Revision)
-		}
-		if current.State.String() != expectedState {
-			return ErrConflict
-		}
-		updated, err = transition(current, transitionedAt)
-		if err != nil {
-			return ErrConflict
-		}
-		if err := tx.Catalog().UpdateRelease(ctx, updated, expectedRevision); err != nil {
-			return err
-		}
-		_, err = tx.Audit().AppendAudit(ctx, s.auditEvent(actor, transitionedAt, eventType, "release", updated.ID, ""))
-		return err
+	commands, err := NewReleaseStateCommands(ReleaseStateCommandConfig{
+		Reader: s.reader, Authorizer: s.authorizer,
+		Transactions: releaseStateTransactions{runner: s.transactions},
+		Clock:        s.clock, IDs: s.ids,
 	})
 	if err != nil {
 		return releasedomain.Release{}, err
 	}
-	return updated, nil
+	return commands.ApproveRelease(ctx, actor, id, expectedRevision)
 }
 
 type RegisterArtifactInput struct {

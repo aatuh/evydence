@@ -305,4 +305,72 @@ func TestPostgresCatalogCommandsCommitProductProjectReleaseArtifactBuildAuditAnd
 	if auditCount != 5 || replayCount != 5 {
 		t.Fatalf("catalog commits audit=%d replay=%d, want five each", auditCount, replayCount)
 	}
+	states, err := BuildReleaseStateCommands(runtime.Postgres, runtime.Postgres)
+	if err != nil {
+		t.Fatal(err)
+	}
+	humanRelease := identitydomain.Actor{
+		TenantID: actor.TenantID, UserID: "usr_release", Scopes: []string{"release:write"},
+		ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "release", ResourceID: release.ID, Scopes: []string{"release:write"}}},
+	}
+	foreignRelease := humanRelease
+	foreignRelease.TenantID = "ten_other"
+	if _, err := states.FreezeRelease(ctx, foreignRelease, release.ID, 1); !errors.Is(err, releaseapp.ErrNotFound) {
+		t.Fatalf("foreign release freeze err=%v, want not found", err)
+	}
+	wrongReleaseGrant := humanRelease
+	wrongReleaseGrant.ResourceGrants = []identitydomain.ResourceGrant{{ResourceType: "release", ResourceID: "rel_other", Scopes: []string{"release:write"}}}
+	if _, err := states.FreezeRelease(ctx, wrongReleaseGrant, release.ID, 1); !errors.Is(err, application.ErrForbidden) {
+		t.Fatalf("wrong-release grant froze release: %v", err)
+	}
+	if _, err := states.FreezeRelease(ctx, humanRelease, release.ID, 2); !errors.Is(err, releaseapp.ErrConflict) {
+		t.Fatalf("stale release freeze err=%v, want conflict", err)
+	} else if revision, ok := releaseapp.CurrentRevision(err); !ok || revision != 1 {
+		t.Fatalf("stale release revision=%d found=%t", revision, ok)
+	}
+	freezeRuns := 0
+	freeze := func(ctx context.Context, _ app.Repositories) (int, any, error) {
+		freezeRuns++
+		value, err := states.FreezeRelease(ctx, humanRelease, release.ID, 1)
+		return 200, value, err
+	}
+	status, response, err = idempotency.WithBody(ctx, humanRelease, "POST", "/v1/releases/"+release.ID+"/freeze", "live-freeze", nil, freeze)
+	if err != nil || status != 200 || response.(releasedomain.Release).Revision != 2 {
+		t.Fatalf("durable freeze status=%d response=%#v err=%v", status, response, err)
+	}
+	if _, _, err := idempotency.WithBody(ctx, humanRelease, "POST", "/v1/releases/"+release.ID+"/freeze", "live-freeze", nil, freeze); err != nil || freezeRuns != 1 {
+		t.Fatalf("durable freeze replay runs=%d err=%v", freezeRuns, err)
+	}
+	approveRuns := 0
+	approve := func(ctx context.Context, _ app.Repositories) (int, any, error) {
+		approveRuns++
+		value, err := states.ApproveRelease(ctx, humanRelease, release.ID, 2)
+		return 200, value, err
+	}
+	status, response, err = idempotency.WithBody(ctx, humanRelease, "POST", "/v1/releases/"+release.ID+"/approve", "live-approve", nil, approve)
+	if err != nil || status != 200 {
+		t.Fatalf("durable approval status=%d response=%#v err=%v", status, response, err)
+	}
+	approved := response.(releasedomain.Release)
+	if approved.State.String() != releasedomain.ReleaseStateApprovedValue || approved.Revision != 3 {
+		t.Fatalf("durable approval=%#v", approved)
+	}
+	if _, _, err := idempotency.WithBody(ctx, humanRelease, "POST", "/v1/releases/"+release.ID+"/approve", "live-approve", nil, approve); err != nil || approveRuns != 1 {
+		t.Fatalf("durable approval replay runs=%d err=%v", approveRuns, err)
+	}
+	if stored, err := runtime.Postgres.GetRelease(ctx, actor.TenantID, release.ID); err != nil || stored.Revision != 3 || stored.ApprovedAt == nil {
+		t.Fatalf("durable approved release=%#v err=%v", stored, err)
+	}
+	if err := admin.QueryRow(ctx, "SELECT count(*) FROM "+quotedSchema+".audit_chain_entries WHERE tenant_id = $1", actor.TenantID).Scan(&auditCount); err != nil {
+		t.Fatalf("count release state audits: %v", err)
+	}
+	if auditCount != 7 {
+		t.Fatalf("release state audit count=%d, want seven", auditCount)
+	}
+	if err := admin.QueryRow(ctx, "SELECT count(*) FROM "+quotedSchema+".idempotency_records WHERE tenant_id = $1 AND state = 'completed'", actor.TenantID).Scan(&replayCount); err != nil {
+		t.Fatalf("count release state replays: %v", err)
+	}
+	if replayCount != 7 {
+		t.Fatalf("release state replay count=%d, want seven", replayCount)
+	}
 }

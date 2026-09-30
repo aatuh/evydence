@@ -90,6 +90,12 @@ func TestCatalogPointReadsOnlyCurrentTenantWithinTransaction(t *testing.T) {
 	if _, err := repositories.ReleaseCatalog.GetRelease(ctx, "ten_second", release.ID); !errors.Is(err, app.ErrNotFound) {
 		t.Fatalf("foreign-tenant release point err=%v, want not found", err)
 	}
+	if locked, err := repositories.ReleaseCatalog.GetReleaseForUpdate(ctx, product.TenantID, release.ID); err != nil || locked.ID != release.ID || locked.ProductID != product.ID {
+		t.Fatalf("same-tenant locked release=%#v err=%v", locked, err)
+	}
+	if _, err := repositories.ReleaseCatalog.GetReleaseForUpdate(ctx, "ten_second", release.ID); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("foreign-tenant locked release err=%v, want not found", err)
+	}
 	artifact := domain.Artifact{ID: "art_first", TenantID: product.TenantID, Name: "Output", MediaType: "application/octet-stream", Digest: "sha256:" + strings.Repeat("a", 64), Size: 1, CreatedAt: now}
 	if err := repositories.ReleaseCatalog.InsertArtifact(ctx, artifact); err != nil {
 		t.Fatal(err)

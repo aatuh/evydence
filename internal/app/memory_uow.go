@@ -793,6 +793,12 @@ func (r memoryReleaseCatalogRepository) GetRelease(ctx context.Context, tenantID
 	return release, err
 }
 
+// The memory unit of work owns a private snapshot until commit, so its
+// transaction-scoped release read already has exclusive mutation semantics.
+func (r memoryReleaseCatalogRepository) GetReleaseForUpdate(ctx context.Context, tenantID, id string) (domain.Release, error) {
+	return r.GetRelease(ctx, tenantID, id)
+}
+
 func (r memoryReleaseCatalogRepository) ReleaseByVersion(ctx context.Context, tenantID, productID, version string) (domain.Release, bool, error) {
 	tenantID, productID, version = strings.TrimSpace(tenantID), strings.TrimSpace(productID), strings.TrimSpace(version)
 	if tenantID == "" || productID == "" || version == "" {

@@ -115,6 +115,12 @@ func TestMemoryCatalogPointReadsStayTenantScopedInsideTransaction(t *testing.T) 
 	if _, err := repos.ReleaseCatalog.GetRelease(ctx, "ten_second", release.ID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("foreign-tenant release point err=%v, want not found", err)
 	}
+	if locked, err := repos.ReleaseCatalog.GetReleaseForUpdate(ctx, product.TenantID, release.ID); err != nil || !reflect.DeepEqual(locked, release) {
+		t.Fatalf("same-tenant release mutation point=%#v err=%v", locked, err)
+	}
+	if _, err := repos.ReleaseCatalog.GetReleaseForUpdate(ctx, "ten_second", release.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("foreign-tenant release mutation point err=%v, want not found", err)
+	}
 	artifact := domain.Artifact{ID: "art_first", TenantID: product.TenantID, Name: "Output", MediaType: "application/octet-stream", Digest: "sha256:" + strings.Repeat("a", 64), Size: 1, CreatedAt: fixedNow()}
 	if err := repos.ReleaseCatalog.InsertArtifact(ctx, artifact); err != nil {
 		t.Fatal(err)
