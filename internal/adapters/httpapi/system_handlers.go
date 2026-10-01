@@ -14,7 +14,14 @@ func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) ready(w http.ResponseWriter, r *http.Request) {
-	status, err := s.ledger.ReadinessStatus(r.Context())
+	var status map[string]any
+	var err error
+	if s.readinessQuery != nil {
+		status, err = s.readinessQuery.Public(r.Context())
+		err = mapInstanceAdminQueryError(err)
+	} else {
+		status, err = s.ledger.ReadinessStatus(r.Context())
+	}
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -38,7 +45,14 @@ func (s *Server) readinessDiagnostics(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	diagnostics, err := s.ledger.ReadinessDiagnostics(r.Context(), actor)
+	var diagnostics map[string]any
+	var err error
+	if s.readinessQuery != nil {
+		diagnostics, err = s.readinessQuery.Operator(r.Context(), actor)
+		err = mapInstanceAdminQueryError(err)
+	} else {
+		diagnostics, err = s.ledger.ReadinessDiagnostics(r.Context(), actor)
+	}
 	if err != nil {
 		writeProblem(w, r, err)
 		return

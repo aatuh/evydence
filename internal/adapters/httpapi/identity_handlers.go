@@ -41,6 +41,18 @@ func (s *Server) outboxOperatorDiagnostics(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
+	if s.outboxDiagnosticsQuery != nil {
+		diagnostics, err := s.outboxDiagnosticsQuery.Diagnostics(r.Context(), actor)
+		if err != nil {
+			writeProblem(w, r, mapInstanceAdminQueryError(err))
+			return
+		}
+		writeData(w, http.StatusOK, app.OutboxDiagnostics{
+			PendingJobs: diagnostics.PendingJobs, RunningJobs: diagnostics.RunningJobs,
+			TerminalJobs: diagnostics.TerminalJobs, OldestPendingCreatedAt: diagnostics.OldestPendingCreatedAt,
+		})
+		return
+	}
 	diagnostics, err := s.ledger.OutboxOperatorDiagnostics(r.Context(), actor)
 	if err != nil {
 		writeProblem(w, r, err)

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/aatuh/evydence/internal/domain"
+	releasequery "github.com/aatuh/evydence/internal/release/query"
 	riskapp "github.com/aatuh/evydence/internal/risk/app"
 )
 
@@ -41,40 +42,7 @@ func (s releaseEvidenceService) ReleaseEvidenceFlowPlan(ctx context.Context, act
 		return domain.ReleaseEvidenceFlow{}, err
 	}
 	counts := releaseEvidenceFlowCountsLocked(l, actor.TenantID, release.ID)
-	steps := []domain.ReleaseEvidenceFlowStep{
-		releaseEvidenceFlowStep("artifact_digest", "Register artifact digest", counts["artifact_refs"] > 0, true, "POST", "/v1/artifacts", []string{ScopeEvidenceWrite}, "Register the release artifact digest or upload build output metadata that references the artifact."),
-		releaseEvidenceFlowStep("build_provenance", "Record build provenance", counts["passed_builds"] > 0, true, "POST", "/v1/builds", []string{ScopeBuildWrite}, "Record CI build metadata, commit identity, and output digests for the release."),
-		releaseEvidenceFlowStep("sbom", "Upload SBOM", counts["sboms"] > 0, true, "POST", "/v1/sboms", []string{ScopeEvidenceWrite}, "Upload CycloneDX or SPDX SBOM evidence linked to the release and artifact where available."),
-		releaseEvidenceFlowStep("vulnerability_scan", "Upload vulnerability scan", counts["vulnerability_scans"] > 0, true, "POST", "/v1/vulnerability-scans", []string{ScopeEvidenceWrite}, "Upload generic vulnerability scan evidence for review and decision workflows."),
-		releaseEvidenceFlowStep("vex_or_decisions", "Record VEX or decisions", counts["vex_documents"]+counts["vulnerability_decisions"] > 0, false, "POST", "/v1/vex", []string{ScopeEvidenceWrite}, "Upload OpenVEX/CycloneDX VEX or create manual vulnerability decisions for relevant findings."),
-		releaseEvidenceFlowStep("release_bundle", "Create release bundle", counts["release_bundles"] > 0, true, "POST", "/v1/release-bundles", []string{ScopeBundleWrite}, "Create an immutable release bundle after the required evidence is present."),
-		releaseEvidenceFlowStep("readiness", "Read release readiness", true, true, "GET", "/v1/reports/release-readiness?release_id="+release.ID, []string{ScopeVerifyRead}, "Review deterministic policy checks, gaps, assumptions, exceptions, and limitations."),
-		releaseEvidenceFlowStep("customer_package", "Create customer package", counts["customer_packages"] > 0, false, "POST", "/v1/customer-packages", []string{ScopePackageWrite}, "Create a scoped customer-safe package only after redaction profile review."),
-	}
-	status := "ready_for_review"
-	for _, step := range steps {
-		if step.Required && step.Status != "present" {
-			status = "needs_evidence"
-			break
-		}
-	}
-	return domain.ReleaseEvidenceFlow{
-		ReleaseID: release.ID,
-		ProductID: release.ProductID,
-		Status:    status,
-		Counts:    counts,
-		Steps:     steps,
-		Assumptions: []string{
-			"Workflow steps describe Evydence API evidence collection and do not replace CI provider, scanner, or operator review.",
-			"Scanner and SBOM uploads are recorded as evidence with limitations, not as complete or authoritative coverage.",
-		},
-		Limitations: []string{
-			"This workflow plan does not make legal compliance conclusions, grant certification, or guarantee release security.",
-			"Artifact-to-release association is inferred from release-linked SBOMs, build outputs, attestations, and uploaded evidence references.",
-		},
-		SchemaVersion: domain.ReleaseEvidenceFlowVersion,
-		GeneratedAt:   l.now(),
-	}, nil
+	return domain.ReleaseEvidenceFlowFromContextModel(releasequery.AssembleEvidenceFlow(release.ID, release.ProductID, counts, l.now())), nil
 }
 
 func releaseEvidenceFlowCountsLocked(l *Ledger, tenantID, releaseID string) map[string]int {
@@ -146,27 +114,6 @@ func releaseEvidenceFlowCountsLocked(l *Ledger, tenantID, releaseID string) map[
 	}
 	counts["artifact_refs"] = len(artifactRefs)
 	return counts
-}
-
-func releaseEvidenceFlowStep(id, title string, present, required bool, method, path string, scopes []string, description string) domain.ReleaseEvidenceFlowStep {
-	status := "missing"
-	if present {
-		status = "present"
-	} else if !required {
-		status = "optional"
-	}
-	return domain.ReleaseEvidenceFlowStep{
-		ID:                  id,
-		Title:               title,
-		Status:              status,
-		Required:            required,
-		Method:              method,
-		Path:                path,
-		RequiredScopes:      scopes,
-		IdempotencyRequired: method == "POST",
-		Description:         description,
-		NextReference:       path,
-	}
 }
 
 func (s releaseEvidenceService) ReleaseSecuritySummary(ctx context.Context, actor domain.Actor, releaseID string) (domain.ReleaseSecuritySummary, error) {

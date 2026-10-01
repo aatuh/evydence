@@ -7,6 +7,7 @@ import (
 
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
+	operationsquery "github.com/aatuh/evydence/internal/operations/query"
 )
 
 type Store interface {
@@ -150,16 +151,9 @@ type ObjectPayloadLifecycleStore interface {
 	MarkObjectPayloadOrphaned(context.Context, ObjectPayload) error
 }
 
-// ReadinessCheck is a bounded, process-level dependency probe. Check must
-// honor its context and must not return raw credentials, URLs, paths, tenant
-// data, or provider responses in FailureDetail; public readiness never emits
-// either the returned error or FailureDetail.
-type ReadinessCheck struct {
-	Name          string
-	Timeout       time.Duration
-	FailureDetail string
-	Check         func(context.Context) error
-}
+// ReadinessCheck is retained as a compatibility alias for the focused
+// operations readiness service's bounded process probe.
+type ReadinessCheck = operationsquery.ReadinessCheck
 
 type ObjectRetentionVerifier interface {
 	VerifyObjectRetention(context.Context, ObjectRetentionRequest) (ObjectRetentionResult, error)

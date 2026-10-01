@@ -14,6 +14,7 @@ import (
 	"github.com/aatuh/evydence/internal/adapters/postgres/repositories"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
+	operationsquery "github.com/aatuh/evydence/internal/operations/query"
 )
 
 const (
@@ -486,6 +487,24 @@ func (s *Store) OutboxDiagnostics(ctx context.Context) (app.OutboxDiagnostics, e
 		diagnostics.OldestPendingCreatedAt = oldest.UTC()
 	}
 	return diagnostics, nil
+}
+
+var _ operationsquery.OutboxDiagnosticsReader = (*Store)(nil)
+
+// ReadOutboxCounts maps the existing bounded aggregate into the operations
+// query projection without loading job rows or exposing payloads.
+func (s *Store) ReadOutboxCounts(ctx context.Context) (operationsquery.OutboxCounts, error) {
+	if s == nil || s.pool == nil || ctx == nil {
+		return operationsquery.OutboxCounts{}, operationsquery.ErrValidation
+	}
+	counts, err := s.OutboxDiagnostics(ctx)
+	if err != nil {
+		return operationsquery.OutboxCounts{}, err
+	}
+	return operationsquery.OutboxCounts{
+		PendingJobs: counts.PendingJobs, RunningJobs: counts.RunningJobs,
+		TerminalJobs: counts.TerminalJobs, OldestPendingCreatedAt: counts.OldestPendingCreatedAt,
+	}, nil
 }
 
 func (s *Store) ReplayTerminalJob(ctx context.Context, id, actorID string) (app.OutboxReplay, error) {

@@ -88,6 +88,15 @@ inventories. API and worker runtime commands,
 including reconciliation and parser replay, now share a composition root for
 profile/load-mode validation, PostgreSQL migrations, object-store selection,
 and the production API writer lease.
+The production outbox diagnostics route reads the existing payload-free
+PostgreSQL aggregate through a focused operations query that requires explicit
+instance-admin scope before querying. It does not load outbox jobs or tenant
+labels into the API; local-memory mode retains the Ledger operator adapter.
+Production public readiness and instance-admin diagnostics now use a focused
+operations probe service, not Ledger state. The composition root requires
+PostgreSQL and migration probes, plus writer-lease and signing-configuration
+probes in production; raw probe errors never enter either response, and safe
+failure details appear only for an explicitly authorized instance admin.
 EVY-905 also routes production product-list pages and product, project,
 release, and build point reads through focused release query services with
 tenant-bound PostgreSQL queries. Their actor-scope and catalog-grant checks
@@ -98,6 +107,12 @@ The built-in control-template catalog is owned by the risk context and read
 without the Ledger in the PostgreSQL profile. It contains static starter
 definitions, not tenant state; installation still uses the transactional
 compatibility command path. Local-memory mode retains the Ledger list path.
+The read-only release evidence-flow plan also uses a focused service in the
+PostgreSQL profile: one tenant-filtered SQL statement collects nine release
+counts from a consistent snapshot, then current resource grants are checked
+before the response is returned. The local-memory profile keeps the Ledger
+count path. The counts describe recorded evidence, not its completeness or
+security assurance.
 The production process still reconstructs broad Ledger state at startup for
 remaining compatibility operations; removing that startup load and migrating
 other reads remain open EVY-905 work. Evidence list and search pages now use

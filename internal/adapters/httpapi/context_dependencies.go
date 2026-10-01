@@ -13,6 +13,7 @@ import (
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	integrationdomain "github.com/aatuh/evydence/internal/integration/domain"
 	operationsdomain "github.com/aatuh/evydence/internal/operations/domain"
+	operationsquery "github.com/aatuh/evydence/internal/operations/query"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 	packagequery "github.com/aatuh/evydence/internal/package/query"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
@@ -27,6 +28,13 @@ import (
 // explicit dependency of every protected route.
 type Authenticator interface {
 	Authenticate(context.Context, string) (domain.Actor, error)
+}
+
+// ReadinessQuery probes process dependencies without consulting Ledger state.
+// Operator details require explicit instance-wide authority in the service.
+type ReadinessQuery interface {
+	Public(context.Context) (map[string]any, error)
+	Operator(context.Context, domain.Actor) (map[string]any, error)
 }
 
 // InstanceAdminQuery returns aggregate operational counts only after the
@@ -47,6 +55,18 @@ type ProductQuery interface {
 type CatalogPointQuery interface {
 	GetProject(context.Context, domain.Actor, string) (releasedomain.Project, error)
 	GetRelease(context.Context, domain.Actor, string) (releasedomain.Release, error)
+}
+
+// EvidenceFlowQuery builds a tenant- and grant-scoped workflow snapshot from
+// bounded database aggregates rather than the compatibility Ledger maps.
+type EvidenceFlowQuery interface {
+	Plan(context.Context, domain.Actor, string) (releasedomain.ReleaseEvidenceFlow, error)
+}
+
+// OutboxDiagnosticsQuery exposes payload-free queue health to explicitly
+// authorized instance administrators without using Ledger state.
+type OutboxDiagnosticsQuery interface {
+	Diagnostics(context.Context, domain.Actor) (operationsquery.OutboxCounts, error)
 }
 
 // BuildPointQuery authorizes a build using one tenant-verified durable parent projection.

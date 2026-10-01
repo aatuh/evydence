@@ -64,6 +64,28 @@ func ReleaseFromContextModel(value releasedomain.Release) Release {
 	}
 }
 
+func ReleaseEvidenceFlowFromContextModel(value releasedomain.ReleaseEvidenceFlow) ReleaseEvidenceFlow {
+	counts := make(map[string]int, len(value.Counts))
+	for key, count := range value.Counts {
+		counts[key] = count
+	}
+	steps := make([]ReleaseEvidenceFlowStep, 0, len(value.Steps))
+	for _, step := range value.Steps {
+		steps = append(steps, ReleaseEvidenceFlowStep{
+			ID: step.ID, Title: step.Title, Status: step.Status, Required: step.Required,
+			Method: step.Method, Path: step.Path, RequiredScopes: append([]string(nil), step.RequiredScopes...),
+			IdempotencyRequired: step.IdempotencyRequired, Description: step.Description,
+			NextReference: step.NextReference,
+		})
+	}
+	return ReleaseEvidenceFlow{
+		ReleaseID: value.ReleaseID, ProductID: value.ProductID, Status: value.Status,
+		Counts: counts, Steps: steps, Assumptions: append([]string(nil), value.Assumptions...),
+		Limitations:   append([]string(nil), value.Limitations...),
+		SchemaVersion: value.SchemaVersion, GeneratedAt: value.GeneratedAt,
+	}
+}
+
 func SubjectRefToEvidenceModel(value SubjectRef) (evidencedomain.SubjectRef, error) {
 	return evidencedomain.NewSubjectReference(value.Type, value.ID, value.Digest)
 }

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/domain"
+	operationsquery "github.com/aatuh/evydence/internal/operations/query"
 )
 
 type VerifyCosignInput struct {
@@ -128,7 +129,10 @@ func (l *Ledger) ReadinessStatus(ctx context.Context) (map[string]any, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return l.readinessStatus(ctx, false), nil
+	l.mu.Lock()
+	checks := append([]ReadinessCheck(nil), l.readinessChecks...)
+	l.mu.Unlock()
+	return operationsquery.NewReadiness(checks).Public(ctx)
 }
 
 // ReadinessDiagnostics returns safe, dependency-specific diagnostics for an
@@ -141,54 +145,14 @@ func (l *Ledger) ReadinessDiagnostics(ctx context.Context, actor domain.Actor) (
 	if err := require(actor, ScopeInstanceAdmin); err != nil {
 		return nil, err
 	}
-	return l.readinessStatus(ctx, true), nil
-}
-
-func (l *Ledger) readinessStatus(ctx context.Context, includeDetails bool) map[string]any {
 	l.mu.Lock()
-	checksConfig := append([]ReadinessCheck(nil), l.readinessChecks...)
+	checks := append([]ReadinessCheck(nil), l.readinessChecks...)
 	l.mu.Unlock()
-	checks := []map[string]string{{"name": "ledger", "status": "ok"}}
-	overall := "ok"
-	for _, configured := range checksConfig {
-		checkCtx, cancel := context.WithTimeout(ctx, configured.Timeout)
-		err := configured.Check(checkCtx)
-		cancel()
-		check := map[string]string{"name": configured.Name, "status": "ok"}
-		if err != nil {
-			check["status"] = "unavailable"
-			overall = "unavailable"
-			if includeDetails {
-				check["detail"] = configured.FailureDetail
-			}
-		}
-		checks = append(checks, check)
-	}
-	return map[string]any{"status": overall, "checks": checks}
+	return operationsquery.NewReadiness(checks).Operator(ctx, actor)
 }
 
 func normalizedReadinessChecks(checks []ReadinessCheck) []ReadinessCheck {
-	seen := map[string]struct{}{}
-	normalized := make([]ReadinessCheck, 0, len(checks))
-	for _, check := range checks {
-		check.Name = strings.TrimSpace(check.Name)
-		check.FailureDetail = strings.TrimSpace(check.FailureDetail)
-		if check.Name == "" || check.Check == nil {
-			continue
-		}
-		if _, duplicate := seen[check.Name]; duplicate {
-			continue
-		}
-		if check.Timeout <= 0 {
-			check.Timeout = 3 * time.Second
-		}
-		if check.FailureDetail == "" {
-			check.FailureDetail = "dependency check is unavailable"
-		}
-		seen[check.Name] = struct{}{}
-		normalized = append(normalized, check)
-	}
-	return normalized
+	return operationsquery.NormalizeReadinessChecks(checks)
 }
 
 func (l *Ledger) Metrics(ctx context.Context, actor domain.Actor) (map[string]any, error) {

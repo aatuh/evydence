@@ -5,7 +5,36 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 )
+
+func TestReleaseEvidenceFlowContextConversionCopiesResponseFields(t *testing.T) {
+	now := time.Date(2026, 9, 30, 12, 0, 0, 0, time.UTC)
+	value := releasedomain.ReleaseEvidenceFlow{
+		ReleaseID: "rel_1", ProductID: "prod_1", Status: "needs_evidence",
+		Counts: map[string]int{"sboms": 1},
+		Steps: []releasedomain.ReleaseEvidenceFlowStep{{
+			ID: "sbom", Title: "Upload SBOM", Status: "present", Required: true,
+			Method: "POST", Path: "/v1/sboms", RequiredScopes: []string{"evidence:write"},
+			IdempotencyRequired: true, Description: "Upload evidence", NextReference: "/v1/sboms",
+		}},
+		Assumptions: []string{"review"}, Limitations: []string{"not certification"},
+		SchemaVersion: releasedomain.ReleaseEvidenceFlowVersion, GeneratedAt: now,
+	}
+	converted := ReleaseEvidenceFlowFromContextModel(value)
+	if converted.ReleaseID != value.ReleaseID || converted.ProductID != value.ProductID || converted.Status != value.Status ||
+		converted.Counts["sboms"] != 1 || len(converted.Steps) != 1 || converted.Steps[0].NextReference != "/v1/sboms" ||
+		converted.SchemaVersion != value.SchemaVersion || !converted.GeneratedAt.Equal(now) {
+		t.Fatalf("flow conversion=%#v", converted)
+	}
+	converted.Counts["sboms"] = 5
+	converted.Steps[0].RequiredScopes[0] = "admin"
+	converted.Assumptions[0] = "changed"
+	if value.Counts["sboms"] != 1 || value.Steps[0].RequiredScopes[0] != "evidence:write" || value.Assumptions[0] != "review" {
+		t.Fatal("flow conversion aliases source data")
+	}
+}
 
 func TestContextCompatibilityMappersPreserveLegacyContracts(t *testing.T) {
 	now := time.Date(2026, time.August, 22, 12, 0, 0, 0, time.UTC)

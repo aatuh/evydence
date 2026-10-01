@@ -40,12 +40,15 @@ const requestIDHeader = "X-Request-ID"
 type Server struct {
 	ledger                            *app.Ledger
 	authn                             Authenticator
+	readinessQuery                    ReadinessQuery
 	instanceAdminQuery                InstanceAdminQuery
+	outboxDiagnosticsQuery            OutboxDiagnosticsQuery
 	idempotency                       idempotencyExecutor
 	identityAccess                    identityAccessService
 	releaseCatalog                    releaseCatalogService
 	productQuery                      ProductQuery
 	catalogPointQuery                 CatalogPointQuery
+	evidenceFlowQuery                 EvidenceFlowQuery
 	buildPointQuery                   BuildPointQuery
 	artifactPointQuery                ArtifactPointQuery
 	releaseCandidateQuery             ReleaseCandidateQuery
@@ -108,8 +111,12 @@ type ServerOptions struct {
 	// Authenticator overrides the local-memory Ledger authentication adapter.
 	// Production binds it to current PostgreSQL credential and grant rows.
 	Authenticator Authenticator
+	// ReadinessQuery probes production dependencies independently of Ledger state.
+	ReadinessQuery ReadinessQuery
 	// InstanceAdminQuery reads global operational counts without loading Ledger state.
 	InstanceAdminQuery InstanceAdminQuery
+	// OutboxDiagnosticsQuery reads global queue counts after instance-admin authorization.
+	OutboxDiagnosticsQuery OutboxDiagnosticsQuery
 	// PaginationSecret authenticates opaque cursor tokens. Production callers
 	// should supply a stable, non-public secret so tokens survive restarts.
 	PaginationSecret []byte
@@ -119,6 +126,8 @@ type ServerOptions struct {
 	// CatalogPointQuery enables tenant-filtered PostgreSQL project/release
 	// reads. Local-memory servers use the compatibility service instead.
 	CatalogPointQuery CatalogPointQuery
+	// EvidenceFlowQuery reads one release's workflow counts from durable state.
+	EvidenceFlowQuery EvidenceFlowQuery
 	// BuildPointQuery reads current build and parent coordinates in PostgreSQL.
 	BuildPointQuery BuildPointQuery
 	// ArtifactPointQuery reads a tenant-owned artifact and current grant visibility.
@@ -227,7 +236,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, instanceAdminQuery: opts.InstanceAdminQuery, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, buildPointQuery: opts.BuildPointQuery, artifactPointQuery: opts.ArtifactPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, lifecycleEventsQuery: opts.LifecycleEventsQuery, openAPIContractPointQuery: opts.OpenAPIContractPointQuery, sbomPointQuery: opts.SBOMPointQuery, vulnerabilityScanPointQuery: opts.VulnerabilityScanPointQuery, vexPointQuery: opts.VEXPointQuery, sbomComponentsQuery: opts.SBOMComponentsQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, collectorHealthQuery: opts.CollectorHealthQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, marketplaceCollectorQuery: opts.MarketplaceCollectorQuery, vulnerabilityPostureQuery: opts.VulnerabilityPostureQuery, controlsQuery: opts.ControlsQuery, controlTemplateQuery: opts.ControlTemplateQuery, exceptionsQuery: opts.ExceptionsQuery, vulnerabilityDecisionQuery: opts.VulnerabilityDecisionQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, readinessQuery: opts.ReadinessQuery, instanceAdminQuery: opts.InstanceAdminQuery, outboxDiagnosticsQuery: opts.OutboxDiagnosticsQuery, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, evidenceFlowQuery: opts.EvidenceFlowQuery, buildPointQuery: opts.BuildPointQuery, artifactPointQuery: opts.ArtifactPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, lifecycleEventsQuery: opts.LifecycleEventsQuery, openAPIContractPointQuery: opts.OpenAPIContractPointQuery, sbomPointQuery: opts.SBOMPointQuery, vulnerabilityScanPointQuery: opts.VulnerabilityScanPointQuery, vexPointQuery: opts.VEXPointQuery, sbomComponentsQuery: opts.SBOMComponentsQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, collectorHealthQuery: opts.CollectorHealthQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, marketplaceCollectorQuery: opts.MarketplaceCollectorQuery, vulnerabilityPostureQuery: opts.VulnerabilityPostureQuery, controlsQuery: opts.ControlsQuery, controlTemplateQuery: opts.ControlTemplateQuery, exceptionsQuery: opts.ExceptionsQuery, vulnerabilityDecisionQuery: opts.VulnerabilityDecisionQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
 	server.vulnerabilityDecisionSummaryQuery = opts.VulnerabilityDecisionSummaryQuery
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
@@ -748,6 +757,15 @@ func mapCatalogPointQueryError(err error) error {
 func (s *Server) startReleaseEvidenceFlow(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
+		return
+	}
+	if s.evidenceFlowQuery != nil {
+		flow, err := s.evidenceFlowQuery.Plan(r.Context(), actor, r.PathValue("id"))
+		if err != nil {
+			writeProblem(w, r, mapCatalogPointQueryError(err))
+			return
+		}
+		writeData(w, http.StatusOK, domain.ReleaseEvidenceFlowFromContextModel(flow))
 		return
 	}
 	flow, err := s.releaseCatalog.ReleaseEvidenceFlowPlan(r.Context(), actor, r.PathValue("id"))

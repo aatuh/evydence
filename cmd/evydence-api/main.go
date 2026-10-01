@@ -174,7 +174,7 @@ func runWithContext(ctx context.Context) error {
 			log.Printf("bootstrapped tenant %s and key %s; set EVYDENCE_PRINT_BOOTSTRAP_SECRET=true for local-only secret output", tenant.ID, key.ID)
 		}
 	}
-	options, err := wiring.BuildAPIReadServices(runtime, pepper)
+	options, err := wiring.BuildAPIReadServices(runtime, pepper, cfg.ReadinessChecks)
 	if err != nil {
 		return fmt.Errorf("compose API read services: %w", err)
 	}

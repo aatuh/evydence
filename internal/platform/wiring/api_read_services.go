@@ -5,12 +5,14 @@ import (
 	"fmt"
 
 	"github.com/aatuh/evydence/internal/adapters/httpapi"
+	"github.com/aatuh/evydence/internal/app"
+	operationsquery "github.com/aatuh/evydence/internal/operations/query"
 )
 
 // BuildAPIReadServices composes the API's durable authentication and focused
 // query ports from one validated runtime. Local memory deliberately keeps the
 // explicit Ledger fallback and receives no PostgreSQL-backed read services.
-func BuildAPIReadServices(runtime *Runtime, pepper string) (httpapi.ServerOptions, error) {
+func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app.ReadinessCheck) (httpapi.ServerOptions, error) {
 	if runtime == nil {
 		return httpapi.ServerOptions{}, errors.New("API runtime is required")
 	}
@@ -33,6 +35,20 @@ func BuildAPIReadServices(runtime *Runtime, pepper string) (httpapi.ServerOption
 	store := runtime.Postgres
 	var options httpapi.ServerOptions
 	var err error
+	normalizedChecks := operationsquery.NormalizeReadinessChecks(readinessChecks)
+	configuredChecks := make(map[string]bool, len(normalizedChecks))
+	for _, check := range normalizedChecks {
+		configuredChecks[check.Name] = true
+	}
+	for _, required := range []string{"postgres", "migrations"} {
+		if !configuredChecks[required] {
+			return httpapi.ServerOptions{}, errors.New("PostgreSQL API readiness checks are incomplete")
+		}
+	}
+	if runtime.Production && (!configuredChecks["writer_lease"] || !configuredChecks["signing_config"]) {
+		return httpapi.ServerOptions{}, errors.New("production API readiness checks are incomplete")
+	}
+	options.ReadinessQuery = operationsquery.NewReadiness(normalizedChecks)
 	options.Authenticator, err = BuildAuthenticator(store, store, pepper, runtime.Production)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create authenticator: %w", err)
@@ -41,6 +57,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string) (httpapi.ServerOption
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create instance admin query: %w", err)
 	}
+	options.OutboxDiagnosticsQuery, err = BuildOutboxDiagnosticsQuery(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create outbox diagnostics query: %w", err)
+	}
 	options.ProductQuery, err = BuildProductQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create product query: %w", err)
@@ -48,6 +68,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string) (httpapi.ServerOption
 	options.CatalogPointQuery, err = BuildCatalogPointQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create catalog point query: %w", err)
+	}
+	options.EvidenceFlowQuery, err = BuildEvidenceFlowQuery(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create release evidence flow query: %w", err)
 	}
 	options.BuildPointQuery, err = BuildBuildPointQuery(store)
 	if err != nil {
