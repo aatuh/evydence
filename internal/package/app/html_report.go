@@ -23,7 +23,48 @@ type CRAReadinessHTMLSnapshot struct {
 	Limitations     []string
 }
 
-func (s *Service) CRAReadinessHTMLPackage(ctx context.Context, actor identitydomain.Actor, productID, releaseID string) (packagedomain.HTMLReportPackage, error) {
+type HTMLReportReader interface {
+	ReadCRAReadinessHTMLSnapshot(context.Context, identitydomain.Actor, string, string) (CRAReadinessHTMLSnapshot, error)
+}
+
+type HTMLReportTransaction interface {
+	InsertHTMLReportPackage(context.Context, packagedomain.HTMLReportPackage) error
+	application.Authorizer
+	application.AuditAppender
+}
+
+type HTMLReportTransactions interface {
+	ExecuteHTMLReport(context.Context, func(context.Context, HTMLReportTransaction) error) error
+}
+
+type ReportBytesHasher interface {
+	HashPackageBytes(context.Context, []byte) (string, error)
+}
+
+type HTMLReportCommandConfig struct {
+	Reader       HTMLReportReader
+	Transactions HTMLReportTransactions
+	Authorizer   application.Authorizer
+	Hasher       ReportBytesHasher
+	Clock        application.Clock
+	IDs          application.IDGenerator
+}
+
+// HTMLReportCommands generates and persists one escaped report and its audit
+// entry. Its reader must use a committed, bounded view of the requested scope.
+type HTMLReportCommands struct{ config HTMLReportCommandConfig }
+
+func NewHTMLReportCommands(config HTMLReportCommandConfig) (*HTMLReportCommands, error) {
+	if config.Reader == nil || config.Transactions == nil || config.Authorizer == nil || config.Hasher == nil || config.Clock == nil || config.IDs == nil {
+		return nil, ErrValidation
+	}
+	return &HTMLReportCommands{config: config}, nil
+}
+
+func (s *HTMLReportCommands) CRAReadinessHTMLPackage(ctx context.Context, actor identitydomain.Actor, productID, releaseID string) (packagedomain.HTMLReportPackage, error) {
+	if s == nil {
+		return packagedomain.HTMLReportPackage{}, ErrValidation
+	}
 	if err := contextError(ctx); err != nil {
 		return packagedomain.HTMLReportPackage{}, err
 	}
@@ -35,10 +76,11 @@ func (s *Service) CRAReadinessHTMLPackage(ctx context.Context, actor identitydom
 		return packagedomain.HTMLReportPackage{}, ErrValidation
 	}
 	resources := application.ResourceReferences{ProductID: productID, ReleaseID: releaseID}
-	if err := s.authorize(ctx, actor, ScopeReportRead, resources, false); err != nil {
+	request := application.AuthorizationRequest{Scope: ScopeReportRead, Resources: resources}
+	if err := s.config.Authorizer.Authorize(ctx, actor, request); err != nil {
 		return packagedomain.HTMLReportPackage{}, err
 	}
-	snapshot, err := s.reader.ReadCommittedCRAReadinessHTMLSnapshot(ctx, actor.TenantID, productID, releaseID)
+	snapshot, err := s.config.Reader.ReadCRAReadinessHTMLSnapshot(ctx, actor, productID, releaseID)
 	if err != nil {
 		return packagedomain.HTMLReportPackage{}, err
 	}
@@ -72,33 +114,61 @@ func (s *Service) CRAReadinessHTMLPackage(ctx context.Context, actor identitydom
 		return packagedomain.HTMLReportPackage{}, ErrValidation
 	}
 	htmlBody := body.String()
-	hash, err := s.canonicalizer.HashPackageBytes(ctx, []byte(htmlBody))
+	hash, err := s.config.Hasher.HashPackageBytes(ctx, []byte(htmlBody))
 	if err != nil {
 		return packagedomain.HTMLReportPackage{}, err
 	}
 	if strings.TrimSpace(hash) == "" {
 		return packagedomain.HTMLReportPackage{}, ErrValidation
 	}
-	now := s.clock.Now().UTC()
+	now := s.config.Clock.Now().UTC()
 	report := packagedomain.HTMLReportPackage{
-		ID: s.ids.NewID("html"), TenantID: actor.TenantID, ReportType: "cra_readiness",
+		ID: s.config.IDs.NewID("html"), TenantID: actor.TenantID, ReportType: "cra_readiness",
 		ProductID: productID, ReleaseID: releaseID, HTML: htmlBody, Hash: hash,
 		SchemaVersion: "html-report-package.v1.0.0", CreatedAt: now,
 	}
-	err = s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-		if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeReportRead, Resources: resources}); err != nil {
+	err = s.config.Transactions.ExecuteHTMLReport(ctx, func(ctx context.Context, tx HTMLReportTransaction) error {
+		if err := tx.Authorize(ctx, actor, request); err != nil {
 			return err
 		}
-		if err := tx.Packages().InsertHTMLReportPackage(ctx, report); err != nil {
+		if err := tx.InsertHTMLReportPackage(ctx, report); err != nil {
 			return err
 		}
-		_, err := tx.Audit().AppendAudit(ctx, s.auditEvent(actor, now, "html_report.generated", "html_report", report.ID, hash))
+		_, err := tx.AppendAudit(ctx, application.AuditEvent{ID: s.config.IDs.NewID("ace"), TenantID: actor.TenantID, EntryType: "html_report.generated", SubjectType: "html_report", SubjectID: report.ID, ActorType: auditActorType(actor), ActorID: auditActorID(actor), OccurredAt: now, PayloadHash: hash})
 		return err
 	})
 	if err != nil {
 		return packagedomain.HTMLReportPackage{}, err
 	}
 	return report, nil
+}
+
+func (s *Service) CRAReadinessHTMLPackage(ctx context.Context, actor identitydomain.Actor, productID, releaseID string) (packagedomain.HTMLReportPackage, error) {
+	commands, err := NewHTMLReportCommands(HTMLReportCommandConfig{Reader: serviceHTMLReportReader{s.reader}, Transactions: serviceHTMLReportTransactions{s.transactions}, Authorizer: s.authorizer, Hasher: s.canonicalizer, Clock: s.clock, IDs: s.ids})
+	if err != nil {
+		return packagedomain.HTMLReportPackage{}, err
+	}
+	return commands.CRAReadinessHTMLPackage(ctx, actor, productID, releaseID)
+}
+
+type serviceHTMLReportReader struct{ reader Reader }
+
+func (r serviceHTMLReportReader) ReadCRAReadinessHTMLSnapshot(ctx context.Context, actor identitydomain.Actor, productID, releaseID string) (CRAReadinessHTMLSnapshot, error) {
+	return r.reader.ReadCommittedCRAReadinessHTMLSnapshot(ctx, actor.TenantID, productID, releaseID)
+}
+
+type serviceHTMLReportTransactions struct{ transactions TransactionRunner }
+
+func (t serviceHTMLReportTransactions) ExecuteHTMLReport(ctx context.Context, command func(context.Context, HTMLReportTransaction) error) error {
+	return t.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
+		return command(ctx, serviceHTMLReportTransaction{tx.Packages(), tx.Authorization(), tx.Audit()})
+	})
+}
+
+type serviceHTMLReportTransaction struct {
+	Repository
+	application.Authorizer
+	application.AuditAppender
 }
 
 func cloneCRAReadinessHTMLSnapshot(value CRAReadinessHTMLSnapshot) CRAReadinessHTMLSnapshot {

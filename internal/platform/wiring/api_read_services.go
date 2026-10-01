@@ -89,6 +89,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create control coverage query: %w", err)
 	}
+	options.HTMLReportCommands, err = BuildHTMLReportCommands(options.ControlCoverageQuery, store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create HTML report commands: %w", err)
+	}
 	options.Authenticator, err = BuildAuthenticator(store, store, pepper, runtime.Production)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create authenticator: %w", err)

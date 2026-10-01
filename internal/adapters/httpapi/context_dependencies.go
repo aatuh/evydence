@@ -84,6 +84,11 @@ type CustomerPackageAccessCommands interface {
 	SecurityReviewPackageReport(context.Context, domain.Actor, string) (packagedomain.SecurityReviewPackageReport, error)
 }
 
+// HTMLReportCommands persists an escaped CRA report and its audit atomically.
+type HTMLReportCommands interface {
+	CRAReadinessHTMLPackage(context.Context, domain.Actor, string, string) (packagedomain.HTMLReportPackage, error)
+}
+
 // ReleaseSecuritySummaryQuery assembles one release's security overview from
 // a bounded, tenant-scoped committed snapshot.
 type ReleaseSecuritySummaryQuery interface {

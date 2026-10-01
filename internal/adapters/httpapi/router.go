@@ -48,6 +48,7 @@ type Server struct {
 	craVulnerabilityQuery             CRAVulnerabilityQuery
 	missingEvidenceQuery              MissingEvidenceQuery
 	customerPackageAccessCommands     CustomerPackageAccessCommands
+	htmlReportCommands                HTMLReportCommands
 	releaseReadinessReportQuery       ReleaseReadinessReportQuery
 	releaseSecuritySummaryQuery       ReleaseSecuritySummaryQuery
 	controlCoverageQuery              ControlCoverageQuery
@@ -140,6 +141,8 @@ type ServerOptions struct {
 	ReleaseReadinessReportQuery ReleaseReadinessReportQuery
 	// CustomerPackageAccessCommands reads and audits one durable package.
 	CustomerPackageAccessCommands CustomerPackageAccessCommands
+	// HTMLReportCommands uses bounded durable CRA facts and atomic report writes.
+	HTMLReportCommands HTMLReportCommands
 	// ReleaseSecuritySummaryQuery reads one committed report snapshot.
 	ReleaseSecuritySummaryQuery ReleaseSecuritySummaryQuery
 	// ControlCoverageQuery reads bounded tenant-owned control and CRA reports.
@@ -274,6 +277,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.missingEvidenceQuery = opts.MissingEvidenceQuery
 	server.releaseReadinessReportQuery = opts.ReleaseReadinessReportQuery
 	server.customerPackageAccessCommands = opts.CustomerPackageAccessCommands
+	server.htmlReportCommands = opts.HTMLReportCommands
 	server.releaseSecuritySummaryQuery = opts.ReleaseSecuritySummaryQuery
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
@@ -1764,7 +1768,21 @@ func (s *Server) craReadinessHTMLPackage(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	report, err := s.packages.CRAReadinessHTMLPackage(r.Context(), actor, r.URL.Query().Get("product_id"), r.URL.Query().Get("release_id"))
+	filter, err := controlReportFilters(r, true)
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	if s.htmlReportCommands != nil {
+		report, err := s.htmlReportCommands.CRAReadinessHTMLPackage(r.Context(), actor, filter.ProductID, filter.ReleaseID)
+		if err != nil {
+			writeProblem(w, r, mapCustomerPackageAccessError(mapControlCoverageQueryError(err)))
+			return
+		}
+		writeData(w, http.StatusOK, htmlReportFromCommands(report))
+		return
+	}
+	report, err := s.packages.CRAReadinessHTMLPackage(r.Context(), actor, filter.ProductID, filter.ReleaseID)
 	if err != nil {
 		writeProblem(w, r, err)
 		return

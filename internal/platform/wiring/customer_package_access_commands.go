@@ -59,7 +59,11 @@ func (t packageAccessTransaction) Authorize(ctx context.Context, actor identityd
 	return packagequery.NewPackageAccessAuthorizer().Authorize(ctx, actor, request)
 }
 func (t packageAccessTransaction) AppendAudit(ctx context.Context, event application.AuditEvent) (application.AuditReceipt, error) {
-	entry, err := t.audit.Append(ctx, domain.AuditChainEntry{ID: event.ID, TenantID: event.TenantID, EntryType: event.EntryType, SubjectType: event.SubjectType, SubjectID: event.SubjectID, ActorType: event.ActorType, ActorID: event.ActorID, OccurredAt: event.OccurredAt, PayloadHash: event.PayloadHash, SchemaVersion: domain.AuditChainEntrySchemaVersion})
+	return appendPackageAudit(ctx, t.audit, event)
+}
+
+func appendPackageAudit(ctx context.Context, audit app.AuditRepository, event application.AuditEvent) (application.AuditReceipt, error) {
+	entry, err := audit.Append(ctx, domain.AuditChainEntry{ID: event.ID, TenantID: event.TenantID, EntryType: event.EntryType, SubjectType: event.SubjectType, SubjectID: event.SubjectID, ActorType: event.ActorType, ActorID: event.ActorID, OccurredAt: event.OccurredAt, PayloadHash: event.PayloadHash, SchemaVersion: domain.AuditChainEntrySchemaVersion})
 	if err != nil {
 		return application.AuditReceipt{}, mapPackageAccessWriteError(err)
 	}
