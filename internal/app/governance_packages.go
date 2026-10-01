@@ -18,6 +18,8 @@ import (
 	"github.com/aatuh/evydence/internal/domain"
 	"github.com/aatuh/evydence/internal/platform/redaction"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
+	verificationapp "github.com/aatuh/evydence/internal/verification/app"
+	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
 
 type CreateWaiverInput struct {
@@ -479,49 +481,14 @@ func (l *Ledger) packageAnswerLibraryMetadataLocked(tenantID, productID, release
 }
 
 func (l *Ledger) packageObjectLockProofsLocked(tenantID string) []map[string]any {
-	out := []map[string]any{}
+	policies := make([]verificationdomain.ObjectRetentionPolicy, 0)
 	for _, policy := range l.retentionPolicies {
 		if policy.TenantID != tenantID {
 			continue
 		}
-		policy = currentRetentionPolicy(policy, l.now())
-		proof := map[string]any{
-			"id":                           policy.ID,
-			"name":                         policy.Name,
-			"object_prefix_configured":     policy.ObjectPrefix != "",
-			"sample_object_key_configured": policy.ObjectKey != "",
-			"require_legal_hold":           policy.RequireLegalHold,
-			"mode":                         policy.Mode,
-			"retention_days":               policy.RetentionDays,
-			"status":                       policy.Status,
-			"verification_hash":            policy.VerificationHash,
-			"verification_provider":        policy.VerificationProvider,
-			"verification_mode":            policy.VerificationMode,
-			"verification_retention_days":  policy.VerificationRetentionDays,
-			"verification_checks":          packageVerifyChecks(policy.VerificationChecks),
-			"verification_limitations":     append([]string(nil), policy.VerificationLimitations...),
-			"created_at":                   policy.CreatedAt.UTC().Format(time.RFC3339),
-			"limitations": []string{
-				"Object-lock proof records show configured Evydence verification results for tenant object-storage settings only.",
-				"They do not prove external WORM enforcement, IAM policy, lifecycle policy, backup behavior, or legal compliance.",
-			},
-		}
-		if policy.VerifiedAt != nil {
-			proof["verified_at"] = policy.VerifiedAt.UTC().Format(time.RFC3339)
-		}
-		if policy.VerificationObservedAt != nil {
-			proof["verification_observed_at"] = policy.VerificationObservedAt.UTC().Format(time.RFC3339)
-		}
-		if policy.VerificationExpiresAt != nil {
-			proof["verification_expires_at"] = policy.VerificationExpiresAt.UTC().Format(time.RFC3339)
-		}
-		if policy.VerificationLegalHold != nil {
-			proof["verification_legal_hold"] = *policy.VerificationLegalHold
-		}
-		out = append(out, proof)
+		policies = append(policies, objectRetentionPolicyToVerificationContext(policy))
 	}
-	sortManifestMapsByID(out)
-	return out
+	return verificationapp.ObjectLockProofs(policies, l.now())
 }
 
 func packageVerifyChecks(checks []domain.VerifyCheck) []map[string]any {

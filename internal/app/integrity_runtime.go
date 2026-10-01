@@ -104,19 +104,6 @@ func (l *Ledger) RevokeSigningKey(ctx context.Context, actor domain.Actor, keyID
 	})
 }
 
-func currentRetentionPolicy(policy domain.ObjectRetentionPolicy, now time.Time) domain.ObjectRetentionPolicy {
-	if policy.Status != "verified" {
-		return policy
-	}
-	if policy.VerificationExpiresAt != nil && now.Before(*policy.VerificationExpiresAt) {
-		return policy
-	}
-	policy.Status = "stale"
-	policy.VerificationChecks = append(append([]domain.VerifyCheck(nil), policy.VerificationChecks...), domain.VerifyCheck{Name: "provider_observation_freshness", Result: "failed", Detail: "Provider retention observation exceeded this policy's maximum verification age."})
-	policy.VerificationLimitations = append(append([]string(nil), policy.VerificationLimitations...), "Provider retention observation is stale and must be refreshed before it can be treated as current.")
-	return policy
-}
-
 func copyBool(value *bool) *bool {
 	if value == nil {
 		return nil

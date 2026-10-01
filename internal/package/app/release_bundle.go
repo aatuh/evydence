@@ -12,6 +12,14 @@ import (
 
 const ReleaseBundleSnapshotVersion = "release-bundle-snapshot.v1.0.0"
 
+// MaxBundleSnapshotRows bounds combined evidence references and retention
+// proofs. Oversized durable snapshots fail closed instead of omitting facts.
+const MaxBundleSnapshotRows = 4096
+
+type ReleaseBundleSnapshotReader interface {
+	ReadReleaseBundleSnapshot(context.Context, string, string, time.Time) (ReleaseBundleSnapshot, error)
+}
+
 // ReleaseBundleSnapshot is the complete committed input to bundle generation.
 // It deliberately contains values rather than repositories or context maps.
 type ReleaseBundleSnapshot struct {
