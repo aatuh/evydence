@@ -75,6 +75,14 @@ func verifiedAuditChainCanonicalHash(entry domain.AuditChainEntry) (string, bool
 	return canonical, false, nil
 }
 
+// VerifyAuditChainEntryHash validates one immutable fact, not chain coverage,
+// signature trust or an external anchor. It retains the documented v1
+// PostgreSQL timestamp reconstruction instead of rejecting valid old hashes.
+func VerifyAuditChainEntryHash(entry domain.AuditChainEntry) bool {
+	canonical, valid, err := verifiedAuditChainCanonicalHash(entry)
+	return err == nil && valid && hashBytes([]byte(entry.PreviousEntryHash+"\n"+canonical)) == entry.EntryHash
+}
+
 // RehashAuditChainEntry recomputes both persisted hashes from the versioned
 // canonical fields and the entry's previous hash.
 func RehashAuditChainEntry(entry *domain.AuditChainEntry) error {

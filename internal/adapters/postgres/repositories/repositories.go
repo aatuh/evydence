@@ -19,6 +19,7 @@ import (
 	"github.com/aatuh/evydence/internal/adapters/postgres/coordination"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
+	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 )
 
 // New returns focused repositories bound to tx. The caller owns committing or
@@ -1372,6 +1373,14 @@ func (r evidence) AppendLifecycle(ctx context.Context, event domain.EvidenceLife
 	}
 	if err := requireOwnedEvidence(ctx, r.tx, event.TenantID, event.EvidenceID); err != nil {
 		return err
+	}
+	// Authoritative canonical origins coordinate with readers of the evidence
+	// row, including the initially empty origin set. Ordinary details are not
+	// hash inputs and do not need this stronger lock.
+	if _, origin := event.Details[evidencedomain.LegacyCanonicalOriginDetailKey]; origin && event.SchemaVersion == evidencedomain.EvidenceRelationshipLifecycleSchemaVersion {
+		if err := requireRow(ctx, r.tx, `SELECT 1 FROM evidence_items WHERE tenant_id=$1 AND id=$2 FOR UPDATE`, event.TenantID, event.EvidenceID); err != nil {
+			return err
+		}
 	}
 	details, err := json.Marshal(event.Details)
 	if err != nil {

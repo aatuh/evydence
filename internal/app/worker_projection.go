@@ -96,8 +96,8 @@ func (l *Ledger) mergeWorkerSBOMs(tenantID string, values []domain.SBOM, target 
 		if !l.projectionEvidenceExactlyMatches(tenantID, value.EvidenceID, value.ReleaseID, value.ArtifactID, "") {
 			return projectionConflict("SBOM relationship")
 		}
-		if value.Format == "" || value.CreatedAt.IsZero() || !validSBOMProjectionShape(value) {
-			return projectionConflict("SBOM value")
+		if err := ValidateWorkerEvidenceRecord(l.evidence[value.EvidenceID], value); err != nil {
+			return err
 		}
 		existing, ok := target[value.ID]
 		if !ok {
@@ -122,18 +122,8 @@ func (l *Ledger) mergeWorkerScans(tenantID string, values []domain.Vulnerability
 		if !l.projectionEvidenceExactlyMatches(tenantID, value.EvidenceID, value.ReleaseID, "", "") || value.CreatedAt.IsZero() {
 			return projectionConflict("vulnerability scan relationship")
 		}
-		if !validScanProjectionShape(value) {
-			return projectionConflict("vulnerability scan parsed shape")
-		}
-		findingIDs := make(map[string]struct{}, len(value.Findings))
-		for _, finding := range value.Findings {
-			if finding.ID == "" || finding.Vulnerability == "" {
-				return projectionConflict("vulnerability finding value")
-			}
-			if _, duplicate := findingIDs[finding.ID]; duplicate {
-				return projectionConflict("duplicate vulnerability finding")
-			}
-			findingIDs[finding.ID] = struct{}{}
+		if err := ValidateWorkerEvidenceRecord(l.evidence[value.EvidenceID], value); err != nil {
+			return err
 		}
 		existing, ok := target[value.ID]
 		if !ok {
@@ -156,8 +146,11 @@ func (l *Ledger) mergeWorkerContracts(tenantID string, values []domain.OpenAPICo
 			return err
 		}
 		product, productOK := l.products[value.ProductID]
-		if !productOK || product.TenantID != tenantID || !l.projectionEvidenceExactlyMatches(tenantID, value.EvidenceID, value.ReleaseID, "", value.ProductID) || value.Version == "" || value.Hash == "" || value.CreatedAt.IsZero() || value.PathCount < 0 {
+		if !productOK || product.TenantID != tenantID || !l.projectionEvidenceExactlyMatches(tenantID, value.EvidenceID, value.ReleaseID, "", value.ProductID) {
 			return projectionConflict("OpenAPI contract relationship")
+		}
+		if err := ValidateWorkerEvidenceRecord(l.evidence[value.EvidenceID], value); err != nil {
+			return err
 		}
 		existing, ok := target[value.ID]
 		if !ok {
@@ -179,8 +172,11 @@ func (l *Ledger) mergeWorkerVEXDocuments(tenantID string, values []domain.VEXDoc
 		if err := validProjectionIdentity(tenantID, value.ID, value.TenantID, seen, "VEX document"); err != nil {
 			return err
 		}
-		if !l.projectionEvidenceExactlyMatches(tenantID, value.EvidenceID, value.ReleaseID, value.ArtifactID, "") || value.Format == "" || value.SchemaVersion == "" || value.CreatedAt.IsZero() || value.StatementCount < 0 {
+		if !l.projectionEvidenceExactlyMatches(tenantID, value.EvidenceID, value.ReleaseID, value.ArtifactID, "") {
 			return projectionConflict("VEX document relationship")
+		}
+		if err := ValidateWorkerEvidenceRecord(l.evidence[value.EvidenceID], value); err != nil {
+			return err
 		}
 		existing, ok := target[value.ID]
 		if !ok {
@@ -231,8 +227,11 @@ func (l *Ledger) mergeWorkerAttestations(tenantID string, values []domain.BuildA
 		}
 		build, buildOK := l.buildRuns[value.BuildID]
 		evidence, evidenceOK := l.evidence[value.EvidenceID]
-		if !buildOK || build.TenantID != tenantID || !evidenceOK || evidence.TenantID != tenantID || evidence.BuildID != value.BuildID || value.SchemaVersion == "" || value.CreatedAt.IsZero() || !validBuildAttestationProjectionShape(value) {
+		if !buildOK || build.TenantID != tenantID || !evidenceOK || evidence.TenantID != tenantID || evidence.BuildID != value.BuildID {
 			return projectionConflict("build attestation relationship")
+		}
+		if err := ValidateWorkerEvidenceRecord(evidence, value); err != nil {
+			return err
 		}
 		existing, ok := target[value.ID]
 		if !ok {

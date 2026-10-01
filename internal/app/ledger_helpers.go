@@ -5,9 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
-	"reflect"
 	"sort"
 	"strings"
 
@@ -51,24 +49,8 @@ func actorHasExactScope(actor domain.Actor, scope string) bool {
 }
 
 func canonicalHash(item domain.EvidenceItem) (string, error) {
-	item.CanonicalHash = ""
-	item.ChainEntryID = ""
-	item.SignatureRefs = nil
-	if item.Canonicalization == evidencedomain.EvidenceCanonicalizationProfileVersion {
-		// Scope columns and relationship fields are current query projections.
-		// Their append-only audited changes must not rewrite the immutable hash
-		// that signatures, citations, and historical receipts can reference.
-		// The creation-time origin remains bound through SubjectRefs.
-		item.ProductID = ""
-		item.ProjectID = ""
-		item.ReleaseID = ""
-		item.BuildID = ""
-		item.DeploymentID = ""
-		item.RelatedEvidenceRefs = nil
-		item.Supersedes = ""
-		item.SupersededBy = ""
-	}
-	return canonicalAnyHash(item)
+	fields := evidencedomain.CanonicalEvidenceFields(domain.EvidenceToContextModel(item))
+	return canonicalAnyHash(domain.EvidenceFromContextModel(fields))
 }
 
 func withEvidenceCanonicalOriginRefs(item domain.EvidenceItem) domain.EvidenceItem {
@@ -94,60 +76,6 @@ func hasEvidenceSubjectRef(refs []domain.SubjectRef, subjectType, subjectID stri
 		}
 	}
 	return false
-}
-
-type legacyCanonicalRelationshipOrigin struct {
-	ProductID           string               `json:"product_id,omitempty"`
-	ProjectID           string               `json:"project_id,omitempty"`
-	ReleaseID           string               `json:"release_id,omitempty"`
-	BuildID             string               `json:"build_id,omitempty"`
-	DeploymentID        string               `json:"deployment_id,omitempty"`
-	RelatedEvidenceRefs []domain.EvidenceRef `json:"related_evidence_refs,omitempty"`
-	Supersedes          string               `json:"supersedes,omitempty"`
-	SupersededBy        string               `json:"superseded_by,omitempty"`
-}
-
-func evidenceForCanonicalVerification(item domain.EvidenceItem, events map[string]domain.EvidenceLifecycleEvent) (domain.EvidenceItem, error) {
-	if item.Canonicalization != evidencedomain.LegacyEvidenceCanonicalizationProfileVersion {
-		return item, nil
-	}
-	var recorded *legacyCanonicalRelationshipOrigin
-	for _, event := range events {
-		if event.TenantID != item.TenantID || event.EvidenceID != item.ID {
-			continue
-		}
-		if event.SchemaVersion != evidencedomain.EvidenceRelationshipLifecycleSchemaVersion {
-			continue
-		}
-		raw, ok := event.Details[evidencedomain.LegacyCanonicalOriginDetailKey]
-		if !ok {
-			continue
-		}
-		body, err := json.Marshal(raw)
-		if err != nil {
-			return domain.EvidenceItem{}, err
-		}
-		var origin legacyCanonicalRelationshipOrigin
-		if err := json.Unmarshal(body, &origin); err != nil {
-			return domain.EvidenceItem{}, err
-		}
-		if recorded != nil && !reflect.DeepEqual(*recorded, origin) {
-			return domain.EvidenceItem{}, errors.New("conflicting legacy evidence canonical origins")
-		}
-		recorded = &origin
-	}
-	if recorded == nil {
-		return item, nil
-	}
-	item.ProductID = recorded.ProductID
-	item.ProjectID = recorded.ProjectID
-	item.ReleaseID = recorded.ReleaseID
-	item.BuildID = recorded.BuildID
-	item.DeploymentID = recorded.DeploymentID
-	item.RelatedEvidenceRefs = append([]domain.EvidenceRef(nil), recorded.RelatedEvidenceRefs...)
-	item.Supersedes = recorded.Supersedes
-	item.SupersededBy = recorded.SupersededBy
-	return item, nil
 }
 
 func canonicalAnyHash(v any) (string, error) {

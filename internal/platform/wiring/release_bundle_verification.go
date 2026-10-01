@@ -36,12 +36,16 @@ func (t releaseBundleVerificationTransactions) ExecuteReleaseBundleVerification(
 		if !ok || repos.Audit == nil || repos.Outbox == nil {
 			return app.ErrValidation
 		}
-		return command(ctx, releaseBundleVerificationTransaction{reader, repos.Verification, repos.Audit, repos.Outbox})
+		return command(ctx, releaseBundleVerificationTransaction{reader, verificationReceiptWriter{repos.Verification, repos.Audit, repos.Outbox}})
 	}))
 }
 
 type releaseBundleVerificationTransaction struct {
-	reader       verificationapp.ReleaseBundleVerificationReader
+	reader verificationapp.ReleaseBundleVerificationReader
+	verificationReceiptWriter
+}
+
+type verificationReceiptWriter struct {
 	verification app.VerificationRepository
 	audit        app.AuditRepository
 	outbox       app.OutboxRepository
@@ -58,14 +62,14 @@ func (t releaseBundleVerificationTransaction) ReadReleaseBundleVerification(ctx 
 func (t releaseBundleVerificationTransaction) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
 	return verificationquery.NewReleaseBundleVerificationAuthorizer().Authorize(ctx, actor, request)
 }
-func (t releaseBundleVerificationTransaction) InsertVerificationResult(ctx context.Context, result verificationdomain.VerificationResult) error {
+func (t verificationReceiptWriter) InsertVerificationResult(ctx context.Context, result verificationdomain.VerificationResult) error {
 	return mapSigningKeyWriteError(t.verification.InsertVerificationResult(ctx, verificationResultToLegacy(result)))
 }
-func (t releaseBundleVerificationTransaction) AppendAudit(ctx context.Context, event application.AuditEvent) (application.AuditReceipt, error) {
+func (t verificationReceiptWriter) AppendAudit(ctx context.Context, event application.AuditEvent) (application.AuditReceipt, error) {
 	receipt, err := appendAuditEvent(ctx, t.audit, event)
 	return receipt, mapSigningKeyWriteError(err)
 }
-func (t releaseBundleVerificationTransaction) EnqueueOutbox(ctx context.Context, event application.OutboxEvent) error {
+func (t verificationReceiptWriter) EnqueueOutbox(ctx context.Context, event application.OutboxEvent) error {
 	return mapSigningKeyWriteError(t.outbox.Enqueue(ctx, app.OutboxJob{ID: event.ID, TenantID: event.TenantID, Kind: event.Kind, SubjectType: event.SubjectType, SubjectID: event.SubjectID, Payload: event.Payload, CreatedAt: event.CreatedAt}))
 }
 func verificationResultToLegacy(result verificationdomain.VerificationResult) domain.VerificationResult {

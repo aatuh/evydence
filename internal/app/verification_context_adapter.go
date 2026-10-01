@@ -12,6 +12,7 @@ import (
 
 	application "github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
+	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
@@ -65,7 +66,7 @@ func (i ledgerVerificationInspector) InspectSubject(ctx context.Context, subject
 	if current != subject {
 		return verificationapp.SubjectInspection{}, verificationapp.ErrConflict
 	}
-	return inspectVerificationSubjectLocked(i.ledger, subject)
+	return inspectVerificationSubjectLocked(ctx, i.ledger, subject)
 }
 
 func (i ledgerVerificationInspector) inspectBuildAttestation(ctx context.Context, subject verificationapp.SubjectReference) (verificationapp.SubjectInspection, error) {
@@ -1044,7 +1045,7 @@ func resolveVerificationSubjectLocked(ledger *Ledger, tenantID, subjectType, sub
 	return reference, nil
 }
 
-func inspectVerificationSubjectLocked(ledger *Ledger, subject verificationapp.SubjectReference) (verificationapp.SubjectInspection, error) {
+func inspectVerificationSubjectLocked(ctx context.Context, ledger *Ledger, subject verificationapp.SubjectReference) (verificationapp.SubjectInspection, error) {
 	checks := []domain.VerifyCheck{}
 	var profile domain.VerificationProfile
 	switch subject.Type {
@@ -1100,17 +1101,13 @@ func inspectVerificationSubjectLocked(ledger *Ledger, subject verificationapp.Su
 		profile = assuranceProfile(domain.VerificationProfileAuditChainReleaseManifest, requiredCheckNames(checks), []string{"release bundle manifest", "tenant signing keys"}, "tenant-scoped verification authorization", "not_evaluated", "signed release manifest audit-chain checkpoint", bundle.ManifestHash, []string{"This signed checkpoint detects truncation or rewrites within its covered sequence range, but does not prove external publication or third-party log inclusion."})
 	case "evidence_item":
 		item := ledger.evidence[subject.ID]
-		canonicalItem, err := evidenceForCanonicalVerification(item, ledger.lifecycle)
-		var hash string
-		if err == nil {
-			hash, err = canonicalHash(canonicalItem)
+		snapshot := verificationapp.EvidenceVerificationSnapshot{Subject: subject, Item: domain.EvidenceToContextModel(item)}
+		for _, event := range ledger.lifecycle {
+			if event.TenantID == item.TenantID && event.EvidenceID == item.ID {
+				snapshot.Lifecycle = append(snapshot.Lifecycle, evidencedomain.EvidenceLifecycleEvent{TenantID: event.TenantID, EvidenceID: event.EvidenceID, SchemaVersion: event.SchemaVersion, Details: event.Details})
+			}
 		}
-		if err != nil || hash != item.CanonicalHash {
-			checks = append(checks, domain.VerifyCheck{Name: "canonical_hash", Result: "failed"})
-		} else {
-			checks = append(checks, domain.VerifyCheck{Name: "canonical_hash", Result: "passed"})
-		}
-		profile = assuranceProfile(domain.VerificationProfileEvidenceCanonicalHash, []string{"canonical_hash"}, []string{item.Canonicalization}, "tenant-scoped verification authorization", "not_evaluated", "canonical evidence fields", item.CanonicalHash, []string{"Canonical evidence hashing does not validate the origin or completeness of the uploaded payload."})
+		return verificationapp.InspectEvidenceCanonicalHash(ctx, snapshot, ledgerEvidenceCanonicalizer{})
 	case "release_bundle":
 		bundle := ledger.bundles[subject.ID]
 		snapshot := verificationapp.ReleaseBundleVerificationSnapshot{Subject: subject, Manifest: bundle.Manifest, ManifestHash: bundle.ManifestHash, SignatureRefs: bundle.SignatureRefs}

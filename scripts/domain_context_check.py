@@ -27,7 +27,7 @@ CONTEXT_PATHS = {
 SUPPORT_TYPES = {
     "identity": {"VerificationCheck", "VerificationProfileSnapshot"},
     "release": {"ReleaseCandidateState", "ReleaseState"},
-    "evidence": {"EvidenceLifecycleState"},
+    "evidence": {"EvidenceLifecycleState", "CanonicalEvidenceOrigin"},
     "risk": {"DecisionStatus", "SupportingReference"},
     "package": {
         "AcceptedExceptionSnapshot",

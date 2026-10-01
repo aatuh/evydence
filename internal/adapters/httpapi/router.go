@@ -32,6 +32,7 @@ import (
 	riskquery "github.com/aatuh/evydence/internal/risk/query"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
+	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 	verificationquery "github.com/aatuh/evydence/internal/verification/query"
 )
 
@@ -57,6 +58,7 @@ type Server struct {
 	evidenceBundleCommands            EvidenceBundleCommands
 	signingKeyCommands                SigningKeyCommands
 	releaseBundleVerification         ReleaseBundleVerification
+	evidenceVerification              EvidenceVerification
 	releaseReadinessReportQuery       ReleaseReadinessReportQuery
 	releaseSecuritySummaryQuery       ReleaseSecuritySummaryQuery
 	controlCoverageQuery              ControlCoverageQuery
@@ -163,6 +165,8 @@ type ServerOptions struct {
 	SigningKeyCommands SigningKeyCommands
 	// ReleaseBundleVerification inspects durable bundle/public-key rows atomically.
 	ReleaseBundleVerification ReleaseBundleVerification
+	// EvidenceVerification hashes selected evidence in a durable transaction.
+	EvidenceVerification EvidenceVerification
 	// ReleaseSecuritySummaryQuery reads one committed report snapshot.
 	ReleaseSecuritySummaryQuery ReleaseSecuritySummaryQuery
 	// ControlCoverageQuery reads bounded tenant-owned control and CRA reports.
@@ -304,6 +308,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.evidenceBundleCommands = opts.EvidenceBundleCommands
 	server.signingKeyCommands = opts.SigningKeyCommands
 	server.releaseBundleVerification = opts.ReleaseBundleVerification
+	server.evidenceVerification = opts.EvidenceVerification
 	server.releaseSecuritySummaryQuery = opts.ReleaseSecuritySummaryQuery
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
@@ -3474,14 +3479,21 @@ func (s *Server) verifySubject(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		if s.releaseBundleVerification != nil && strings.TrimSpace(req.SubjectType) == "release_bundle" {
+		subjectType := strings.TrimSpace(req.SubjectType)
+		if s.releaseBundleVerification != nil && subjectType == "release_bundle" || s.evidenceVerification != nil && subjectType == "evidence_item" {
 			if err := validateNonNullableObjectFields(body, "subject_type", "subject_id"); err != nil {
 				return 0, nil, err
 			}
 			if strings.TrimSpace(req.SubjectID) == "" {
 				return 0, nil, app.ErrValidation
 			}
-			result, err := s.releaseBundleVerification.VerifyReleaseBundle(ctx, actor, req.SubjectID)
+			var result verificationdomain.VerificationResult
+			var err error
+			if subjectType == "evidence_item" {
+				result, err = s.evidenceVerification.VerifyEvidence(ctx, actor, req.SubjectID)
+			} else {
+				result, err = s.releaseBundleVerification.VerifyReleaseBundle(ctx, actor, req.SubjectID)
+			}
 			return http.StatusOK, verificationResultFromFocused(result), mapVerificationCommandError(err)
 		}
 		result, err := s.verification.VerifySubject(ctx, actor, req.SubjectType, req.SubjectID)

@@ -102,14 +102,8 @@ func (s *ReleaseBundleVerificationCommands) VerifyReleaseBundle(ctx context.Cont
 		if err != nil {
 			return err
 		}
-		result = verificationdomain.VerificationResult{ID: s.config.IDs.NewID("vr"), TenantID: actor.TenantID, SubjectType: subject.Type, SubjectID: subject.ID, Result: verificationdomain.AggregateVerificationState(inspection.Profile, inspection.Checks), Checks: inspection.Checks, Profile: inspection.Profile, Limitations: append([]string(nil), inspection.Profile.Limitations...), SchemaVersion: verificationdomain.VerificationResultSchemaVersion, VerifiedAt: now}
-		if err := tx.InsertVerificationResult(ctx, result); err != nil {
-			return err
-		}
-		if _, err := tx.AppendAudit(ctx, application.AuditEvent{ID: s.config.IDs.NewID("ace"), TenantID: actor.TenantID, EntryType: "subject.verified", SubjectType: "verification_result", SubjectID: result.ID, ActorType: auditActorType(actor), ActorID: auditActorID(actor), OccurredAt: now}); err != nil {
-			return err
-		}
-		return tx.EnqueueOutbox(ctx, application.OutboxEvent{ID: s.config.IDs.NewID("job"), TenantID: actor.TenantID, Kind: "verify_subject", SubjectType: subject.Type, SubjectID: subject.ID, Payload: map[string]any{"result_id": result.ID}, CreatedAt: now})
+		result, err = persistVerificationReceipt(ctx, tx, actor, subject, inspection, now, s.config.IDs)
+		return err
 	})
 	if err != nil {
 		return verificationdomain.VerificationResult{}, err

@@ -63,6 +63,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.ReleaseBundleVerification != nil {
 		t.Fatal("local memory bound durable bundle verification")
 	}
+	if memory.EvidenceVerification != nil {
+		t.Fatal("local memory bound durable evidence verification")
+	}
 	checks := []app.ReadinessCheck{
 		{Name: "postgres", Check: func(context.Context) error { return nil }},
 		{Name: "migrations", Check: func(context.Context) error { return nil }},
@@ -99,6 +102,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.ReleaseBundleVerification == nil {
 		t.Fatal("PostgreSQL bundle verification still uses Ledger")
+	}
+	if options.EvidenceVerification == nil {
+		t.Fatal("PostgreSQL evidence verification still uses Ledger")
 	}
 	if options.ReadinessQuery == nil || options.MetricsQuery == nil || options.RetentionQuery == nil || options.IncidentReportQuery == nil || options.SecurityUpdateEvidenceQuery == nil || options.CRAVulnerabilityQuery == nil || options.MissingEvidenceQuery == nil || options.ReleaseSecuritySummaryQuery == nil || options.ControlCoverageQuery == nil || options.Authenticator == nil || options.InstanceAdminQuery == nil || options.OutboxDiagnosticsQuery == nil || options.OutboxReplayCommand == nil || options.ProductQuery == nil || options.CatalogPointQuery == nil || options.EvidenceFlowQuery == nil ||
 		options.BuildPointQuery == nil || options.ArtifactPointQuery == nil || options.ReleaseCandidateQuery == nil || options.DeploymentPointQuery == nil ||

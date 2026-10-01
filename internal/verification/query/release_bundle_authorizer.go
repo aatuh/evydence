@@ -39,19 +39,8 @@ func (releaseBundleVerificationAuthorizer) Authorize(ctx context.Context, actor 
 	if actor.UserID == "" || actor.KeyID != "" || actor.CollectorID != "" {
 		return nil
 	}
-	for _, grant := range actor.ResourceGrants {
-		allowed := false
-		for _, scope := range grant.Scopes {
-			if scope == request.Scope || scope == "admin" || scope == "*" {
-				allowed = true
-			}
-		}
-		if !allowed {
-			continue
-		}
-		if (grant.ResourceType == "" || grant.ResourceType == "tenant") && (grant.ResourceID == "" || grant.ResourceID == actor.TenantID) || grant.ResourceType == "product" && grant.ResourceID == refs.ProductID || grant.ResourceType == "release" && grant.ResourceID == refs.ReleaseID {
-			return nil
-		}
+	if verificationResourceGrantAllows(actor, request.Scope, refs) {
+		return nil
 	}
 	return application.ErrForbidden
 }

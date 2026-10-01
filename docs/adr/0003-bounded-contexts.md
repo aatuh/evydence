@@ -282,6 +282,7 @@ exactly one context while preserving existing data and migration history.
 | `20260527000300_vex_decisions_exceptions`, `20260528000100_controls_reports`, `20260601000100_vulnerability_decision_customer_fields`, `20260601000200_vulnerability_decision_evidence_ids`, `20260601000300_vex_import_reports`, `20260601000600_vulnerability_decision_review_times`, `20260601000700_vulnerability_decision_sbom_context`, `20260601000800_vulnerability_decision_supporting_refs`, `20260601000900_vex_import_report_failures`, `20260904000100_vulnerability_decision_active_unique`, `20260929000600_vulnerability_decision_query_indexes` | Vulnerability decisions and governance. |
 | `20260527000400_collectors_builds_attestations`, `20260528001400_release_core_relational_columns` | Release catalog. |
 | `20260815000100_vulnerability_scan_adapter_identity` | Evidence ingestion. |
+| `20261001000300_evidence_verification_indexes` | Verification and signing — bounded reads of evidence-owned parser facts. |
 | `20260528000800_customer_portal_access_counters`, `20260528001500_package_retention_relational_columns`, `20260601000400_customer_portal_nda_answer_library`, `20260601000500_customer_portal_reviewers` | Package and reporting. |
 | `20260528001000_signed_incident_webhooks` | Operations and incidents. |
 | `20260528001100_static_oidc_jwks`, `20260528001200_saml_provider_certificates`, `20260528001300_sso_trust_material_timestamp`, `20260529000200_sso_session_groups` | Identity and access. |
@@ -290,6 +291,11 @@ exactly one context while preserving existing data and migration history.
 | `20260726000200_idempotency_state_machine`, `20260726000300_idempotency_safe_replay_responses`, `20260727000400_audit_sequences_and_resource_revisions`, `20260727000500_outbox_dead_letter_controls`, `20260728000100_object_payload_lifecycle`, `20260728000200_object_reconciliation_receipts`, `20260728000300_object_reconciliation_receipt_schema_version`, `20260822000100_cursor_pagination_indexes` | Operations and incidents — shared transaction/query platform. |
 
 ### Dependency, event, and transaction rules
+
+`internal/evidence/domain.CanonicalEvidenceOrigin` is an evidence-owned typed
+value used to reconstruct legacy canonical relationships. It is a support
+model, not a new persisted record or public JSON schema; versioned lifecycle
+detail decoding remains at the verification application boundary.
 
 The only allowed business dependency direction is:
 
