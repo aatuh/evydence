@@ -61,6 +61,7 @@ func TestIncidentReportHandlerUsesFocusedQueryAndSafeErrors(t *testing.T) {
 	}{
 		{packagequery.ErrIncidentReportNotFound, http.StatusNotFound},
 		{packagequery.ErrIncidentReportProjection, http.StatusConflict},
+		{packagequery.ErrIncidentReportCapacity, http.StatusConflict},
 		{application.ErrForbidden, http.StatusForbidden},
 		{errors.New("private-incident-database-detail"), http.StatusInternalServerError},
 	} {

@@ -17,6 +17,7 @@ var (
 	ErrIncidentReportValidation = errors.New("invalid incident report query")
 	ErrIncidentReportNotFound   = errors.New("incident report not found")
 	ErrIncidentReportProjection = errors.New("invalid incident report projection")
+	ErrIncidentReportCapacity   = errors.New("incident report exceeds the bounded result size")
 )
 
 // IncidentReportSnapshot contains one current incident and its tenant-scoped

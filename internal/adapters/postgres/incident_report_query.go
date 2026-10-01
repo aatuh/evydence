@@ -16,6 +16,10 @@ import (
 
 var _ packagequery.IncidentReportReader = (*Store)(nil)
 
+// An incident package is one complete report, not a page. Refuse larger
+// reports instead of truncating evidence or materializing unbounded rows.
+const maxIncidentReportEntries = 4096
+
 // ReadIncidentReport reads one verified incident and only its tenant-owned
 // timeline and tasks from a repeatable-read database snapshot.
 func (s *Store) ReadIncidentReport(ctx context.Context, tenantID, id string) (packagequery.IncidentReportSnapshot, error) {
@@ -71,7 +75,8 @@ func (s *Store) ReadIncidentReport(ctx context.Context, tenantID, id string) (pa
 		SELECT id,tenant_id,incident_id,event_type,summary,evidence_id,occurred_at,schema_version,created_at
 		FROM incident_timeline_events
 		WHERE tenant_id=$1 AND incident_id=$2
-		ORDER BY occurred_at,id`, tenantID, id)
+		ORDER BY occurred_at,id
+		LIMIT $3`, tenantID, id, maxIncidentReportEntries+1)
 	if err != nil {
 		return empty, fmt.Errorf("read incident timeline: %w", err)
 	}
@@ -90,11 +95,15 @@ func (s *Store) ReadIncidentReport(ctx context.Context, tenantID, id string) (pa
 	if err != nil {
 		return empty, fmt.Errorf("iterate incident timeline: %w", err)
 	}
+	if len(snapshot.Timeline) > maxIncidentReportEntries {
+		return empty, packagequery.ErrIncidentReportCapacity
+	}
 	tasks, err := tx.Query(ctx, `
 		SELECT id,tenant_id,incident_id,release_id,title,owner,status,due_at,evidence_id,schema_version,created_at
 		FROM remediation_tasks
 		WHERE tenant_id=$1 AND incident_id=$2
-		ORDER BY created_at,id`, tenantID, id)
+		ORDER BY created_at,id
+		LIMIT $3`, tenantID, id, maxIncidentReportEntries+1-len(snapshot.Timeline))
 	if err != nil {
 		return empty, fmt.Errorf("read incident tasks: %w", err)
 	}
@@ -116,6 +125,9 @@ func (s *Store) ReadIncidentReport(ctx context.Context, tenantID, id string) (pa
 	tasks.Close()
 	if err != nil {
 		return empty, fmt.Errorf("iterate incident tasks: %w", err)
+	}
+	if len(snapshot.Timeline)+len(snapshot.Tasks) > maxIncidentReportEntries {
+		return empty, packagequery.ErrIncidentReportCapacity
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return empty, fmt.Errorf("commit incident report snapshot: %w", err)

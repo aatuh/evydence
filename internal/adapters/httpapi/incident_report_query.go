@@ -46,6 +46,8 @@ func mapIncidentReportQueryError(err error) error {
 		return app.ErrNotFound
 	case errors.Is(err, packagequery.ErrIncidentReportProjection):
 		return app.ErrConflict
+	case errors.Is(err, packagequery.ErrIncidentReportCapacity):
+		return app.ErrConflict
 	case errors.Is(err, application.ErrUnauthorized):
 		return app.ErrUnauthorized
 	case errors.Is(err, application.ErrForbidden):
