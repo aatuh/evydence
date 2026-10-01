@@ -45,6 +45,7 @@ type Server struct {
 	retentionQuery                    RetentionQuery
 	incidentReportQuery               IncidentReportQuery
 	securityUpdateEvidenceQuery       SecurityUpdateEvidenceQuery
+	craVulnerabilityQuery             CRAVulnerabilityQuery
 	instanceAdminQuery                InstanceAdminQuery
 	outboxDiagnosticsQuery            OutboxDiagnosticsQuery
 	outboxReplayCommand               OutboxReplayCommand
@@ -126,6 +127,8 @@ type ServerOptions struct {
 	IncidentReportQuery IncidentReportQuery
 	// SecurityUpdateEvidenceQuery reads bounded release-scoped report facts.
 	SecurityUpdateEvidenceQuery SecurityUpdateEvidenceQuery
+	// CRAVulnerabilityQuery reads report-safe vulnerability facts for one release.
+	CRAVulnerabilityQuery CRAVulnerabilityQuery
 	// InstanceAdminQuery reads global operational counts without loading Ledger state.
 	InstanceAdminQuery InstanceAdminQuery
 	// OutboxDiagnosticsQuery reads global queue counts after instance-admin authorization.
@@ -251,7 +254,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, readinessQuery: opts.ReadinessQuery, metricsQuery: opts.MetricsQuery, retentionQuery: opts.RetentionQuery, incidentReportQuery: opts.IncidentReportQuery, securityUpdateEvidenceQuery: opts.SecurityUpdateEvidenceQuery, instanceAdminQuery: opts.InstanceAdminQuery, outboxDiagnosticsQuery: opts.OutboxDiagnosticsQuery, outboxReplayCommand: opts.OutboxReplayCommand, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, evidenceFlowQuery: opts.EvidenceFlowQuery, buildPointQuery: opts.BuildPointQuery, artifactPointQuery: opts.ArtifactPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, lifecycleEventsQuery: opts.LifecycleEventsQuery, openAPIContractPointQuery: opts.OpenAPIContractPointQuery, sbomPointQuery: opts.SBOMPointQuery, vulnerabilityScanPointQuery: opts.VulnerabilityScanPointQuery, vexPointQuery: opts.VEXPointQuery, sbomComponentsQuery: opts.SBOMComponentsQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, collectorHealthQuery: opts.CollectorHealthQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, marketplaceCollectorQuery: opts.MarketplaceCollectorQuery, vulnerabilityPostureQuery: opts.VulnerabilityPostureQuery, controlsQuery: opts.ControlsQuery, controlTemplateQuery: opts.ControlTemplateQuery, exceptionsQuery: opts.ExceptionsQuery, vulnerabilityDecisionQuery: opts.VulnerabilityDecisionQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, readinessQuery: opts.ReadinessQuery, metricsQuery: opts.MetricsQuery, retentionQuery: opts.RetentionQuery, incidentReportQuery: opts.IncidentReportQuery, securityUpdateEvidenceQuery: opts.SecurityUpdateEvidenceQuery, craVulnerabilityQuery: opts.CRAVulnerabilityQuery, instanceAdminQuery: opts.InstanceAdminQuery, outboxDiagnosticsQuery: opts.OutboxDiagnosticsQuery, outboxReplayCommand: opts.OutboxReplayCommand, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, evidenceFlowQuery: opts.EvidenceFlowQuery, buildPointQuery: opts.BuildPointQuery, artifactPointQuery: opts.ArtifactPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, lifecycleEventsQuery: opts.LifecycleEventsQuery, openAPIContractPointQuery: opts.OpenAPIContractPointQuery, sbomPointQuery: opts.SBOMPointQuery, vulnerabilityScanPointQuery: opts.VulnerabilityScanPointQuery, vexPointQuery: opts.VEXPointQuery, sbomComponentsQuery: opts.SBOMComponentsQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, collectorHealthQuery: opts.CollectorHealthQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, marketplaceCollectorQuery: opts.MarketplaceCollectorQuery, vulnerabilityPostureQuery: opts.VulnerabilityPostureQuery, controlsQuery: opts.ControlsQuery, controlTemplateQuery: opts.ControlTemplateQuery, exceptionsQuery: opts.ExceptionsQuery, vulnerabilityDecisionQuery: opts.VulnerabilityDecisionQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
 	server.vulnerabilityDecisionSummaryQuery = opts.VulnerabilityDecisionSummaryQuery
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
@@ -2824,6 +2827,20 @@ func (s *Server) craVulnerabilityHandlingReport(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
+	if s.craVulnerabilityQuery != nil {
+		productID, releaseID, err := releaseReportFilters(r)
+		if err != nil {
+			writeProblem(w, r, err)
+			return
+		}
+		report, err := s.craVulnerabilityQuery.Report(r.Context(), actor, productID, releaseID)
+		if err != nil {
+			writeProblem(w, r, mapCRAVulnerabilityQueryError(err))
+			return
+		}
+		writeData(w, http.StatusOK, craVulnerabilityFromQuery(report))
+		return
+	}
 	report, err := s.ledger.CRAVulnerabilityHandlingReport(r.Context(), actor, r.URL.Query().Get("product_id"), r.URL.Query().Get("release_id"))
 	if err != nil {
 		writeProblem(w, r, err)
@@ -2838,7 +2855,7 @@ func (s *Server) securityUpdateEvidenceReport(w http.ResponseWriter, r *http.Req
 		return
 	}
 	if s.securityUpdateEvidenceQuery != nil {
-		productID, releaseID, err := securityUpdateFilters(r)
+		productID, releaseID, err := releaseReportFilters(r)
 		if err != nil {
 			writeProblem(w, r, err)
 			return

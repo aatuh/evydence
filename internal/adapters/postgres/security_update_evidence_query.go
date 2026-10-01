@@ -285,19 +285,11 @@ func verifySecurityUpdateEvidenceRefs(ctx context.Context, tx pgx.Tx, snapshot p
 	for id := range ids {
 		wanted = append(wanted, id)
 	}
-	var verified int
-	if err := tx.QueryRow(ctx, `
-		SELECT count(*) FROM evidence_items AS e
-		LEFT JOIN projects AS j ON j.id=e.project_id AND j.tenant_id=e.tenant_id
-		LEFT JOIN releases AS r ON r.id=e.release_id AND r.tenant_id=e.tenant_id
-		WHERE e.tenant_id=$1 AND e.id=ANY($4::text[])
-		  AND (e.product_id IS NULL OR e.product_id=$2)
-		  AND (e.project_id IS NULL OR j.product_id=$2)
-		  AND (e.release_id IS NULL OR (r.id=$3 AND r.product_id=$2))`,
-		snapshot.TenantID, snapshot.ProductID, snapshot.ReleaseID, wanted).Scan(&verified); err != nil {
-		return fmt.Errorf("verify security update evidence references: %w", err)
+	valid, err := verifyScopedReportEvidence(ctx, tx, snapshot.TenantID, snapshot.ProductID, snapshot.ReleaseID, wanted)
+	if err != nil {
+		return err
 	}
-	if verified != len(ids) {
+	if !valid {
 		return packagequery.ErrSecurityUpdateProjection
 	}
 	return nil

@@ -61,6 +61,12 @@ type SecurityUpdateEvidenceQuery interface {
 	Report(context.Context, domain.Actor, string, string) (packagedomain.SecurityUpdateEvidenceReport, error)
 }
 
+// CRAVulnerabilityQuery assembles one bounded release-scoped vulnerability
+// handling report from report-safe durable projections.
+type CRAVulnerabilityQuery interface {
+	Report(context.Context, domain.Actor, string, string) (packagedomain.CRAVulnerabilityHandlingReport, error)
+}
+
 // InstanceAdminQuery returns aggregate operational counts only after the
 // focused service verifies explicit instance-wide authority.
 type InstanceAdminQuery interface {

@@ -67,7 +67,7 @@ func (s *SecurityUpdateEvidence) Report(ctx context.Context, actor identitydomai
 	if productID == "" || releaseID == "" {
 		return empty, ErrSecurityUpdateValidation
 	}
-	if !securityUpdateAllowed(actor, productID, releaseID) {
+	if !releaseReportAllowed(actor, productID, releaseID) {
 		return empty, application.ErrForbidden
 	}
 	snapshot, err := s.reader.ReadSecurityUpdateSnapshot(ctx, actor.TenantID, productID, releaseID)
@@ -86,20 +86,7 @@ func (s *SecurityUpdateEvidence) Report(ctx context.Context, actor identitydomai
 		if decision.ID == "" || decision.TenantID != actor.TenantID || decision.ReleaseID != releaseID || decision.Status.String() != "fixed" || decision.SupersededBy != "" || decision.InternalNotes != "" || decision.FindingID == "" || decision.ScanID == "" {
 			return empty, ErrSecurityUpdateProjection
 		}
-		customer := riskdomain.CustomerDecisionSummary(decision)
-		refs := make([]packagedomain.SupportingReference, 0, len(customer.SupportingRefs))
-		for _, ref := range customer.SupportingRefs {
-			refs = append(refs, packagedomain.SupportingReference{Type: ref.Type, ID: ref.ID, Digest: ref.Digest})
-		}
-		decisions = append(decisions, packagedomain.VulnerabilityDecisionSnapshot{
-			ID: customer.ID, FindingID: customer.FindingID, ScanID: customer.ScanID, ReleaseID: customer.ReleaseID,
-			Vulnerability: customer.Vulnerability, Component: customer.Component, SBOMID: customer.SBOMID,
-			SBOMComponentPURL: customer.SBOMComponentPURL, SBOMComponentName: customer.SBOMComponentName,
-			Status: customer.Status, Justification: customer.Justification, ImpactStatement: customer.ImpactStatement,
-			ActionStatement: customer.ActionStatement, Source: customer.Source, EvidenceID: customer.EvidenceID,
-			EvidenceIDs: customer.EvidenceIDs, SupportingRefs: refs, VEXDocumentID: customer.VEXDocumentID,
-			ReviewedAt: customer.ReviewedAt, ReviewDueAt: customer.ReviewDueAt, CreatedAt: customer.CreatedAt,
-		})
+		decisions = append(decisions, reportDecisionSnapshot(decision))
 		evidenceIDs = append(evidenceIDs, decision.EvidenceID)
 		evidenceIDs = append(evidenceIDs, decision.EvidenceIDs...)
 		if decision.VEXDocumentID != "" {
@@ -139,7 +126,7 @@ func (s *SecurityUpdateEvidence) Report(ctx context.Context, actor identitydomai
 		evidenceIDs = append(evidenceIDs, task.EvidenceID)
 	}
 	sort.Slice(tasks, func(i, j int) bool { return tasks[i].ID < tasks[j].ID })
-	evidenceIDs = sortedSecurityUpdateEvidenceIDs(evidenceIDs)
+	evidenceIDs = sortedReportEvidenceIDs(evidenceIDs)
 	if len(evidenceIDs) > MaxSecurityUpdateEntries {
 		return empty, ErrSecurityUpdateCapacity
 	}
@@ -162,7 +149,7 @@ func (s *SecurityUpdateEvidence) Report(ctx context.Context, actor identitydomai
 // Readers fetch one extra row to detect overflow without truncating evidence.
 const MaxSecurityUpdateEntries = 4096
 
-func securityUpdateAllowed(actor identitydomain.Actor, productID, releaseID string) bool {
+func releaseReportAllowed(actor identitydomain.Actor, productID, releaseID string) bool {
 	if actor.UserID == "" || actor.KeyID != "" || actor.CollectorID != "" {
 		return true
 	}
@@ -195,7 +182,7 @@ func securityUpdateAllowed(actor identitydomain.Actor, productID, releaseID stri
 	return false
 }
 
-func sortedSecurityUpdateEvidenceIDs(values []string) []string {
+func sortedReportEvidenceIDs(values []string) []string {
 	unique := make(map[string]struct{}, len(values))
 	for _, value := range values {
 		if value = strings.TrimSpace(value); value != "" {

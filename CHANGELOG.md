@@ -52,6 +52,15 @@ release artifacts.
 
 ### Changed
 
+- PostgreSQL-backed CRA vulnerability-handling and security-update evidence
+  reports now read bounded, tenant- and release-scoped snapshots instead of
+  Ledger maps. They omit private decision notes, reject inconsistent evidence
+  references and oversized reports rather than returning partial results, and
+  require valid singleton product/release filters. CRA scan counts are
+  aggregated in PostgreSQL without transferring raw findings to the API.
+  These reports organize recorded evidence; they do not prove legal compliance,
+  complete detection, scanner authority, or release security.
+
 - PostgreSQL-backed exception lists now resolve current release ownership and
   `verify:read` grants before bounded keyset pagination. Unknown filtered
   releases remain `404`; existing releases outside the actor's grants remain

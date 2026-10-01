@@ -13,7 +13,7 @@ import (
 	packagequery "github.com/aatuh/evydence/internal/package/query"
 )
 
-func securityUpdateFilters(r *http.Request) (string, string, error) {
+func releaseReportFilters(r *http.Request) (string, string, error) {
 	if r == nil || r.URL == nil {
 		return "", "", app.ErrValidation
 	}
@@ -33,9 +33,9 @@ func securityUpdateFilters(r *http.Request) (string, string, error) {
 	return productID, releaseID, nil
 }
 
-func securityUpdateFromQuery(report packagedomain.SecurityUpdateEvidenceReport) domain.SecurityUpdateEvidenceReport {
-	decisions := make([]domain.VulnerabilityDecisionCustomerSummary, 0, len(report.FixedDecisions))
-	for _, decision := range report.FixedDecisions {
+func mapReportDecisions(values []packagedomain.VulnerabilityDecisionSnapshot) []domain.VulnerabilityDecisionCustomerSummary {
+	decisions := make([]domain.VulnerabilityDecisionCustomerSummary, 0, len(values))
+	for _, decision := range values {
 		refs := make([]domain.SubjectRef, 0, len(decision.SupportingRefs))
 		for _, ref := range decision.SupportingRefs {
 			refs = append(refs, domain.SubjectRef{Type: ref.Type, ID: ref.ID, Digest: ref.Digest})
@@ -51,6 +51,11 @@ func securityUpdateFromQuery(report packagedomain.SecurityUpdateEvidenceReport) 
 			ReviewDueAt: copyDecisionSummaryTime(decision.ReviewDueAt), CreatedAt: decision.CreatedAt,
 		})
 	}
+	return decisions
+}
+
+func securityUpdateFromQuery(report packagedomain.SecurityUpdateEvidenceReport) domain.SecurityUpdateEvidenceReport {
+	decisions := mapReportDecisions(report.FixedDecisions)
 	incidents := make([]domain.Incident, 0, len(report.Incidents))
 	for _, incident := range report.Incidents {
 		incidents = append(incidents, domain.Incident{
