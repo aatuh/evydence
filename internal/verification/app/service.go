@@ -343,105 +343,6 @@ type SigningKeyRevocationInput struct {
 	HistoricalValidityPolicy string
 }
 
-type CreateSigningProviderInput struct {
-	Name      string
-	Type      string
-	KeyRef    string
-	Encrypted bool
-}
-
-func (s *Service) CreateSigningProvider(ctx context.Context, actor identitydomain.Actor, input CreateSigningProviderInput) (verificationdomain.SigningProvider, error) {
-	if err := contextError(ctx); err != nil {
-		return verificationdomain.SigningProvider{}, err
-	}
-	if err := validateActor(actor); err != nil {
-		return verificationdomain.SigningProvider{}, err
-	}
-	if err := s.authorize(ctx, actor, ScopeKeysAdmin, application.ResourceReferences{}, false, true); err != nil {
-		return verificationdomain.SigningProvider{}, err
-	}
-	input.Name = strings.TrimSpace(input.Name)
-	input.Type = strings.TrimSpace(input.Type)
-	input.KeyRef = strings.TrimSpace(input.KeyRef)
-	if !validSigningProviderInput(input) {
-		return verificationdomain.SigningProvider{}, ErrValidation
-	}
-	now := s.clock.Now().UTC()
-	provider := verificationdomain.SigningProvider{
-		ID: s.ids.NewID("sp"), TenantID: actor.TenantID, Name: input.Name, Type: input.Type,
-		Status: "active", KeyRef: input.KeyRef, Encrypted: input.Encrypted,
-		SchemaVersion: verificationdomain.SigningProviderSchemaVersion, CreatedAt: now,
-	}
-	err := s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-		if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true}); err != nil {
-			return err
-		}
-		if err := tx.Verification().InsertSigningProvider(ctx, provider); err != nil {
-			return err
-		}
-		_, err := tx.Audit().AppendAudit(ctx, s.auditEvent(actor, now, "signing_provider.created", "signing_provider", provider.ID))
-		return err
-	})
-	if err != nil {
-		return verificationdomain.SigningProvider{}, err
-	}
-	return provider, nil
-}
-
-type CreateDSSETrustRootInput struct {
-	Name                  string
-	KeyID                 string
-	Algorithm             string
-	PublicKey             string
-	AllowedPredicateTypes []string
-	ExpectedBuilderIDs    []string
-	RequiredClaims        []string
-}
-
-func (s *Service) CreateDSSETrustRoot(ctx context.Context, actor identitydomain.Actor, input CreateDSSETrustRootInput) (verificationdomain.DSSETrustRoot, error) {
-	if err := contextError(ctx); err != nil {
-		return verificationdomain.DSSETrustRoot{}, err
-	}
-	if err := validateActor(actor); err != nil {
-		return verificationdomain.DSSETrustRoot{}, err
-	}
-	if err := s.authorize(ctx, actor, ScopeKeysAdmin, application.ResourceReferences{}, false, true); err != nil {
-		return verificationdomain.DSSETrustRoot{}, err
-	}
-	input.Name = strings.TrimSpace(input.Name)
-	input.KeyID = strings.TrimSpace(input.KeyID)
-	input.Algorithm = strings.TrimSpace(input.Algorithm)
-	input.PublicKey = strings.TrimSpace(input.PublicKey)
-	input.AllowedPredicateTypes = sortedTrimmedStrings(input.AllowedPredicateTypes)
-	input.ExpectedBuilderIDs = sortedTrimmedStrings(input.ExpectedBuilderIDs)
-	input.RequiredClaims = sortedTrimmedStrings(input.RequiredClaims)
-	if !validDSSETrustRootInput(input) {
-		return verificationdomain.DSSETrustRoot{}, ErrValidation
-	}
-	now := s.clock.Now().UTC()
-	root := verificationdomain.DSSETrustRoot{
-		ID: s.ids.NewID("dtr"), TenantID: actor.TenantID, Name: input.Name, KeyID: input.KeyID,
-		Algorithm: input.Algorithm, PublicKey: input.PublicKey,
-		AllowedPredicateTypes: append([]string(nil), input.AllowedPredicateTypes...),
-		ExpectedBuilderIDs:    append([]string(nil), input.ExpectedBuilderIDs...), RequiredClaims: append([]string(nil), input.RequiredClaims...),
-		Status: "active", SchemaVersion: verificationdomain.DSSETrustRootSchemaVersion, CreatedAt: now,
-	}
-	err := s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-		if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true}); err != nil {
-			return err
-		}
-		if err := tx.Verification().InsertDSSETrustRoot(ctx, root); err != nil {
-			return err
-		}
-		_, err := tx.Audit().AppendAudit(ctx, s.auditEvent(actor, now, "dsse_trust_root.created", "dsse_trust_root", root.ID))
-		return err
-	})
-	if err != nil {
-		return verificationdomain.DSSETrustRoot{}, err
-	}
-	return cloneDSSETrustRoot(root), nil
-}
-
 func normalizeRevocationInput(input SigningKeyRevocationInput) (SigningKeyRevocationInput, error) {
 	input.Reason = strings.TrimSpace(input.Reason)
 	input.Semantics = strings.TrimSpace(input.Semantics)
@@ -464,7 +365,7 @@ func normalizeRevocationInput(input SigningKeyRevocationInput) (SigningKeyRevoca
 }
 
 func validSigningProviderInput(input CreateSigningProviderInput) bool {
-	if input.Name == "" || input.KeyRef == "" || !validSigningProviderType(input.Type) {
+	if !validRetentionText(input.Name, 4096) || !validRetentionText(input.KeyRef, 4096) || !validSigningProviderType(input.Type) || signingProviderRefContainsSecret(input.KeyRef) {
 		return false
 	}
 	if input.Type == "local_encrypted_dev" && !input.Encrypted {
@@ -486,7 +387,7 @@ func validSigningProviderType(value string) bool {
 }
 
 func validDSSETrustRootInput(input CreateDSSETrustRootInput) bool {
-	if input.Name == "" || input.KeyID == "" || input.Algorithm != "Ed25519" {
+	if !validRetentionText(input.Name, 4096) || !validRetentionText(input.KeyID, 1024) || len(input.PublicKey) > 128 || input.Algorithm != "Ed25519" {
 		return false
 	}
 	publicKey, err := base64.StdEncoding.DecodeString(input.PublicKey)

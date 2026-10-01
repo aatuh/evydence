@@ -1230,12 +1230,7 @@ func backupManifestFromVerificationContext(value verificationdomain.BackupManife
 }
 
 func dsseTrustRootFromVerificationContext(value verificationdomain.DSSETrustRoot) domain.DSSETrustRoot {
-	return domain.DSSETrustRoot{
-		ID: value.ID, TenantID: value.TenantID, Name: value.Name, KeyID: value.KeyID, Algorithm: value.Algorithm,
-		PublicKey: value.PublicKey, AllowedPredicateTypes: append([]string(nil), value.AllowedPredicateTypes...),
-		ExpectedBuilderIDs: append([]string(nil), value.ExpectedBuilderIDs...), RequiredClaims: append([]string(nil), value.RequiredClaims...),
-		Status: value.Status, SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt,
-	}
+	return domain.DSSETrustRootFromContextModel(value)
 }
 
 func cosignVerificationFromVerificationContext(value verificationdomain.CosignVerification) domain.CosignVerification {

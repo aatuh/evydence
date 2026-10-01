@@ -118,6 +118,11 @@ type RetentionCommands interface {
 	VerifyObjectRetentionPolicy(context.Context, identitydomain.Actor, string) (verificationdomain.ObjectRetentionPolicy, error)
 }
 
+type TrustConfigurationCommands interface {
+	CreateSigningProvider(context.Context, identitydomain.Actor, verificationapp.CreateSigningProviderInput) (verificationdomain.SigningProvider, error)
+	CreateDSSETrustRoot(context.Context, identitydomain.Actor, verificationapp.CreateDSSETrustRootInput) (verificationdomain.DSSETrustRoot, error)
+}
+
 type ReleaseBundleVerification interface {
 	VerifyReleaseBundle(context.Context, identitydomain.Actor, string) (verificationdomain.VerificationResult, error)
 }

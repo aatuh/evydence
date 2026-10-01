@@ -78,6 +78,24 @@ describe the configured bucket and sample, not general WORM enforcement, storage
 completeness, external key custody, or legal compliance. Local-memory mode shares
 the command orchestration through explicit compatibility ports.
 
+Signing-provider registration and DSSE trust-root creation in the PostgreSQL
+profile use focused trust-configuration commands with tenant-wide `keys:admin`
+authorization. Each metadata row and its audit entry commit in the same unit of
+work, including the HTTP replay record; there is no Ledger map publication or
+worker job. DSSE roots retain the existing tenant/key-ID uniqueness constraint,
+Ed25519 public-key format, supported SLSA predicate, builder allowlist and required
+claims. Policy lists are copied and sorted, limited to 4096 combined entries,
+1 MiB of combined list text and 4 KiB per entry before copying. Names and provider
+key references are limited to 4 KiB; DSSE key IDs to 1 KiB. Inputs must be valid
+UTF-8 without NUL bytes. Existing explicit credential-marker rejection now
+applies to every provider reference, not only native PKCS#11 references; operators
+must still supply only non-secret key locators. HTTP `null` fields are rejected
+according to the existing non-nullable schemas. Public response and storage
+schemas remain unchanged, and local-memory mode shares the orchestration through
+its explicit adapter. Registration makes no provider call and does not prove key
+custody, encryption, provider availability, builder authenticity, or legal
+compliance. Historical registered rows are not rewritten or newly verified.
+
 The current `internal/domain` package and `internal/app.Ledger` are transition
 paths, not the intended permanent architecture. The accepted
 [bounded-context ownership decision](adr/0003-bounded-contexts.md) assigns all
