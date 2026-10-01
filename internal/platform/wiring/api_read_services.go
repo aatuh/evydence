@@ -137,6 +137,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create Merkle verification: %w", err)
 	}
+	options.AuditChainVerification, err = BuildAuditChainVerificationCommands(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create audit chain verification: %w", err)
+	}
 	options.SigningCustodyQuery, err = BuildSigningCustodyQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create signing custody query: %w", err)

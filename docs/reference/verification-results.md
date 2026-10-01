@@ -80,6 +80,58 @@ clock input specified by the profile. See
 [ADR 0002](../adr/0002-cryptographic-trust-model.md) for the full decision,
 threat boundaries, and migration rules.
 
+## Full Audit Chain Verification
+
+`GET /v1/audit-chain/verify` and `POST /v1/verify` with
+`subject_type: audit_chain` use `audit-chain-integrity.v1`. The subject ID is
+empty or omitted. Each recorded entry retains its tenant, schema, sequence,
+previous-hash, canonical-hash, entry-hash and referenced-signature checks,
+followed by the overall `audit_chain` check. Empty chains retain the single
+overall integrity check. Profiles, check names and response shapes are unchanged.
+
+The PostgreSQL command requires tenant-wide `verify:read`; human actors also
+need a tenant grant. Product/release grants are insufficient. Authorization
+precedes content reads. Existing exclusive per-tenant projection and audit
+transaction fences hold a stable chain count/head while the reader loads pages
+of at most 128 entries and only their referenced signed-object hashes, signatures
+and public key lifecycle records. Selected rows remain share-locked. Audit
+metadata is needed for v2 canonical hashing; unrelated tenant resources and
+private signing material are not selected. Audit appends and worker projection
+mutations for that tenant wait until this verification transaction ends.
+
+The total selected content and accumulated check material each have an 8 MiB
+budget. Oversized records, exhausted budgets, repeated/truncated pages, or an
+inconsistent captured head/count return conflict without partial receipts; the
+command never silently verifies a prefix. Recorded entry IDs and signed-object
+coordinates/digests are bounded to 1 KiB; selected signature/public-key text to
+16 KiB. Legitimate chains exceeding the synchronous budget are not assessed as
+passed or partially verified by this command.
+
+Versioned canonical hashing is shared with the legacy compatibility path.
+`audit-chain-entry.v1.0.0` retains reconstruction of sub-microsecond timestamps
+lost in PostgreSQL storage; v2 includes IDs, request/idempotency context and
+metadata with microsecond timestamps. Referenced signatures bind to their
+recorded tenant-owned release/evidence bundle, Merkle batch or signing operation
+and use the existing valid-at-signing/compromise policy. No schema or historical
+hash/receipt rewrite is performed.
+
+Direct and dedicated GET verification persist completed failed receipts;
+generic failed idempotent POST verification rolls back its enclosing transaction.
+Successful POST replay creates no duplicate receipt, audit entry or job. Invalid
+nonempty subject IDs and explicit JSON null fields are rejected before verifying.
+
+Integrity of the currently recorded chain does not establish external publication
+or detect truncation to a still-valid prefix without an independently trusted
+checkpoint. The signed-checkpoint profiles are distinct assessments, and
+transparency remains `not_evaluated` here. These limits and guarantees apply to
+the focused PostgreSQL command; local-memory storage remains its explicit
+compatibility path.
+
+Source/test evidence: `internal/verification/app/audit_chain_hash.go`,
+`internal/verification/app/audit_chain_verification.go`,
+`internal/platform/wiring/audit_chain_verification_test.go` and
+`internal/adapters/httpapi/audit_chain_verification_test.go`.
+
 ## Merkle Batch Verification
 
 The `merkle-checkpoint.v1` profile requires all three checks:

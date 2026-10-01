@@ -45,6 +45,22 @@ Evidence-bundle export (`POST /v1/evidence-bundles`) also uses focused durable c
 
 ## Bounded-context transition
 
+Full-chain verification (`GET /v1/audit-chain/verify` and `POST /v1/verify`
+with `audit_chain`) uses a focused command in the PostgreSQL profile.
+Tenant-wide `verify:read` authorization precedes audit content reads. The
+transaction holds the existing exclusive projection and audit fences, in writer
+lock order, to keep the chain count/head and paged contents stable until receipt,
+audit and outbox effects commit. This temporarily serializes that tenant's audit
+appends and worker projection changes, not all tenants. The reader selects at
+most 128 audit records per page and only referenced signed-object hashes,
+signatures and public key lifecycle fields. It does not load unrelated tenant
+resources or private keys. The inspector retains existing per-entry checks and
+both canonical schema versions, including v1 timestamp reconstruction. See the
+[full-chain verification boundary](reference/verification-results.md#full-audit-chain-verification)
+for resource limits, HTTP compatibility and the distinction from signed
+checkpoint/external anchoring assurance. Checkpoint subjects and broad startup
+Ledger retirement remain EVY-905 work.
+
 Evidence-item requests to `POST /v1/verify` use a focused durable command in the PostgreSQL profile. It resolves and share-locks tenant-owned evidence and parent coordinates, then checks `verify:read` and human tenant/product/project/release grants before selecting hash inputs. An 8 MiB combined JSON budget covers the selected evidence, authoritative legacy origins and related parser/audit facts; origin and parsed-record reads each stop at 4096 rows and reject overflow rather than truncate. The reader selects payload references only as canonical hash inputs, never downloads payload bytes and never exposes those references in receipts. Shared evidence-domain rules preserve v2 immutable subjects while excluding mutable relationship projections, and reconstruct legacy relationships only from matching v2 lifecycle origins. Authoritative origin publication takes an evidence-row lock, including when the origin set was previously empty. Selected SBOM, scan, OpenAPI, VEX and build-attestation projections retain shared shape and source-relationship checks; queued uploads need not have parsed records yet. Parser-normalization markers additionally bind their source evidence and linked audit fact, with a bounded predecessor-integrity check. This is not full audit-chain verification or a payload-origin/completeness proof. Receipt, audit and outbox effects commit together; successful idempotent POST replay creates no extra receipt, and a failed POST rolls back its enclosing transaction. Local-memory verification shares canonical inspection through its compatibility adapter. Other verification subjects and startup Ledger retirement remain EVY-905 work.
 
 Release-bundle verification in the PostgreSQL profile uses a focused transaction, not Ledger maps, for both `GET /v1/release-bundles/{id}/verify` and release-bundle requests to `POST /v1/verify`. It locks tenant-owned bundle/release/product coordinates and checks `verify:read` grants before loading the manifest. Bundle, signature and public signing-key rows remain share-locked through receipt persistence, preventing reparenting, byte changes or key revocation from racing a successful commit. The reader accepts at most 4096 signature references and an 8 MiB combined manifest/reference/signature/public-key text budget; oversized or malformed stored projections fail closed, without truncation. Private key material and provider locations are not selected. Shared verification-context inspection preserves normalized-JSON manifest hashing, exact signature subject binding and historical key-validity policy. The command commits its verification receipt, audit and `verify_subject` job together. GET/direct verification records failed checks and returns the existing result contract; a failed idempotent POST retains its Problem Details response and rolls back the enclosing command transaction. Successful POST replay adds no duplicate receipt. Local-memory inspection shares the same policy through its explicit compatibility adapter. This verifies the local manifest/signature profile, not external publication, provider custody, evidence completeness or legal sufficiency. Other subject types and startup Ledger retirement remain EVY-905 work.

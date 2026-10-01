@@ -1,78 +1,19 @@
 package app
 
 import (
-	"fmt"
-	"time"
-
 	"github.com/aatuh/evydence/internal/domain"
+	verificationapp "github.com/aatuh/evydence/internal/verification/app"
+	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
 
-const auditChainEntryLegacySchemaVersion = "audit-chain-entry.v1.0.0"
+const auditChainEntryLegacySchemaVersion = verificationapp.AuditChainEntryLegacySchemaVersion
 
 func canonicalAuditChainEntryHash(entry domain.AuditChainEntry) (string, error) {
-	switch entry.SchemaVersion {
-	case auditChainEntryLegacySchemaVersion:
-		occurredAt := entry.OccurredAt.UTC().Format(time.RFC3339Nano)
-		return canonicalAnyHash(map[string]any{
-			"tenant_id":           entry.TenantID,
-			"sequence":            entry.Sequence,
-			"entry_type":          entry.EntryType,
-			"subject_type":        entry.SubjectType,
-			"subject_id":          entry.SubjectID,
-			"actor_type":          entry.ActorType,
-			"actor_id":            entry.ActorID,
-			"occurred_at":         occurredAt,
-			"payload_hash":        entry.PayloadHash,
-			"previous_entry_hash": entry.PreviousEntryHash,
-			"signature_ref":       entry.SignatureRef,
-			"schema_version":      entry.SchemaVersion,
-		})
-	case domain.AuditChainEntrySchemaVersion:
-		occurredAt := entry.OccurredAt.UTC().Truncate(time.Microsecond).Format(time.RFC3339Nano)
-		return canonicalAnyHash(map[string]any{
-			"id":                  entry.ID,
-			"tenant_id":           entry.TenantID,
-			"sequence":            entry.Sequence,
-			"entry_type":          entry.EntryType,
-			"subject_type":        entry.SubjectType,
-			"subject_id":          entry.SubjectID,
-			"actor_type":          entry.ActorType,
-			"actor_id":            entry.ActorID,
-			"occurred_at":         occurredAt,
-			"request_id":          entry.RequestID,
-			"idempotency_key":     entry.IdempotencyKey,
-			"payload_hash":        entry.PayloadHash,
-			"previous_entry_hash": entry.PreviousEntryHash,
-			"signature_ref":       entry.SignatureRef,
-			"metadata":            entry.Metadata,
-			"schema_version":      entry.SchemaVersion,
-		})
-	default:
-		return "", fmt.Errorf("unsupported audit-chain entry schema version %q", entry.SchemaVersion)
-	}
+	return verificationapp.CanonicalAuditChainEntryHash(verificationdomain.AuditChainEntry(entry), ledgerVerificationHasher{})
 }
 
 func verifiedAuditChainCanonicalHash(entry domain.AuditChainEntry) (string, bool, error) {
-	canonical, err := canonicalAuditChainEntryHash(entry)
-	if err != nil || canonical == entry.CanonicalEntryHash || entry.SchemaVersion != auditChainEntryLegacySchemaVersion {
-		return canonical, err == nil && canonical == entry.CanonicalEntryHash, err
-	}
-	// PostgreSQL retains microseconds, while historical v1 hashes could have
-	// recorded nanoseconds. Reconstruct the lost sub-microsecond component
-	// without relaxing verification of any other stored field.
-	base := entry.OccurredAt.UTC().Truncate(time.Microsecond)
-	for nanosecond := 1; nanosecond < 1000; nanosecond++ {
-		candidate := entry
-		candidate.OccurredAt = base.Add(time.Duration(nanosecond))
-		canonical, err = canonicalAuditChainEntryHash(candidate)
-		if err != nil {
-			return "", false, err
-		}
-		if canonical == entry.CanonicalEntryHash {
-			return canonical, true, nil
-		}
-	}
-	return canonical, false, nil
+	return verificationapp.VerifiedAuditChainCanonicalHash(verificationdomain.AuditChainEntry(entry), ledgerVerificationHasher{})
 }
 
 // VerifyAuditChainEntryHash validates one immutable fact, not chain coverage,

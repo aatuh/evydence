@@ -147,6 +147,10 @@ type MerkleVerification interface {
 	VerifyMerkleBatch(context.Context, identitydomain.Actor, string) (verificationdomain.VerificationResult, error)
 }
 
+type AuditChainVerification interface {
+	VerifyAuditChain(context.Context, identitydomain.Actor) (verificationdomain.VerificationResult, error)
+}
+
 // SigningCustodyQuery assesses bounded durable provider and retention records.
 type SigningCustodyQuery interface {
 	Report(context.Context, identitydomain.Actor) (verificationdomain.SigningCustodyReviewReport, error)

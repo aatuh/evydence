@@ -63,6 +63,7 @@ type Server struct {
 	cosignVerification                CosignVerification
 	artifactSignatureVerification     ArtifactSignatureVerification
 	merkleVerification                MerkleVerification
+	auditChainVerification            AuditChainVerification
 	signingCustodyQuery               SigningCustodyQuery
 	retentionCommands                 RetentionCommands
 	trustConfigurationCommands        TrustConfigurationCommands
@@ -180,6 +181,7 @@ type ServerOptions struct {
 	CosignVerification            CosignVerification
 	ArtifactSignatureVerification ArtifactSignatureVerification
 	MerkleVerification            MerkleVerification
+	AuditChainVerification        AuditChainVerification
 	// SigningCustodyQuery assesses one bounded committed provider/policy inventory.
 	SigningCustodyQuery SigningCustodyQuery
 	// RetentionCommands atomically persists durable retention intent and observations.
@@ -332,6 +334,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.cosignVerification = opts.CosignVerification
 	server.artifactSignatureVerification = opts.ArtifactSignatureVerification
 	server.merkleVerification = opts.MerkleVerification
+	server.auditChainVerification = opts.AuditChainVerification
 	server.signingCustodyQuery = opts.SigningCustodyQuery
 	server.retentionCommands = opts.RetentionCommands
 	server.trustConfigurationCommands = opts.TrustConfigurationCommands
@@ -3187,6 +3190,16 @@ func (s *Server) verifyAuditChain(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if s.auditChainVerification != nil {
+		result, err := s.auditChainVerification.VerifyAuditChain(r.Context(), actor)
+		err = mapVerificationCommandError(err)
+		if err != nil && !errors.Is(err, app.ErrVerificationFailed) {
+			writeProblem(w, r, err)
+			return
+		}
+		writeData(w, http.StatusOK, verificationResultFromFocused(result))
+		return
+	}
 	result, err := s.verification.VerifySubject(r.Context(), actor, "audit_chain", "")
 	if err != nil && !errors.Is(err, app.ErrVerificationFailed) {
 		writeProblem(w, r, err)
@@ -3580,6 +3593,16 @@ func (s *Server) verifySubject(w http.ResponseWriter, r *http.Request) {
 			return 0, nil, err
 		}
 		subjectType := strings.TrimSpace(req.SubjectType)
+		if s.auditChainVerification != nil && subjectType == "audit_chain" {
+			if err := validateNonNullableObjectFields(body, "subject_type", "subject_id"); err != nil {
+				return 0, nil, err
+			}
+			if strings.TrimSpace(req.SubjectID) != "" {
+				return 0, nil, app.ErrValidation
+			}
+			result, err := s.auditChainVerification.VerifyAuditChain(ctx, actor)
+			return http.StatusOK, verificationResultFromFocused(result), mapVerificationCommandError(err)
+		}
 		if s.releaseBundleVerification != nil && subjectType == "release_bundle" || s.evidenceVerification != nil && subjectType == "evidence_item" || s.dsseVerification != nil && subjectType == "build_attestation" || s.artifactSignatureVerification != nil && subjectType == "artifact_signature" || s.merkleVerification != nil && subjectType == "merkle_batch" {
 			if err := validateNonNullableObjectFields(body, "subject_type", "subject_id"); err != nil {
 				return 0, nil, err
