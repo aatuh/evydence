@@ -81,6 +81,24 @@ func TestReadControlCoverageSnapshotScopesFrameworkLinksAndExceptions(t *testing
 			t.Fatalf("unsafe snapshot=%#v err=%v", result, err)
 		}
 	}
+	if _, err := store.pool.Exec(ctx, `UPDATE exceptions SET approved=true WHERE id='ex_valid'`); err != nil {
+		t.Fatal(err)
+	}
+	for _, oversized := range []struct{ statement, restore string }{
+		{`UPDATE control_evidence SET notes=repeat('n',9000) WHERE id='link_valid'`, `UPDATE control_evidence SET notes='private note' WHERE id='link_valid'`},
+		{`UPDATE security_controls SET objective=repeat('o',70000) WHERE id='ctrl_report'`, `UPDATE security_controls SET objective='Objective' WHERE id='ctrl_report'`},
+		{`UPDATE exceptions SET reason=repeat('r',9000) WHERE id='ex_valid'`, `UPDATE exceptions SET reason='reviewed' WHERE id='ex_valid'`},
+	} {
+		if _, err := store.pool.Exec(ctx, oversized.statement); err != nil {
+			t.Fatal(err)
+		}
+		if result, err := store.ReadControlCoverageSnapshot(ctx, "ten_report", "fw_report", "prod_report", "rel_report", now); !errors.Is(err, packagequery.ErrControlCoverageCapacity) || result.FrameworkID != "" {
+			t.Fatalf("oversized report input returned %d controls, %d links, %d exceptions; err=%v", len(result.Controls), len(result.Links), len(result.Exceptions), err)
+		}
+		if _, err := store.pool.Exec(ctx, oversized.restore); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if _, err := store.pool.Exec(ctx, `UPDATE security_controls SET evidence_requirements='{}'::jsonb WHERE id='ctrl_report'`); err != nil {
 		t.Fatal(err)
 	}
@@ -88,6 +106,18 @@ func TestReadControlCoverageSnapshotScopesFrameworkLinksAndExceptions(t *testing
 		t.Fatalf("invalid stored requirements snapshot=%#v err=%v", result, err)
 	}
 	if _, err := store.pool.Exec(ctx, `UPDATE security_controls SET evidence_requirements='[]'::jsonb WHERE id='ctrl_report'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO security_controls (id,tenant_id,framework_id,code,title,objective,evidence_requirements,applicability,limitations,schema_version)
+		SELECT 'ctrl_byte_' || n,'ten_report','fw_report','byte_' || n,'Control',repeat('b',20000),'[]'::jsonb,'[]'::jsonb,'[]'::jsonb,'security-control.v1.0.0'
+		FROM generate_series(1,500) AS n`); err != nil {
+		t.Fatal(err)
+	}
+	if result, err := store.ReadControlCoverageSnapshot(ctx, "ten_report", "fw_report", "prod_report", "rel_report", now); !errors.Is(err, packagequery.ErrControlCoverageCapacity) || result.FrameworkID != "" {
+		t.Fatalf("aggregate bytes returned %d controls; err=%v", len(result.Controls), err)
+	}
+	if _, err := store.pool.Exec(ctx, `DELETE FROM security_controls WHERE tenant_id='ten_report' AND framework_id='fw_report' AND id LIKE 'ctrl_byte_%'`); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.pool.Exec(ctx, `
