@@ -149,6 +149,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create release manifest checkpoint verification: %w", err)
 	}
+	options.BackupVerification, err = BuildBackupVerificationCommands(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create backup verification: %w", err)
+	}
 	options.SigningCustodyQuery, err = BuildSigningCustodyQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create signing custody query: %w", err)

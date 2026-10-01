@@ -66,6 +66,7 @@ type Server struct {
 	auditChainVerification            AuditChainVerification
 	merkleCheckpointVerification      MerkleCheckpointVerification
 	releaseManifestCheckpoint         ReleaseManifestCheckpoint
+	backupVerification                BackupVerification
 	signingCustodyQuery               SigningCustodyQuery
 	retentionCommands                 RetentionCommands
 	trustConfigurationCommands        TrustConfigurationCommands
@@ -186,6 +187,7 @@ type ServerOptions struct {
 	AuditChainVerification        AuditChainVerification
 	MerkleCheckpointVerification  MerkleCheckpointVerification
 	ReleaseManifestCheckpoint     ReleaseManifestCheckpoint
+	BackupVerification            BackupVerification
 	// SigningCustodyQuery assesses one bounded committed provider/policy inventory.
 	SigningCustodyQuery SigningCustodyQuery
 	// RetentionCommands atomically persists durable retention intent and observations.
@@ -341,6 +343,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.auditChainVerification = opts.AuditChainVerification
 	server.merkleCheckpointVerification = opts.MerkleCheckpointVerification
 	server.releaseManifestCheckpoint = opts.ReleaseManifestCheckpoint
+	server.backupVerification = opts.BackupVerification
 	server.signingCustodyQuery = opts.SigningCustodyQuery
 	server.retentionCommands = opts.RetentionCommands
 	server.trustConfigurationCommands = opts.TrustConfigurationCommands
@@ -3416,6 +3419,16 @@ func (s *Server) verifyBackupManifest(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if s.backupVerification != nil {
+		result, err := s.backupVerification.VerifyBackupManifest(r.Context(), actor, r.PathValue("id"))
+		mapped := mapVerificationCommandError(err)
+		if mapped != nil && !errors.Is(mapped, app.ErrVerificationFailed) {
+			writeProblem(w, r, mapped)
+			return
+		}
+		writeData(w, http.StatusOK, verificationResultFromFocused(result))
+		return
+	}
 	result, err := s.verification.VerifyBackupManifest(r.Context(), actor, r.PathValue("id"))
 	if err != nil && !errors.Is(err, app.ErrVerificationFailed) {
 		writeProblem(w, r, err)
@@ -3609,7 +3622,7 @@ func (s *Server) verifySubject(w http.ResponseWriter, r *http.Request) {
 			result, err := s.auditChainVerification.VerifyAuditChain(ctx, actor)
 			return http.StatusOK, verificationResultFromFocused(result), mapVerificationCommandError(err)
 		}
-		if s.releaseBundleVerification != nil && subjectType == "release_bundle" || s.evidenceVerification != nil && subjectType == "evidence_item" || s.dsseVerification != nil && subjectType == "build_attestation" || s.artifactSignatureVerification != nil && subjectType == "artifact_signature" || s.merkleVerification != nil && subjectType == "merkle_batch" || s.merkleCheckpointVerification != nil && subjectType == "audit_chain_checkpoint" || s.releaseManifestCheckpoint != nil && subjectType == "audit_chain_release_manifest" {
+		if s.releaseBundleVerification != nil && subjectType == "release_bundle" || s.evidenceVerification != nil && subjectType == "evidence_item" || s.dsseVerification != nil && subjectType == "build_attestation" || s.artifactSignatureVerification != nil && subjectType == "artifact_signature" || s.merkleVerification != nil && subjectType == "merkle_batch" || s.merkleCheckpointVerification != nil && subjectType == "audit_chain_checkpoint" || s.releaseManifestCheckpoint != nil && subjectType == "audit_chain_release_manifest" || s.backupVerification != nil && subjectType == "backup_manifest" {
 			if err := validateNonNullableObjectFields(body, "subject_type", "subject_id"); err != nil {
 				return 0, nil, err
 			}
@@ -3631,6 +3644,8 @@ func (s *Server) verifySubject(w http.ResponseWriter, r *http.Request) {
 				result, err = s.merkleCheckpointVerification.VerifyMerkleCheckpoint(ctx, actor, req.SubjectID)
 			case "audit_chain_release_manifest":
 				result, err = s.releaseManifestCheckpoint.VerifyReleaseManifestCheckpoint(ctx, actor, req.SubjectID)
+			case "backup_manifest":
+				result, err = s.backupVerification.VerifyBackupManifest(ctx, actor, req.SubjectID)
 			default:
 				result, err = s.releaseBundleVerification.VerifyReleaseBundle(ctx, actor, req.SubjectID)
 			}

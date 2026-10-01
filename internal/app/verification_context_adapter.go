@@ -1025,7 +1025,7 @@ func resolveVerificationSubjectLocked(ledger *Ledger, tenantID, subjectType, sub
 }
 
 func inspectVerificationSubjectLocked(ctx context.Context, ledger *Ledger, subject verificationapp.SubjectReference) (verificationapp.SubjectInspection, error) {
-	checks := []domain.VerifyCheck{}
+	var checks []domain.VerifyCheck
 	var profile domain.VerificationProfile
 	switch subject.Type {
 	case "audit_chain":
@@ -1063,9 +1063,11 @@ func inspectVerificationSubjectLocked(ctx context.Context, ledger *Ledger, subje
 		return verificationapp.InspectMerkleBatch(snapshot, ledger.now().UTC(), ledgerVerificationPayloadVerifier{})
 	case "backup_manifest":
 		manifest := ledger.backupManifests[subject.ID]
-		checks = append(checks, manifest.ConsistencyChecks...)
-		checks = append(checks, domain.VerifyCheck{Name: "backup_manifest_present", Result: "passed", Detail: manifest.StateHash})
-		profile = assuranceProfile(domain.VerificationProfileBackupManifest, requiredCheckNames(checks), []string{"backup manifest canonical hash"}, "tenant-scoped verification authorization", "not_evaluated", "backup manifest consistency counts and state hash", manifest.StateHash, []string{"Backup manifest verification does not prove an external backup can be restored or meets an operator's retention policy."})
+		recorded := make([]verificationdomain.VerifyCheck, 0, len(manifest.ConsistencyChecks))
+		for _, check := range manifest.ConsistencyChecks {
+			recorded = append(recorded, verificationdomain.VerifyCheck{Name: check.Name, Result: check.Result, Detail: check.Detail})
+		}
+		return verificationapp.InspectBackupManifestRecordedChecks(verificationapp.BackupVerificationSnapshot{Subject: subject, StateHash: manifest.StateHash, Checks: recorded})
 	case "audit_chain_release_manifest":
 		bundle := ledger.bundles[subject.ID]
 		var found bool

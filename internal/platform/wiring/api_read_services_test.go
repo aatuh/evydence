@@ -87,6 +87,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.ReleaseManifestCheckpoint != nil {
 		t.Fatal("local memory must retain its explicit manifest checkpoint path")
 	}
+	if memory.BackupVerification != nil {
+		t.Fatal("local memory must retain its explicit backup verification path")
+	}
 	if memory.SigningCustodyQuery != nil {
 		t.Fatal("local memory bound durable custody query")
 	}
@@ -156,6 +159,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.ReleaseManifestCheckpoint == nil {
 		t.Fatal("PostgreSQL manifest checkpoint verification must be focused")
+	}
+	if options.BackupVerification == nil {
+		t.Fatal("PostgreSQL backup verification must be focused")
 	}
 	if options.SigningCustodyQuery == nil {
 		t.Fatal("PostgreSQL custody report still uses Ledger")

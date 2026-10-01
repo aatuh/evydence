@@ -69,7 +69,7 @@ inferred from submitted metadata.
 | `GET /v1/merkle-batches/{id}/verify`, `POST /v1/verify` with `merkle_batch` | `merkle-checkpoint.v1` | covered sequence hashes, Merkle root, checkpoint signature | Local signed Merkle checkpoint; canonical entry contents and external log inclusion are not evaluated. |
 | `POST /v1/public-transparency-log-entries/{id}/verify` | `transparency-inclusion-proof.v1` | leaf hash, inclusion path, root hash, tree size, checkpoint | Resource-level proof checks today; EVY-606 standardizes a profile-bearing receipt. |
 | `POST /v1/object-retention-policies/{id}/verify` | `object-retention-provider-policy.v1` | object scope, retention mode, retention-until, legal hold | Resource-level provider-policy checks today; live provider evidence is required for a provider-truth claim. |
-| `POST /v1/backup-manifests/{id}/verify` | `backup-manifest-consistency.v1` | manifest hash, state hash, resource counts | Local backup consistency; a restore rehearsal is separate optional evidence. |
+| `GET /v1/backup-manifests/{id}/verify`, `POST /v1/verify` with `backup_manifest` | `backup-manifest-consistency.v1` | recorded consistency checks, backup manifest presence | Replays recorded checks; does not freshly compare a state export, counts, or restore outcome. |
 | `evydence verify customer-package` | `customer-package-manifest-integrity.v1` | manifest schema/hash, archive metadata, redaction, evidence bundle | Offline package integrity and redaction shape; not a manifest-signature claim. |
 | `evydence release verify` | `release-artifact-manifest-signature.v1` | manifest schema, artifact hashes, manifest signature | Offline Ed25519 verification with a supplied public key; no live revocation claim. |
 
@@ -79,6 +79,47 @@ assessment. Offline success requires every root, bundle, proof, checkpoint, and
 clock input specified by the profile. See
 [ADR 0002](../adr/0002-cryptographic-trust-model.md) for the full decision,
 threat boundaries, and migration rules.
+
+## Recorded Backup-Manifest Verification
+
+`GET /v1/backup-manifests/{id}/verify` and `POST /v1/verify` with
+`subject_type: backup_manifest` use `backup-manifest-consistency.v1`.
+The receipt preserves the manifest's recorded `consistency_checks`, appends
+passed `backup_manifest_present` with the recorded state hash, and requires
+every emitted check name. Aggregation preserves failed/error facts and
+incomplete states; it does not replace them with the presence check. An empty
+recorded check list retains its historical presence-only receipt.
+
+This operation **does not recompute the state hash, rehash an exported state,
+compare current resource counts, reverify today's audit chain, or perform a
+restore rehearsal**. A passed receipt means its recorded checks and presence
+check passed, not that a current backup can be restored. The broader profile
+catalog lists manifest/state/count checks for backup consistency; those names
+do not create fresh observations in this legacy recorded-check receipt.
+Fresh restore and storage-generation evidence must be obtained separately.
+
+The PostgreSQL command requires tenant-wide `verify:read` before reading
+content. Human product/release grants are insufficient. It selects only one
+tenant-owned manifest's state hash and recorded checks, keeping the tenant and
+manifest rows share-locked through atomic receipt, audit and outbox persistence.
+It does not load resource-count maps, stored limitations, other manifests,
+private keys or raw payloads. Limits are 4096 recorded checks and 8 MiB encoded
+checks plus state hash; names are limited to 128 bytes, result labels to 64,
+details and IDs/state hashes to 1 KiB. Malformed or oversized projections fail
+closed with no receipt, not a truncated passing assessment.
+
+Dedicated GET and direct verification persist completed negative receipts.
+Failed generic POST verification rolls back; successful idempotent replay adds
+no effects. Existing check names/order, profile strings, state-hash digest and
+response/storage fields are unchanged. Explicit local-memory mode shares the
+same recorded-check inspector and bounds. Backup generation still has its
+separate compatibility path until EVY-905 completes that migration; no
+historical record is rewritten here.
+
+Source/test evidence: `internal/verification/app/backup_verification.go`,
+`internal/adapters/postgres/repositories/backup_verification.go`,
+`internal/platform/wiring/backup_verification_test.go` and
+`internal/adapters/httpapi/backup_verification_test.go`.
 
 ## Full Audit Chain Verification
 
