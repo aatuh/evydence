@@ -149,6 +149,16 @@ key validity. This verifies recorded hashes, not canonical audit contents or
 external anchoring; `audit_chain_checkpoint` remains a distinct profile. See
 [Merkle verification bounds](reference/verification-results.md#merkle-batch-verification).
 
+The PostgreSQL-profile `audit_chain_checkpoint` command composes the focused
+full-chain and Merkle readers in one transaction, without Ledger state. It
+checks all canonical entries and binds the selected checkpoint hashes to those
+same inspected pages. Tenant-wide authorization precedes content reads; the
+audit writer fence and shared rows keep the chain, batch and public signing
+material stable through atomic receipt/audit/outbox persistence. It preserves
+the distinct `audit-chain-merkle-checkpoint.v1` profile and early failed-range
+contract. It proves neither external publication nor third-party log inclusion.
+See [signed checkpoint verification](reference/verification-results.md#signed-merkle-audit-chain-checkpoint-verification).
+
 Cosign verification (`POST /v1/artifact-signatures/{id}/verify-cosign`) in the
 PostgreSQL profile uses focused transaction-scoped signature/artifact/payload
 reads and a bounded object reader, not Ledger state. `verify:read` is required;

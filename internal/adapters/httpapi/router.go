@@ -64,6 +64,7 @@ type Server struct {
 	artifactSignatureVerification     ArtifactSignatureVerification
 	merkleVerification                MerkleVerification
 	auditChainVerification            AuditChainVerification
+	merkleCheckpointVerification      MerkleCheckpointVerification
 	signingCustodyQuery               SigningCustodyQuery
 	retentionCommands                 RetentionCommands
 	trustConfigurationCommands        TrustConfigurationCommands
@@ -182,6 +183,7 @@ type ServerOptions struct {
 	ArtifactSignatureVerification ArtifactSignatureVerification
 	MerkleVerification            MerkleVerification
 	AuditChainVerification        AuditChainVerification
+	MerkleCheckpointVerification  MerkleCheckpointVerification
 	// SigningCustodyQuery assesses one bounded committed provider/policy inventory.
 	SigningCustodyQuery SigningCustodyQuery
 	// RetentionCommands atomically persists durable retention intent and observations.
@@ -335,6 +337,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.artifactSignatureVerification = opts.ArtifactSignatureVerification
 	server.merkleVerification = opts.MerkleVerification
 	server.auditChainVerification = opts.AuditChainVerification
+	server.merkleCheckpointVerification = opts.MerkleCheckpointVerification
 	server.signingCustodyQuery = opts.SigningCustodyQuery
 	server.retentionCommands = opts.RetentionCommands
 	server.trustConfigurationCommands = opts.TrustConfigurationCommands
@@ -3603,7 +3606,7 @@ func (s *Server) verifySubject(w http.ResponseWriter, r *http.Request) {
 			result, err := s.auditChainVerification.VerifyAuditChain(ctx, actor)
 			return http.StatusOK, verificationResultFromFocused(result), mapVerificationCommandError(err)
 		}
-		if s.releaseBundleVerification != nil && subjectType == "release_bundle" || s.evidenceVerification != nil && subjectType == "evidence_item" || s.dsseVerification != nil && subjectType == "build_attestation" || s.artifactSignatureVerification != nil && subjectType == "artifact_signature" || s.merkleVerification != nil && subjectType == "merkle_batch" {
+		if s.releaseBundleVerification != nil && subjectType == "release_bundle" || s.evidenceVerification != nil && subjectType == "evidence_item" || s.dsseVerification != nil && subjectType == "build_attestation" || s.artifactSignatureVerification != nil && subjectType == "artifact_signature" || s.merkleVerification != nil && subjectType == "merkle_batch" || s.merkleCheckpointVerification != nil && subjectType == "audit_chain_checkpoint" {
 			if err := validateNonNullableObjectFields(body, "subject_type", "subject_id"); err != nil {
 				return 0, nil, err
 			}
@@ -3621,6 +3624,8 @@ func (s *Server) verifySubject(w http.ResponseWriter, r *http.Request) {
 				result, err = s.artifactSignatureVerification.VerifyArtifactSignature(ctx, actor, req.SubjectID)
 			case "merkle_batch":
 				result, err = s.merkleVerification.VerifyMerkleBatch(ctx, actor, req.SubjectID)
+			case "audit_chain_checkpoint":
+				result, err = s.merkleCheckpointVerification.VerifyMerkleCheckpoint(ctx, actor, req.SubjectID)
 			default:
 				result, err = s.releaseBundleVerification.VerifyReleaseBundle(ctx, actor, req.SubjectID)
 			}

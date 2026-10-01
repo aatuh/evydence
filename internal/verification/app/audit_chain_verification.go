@@ -80,55 +80,11 @@ func (s *AuditChainVerificationCommands) VerifyAuditChain(ctx context.Context, a
 		if err != nil {
 			return err
 		}
-		if view.TenantID != actor.TenantID {
-			return ErrNotFound
-		}
-		if view.EntryCount < 0 || len(view.HeadHash) > 1024 || view.EntryCount == 0 && (view.HeadHash != "" || view.HeadSequence != 0) {
-			return ErrConflict
-		}
 		now := s.config.Clock.Now().UTC()
-		inspector := NewAuditChainInspector(actor.TenantID, now, s.config.Hasher, s.config.Verifier)
-		budget := MaxAuditChainVerificationBytes
-		var after *int64
-		for {
-			if err := contextError(ctx); err != nil {
-				return err
-			}
-			page, err := tx.ReadAuditChainVerificationPage(ctx, view, after, budget)
-			if err != nil {
-				return err
-			}
-			if len(page.Entries) > MaxAuditChainVerificationPageEntries || len(page.Bindings) > MaxAuditChainVerificationPageEntries || len(page.Signatures) > MaxAuditChainVerificationPageEntries || len(page.Keys) > MaxAuditChainVerificationPageEntries || page.BytesRead < 0 || page.BytesRead > budget || len(page.Entries) > 0 && page.BytesRead == 0 {
-				return ErrConflict
-			}
-			if len(page.Entries) > 0 {
-				raw, err := json.Marshal(page)
-				if err != nil || len(raw) > budget {
-					return ErrConflict
-				}
-				if len(raw) > page.BytesRead {
-					page.BytesRead = len(raw)
-				}
-			}
-			budget -= page.BytesRead
-			if len(page.Entries) == 0 {
-				break
-			}
-			for _, entry := range page.Entries {
-				if after != nil && entry.Sequence <= *after || entry.Sequence > view.HeadSequence {
-					return ErrConflict
-				}
-				if err := inspector.Append(entry, page.Bindings[entry.ID], page.Signatures, page.Keys); err != nil {
-					return err
-				}
-				sequence := entry.Sequence
-				after = &sequence
-			}
+		inspection, err := inspectAuditChainView(ctx, tx, view, actor.TenantID, now, s.config.Hasher, s.config.Verifier, nil)
+		if err != nil {
+			return err
 		}
-		if inspector.count != view.EntryCount || inspector.previous != view.HeadHash || after != nil && *after != view.HeadSequence {
-			return ErrConflict
-		}
-		inspection := inspector.Inspection()
 		result, err = persistVerificationReceipt(ctx, tx, actor, SubjectReference{TenantID: actor.TenantID, Type: "audit_chain"}, inspection, now, s.config.IDs)
 		return err
 	})
@@ -139,6 +95,60 @@ func (s *AuditChainVerificationCommands) VerifyAuditChain(ctx context.Context, a
 		return cloneVerificationResult(result), ErrVerificationFailed
 	}
 	return cloneVerificationResult(result), nil
+}
+
+func inspectAuditChainView(ctx context.Context, reader AuditChainVerificationReader, view AuditChainVerificationView, tenant string, now time.Time, hasher CanonicalHasher, verifier PayloadSignatureVerifier, collect func(verificationdomain.AuditChainEntry)) (SubjectInspection, error) {
+	if view.TenantID != tenant {
+		return SubjectInspection{}, ErrNotFound
+	}
+	if view.EntryCount < 0 || len(view.HeadHash) > 1024 || view.EntryCount == 0 && (view.HeadHash != "" || view.HeadSequence != 0) {
+		return SubjectInspection{}, ErrConflict
+	}
+	inspector := NewAuditChainInspector(tenant, now, hasher, verifier)
+	budget := MaxAuditChainVerificationBytes
+	var after *int64
+	for {
+		if err := contextError(ctx); err != nil {
+			return SubjectInspection{}, err
+		}
+		page, err := reader.ReadAuditChainVerificationPage(ctx, view, after, budget)
+		if err != nil {
+			return SubjectInspection{}, err
+		}
+		if len(page.Entries) > MaxAuditChainVerificationPageEntries || len(page.Bindings) > MaxAuditChainVerificationPageEntries || len(page.Signatures) > MaxAuditChainVerificationPageEntries || len(page.Keys) > MaxAuditChainVerificationPageEntries || page.BytesRead < 0 || page.BytesRead > budget || len(page.Entries) > 0 && page.BytesRead == 0 {
+			return SubjectInspection{}, ErrConflict
+		}
+		if len(page.Entries) > 0 {
+			raw, err := json.Marshal(page)
+			if err != nil || len(raw) > budget {
+				return SubjectInspection{}, ErrConflict
+			}
+			if len(raw) > page.BytesRead {
+				page.BytesRead = len(raw)
+			}
+		}
+		budget -= page.BytesRead
+		if len(page.Entries) == 0 {
+			break
+		}
+		for _, entry := range page.Entries {
+			if after != nil && entry.Sequence <= *after || entry.Sequence > view.HeadSequence {
+				return SubjectInspection{}, ErrConflict
+			}
+			if err := inspector.Append(entry, page.Bindings[entry.ID], page.Signatures, page.Keys); err != nil {
+				return SubjectInspection{}, err
+			}
+			if collect != nil {
+				collect(entry)
+			}
+			sequence := entry.Sequence
+			after = &sequence
+		}
+	}
+	if inspector.count != view.EntryCount || inspector.previous != view.HeadHash || after != nil && *after != view.HeadSequence {
+		return SubjectInspection{}, ErrConflict
+	}
+	return inspector.Inspection(), nil
 }
 
 // AuditChainInspector accumulates compatible per-entry checks, not audit

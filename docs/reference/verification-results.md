@@ -132,6 +132,41 @@ Source/test evidence: `internal/verification/app/audit_chain_hash.go`,
 `internal/platform/wiring/audit_chain_verification_test.go` and
 `internal/adapters/httpapi/audit_chain_verification_test.go`.
 
+## Signed Merkle Audit-Chain Checkpoint Verification
+
+`POST /v1/verify` with `subject_type: audit_chain_checkpoint` and a Merkle
+batch ID uses `audit-chain-merkle-checkpoint.v1`, not `merkle-checkpoint.v1`.
+In the PostgreSQL profile, this focused command first inspects the entire
+current tenant chain using the canonical checks and bounds above. It then
+requires `checkpoint_coverage`, `checkpoint_root` and `checkpoint_signature`.
+The covered hashes must come from those same inspected pages and match the
+batch's ordered leaves, entry count and root. The signature must bind to this
+tenant's exact Merkle batch and satisfy historical signing-key validity.
+
+An invalid or truncated sequence range returns failed `checkpoint_coverage`
+after the full-chain checks, without root/signature checks, preserving the
+existing receipt contract. Valid coverage does not excuse canonical tampering
+elsewhere in the chain. The profile retains its empty payload digest and
+explicit external-publication limitation; transparency is `not_evaluated`.
+
+Tenant-wide `verify:read` authorization precedes content reads. Human actors
+need a tenant grant, not a product/release grant. A transaction-scoped audit
+writer fence and shared tenant, batch, audit and public signing-material locks
+keep the checkpoint and full chain consistent until receipt, audit and outbox
+effects commit. No private signing material or unrelated tenant payloads are
+loaded. Full-chain input/check budgets and the separate 4096-leaf, 8 MiB
+Merkle-material budget fail closed without a partial receipt. Failed generic
+POST verification rolls back; successful idempotent replay adds no effects.
+
+Existing response fields, profile, check names and persisted hashes remain
+unchanged; no migration or historical rewrite is performed. Local-memory mode
+retains its explicit compatibility implementation. Release-manifest audit-chain
+checkpoint migration remains separate EVY-905 work.
+
+Source/test evidence: `internal/verification/app/merkle_checkpoint_verification.go`,
+`internal/platform/wiring/merkle_checkpoint_verification_test.go` and
+`internal/adapters/httpapi/merkle_checkpoint_verification_test.go`.
+
 ## Merkle Batch Verification
 
 The `merkle-checkpoint.v1` profile requires all three checks:

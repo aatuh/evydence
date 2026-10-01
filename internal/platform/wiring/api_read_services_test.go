@@ -81,6 +81,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.AuditChainVerification != nil {
 		t.Fatal("local memory bound durable audit chain verification")
 	}
+	if memory.MerkleCheckpointVerification != nil {
+		t.Fatal("local memory must retain its explicit checkpoint path")
+	}
 	if memory.SigningCustodyQuery != nil {
 		t.Fatal("local memory bound durable custody query")
 	}
@@ -144,6 +147,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.AuditChainVerification == nil {
 		t.Fatal("PostgreSQL audit chain verification still uses Ledger")
+	}
+	if options.MerkleCheckpointVerification == nil {
+		t.Fatal("PostgreSQL checkpoint verification must be focused")
 	}
 	if options.SigningCustodyQuery == nil {
 		t.Fatal("PostgreSQL custody report still uses Ledger")
