@@ -1202,46 +1202,15 @@ func signingProviderFromVerificationContext(value verificationdomain.SigningProv
 }
 
 func signingProviderToVerificationContext(value domain.SigningProvider) verificationdomain.SigningProvider {
-	return verificationdomain.SigningProvider{
-		ID: value.ID, TenantID: value.TenantID, Name: value.Name, Type: value.Type, Status: value.Status,
-		KeyRef: value.KeyRef, Encrypted: value.Encrypted, SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt,
-	}
+	return domain.SigningProviderToContextModel(value)
 }
 
 func objectRetentionPolicyToVerificationContext(value domain.ObjectRetentionPolicy) verificationdomain.ObjectRetentionPolicy {
-	checks := make([]verificationdomain.VerifyCheck, 0, len(value.VerificationChecks))
-	for _, check := range value.VerificationChecks {
-		checks = append(checks, verificationdomain.VerifyCheck{Name: check.Name, Result: check.Result, Detail: check.Detail})
-	}
-	return verificationdomain.ObjectRetentionPolicy{
-		ID: value.ID, TenantID: value.TenantID, Name: value.Name, ObjectPrefix: value.ObjectPrefix,
-		ObjectKey: value.ObjectKey, RequireLegalHold: value.RequireLegalHold, Mode: value.Mode,
-		RetentionDays: value.RetentionDays, MaxVerificationAgeHours: value.MaxVerificationAgeHours,
-		Status: value.Status, VerifiedAt: cloneTimePtr(value.VerifiedAt), VerificationHash: value.VerificationHash,
-		VerificationChecks: checks, VerificationLimitations: append([]string(nil), value.VerificationLimitations...),
-		VerificationProvider: value.VerificationProvider, VerificationBucket: value.VerificationBucket,
-		VerificationMode: value.VerificationMode, VerificationRetentionDays: value.VerificationRetentionDays,
-		VerificationLegalHold: copyBool(value.VerificationLegalHold), VerificationObservedAt: cloneTimePtr(value.VerificationObservedAt),
-		VerificationExpiresAt: cloneTimePtr(value.VerificationExpiresAt), SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt,
-	}
+	return domain.ObjectRetentionPolicyToContextModel(value)
 }
 
 func objectRetentionPolicyFromVerificationContext(value verificationdomain.ObjectRetentionPolicy) domain.ObjectRetentionPolicy {
-	checks := make([]domain.VerifyCheck, 0, len(value.VerificationChecks))
-	for _, check := range value.VerificationChecks {
-		checks = append(checks, domain.VerifyCheck{Name: check.Name, Result: check.Result, Detail: check.Detail})
-	}
-	return domain.ObjectRetentionPolicy{
-		ID: value.ID, TenantID: value.TenantID, Name: value.Name, ObjectPrefix: value.ObjectPrefix,
-		ObjectKey: value.ObjectKey, RequireLegalHold: value.RequireLegalHold, Mode: value.Mode,
-		RetentionDays: value.RetentionDays, MaxVerificationAgeHours: value.MaxVerificationAgeHours,
-		Status: value.Status, VerifiedAt: cloneTimePtr(value.VerifiedAt), VerificationHash: value.VerificationHash,
-		VerificationChecks: checks, VerificationLimitations: append([]string(nil), value.VerificationLimitations...),
-		VerificationProvider: value.VerificationProvider, VerificationBucket: value.VerificationBucket,
-		VerificationMode: value.VerificationMode, VerificationRetentionDays: value.VerificationRetentionDays,
-		VerificationLegalHold: copyBool(value.VerificationLegalHold), VerificationObservedAt: cloneTimePtr(value.VerificationObservedAt),
-		VerificationExpiresAt: cloneTimePtr(value.VerificationExpiresAt), SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt,
-	}
+	return domain.ObjectRetentionPolicyFromContextModel(value)
 }
 
 func backupManifestFromVerificationContext(value verificationdomain.BackupManifest) domain.BackupManifest {

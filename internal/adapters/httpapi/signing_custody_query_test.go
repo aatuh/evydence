@@ -1,0 +1,79 @@
+package httpapi
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/domain"
+	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
+	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
+	verificationquery "github.com/aatuh/evydence/internal/verification/query"
+)
+
+type custodyQueryFake struct {
+	calls int
+	err   error
+}
+
+func (f *custodyQueryFake) Report(_ context.Context, actor identitydomain.Actor) (verificationdomain.SigningCustodyReviewReport, error) {
+	f.calls++
+	if f.err != nil {
+		return verificationdomain.SigningCustodyReviewReport{}, f.err
+	}
+	return verificationdomain.SigningCustodyReviewReport{ReportType: "signing_custody_review", TenantID: actor.TenantID, SigningProviders: []verificationdomain.SigningProvider{{ID: "durable_provider", TenantID: actor.TenantID, Type: "native_pkcs11_hsm", KeyRef: "pkcs11:object=signing"}}, ObjectRetentionPolicies: []verificationdomain.ObjectRetentionPolicy{{ID: "durable_policy", TenantID: actor.TenantID, Status: "stale"}}, Checks: []verificationdomain.VerifyCheck{{Name: "object_lock_proof_recorded", Result: "failed"}}, Limitations: []string{"Recorded metadata is not proof of custody."}, GeneratedAt: time.Now().UTC()}, nil
+}
+
+type custodyFallbackSpy struct {
+	verificationService
+	calls int
+}
+
+func (f *custodyFallbackSpy) SigningCustodyReviewReport(_ context.Context, actor domain.Actor) (domain.SigningCustodyReviewReport, error) {
+	f.calls++
+	return domain.SigningCustodyReviewReport{ReportType: "signing_custody_review", TenantID: actor.TenantID}, nil
+}
+
+func TestSigningCustodyHandlerUsesDurableQueryWithoutFallbackAndSafeErrors(t *testing.T) {
+	server, secret := testServer(t)
+	query := &custodyQueryFake{}
+	server.signingCustodyQuery = query
+	spy := &custodyFallbackSpy{}
+	server.verification = spy
+	response := getRaw(t, server, secret, "/v1/reports/custody-review", http.StatusOK)
+	if query.calls != 1 || spy.calls != 0 || !strings.Contains(response.Body.String(), `"id":"durable_provider"`) || !strings.Contains(response.Body.String(), `"status":"stale"`) || strings.Contains(response.Body.String(), `"private`) {
+		t.Fatalf("focused report %s fallback=%d", response.Body.String(), spy.calls)
+	}
+	getRawNoAuth(t, server, "/v1/reports/custody-review", http.StatusUnauthorized)
+	getRaw(t, server, secret, "/v1/reports/custody-review?unknown=value", http.StatusBadRequest)
+	if query.calls != 1 {
+		t.Fatal("invalid or anonymous request reached query")
+	}
+	for _, tc := range []struct {
+		err    error
+		status int
+	}{
+		{application.ErrForbidden, http.StatusForbidden}, {application.ErrUnauthorized, http.StatusUnauthorized},
+		{verificationquery.ErrSigningCustodyValidation, http.StatusBadRequest}, {verificationquery.ErrSigningCustodyProjection, http.StatusConflict},
+		{errors.New("private-database-detail"), http.StatusInternalServerError},
+	} {
+		query.err = tc.err
+		response := getRaw(t, server, secret, "/v1/reports/custody-review", tc.status)
+		if strings.Contains(response.Body.String(), "private-database-detail") {
+			t.Fatal("internal detail leaked")
+		}
+	}
+	if spy.calls != 0 {
+		t.Fatal("query error fell back to Ledger")
+	}
+	server.signingCustodyQuery = nil
+	getRaw(t, server, secret, "/v1/reports/custody-review?unknown=value", http.StatusBadRequest)
+	getRaw(t, server, secret, "/v1/reports/custody-review", http.StatusOK)
+	if spy.calls != 1 {
+		t.Fatal("explicit local-memory compatibility removed")
+	}
+}

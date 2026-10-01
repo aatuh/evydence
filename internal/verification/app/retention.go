@@ -226,14 +226,24 @@ func (s *Service) SigningCustodyReviewReport(ctx context.Context, actor identity
 	if err != nil {
 		return verificationdomain.SigningCustodyReviewReport{}, err
 	}
-	if snapshot.TenantID != actor.TenantID {
+	return BuildSigningCustodyReviewReport(snapshot, actor.TenantID, s.clock.Now().UTC())
+}
+
+// BuildSigningCustodyReviewReport shares the read-only assessment between
+// durable queries and explicit local-memory service wiring. It evaluates only
+// recorded provider metadata and receipt freshness, not external custody.
+func BuildSigningCustodyReviewReport(snapshot SigningCustodySnapshot, tenantID string, now time.Time) (verificationdomain.SigningCustodyReviewReport, error) {
+	if strings.TrimSpace(tenantID) == "" || now.IsZero() {
+		return verificationdomain.SigningCustodyReviewReport{}, ErrValidation
+	}
+	if snapshot.TenantID != tenantID {
 		return verificationdomain.SigningCustodyReviewReport{}, ErrNotFound
 	}
 	providers := append([]verificationdomain.SigningProvider(nil), snapshot.SigningProviders...)
 	policies := make([]verificationdomain.ObjectRetentionPolicy, 0, len(snapshot.ObjectRetentionPolicies))
 	hasProductionProvider, hasNativePKCS11, hasVerifiedRetention := false, false, false
 	for _, provider := range providers {
-		if provider.TenantID != actor.TenantID {
+		if provider.TenantID != tenantID {
 			return verificationdomain.SigningCustodyReviewReport{}, ErrNotFound
 		}
 		if provider.Type != "local_encrypted_dev" {
@@ -244,10 +254,10 @@ func (s *Service) SigningCustodyReviewReport(ctx context.Context, actor identity
 		}
 	}
 	for _, policy := range snapshot.ObjectRetentionPolicies {
-		if policy.TenantID != actor.TenantID {
+		if policy.TenantID != tenantID {
 			return verificationdomain.SigningCustodyReviewReport{}, ErrNotFound
 		}
-		current := currentRetentionPolicy(policy, s.clock.Now().UTC())
+		current := currentRetentionPolicy(policy, now.UTC())
 		policies = append(policies, current)
 		if current.Status == "verified" && current.VerificationHash != "" {
 			hasVerifiedRetention = true
@@ -256,7 +266,7 @@ func (s *Service) SigningCustodyReviewReport(ctx context.Context, actor identity
 	sort.Slice(providers, func(i, j int) bool { return providers[i].ID < providers[j].ID })
 	sort.Slice(policies, func(i, j int) bool { return policies[i].ID < policies[j].ID })
 	return verificationdomain.SigningCustodyReviewReport{
-		ReportType: "signing_custody_review", TenantID: actor.TenantID, SigningProviders: providers, ObjectRetentionPolicies: policies,
+		ReportType: "signing_custody_review", TenantID: tenantID, SigningProviders: providers, ObjectRetentionPolicies: policies,
 		Checks: []verificationdomain.VerifyCheck{
 			{Name: "production_signing_provider_recorded", Result: checkResultString(hasProductionProvider), Detail: "At least one non-local signing provider is recorded for the tenant."},
 			{Name: "native_pkcs11_hsm_profile_recorded", Result: checkResultString(hasNativePKCS11), Detail: "A native PKCS#11/HSM custody profile is recorded when the deployment uses local HSM modules or slots."},
@@ -270,7 +280,7 @@ func (s *Service) SigningCustodyReviewReport(ctx context.Context, actor identity
 			"This report does not prove legal compliance, certification, HSM hardware custody, WORM enforcement, or deployment security.",
 			"Operators remain responsible for HSM driver installation, slot access controls, IAM policy, object-store retention settings, and independent review.",
 		},
-		GeneratedAt: s.clock.Now().UTC(),
+		GeneratedAt: now.UTC(),
 	}, nil
 }
 

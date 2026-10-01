@@ -39,6 +39,21 @@ Release-bundle verification in the PostgreSQL profile uses a focused transaction
 
 PostgreSQL-profile signing-key rotation and revocation use focused commands rather than Ledger key maps. Both lock the tenant before signing-key rows, so concurrent rotations serialize even when the tenant has no existing local keys. Rotation reads at most 4096 local-key metadata rows and 8 MiB of selected text, calculates the next database-backed version, retires active local keys, and inserts the new key and audit entry atomically. External-provider keys do not influence local versions or get retired. Version exhaustion at the PostgreSQL integer limit fails closed. Revocation locks one tenant-owned key and preserves the ordinary/compromise and historical-validity policies; lifecycle changes and audit commit together. Metadata reads never select private material and reject oversized fields: identifiers/fingerprints are limited to 1 KiB, provider/status/algorithm/policy labels to 64 bytes, public-key text to 16 KiB, and stored revocation reasons to 4 KiB. The local cryptographic adapter preserves Ed25519, raw-base64 public keys, SHA-256 fingerprints and versioned KIDs. Transient generated private bytes are cleared on every command exit; persisted material retains the existing local storage/custody model, not a new encryption-at-rest or HSM claim. Human actors require tenant-wide `keys:admin` (or admin) grants. HTTP response fields and replay remain compatible; explicit `null` revocation policy fields are rejected according to the existing non-nullable schema. Key identifiers and operator reasons must be valid UTF-8 without NUL bytes; invalid database text fails validation before persistence. Local-memory mode shares the orchestration through its locked compatibility transaction. Remaining verification workflows and startup Ledger retirement remain EVY-905 work.
 
+The PostgreSQL-profile signing-custody review uses a focused verification query,
+not Ledger state. Tenant-wide `keys:admin` (or admin) authorization runs before
+selection. One SQL statement reads only that tenant's signing-provider metadata
+and retention-policy receipts from the same committed snapshot, with a combined
+4096-record and 8 MiB serialized-data budget. Oversized or malformed projections
+fail closed without a partial report. Signing-key tables and uploaded objects
+are not read. The shared verification policy sorts recorded inventories and
+renders expired observations as stale without changing their stored history or
+creating receipts, audit entries, or jobs. Existing response fields, including
+operator-supplied key references, remain available to authorized reviewers;
+explicit local-memory wiring retains the compatibility path. A recorded provider
+is not proof of HSM custody, and this report does not establish WORM enforcement,
+deployment security, or legal compliance. Other verification workflows and the
+broad startup Ledger load remain EVY-905 work.
+
 The current `internal/domain` package and `internal/app.Ledger` are transition
 paths, not the intended permanent architecture. The accepted
 [bounded-context ownership decision](adr/0003-bounded-contexts.md) assigns all

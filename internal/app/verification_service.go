@@ -53,10 +53,7 @@ func (l *Ledger) CreateSigningProvider(ctx context.Context, actor domain.Actor, 
 }
 
 func signingProviderFromVerificationService(value verificationdomain.SigningProvider) domain.SigningProvider {
-	return domain.SigningProvider{
-		ID: value.ID, TenantID: value.TenantID, Name: value.Name, Type: value.Type, Status: value.Status,
-		KeyRef: value.KeyRef, Encrypted: value.Encrypted, SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt,
-	}
+	return domain.SigningProviderFromContextModel(value)
 }
 func (l *Ledger) CreateDSSETrustRoot(ctx context.Context, actor domain.Actor, in CreateDSSETrustRootInput) (domain.DSSETrustRoot, error) {
 	value, err := l.verificationCommands.CreateDSSETrustRoot(ctx, actor, verificationapp.CreateDSSETrustRootInput{
@@ -113,21 +110,5 @@ func (l *Ledger) GenerateBackupManifest(ctx context.Context, actor domain.Actor)
 }
 
 func signingCustodyReviewReportFromVerificationContext(value verificationdomain.SigningCustodyReviewReport) domain.SigningCustodyReviewReport {
-	providers := make([]domain.SigningProvider, 0, len(value.SigningProviders))
-	for _, provider := range value.SigningProviders {
-		providers = append(providers, signingProviderFromVerificationService(provider))
-	}
-	policies := make([]domain.ObjectRetentionPolicy, 0, len(value.ObjectRetentionPolicies))
-	for _, policy := range value.ObjectRetentionPolicies {
-		policies = append(policies, objectRetentionPolicyFromVerificationContext(policy))
-	}
-	checks := make([]domain.VerifyCheck, 0, len(value.Checks))
-	for _, check := range value.Checks {
-		checks = append(checks, domain.VerifyCheck{Name: check.Name, Result: check.Result, Detail: check.Detail})
-	}
-	return domain.SigningCustodyReviewReport{
-		ReportType: value.ReportType, TenantID: value.TenantID, SigningProviders: providers,
-		ObjectRetentionPolicies: policies, Checks: checks, Assumptions: append([]string(nil), value.Assumptions...),
-		Limitations: append([]string(nil), value.Limitations...), GeneratedAt: value.GeneratedAt,
-	}
+	return domain.SigningCustodyReviewFromContextModel(value)
 }

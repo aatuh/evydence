@@ -59,6 +59,7 @@ type Server struct {
 	signingKeyCommands                SigningKeyCommands
 	releaseBundleVerification         ReleaseBundleVerification
 	evidenceVerification              EvidenceVerification
+	signingCustodyQuery               SigningCustodyQuery
 	releaseReadinessReportQuery       ReleaseReadinessReportQuery
 	releaseSecuritySummaryQuery       ReleaseSecuritySummaryQuery
 	controlCoverageQuery              ControlCoverageQuery
@@ -167,6 +168,8 @@ type ServerOptions struct {
 	ReleaseBundleVerification ReleaseBundleVerification
 	// EvidenceVerification hashes selected evidence in a durable transaction.
 	EvidenceVerification EvidenceVerification
+	// SigningCustodyQuery assesses one bounded committed provider/policy inventory.
+	SigningCustodyQuery SigningCustodyQuery
 	// ReleaseSecuritySummaryQuery reads one committed report snapshot.
 	ReleaseSecuritySummaryQuery ReleaseSecuritySummaryQuery
 	// ControlCoverageQuery reads bounded tenant-owned control and CRA reports.
@@ -309,6 +312,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.signingKeyCommands = opts.SigningKeyCommands
 	server.releaseBundleVerification = opts.ReleaseBundleVerification
 	server.evidenceVerification = opts.EvidenceVerification
+	server.signingCustodyQuery = opts.SigningCustodyQuery
 	server.releaseSecuritySummaryQuery = opts.ReleaseSecuritySummaryQuery
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
@@ -3278,6 +3282,19 @@ func (s *Server) verifyObjectRetentionPolicy(w http.ResponseWriter, r *http.Requ
 func (s *Server) signingCustodyReviewReport(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
+		return
+	}
+	if r.URL.RawQuery != "" {
+		writeProblem(w, r, app.ErrValidation)
+		return
+	}
+	if s.signingCustodyQuery != nil {
+		report, err := s.signingCustodyQuery.Report(r.Context(), actor)
+		if err != nil {
+			writeProblem(w, r, mapSigningCustodyQueryError(err))
+			return
+		}
+		writeData(w, http.StatusOK, domain.SigningCustodyReviewFromContextModel(report))
 		return
 	}
 	report, err := s.verification.SigningCustodyReviewReport(r.Context(), actor)
