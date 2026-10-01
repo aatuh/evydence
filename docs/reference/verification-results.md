@@ -80,6 +80,48 @@ clock input specified by the profile. See
 [ADR 0002](../adr/0002-cryptographic-trust-model.md) for the full decision,
 threat boundaries, and migration rules.
 
+## Merkle Batch Creation
+
+`POST /v1/merkle-batches` in the PostgreSQL profile uses a focused command,
+not the Ledger's tenant-state maps. Tenant-wide `keys:admin` authorization is
+checked before reads; human actors also need a matching tenant grant. The
+transaction captures chain count and sequence boundaries, rejects gaps and
+empty hashes across the chain, and selects only the requested sequence/hash
+pairs. Audit bodies and unrelated resources are not loaded. Omitted or zero
+`from_sequence` means 1; omitted or zero `to_sequence` means the captured head.
+Negative, inverted or incomplete ranges fail validation. Explicit JSON nulls
+are rejected according to the existing non-nullable integer schema.
+
+Selection is limited to 4096 leaves, 1 KiB per stored hash and 8 MiB encoded
+sequence/hash material. Oversized ranges return conflict without partial
+writes; a smaller explicit range can be selected from a longer chain. Tenant,
+projection and audit-writer fences plus selected-row locks keep the range and
+local signing-key selection stable through commit.
+
+The existing Merkle algorithm and signature format are unchanged: odd levels
+duplicate the final node, parent hashes use SHA-256 over the two hashes joined
+by a newline, and the local Ed25519 signature covers the root string. The
+highest-version active local key is selected, with ID ascending breaking ties.
+Malformed, expired, future-valid, revoked or compromised selected keys fail
+closed, without falling back to another active key. If no local key is active,
+a new key at the next local version is prepared and committed with the
+signature, batch and audit entry in one transaction. Generated transient
+private bytes are cleared; persisted material retains the existing local-key
+storage model, not a new encryption-at-rest or HSM guarantee. No outbox job is
+created, and successful idempotent replay signs nothing again.
+
+Creation signs **stored hashes**, not freshly recomputed canonical audit
+contents. It does not assert chain integrity, provider verification or external
+anchoring. Use the distinct verification profiles below for those local checks.
+Historical batches are not rewritten. Explicit local-memory mode retains its
+compatibility command; startup Ledger retirement remains EVY-905 work.
+
+Source/test evidence: `internal/verification/app/merkle_creation.go`,
+`internal/adapters/postgres/repositories/merkle_creation.go`,
+`internal/adapters/postgres/repositories/merkle_signer.go`,
+`internal/platform/wiring/merkle_creation_test.go` and
+`internal/adapters/httpapi/merkle_creation_test.go`.
+
 ## Recorded External Transparency Checkpoints
 
 `POST /v1/transparency-checkpoints` records an operator-supplied provider and

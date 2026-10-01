@@ -69,6 +69,7 @@ type Server struct {
 	backupVerification                BackupVerification
 	subjectVerification               SubjectVerification
 	transparencyCheckpointCommands    TransparencyCheckpointCommands
+	merkleCreationCommands            MerkleCreationCommands
 	signingCustodyQuery               SigningCustodyQuery
 	retentionCommands                 RetentionCommands
 	trustConfigurationCommands        TrustConfigurationCommands
@@ -193,6 +194,7 @@ type ServerOptions struct {
 	// SubjectVerification dispatches every generic subject without Ledger fallback.
 	SubjectVerification            SubjectVerification
 	TransparencyCheckpointCommands TransparencyCheckpointCommands
+	MerkleCreationCommands         MerkleCreationCommands
 	// SigningCustodyQuery assesses one bounded committed provider/policy inventory.
 	SigningCustodyQuery SigningCustodyQuery
 	// RetentionCommands atomically persists durable retention intent and observations.
@@ -351,6 +353,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.backupVerification = opts.BackupVerification
 	server.subjectVerification = opts.SubjectVerification
 	server.transparencyCheckpointCommands = opts.TransparencyCheckpointCommands
+	server.merkleCreationCommands = opts.MerkleCreationCommands
 	server.signingCustodyQuery = opts.SigningCustodyQuery
 	server.retentionCommands = opts.RetentionCommands
 	server.trustConfigurationCommands = opts.TrustConfigurationCommands
@@ -3293,6 +3296,13 @@ func (s *Server) createMerkleBatch(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
+		}
+		if s.merkleCreationCommands != nil {
+			if err := validateNonNullableObjectFields(body, "from_sequence", "to_sequence"); err != nil {
+				return 0, nil, err
+			}
+			batch, err := s.merkleCreationCommands.CreateMerkleBatch(ctx, actor, verificationapp.CreateMerkleBatchInput{FromSequence: req.FromSequence, ToSequence: req.ToSequence})
+			return http.StatusCreated, domain.MerkleBatch(batch), mapVerificationCommandError(err)
 		}
 		batch, err := s.verification.CreateMerkleBatch(ctx, actor, app.CreateMerkleBatchInput{FromSequence: req.FromSequence, ToSequence: req.ToSequence})
 		return http.StatusCreated, batch, err

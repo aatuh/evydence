@@ -171,6 +171,10 @@ type TransparencyCheckpointCommands interface {
 	CreateTransparencyCheckpoint(context.Context, identitydomain.Actor, verificationapp.CreateTransparencyCheckpointInput) (verificationdomain.TransparencyCheckpoint, error)
 }
 
+type MerkleCreationCommands interface {
+	CreateMerkleBatch(context.Context, identitydomain.Actor, verificationapp.CreateMerkleBatchInput) (verificationdomain.MerkleBatch, error)
+}
+
 // SigningCustodyQuery assesses bounded durable provider and retention records.
 type SigningCustodyQuery interface {
 	Report(context.Context, identitydomain.Actor) (verificationdomain.SigningCustodyReviewReport, error)

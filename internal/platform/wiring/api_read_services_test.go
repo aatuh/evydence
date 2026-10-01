@@ -96,6 +96,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.TransparencyCheckpointCommands != nil {
 		t.Fatal("local memory must retain its explicit checkpoint creation path")
 	}
+	if memory.MerkleCreationCommands != nil {
+		t.Fatal("local memory bound durable Merkle creation")
+	}
 	if memory.SigningCustodyQuery != nil {
 		t.Fatal("local memory bound durable custody query")
 	}
@@ -174,6 +177,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.TransparencyCheckpointCommands == nil {
 		t.Fatal("PostgreSQL checkpoint creation must not use Ledger")
+	}
+	if options.MerkleCreationCommands == nil {
+		t.Fatal("PostgreSQL Merkle creation still uses Ledger")
 	}
 	if options.SigningCustodyQuery == nil {
 		t.Fatal("PostgreSQL custody report still uses Ledger")

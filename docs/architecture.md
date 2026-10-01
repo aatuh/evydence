@@ -165,6 +165,15 @@ shared core policy preserves the `artifact-signature-metadata.v1` profile and
 its `limited` result for matching metadata, never a cryptographic pass. See the
 [metadata assessment boundary](reference/verification-results.md#artifact-signature-metadata-assessment).
 
+PostgreSQL-profile `POST /v1/merkle-batches` uses bounded sequence/hash reads
+and transactional local signing without Ledger state. Tenant-wide `keys:admin`
+authorization precedes reads; tenant, projection and audit fences stabilize the
+range and signing-key selection. An initial local key, signature, batch and
+audit commit atomically, with no outbox job. Creation signs stored hashes,
+not canonical audit contents or external transparency proof. See
+[Merkle batch creation](reference/verification-results.md#merkle-batch-creation)
+for bounds, key lifecycle and compatibility limits.
+
 Merkle-batch requests to `POST /v1/verify` and
 `GET /v1/merkle-batches/{id}/verify` use a focused command in the PostgreSQL
 profile. Tenant-wide `verify:read` authorization precedes reading the selected
