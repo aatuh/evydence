@@ -90,6 +90,21 @@ func TestControlCoverageTenantWideRequiresTenantGrantBeforeRead(t *testing.T) {
 	}
 }
 
+func TestControlCoverageProductScopeRejectsEmptyReleaseGrant(t *testing.T) {
+	reader := &controlCoverageReaderFake{}
+	service, err := NewControlCoverageReport(reader, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor := identitydomain.Actor{
+		TenantID: "ten_a", UserID: "usr_a", Scopes: []string{"report:read"},
+		ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "release", ResourceID: "", Scopes: []string{"report:read"}}},
+	}
+	if _, err := service.Coverage(t.Context(), actor, ControlCoverageFilter{ProductID: "prod_a"}); !errors.Is(err, application.ErrForbidden) || reader.calls != 0 {
+		t.Fatalf("empty release grant authorized product-wide report: err=%v reads=%d", err, reader.calls)
+	}
+}
+
 func TestControlCoverageDoesNotWaiveOtherReleaseOrPassEmptyFramework(t *testing.T) {
 	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
 	reader := &controlCoverageReaderFake{snapshot: ControlCoverageSnapshot{

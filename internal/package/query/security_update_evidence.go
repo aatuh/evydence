@@ -170,11 +170,11 @@ func releaseReportAllowed(actor identitydomain.Actor, productID, releaseID strin
 				return true
 			}
 		case "product":
-			if grant.ResourceID == productID {
+			if productID != "" && grant.ResourceID == productID {
 				return true
 			}
 		case "release":
-			if grant.ResourceID == releaseID {
+			if releaseID != "" && grant.ResourceID == releaseID {
 				return true
 			}
 		}
