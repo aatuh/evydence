@@ -337,145 +337,10 @@ func (s *Service) ListSigningKeys(ctx context.Context, actor identitydomain.Acto
 	return result, nil
 }
 
-func (s *Service) RotateSigningKey(ctx context.Context, actor identitydomain.Actor, reason string) (verificationdomain.SigningKey, error) {
-	if err := contextError(ctx); err != nil {
-		return verificationdomain.SigningKey{}, err
-	}
-	if err := validateActor(actor); err != nil {
-		return verificationdomain.SigningKey{}, err
-	}
-	if err := s.authorize(ctx, actor, ScopeKeysAdmin, application.ResourceReferences{}, false, true); err != nil {
-		return verificationdomain.SigningKey{}, err
-	}
-	reason = strings.TrimSpace(reason)
-	if reason == "" {
-		return verificationdomain.SigningKey{}, ErrValidation
-	}
-	keys, err := s.reader.ListSigningKeys(ctx, actor.TenantID)
-	if err != nil {
-		return verificationdomain.SigningKey{}, err
-	}
-	now := s.clock.Now().UTC()
-	version := 1
-	retiring := make([]verificationdomain.SigningKey, 0)
-	for _, key := range keys {
-		if key.TenantID != actor.TenantID {
-			return verificationdomain.SigningKey{}, ErrNotFound
-		}
-		provider := strings.TrimSpace(key.Provider)
-		if provider == "" {
-			provider = verificationdomain.SigningKeyDefaultProvider
-		}
-		if provider != verificationdomain.SigningKeyDefaultProvider {
-			continue
-		}
-		if key.Version < 1 && version < 2 {
-			version = 2
-		} else if key.Version >= version {
-			version = key.Version + 1
-		}
-		if key.Status.String() == verificationdomain.SigningKeyStatusActive {
-			status, _ := verificationdomain.ParseSigningKeyStatus(verificationdomain.SigningKeyStatusRetiring)
-			key.Status = status
-			until := now
-			key.ValidUntil = &until
-			retiring = append(retiring, cloneSigningKey(key))
-		}
-	}
-	prepared, err := s.keyFactory.GenerateSigningKey(ctx, actor.TenantID, verificationdomain.SigningKeyDefaultProvider, version, now)
-	if err != nil {
-		return verificationdomain.SigningKey{}, err
-	}
-	prepared = clonePreparedSigningKey(prepared)
-	if !validPreparedSigningKey(prepared, actor.TenantID, verificationdomain.SigningKeyDefaultProvider, version, now) {
-		return verificationdomain.SigningKey{}, ErrValidation
-	}
-	err = s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-		if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true}); err != nil {
-			return err
-		}
-		for _, prior := range retiring {
-			if err := tx.Verification().UpdateSigningKey(ctx, prior, verificationdomain.SigningKeyStatusActive); err != nil {
-				return err
-			}
-		}
-		if err := tx.Verification().InsertSigningKey(ctx, prepared); err != nil {
-			return err
-		}
-		_, err := tx.Audit().AppendAudit(ctx, s.auditEvent(actor, now, "signing_key.rotated", "signing_key", prepared.Key.ID))
-		return err
-	})
-	if err != nil {
-		return verificationdomain.SigningKey{}, err
-	}
-	return cloneSigningKey(prepared.Key), nil
-}
-
 type SigningKeyRevocationInput struct {
 	Reason                   string
 	Semantics                string
 	HistoricalValidityPolicy string
-}
-
-func (s *Service) RevokeSigningKey(ctx context.Context, actor identitydomain.Actor, keyID string, input SigningKeyRevocationInput) (verificationdomain.SigningKey, error) {
-	if err := contextError(ctx); err != nil {
-		return verificationdomain.SigningKey{}, err
-	}
-	if err := validateActor(actor); err != nil {
-		return verificationdomain.SigningKey{}, err
-	}
-	if err := s.authorize(ctx, actor, ScopeKeysAdmin, application.ResourceReferences{}, false, true); err != nil {
-		return verificationdomain.SigningKey{}, err
-	}
-	keyID = strings.TrimSpace(keyID)
-	input, err := normalizeRevocationInput(input)
-	if keyID == "" || err != nil {
-		return verificationdomain.SigningKey{}, ErrValidation
-	}
-	now := s.clock.Now().UTC()
-	var revoked verificationdomain.SigningKey
-	err = s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-		if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true}); err != nil {
-			return err
-		}
-		key, err := tx.Verification().GetSigningKeyForUpdate(ctx, actor.TenantID, keyID)
-		if err != nil {
-			return err
-		}
-		if key.ID != keyID || key.TenantID != actor.TenantID {
-			return ErrNotFound
-		}
-		previousStatus := key.Status.String()
-		if previousStatus == verificationdomain.SigningKeyStatusRevoked {
-			return ErrConflict
-		}
-		status, _ := verificationdomain.ParseSigningKeyStatus(verificationdomain.SigningKeyStatusRevoked)
-		key.Status = status
-		key.RevokedAt = timePointer(now)
-		key.ValidUntil = timePointer(now)
-		key.RevocationReason = input.Reason
-		key.RevocationSemantics = input.Semantics
-		key.HistoricalValidityPolicy = input.HistoricalValidityPolicy
-		if input.Semantics == verificationdomain.SigningKeyRevocationCompromised {
-			key.CompromisedAt = timePointer(now)
-		}
-		if err := tx.Verification().UpdateSigningKey(ctx, key, previousStatus); err != nil {
-			return err
-		}
-		action := "signing_key.revoked"
-		if input.Semantics == verificationdomain.SigningKeyRevocationCompromised {
-			action = "signing_key.compromised"
-		}
-		if _, err := tx.Audit().AppendAudit(ctx, s.auditEvent(actor, now, action, "signing_key", key.ID)); err != nil {
-			return err
-		}
-		revoked = cloneSigningKey(key)
-		return nil
-	})
-	if err != nil {
-		return verificationdomain.SigningKey{}, err
-	}
-	return revoked, nil
 }
 
 type CreateSigningProviderInput struct {
@@ -581,7 +446,7 @@ func normalizeRevocationInput(input SigningKeyRevocationInput) (SigningKeyRevoca
 	input.Reason = strings.TrimSpace(input.Reason)
 	input.Semantics = strings.TrimSpace(input.Semantics)
 	input.HistoricalValidityPolicy = strings.TrimSpace(input.HistoricalValidityPolicy)
-	if input.Reason == "" {
+	if !validSigningKeyText(input.Reason) {
 		return SigningKeyRevocationInput{}, ErrValidation
 	}
 	if input.Semantics == "" {

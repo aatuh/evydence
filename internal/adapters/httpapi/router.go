@@ -31,6 +31,7 @@ import (
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 	riskquery "github.com/aatuh/evydence/internal/risk/query"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
+	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 	verificationquery "github.com/aatuh/evydence/internal/verification/query"
 )
 
@@ -54,6 +55,7 @@ type Server struct {
 	bundleImportCommand               BundleImportCommand
 	releaseBundleCommands             ReleaseBundleCommands
 	evidenceBundleCommands            EvidenceBundleCommands
+	signingKeyCommands                SigningKeyCommands
 	releaseReadinessReportQuery       ReleaseReadinessReportQuery
 	releaseSecuritySummaryQuery       ReleaseSecuritySummaryQuery
 	controlCoverageQuery              ControlCoverageQuery
@@ -156,6 +158,8 @@ type ServerOptions struct {
 	ReleaseBundleCommands ReleaseBundleCommands
 	// EvidenceBundleCommands exports scoped references from committed durable facts.
 	EvidenceBundleCommands EvidenceBundleCommands
+	// SigningKeyCommands changes tenant-owned key lifecycle atomically.
+	SigningKeyCommands SigningKeyCommands
 	// ReleaseSecuritySummaryQuery reads one committed report snapshot.
 	ReleaseSecuritySummaryQuery ReleaseSecuritySummaryQuery
 	// ControlCoverageQuery reads bounded tenant-owned control and CRA reports.
@@ -295,6 +299,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.bundleImportCommand = opts.BundleImportCommand
 	server.releaseBundleCommands = opts.ReleaseBundleCommands
 	server.evidenceBundleCommands = opts.EvidenceBundleCommands
+	server.signingKeyCommands = opts.SigningKeyCommands
 	server.releaseSecuritySummaryQuery = opts.ReleaseSecuritySummaryQuery
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
@@ -1858,7 +1863,7 @@ func (s *Server) exportEvidenceBundle(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		if err := validateEvidenceBundleExportJSON(body); err != nil {
+		if err := validateNonNullableObjectFields(body, "release_id", "evidence_ids"); err != nil {
 			return 0, nil, err
 		}
 		for _, id := range req.EvidenceIDs {
@@ -3341,6 +3346,13 @@ func (s *Server) rotateSigningKey(w http.ResponseWriter, r *http.Request) {
 				return 0, nil, err
 			}
 		}
+		if strings.TrimSpace(req.Reason) == "" {
+			return 0, nil, app.ErrValidation
+		}
+		if s.signingKeyCommands != nil {
+			key, err := s.signingKeyCommands.RotateSigningKey(ctx, actor, req.Reason)
+			return http.StatusCreated, signingKeyFromQuery(key), mapSigningKeyCommandError(err)
+		}
 		key, err := s.verification.RotateSigningKey(ctx, actor, req.Reason)
 		return http.StatusCreated, key, err
 	})
@@ -3357,6 +3369,16 @@ func (s *Server) revokeSigningKey(w http.ResponseWriter, r *http.Request) {
 			if err := decodeJSON(body, &req); err != nil {
 				return 0, nil, err
 			}
+		}
+		if err := validateNonNullableObjectFields(body, "reason", "semantics", "historical_validity_policy"); err != nil {
+			return 0, nil, err
+		}
+		if strings.TrimSpace(req.Reason) == "" {
+			return 0, nil, app.ErrValidation
+		}
+		if s.signingKeyCommands != nil {
+			key, err := s.signingKeyCommands.RevokeSigningKey(ctx, actor, r.PathValue("id"), verificationapp.SigningKeyRevocationInput{Reason: req.Reason, Semantics: req.Semantics, HistoricalValidityPolicy: req.HistoricalValidityPolicy})
+			return http.StatusOK, signingKeyFromQuery(key), mapSigningKeyCommandError(err)
 		}
 		key, err := s.verification.RevokeSigningKeyWithPolicy(ctx, actor, r.PathValue("id"), app.SigningKeyRevocationInput{
 			Reason:                   req.Reason,

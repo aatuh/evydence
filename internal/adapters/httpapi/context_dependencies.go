@@ -20,6 +20,7 @@ import (
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 	riskquery "github.com/aatuh/evydence/internal/risk/query"
+	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 	verificationquery "github.com/aatuh/evydence/internal/verification/query"
 )
@@ -105,6 +106,11 @@ type ReleaseBundleCommands interface {
 
 type EvidenceBundleCommands interface {
 	ExportEvidenceBundle(context.Context, identitydomain.Actor, string, []string) (packagedomain.EvidenceBundle, error)
+}
+
+type SigningKeyCommands interface {
+	RotateSigningKey(context.Context, identitydomain.Actor, string) (verificationdomain.SigningKey, error)
+	RevokeSigningKey(context.Context, identitydomain.Actor, string, verificationapp.SigningKeyRevocationInput) (verificationdomain.SigningKey, error)
 }
 
 // ReleaseSecuritySummaryQuery assembles one release's security overview from

@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"reflect"
+	"sort"
 	"strings"
 	"time"
 
@@ -557,6 +558,37 @@ func (t *ledgerVerificationTransaction) GetSigningKeyForUpdate(ctx context.Conte
 		return verificationdomain.SigningKey{}, verificationapp.ErrValidation
 	}
 	return mapped, nil
+}
+
+// ListLocalSigningKeysForUpdate runs under the compatibility transaction's
+// Ledger lock. The PostgreSQL profile binds its own focused repository path.
+func (t *ledgerVerificationTransaction) ListLocalSigningKeysForUpdate(ctx context.Context, tenantID string) ([]verificationdomain.SigningKey, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	keys := make(map[string]domain.SigningKey, len(t.ledger.signingKeys)+len(t.keys))
+	for id, key := range t.ledger.signingKeys {
+		keys[id] = key
+	}
+	for id, key := range t.keys {
+		keys[id] = key
+	}
+	result := make([]verificationdomain.SigningKey, 0)
+	for _, key := range keys {
+		if key.TenantID != tenantID || key.Provider != "" && key.Provider != verificationdomain.SigningKeyDefaultProvider {
+			continue
+		}
+		mapped, err := signingKeyToVerificationContext(key)
+		if err != nil {
+			return nil, verificationapp.ErrValidation
+		}
+		result = append(result, mapped)
+		if len(result) > verificationapp.MaxSigningRotationKeys {
+			return nil, verificationapp.ErrConflict
+		}
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].ID < result[j].ID })
+	return result, nil
 }
 
 func (t *ledgerVerificationTransaction) UpdateSigningKey(ctx context.Context, key verificationdomain.SigningKey, expectedStatus string) error {
