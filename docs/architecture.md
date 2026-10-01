@@ -21,9 +21,9 @@ partial object; successful reads retain key, tenant, metadata-size and digest
 validation. Filesystem reads stay beneath `os.Root`, require regular files and
 limit metadata sidecars to 64 KiB. S3 reads close the provider stream even when
 HEAD understates the body size. Limits must be positive and permit overflow
-detection without integer overflow. This is a storage capability, not yet a
-migration of DSSE verification: existing `ObjectStore.Get` callers retain their
-unbounded compatibility behavior until their owning workflows migrate.
+detection without integer overflow. Durable DSSE verification requires this
+capability; other existing `ObjectStore.Get` callers retain their unbounded
+compatibility behavior until their owning workflows migrate.
 
 Core logic does not depend on HTTP routers, SQL drivers, object storage SDKs, queues, KMS providers, provider clients, or UI frameworks. PostgreSQL persistence currently stores a versioned ledger snapshot and rebuilds tenant-scoped relational projection rows plus forward-compatible per-resource tables for implemented release, evidence, source, deployment, and control resources. Identity, idempotency, and customer portal token records are synchronized into relational rows with non-secret hashes and tenant-scoped constraints. Release-ledger core rows are also synchronized for products, projects, releases, artifacts, evidence, audit-chain entries, signing keys, signatures, SBOMs, vulnerability scans, OpenAPI contracts, policy evaluations, release bundles, and verification receipts. Collector/build provenance, source/deployment, incident, security evidence, SBOM diff, vulnerability workflow, contract diff, custom policy, waiver, approval, DSSE trust-root, collector release, Cosign verification, signing provider, Merkle batch, transparency checkpoint, evidence lifecycle, release candidate, VEX/risk decision, control, package, report, retention, provider verification, signing operation, and future-extension records are synchronized into their migration-backed relational tables. Production API and worker startup defaults to relational-only reconstruction and disables compatibility snapshot writes; local development defaults to snapshot-preferred compatibility. In production, API startup also takes a PostgreSQL advisory writer lease so an accidental second API writer fails closed while the supported profile remains single-writer. The accepted [database-authoritative command-transaction decision](adr/0001-database-authoritative-transactions.md) requires a command to commit its domain, audit, idempotency, and outbox effects before publication, and defines staged/finalized object-storage handling. Existing focused and broad call sites remain tracked in the generated [persistence decomposition inventory](reference/persistence-decomposition.md); this is production hardening work, not a completed maturity claim.
 
@@ -89,6 +89,27 @@ retention duration must fit a positive PostgreSQL integer. These observations
 describe the configured bucket and sample, not general WORM enforcement, storage
 completeness, external key custody, or legal compliance. Local-memory mode shares
 the command orchestration through explicit compatibility ports.
+
+Both DSSE verification entry points (`POST /v1/build-attestations/{id}/verify-signature`
+and build-attestation requests to `POST /v1/verify`) use a focused command in the
+PostgreSQL profile, whose DSSE inspection and receipt effects need no Ledger
+reads or publication. It checks `verify:read`
+and tenant/product/project/release grants before loading payload metadata. The
+transaction share-locks current tenant-owned attestation/evidence coordinates,
+build outputs, referenced artifacts and release links, finalized payload metadata
+and active root policies through receipt persistence. Expected subjects derive
+from registered artifact digests and release links, not parsed attestation claims
+or opaque digest labels on links. Each root's complete immutable policy is
+evaluated independently by the shared offline cryptographic adapter; signature
+trust cannot borrow another root's builder or claim policy. No eligible root
+produces `not_verified`, not an optimistic pass. Receipt, audit and verification
+job commit together; successful POST replay adds no duplicate effects and failed
+POST verification rolls back its enclosing transaction. Public profiles, schemas
+and response fields remain compatible. See the [DSSE verification limits and
+compatibility boundary](reference/evidence-format-compatibility.md#dsse-and-in-toto-json).
+Local-memory inspection shares the profile and root-policy evaluation but retains
+its explicit compatibility storage/transaction path. Other verification subjects
+and broad startup Ledger retirement remain EVY-905 work.
 
 Signing-provider registration and DSSE trust-root creation in the PostgreSQL
 profile use focused trust-configuration commands with tenant-wide `keys:admin`

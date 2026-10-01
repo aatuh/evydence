@@ -59,6 +59,7 @@ type Server struct {
 	signingKeyCommands                SigningKeyCommands
 	releaseBundleVerification         ReleaseBundleVerification
 	evidenceVerification              EvidenceVerification
+	dsseVerification                  DSSEVerification
 	signingCustodyQuery               SigningCustodyQuery
 	retentionCommands                 RetentionCommands
 	trustConfigurationCommands        TrustConfigurationCommands
@@ -170,6 +171,8 @@ type ServerOptions struct {
 	ReleaseBundleVerification ReleaseBundleVerification
 	// EvidenceVerification hashes selected evidence in a durable transaction.
 	EvidenceVerification EvidenceVerification
+	// DSSEVerification inspects bounded finalized payloads and durable root policies.
+	DSSEVerification DSSEVerification
 	// SigningCustodyQuery assesses one bounded committed provider/policy inventory.
 	SigningCustodyQuery SigningCustodyQuery
 	// RetentionCommands atomically persists durable retention intent and observations.
@@ -318,6 +321,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.signingKeyCommands = opts.SigningKeyCommands
 	server.releaseBundleVerification = opts.ReleaseBundleVerification
 	server.evidenceVerification = opts.EvidenceVerification
+	server.dsseVerification = opts.DSSEVerification
 	server.signingCustodyQuery = opts.SigningCustodyQuery
 	server.retentionCommands = opts.RetentionCommands
 	server.trustConfigurationCommands = opts.TrustConfigurationCommands
@@ -1211,7 +1215,17 @@ func (s *Server) uploadBuildAttestation(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) verifyBuildAttestationSignature(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &struct{}{}); err != nil {
+			return 0, nil, err
+		}
+		if err := validateNonNullableObjectFields(body); err != nil {
+			return 0, nil, err
+		}
+		if s.dsseVerification != nil {
+			result, err := s.dsseVerification.VerifyDSSEAttestationSignature(ctx, actor, r.PathValue("id"))
+			return http.StatusOK, verificationResultFromFocused(result), mapVerificationCommandError(err)
+		}
 		result, err := s.verification.VerifyDSSEAttestationSignature(ctx, actor, r.PathValue("id"))
 		return http.StatusOK, result, err
 	})
@@ -3539,7 +3553,7 @@ func (s *Server) verifySubject(w http.ResponseWriter, r *http.Request) {
 			return 0, nil, err
 		}
 		subjectType := strings.TrimSpace(req.SubjectType)
-		if s.releaseBundleVerification != nil && subjectType == "release_bundle" || s.evidenceVerification != nil && subjectType == "evidence_item" {
+		if s.releaseBundleVerification != nil && subjectType == "release_bundle" || s.evidenceVerification != nil && subjectType == "evidence_item" || s.dsseVerification != nil && subjectType == "build_attestation" {
 			if err := validateNonNullableObjectFields(body, "subject_type", "subject_id"); err != nil {
 				return 0, nil, err
 			}
@@ -3548,9 +3562,12 @@ func (s *Server) verifySubject(w http.ResponseWriter, r *http.Request) {
 			}
 			var result verificationdomain.VerificationResult
 			var err error
-			if subjectType == "evidence_item" {
+			switch subjectType {
+			case "evidence_item":
 				result, err = s.evidenceVerification.VerifyEvidence(ctx, actor, req.SubjectID)
-			} else {
+			case "build_attestation":
+				result, err = s.dsseVerification.VerifyDSSEAttestationSignature(ctx, actor, req.SubjectID)
+			default:
 				result, err = s.releaseBundleVerification.VerifyReleaseBundle(ctx, actor, req.SubjectID)
 			}
 			return http.StatusOK, verificationResultFromFocused(result), mapVerificationCommandError(err)

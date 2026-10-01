@@ -116,32 +116,11 @@ func (i ledgerVerificationInspector) inspectBuildAttestation(ctx context.Context
 	if err != nil {
 		return verificationapp.SubjectInspection{}, verificationapp.ErrValidation
 	}
-	checks := dsseVerificationChecks(verification)
-	profile := assuranceProfile(domain.VerificationProfileDSSEAttestationSignature, []string{"dsse_pae_signature", "trusted_root", "payload_type", "predicate_type", "subject_digest", "builder_identity", "policy_required_claims"}, append([]string{"configured tenant Ed25519 DSSE trust root", "go-securesystemslib/dsse.v0.11.0", "in-toto/attestation.v1.2.0"}, verification.AcceptedRootIDs...), "signature key, SLSA builder identity, and required claims must match one immutable configured tenant root policy", "not_evaluated", "raw DSSE envelope and signed in-toto Statement v1", attestation.PayloadHash, []string{"This offline profile does not establish certificate-chain trust, revocation, transparency-log inclusion, provenance completeness, or CI-provider runtime integrity."})
-	inspection := verificationInspectionFromLegacy(checks, profile)
-	if allRequiredChecksNotVerified(checks, profile.RequiredChecks) {
-		inspection.StateOverride, _ = verificationdomain.ParseVerificationState(verificationdomain.VerificationStateNotVerified)
+	facts := verificationapp.DSSEVerificationFacts{AcceptedRootIDs: verification.AcceptedRootIDs}
+	for _, check := range verification.Checks {
+		facts.Checks = append(facts.Checks, verificationdomain.VerifyCheck{Name: check.Name, Result: check.Result, Detail: check.Detail})
 	}
-	return inspection, nil
-}
-
-func allRequiredChecksNotVerified(checks []domain.VerifyCheck, required []string) bool {
-	results := make(map[string][]string, len(checks))
-	for _, check := range checks {
-		results[check.Name] = append(results[check.Name], check.Result)
-	}
-	for _, name := range required {
-		values := results[name]
-		if len(values) == 0 {
-			return false
-		}
-		for _, value := range values {
-			if value != verificationdomain.VerificationStateNotVerified {
-				return false
-			}
-		}
-	}
-	return true
+	return verificationapp.DSSEInspection(facts, attestation.PayloadHash), nil
 }
 
 type ledgerVerificationReader struct{ ledger *Ledger }

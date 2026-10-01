@@ -240,10 +240,31 @@ as trusted provenance or release-readiness evidence. This profile is offline
 only and does not claim certificate-chain trust, revocation, transparency-log
 inclusion, CI-provider runtime integrity, or provenance completeness.
 
+In the PostgreSQL profile, both the dedicated verification route and
+`POST /v1/verify` with `subject_type=build_attestation` read durable facts through
+a focused transaction. Raw bytes must belong to the canonical tenant/digest key
+and match finalized lifecycle metadata, media type, size and SHA-256. A bounded
+object reader is mandatory; no unbounded reader is used as a fallback. Stored
+payloads above 8 MiB are rejected, and a smaller declared size also limits the
+read to that size plus one overflow byte. Selected metadata has an 8 MiB combined
+serialized-data budget. The reader rejects more than 4096 combined selected
+attestation/evidence records and subject references, build outputs, artifact
+rows, matching release-link rows/references, and root-policy rows/entries,
+without truncating verification facts. Malformed projections and budget
+overflow fail closed. Unusable root policies remain ineligible for trust;
+eligibility also applies the existing registration field/policy limits. Existing
+stored records are not rewritten. The dedicated route enforces its published
+empty-object request schema. Local-memory verification retains its compatibility
+object reader while sharing the same profile and complete-root policy evaluation.
+
 Evidence: `internal/adapters/verification/dsse`, `internal/app/builds.go`,
-`internal/app/governance_packages.go`, `ParserVersionDSSEInTotoJSON`,
+`internal/adapters/verification/dsseobjects`,
+`internal/verification/app/dsse_verification.go`,
+`internal/adapters/postgres/repositories/dsse_verification.go`,
+`internal/platform/wiring/dsse_verification.go`, `ParserVersionDSSEInTotoJSON`,
 `TestVerifyAttestationEnforcesPAEAndTrustedPolicy`,
-`TestDSSETrustRootVerification`, and
+`TestDSSETrustRootVerification`,
+`TestPostgresDSSEVerificationReadsDurableFactsWithoutLedger`, and
 `TestBuildValidationTenantIsolationAndMalformedAttestation`.
 
 The verifier directly uses tagged `github.com/in-toto/attestation v1.2.0`

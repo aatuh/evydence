@@ -121,6 +121,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create evidence verification: %w", err)
 	}
+	options.DSSEVerification, err = BuildDSSEVerificationCommands(store, runtime.Objects)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create DSSE verification: %w", err)
+	}
 	options.SigningCustodyQuery, err = BuildSigningCustodyQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create signing custody query: %w", err)

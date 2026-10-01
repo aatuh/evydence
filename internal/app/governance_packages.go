@@ -4,8 +4,6 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
-	"crypto/ed25519"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -1292,50 +1290,7 @@ func (l *Ledger) InstallControlFrameworkTemplatePack(ctx context.Context, actor 
 }
 
 func validDSSETrustRoot(root domain.DSSETrustRoot) bool {
-	if root.ID == "" || root.TenantID == "" || root.Name == "" || root.KeyID == "" || root.Algorithm != "Ed25519" || root.Status != "active" || root.SchemaVersion != domain.DSSETrustRootSchemaVersion || root.CreatedAt.IsZero() || !validDSSEPolicy(root.AllowedPredicateTypes, root.ExpectedBuilderIDs, root.RequiredClaims) {
-		return false
-	}
-	publicKey, err := base64.StdEncoding.DecodeString(root.PublicKey)
-	return err == nil && len(publicKey) == ed25519.PublicKeySize
-}
-
-func validDSSEPolicy(predicateTypes, builderIDs, requiredClaims []string) bool {
-	if len(predicateTypes) == 0 || len(builderIDs) == 0 || len(requiredClaims) == 0 {
-		return false
-	}
-	seen := map[string]struct{}{}
-	for _, predicateType := range predicateTypes {
-		if predicateType != verificationdsse.PredicateTypeSLSAProvenance {
-			return false
-		}
-		if _, ok := seen[predicateType]; ok {
-			return false
-		}
-		seen[predicateType] = struct{}{}
-	}
-	seen = map[string]struct{}{}
-	for _, builderID := range builderIDs {
-		if strings.TrimSpace(builderID) == "" {
-			return false
-		}
-		if _, ok := seen[builderID]; ok {
-			return false
-		}
-		seen[builderID] = struct{}{}
-	}
-	seen = map[string]struct{}{}
-	for _, claim := range requiredClaims {
-		switch claim {
-		case "builder_id", "build_type", "external_parameters":
-		default:
-			return false
-		}
-		if _, ok := seen[claim]; ok {
-			return false
-		}
-		seen[claim] = struct{}{}
-	}
-	return true
+	return verificationapp.ValidDSSETrustRoot(domain.DSSETrustRootToContextModel(root))
 }
 
 func (l *Ledger) registeredReleaseBuildOutputDigestsLocked(tenantID string, build domain.BuildRun) []string {
@@ -1354,50 +1309,17 @@ func (l *Ledger) registeredReleaseBuildOutputDigestsLocked(tenantID string, buil
 }
 
 func verifyDSSEAgainstConfiguredRoots(ctx context.Context, raw []byte, roots []domain.DSSETrustRoot, expectedSubjects []string) (verificationdsse.Result, error) {
-	if len(roots) == 0 {
-		parsed, err := verificationdsse.Parse(raw)
-		if err != nil {
-			return verificationdsse.Result{}, err
-		}
-		parsed.Checks = []verificationdsse.Check{
-			{Name: "dsse_pae_signature", Result: verificationdsse.CheckNotVerified},
-			{Name: "trusted_root", Result: verificationdsse.CheckNotVerified},
-			{Name: "payload_type", Result: verificationdsse.CheckNotVerified, Detail: parsed.PayloadType},
-			{Name: "predicate_type", Result: verificationdsse.CheckNotVerified, Detail: parsed.PredicateType},
-			{Name: "subject_digest", Result: verificationdsse.CheckNotVerified},
-			{Name: "builder_identity", Result: verificationdsse.CheckNotVerified},
-			{Name: "policy_required_claims", Result: verificationdsse.CheckNotVerified},
-		}
-		return parsed, nil
-	}
-	var candidate verificationdsse.Result
+	policies := make([]verificationdsse.Policy, 0, len(roots))
 	for _, root := range roots {
-		result, err := verificationdsse.Verify(ctx, raw, verificationdsse.Policy{
+		policies = append(policies, verificationdsse.Policy{
 			Roots:                  []verificationdsse.TrustRoot{{ID: root.ID, KeyID: root.KeyID, Algorithm: root.Algorithm, PublicKey: root.PublicKey}},
 			AllowedPredicateTypes:  root.AllowedPredicateTypes,
 			ExpectedBuilderIDs:     root.ExpectedBuilderIDs,
 			RequiredClaims:         root.RequiredClaims,
 			ExpectedSubjectDigests: expectedSubjects,
 		})
-		if err != nil {
-			return verificationdsse.Result{}, err
-		}
-		if result.Passed() {
-			return result, nil
-		}
-		if candidate.Check("dsse_pae_signature") == "" || (candidate.Check("dsse_pae_signature") != verificationdsse.CheckPassed && result.Check("dsse_pae_signature") == verificationdsse.CheckPassed) {
-			candidate = result
-		}
 	}
-	return candidate, nil
-}
-
-func dsseVerificationChecks(result verificationdsse.Result) []domain.VerifyCheck {
-	checks := make([]domain.VerifyCheck, 0, len(result.Checks))
-	for _, check := range result.Checks {
-		checks = append(checks, domain.VerifyCheck{Name: check.Name, Result: check.Result, Detail: check.Detail})
-	}
-	return checks
+	return verificationdsse.VerifyConfiguredPolicies(ctx, raw, policies)
 }
 
 func (l *Ledger) packageDecisionSummariesLocked(tenantID, releaseID string, profile domain.RedactionProfile) []map[string]any {
