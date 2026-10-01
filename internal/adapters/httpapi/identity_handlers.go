@@ -62,6 +62,28 @@ func (s *Server) outboxOperatorDiagnostics(w http.ResponseWriter, r *http.Reques
 }
 
 func (s *Server) replayTerminalOutboxJob(w http.ResponseWriter, r *http.Request) {
+	if s.outboxReplayCommand != nil {
+		actor, ok := s.authenticate(w, r)
+		if !ok {
+			return
+		}
+		body, err := readBodyLimit(r, app.SmallJSONRequestLimit)
+		if err != nil {
+			writeProblem(w, r, err)
+			return
+		}
+		key := r.Header.Get("Idempotency-Key")
+		status, replay, err := s.outboxReplayCommand.ReplayIdempotent(r.Context(), actor, r.Method, r.URL.Path, key, body, r.PathValue("id"))
+		if err != nil {
+			writeProblem(w, r, err)
+			return
+		}
+		if key != "" {
+			w.Header().Set("Idempotency-Key", key)
+		}
+		writeData(w, status, replay)
+		return
+	}
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
 		replay, err := s.ledger.ReplayTerminalOutboxJob(ctx, actor, r.PathValue("id"))
 		return http.StatusOK, replay, err

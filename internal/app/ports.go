@@ -249,6 +249,7 @@ type Repositories struct {
 	Audit            AuditRepository
 	Idempotency      IdempotencyRepository
 	Outbox           OutboxRepository
+	OutboxReplay     OutboxReplayRepository
 	Payloads         ObjectPayloadRepository
 	Controls         ControlRepository
 	Governance       GovernanceRepository
@@ -368,6 +369,12 @@ type IdempotencyRepository interface {
 
 type OutboxRepository interface {
 	Enqueue(context.Context, OutboxJob) error
+}
+
+// OutboxReplayRepository requeues a terminal job and appends its audit record
+// within the same unit of work as the caller's idempotency completion.
+type OutboxReplayRepository interface {
+	ReplayTerminalJob(context.Context, string, string) (OutboxReplay, error)
 }
 
 // ObjectPayloadRepository records a staged object in the same transaction as

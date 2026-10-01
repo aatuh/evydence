@@ -32,6 +32,7 @@ func New(tx pgx.Tx) app.Repositories {
 		Audit:          audit{tx: tx},
 		Idempotency:    idempotency{tx: tx},
 		Outbox:         outbox{tx: tx},
+		OutboxReplay:   outbox{tx: tx},
 		Payloads:       objectPayloads{tx: tx},
 		Controls:       controls{tx: tx},
 		Governance:     governance{tx: tx},
@@ -1746,6 +1747,48 @@ func (r objectPayloads) RecordStagedObjectPayload(ctx context.Context, payload a
 }
 
 type outbox struct{ tx pgx.Tx }
+
+func (r outbox) ReplayTerminalJob(ctx context.Context, id, actorID string) (app.OutboxReplay, error) {
+	id = strings.TrimSpace(id)
+	actorID = strings.TrimSpace(actorID)
+	if ctx == nil || id == "" || actorID == "" {
+		return app.OutboxReplay{}, app.ErrValidation
+	}
+	var tenantID string
+	err := r.tx.QueryRow(ctx, `SELECT tenant_id FROM outbox_jobs WHERE id = $1 AND status = 'dead_letter' FOR UPDATE`, id).Scan(&tenantID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return app.OutboxReplay{}, app.ErrNotFound
+	}
+	if err != nil {
+		return app.OutboxReplay{}, fmt.Errorf("load terminal outbox job: %w", err)
+	}
+	var replayedAt time.Time
+	if err := r.tx.QueryRow(ctx, `
+		UPDATE outbox_jobs
+		SET status = 'queued', attempts = 0, run_after = now(), locked_at = NULL, lease_token = NULL,
+			failure_class = NULL, failure_code = NULL, last_error = NULL, terminal_at = NULL, updated_at = now()
+		WHERE id = $1 AND status = 'dead_letter'
+		RETURNING updated_at
+	`, id).Scan(&replayedAt); err != nil {
+		return app.OutboxReplay{}, fmt.Errorf("requeue terminal outbox job: %w", err)
+	}
+	if _, err := r.tx.Exec(ctx, `INSERT INTO outbox_job_attempts (job_id, attempt, outcome, failure_code) VALUES ($1, 0, 'replayed', 'operator_replay')`, id); err != nil {
+		return app.OutboxReplay{}, fmt.Errorf("record outbox replay: %w", err)
+	}
+	if _, err := audit(r).Append(ctx, domain.AuditChainEntry{
+		ID:          fmt.Sprintf("ace_outbox_replay_%s_%d", id, replayedAt.UnixNano()),
+		TenantID:    tenantID,
+		EntryType:   "outbox_job.replayed",
+		SubjectType: "outbox_job",
+		SubjectID:   id,
+		ActorType:   "api_key",
+		ActorID:     actorID,
+		OccurredAt:  replayedAt,
+	}); err != nil {
+		return app.OutboxReplay{}, fmt.Errorf("audit outbox replay: %w", err)
+	}
+	return app.OutboxReplay{JobID: id, Status: "queued", ReplayedAt: replayedAt.UTC()}, nil
+}
 
 func (r outbox) Enqueue(ctx context.Context, job app.OutboxJob) error {
 	if job.ID == "" || job.TenantID == "" || job.Kind == "" || job.SubjectType == "" || (job.SubjectID == "" && (job.Kind != "verify_subject" || job.SubjectType != "audit_chain")) || job.CreatedAt.IsZero() {

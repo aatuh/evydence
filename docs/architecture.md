@@ -92,6 +92,11 @@ The production outbox diagnostics route reads the existing payload-free
 PostgreSQL aggregate through a focused operations query that requires explicit
 instance-admin scope before querying. It does not load outbox jobs or tenant
 labels into the API; local-memory mode retains the Ledger operator adapter.
+Production terminal-job replay now uses a focused operations command. It
+checks explicit instance-admin authority before idempotency lookup, then
+requeues the locked job and appends its audit entry in the same PostgreSQL
+transaction as the safe replay response. Local-memory mode retains the
+compatibility operator path.
 Production public readiness and instance-admin diagnostics now use a focused
 operations probe service, not Ledger state. The composition root requires
 PostgreSQL and migration probes, plus writer-lease and signing-configuration

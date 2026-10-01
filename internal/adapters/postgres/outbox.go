@@ -11,9 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/aatuh/evydence/internal/adapters/postgres/repositories"
 	"github.com/aatuh/evydence/internal/app"
-	"github.com/aatuh/evydence/internal/domain"
 	operationsquery "github.com/aatuh/evydence/internal/operations/query"
 )
 
@@ -508,51 +506,17 @@ func (s *Store) ReadOutboxCounts(ctx context.Context) (operationsquery.OutboxCou
 }
 
 func (s *Store) ReplayTerminalJob(ctx context.Context, id, actorID string) (app.OutboxReplay, error) {
-	if strings.TrimSpace(id) == "" || strings.TrimSpace(actorID) == "" {
-		return app.OutboxReplay{}, app.ErrValidation
-	}
-	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
-	if err != nil {
-		return app.OutboxReplay{}, fmt.Errorf("begin replay outbox job transaction: %w", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	var tenantID string
-	err = tx.QueryRow(ctx, `SELECT tenant_id FROM outbox_jobs WHERE id = $1 AND status = 'dead_letter' FOR UPDATE`, id).Scan(&tenantID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return app.OutboxReplay{}, app.ErrNotFound
-	}
-	if err != nil {
-		return app.OutboxReplay{}, fmt.Errorf("load terminal outbox job: %w", err)
-	}
-	var replayedAt time.Time
-	if err := tx.QueryRow(ctx, `
-		UPDATE outbox_jobs
-		SET status = 'queued', attempts = 0, run_after = now(), locked_at = NULL, lease_token = NULL,
-			failure_class = NULL, failure_code = NULL, last_error = NULL, terminal_at = NULL, updated_at = now()
-		WHERE id = $1 AND status = 'dead_letter'
-		RETURNING updated_at
-	`, id).Scan(&replayedAt); err != nil {
-		return app.OutboxReplay{}, fmt.Errorf("requeue terminal outbox job: %w", err)
-	}
-	if _, err := tx.Exec(ctx, `INSERT INTO outbox_job_attempts (job_id, attempt, outcome, failure_code) VALUES ($1, 0, 'replayed', 'operator_replay')`, id); err != nil {
-		return app.OutboxReplay{}, fmt.Errorf("record outbox replay: %w", err)
-	}
-	entry, err := repositories.New(tx).Audit.Append(ctx, domain.AuditChainEntry{
-		ID:          fmt.Sprintf("ace_outbox_replay_%s_%d", id, replayedAt.UnixNano()),
-		TenantID:    tenantID,
-		EntryType:   "outbox_job.replayed",
-		SubjectType: "outbox_job",
-		SubjectID:   id,
-		ActorType:   "api_key",
-		ActorID:     actorID,
-		OccurredAt:  replayedAt,
+	var replay app.OutboxReplay
+	err := app.ExecuteUnitOfWork(ctx, s, func(ctx context.Context, repositories app.Repositories) error {
+		if repositories.OutboxReplay == nil {
+			return app.ErrValidation
+		}
+		var err error
+		replay, err = repositories.OutboxReplay.ReplayTerminalJob(ctx, id, actorID)
+		return err
 	})
 	if err != nil {
-		return app.OutboxReplay{}, fmt.Errorf("audit outbox replay: %w", err)
+		return app.OutboxReplay{}, err
 	}
-	_ = entry
-	if err := tx.Commit(ctx); err != nil {
-		return app.OutboxReplay{}, fmt.Errorf("commit replay outbox job transaction: %w", err)
-	}
-	return app.OutboxReplay{JobID: id, Status: "queued", ReplayedAt: replayedAt.UTC()}, nil
+	return replay, nil
 }

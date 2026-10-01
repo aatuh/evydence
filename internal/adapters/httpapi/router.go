@@ -43,6 +43,7 @@ type Server struct {
 	readinessQuery                    ReadinessQuery
 	instanceAdminQuery                InstanceAdminQuery
 	outboxDiagnosticsQuery            OutboxDiagnosticsQuery
+	outboxReplayCommand               OutboxReplayCommand
 	idempotency                       idempotencyExecutor
 	identityAccess                    identityAccessService
 	releaseCatalog                    releaseCatalogService
@@ -117,6 +118,8 @@ type ServerOptions struct {
 	InstanceAdminQuery InstanceAdminQuery
 	// OutboxDiagnosticsQuery reads global queue counts after instance-admin authorization.
 	OutboxDiagnosticsQuery OutboxDiagnosticsQuery
+	// OutboxReplayCommand atomically requeues terminal jobs and completes replay records.
+	OutboxReplayCommand OutboxReplayCommand
 	// PaginationSecret authenticates opaque cursor tokens. Production callers
 	// should supply a stable, non-public secret so tokens survive restarts.
 	PaginationSecret []byte
@@ -236,7 +239,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, readinessQuery: opts.ReadinessQuery, instanceAdminQuery: opts.InstanceAdminQuery, outboxDiagnosticsQuery: opts.OutboxDiagnosticsQuery, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, evidenceFlowQuery: opts.EvidenceFlowQuery, buildPointQuery: opts.BuildPointQuery, artifactPointQuery: opts.ArtifactPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, lifecycleEventsQuery: opts.LifecycleEventsQuery, openAPIContractPointQuery: opts.OpenAPIContractPointQuery, sbomPointQuery: opts.SBOMPointQuery, vulnerabilityScanPointQuery: opts.VulnerabilityScanPointQuery, vexPointQuery: opts.VEXPointQuery, sbomComponentsQuery: opts.SBOMComponentsQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, collectorHealthQuery: opts.CollectorHealthQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, marketplaceCollectorQuery: opts.MarketplaceCollectorQuery, vulnerabilityPostureQuery: opts.VulnerabilityPostureQuery, controlsQuery: opts.ControlsQuery, controlTemplateQuery: opts.ControlTemplateQuery, exceptionsQuery: opts.ExceptionsQuery, vulnerabilityDecisionQuery: opts.VulnerabilityDecisionQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
+	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, readinessQuery: opts.ReadinessQuery, instanceAdminQuery: opts.InstanceAdminQuery, outboxDiagnosticsQuery: opts.OutboxDiagnosticsQuery, outboxReplayCommand: opts.OutboxReplayCommand, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, evidenceFlowQuery: opts.EvidenceFlowQuery, buildPointQuery: opts.BuildPointQuery, artifactPointQuery: opts.ArtifactPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, lifecycleEventsQuery: opts.LifecycleEventsQuery, openAPIContractPointQuery: opts.OpenAPIContractPointQuery, sbomPointQuery: opts.SBOMPointQuery, vulnerabilityScanPointQuery: opts.VulnerabilityScanPointQuery, vexPointQuery: opts.VEXPointQuery, sbomComponentsQuery: opts.SBOMComponentsQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, collectorHealthQuery: opts.CollectorHealthQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, marketplaceCollectorQuery: opts.MarketplaceCollectorQuery, vulnerabilityPostureQuery: opts.VulnerabilityPostureQuery, controlsQuery: opts.ControlsQuery, controlTemplateQuery: opts.ControlTemplateQuery, exceptionsQuery: opts.ExceptionsQuery, vulnerabilityDecisionQuery: opts.VulnerabilityDecisionQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
 	server.vulnerabilityDecisionSummaryQuery = opts.VulnerabilityDecisionSummaryQuery
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {

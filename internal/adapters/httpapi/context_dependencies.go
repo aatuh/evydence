@@ -43,6 +43,12 @@ type InstanceAdminQuery interface {
 	Snapshot(context.Context, domain.Actor) (operationsdomain.InstanceAdminSnapshot, error)
 }
 
+// OutboxReplayCommand owns the replay mutation and its idempotency record in
+// one durable transaction. Local memory retains the Ledger-backed route.
+type OutboxReplayCommand interface {
+	ReplayIdempotent(context.Context, domain.Actor, string, string, string, []byte, string) (int, any, error)
+}
+
 // ProductQuery is a focused, authorized catalog read. Production bindings
 // apply tenant/grant filters in PostgreSQL before returning records.
 type ProductQuery interface {

@@ -9,9 +9,9 @@ import (
 	operationsquery "github.com/aatuh/evydence/internal/operations/query"
 )
 
-// BuildAPIReadServices composes the API's durable authentication and focused
-// query ports from one validated runtime. Local memory deliberately keeps the
-// explicit Ledger fallback and receives no PostgreSQL-backed read services.
+// BuildAPIReadServices composes the API's durable authentication, focused
+// queries, and operator replay command from one validated runtime. Local
+// memory deliberately keeps the explicit Ledger fallback.
 func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app.ReadinessCheck) (httpapi.ServerOptions, error) {
 	if runtime == nil {
 		return httpapi.ServerOptions{}, errors.New("API runtime is required")
@@ -60,6 +60,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	options.OutboxDiagnosticsQuery, err = BuildOutboxDiagnosticsQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create outbox diagnostics query: %w", err)
+	}
+	options.OutboxReplayCommand, err = BuildOutboxReplayCommand(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create outbox replay command: %w", err)
 	}
 	options.ProductQuery, err = BuildProductQuery(store)
 	if err != nil {
