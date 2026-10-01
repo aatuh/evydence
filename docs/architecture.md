@@ -55,6 +55,15 @@ Evidence-bundle export (`POST /v1/evidence-bundles`) also uses focused durable c
 
 ## Bounded-context transition
 
+PostgreSQL-profile `POST /v1/verify` receives one focused subject-verification
+port from `BuildAPIReadServices`. A closed application dispatcher binds all
+nine supported subject types to their focused commands, with no dynamic service
+lookup or Ledger fallback for unknown types or command failures. Subject-specific
+authorization and transaction ownership remain in those commands. Explicit
+local-memory mode keeps its compatibility path. Other production command paths
+and startup Ledger retirement remain EVY-905 work. See
+[generic subject dispatch](reference/verification-results.md#generic-subject-dispatch).
+
 Full-chain verification (`GET /v1/audit-chain/verify` and `POST /v1/verify`
 with `audit_chain`) uses a focused command in the PostgreSQL profile.
 Tenant-wide `verify:read` authorization precedes audit content reads. The
@@ -68,8 +77,8 @@ resources or private keys. The inspector retains existing per-entry checks and
 both canonical schema versions, including v1 timestamp reconstruction. See the
 [full-chain verification boundary](reference/verification-results.md#full-audit-chain-verification)
 for resource limits, HTTP compatibility and the distinction from signed
-checkpoint/external anchoring assurance. Checkpoint subjects and broad startup
-Ledger retirement remain EVY-905 work.
+checkpoint/external anchoring assurance. Both signed-checkpoint subjects now
+have focused commands; broad startup Ledger retirement remains EVY-905 work.
 
 Evidence-item requests to `POST /v1/verify` use a focused durable command in the PostgreSQL profile. It resolves and share-locks tenant-owned evidence and parent coordinates, then checks `verify:read` and human tenant/product/project/release grants before selecting hash inputs. An 8 MiB combined JSON budget covers the selected evidence, authoritative legacy origins and related parser/audit facts; origin and parsed-record reads each stop at 4096 rows and reject overflow rather than truncate. The reader selects payload references only as canonical hash inputs, never downloads payload bytes and never exposes those references in receipts. Shared evidence-domain rules preserve v2 immutable subjects while excluding mutable relationship projections, and reconstruct legacy relationships only from matching v2 lifecycle origins. Authoritative origin publication takes an evidence-row lock, including when the origin set was previously empty. Selected SBOM, scan, OpenAPI, VEX and build-attestation projections retain shared shape and source-relationship checks; queued uploads need not have parsed records yet. Parser-normalization markers additionally bind their source evidence and linked audit fact, with a bounded predecessor-integrity check. This is not full audit-chain verification or a payload-origin/completeness proof. Receipt, audit and outbox effects commit together; successful idempotent POST replay creates no extra receipt, and a failed POST rolls back its enclosing transaction. Local-memory verification shares canonical inspection through its compatibility adapter. Other verification subjects and startup Ledger retirement remain EVY-905 work.
 

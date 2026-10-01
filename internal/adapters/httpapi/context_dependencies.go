@@ -163,6 +163,10 @@ type BackupVerification interface {
 	VerifyBackupManifest(context.Context, identitydomain.Actor, string) (verificationdomain.VerificationResult, error)
 }
 
+type SubjectVerification interface {
+	VerifySubject(context.Context, identitydomain.Actor, string, string) (verificationdomain.VerificationResult, error)
+}
+
 // SigningCustodyQuery assesses bounded durable provider and retention records.
 type SigningCustodyQuery interface {
 	Report(context.Context, identitydomain.Actor) (verificationdomain.SigningCustodyReviewReport, error)

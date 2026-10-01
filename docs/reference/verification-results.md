@@ -80,6 +80,34 @@ clock input specified by the profile. See
 [ADR 0002](../adr/0002-cryptographic-trust-model.md) for the full decision,
 threat boundaries, and migration rules.
 
+## Generic Subject Dispatch
+
+In the PostgreSQL runtime profile, `POST /v1/verify` uses a closed dispatcher
+composed from focused commands for `audit_chain`, `audit_chain_checkpoint`,
+`audit_chain_release_manifest`, `evidence_item`, `release_bundle`,
+`build_attestation`, `artifact_signature`, `merkle_batch` and `backup_manifest`.
+The dispatcher checks actor identity and `verify:read` scope before selecting a
+command. Each command retains its subject-specific resource authorization,
+bounded durable reads, profile and atomic receipt/audit/outbox policy. It does
+not resolve services dynamically or fall back to Ledger on an unknown type or
+command failure. An authorized request for an unsupported type retains the
+existing validation error (HTTP 400), without inspecting tenant content. Missing
+or foreign IDs for supported types remain not found (HTTP 404).
+
+Requests must be JSON objects with non-null string fields. `subject_id` may be
+omitted or empty only for `audit_chain`; a nonempty ID for that type is rejected.
+After trimming, type labels are limited to 64 bytes and IDs to 1 KiB, with valid
+UTF-8 and no NUL bytes. Successful idempotent replay returns the stored response
+without repeating verification. Failed generic POST verification rolls back
+receipt, audit and outbox effects; the existing safe failed-idempotency marker
+is separate from a verification receipt. Explicit local-memory mode retains
+its compatibility path; this dispatch migration does not remove startup Ledger
+construction or migrate other command routes.
+
+Source/test evidence: `internal/verification/app/subject_verification.go`,
+`internal/adapters/httpapi/subject_verification_test.go` and
+`internal/platform/wiring/subject_verification_test.go`.
+
 ## Recorded Backup-Manifest Verification
 
 `GET /v1/backup-manifests/{id}/verify` and `POST /v1/verify` with

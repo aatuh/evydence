@@ -7,6 +7,8 @@ import (
 	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/app"
 	operationsquery "github.com/aatuh/evydence/internal/operations/query"
+	verificationapp "github.com/aatuh/evydence/internal/verification/app"
+	verificationquery "github.com/aatuh/evydence/internal/verification/query"
 )
 
 // BuildAPIReadServices composes the API's durable authentication, focused
@@ -152,6 +154,17 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	options.BackupVerification, err = BuildBackupVerificationCommands(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create backup verification: %w", err)
+	}
+	options.SubjectVerification, err = verificationapp.NewSubjectVerificationCommands(verificationapp.SubjectVerificationConfig{
+		Authorizer: verificationquery.NewEvidenceVerificationAuthorizer(),
+		AuditChain: options.AuditChainVerification, Evidence: options.EvidenceVerification,
+		ReleaseBundle: options.ReleaseBundleVerification, DSSE: options.DSSEVerification,
+		ArtifactSignature: options.ArtifactSignatureVerification, Merkle: options.MerkleVerification,
+		MerkleCheckpoint:          options.MerkleCheckpointVerification,
+		ReleaseManifestCheckpoint: options.ReleaseManifestCheckpoint, Backup: options.BackupVerification,
+	})
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create generic subject verification: %w", err)
 	}
 	options.SigningCustodyQuery, err = BuildSigningCustodyQuery(store)
 	if err != nil {

@@ -67,6 +67,7 @@ type Server struct {
 	merkleCheckpointVerification      MerkleCheckpointVerification
 	releaseManifestCheckpoint         ReleaseManifestCheckpoint
 	backupVerification                BackupVerification
+	subjectVerification               SubjectVerification
 	signingCustodyQuery               SigningCustodyQuery
 	retentionCommands                 RetentionCommands
 	trustConfigurationCommands        TrustConfigurationCommands
@@ -188,6 +189,8 @@ type ServerOptions struct {
 	MerkleCheckpointVerification  MerkleCheckpointVerification
 	ReleaseManifestCheckpoint     ReleaseManifestCheckpoint
 	BackupVerification            BackupVerification
+	// SubjectVerification dispatches every generic subject without Ledger fallback.
+	SubjectVerification SubjectVerification
 	// SigningCustodyQuery assesses one bounded committed provider/policy inventory.
 	SigningCustodyQuery SigningCustodyQuery
 	// RetentionCommands atomically persists durable retention intent and observations.
@@ -344,6 +347,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.merkleCheckpointVerification = opts.MerkleCheckpointVerification
 	server.releaseManifestCheckpoint = opts.ReleaseManifestCheckpoint
 	server.backupVerification = opts.BackupVerification
+	server.subjectVerification = opts.SubjectVerification
 	server.signingCustodyQuery = opts.SigningCustodyQuery
 	server.retentionCommands = opts.RetentionCommands
 	server.trustConfigurationCommands = opts.TrustConfigurationCommands
@@ -3612,6 +3616,17 @@ func (s *Server) verifySubject(w http.ResponseWriter, r *http.Request) {
 			return 0, nil, err
 		}
 		subjectType := strings.TrimSpace(req.SubjectType)
+		if s.subjectVerification != nil {
+			if err := validateNonNullableObjectFields(body, "subject_type", "subject_id"); err != nil {
+				return 0, nil, err
+			}
+			subjectID := strings.TrimSpace(req.SubjectID)
+			if subjectType == "" || subjectType == "audit_chain" && subjectID != "" || subjectType != "audit_chain" && subjectID == "" {
+				return 0, nil, app.ErrValidation
+			}
+			result, err := s.subjectVerification.VerifySubject(ctx, actor, subjectType, subjectID)
+			return http.StatusOK, verificationResultFromFocused(result), mapVerificationCommandError(err)
+		}
 		if s.auditChainVerification != nil && subjectType == "audit_chain" {
 			if err := validateNonNullableObjectFields(body, "subject_type", "subject_id"); err != nil {
 				return 0, nil, err
