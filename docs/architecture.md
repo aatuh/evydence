@@ -111,6 +111,16 @@ Local-memory inspection shares the profile and root-policy evaluation but retain
 its explicit compatibility storage/transaction path. Other verification subjects
 and broad startup Ledger retirement remain EVY-905 work.
 
+Artifact-signature requests to `POST /v1/verify` use a focused metadata-only
+command in the PostgreSQL profile. The tenant, selected artifact and signature
+remain share-locked through receipt, audit and outbox insertion. After
+`verify:read` and human tenant-grant authorization, the reader selects bounded
+digest labels and only algorithm/signature presence flags; it does not load raw
+signature text, payload references, bundles, trust roots or signing keys. The
+shared core policy preserves the `artifact-signature-metadata.v1` profile and
+its `limited` result for matching metadata, never a cryptographic pass. See the
+[metadata assessment boundary](reference/verification-results.md#artifact-signature-metadata-assessment).
+
 Cosign verification (`POST /v1/artifact-signatures/{id}/verify-cosign`) in the
 PostgreSQL profile uses focused transaction-scoped signature/artifact/payload
 reads and a bounded object reader, not Ledger state. `verify:read` is required;

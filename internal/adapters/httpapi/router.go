@@ -61,6 +61,7 @@ type Server struct {
 	evidenceVerification              EvidenceVerification
 	dsseVerification                  DSSEVerification
 	cosignVerification                CosignVerification
+	artifactSignatureVerification     ArtifactSignatureVerification
 	signingCustodyQuery               SigningCustodyQuery
 	retentionCommands                 RetentionCommands
 	trustConfigurationCommands        TrustConfigurationCommands
@@ -175,7 +176,8 @@ type ServerOptions struct {
 	// DSSEVerification inspects bounded finalized payloads and durable root policies.
 	DSSEVerification DSSEVerification
 	// CosignVerification binds durable artifact facts to offline configured trust.
-	CosignVerification CosignVerification
+	CosignVerification            CosignVerification
+	ArtifactSignatureVerification ArtifactSignatureVerification
 	// SigningCustodyQuery assesses one bounded committed provider/policy inventory.
 	SigningCustodyQuery SigningCustodyQuery
 	// RetentionCommands atomically persists durable retention intent and observations.
@@ -326,6 +328,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.evidenceVerification = opts.EvidenceVerification
 	server.dsseVerification = opts.DSSEVerification
 	server.cosignVerification = opts.CosignVerification
+	server.artifactSignatureVerification = opts.ArtifactSignatureVerification
 	server.signingCustodyQuery = opts.SigningCustodyQuery
 	server.retentionCommands = opts.RetentionCommands
 	server.trustConfigurationCommands = opts.TrustConfigurationCommands
@@ -3564,7 +3567,7 @@ func (s *Server) verifySubject(w http.ResponseWriter, r *http.Request) {
 			return 0, nil, err
 		}
 		subjectType := strings.TrimSpace(req.SubjectType)
-		if s.releaseBundleVerification != nil && subjectType == "release_bundle" || s.evidenceVerification != nil && subjectType == "evidence_item" || s.dsseVerification != nil && subjectType == "build_attestation" {
+		if s.releaseBundleVerification != nil && subjectType == "release_bundle" || s.evidenceVerification != nil && subjectType == "evidence_item" || s.dsseVerification != nil && subjectType == "build_attestation" || s.artifactSignatureVerification != nil && subjectType == "artifact_signature" {
 			if err := validateNonNullableObjectFields(body, "subject_type", "subject_id"); err != nil {
 				return 0, nil, err
 			}
@@ -3578,6 +3581,8 @@ func (s *Server) verifySubject(w http.ResponseWriter, r *http.Request) {
 				result, err = s.evidenceVerification.VerifyEvidence(ctx, actor, req.SubjectID)
 			case "build_attestation":
 				result, err = s.dsseVerification.VerifyDSSEAttestationSignature(ctx, actor, req.SubjectID)
+			case "artifact_signature":
+				result, err = s.artifactSignatureVerification.VerifyArtifactSignature(ctx, actor, req.SubjectID)
 			default:
 				result, err = s.releaseBundleVerification.VerifyReleaseBundle(ctx, actor, req.SubjectID)
 			}

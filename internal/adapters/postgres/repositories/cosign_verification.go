@@ -31,7 +31,7 @@ func (r verification) cosignCoordinates(ctx context.Context, tenant, id string, 
 	}
 	return artifact, digest, nil
 }
-func (r verification) ResolveCosignSubject(ctx context.Context, tenant, id string) (verificationapp.CosignSubject, error) {
+func (r verification) lockArtifactSignatureSubject(ctx context.Context, tenant, id string) (verificationapp.CosignSubject, error) {
 	subject := verificationapp.CosignSubject{TenantID: tenant, ArtifactSignatureID: id}
 	artifact, digest, err := r.cosignCoordinates(ctx, tenant, id, false)
 	if err != nil {
@@ -53,11 +53,19 @@ func (r verification) ResolveCosignSubject(ctx context.Context, tenant, id strin
 	}
 	subject.ArtifactID, subject.SubjectDigest = artifact, digest
 	subject.Resources = application.ResourceReferences{ArtifactID: artifact}
+	return subject, nil
+}
+
+func (r verification) ResolveCosignSubject(ctx context.Context, tenant, id string) (verificationapp.CosignSubject, error) {
+	subject, err := r.lockArtifactSignatureSubject(ctx, tenant, id)
+	if err != nil {
+		return subject, err
+	}
 	// The image is optional metadata. Select one deterministically without
 	// loading/scanning all images into the process; only the chosen row locks.
 	var image string
 	var large bool
-	err = r.tx.QueryRow(ctx, `SELECT left(id,1025),octet_length(id)>1024 FROM container_images WHERE tenant_id=$1 AND artifact_id=$2 AND digest=$3 ORDER BY id LIMIT 1 FOR SHARE`, tenant, artifact, digest).Scan(&image, &large)
+	err = r.tx.QueryRow(ctx, `SELECT left(id,1025),octet_length(id)>1024 FROM container_images WHERE tenant_id=$1 AND artifact_id=$2 AND digest=$3 ORDER BY id LIMIT 1 FOR SHARE`, tenant, subject.ArtifactID, subject.SubjectDigest).Scan(&image, &large)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return subject, nil
 	}

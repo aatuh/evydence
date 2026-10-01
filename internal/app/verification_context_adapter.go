@@ -1112,17 +1112,7 @@ func inspectVerificationSubjectLocked(ctx context.Context, ledger *Ledger, subje
 	case "artifact_signature":
 		signature := ledger.artifactSigs[subject.ID]
 		artifact := ledger.artifacts[signature.ArtifactID]
-		if artifact.Digest != signature.SubjectDigest {
-			checks = append(checks, domain.VerifyCheck{Name: "digest_binding_assessed", Result: "failed"})
-		} else {
-			checks = append(checks, domain.VerifyCheck{Name: "digest_binding_assessed", Result: "passed"})
-		}
-		if signature.Algorithm == "" || signature.Signature == "" {
-			checks = append(checks, domain.VerifyCheck{Name: "signature_material_present", Result: "failed"})
-		} else {
-			checks = append(checks, domain.VerifyCheck{Name: "signature_material_present", Result: "passed", Detail: "signature recorded; cryptographic trust-root verification is deferred"})
-		}
-		profile = assuranceProfile(domain.VerificationProfileArtifactSignatureMetadata, []string{"digest_binding_assessed", "signature_material_present", "cryptographic_signature_verified", "certificate_identity_policy", "transparency_inclusion_proof"}, []string{"recorded artifact signature metadata"}, "no certificate identity policy evaluated", "not_evaluated", "artifact digest and detached signature metadata", signature.SubjectDigest, []string{"This profile is metadata-only and cannot verify cryptographic signature validity, certificate identity, trust roots, or transparency inclusion."})
+		return verificationapp.InspectArtifactSignatureMetadata(verificationapp.ArtifactSignatureVerificationSnapshot{Subject: subject, SignatureDigest: signature.SubjectDigest, ArtifactDigest: artifact.Digest, AlgorithmPresent: signature.Algorithm != "", SignaturePresent: signature.Signature != ""}), nil
 	default:
 		return verificationapp.SubjectInspection{}, verificationapp.ErrValidation
 	}

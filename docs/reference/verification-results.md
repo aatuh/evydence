@@ -63,7 +63,7 @@ inferred from submitted metadata.
 | `POST /v1/verify` with `audit_chain_release_manifest` | `audit-chain-release-manifest-checkpoint.v1` | checkpoint range, release manifest hash, checkpoint signature | Local release-manifest checkpoint; no publication claim. |
 | `POST /v1/verify` with `evidence_item` | `evidence-canonical-hash.v1` | canonical hash | Canonical evidence fields only, not origin or completeness. |
 | `POST /v1/verify` or `POST /v1/release-bundles/{id}/verify` with a release bundle | `release-bundle-signature.v1` | manifest hash, bundle signature | Tenant-signing receipt over the canonical manifest hash. |
-| `POST /v1/verify` with an artifact signature | `artifact-signature-metadata.v1` | digest binding, signature material, cryptographic verification, identity policy, transparency proof | Deliberately limited metadata assessment until EVY-602. |
+| `POST /v1/verify` with an artifact signature | `artifact-signature-metadata.v1` | digest binding, signature material, cryptographic verification, identity policy, transparency proof | Deliberately limited metadata assessment; full Cosign verification uses its separate route. |
 | `POST /v1/artifact-signatures/{id}/verify-cosign` | `cosign-full-verification.v1` | bundle syntax, subject digest, cryptographic signature, embedded Rekor proof, Fulcio trust root/certificate validity, keyless identity/issuer policy or configured public key | Explicit offline Sigstore verification; online-required requests are rejected, not downgraded. |
 | `POST /v1/build-attestations/{id}/verify-signature` | `dsse-attestation-signature.v1` | DSSE PAE signature, configured root, payload type, SLSA predicate, registered subject digest, builder identity, and policy claims | Explicit offline Ed25519-root verification of a DSSE/in-toto Statement v1. Unsupported types are `not_verified`, never passed. |
 | `POST /v1/merkle-batches/{id}/verify` | `merkle-checkpoint.v1` | Merkle root, checkpoint signature | Local signed Merkle checkpoint; external log inclusion is not evaluated. |
@@ -79,6 +79,40 @@ assessment. Offline success requires every root, bundle, proof, checkpoint, and
 clock input specified by the profile. See
 [ADR 0002](../adr/0002-cryptographic-trust-model.md) for the full decision,
 threat boundaries, and migration rules.
+
+## Artifact Signature Metadata Assessment
+
+`POST /v1/verify` with `subject_type: artifact_signature` assesses recorded
+digest binding and the presence of algorithm/signature metadata. It preserves
+the five required checks of `artifact-signature-metadata.v1`; the cryptographic,
+certificate-identity and transparency checks are not performed. Matching
+metadata therefore returns `limited`, not `passed`. Missing signature/algorithm
+metadata or mismatched digests produces `failed`. Non-empty arbitrary signature
+text does not establish cryptographic validity. Use the separate full Cosign
+route for an explicit offline configured-trust verification.
+
+The PostgreSQL-profile command checks `verify:read` and a human actor's tenant
+grant before reading assessment facts. An unrelated product/release grant is
+insufficient because artifacts have no such authorization coordinate. Selected
+tenant/artifact/signature rows stay share-locked until receipt, audit and outbox
+effects commit together. The projection reads only digest labels and presence
+flags, never raw signature bytes, algorithm text, payload references, provider
+data or private keys. Selected IDs and digest labels above 1 KiB fail closed
+with conflict rather than being truncated. Invalid/oversized request IDs fail
+validation before resolving the stored subject.
+
+Direct completed negative assessments persist their receipts and return the
+verification failure. Failed idempotent HTTP commands roll back their enclosing
+transaction; successful replay returns the original assessment without duplicate
+effects. Local-memory inspection uses the same core policy through its explicit
+compatibility path. Profiles, check names and response fields remain unchanged;
+no schema migration or historical receipt rewrite is performed.
+
+Source/test evidence: `internal/verification/app/artifact_signature_verification.go`,
+`internal/adapters/postgres/repositories/artifact_signature_verification.go`,
+`internal/platform/wiring/artifact_signature_verification.go`,
+`TestPostgresArtifactSignatureVerificationIsDurableMetadataOnly` and
+`TestArtifactSignatureVerificationHandlerUsesDurableMetadataAndReplay`.
 
 ## Persistence And Legacy Records
 
