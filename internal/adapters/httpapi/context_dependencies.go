@@ -55,6 +55,12 @@ type IncidentReportQuery interface {
 	Report(context.Context, domain.Actor, string) (packagedomain.IncidentReport, error)
 }
 
+// SecurityUpdateEvidenceQuery assembles one tenant-owned release report from
+// bounded, report-safe durable projections rather than Ledger maps.
+type SecurityUpdateEvidenceQuery interface {
+	Report(context.Context, domain.Actor, string, string) (packagedomain.SecurityUpdateEvidenceReport, error)
+}
+
 // InstanceAdminQuery returns aggregate operational counts only after the
 // focused service verifies explicit instance-wide authority.
 type InstanceAdminQuery interface {
