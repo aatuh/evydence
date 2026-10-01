@@ -130,28 +130,36 @@ func InspectReleaseBundle(snapshot ReleaseBundleVerificationSnapshot, now time.T
 		manifestResult = "failed"
 	}
 	signatureResult := "failed"
-	refs := make(map[string]bool, len(snapshot.SignatureRefs))
-	for _, ref := range snapshot.SignatureRefs {
+	if validReferencedPayloadSignature(snapshot.Subject, snapshot.SignatureRefs, snapshot.Signatures, snapshot.Keys, []byte(snapshot.ManifestHash), now, verifier) {
+		signatureResult = "passed"
+	}
+	return SubjectInspection{Checks: []verificationdomain.VerifyCheck{{Name: "manifest_hash", Result: manifestResult}, {Name: "bundle_signature", Result: signatureResult}}, Profile: verificationdomain.NormalizeVerificationProfile(verificationdomain.VerificationProfile{ID: verificationdomain.VerificationProfileReleaseBundleSignature, Version: verificationdomain.VerificationProfileSchemaVersion, RequiredChecks: []string{"manifest_hash", "bundle_signature"}, TrustMaterial: []string{"active or historically valid tenant signing keys"}, IdentityPolicy: "tenant-scoped verification authorization", TransparencyProof: "not_evaluated", PayloadScope: "release bundle manifest canonical JSON", PayloadDigest: snapshot.ManifestHash, Limitations: []string{"Bundle verification does not establish external publication, registry provenance, or legal sufficiency."}})}, nil
+}
+
+// validReferencedPayloadSignature preserves subject binding and historical
+// key policy for each signed ledger object, independently of its payload format.
+func validReferencedPayloadSignature(subject SubjectReference, signatureRefs []string, signatures []verificationdomain.Signature, publicKeys []verificationdomain.SigningKey, payload []byte, now time.Time, verifier PayloadSignatureVerifier) bool {
+	refs := make(map[string]bool, len(signatureRefs))
+	for _, ref := range signatureRefs {
 		refs[ref] = true
 	}
-	keys := make(map[string]verificationdomain.SigningKey, len(snapshot.Keys))
-	for _, key := range snapshot.Keys {
-		if key.TenantID == snapshot.Subject.TenantID {
+	keys := make(map[string]verificationdomain.SigningKey, len(publicKeys))
+	for _, key := range publicKeys {
+		if key.TenantID == subject.TenantID {
 			keys[key.ID] = key
 		}
 	}
-	for _, signature := range snapshot.Signatures {
-		if !refs[signature.ID] || signature.TenantID != snapshot.Subject.TenantID || signature.SubjectType != snapshot.Subject.Type || signature.SubjectID != snapshot.Subject.ID {
+	for _, signature := range signatures {
+		if !refs[signature.ID] || signature.TenantID != subject.TenantID || signature.SubjectType != subject.Type || signature.SubjectID != subject.ID {
 			continue
 		}
 		key, ok := keys[signature.KeyID]
 		if !ok || key.HistoricalValidityAt(signature.CreatedAt, now) != verificationdomain.SigningKeyHistoricalValidityValid {
 			continue
 		}
-		if verifier.VerifyPayload(key.PublicKey, signature.Value, []byte(snapshot.ManifestHash)) {
-			signatureResult = "passed"
-			break
+		if verifier.VerifyPayload(key.PublicKey, signature.Value, payload) {
+			return true
 		}
 	}
-	return SubjectInspection{Checks: []verificationdomain.VerifyCheck{{Name: "manifest_hash", Result: manifestResult}, {Name: "bundle_signature", Result: signatureResult}}, Profile: verificationdomain.NormalizeVerificationProfile(verificationdomain.VerificationProfile{ID: verificationdomain.VerificationProfileReleaseBundleSignature, Version: verificationdomain.VerificationProfileSchemaVersion, RequiredChecks: []string{"manifest_hash", "bundle_signature"}, TrustMaterial: []string{"active or historically valid tenant signing keys"}, IdentityPolicy: "tenant-scoped verification authorization", TransparencyProof: "not_evaluated", PayloadScope: "release bundle manifest canonical JSON", PayloadDigest: snapshot.ManifestHash, Limitations: []string{"Bundle verification does not establish external publication, registry provenance, or legal sufficiency."}})}, nil
+	return false
 }

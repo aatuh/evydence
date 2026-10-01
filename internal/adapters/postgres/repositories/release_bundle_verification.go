@@ -73,6 +73,18 @@ func (r verification) ReadReleaseBundleVerification(ctx context.Context, subject
 	if err := json.Unmarshal(refs, &snapshot.SignatureRefs); err != nil || snapshot.SignatureRefs == nil || len(snapshot.SignatureRefs) > verificationapp.MaxBundleVerificationSignatures {
 		return snapshot, app.ErrConflict
 	}
+	material, err := r.readVerificationSigningMaterial(ctx, subject, snapshot.SignatureRefs, bytes)
+	snapshot.Signatures, snapshot.Keys = material.Signatures, material.Keys
+	return snapshot, err
+}
+
+// readVerificationSigningMaterial is shared by signed bundle and Merkle
+// projections. The caller's selected bytes count towards the same budget.
+func (r verification) readVerificationSigningMaterial(ctx context.Context, subject verificationapp.SubjectReference, refs []string, bytes int) (verificationapp.ReleaseBundleVerificationSnapshot, error) {
+	snapshot := verificationapp.ReleaseBundleVerificationSnapshot{Subject: subject, SignatureRefs: refs}
+	if len(refs) > verificationapp.MaxBundleVerificationSignatures || bytes > verificationapp.MaxBundleVerificationBytes {
+		return snapshot, app.ErrConflict
+	}
 	seen := make(map[string]bool, len(snapshot.SignatureRefs))
 	for _, id := range snapshot.SignatureRefs {
 		if id == "" || len(id) > 1024 || seen[id] {
@@ -83,6 +95,7 @@ func (r verification) ReadReleaseBundleVerification(ctx context.Context, subject
 	if len(snapshot.SignatureRefs) == 0 {
 		return snapshot, nil
 	}
+	var oversized bool
 	rows, err := r.tx.Query(ctx, `SELECT left(id,1025),left(tenant_id,1025),left(subject_type,65),left(subject_id,1025),left(key_id,1025),left(algorithm,65),left(value,16385),created_at,
 		(octet_length(id)>1024 OR octet_length(tenant_id)>1024 OR octet_length(subject_type)>64 OR octet_length(subject_id)>1024 OR octet_length(key_id)>1024 OR octet_length(algorithm)>64 OR octet_length(value)>16384)
 		FROM signatures WHERE tenant_id=$1 AND id=ANY($2) ORDER BY id LIMIT $3 FOR SHARE`, subject.TenantID, snapshot.SignatureRefs, verificationapp.MaxBundleVerificationSignatures+1)

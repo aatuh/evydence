@@ -66,7 +66,7 @@ inferred from submitted metadata.
 | `POST /v1/verify` with an artifact signature | `artifact-signature-metadata.v1` | digest binding, signature material, cryptographic verification, identity policy, transparency proof | Deliberately limited metadata assessment; full Cosign verification uses its separate route. |
 | `POST /v1/artifact-signatures/{id}/verify-cosign` | `cosign-full-verification.v1` | bundle syntax, subject digest, cryptographic signature, embedded Rekor proof, Fulcio trust root/certificate validity, keyless identity/issuer policy or configured public key | Explicit offline Sigstore verification; online-required requests are rejected, not downgraded. |
 | `POST /v1/build-attestations/{id}/verify-signature` | `dsse-attestation-signature.v1` | DSSE PAE signature, configured root, payload type, SLSA predicate, registered subject digest, builder identity, and policy claims | Explicit offline Ed25519-root verification of a DSSE/in-toto Statement v1. Unsupported types are `not_verified`, never passed. |
-| `POST /v1/merkle-batches/{id}/verify` | `merkle-checkpoint.v1` | Merkle root, checkpoint signature | Local signed Merkle checkpoint; external log inclusion is not evaluated. |
+| `GET /v1/merkle-batches/{id}/verify`, `POST /v1/verify` with `merkle_batch` | `merkle-checkpoint.v1` | covered sequence hashes, Merkle root, checkpoint signature | Local signed Merkle checkpoint; canonical entry contents and external log inclusion are not evaluated. |
 | `POST /v1/public-transparency-log-entries/{id}/verify` | `transparency-inclusion-proof.v1` | leaf hash, inclusion path, root hash, tree size, checkpoint | Resource-level proof checks today; EVY-606 standardizes a profile-bearing receipt. |
 | `POST /v1/object-retention-policies/{id}/verify` | `object-retention-provider-policy.v1` | object scope, retention mode, retention-until, legal hold | Resource-level provider-policy checks today; live provider evidence is required for a provider-truth claim. |
 | `POST /v1/backup-manifests/{id}/verify` | `backup-manifest-consistency.v1` | manifest hash, state hash, resource counts | Local backup consistency; a restore rehearsal is separate optional evidence. |
@@ -79,6 +79,44 @@ assessment. Offline success requires every root, bundle, proof, checkpoint, and
 clock input specified by the profile. See
 [ADR 0002](../adr/0002-cryptographic-trust-model.md) for the full decision,
 threat boundaries, and migration rules.
+
+## Merkle Batch Verification
+
+The `merkle-checkpoint.v1` profile requires all three checks:
+`checkpoint_coverage`, `merkle_root` and `checkpoint_signature`. Covered hashes
+must match the stored leaves in sequence order and count. The signed root must
+match those leaves, and a referenced tenant signature must bind to this exact
+batch with a signing key valid under its historical policy. This does not
+rehash canonical audit contents; use the separate audit-chain integrity or
+audit-chain checkpoint profiles for that assessment. External transparency-log
+inclusion remains `not_evaluated`.
+
+The PostgreSQL command authorizes tenant-wide `verify:read` before reading
+batch data. Human actors need a tenant grant; unrelated product/release grants
+are insufficient. Tenant, batch, covered audit rows and referenced signature/key
+rows stay share-locked through atomic receipt, audit and outbox persistence.
+It reads only covered sequence/hash pairs and public signing fields, not raw
+audit metadata or private signing material.
+
+Verification rejects rather than truncates batches/ranges above 4096 leaves,
+reference/signature/key sets above 4096 records, or selected metadata above
+8 MiB combined. IDs, leaf/root hashes and signing coordinates are limited to
+1 KiB; signature/public-key text to 16 KiB. Oversized durable projections return
+conflict without receipts. Invalid request IDs fail validation before subject
+resolution. Existing profiles, check names, response fields and hash/signature
+formats remain unchanged; no historical records or schemas are rewritten.
+
+Direct and dedicated GET verification persist completed failed receipts and
+return their checks. Failed generic idempotent POST verification rolls back its
+enclosing transaction; successful POST replay returns the original result without
+duplicate effects. The selected-range limit also applies to the shared inspector
+used by explicit local-memory mode. Larger existing batches need a smaller
+checkpoint for this profile; they are not silently assessed as partial ranges.
+
+Source/test evidence: `internal/verification/app/merkle_verification.go`,
+`internal/adapters/postgres/repositories/merkle_verification.go`,
+`internal/platform/wiring/merkle_verification_test.go` and
+`internal/adapters/httpapi/merkle_verification_test.go`.
 
 ## Artifact Signature Metadata Assessment
 

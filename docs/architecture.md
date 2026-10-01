@@ -121,6 +121,18 @@ shared core policy preserves the `artifact-signature-metadata.v1` profile and
 its `limited` result for matching metadata, never a cryptographic pass. See the
 [metadata assessment boundary](reference/verification-results.md#artifact-signature-metadata-assessment).
 
+Merkle-batch requests to `POST /v1/verify` and
+`GET /v1/merkle-batches/{id}/verify` use a focused command in the PostgreSQL
+profile. Tenant-wide `verify:read` authorization precedes reading the selected
+batch, its covered sequence hashes and referenced public signing material.
+These rows and the tenant stay share-locked through atomic receipt, audit and
+outbox insertion. No raw audit metadata, canonical entry bodies or private key
+ciphertext is loaded. The core inspector is shared with explicit local-memory
+mode. It preserves the three-check `merkle-checkpoint.v1` profile and historical
+key validity. This verifies recorded hashes, not canonical audit contents or
+external anchoring; `audit_chain_checkpoint` remains a distinct profile. See
+[Merkle verification bounds](reference/verification-results.md#merkle-batch-verification).
+
 Cosign verification (`POST /v1/artifact-signatures/{id}/verify-cosign`) in the
 PostgreSQL profile uses focused transaction-scoped signature/artifact/payload
 reads and a bounded object reader, not Ledger state. `verify:read` is required;

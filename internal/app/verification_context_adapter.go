@@ -1040,31 +1040,27 @@ func inspectVerificationSubjectLocked(ctx context.Context, ledger *Ledger, subje
 		profile = assuranceProfile(domain.VerificationProfileAuditChainMerkleCheckpoint, requiredCheckNames(checks), []string{"Evydence audit-chain hashes", "tenant signing keys"}, "tenant-scoped verification authorization", "not_evaluated", "tenant audit-chain range and signed Merkle root", "", []string{"This signed checkpoint detects truncation or rewrites within its covered sequence range, but does not prove external publication or third-party log inclusion."})
 	case "merkle_batch":
 		batch := ledger.merkleBatches[subject.ID]
-		entries := ledger.chain[subject.TenantID]
-		if batch.FromSequence < 1 || batch.ToSequence < batch.FromSequence || batch.ToSequence > int64(len(entries)) {
-			checks = append(checks, domain.VerifyCheck{Name: "checkpoint_coverage", Result: "failed"})
-		} else {
-			leaves := make([]string, 0, batch.ToSequence-batch.FromSequence+1)
-			for _, entry := range entries[batch.FromSequence-1 : batch.ToSequence] {
-				leaves = append(leaves, entry.EntryHash)
-			}
-			if sameAuditChainHashes(leaves, batch.LeafHashes) && batch.EntryCount == len(leaves) {
-				checks = append(checks, domain.VerifyCheck{Name: "checkpoint_coverage", Result: "passed"})
-			} else {
-				checks = append(checks, domain.VerifyCheck{Name: "checkpoint_coverage", Result: "failed"})
+		snapshot := verificationapp.MerkleVerificationSnapshot{Subject: subject, Batch: merkleBatchToVerificationContext(batch)}
+		if batch.FromSequence > 0 && batch.ToSequence >= batch.FromSequence && batch.ToSequence-batch.FromSequence < verificationapp.MaxMerkleVerificationLeaves {
+			for _, entry := range ledger.chain[subject.TenantID] {
+				if entry.Sequence >= batch.FromSequence && entry.Sequence <= batch.ToSequence {
+					snapshot.Leaves = append(snapshot.Leaves, verificationapp.AuditChainLeaf{Sequence: entry.Sequence, EntryHash: entry.EntryHash})
+				}
 			}
 		}
-		if merkleRoot(batch.LeafHashes) != batch.RootHash {
-			checks = append(checks, domain.VerifyCheck{Name: "merkle_root", Result: "failed"})
-		} else {
-			checks = append(checks, domain.VerifyCheck{Name: "merkle_root", Result: "passed"})
+		for _, ref := range batch.SignatureRefs {
+			if sig, ok := ledger.signatures[ref]; ok && sig.TenantID == subject.TenantID {
+				snapshot.Signatures = append(snapshot.Signatures, verificationdomain.Signature{ID: sig.ID, TenantID: sig.TenantID, SubjectType: sig.SubjectType, SubjectID: sig.SubjectID, KeyID: sig.KeyID, Algorithm: sig.Algorithm, Value: sig.Value, CreatedAt: sig.CreatedAt})
+				if key, ok := ledger.signingKeys[sig.KeyID]; ok && key.TenantID == subject.TenantID {
+					mapped, err := signingKeyToVerificationContext(key)
+					if err != nil {
+						return verificationapp.SubjectInspection{}, verificationapp.ErrConflict
+					}
+					snapshot.Keys = append(snapshot.Keys, mapped)
+				}
+			}
 		}
-		if !ledger.verifySignatureForSubjectLocked(subject.TenantID, batch.SignatureRefs, "merkle_batch", batch.ID, []byte(batch.RootHash)) {
-			checks = append(checks, domain.VerifyCheck{Name: "checkpoint_signature", Result: "failed"})
-		} else {
-			checks = append(checks, domain.VerifyCheck{Name: "checkpoint_signature", Result: "passed"})
-		}
-		profile = assuranceProfile(domain.VerificationProfileMerkleCheckpoint, []string{"checkpoint_coverage", "merkle_root", "checkpoint_signature"}, []string{"tenant signing keys"}, "tenant-scoped verification authorization", "not_evaluated", "Merkle batch leaf hashes and signed root", batch.RootHash, []string{"Merkle checkpoint verification does not establish external transparency-log inclusion."})
+		return verificationapp.InspectMerkleBatch(snapshot, ledger.now().UTC(), ledgerVerificationPayloadVerifier{})
 	case "backup_manifest":
 		manifest := ledger.backupManifests[subject.ID]
 		checks = append(checks, manifest.ConsistencyChecks...)
