@@ -38,6 +38,7 @@ type RuntimeConfig struct {
 	MigrationsDir  string
 	SkipMigrations bool
 	ObjectStore    ObjectStoreConfig
+	Cosign         app.CosignPolicyVerifier
 }
 
 // Runtime owns the shared API/worker infrastructure lifetime. The API's
@@ -48,6 +49,7 @@ type Runtime struct {
 	Production bool
 	Postgres   *postgres.Store
 	Objects    app.ObjectStore
+	Cosign     app.CosignPolicyVerifier
 	lease      func()
 	closed     sync.Once
 }
@@ -86,7 +88,7 @@ func OpenRuntime(ctx context.Context, config RuntimeConfig) (_ *Runtime, err err
 		if backend != "" && backend != "filesystem" {
 			return nil, errors.New("EVYDENCE_RUNTIME_PROFILE=local_memory supports only EVYDENCE_OBJECT_STORE=filesystem")
 		}
-		runtime := &Runtime{Process: config.Process, Profile: profile, Production: config.Production}
+		runtime := &Runtime{Process: config.Process, Profile: profile, Production: config.Production, Cosign: config.Cosign}
 		if backend != "" {
 			objects, _, err := OpenObjectStore(ctx, config.ObjectStore)
 			if err != nil {
@@ -112,7 +114,7 @@ func OpenRuntime(ctx context.Context, config RuntimeConfig) (_ *Runtime, err err
 	if err != nil {
 		return nil, runtimeAdapterError("open PostgreSQL runtime", err)
 	}
-	runtime := &Runtime{Process: config.Process, Profile: profile, Production: config.Production, Postgres: store}
+	runtime := &Runtime{Process: config.Process, Profile: profile, Production: config.Production, Postgres: store, Cosign: config.Cosign}
 	defer func() {
 		if err != nil {
 			runtime.Close()

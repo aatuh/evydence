@@ -7,6 +7,7 @@ import (
 
 	"github.com/aatuh/evydence/internal/domain"
 	operationsquery "github.com/aatuh/evydence/internal/operations/query"
+	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 )
 
 type VerifyCosignInput struct {
@@ -65,15 +66,7 @@ type AuditLogFilter struct {
 }
 
 func cosignVerificationProfile(mode CosignVerificationMode, digest string) domain.VerificationProfile {
-	required := []string{"sigstore_bundle", "subject_digest", "cryptographic_signature", "rekor_inclusion_proof"}
-	identityPolicy := "configured key-based signing trust material"
-	if mode == CosignVerificationModeKeyless {
-		required = append(required, "fulcio_trust_root", "certificate_validity", "certificate_identity_policy")
-		identityPolicy = "caller-supplied expected certificate identity and issuer"
-	} else {
-		required = append(required, "trusted_public_key")
-	}
-	return assuranceProfile(domain.VerificationProfileCosignFull, required, []string{"configured Sigstore trust root or public key"}, identityPolicy, "embedded Rekor inclusion proof verified offline", "artifact digest and signed Sigstore bundle", digest, []string{"This profile verifies an explicit offline bundle only. Online-required verification is rejected instead of downgraded."})
+	return verificationProfileFromContext(verificationapp.CosignFullProfile(verificationapp.CosignVerificationMode(mode), digest))
 }
 
 func loadCosignBundle(ctx context.Context, tenantID string, sig domain.ArtifactSignature, objects ObjectStore, store Store) ([]byte, error) {

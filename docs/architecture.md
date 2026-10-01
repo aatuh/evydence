@@ -21,7 +21,7 @@ partial object; successful reads retain key, tenant, metadata-size and digest
 validation. Filesystem reads stay beneath `os.Root`, require regular files and
 limit metadata sidecars to 64 KiB. S3 reads close the provider stream even when
 HEAD understates the body size. Limits must be positive and permit overflow
-detection without integer overflow. Durable DSSE verification requires this
+detection without integer overflow. Durable DSSE and Cosign verification require this
 capability; other existing `ObjectStore.Get` callers retain their unbounded
 compatibility behavior until their owning workflows migrate.
 
@@ -110,6 +110,21 @@ compatibility boundary](reference/evidence-format-compatibility.md#dsse-and-in-t
 Local-memory inspection shares the profile and root-policy evaluation but retains
 its explicit compatibility storage/transaction path. Other verification subjects
 and broad startup Ledger retirement remain EVY-905 work.
+
+Cosign verification (`POST /v1/artifact-signatures/{id}/verify-cosign`) in the
+PostgreSQL profile uses focused transaction-scoped signature/artifact/payload
+reads and a bounded object reader, not Ledger state. `verify:read` is required;
+human actors also need a tenant grant because artifacts have no product/release
+authorization coordinate. The selected tenant, artifact, signature, optional
+container image and payload lifecycle rows remain share-locked through receipt
+persistence. The verifier receives only finalized digest-bound bundle bytes and
+the operator-configured offline trust policy. The Cosign receipt, generic result
+and audit entry commit atomically, with no worker job. Receipt library version,
+trust-root version and mode persist in their existing migration-backed columns.
+Successful POST replay adds no effects; failed POST verification rolls back its
+enclosing transaction. See [Cosign limits and compatibility](reference/evidence-format-compatibility.md#cosign-offline-sigstore-bundles).
+Startup and outer compatibility HTTP/idempotency state still require the
+remaining EVY-905 migration; this does not claim full Ledger retirement.
 
 Signing-provider registration and DSSE trust-root creation in the PostgreSQL
 profile use focused trust-configuration commands with tenant-wide `keys:admin`

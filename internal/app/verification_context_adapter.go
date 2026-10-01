@@ -1213,19 +1213,7 @@ func dsseTrustRootFromVerificationContext(value verificationdomain.DSSETrustRoot
 }
 
 func cosignVerificationFromVerificationContext(value verificationdomain.CosignVerification) domain.CosignVerification {
-	checks := make([]domain.VerifyCheck, 0, len(value.Checks))
-	for _, check := range value.Checks {
-		checks = append(checks, domain.VerifyCheck{Name: check.Name, Result: check.Result, Detail: check.Detail})
-	}
-	return domain.CosignVerification{
-		ID: value.ID, TenantID: value.TenantID, ArtifactID: value.ArtifactID, ContainerImageID: value.ContainerImageID,
-		ArtifactSignatureID: value.ArtifactSignatureID, SubjectDigest: value.SubjectDigest, RekorUUID: value.RekorUUID,
-		RekorLogIndex: value.RekorLogIndex, CertificateIdentity: value.CertificateIdentity, CertificateIssuer: value.CertificateIssuer,
-		VerifierLibraryVersion: value.VerifierLibraryVersion, TrustRootVersion: value.TrustRootVersion,
-		VerificationMode: value.VerificationMode, Result: value.Result, Checks: checks,
-		Profile: verificationProfileFromContext(value.Profile), Limitations: append([]string(nil), value.Limitations...),
-		SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt,
-	}
+	return domain.CosignVerificationFromContextModel(value)
 }
 
 func signatureFromVerificationContext(value verificationdomain.Signature) domain.Signature {

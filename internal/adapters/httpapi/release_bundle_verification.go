@@ -18,6 +18,9 @@ func (s *Server) verifyReleaseBundleResult(ctx context.Context, actor domain.Act
 	return verificationResultFromFocused(result), mapVerificationCommandError(err)
 }
 func mapVerificationCommandError(err error) error {
+	if errors.Is(err, verificationapp.ErrFullVerificationUnavailable) {
+		return app.ErrFullVerificationUnavailable
+	}
 	if errors.Is(err, verificationapp.ErrVerificationFailed) {
 		return app.ErrVerificationFailed
 	}

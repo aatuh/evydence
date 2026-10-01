@@ -77,56 +77,30 @@ func (s *Service) VerifyCosign(ctx context.Context, actor identitydomain.Actor, 
 	if err != nil {
 		return verificationdomain.CosignVerification{}, err
 	}
-	inspection = cloneCosignInspection(inspection)
-	inspection.Profile = verificationdomain.NormalizeVerificationProfile(inspection.Profile)
-	if !validCosignInspection(inspection) {
-		return verificationdomain.CosignVerification{}, ErrValidation
-	}
-	now := s.clock.Now().UTC()
-	state := verificationdomain.AggregateVerificationState(inspection.Profile, inspection.Checks)
-	record := verificationdomain.CosignVerification{
-		ID: s.ids.NewID("cosv"), TenantID: actor.TenantID, ArtifactID: subject.ArtifactID,
-		ContainerImageID: subject.ContainerImageID, ArtifactSignatureID: subject.ArtifactSignatureID,
-		SubjectDigest: subject.SubjectDigest, CertificateIdentity: inspection.CertificateIdentity,
-		CertificateIssuer: inspection.CertificateIssuer, VerifierLibraryVersion: inspection.LibraryVersion,
-		TrustRootVersion: inspection.TrustRootVersion, VerificationMode: string(input.Mode), Result: state.String(),
-		Checks: append([]verificationdomain.VerifyCheck(nil), inspection.Checks...), Profile: cloneVerificationProfile(inspection.Profile),
-		Limitations: append([]string(nil), inspection.Limitations...), SchemaVersion: verificationdomain.CosignVerificationSchemaVersion, CreatedAt: now,
-	}
-	verification := verificationdomain.VerificationResult{
-		ID: record.ID, TenantID: actor.TenantID, SubjectType: "artifact_signature", SubjectID: subject.ArtifactSignatureID,
-		Result: state, Checks: append([]verificationdomain.VerifyCheck(nil), inspection.Checks...), Profile: cloneVerificationProfile(inspection.Profile),
-		Limitations: append([]string(nil), inspection.Profile.Limitations...), SchemaVersion: verificationdomain.VerificationResultSchemaVersion, VerifiedAt: now,
-	}
+	var record verificationdomain.CosignVerification
 	err = s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
 		if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, Resources: subject.Resources, TenantWide: emptyResources(subject.Resources)}); err != nil {
 			return err
 		}
-		if err := tx.Verification().InsertCosignVerification(ctx, record); err != nil {
-			return err
-		}
-		if err := tx.Verification().InsertVerificationResult(ctx, verification); err != nil {
-			return err
-		}
-		audit := s.auditEvent(actor, now, "cosign_signature.verified", "artifact_signature", subject.ArtifactSignatureID)
-		audit.PayloadHash = subject.SubjectDigest
-		_, err := tx.Audit().AppendAudit(ctx, audit)
+		record, err = persistCosignReceipt(ctx, cosignServiceReceiptWriter{tx}, actor, subject, inspection, input.Mode, s.clock.Now().UTC(), s.ids)
 		return err
 	})
 	if err != nil {
 		return verificationdomain.CosignVerification{}, err
 	}
-	record = cloneCosignVerification(record)
-	switch inspection.Outcome {
-	case CosignOutcomeUnavailable:
-		return record, ErrFullVerificationUnavailable
-	case CosignOutcomeVerificationFailed:
-		return record, ErrVerificationFailed
-	}
-	if verificationReturnsFailure(state) {
-		return record, ErrVerificationFailed
-	}
-	return record, nil
+	return cloneCosignVerification(record), cosignOutcomeError(inspection.Outcome, record.Result)
+}
+
+type cosignServiceReceiptWriter struct{ Transaction }
+
+func (w cosignServiceReceiptWriter) InsertCosignVerification(ctx context.Context, r verificationdomain.CosignVerification) error {
+	return w.Verification().InsertCosignVerification(ctx, r)
+}
+func (w cosignServiceReceiptWriter) InsertVerificationResult(ctx context.Context, r verificationdomain.VerificationResult) error {
+	return w.Verification().InsertVerificationResult(ctx, r)
+}
+func (w cosignServiceReceiptWriter) AppendAudit(ctx context.Context, e application.AuditEvent) (application.AuditReceipt, error) {
+	return w.Audit().AppendAudit(ctx, e)
 }
 
 func validCosignInput(input VerifyCosignInput) bool {

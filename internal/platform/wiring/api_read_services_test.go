@@ -69,6 +69,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.DSSEVerification != nil {
 		t.Fatal("local memory bound durable DSSE verification")
 	}
+	if memory.CosignVerification != nil {
+		t.Fatal("local memory bound durable Cosign verification")
+	}
 	if memory.SigningCustodyQuery != nil {
 		t.Fatal("local memory bound durable custody query")
 	}
@@ -120,6 +123,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.DSSEVerification == nil {
 		t.Fatal("PostgreSQL DSSE verification still uses Ledger")
+	}
+	if options.CosignVerification == nil {
+		t.Fatal("PostgreSQL Cosign verification still uses Ledger")
 	}
 	if options.SigningCustodyQuery == nil {
 		t.Fatal("PostgreSQL custody report still uses Ledger")

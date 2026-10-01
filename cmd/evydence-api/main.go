@@ -115,6 +115,7 @@ func runWithContext(ctx context.Context) error {
 		MigrationsDir:  migrationsDir,
 		SkipMigrations: strings.EqualFold(os.Getenv("EVYDENCE_SKIP_MIGRATIONS"), "true"),
 		ObjectStore:    wiring.ObjectStoreConfigFromEnv(),
+		Cosign:         cosignVerifier,
 	})
 	if err != nil {
 		return err

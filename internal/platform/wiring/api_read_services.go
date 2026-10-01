@@ -125,6 +125,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create DSSE verification: %w", err)
 	}
+	options.CosignVerification, err = BuildCosignVerificationCommands(store, runtime.Objects, runtime.Cosign)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create Cosign verification: %w", err)
+	}
 	options.SigningCustodyQuery, err = BuildSigningCustodyQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create signing custody query: %w", err)

@@ -276,6 +276,50 @@ models; the fallback is to reject attestations rather than reimplement either
 security-critical format. `make vuln` reports no reachable vulnerabilities;
 dependency update and vulnerability monitoring remain governed by EVY-1407.
 
+### Cosign offline Sigstore bundles
+
+`POST /v1/artifact-signatures/{id}/verify-cosign` retains the full offline
+Sigstore profile, key/keyless modes, configured trust roots/public keys and
+embedded Rekor proof requirement. Caller identity/issuer policy is required
+for keyless mode and rejected for key mode; `offline` must be true. No online
+fallback or metadata-only pass is available. Missing configured verification
+returns `COSIGN_FULL_VERIFICATION_UNAVAILABLE`.
+
+In the PostgreSQL profile, signature/artifact coordinates and payload lifecycle
+metadata are selected and share-locked in the receipt transaction. IDs/digests
+are bounded to 1 KiB, algorithm/status to 64 bytes and selected references/media
+types to 4 KiB. Unused detached signature text is not selected. If more than one
+tenant-owned container image matches the artifact/digest, the smallest image ID
+is selected deterministically; no image is also supported. Human callers need
+a matching tenant grant, not merely an unrelated product/release grant.
+
+Bundle reads use the finalized declared size as their limit, with a 4 MiB
+maximum, and independently check actual bytes, tenant, canonical final key,
+media type and SHA-256. Oversized selected metadata fails closed with conflict,
+not truncation. Missing/unfinalized payloads cannot reach the cryptographic
+verifier. A bundle verification error marks a required cryptographic check
+failed rather than reporting `limited` solely because the error's old generic
+check name was outside the required profile. The command owns the complete
+required-check set; incomplete/limited inspection cannot return success.
+Artifact subject digest labels retain historical upper/lowercase hexadecimal
+compatibility; object payload digests/keys remain canonical lowercase.
+Raw errors and trust material do
+not enter receipts. Verifier/library version, trust-root version and mode are
+persisted using existing columns; no migration or historical rewrite occurs.
+
+Direct command calls commit negative receipts and then return the verification
+error. Failed idempotent HTTP commands roll back the enclosing transaction;
+successful replay returns the original result without re-reading the bundle.
+Local-memory verification retains its explicit compatibility storage path;
+these durable limits do not imply that every legacy payload reader is bounded.
+
+Source/test evidence: `internal/verification/app/cosign_commands.go`,
+`internal/adapters/postgres/repositories/cosign_verification.go`,
+`internal/adapters/verification/cosignobjects/inspector.go`,
+`internal/platform/wiring/cosign_verification.go`,
+`TestPostgresCosignVerificationUsesBoundedDurableFactsAndAtomicReceipts` and
+`TestCosignHandlerUsesFocusedCommandsAndReplay`.
+
 ### Generic vulnerability-scan JSON
 
 `POST /v1/vulnerability-scans` accepts the Evydence-owned generic schema and

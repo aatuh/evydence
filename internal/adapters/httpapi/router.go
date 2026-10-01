@@ -60,6 +60,7 @@ type Server struct {
 	releaseBundleVerification         ReleaseBundleVerification
 	evidenceVerification              EvidenceVerification
 	dsseVerification                  DSSEVerification
+	cosignVerification                CosignVerification
 	signingCustodyQuery               SigningCustodyQuery
 	retentionCommands                 RetentionCommands
 	trustConfigurationCommands        TrustConfigurationCommands
@@ -173,6 +174,8 @@ type ServerOptions struct {
 	EvidenceVerification EvidenceVerification
 	// DSSEVerification inspects bounded finalized payloads and durable root policies.
 	DSSEVerification DSSEVerification
+	// CosignVerification binds durable artifact facts to offline configured trust.
+	CosignVerification CosignVerification
 	// SigningCustodyQuery assesses one bounded committed provider/policy inventory.
 	SigningCustodyQuery SigningCustodyQuery
 	// RetentionCommands atomically persists durable retention intent and observations.
@@ -322,6 +325,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.releaseBundleVerification = opts.ReleaseBundleVerification
 	server.evidenceVerification = opts.EvidenceVerification
 	server.dsseVerification = opts.DSSEVerification
+	server.cosignVerification = opts.CosignVerification
 	server.signingCustodyQuery = opts.SigningCustodyQuery
 	server.retentionCommands = opts.RetentionCommands
 	server.trustConfigurationCommands = opts.TrustConfigurationCommands
@@ -1122,6 +1126,13 @@ func (s *Server) verifyCosignSignature(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
+		}
+		if err := validateNonNullableObjectFields(body, "mode", "offline", "expected_identity", "expected_issuer"); err != nil {
+			return 0, nil, err
+		}
+		if s.cosignVerification != nil {
+			result, err := s.cosignVerification.VerifyCosign(ctx, actor, verificationapp.VerifyCosignInput{ArtifactSignatureID: r.PathValue("id"), ExpectedIdentity: req.ExpectedIdentity, ExpectedIssuer: req.ExpectedIssuer, Mode: verificationapp.CosignVerificationMode(req.Mode), Offline: req.Offline})
+			return http.StatusOK, cosignVerificationFromFocused(result), mapVerificationCommandError(err)
 		}
 		result, err := s.verification.VerifyCosignSignature(ctx, actor, app.VerifyCosignInput{
 			ArtifactSignatureID: r.PathValue("id"),

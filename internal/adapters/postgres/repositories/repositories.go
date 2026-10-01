@@ -3000,13 +3000,15 @@ func (r integrity) InsertCosignVerification(ctx context.Context, verification do
 		INSERT INTO cosign_verifications (
 			id, tenant_id, artifact_id, container_image_id, artifact_signature_id,
 			subject_digest, rekor_uuid, rekor_log_index, certificate_identity,
-			certificate_issuer, result, checks, assurance_profile, limitations,
+			certificate_issuer, verifier_library_version, trust_root_version, verification_mode,
+			result, checks, assurance_profile, limitations,
 			schema_version, created_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
 	`, verification.ID, verification.TenantID, verification.ArtifactID, nullableString(verification.ContainerImageID), verification.ArtifactSignatureID,
 		verification.SubjectDigest, nullableString(verification.RekorUUID), nullableString(verification.RekorLogIndex), nullableString(verification.CertificateIdentity),
-		nullableString(verification.CertificateIssuer), verification.Result, checks, profile, textArray(verification.Limitations), verification.SchemaVersion, verification.CreatedAt)
+		nullableString(verification.CertificateIssuer), verification.VerifierLibraryVersion, verification.TrustRootVersion, verification.VerificationMode,
+		verification.Result, checks, profile, textArray(verification.Limitations), verification.SchemaVersion, verification.CreatedAt)
 	return writeError("insert Cosign verification", err)
 }
 

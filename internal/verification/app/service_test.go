@@ -277,10 +277,12 @@ func TestVerifyCosignAuthorizesInspectsAndPersistsReceiptsAtomically(t *testing.
 		Resources:     application.ResourceReferences{ArtifactID: "art_1"},
 	}
 	state.cosignInspection = CosignInspection{
-		Profile:             verificationdomain.VerificationProfile{ID: "cosign", RequiredChecks: []string{"cryptographic_signature"}},
-		Checks:              []verificationdomain.VerifyCheck{{Name: "cryptographic_signature", Result: "passed"}},
+		Profile:             CosignFullProfile(CosignVerificationModeKeyless, state.cosignSubject.SubjectDigest),
 		CertificateIdentity: "repo:owner/project", CertificateIssuer: "https://issuer.example.test",
 		LibraryVersion: "sigstore-test", TrustRootVersion: "root-v1",
+	}
+	for _, name := range state.cosignInspection.Profile.RequiredChecks {
+		state.cosignInspection.Checks = append(state.cosignInspection.Checks, verificationdomain.VerifyCheck{Name: name, Result: "passed"})
 	}
 	service := newVerificationTestService(t, state)
 
@@ -291,7 +293,7 @@ func TestVerifyCosignAuthorizesInspectsAndPersistsReceiptsAtomically(t *testing.
 	if err != nil {
 		t.Fatalf("verify cosign: %v", err)
 	}
-	if record.ID == "" || record.TenantID != "ten_1" || record.ArtifactSignatureID != "asig_1" || record.Result != "passed" {
+	if record.ID == "" || record.TenantID != "ten_1" || record.ArtifactSignatureID != "asig_1" || record.Result != "passed" || record.Profile.ID != verificationdomain.VerificationProfileCosignFull || len(record.Checks) != 7 {
 		t.Fatalf("record = %#v", record)
 	}
 	if state.cosignRecords[record.ID].ID != record.ID || state.results[record.ID].SubjectID != "asig_1" || len(state.audit) != 1 {
@@ -334,7 +336,7 @@ func TestVerifyCosignRejectsUnsafeModeAndInspectorResult(t *testing.T) {
 func TestVerifyCosignKeyModePersistsFailedReceiptWithoutTrustClaim(t *testing.T) {
 	state := newVerificationTestState()
 	state.cosignSubject = CosignSubject{TenantID: "ten_1", ArtifactID: "art_1", ArtifactSignatureID: "asig_1", SubjectDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
-	state.cosignInspection = CosignInspection{Profile: verificationdomain.VerificationProfile{ID: "cosign", RequiredChecks: []string{"signature"}}, Checks: []verificationdomain.VerifyCheck{{Name: "signature", Result: "failed"}}, Outcome: CosignOutcomeVerificationFailed}
+	state.cosignInspection = CosignInspection{Profile: CosignFullProfile(CosignVerificationModeKey, state.cosignSubject.SubjectDigest), Checks: []verificationdomain.VerifyCheck{{Name: "cryptographic_signature", Result: "failed"}}, Outcome: CosignOutcomeVerificationFailed}
 	service := newVerificationTestService(t, state)
 	record, err := service.VerifyCosign(context.Background(), verificationTestActor(), VerifyCosignInput{ArtifactSignatureID: "asig_1", Mode: CosignVerificationModeKey, Offline: true})
 	if !errors.Is(err, ErrVerificationFailed) || record.Result != "failed" || state.cosignRecords[record.ID].Result != "failed" || state.results[record.ID].Result.String() != "failed" {
