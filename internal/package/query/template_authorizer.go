@@ -9,12 +9,20 @@ import (
 
 // NewTemplateAuthorizer preserves the tenant-wide report permission required
 // for template definitions and metadata-only materialized reports.
-func NewTemplateAuthorizer() application.Authorizer { return templateAuthorizer{} }
+func NewTemplateAuthorizer() application.Authorizer {
+	return tenantWideCommandAuthorizer{scope: "report:read"}
+}
 
-type templateAuthorizer struct{}
+// NewBundleImportAuthorizer requires tenant-wide permission to record an
+// imported manifest receipt; source labels do not grant target-tenant access.
+func NewBundleImportAuthorizer() application.Authorizer {
+	return tenantWideCommandAuthorizer{scope: "bundle:write"}
+}
 
-func (templateAuthorizer) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
-	if request.Scope != "report:read" || request.Resources != (application.ResourceReferences{}) || request.ScopeOnly == request.TenantWide {
+type tenantWideCommandAuthorizer struct{ scope string }
+
+func (a tenantWideCommandAuthorizer) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
+	if a.scope == "" || request.Scope != a.scope || request.Resources != (application.ResourceReferences{}) || request.ScopeOnly == request.TenantWide {
 		return application.ErrForbidden
 	}
 	return application.AuthorizeTenantWideScope(ctx, actor, request.Scope)

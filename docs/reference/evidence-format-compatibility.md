@@ -27,6 +27,35 @@ are append-only lifecycle/audit facts outside that immutable hash. Legacy
 new link or supersession operations; an atomic lifecycle origin snapshot lets
 the legacy verifier reconstruct the originally hashed projection.
 
+## Portable evidence-bundle import receipts
+
+`POST /v1/evidence-bundles/import` validates the manifest hash and
+`evidence-bundle.v1.0.0` version. Manifest evidence IDs must be strings, must
+not be blank or repeated after trimming, and must match the normalized outer
+`evidence_ids` set. An empty set is allowed. The importing actor needs
+tenant-wide `bundle:write` permission; the receipt belongs to that actor's
+target tenant even when source tenant labels differ.
+
+The command commits only an `evidence_bundle_import` receipt and its audit
+entry. It does not store the supplied manifest, ingest payloads, resolve source
+IDs, check evidence existence, or verify signature references. `result:
+"accepted"` means those manifest checks succeeded; `imported_count` counts
+manifest IDs, not newly ingested or trusted evidence records.
+
+Package manifests and custom-report outputs retain the existing normalized-JSON
+hash behavior: marshal with Go `encoding/json`, decode to generic JSON values,
+marshal again, and hash those bytes with SHA-256. Map keys are sorted and JSON
+escaping is retained. Numbers normalize through `float64`, so large integers
+can lose precision; avoid numeric metadata outside the exactly representable
+range. This is not RFC 8785/JCS and does not introduce a new canonicalization
+version. Historical hashes are preserved, including that numeric limitation.
+
+Evidence: `internal/package/app/import_commands.go`,
+`internal/package/app/evidence_bundle.go`,
+`internal/platform/wiring/bundle_import_command.go`,
+`internal/application/normalized_json.go`, and their HTTP, hash-compatibility,
+and live PostgreSQL tests.
+
 ## Current matrix
 
 | Input | Stability | Tested contract | Retained parser identity | Public HTTP form / effective limit |

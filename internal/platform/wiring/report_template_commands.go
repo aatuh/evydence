@@ -2,10 +2,7 @@ package wiring
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/aatuh/evydence/internal/app"
@@ -63,16 +60,11 @@ func (reportOutputHasher) HashReportOutput(ctx context.Context, output map[strin
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	// This version's output is string metadata only. Go's sorted JSON map
-	// keys and escaping match the legacy normalized-JSON byte representation.
+	// This version's output is string metadata only.
 	for _, value := range output {
 		if _, ok := value.(string); !ok {
 			return "", packageapp.ErrValidation
 		}
 	}
-	body, err := json.Marshal(output)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("sha256:%x", sha256.Sum256(body)), nil
+	return application.NormalizedJSONHash(output)
 }

@@ -110,8 +110,8 @@ type TransactionRunner interface {
 }
 
 type ManifestCanonicalizer interface {
-	HashPackageManifest(context.Context, map[string]any) (string, error)
-	HashPackageBytes(context.Context, []byte) (string, error)
+	ManifestHasher
+	ReportBytesHasher
 }
 
 type ProjectionRefresher interface {

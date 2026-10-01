@@ -172,21 +172,21 @@ func (s *Service) ExportEvidenceBundle(ctx context.Context, actor identitydomain
 	return cloneEvidenceBundle(bundle), nil
 }
 
-func (s *Service) ImportEvidenceBundle(ctx context.Context, actor identitydomain.Actor, bundle packagedomain.EvidenceBundle) (packagedomain.EvidenceBundleImport, error) {
+func (s *ImportCommands) ImportEvidenceBundle(ctx context.Context, actor identitydomain.Actor, bundle packagedomain.EvidenceBundle) (packagedomain.EvidenceBundleImport, error) {
 	if err := contextError(ctx); err != nil {
 		return packagedomain.EvidenceBundleImport{}, err
 	}
 	if err := validateActor(actor); err != nil {
 		return packagedomain.EvidenceBundleImport{}, err
 	}
-	if err := s.authorize(ctx, actor, "bundle:write", application.ResourceReferences{}, true); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: "bundle:write", ScopeOnly: true}); err != nil {
 		return packagedomain.EvidenceBundleImport{}, err
 	}
 	bundle = cloneEvidenceBundle(bundle)
 	if len(bundle.Manifest) == 0 || strings.TrimSpace(bundle.ManifestHash) == "" {
 		return packagedomain.EvidenceBundleImport{}, ErrValidation
 	}
-	hash, err := s.canonicalizer.HashPackageManifest(ctx, bundle.Manifest)
+	hash, err := s.config.Hasher.HashPackageManifest(ctx, bundle.Manifest)
 	if err != nil {
 		return packagedomain.EvidenceBundleImport{}, err
 	}
@@ -205,19 +205,19 @@ func (s *Service) ImportEvidenceBundle(ctx context.Context, actor identitydomain
 	if err != nil || !reflect.DeepEqual(manifestIDs, outerIDs) {
 		return packagedomain.EvidenceBundleImport{}, ErrValidation
 	}
-	now := s.clock.Now().UTC()
+	now := s.config.Clock.Now().UTC()
 	record := packagedomain.EvidenceBundleImport{
-		ID: s.ids.NewID("ebi"), TenantID: actor.TenantID, BundleHash: bundle.ManifestHash,
+		ID: s.config.IDs.NewID("ebi"), TenantID: actor.TenantID, BundleHash: bundle.ManifestHash,
 		Result: "accepted", ImportedCount: len(manifestIDs), SchemaVersion: packagedomain.EvidenceBundleImportVersion, CreatedAt: now,
 	}
-	err = s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-		if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Scope: "bundle:write", TenantWide: true}); err != nil {
+	err = s.config.Transactions.ExecuteBundleImport(ctx, func(ctx context.Context, tx ImportTransaction) error {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: "bundle:write", TenantWide: true}); err != nil {
 			return err
 		}
-		if err := tx.Packages().InsertEvidenceBundleImport(ctx, record); err != nil {
+		if err := tx.InsertEvidenceBundleImport(ctx, record); err != nil {
 			return err
 		}
-		_, err := tx.Audit().AppendAudit(ctx, s.auditEvent(actor, now, "evidence_bundle.imported", "evidence_bundle_import", record.ID, bundle.ManifestHash))
+		_, err := tx.AppendAudit(ctx, application.AuditEvent{ID: s.config.IDs.NewID("ace"), TenantID: actor.TenantID, EntryType: "evidence_bundle.imported", SubjectType: "evidence_bundle_import", SubjectID: record.ID, ActorType: auditActorType(actor), ActorID: auditActorID(actor), OccurredAt: now, PayloadHash: bundle.ManifestHash})
 		return err
 	})
 	if err != nil {

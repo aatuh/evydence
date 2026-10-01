@@ -97,6 +97,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create report template commands: %w", err)
 	}
+	options.BundleImportCommand, err = BuildBundleImportCommand(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create bundle import command: %w", err)
+	}
 	options.Authenticator, err = BuildAuthenticator(store, store, pepper, runtime.Production)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create authenticator: %w", err)

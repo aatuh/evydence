@@ -51,6 +51,7 @@ type Server struct {
 	customerPackageAccessCommands     CustomerPackageAccessCommands
 	htmlReportCommands                HTMLReportCommands
 	reportTemplateCommands            ReportTemplateCommands
+	bundleImportCommand               BundleImportCommand
 	releaseReadinessReportQuery       ReleaseReadinessReportQuery
 	releaseSecuritySummaryQuery       ReleaseSecuritySummaryQuery
 	controlCoverageQuery              ControlCoverageQuery
@@ -147,6 +148,8 @@ type ServerOptions struct {
 	HTMLReportCommands HTMLReportCommands
 	// ReportTemplateCommands reads and persists templates and reports atomically.
 	ReportTemplateCommands ReportTemplateCommands
+	// BundleImportCommand atomically records validated manifest import receipts.
+	BundleImportCommand BundleImportCommand
 	// ReleaseSecuritySummaryQuery reads one committed report snapshot.
 	ReleaseSecuritySummaryQuery ReleaseSecuritySummaryQuery
 	// ControlCoverageQuery reads bounded tenant-owned control and CRA reports.
@@ -283,6 +286,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.customerPackageAccessCommands = opts.CustomerPackageAccessCommands
 	server.htmlReportCommands = opts.HTMLReportCommands
 	server.reportTemplateCommands = opts.ReportTemplateCommands
+	server.bundleImportCommand = opts.BundleImportCommand
 	server.releaseSecuritySummaryQuery = opts.ReleaseSecuritySummaryQuery
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
@@ -1856,6 +1860,10 @@ func (s *Server) importEvidenceBundle(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
+		}
+		if s.bundleImportCommand != nil {
+			record, err := s.bundleImportCommand.ImportEvidenceBundle(ctx, actor, evidenceBundleForImport(req))
+			return http.StatusCreated, evidenceBundleImportFromCommands(record), mapCustomerPackageAccessError(err)
 		}
 		record, err := s.packages.ImportEvidenceBundle(ctx, actor, req)
 		return http.StatusCreated, record, err

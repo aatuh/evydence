@@ -151,19 +151,7 @@ func evidenceForCanonicalVerification(item domain.EvidenceItem, events map[strin
 }
 
 func canonicalAnyHash(v any) (string, error) {
-	body, err := json.Marshal(v)
-	if err != nil {
-		return "", err
-	}
-	var normalized any
-	if err := json.Unmarshal(body, &normalized); err != nil {
-		return "", err
-	}
-	body, err = json.Marshal(normalized)
-	if err != nil {
-		return "", err
-	}
-	return hashBytes(body), nil
+	return application.NormalizedJSONHash(v)
 }
 
 func hashBytes(body []byte) string {

@@ -23,6 +23,8 @@ CRA readiness HTML generation uses the bounded control-coverage query with the r
 
 PostgreSQL-profile custom-template creation and rendering use focused template commands. Rendering reads and share-locks one tenant-owned definition, then commits the materialized output and audit entry in the same transaction. Stored template metadata, field names, and text have an 8 MiB combined read budget; oversized or malformed definitions fail closed before rendering. Human actors require a tenant-wide `report:read` grant, not just a product or release grant. Template text is inert: output selects only `subject_type`, `subject_id`, and `generated_at` when named in `allowed_fields`. Other field names add no output, and subject labels do not dereference resources or prove their existence. JSON fields, normalized-JSON hashing, and idempotent HTTP response replay remain compatible. Local-memory mode delegates to the same command orchestration.
 
+PostgreSQL-profile evidence-bundle imports use a focused command that validates the portable manifest and atomically inserts a target-tenant receipt and audit entry. It needs no Ledger, evidence projection, signing provider, or resource lookup. Human actors require tenant-wide `bundle:write` permission; source labels never grant target-tenant access. Local-memory mode shares the orchestration through an explicit transaction adapter. An accepted receipt is not signature verification or evidence ingestion; see the [import receipt and hash compatibility limits](reference/evidence-format-compatibility.md#portable-evidence-bundle-import-receipts).
+
 ## Bounded-context transition
 
 The current `internal/domain` package and `internal/app.Ledger` are transition
