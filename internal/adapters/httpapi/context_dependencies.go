@@ -49,6 +49,12 @@ type RetentionQuery interface {
 	Report(context.Context, domain.Actor, string, string) (operationsdomain.RetentionReport, error)
 }
 
+// IncidentReportQuery assembles one tenant-owned incident report without
+// loading other incidents or the compatibility Ledger.
+type IncidentReportQuery interface {
+	Report(context.Context, domain.Actor, string) (packagedomain.IncidentReport, error)
+}
+
 // InstanceAdminQuery returns aggregate operational counts only after the
 // focused service verifies explicit instance-wide authority.
 type InstanceAdminQuery interface {

@@ -57,6 +57,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create retention query: %w", err)
 	}
+	options.IncidentReportQuery, err = BuildIncidentReportQuery(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create incident report query: %w", err)
+	}
 	options.Authenticator, err = BuildAuthenticator(store, store, pepper, runtime.Production)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create authenticator: %w", err)
