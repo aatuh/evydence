@@ -36,6 +36,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 		t.Fatalf("local memory dependencies=%#v error=%v", memory, err)
 	}
 	store := &postgres.Store{}
+	if memory.ReleaseReadinessReportQuery != nil {
+		t.Fatal("local-memory profile unexpectedly bound durable readiness reports")
+	}
 	checks := []app.ReadinessCheck{
 		{Name: "postgres", Check: func(context.Context) error { return nil }},
 		{Name: "migrations", Check: func(context.Context) error { return nil }},
@@ -45,6 +48,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	options, err := BuildAPIReadServices(&Runtime{Process: API, Profile: PostgreSQL, Postgres: store, Production: true}, "non-default-pepper", checks)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if options.ReleaseReadinessReportQuery == nil {
+		t.Fatal("PostgreSQL profile omitted readiness reports")
 	}
 	if options.ReadinessQuery == nil || options.MetricsQuery == nil || options.RetentionQuery == nil || options.IncidentReportQuery == nil || options.SecurityUpdateEvidenceQuery == nil || options.CRAVulnerabilityQuery == nil || options.MissingEvidenceQuery == nil || options.ReleaseSecuritySummaryQuery == nil || options.ControlCoverageQuery == nil || options.Authenticator == nil || options.InstanceAdminQuery == nil || options.OutboxDiagnosticsQuery == nil || options.OutboxReplayCommand == nil || options.ProductQuery == nil || options.CatalogPointQuery == nil || options.EvidenceFlowQuery == nil ||
 		options.BuildPointQuery == nil || options.ArtifactPointQuery == nil || options.ReleaseCandidateQuery == nil || options.DeploymentPointQuery == nil ||

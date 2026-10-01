@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	application "github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -68,7 +69,15 @@ func (s *Service) ReleaseReadinessReport(ctx context.Context, actor identitydoma
 	if err := s.authorize(ctx, actor, ScopeReadinessRead, resources, false); err != nil {
 		return packagedomain.ReleaseReadinessReport{}, err
 	}
+	return RenderReleaseReadinessReport(snapshot, s.clock.Now())
+}
 
+// RenderReleaseReadinessReport is the canonical pure report renderer shared by
+// focused durable queries and the explicit local-memory service.
+func RenderReleaseReadinessReport(snapshot ReadinessReportSnapshot, now time.Time) (packagedomain.ReleaseReadinessReport, error) {
+	if !validReadinessReportSnapshot(snapshot) || now.IsZero() {
+		return packagedomain.ReleaseReadinessReport{}, ErrConflict
+	}
 	gaps := make([]string, 0)
 	failedPolicies := make([]string, 0)
 	for _, check := range snapshot.Checks {
@@ -93,7 +102,7 @@ func (s *Service) ReleaseReadinessReport(ctx context.Context, actor identitydoma
 		FailedPolicies: append([]string(nil), failedPolicies...), KnownLimitations: append([]string(nil), knownLimitations...),
 		NonClaims:   append([]string(nil), nonClaims...),
 		Assumptions: []string{"This report supports compliance readiness and technical evidence review; it is not a legal compliance conclusion."},
-		Limitations: append([]string(nil), knownLimitations...), GeneratedAt: s.clock.Now().UTC(),
+		Limitations: append([]string(nil), knownLimitations...), GeneratedAt: now.UTC(),
 	}
 	return report, nil
 }

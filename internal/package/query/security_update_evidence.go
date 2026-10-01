@@ -150,13 +150,17 @@ func (s *SecurityUpdateEvidence) Report(ctx context.Context, actor identitydomai
 const MaxSecurityUpdateEntries = 4096
 
 func releaseReportAllowed(actor identitydomain.Actor, productID, releaseID string) bool {
+	return releaseScopeAllowed(actor, "report:read", productID, releaseID)
+}
+
+func releaseScopeAllowed(actor identitydomain.Actor, requiredScope, productID, releaseID string) bool {
 	if actor.UserID == "" || actor.KeyID != "" || actor.CollectorID != "" {
 		return true
 	}
 	for _, grant := range actor.ResourceGrants {
 		allowed := false
 		for _, scope := range grant.Scopes {
-			if scope == "report:read" || scope == "admin" || scope == "*" {
+			if scope == requiredScope || scope == "admin" || scope == "*" {
 				allowed = true
 				break
 			}

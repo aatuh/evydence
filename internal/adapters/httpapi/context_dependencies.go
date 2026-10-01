@@ -72,6 +72,11 @@ type MissingEvidenceQuery interface {
 	Report(context.Context, domain.Actor, string) (map[string]any, error)
 }
 
+// ReleaseReadinessReportQuery renders a read-only bounded release snapshot.
+type ReleaseReadinessReportQuery interface {
+	Report(context.Context, domain.Actor, string) (packagedomain.ReleaseReadinessReport, error)
+}
+
 // ReleaseSecuritySummaryQuery assembles one release's security overview from
 // a bounded, tenant-scoped committed snapshot.
 type ReleaseSecuritySummaryQuery interface {
