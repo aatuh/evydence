@@ -1113,18 +1113,26 @@ func inspectVerificationSubjectLocked(ledger *Ledger, subject verificationapp.Su
 		profile = assuranceProfile(domain.VerificationProfileEvidenceCanonicalHash, []string{"canonical_hash"}, []string{item.Canonicalization}, "tenant-scoped verification authorization", "not_evaluated", "canonical evidence fields", item.CanonicalHash, []string{"Canonical evidence hashing does not validate the origin or completeness of the uploaded payload."})
 	case "release_bundle":
 		bundle := ledger.bundles[subject.ID]
-		hash, err := canonicalAnyHash(bundle.Manifest)
-		if err != nil || hash != bundle.ManifestHash {
-			checks = append(checks, domain.VerifyCheck{Name: "manifest_hash", Result: "failed"})
-		} else {
-			checks = append(checks, domain.VerifyCheck{Name: "manifest_hash", Result: "passed"})
+		snapshot := verificationapp.ReleaseBundleVerificationSnapshot{Subject: subject, Manifest: bundle.Manifest, ManifestHash: bundle.ManifestHash, SignatureRefs: bundle.SignatureRefs}
+		seenKeys := map[string]bool{}
+		for _, ref := range bundle.SignatureRefs {
+			sig, ok := ledger.signatures[ref]
+			if !ok || sig.TenantID != subject.TenantID {
+				continue
+			}
+			snapshot.Signatures = append(snapshot.Signatures, verificationdomain.Signature{ID: sig.ID, TenantID: sig.TenantID, SubjectType: sig.SubjectType, SubjectID: sig.SubjectID, KeyID: sig.KeyID, Algorithm: sig.Algorithm, Value: sig.Value, CreatedAt: sig.CreatedAt})
+			if !seenKeys[sig.KeyID] {
+				if key, ok := ledger.signingKeys[sig.KeyID]; ok && key.TenantID == subject.TenantID {
+					mapped, err := signingKeyToVerificationContext(key)
+					if err != nil {
+						return verificationapp.SubjectInspection{}, verificationapp.ErrConflict
+					}
+					snapshot.Keys = append(snapshot.Keys, mapped)
+					seenKeys[sig.KeyID] = true
+				}
+			}
 		}
-		if !ledger.verifySignatureForSubjectLocked(bundle.TenantID, bundle.SignatureRefs, "release_bundle", bundle.ID, []byte(bundle.ManifestHash)) {
-			checks = append(checks, domain.VerifyCheck{Name: "bundle_signature", Result: "failed"})
-		} else {
-			checks = append(checks, domain.VerifyCheck{Name: "bundle_signature", Result: "passed"})
-		}
-		profile = assuranceProfile(domain.VerificationProfileReleaseBundleSignature, []string{"manifest_hash", "bundle_signature"}, []string{"active or historically valid tenant signing keys"}, "tenant-scoped verification authorization", "not_evaluated", "release bundle manifest canonical JSON", bundle.ManifestHash, []string{"Bundle verification does not establish external publication, registry provenance, or legal sufficiency."})
+		return verificationapp.InspectReleaseBundle(snapshot, ledger.now().UTC(), ledgerVerificationHasher{}, ledgerVerificationPayloadVerifier{})
 	case "artifact_signature":
 		signature := ledger.artifactSigs[subject.ID]
 		artifact := ledger.artifacts[signature.ArtifactID]

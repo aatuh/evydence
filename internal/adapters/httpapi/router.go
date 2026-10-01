@@ -56,6 +56,7 @@ type Server struct {
 	releaseBundleCommands             ReleaseBundleCommands
 	evidenceBundleCommands            EvidenceBundleCommands
 	signingKeyCommands                SigningKeyCommands
+	releaseBundleVerification         ReleaseBundleVerification
 	releaseReadinessReportQuery       ReleaseReadinessReportQuery
 	releaseSecuritySummaryQuery       ReleaseSecuritySummaryQuery
 	controlCoverageQuery              ControlCoverageQuery
@@ -160,6 +161,8 @@ type ServerOptions struct {
 	EvidenceBundleCommands EvidenceBundleCommands
 	// SigningKeyCommands changes tenant-owned key lifecycle atomically.
 	SigningKeyCommands SigningKeyCommands
+	// ReleaseBundleVerification inspects durable bundle/public-key rows atomically.
+	ReleaseBundleVerification ReleaseBundleVerification
 	// ReleaseSecuritySummaryQuery reads one committed report snapshot.
 	ReleaseSecuritySummaryQuery ReleaseSecuritySummaryQuery
 	// ControlCoverageQuery reads bounded tenant-owned control and CRA reports.
@@ -300,6 +303,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.releaseBundleCommands = opts.ReleaseBundleCommands
 	server.evidenceBundleCommands = opts.EvidenceBundleCommands
 	server.signingKeyCommands = opts.SigningKeyCommands
+	server.releaseBundleVerification = opts.ReleaseBundleVerification
 	server.releaseSecuritySummaryQuery = opts.ReleaseSecuritySummaryQuery
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
@@ -3119,7 +3123,7 @@ func (s *Server) verifyReleaseBundle(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	result, err := s.verification.VerifySubject(r.Context(), actor, "release_bundle", r.PathValue("id"))
+	result, err := s.verifyReleaseBundleResult(r.Context(), actor, r.PathValue("id"))
 	if err != nil && !errors.Is(err, app.ErrVerificationFailed) {
 		writeProblem(w, r, err)
 		return
@@ -3469,6 +3473,16 @@ func (s *Server) verifySubject(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
+		}
+		if s.releaseBundleVerification != nil && strings.TrimSpace(req.SubjectType) == "release_bundle" {
+			if err := validateNonNullableObjectFields(body, "subject_type", "subject_id"); err != nil {
+				return 0, nil, err
+			}
+			if strings.TrimSpace(req.SubjectID) == "" {
+				return 0, nil, app.ErrValidation
+			}
+			result, err := s.releaseBundleVerification.VerifyReleaseBundle(ctx, actor, req.SubjectID)
+			return http.StatusOK, verificationResultFromFocused(result), mapVerificationCommandError(err)
 		}
 		result, err := s.verification.VerifySubject(ctx, actor, req.SubjectType, req.SubjectID)
 		return http.StatusOK, result, err

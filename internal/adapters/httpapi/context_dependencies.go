@@ -113,6 +113,10 @@ type SigningKeyCommands interface {
 	RevokeSigningKey(context.Context, identitydomain.Actor, string, verificationapp.SigningKeyRevocationInput) (verificationdomain.SigningKey, error)
 }
 
+type ReleaseBundleVerification interface {
+	VerifyReleaseBundle(context.Context, identitydomain.Actor, string) (verificationdomain.VerificationResult, error)
+}
+
 // ReleaseSecuritySummaryQuery assembles one release's security overview from
 // a bounded, tenant-scoped committed snapshot.
 type ReleaseSecuritySummaryQuery interface {

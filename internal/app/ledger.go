@@ -999,17 +999,25 @@ func (l *Ledger) verifySignatureForSubjectLocked(tenantID string, signatureRefs 
 		if key.HistoricalValidityAt(sig.CreatedAt, l.now().UTC()) != domain.SigningKeyHistoricalValidityValid {
 			continue
 		}
-		pub, err := base64.RawStdEncoding.DecodeString(key.PublicKey)
-		if err != nil {
-			continue
-		}
-		value, err := base64.RawStdEncoding.DecodeString(sig.Value)
-		if err != nil {
-			continue
-		}
-		if ed25519.Verify(ed25519.PublicKey(pub), payload, value) {
+		if (ledgerVerificationPayloadVerifier{}).VerifyPayload(key.PublicKey, sig.Value, payload) {
 			return true
 		}
 	}
 	return false
+}
+
+// Compatibility-only crypto adapter for the explicit local Ledger profile.
+// Durable commands receive their cryptographic adapter from platform wiring.
+type ledgerVerificationPayloadVerifier struct{}
+
+func (ledgerVerificationPayloadVerifier) VerifyPayload(publicKey, signature string, payload []byte) bool {
+	if len(publicKey) > 128 || len(signature) > 128 {
+		return false
+	}
+	public, err := base64.RawStdEncoding.DecodeString(publicKey)
+	if err != nil || len(public) != ed25519.PublicKeySize {
+		return false
+	}
+	value, err := base64.RawStdEncoding.DecodeString(signature)
+	return err == nil && ed25519.Verify(ed25519.PublicKey(public), payload, value)
 }
