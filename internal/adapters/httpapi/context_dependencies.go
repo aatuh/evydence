@@ -43,6 +43,12 @@ type MetricsQuery interface {
 	Snapshot(context.Context, domain.Actor) (map[string]any, error)
 }
 
+// RetentionQuery reads a tenant-wide report from a consistent durable
+// projection; local memory retains its explicit Ledger-backed path.
+type RetentionQuery interface {
+	Report(context.Context, domain.Actor, string, string) (operationsdomain.RetentionReport, error)
+}
+
 // InstanceAdminQuery returns aggregate operational counts only after the
 // focused service verifies explicit instance-wide authority.
 type InstanceAdminQuery interface {
