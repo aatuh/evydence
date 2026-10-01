@@ -60,11 +60,15 @@ func (t releaseBundleTransaction) Authorize(ctx context.Context, actor identityd
 	return packagequery.NewReleaseBundleAuthorizer().Authorize(ctx, actor, request)
 }
 func (t releaseBundleTransaction) InsertReleaseBundleSignature(ctx context.Context, signature packageapp.PackageSignature, hash string) error {
+	return insertValidatedPackageSignature(ctx, t.signatures, t.validator, signature, hash)
+}
+
+func insertValidatedPackageSignature(ctx context.Context, signatures app.SignatureRepository, validator packageSignatureValidator, signature packageapp.PackageSignature, hash string) error {
 	legacy := domain.Signature{ID: signature.ID, TenantID: signature.TenantID, SubjectType: signature.SubjectType, SubjectID: signature.SubjectID, KeyID: signature.KeyID, Algorithm: signature.Algorithm, Value: signature.Value, CreatedAt: signature.CreatedAt}
-	if err := t.validator.ValidatePackageSignature(ctx, legacy, hash); err != nil {
+	if err := validator.ValidatePackageSignature(ctx, legacy, hash); err != nil {
 		return mapPackageAccessWriteError(err)
 	}
-	return mapPackageAccessWriteError(t.signatures.InsertSignature(ctx, legacy))
+	return mapPackageAccessWriteError(signatures.InsertSignature(ctx, legacy))
 }
 func (t releaseBundleTransaction) InsertReleaseBundle(ctx context.Context, bundle packagedomain.ReleaseBundle) error {
 	return mapPackageAccessWriteError(t.packages.InsertReleaseBundle(ctx, domain.ReleaseBundle{ID: bundle.ID, TenantID: bundle.TenantID, ReleaseID: bundle.ReleaseID, State: bundle.State.String(), Manifest: bundle.Manifest, ManifestHash: bundle.ManifestHash, SignatureRefs: bundle.SignatureRefs, CreatedAt: bundle.CreatedAt, PublishedAt: bundle.PublishedAt, RevokedAt: bundle.RevokedAt}))

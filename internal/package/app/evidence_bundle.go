@@ -33,14 +33,14 @@ type EvidenceBundleSnapshot struct {
 	ObjectLockProofs []map[string]any
 }
 
-func (s *Service) ExportEvidenceBundle(ctx context.Context, actor identitydomain.Actor, releaseID string, evidenceIDs []string) (packagedomain.EvidenceBundle, error) {
+func (s *ExportCommands) ExportEvidenceBundle(ctx context.Context, actor identitydomain.Actor, releaseID string, evidenceIDs []string) (packagedomain.EvidenceBundle, error) {
 	if err := contextError(ctx); err != nil {
 		return packagedomain.EvidenceBundle{}, err
 	}
 	if err := validateActor(actor); err != nil {
 		return packagedomain.EvidenceBundle{}, err
 	}
-	if err := s.authorize(ctx, actor, "bundle:read", application.ResourceReferences{}, true); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: "bundle:read", ScopeOnly: true}); err != nil {
 		return packagedomain.EvidenceBundle{}, err
 	}
 	releaseID = strings.TrimSpace(releaseID)
@@ -48,12 +48,8 @@ func (s *Service) ExportEvidenceBundle(ctx context.Context, actor identitydomain
 	if err != nil {
 		return packagedomain.EvidenceBundle{}, err
 	}
-	if s.projectionRefresher != nil {
-		if err := s.projectionRefresher.RefreshPackageProjection(ctx, actor.TenantID); err != nil {
-			return packagedomain.EvidenceBundle{}, err
-		}
-	}
-	snapshot, err := s.reader.ReadCommittedEvidenceBundleSnapshot(ctx, actor.TenantID, releaseID)
+	now := s.config.Clock.Now().UTC()
+	snapshot, err := s.config.Reader.ReadEvidenceBundleSnapshot(ctx, actor.TenantID, releaseID, now)
 	if err != nil {
 		return packagedomain.EvidenceBundle{}, err
 	}
@@ -66,7 +62,7 @@ func (s *Service) ExportEvidenceBundle(ctx context.Context, actor identitydomain
 	}
 	rootResources := application.ResourceReferences{ProductID: snapshot.ProductID, ReleaseID: releaseID}
 	if releaseID != "" {
-		if err := s.authorize(ctx, actor, "bundle:read", rootResources, false); err != nil {
+		if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: "bundle:read", Resources: rootResources}); err != nil {
 			return packagedomain.EvidenceBundle{}, err
 		}
 	}
@@ -87,34 +83,34 @@ func (s *Service) ExportEvidenceBundle(ctx context.Context, actor identitydomain
 		byID[id] = item
 	}
 	selected := make([]string, 0)
-	selectedResources := make([]application.ResourceReferences, 0)
 	if len(requestedIDs) > 0 {
 		for _, id := range requestedIDs {
 			item, ok := byID[id]
 			if !ok {
 				return packagedomain.EvidenceBundle{}, ErrNotFound
 			}
-			if err := s.authorize(ctx, actor, "bundle:read", item.Resources, false); err != nil {
+			if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: "bundle:read", Resources: item.Resources}); err != nil {
 				return packagedomain.EvidenceBundle{}, err
 			}
 			selected = append(selected, id)
-			selectedResources = append(selectedResources, item.Resources)
 		}
 	} else {
 		for id, item := range byID {
-			if err := s.authorize(ctx, actor, "bundle:read", item.Resources, false); err != nil {
+			if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: "bundle:read", Resources: item.Resources}); err != nil {
 				if errors.Is(err, ErrForbidden) {
 					continue
 				}
 				return packagedomain.EvidenceBundle{}, err
 			}
 			selected = append(selected, id)
-			selectedResources = append(selectedResources, item.Resources)
 		}
 	}
 	sort.Strings(selected)
-	now := s.clock.Now().UTC()
-	bundleID := s.ids.NewID("eb")
+	selectedItems := make([]EvidenceBundleEvidence, 0, len(selected))
+	for _, id := range selected {
+		selectedItems = append(selectedItems, byID[id])
+	}
+	bundleID := s.config.IDs.NewID("eb")
 	manifest := map[string]any{
 		"bundle_version": packagedomain.EvidenceBundleSchemaVersion, "tenant_id": actor.TenantID,
 		"release_id": releaseID, "evidence_ids": append([]string(nil), selected...),
@@ -122,14 +118,14 @@ func (s *Service) ExportEvidenceBundle(ctx context.Context, actor identitydomain
 		"verification":        "Run evydence verify-evidence-bundle <bundle.json> offline.",
 		"verification_limits": []string{"Object-lock proof records reflect Evydence verification metadata and do not prove legal compliance, provider IAM correctness, or complete WORM enforcement."},
 	}
-	manifestHash, err := s.canonicalizer.HashPackageManifest(ctx, manifest)
+	manifestHash, err := s.config.Hasher.HashPackageManifest(ctx, manifest)
 	if err != nil {
 		return packagedomain.EvidenceBundle{}, err
 	}
 	if strings.TrimSpace(manifestHash) == "" {
 		return packagedomain.EvidenceBundle{}, ErrValidation
 	}
-	signature, err := s.signer.SignPackage(ctx, PackageSigningRequest{
+	signature, err := s.config.Signer.SignPackage(ctx, PackageSigningRequest{
 		TenantID: actor.TenantID, SubjectType: "evidence_bundle", SubjectID: bundleID, PayloadHash: manifestHash, CreatedAt: now,
 	})
 	if err != nil {
@@ -144,26 +140,17 @@ func (s *Service) ExportEvidenceBundle(ctx context.Context, actor identitydomain
 		VerificationText: "Verify manifest_hash over manifest canonical JSON and signature references with tenant public keys.",
 		SchemaVersion:    packagedomain.EvidenceBundleSchemaVersion, CreatedAt: now,
 	}
-	err = s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-		if releaseID != "" {
-			if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Scope: "bundle:read", Resources: rootResources}); err != nil {
-				return err
-			}
-		}
-		for _, resources := range selectedResources {
-			if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Scope: "bundle:read", Resources: resources}); err != nil {
-				return err
-			}
-		}
-		if err := tx.Signatures().InsertPackageSignature(ctx, signature); err != nil {
+	err = s.config.Transactions.ExecuteEvidenceBundleExport(ctx, func(ctx context.Context, tx ExportTransaction) error {
+		if err := tx.AuthorizeEvidenceBundleSelection(ctx, actor, rootResources, selectedItems); err != nil {
 			return err
 		}
-		if err := tx.Packages().InsertEvidenceBundle(ctx, bundle); err != nil {
+		if err := tx.InsertEvidenceBundleSignature(ctx, signature, manifestHash); err != nil {
 			return err
 		}
-		audit := s.auditEvent(actor, now, "evidence_bundle.exported", "evidence_bundle", bundle.ID, manifestHash)
-		audit.SignatureRef = signature.ID
-		_, err := tx.Audit().AppendAudit(ctx, audit)
+		if err := tx.InsertEvidenceBundle(ctx, bundle); err != nil {
+			return err
+		}
+		_, err := tx.AppendAudit(ctx, application.AuditEvent{ID: s.config.IDs.NewID("ace"), TenantID: actor.TenantID, EntryType: "evidence_bundle.exported", SubjectType: "evidence_bundle", SubjectID: bundle.ID, ActorType: auditActorType(actor), ActorID: auditActorID(actor), OccurredAt: now, PayloadHash: manifestHash, SignatureRef: signature.ID})
 		return err
 	})
 	if err != nil {

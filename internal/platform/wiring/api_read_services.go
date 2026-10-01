@@ -105,6 +105,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create release bundle commands: %w", err)
 	}
+	options.EvidenceBundleCommands, err = BuildEvidenceBundleCommands(store, store, store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create evidence bundle commands: %w", err)
+	}
 	options.Authenticator, err = BuildAuthenticator(store, store, pepper, runtime.Production)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create authenticator: %w", err)

@@ -53,6 +53,7 @@ type Server struct {
 	reportTemplateCommands            ReportTemplateCommands
 	bundleImportCommand               BundleImportCommand
 	releaseBundleCommands             ReleaseBundleCommands
+	evidenceBundleCommands            EvidenceBundleCommands
 	releaseReadinessReportQuery       ReleaseReadinessReportQuery
 	releaseSecuritySummaryQuery       ReleaseSecuritySummaryQuery
 	controlCoverageQuery              ControlCoverageQuery
@@ -153,6 +154,8 @@ type ServerOptions struct {
 	BundleImportCommand BundleImportCommand
 	// ReleaseBundleCommands generates signed bundles from committed durable facts.
 	ReleaseBundleCommands ReleaseBundleCommands
+	// EvidenceBundleCommands exports scoped references from committed durable facts.
+	EvidenceBundleCommands EvidenceBundleCommands
 	// ReleaseSecuritySummaryQuery reads one committed report snapshot.
 	ReleaseSecuritySummaryQuery ReleaseSecuritySummaryQuery
 	// ControlCoverageQuery reads bounded tenant-owned control and CRA reports.
@@ -291,6 +294,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.reportTemplateCommands = opts.ReportTemplateCommands
 	server.bundleImportCommand = opts.BundleImportCommand
 	server.releaseBundleCommands = opts.ReleaseBundleCommands
+	server.evidenceBundleCommands = opts.EvidenceBundleCommands
 	server.releaseSecuritySummaryQuery = opts.ReleaseSecuritySummaryQuery
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
@@ -1853,6 +1857,18 @@ func (s *Server) exportEvidenceBundle(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
+		}
+		if err := validateEvidenceBundleExportJSON(body); err != nil {
+			return 0, nil, err
+		}
+		for _, id := range req.EvidenceIDs {
+			if strings.TrimSpace(id) == "" {
+				return 0, nil, app.ErrValidation
+			}
+		}
+		if s.evidenceBundleCommands != nil {
+			bundle, err := s.evidenceBundleCommands.ExportEvidenceBundle(ctx, actor, req.ReleaseID, req.EvidenceIDs)
+			return http.StatusCreated, evidenceBundleFromCommands(bundle), mapCustomerPackageAccessError(err)
 		}
 		bundle, err := s.packages.ExportEvidenceBundle(ctx, actor, req.ReleaseID, req.EvidenceIDs)
 		return http.StatusCreated, bundle, err

@@ -103,6 +103,10 @@ type ReleaseBundleCommands interface {
 	CreateReleaseBundle(context.Context, identitydomain.Actor, string) (packagedomain.ReleaseBundle, error)
 }
 
+type EvidenceBundleCommands interface {
+	ExportEvidenceBundle(context.Context, identitydomain.Actor, string, []string) (packagedomain.EvidenceBundle, error)
+}
+
 // ReleaseSecuritySummaryQuery assembles one release's security overview from
 // a bounded, tenant-scoped committed snapshot.
 type ReleaseSecuritySummaryQuery interface {
