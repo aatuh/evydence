@@ -93,6 +93,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.SubjectVerification != nil {
 		t.Fatal("local memory must retain its explicit generic verification path")
 	}
+	if memory.TransparencyCheckpointCommands != nil {
+		t.Fatal("local memory must retain its explicit checkpoint creation path")
+	}
 	if memory.SigningCustodyQuery != nil {
 		t.Fatal("local memory bound durable custody query")
 	}
@@ -168,6 +171,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.SubjectVerification == nil {
 		t.Fatal("PostgreSQL generic verification must not fall back to Ledger")
+	}
+	if options.TransparencyCheckpointCommands == nil {
+		t.Fatal("PostgreSQL checkpoint creation must not use Ledger")
 	}
 	if options.SigningCustodyQuery == nil {
 		t.Fatal("PostgreSQL custody report still uses Ledger")

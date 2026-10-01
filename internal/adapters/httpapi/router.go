@@ -68,6 +68,7 @@ type Server struct {
 	releaseManifestCheckpoint         ReleaseManifestCheckpoint
 	backupVerification                BackupVerification
 	subjectVerification               SubjectVerification
+	transparencyCheckpointCommands    TransparencyCheckpointCommands
 	signingCustodyQuery               SigningCustodyQuery
 	retentionCommands                 RetentionCommands
 	trustConfigurationCommands        TrustConfigurationCommands
@@ -190,7 +191,8 @@ type ServerOptions struct {
 	ReleaseManifestCheckpoint     ReleaseManifestCheckpoint
 	BackupVerification            BackupVerification
 	// SubjectVerification dispatches every generic subject without Ledger fallback.
-	SubjectVerification SubjectVerification
+	SubjectVerification            SubjectVerification
+	TransparencyCheckpointCommands TransparencyCheckpointCommands
 	// SigningCustodyQuery assesses one bounded committed provider/policy inventory.
 	SigningCustodyQuery SigningCustodyQuery
 	// RetentionCommands atomically persists durable retention intent and observations.
@@ -348,6 +350,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.releaseManifestCheckpoint = opts.ReleaseManifestCheckpoint
 	server.backupVerification = opts.BackupVerification
 	server.subjectVerification = opts.SubjectVerification
+	server.transparencyCheckpointCommands = opts.TransparencyCheckpointCommands
 	server.signingCustodyQuery = opts.SigningCustodyQuery
 	server.retentionCommands = opts.RetentionCommands
 	server.trustConfigurationCommands = opts.TrustConfigurationCommands
@@ -3329,6 +3332,13 @@ func (s *Server) createTransparencyCheckpoint(w http.ResponseWriter, r *http.Req
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
+		}
+		if s.transparencyCheckpointCommands != nil {
+			if err := validateNonNullableObjectFields(body, "batch_id", "provider", "external_url", "external_id"); err != nil {
+				return 0, nil, err
+			}
+			checkpoint, err := s.transparencyCheckpointCommands.CreateTransparencyCheckpoint(ctx, actor, verificationapp.CreateTransparencyCheckpointInput{BatchID: req.BatchID, Provider: req.Provider, ExternalURL: req.ExternalURL, ExternalID: req.ExternalID})
+			return http.StatusCreated, domain.TransparencyCheckpoint{ID: checkpoint.ID, TenantID: checkpoint.TenantID, BatchID: checkpoint.BatchID, Provider: checkpoint.Provider, ExternalURL: checkpoint.ExternalURL, ExternalID: checkpoint.ExternalID, TimestampHash: checkpoint.TimestampHash, State: checkpoint.State, SchemaVersion: checkpoint.SchemaVersion, CreatedAt: checkpoint.CreatedAt}, mapVerificationCommandError(err)
 		}
 		checkpoint, err := s.verification.CreateTransparencyCheckpoint(ctx, actor, app.CreateTransparencyCheckpointInput{BatchID: req.BatchID, Provider: req.Provider, ExternalURL: req.ExternalURL, ExternalID: req.ExternalID})
 		return http.StatusCreated, checkpoint, err

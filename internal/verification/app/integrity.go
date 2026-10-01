@@ -141,32 +141,18 @@ func (s *Service) CreateTransparencyCheckpoint(ctx context.Context, actor identi
 	if err := s.authorize(ctx, actor, ScopeKeysAdmin, application.ResourceReferences{}, false, true); err != nil {
 		return verificationdomain.TransparencyCheckpoint{}, err
 	}
-	input.BatchID = strings.TrimSpace(input.BatchID)
-	input.Provider = strings.TrimSpace(input.Provider)
-	input.ExternalURL = strings.TrimSpace(input.ExternalURL)
-	input.ExternalID = strings.TrimSpace(input.ExternalID)
-	if input.BatchID == "" || input.Provider == "" || (input.ExternalURL == "" && input.ExternalID == "") {
-		return verificationdomain.TransparencyCheckpoint{}, ErrValidation
+	input, err := normalizeTransparencyCheckpointInput(input)
+	if err != nil {
+		return verificationdomain.TransparencyCheckpoint{}, err
 	}
 	batch, err := s.integrity.ReadMerkleBatch(ctx, actor.TenantID, input.BatchID)
 	if err != nil {
 		return verificationdomain.TransparencyCheckpoint{}, err
 	}
-	if batch.ID != input.BatchID || batch.TenantID != actor.TenantID || batch.RootHash == "" {
-		return verificationdomain.TransparencyCheckpoint{}, ErrNotFound
-	}
-	timestampHash, err := s.canonicalHasher.Hash(map[string]any{"batch_id": batch.ID, "root_hash": batch.RootHash, "provider": input.Provider, "external_url": input.ExternalURL, "external_id": input.ExternalID})
-	if err != nil || strings.TrimSpace(timestampHash) == "" {
-		if err != nil {
-			return verificationdomain.TransparencyCheckpoint{}, err
-		}
-		return verificationdomain.TransparencyCheckpoint{}, ErrValidation
-	}
 	now := s.clock.Now().UTC()
-	checkpoint := verificationdomain.TransparencyCheckpoint{
-		ID: s.ids.NewID("tcp"), TenantID: actor.TenantID, BatchID: batch.ID, Provider: input.Provider,
-		ExternalURL: input.ExternalURL, ExternalID: input.ExternalID, TimestampHash: timestampHash, State: "recorded",
-		SchemaVersion: verificationdomain.TransparencyCheckpointVersion, CreatedAt: now,
+	checkpoint, err := recordedTransparencyCheckpoint(actor.TenantID, input, TransparencyCheckpointSource{TenantID: batch.TenantID, ID: batch.ID, RootHash: batch.RootHash}, s.canonicalHasher, now, s.ids.NewID("tcp"))
+	if err != nil {
+		return verificationdomain.TransparencyCheckpoint{}, err
 	}
 	err = s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
 		if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true}); err != nil {
@@ -176,7 +162,7 @@ func (s *Service) CreateTransparencyCheckpoint(ctx context.Context, actor identi
 			return err
 		}
 		audit := s.auditEvent(actor, now, "transparency_checkpoint.recorded", "transparency_checkpoint", checkpoint.ID)
-		audit.PayloadHash = timestampHash
+		audit.PayloadHash = checkpoint.TimestampHash
 		_, err := tx.Audit().AppendAudit(ctx, audit)
 		return err
 	})

@@ -167,6 +167,10 @@ type SubjectVerification interface {
 	VerifySubject(context.Context, identitydomain.Actor, string, string) (verificationdomain.VerificationResult, error)
 }
 
+type TransparencyCheckpointCommands interface {
+	CreateTransparencyCheckpoint(context.Context, identitydomain.Actor, verificationapp.CreateTransparencyCheckpointInput) (verificationdomain.TransparencyCheckpoint, error)
+}
+
 // SigningCustodyQuery assesses bounded durable provider and retention records.
 type SigningCustodyQuery interface {
 	Report(context.Context, identitydomain.Actor) (verificationdomain.SigningCustodyReviewReport, error)

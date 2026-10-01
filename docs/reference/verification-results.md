@@ -80,6 +80,37 @@ clock input specified by the profile. See
 [ADR 0002](../adr/0002-cryptographic-trust-model.md) for the full decision,
 threat boundaries, and migration rules.
 
+## Recorded External Transparency Checkpoints
+
+`POST /v1/transparency-checkpoints` records an operator-supplied provider and
+external ID or URL against a tenant-owned Merkle batch. In the PostgreSQL
+profile, a focused command checks tenant-wide `keys:admin` authorization before
+reading the selected batch's ID and root hash. It does not load leaf hashes,
+signature references, audit bodies, keys or other tenant resources. Tenant and
+batch share locks and the existing exclusive tenant projection fence keep that
+root stable through checkpoint and audit commit, in audit-writer lock order.
+Failed writes roll back both records; successful idempotent replay creates
+neither record again. This operation retains its existing no-outbox behavior.
+
+The timestamp hash is the existing normalized-JSON SHA-256 over `batch_id`,
+`root_hash`, `provider`, `external_url` and `external_id`. State remains
+`recorded`. No URL is fetched and no provider signature, timestamp, publication
+or external inclusion proof is verified by this command. It is not a
+verification receipt or evidence that a batch was externally anchored.
+
+Inputs are trimmed, valid UTF-8 without NUL bytes, with a 1 KiB batch-ID limit
+and a combined 1 MiB text budget. At least one external ID or URL is required;
+either may be omitted or empty, but explicit JSON nulls are rejected in the
+PostgreSQL path according to the non-nullable request schema. Selected stored
+roots above 1 KiB or malformed text fail closed without partial writes. Local
+memory shares input and hash construction policy through its compatibility
+adapter. Historical checkpoint records and schema remain unchanged.
+
+Source/test evidence: `internal/verification/app/transparency_checkpoint_commands.go`,
+`internal/adapters/postgres/repositories/transparency_checkpoint.go`,
+`internal/platform/wiring/transparency_checkpoint_commands_test.go` and
+`internal/adapters/httpapi/transparency_checkpoint_commands_test.go`.
+
 ## Generic Subject Dispatch
 
 In the PostgreSQL runtime profile, `POST /v1/verify` uses a closed dispatcher

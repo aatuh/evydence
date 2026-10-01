@@ -55,6 +55,15 @@ Evidence-bundle export (`POST /v1/evidence-bundles`) also uses focused durable c
 
 ## Bounded-context transition
 
+PostgreSQL-profile external transparency-checkpoint creation uses a focused
+command and reads only the tenant-owned batch root, not Ledger state or batch
+leaves/signatures. The selected root stays locked until checkpoint and audit
+commit; replay does not add duplicate records. Provider/URL metadata remains an
+operator assertion with state `recorded`, not proof of external anchoring.
+Local memory shares the normalized-JSON hash policy. See
+[recorded external checkpoints](reference/verification-results.md#recorded-external-transparency-checkpoints)
+for authorization, bounds and explicit non-claims.
+
 PostgreSQL-profile `POST /v1/verify` receives one focused subject-verification
 port from `BuildAPIReadServices`. A closed application dispatcher binds all
 nine supported subject types to their focused commands, with no dynamic service

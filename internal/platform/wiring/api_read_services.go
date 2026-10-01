@@ -155,6 +155,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create backup verification: %w", err)
 	}
+	options.TransparencyCheckpointCommands, err = BuildTransparencyCheckpointCommands(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create transparency checkpoint commands: %w", err)
+	}
 	options.SubjectVerification, err = verificationapp.NewSubjectVerificationCommands(verificationapp.SubjectVerificationConfig{
 		Authorizer: verificationquery.NewEvidenceVerificationAuthorizer(),
 		AuditChain: options.AuditChainVerification, Evidence: options.EvidenceVerification,
