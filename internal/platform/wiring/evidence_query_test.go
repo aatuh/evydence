@@ -10,7 +10,7 @@ import (
 
 type evidencePointReaderStub struct{}
 
-func (evidencePointReaderStub) GetEvidencePoint(context.Context, string, string) (evidencequery.EvidencePoint, error) {
+func (evidencePointReaderStub) GetEvidencePoint(context.Context, string, string, evidencequery.EvidenceReadGuard) (evidencequery.EvidencePoint, error) {
 	return evidencequery.EvidencePoint{}, nil
 }
 
@@ -26,7 +26,7 @@ func TestBuildEvidencePointQueryRequiresReader(t *testing.T) {
 
 type lifecyclePageReaderStub struct{}
 
-func (lifecyclePageReaderStub) PageLifecycleEvents(context.Context, string, string, appquery.PageRequest, *appquery.SortKey) (evidencequery.LifecyclePage, error) {
+func (lifecyclePageReaderStub) PageLifecycleEvents(context.Context, string, string, appquery.PageRequest, *appquery.SortKey, evidencequery.EvidenceReadGuard) (evidencequery.LifecyclePage, error) {
 	return evidencequery.LifecyclePage{}, nil
 }
 

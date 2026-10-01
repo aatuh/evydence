@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,8 +19,30 @@ type lifecyclePageReaderStub struct {
 	calls  int
 }
 
-func (r *lifecyclePageReaderStub) PageLifecycleEvents(_ context.Context, _, _ string, _ appquery.PageRequest, _ *appquery.SortKey) (LifecyclePage, error) {
+func TestLifecycleEventsRejectMalformedIDBeforeStorage(t *testing.T) {
+	reader := &lifecyclePageReaderStub{}
+	service, err := NewLifecycleEvents(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := appquery.PageRequest{PageSize: 1, Sort: appquery.SortCreatedAt, Direction: appquery.Ascending}
+	for _, id := range []string{"ev\x00bad", string([]byte{0xff}), strings.Repeat("x", 1025)} {
+		if _, err := service.ListPage(t.Context(), evidenceKeyActor(), id, page, nil); !errors.Is(err, ErrValidation) || reader.calls != 0 {
+			t.Fatalf("malformed ID error=%v reader calls=%d", err, reader.calls)
+		}
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := service.ListPage(ctx, evidenceKeyActor(), "ev_1", page, nil); !errors.Is(err, context.Canceled) || reader.calls != 0 {
+		t.Fatalf("cancelled page error=%v reader calls=%d", err, reader.calls)
+	}
+}
+
+func (r *lifecyclePageReaderStub) PageLifecycleEvents(_ context.Context, _, _ string, _ appquery.PageRequest, _ *appquery.SortKey, guard EvidenceReadGuard) (LifecyclePage, error) {
 	r.calls++
+	if err := guard(application.ResourceReferences{ProductID: r.result.Point.ProductID, ProjectID: r.result.Point.ProjectID, ReleaseID: r.result.Point.ReleaseID}); err != nil {
+		return LifecyclePage{}, err
+	}
 	return r.result, r.err
 }
 
@@ -48,6 +71,7 @@ func TestLifecycleEventsPageAuthorizesParentAndValidatesRows(t *testing.T) {
 		t.Fatalf("wrong release grant error=%v", err)
 	}
 	actor.TenantID = "ten_2"
+	actor.ResourceGrants[0].ResourceID = "rel_1"
 	if _, err := service.ListPage(context.Background(), actor, "ev_1", page, nil); !errors.Is(err, ErrConflict) {
 		t.Fatalf("wrong-tenant projection error=%v", err)
 	}
@@ -57,9 +81,9 @@ func TestLifecycleEventsPageAuthorizesParentAndValidatesRows(t *testing.T) {
 	if _, err := service.ListPage(context.Background(), actor, "ev_1", page, nil); !errors.Is(err, ErrConflict) {
 		t.Fatalf("foreign event error=%v", err)
 	}
-	reader.err = ErrRequiresProjection
-	if _, err := service.ListPage(context.Background(), actor, "ev_1", page, nil); !errors.Is(err, ErrRequiresProjection) {
-		t.Fatalf("worker-owned fallback error=%v", err)
+	reader.err = ErrConflict
+	if _, err := service.ListPage(context.Background(), actor, "ev_1", page, nil); !errors.Is(err, ErrConflict) {
+		t.Fatalf("unproven worker projection error=%v", err)
 	}
 	reader.err = nil
 	actor.Scopes = nil

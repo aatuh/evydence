@@ -27,11 +27,8 @@ func (r verification) ReadEvidenceVerification(ctx context.Context, subject veri
 		return snapshot, app.ErrValidation
 	}
 	budget := verificationapp.MaxEvidenceVerificationBytes
-	item, err := r.readVerificationEvidence(ctx, subject.TenantID, subject.ID, &budget)
+	item, err := r.readEvidenceWithProvenance(ctx, subject.TenantID, subject.ID, &budget)
 	if err != nil {
-		return snapshot, err
-	}
-	if err := r.validateSelectedWorkerEvidence(ctx, item, &budget); err != nil {
 		return snapshot, err
 	}
 	snapshot.Item = domain.EvidenceToContextModel(item)
@@ -63,6 +60,29 @@ func (r verification) ReadEvidenceVerification(ctx context.Context, subject veri
 		return snapshot, fmt.Errorf("iterate canonical origins: %w", err)
 	}
 	return snapshot, nil
+}
+
+// ReadEvidenceWithWorkerProvenance shares the selected-item/provenance read
+// with point and lifecycle queries. Callers resolve and authorize coordinates
+// first, in this same transaction. No canonical-origin history is needed just
+// to return the evidence item; verification loads that history separately.
+func ReadEvidenceWithWorkerProvenance(ctx context.Context, tx pgx.Tx, tenant, id string) (evidencedomain.EvidenceItem, error) {
+	budget := verificationapp.MaxEvidenceVerificationBytes
+	item, err := (verification{tx}).readEvidenceWithProvenance(ctx, tenant, id, &budget)
+	if err != nil {
+		return evidencedomain.EvidenceItem{}, err
+	}
+	return domain.EvidenceToContextModel(item), nil
+}
+func (r verification) readEvidenceWithProvenance(ctx context.Context, tenant, id string, budget *int) (domain.EvidenceItem, error) {
+	item, err := r.readVerificationEvidence(ctx, tenant, id, budget)
+	if err != nil {
+		return domain.EvidenceItem{}, err
+	}
+	if err := r.validateSelectedWorkerEvidence(ctx, item, budget); err != nil {
+		return domain.EvidenceItem{}, err
+	}
+	return item, nil
 }
 
 // Explicit columns preserve the canonical wire format even if the table grows.

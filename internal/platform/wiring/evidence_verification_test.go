@@ -11,9 +11,11 @@ import (
 
 	postgresrepositories "github.com/aatuh/evydence/internal/adapters/postgres/repositories"
 	"github.com/aatuh/evydence/internal/app"
+	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
+	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 )
@@ -45,6 +47,21 @@ func TestPostgresEvidenceVerificationPreservesCanonicalFieldsAndLegacyOrigins(t 
 	commands, err := BuildEvidenceVerificationCommands(store)
 	if err != nil {
 		t.Fatal(err)
+	}
+	points, err := BuildEvidencePointQuery(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lifecycle, err := BuildLifecycleEventsQuery(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	readActor := identitydomain.Actor{TenantID: "tenant", KeyID: "reader", Scopes: []string{"evidence:read"}}
+	if got, err := points.GetEvidence(ctx, readActor, item.ID); err != nil || got.ID != item.ID {
+		t.Fatal("durable evidence point", err)
+	}
+	if page, err := lifecycle.ListPage(ctx, readActor, item.ID, appquery.PageRequest{PageSize: 1, Sort: appquery.SortCreatedAt, Direction: appquery.Ascending}, nil); err != nil || len(page.Items) != 0 {
+		t.Fatal("durable lifecycle", err)
 	}
 	actor := identitydomain.Actor{TenantID: "tenant", UserID: "user", Scopes: []string{"verify:read"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "release", ResourceID: "release", Scopes: []string{"verify:read"}}}}
 	result, err := commands.VerifyEvidence(ctx, actor, item.ID)
@@ -178,15 +195,26 @@ func TestPostgresEvidenceVerificationValidatesParserReplayProvenance(t *testing.
 		t.Fatal(err)
 	}
 	actor := identitydomain.Actor{TenantID: "tenant", KeyID: "caller", Scopes: []string{"verify:read"}}
+	points, err := BuildEvidencePointQuery(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lifecycle, err := BuildLifecycleEventsQuery(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	readActor := identitydomain.Actor{TenantID: "tenant", KeyID: "reader", Scopes: []string{"evidence:read"}}
 	if _, err := commands.VerifyEvidence(ctx, actor, id); err != nil {
 		t.Fatal("valid normalization rejected", err)
 	}
+	assertEvidenceReadProjection(t, ctx, points, lifecycle, readActor, id, nil)
 	if _, err := pool.Exec(ctx, `UPDATE audit_chain_entries SET entry_hash='tampered' WHERE id='previous'`); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := commands.VerifyEvidence(ctx, actor, id); !errors.Is(err, verificationapp.ErrConflict) {
 		t.Fatal("changed predecessor accepted", err)
 	}
+	assertEvidenceReadProjection(t, ctx, points, lifecycle, readActor, id, evidencequery.ErrConflict)
 	if _, err := pool.Exec(ctx, `UPDATE audit_chain_entries SET entry_hash=$1 WHERE id='previous'`, previous.EntryHash); err != nil {
 		t.Fatal(err)
 	}
@@ -208,6 +236,7 @@ func TestPostgresEvidenceVerificationValidatesParserReplayProvenance(t *testing.
 	if _, err := commands.VerifyEvidence(ctx, actor, id); !errors.Is(err, verificationapp.ErrConflict) {
 		t.Fatal("forged normalization passed", err)
 	}
+	assertEvidenceReadProjection(t, ctx, points, lifecycle, readActor, id, evidencequery.ErrConflict)
 	item.Title = "Parser normalization replay"
 	hash, err = (evidenceCanonicalHasher{}).HashEvidence(ctx, domain.EvidenceToContextModel(item))
 	if err != nil {
@@ -222,6 +251,7 @@ func TestPostgresEvidenceVerificationValidatesParserReplayProvenance(t *testing.
 	if _, err := commands.VerifyEvidence(ctx, actor, id); !errors.Is(err, verificationapp.ErrConflict) {
 		t.Fatal("forged linked audit passed", err)
 	}
+	assertEvidenceReadProjection(t, ctx, points, lifecycle, readActor, id, evidencequery.ErrConflict)
 	if _, err := pool.Exec(ctx, `UPDATE audit_chain_entries SET actor_id='operator' WHERE id=$1`, item.ChainEntryID); err != nil {
 		t.Fatal(err)
 	}
@@ -231,6 +261,7 @@ func TestPostgresEvidenceVerificationValidatesParserReplayProvenance(t *testing.
 	if _, err := commands.VerifyEvidence(ctx, actor, id); !errors.Is(err, verificationapp.ErrConflict) {
 		t.Fatal("changed source provenance passed", err)
 	}
+	assertEvidenceReadProjection(t, ctx, points, lifecycle, readActor, id, evidencequery.ErrConflict)
 }
 
 func TestPostgresEvidenceVerificationLocksCanonicalOriginPublication(t *testing.T) {
@@ -286,6 +317,15 @@ func TestPostgresEvidenceVerificationValidatesSelectedWorkerFacts(t *testing.T) 
 		t.Fatal(err)
 	}
 	actor := identitydomain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{"verify:read"}}
+	points, err := BuildEvidencePointQuery(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lifecycle, err := BuildLifecycleEventsQuery(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	readActor := identitydomain.Actor{TenantID: "tenant", KeyID: "reader", Scopes: []string{"evidence:read"}}
 	for _, tc := range []struct{ kind, insert, poison string }{
 		{"sbom", `INSERT INTO sboms(id,tenant_id,evidence_id,release_id,format,spec_version,component_count,components) VALUES('parsed_sbom','tenant','sbom','release','cyclonedx','1.6',1,'[{"name":"component"}]')`, `UPDATE sboms SET component_count=2 WHERE id='parsed_sbom'`},
 		{"vulnerability_scan", `INSERT INTO vulnerability_scans(id,tenant_id,evidence_id,release_id,scanner,adapter,adapter_version,source_schema,target_ref,summary,findings) VALUES('parsed_scan','tenant','vulnerability_scan','release','generic','generic','1','scan.v1','target','{}','[{"id":"f","vulnerability":"CVE-TEST"}]')`, `UPDATE vulnerability_scans SET findings='[{"id":"f","vulnerability":"CVE-TEST"},{"id":"f","vulnerability":"CVE-TEST"}]' WHERE id='parsed_scan'`},
@@ -311,14 +351,17 @@ func TestPostgresEvidenceVerificationValidatesSelectedWorkerFacts(t *testing.T) 
 			if _, err := commands.VerifyEvidence(ctx, actor, item.ID); err != nil {
 				t.Fatal("queued evidence", err)
 			}
+			assertEvidenceReadProjection(t, ctx, points, lifecycle, readActor, item.ID, nil)
 			exec(tc.insert)
 			if _, err := commands.VerifyEvidence(ctx, actor, item.ID); err != nil {
 				t.Fatal("parsed evidence", err)
 			}
+			assertEvidenceReadProjection(t, ctx, points, lifecycle, readActor, item.ID, nil)
 			exec(tc.poison)
 			if _, err := commands.VerifyEvidence(ctx, actor, item.ID); !errors.Is(err, verificationapp.ErrConflict) {
 				t.Fatal("poisoned projection accepted", err)
 			}
+			assertEvidenceReadProjection(t, ctx, points, lifecycle, readActor, item.ID, evidencequery.ErrConflict)
 		})
 	}
 	// An unrelated poisoned projection must not trigger tenant-wide loading.
@@ -334,6 +377,19 @@ func TestPostgresEvidenceVerificationValidatesSelectedWorkerFacts(t *testing.T) 
 	}
 	if _, err := commands.VerifyEvidence(ctx, actor, item.ID); err != nil {
 		t.Fatal("unrelated tenant state loaded", err)
+	}
+	assertEvidenceReadProjection(t, ctx, points, lifecycle, readActor, item.ID, nil)
+}
+
+func assertEvidenceReadProjection(t *testing.T, ctx context.Context, points *evidencequery.EvidencePoints, lifecycle *evidencequery.LifecycleEvents, actor identitydomain.Actor, id string, wantErr error) {
+	t.Helper()
+	item, err := points.GetEvidence(ctx, actor, id)
+	if !errors.Is(err, wantErr) || (wantErr == nil && (item.ID != id || item.TenantID != actor.TenantID)) || (wantErr != nil && item.ID != "") {
+		t.Fatalf("evidence point id=%q want error=%v got=%#v error=%v", id, wantErr, item, err)
+	}
+	page, err := lifecycle.ListPage(ctx, actor, id, appquery.PageRequest{PageSize: 1, Sort: appquery.SortCreatedAt, Direction: appquery.Ascending}, nil)
+	if !errors.Is(err, wantErr) || len(page.Items) != 0 || page.Next != nil {
+		t.Fatalf("lifecycle id=%q want error=%v got=%#v error=%v", id, wantErr, page, err)
 	}
 }
 

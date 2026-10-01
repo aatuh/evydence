@@ -2087,14 +2087,12 @@ func (s *Server) getEvidence(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.evidencePointQuery != nil {
 		item, err := s.evidencePointQuery.GetEvidence(r.Context(), actor, r.PathValue("id"))
-		if !errors.Is(err, evidencequery.ErrRequiresProjection) {
-			if err != nil {
-				writeProblem(w, r, mapEvidencePointQueryError(err))
-				return
-			}
-			writeData(w, http.StatusOK, domain.EvidenceFromContextModel(item))
+		if err != nil {
+			writeProblem(w, r, mapEvidencePointQueryError(err))
 			return
 		}
+		writeData(w, http.StatusOK, domain.EvidenceFromContextModel(item))
+		return
 	}
 	item, err := s.evidenceIngestion.GetEvidence(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
@@ -2163,18 +2161,16 @@ func (s *Server) listEvidenceLifecycleEvents(w http.ResponseWriter, r *http.Requ
 			return
 		}
 		page, err := s.lifecycleEventsQuery.ListPage(r.Context(), actor, r.PathValue("id"), appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
-		if !errors.Is(err, evidencequery.ErrRequiresProjection) {
-			if err != nil {
-				writeProblem(w, r, mapEvidencePointQueryError(err))
-				return
-			}
-			mapped := appquery.Result[domain.EvidenceLifecycleEvent]{Next: page.Next, Items: make([]domain.EvidenceLifecycleEvent, 0, len(page.Items))}
-			for _, event := range page.Items {
-				mapped.Items = append(mapped.Items, lifecycleEventFromQuery(event))
-			}
-			writePage(s, w, r, actor, resource, request, mapped)
+		if err != nil {
+			writeProblem(w, r, mapEvidencePointQueryError(err))
 			return
 		}
+		mapped := appquery.Result[domain.EvidenceLifecycleEvent]{Next: page.Next, Items: make([]domain.EvidenceLifecycleEvent, 0, len(page.Items))}
+		for _, event := range page.Items {
+			mapped.Items = append(mapped.Items, lifecycleEventFromQuery(event))
+		}
+		writePage(s, w, r, actor, resource, request, mapped)
+		return
 	}
 	events, err := s.evidenceIngestion.ListEvidenceLifecycleEvents(r.Context(), actor, r.PathValue("id"))
 	if err != nil {

@@ -3,6 +3,7 @@ package postgres
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -66,7 +67,81 @@ func TestPostgresLifecycleEventsPageScopesParentAndBeyondLegacyCap(t *testing.T)
 		t.Fatalf("foreign evidence error=%v", err)
 	}
 	actor.TenantID = "ten_life"
-	if _, err := service.ListPage(ctx, actor, "ev_worker", request, nil); !errors.Is(err, evidencequery.ErrRequiresProjection) {
-		t.Fatalf("worker-owned evidence error=%v", err)
+	if _, err := service.ListPage(ctx, actor, "ev_worker", request, nil); err != nil {
+		t.Fatalf("queued worker-owned evidence rejected: %v", err)
+	}
+}
+
+func TestPostgresEvidenceReadsAuthorizeBeforeOversizedPayloadsAndBoundLifecyclePage(t *testing.T) {
+	store := isolatedRelationalTestStore(t)
+	ctx := t.Context()
+	exec := func(statement string, args ...any) {
+		t.Helper()
+		if _, err := store.pool.Exec(ctx, statement, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	exec(`INSERT INTO tenants(id,name) VALUES('tenant','Tenant');
+		INSERT INTO products(id,tenant_id,name,slug) VALUES('product','tenant','Product','product');
+		INSERT INTO releases(id,tenant_id,product_id,version,state) VALUES('release','tenant','product','1','draft');
+		INSERT INTO evidence_items(id,tenant_id,product_id,release_id,type,title,source_system,observed_at,evidence_version,schema_version,payload_hash,canonical_hash,canonicalization,trust_level,verification_status)
+		VALUES('evidence','tenant','product','release','note','Note','ci',now(),1,'evidence-item.v1.0.0','hash','hash','legacy','L2','pending')`)
+	points, err := evidencequery.NewEvidencePoints(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lifecycle, err := evidencequery.NewLifecycleEvents(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor := identitydomain.Actor{TenantID: "tenant", UserID: "user", Scopes: []string{"evidence:read"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "release", ResourceID: "other", Scopes: []string{"evidence:read"}}}}
+	page := appquery.PageRequest{PageSize: 1, Sort: appquery.SortCreatedAt, Direction: appquery.Ascending}
+	check := func(wantPoint, wantPage error) {
+		t.Helper()
+		item, err := points.GetEvidence(ctx, actor, "evidence")
+		if !errors.Is(err, wantPoint) || (wantPoint != nil && item.ID != "") {
+			t.Fatalf("point wanted %v got %v", wantPoint, err)
+		}
+		result, err := lifecycle.ListPage(ctx, actor, "evidence", page, nil)
+		if !errors.Is(err, wantPage) || (wantPage != nil && (len(result.Items) != 0 || result.Next != nil)) {
+			t.Fatalf("page wanted %v got %v", wantPage, err)
+		}
+	}
+	exec(`UPDATE evidence_items SET metadata=jsonb_build_object('large',repeat('x',9*1024*1024)) WHERE id='evidence'`)
+	check(application.ErrForbidden, application.ErrForbidden)
+	actor.ResourceGrants[0].ResourceID = "release"
+	check(evidencequery.ErrConflict, evidencequery.ErrConflict)
+	exec(`UPDATE evidence_items SET metadata='{}' WHERE id='evidence'`)
+	exec(`INSERT INTO evidence_lifecycle_events(id,tenant_id,evidence_id,action,reason,details,actor_id,schema_version,created_at)
+		VALUES('first','tenant','evidence','amendment','safe',jsonb_build_object('large',repeat('x',9*1024*1024)),'user','evidence-lifecycle.v1',now())`)
+	actor.ResourceGrants[0].ResourceID = "other"
+	check(application.ErrForbidden, application.ErrForbidden)
+	actor.ResourceGrants[0].ResourceID = "release"
+	check(nil, evidencequery.ErrConflict)
+	// Each row fits individually. The lookahead row must still count toward
+	// the aggregate budget; returning a truncated successful page is unsafe.
+	exec(`UPDATE evidence_lifecycle_events SET details=jsonb_build_object('large',repeat('x',5*1024*1024)) WHERE id='first'`)
+	exec(`INSERT INTO evidence_lifecycle_events(id,tenant_id,evidence_id,action,reason,details,actor_id,schema_version,created_at)
+		SELECT 'second',tenant_id,evidence_id,action,reason,details,actor_id,schema_version,created_at+interval '1 second' FROM evidence_lifecycle_events WHERE id='first'`)
+	check(nil, evidencequery.ErrConflict)
+	// All text fields, not just JSON details, must count toward the limit.
+	exec(`UPDATE evidence_lifecycle_events SET details='{}',reason=CASE WHEN id='first' THEN repeat('x',9*1024*1024) ELSE 'safe' END`)
+	check(nil, evidencequery.ErrConflict)
+	exec(`UPDATE evidence_lifecycle_events SET reason='safe'`)
+	result, err := lifecycle.ListPage(ctx, actor, "evidence", page, nil)
+	if err != nil || len(result.Items) != 1 || result.Items[0].ID != "first" || result.Next == nil {
+		t.Fatalf("recovered page=%#v err=%v", result, err)
+	}
+	for _, table := range []string{"audit_chain_entries", "outbox_jobs", "verification_results"} {
+		var count int
+		if err := store.pool.QueryRow(ctx, "SELECT count(*) FROM "+table).Scan(&count); err != nil || count != 0 {
+			t.Fatalf("read effects %s=%d err=%v", table, count, err)
+		}
+	}
+	for _, id := range []string{"bad\x00id", string([]byte{0xff}), strings.Repeat("x", 1025)} {
+		guard := func(application.ResourceReferences) error { t.Fatal("invalid ID reached authorization"); return nil }
+		if _, err := store.PageLifecycleEvents(ctx, "tenant", id, page, nil, guard); !errors.Is(err, evidencequery.ErrValidation) {
+			t.Fatalf("malformed lifecycle ID error=%v", err)
+		}
 	}
 }

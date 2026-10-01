@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/aatuh/evydence/internal/application"
@@ -11,13 +12,18 @@ import (
 )
 
 type evidencePointReaderStub struct {
-	point EvidencePoint
-	err   error
-	calls int
+	point        EvidencePoint
+	err          error
+	calls        int
+	payloadReads int
 }
 
-func (r *evidencePointReaderStub) GetEvidencePoint(_ context.Context, _, _ string) (EvidencePoint, error) {
+func (r *evidencePointReaderStub) GetEvidencePoint(_ context.Context, _, _ string, guard EvidenceReadGuard) (EvidencePoint, error) {
 	r.calls++
+	if err := guard(application.ResourceReferences{ProductID: r.point.ProductID, ProjectID: r.point.ProjectID, ReleaseID: r.point.ReleaseID, BuildID: r.point.Item.BuildID, DeploymentID: r.point.Item.DeploymentID}); err != nil {
+		return EvidencePoint{}, err
+	}
+	r.payloadReads++
 	return r.point, r.err
 }
 
@@ -49,7 +55,8 @@ func TestEvidencePointsAuthorizeVerifiedCoordinates(t *testing.T) {
 		{name: "project from build", actor: evidenceHumanActor("project", "proj_1"), point: EvidencePoint{Item: evidencedomain.EvidenceItem{ID: "ev_1", TenantID: "ten_1", BuildID: "bld_1", Type: "document"}, ProductID: "prod_1", ProjectID: "proj_1", ReleaseID: "rel_1"}},
 		{name: "release from deployment", actor: evidenceHumanActor("release", "rel_1"), point: EvidencePoint{Item: evidencedomain.EvidenceItem{ID: "ev_1", TenantID: "ten_1", DeploymentID: "dep_1", Type: "document"}, ProductID: "prod_1", ReleaseID: "rel_1"}},
 		{name: "project cannot use release only", actor: evidenceHumanActor("project", "proj_1"), point: EvidencePoint{Item: evidencedomain.EvidenceItem{ID: "ev_1", TenantID: "ten_1", ReleaseID: "rel_1", Type: "document"}, ProductID: "prod_1", ReleaseID: "rel_1"}, want: application.ErrForbidden},
-		{name: "worker-owned record requires provenance projection", actor: evidenceKeyActor(), point: EvidencePoint{Item: evidencedomain.EvidenceItem{ID: "ev_1", TenantID: "ten_1", Type: "parser_normalization"}}, want: ErrRequiresProjection},
+		{name: "worker-owned record requires validated provenance", actor: evidenceKeyActor(), point: EvidencePoint{Item: evidencedomain.EvidenceItem{ID: "ev_1", TenantID: "ten_1", Type: "parser_normalization"}}, want: ErrConflict},
+		{name: "validated worker point", actor: evidenceKeyActor(), point: EvidencePoint{Item: evidencedomain.EvidenceItem{ID: "ev_1", TenantID: "ten_1", Type: "parser_normalization"}, WorkerProjectionValidated: true}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			reader := &evidencePointReaderStub{point: test.point}
@@ -66,6 +73,9 @@ func TestEvidencePointsAuthorizeVerifiedCoordinates(t *testing.T) {
 			}
 			if reader.calls != 1 {
 				t.Fatalf("reader calls=%d", reader.calls)
+			}
+			if errors.Is(test.want, application.ErrForbidden) && reader.payloadReads != 0 {
+				t.Fatal("grant denial read evidence metadata")
 			}
 		})
 	}
@@ -85,6 +95,9 @@ func TestEvidencePointsRejectScopeAndInputBeforeStorage(t *testing.T) {
 		{actor: identitydomain.Actor{TenantID: "ten_1", KeyID: "key_1"}, id: "ev_1", want: application.ErrForbidden},
 		{actor: identitydomain.Actor{TenantID: "ten_1", Scopes: []string{"evidence:read"}}, id: "ev_1", want: application.ErrUnauthorized},
 		{actor: evidenceKeyActor(), id: " ", want: ErrNotFound},
+		{actor: evidenceKeyActor(), id: "ev\x00bad", want: ErrValidation},
+		{actor: evidenceKeyActor(), id: string([]byte{0xff}), want: ErrValidation},
+		{actor: evidenceKeyActor(), id: strings.Repeat("x", 1025), want: ErrValidation},
 	} {
 		if _, err := query.GetEvidence(t.Context(), test.actor, test.id); !errors.Is(err, test.want) || reader.calls != 0 {
 			t.Fatalf("GetEvidence error=%v, want %v; reader calls=%d", err, test.want, reader.calls)

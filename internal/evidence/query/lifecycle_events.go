@@ -10,16 +10,20 @@ import (
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
+// MaxLifecyclePageBytes bounds the selected serialized event page, including
+// the pagination lookahead row. The evidence/provenance snapshot has its own
+// independent byte budget.
+const MaxLifecyclePageBytes = 8 * 1024 * 1024
+
 // LifecyclePage keeps the evidence authorization point and its bounded event
-// page in one database snapshot. Worker-owned evidence requires the existing
-// provenance projection instead of this ordinary evidence path.
+// page in one database snapshot, including selected worker-owned provenance.
 type LifecyclePage struct {
 	Point EvidencePoint
 	Page  appquery.Result[evidencedomain.EvidenceLifecycleEvent]
 }
 
 type LifecycleEventReader interface {
-	PageLifecycleEvents(context.Context, string, string, appquery.PageRequest, *appquery.SortKey) (LifecyclePage, error)
+	PageLifecycleEvents(context.Context, string, string, appquery.PageRequest, *appquery.SortKey, EvidenceReadGuard) (LifecyclePage, error)
 }
 
 type LifecycleEvents struct{ reader LifecycleEventReader }
@@ -46,10 +50,13 @@ func (s *LifecycleEvents) ListPage(ctx context.Context, actor identitydomain.Act
 	if id == "" {
 		return empty, ErrNotFound
 	}
+	if !validEvidenceReadID(id) {
+		return empty, ErrValidation
+	}
 	if err := appquery.Validate(page, after); err != nil {
 		return empty, ErrValidation
 	}
-	result, err := s.reader.PageLifecycleEvents(ctx, actor.TenantID, id, page, after)
+	result, err := s.reader.PageLifecycleEvents(ctx, actor.TenantID, id, page, after, evidenceReadGuard(ctx, actor))
 	if errors.Is(err, appquery.ErrInvalidCursor) || errors.Is(err, appquery.ErrInvalidPage) {
 		return empty, ErrValidation
 	}
@@ -58,9 +65,6 @@ func (s *LifecycleEvents) ListPage(ctx context.Context, actor identitydomain.Act
 	}
 	if !validEvidencePoint(result.Point, actor.TenantID, id) || len(result.Page.Items) > page.PageSize {
 		return empty, ErrConflict
-	}
-	if evidencedomain.RequiresWorkerProjection(result.Point.Item.Type) {
-		return empty, ErrRequiresProjection
 	}
 	if err := authorizeEvidenceRead(actor, result.Point, false); err != nil {
 		return empty, err

@@ -151,7 +151,25 @@ other reads remain open EVY-905 work. Evidence list and search pages now use
 bounded PostgreSQL keyset batches under one read-only snapshot for restricted
 human grants, with grant checks before pagination. The compatibility Ledger
 still holds authorization relationships and parser-normalization validation
-state; removing its full startup load remains open. A focused PostgreSQL
+state; removing its full startup load remains open.
+
+Evidence point reads and lifecycle pages in the PostgreSQL profile also use
+focused queries, including parser-owned items and replay markers; neither
+handler falls back to the Ledger when the focused query rejects a projection.
+Each repeatable-read snapshot resolves tenant-owned parent coordinates and
+applies current resource grants before loading metadata or selected worker
+facts. The shared provenance reader enforces an 8 MiB combined item/fact
+budget and a 4096-row parser-fact limit; replay markers additionally validate
+their source and linked audit facts. Lifecycle pages have a separate 8 MiB
+serialized-event budget, including all text/details and the lookahead row.
+Oversized or malformed stored data fails closed without a partial page.
+Selected provenance rows are share-locked; these logically read-only
+transactions always roll back and create no receipts, audit entries, or jobs.
+Existing response fields and lifecycle redaction remain unchanged. Explicit
+local-memory wiring retains the compatibility path. These reads do not verify
+uploaded payload bytes, scanner completeness, or the complete audit chain.
+
+A focused PostgreSQL
 vulnerability-scan point read now checks source evidence and current parent
 ownership in a repeatable-read snapshot before grant authorization; it does
 not independently verify scanner coverage. VEX document and import-report

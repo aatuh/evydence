@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/application"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
@@ -14,25 +15,30 @@ import (
 const scopeEvidenceRead = "evidence:read"
 
 var (
-	ErrValidation         = errors.New("invalid evidence query")
-	ErrNotFound           = errors.New("evidence not found")
-	ErrConflict           = errors.New("invalid evidence projection")
-	ErrRequiresProjection = errors.New("evidence requires validated worker projection")
+	ErrValidation = errors.New("invalid evidence query")
+	ErrNotFound   = errors.New("evidence not found")
+	ErrConflict   = errors.New("invalid evidence projection")
 )
 
 // EvidencePoint carries one tenant-owned item and the parent coordinates
 // resolved in the same database snapshot. The reader validates their
-// relationships before returning them. Worker-owned item types must return
-// ErrRequiresProjection until their dedicated provenance checks are bound.
+// relationships before returning them. Worker-owned items require validated
+// selected parser/source/audit facts from the same committed snapshot.
 type EvidencePoint struct {
-	Item      evidencedomain.EvidenceItem
-	ProductID string
-	ProjectID string
-	ReleaseID string
+	Item                      evidencedomain.EvidenceItem
+	ProductID                 string
+	ProjectID                 string
+	ReleaseID                 string
+	WorkerProjectionValidated bool
 }
 
+// EvidenceReadGuard authorizes resolved coordinates before the reader loads
+// metadata, provenance or lifecycle detail. It must be invoked inside the
+// same snapshot used for returning the evidence point.
+type EvidenceReadGuard func(application.ResourceReferences) error
+
 type EvidencePointReader interface {
-	GetEvidencePoint(context.Context, string, string) (EvidencePoint, error)
+	GetEvidencePoint(context.Context, string, string, EvidenceReadGuard) (EvidencePoint, error)
 }
 
 type EvidencePoints struct{ reader EvidencePointReader }
@@ -58,15 +64,15 @@ func (s *EvidencePoints) GetEvidence(ctx context.Context, actor identitydomain.A
 	if id == "" {
 		return evidencedomain.EvidenceItem{}, ErrNotFound
 	}
-	point, err := s.reader.GetEvidencePoint(ctx, actor.TenantID, id)
+	if !validEvidenceReadID(id) {
+		return evidencedomain.EvidenceItem{}, ErrValidation
+	}
+	point, err := s.reader.GetEvidencePoint(ctx, actor.TenantID, id, evidenceReadGuard(ctx, actor))
 	if err != nil {
 		return evidencedomain.EvidenceItem{}, err
 	}
 	if !validEvidencePoint(point, actor.TenantID, id) {
 		return evidencedomain.EvidenceItem{}, ErrConflict
-	}
-	if evidencedomain.RequiresWorkerProjection(point.Item.Type) {
-		return evidencedomain.EvidenceItem{}, ErrRequiresProjection
 	}
 	if err := authorizeEvidenceRead(actor, point, false); err != nil {
 		return evidencedomain.EvidenceItem{}, err
@@ -76,6 +82,9 @@ func (s *EvidencePoints) GetEvidence(ctx context.Context, actor identitydomain.A
 
 func validEvidencePoint(point EvidencePoint, tenantID, id string) bool {
 	item := point.Item
+	if evidencedomain.RequiresWorkerProjection(item.Type) && !point.WorkerProjectionValidated {
+		return false
+	}
 	if item.ID != id || item.TenantID != tenantID || strings.TrimSpace(item.ID) != item.ID || strings.TrimSpace(item.TenantID) != item.TenantID {
 		return false
 	}
@@ -108,6 +117,21 @@ func validEvidencePoint(point EvidencePoint, tenantID, id string) bool {
 		return false
 	}
 	return true
+}
+
+func validEvidenceReadID(id string) bool {
+	return id != "" && len(id) <= 1024 && utf8.ValidString(id) && !strings.ContainsRune(id, 0)
+}
+func evidenceReadGuard(ctx context.Context, actor identitydomain.Actor) EvidenceReadGuard {
+	return func(refs application.ResourceReferences) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if refs != (application.ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID, BuildID: refs.BuildID, DeploymentID: refs.DeploymentID}) {
+			return ErrConflict
+		}
+		return authorizeEvidenceRead(actor, EvidencePoint{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID}, false)
+	}
 }
 
 func authorizeEvidenceRead(actor identitydomain.Actor, point EvidencePoint, scopeOnly bool) error {

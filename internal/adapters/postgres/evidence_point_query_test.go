@@ -74,7 +74,7 @@ func TestPostgresEvidencePointQueryScopesParentsAndWorkerProjection(t *testing.T
 		{id: "ev_deploy_only", productID: "prod_a", releaseID: "rel_prod_a"},
 		{id: "ev_detached"},
 	} {
-		point, err := store.GetEvidencePoint(ctx, "ten_evidence", test.id)
+		point, err := store.GetEvidencePoint(ctx, "ten_evidence", test.id, func(application.ResourceReferences) error { return nil })
 		if err != nil || point.Item.ID != test.id || point.ProductID != test.productID || point.ProjectID != test.projectID || point.ReleaseID != test.releaseID {
 			t.Fatalf("evidence point %q=%#v error=%v", test.id, point, err)
 		}
@@ -89,11 +89,11 @@ func TestPostgresEvidencePointQueryScopesParentsAndWorkerProjection(t *testing.T
 		{tenantID: "ten_evidence", id: "ev_foreign_deployment"},
 		{tenantID: "ten_evidence", id: "ev_missing"},
 	} {
-		if point, err := store.GetEvidencePoint(ctx, test.tenantID, test.id); !errors.Is(err, evidencequery.ErrNotFound) || point.Item.ID != "" {
+		if point, err := store.GetEvidencePoint(ctx, test.tenantID, test.id, func(application.ResourceReferences) error { return nil }); !errors.Is(err, evidencequery.ErrNotFound) || point.Item.ID != "" {
 			t.Fatalf("unsafe evidence point=%#v error=%v", point, err)
 		}
 	}
-	if point, err := store.GetEvidencePoint(ctx, "ten_evidence", "ev_worker"); !errors.Is(err, evidencequery.ErrRequiresProjection) || point.Item.ID != "" {
+	if point, err := store.GetEvidencePoint(ctx, "ten_evidence", "ev_worker", func(application.ResourceReferences) error { return nil }); !errors.Is(err, evidencequery.ErrConflict) || point.Item.ID != "" {
 		t.Fatalf("worker-owned evidence point=%#v error=%v", point, err)
 	}
 	query, err := evidencequery.NewEvidencePoints(store)

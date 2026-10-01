@@ -21,6 +21,7 @@ type evidencePointQueryFake struct {
 	id    string
 	calls int
 	err   error
+	kind  string
 }
 
 func (f *evidencePointQueryFake) GetEvidence(_ context.Context, actor identitydomain.Actor, id string) (evidencedomain.EvidenceItem, error) {
@@ -30,13 +31,18 @@ func (f *evidencePointQueryFake) GetEvidence(_ context.Context, actor identitydo
 		return evidencedomain.EvidenceItem{}, f.err
 	}
 	now := time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)
-	return evidencedomain.EvidenceItem{ID: id, TenantID: actor.TenantID, ProductID: "prod_database", Type: "document", Title: "Evidence", SourceSystem: "api", ObservedAt: now, EvidenceVersion: 1, SchemaVersion: "v1", PayloadHash: "sha256:payload", CanonicalHash: "sha256:canonical", Canonicalization: "canonical-json.v1", TrustLevel: "L2", VerificationStatus: "pending", CreatedAt: now}, nil
+	kind := f.kind
+	if kind == "" {
+		kind = "document"
+	}
+	return evidencedomain.EvidenceItem{ID: id, TenantID: actor.TenantID, ProductID: "prod_database", Type: kind, Title: "Evidence", SourceSystem: "api", ObservedAt: now, EvidenceVersion: 1, SchemaVersion: "v1", PayloadHash: "sha256:payload", CanonicalHash: "sha256:canonical", Canonicalization: "canonical-json.v1", TrustLevel: "L2", VerificationStatus: "pending", CreatedAt: now}, nil
 }
 
 type evidenceProjectionFallbackFake struct {
 	evidenceIngestionService
-	calls int
-	id    string
+	calls          int
+	id             string
+	lifecycleCalls int
 }
 
 func (f *evidenceProjectionFallbackFake) GetEvidence(_ context.Context, actor domain.Actor, id string) (domain.EvidenceItem, error) {
@@ -45,7 +51,12 @@ func (f *evidenceProjectionFallbackFake) GetEvidence(_ context.Context, actor do
 	return domain.EvidenceItem{ID: id, TenantID: actor.TenantID, Type: "parser_normalization", Title: "Parser normalization replay"}, nil
 }
 
-func TestEvidencePointHandlerUsesFocusedQueryAndPreservesProjectionFallback(t *testing.T) {
+func (f *evidenceProjectionFallbackFake) ListEvidenceLifecycleEvents(_ context.Context, _ domain.Actor, _ string) ([]domain.EvidenceLifecycleEvent, error) {
+	f.lifecycleCalls++
+	return []domain.EvidenceLifecycleEvent{}, nil
+}
+
+func TestEvidencePointHandlerUsesFocusedQueryWithoutProductionFallback(t *testing.T) {
 	server, secret := testServer(t)
 	query := &evidencePointQueryFake{}
 	server.evidencePointQuery = query
@@ -63,12 +74,12 @@ func TestEvidencePointHandlerUsesFocusedQueryAndPreservesProjectionFallback(t *t
 	if query.calls != 1 {
 		t.Fatalf("unauthenticated request reached evidence query %d times", query.calls)
 	}
-	query.err = evidencequery.ErrRequiresProjection
 	fallback := &evidenceProjectionFallbackFake{}
 	server.evidenceIngestion = fallback
+	query.kind = "parser_normalization"
 	response = getRaw(t, server, secret, "/v1/evidence/ev_worker", http.StatusOK)
-	if fallback.calls != 1 || fallback.id != "ev_worker" || !strings.Contains(response.Body.String(), `"parser_normalization"`) {
-		t.Fatalf("worker projection fallback response=%s calls=%d id=%q", response.Body.String(), fallback.calls, fallback.id)
+	if fallback.calls != 0 || query.id != "ev_worker" || !strings.Contains(response.Body.String(), `"parser_normalization"`) {
+		t.Fatalf("worker projection used compatibility aggregate: response=%s calls=%d", response.Body.String(), fallback.calls)
 	}
 	for _, test := range []struct {
 		err    error
@@ -86,5 +97,15 @@ func TestEvidencePointHandlerUsesFocusedQueryAndPreservesProjectionFallback(t *t
 		if strings.Contains(response.Body.String(), "postgres") {
 			t.Fatalf("internal detail in evidence error: %s", response.Body.String())
 		}
+	}
+	if fallback.calls != 0 {
+		t.Fatal("query failure invoked compatibility aggregate")
+	}
+	// Only the explicit local-memory profile, with no durable query bound,
+	// retains the existing compatibility read behavior.
+	server.evidencePointQuery = nil
+	getRaw(t, server, secret, "/v1/evidence/ev_local", http.StatusOK)
+	if fallback.calls != 1 {
+		t.Fatal("local-memory compatibility path removed")
 	}
 }

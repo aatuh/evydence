@@ -48,6 +48,8 @@ func TestLifecycleEventsHandlerUsesScopedPageAndRedactsDetails(t *testing.T) {
 	server, secret := testServer(t)
 	query := &lifecycleEventsQueryFake{}
 	server.lifecycleEventsQuery = query
+	fallback := &evidenceProjectionFallbackFake{}
+	server.evidenceIngestion = fallback
 	first := getRaw(t, server, secret, "/v1/evidence/ev_1/lifecycle-events?page_size=1", http.StatusOK)
 	var response struct {
 		Data []struct {
@@ -96,6 +98,14 @@ func TestLifecycleEventsHandlerUsesScopedPageAndRedactsDetails(t *testing.T) {
 			t.Fatalf("internal detail leaked: %s", result.Body.String())
 		}
 	}
-	query.err = evidencequery.ErrRequiresProjection
-	getRaw(t, server, secret, "/v1/evidence/ev_1/lifecycle-events", http.StatusNotFound)
+	query.err = evidencequery.ErrConflict
+	getRaw(t, server, secret, "/v1/evidence/ev_worker/lifecycle-events", http.StatusConflict)
+	if fallback.lifecycleCalls != 0 {
+		t.Fatal("focused lifecycle query used compatibility aggregate")
+	}
+	server.lifecycleEventsQuery = nil
+	getRaw(t, server, secret, "/v1/evidence/ev_local/lifecycle-events", http.StatusOK)
+	if fallback.lifecycleCalls != 1 {
+		t.Fatal("explicit local-memory lifecycle path removed")
+	}
 }
