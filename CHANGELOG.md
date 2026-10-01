@@ -15,6 +15,8 @@ release artifacts.
 
 ### Added
 
+- Production control coverage and CRA readiness reports now use bounded, tenant-scoped PostgreSQL snapshots with current-subject validation, actual subject timestamps for freshness, and fail-closed capacity limits. Local-memory mode retains its compatibility report path.
+
 - PostgreSQL-backed customer-portal access listing now pages within current tenant and resource grants without selecting token hashes; local-memory listing also enforces resource grants.
 
 - Added a versioned parser conformance corpus manifest and gate that records

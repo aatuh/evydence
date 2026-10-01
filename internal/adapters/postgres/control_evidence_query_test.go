@@ -104,6 +104,32 @@ func TestPostgresControlEvidencePagesCurrentSubjectsBeforeGrantLimit(t *testing.
 	}
 }
 
+func TestPostgresControlEvidencePageUsesSubjectTime(t *testing.T) {
+	store := isolatedRelationalTestStore(t)
+	ctx := t.Context()
+	observed := time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)
+	linked := observed.Add(60 * 24 * time.Hour)
+	for _, statement := range []string{
+		`INSERT INTO tenants (id,name) VALUES ('ten_time','Time')`,
+		`INSERT INTO control_frameworks (id,tenant_id,name,slug,version,status,schema_version) VALUES ('fw_time','ten_time','Framework','framework','1','active','control-framework.v1.0.0')`,
+		`INSERT INTO security_controls (id,tenant_id,framework_id,code,title,objective,evidence_requirements,applicability,limitations,schema_version) VALUES ('ctrl_time','ten_time','fw_time','C1','Control','Objective','[]','[]','[]','security-control.v1.0.0')`,
+	} {
+		if _, err := store.pool.Exec(ctx, statement); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := store.pool.Exec(ctx, `INSERT INTO evidence_items (id,tenant_id,type,title,source_system,observed_at,schema_version,payload_hash,canonical_hash,canonicalization,trust_level,verification_status) VALUES ('ev_time','ten_time','document','Evidence','test',$1,'evidence-item.v1','sha256:payload','sha256:canonical','canonical-json.v1','L2','pending')`, observed); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.pool.Exec(ctx, `INSERT INTO control_evidence (id,tenant_id,control_id,evidence_type,subject_type,subject_id,confidence,schema_version,created_at) VALUES ('link_time','ten_time','ctrl_time','artifact','evidence','ev_time','high','control-evidence.v1.0.0',$1)`, linked); err != nil {
+		t.Fatal(err)
+	}
+	result, err := store.PageControlEvidence(ctx, riskquery.ControlEvidencePageRequest{TenantID: "ten_time", TenantWide: true, Page: appquery.PageRequest{PageSize: 10, Sort: appquery.SortID, Direction: appquery.Ascending}})
+	if err != nil || len(result.Items) != 1 || !result.Items[0].ObservedAt.Equal(observed) {
+		t.Fatalf("subject time page=%#v err=%v", result, err)
+	}
+}
+
 func TestPostgresControlEvidenceQueryIndexMigrationRoundTrip(t *testing.T) {
 	store := isolatedRelationalTestStore(t)
 	check := func(want bool) {

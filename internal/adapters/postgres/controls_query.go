@@ -100,19 +100,9 @@ func (s *Store) GetControl(ctx context.Context, tenantID, id string) (riskdomain
 	if len(requirements) > maxStoredControlJSONBytes || len(applicability) > maxStoredControlJSONBytes || len(limitations) > maxStoredControlJSONBytes {
 		return riskdomain.SecurityControl{}, riskquery.ErrInvalidProjection
 	}
-	var storedRequirements []struct {
-		Type          string `json:"type"`
-		FreshnessDays int    `json:"freshness_days"`
-		Required      bool   `json:"required"`
-	}
-	if err := json.Unmarshal(requirements, &storedRequirements); err != nil {
+	control.EvidenceRequirements, err = decodeStoredControlRequirements(requirements)
+	if err != nil {
 		return riskdomain.SecurityControl{}, riskquery.ErrInvalidProjection
-	}
-	control.EvidenceRequirements = make([]riskdomain.ControlEvidenceRequirement, 0, len(storedRequirements))
-	for _, requirement := range storedRequirements {
-		control.EvidenceRequirements = append(control.EvidenceRequirements, riskdomain.ControlEvidenceRequirement{
-			Type: requirement.Type, FreshnessDays: requirement.FreshnessDays, Required: requirement.Required,
-		})
 	}
 	if err := json.Unmarshal(applicability, &control.Applicability); err != nil {
 		return riskdomain.SecurityControl{}, riskquery.ErrInvalidProjection
@@ -121,4 +111,22 @@ func (s *Store) GetControl(ctx context.Context, tenantID, id string) (riskdomain
 		return riskdomain.SecurityControl{}, riskquery.ErrInvalidProjection
 	}
 	return control, nil
+}
+
+func decodeStoredControlRequirements(raw []byte) ([]riskdomain.ControlEvidenceRequirement, error) {
+	var storedRequirements []struct {
+		Type          string `json:"type"`
+		FreshnessDays int    `json:"freshness_days"`
+		Required      bool   `json:"required"`
+	}
+	if err := json.Unmarshal(raw, &storedRequirements); err != nil {
+		return nil, err
+	}
+	decoded := make([]riskdomain.ControlEvidenceRequirement, 0, len(storedRequirements))
+	for _, requirement := range storedRequirements {
+		decoded = append(decoded, riskdomain.ControlEvidenceRequirement{
+			Type: requirement.Type, FreshnessDays: requirement.FreshnessDays, Required: requirement.Required,
+		})
+	}
+	return decoded, nil
 }

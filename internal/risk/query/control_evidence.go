@@ -4,6 +4,7 @@ import (
 	"context"
 	"sort"
 	"strings"
+	"time"
 
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/application"
@@ -20,10 +21,11 @@ type ControlEvidenceFilter struct {
 // ControlEvidencePoint carries subject-derived current coordinates from a
 // tenant-verified SQL snapshot; a link's stored scope is not itself authority.
 type ControlEvidencePoint struct {
-	Link      riskdomain.ControlEvidence
-	ProductID string
-	ProjectID string
-	ReleaseID string
+	Link       riskdomain.ControlEvidence
+	ProductID  string
+	ProjectID  string
+	ReleaseID  string
+	ObservedAt time.Time
 }
 
 type ControlEvidencePageRequest struct {

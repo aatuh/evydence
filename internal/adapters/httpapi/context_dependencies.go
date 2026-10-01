@@ -67,6 +67,13 @@ type CRAVulnerabilityQuery interface {
 	Report(context.Context, domain.Actor, string, string) (packagedomain.CRAVulnerabilityHandlingReport, error)
 }
 
+// ControlCoverageQuery evaluates tenant-scoped control and CRA readiness
+// reports from one bounded durable snapshot.
+type ControlCoverageQuery interface {
+	Coverage(context.Context, domain.Actor, packagequery.ControlCoverageFilter) (packagedomain.ControlCoverageReport, error)
+	CRAReadiness(context.Context, domain.Actor, string, string) (packagedomain.CRAReadinessReport, error)
+}
+
 // InstanceAdminQuery returns aggregate operational counts only after the
 // focused service verifies explicit instance-wide authority.
 type InstanceAdminQuery interface {
