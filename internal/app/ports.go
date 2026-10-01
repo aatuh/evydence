@@ -102,6 +102,14 @@ type ObjectStore interface {
 	Get(context.Context, string) (Object, error)
 }
 
+// BoundedObjectReader limits payload bytes while reading, independently of
+// database or provider size declarations. It rejects oversize without returning
+// partial data, and preserves tenant/key/metadata/digest integrity validation.
+// A positive, non-overflowing maximum is required; there is no unbounded fallback.
+type BoundedObjectReader interface {
+	GetBounded(context.Context, string, int64) (Object, error)
+}
+
 const PayloadLifecycleVersion = "object-payload.v1"
 
 type ObjectPayloadStatus string

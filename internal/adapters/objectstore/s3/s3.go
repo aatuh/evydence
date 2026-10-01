@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/url"
 	"strconv"
@@ -82,8 +83,24 @@ func (s *Store) Put(ctx context.Context, object app.Object) error {
 }
 
 func (s *Store) Get(ctx context.Context, key string) (app.Object, error) {
-	if s == nil || s.client == nil {
+	return s.get(ctx, key, 0)
+}
+
+var _ app.BoundedObjectReader = (*Store)(nil)
+
+func (s *Store) GetBounded(ctx context.Context, key string, maximum int64) (app.Object, error) {
+	if maximum < 1 || maximum == math.MaxInt64 {
 		return app.Object{}, app.ErrValidation
+	}
+	return s.get(ctx, key, maximum)
+}
+
+func (s *Store) get(ctx context.Context, key string, maximum int64) (app.Object, error) {
+	if s == nil || s.client == nil || ctx == nil {
+		return app.Object{}, app.ErrValidation
+	}
+	if err := ctx.Err(); err != nil {
+		return app.Object{}, err
 	}
 	tenantID, err := app.TenantIDFromObjectKey(key)
 	if err != nil {
@@ -101,9 +118,22 @@ func (s *Store) Get(ctx context.Context, key string) (app.Object, error) {
 		}
 		return app.Object{}, fmt.Errorf("stat s3 object: %w", err)
 	}
-	body, err := io.ReadAll(obj)
+	if maximum > 0 && (info.Size < 0 || info.Size > maximum) {
+		return app.Object{}, app.ErrConflict
+	}
+	var reader io.Reader = obj
+	if maximum > 0 {
+		reader = io.LimitReader(obj, maximum+1)
+	}
+	body, err := io.ReadAll(reader)
 	if err != nil {
 		return app.Object{}, fmt.Errorf("read s3 object: %w", err)
+	}
+	if err := ctx.Err(); err != nil {
+		return app.Object{}, err
+	}
+	if maximum > 0 && int64(len(body)) > maximum {
+		return app.Object{}, app.ErrConflict
 	}
 	object := app.Object{
 		Key:       key,

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"math"
 	"os"
 	"path"
 	"path/filepath"
@@ -98,6 +99,22 @@ func (s *Store) Put(ctx context.Context, object app.Object) error {
 }
 
 func (s *Store) Get(ctx context.Context, key string) (app.Object, error) {
+	return s.get(ctx, key, 0)
+}
+
+var _ app.BoundedObjectReader = (*Store)(nil)
+
+func (s *Store) GetBounded(ctx context.Context, key string, maximum int64) (app.Object, error) {
+	if maximum < 1 || maximum == math.MaxInt64 {
+		return app.Object{}, app.ErrValidation
+	}
+	return s.get(ctx, key, maximum)
+}
+
+func (s *Store) get(ctx context.Context, key string, maximum int64) (app.Object, error) {
+	if s == nil || s.root == "" || ctx == nil {
+		return app.Object{}, app.ErrValidation
+	}
 	if err := ctx.Err(); err != nil {
 		return app.Object{}, err
 	}
@@ -111,15 +128,22 @@ func (s *Store) Get(ctx context.Context, key string) (app.Object, error) {
 	}
 	defer root.Close()
 	name := rootName(key)
-	body, err := root.ReadFile(name)
+	body, err := readRootObjectFile(ctx, root, name, maximum)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return app.Object{}, app.ErrNotFound
 		}
 		return app.Object{}, fmt.Errorf("read object: %w", err)
 	}
-	metaBody, err := root.ReadFile(name + ".json")
+	metadataLimit := int64(0)
+	if maximum > 0 {
+		metadataLimit = 64 << 10
+	}
+	metaBody, err := readRootObjectFile(ctx, root, name+".json", metadataLimit)
 	if err != nil {
+		if errors.Is(err, app.ErrConflict) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return app.Object{}, err
+		}
 		return app.Object{}, fmt.Errorf("read object metadata: %w", app.ErrValidation)
 	}
 	var meta metadata
@@ -137,6 +161,51 @@ func (s *Store) Get(ctx context.Context, key string) (app.Object, error) {
 		Bytes:     body,
 		CreatedAt: meta.CreatedAt,
 	}, nil
+}
+
+func readRootObjectFile(ctx context.Context, root *os.Root, name string, maximum int64) ([]byte, error) {
+	if maximum == 0 {
+		return root.ReadFile(name)
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	info, err := root.Stat(name)
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, app.ErrValidation
+	}
+	if info.Size() > maximum {
+		return nil, app.ErrConflict
+	}
+	file, err := root.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	info, err = file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, app.ErrValidation
+	}
+	if info.Size() > maximum {
+		return nil, app.ErrConflict
+	}
+	body, err := io.ReadAll(io.LimitReader(file, maximum+1))
+	if err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if int64(len(body)) > maximum {
+		return nil, app.ErrConflict
+	}
+	return body, nil
 }
 
 // ListObjectInventory returns a bounded page of tenant-prefixed object
