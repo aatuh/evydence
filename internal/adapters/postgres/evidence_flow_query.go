@@ -28,10 +28,19 @@ func (s *Store) ReadEvidenceFlowSnapshot(ctx context.Context, tenantID, releaseI
 	if err := ctx.Err(); err != nil {
 		return empty, err
 	}
+	return readEvidenceFlowSnapshot(ctx, s.pool, tenantID, releaseID)
+}
+
+type evidenceFlowRowReader interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
+}
+
+func readEvidenceFlowSnapshot(ctx context.Context, reader evidenceFlowRowReader, tenantID, releaseID string) (releasequery.EvidenceFlowSnapshot, error) {
+	var empty releasequery.EvidenceFlowSnapshot
 	var snapshot releasequery.EvidenceFlowSnapshot
 	var artifactRefs, passedBuilds, buildAttestations, sboms, scans int64
 	var vexDocuments, decisions, bundles, packages int64
-	err := s.pool.QueryRow(ctx, `
+	err := reader.QueryRow(ctx, `
 		SELECT r.tenant_id, r.id, r.product_id,
 		  (SELECT count(*) FROM (
 		    SELECT artifact_id AS id FROM sboms WHERE tenant_id = $1 AND release_id = r.id

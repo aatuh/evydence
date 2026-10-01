@@ -47,6 +47,7 @@ type Server struct {
 	securityUpdateEvidenceQuery       SecurityUpdateEvidenceQuery
 	craVulnerabilityQuery             CRAVulnerabilityQuery
 	missingEvidenceQuery              MissingEvidenceQuery
+	releaseSecuritySummaryQuery       ReleaseSecuritySummaryQuery
 	controlCoverageQuery              ControlCoverageQuery
 	instanceAdminQuery                InstanceAdminQuery
 	outboxDiagnosticsQuery            OutboxDiagnosticsQuery
@@ -133,6 +134,8 @@ type ServerOptions struct {
 	CRAVulnerabilityQuery CRAVulnerabilityQuery
 	// MissingEvidenceQuery reads a committed release-readiness projection.
 	MissingEvidenceQuery MissingEvidenceQuery
+	// ReleaseSecuritySummaryQuery reads one committed report snapshot.
+	ReleaseSecuritySummaryQuery ReleaseSecuritySummaryQuery
 	// ControlCoverageQuery reads bounded tenant-owned control and CRA reports.
 	ControlCoverageQuery ControlCoverageQuery
 	// InstanceAdminQuery reads global operational counts without loading Ledger state.
@@ -263,6 +266,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, readinessQuery: opts.ReadinessQuery, metricsQuery: opts.MetricsQuery, retentionQuery: opts.RetentionQuery, incidentReportQuery: opts.IncidentReportQuery, securityUpdateEvidenceQuery: opts.SecurityUpdateEvidenceQuery, craVulnerabilityQuery: opts.CRAVulnerabilityQuery, controlCoverageQuery: opts.ControlCoverageQuery, instanceAdminQuery: opts.InstanceAdminQuery, outboxDiagnosticsQuery: opts.OutboxDiagnosticsQuery, outboxReplayCommand: opts.OutboxReplayCommand, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, evidenceFlowQuery: opts.EvidenceFlowQuery, buildPointQuery: opts.BuildPointQuery, artifactPointQuery: opts.ArtifactPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, lifecycleEventsQuery: opts.LifecycleEventsQuery, openAPIContractPointQuery: opts.OpenAPIContractPointQuery, sbomPointQuery: opts.SBOMPointQuery, vulnerabilityScanPointQuery: opts.VulnerabilityScanPointQuery, vexPointQuery: opts.VEXPointQuery, sbomComponentsQuery: opts.SBOMComponentsQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, collectorHealthQuery: opts.CollectorHealthQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, marketplaceCollectorQuery: opts.MarketplaceCollectorQuery, vulnerabilityPostureQuery: opts.VulnerabilityPostureQuery, controlsQuery: opts.ControlsQuery, controlTemplateQuery: opts.ControlTemplateQuery, exceptionsQuery: opts.ExceptionsQuery, vulnerabilityDecisionQuery: opts.VulnerabilityDecisionQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
 	server.vulnerabilityDecisionSummaryQuery = opts.VulnerabilityDecisionSummaryQuery
 	server.missingEvidenceQuery = opts.MissingEvidenceQuery
+	server.releaseSecuritySummaryQuery = opts.ReleaseSecuritySummaryQuery
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
 		server.authn = opts.Authenticator
@@ -804,6 +808,15 @@ func (s *Server) startReleaseEvidenceFlow(w http.ResponseWriter, r *http.Request
 func (s *Server) releaseSecuritySummary(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
+		return
+	}
+	if s.releaseSecuritySummaryQuery != nil {
+		summary, err := s.releaseSecuritySummaryQuery.Summary(r.Context(), actor, r.PathValue("id"))
+		if err != nil {
+			writeProblem(w, r, mapReleaseSecuritySummaryQueryError(err))
+			return
+		}
+		writeData(w, http.StatusOK, releaseSecuritySummaryFromQuery(summary))
 		return
 	}
 	summary, err := s.ledger.ReleaseSecuritySummary(r.Context(), actor, r.PathValue("id"))

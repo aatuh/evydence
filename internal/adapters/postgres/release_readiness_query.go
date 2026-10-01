@@ -36,9 +36,20 @@ func (s *Store) ReadReleaseReadinessSnapshot(ctx context.Context, tenantID, rele
 		defer cancel()
 		_ = tx.Rollback(cleanupCtx)
 	}()
-	now := time.Now().UTC()
+	snapshot, err := readReleaseReadinessSnapshotTx(ctx, tx, tenantID, releaseID, time.Now().UTC())
+	if err != nil {
+		return empty, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return empty, fmt.Errorf("commit readiness snapshot: %w", err)
+	}
+	return snapshot, nil
+}
+
+func readReleaseReadinessSnapshotTx(ctx context.Context, tx pgx.Tx, tenantID, releaseID string, now time.Time) (riskapp.ReadinessSnapshot, error) {
+	var empty riskapp.ReadinessSnapshot
 	snapshot := riskapp.ReadinessSnapshot{SnapshotVersion: riskapp.ReadinessSnapshotVersion, TenantID: tenantID, ReleaseID: releaseID}
-	err = tx.QueryRow(ctx, `SELECT r.product_id FROM releases AS r
+	err := tx.QueryRow(ctx, `SELECT r.product_id FROM releases AS r
 		JOIN products AS p ON p.id=r.product_id AND p.tenant_id=r.tenant_id
 		WHERE r.tenant_id=$1 AND r.id=$2`, tenantID, releaseID).Scan(&snapshot.ProductID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -82,24 +93,7 @@ func (s *Store) ReadReleaseReadinessSnapshot(ctx context.Context, tenantID, rele
 	}
 	// A current decision or a scoped approved exception handles a finding.
 	// This is an existence projection; scanner payload bytes never leave SQL.
-	err = tx.QueryRow(ctx, `WITH findings AS (
-		SELECT s.id AS scan_id, f.value->>'id' AS finding_id, lower(f.value->>'severity') AS severity,
-			lower(coalesce(nullif(f.value->>'state',''),'open')) AS state
-		FROM vulnerability_scans AS s
-		CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(s.findings)='array' THEN s.findings ELSE '[]'::jsonb END) AS f(value)
-		WHERE s.tenant_id=$1 AND s.release_id=$2
-	), unhandled AS (
-		SELECT f.severity FROM findings AS f
-		WHERE f.state='open' AND f.severity IN ('critical','high')
-		AND NOT EXISTS (
-			SELECT 1 FROM vulnerability_decisions AS d
-			WHERE d.tenant_id=$1 AND d.finding_id=f.finding_id AND coalesce(d.superseded_by,'')=''
-			AND d.id=(SELECT latest.id FROM vulnerability_decisions AS latest WHERE latest.tenant_id=$1 AND latest.finding_id=f.finding_id AND coalesce(latest.superseded_by,'')='' ORDER BY latest.created_at DESC,latest.id DESC LIMIT 1)
-			AND d.status IN ('fixed','not_affected')
-		) AND NOT EXISTS (
-			SELECT 1 FROM exceptions AS x WHERE x.tenant_id=$1 AND x.release_id=$2 AND x.approved AND x.expires_at>$3 AND (coalesce(x.finding_id,'')='' OR x.finding_id=f.finding_id)
-		)
-	) SELECT coalesce(bool_or(severity='critical'),false),coalesce(bool_or(severity='high'),false) FROM unhandled`, tenantID, releaseID, now).Scan(&snapshot.UnhandledCritical, &snapshot.UnhandledHigh)
+	err = tx.QueryRow(ctx, releaseUnhandledFindingsCTE+` SELECT coalesce(bool_or(severity='critical'),false),coalesce(bool_or(severity='high'),false) FROM unhandled`, tenantID, releaseID, now).Scan(&snapshot.UnhandledCritical, &snapshot.UnhandledHigh)
 	if err != nil {
 		return empty, fmt.Errorf("read readiness findings: %w", err)
 	}
@@ -170,11 +164,28 @@ func (s *Store) ReadReleaseReadinessSnapshot(ctx context.Context, tenantID, rele
 		return empty, err
 	}
 	snapshot.HasVerifiedSignedBundle = verified
-	if err := tx.Commit(ctx); err != nil {
-		return empty, fmt.Errorf("commit readiness snapshot: %w", err)
-	}
 	return snapshot, nil
 }
+
+const releaseUnhandledFindingsCTE = `WITH findings AS (
+		SELECT s.id AS scan_id, f.value->>'id' AS finding_id, lower(f.value->>'severity') AS severity,
+			lower(coalesce(nullif(f.value->>'state',''),'open')) AS state,
+			f.value->>'vulnerability' AS vulnerability, f.value->>'component' AS component
+		FROM vulnerability_scans AS s
+		CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(s.findings)='array' THEN s.findings ELSE '[]'::jsonb END) AS f(value)
+		WHERE s.tenant_id=$1 AND s.release_id=$2
+	), unhandled AS (
+		SELECT f.* FROM findings AS f
+		WHERE f.state='open' AND f.severity IN ('critical','high')
+		AND NOT EXISTS (
+			SELECT 1 FROM vulnerability_decisions AS d
+			WHERE d.tenant_id=$1 AND d.finding_id=f.finding_id AND coalesce(d.superseded_by,'')=''
+			AND d.id=(SELECT latest.id FROM vulnerability_decisions AS latest WHERE latest.tenant_id=$1 AND latest.finding_id=f.finding_id AND coalesce(latest.superseded_by,'')='' ORDER BY latest.created_at DESC,latest.id DESC LIMIT 1)
+			AND d.status IN ('fixed','not_affected')
+		) AND NOT EXISTS (
+			SELECT 1 FROM exceptions AS x WHERE x.tenant_id=$1 AND x.release_id=$2 AND x.approved AND x.expires_at>$3 AND (coalesce(x.finding_id,'')='' OR x.finding_id=f.finding_id)
+		)
+	) `
 
 func readVerifiedReadinessBundle(ctx context.Context, tx pgx.Tx, tenantID, releaseID string, now time.Time) (bool, error) {
 	rows, err := tx.Query(ctx, `SELECT left(b.manifest_hash,257),left(sg.value,257),left(k.public_key,257),left(k.status,257),k.created_at,k.valid_from,k.valid_until,k.revoked_at,left(k.revocation_semantics,257),left(k.historical_validity_policy,257),k.compromised_at,sg.created_at,

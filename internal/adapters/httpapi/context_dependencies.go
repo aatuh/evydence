@@ -72,6 +72,12 @@ type MissingEvidenceQuery interface {
 	Report(context.Context, domain.Actor, string) (map[string]any, error)
 }
 
+// ReleaseSecuritySummaryQuery assembles one release's security overview from
+// a bounded, tenant-scoped committed snapshot.
+type ReleaseSecuritySummaryQuery interface {
+	Summary(context.Context, domain.Actor, string) (riskdomain.ReleaseSecuritySummary, error)
+}
+
 // ControlCoverageQuery evaluates tenant-scoped control and CRA readiness
 // reports from one bounded durable snapshot.
 type ControlCoverageQuery interface {
