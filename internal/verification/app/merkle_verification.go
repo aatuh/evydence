@@ -158,7 +158,11 @@ func merkleVerificationWithinBudget(s MerkleVerificationSnapshot) bool {
 			return false
 		}
 	}
-	for _, sig := range s.Signatures {
+	return publicVerificationMaterialWithinBudget(s.Signatures, s.Keys, consume)
+}
+
+func publicVerificationMaterialWithinBudget(signatures []verificationdomain.Signature, keys []verificationdomain.SigningKey, consume func(string, int) bool) bool {
+	for _, sig := range signatures {
 		for _, text := range []string{sig.ID, sig.TenantID, sig.SubjectID, sig.KeyID} {
 			if !consume(text, 1024) {
 				return false
@@ -168,7 +172,7 @@ func merkleVerificationWithinBudget(s MerkleVerificationSnapshot) bool {
 			return false
 		}
 	}
-	for _, key := range s.Keys {
+	for _, key := range keys {
 		if !consume(key.ID, 1024) || !consume(key.TenantID, 1024) || !consume(key.Algorithm, 64) || !consume(key.PublicKey, 16384) || !consume(key.Status.String(), 64) || !consume(key.RevocationSemantics, 64) || !consume(key.HistoricalValidityPolicy, 64) {
 			return false
 		}

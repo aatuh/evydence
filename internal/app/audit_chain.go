@@ -155,27 +155,5 @@ func sameAuditChainHashes(left, right []string) bool {
 }
 
 func releaseManifestAuditChainCheckpoint(manifest map[string]any) (int64, string, bool) {
-	raw, ok := manifest["chain_checkpoint"].(map[string]any)
-	if !ok {
-		return 0, "", false
-	}
-	var sequence int64
-	switch value := raw["sequence"].(type) {
-	case int:
-		sequence = int64(value)
-	case int64:
-		sequence = value
-	case float64:
-		if value != float64(int64(value)) {
-			return 0, "", false
-		}
-		sequence = int64(value)
-	default:
-		return 0, "", false
-	}
-	headHash, ok := raw["head_hash"].(string)
-	if !ok {
-		return 0, "", false
-	}
-	return sequence, headHash, true
+	return verificationapp.ReleaseManifestAuditChainCheckpoint(manifest)
 }

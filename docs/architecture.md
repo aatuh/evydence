@@ -159,6 +159,18 @@ the distinct `audit-chain-merkle-checkpoint.v1` profile and early failed-range
 contract. It proves neither external publication nor third-party log inclusion.
 See [signed checkpoint verification](reference/verification-results.md#signed-merkle-audit-chain-checkpoint-verification).
 
+The PostgreSQL-profile `audit_chain_release_manifest` command similarly
+composes full-chain and bounded release-bundle readers in one transaction.
+Manifest hashing and signature policy reuse the ordinary bundle inspector;
+the signed sequence/head is matched against the same canonical chain pages.
+Human actors need a tenant-wide verification grant because the receipt includes
+all tenant entries, rather than only the release's evidence. Release-only grants
+remain sufficient for ordinary resource-scoped bundle signature verification,
+not this checkpoint profile. Receipt/audit/outbox effects commit atomically;
+oversized projections fail closed. See
+[release-manifest checkpoint verification](reference/verification-results.md#release-manifest-audit-chain-checkpoint-verification)
+for compatibility and assurance limits.
+
 Cosign verification (`POST /v1/artifact-signatures/{id}/verify-cosign`) in the
 PostgreSQL profile uses focused transaction-scoped signature/artifact/payload
 reads and a bounded object reader, not Ledger state. `verify:read` is required;

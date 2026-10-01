@@ -160,12 +160,52 @@ POST verification rolls back; successful idempotent replay adds no effects.
 
 Existing response fields, profile, check names and persisted hashes remain
 unchanged; no migration or historical rewrite is performed. Local-memory mode
-retains its explicit compatibility implementation. Release-manifest audit-chain
-checkpoint migration remains separate EVY-905 work.
+retains its explicit compatibility implementation.
 
 Source/test evidence: `internal/verification/app/merkle_checkpoint_verification.go`,
 `internal/platform/wiring/merkle_checkpoint_verification_test.go` and
 `internal/adapters/httpapi/merkle_checkpoint_verification_test.go`.
+
+## Release-Manifest Audit-Chain Checkpoint Verification
+
+`POST /v1/verify` with `subject_type: audit_chain_release_manifest` and a
+release-bundle ID uses `audit-chain-release-manifest-checkpoint.v1`. The
+PostgreSQL command checks the entire current tenant chain, then
+`checkpoint_manifest_hash`, `checkpoint_signature` and `checkpoint_coverage`.
+The normalized-JSON manifest hash and historically valid tenant signature must
+bind to the selected release bundle. The signed manifest's `chain_checkpoint`
+must contain an integer `sequence` and string `head_hash`; a positive sequence
+must exist in the same inspected chain and match that entry's stored hash.
+Missing, malformed, negative or truncated coverage fails. Sequence zero retains
+its existing empty-range behavior. All three checkpoint checks remain in a
+completed receipt even when coverage fails.
+
+This is a tenant-wide assessment, including canonical entries beyond the
+covered prefix. Human actors therefore require a tenant-wide `verify:read`
+grant **before content reads** in the PostgreSQL profile. A release/product
+grant alone no longer permits this assessment; ordinary release-bundle
+signature verification remains resource-scoped. The explicit local-memory
+compatibility path retains its legacy authorization behavior.
+
+The audit writer fence and shared tenant, release/product, bundle, audit,
+signature and public-key locks preserve one view through atomic receipt, audit
+and outbox persistence. The full-chain limits above apply independently of the
+8 MiB encoded bundle/signing projection limit and 4096-reference/signature/key
+limits. Oversize data fails closed with no partial receipt. Private signing
+material, unrelated products and other tenants' payloads are not loaded.
+Successful idempotent replay adds no effects; failed generic POST verification
+rolls back its enclosing transaction.
+
+The existing profile, check names, manifest-hash payload digest, canonical hash
+format and historical key policy are preserved; no schema or historical
+record is rewritten. This detects a signed covered-head mismatch or deleted
+tail, not external publication or third-party log inclusion. Transparency
+remains `not_evaluated`; external review and trust-root selection remain
+operator responsibilities.
+
+Source/test evidence: `internal/verification/app/release_manifest_checkpoint.go`,
+`internal/platform/wiring/release_manifest_checkpoint_test.go` and
+`internal/adapters/httpapi/release_manifest_checkpoint_test.go`.
 
 ## Merkle Batch Verification
 
