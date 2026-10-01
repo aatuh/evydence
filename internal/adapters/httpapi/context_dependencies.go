@@ -37,6 +37,12 @@ type ReadinessQuery interface {
 	Operator(context.Context, domain.Actor) (map[string]any, error)
 }
 
+// MetricsQuery returns tenant-safe counters and optional instance diagnostics
+// without loading Ledger state or exposing evidence payloads.
+type MetricsQuery interface {
+	Snapshot(context.Context, domain.Actor) (map[string]any, error)
+}
+
 // InstanceAdminQuery returns aggregate operational counts only after the
 // focused service verifies explicit instance-wide authority.
 type InstanceAdminQuery interface {

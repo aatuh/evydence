@@ -65,7 +65,14 @@ func (s *Server) metrics(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	metrics, err := s.ledger.Metrics(r.Context(), actor)
+	var metrics map[string]any
+	var err error
+	if s.metricsQuery != nil {
+		metrics, err = s.metricsQuery.Snapshot(r.Context(), actor)
+		err = mapInstanceAdminQueryError(err)
+	} else {
+		metrics, err = s.ledger.Metrics(r.Context(), actor)
+	}
 	if err != nil {
 		writeProblem(w, r, err)
 		return

@@ -102,6 +102,11 @@ operations probe service, not Ledger state. The composition root requires
 PostgreSQL and migration probes, plus writer-lease and signing-configuration
 probes in production; raw probe errors never enter either response, and safe
 failure details appear only for an explicitly authorized instance admin.
+The production metrics route uses a repeatable-read PostgreSQL projection for
+tenant resource, portal, and reconciliation counters. Global outbox counters
+are read in the same snapshot only for explicit instance administrators. The
+route keeps its existing JSON and Prometheus response shapes; local-memory
+mode retains the Ledger-backed metrics path.
 EVY-905 also routes production product-list pages and product, project,
 release, and build point reads through focused release query services with
 tenant-bound PostgreSQL queries. Their actor-scope and catalog-grant checks

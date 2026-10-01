@@ -49,6 +49,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 		return httpapi.ServerOptions{}, errors.New("production API readiness checks are incomplete")
 	}
 	options.ReadinessQuery = operationsquery.NewReadiness(normalizedChecks)
+	options.MetricsQuery, err = BuildMetricsQuery(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create metrics query: %w", err)
+	}
 	options.Authenticator, err = BuildAuthenticator(store, store, pepper, runtime.Production)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create authenticator: %w", err)
