@@ -60,6 +60,7 @@ type Server struct {
 	releaseBundleVerification         ReleaseBundleVerification
 	evidenceVerification              EvidenceVerification
 	signingCustodyQuery               SigningCustodyQuery
+	retentionCommands                 RetentionCommands
 	releaseReadinessReportQuery       ReleaseReadinessReportQuery
 	releaseSecuritySummaryQuery       ReleaseSecuritySummaryQuery
 	controlCoverageQuery              ControlCoverageQuery
@@ -170,6 +171,8 @@ type ServerOptions struct {
 	EvidenceVerification EvidenceVerification
 	// SigningCustodyQuery assesses one bounded committed provider/policy inventory.
 	SigningCustodyQuery SigningCustodyQuery
+	// RetentionCommands atomically persists durable retention intent and observations.
+	RetentionCommands RetentionCommands
 	// ReleaseSecuritySummaryQuery reads one committed report snapshot.
 	ReleaseSecuritySummaryQuery ReleaseSecuritySummaryQuery
 	// ControlCoverageQuery reads bounded tenant-owned control and CRA reports.
@@ -313,6 +316,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.releaseBundleVerification = opts.ReleaseBundleVerification
 	server.evidenceVerification = opts.EvidenceVerification
 	server.signingCustodyQuery = opts.SigningCustodyQuery
+	server.retentionCommands = opts.RetentionCommands
 	server.releaseSecuritySummaryQuery = opts.ReleaseSecuritySummaryQuery
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
@@ -3261,19 +3265,43 @@ func (s *Server) createObjectRetentionPolicy(w http.ResponseWriter, r *http.Requ
 		RequireLegalHold        bool   `json:"require_legal_hold"`
 		Mode                    string `json:"mode"`
 		RetentionDays           int    `json:"retention_days"`
-		MaxVerificationAgeHours int    `json:"max_verification_age_hours"`
+		MaxVerificationAgeHours *int   `json:"max_verification_age_hours"`
 	}
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
-		policy, err := s.verification.CreateObjectRetentionPolicy(ctx, actor, app.CreateObjectRetentionPolicyInput{Name: req.Name, ObjectPrefix: req.ObjectPrefix, ObjectKey: req.ObjectKey, RequireLegalHold: req.RequireLegalHold, Mode: req.Mode, RetentionDays: req.RetentionDays, MaxVerificationAgeHours: req.MaxVerificationAgeHours})
+		if err := validateNonNullableObjectFields(body, "name", "mode", "retention_days", "object_prefix", "object_key", "require_legal_hold", "max_verification_age_hours"); err != nil {
+			return 0, nil, err
+		}
+		age := 0
+		if req.MaxVerificationAgeHours != nil {
+			age = *req.MaxVerificationAgeHours
+			if age < 1 || age > 8784 {
+				return 0, nil, app.ErrValidation
+			}
+		}
+		if s.retentionCommands != nil {
+			policy, err := s.retentionCommands.CreateObjectRetentionPolicy(ctx, actor, verificationapp.CreateObjectRetentionPolicyInput{Name: req.Name, ObjectPrefix: req.ObjectPrefix, ObjectKey: req.ObjectKey, RequireLegalHold: req.RequireLegalHold, Mode: req.Mode, RetentionDays: req.RetentionDays, MaxVerificationAgeHours: age})
+			return http.StatusCreated, domain.ObjectRetentionPolicyFromContextModel(policy), mapSigningKeyCommandError(err)
+		}
+		policy, err := s.verification.CreateObjectRetentionPolicy(ctx, actor, app.CreateObjectRetentionPolicyInput{Name: req.Name, ObjectPrefix: req.ObjectPrefix, ObjectKey: req.ObjectKey, RequireLegalHold: req.RequireLegalHold, Mode: req.Mode, RetentionDays: req.RetentionDays, MaxVerificationAgeHours: age})
 		return http.StatusCreated, policy, err
 	})
 }
 
 func (s *Server) verifyObjectRetentionPolicy(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &struct{}{}); err != nil {
+			return 0, nil, err
+		}
+		if err := validateNonNullableObjectFields(body); err != nil {
+			return 0, nil, err
+		}
+		if s.retentionCommands != nil {
+			policy, err := s.retentionCommands.VerifyObjectRetentionPolicy(ctx, actor, r.PathValue("id"))
+			return http.StatusOK, domain.ObjectRetentionPolicyFromContextModel(policy), mapSigningKeyCommandError(err)
+		}
 		policy, err := s.verification.VerifyObjectRetentionPolicy(ctx, actor, r.PathValue("id"))
 		return http.StatusOK, policy, err
 	})

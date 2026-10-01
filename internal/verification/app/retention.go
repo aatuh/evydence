@@ -2,10 +2,14 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"math"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	application "github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -62,14 +66,14 @@ type BackupSnapshot struct {
 	ConsistencyChecks []verificationdomain.VerifyCheck
 }
 
-func (s *Service) CreateObjectRetentionPolicy(ctx context.Context, actor identitydomain.Actor, input CreateObjectRetentionPolicyInput) (verificationdomain.ObjectRetentionPolicy, error) {
+func (s *RetentionCommands) CreateObjectRetentionPolicy(ctx context.Context, actor identitydomain.Actor, input CreateObjectRetentionPolicyInput) (verificationdomain.ObjectRetentionPolicy, error) {
 	if err := contextError(ctx); err != nil {
 		return verificationdomain.ObjectRetentionPolicy{}, err
 	}
 	if err := validateActor(actor); err != nil {
 		return verificationdomain.ObjectRetentionPolicy{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeAdmin, application.ResourceReferences{}, false, true); err != nil {
+	if err := s.authorize(ctx, actor, ScopeAdmin); err != nil {
 		return verificationdomain.ObjectRetentionPolicy{}, err
 	}
 	input.Name = strings.TrimSpace(input.Name)
@@ -92,14 +96,14 @@ func (s *Service) CreateObjectRetentionPolicy(ctx context.Context, actor identit
 		MaxVerificationAgeHours: input.MaxVerificationAgeHours, Status: "configured",
 		SchemaVersion: verificationdomain.ObjectRetentionPolicyVersion, CreatedAt: now,
 	}
-	err := s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-		if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeAdmin, TenantWide: true}); err != nil {
+	err := s.transactions.ExecuteRetentionCommand(ctx, func(ctx context.Context, tx RetentionTransaction) error {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeAdmin, TenantWide: true}); err != nil {
 			return err
 		}
-		if err := tx.Verification().InsertObjectRetentionPolicy(ctx, policy); err != nil {
+		if err := tx.InsertObjectRetentionPolicy(ctx, policy); err != nil {
 			return err
 		}
-		_, err := tx.Audit().AppendAudit(ctx, s.auditEvent(actor, now, "object_retention_policy.created", "object_retention_policy", policy.ID))
+		_, err := tx.AppendAudit(ctx, s.auditEvent(actor, now, "object_retention_policy.created", policy.ID))
 		return err
 	})
 	if err != nil {
@@ -108,26 +112,37 @@ func (s *Service) CreateObjectRetentionPolicy(ctx context.Context, actor identit
 	return cloneObjectRetentionPolicy(policy), nil
 }
 
-func (s *Service) VerifyObjectRetentionPolicy(ctx context.Context, actor identitydomain.Actor, id string) (verificationdomain.ObjectRetentionPolicy, error) {
+func (s *RetentionCommands) VerifyObjectRetentionPolicy(ctx context.Context, actor identitydomain.Actor, id string) (verificationdomain.ObjectRetentionPolicy, error) {
 	if err := contextError(ctx); err != nil {
 		return verificationdomain.ObjectRetentionPolicy{}, err
 	}
 	if err := validateActor(actor); err != nil {
 		return verificationdomain.ObjectRetentionPolicy{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeVerifyRead, application.ResourceReferences{}, false, true); err != nil {
+	if err := s.authorize(ctx, actor, ScopeVerifyRead); err != nil {
 		return verificationdomain.ObjectRetentionPolicy{}, err
 	}
 	id = strings.TrimSpace(id)
-	policy, err := s.integrity.ReadObjectRetentionPolicy(ctx, actor.TenantID, id)
+	if id == "" {
+		return verificationdomain.ObjectRetentionPolicy{}, ErrNotFound
+	}
+	if !validRetentionText(id, 1024) {
+		return verificationdomain.ObjectRetentionPolicy{}, ErrValidation
+	}
+	policy, err := s.reader.ReadObjectRetentionPolicy(ctx, actor.TenantID, id)
 	if err != nil {
 		return verificationdomain.ObjectRetentionPolicy{}, err
 	}
 	if policy.ID != id || policy.TenantID != actor.TenantID {
 		return verificationdomain.ObjectRetentionPolicy{}, ErrNotFound
 	}
+	policy = cloneObjectRetentionPolicy(policy)
+	expectedPolicy := cloneObjectRetentionPolicy(policy)
 	if policy.MaxVerificationAgeHours == 0 {
 		policy.MaxVerificationAgeHours = defaultRetentionVerificationAgeHours
+	}
+	if !validObjectRetentionPolicyInput(actor.TenantID, CreateObjectRetentionPolicyInput{Name: policy.Name, ObjectPrefix: policy.ObjectPrefix, ObjectKey: policy.ObjectKey, RequireLegalHold: policy.RequireLegalHold, Mode: policy.Mode, RetentionDays: policy.RetentionDays, MaxVerificationAgeHours: policy.MaxVerificationAgeHours}) || !validRetentionText(policy.Status, 64) {
+		return verificationdomain.ObjectRetentionPolicy{}, ErrConflict
 	}
 	expectedStatus := policy.Status
 	now := s.clock.Now().UTC()
@@ -138,14 +153,14 @@ func (s *Service) VerifyObjectRetentionPolicy(ctx context.Context, actor identit
 	if errors.Is(observationErr, context.Canceled) || errors.Is(observationErr, context.DeadlineExceeded) {
 		return verificationdomain.ObjectRetentionPolicy{}, observationErr
 	}
-	observation = cloneRetentionObservation(observation)
 	result := localRetentionIntentResult()
 	status := "not_verified"
 	providerObserved := false
 	if configured {
-		if observationErr != nil {
+		if observationErr != nil || !validRetentionObservation(observation) {
 			result = unavailableRetentionResult()
 		} else {
+			observation = cloneRetentionObservation(observation)
 			if observation.ObservedAt.IsZero() {
 				observation.ObservedAt = now
 			}
@@ -184,26 +199,26 @@ func (s *Service) VerifyObjectRetentionPolicy(ctx context.Context, actor identit
 	if policy.Status != "verified" {
 		entryType = "object_retention_policy.verification_failed"
 	}
-	err = s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-		if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, TenantWide: true}); err != nil {
+	err = s.transactions.ExecuteRetentionCommand(ctx, func(ctx context.Context, tx RetentionTransaction) error {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, TenantWide: true}); err != nil {
 			return err
 		}
-		current, err := tx.Verification().GetObjectRetentionPolicyForUpdate(ctx, actor.TenantID, policy.ID)
+		current, err := tx.GetObjectRetentionPolicyForUpdate(ctx, actor.TenantID, policy.ID)
 		if err != nil {
 			return err
 		}
 		if current.ID != policy.ID || current.TenantID != actor.TenantID {
 			return ErrNotFound
 		}
-		if current.Status != expectedStatus {
+		if !reflect.DeepEqual(cloneObjectRetentionPolicy(current), expectedPolicy) {
 			return ErrConflict
 		}
-		if err := tx.Verification().UpdateObjectRetentionPolicy(ctx, policy, expectedStatus); err != nil {
+		if err := tx.UpdateObjectRetentionPolicy(ctx, policy, expectedStatus); err != nil {
 			return err
 		}
-		audit := s.auditEvent(actor, now, entryType, "object_retention_policy", policy.ID)
+		audit := s.auditEvent(actor, now, entryType, policy.ID)
 		audit.PayloadHash = policy.VerificationHash
-		_, err = tx.Audit().AppendAudit(ctx, audit)
+		_, err = tx.AppendAudit(ctx, audit)
 		return err
 	})
 	if err != nil {
@@ -327,7 +342,7 @@ func (s *Service) GenerateBackupManifest(ctx context.Context, actor identitydoma
 }
 
 func validObjectRetentionPolicyInput(tenantID string, input CreateObjectRetentionPolicyInput) bool {
-	if input.Name == "" || input.RetentionDays <= 0 || (input.Mode != "governance" && input.Mode != "compliance") || input.MaxVerificationAgeHours < 1 || input.MaxVerificationAgeHours > maxRetentionVerificationAgeHours {
+	if !validRetentionText(input.Name, 4096) || !validRetentionText(input.ObjectPrefix, 4096) || len(input.ObjectKey) > 4096 || !utf8.ValidString(input.ObjectKey) || strings.ContainsRune(input.ObjectKey, 0) || input.RetentionDays <= 0 || input.RetentionDays > math.MaxInt32 || (input.Mode != "governance" && input.Mode != "compliance") || input.MaxVerificationAgeHours < 1 || input.MaxVerificationAgeHours > maxRetentionVerificationAgeHours {
 		return false
 	}
 	prefix := "tenants/" + tenantID + "/"
@@ -335,6 +350,30 @@ func validObjectRetentionPolicyInput(tenantID string, input CreateObjectRetentio
 		return false
 	}
 	return !input.RequireLegalHold || input.ObjectKey != ""
+}
+
+func validRetentionText(value string, maximum int) bool {
+	return value != "" && len(value) <= maximum && utf8.ValidString(value) && !strings.ContainsRune(value, 0)
+}
+
+func validRetentionObservation(observation RetentionObservation) bool {
+	if observation.RetentionDays < 0 || observation.RetentionDays > math.MaxInt32 || len(observation.Checks) > MaxRetentionObservationFacts || len(observation.Limitations) > MaxRetentionObservationFacts-len(observation.Checks) {
+		return false
+	}
+	fields := []string{observation.Provider, observation.Bucket, observation.ObjectKey, observation.Mode}
+	for _, check := range observation.Checks {
+		fields = append(fields, check.Name, check.Result, check.Detail)
+	}
+	fields = append(fields, observation.Limitations...)
+	remaining := MaxRetentionObservationBytes
+	for _, field := range fields {
+		if len(field) > remaining || !utf8.ValidString(field) || strings.ContainsRune(field, 0) {
+			return false
+		}
+		remaining -= len(field)
+	}
+	body, err := json.Marshal(observation)
+	return err == nil && len(body) <= MaxRetentionObservationBytes
 }
 
 func localRetentionIntentResult() RetentionObservation {

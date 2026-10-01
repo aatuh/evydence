@@ -69,6 +69,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.SigningCustodyQuery != nil {
 		t.Fatal("local memory bound durable custody query")
 	}
+	if memory.RetentionCommands != nil {
+		t.Fatal("local memory unexpectedly binds durable retention commands")
+	}
 	checks := []app.ReadinessCheck{
 		{Name: "postgres", Check: func(context.Context) error { return nil }},
 		{Name: "migrations", Check: func(context.Context) error { return nil }},
@@ -111,6 +114,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.SigningCustodyQuery == nil {
 		t.Fatal("PostgreSQL custody report still uses Ledger")
+	}
+	if options.RetentionCommands == nil {
+		t.Fatal("PostgreSQL does not bind durable retention commands")
 	}
 	if options.ReadinessQuery == nil || options.MetricsQuery == nil || options.RetentionQuery == nil || options.IncidentReportQuery == nil || options.SecurityUpdateEvidenceQuery == nil || options.CRAVulnerabilityQuery == nil || options.MissingEvidenceQuery == nil || options.ReleaseSecuritySummaryQuery == nil || options.ControlCoverageQuery == nil || options.Authenticator == nil || options.InstanceAdminQuery == nil || options.OutboxDiagnosticsQuery == nil || options.OutboxReplayCommand == nil || options.ProductQuery == nil || options.CatalogPointQuery == nil || options.EvidenceFlowQuery == nil ||
 		options.BuildPointQuery == nil || options.ArtifactPointQuery == nil || options.ReleaseCandidateQuery == nil || options.DeploymentPointQuery == nil ||

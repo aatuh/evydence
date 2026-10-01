@@ -54,6 +54,30 @@ is not proof of HSM custody, and this report does not establish WORM enforcement
 deployment security, or legal compliance. Other verification workflows and the
 broad startup Ledger load remain EVY-905 work.
 
+PostgreSQL-profile retention-policy creation and verification use focused
+commands, not Ledger maps. Tenant-wide `admin` creation and `verify:read`
+verification authorization precede metadata reads and provider calls. Verification
+reads one tenant-owned policy with an 8 MiB serialized projection limit. Provider
+observations are limited to 4 MiB of serialized data and 4096 combined checks and
+limitations; malformed or unavailable observations produce conservative
+`not_verified` receipts without exposing provider errors. The provider call
+precedes the policy row lock and receipt mutation; HTTP idempotency may already
+hold its enclosing command transaction. Before saving, the command locks and
+compares every projected policy field with the earlier snapshot. A competing
+receipt, even with the same status, causes conflict rather than overwrite.
+Creation or receipt changes and their audit entry commit together, including
+the HTTP replay record when applicable. No worker job is added. Runtime wiring
+uses the configured object store's retention-verifier capability; without it,
+the receipt describes local intent only. Existing policy schemas, normalized-JSON
+hashing, observation-expiry policy, response fields and replay remain compatible.
+Explicit JSON `null` creation fields, an explicitly zero observation age, and
+non-empty verification objects are rejected according to the published schema.
+Names, prefixes and sample keys are bounded to 4 KiB of valid UTF-8 without NUL;
+retention duration must fit a positive PostgreSQL integer. These observations
+describe the configured bucket and sample, not general WORM enforcement, storage
+completeness, external key custody, or legal compliance. Local-memory mode shares
+the command orchestration through explicit compatibility ports.
+
 The current `internal/domain` package and `internal/app.Ledger` are transition
 paths, not the intended permanent architecture. The accepted
 [bounded-context ownership decision](adr/0003-bounded-contexts.md) assigns all

@@ -113,6 +113,11 @@ type SigningKeyCommands interface {
 	RevokeSigningKey(context.Context, identitydomain.Actor, string, verificationapp.SigningKeyRevocationInput) (verificationdomain.SigningKey, error)
 }
 
+type RetentionCommands interface {
+	CreateObjectRetentionPolicy(context.Context, identitydomain.Actor, verificationapp.CreateObjectRetentionPolicyInput) (verificationdomain.ObjectRetentionPolicy, error)
+	VerifyObjectRetentionPolicy(context.Context, identitydomain.Actor, string) (verificationdomain.ObjectRetentionPolicy, error)
+}
+
 type ReleaseBundleVerification interface {
 	VerifyReleaseBundle(context.Context, identitydomain.Actor, string) (verificationdomain.VerificationResult, error)
 }

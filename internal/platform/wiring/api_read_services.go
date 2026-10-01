@@ -125,6 +125,11 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create signing custody query: %w", err)
 	}
+	retentionVerifier, _ := runtime.Objects.(app.ObjectRetentionVerifier)
+	options.RetentionCommands, err = BuildRetentionCommands(store, store, retentionVerifier)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create retention commands: %w", err)
+	}
 	options.Authenticator, err = BuildAuthenticator(store, store, pepper, runtime.Production)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create authenticator: %w", err)

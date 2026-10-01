@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/aatuh/evydence/internal/adapters/postgres/repositories"
 	"github.com/aatuh/evydence/internal/domain"
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
@@ -32,16 +33,7 @@ SELECT kind,
 			'key_ref',key_ref,'encrypted',encrypted,'schema_version',schema_version,'created_at',created_at
 		) AS body FROM signing_providers JOIN selected_ids USING(id) WHERE tenant_id=$1 AND kind='provider'
 		UNION ALL
-		SELECT 'policy' AS kind,jsonb_build_object(
-			'id',id,'tenant_id',tenant_id,'name',name,'object_prefix',object_prefix,'object_key',object_key,
-			'require_legal_hold',require_legal_hold,'mode',mode,'retention_days',retention_days,
-			'max_verification_age_hours',max_verification_age_hours,'status',status,'verified_at',verified_at,
-			'verification_hash',verification_hash,'verification_checks',verification_checks,'verification_limitations',verification_limitations,
-			'verification_provider',verification_provider,'verification_bucket',verification_bucket,'verification_mode',verification_mode,
-			'verification_retention_days',verification_retention_days,'verification_legal_hold',verification_legal_hold,
-			'verification_observed_at',verification_observed_at,'verification_expires_at',verification_expires_at,
-			'schema_version',schema_version,'created_at',created_at
-		) AS body FROM object_retention_policies JOIN selected_ids USING(id) WHERE tenant_id=$1 AND kind='policy'
+		SELECT 'policy' AS kind,` + repositories.ObjectRetentionPolicyJSONProjection + ` AS body FROM object_retention_policies JOIN selected_ids USING(id) WHERE tenant_id=$1 AND kind='policy'
 	) selected`
 
 func (s *Store) ReadSigningCustodySnapshot(ctx context.Context, tenantID string) (verificationapp.SigningCustodySnapshot, error) {
