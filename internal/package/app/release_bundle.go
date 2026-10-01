@@ -64,26 +64,22 @@ type PackageSignatureRepository interface {
 	InsertPackageSignature(context.Context, PackageSignature) error
 }
 
-func (s *Service) CreateReleaseBundle(ctx context.Context, actor identitydomain.Actor, releaseID string) (packagedomain.ReleaseBundle, error) {
+func (s *ReleaseBundleCommands) CreateReleaseBundle(ctx context.Context, actor identitydomain.Actor, releaseID string) (packagedomain.ReleaseBundle, error) {
 	if err := contextError(ctx); err != nil {
 		return packagedomain.ReleaseBundle{}, err
 	}
 	if err := validateActor(actor); err != nil {
 		return packagedomain.ReleaseBundle{}, err
 	}
-	if err := s.authorize(ctx, actor, "bundle:write", application.ResourceReferences{}, true); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: "bundle:write", ScopeOnly: true}); err != nil {
 		return packagedomain.ReleaseBundle{}, err
 	}
 	releaseID = strings.TrimSpace(releaseID)
 	if releaseID == "" {
 		return packagedomain.ReleaseBundle{}, ErrValidation
 	}
-	if s.projectionRefresher != nil {
-		if err := s.projectionRefresher.RefreshPackageProjection(ctx, actor.TenantID); err != nil {
-			return packagedomain.ReleaseBundle{}, err
-		}
-	}
-	snapshot, err := s.reader.ReadCommittedReleaseBundleSnapshot(ctx, actor.TenantID, releaseID)
+	now := s.config.Clock.Now().UTC()
+	snapshot, err := s.config.Reader.ReadReleaseBundleSnapshot(ctx, actor.TenantID, releaseID, now)
 	if err != nil {
 		return packagedomain.ReleaseBundle{}, err
 	}
@@ -95,12 +91,11 @@ func (s *Service) CreateReleaseBundle(ctx context.Context, actor identitydomain.
 		return packagedomain.ReleaseBundle{}, ErrConflict
 	}
 	resources := application.ResourceReferences{ProductID: snapshot.ProductID, ReleaseID: snapshot.ReleaseID}
-	if err := s.authorize(ctx, actor, "bundle:write", resources, false); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: "bundle:write", Resources: resources}); err != nil {
 		return packagedomain.ReleaseBundle{}, err
 	}
 
-	now := s.clock.Now().UTC()
-	bundleID := s.ids.NewID("rb")
+	bundleID := s.config.IDs.NewID("rb")
 	evidenceIDs, _ := normalizedNonEmptyStrings(snapshot.EvidenceIDs, false)
 	manifest := map[string]any{
 		"manifest_version": packagedomain.ReleaseBundleSchemaVersion,
@@ -112,14 +107,14 @@ func (s *Service) CreateReleaseBundle(ctx context.Context, actor identitydomain.
 		"generator":          map[string]any{"name": "evydence", "version": "dev"},
 		"object_lock_proofs": cloneBundleMapSlice(snapshot.ObjectLockProofs),
 	}
-	manifestHash, err := s.canonicalizer.HashPackageManifest(ctx, manifest)
+	manifestHash, err := s.config.Hasher.HashPackageManifest(ctx, manifest)
 	if err != nil {
 		return packagedomain.ReleaseBundle{}, err
 	}
 	if strings.TrimSpace(manifestHash) == "" {
 		return packagedomain.ReleaseBundle{}, ErrValidation
 	}
-	signature, err := s.signer.SignPackage(ctx, PackageSigningRequest{
+	signature, err := s.config.Signer.SignPackage(ctx, PackageSigningRequest{
 		TenantID: actor.TenantID, SubjectType: "release_bundle", SubjectID: bundleID, PayloadHash: manifestHash, CreatedAt: now,
 	})
 	if err != nil {
@@ -136,23 +131,22 @@ func (s *Service) CreateReleaseBundle(ctx context.Context, actor identitydomain.
 		ID: bundleID, TenantID: actor.TenantID, ReleaseID: snapshot.ReleaseID, State: state,
 		Manifest: manifest, ManifestHash: manifestHash, SignatureRefs: []string{signature.ID}, CreatedAt: now,
 	}
-	err = s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-		if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Scope: "bundle:write", Resources: resources}); err != nil {
+	err = s.config.Transactions.ExecuteReleaseBundle(ctx, func(ctx context.Context, tx ReleaseBundleTransaction) error {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: "bundle:write", Resources: resources}); err != nil {
 			return err
 		}
-		if err := tx.Signatures().InsertPackageSignature(ctx, signature); err != nil {
+		if err := tx.InsertReleaseBundleSignature(ctx, signature, manifestHash); err != nil {
 			return err
 		}
-		if err := tx.Packages().InsertReleaseBundle(ctx, bundle); err != nil {
+		if err := tx.InsertReleaseBundle(ctx, bundle); err != nil {
 			return err
 		}
-		audit := s.auditEvent(actor, now, "bundle.generated", "release_bundle", bundle.ID, manifestHash)
-		audit.SignatureRef = signature.ID
-		if _, err := tx.Audit().AppendAudit(ctx, audit); err != nil {
+		audit := application.AuditEvent{ID: s.config.IDs.NewID("ace"), TenantID: actor.TenantID, EntryType: "bundle.generated", SubjectType: "release_bundle", SubjectID: bundle.ID, ActorType: auditActorType(actor), ActorID: auditActorID(actor), OccurredAt: now, PayloadHash: manifestHash, SignatureRef: signature.ID}
+		if _, err := tx.AppendAudit(ctx, audit); err != nil {
 			return err
 		}
-		return tx.Outbox().EnqueueOutbox(ctx, application.OutboxEvent{
-			ID: s.ids.NewID("job"), TenantID: actor.TenantID, Kind: "sign_bundle", SubjectType: "release_bundle",
+		return tx.EnqueueOutbox(ctx, application.OutboxEvent{
+			ID: s.config.IDs.NewID("job"), TenantID: actor.TenantID, Kind: "sign_bundle", SubjectType: "release_bundle",
 			SubjectID: bundle.ID, Payload: map[string]any{"manifest_hash": manifestHash}, CreatedAt: now,
 		})
 	})

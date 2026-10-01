@@ -99,6 +99,10 @@ type BundleImportCommand interface {
 	ImportEvidenceBundle(context.Context, domain.Actor, packagedomain.EvidenceBundle) (packagedomain.EvidenceBundleImport, error)
 }
 
+type ReleaseBundleCommands interface {
+	CreateReleaseBundle(context.Context, identitydomain.Actor, string) (packagedomain.ReleaseBundle, error)
+}
+
 // ReleaseSecuritySummaryQuery assembles one release's security overview from
 // a bounded, tenant-scoped committed snapshot.
 type ReleaseSecuritySummaryQuery interface {

@@ -52,6 +52,7 @@ type Server struct {
 	htmlReportCommands                HTMLReportCommands
 	reportTemplateCommands            ReportTemplateCommands
 	bundleImportCommand               BundleImportCommand
+	releaseBundleCommands             ReleaseBundleCommands
 	releaseReadinessReportQuery       ReleaseReadinessReportQuery
 	releaseSecuritySummaryQuery       ReleaseSecuritySummaryQuery
 	controlCoverageQuery              ControlCoverageQuery
@@ -150,6 +151,8 @@ type ServerOptions struct {
 	ReportTemplateCommands ReportTemplateCommands
 	// BundleImportCommand atomically records validated manifest import receipts.
 	BundleImportCommand BundleImportCommand
+	// ReleaseBundleCommands generates signed bundles from committed durable facts.
+	ReleaseBundleCommands ReleaseBundleCommands
 	// ReleaseSecuritySummaryQuery reads one committed report snapshot.
 	ReleaseSecuritySummaryQuery ReleaseSecuritySummaryQuery
 	// ControlCoverageQuery reads bounded tenant-owned control and CRA reports.
@@ -287,6 +290,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.htmlReportCommands = opts.HTMLReportCommands
 	server.reportTemplateCommands = opts.ReportTemplateCommands
 	server.bundleImportCommand = opts.BundleImportCommand
+	server.releaseBundleCommands = opts.ReleaseBundleCommands
 	server.releaseSecuritySummaryQuery = opts.ReleaseSecuritySummaryQuery
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
@@ -3032,6 +3036,13 @@ func (s *Server) createReleaseBundle(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
+		}
+		if strings.TrimSpace(req.ReleaseID) == "" {
+			return 0, nil, app.ErrValidation
+		}
+		if s.releaseBundleCommands != nil {
+			bundle, err := s.releaseBundleCommands.CreateReleaseBundle(ctx, actor, req.ReleaseID)
+			return http.StatusCreated, releaseBundleFromQuery(bundle), mapCustomerPackageAccessError(err)
 		}
 		bundle, err := s.packages.CreateReleaseBundle(ctx, actor, req.ReleaseID)
 		return http.StatusCreated, bundle, err
