@@ -438,6 +438,24 @@ func (t *ledgerPackageTransaction) InsertEvidenceBundleImport(ctx context.Contex
 	return nil
 }
 
+func (t *ledgerPackageTransaction) GetCustomReportTemplate(ctx context.Context, tenantID, id string) (packagedomain.CustomReportTemplate, error) {
+	if err := ctx.Err(); err != nil {
+		return packagedomain.CustomReportTemplate{}, err
+	}
+	if t.repositories != nil {
+		value, err := t.repositories.Packages.GetCustomReportTemplate(ctx, tenantID, id)
+		return customReportTemplateToPackageContext(value), toPackageContextError(err)
+	}
+	value, ok := t.reportTemplates[id]
+	if !ok {
+		value, ok = t.ledger.reportTemplates[id]
+	}
+	if !ok || value.TenantID != tenantID {
+		return packagedomain.CustomReportTemplate{}, packageapp.ErrNotFound
+	}
+	return customReportTemplateToPackageContext(value), nil
+}
+
 func (t *ledgerPackageTransaction) InsertCustomReportTemplate(ctx context.Context, value packagedomain.CustomReportTemplate) error {
 	legacy := customReportTemplateFromPackageContext(value)
 	if _, exists := t.ledger.reportTemplates[legacy.ID]; exists {

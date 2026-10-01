@@ -81,6 +81,7 @@ type Reader interface {
 }
 
 type Repository interface {
+	GetCustomReportTemplate(context.Context, string, string) (packagedomain.CustomReportTemplate, error)
 	GetRedactionProfile(context.Context, string, string) (packagedomain.RedactionProfile, error)
 	InsertRedactionProfile(context.Context, packagedomain.RedactionProfile) error
 	InsertReleaseBundle(context.Context, packagedomain.ReleaseBundle) error

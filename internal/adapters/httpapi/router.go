@@ -25,6 +25,7 @@ import (
 	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	identityquery "github.com/aatuh/evydence/internal/identity/query"
+	packageapp "github.com/aatuh/evydence/internal/package/app"
 	"github.com/aatuh/evydence/internal/platform/jsonbounds"
 	releasequery "github.com/aatuh/evydence/internal/release/query"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
@@ -49,6 +50,7 @@ type Server struct {
 	missingEvidenceQuery              MissingEvidenceQuery
 	customerPackageAccessCommands     CustomerPackageAccessCommands
 	htmlReportCommands                HTMLReportCommands
+	reportTemplateCommands            ReportTemplateCommands
 	releaseReadinessReportQuery       ReleaseReadinessReportQuery
 	releaseSecuritySummaryQuery       ReleaseSecuritySummaryQuery
 	controlCoverageQuery              ControlCoverageQuery
@@ -143,6 +145,8 @@ type ServerOptions struct {
 	CustomerPackageAccessCommands CustomerPackageAccessCommands
 	// HTMLReportCommands uses bounded durable CRA facts and atomic report writes.
 	HTMLReportCommands HTMLReportCommands
+	// ReportTemplateCommands reads and persists templates and reports atomically.
+	ReportTemplateCommands ReportTemplateCommands
 	// ReleaseSecuritySummaryQuery reads one committed report snapshot.
 	ReleaseSecuritySummaryQuery ReleaseSecuritySummaryQuery
 	// ControlCoverageQuery reads bounded tenant-owned control and CRA reports.
@@ -278,6 +282,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.releaseReadinessReportQuery = opts.ReleaseReadinessReportQuery
 	server.customerPackageAccessCommands = opts.CustomerPackageAccessCommands
 	server.htmlReportCommands = opts.HTMLReportCommands
+	server.reportTemplateCommands = opts.ReportTemplateCommands
 	server.releaseSecuritySummaryQuery = opts.ReleaseSecuritySummaryQuery
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
@@ -1802,6 +1807,10 @@ func (s *Server) createReportTemplate(w http.ResponseWriter, r *http.Request) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
+		if s.reportTemplateCommands != nil {
+			template, err := s.reportTemplateCommands.CreateCustomReportTemplate(ctx, actor, packageapp.CreateReportTemplateInput{Name: req.Name, Version: req.Version, ReportType: req.ReportType, AllowedFields: req.AllowedFields, Template: req.Template})
+			return http.StatusCreated, reportTemplateFromCommands(template), mapCustomerPackageAccessError(err)
+		}
 		tpl, err := s.packages.CreateCustomReportTemplate(ctx, actor, app.CreateReportTemplateInput{Name: req.Name, Version: req.Version, ReportType: req.ReportType, AllowedFields: req.AllowedFields, Template: req.Template})
 		return http.StatusCreated, tpl, err
 	})
@@ -1815,6 +1824,13 @@ func (s *Server) renderReportTemplate(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
+		}
+		if strings.TrimSpace(req.SubjectType) == "" || strings.TrimSpace(req.SubjectID) == "" {
+			return 0, nil, app.ErrValidation
+		}
+		if s.reportTemplateCommands != nil {
+			report, err := s.reportTemplateCommands.RenderCustomReport(ctx, actor, packageapp.RenderReportInput{TemplateID: r.PathValue("id"), SubjectType: req.SubjectType, SubjectID: req.SubjectID})
+			return http.StatusCreated, renderedReportFromCommands(report), mapCustomerPackageAccessError(err)
 		}
 		report, err := s.packages.RenderCustomReport(ctx, actor, app.RenderReportInput{TemplateID: r.PathValue("id"), SubjectType: req.SubjectType, SubjectID: req.SubjectID})
 		return http.StatusCreated, report, err

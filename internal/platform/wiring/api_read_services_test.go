@@ -45,6 +45,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.HTMLReportCommands != nil {
 		t.Fatal("local-memory profile unexpectedly bound durable HTML reports")
 	}
+	if memory.ReportTemplateCommands != nil {
+		t.Fatal("local-memory profile unexpectedly bound durable template commands")
+	}
 	checks := []app.ReadinessCheck{
 		{Name: "postgres", Check: func(context.Context) error { return nil }},
 		{Name: "migrations", Check: func(context.Context) error { return nil }},
@@ -63,6 +66,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.HTMLReportCommands == nil {
 		t.Fatal("PostgreSQL profile omitted HTML reports")
+	}
+	if options.ReportTemplateCommands == nil {
+		t.Fatal("PostgreSQL profile omitted report template commands")
 	}
 	if options.ReadinessQuery == nil || options.MetricsQuery == nil || options.RetentionQuery == nil || options.IncidentReportQuery == nil || options.SecurityUpdateEvidenceQuery == nil || options.CRAVulnerabilityQuery == nil || options.MissingEvidenceQuery == nil || options.ReleaseSecuritySummaryQuery == nil || options.ControlCoverageQuery == nil || options.Authenticator == nil || options.InstanceAdminQuery == nil || options.OutboxDiagnosticsQuery == nil || options.OutboxReplayCommand == nil || options.ProductQuery == nil || options.CatalogPointQuery == nil || options.EvidenceFlowQuery == nil ||
 		options.BuildPointQuery == nil || options.ArtifactPointQuery == nil || options.ReleaseCandidateQuery == nil || options.DeploymentPointQuery == nil ||

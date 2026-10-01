@@ -424,6 +424,7 @@ type DeploymentRepository interface {
 }
 
 type PackageRepository interface {
+	GetCustomReportTemplate(context.Context, string, string) (domain.CustomReportTemplate, error)
 	GetCustomerSecurityPackageForUpdate(context.Context, string, string) (domain.CustomerSecurityPackage, error)
 	InsertRedactionProfile(context.Context, domain.RedactionProfile) error
 	InsertReleaseBundle(context.Context, domain.ReleaseBundle) error

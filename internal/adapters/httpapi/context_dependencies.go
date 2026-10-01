@@ -14,6 +14,7 @@ import (
 	integrationdomain "github.com/aatuh/evydence/internal/integration/domain"
 	operationsdomain "github.com/aatuh/evydence/internal/operations/domain"
 	operationsquery "github.com/aatuh/evydence/internal/operations/query"
+	packageapp "github.com/aatuh/evydence/internal/package/app"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 	packagequery "github.com/aatuh/evydence/internal/package/query"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
@@ -87,6 +88,11 @@ type CustomerPackageAccessCommands interface {
 // HTMLReportCommands persists an escaped CRA report and its audit atomically.
 type HTMLReportCommands interface {
 	CRAReadinessHTMLPackage(context.Context, domain.Actor, string, string) (packagedomain.HTMLReportPackage, error)
+}
+
+type ReportTemplateCommands interface {
+	CreateCustomReportTemplate(context.Context, domain.Actor, packageapp.CreateReportTemplateInput) (packagedomain.CustomReportTemplate, error)
+	RenderCustomReport(context.Context, domain.Actor, packageapp.RenderReportInput) (packagedomain.RenderedCustomReport, error)
 }
 
 // ReleaseSecuritySummaryQuery assembles one release's security overview from

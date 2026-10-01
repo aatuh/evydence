@@ -2942,6 +2942,23 @@ func (r memoryPackageRepository) InsertHTMLReportPackage(ctx context.Context, re
 	})
 }
 
+func (r memoryPackageRepository) GetCustomReportTemplate(ctx context.Context, tenantID, id string) (domain.CustomReportTemplate, error) {
+	if ctx == nil || strings.TrimSpace(tenantID) == "" || strings.TrimSpace(id) == "" {
+		return domain.CustomReportTemplate{}, ErrValidation
+	}
+	var value domain.CustomReportTemplate
+	err := r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		template, ok := state.ReportTemplates[id]
+		if !ok || template.TenantID != tenantID {
+			return ErrNotFound
+		}
+		var err error
+		value, err = cloneMemoryJSON(template)
+		return err
+	})
+	return value, err
+}
+
 func (r memoryPackageRepository) InsertCustomReportTemplate(ctx context.Context, template domain.CustomReportTemplate) error {
 	cloned, err := cloneMemoryJSON(template)
 	if err != nil {
