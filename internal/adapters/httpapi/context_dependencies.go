@@ -77,6 +77,13 @@ type ReleaseReadinessReportQuery interface {
 	Report(context.Context, domain.Actor, string) (packagedomain.ReleaseReadinessReport, error)
 }
 
+// CustomerPackageAccessCommands preserves atomic access counting and audit
+// behavior while reading one durable package instead of Ledger maps.
+type CustomerPackageAccessCommands interface {
+	AccessCustomerSecurityPackage(context.Context, domain.Actor, string) (packagedomain.CustomerSecurityPackage, error)
+	SecurityReviewPackageReport(context.Context, domain.Actor, string) (packagedomain.SecurityReviewPackageReport, error)
+}
+
 // ReleaseSecuritySummaryQuery assembles one release's security overview from
 // a bounded, tenant-scoped committed snapshot.
 type ReleaseSecuritySummaryQuery interface {

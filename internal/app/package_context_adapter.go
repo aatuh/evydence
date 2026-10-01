@@ -530,6 +530,16 @@ func (t *ledgerPackageTransaction) GetCustomerSecurityPackageForUpdate(ctx conte
 	if err := ctx.Err(); err != nil {
 		return packagedomain.CustomerSecurityPackage{}, err
 	}
+	if t.repositories != nil {
+		value, err := t.repositories.Packages.GetCustomerSecurityPackageForUpdate(ctx, tenantID, id)
+		if err != nil {
+			return packagedomain.CustomerSecurityPackage{}, toPackageContextError(err)
+		}
+		// Stage the current durable value for the existing CAS/publication
+		// adapter. A focused access may have advanced its cached counter.
+		t.customerPackages[id] = value
+		return customerSecurityPackageToContext(value), nil
+	}
 	value, ok := t.customerPackages[id]
 	if !ok {
 		value, ok = t.ledger.customerPackages[id]

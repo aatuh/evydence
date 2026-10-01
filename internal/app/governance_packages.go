@@ -783,22 +783,11 @@ func (s packageReportService) ExportCustomerPortalPackageArchiveWithAcceptance(c
 
 func (s packageReportService) SecurityReviewPackageReport(ctx context.Context, actor domain.Actor, packageID string) (domain.SecurityReviewPackageReport, error) {
 	l := s.ledger
-	pkg, err := l.AccessCustomerSecurityPackage(ctx, actor, packageID)
+	report, err := l.packageCommands.SecurityReviewPackageReport(ctx, actor, packageID)
 	if err != nil {
-		return domain.SecurityReviewPackageReport{}, err
+		return domain.SecurityReviewPackageReport{}, fromPackageContextError(err)
 	}
-	ids := []string{}
-	switch evidenceIDs := pkg.Manifest["evidence_ids"].(type) {
-	case []string:
-		ids = append(ids, evidenceIDs...)
-	case []any:
-		for _, id := range evidenceIDs {
-			if value, ok := id.(string); ok {
-				ids = append(ids, value)
-			}
-		}
-	}
-	return domain.SecurityReviewPackageReport{ReportType: "security_review_package", TemplateVersion: "security-review-package.v1.0.0", PackageID: pkg.ID, ProductID: pkg.ProductID, ReleaseID: pkg.ReleaseID, EvidenceIDs: ids, Assumptions: []string{"Report includes only package-scoped evidence metadata."}, Limitations: []string{"This report supports customer review but is not a compliance, legal, or secure-release conclusion."}, GeneratedAt: l.now()}, nil
+	return domain.SecurityReviewPackageReport{ReportType: report.ReportType, TemplateVersion: report.TemplateVersion, PackageID: report.PackageID, ProductID: report.ProductID, ReleaseID: report.ReleaseID, EvidenceIDs: report.EvidenceIDs, Assumptions: report.Assumptions, Limitations: report.Limitations, GeneratedAt: report.GeneratedAt}, nil
 }
 
 func packageWithDistributionWatermark(pkg domain.CustomerSecurityPackage, access domain.CustomerPortalAccess) domain.CustomerSecurityPackage {

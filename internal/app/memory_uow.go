@@ -2808,6 +2808,38 @@ func (r memoryPackageRepository) InsertEvidenceBundle(ctx context.Context, bundl
 	})
 }
 
+func (r memoryPackageRepository) GetCustomerSecurityPackageForUpdate(ctx context.Context, tenantID, id string) (domain.CustomerSecurityPackage, error) {
+	if ctx == nil {
+		return domain.CustomerSecurityPackage{}, ErrValidation
+	}
+	if err := ctx.Err(); err != nil {
+		return domain.CustomerSecurityPackage{}, err
+	}
+	if strings.TrimSpace(tenantID) == "" || strings.TrimSpace(id) == "" {
+		return domain.CustomerSecurityPackage{}, ErrValidation
+	}
+	var pkg domain.CustomerSecurityPackage
+	err := r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
+		value, ok := state.CustomerPackages[id]
+		if !ok || value.TenantID != tenantID {
+			return ErrNotFound
+		}
+		if !memoryResourceBelongsToTenant(value.ProductID, tenantID, state.Products) {
+			return ErrNotFound
+		}
+		if value.ReleaseID != "" {
+			release, ok := state.Releases[value.ReleaseID]
+			if !ok || release.TenantID != tenantID || release.ProductID != value.ProductID {
+				return ErrNotFound
+			}
+		}
+		var err error
+		pkg, err = cloneMemoryJSON(value)
+		return err
+	})
+	return pkg, err
+}
+
 func (r memoryPackageRepository) InsertCustomerSecurityPackage(ctx context.Context, pkg domain.CustomerSecurityPackage) error {
 	cloned, err := cloneMemoryJSON(pkg)
 	if err != nil {

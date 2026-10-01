@@ -300,61 +300,7 @@ func (s *Service) CreateCustomerSecurityPackage(ctx context.Context, actor ident
 }
 
 func (s *Service) AccessCustomerSecurityPackage(ctx context.Context, actor identitydomain.Actor, id string) (packagedomain.CustomerSecurityPackage, error) {
-	if err := contextError(ctx); err != nil {
-		return packagedomain.CustomerSecurityPackage{}, err
-	}
-	if err := validateActor(actor); err != nil {
-		return packagedomain.CustomerSecurityPackage{}, err
-	}
-	if err := s.authorize(ctx, actor, ScopePackageRead, application.ResourceReferences{}, true); err != nil {
-		return packagedomain.CustomerSecurityPackage{}, err
-	}
-	id = strings.TrimSpace(id)
-	if id == "" {
-		return packagedomain.CustomerSecurityPackage{}, ErrValidation
-	}
-	preflight, err := s.reader.GetCustomerSecurityPackage(ctx, actor.TenantID, id)
-	if err != nil {
-		return packagedomain.CustomerSecurityPackage{}, err
-	}
-	if !validCustomerSecurityPackage(preflight, actor.TenantID, id) {
-		return packagedomain.CustomerSecurityPackage{}, ErrNotFound
-	}
-	resources := application.ResourceReferences{ProductID: preflight.ProductID, ReleaseID: preflight.ReleaseID, CustomerPackageID: preflight.ID}
-	if err := s.authorize(ctx, actor, ScopePackageRead, resources, false); err != nil {
-		return packagedomain.CustomerSecurityPackage{}, err
-	}
-	now := s.clock.Now().UTC()
-	if !preflight.ExpiresAt.After(now) {
-		return packagedomain.CustomerSecurityPackage{}, ErrConflict
-	}
-	var accessed packagedomain.CustomerSecurityPackage
-	err = s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-		current, err := tx.Packages().GetCustomerSecurityPackageForUpdate(ctx, actor.TenantID, id)
-		if err != nil {
-			return err
-		}
-		if !reflect.DeepEqual(current, preflight) {
-			return ErrConflict
-		}
-		if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopePackageRead, Resources: resources}); err != nil {
-			return err
-		}
-		if !current.ExpiresAt.After(now) {
-			return ErrConflict
-		}
-		accessed = cloneCustomerSecurityPackage(current)
-		accessed.AccessCount++
-		if err := tx.Packages().UpdateCustomerSecurityPackageAccess(ctx, current, accessed); err != nil {
-			return err
-		}
-		_, err = tx.Audit().AppendAudit(ctx, s.auditEvent(actor, now, "customer_package.accessed", "customer_security_package", accessed.ID, accessed.ManifestHash))
-		return err
-	})
-	if err != nil {
-		return packagedomain.CustomerSecurityPackage{}, err
-	}
-	return cloneCustomerSecurityPackage(accessed), nil
+	return s.accessCommands().AccessCustomerSecurityPackage(ctx, actor, id)
 }
 
 func normalizeRedactionProfileInput(input CreateRedactionProfileInput) (CreateRedactionProfileInput, error) {

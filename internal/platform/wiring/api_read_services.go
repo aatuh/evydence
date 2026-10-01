@@ -77,6 +77,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create release readiness report query: %w", err)
 	}
+	options.CustomerPackageAccessCommands, err = BuildCustomerPackageAccessCommands(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create customer package access commands: %w", err)
+	}
 	options.ReleaseSecuritySummaryQuery, err = BuildReleaseSecuritySummaryQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create release security summary query: %w", err)

@@ -47,6 +47,7 @@ type Server struct {
 	securityUpdateEvidenceQuery       SecurityUpdateEvidenceQuery
 	craVulnerabilityQuery             CRAVulnerabilityQuery
 	missingEvidenceQuery              MissingEvidenceQuery
+	customerPackageAccessCommands     CustomerPackageAccessCommands
 	releaseReadinessReportQuery       ReleaseReadinessReportQuery
 	releaseSecuritySummaryQuery       ReleaseSecuritySummaryQuery
 	controlCoverageQuery              ControlCoverageQuery
@@ -137,6 +138,8 @@ type ServerOptions struct {
 	MissingEvidenceQuery MissingEvidenceQuery
 	// ReleaseReadinessReportQuery reads readiness and report facts in one view.
 	ReleaseReadinessReportQuery ReleaseReadinessReportQuery
+	// CustomerPackageAccessCommands reads and audits one durable package.
+	CustomerPackageAccessCommands CustomerPackageAccessCommands
 	// ReleaseSecuritySummaryQuery reads one committed report snapshot.
 	ReleaseSecuritySummaryQuery ReleaseSecuritySummaryQuery
 	// ControlCoverageQuery reads bounded tenant-owned control and CRA reports.
@@ -270,6 +273,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.vulnerabilityDecisionSummaryQuery = opts.VulnerabilityDecisionSummaryQuery
 	server.missingEvidenceQuery = opts.MissingEvidenceQuery
 	server.releaseReadinessReportQuery = opts.ReleaseReadinessReportQuery
+	server.customerPackageAccessCommands = opts.CustomerPackageAccessCommands
 	server.releaseSecuritySummaryQuery = opts.ReleaseSecuritySummaryQuery
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {
@@ -1698,6 +1702,15 @@ func (s *Server) getCustomerPackage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if s.customerPackageAccessCommands != nil {
+		pkg, err := s.customerPackageAccessCommands.AccessCustomerSecurityPackage(r.Context(), actor, r.PathValue("id"))
+		if err != nil {
+			writeProblem(w, r, mapCustomerPackageAccessError(err))
+			return
+		}
+		writeData(w, http.StatusOK, customerPackageFromAccess(pkg))
+		return
+	}
 	pkg, err := s.packages.AccessCustomerSecurityPackage(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
 		writeProblem(w, r, err)
@@ -1722,6 +1735,20 @@ func (s *Server) downloadCustomerPackage(w http.ResponseWriter, r *http.Request)
 func (s *Server) securityReviewPackageReport(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
+		return
+	}
+	if s.customerPackageAccessCommands != nil {
+		id, err := optionalSingletonQuery(r, "package_id")
+		if err != nil || id == "" {
+			writeProblem(w, r, app.ErrValidation)
+			return
+		}
+		report, err := s.customerPackageAccessCommands.SecurityReviewPackageReport(r.Context(), actor, id)
+		if err != nil {
+			writeProblem(w, r, mapCustomerPackageAccessError(err))
+			return
+		}
+		writeData(w, http.StatusOK, securityReviewPackageFromAccess(report))
 		return
 	}
 	report, err := s.ledger.SecurityReviewPackageReport(r.Context(), actor, r.URL.Query().Get("package_id"))

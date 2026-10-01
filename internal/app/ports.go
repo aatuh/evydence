@@ -424,6 +424,7 @@ type DeploymentRepository interface {
 }
 
 type PackageRepository interface {
+	GetCustomerSecurityPackageForUpdate(context.Context, string, string) (domain.CustomerSecurityPackage, error)
 	InsertRedactionProfile(context.Context, domain.RedactionProfile) error
 	InsertReleaseBundle(context.Context, domain.ReleaseBundle) error
 	InsertEvidenceBundle(context.Context, domain.EvidenceBundle) error
