@@ -69,6 +69,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create CRA vulnerability handling query: %w", err)
 	}
+	options.MissingEvidenceQuery, err = BuildMissingEvidenceQuery(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create missing evidence query: %w", err)
+	}
 	options.ControlCoverageQuery, err = BuildControlCoverageQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create control coverage query: %w", err)

@@ -67,6 +67,11 @@ type CRAVulnerabilityQuery interface {
 	Report(context.Context, domain.Actor, string, string) (packagedomain.CRAVulnerabilityHandlingReport, error)
 }
 
+// MissingEvidenceQuery reads a committed release-readiness projection.
+type MissingEvidenceQuery interface {
+	Report(context.Context, domain.Actor, string) (map[string]any, error)
+}
+
 // ControlCoverageQuery evaluates tenant-scoped control and CRA readiness
 // reports from one bounded durable snapshot.
 type ControlCoverageQuery interface {
