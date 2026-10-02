@@ -937,12 +937,7 @@ func supportedControlEvidenceType(value string) bool {
 }
 
 func validControlConfidence(value string) bool {
-	switch strings.TrimSpace(value) {
-	case confidenceHigh, confidenceMedium, confidenceLow, confidenceUnsupported:
-		return true
-	default:
-		return false
-	}
+	return riskdomain.ValidControlConfidence(value)
 }
 
 func aggregateConfidence(links []domain.ControlEvidence) string {

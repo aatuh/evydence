@@ -33,6 +33,24 @@ func SupportedControlEvidenceType(value string) bool {
 	}
 }
 
+func SupportedControlEvidenceSubject(value string) bool {
+	switch strings.TrimSpace(value) {
+	case "evidence", "evidence_item", "product", "release", "artifact", "sbom", "vulnerability_scan", "vex", "vulnerability_decision", "finding", "vulnerability_finding", "exception", "build", "build_attestation", "openapi_contract", "release_bundle":
+		return true
+	default:
+		return false
+	}
+}
+
+func ValidControlConfidence(value string) bool {
+	switch strings.TrimSpace(value) {
+	case "high", "medium", "low", "unsupported":
+		return true
+	default:
+		return false
+	}
+}
+
 // ControlFrameworkSlug retains the existing ASCII slug derivation for omitted
 // manual-framework slugs. Explicit slugs are not rewritten.
 func ControlFrameworkSlug(value string) string {

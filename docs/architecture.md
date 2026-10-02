@@ -597,9 +597,16 @@ unsupported text/index sizes and excessive list work before persistence.
 PostgreSQL HTTP creation routes bind these commands directly: separate server
 instances can create, replay, read, and report a framework/control without
 publishing authoritative Ledger maps. Local-memory mode retains its explicit
-compatibility command binding. Evidence-link commands still use the
-compatibility path; these boundaries do not retire production Ledger startup or
-its remaining maps.
+compatibility command binding. Control-evidence linking now has a focused risk
+command core with transaction-only control/subject/duplicate readers and one
+atomic link/audit append. It checks current subject-derived coordinates before
+duplicate disclosure, preserves supplied scope and original duplicate results,
+and bounds text and the indexed natural key. Artifact authorization must resolve
+an allowed current association matching the requested scope, not an arbitrary
+first association. Transaction-fake tests cover these orchestration contracts;
+the PostgreSQL reader/authorizer and HTTP binding are still pending, so the
+running evidence-link route still uses the compatibility path. These boundaries
+do not retire production Ledger startup or its remaining maps.
 The read-only release evidence-flow plan also uses a focused service in the
 PostgreSQL profile: one tenant-filtered SQL statement collects nine release
 counts from a consistent snapshot, then current resource grants are checked

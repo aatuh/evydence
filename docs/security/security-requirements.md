@@ -28,6 +28,16 @@ the [API inventory](../reference/api-inventory.md).
 | SEC-014 | A command's domain mutation, audit, idempotency, and outbox effects commit or roll back together; workers fail safely and remain replayable. | ADR 0001, transaction-scoped ports, persisted outbox, staged object protocol, and worker checks. | `internal/adapters/postgres/failure_atomicity_test.go`; `internal/adapters/postgres/recovery_killpoints_test.go`; `internal/adapters/postgres/outbox_lifecycle_test.go`; `cmd/evydence-worker/main_test.go`. | Database availability, migration process, worker deployment/lifecycle, alerting, and recovery ownership. | Operational lifecycle and deployment proof remain EVY-1201, EVY-1203, and EVY-1206 work. |
 | SEC-015 | Product and report language must describe evidence, checks, gaps, assumptions, and limitations without claiming legal compliance, certification, complete SBOMs, authoritative scanning, or guaranteed release security. | Product-boundary docs, ADR 0002, generated API descriptions, and documentation review rules. | `make docs-check`; `make quality-scorecard-check`; source-of-truth review. | Legal/audit/customer review of suitability and claims. | External review is required for those conclusions; no repository check can establish them. |
 
+### Control-evidence command migration evidence
+
+For `SEC-001`, `SEC-006`, `SEC-013`, and `SEC-014`,
+`internal/risk/app/control_evidence_commands_test.go` covers the focused command
+core's tenant/subject identity checks, subject-derived authorization requests,
+duplicate disclosure ordering, bounded input, and link/audit rollback.
+These are transaction-fake tests, not live storage or route proof. PostgreSQL
+parent/association checks, concurrent duplicate serialization, and HTTP binding
+remain EVY-905 work; the current route retains its compatibility implementation.
+
 ## Change and release rules
 
 - A code, OpenAPI, provider, deployment, or public-copy change that affects a
