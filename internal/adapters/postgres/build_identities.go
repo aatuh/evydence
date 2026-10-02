@@ -11,6 +11,14 @@ import (
 )
 
 var _ releaseapp.BuildIdentityReader = (*Store)(nil)
+var _ releaseapp.BuildAttestationSnapshotReader = (*Store)(nil)
+
+func (s *Store) ReadBuildAttestationBuild(ctx context.Context, tenant, id string) (releasedomain.BuildRun, error) {
+	if s == nil || s.pool == nil {
+		return releasedomain.BuildRun{}, app.ErrValidation
+	}
+	return repositories.ReadBuildAttestationBuild(ctx, s.pool, tenant, id, false)
+}
 
 func (s *Store) ReadBuildProject(ctx context.Context, tenant, id string) (releasedomain.Project, error) {
 	if s == nil || s.pool == nil {

@@ -340,9 +340,15 @@ ingestion parser is independently composable from
 `internal/adapters/verification/dsse`, validates the observed bytes/size/digest
 within the existing 20 MiB limit, and performs structural parsing only, not
 signature verification. Worker-owned replayable uploads retain the parsed
-response but persist the accepted projection for worker completion. Durable
-attestation readers, evidence-writer composition and production HTTP binding
-remain EVY-905 work; this extraction does not retire the Ledger storage adapter.
+response but persist the accepted projection for worker completion. Its durable
+build-snapshot reader joins the build and tenant-valid project/release/product
+parents in one statement. Selected identifiers and labels have 1 KiB limits,
+optional text fields 64 KiB limits, and source identity and outputs each a
+1 MiB JSON limit, all checked before transfer. It rejects overflow and malformed
+JSON shapes instead of truncating, selects no parent names, and normalizes times
+to UTC. Transaction reads acquire the projection fence before share-locking all
+four rows. Evidence-writer composition and production HTTP binding remain
+EVY-905 work; these ports do not yet retire the Ledger storage adapter.
 
 API-key and SSO-session verification now has a
 standalone identity application service with narrow credential-read and

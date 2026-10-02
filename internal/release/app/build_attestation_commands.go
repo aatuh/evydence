@@ -15,6 +15,14 @@ type BuildAttestationReader interface {
 	GetBuildRun(context.Context, string, string) (releasedomain.BuildRun, error)
 }
 
+// BuildAttestationSnapshotReader is the durable adapter capability for one
+// immutable build. Implementations bound selected text/JSON before transfer,
+// resolve tenant-valid parents in the same statement, and normalize timestamps
+// to UTC so the command can compare initial and transaction-locked snapshots.
+type BuildAttestationSnapshotReader interface {
+	ReadBuildAttestationBuild(context.Context, string, string) (releasedomain.BuildRun, error)
+}
+
 // BuildAttestationTransaction commits the attestation, fixed-shape evidence
 // capability, audit and parser job together. It exposes no unrelated context
 // repositories. Reads must lock the current coordinates before any write.
