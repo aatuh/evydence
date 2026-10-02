@@ -152,6 +152,10 @@ type DeploymentEnvironmentCommands interface {
 	CreateDeploymentEnvironment(context.Context, identitydomain.Actor, operationsapp.CreateEnvironmentInput) (operationsdomain.DeploymentEnvironment, error)
 }
 
+type DeploymentCommands interface {
+	RecordDeployment(context.Context, identitydomain.Actor, operationsapp.RecordDeploymentInput) (operationsdomain.DeploymentEvent, error)
+}
+
 type MerkleVerification interface {
 	VerifyMerkleBatch(context.Context, identitydomain.Actor, string) (verificationdomain.VerificationResult, error)
 }

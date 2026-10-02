@@ -1050,7 +1050,7 @@
               <code>/v1/deployments</code>
             </div>
             <h3>Record deployment</h3>
-            <p>Records append-only deployment evidence for a release/environment/artifact set.</p>
+            <p>Records append-only deployment metadata with immediately readable deployment/event evidence in the same transaction as both audit entries and HTTP replay state. Requires deployment:write; human sessions need a current tenant, product or release grant. Environment and release must have the same tenant and product; rollback targets must use the same environment, and artifacts must be tenant-owned. Reference IDs are bounded at 1024 bytes and artifact lists at 1024 entries. Omitted started_at defaults to command time; supplied timestamps are normalized to UTC without imposing ordering. PostgreSQL uses bounded identity reads without Ledger state. This records supplied metadata and does not prove runtime security or availability.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>recordDeployment</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -4623,7 +4623,7 @@
           <tr>
             <td><code>RecordDeploymentRequest</code></td>
             <td>object</td>
-            <td>environment_id, release_id, status, started_at</td>
+            <td>environment_id, release_id, status</td>
           </tr>
           <tr>
             <td><code>RecordEvidenceLifecycleEventRequest</code></td>

@@ -71,6 +71,7 @@ type Server struct {
 	backupGenerationCommands          BackupGenerationCommands
 	artifactSignatureCommands         ArtifactSignatureCommands
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
+	deploymentCommands                DeploymentCommands
 	subjectVerification               SubjectVerification
 	transparencyCheckpointCommands    TransparencyCheckpointCommands
 	merkleCreationCommands            MerkleCreationCommands
@@ -198,6 +199,7 @@ type ServerOptions struct {
 	BackupGenerationCommands      BackupGenerationCommands
 	ArtifactSignatureCommands     ArtifactSignatureCommands
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
+	DeploymentCommands            DeploymentCommands
 	// SubjectVerification dispatches every generic subject without Ledger fallback.
 	SubjectVerification            SubjectVerification
 	TransparencyCheckpointCommands TransparencyCheckpointCommands
@@ -361,6 +363,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.backupGenerationCommands = opts.BackupGenerationCommands
 	server.artifactSignatureCommands = opts.ArtifactSignatureCommands
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
+	server.deploymentCommands = opts.DeploymentCommands
 	server.subjectVerification = opts.SubjectVerification
 	server.transparencyCheckpointCommands = opts.TransparencyCheckpointCommands
 	server.merkleCreationCommands = opts.MerkleCreationCommands
@@ -1515,6 +1518,16 @@ func (s *Server) recordDeployment(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
+		}
+		if s.deploymentCommands != nil {
+			if err := validateNonNullableObjectFields(body, "environment_id", "release_id", "artifact_ids", "status", "started_at", "finished_at", "rollback_of"); err != nil {
+				return 0, nil, err
+			}
+			if err := validateNonNullableArrayItems(body, "artifact_ids"); err != nil {
+				return 0, nil, err
+			}
+			deployment, err := s.deploymentCommands.RecordDeployment(ctx, actor, operationsapp.RecordDeploymentInput{EnvironmentID: req.EnvironmentID, ReleaseID: req.ReleaseID, ArtifactIDs: req.ArtifactIDs, Status: req.Status, StartedAt: req.StartedAt, FinishedAt: req.FinishedAt, RollbackOf: req.RollbackOf})
+			return http.StatusCreated, deploymentEventFromQuery(deployment), mapDeploymentCommandError(err)
 		}
 		deployment, err := s.ledger.RecordDeployment(ctx, actor, app.RecordDeploymentInput{
 			EnvironmentID: req.EnvironmentID, ReleaseID: req.ReleaseID, ArtifactIDs: req.ArtifactIDs,

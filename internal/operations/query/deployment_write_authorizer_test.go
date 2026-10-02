@@ -30,3 +30,29 @@ func TestDeploymentWriteAuthorizerRequiresScopedProductOrTenantGrant(t *testing.
 		}
 	}
 }
+
+func TestDeploymentWriteAuthorizerAcceptsVerifiedDeploymentCoordinates(t *testing.T) {
+	auth := NewDeploymentWriteAuthorizer()
+	r := application.AuthorizationRequest{Scope: "deployment:write", Resources: application.ResourceReferences{ProductID: "product", ReleaseID: "release", EnvironmentID: "env"}}
+	for _, tc := range []struct {
+		kind, id string
+		allow    bool
+	}{{"tenant", "tenant", true}, {"product", "product", true}, {"release", "release", true}, {"release", "other", false}, {"product", "other", false}, {"project", "project", false}, {"environment", "env", false}} {
+		a := identitydomain.Actor{TenantID: "tenant", UserID: "user", Scopes: []string{"deployment:write"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: tc.kind, ResourceID: tc.id, Scopes: []string{"deployment:write"}}}}
+		err := auth.Authorize(t.Context(), a, r)
+		if tc.allow && err != nil || !tc.allow && !errors.Is(err, application.ErrForbidden) {
+			t.Fatal(tc, err)
+		}
+		a.ResourceGrants = nil
+		if err := auth.Authorize(t.Context(), a, r); !errors.Is(err, application.ErrForbidden) {
+			t.Fatal("removed grant remained authorized", err)
+		}
+	}
+	a := identitydomain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{"deployment:write"}}
+	for _, refs := range []application.ResourceReferences{{ProductID: "product", ReleaseID: "release"}, {ProductID: "product", EnvironmentID: "env"}, {ProductID: "product", ReleaseID: "release", EnvironmentID: "env", ArtifactID: "artifact"}} {
+		r.Resources = refs
+		if err := auth.Authorize(t.Context(), a, r); !errors.Is(err, application.ErrForbidden) {
+			t.Fatal("unexpected coordinate capability", refs, err)
+		}
+	}
+}

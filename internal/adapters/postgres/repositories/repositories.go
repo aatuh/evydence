@@ -2303,7 +2303,7 @@ func (r deployments) InsertDeploymentEvent(ctx context.Context, deployment domai
 			return err
 		}
 	}
-	_, err := r.tx.Exec(ctx, `INSERT INTO deployment_events (id, tenant_id, environment_id, release_id, artifact_ids, status, started_at, finished_at, rollback_of, evidence_id, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, deployment.ID, deployment.TenantID, deployment.EnvironmentID, deployment.ReleaseID, deployment.ArtifactIDs, deployment.Status, deployment.StartedAt, deployment.FinishedAt, nullableString(deployment.RollbackOf), deployment.EvidenceID, deployment.SchemaVersion, deployment.CreatedAt)
+	_, err := r.tx.Exec(ctx, `INSERT INTO deployment_events (id, tenant_id, environment_id, release_id, artifact_ids, status, started_at, finished_at, rollback_of, evidence_id, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, deployment.ID, deployment.TenantID, deployment.EnvironmentID, deployment.ReleaseID, textArray(deployment.ArtifactIDs), deployment.Status, deployment.StartedAt, deployment.FinishedAt, nullableString(deployment.RollbackOf), deployment.EvidenceID, deployment.SchemaVersion, deployment.CreatedAt)
 	return writeError("insert deployment event", err)
 }
 

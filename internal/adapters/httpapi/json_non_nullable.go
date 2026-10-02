@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"encoding/json"
+	"strconv"
 
 	"github.com/aatuh/evydence/internal/app"
 )
@@ -20,6 +21,26 @@ func validateNonNullableObjectFields(body []byte, names ...string) error {
 	for _, name := range names {
 		if bytes.Equal(bytes.TrimSpace(fields[name]), []byte("null")) {
 			return app.NewValidationError(app.FieldViolation{Field: "/" + name, Code: "invalid_type"})
+		}
+	}
+	return nil
+}
+
+func validateNonNullableArrayItems(body []byte, name string) error {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(body, &fields); err != nil || fields == nil {
+		return app.ErrValidation
+	}
+	if fields[name] == nil {
+		return nil
+	}
+	var items []json.RawMessage
+	if err := json.Unmarshal(fields[name], &items); err != nil {
+		return app.ErrValidation
+	}
+	for i, item := range items {
+		if bytes.Equal(bytes.TrimSpace(item), []byte("null")) {
+			return app.NewValidationError(app.FieldViolation{Field: "/" + name + "/" + strconv.Itoa(i), Code: "invalid_type"})
 		}
 	}
 	return nil

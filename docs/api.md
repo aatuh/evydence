@@ -617,6 +617,43 @@ Source/test evidence: `internal/operations/app/deployment_environment_commands.g
 `internal/platform/wiring/deployment_environment_commands_test.go` and
 `internal/adapters/httpapi/deployment_environment_commands_test.go`.
 
+### Deployment Event Recording
+
+`POST /v1/deployments` in the PostgreSQL profile uses an Operations-owned
+command. It requires `deployment:write`, without a hidden `evidence:write`
+requirement. Human sessions need a current tenant, product or release grant;
+project/environment-only grants do not authorize recording. Bounded,
+transaction-scoped identity reads check that the environment and release share
+the tenant and product, each artifact belongs to the tenant, and an optional
+rollback target belongs to the same tenant and environment. Unrelated resource
+metadata and tenant collections are not loaded.
+
+The deployment, fixed `deployment/event` evidence and two audit entries commit
+together with HTTP replay state. The returned `evidence_id` is immediately
+readable by an actor with the appropriate evidence-read grant. Any write or
+commit failure rolls all effects back; replay adds none, and a changed request
+body with the same key conflicts. This operation creates no outbox job or raw
+payload. The synchronous fixed-shape bridge is the explicit ADR 0003 exception;
+it does not allow arbitrary evidence mutations. EVY-906 owns its future saga
+transition.
+
+Reference IDs are non-empty, NUL-free UTF-8 text bounded at 1024 bytes. Artifact
+lists are limited to 1024 supplied entries, normalized and sorted while
+preserving duplicate IDs. Status remains `started`, `succeeded`, `failed` or
+`rolled_back`. Omitted `started_at` defaults to command time; supplied times are
+normalized to UTC and PostgreSQL microsecond precision before evidence hashing.
+No new timestamp-ordering rule is imposed. JSON nulls, null artifact elements,
+duplicate/unknown fields and non-object envelopes are rejected; the existing
+64 KiB HTTP envelope limit remains. Event/evidence schemas, response fields,
+metadata-only limitations and canonicalization profile are unchanged; historical
+rows are not rewritten. Recording does not prove runtime security or availability.
+Explicit local-memory mode retains its compatibility path.
+
+Source/test evidence: `internal/operations/app/deployment_commands.go`,
+`internal/evidence/app/deployment_evidence.go`,
+`internal/platform/wiring/deployment_commands_test.go` and
+`internal/adapters/httpapi/deployment_commands_test.go`.
+
 ### Controls, Reports, Packages, And Governance
 
 | Method | Path | Notes |

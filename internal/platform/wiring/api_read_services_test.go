@@ -108,6 +108,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.DeploymentEnvironmentCommands != nil {
 		t.Fatal("local memory bound durable environment creation")
 	}
+	if memory.DeploymentCommands != nil {
+		t.Fatal("local memory bound durable deployment recording")
+	}
 	if memory.SigningCustodyQuery != nil {
 		t.Fatal("local memory bound durable custody query")
 	}
@@ -198,6 +201,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.DeploymentEnvironmentCommands == nil {
 		t.Fatal("PostgreSQL environment creation still uses Ledger")
+	}
+	if options.DeploymentCommands == nil {
+		t.Fatal("PostgreSQL deployment recording still uses Ledger")
 	}
 	if options.SigningCustodyQuery == nil {
 		t.Fatal("PostgreSQL custody report still uses Ledger")

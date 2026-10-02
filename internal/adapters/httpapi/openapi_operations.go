@@ -657,7 +657,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, queryParam("product_id", "Product id.", "string"))
 		operation.Responses[http.StatusOK] = jsonResponse("Deployment environment list envelope.", "#/components/schemas/DeploymentEnvironmentListEnvelope")
 	case "recordDeployment":
-		operation.Description = "Records append-only deployment evidence for a release/environment/artifact set."
+		operation.Description = "Records append-only deployment metadata with immediately readable deployment/event evidence in the same transaction as both audit entries and HTTP replay state. Requires deployment:write; human sessions need a current tenant, product or release grant. Environment and release must have the same tenant and product; rollback targets must use the same environment, and artifacts must be tenant-owned. Reference IDs are bounded at 1024 bytes and artifact lists at 1024 entries. Omitted started_at defaults to command time; supplied timestamps are normalized to UTC without imposing ordering. PostgreSQL uses bounded identity reads without Ledger state. This records supplied metadata and does not prove runtime security or availability."
 		operation.RequestBody = jsonRequest("Deployment event creation request.", "#/components/schemas/RecordDeploymentRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created deployment event envelope.", "#/components/schemas/DeploymentEventEnvelope")
 	case "listDeployments":

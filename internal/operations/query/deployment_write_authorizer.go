@@ -34,7 +34,9 @@ func (deploymentWriteAuthorizer) Authorize(ctx context.Context, a identitydomain
 		return nil
 	}
 	refs := r.Resources
-	if refs.ProductID == "" || refs != (application.ResourceReferences{ProductID: refs.ProductID}) {
+	environmentCreation := refs == (application.ResourceReferences{ProductID: refs.ProductID})
+	deploymentRecording := refs.ReleaseID != "" && refs.EnvironmentID != "" && refs == (application.ResourceReferences{ProductID: refs.ProductID, ReleaseID: refs.ReleaseID, EnvironmentID: refs.EnvironmentID})
+	if refs.ProductID == "" || !environmentCreation && !deploymentRecording {
 		return application.ErrForbidden
 	}
 	if a.UserID == "" || a.KeyID != "" || a.CollectorID != "" {
@@ -51,6 +53,9 @@ func (deploymentWriteAuthorizer) Authorize(ctx context.Context, a identitydomain
 			continue
 		}
 		if (g.ResourceType == "" || g.ResourceType == "tenant") && (g.ResourceID == "" || g.ResourceID == a.TenantID) || g.ResourceType == "product" && g.ResourceID == refs.ProductID {
+			return nil
+		}
+		if deploymentRecording && g.ResourceType == "release" && g.ResourceID == refs.ReleaseID {
 			return nil
 		}
 	}

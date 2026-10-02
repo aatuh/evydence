@@ -1040,7 +1040,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"started_at":     map[string]any{"type": "string", "format": "date-time"},
 		"finished_at":    map[string]any{"type": "string", "format": "date-time"},
 		"rollback_of":    map[string]any{"type": "string"},
-	}, "environment_id", "release_id", "status", "started_at"))
+	}, "environment_id", "release_id", "status"))
 	registry.RegisterSchema("DeploymentEvent", objectSchema(map[string]any{
 		"id":             map[string]any{"type": "string"},
 		"tenant_id":      map[string]any{"type": "string"},

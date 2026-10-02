@@ -459,8 +459,14 @@ foreign-key readers; environment and audit append commit together with replay
 state. It does not build Ledger maps. See
 [deployment environment creation](api.md#deployment-environment-creation)
 for input bounds, identity reuse and the metadata-only boundary.
-Deployment-event recording still uses the documented compatibility evidence
-bridge while its production command path is migrated in EVY-905.
+Deployment-event recording also uses an Operations-owned command and bounded
+transaction-scoped identity reads. The only cross-context write is the ADR 0003
+fixed-shape deployment evidence capability: an Evidence-owned writer prepares
+the versioned commitment and audit entry in the same transaction as the event.
+No Ledger aggregate or arbitrary evidence mutation is exposed to the command.
+See [deployment event recording](api.md#deployment-event-recording) for
+authorization, timestamp precision and atomic replay semantics. EVY-906 owns
+the compatible transition from this synchronous exception to a durable saga.
 
 GitHub OIDC subject metadata can be captured, and stored OIDC/SAML identity links can be verified against tenant metadata. OIDC provider records can include public JWKS material for local EdDSA or RS256 ID-token signature and claim verification, and SAML provider records can include PEM signing certificates for local assertion signature and claim verification. Trust material can be rotated without recreating the provider, and OIDC public JWKS can be refreshed from discovery metadata. SSO credential exchange can issue bearer session secrets plus HttpOnly cookies for browser clients after local OIDC/SAML verification. Live provider management API verification, browser redirect/callback orchestration, and external group synchronization remain trust boundaries outside those records. Collector supply-chain records track pinned collector versions with signature, SBOM, and scan evidence where available; commercial and marketplace collector definitions add extension metadata without granting provider trust.
 
