@@ -179,6 +179,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create deployment commands: %w", err)
 	}
+	options.SourceRepositoryCommands, err = BuildSourceRepositoryCommands(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create source repository commands: %w", err)
+	}
 	options.SubjectVerification, err = verificationapp.NewSubjectVerificationCommands(verificationapp.SubjectVerificationConfig{
 		Authorizer: verificationquery.NewEvidenceVerificationAuthorizer(),
 		AuditChain: options.AuditChainVerification, Evidence: options.EvidenceVerification,

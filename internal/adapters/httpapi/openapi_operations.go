@@ -629,7 +629,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Evidence item id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Evidence lifecycle event list envelope.", "#/components/schemas/EvidenceLifecycleEventListEnvelope")
 	case "createSourceRepository":
-		operation.Description = "Creates a tenant-scoped source repository record."
+		operation.Description = "Creates source repository metadata with source:write authorization. PostgreSQL serializes tenant/provider/full-name reuse and returns the existing repository unchanged without another audit entry. Human sessions need a tenant-wide grant for detached creation, or a matching product/project grant for attached creation; the existing repository is separately authorized before metadata is read. IDs are bounded at 1024 bytes, tenant/provider/full-name keys at 2304 bytes and optional metadata at 64 KiB. Repository and audit records commit in the same transaction as HTTP replay state. This records supplied metadata and does not contact or verify the provider, clone URL or repository contents."
 		operation.RequestBody = jsonRequest("Source repository creation request.", "#/components/schemas/CreateSourceRepositoryRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created source repository envelope.", "#/components/schemas/SourceRepositoryEnvelope")
 	case "listSourceRepositories":

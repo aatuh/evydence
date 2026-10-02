@@ -25,6 +25,7 @@ import (
 	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	identityquery "github.com/aatuh/evydence/internal/identity/query"
+	integrationapp "github.com/aatuh/evydence/internal/integration/app"
 	operationsapp "github.com/aatuh/evydence/internal/operations/app"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	"github.com/aatuh/evydence/internal/platform/jsonbounds"
@@ -72,6 +73,7 @@ type Server struct {
 	artifactSignatureCommands         ArtifactSignatureCommands
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
 	deploymentCommands                DeploymentCommands
+	sourceRepositoryCommands          SourceRepositoryCommands
 	subjectVerification               SubjectVerification
 	transparencyCheckpointCommands    TransparencyCheckpointCommands
 	merkleCreationCommands            MerkleCreationCommands
@@ -200,6 +202,7 @@ type ServerOptions struct {
 	ArtifactSignatureCommands     ArtifactSignatureCommands
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
 	DeploymentCommands            DeploymentCommands
+	SourceRepositoryCommands      SourceRepositoryCommands
 	// SubjectVerification dispatches every generic subject without Ledger fallback.
 	SubjectVerification            SubjectVerification
 	TransparencyCheckpointCommands TransparencyCheckpointCommands
@@ -364,6 +367,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.artifactSignatureCommands = opts.ArtifactSignatureCommands
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands
+	server.sourceRepositoryCommands = opts.SourceRepositoryCommands
 	server.subjectVerification = opts.SubjectVerification
 	server.transparencyCheckpointCommands = opts.TransparencyCheckpointCommands
 	server.merkleCreationCommands = opts.MerkleCreationCommands
@@ -1333,6 +1337,13 @@ func (s *Server) createSourceRepository(w http.ResponseWriter, r *http.Request) 
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
+		}
+		if s.sourceRepositoryCommands != nil {
+			if err := validateNonNullableObjectFields(body, "project_id", "provider", "full_name", "clone_url", "default_branch"); err != nil {
+				return 0, nil, err
+			}
+			repository, err := s.sourceRepositoryCommands.CreateSourceRepository(ctx, actor, integrationapp.CreateSourceRepositoryInput{ProjectID: req.ProjectID, Provider: req.Provider, FullName: req.FullName, CloneURL: req.CloneURL, DefaultBranch: req.DefaultBranch})
+			return http.StatusCreated, sourceRepositoryFromQuery(repository), mapSourceRepositoryCommandError(err)
 		}
 		repo, err := s.ledger.CreateSourceRepository(ctx, actor, app.CreateRepositoryInput{
 			ProjectID: req.ProjectID, Provider: req.Provider, FullName: req.FullName, CloneURL: req.CloneURL, DefaultBranch: req.DefaultBranch,

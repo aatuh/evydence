@@ -11,6 +11,7 @@ import (
 	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 	experimentaldomain "github.com/aatuh/evydence/internal/experimental/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
+	integrationapp "github.com/aatuh/evydence/internal/integration/app"
 	integrationdomain "github.com/aatuh/evydence/internal/integration/domain"
 	operationsapp "github.com/aatuh/evydence/internal/operations/app"
 	operationsdomain "github.com/aatuh/evydence/internal/operations/domain"
@@ -154,6 +155,10 @@ type DeploymentEnvironmentCommands interface {
 
 type DeploymentCommands interface {
 	RecordDeployment(context.Context, identitydomain.Actor, operationsapp.RecordDeploymentInput) (operationsdomain.DeploymentEvent, error)
+}
+
+type SourceRepositoryCommands interface {
+	CreateSourceRepository(context.Context, identitydomain.Actor, integrationapp.CreateSourceRepositoryInput) (integrationdomain.SourceRepository, error)
 }
 
 type MerkleVerification interface {

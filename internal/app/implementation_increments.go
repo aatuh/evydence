@@ -371,9 +371,14 @@ func (l *Ledger) CreateSourceRepository(ctx context.Context, actor domain.Actor,
 		if err := l.authorizeResourceLocked(actor, ScopeSourceWrite, resourceRefs{ProductID: project.ProductID, ProjectID: project.ID}); err != nil {
 			return domain.SourceRepository{}, err
 		}
+	} else if err := l.authorizeResourceLocked(actor, ScopeSourceWrite, resourceRefs{}); err != nil {
+		return domain.SourceRepository{}, err
 	}
 	for _, existing := range l.repositories {
 		if existing.TenantID == actor.TenantID && existing.Provider == in.Provider && existing.FullName == in.FullName {
+			if err := l.authorizeResourceLocked(actor, ScopeSourceWrite, resourceRefs{ProjectID: existing.ProjectID, SourceRepositoryID: existing.ID}); err != nil {
+				return domain.SourceRepository{}, err
+			}
 			return existing, nil
 		}
 	}

@@ -452,6 +452,15 @@ Evidence summaries, questionnaire drafts, graph snapshots, PDF packages, and ano
 
 ## Provider And Deployment Boundaries
 
+PostgreSQL-profile source repository creation uses an Integration-owned command
+with bounded ownership reads and a separately authorized existing-row read.
+Tenant/provider/name reuse retains original metadata and commits new rows with
+their audit entry and replay state. The adapter acquires the projection fence
+before its relational serialization lock; this avoids reversing the audit and
+worker lock order. It does not load Ledger maps or invoke provider/network
+services. See [source repository creation](api.md#source-repository-creation)
+for grant boundaries, validation limits and metadata-only semantics.
+
 PostgreSQL-profile deployment-environment creation uses an operations-owned
 command with tenant/product grants and bounded parent/name reads. The
 product-row lock serializes creation and original-row reuse without blocking
