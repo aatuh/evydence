@@ -17,15 +17,11 @@ import (
 	releasequery "github.com/aatuh/evydence/internal/release/query"
 )
 
-type BuildAttestationStorageReader interface {
-	BuildStorageReader
-	releaseapp.BuildAttestationSnapshotReader
-}
-
-func BuildBuildAttestationCommands(reader BuildAttestationStorageReader, factory app.UnitOfWorkFactory, objects app.ObjectStore, workerOwned bool) (*releaseapp.BuildAttestationCommands, error) {
-	if reader == nil || factory == nil {
-		return nil, errors.New("attestation reader and transactions are required")
+func BuildBuildAttestationCommands(factory app.UnitOfWorkFactory, objects app.ObjectStore, workerOwned bool) (*releaseapp.BuildAttestationCommands, error) {
+	if factory == nil {
+		return nil, errors.New("attestation transactions are required")
 	}
+	reader := attestationCreationReads{buildCreationReads{factory}}
 	auth, err := releasequery.NewBuildAttestationAuthorizer(buildArtifactGrants{reader})
 	if err != nil {
 		return nil, err
@@ -36,6 +32,24 @@ func BuildBuildAttestationCommands(reader BuildAttestationStorageReader, factory
 		Reader: attestationBuildReader{buildParentReader{reader}, reader}, Transactions: attestationTransactions{factory, ids}, Authorizer: auth,
 		AttestationParser: dsse.BuildAttestationIngestionParser{}, PayloadStager: attestationPayloadStager{objects, clock}, WorkerOwnedParsers: workerOwned, Clock: clock, IDs: ids,
 	})
+}
+
+// All initial build/parent/grant checks share the caller's current unit of
+// work when present. A separate pool reader cannot see newly created builds.
+type attestationCreationReads struct{ buildCreationReads }
+
+func (r attestationCreationReads) ReadBuildAttestationBuild(ctx context.Context, tenant, id string) (releasedomain.BuildRun, error) {
+	var build releasedomain.BuildRun
+	err := app.ExecuteUnitOfWork(ctx, r.factory, func(ctx context.Context, repos app.Repositories) error {
+		reader, ok := repos.Builds.(releaseapp.BuildAttestationSnapshotReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		var err error
+		build, err = reader.ReadBuildAttestationBuild(ctx, tenant, id)
+		return err
+	})
+	return build, err
 }
 
 type attestationBuildReader struct {
@@ -64,7 +78,7 @@ func (t attestationTransactions) ExecuteBuildAttestation(ctx context.Context, fn
 		if err != nil {
 			return err
 		}
-		return fn(ctx, attestationTransaction{buildTransaction: buildTransaction{reader: parents, builds: repos.Builds, audit: repos.Audit}, snapshots: builds, evidence: repos.Evidence, payloads: repos.Payloads, outbox: repos.Outbox, authorizer: auth, ids: t.ids})
+		return fn(ctx, attestationTransaction{buildTransaction: buildTransaction{reader: parents, builds: repos.Builds, audit: repos.Audit, authorizer: auth}, snapshots: builds, evidence: repos.Evidence, payloads: repos.Payloads, outbox: repos.Outbox, authorizer: auth, ids: t.ids})
 	}))
 }
 

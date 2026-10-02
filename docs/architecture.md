@@ -391,7 +391,11 @@ caller's active transaction; this writer opens none of its own. It records
 structural parsing, not signature trust. The PostgreSQL API now composes the
 standalone command and Evidence capability on one unit of work, including
 transaction-bound parent/artifact authorization. The ingestion command neither
-reads cached builds nor maintains Ledger maps. Evidence, attestation, staged
+reads cached builds nor maintains Ledger maps. Initial build, parent and artifact
+grant reads also use the active unit of work, including a build created earlier
+in the same transaction. The pending-build composition regression verifies the
+scoped human grant, compound rollback and replay without a second execution.
+Evidence, attestation, staged
 payload lifecycle, both audit entries and worker jobs commit atomically with
 durable HTTP replay. The existing
 `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS` setting reaches this composition;

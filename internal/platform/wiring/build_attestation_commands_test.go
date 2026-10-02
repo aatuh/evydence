@@ -52,7 +52,7 @@ func TestPostgresBuildAttestationIngestionCommitsAtomicEvidencePayloadJobsAndRep
 		t.Fatal(err)
 	}
 	objects := &countedSignatureStager{Store: fs}
-	commands, err := BuildBuildAttestationCommands(store, store, objects, true)
+	commands, err := BuildBuildAttestationCommands(store, objects, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +151,7 @@ func TestPostgresBuildAttestationIngestionCommitsAtomicEvidencePayloadJobsAndRep
 	}
 	// A new command instance uses durable coordinates and can reuse a finalized
 	// payload. Inline mode still preserves the parsed persistent projection.
-	inline, err := BuildBuildAttestationCommands(store, store, objects, false)
+	inline, err := BuildBuildAttestationCommands(store, objects, false)
 	if err != nil {
 		t.Fatal(err)
 	}
