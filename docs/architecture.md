@@ -588,9 +588,12 @@ appends. Framework/version and control/code uniqueness checks, current
 tenant-wide administration grants, insertion, and audit share that transaction.
 The commands preserve slug derivation, requirement order, applicability sorting
 with duplicates, limitation order, and existing schema versions. They reject
-unsupported text/index sizes and excessive list work before persistence. Their
-HTTP bindings, template installation, and evidence-link commands still use the
-compatibility path at this stage; this boundary does not retire production
+unsupported text/index sizes and excessive list work before persistence.
+PostgreSQL HTTP creation routes bind these commands directly: separate server
+instances can create, replay, read, and report a framework/control without
+publishing authoritative Ledger maps. Local-memory mode retains its explicit
+compatibility command binding. Template installation and evidence-link commands
+still use the compatibility path; this boundary does not retire production
 Ledger startup or its remaining maps.
 The read-only release evidence-flow plan also uses a focused service in the
 PostgreSQL profile: one tenant-filtered SQL statement collects nine release

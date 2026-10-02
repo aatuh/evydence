@@ -34,6 +34,7 @@ import (
 	releaseapp "github.com/aatuh/evydence/internal/release/app"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 	releasequery "github.com/aatuh/evydence/internal/release/query"
+	riskapp "github.com/aatuh/evydence/internal/risk/app"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 	riskquery "github.com/aatuh/evydence/internal/risk/query"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
@@ -85,6 +86,7 @@ type Server struct {
 	releaseStateCommands              ReleaseStateCommands
 	candidateStateCommands            CandidateStateCommands
 	candidateCommands                 CandidateCommands
+	controlCommands                   ControlCommands
 	evidenceCreationCommands          EvidenceCreationCommands
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
 	deploymentCommands                DeploymentCommands
@@ -229,6 +231,7 @@ type ServerOptions struct {
 	ReleaseStateCommands          ReleaseStateCommands
 	CandidateStateCommands        CandidateStateCommands
 	CandidateCommands             CandidateCommands
+	ControlCommands               ControlCommands
 	EvidenceCreationCommands      EvidenceCreationCommands
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
 	DeploymentCommands            DeploymentCommands
@@ -409,6 +412,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.releaseStateCommands = opts.ReleaseStateCommands
 	server.candidateStateCommands = opts.CandidateStateCommands
 	server.candidateCommands = opts.CandidateCommands
+	server.controlCommands = opts.ControlCommands
 	server.evidenceCreationCommands = opts.EvidenceCreationCommands
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands
@@ -575,6 +579,13 @@ func (s *Server) createControlFramework(w http.ResponseWriter, r *http.Request) 
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
+		if err := validateNonNullableObjectFields(body, "name", "slug", "version", "description"); err != nil {
+			return 0, nil, err
+		}
+		if s.controlCommands != nil {
+			framework, err := s.controlCommands.CreateControlFramework(ctx, actor, riskapp.CreateControlFrameworkInput{Name: req.Name, Slug: req.Slug, Version: req.Version, Description: req.Description})
+			return http.StatusCreated, controlFrameworkFromQuery(framework), mapControlCommandError(err)
+		}
 		framework, err := s.ledger.CreateControlFramework(ctx, actor, app.CreateControlFrameworkInput{
 			Name:        req.Name,
 			Slug:        req.Slug,
@@ -672,6 +683,17 @@ func (s *Server) createSecurityControl(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
+		}
+		if err := validateSecurityControlJSON(body); err != nil {
+			return 0, nil, err
+		}
+		if s.controlCommands != nil {
+			requirements := make([]riskdomain.ControlEvidenceRequirement, 0, len(req.EvidenceRequirements))
+			for _, v := range req.EvidenceRequirements {
+				requirements = append(requirements, riskdomain.ControlEvidenceRequirement{Type: v.Type, FreshnessDays: v.FreshnessDays, Required: v.Required})
+			}
+			control, err := s.controlCommands.CreateSecurityControl(ctx, actor, riskapp.CreateSecurityControlInput{FrameworkID: req.FrameworkID, Code: req.Code, Title: req.Title, Objective: req.Objective, EvidenceRequirements: requirements, Applicability: req.Applicability, Limitations: req.Limitations})
+			return http.StatusCreated, securityControlFromQuery(control), mapControlCommandError(err)
 		}
 		control, err := s.ledger.CreateSecurityControl(ctx, actor, app.CreateSecurityControlInput{
 			FrameworkID:          req.FrameworkID,

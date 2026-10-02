@@ -56,6 +56,25 @@ promoting or rejecting a candidate. Runtime responses and historical records
 are unchanged. This correction does not approve the compatibility change set
 or claim a release.
 
+## Unreleased Control Creation Boundary
+
+PostgreSQL manual framework/control creation now requires current tenant-level
+`controls:admin` grants for human sessions, consistent with its tenant-wide
+inventory boundary. Product/release grants do not authorize these creates.
+Issued API-key/collector scopes remain their credential boundary. Clients must
+stay within the text/index/list budgets documented in [API Reference](../api.md#controls-reports-packages-and-governance).
+Routes, response fields, schema versions, explicit slugs, requirement order,
+applicability duplicates, and limitation order are preserved; new durable
+creation timestamps use UTC microsecond precision to match reads/replays.
+
+Both runtime profiles now reject explicit null fields/items in these creation
+requests. Each evidence requirement must include its non-null `required`
+boolean, including an explicit `false` for optional requirements. This aligns
+transport validation with the existing non-nullable/required OpenAPI contract;
+previous decoder acceptance of null or absent booleans was not a documented
+contract. No historical record is rewritten. This note does not approve the
+outstanding compatibility change set or claim a release.
+
 ## Prerelease Baseline Reconciliation
 
 The current baseline is the published `v0.1.0-rc.7` OpenAPI asset with digest

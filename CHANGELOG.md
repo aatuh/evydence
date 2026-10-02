@@ -21,6 +21,12 @@ The candidate response schema now defines the already-required positive
 `revision` integer returned by the API. See the
 [client migration note](docs/reference/api-versioning.md#unreleased-candidate-revision-schema-correction).
 
+PostgreSQL manual framework/control creation now uses focused durable commands
+with tenant-wide human administration grants and atomic audits. Creation also
+rejects null fields/items and missing requirement booleans in both profiles,
+matching the published contract. See the
+[migration note](docs/reference/api-versioning.md#unreleased-control-creation-boundary).
+
 ### Added
 
 - Production control coverage and CRA readiness reports now use bounded, tenant-scoped PostgreSQL snapshots with current-subject validation, actual subject timestamps for freshness, and fail-closed capacity limits. Local-memory mode retains its compatibility report path.

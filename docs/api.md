@@ -1045,11 +1045,11 @@ Source/test evidence: `internal/operations/app/deployment_commands.go`,
 
 | Method | Path | Notes |
 |--------|------|-------|
-| `POST` | `/v1/control-frameworks` | Create framework version. |
+| `POST` | `/v1/control-frameworks` | Create framework version with `controls:admin`; PostgreSQL human sessions need a current tenant-level grant. |
 | `GET` | `/v1/control-frameworks` | List frameworks. Human sessions need a current tenant-level `controls:read` grant; scoped credentials need that issued scope. |
 | `GET` | `/v1/control-framework-template-packs` | List built-in starter packs. |
 | `POST` | `/v1/control-framework-template-packs/{slug}/install` | Copy starter pack to tenant records. |
-| `POST` | `/v1/controls` | Create control. |
+| `POST` | `/v1/controls` | Create control under a current tenant-owned framework with the same `controls:admin` grant rule. |
 | `GET` | `/v1/controls/{id}` | Read a control through its tenant-owned framework; uses the same `controls:read` grant rule. |
 | `POST` | `/v1/controls/{id}/evidence` | Append control evidence link. |
 | `GET` | `/v1/control-evidence` | Keyset-page tenant/grant-visible links whose control, framework, scope, and current subject ownership still resolve. Supports `control_id`, `product_id`, and `release_id` filters. PostgreSQL applies visibility before the page limit; local-memory mode uses the Ledger compatibility reader. |
@@ -1076,6 +1076,35 @@ Source/test evidence: `internal/operations/app/deployment_commands.go`,
 | `POST` | `/v1/customer-portal/package/view` | Exchange package token from a form body for scoped HTML package review. |
 | `POST` | `/v1/customer-portal/package/view/download` | Exchange package token from a form body for scoped ZIP package download. |
 
+Manual framework/control creation in PostgreSQL uses focused commands and
+existence-only reads in the active transaction, not Ledger inventories. Each
+record and its audit append commit together; same-key replay returns the
+original response and changed request bytes conflict. Duplicate framework
+`slug`/`version` or framework/control `code` identities return `409`. Missing or
+foreign frameworks return `404`, and denied administration grants return `403`.
+New timestamps use microsecond-precision UTC.
+
+Creation text is trimmed, NUL-free UTF-8. Framework names/descriptions and
+control titles/objectives are each bounded at 64 KiB; framework slug/version
+text together is bounded at 1024 bytes. A blank/omitted slug uses the existing
+ASCII name-derived slug; explicit slugs are retained. Framework IDs and control
+codes are each bounded at 1024 bytes, and tenant ID plus framework ID plus code
+at 2048 bytes. The whole HTTP JSON body remains limited to 64 KiB including
+syntax and escapes. Invalid or excessive input returns `400` without resource
+or audit writes.
+
+Evidence requirements preserve request order, reject repeated or unsupported
+types, and accept freshness from 0 through 3650 days. Each requirement must
+include its non-null `required` boolean; `false` is valid. Applicability is
+trimmed and sorted without removing duplicates or empty entries; limitations
+retain order/duplicates but omit trimmed blanks. Together these two lists are
+bounded at 1024 input entries and 64 KiB of input text. Optional arrays may be
+omitted; explicit null fields/items are rejected in both runtime profiles.
+Local-memory creation retains its compatibility command. Template installation
+and evidence linking remain separate compatibility commands at this stage.
+
+| Method | Path | Notes |
+|--------|------|-------|
 | `POST` | `/v1/questionnaire-templates` | Create questionnaire template. |
 | `POST` | `/v1/questionnaire-packages` | Generate evidence-backed responses. |
 | `POST` | `/v1/questionnaire-drafts` | Create evidence-backed draft answers for review. |

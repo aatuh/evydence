@@ -36,6 +36,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 		t.Fatalf("local memory dependencies=%#v error=%v", memory, err)
 	}
 	store := &postgres.Store{}
+	if memory.ControlCommands != nil {
+		t.Fatal("local memory bound durable control creation")
+	}
 	if memory.ReleaseReadinessReportQuery != nil {
 		t.Fatal("local-memory profile unexpectedly bound durable readiness reports")
 	}
@@ -306,6 +309,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.RetentionCommands == nil {
 		t.Fatal("PostgreSQL does not bind durable retention commands")
+	}
+	if options.ControlCommands == nil {
+		t.Fatal("PostgreSQL control creation still uses Ledger")
 	}
 	if options.TrustConfigurationCommands == nil {
 		t.Fatal("PostgreSQL lacks durable trust commands")

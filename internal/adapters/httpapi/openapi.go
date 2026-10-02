@@ -1685,12 +1685,14 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "collector", "api_key"))
 	registry.RegisterSchema("CollectorCreateEnvelope", dataEnvelopeSchema("#/components/schemas/CollectorCreateResponse"))
 	registry.RegisterSchema("CollectorListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/Collector"))
-	registry.RegisterSchema("CreateControlFrameworkRequest", objectSchema(map[string]any{
+	createControlFrameworkRequest := objectSchema(map[string]any{
 		"name":        map[string]any{"type": "string"},
 		"slug":        map[string]any{"type": "string"},
 		"version":     map[string]any{"type": "string"},
 		"description": map[string]any{"type": "string"},
-	}, "name", "version"))
+	}, "name", "version")
+	createControlFrameworkRequest["description"] = "Creates a versioned framework with controls:admin. PostgreSQL uses a focused transaction with a tenant-scoped existence check and atomic audit; human sessions need a current tenant-level grant. Name/version are trimmed and non-empty; an omitted or blank slug is derived from the name using the existing ASCII slug rule. Explicit slugs are retained. New name/description text is NUL-free UTF-8 bounded at 64 KiB each; slug/version together are bounded at 1024 UTF-8 bytes. The HTTP body is capped at 64 KiB including JSON syntax/escapes. Supplied fields cannot be null. Duplicate tenant/slug/version keys return 409; same-key retry returns the original result, and changed request bytes conflict. Creation timestamps use microsecond-precision UTC in PostgreSQL. Local-memory mode retains its compatibility command."
+	registry.RegisterSchema("CreateControlFrameworkRequest", createControlFrameworkRequest)
 	registry.RegisterSchema("ControlFramework", objectSchema(map[string]any{
 		"id":             map[string]any{"type": "string"},
 		"tenant_id":      map[string]any{"type": "string"},
@@ -1709,7 +1711,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"freshness_days": map[string]any{"type": "integer", "minimum": 0},
 		"required":       map[string]any{"type": "boolean"},
 	}, "type", "required"))
-	registry.RegisterSchema("CreateSecurityControlRequest", objectSchema(map[string]any{
+	createSecurityControlRequest := objectSchema(map[string]any{
 		"framework_id":          map[string]any{"type": "string"},
 		"code":                  map[string]any{"type": "string"},
 		"title":                 map[string]any{"type": "string"},
@@ -1717,7 +1719,9 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"evidence_requirements": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/ControlEvidenceRequirement"}},
 		"applicability":         map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 		"limitations":           map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-	}, "framework_id", "code", "title", "objective"))
+	}, "framework_id", "code", "title", "objective")
+	createSecurityControlRequest["description"] = "Creates a control under a current tenant-owned framework with controls:admin. PostgreSQL human sessions need a current tenant-level grant; ownership, code uniqueness, insertion, and audit use one focused transaction without Ledger inventory reads. Missing/foreign frameworks return 404, grant denial 403, and duplicate framework/code keys 409. Trimmed IDs/code/title/objective are non-empty NUL-free UTF-8. Framework IDs and codes are bounded at 1024 bytes each, and tenant ID plus framework ID plus code at 2048 bytes; title/objective are bounded at 64 KiB each. At most ten unique supported evidence requirement types are accepted, in request order, with freshness_days from 0 through 3650. Each requirement must supply its non-null required boolean (false is valid). Optional arrays may be omitted, but supplied fields/items cannot be null. Applicability is trimmed/sorted with duplicates and empty entries retained; limitations are trimmed in order with blank entries omitted. These two lists together are bounded at 1024 input entries and 64 KiB of input text. The entire HTTP JSON body is capped at 64 KiB including syntax/escapes. Invalid input returns 400 without control/audit writes. Same-key retry returns the original result; changed request bytes conflict. Local-memory mode retains its compatibility command."
+	registry.RegisterSchema("CreateSecurityControlRequest", createSecurityControlRequest)
 	registry.RegisterSchema("SecurityControl", objectSchema(map[string]any{
 		"id":                    map[string]any{"type": "string"},
 		"tenant_id":             map[string]any{"type": "string"},

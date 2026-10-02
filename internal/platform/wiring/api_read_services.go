@@ -373,6 +373,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	}
 	options.ControlsQuery = controls
 	options.ControlTemplateQuery = controls
+	options.ControlCommands, err = BuildControlCommands(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create control commands: %w", err)
+	}
 	options.ExceptionsQuery, err = BuildExceptionsQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create exceptions query: %w", err)
