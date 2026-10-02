@@ -255,7 +255,7 @@ func TestUploadBuildAttestationPayloadRejectsParserDigestMismatchBeforeStaging(t
 
 func TestWorkerOwnedBuildAttestationWithoutReplayableObjectKeepsParsedProjection(t *testing.T) {
 	fixture := newServiceFixture(t)
-	fixture.service.workerOwnedParsers = true
+	fixture.service.buildAttestationCommands.workerOwnedParsers = true
 	build, artifact := seedBuildAttestationFixture(fixture)
 	raw := []byte(`{"payload":"attestation"}`)
 	digest := testAttestationDigest(raw)

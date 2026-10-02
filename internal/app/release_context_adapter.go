@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"errors"
-	"io"
 	"strings"
 
 	verificationdsse "github.com/aatuh/evydence/internal/adapters/verification/dsse"
@@ -21,7 +20,7 @@ func (l *Ledger) configureReleaseCommands() error {
 		Authorizer:          ledgerContextAuthorizer{ledger: l},
 		CandidateReferences: ledgerReleaseCandidateReferences{ledger: l},
 		Canonicalizer:       ledgerReleaseCandidateCanonicalizer{},
-		AttestationParser:   ledgerBuildAttestationParser{},
+		AttestationParser:   verificationdsse.BuildAttestationIngestionParser{},
 		PayloadStager:       ledgerBuildAttestationPayloadStager{ledger: l},
 		WorkerOwnedParsers:  l.workerOwnedParsers,
 		Clock:               application.ClockFunc(l.now),
@@ -32,42 +31,6 @@ func (l *Ledger) configureReleaseCommands() error {
 	}
 	l.releaseCommands = service
 	return nil
-}
-
-type ledgerBuildAttestationParser struct{}
-
-func (ledgerBuildAttestationParser) ParseBuildAttestation(ctx context.Context, source releaseapp.BuildAttestationPayloadSource) (releaseapp.ParsedBuildAttestation, error) {
-	if err := ctx.Err(); err != nil {
-		return releaseapp.ParsedBuildAttestation{}, err
-	}
-	if source.Open == nil || !ValidPayloadSize(source.Size, EvidenceDocumentLimit) || !validDigest(source.Digest) {
-		return releaseapp.ParsedBuildAttestation{}, releaseapp.ErrValidation
-	}
-	reader, err := source.Open()
-	if err != nil {
-		return releaseapp.ParsedBuildAttestation{}, err
-	}
-	defer reader.Close()
-	raw, err := io.ReadAll(io.LimitReader(reader, EvidenceDocumentLimit+1))
-	if err != nil {
-		return releaseapp.ParsedBuildAttestation{}, err
-	}
-	if err := ctx.Err(); err != nil {
-		return releaseapp.ParsedBuildAttestation{}, err
-	}
-	if int64(len(raw)) != source.Size || hashBytes(raw) != source.Digest {
-		return releaseapp.ParsedBuildAttestation{}, releaseapp.ErrValidation
-	}
-	parsed, err := verificationdsse.Parse(raw)
-	if err != nil {
-		return releaseapp.ParsedBuildAttestation{}, releaseapp.ErrValidation
-	}
-	return releaseapp.ParsedBuildAttestation{
-		PayloadHash: source.Digest, PayloadSize: source.Size, ParserVersion: releaseapp.BuildAttestationParserVersion,
-		PayloadType: parsed.PayloadType, PredicateType: parsed.PredicateType,
-		SubjectDigests: append([]string(nil), parsed.SubjectDigests...), BuilderID: parsed.BuilderID,
-		BuildType: parsed.BuildType, MaterialsCount: parsed.MaterialsCount, SignatureCount: parsed.SignatureCount,
-	}, nil
 }
 
 type ledgerBuildAttestationPayloadStager struct{ ledger *Ledger }

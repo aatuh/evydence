@@ -134,14 +134,25 @@ type BuildAttestationEvidenceWriter interface {
 }
 
 func (s *Service) UploadBuildAttestation(ctx context.Context, actor identitydomain.Actor, buildID string, raw []byte) (releasedomain.BuildAttestation, error) {
-	return s.UploadBuildAttestationPayload(ctx, actor, buildID, BytesBuildAttestationPayloadSource(raw))
+	return s.buildAttestationCommands.UploadBuildAttestation(ctx, actor, buildID, raw)
 }
 
 func (s *Service) UploadBuildAttestationPayload(ctx context.Context, actor identitydomain.Actor, buildID string, source BuildAttestationPayloadSource) (releasedomain.BuildAttestation, error) {
+	return s.buildAttestationCommands.UploadBuildAttestationPayload(ctx, actor, buildID, source)
+}
+
+func (s *BuildAttestationCommands) UploadBuildAttestation(ctx context.Context, actor identitydomain.Actor, buildID string, raw []byte) (releasedomain.BuildAttestation, error) {
+	return s.UploadBuildAttestationPayload(ctx, actor, buildID, BytesBuildAttestationPayloadSource(raw))
+}
+
+func (s *BuildAttestationCommands) UploadBuildAttestationPayload(ctx context.Context, actor identitydomain.Actor, buildID string, source BuildAttestationPayloadSource) (releasedomain.BuildAttestation, error) {
+	if s == nil {
+		return releasedomain.BuildAttestation{}, ErrValidation
+	}
 	if err := contextError(ctx); err != nil {
 		return releasedomain.BuildAttestation{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeBuildWrite, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeBuildWrite, ScopeOnly: true}); err != nil {
 		return releasedomain.BuildAttestation{}, err
 	}
 	buildID = strings.TrimSpace(buildID)
@@ -171,7 +182,7 @@ func (s *Service) UploadBuildAttestationPayload(ctx context.Context, actor ident
 		return releasedomain.BuildAttestation{}, ErrNotFound
 	}
 	resources := application.ResourceReferences{ProductID: project.ProductID, ProjectID: project.ID, ReleaseID: release.ID, BuildID: build.ID}
-	if err := s.authorize(ctx, actor, ScopeBuildWrite, resources, false); err != nil {
+	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeBuildWrite, Resources: resources}); err != nil {
 		return releasedomain.BuildAttestation{}, err
 	}
 
@@ -193,7 +204,7 @@ func (s *Service) UploadBuildAttestationPayload(ctx context.Context, actor ident
 		if artifact.Digest != output.Digest {
 			return releasedomain.BuildAttestation{}, ErrValidation
 		}
-		if err := s.authorize(ctx, actor, ScopeBuildWrite, application.ResourceReferences{ArtifactID: artifact.ID}, false); err != nil {
+		if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeBuildWrite, Resources: application.ResourceReferences{ArtifactID: artifact.ID}}); err != nil {
 			return releasedomain.BuildAttestation{}, err
 		}
 		artifacts[artifact.ID] = artifact
@@ -246,11 +257,11 @@ func (s *Service) UploadBuildAttestationPayload(ctx context.Context, actor ident
 		PayloadType: parsed.PayloadType, PredicateType: parsed.PredicateType, SignatureCount: parsed.SignatureCount,
 	}
 
-	err = s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
+	err = s.transactions.ExecuteBuildAttestation(ctx, func(ctx context.Context, tx BuildAttestationTransaction) error {
 		if err := revalidateBuildAttestationScope(ctx, tx, actor.TenantID, project, release, build, artifacts); err != nil {
 			return err
 		}
-		receipt, err := tx.BuildAttestationEvidence().WriteBuildAttestationEvidence(ctx, actor, evidenceInput)
+		receipt, err := tx.WriteBuildAttestationEvidence(ctx, actor, evidenceInput)
 		if err != nil {
 			return err
 		}
@@ -259,10 +270,10 @@ func (s *Service) UploadBuildAttestationPayload(ctx context.Context, actor ident
 		}
 		attestation.EvidenceID = receipt.EvidenceID
 		persisted.EvidenceID = receipt.EvidenceID
-		if err := tx.Builds().InsertBuildAttestation(ctx, persisted); err != nil {
+		if err := tx.InsertBuildAttestation(ctx, persisted); err != nil {
 			return err
 		}
-		if _, err := tx.Audit().AppendAudit(ctx, s.auditEvent(actor, commandAt, auditAction, "build_attestation", attestation.ID, source.Digest)); err != nil {
+		if _, err := tx.AppendAudit(ctx, auditEventFor(s.ids, actor, commandAt, auditAction, "build_attestation", attestation.ID, source.Digest)); err != nil {
 			return err
 		}
 		payload := map[string]any{"payload_ref": staged.Reference, "payload_hash": source.Digest, "parser_version": parsed.ParserVersion}
@@ -270,7 +281,7 @@ func (s *Service) UploadBuildAttestationPayload(ctx context.Context, actor ident
 			payload["payload_lifecycle"] = buildAttestationPayloadLifecycle
 			payload["payload_digest"] = staged.Digest
 		}
-		return tx.Outbox().EnqueueOutbox(ctx, application.OutboxEvent{
+		return tx.EnqueueOutbox(ctx, application.OutboxEvent{
 			ID: s.ids.NewID("job"), TenantID: actor.TenantID, Kind: "verify_attestation",
 			SubjectType: "build_attestation", SubjectID: attestation.ID, Payload: payload, CreatedAt: commandAt,
 		})
@@ -332,15 +343,15 @@ func buildAttestationEvidenceSubjects(outputs []releasedomain.BuildOutput) []Bui
 	return result
 }
 
-func revalidateBuildAttestationScope(ctx context.Context, tx Transaction, tenantID string, project releasedomain.Project, release releasedomain.Release, build releasedomain.BuildRun, artifacts map[string]releasedomain.Artifact) error {
-	currentProject, err := tx.Catalog().GetProject(ctx, tenantID, project.ID)
+func revalidateBuildAttestationScope(ctx context.Context, tx BuildAttestationTransaction, tenantID string, project releasedomain.Project, release releasedomain.Release, build releasedomain.BuildRun, artifacts map[string]releasedomain.Artifact) error {
+	currentProject, err := tx.GetProject(ctx, tenantID, project.ID)
 	if err != nil {
 		return err
 	}
 	if !projectBelongsToTenant(currentProject, tenantID, project.ID) {
 		return ErrNotFound
 	}
-	currentRelease, err := tx.Catalog().GetRelease(ctx, tenantID, release.ID)
+	currentRelease, err := tx.GetRelease(ctx, tenantID, release.ID)
 	if err != nil {
 		return err
 	}
@@ -350,7 +361,7 @@ func revalidateBuildAttestationScope(ctx context.Context, tx Transaction, tenant
 	if !sameProjectCoordinates(currentProject, project) || !sameReleaseCoordinates(currentRelease, release) || currentProject.ProductID != currentRelease.ProductID {
 		return ErrConflict
 	}
-	currentBuild, err := tx.Builds().GetBuildRun(ctx, tenantID, build.ID)
+	currentBuild, err := tx.GetBuildRun(ctx, tenantID, build.ID)
 	if err != nil {
 		return err
 	}
@@ -361,7 +372,7 @@ func revalidateBuildAttestationScope(ctx context.Context, tx Transaction, tenant
 		return ErrConflict
 	}
 	for id, artifact := range artifacts {
-		current, err := tx.Catalog().GetArtifact(ctx, tenantID, id)
+		current, err := tx.GetArtifact(ctx, tenantID, id)
 		if err != nil {
 			return err
 		}

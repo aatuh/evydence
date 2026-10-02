@@ -330,6 +330,20 @@ unrelated metadata, tenant/grant isolation, rollback and replay. Production HTTP
 still uses the compatibility command binding until downstream attestation and
 evidence consumers can read these durable builds; this adapter alone does not
 complete that migration.
+
+Build-attestation upload orchestration now lives in the standalone Release
+`BuildAttestationCommands`. Its four-read, fixed-shape transaction port rechecks
+the build, parent and output-artifact coordinates before committing evidence,
+attestation, audit and parser-job effects. The compatibility Release service
+delegates to the same command; it does not duplicate orchestration. The DSSE
+ingestion parser is independently composable from
+`internal/adapters/verification/dsse`, validates the observed bytes/size/digest
+within the existing 20 MiB limit, and performs structural parsing only, not
+signature verification. Worker-owned replayable uploads retain the parsed
+response but persist the accepted projection for worker completion. Durable
+attestation readers, evidence-writer composition and production HTTP binding
+remain EVY-905 work; this extraction does not retire the Ledger storage adapter.
+
 API-key and SSO-session verification now has a
 standalone identity application service with narrow credential-read and
 activity-write ports. The PostgreSQL profile binds those ports to current

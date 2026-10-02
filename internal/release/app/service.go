@@ -158,17 +158,15 @@ type Config struct {
 }
 
 type Service struct {
-	productCommands     *ProductCommands
-	reader              Reader
-	transactions        TransactionRunner
-	authorizer          application.Authorizer
-	candidateReferences ReleaseCandidateReferenceValidator
-	canonicalizer       ReleaseCandidateCanonicalizer
-	attestationParser   BuildAttestationParser
-	payloadStager       BuildAttestationPayloadStager
-	workerOwnedParsers  bool
-	clock               application.Clock
-	ids                 application.IDGenerator
+	productCommands          *ProductCommands
+	buildAttestationCommands *BuildAttestationCommands
+	reader                   Reader
+	transactions             TransactionRunner
+	authorizer               application.Authorizer
+	candidateReferences      ReleaseCandidateReferenceValidator
+	canonicalizer            ReleaseCandidateCanonicalizer
+	clock                    application.Clock
+	ids                      application.IDGenerator
 }
 
 func NewService(config Config) (*Service, error) {
@@ -182,13 +180,20 @@ func NewService(config Config) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
+	attestations, err := NewBuildAttestationCommands(BuildAttestationCommandConfig{
+		Reader: config.Reader, Transactions: releaseBuildAttestationTransactions{runner: config.Transactions},
+		Authorizer: config.Authorizer, AttestationParser: config.AttestationParser, PayloadStager: config.PayloadStager,
+		WorkerOwnedParsers: config.WorkerOwnedParsers, Clock: config.Clock, IDs: config.IDs,
+	})
+	if err != nil {
+		return nil, err
+	}
 	return &Service{
-		productCommands: productCommands,
-		reader:          config.Reader, transactions: config.Transactions, authorizer: config.Authorizer,
+		productCommands:          productCommands,
+		buildAttestationCommands: attestations,
+		reader:                   config.Reader, transactions: config.Transactions, authorizer: config.Authorizer,
 		candidateReferences: config.CandidateReferences, canonicalizer: config.Canonicalizer,
-		attestationParser: config.AttestationParser, payloadStager: config.PayloadStager,
-		workerOwnedParsers: config.WorkerOwnedParsers,
-		clock:              config.Clock, ids: config.IDs,
+		clock: config.Clock, ids: config.IDs,
 	}, nil
 }
 
