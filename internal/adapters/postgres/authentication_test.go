@@ -207,6 +207,11 @@ func TestPostgresAuthenticationHasActivePrefixIndexes(t *testing.T) {
 
 func isolatedRelationalTestStore(t *testing.T) *Store {
 	t.Helper()
+	return isolatedPostgresTestStore(t, StoreOptions{LoadMode: LoadModeRelationalOnly, DisableSnapshotWrites: true})
+}
+
+func isolatedPostgresTestStore(t *testing.T, options StoreOptions) *Store {
+	t.Helper()
 	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("EVYDENCE_TEST_DATABASE_URL is not set")
@@ -227,7 +232,7 @@ func isolatedRelationalTestStore(t *testing.T) *Store {
 		_, _ = admin.pool.Exec(context.Background(), "DROP SCHEMA "+quotedSchema+" CASCADE")
 		admin.Close()
 	})
-	store, err := OpenWithOptions(ctx, databaseURLWithSearchPath(t, databaseURL, schema), StoreOptions{LoadMode: LoadModeRelationalOnly, DisableSnapshotWrites: true})
+	store, err := OpenWithOptions(ctx, databaseURLWithSearchPath(t, databaseURL, schema), options)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -4251,22 +4251,8 @@ func syncIncidentSecurityGovernanceRows(ctx context.Context, tx pgx.Tx, state ap
 		if waiver.ID == "" || waiver.TenantID == "" || waiver.ScopeID == "" {
 			continue
 		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO waivers (
-				id, tenant_id, scope_type, scope_id, control_id, policy_id,
-				owner, risk, reason, expires_at, approved, approved_by,
-				approved_at, supersedes, superseded_by, schema_version, created_at
-			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-			ON CONFLICT (id) DO UPDATE SET
-				approved = EXCLUDED.approved,
-				approved_by = EXCLUDED.approved_by,
-				approved_at = EXCLUDED.approved_at,
-				superseded_by = EXCLUDED.superseded_by
-		`, waiver.ID, waiver.TenantID, waiver.ScopeType, waiver.ScopeID, nullableString(waiver.ControlID), nullableString(waiver.PolicyID),
-			waiver.Owner, waiver.Risk, waiver.Reason, waiver.ExpiresAt, waiver.Approved, nullableString(waiver.ApprovedBy),
-			nullableTime(waiver.ApprovedAt), nullableString(waiver.Supersedes), nullableString(waiver.SupersededBy), waiver.SchemaVersion, nonZeroTime(waiver.CreatedAt)); err != nil {
-			return fmt.Errorf("upsert waiver row: %w", err)
+		if err := importWaiverRow(ctx, tx, waiver); err != nil {
+			return err
 		}
 	}
 	for _, approval := range state.Approvals {

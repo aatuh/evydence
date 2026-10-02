@@ -632,7 +632,25 @@ reservation/replay, and approval, audit, and replay completion share one unit of
 work. Optional evidence retains the existing same-tenant ownership rule, not a
 new same-release requirement. Live HTTP tests use fresh servers with forbidden
 Ledger refreshes and cover replay, role removal, malformed input, and rollback.
-Waiver/exception lifecycle commands and other compatibility paths remain open.
+Exception lifecycle commands and other compatibility paths remain open.
+
+Waiver creation and approval now bind transaction-only commands in PostgreSQL
+as well. Current release/finding ownership or tenant-wide control/policy scope
+is resolved inside the durable idempotency transaction. Supersession authorizes
+both scopes without fetching the prior reason. Approval authorizes metadata
+first, then reads one bounded waiver and preserves its immutable core fields.
+Existing conditional approval/supersession metadata writes and audit entries
+commit with replay completion; this is not a claim that all historical waiver
+metadata has been converted to append-only projections. Live fresh-server tests
+forbid Ledger refreshes and exercise write, audit, replay-completion, and
+deferred-commit rollback. Production Ledger startup and unrelated workflows
+remain to be retired.
+
+Trusted relational/snapshot replay no longer rewrites existing waiver rows.
+It compares stored core fields and any supplied lifecycle metadata, rejecting
+mismatches. An unchanged older snapshot may omit later approval/supersession
+metadata without undoing it. Legacy initial imports remain supported; an absent
+historical creation time on replay never replaces the stored timestamp.
 
 Vulnerability-decision creation now has a separate transaction-only command
 core. It uses the existing normalization and decision-construction rules, but

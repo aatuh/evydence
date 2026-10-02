@@ -51,6 +51,13 @@ func (r governance) ReadApprovalSubject(ctx context.Context, tenant, kind, id st
 }
 
 func (r governance) readApprovalOwner(ctx context.Context, tenant, kind, id string) (riskapp.GovernanceSubjectReference, error) {
+	if kind == "finding" {
+		finding, err := decisions(r).readDecisionFinding(ctx, tenant, id, false)
+		if err != nil {
+			return riskapp.GovernanceSubjectReference{}, err
+		}
+		return riskapp.GovernanceSubjectReference{TenantID: tenant, ProductID: finding.ProductID, ReleaseID: finding.ReleaseID}, nil
+	}
 	if kind == "waiver" {
 		var scope, scopeID string
 		var invalid bool
@@ -65,14 +72,8 @@ func (r governance) readApprovalOwner(ctx context.Context, tenant, kind, id stri
 			return riskapp.GovernanceSubjectReference{}, app.ErrValidation
 		}
 		switch scope {
-		case "release", "control", "policy":
+		case "release", "control", "policy", "finding":
 			return r.readApprovalOwner(ctx, tenant, scope, scopeID)
-		case "finding":
-			finding, err := decisions(r).readDecisionFinding(ctx, tenant, scopeID, false)
-			if err != nil {
-				return riskapp.GovernanceSubjectReference{}, err
-			}
-			return riskapp.GovernanceSubjectReference{TenantID: tenant, ProductID: finding.ProductID, ReleaseID: finding.ReleaseID}, nil
 		default:
 			return riskapp.GovernanceSubjectReference{}, app.ErrNotFound
 		}

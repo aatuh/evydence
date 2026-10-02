@@ -51,6 +51,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.ApprovalCommands != nil {
 		t.Fatal("local memory bound durable approval commands")
 	}
+	if memory.WaiverCommands != nil {
+		t.Fatal("local memory bound durable waiver commands")
+	}
 	if memory.ReleaseReadinessReportQuery != nil {
 		t.Fatal("local-memory profile unexpectedly bound durable readiness reports")
 	}
@@ -336,6 +339,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.ApprovalCommands == nil {
 		t.Fatal("PostgreSQL approval creation still uses Ledger")
+	}
+	if options.WaiverCommands == nil {
+		t.Fatal("PostgreSQL waiver commands still use Ledger")
 	}
 	if options.TrustConfigurationCommands == nil {
 		t.Fatal("PostgreSQL lacks durable trust commands")

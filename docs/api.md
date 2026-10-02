@@ -1081,6 +1081,47 @@ Source/test evidence: `internal/operations/app/deployment_commands.go`,
 | `POST` | `/v1/customer-portal/package/view` | Exchange package token from a form body for scoped HTML package review. |
 | `POST` | `/v1/customer-portal/package/view/download` | Exchange package token from a form body for scoped ZIP package download. |
 
+### Waiver Lifecycle
+
+`POST /v1/waivers` creates a waiver scoped to a `release`, `finding`, `control`,
+or `policy`. `POST /v1/waivers/{id}/approve` records the explicit approval
+transition; approval records created through `/v1/approvals` do not trigger it.
+
+In PostgreSQL mode, these routes bind transaction-only commands rather than
+Ledger mutation scopes. Current tenant-owned parent coordinates and
+`policy:write` authorization are checked before reservation and replay. Human
+sessions need a matching product/release grant for release/finding scopes and
+a tenant grant for control/policy scopes. Optional control and policy links
+must belong to the tenant. Supersession additionally requires authorization
+for the prior waiver's current scope; a grant on the new scope alone cannot
+supersede an inaccessible waiver.
+
+Creation requires a future expiry. New approvals reject expired or already
+approved waivers with 409. Completed responses remain replayable after those
+transitions, subject to current ownership and authorization checks. Waiver
+writes, the audit event, and replay completion share one transaction. Existing
+approval/supersession metadata transitions are preserved; approval does not
+rewrite the waiver's scope, reason, owner, risk, or expiry.
+
+PostgreSQL identities, owner, and risk are limited to 1024 UTF-8 bytes; reasons
+to 65536 bytes. Invalid text, explicit null creation fields, and unsupported
+scopes return 400. Expiry must fit years 1–9999 and is normalized to UTC at
+PostgreSQL microsecond precision. Authorization and supersession queries do
+not fetch historical reasons; approval reads one bounded record afterward.
+Oversized historical records remain usable as supersession targets but cannot
+be approved through the bounded command. Local-memory mode retains its
+compatibility path and is not evidence of durable operation.
+
+Trusted relational/snapshot replay preserves existing waiver core fields and
+durable lifecycle metadata. Replaying an older unapproved or unsuperseded
+snapshot cannot undo a later transition. Changed historical content or a new
+transition supplied only through bulk replay is rejected; legacy rows can still
+be imported into an empty destination.
+
+Source/test evidence: `internal/risk/app/waiver_commands.go`,
+`internal/adapters/postgres/repositories/waiver_reads.go`, and
+`internal/platform/wiring/waiver_http_test.go`.
+
 ### Approval Creation
 
 `POST /v1/approvals` records an immutable `approved`, `rejected`, or `accepted`

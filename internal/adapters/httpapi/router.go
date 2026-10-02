@@ -91,6 +91,7 @@ type Server struct {
 	controlEvidenceCommands           ControlEvidenceCommands
 	vulnerabilityDecisionCommands     VulnerabilityDecisionCommands
 	approvalCommands                  ApprovalCommands
+	waiverCommands                    WaiverCommands
 	durableCommandExecutor            DurableCommandExecutor
 	evidenceCreationCommands          EvidenceCreationCommands
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
@@ -241,6 +242,7 @@ type ServerOptions struct {
 	ControlEvidenceCommands       ControlEvidenceCommands
 	VulnerabilityDecisionCommands VulnerabilityDecisionCommands
 	ApprovalCommands              ApprovalCommands
+	WaiverCommands                WaiverCommands
 	DurableCommandExecutor        DurableCommandExecutor
 	EvidenceCreationCommands      EvidenceCreationCommands
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
@@ -359,7 +361,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if ctx == nil {
 		return nil, errors.New("server context is required")
 	}
-	if (opts.VulnerabilityDecisionCommands != nil || opts.ApprovalCommands != nil) && opts.DurableCommandExecutor == nil {
+	if (opts.VulnerabilityDecisionCommands != nil || opts.ApprovalCommands != nil || opts.WaiverCommands != nil) && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused commands require durable idempotency")
 	}
 	if ledger == nil {
@@ -430,6 +432,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.controlEvidenceCommands = opts.ControlEvidenceCommands
 	server.vulnerabilityDecisionCommands = opts.VulnerabilityDecisionCommands
 	server.approvalCommands = opts.ApprovalCommands
+	server.waiverCommands = opts.WaiverCommands
 	server.durableCommandExecutor = opts.DurableCommandExecutor
 	server.evidenceCreationCommands = opts.EvidenceCreationCommands
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
@@ -1983,6 +1986,10 @@ func (s *Server) uploadManualSecurityDocument(w http.ResponseWriter, r *http.Req
 }
 
 func (s *Server) createWaiver(w http.ResponseWriter, r *http.Request) {
+	if s.waiverCommands != nil {
+		s.createDurableWaiver(w, r)
+		return
+	}
 	var req struct {
 		ScopeType  string    `json:"scope_type"`
 		ScopeID    string    `json:"scope_id"`
@@ -2004,6 +2011,10 @@ func (s *Server) createWaiver(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) approveWaiver(w http.ResponseWriter, r *http.Request) {
+	if s.waiverCommands != nil {
+		s.approveDurableWaiver(w, r)
+		return
+	}
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
 		waiver, err := s.riskDecisions.ApproveWaiver(ctx, actor, r.PathValue("id"))
 		return http.StatusOK, waiver, err

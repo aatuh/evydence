@@ -401,20 +401,11 @@ func TestStoreSaveRelationalStateSkipsLedgerSnapshot(t *testing.T) {
 }
 
 func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
-	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
-	if databaseURL == "" {
-		t.Skip("EVYDENCE_TEST_DATABASE_URL is not set")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
-	store, err := Open(ctx, databaseURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	if _, err := store.ApplyMigrations(ctx, "../../../migrations"); err != nil {
-		t.Fatal(err)
-	}
+	// Preserve the default snapshot profile, but never reuse historical IDs
+	// from another run when validating immutable relational replay.
+	store := isolatedPostgresTestStore(t, StoreOptions{})
 	state := app.PersistedState{
 		Tenants: map[string]domain.Tenant{
 			"ten_test": {ID: "ten_test", Name: "Test", CreatedAt: time.Now().UTC()},
