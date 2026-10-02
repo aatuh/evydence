@@ -414,8 +414,18 @@ repository/digest identity, insertion and audit. The compatibility service
 delegates to it. Both a supplied artifact and an existing image's actual
 artifact association must be tenant-owned and authorized inside the transaction;
 reuse returns the original immutable image without another audit entry. Record
-and audit use one timestamp. Production HTTP still uses the compatibility
-binding until its bounded PostgreSQL adapter is composed.
+and audit use one timestamp. Its standalone PostgreSQL adapter reads only
+artifact identity/digest and current grant associations, including pending rows
+in the active unit of work. Image identity lookup returns one bounded record:
+identifiers and schema labels are limited to 1 KiB, repository/tag/platform text
+to 64 KiB, and SHA-256 digests to 71 bytes. Overflow returns conflict rather than
+truncated metadata. New durable records must fit that projection and contain
+valid UTF-8 without NUL characters. The adapter takes the worker-projection fence
+before relational locks and serializes absent repository/digest reuse with a
+tenant row lock. Live regressions cover giant unrelated artifact metadata,
+pending grants, compound rollback/replay, audit failure and concurrent reuse.
+Production HTTP still uses the compatibility binding until this adapter is
+composed; these checks do not establish Ledger retirement or multi-writer support.
 
 API-key and SSO-session verification now has a
 standalone identity application service with narrow credential-read and

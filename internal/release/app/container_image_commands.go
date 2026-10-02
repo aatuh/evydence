@@ -13,13 +13,20 @@ type ContainerImageArtifactReader interface {
 	GetArtifact(context.Context, string, string) (releasedomain.Artifact, error)
 }
 
+// ContainerImageIdentityReader returns the original immutable record for a
+// tenant/repository/digest identity. Durable implementations bound its metadata
+// before transfer and serialize reuse even when no matching row exists yet.
+type ContainerImageIdentityReader interface {
+	ContainerImageByRepositoryDigest(context.Context, string, string, string) (releasedomain.ContainerImage, bool, error)
+}
+
 // ContainerImageTransaction exposes only immutable artifact coordinates,
 // current authorization, repository/digest identity, image writes and audit.
 type ContainerImageTransaction interface {
 	ContainerImageArtifactReader
+	ContainerImageIdentityReader
 	application.Authorizer
 	application.AuditAppender
-	ContainerImageByRepositoryDigest(context.Context, string, string, string) (releasedomain.ContainerImage, bool, error)
 	InsertContainerImage(context.Context, releasedomain.ContainerImage) error
 }
 
