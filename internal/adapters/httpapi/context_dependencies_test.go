@@ -60,7 +60,7 @@ func TestIdempotencyCommandWrappersUseOpaqueContextRebinding(t *testing.T) {
 	t.Parallel()
 
 	targets := map[string]string{
-		"router.go":             "createWithLimit",
+		"router.go":             "createWithFingerprint",
 		"ingestion_handlers.go": "createStreamedEvidence",
 	}
 	fset := token.NewFileSet()
@@ -118,6 +118,61 @@ func TestIdempotencyCommandWrappersUseOpaqueContextRebinding(t *testing.T) {
 			t.Errorf("%s was not found in %s", functionName, filename)
 		} else if bindCalls != 1 {
 			t.Errorf("%s opaque scope bind calls = %d, want 1", functionName, bindCalls)
+		}
+	}
+}
+
+func TestCreateWrappersDelegateToTheOpaqueFingerprintExecutor(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ filename, function, target, fingerprint string }{
+		{"router.go", "create", "createWithLimit", ""},
+		{"router.go", "createWithLimit", "createWithFingerprint", "nil"},
+		{"conditional_idempotency.go", "createConditional", "createWithFingerprint", "conditionalActionFingerprint"},
+	} {
+		file, err := parser.ParseFile(token.NewFileSet(), tc.filename, nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		found, calls := false, 0
+		for _, declaration := range file.Decls {
+			fn, ok := declaration.(*ast.FuncDecl)
+			if !ok || fn.Name.Name != tc.function || fn.Body == nil {
+				continue
+			}
+			found = true
+			ast.Inspect(fn.Body, func(node ast.Node) bool {
+				selector, ok := node.(*ast.SelectorExpr)
+				if ok && (selector.Sel.Name == "WithBody" || selector.Sel.Name == "ledger" || selector.Sel.Name == "bindLedger") {
+					t.Errorf("%s bypasses the opaque executor", tc.function)
+				}
+				call, ok := node.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				selector, ok = call.Fun.(*ast.SelectorExpr)
+				if !ok || selector.Sel.Name != tc.target {
+					return true
+				}
+				receiver, ok := selector.X.(*ast.Ident)
+				if !ok || receiver.Name != "s" {
+					return true
+				}
+				calls++
+				if tc.fingerprint != "" {
+					if len(call.Args) != 5 {
+						t.Errorf("%s executor argument count changed", tc.function)
+						return true
+					}
+					arg, ok := call.Args[4].(*ast.Ident)
+					if !ok || arg.Name != tc.fingerprint {
+						t.Errorf("%s fingerprint selection changed", tc.function)
+					}
+				}
+				return true
+			})
+		}
+		if !found || calls != 1 {
+			t.Errorf("%s delegation found=%t calls=%d, want true and one", tc.function, found, calls)
 		}
 	}
 }
