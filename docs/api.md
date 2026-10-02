@@ -212,6 +212,12 @@ Representative request bodies:
 {"product_id":"prod_...","name":"api"}
 ```
 
+Project creation accepts only `product_id` and `name`; `slug` is not supported.
+Project responses contain `id`, `tenant_id`, `product_id`, `name`, and
+`created_at`, not a slug or schema-version field. The generated schemas now
+match this existing runtime contract; clients generated from older schemas
+must stop sending the previously advertised project `slug`.
+
 ```json
 {"product_id":"prod_...","version":"1.0.0"}
 ```

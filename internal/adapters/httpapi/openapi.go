@@ -1769,17 +1769,14 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	registry.RegisterSchema("CreateProjectRequest", objectSchema(map[string]any{
 		"product_id": map[string]any{"type": "string"},
 		"name":       map[string]any{"type": "string"},
-		"slug":       map[string]any{"type": "string"},
-	}, "product_id", "name", "slug"))
+	}, "product_id", "name"))
 	registry.RegisterSchema("Project", objectSchema(map[string]any{
-		"id":             map[string]any{"type": "string"},
-		"tenant_id":      map[string]any{"type": "string"},
-		"product_id":     map[string]any{"type": "string"},
-		"name":           map[string]any{"type": "string"},
-		"slug":           map[string]any{"type": "string"},
-		"schema_version": map[string]any{"type": "string"},
-		"created_at":     map[string]any{"type": "string", "format": "date-time"},
-	}, "id", "tenant_id", "product_id", "name", "slug", "schema_version", "created_at"))
+		"id":         map[string]any{"type": "string"},
+		"tenant_id":  map[string]any{"type": "string"},
+		"product_id": map[string]any{"type": "string"},
+		"name":       map[string]any{"type": "string"},
+		"created_at": map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "product_id", "name", "created_at"))
 	registry.RegisterSchema("ProjectEnvelope", dataEnvelopeSchema("#/components/schemas/Project"))
 	registry.RegisterSchema("CreateReleaseRequest", objectSchema(map[string]any{
 		"product_id": map[string]any{"type": "string"},
