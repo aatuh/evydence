@@ -114,6 +114,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.ContainerImageCommands != nil {
 		t.Fatal("local memory must keep explicit container image compatibility binding")
 	}
+	if memory.ArtifactCommands != nil {
+		t.Fatal("local memory must keep explicit artifact compatibility binding")
+	}
 	if memory.EvidenceCreationCommands != nil {
 		t.Fatal("local memory must keep explicit evidence compatibility binding")
 	}
@@ -234,6 +237,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.ContainerImageCommands == nil {
 		t.Fatal("PostgreSQL container image registration still uses Ledger")
+	}
+	if options.ArtifactCommands == nil {
+		t.Fatal("PostgreSQL artifact registration still uses Ledger")
 	}
 	if options.EvidenceCreationCommands == nil {
 		t.Fatal("PostgreSQL evidence creation still uses Ledger")

@@ -1869,12 +1869,14 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"generated_at":               map[string]any{"type": "string", "format": "date-time"},
 	}, "product", "release", "artifact_count", "sbom_status", "vulnerability_scan_status", "open_findings_by_severity", "decisions_by_status", "approval_summary", "exception_summary", "readiness_status", "package_status", "counts", "assumptions", "limitations", "schema_version", "generated_at"))
 	registry.RegisterSchema("ReleaseSecuritySummaryEnvelope", dataEnvelopeSchema("#/components/schemas/ReleaseSecuritySummary"))
-	registry.RegisterSchema("RegisterArtifactRequest", objectSchema(map[string]any{
+	registerArtifactRequest := objectSchema(map[string]any{
 		"name":       map[string]any{"type": "string"},
 		"media_type": map[string]any{"type": "string"},
 		"digest":     map[string]any{"type": "string", "pattern": "^sha256:"},
 		"size":       map[string]any{"type": "integer", "minimum": 0},
-	}, "name", "media_type", "digest"))
+	}, "name", "media_type", "digest")
+	registerArtifactRequest["description"] = "Artifact metadata registration requires evidence:write. Names and media types are trimmed and non-empty; digest is sha256: followed by 64 hexadecimal digits; size defaults to zero and must be non-negative. PostgreSQL reuse of a tenant digest requires current artifact authorization and returns the original immutable metadata without another audit entry. New stored names and media types must be NUL-free UTF-8, each at most 64 KiB of UTF-8 bytes; unsupported new text returns 400 and oversized existing metadata returns 409, never truncated values. Explicit local-memory mode retains its compatibility path. Registration does not upload bytes or establish digest, signature, or provenance trust."
+	registry.RegisterSchema("RegisterArtifactRequest", registerArtifactRequest)
 	registry.RegisterSchema("Artifact", objectSchema(map[string]any{
 		"id":         map[string]any{"type": "string"},
 		"tenant_id":  map[string]any{"type": "string"},

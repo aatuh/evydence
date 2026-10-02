@@ -239,6 +239,24 @@ Register an artifact:
 }
 ```
 
+In the PostgreSQL profile, `POST /v1/artifacts` registers metadata through a
+focused durable command, without reading or updating cached Ledger artifacts.
+It requires `evidence:write`. Reuse of a tenant's existing digest also requires
+current artifact access: for human sessions, a tenant grant or a matching
+evidence/build association authorized by their resource grants. Reuse returns
+the original immutable name, media type, size, and timestamp without another
+audit entry; submitted metadata does not amend that record. Same-key replay
+returns the original result, while changed request bytes with that key conflict.
+
+Names and media types are trimmed and must be non-empty. The digest must be
+`sha256:` followed by 64 hexadecimal digits; size must be non-negative and
+defaults to zero when omitted. New stored names and media types must be NUL-free
+UTF-8, each at most 64 KiB of UTF-8 bytes. Unsupported new storage text returns
+`400`; oversized existing metadata returns `409`, never truncated values.
+Explicit local-memory mode keeps its compatibility path. Registration records
+declared metadata only: it does not upload bytes or establish digest, signature,
+or provenance trust.
+
 Upload generic evidence:
 
 ```json

@@ -78,6 +78,7 @@ type Server struct {
 	buildAttestationCommands          BuildAttestationCommands
 	buildCommands                     BuildCommands
 	containerImageCommands            ContainerImageCommands
+	artifactCommands                  ArtifactCommands
 	evidenceCreationCommands          EvidenceCreationCommands
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
 	deploymentCommands                DeploymentCommands
@@ -215,6 +216,7 @@ type ServerOptions struct {
 	BuildAttestationCommands      BuildAttestationCommands
 	BuildCommands                 BuildCommands
 	ContainerImageCommands        ContainerImageCommands
+	ArtifactCommands              ArtifactCommands
 	EvidenceCreationCommands      EvidenceCreationCommands
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
 	DeploymentCommands            DeploymentCommands
@@ -388,6 +390,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.buildAttestationCommands = opts.BuildAttestationCommands
 	server.buildCommands = opts.BuildCommands
 	server.containerImageCommands = opts.ContainerImageCommands
+	server.artifactCommands = opts.ArtifactCommands
 	server.evidenceCreationCommands = opts.EvidenceCreationCommands
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands
@@ -1099,6 +1102,12 @@ func (s *Server) registerArtifact(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
+		}
+		if s.artifactCommands != nil {
+			artifact, err := s.artifactCommands.RegisterArtifact(ctx, actor, releaseapp.RegisterArtifactInput{
+				Name: req.Name, MediaType: req.MediaType, Digest: req.Digest, Size: req.Size,
+			})
+			return http.StatusCreated, artifactFromQuery(artifact), mapBuildAttestationCommandError(err)
 		}
 		artifact, err := s.releaseCatalog.RegisterArtifact(ctx, actor, req.Name, req.MediaType, req.Digest, req.Size)
 		return http.StatusCreated, artifact, err

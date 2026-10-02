@@ -354,7 +354,11 @@ and SHA-256 digests at 71 bytes. Oversized stored fields return conflict, never
 truncated metadata; new records reject oversized, invalid UTF-8, or NUL-bearing
 fields. Unit tests verify authorization precedes metadata access, and live tests
 cover denied access, oversized stored fields, and immutable authorized reuse.
-Production artifact-registration HTTP binding remains migration work. A
+Production artifact-registration HTTP now binds that focused command through a
+registration-only handler interface. Live HTTP tests use an empty Ledger with
+only a unit-of-work factory: artifact creation, fresh-instance replay and reuse,
+point reads, and build/evidence/container-image consumers use durable state.
+Explicit local-memory mode retains the compatibility binding. A
 focused build-create command reads only project tenant/product ownership,
 release tenant/product/version coordinates, and output artifact tenant/digest
 identity, then rechecks them under share locks in the write transaction. Its
