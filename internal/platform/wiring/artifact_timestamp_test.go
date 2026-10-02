@@ -14,7 +14,7 @@ func TestPostgresArtifactRegistrationCreationAndReusePreserveDurableTimestamp(t 
 	if _, err := pool.Exec(ctx, `INSERT INTO tenants(id,name)VALUES('tenant','Artifact precision')`); err != nil {
 		t.Fatal(err)
 	}
-	commands, err := BuildArtifactCommands(store, store)
+	commands, err := BuildArtifactCommands(store)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -24,7 +24,7 @@ func TestPostgresArtifactRegistrationCreationAndReusePreserveDurableTimestamp(t 
 	if err != nil || original.ID == "" || original.CreatedAt.Nanosecond()%1000 != 0 {
 		t.Fatal("new artifact does not use durable time precision", original, err)
 	}
-	fresh, err := BuildArtifactCommands(store, store)
+	fresh, err := BuildArtifactCommands(store)
 	if err != nil {
 		t.Fatal(err)
 	}

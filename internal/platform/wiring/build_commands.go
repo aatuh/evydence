@@ -18,6 +18,10 @@ import (
 // associations to one durable, tenant-scoped source.
 type BuildStorageReader interface {
 	releaseapp.BuildIdentityReader
+	artifactGrantReader
+}
+
+type artifactGrantReader interface {
 	ReadBuildArtifactGrant(context.Context, releasequery.ArtifactReadRequest) (releasequery.ArtifactPoint, error)
 }
 
@@ -92,7 +96,7 @@ func (r buildCreationReads) execute(ctx context.Context, fn func(context.Context
 
 type buildParentReader struct{ source BuildStorageReader }
 
-type buildArtifactGrants struct{ source BuildStorageReader }
+type buildArtifactGrants struct{ source artifactGrantReader }
 
 func (r buildArtifactGrants) GetArtifactPoint(ctx context.Context, request releasequery.ArtifactReadRequest) (releasequery.ArtifactPoint, error) {
 	return r.source.ReadBuildArtifactGrant(ctx, request)

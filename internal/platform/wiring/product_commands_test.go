@@ -212,7 +212,7 @@ func TestPostgresCatalogCommandsCommitProductProjectReleaseArtifactBuildAuditAnd
 		t.Fatalf("catalog commits audit=%d replay=%d, want three each", auditCount, replayCount)
 	}
 	digest := "sha256:" + strings.Repeat("a", 64)
-	artifacts, err := BuildArtifactCommands(runtime.Postgres, runtime.Postgres)
+	artifacts, err := BuildArtifactCommands(runtime.Postgres)
 	if err != nil {
 		t.Fatal(err)
 	}

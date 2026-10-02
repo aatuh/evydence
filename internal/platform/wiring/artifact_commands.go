@@ -16,34 +16,36 @@ import (
 
 // BuildArtifactCommands composes digest-unique registration and current
 // duplicate-grant checks without loading the Ledger's artifact maps.
-func BuildArtifactCommands(reader releasequery.ArtifactPointReader, factory app.UnitOfWorkFactory) (*releaseapp.ArtifactCommands, error) {
-	if reader == nil || factory == nil {
-		return nil, errors.New("artifact grant reader and transactions are required")
+func BuildArtifactCommands(factory app.UnitOfWorkFactory) (*releaseapp.ArtifactCommands, error) {
+	if factory == nil {
+		return nil, errors.New("artifact transactions are required")
 	}
-	authorizer, err := releasequery.NewArtifactWriteAuthorizer(reader)
+	authorizer, err := releasequery.NewArtifactWriteAuthorizer(buildArtifactGrants{buildCreationReads{factory}})
 	if err != nil {
 		return nil, err
 	}
 	return releaseapp.NewArtifactCommands(releaseapp.ArtifactCommandConfig{
 		Authorizer:   authorizer,
-		Transactions: artifactTransactions{factory: factory, authorizer: authorizer},
+		Transactions: artifactTransactions{factory: factory},
 		Clock:        application.ClockFunc(func() time.Time { return time.Now().UTC().Truncate(time.Microsecond) }),
 		IDs:          application.IDGeneratorFunc(application.NewID),
 	})
 }
 
-type artifactTransactions struct {
-	factory    app.UnitOfWorkFactory
-	authorizer application.Authorizer
-}
+type artifactTransactions struct{ factory app.UnitOfWorkFactory }
 
 func (t artifactTransactions) ExecuteArtifact(ctx context.Context, command func(context.Context, releaseapp.ArtifactTransaction) error) error {
 	return mapProductWriteError(app.ExecuteUnitOfWork(ctx, t.factory, func(ctx context.Context, repositories app.Repositories) error {
-		if repositories.ReleaseCatalog == nil || repositories.Audit == nil {
+		grants, ok := repositories.ReleaseCatalog.(artifactGrantReader)
+		if !ok || repositories.Audit == nil {
 			return app.ErrValidation
 		}
+		authorizer, err := releasequery.NewArtifactWriteAuthorizer(buildArtifactGrants{grants})
+		if err != nil {
+			return err
+		}
 		return command(ctx, artifactTransaction{
-			catalog: repositories.ReleaseCatalog, audit: repositories.Audit, authorizer: t.authorizer,
+			catalog: repositories.ReleaseCatalog, audit: repositories.Audit, authorizer: authorizer,
 		})
 	}))
 }

@@ -341,7 +341,12 @@ current tenant-scoped rows, authorizes reuse of an existing artifact, and
 recovers from concurrent digest inserts without a duplicate audit entry. Its
 standalone durable command emits microsecond-precision UTC creation times and
 normalizes stored timestamps to UTC, so fresh-instance reuse returns identical
-immutable metadata regardless of the database/session timezone. A
+immutable metadata regardless of the database/session timezone. Duplicate
+authorization now uses the current transaction's identity-only artifact-grant
+reader; pending build/evidence associations are visible without a pool read or
+Ledger links. A live regression proves pending grant reuse, compound rollback
+and single-execution replay. Bounded duplicate metadata reads and production
+artifact-registration HTTP binding remain migration work. A
 focused build-create command reads only project tenant/product ownership,
 release tenant/product/version coordinates, and output artifact tenant/digest
 identity, then rechecks them under share locks in the write transaction. Its
