@@ -214,6 +214,22 @@ Product create, read, and list responses contain `id`, `tenant_id`, `name`,
 `slug`, and `created_at`. They do not return `schema_version`; the corrected
 OpenAPI schema no longer advertises or requires that unsupported field.
 
+In the PostgreSQL profile, product creation uses a focused durable command,
+not cached Ledger products. It requires `product:write`; human sessions also
+need a matching tenant-level grant, not a grant on an existing product. The
+write transaction rechecks authorization before testing the tenant's slug
+identity through a boolean existence query. Product and audit effects commit
+together. A different-key request for an existing tenant/slug returns `409`;
+same-key replay returns the original product, while changed request bytes
+with that key conflict. Different tenants can use the same slug.
+
+Names and slugs are trimmed, non-empty, NUL-free UTF-8. New names are bounded
+at 64 KiB of UTF-8 bytes and slugs at 1024 bytes; the entire HTTP JSON body is
+also limited to 64 KiB, including JSON syntax and escapes. Invalid input
+returns `400` without product/audit writes. Creation timestamps use UTC at
+microsecond precision. Explicit local-memory mode retains its compatibility
+binding.
+
 Representative response shape:
 
 ```json

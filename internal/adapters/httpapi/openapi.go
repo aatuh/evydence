@@ -1752,10 +1752,12 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "id", "tenant_id", "control_id", "evidence_type", "subject_type", "subject_id", "confidence", "schema_version", "created_at"))
 	registry.RegisterSchema("ControlEvidenceEnvelope", dataEnvelopeSchema("#/components/schemas/ControlEvidence"))
 	registry.RegisterSchema("ControlEvidenceListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/ControlEvidence"))
-	registry.RegisterSchema("CreateProductRequest", objectSchema(map[string]any{
+	createProductRequest := objectSchema(map[string]any{
 		"name": map[string]any{"type": "string"},
 		"slug": map[string]any{"type": "string", "description": "Nonempty product slug, trimmed before validation; at most 1024 UTF-8 bytes so the tenant/slug natural identity fits the supported PostgreSQL index."},
-	}, "name", "slug"))
+	}, "name", "slug")
+	createProductRequest["description"] = "Product creation accepts name and slug and requires product:write. PostgreSQL human sessions also need a matching tenant-level grant, not a grant on an existing product. Authorization is rechecked before a tenant-scoped boolean slug-existence query, and product/audit effects commit together; cached Ledger products are not used. Slugs are unique within a tenant: a different-key request for an existing slug returns 409, while same-key replay returns the original product. Trimmed names and slugs must be non-empty, NUL-free UTF-8; new names are bounded at 64 KiB of UTF-8 bytes and slugs at 1024 bytes. The entire HTTP JSON body is limited to 64 KiB, including syntax and escapes. Invalid input returns 400 without product/audit writes. Creation timestamps use microsecond-precision UTC. Explicit local-memory mode retains its compatibility binding."
+	registry.RegisterSchema("CreateProductRequest", createProductRequest)
 	registry.RegisterSchema("Product", objectSchema(map[string]any{
 		"id":         map[string]any{"type": "string"},
 		"tenant_id":  map[string]any{"type": "string"},

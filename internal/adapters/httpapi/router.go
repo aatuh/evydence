@@ -79,6 +79,7 @@ type Server struct {
 	buildCommands                     BuildCommands
 	containerImageCommands            ContainerImageCommands
 	artifactCommands                  ArtifactCommands
+	productCommands                   ProductCommands
 	projectCommands                   ProjectCommands
 	releaseCreationCommands           ReleaseCreationCommands
 	releaseStateCommands              ReleaseStateCommands
@@ -220,6 +221,7 @@ type ServerOptions struct {
 	BuildCommands                 BuildCommands
 	ContainerImageCommands        ContainerImageCommands
 	ArtifactCommands              ArtifactCommands
+	ProductCommands               ProductCommands
 	ProjectCommands               ProjectCommands
 	ReleaseCreationCommands       ReleaseCreationCommands
 	ReleaseStateCommands          ReleaseStateCommands
@@ -397,6 +399,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.buildCommands = opts.BuildCommands
 	server.containerImageCommands = opts.ContainerImageCommands
 	server.artifactCommands = opts.ArtifactCommands
+	server.productCommands = opts.ProductCommands
 	server.projectCommands = opts.ProjectCommands
 	server.releaseCreationCommands = opts.ReleaseCreationCommands
 	server.releaseStateCommands = opts.ReleaseStateCommands
@@ -765,6 +768,10 @@ func (s *Server) createProduct(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
+		}
+		if s.productCommands != nil {
+			product, err := s.productCommands.CreateProduct(ctx, actor, releaseapp.CreateProductInput{Name: req.Name, Slug: req.Slug})
+			return http.StatusCreated, productFromCommand(product), mapBuildAttestationCommandError(err)
 		}
 		product, err := s.releaseCatalog.CreateProduct(ctx, actor, req.Name, req.Slug)
 		return http.StatusCreated, product, err
