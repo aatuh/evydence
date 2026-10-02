@@ -585,6 +585,12 @@ Current SSO endpoints model admin-managed provider, identity-link, trust-materia
 
 Source snapshots capture submitted provider metadata. They do not call provider APIs or verify OIDC tokens.
 
+Build creation rejects NUL characters in scalar text and provider-metadata
+JSON keys or string values with `400`; scalar text must also be valid UTF-8.
+Metadata must be JSON-serializable. Invalid input is rejected before repository
+reads or writes, without exposing database errors. Submitted CI identity remains
+unverified metadata; it cannot set `oidc_verified` to `true`.
+
 ### Source Repository Creation
 
 `POST /v1/source/repositories` in the PostgreSQL profile uses an Integration-owned

@@ -1887,7 +1887,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"artifact_id": map[string]any{"type": "string"},
 		"digest":      map[string]any{"type": "string"},
 	}, "digest"))
-	registry.RegisterSchema("CreateBuildRequest", objectSchema(map[string]any{
+	createBuildRequest := objectSchema(map[string]any{
 		"project_id":        map[string]any{"type": "string"},
 		"release_id":        map[string]any{"type": "string"},
 		"provider":          map[string]any{"type": "string"},
@@ -1907,7 +1907,9 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"environment_hash":  map[string]any{"type": "string"},
 		"provider_metadata": map[string]any{"type": "object"},
 		"outputs":           map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/BuildOutput"}},
-	}, "project_id", "release_id", "provider", "commit_sha", "status", "started_at"))
+	}, "project_id", "release_id", "provider", "commit_sha", "status", "started_at")
+	createBuildRequest["description"] = "Scalar text must be valid UTF-8 without NUL characters. Provider metadata must be JSON-serializable, with no NUL characters in keys or string values. Invalid input returns 400. Submitted CI identity is unverified metadata."
+	registry.RegisterSchema("CreateBuildRequest", createBuildRequest)
 	registry.RegisterSchema("BuildRun", objectSchema(map[string]any{
 		"id":             map[string]any{"type": "string"},
 		"tenant_id":      map[string]any{"type": "string"},

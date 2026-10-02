@@ -1,12 +1,16 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"io"
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	application "github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -468,6 +472,14 @@ func (s *Service) RegisterContainerImage(ctx context.Context, actor identitydoma
 }
 
 func normalizeBuildInput(input CreateBuildRunInput) (releasedomain.BuildRun, error) {
+	for _, text := range []string{input.ProjectID, input.ReleaseID, input.Provider, input.CommitSHA, input.Repository, input.WorkflowRef, input.RunID, input.JobID, input.GitHubActor, input.Ref, input.OIDCSubject, input.Status, input.ParametersHash, input.EnvironmentHash} {
+		if !validBuildText(text) {
+			return releasedomain.BuildRun{}, ErrValidation
+		}
+	}
+	if err := validateBuildMetadata(input.ProviderMetadata); err != nil {
+		return releasedomain.BuildRun{}, err
+	}
 	build := releasedomain.BuildRun{
 		ProjectID: strings.TrimSpace(input.ProjectID), ReleaseID: strings.TrimSpace(input.ReleaseID),
 		Provider: strings.TrimSpace(input.Provider), CommitSHA: strings.TrimSpace(input.CommitSHA),
@@ -502,6 +514,34 @@ func normalizeBuildInput(input CreateBuildRunInput) (releasedomain.BuildRun, err
 		}
 	}
 	return build, nil
+}
+
+func validBuildText(text string) bool {
+	return utf8.ValidString(text) && !strings.ContainsRune(text, 0)
+}
+
+// Inspect encoded metadata using structured JSON tokens. PostgreSQL cannot
+// store NUL characters in text or JSONB; unsupported/cyclic Go values must be
+// rejected before repository reads, not reported as backend failures.
+func validateBuildMetadata(metadata map[string]any) error {
+	raw, err := json.Marshal(metadata)
+	if err != nil {
+		return ErrValidation
+	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	for {
+		token, err := decoder.Token()
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err != nil {
+			return ErrValidation
+		}
+		if text, ok := token.(string); ok && !validBuildText(text) {
+			return ErrValidation
+		}
+	}
 }
 
 func normalizeBuildOutputs(outputs []releasedomain.BuildOutput) []releasedomain.BuildOutput {
