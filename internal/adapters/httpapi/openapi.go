@@ -1754,7 +1754,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	registry.RegisterSchema("ControlEvidenceListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/ControlEvidence"))
 	registry.RegisterSchema("CreateProductRequest", objectSchema(map[string]any{
 		"name": map[string]any{"type": "string"},
-		"slug": map[string]any{"type": "string"},
+		"slug": map[string]any{"type": "string", "description": "Nonempty product slug, trimmed before validation; at most 1024 UTF-8 bytes so the tenant/slug natural identity fits the supported PostgreSQL index."},
 	}, "name", "slug"))
 	registry.RegisterSchema("Product", objectSchema(map[string]any{
 		"id":             map[string]any{"type": "string"},

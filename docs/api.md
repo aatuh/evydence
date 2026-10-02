@@ -206,6 +206,10 @@ curl -sS -X POST "$EVYDENCE_URL/v1/products" \
 
 Expected status: `201`.
 
+Product slugs are trimmed and must contain no more than 1024 UTF-8 bytes. Longer
+slugs return `400 VALIDATION_FAILED` before a database write; this limit keeps
+the per-tenant natural identity within the supported PostgreSQL index budget.
+
 Representative response shape:
 
 ```json

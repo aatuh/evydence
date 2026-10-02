@@ -54,7 +54,7 @@ func (s *ProductCommands) CreateProduct(ctx context.Context, actor identitydomai
 	}
 	input.Name = strings.TrimSpace(input.Name)
 	input.Slug = strings.TrimSpace(input.Slug)
-	if input.Name == "" || input.Slug == "" {
+	if input.Name == "" || input.Slug == "" || len(input.Slug) > 1024 {
 		return releasedomain.Product{}, ErrValidation
 	}
 	product := releasedomain.Product{ID: s.ids.NewID("prod"), TenantID: actor.TenantID, Name: input.Name, Slug: input.Slug, CreatedAt: s.clock.Now().UTC()}
