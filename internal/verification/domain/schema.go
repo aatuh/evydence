@@ -3,6 +3,7 @@ package domain
 const ArtifactSignatureSchemaVersion = "artifact-signature.v1.0.0"
 const AuditChainEntrySchemaVersion = "audit-chain-entry.v2.0.0"
 const BackupManifestSchemaVersion = "backup-manifest.v1.0.0"
+const BackupManifestTenantSchemaVersion = "backup-manifest.v2.0.0"
 const CanonicalizationProfileVersion = "canonicalization-profile.v1.0.0"
 const CosignVerificationSchemaVersion = "cosign-verification.v3.0.0"
 const DSSETrustRootSchemaVersion = "dsse-trust-root.v2.0.0"

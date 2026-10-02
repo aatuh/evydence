@@ -163,6 +163,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create Merkle creation commands: %w", err)
 	}
+	options.BackupGenerationCommands, err = BuildBackupGenerationCommands(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create backup generation commands: %w", err)
+	}
 	options.SubjectVerification, err = verificationapp.NewSubjectVerificationCommands(verificationapp.SubjectVerificationConfig{
 		Authorizer: verificationquery.NewEvidenceVerificationAuthorizer(),
 		AuditChain: options.AuditChainVerification, Evidence: options.EvidenceVerification,

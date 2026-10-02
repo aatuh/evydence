@@ -1181,19 +1181,7 @@ func objectRetentionPolicyFromVerificationContext(value verificationdomain.Objec
 }
 
 func backupManifestFromVerificationContext(value verificationdomain.BackupManifest) domain.BackupManifest {
-	checks := make([]domain.VerifyCheck, 0, len(value.ConsistencyChecks))
-	for _, check := range value.ConsistencyChecks {
-		checks = append(checks, domain.VerifyCheck{Name: check.Name, Result: check.Result, Detail: check.Detail})
-	}
-	counts := make(map[string]int, len(value.ResourceCounts))
-	for name, count := range value.ResourceCounts {
-		counts[name] = count
-	}
-	return domain.BackupManifest{
-		ID: value.ID, TenantID: value.TenantID, StateHash: value.StateHash, ResourceCounts: counts,
-		ConsistencyChecks: checks, Limitations: append([]string(nil), value.Limitations...),
-		SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt,
-	}
+	return domain.BackupManifestFromContextModel(value)
 }
 
 func dsseTrustRootFromVerificationContext(value verificationdomain.DSSETrustRoot) domain.DSSETrustRoot {

@@ -421,7 +421,7 @@
               <code>/v1/backup-manifests</code>
             </div>
             <h3>Generate backup manifest</h3>
-            <p>Generates a tenant-scoped backup manifest after an operator backup completes. The manifest excludes raw payload bytes and private key material.</p>
+            <p>Generates a tenant-scoped metadata commitment, not a restore receipt or proof that an operator backup completed. PostgreSQL emits backup-manifest.v2.0.0 with tenant-relational-state.v1 semantics; historical and local-memory v1 hashes remain distinct. Credential material, replay bookkeeping and raw object payload bytes are excluded.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>generateBackupManifest</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

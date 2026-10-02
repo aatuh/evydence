@@ -174,6 +174,16 @@ not canonical audit contents or external transparency proof. See
 [Merkle batch creation](reference/verification-results.md#merkle-batch-creation)
 for bounds, key lifecycle and compatibility limits.
 
+PostgreSQL-profile backup-manifest generation uses a focused command with
+tenant-wide `admin` authorization. One SQL snapshot streams the fixed,
+credential-excluding tenant resource profile into a bounded digest, rather than
+constructing the whole-instance Ledger snapshot. Fresh audit consistency
+checks, a v2 manifest and its audit append share one transaction; failed
+observations are preserved, and replay does not rehash state. Historical and
+local-memory v1 hashes retain their distinct scope. See
+[backup generation semantics](reference/verification-results.md#tenant-scoped-backup-manifest-generation)
+for exact bounds, exclusions, encoding and non-claims.
+
 Merkle-batch requests to `POST /v1/verify` and
 `GET /v1/merkle-batches/{id}/verify` use a focused command in the PostgreSQL
 profile. Tenant-wide `verify:read` authorization precedes reading the selected

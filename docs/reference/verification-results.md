@@ -181,6 +181,65 @@ Source/test evidence: `internal/verification/app/subject_verification.go`,
 `internal/adapters/httpapi/subject_verification_test.go` and
 `internal/platform/wiring/subject_verification_test.go`.
 
+## Tenant-Scoped Backup-Manifest Generation
+
+`POST /v1/backup-manifests` in the PostgreSQL profile uses a focused command
+with tenant-wide `admin` authorization before reads; human actors need a tenant
+grant. An empty JSON object (or omitted body) is accepted. Non-object bodies,
+unknown fields and duplicate fields are rejected. The command creates
+`backup-manifest.v2.0.0` with `tenant-relational-state.v1` state-hash semantics.
+The response field layout and eight legacy resource-count names are unchanged.
+
+The commitment covers the full declared tenant-owned relational metadata set in
+[`backup_commitment_catalog.go`](../../internal/adapters/postgres/repositories/backup_commitment_catalog.go),
+including evidence, decisions, releases, identity authorization metadata,
+signing public metadata, existing manifests and audit records. It is not merely
+a hash of counts or a chain head. One bounded SQL statement supplies one MVCC
+view across all resources; rows stream into a digest without rebuilding tenant
+maps. Tenant, projection and chain fences keep the audit view stable for fresh
+canonical-chain and referenced-local-signature consistency checks. Failed
+consistency observations remain failed in the generated manifest.
+
+Credential hashes, private signing bytes, replay records, compatibility
+`ledger_state`, cached `resource_index`, migration bookkeeping, worker
+payloads/lease tokens/raw errors and raw VEX failure detail are explicitly
+excluded. Replay records are excluded even when the enclosing HTTP transaction
+has inserted its pending record. Raw object-store payload bytes are never read.
+Other tenants' rows do not contribute. Known metadata may contain sensitive
+tenant information; it contributes only to the digest, not response row copies.
+
+SHA-256 covers newline-framed JSON: first the profile, tenant and ordered
+resource/column declaration; then each `resource`, `key`, `row` record in byte
+order. PostgreSQL serialization uses UTC timestamps; Go JSON serialization
+sorts object keys and preserves decoded number spellings without float64
+rounding. This is a profile-specific encoding, not RFC 8785/JCS. See
+[`backup_commitment.go`](../../internal/verification/app/backup_commitment.go)
+for the exact framing. Changing declared fields or identity/ownership rules
+requires a new commitment profile.
+
+Limits are 32768 total rows and 8 MiB encoded commitment material, including
+framing and declarations. Oversized records or exhausted budgets return
+conflict without a partial digest or manifest. Fresh audit inspection has its
+separate 8 MiB budget. The captured view precedes this command's manifest and
+audit append; those two records commit atomically with HTTP replay state, with
+no outbox job. Successful replay performs no new hashing or writes.
+
+Historical `backup-manifest.v1.0.0` records are not rewritten. Their hashes use
+the old whole-instance Ledger snapshot encoding, excluding raw signing-private
+bytes, and are not comparable to v2 tenant commitments. Explicit local-memory
+mode retains that v1 compatibility path. Clients must inspect `schema_version`
+and recorded limitations rather than assume identical hash scopes.
+
+Neither version is a restorable backup, proof that a backup completed, or proof
+of a successful restore. Operators still need synchronized database/object-store
+backups and a restore rehearsal. Generation does not prove external anchoring.
+The verification operation below continues to replay recorded checks; it does
+not freshly reconstruct either state commitment.
+
+Source/test evidence: `internal/verification/app/backup_generation.go`,
+`internal/platform/wiring/backup_generation_test.go` and
+`internal/adapters/httpapi/backup_generation_test.go`.
+
 ## Recorded Backup-Manifest Verification
 
 `GET /v1/backup-manifests/{id}/verify` and `POST /v1/verify` with
@@ -213,8 +272,8 @@ Dedicated GET and direct verification persist completed negative receipts.
 Failed generic POST verification rolls back; successful idempotent replay adds
 no effects. Existing check names/order, profile strings, state-hash digest and
 response/storage fields are unchanged. Explicit local-memory mode shares the
-same recorded-check inspector and bounds. Backup generation still has its
-separate compatibility path until EVY-905 completes that migration; no
+same recorded-check inspector and bounds. Backup generation uses a versioned
+tenant commitment in PostgreSQL and retains v1 compatibility in local memory; no
 historical record is rewritten here.
 
 Source/test evidence: `internal/verification/app/backup_verification.go`,

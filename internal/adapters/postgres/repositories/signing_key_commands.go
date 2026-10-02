@@ -33,8 +33,10 @@ func scanSigningAdminKey(row interface{ Scan(...any) error }) (verificationdomai
 
 // The tenant row is the per-tenant lifecycle lock, including empty key sets.
 // Lock order is tenant then signing keys ordered by ID for both commands.
+// No key is changed: permit ordinary foreign-key readers while serializing
+// lifecycle commands and Merkle signing against each other.
 func (r signatures) lockSigningKeyTenant(ctx context.Context, tenantID string) error {
-	return requireRow(ctx, r.tx, `SELECT 1 FROM tenants WHERE id=$1 FOR UPDATE`, tenantID)
+	return requireRow(ctx, r.tx, `SELECT 1 FROM tenants WHERE id=$1 FOR NO KEY UPDATE`, tenantID)
 }
 
 func (r signatures) ListLocalSigningKeysForUpdate(ctx context.Context, tenantID string) ([]verificationdomain.SigningKey, error) {

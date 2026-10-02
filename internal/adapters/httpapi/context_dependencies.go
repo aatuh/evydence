@@ -163,6 +163,10 @@ type BackupVerification interface {
 	VerifyBackupManifest(context.Context, identitydomain.Actor, string) (verificationdomain.VerificationResult, error)
 }
 
+type BackupGenerationCommands interface {
+	GenerateBackupManifest(context.Context, identitydomain.Actor) (verificationdomain.BackupManifest, error)
+}
+
 type SubjectVerification interface {
 	VerifySubject(context.Context, identitydomain.Actor, string, string) (verificationdomain.VerificationResult, error)
 }

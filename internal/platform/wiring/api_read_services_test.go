@@ -99,6 +99,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.MerkleCreationCommands != nil {
 		t.Fatal("local memory bound durable Merkle creation")
 	}
+	if memory.BackupGenerationCommands != nil {
+		t.Fatal("local memory bound durable backup generation")
+	}
 	if memory.SigningCustodyQuery != nil {
 		t.Fatal("local memory bound durable custody query")
 	}
@@ -180,6 +183,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.MerkleCreationCommands == nil {
 		t.Fatal("PostgreSQL Merkle creation still uses Ledger")
+	}
+	if options.BackupGenerationCommands == nil {
+		t.Fatal("PostgreSQL backup generation still uses Ledger")
 	}
 	if options.SigningCustodyQuery == nil {
 		t.Fatal("PostgreSQL custody report still uses Ledger")

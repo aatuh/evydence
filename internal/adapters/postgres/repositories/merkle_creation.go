@@ -12,8 +12,9 @@ import (
 
 func (r integrity) LockMerkleCreationView(ctx context.Context, tenant string) (verificationapp.MerkleCreationView, error) {
 	v := verificationapp.MerkleCreationView{TenantID: tenant}
-	// Tenant-first also serializes signing-key initialization and rotation.
-	if err := requireRow(ctx, r.tx, `SELECT 1 FROM tenants WHERE id=$1 FOR UPDATE`, tenant); err != nil {
+	// Tenant-first serializes signing-key initialization and rotation without
+	// blocking the projection-owning worker's foreign-key checks.
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM tenants WHERE id=$1 FOR NO KEY UPDATE`, tenant); err != nil {
 		return v, err
 	}
 	if err := coordination.LockWorkerProjection(ctx, r.tx, tenant); err != nil {
