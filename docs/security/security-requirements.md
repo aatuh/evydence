@@ -30,13 +30,19 @@ the [API inventory](../reference/api-inventory.md).
 
 ### Control-evidence command migration evidence
 
-For `SEC-001`, `SEC-006`, `SEC-013`, and `SEC-014`,
+For `SEC-001`, `SEC-006`, `SEC-011`, `SEC-013`, and `SEC-014`,
 `internal/risk/app/control_evidence_commands_test.go` covers the focused command
 core's tenant/subject identity checks, subject-derived authorization requests,
 duplicate disclosure ordering, bounded input, and link/audit rollback.
-These are transaction-fake tests, not live storage or route proof. PostgreSQL
-parent/association checks, concurrent duplicate serialization, and HTTP binding
-remain EVY-905 work; the current route retains its compatibility implementation.
+Those tests use transaction fakes. Live database evidence is in
+`internal/platform/wiring/control_evidence_commands_test.go`: every supported
+subject and focused-list visibility, foreign/broken references, typed source
+and artifact-parent checks, scope-matching artifact grants, bounded duplicate
+metadata, pending-row reads, replay, rollback, and competing duplicate writes.
+Private storage errors map to the safe error catalog. The grant policy and its
+query budgets are tested in `internal/risk/app/control_evidence_authorizer_test.go`.
+HTTP binding remains EVY-905 work; the current route retains its compatibility
+implementation. This evidence does not establish deployment or route-wide proof.
 
 ## Change and release rules
 

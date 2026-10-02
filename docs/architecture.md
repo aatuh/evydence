@@ -601,12 +601,22 @@ compatibility command binding. Control-evidence linking now has a focused risk
 command core with transaction-only control/subject/duplicate readers and one
 atomic link/audit append. It checks current subject-derived coordinates before
 duplicate disclosure, preserves supplied scope and original duplicate results,
-and bounds text and the indexed natural key. Artifact authorization must resolve
-an allowed current association matching the requested scope, not an arbitrary
-first association. Transaction-fake tests cover these orchestration contracts;
-the PostgreSQL reader/authorizer and HTTP binding are still pending, so the
-running evidence-link route still uses the compatibility path. These boundaries
-do not retire production Ledger startup or its remaining maps.
+and bounds text and the indexed natural key. Its PostgreSQL composition now
+requires only the active unit of work: the tenant projection fence precedes
+control/framework share locks, subject-coordinate reads, duplicate lookup, and
+audit append. Parsed subjects require matching source-evidence kinds and
+consistent tenant/product/release relationships; SBOM/VEX artifact references
+must also be tenant-owned. Ambiguous finding IDs conflict instead of choosing
+an arbitrary scan. Subject documents and artifact metadata stay in PostgreSQL;
+duplicate notes above 64 KiB fail closed rather than truncate. Human grants are
+checked against current coordinates; artifact grants must match the requested
+scope in an evidence/build association, including the artifact's build-output
+digest. That query accepts at most 4096 grant IDs and 64 KiB of grant identity
+text. Live tests cover every supported subject, focused-list visibility,
+uncommitted subject reads, outer rollback, replay, storage failures, and
+competing duplicates. The HTTP binding is still pending, so the running
+evidence-link route retains its compatibility path. These boundaries do not
+retire production Ledger startup or its remaining maps.
 The read-only release evidence-flow plan also uses a focused service in the
 PostgreSQL profile: one tenant-filtered SQL statement collects nine release
 counts from a consistent snapshot, then current resource grants are checked

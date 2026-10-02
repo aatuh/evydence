@@ -91,14 +91,19 @@ external control has been observed in a particular deployment.
 | TM-15 | Product language or a report is mistaken for legal compliance, complete SBOM coverage, authoritative vulnerability detection, or a secure-release conclusion. | `SEC-015` | Claim limits are maintained in `README.md`, `docs/reference/product-boundary.md`, ADR 0002, and the documentation checks. | Legal, audit, customer, and regulator acceptance are review-owned; no repository check can establish them. |
 
 For the control-evidence linking migration (`TM-01`, `TM-06`, `TM-13`, and
-`TM-14`), the focused risk command core treats supplied scopes as filters rather
-than ownership proof, reauthorizes before duplicate disclosure, bounds text and
+`TM-14`, with error-disclosure treatment for `TM-11`), the focused risk command
+core treats supplied scopes as filters rather than ownership proof,
+reauthorizes before duplicate disclosure, bounds text and
 the duplicate key, and appends one link/audit pair atomically. Its transaction-fake
-tests are `internal/risk/app/control_evidence_commands_test.go`. A durable reader
-must check current control/framework and subject/parent ownership; artifact
-authorization must find a permitted current association matching the requested
-scope. PostgreSQL concurrency and HTTP migration remain unproven pending work,
-not security guarantees established by these core tests.
+tests are `internal/risk/app/control_evidence_commands_test.go`. The durable
+reader now checks control/framework ownership, typed source and scoped-parent
+relationships, and tenant-owned SBOM/VEX artifact references; artifact grants
+require a permitted current association matching the requested scope. Live
+tests in `internal/platform/wiring/control_evidence_commands_test.go` cover
+cross-tenant references, stale/broken relationships, grant removal, concurrent
+duplicates, bounded metadata, safe error mapping, and rollback/replay. They
+establish this focused command boundary, not the pending HTTP migration or
+route-wide authorization proof.
 
 ## Attacker capabilities
 
