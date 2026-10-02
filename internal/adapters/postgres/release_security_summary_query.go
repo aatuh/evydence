@@ -78,7 +78,7 @@ func (s *Store) ReadReleaseSecuritySummarySnapshot(ctx context.Context, tenantID
 	if err != nil {
 		return empty, err
 	}
-	snapshot.DecisionsByStatus, err = readSecuritySummaryGroups(ctx, tx, `SELECT left(status,65),count(*) FROM vulnerability_decisions
+	snapshot.DecisionsByStatus, err = readSecuritySummaryGroups(ctx, tx, `SELECT left(status,65),count(*) FROM vulnerability_decision_projection
 		WHERE tenant_id=$1 AND release_id=$2 AND coalesce(superseded_by,'')=''
 		GROUP BY status ORDER BY 1 LIMIT 33`, tenantID, releaseID)
 	if err != nil {

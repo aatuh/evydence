@@ -103,8 +103,8 @@ func readReleaseReadinessSnapshotTx(ctx context.Context, tx pgx.Tx, tenantID, re
 		query string
 		ids   *[]string
 	}{
-		{`SELECT left(id,1025) FROM vulnerability_decisions WHERE tenant_id=$1 AND release_id=$2 AND coalesce(superseded_by,'')='' AND customer_visible AND btrim(coalesce(impact_statement,''))='' ORDER BY id LIMIT $3`, &snapshot.MissingCustomerStatementIDs},
-		{`SELECT left(id,1025) FROM vulnerability_decisions WHERE tenant_id=$1 AND release_id=$2 AND coalesce(superseded_by,'')='' AND status='not_affected' AND btrim(justification)='' ORDER BY id LIMIT $3`, &snapshot.MissingNotAffectedReasonIDs},
+		{`SELECT left(id,1025) FROM vulnerability_decision_projection WHERE tenant_id=$1 AND release_id=$2 AND coalesce(superseded_by,'')='' AND customer_visible AND btrim(coalesce(impact_statement,''))='' ORDER BY id LIMIT $3`, &snapshot.MissingCustomerStatementIDs},
+		{`SELECT left(id,1025) FROM vulnerability_decision_projection WHERE tenant_id=$1 AND release_id=$2 AND coalesce(superseded_by,'')='' AND status='not_affected' AND btrim(justification)='' ORDER BY id LIMIT $3`, &snapshot.MissingNotAffectedReasonIDs},
 		{`SELECT left(id,1025) FROM exceptions WHERE tenant_id=$1 AND release_id=$2 AND (btrim(owner)='' OR btrim(reason)='' OR (approved AND (btrim(coalesce(approved_by,''))='' OR approved_at IS NULL))) ORDER BY id LIMIT $3`, &snapshot.IncompleteExceptionIDs},
 	} {
 		rows, err := tx.Query(ctx, item.query, tenantID, releaseID, remainingIDs+1)
@@ -178,9 +178,9 @@ const releaseUnhandledFindingsCTE = `WITH findings AS (
 		SELECT f.* FROM findings AS f
 		WHERE f.state='open' AND f.severity IN ('critical','high')
 		AND NOT EXISTS (
-			SELECT 1 FROM vulnerability_decisions AS d
+			SELECT 1 FROM vulnerability_decision_projection AS d
 			WHERE d.tenant_id=$1 AND d.finding_id=f.finding_id AND coalesce(d.superseded_by,'')=''
-			AND d.id=(SELECT latest.id FROM vulnerability_decisions AS latest WHERE latest.tenant_id=$1 AND latest.finding_id=f.finding_id AND coalesce(latest.superseded_by,'')='' ORDER BY latest.created_at DESC,latest.id DESC LIMIT 1)
+			AND d.id=(SELECT latest.id FROM vulnerability_decision_projection AS latest WHERE latest.tenant_id=$1 AND latest.finding_id=f.finding_id AND coalesce(latest.superseded_by,'')='' ORDER BY latest.created_at DESC,latest.id DESC LIMIT 1)
 			AND d.status IN ('fixed','not_affected')
 		) AND NOT EXISTS (
 			SELECT 1 FROM exceptions AS x WHERE x.tenant_id=$1 AND x.release_id=$2 AND x.approved AND x.expires_at>$3 AND (coalesce(x.finding_id,'')='' OR x.finding_id=f.finding_id)

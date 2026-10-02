@@ -107,7 +107,7 @@ func (s *Store) ReadReleaseReadinessReportSnapshot(ctx context.Context, tenantID
 	}
 	rows.Close()
 	err = tx.QueryRow(ctx, `SELECT
-		(SELECT count(*) FROM vulnerability_decisions WHERE tenant_id=$1 AND release_id=$2 AND coalesce(superseded_by,'')=''),
+		(SELECT count(*) FROM vulnerability_decision_projection WHERE tenant_id=$1 AND release_id=$2 AND coalesce(superseded_by,'')=''),
 		EXISTS(SELECT 1 FROM customer_security_packages WHERE tenant_id=$1 AND release_id=$2 AND state='generated' AND expires_at>$3)`, tenantID, releaseID, now).Scan(&snapshot.ActiveDecisionCount, &snapshot.HasActiveCustomerPackage)
 	if err != nil {
 		return empty, fmt.Errorf("read readiness report counts: %w", err)

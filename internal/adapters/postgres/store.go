@@ -1255,7 +1255,7 @@ func (s *Store) loadRelationalRiskDecisions(ctx context.Context, state *app.Pers
 		       status, justification, impact_statement, action_statement,
 		       customer_visible, internal_notes, source, evidence_id, evidence_ids, supporting_refs, vex_document_id,
 		       supersedes, superseded_by, approved_by, reviewed_at, review_due_at, schema_version, created_at
-		FROM vulnerability_decisions
+		FROM vulnerability_decision_projection
 	`)
 	if err != nil {
 		return fmt.Errorf("load relational vulnerability decisions: %w", err)

@@ -61,7 +61,7 @@ func readEvidenceFlowSnapshot(ctx context.Context, reader evidenceFlowRowReader,
 		  (SELECT count(*) FROM sboms WHERE tenant_id = $1 AND release_id = r.id),
 		  (SELECT count(*) FROM vulnerability_scans WHERE tenant_id = $1 AND release_id = r.id),
 		  (SELECT count(*) FROM vex_documents WHERE tenant_id = $1 AND release_id = r.id),
-		  (SELECT count(*) FROM vulnerability_decisions
+		  (SELECT count(*) FROM vulnerability_decision_projection
 		    WHERE tenant_id = $1 AND release_id = r.id AND coalesce(superseded_by, '') = ''),
 		  (SELECT count(*) FROM release_bundles WHERE tenant_id = $1 AND release_id = r.id),
 		  (SELECT count(*) FROM customer_security_packages WHERE tenant_id = $1 AND release_id = r.id)

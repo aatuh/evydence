@@ -668,10 +668,23 @@ new links with a legacy-field fallback; the focused head reader excludes linked
 predecessors. Live tests prove unchanged historical row content, expected-head
 conflicts, database-enforced active-head uniqueness, tenant-safe relationship
 ends, rollback on either insert and outer abort, and migration round-trip/data
-preservation. These are storage-port tests, not route or production proof.
-Remaining query/worker/legacy-writer migration, focused command composition,
-and HTTP binding remain EVY-905 work; the current decision route still uses its
-compatibility service. PostgreSQL backup commitments now use an explicit v2
+preservation. Decision pages, customer summaries, flow/security counts,
+readiness facts and reports, security-update and vulnerability-handling reports,
+worker projections, and transitional relational loading now read that response
+view. Their existing tenant/grant filters, report bounds, and note-free public
+columns are unchanged. Live regressions cover new and legacy successor links,
+historical timestamps later than the current head, current readiness blockers,
+and exclusion of superseded missing statements/justifications. Internal worker
+history retains private notes; customer projections do not.
+The existing transaction-scoped `SupersedeAndInsert` port now compares bounded
+current head identities and shares the append-only row writer. It retains its
+legacy ownership contract rather than claiming the focused command's stricter
+source/reference validation. Tests prove unchanged historical content and stale
+head rejection. These are adapter/storage-port tests, not route or production
+proof. The bulk relational synchronizer still has a mutable decision upsert and
+must be migrated before enabling the focused command. Focused command composition
+and HTTP binding also remain EVY-905 work; the current decision route still uses
+its compatibility service. PostgreSQL backup commitments now use an explicit v2
 profile that includes supersession history; the immutable v1 allowlist and
 digester remain available for historical reproduction. See
 [verification results](reference/verification-results.md#tenant-scoped-backup-manifest-generation).

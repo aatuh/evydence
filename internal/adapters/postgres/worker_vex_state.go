@@ -190,7 +190,7 @@ func loadWorkerVEXFindingDecisions(ctx context.Context, tx pgx.Tx, tenantID stri
 		       customer_visible, internal_notes, source, evidence_id, evidence_ids,
 		       supporting_refs, vex_document_id, supersedes, superseded_by,
 		       approved_by, reviewed_at, review_due_at, schema_version, created_at
-		FROM vulnerability_decisions
+		FROM vulnerability_decision_projection
 		WHERE tenant_id = $1 AND finding_id = ANY($2::text[])
 		ORDER BY id`, tenantID, ids)
 	if err != nil {

@@ -1584,26 +1584,6 @@ func (r decisions) InsertVulnerabilityDecision(ctx context.Context, decision dom
 	return writeError("insert vulnerability decision", err)
 }
 
-func (r decisions) SupersedeAndInsert(ctx context.Context, decision domain.VulnerabilityDecision, superseded []domain.VulnerabilityDecision) error {
-	for _, prior := range superseded {
-		if prior.ID == "" || prior.TenantID != decision.TenantID || prior.SupersededBy != decision.ID {
-			return app.ErrValidation
-		}
-		result, err := r.tx.Exec(ctx, `
-			UPDATE vulnerability_decisions
-			SET superseded_by = $3
-			WHERE id = $1 AND tenant_id = $2 AND superseded_by IS NULL
-		`, prior.ID, prior.TenantID, decision.ID)
-		if err != nil {
-			return writeError("supersede vulnerability decision", err)
-		}
-		if result.RowsAffected() != 1 {
-			return app.ErrConflict
-		}
-	}
-	return r.InsertVulnerabilityDecision(ctx, decision)
-}
-
 func (r decisions) InsertException(ctx context.Context, exception domain.Exception) error {
 	if exception.ID == "" || exception.TenantID == "" || exception.ReleaseID == "" || exception.Reason == "" || exception.Owner == "" || !exception.ExpiresAt.After(exception.CreatedAt) || exception.CreatedAt.IsZero() || exception.Approved || exception.ApprovedBy != "" || exception.ApprovedAt != nil {
 		return app.ErrValidation

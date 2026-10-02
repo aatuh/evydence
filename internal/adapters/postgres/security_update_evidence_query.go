@@ -91,7 +91,7 @@ func (s *Store) ReadSecurityUpdateSnapshot(ctx context.Context, tenantID, produc
 		       d.customer_visible,d.source,d.evidence_id,d.evidence_ids,d.supporting_refs,
 		       d.vex_document_id,d.supersedes,d.superseded_by,d.approved_by,
 		       d.reviewed_at,d.review_due_at,d.schema_version,d.created_at
-		FROM vulnerability_decisions AS d
+		FROM vulnerability_decision_projection AS d
 		JOIN releases AS r ON r.id=d.release_id AND r.tenant_id=d.tenant_id
 		JOIN products AS p ON p.id=r.product_id AND p.tenant_id=d.tenant_id
 		WHERE d.tenant_id=$1 AND d.release_id=$2 AND p.id=$3

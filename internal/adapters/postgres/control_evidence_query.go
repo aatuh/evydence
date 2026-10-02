@@ -161,7 +161,7 @@ func pageControlEvidence(ctx context.Context, queryer controlEvidenceQueryer, re
 				  AND (e.effective_product_id IS NULL OR r.id IS NULL OR e.effective_product_id = r.product_id)
 				UNION ALL
 				SELECT COALESCE(e.effective_product_id, r.product_id), e.project_id, COALESCE(d.release_id, v.release_id, e.release_id), d.created_at
-				FROM vulnerability_decisions AS d
+				FROM vulnerability_decision_projection AS d
 				JOIN vulnerability_scans AS v ON v.id = d.scan_id AND v.tenant_id = d.tenant_id
 				JOIN valid_evidence AS e ON e.id = v.evidence_id AND e.tenant_id = v.tenant_id
 				LEFT JOIN valid_releases AS r ON r.id = COALESCE(d.release_id, v.release_id, e.release_id) AND r.tenant_id = d.tenant_id
