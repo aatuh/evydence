@@ -8,6 +8,7 @@ import (
 	"github.com/aatuh/evydence/internal/app"
 	application "github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
+	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releaseapp "github.com/aatuh/evydence/internal/release/app"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 	releasequery "github.com/aatuh/evydence/internal/release/query"
@@ -16,58 +17,82 @@ import (
 // BuildReleaseStateCommands composes release transitions against current
 // tenant-owned rows. A row lock keeps competing transitions ordered while the
 // state update and audit entry commit in one unit of work.
-func BuildReleaseStateCommands(reader releaseapp.ReleaseStateReader, factory app.UnitOfWorkFactory) (*releaseapp.ReleaseStateCommands, error) {
-	if reader == nil || factory == nil {
-		return nil, errors.New("release state reader and transactions are required")
+func BuildReleaseStateCommands(factory app.UnitOfWorkFactory) (*releaseapp.ReleaseStateCommands, error) {
+	if factory == nil {
+		return nil, errors.New("release state transactions are required")
 	}
 	return releaseapp.NewReleaseStateCommands(releaseapp.ReleaseStateCommandConfig{
-		Reader: releaseStateParentReader{source: reader}, Authorizer: releasequery.NewCatalogAuthorizer(),
+		Reader: releaseStateParentReader{catalogProductReads: catalogProductReads{factory: factory}}, Authorizer: releasequery.NewCatalogAuthorizer(),
 		Transactions: releaseStateCommandTransactions{factory: factory},
-		Clock:        application.ClockFunc(time.Now), IDs: application.IDGeneratorFunc(application.NewID),
+		Clock:        application.ClockFunc(func() time.Time { return time.Now().UTC().Truncate(time.Microsecond) }),
+		IDs:          application.IDGeneratorFunc(application.NewID),
 	})
 }
 
-type releaseStateParentReader struct{ source releaseapp.ReleaseStateReader }
+type releaseStateParentReader struct{ catalogProductReads }
 
-func (r releaseStateParentReader) GetProduct(ctx context.Context, tenantID, id string) (releasedomain.Product, error) {
-	product, err := r.source.GetProduct(ctx, tenantID, id)
-	return product, mapProjectReadError(err)
-}
-
-func (r releaseStateParentReader) GetRelease(ctx context.Context, tenantID, id string) (releasedomain.Release, error) {
-	release, err := r.source.GetRelease(ctx, tenantID, id)
-	return release, mapProjectReadError(err)
+func (r releaseStateParentReader) ReadReleaseState(ctx context.Context, tenantID, id string) (releasedomain.Release, error) {
+	var v releasedomain.Release
+	err := app.ExecuteUnitOfWork(ctx, r.factory, func(ctx context.Context, repos app.Repositories) error {
+		reader, ok := repos.ReleaseCatalog.(releaseapp.ReleaseStateReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		var err error
+		v, err = reader.ReadReleaseState(ctx, tenantID, id)
+		return err
+	})
+	if err != nil {
+		return releasedomain.Release{}, mapReleaseStateWriteError(err)
+	}
+	return v, nil
 }
 
 type releaseStateCommandTransactions struct{ factory app.UnitOfWorkFactory }
 
 func (t releaseStateCommandTransactions) ExecuteReleaseState(ctx context.Context, command func(context.Context, releaseapp.ReleaseStateTransaction) error) error {
 	return mapReleaseStateWriteError(app.ExecuteUnitOfWork(ctx, t.factory, func(ctx context.Context, repositories app.Repositories) error {
-		if repositories.ReleaseCatalog == nil || repositories.Audit == nil {
+		reader, ok := repositories.ReleaseCatalog.(releaseapp.ReleaseStateReader)
+		if !ok || repositories.Audit == nil {
 			return app.ErrValidation
 		}
-		return command(ctx, releaseStateCommandTransaction{catalog: repositories.ReleaseCatalog, audit: repositories.Audit})
+		return command(ctx, releaseStateCommandTransaction{reader: reader, writer: repositories.ReleaseCatalog, audit: repositories.Audit})
 	}))
 }
 
 type releaseStateCommandTransaction struct {
-	catalog app.ReleaseCatalogRepository
-	audit   app.AuditRepository
+	reader releaseapp.ReleaseStateReader
+	writer interface {
+		UpdateReleaseState(context.Context, domain.Release, string) error
+	}
+	audit app.AuditRepository
 }
 
-func (t releaseStateCommandTransaction) GetRelease(ctx context.Context, tenantID, id string) (releasedomain.Release, error) {
-	release, err := t.catalog.GetReleaseForUpdate(ctx, tenantID, id)
+func (t releaseStateCommandTransaction) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
+	return releasequery.NewCatalogAuthorizer().Authorize(ctx, actor, request)
+}
+
+func (t releaseStateCommandTransaction) ReadReleaseState(ctx context.Context, tenantID, id string) (releasedomain.Release, error) {
+	release, err := t.reader.ReadReleaseState(ctx, tenantID, id)
 	if err != nil {
 		return releasedomain.Release{}, mapReleaseStateWriteError(err)
 	}
-	return releaseFromCatalogRow(release)
+	return release, nil
+}
+
+func (t releaseStateCommandTransaction) ReadProductCoordinates(ctx context.Context, tenantID, id string) (releaseapp.ProductCoordinates, error) {
+	v, err := t.reader.ReadProductCoordinates(ctx, tenantID, id)
+	if err != nil {
+		return releaseapp.ProductCoordinates{}, mapReleaseStateWriteError(err)
+	}
+	return v, nil
 }
 
 func (t releaseStateCommandTransaction) UpdateRelease(ctx context.Context, release releasedomain.Release, expectedRevision int64, expectedState string) error {
 	if release.Revision != expectedRevision+1 {
 		return releaseapp.ErrConflict
 	}
-	return mapReleaseStateWriteError(t.catalog.UpdateReleaseState(ctx, domain.Release{
+	return mapReleaseStateWriteError(t.writer.UpdateReleaseState(ctx, domain.Release{
 		ID: release.ID, TenantID: release.TenantID, ProductID: release.ProductID,
 		Version: release.Version, State: release.State.String(), Revision: release.Revision,
 		FrozenAt: release.FrozenAt, ApprovedAt: release.ApprovedAt, CreatedAt: release.CreatedAt,
@@ -75,7 +100,7 @@ func (t releaseStateCommandTransaction) UpdateRelease(ctx context.Context, relea
 }
 
 func (t releaseStateCommandTransaction) AppendAudit(ctx context.Context, event application.AuditEvent) (application.AuditReceipt, error) {
-	return catalogTransaction(t).AppendAudit(ctx, event)
+	return catalogTransaction{audit: t.audit}.AppendAudit(ctx, event)
 }
 
 func releaseFromCatalogRow(release domain.Release) (releasedomain.Release, error) {

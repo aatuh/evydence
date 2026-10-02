@@ -92,14 +92,3 @@ func (t projectTransaction) InsertProject(ctx context.Context, v releasedomain.P
 func (t projectTransaction) AppendAudit(ctx context.Context, event application.AuditEvent) (application.AuditReceipt, error) {
 	return catalogTransaction{audit: t.audit}.AppendAudit(ctx, event)
 }
-
-func mapProjectReadError(err error) error {
-	switch {
-	case errors.Is(err, releasequery.ErrNotFound):
-		return releaseapp.ErrNotFound
-	case errors.Is(err, releasequery.ErrValidation):
-		return releaseapp.ErrValidation
-	default:
-		return mapProductWriteError(err)
-	}
-}

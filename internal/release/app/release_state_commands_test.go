@@ -16,8 +16,9 @@ func TestStandaloneReleaseStateCommandsCommitFreezeAndApprovalWithAudit(t *testi
 	fixture.reader.products[release.ProductID] = releasedomain.Product{ID: release.ProductID, TenantID: fixture.actor.TenantID, Slug: "state"}
 	fixture.reader.releases[release.ID] = release
 	fixture.transactions.state.releases[release.ID] = release
+	fixture.transactions.state.products[release.ProductID] = fixture.reader.products[release.ProductID]
 	commands, err := NewReleaseStateCommands(ReleaseStateCommandConfig{
-		Reader: fixture.reader, Authorizer: fixture.authorizer,
+		Reader: legacyReleaseStateReader{source: fixture.reader}, Authorizer: fixture.authorizer,
 		Transactions: releaseStateTransactions{runner: fixture.transactions},
 		Clock:        application.ClockFunc(func() time.Time { return fixture.now }),
 		IDs:          application.IDGeneratorFunc(func(prefix string) string { return prefix + "_state" }),
@@ -51,8 +52,9 @@ func TestStandaloneReleaseStateCommandsRejectForeignTenantAndRollBackAuditFailur
 	fixture.reader.products[release.ProductID] = releasedomain.Product{ID: release.ProductID, TenantID: fixture.actor.TenantID, Slug: "state"}
 	fixture.reader.releases[release.ID] = release
 	fixture.transactions.state.releases[release.ID] = release
+	fixture.transactions.state.products[release.ProductID] = fixture.reader.products[release.ProductID]
 	commands, err := NewReleaseStateCommands(ReleaseStateCommandConfig{
-		Reader: fixture.reader, Authorizer: fixture.authorizer,
+		Reader: legacyReleaseStateReader{source: fixture.reader}, Authorizer: fixture.authorizer,
 		Transactions: releaseStateTransactions{runner: fixture.transactions},
 		Clock:        application.ClockFunc(func() time.Time { return fixture.now }),
 		IDs:          application.IDGeneratorFunc(func(prefix string) string { return prefix + "_state" }),
@@ -71,5 +73,40 @@ func TestStandaloneReleaseStateCommandsRejectForeignTenantAndRollBackAuditFailur
 	}
 	if fixture.transactions.state.releases[release.ID].Revision != 1 || len(fixture.transactions.state.audit) != 0 {
 		t.Fatalf("freeze escaped rollback: %#v", fixture.transactions.state)
+	}
+}
+
+func TestReleaseStateCommandsRecheckParentAndAuthorizationBeforeWrite(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		edit func(*fakeState, *fakeAuthorizer)
+		want error
+	}{
+		{"removed parent", func(s *fakeState, _ *fakeAuthorizer) { delete(s.products, "product") }, ErrNotFound},
+		{"foreign parent", func(s *fakeState, _ *fakeAuthorizer) {
+			p := s.products["product"]
+			p.TenantID = "other"
+			s.products[p.ID] = p
+		}, ErrNotFound},
+		{"slug drift", func(s *fakeState, _ *fakeAuthorizer) {
+			p := s.products["product"]
+			p.Slug = "changed"
+			s.products[p.ID] = p
+		}, ErrConflict},
+		{"revoked authorization", func(_ *fakeState, a *fakeAuthorizer) { a.err = application.ErrForbidden }, application.ErrForbidden},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fixture := newServiceFixture(t)
+			state, _ := releasedomain.ParseReleaseState("draft")
+			product := releasedomain.Product{ID: "product", TenantID: fixture.actor.TenantID, Slug: "product"}
+			release := releasedomain.Release{ID: "release", TenantID: fixture.actor.TenantID, ProductID: product.ID, Version: "1", State: state, Revision: 1, CreatedAt: fixture.now}
+			fixture.reader.products[product.ID], fixture.transactions.state.products[product.ID] = product, product
+			fixture.reader.releases[release.ID], fixture.transactions.state.releases[release.ID] = release, release
+			fixture.transactions.beforeCommand = func(s *fakeState) { tc.edit(s, fixture.authorizer) }
+			v, err := fixture.service.FreezeRelease(t.Context(), fixture.actor, release.ID, 1)
+			if !errors.Is(err, tc.want) || v.ID != "" || fixture.transactions.commits != 0 || fixture.transactions.rollbacks != 1 || fixture.transactions.state.releases[release.ID].Revision != 1 || len(fixture.transactions.state.audit) != 0 {
+				t.Fatal("transition escaped parent/auth recheck", v, err, fixture.transactions)
+			}
+		})
 	}
 }

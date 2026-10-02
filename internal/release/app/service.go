@@ -356,7 +356,7 @@ func (s *Service) GetRelease(ctx context.Context, actor identitydomain.Actor, id
 
 func (s *Service) FreezeRelease(ctx context.Context, actor identitydomain.Actor, id string, expectedRevision int64) (releasedomain.Release, error) {
 	commands, err := NewReleaseStateCommands(ReleaseStateCommandConfig{
-		Reader: s.reader, Authorizer: s.authorizer,
+		Reader: legacyReleaseStateReader{source: s.reader}, Authorizer: s.authorizer,
 		Transactions: releaseStateTransactions{runner: s.transactions},
 		Clock:        s.clock, IDs: s.ids,
 	})
@@ -368,7 +368,7 @@ func (s *Service) FreezeRelease(ctx context.Context, actor identitydomain.Actor,
 
 func (s *Service) ApproveRelease(ctx context.Context, actor identitydomain.Actor, id string, expectedRevision int64) (releasedomain.Release, error) {
 	commands, err := NewReleaseStateCommands(ReleaseStateCommandConfig{
-		Reader: s.reader, Authorizer: s.authorizer,
+		Reader: legacyReleaseStateReader{source: s.reader}, Authorizer: s.authorizer,
 		Transactions: releaseStateTransactions{runner: s.transactions},
 		Clock:        s.clock, IDs: s.ids,
 	})

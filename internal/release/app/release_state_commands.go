@@ -13,12 +13,13 @@ import (
 // ReleaseStateReader resolves current tenant-owned parent coordinates before
 // authorization. The transaction locks and rechecks the release before write.
 type ReleaseStateReader interface {
-	GetProduct(context.Context, string, string) (releasedomain.Product, error)
-	GetRelease(context.Context, string, string) (releasedomain.Release, error)
+	ProductCoordinateReader
+	ReadReleaseState(context.Context, string, string) (releasedomain.Release, error)
 }
 
 type ReleaseStateTransaction interface {
-	GetRelease(context.Context, string, string) (releasedomain.Release, error)
+	ReleaseStateReader
+	application.Authorizer
 	UpdateRelease(context.Context, releasedomain.Release, int64, string) error
 	AppendAudit(context.Context, application.AuditEvent) (application.AuditReceipt, error)
 }
@@ -78,18 +79,18 @@ func (s *ReleaseStateCommands) transitionRelease(ctx context.Context, actor iden
 	if id == "" {
 		return releasedomain.Release{}, ErrNotFound
 	}
-	release, err := s.reader.GetRelease(ctx, actor.TenantID, id)
+	release, err := s.reader.ReadReleaseState(ctx, actor.TenantID, id)
 	if err != nil {
 		return releasedomain.Release{}, err
 	}
 	if !releaseBelongsToTenant(release, actor.TenantID, id) || strings.TrimSpace(release.ProductID) == "" {
 		return releasedomain.Release{}, ErrNotFound
 	}
-	product, err := s.reader.GetProduct(ctx, actor.TenantID, release.ProductID)
+	product, err := s.reader.ReadProductCoordinates(ctx, actor.TenantID, release.ProductID)
 	if err != nil {
 		return releasedomain.Release{}, err
 	}
-	if !productBelongsToTenant(product, actor.TenantID, release.ProductID) {
+	if product.ID != release.ProductID || product.TenantID != actor.TenantID {
 		return releasedomain.Release{}, ErrNotFound
 	}
 	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{
@@ -106,7 +107,7 @@ func (s *ReleaseStateCommands) transitionRelease(ctx context.Context, actor iden
 	transitionedAt := s.clock.Now().UTC()
 	var updated releasedomain.Release
 	err = s.transactions.ExecuteReleaseState(ctx, func(ctx context.Context, tx ReleaseStateTransaction) error {
-		current, err := tx.GetRelease(ctx, actor.TenantID, release.ID)
+		current, err := tx.ReadReleaseState(ctx, actor.TenantID, release.ID)
 		if err != nil {
 			return err
 		}
@@ -115,6 +116,21 @@ func (s *ReleaseStateCommands) transitionRelease(ctx context.Context, actor iden
 		}
 		if !sameReleaseCoordinates(current, release) {
 			return ErrConflict
+		}
+		currentProduct, err := tx.ReadProductCoordinates(ctx, actor.TenantID, current.ProductID)
+		if err != nil {
+			return err
+		}
+		if currentProduct.ID != current.ProductID || currentProduct.TenantID != actor.TenantID {
+			return ErrNotFound
+		}
+		if currentProduct != product {
+			return ErrConflict
+		}
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{
+			Scope: ScopeReleaseWrite, Resources: application.ResourceReferences{ProductID: current.ProductID, ReleaseID: current.ID},
+		}); err != nil {
+			return err
 		}
 		if current.Revision != expectedRevision {
 			return NewVersionConflict(current.Revision)
@@ -148,8 +164,27 @@ func (r releaseStateTransactions) ExecuteReleaseState(ctx context.Context, comma
 
 type releaseStateTransaction struct{ tx Transaction }
 
-func (t releaseStateTransaction) GetRelease(ctx context.Context, tenantID, id string) (releasedomain.Release, error) {
+func (t releaseStateTransaction) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
+	return t.tx.Authorization().Authorize(ctx, actor, request)
+}
+
+func (t releaseStateTransaction) ReadReleaseState(ctx context.Context, tenantID, id string) (releasedomain.Release, error) {
 	return t.tx.Catalog().GetRelease(ctx, tenantID, id)
+}
+
+func (t releaseStateTransaction) ReadProductCoordinates(ctx context.Context, tenantID, id string) (ProductCoordinates, error) {
+	return (legacyProductCoordinates{source: t.tx.Catalog()}).ReadProductCoordinates(ctx, tenantID, id)
+}
+
+// Full-model reads are confined to the explicit legacy/local service bridge.
+type legacyReleaseStateReader struct{ source Reader }
+
+func (r legacyReleaseStateReader) ReadReleaseState(ctx context.Context, tenantID, id string) (releasedomain.Release, error) {
+	return r.source.GetRelease(ctx, tenantID, id)
+}
+
+func (r legacyReleaseStateReader) ReadProductCoordinates(ctx context.Context, tenantID, id string) (ProductCoordinates, error) {
+	return (legacyProductCoordinates{source: r.source}).ReadProductCoordinates(ctx, tenantID, id)
 }
 
 func (t releaseStateTransaction) UpdateRelease(ctx context.Context, release releasedomain.Release, expectedRevision int64, _ string) error {

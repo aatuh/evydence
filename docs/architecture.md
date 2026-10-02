@@ -349,10 +349,17 @@ explicit compatibility bindings. Product creation and release transitions still
 use compatibility HTTP bindings while their remaining consumers migrate to
 current database reads.
 Standalone release freeze and approval commands read current tenant-owned
-release and product coordinates, recheck the expected revision under a
-PostgreSQL row lock, and commit the transition with its audit entry. Live
-composition tests exercise those commands inside durable idempotency
-transactions; production HTTP still uses the compatibility command binding.
+release state and product coordinates through the active unit of work, not a
+pool reader. The factory-only builder uses bounded SQL fields and acquires the
+worker-projection fence before the release row lock. Stored release versions
+and product slugs are limited to 64 KiB; IDs to 1024 UTF-8 bytes; overflow fails
+closed. The write transaction rechecks parent ownership, immutable coordinates,
+current authorization, expected revision, and lifecycle state before appending
+the audit entry atomically. UTC transition times use microsecond precision.
+Live tests cover a pending product/release, freeze plus approval in one outer
+transaction, compound rollback and replay, wrong tenant/grants, stored-field
+bounds, and competing freezes with one state/audit winner. Production HTTP
+still uses the compatibility command binding.
 The transactional catalog repositories now expose tenant-filtered project and
 release point reads that verify the parent product in the same read and lock
 the selected rows. Standalone artifact registration now looks up digests in

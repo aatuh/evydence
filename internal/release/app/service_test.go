@@ -454,6 +454,7 @@ func TestFreezeReleaseRollsBackCatalogWhenAuditFails(t *testing.T) {
 	fixture.reader.products[release.ProductID] = releasedomain.Product{ID: release.ProductID, TenantID: fixture.actor.TenantID, Slug: "product"}
 	fixture.reader.releases[release.ID] = release
 	fixture.transactions.state.releases[release.ID] = release
+	fixture.transactions.state.products[release.ProductID] = fixture.reader.products[release.ProductID]
 	fixture.transactions.auditErr = errAudit
 
 	_, err = fixture.service.FreezeRelease(context.Background(), fixture.actor, release.ID, release.Revision)
@@ -476,6 +477,7 @@ func TestFreezeReleaseUsesValidatedLifecycleAndReportsCurrentRevision(t *testing
 	fixture.reader.products[release.ProductID] = releasedomain.Product{ID: release.ProductID, TenantID: fixture.actor.TenantID, Slug: "product"}
 	fixture.reader.releases[release.ID] = release
 	fixture.transactions.state.releases[release.ID] = release
+	fixture.transactions.state.products[release.ProductID] = fixture.reader.products[release.ProductID]
 
 	if _, err := fixture.service.FreezeRelease(context.Background(), fixture.actor, release.ID, 1); !errors.Is(err, ErrConflict) {
 		t.Fatalf("FreezeRelease stale revision error = %v", err)
@@ -498,6 +500,7 @@ func TestFreezeReleaseUsesOneTimestampForStateAndAudit(t *testing.T) {
 	fixture.reader.products[release.ProductID] = releasedomain.Product{ID: release.ProductID, TenantID: fixture.actor.TenantID, Slug: "product"}
 	fixture.reader.releases[release.ID] = release
 	fixture.transactions.state.releases[release.ID] = release
+	fixture.transactions.state.products[release.ProductID] = fixture.reader.products[release.ProductID]
 	clockCalls := 0
 	fixture.service.clock = application.ClockFunc(func() time.Time {
 		at := fixture.now.Add(time.Duration(clockCalls) * time.Minute)
