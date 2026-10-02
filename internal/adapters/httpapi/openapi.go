@@ -1766,10 +1766,12 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "id", "tenant_id", "name", "slug", "schema_version", "created_at"))
 	registry.RegisterSchema("ProductEnvelope", dataEnvelopeSchema("#/components/schemas/Product"))
 	registry.RegisterSchema("ProductListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/Product"))
-	registry.RegisterSchema("CreateProjectRequest", objectSchema(map[string]any{
+	createProjectRequest := objectSchema(map[string]any{
 		"product_id": map[string]any{"type": "string"},
 		"name":       map[string]any{"type": "string"},
-	}, "product_id", "name"))
+	}, "product_id", "name")
+	createProjectRequest["description"] = "Project creation accepts only product_id and name and requires project:write. PostgreSQL human sessions also need a tenant or matching product grant. The current tenant-owned product is rechecked in the write transaction and project/audit effects commit together; cached Ledger products are not used. Trimmed product IDs and names must be non-empty, NUL-free UTF-8; product IDs are bounded at 1024 UTF-8 bytes and new project names at 64 KiB of UTF-8 bytes. Unsupported input returns 400 and oversized stored parent coordinates return 409, never truncated values. Explicit local-memory mode retains its compatibility path."
+	registry.RegisterSchema("CreateProjectRequest", createProjectRequest)
 	registry.RegisterSchema("Project", objectSchema(map[string]any{
 		"id":         map[string]any{"type": "string"},
 		"tenant_id":  map[string]any{"type": "string"},

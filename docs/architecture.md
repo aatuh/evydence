@@ -335,10 +335,13 @@ New project names must be NUL-free UTF-8 within 64 KiB, and durable creation
 times use microsecond-precision UTC. Live tests cover pending-parent visibility,
 compound rollback, single-execution replay, tenant/grant denial, and bounds. Their
 database adapters and the idempotency executor have been exercised together
-without constructing a Ledger. Production HTTP still uses the compatibility
-command binding because later Ledger-backed commands must be migrated to
-current database reads before they can safely consume products, projects, and
-releases created outside its cache.
+without constructing a Ledger. Production project-create HTTP now uses a
+creation-only focused service interface. Live HTTP tests use an empty Ledger
+and durable transaction factory to verify fresh-instance replay, point reads,
+build/evidence/source-repository consumers, tenant and grant rejection, and
+project/audit failure rollback. Local-memory mode keeps its explicit
+compatibility binding. Product and release creation still use compatibility
+HTTP bindings while their remaining consumers migrate to current database reads.
 Standalone release freeze and approval commands read current tenant-owned
 release and product coordinates, recheck the expected revision under a
 PostgreSQL row lock, and commit the transition with its audit entry. Live

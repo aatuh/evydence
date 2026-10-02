@@ -218,6 +218,19 @@ Project responses contain `id`, `tenant_id`, `product_id`, `name`, and
 match this existing runtime contract; clients generated from older schemas
 must stop sending the previously advertised project `slug`.
 
+In the PostgreSQL profile, project creation uses current durable product
+coordinates, not cached Ledger products. It requires `project:write`; human
+sessions also need a tenant or matching product grant, not just a grant on an
+existing project. The product is tenant-filtered and rechecked inside the write
+transaction, and project/audit effects commit together. Same-key replay returns
+the original project; changed request bytes with that key conflict.
+
+Product IDs and names are trimmed and must be non-empty. Product IDs are bounded
+at 1024 UTF-8 bytes, and new project names at 64 KiB of UTF-8 bytes; both must be
+valid UTF-8 and NUL-free. Unsupported input returns `400` without project/audit
+writes. Oversized stored parent coordinates return `409`, never truncated
+values. Explicit local-memory mode retains its compatibility path.
+
 ```json
 {"product_id":"prod_...","version":"1.0.0"}
 ```

@@ -79,6 +79,7 @@ type Server struct {
 	buildCommands                     BuildCommands
 	containerImageCommands            ContainerImageCommands
 	artifactCommands                  ArtifactCommands
+	projectCommands                   ProjectCommands
 	evidenceCreationCommands          EvidenceCreationCommands
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
 	deploymentCommands                DeploymentCommands
@@ -217,6 +218,7 @@ type ServerOptions struct {
 	BuildCommands                 BuildCommands
 	ContainerImageCommands        ContainerImageCommands
 	ArtifactCommands              ArtifactCommands
+	ProjectCommands               ProjectCommands
 	EvidenceCreationCommands      EvidenceCreationCommands
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
 	DeploymentCommands            DeploymentCommands
@@ -391,6 +393,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.buildCommands = opts.BuildCommands
 	server.containerImageCommands = opts.ContainerImageCommands
 	server.artifactCommands = opts.ArtifactCommands
+	server.projectCommands = opts.ProjectCommands
 	server.evidenceCreationCommands = opts.EvidenceCreationCommands
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands
@@ -843,6 +846,10 @@ func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
+		}
+		if s.projectCommands != nil {
+			project, err := s.projectCommands.CreateProject(ctx, actor, releaseapp.CreateProjectInput{ProductID: req.ProductID, Name: req.Name})
+			return http.StatusCreated, projectFromCommand(project), mapBuildAttestationCommandError(err)
 		}
 		project, err := s.releaseCatalog.CreateProject(ctx, actor, req.ProductID, req.Name)
 		return http.StatusCreated, project, err
