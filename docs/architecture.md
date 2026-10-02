@@ -398,6 +398,23 @@ tests with empty Ledger candidate maps verify immutable snapshot DTOs,
 durable point/list reads, conditional replay, safe revision metadata, and
 storage/audit rollback. Candidate creation remains on the broad catalog
 binding; local-memory transitions retain their explicit compatibility path.
+Standalone candidate creation now has a factory-only transaction builder.
+It reads the current tenant-owned release/product coordinates without release
+version or product metadata, then validates all seven reference groups through
+one identifier-only SQL existence result. Builds must have matching current
+project/release products; SBOM, scan, VEX, and OpenAPI references must match
+their source evidence's tenant, release, and type. OpenAPI product coordinates
+must also match the release. Human artifact reuse checks current authorized
+build/evidence associations in that same unit of work. No foreign-context
+payloads or Ledger maps participate. Candidate IDs/references are bounded at
+1024 UTF-8 bytes, names at 64 KiB, and the combined reference work at 4096 IDs
+and 64 KiB of identifier bytes. Inputs are trimmed, NUL-free UTF-8; reference
+sorting preserves duplicates. The existing versioned normalized-JSON hash
+profile is retained. Snapshot creation and audit append commit together, with
+microsecond-precision UTC times. Live tests verify pending parents and every
+reference type, compound rollback/replay, foreign/missing/wrong-release
+references, removed grants, artifact reuse, and insertion/audit failures.
+The candidate-create HTTP binding remains to migrate to this focused service.
 The transactional catalog repositories now expose tenant-filtered project and
 release point reads that verify the parent product in the same read and lock
 the selected rows. Standalone artifact registration now looks up digests in
