@@ -379,96 +379,14 @@ type RegisterContainerImageInput struct {
 }
 
 func (s *Service) RegisterContainerImage(ctx context.Context, actor identitydomain.Actor, input RegisterContainerImageInput) (releasedomain.ContainerImage, error) {
-	if err := contextError(ctx); err != nil {
-		return releasedomain.ContainerImage{}, err
-	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceWrite, application.ResourceReferences{}, true); err != nil {
-		return releasedomain.ContainerImage{}, err
-	}
-	input.ArtifactID = strings.TrimSpace(input.ArtifactID)
-	input.Repository = strings.TrimSpace(input.Repository)
-	input.Tag = strings.TrimSpace(input.Tag)
-	input.Digest = strings.TrimSpace(input.Digest)
-	input.Platform = strings.TrimSpace(input.Platform)
-	if input.Repository == "" || !validDigest(input.Digest) {
-		return releasedomain.ContainerImage{}, ErrValidation
-	}
-	var artifact releasedomain.Artifact
-	if input.ArtifactID != "" {
-		var err error
-		artifact, err = s.reader.GetArtifact(ctx, actor.TenantID, input.ArtifactID)
-		if err != nil {
-			return releasedomain.ContainerImage{}, err
-		}
-		if !artifactBelongsToTenant(artifact, actor.TenantID, input.ArtifactID) || artifact.Digest != input.Digest {
-			return releasedomain.ContainerImage{}, ErrNotFound
-		}
-		if err := s.authorize(ctx, actor, ScopeEvidenceWrite, application.ResourceReferences{ArtifactID: artifact.ID}, false); err != nil {
-			return releasedomain.ContainerImage{}, err
-		}
-	}
-	var image releasedomain.ContainerImage
-	err := s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-		if input.ArtifactID != "" {
-			current, err := tx.Catalog().GetArtifact(ctx, actor.TenantID, artifact.ID)
-			if err != nil {
-				return err
-			}
-			if !artifactBelongsToTenant(current, actor.TenantID, artifact.ID) {
-				return ErrNotFound
-			}
-			if !sameArtifactCoordinates(current, artifact) {
-				return ErrConflict
-			}
-		}
-		existing, exists, err := tx.SupplyChain().ContainerImageByRepositoryDigest(ctx, actor.TenantID, input.Repository, input.Digest)
-		if err != nil {
-			return err
-		}
-		if exists {
-			if existing.TenantID != actor.TenantID || strings.TrimSpace(existing.ID) == "" {
-				return ErrNotFound
-			}
-			if existing.Repository != input.Repository || existing.Digest != input.Digest {
-				return ErrConflict
-			}
-			if existing.ArtifactID != "" {
-				current, err := tx.Catalog().GetArtifact(ctx, actor.TenantID, existing.ArtifactID)
-				if err != nil {
-					return err
-				}
-				if !artifactBelongsToTenant(current, actor.TenantID, existing.ArtifactID) {
-					return ErrNotFound
-				}
-				if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeEvidenceWrite, Resources: application.ResourceReferences{ArtifactID: current.ID}}); err != nil {
-					return err
-				}
-				if current.Digest != existing.Digest {
-					return ErrConflict
-				}
-			}
-			if input.ArtifactID != "" && existing.ArtifactID != input.ArtifactID {
-				return ErrConflict
-			}
-			image = existing
-			return nil
-		}
-		commandAt := s.clock.Now().UTC()
-		image = releasedomain.ContainerImage{
-			ID: s.ids.NewID("img"), TenantID: actor.TenantID, ArtifactID: input.ArtifactID,
-			Repository: input.Repository, Tag: input.Tag, Digest: input.Digest, Platform: input.Platform,
-			SchemaVersion: releasedomain.ContainerImageSchemaVersion, CreatedAt: commandAt,
-		}
-		if err := tx.SupplyChain().InsertContainerImage(ctx, image); err != nil {
-			return err
-		}
-		_, err = tx.Audit().AppendAudit(ctx, s.auditEvent(actor, commandAt, "container_image.created", "container_image", image.ID, image.Digest))
-		return err
+	commands, err := NewContainerImageCommands(ContainerImageCommandConfig{
+		Reader: s.reader, Authorizer: s.authorizer,
+		Transactions: releaseContainerImageTransactions{s.transactions}, Clock: s.clock, IDs: s.ids,
 	})
 	if err != nil {
 		return releasedomain.ContainerImage{}, err
 	}
-	return image, nil
+	return commands.RegisterContainerImage(ctx, actor, input)
 }
 
 func normalizeBuildInput(input CreateBuildRunInput) (releasedomain.BuildRun, error) {

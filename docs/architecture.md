@@ -408,6 +408,15 @@ build. Other production commands and the transitional Ledger-owned HTTP replay
 envelope, including its broad cache refresh after commit, remain EVY-905
 migration work; this is not complete Ledger retirement.
 
+Container-image registration now has a standalone Release command with a flat
+transaction capability for artifact coordinates, current authorization,
+repository/digest identity, insertion and audit. The compatibility service
+delegates to it. Both a supplied artifact and an existing image's actual
+artifact association must be tenant-owned and authorized inside the transaction;
+reuse returns the original immutable image without another audit entry. Record
+and audit use one timestamp. Production HTTP still uses the compatibility
+binding until its bounded PostgreSQL adapter is composed.
+
 API-key and SSO-session verification now has a
 standalone identity application service with narrow credential-read and
 activity-write ports. The PostgreSQL profile binds those ports to current
