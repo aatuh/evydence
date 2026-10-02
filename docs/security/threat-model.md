@@ -110,6 +110,16 @@ errors are checked. This is not deployment or route-wide authorization proof,
 and does not establish current-grant revalidation of completed, actor-bound
 idempotency replay records.
 
+For the vulnerability-decision migration (`TM-01`, `TM-06`, `TM-13`, and
+`TM-14`), `internal/risk/app/vulnerability_decision_commands_test.go` proves the
+new transaction-only core's grant ordering, current reference checks, bounded
+active-head reads, deterministic supersession, cancellation, and decision/audit
+rollback. Prior statements and notes are absent from its supersession port.
+The support vocabulary is closed by `internal/risk/domain/decision_rules.go`.
+These transaction-fake tests do not prove SQL isolation, HTTP replay, export
+redaction, or production retirement; durable adapters and HTTP binding remain
+EVY-905 work.
+
 ## Attacker capabilities
 
 This model assumes an attacker can obtain a low-privilege tenant credential,

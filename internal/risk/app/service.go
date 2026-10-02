@@ -36,6 +36,7 @@ type FindingReference struct {
 	TenantID          string
 	ReleaseID         string
 	ProductID         string
+	ProjectID         string
 	Vulnerability     string
 	Component         string
 	Severity          string
@@ -695,11 +696,15 @@ func validateDecisionReferences(ctx context.Context, repository Repository, tena
 }
 
 func (s *Service) prepareDecision(actor identitydomain.Actor, finding FindingReference, input CreateVulnerabilityDecisionInput, existing []riskdomain.VulnerabilityDecision, source, evidenceID, vexID string) (riskdomain.VulnerabilityDecision, []riskdomain.VulnerabilityDecision, error) {
+	return buildVulnerabilityDecision(s.ids, s.clock, actor, finding, input, existing, source, evidenceID, vexID)
+}
+
+func buildVulnerabilityDecision(ids application.IDGenerator, clock application.Clock, actor identitydomain.Actor, finding FindingReference, input CreateVulnerabilityDecisionInput, existing []riskdomain.VulnerabilityDecision, source, evidenceID, vexID string) (riskdomain.VulnerabilityDecision, []riskdomain.VulnerabilityDecision, error) {
 	status, err := riskdomain.ParseDecisionStatus(input.Status)
 	if err != nil {
 		return riskdomain.VulnerabilityDecision{}, nil, ErrValidation
 	}
-	id := s.ids.NewID("vd")
+	id := ids.NewID("vd")
 	superseded := make([]riskdomain.VulnerabilityDecision, 0)
 	supersedes := ""
 	for _, current := range existing {
@@ -738,7 +743,7 @@ func (s *Service) prepareDecision(actor identitydomain.Actor, finding FindingRef
 		CustomerVisible: input.CustomerVisible, InternalNotes: input.InternalNotes, Source: source, EvidenceID: evidenceID,
 		EvidenceIDs: evidenceIDs, SupportingRefs: append([]riskdomain.SupportingReference(nil), input.SupportingRefs...),
 		VEXDocumentID: vexID, Supersedes: supersedes, ApprovedBy: auditActorID(actor), ReviewedAt: cloneTimePointer(input.ReviewedAt),
-		ReviewDueAt: cloneTimePointer(input.ReviewDueAt), SchemaVersion: riskdomain.VulnerabilityDecisionVersion, CreatedAt: s.clock.Now().UTC(),
+		ReviewDueAt: cloneTimePointer(input.ReviewDueAt), SchemaVersion: riskdomain.VulnerabilityDecisionVersion, CreatedAt: clock.Now().UTC(),
 	}
 	return created, superseded, nil
 }

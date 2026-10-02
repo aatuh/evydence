@@ -50,6 +50,19 @@ Local-memory mode keeps its explicit compatibility command. This evidence does
 not establish deployment, route-wide authorization, or grant revalidation of
 already completed idempotency replay records; those records remain actor-bound.
 
+### Vulnerability-decision command migration evidence
+
+For `SEC-001`, `SEC-006`, `SEC-013`, and `SEC-014`,
+`internal/risk/app/vulnerability_decision_commands_test.go` exercises the new
+transaction-only command core: current finding-derived grants before reference
+or active-head reads, foreign/inconsistent reference rejection, deterministic
+supersession without changing prior content, bounded text/reference/head work,
+review validation, cancellation, and rollback through a late audit or commit
+failure. `internal/risk/domain/decision_rules_test.go` checks the closed support
+record vocabulary. These are transaction-fake checks, not PostgreSQL locking,
+HTTP replay, redaction/export, or deployment proof. SQL adapters and route binding
+remain incomplete EVY-905 work; no route-wide security claim is added.
+
 ## Change and release rules
 
 - A code, OpenAPI, provider, deployment, or public-copy change that affects a

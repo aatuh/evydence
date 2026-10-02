@@ -621,6 +621,25 @@ and prove link/audit rollback and safe error responses. The handler rejects
 null fields and invalid decoded control IDs before they reach storage.
 Local-memory mode retains its explicit compatibility path. These boundaries
 do not retire production Ledger startup or its remaining maps.
+Vulnerability-decision creation now has a separate transaction-only command
+core. It uses the existing normalization and decision-construction rules, but
+does not refresh projections or list a tenant's full decision history. Current
+finding coordinates authorize the command before evidence, VEX, supporting
+records, or active heads are read. Supporting records use the existing closed
+six-type vocabulary and must match the current product/release. The command
+accepts at most 128 active heads for one finding, with an explicit 129th-row
+overflow sentinel. It orders heads by ID for deterministic supersession and
+passes only identity/status summaries to the append port, never prior decision
+statements or notes. That port must preserve historical content while appending
+the new decision and supersession relationships in the same transaction as the
+audit events. Input text is NUL-free UTF-8: statements are bounded at 64 KiB each,
+internal notes at 8 KiB, identities at 1024 bytes, up to 256 evidence-ID inputs
+and 20 supporting references, and total input text at 128 KiB before copying or
+deduplication. Finding labels are bounded projections, not full scanner JSON.
+Transaction-fake tests cover exact bounds, current-grant ordering, foreign or
+inconsistent references, review dates, cancellation, late audit failure, and
+commit rollback. PostgreSQL readers/writes and HTTP binding for this core remain
+EVY-905 work; the current decision route still uses its compatibility service.
 The read-only release evidence-flow plan also uses a focused service in the
 PostgreSQL profile: one tenant-filtered SQL statement collects nine release
 counts from a consistent snapshot, then current resource grants are checked
