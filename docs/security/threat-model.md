@@ -102,8 +102,13 @@ require a permitted current association matching the requested scope. Live
 tests in `internal/platform/wiring/control_evidence_commands_test.go` cover
 cross-tenant references, stale/broken relationships, grant removal, concurrent
 duplicates, bounded metadata, safe error mapping, and rollback/replay. They
-establish this focused command boundary, not the pending HTTP migration or
-route-wide authorization proof.
+establish this focused command boundary. The PostgreSQL HTTP migration is
+covered by `internal/platform/wiring/control_evidence_http_test.go`: all
+supported subjects work across fresh servers with empty Ledger maps; malformed
+and foreign inputs, removed grants on command execution, rollback, and safe
+errors are checked. This is not deployment or route-wide authorization proof,
+and does not establish current-grant revalidation of completed, actor-bound
+idempotency replay records.
 
 ## Attacker capabilities
 

@@ -88,6 +88,7 @@ type Server struct {
 	candidateCommands                 CandidateCommands
 	controlCommands                   ControlCommands
 	controlTemplateCommands           ControlTemplateCommands
+	controlEvidenceCommands           ControlEvidenceCommands
 	evidenceCreationCommands          EvidenceCreationCommands
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
 	deploymentCommands                DeploymentCommands
@@ -234,6 +235,7 @@ type ServerOptions struct {
 	CandidateCommands             CandidateCommands
 	ControlCommands               ControlCommands
 	ControlTemplateCommands       ControlTemplateCommands
+	ControlEvidenceCommands       ControlEvidenceCommands
 	EvidenceCreationCommands      EvidenceCreationCommands
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
 	DeploymentCommands            DeploymentCommands
@@ -416,6 +418,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.candidateCommands = opts.CandidateCommands
 	server.controlCommands = opts.ControlCommands
 	server.controlTemplateCommands = opts.ControlTemplateCommands
+	server.controlEvidenceCommands = opts.ControlEvidenceCommands
 	server.evidenceCreationCommands = opts.EvidenceCreationCommands
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands
@@ -748,6 +751,10 @@ func (s *Server) getSecurityControl(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) linkControlEvidence(w http.ResponseWriter, r *http.Request) {
+	if err := validateControlEvidencePathID(r.PathValue("id")); err != nil {
+		writeProblem(w, r, err)
+		return
+	}
 	var req struct {
 		EvidenceType string `json:"evidence_type"`
 		SubjectType  string `json:"subject_type"`
@@ -760,6 +767,13 @@ func (s *Server) linkControlEvidence(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
+		}
+		if err := validateNonNullableObjectFields(body, "evidence_type", "subject_type", "subject_id", "product_id", "release_id", "confidence", "notes"); err != nil {
+			return 0, nil, err
+		}
+		if s.controlEvidenceCommands != nil {
+			link, err := s.controlEvidenceCommands.LinkControlEvidence(ctx, actor, r.PathValue("id"), riskapp.LinkControlEvidenceInput{EvidenceType: req.EvidenceType, SubjectType: req.SubjectType, SubjectID: req.SubjectID, ProductID: req.ProductID, ReleaseID: req.ReleaseID, Confidence: req.Confidence, Notes: req.Notes})
+			return http.StatusCreated, controlEvidenceFromQuery(link), mapControlCommandError(err)
 		}
 		link, err := s.ledger.LinkControlEvidence(ctx, actor, r.PathValue("id"), app.LinkControlEvidenceInput{
 			EvidenceType: req.EvidenceType,

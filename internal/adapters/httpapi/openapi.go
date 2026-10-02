@@ -1736,7 +1736,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"created_at":            map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "framework_id", "code", "title", "objective", "schema_version", "created_at"))
 	registry.RegisterSchema("SecurityControlEnvelope", dataEnvelopeSchema("#/components/schemas/SecurityControl"))
-	registry.RegisterSchema("LinkControlEvidenceRequest", objectSchema(map[string]any{
+	linkControlEvidenceRequest := objectSchema(map[string]any{
 		"evidence_type": map[string]any{"type": "string"},
 		"subject_type":  map[string]any{"type": "string"},
 		"subject_id":    map[string]any{"type": "string"},
@@ -1744,7 +1744,9 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"release_id":    map[string]any{"type": "string"},
 		"confidence":    map[string]any{"type": "string", "enum": []string{"high", "medium", "low", "unsupported"}},
 		"notes":         map[string]any{"type": "string"},
-	}, "evidence_type", "subject_type", "subject_id", "confidence"))
+	}, "evidence_type", "subject_type", "subject_id", "confidence")
+	linkControlEvidenceRequest["description"] = "Creates an append-only control evidence link with controls:write. PostgreSQL resolves the current tenant-owned control/framework, subject, typed source evidence, and scoped parents inside the idempotent command transaction without Ledger inventory reads. Human sessions need a current matching resource grant. Product/release IDs are optional association filters, not ownership proof; artifact grants require a matching current evidence/build association. Supported subject types are evidence, evidence_item, product, release, artifact, sbom, vulnerability_scan, vex, vulnerability_decision, finding, vulnerability_finding, exception, build, build_attestation, openapi_contract, and release_bundle. Missing, foreign, or unsupported subjects return 404; grant denial returns 403; ambiguous findings return 409. Required fields must be supplied; no supplied field may be null. Trimmed IDs/types/confidence are NUL-free UTF-8, each identity field is bounded at 1024 bytes, and the natural key (tenant, control, evidence type, subject type, subject ID, supplied product and release) at 2048 bytes. Notes are trimmed, NUL-free UTF-8, and bounded at 64 KiB. The entire HTTP JSON body is capped at 64 KiB including syntax/escapes. Natural-key duplicates return the original link unchanged, even with different confidence/notes, after current subject authorization; they append no audit entry. Same idempotency key and request bytes replay the original response; changed request bytes conflict. Link, audit, and completed replay commit together. Invalid input returns 400; failed writes leave no link/audit pair. Local-memory mode retains its explicit compatibility command."
+	registry.RegisterSchema("LinkControlEvidenceRequest", linkControlEvidenceRequest)
 	registry.RegisterSchema("ControlEvidence", objectSchema(map[string]any{
 		"id":             map[string]any{"type": "string"},
 		"tenant_id":      map[string]any{"type": "string"},

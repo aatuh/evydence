@@ -41,8 +41,14 @@ and artifact-parent checks, scope-matching artifact grants, bounded duplicate
 metadata, pending-row reads, replay, rollback, and competing duplicate writes.
 Private storage errors map to the safe error catalog. The grant policy and its
 query budgets are tested in `internal/risk/app/control_evidence_authorizer_test.go`.
-HTTP binding remains EVY-905 work; the current route retains its compatibility
-implementation. This evidence does not establish deployment or route-wide proof.
+PostgreSQL HTTP binding evidence is in
+`internal/platform/wiring/control_evidence_http_test.go`: fresh-server creation
+and replay for all supported subjects, current-grant checks on command
+execution, natural-duplicate preservation, cross-tenant and invalid-input
+rejection, exact durable list DTOs, safe Problem Details, and link/audit rollback.
+Local-memory mode keeps its explicit compatibility command. This evidence does
+not establish deployment, route-wide authorization, or grant revalidation of
+already completed idempotency replay records; those records remain actor-bound.
 
 ## Change and release rules
 

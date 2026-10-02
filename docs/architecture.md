@@ -614,9 +614,13 @@ scope in an evidence/build association, including the artifact's build-output
 digest. That query accepts at most 4096 grant IDs and 64 KiB of grant identity
 text. Live tests cover every supported subject, focused-list visibility,
 uncommitted subject reads, outer rollback, replay, storage failures, and
-competing duplicates. The HTTP binding is still pending, so the running
-evidence-link route retains its compatibility path. These boundaries do not
-retire production Ledger startup or its remaining maps.
+competing duplicates. PostgreSQL HTTP evidence-link writes now bind the focused
+command directly. Fresh-server tests create and list every supported subject
+without publishing Ledger maps, preserve replay and natural-duplicate DTOs,
+and prove link/audit rollback and safe error responses. The handler rejects
+null fields and invalid decoded control IDs before they reach storage.
+Local-memory mode retains its explicit compatibility path. These boundaries
+do not retire production Ledger startup or its remaining maps.
 The read-only release evidence-flow plan also uses a focused service in the
 PostgreSQL profile: one tenant-filtered SQL statement collects nine release
 counts from a consistent snapshot, then current resource grants are checked
