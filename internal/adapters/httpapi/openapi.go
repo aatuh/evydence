@@ -1932,7 +1932,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"author":       map[string]any{"type": "string"},
 		"message":      map[string]any{"type": "string", "description": "Commit message supplied by the collector; Evydence stores a message hash."},
 		"committed_at": map[string]any{"type": "string", "format": "date-time"},
-	}, "sha", "committed_at"))
+	}, "sha"))
 	registry.RegisterSchema("SourceSnapshotBranchInput", objectSchema(map[string]any{
 		"name":            map[string]any{"type": "string"},
 		"protected":       map[string]any{"type": "boolean"},
@@ -1945,7 +1945,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"source_branch":   map[string]any{"type": "string"},
 		"target_branch":   map[string]any{"type": "string"},
 		"review_decision": map[string]any{"type": "string"},
-	}, "provider_id", "state"))
+	}, "provider_id", "title", "state"))
 	registry.RegisterSchema("SourceSnapshotRequest", objectSchema(map[string]any{
 		"project_id":   map[string]any{"type": "string"},
 		"repository":   map[string]any{"$ref": "#/components/schemas/SourceSnapshotRepositoryInput"},

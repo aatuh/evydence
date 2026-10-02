@@ -551,13 +551,13 @@
               <div><dt>Responses</dt><dd>201 application/json: CollectorCreateEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/collectors/github/source-snapshots upload github source snapshot uploads a strict github source snapshot, hashes commit messages, and stores repository, commit, branch, and pull-request evidence records. uploadgithubsourcesnapshot evydence source:write">
+          <article class="operation" data-operation data-search="post /v1/collectors/github/source-snapshots upload github source snapshot records a strict github source snapshot. postgresql checks current project and repository ownership and commits all supplied source components and audit entries in one transaction. repository and commit identities are reused, branches are current state, and each executed pull-request recording appends a new snapshot. stores only the exact-byte message hash; omitted commit time defaults to server time. optional components must be omitted rather than null. request replay adds no effects. the provider label is submitted metadata and does not verify github origin, signatures, or review authority. uploadgithubsourcesnapshot evydence source:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/collectors/github/source-snapshots</code>
             </div>
             <h3>Upload GitHub source snapshot</h3>
-            <p>Uploads a strict GitHub source snapshot, hashes commit messages, and stores repository, commit, branch, and pull-request evidence records.</p>
+            <p>Records a strict GitHub source snapshot. PostgreSQL checks current project and repository ownership and commits all supplied source components and audit entries in one transaction. Repository and commit identities are reused, branches are current state, and each executed pull-request recording appends a new snapshot. Stores only the exact-byte message hash; omitted commit time defaults to server time. Optional components must be omitted rather than null. Request replay adds no effects. The provider label is submitted metadata and does not verify GitHub origin, signatures, or review authority.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>uploadGitHubSourceSnapshot</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -568,13 +568,13 @@
               <div><dt>Responses</dt><dd>201 application/json: SourceSnapshotEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/collectors/gitlab/source-snapshots upload gitlab source snapshot uploads a strict gitlab source snapshot, hashes commit messages, and stores repository, commit, branch, and pull-request evidence records. uploadgitlabsourcesnapshot evydence source:write">
+          <article class="operation" data-operation data-search="post /v1/collectors/gitlab/source-snapshots upload gitlab source snapshot records a strict gitlab source snapshot. postgresql checks current project and repository ownership and commits all supplied source components and audit entries in one transaction. repository and commit identities are reused, branches are current state, and each executed pull-request recording appends a new snapshot. stores only the exact-byte message hash; omitted commit time defaults to server time. optional components must be omitted rather than null. request replay adds no effects. the provider label is submitted metadata and does not verify gitlab origin, signatures, or review authority. uploadgitlabsourcesnapshot evydence source:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/collectors/gitlab/source-snapshots</code>
             </div>
             <h3>Upload GitLab source snapshot</h3>
-            <p>Uploads a strict GitLab source snapshot, hashes commit messages, and stores repository, commit, branch, and pull-request evidence records.</p>
+            <p>Records a strict GitLab source snapshot. PostgreSQL checks current project and repository ownership and commits all supplied source components and audit entries in one transaction. Repository and commit identities are reused, branches are current state, and each executed pull-request recording appends a new snapshot. Stores only the exact-byte message hash; omitted commit time defaults to server time. Optional components must be omitted rather than null. Request replay adds no effects. The provider label is submitted metadata and does not verify GitLab origin, signatures, or review authority.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>uploadGitLabSourceSnapshot</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -5073,7 +5073,7 @@
           <tr>
             <td><code>SourceSnapshotCommitInput</code></td>
             <td>object</td>
-            <td>sha, committed_at</td>
+            <td>sha</td>
           </tr>
           <tr>
             <td><code>SourceSnapshotEnvelope</code></td>
@@ -5083,7 +5083,7 @@
           <tr>
             <td><code>SourceSnapshotPullRequestInput</code></td>
             <td>object</td>
-            <td>provider_id, state</td>
+            <td>provider_id, title, state</td>
           </tr>
           <tr>
             <td><code>SourceSnapshotRepositoryInput</code></td>

@@ -40,13 +40,13 @@ arguments and external-reference loading disabled.
 
 The current baseline is the published `v0.1.0-rc.7` OpenAPI asset with digest
 `4c4ebb9e25a17f40a77ad206e927660cde68aa63dec45be3982f51c2541a6364`.
-The checked-in current prerelease contract contains 133 changes selected by the
+The committed prerelease contract contains 135 changes selected by the
 compatibility policy. The exact set and its digest are recorded in
 [`.github/openapi-breaking-exceptions.json`](../../.github/openapi-breaking-exceptions.json):
 
 - 16 generated Problem Details error-code additions;
 - 4 required request-header additions and 6 required request-field additions;
-- 7 request requirement/shape restrictions;
+- 9 request requirement/shape restrictions;
 - 16 response property removals or type/optionality changes; and
 - 84 client-visible response-enum additions.
 
@@ -63,6 +63,25 @@ must use the current documented request fields and response envelopes, send
 Problem Details codes rather than parsing strings. A client moving from
 `v0.1.0-rc.7` should regenerate its client from the current OpenAPI before it
 sends writes to an Unreleased build.
+
+### Source Snapshot Schema Reconciliation
+
+The EVY-905 repository-controlled prerelease record retains the preceding 133
+changes and adds two schema corrections: `pull_request.title` is required for
+GitHub and GitLab source snapshots. Both the legacy and focused commands already
+reject missing/blank titles; the schema previously omitted that runtime rule.
+The exact 135-change digest is
+`c9bf7cc92a54def6cb3bff2dc5bf0329fcec93fd3f51d479a82096e59f5d19d9`.
+The prior 133-change record remains available for its exact historical input.
+Neither record approves additional changes or claims external review.
+
+Regenerate clients from the current contract and include a title whenever a
+pull request is supplied. Commit time remains optional with its existing server
+default. In PostgreSQL mode, omit optional source components and fields rather
+than sending null, and expect one transaction for all supplied components.
+These contracts are documented under
+[provider source snapshots](../api.md#provider-source-snapshots). No stored
+schema migration is required, and historical source rows remain unchanged.
 
 ## Stable-Line Rule
 

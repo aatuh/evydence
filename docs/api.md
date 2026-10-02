@@ -756,12 +756,61 @@ unchanged; new PostgreSQL-profile creation timestamps use UTC microseconds.
 Title/review metadata is intentionally stored in the scoped snapshot, not in
 audit entries. Do not submit secrets. Recording does not contact a provider,
 verify repository contents, establish review approval or prove merge authority.
-Local-memory mode retains its compatibility path. Provider/CI source-snapshot
-workflows remain separate migration work.
+Local-memory mode retains its compatibility path. For combined provider source
+snapshots, see the contract below. CI build snapshots remain separate migration
+work.
 
 Source/test evidence: `internal/integration/app/pull_request_commands.go`,
 `internal/platform/wiring/pull_request_commands_test.go` and
 `internal/adapters/httpapi/pull_request_commands_test.go`.
+
+### Provider Source Snapshots
+
+`POST /v1/collectors/github/source-snapshots` and
+`POST /v1/collectors/gitlab/source-snapshots` in the PostgreSQL profile use an
+Integration-owned orchestration command, not Ledger. The route fixes the
+provider label. The required `repository` object and optional `commit`, `branch`
+and `pull_request` objects reuse the focused source commands above, including
+current submitted-project and actual-repository ownership checks. IDs for
+repository and head relationships come from command results, never supplied
+nested IDs. Access to a submitted project does not authorize reuse of a
+repository owned by another project.
+
+All supplied components, their audit entries and successful HTTP idempotency
+state commit in one transaction. This also holds for direct command callers
+without an ambient HTTP transaction. A late validation, write or commit failure
+returns no partial result and rolls back earlier inserts and branch updates.
+No outbox job is created. Repository/name and commit/SHA reuse return original
+metadata; each supplied branch executes a current-state replacement and each
+supplied pull request appends a new snapshot. A new idempotency key can therefore
+add branch/PR effects even for the same repository and commit. Replay adds none;
+changed content under the same key is rejected.
+
+Creation returns 201 with the existing four-key result: `repository`, `commit`,
+`branch`, `pull_request`. Omitted components retain the existing zero-valued
+response objects. An omitted commit means supplied branch/PR records have an
+empty head; omitting a branch or PR does not delete historical records.
+Omitted commit time defaults to server time. Only the hash of exact nonblank
+commit-message bytes is stored; raw messages do not enter the database, audit
+or replay response. Repository reuse and new creation expose the same UTC
+timestamp representation.
+
+The existing 64 KiB HTTP envelope limit and focused source field limits apply.
+Non-object bodies, unknown/duplicate fields, wrong types and explicit null
+components or fields fail validation. Omit optional components/fields instead
+of sending null; this tightens the legacy nullable decoding to the existing
+non-nullable schema in the PostgreSQL profile. The commit-time schema now
+reflects its existing server default, and PR title is marked required to match
+existing runtime validation. No stored schema or route changed.
+
+These are collector-submitted records, not authenticated provider fetches or
+verified webhooks. Recording does not prove GitHub/GitLab origin, signature
+validity, repository contents, branch protection or review/merge authority.
+Local-memory mode retains its compatibility workflow.
+
+Source/test evidence: `internal/integration/app/source_snapshot_commands.go`,
+`internal/platform/wiring/source_snapshot_commands_test.go` and
+`internal/adapters/httpapi/source_snapshot_commands_test.go`.
 
 ### Deployment Environment Creation
 

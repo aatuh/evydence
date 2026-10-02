@@ -77,6 +77,7 @@ type Server struct {
 	sourceCommitCommands              SourceCommitCommands
 	sourceBranchCommands              SourceBranchCommands
 	pullRequestCommands               PullRequestCommands
+	sourceSnapshotCommands            SourceSnapshotCommands
 	subjectVerification               SubjectVerification
 	transparencyCheckpointCommands    TransparencyCheckpointCommands
 	merkleCreationCommands            MerkleCreationCommands
@@ -209,6 +210,7 @@ type ServerOptions struct {
 	SourceCommitCommands          SourceCommitCommands
 	SourceBranchCommands          SourceBranchCommands
 	PullRequestCommands           PullRequestCommands
+	SourceSnapshotCommands        SourceSnapshotCommands
 	// SubjectVerification dispatches every generic subject without Ledger fallback.
 	SubjectVerification            SubjectVerification
 	TransparencyCheckpointCommands TransparencyCheckpointCommands
@@ -377,6 +379,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.sourceCommitCommands = opts.SourceCommitCommands
 	server.sourceBranchCommands = opts.SourceBranchCommands
 	server.pullRequestCommands = opts.PullRequestCommands
+	server.sourceSnapshotCommands = opts.SourceSnapshotCommands
 	server.subjectVerification = opts.SubjectVerification
 	server.transparencyCheckpointCommands = opts.TransparencyCheckpointCommands
 	server.merkleCreationCommands = opts.MerkleCreationCommands
@@ -1479,6 +1482,9 @@ func (s *Server) recordPullRequest(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) uploadGitHubSourceSnapshot(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+		if s.sourceSnapshotCommands != nil {
+			return s.recordSourceSnapshot(ctx, actor, "github", body)
+		}
 		result, err := s.ledger.UploadGitHubSourceSnapshot(ctx, actor, body)
 		return http.StatusCreated, result, err
 	})
@@ -1486,6 +1492,9 @@ func (s *Server) uploadGitHubSourceSnapshot(w http.ResponseWriter, r *http.Reque
 
 func (s *Server) uploadGitLabSourceSnapshot(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+		if s.sourceSnapshotCommands != nil {
+			return s.recordSourceSnapshot(ctx, actor, "gitlab", body)
+		}
 		result, err := s.ledger.UploadGitLabSourceSnapshot(ctx, actor, body)
 		return http.StatusCreated, result, err
 	})

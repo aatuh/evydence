@@ -250,11 +250,11 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Build run id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Build run envelope.", "#/components/schemas/BuildRunEnvelope")
 	case "uploadGitHubSourceSnapshot":
-		operation.Description = "Uploads a strict GitHub source snapshot, hashes commit messages, and stores repository, commit, branch, and pull-request evidence records."
+		operation.Description = "Records a strict GitHub source snapshot. PostgreSQL checks current project and repository ownership and commits all supplied source components and audit entries in one transaction. Repository and commit identities are reused, branches are current state, and each executed pull-request recording appends a new snapshot. Stores only the exact-byte message hash; omitted commit time defaults to server time. Optional components must be omitted rather than null. Request replay adds no effects. The provider label is submitted metadata and does not verify GitHub origin, signatures, or review authority."
 		operation.RequestBody = jsonRequest("GitHub source snapshot upload request.", "#/components/schemas/SourceSnapshotRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created source snapshot resources envelope.", "#/components/schemas/SourceSnapshotEnvelope")
 	case "uploadGitLabSourceSnapshot":
-		operation.Description = "Uploads a strict GitLab source snapshot, hashes commit messages, and stores repository, commit, branch, and pull-request evidence records."
+		operation.Description = "Records a strict GitLab source snapshot. PostgreSQL checks current project and repository ownership and commits all supplied source components and audit entries in one transaction. Repository and commit identities are reused, branches are current state, and each executed pull-request recording appends a new snapshot. Stores only the exact-byte message hash; omitted commit time defaults to server time. Optional components must be omitted rather than null. Request replay adds no effects. The provider label is submitted metadata and does not verify GitLab origin, signatures, or review authority."
 		operation.RequestBody = jsonRequest("GitLab source snapshot upload request.", "#/components/schemas/SourceSnapshotRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created source snapshot resources envelope.", "#/components/schemas/SourceSnapshotEnvelope")
 	case "uploadSBOM":

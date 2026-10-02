@@ -123,6 +123,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.PullRequestCommands != nil {
 		t.Fatal("local memory bound durable pull request recording")
 	}
+	if memory.SourceSnapshotCommands != nil {
+		t.Fatal("local memory bound durable source snapshot recording")
+	}
 	if memory.SigningCustodyQuery != nil {
 		t.Fatal("local memory bound durable custody query")
 	}
@@ -228,6 +231,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.PullRequestCommands == nil {
 		t.Fatal("PostgreSQL pull request recording still uses Ledger")
+	}
+	if options.SourceSnapshotCommands == nil {
+		t.Fatal("PostgreSQL source snapshots still use Ledger")
 	}
 	if options.SigningCustodyQuery == nil {
 		t.Fatal("PostgreSQL custody report still uses Ledger")

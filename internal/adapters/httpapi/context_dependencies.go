@@ -173,6 +173,10 @@ type PullRequestCommands interface {
 	RecordPullRequest(context.Context, identitydomain.Actor, integrationapp.RecordPullRequestInput) (integrationdomain.PullRequest, error)
 }
 
+type SourceSnapshotCommands interface {
+	RecordSourceSnapshot(context.Context, identitydomain.Actor, string, integrationapp.SourceSnapshotInput) (integrationapp.SourceSnapshotResult, error)
+}
+
 type MerkleVerification interface {
 	VerifyMerkleBatch(context.Context, identitydomain.Actor, string) (verificationdomain.VerificationResult, error)
 }

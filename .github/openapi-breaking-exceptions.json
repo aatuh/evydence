@@ -24,6 +24,30 @@
       "approval_ref": "EVY-705 repository-controlled prerelease change record",
       "migration_note": "docs/reference/api-versioning.md#prerelease-baseline-reconciliation",
       "changelog_note": "CHANGELOG.md#unreleased"
+    },
+    {
+      "id": "evy-905-prerelease-source-snapshot-schema-reconciliation",
+      "channel": "prerelease",
+      "kind": "prerelease",
+      "baseline_sha256": "4c4ebb9e25a17f40a77ad206e927660cde68aa63dec45be3982f51c2541a6364",
+      "changes_sha256": "c9bf7cc92a54def6cb3bff2dc5bf0329fcec93fd3f51d479a82096e59f5d19d9",
+      "change_count": 135,
+      "change_summary": {
+        "error-code-added": 16,
+        "new-required-request-parameter": 4,
+        "new-required-request-property": 6,
+        "request-body-wrapped-in-one-of": 1,
+        "request-parameter-min-length-increased": 1,
+        "request-property-became-required": 5,
+        "request-property-min-length-increased": 2,
+        "response-property-became-optional": 4,
+        "response-property-enum-value-added": 84,
+        "response-property-type-changed": 1,
+        "response-required-property-removed": 11
+      },
+      "approval_ref": "EVY-905 repository-controlled prerelease source-snapshot schema review",
+      "migration_note": "docs/reference/api-versioning.md#source-snapshot-schema-reconciliation",
+      "changelog_note": "CHANGELOG.md#unreleased"
     }
   ]
 }

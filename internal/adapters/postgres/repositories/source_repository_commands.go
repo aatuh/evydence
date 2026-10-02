@@ -78,5 +78,6 @@ func (r source) ReadSourceRepository(ctx context.Context, tenant, id string) (in
 	if large {
 		return integrationdomain.SourceRepository{}, app.ErrConflict
 	}
+	v.CreatedAt = v.CreatedAt.UTC()
 	return v, nil
 }

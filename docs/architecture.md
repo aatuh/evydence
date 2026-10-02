@@ -487,6 +487,17 @@ provider ID. Title/review text stays in the scoped record, not the audit. See
 [pull-request recording](api.md#pull-request-recording) for metadata defaults,
 replay behavior and provider-trust limitations.
 
+PostgreSQL-profile GitHub/GitLab source snapshots compose those four focused
+Integration commands through a four-method transaction port. The composition
+adapter binds every child to the same transaction-scoped repositories rather
+than opening nested units of work or accessing Ledger state. Late failures roll
+back earlier inserts and existing branch changes. All reads retain the child
+commands' bounded projections and current ownership checks; replay shares the
+same transaction and adds no component or audit effects. Submitted provider
+labels are not promoted to verified origin. See
+[provider source snapshots](api.md#provider-source-snapshots) for optional
+component defaults, response compatibility and trust limitations.
+
 PostgreSQL-profile deployment-environment creation uses an operations-owned
 command with tenant/product grants and bounded parent/name reads. The
 product-row lock serializes creation and original-row reuse without blocking

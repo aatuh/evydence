@@ -54,6 +54,15 @@ release artifacts.
 
 ### Changed
 
+- PostgreSQL GitHub/GitLab source snapshots now compose focused Integration
+  commands in one transaction, including audit and idempotency state. Late
+  failures roll back earlier inserts and branch updates, and repository reuse
+  returns UTC timestamps consistently. Optional components/fields must be
+  omitted rather than null. The request schema now reflects the existing
+  optional commit-time default and required pull-request title. The exact
+  prerelease compatibility record adds only the two title-schema corrections;
+  see [the migration note](docs/reference/api-versioning.md#source-snapshot-schema-reconciliation).
+
 - PostgreSQL-backed CRA vulnerability-handling and security-update evidence
   reports now read bounded, tenant- and release-scoped snapshots instead of
   Ledger maps. They omit private decision notes, reject inconsistent evidence
