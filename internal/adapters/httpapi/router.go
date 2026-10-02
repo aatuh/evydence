@@ -22,6 +22,8 @@ import (
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	application "github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
+	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
+	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	identityquery "github.com/aatuh/evydence/internal/identity/query"
@@ -72,6 +74,7 @@ type Server struct {
 	backupGenerationCommands          BackupGenerationCommands
 	artifactSignatureCommands         ArtifactSignatureCommands
 	buildAttestationCommands          BuildAttestationCommands
+	evidenceCreationCommands          EvidenceCreationCommands
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
 	deploymentCommands                DeploymentCommands
 	sourceRepositoryCommands          SourceRepositoryCommands
@@ -206,6 +209,7 @@ type ServerOptions struct {
 	BackupGenerationCommands      BackupGenerationCommands
 	ArtifactSignatureCommands     ArtifactSignatureCommands
 	BuildAttestationCommands      BuildAttestationCommands
+	EvidenceCreationCommands      EvidenceCreationCommands
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
 	DeploymentCommands            DeploymentCommands
 	SourceRepositoryCommands      SourceRepositoryCommands
@@ -376,6 +380,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.backupGenerationCommands = opts.BackupGenerationCommands
 	server.artifactSignatureCommands = opts.ArtifactSignatureCommands
 	server.buildAttestationCommands = opts.BuildAttestationCommands
+	server.evidenceCreationCommands = opts.EvidenceCreationCommands
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands
 	server.sourceRepositoryCommands = opts.SourceRepositoryCommands
@@ -2151,6 +2156,20 @@ func (s *Server) createEvidence(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
+		}
+		if s.evidenceCreationCommands != nil {
+			refs := make([]evidencedomain.SubjectRef, 0, len(req.SubjectRefs))
+			for _, ref := range req.SubjectRefs {
+				refs = append(refs, evidencedomain.SubjectRef{Type: ref.Type, ID: ref.ID, Digest: ref.Digest})
+			}
+			item, err := s.evidenceCreationCommands.CreateEvidence(ctx, actor, evidenceapp.CreateEvidenceInput{
+				ProductID: req.ProductID, ProjectID: req.ProjectID, ReleaseID: req.ReleaseID, BuildID: req.BuildID, DeploymentID: req.DeploymentID,
+				Type: req.Type, Subtype: req.Subtype, Title: req.Title,
+				SourceSystem: req.SourceSystem, SourceIdentity: req.SourceIdentity, CollectorID: req.CollectorID, ObservedAt: req.ObservedAt,
+				PayloadRef: req.PayloadRef, PayloadHash: req.PayloadHash, PayloadMediaType: req.PayloadMediaType, PayloadSize: req.PayloadSize,
+				SubjectRefs: refs, Metadata: req.Metadata, Tags: req.Tags, Limitations: req.Limitations,
+			})
+			return http.StatusCreated, domain.EvidenceFromContextModel(item), mapEvidenceCreationCommandError(err)
 		}
 		item, err := s.evidenceIngestion.CreateEvidence(ctx, actor, app.CreateEvidenceInput{
 			ProductID: req.ProductID, ProjectID: req.ProjectID, ReleaseID: req.ReleaseID, BuildID: req.BuildID, DeploymentID: req.DeploymentID,

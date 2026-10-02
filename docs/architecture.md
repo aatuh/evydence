@@ -67,10 +67,21 @@ microsecond timestamps, matching PostgreSQL persistence precision without
 rehashing historical records. Nested JSON-shaped source identity and metadata
 are copied without changing numeric types or empty containers; non-JSON or
 cyclic creation metadata is rejected before hashing. Existing response and
-schema fields remain unchanged. Focused transaction-fake tests cover these
-invariants, not live database atomicity. The standalone PostgreSQL/HTTP
-composition and the remaining evidence/parser Ledger adapters are still
-EVY-905 migration work.
+schema fields remain unchanged. PostgreSQL-profile `POST /v1/evidence` now binds
+this command directly in the composition root. Its bounded scope resolver
+selects identifiers only, rejects coordinates above 1 KiB, and share-locks
+tenant/product/project/release/build/deployment parents before authorization
+and insertion. Initial checks join an enclosing idempotency transaction, so
+pending build and artifact associations are visible without Ledger publication.
+Human creation requires current `evidence:write` grants; artifact reuse checks
+current tenant associations and any supplied digest, while ID-only references
+remain supported. Evidence, audit, staged-payload metadata and finalization jobs
+commit together. Live tests cover rollback at each write boundary, parent row
+locks, pending associations, durable canonical hashes and HTTP restart replay.
+Replay retains the established private `payload_ref` omission. Local-memory
+mode keeps the compatibility path. The HTTP replay envelope still refreshes
+Ledger projections, and remaining evidence/parser adapters and broad startup
+state loading remain EVY-905 migration work.
 
 PostgreSQL-profile external transparency-checkpoint creation uses a focused
 command and reads only the tenant-owned batch root, not Ledger state or batch

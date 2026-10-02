@@ -108,6 +108,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.BuildAttestationCommands != nil {
 		t.Fatal("local memory must keep explicit attestation compatibility binding")
 	}
+	if memory.EvidenceCreationCommands != nil {
+		t.Fatal("local memory must keep explicit evidence compatibility binding")
+	}
 	if memory.DeploymentEnvironmentCommands != nil {
 		t.Fatal("local memory bound durable environment creation")
 	}
@@ -219,6 +222,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.BuildAttestationCommands == nil {
 		t.Fatal("PostgreSQL attestation upload still uses Ledger")
+	}
+	if options.EvidenceCreationCommands == nil {
+		t.Fatal("PostgreSQL evidence creation still uses Ledger")
 	}
 	if options.DeploymentEnvironmentCommands == nil {
 		t.Fatal("PostgreSQL environment creation still uses Ledger")

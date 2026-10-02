@@ -175,6 +175,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create build attestation commands: %w", err)
 	}
+	options.EvidenceCreationCommands, err = BuildEvidenceCreationCommands(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create evidence creation commands: %w", err)
+	}
 	options.DeploymentEnvironmentCommands, err = BuildDeploymentEnvironmentCommands(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create environment commands: %w", err)
