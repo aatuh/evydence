@@ -8,6 +8,53 @@ import (
 	"github.com/aatuh/evydence/internal/domain"
 )
 
+func TestIdempotencyUnitOfWorkReauthorizesBeforeReserveAndReplay(t *testing.T) {
+	ctx := t.Context()
+	memory := NewMemoryUnitOfWorkFactory()
+	actor := domain.Actor{TenantID: "ten_current", KeyID: "key_current"}
+	seedIdempotencyTenant(t, memory, actor.TenantID)
+	allowed := true
+	authorizations, runs := 0, 0
+	executor := IdempotencyUnitOfWork{Transactions: memory, Now: fixedNow, Authorize: func(ctx context.Context, repos Repositories) error {
+		authorizations++
+		return ExecuteUnitOfWork(ctx, memory, func(_ context.Context, nested Repositories) error {
+			if nested.Idempotency != repos.Idempotency {
+				t.Fatal("authorization opened a different transaction")
+			}
+			if !allowed {
+				return ErrForbidden
+			}
+			return nil
+		})
+	}}
+	command := func(context.Context, Repositories) (int, any, error) {
+		runs++
+		return 201, map[string]any{"id": "current"}, nil
+	}
+	request := func(key string) (int, any, error) {
+		return executor.WithBody(ctx, actor, "POST", "/current", key, []byte(`{}`), command)
+	}
+	for range 2 {
+		if status, _, err := request("same"); err != nil || status != 201 {
+			t.Fatal(status, err)
+		}
+	}
+	allowed = false
+	for _, key := range []string{"same", "new"} {
+		if status, response, err := request(key); !errors.Is(err, ErrForbidden) || status != 0 || response != nil {
+			t.Fatal("revoked authorization exposed replay or reserved a command", status, response, err)
+		}
+	}
+	snapshot, err := memory.Snapshot()
+	if err != nil || len(snapshot.Idempotency) != 1 || authorizations != 4 || runs != 1 {
+		t.Fatal("authorization must precede every reservation/replay", len(snapshot.Idempotency), authorizations, runs, err)
+	}
+	allowed = true
+	if status, _, err := request("same"); err != nil || status != 201 || runs != 1 {
+		t.Fatal("authorization rejection corrupted original replay", status, runs, err)
+	}
+}
+
 func TestIdempotencyUnitOfWorkCommitsCommandAndSafeReplay(t *testing.T) {
 	ctx := context.Background()
 	memory := NewMemoryUnitOfWorkFactory()

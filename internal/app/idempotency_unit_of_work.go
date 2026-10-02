@@ -18,6 +18,10 @@ type IdempotentUnitOfWorkCommand func(context.Context, Repositories) (int, any, 
 type IdempotencyUnitOfWork struct {
 	Transactions UnitOfWorkFactory
 	Now          func() time.Time
+	// Authorize is a request-scoped, read-only check of current access, run in
+	// the active transaction before reservation, including replay and failure.
+	// Omit only when the caller already enforces its current replay policy.
+	Authorize func(context.Context, Repositories) error
 }
 
 type idempotencyExecution struct {
@@ -73,6 +77,11 @@ func (executor IdempotencyUnitOfWork) withReservation(ctx context.Context, reser
 	err := ExecuteUnitOfWork(ctx, executor.Transactions, func(txCtx context.Context, repositories Repositories) error {
 		if repositories.Idempotency == nil {
 			return ErrValidation
+		}
+		if executor.Authorize != nil {
+			if err := executor.Authorize(withActiveRepositories(txCtx, repositories), repositories); err != nil {
+				return err
+			}
 		}
 		var err error
 		result, err = repositories.Idempotency.Reserve(txCtx, reservation)

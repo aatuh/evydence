@@ -393,6 +393,14 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create vulnerability decision query: %w", err)
 	}
+	options.VulnerabilityDecisionCommands, err = BuildVulnerabilityDecisionCommands(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create vulnerability decision commands: %w", err)
+	}
+	options.DurableCommandExecutor, err = BuildDurableCommandExecutor(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create durable command executor: %w", err)
+	}
 	options.VulnerabilityDecisionSummaryQuery, err = BuildVulnerabilityDecisionSummaryQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create vulnerability decision summary query: %w", err)

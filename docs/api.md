@@ -477,6 +477,11 @@ evidence links are rejected. `vex_document_id` can link a manual decision to an
 imported VEX document from the same release, including cases where automated VEX
 mapping did not create a decision.
 
+PostgreSQL manual creation and idempotency replay use current resource grants
+and one durable transaction without reloading Ledger state. See the
+[decision lifecycle reference](reference/vulnerability-decisions.md#canonical-lifecycle)
+for input bounds, append-only storage, and local-memory compatibility limits.
+
 Decision history:
 
 ```http

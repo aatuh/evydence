@@ -693,9 +693,18 @@ These trusted import/sync paths retain initial legacy rows and their raw
 ports. A same-ID historical content mismatch now fails instead of silently
 merging or ignoring changed metadata. Supersession timestamps use a supplied
 successor creation time or the time of import, never the predecessor's age.
-Focused command composition and HTTP binding remain EVY-905 work; the current
-decision route still uses its compatibility service. PostgreSQL backup commitments
-now use an explicit v2
+The PostgreSQL decision route now binds the focused command and a direct
+unit-of-work idempotency executor. Current tenant-owned finding coordinates and
+human product/project/release grants are checked before reservation or replay.
+The command, immutable supersession links, audit entries, and safe replay response
+share one transaction; neither Ledger cloning nor post-commit whole-state refresh
+is used on this route. Live HTTP tests use fresh servers and a store that rejects
+any Ledger reload after construction; they cover grant removal, foreign inputs,
+unchanged historical rows, note-free responses/replays, and rollback on decision,
+audit, replay-completion, and deferred commit failures. Local memory retains its
+explicit compatibility command. This route does not prove retirement of the
+remaining compatibility operations or startup load.
+PostgreSQL backup commitments now use an explicit v2
 profile that includes supersession history; the immutable v1 allowlist and
 digester remain available for historical reproduction. See
 [verification results](reference/verification-results.md#tenant-scoped-backup-manifest-generation).

@@ -89,6 +89,8 @@ type Server struct {
 	controlCommands                   ControlCommands
 	controlTemplateCommands           ControlTemplateCommands
 	controlEvidenceCommands           ControlEvidenceCommands
+	vulnerabilityDecisionCommands     VulnerabilityDecisionCommands
+	durableCommandExecutor            DurableCommandExecutor
 	evidenceCreationCommands          EvidenceCreationCommands
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
 	deploymentCommands                DeploymentCommands
@@ -236,6 +238,8 @@ type ServerOptions struct {
 	ControlCommands               ControlCommands
 	ControlTemplateCommands       ControlTemplateCommands
 	ControlEvidenceCommands       ControlEvidenceCommands
+	VulnerabilityDecisionCommands VulnerabilityDecisionCommands
+	DurableCommandExecutor        DurableCommandExecutor
 	EvidenceCreationCommands      EvidenceCreationCommands
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
 	DeploymentCommands            DeploymentCommands
@@ -353,6 +357,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if ctx == nil {
 		return nil, errors.New("server context is required")
 	}
+	if opts.VulnerabilityDecisionCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused decision commands require durable idempotency")
+	}
 	if ledger == nil {
 		var err error
 		ledger, err = app.NewLedgerWithContext(ctx, app.Config{})
@@ -419,6 +426,8 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.controlCommands = opts.ControlCommands
 	server.controlTemplateCommands = opts.ControlTemplateCommands
 	server.controlEvidenceCommands = opts.ControlEvidenceCommands
+	server.vulnerabilityDecisionCommands = opts.VulnerabilityDecisionCommands
+	server.durableCommandExecutor = opts.DurableCommandExecutor
 	server.evidenceCreationCommands = opts.EvidenceCreationCommands
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands
@@ -2791,6 +2800,10 @@ func (s *Server) getVulnerabilityScan(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createVulnerabilityDecision(w http.ResponseWriter, r *http.Request) {
+	if s.vulnerabilityDecisionCommands != nil {
+		s.createDurableVulnerabilityDecision(w, r)
+		return
+	}
 	var req struct {
 		Status          string              `json:"status"`
 		Justification   string              `json:"justification"`

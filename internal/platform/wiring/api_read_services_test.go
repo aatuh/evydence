@@ -45,6 +45,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.ControlEvidenceCommands != nil {
 		t.Fatal("local memory bound durable control evidence linking")
 	}
+	if memory.VulnerabilityDecisionCommands != nil || memory.DurableCommandExecutor != nil {
+		t.Fatal("local memory bound durable decision/idempotency commands")
+	}
 	if memory.ReleaseReadinessReportQuery != nil {
 		t.Fatal("local-memory profile unexpectedly bound durable readiness reports")
 	}
@@ -324,6 +327,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.ControlEvidenceCommands == nil {
 		t.Fatal("PostgreSQL control evidence linking still uses Ledger")
+	}
+	if options.VulnerabilityDecisionCommands == nil || options.DurableCommandExecutor == nil {
+		t.Fatal("PostgreSQL decision commands still use Ledger/idempotency")
 	}
 	if options.TrustConfigurationCommands == nil {
 		t.Fatal("PostgreSQL lacks durable trust commands")
