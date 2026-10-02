@@ -117,6 +117,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.SourceCommitCommands != nil {
 		t.Fatal("local memory bound durable source commit recording")
 	}
+	if memory.SourceBranchCommands != nil {
+		t.Fatal("local memory bound durable source branch upserts")
+	}
 	if memory.SigningCustodyQuery != nil {
 		t.Fatal("local memory bound durable custody query")
 	}
@@ -216,6 +219,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.SourceCommitCommands == nil {
 		t.Fatal("PostgreSQL source commit recording still uses Ledger")
+	}
+	if options.SourceBranchCommands == nil {
+		t.Fatal("PostgreSQL source branch upserts still use Ledger")
 	}
 	if options.SigningCustodyQuery == nil {
 		t.Fatal("PostgreSQL custody report still uses Ledger")

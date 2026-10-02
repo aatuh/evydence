@@ -655,7 +655,7 @@ repository, which serializes first creation and duplicate SHA reuse. Parent
 ownership and existing commit reads are bounded. Commit, audit and successful
 HTTP replay state share a transaction; failures roll back, replay adds no
 effects, and no outbox job is created. This endpoint migration does not remove
-the remaining Ledger-backed source branch, pull-request or CI workflows.
+the remaining Ledger-backed pull-request or CI workflows.
 
 Tenant/repository IDs are limited to 1024 UTF-8 bytes. Author metadata is trimmed,
 valid UTF-8, NUL-free and limited to 64 KiB; message input is limited to 64 KiB.
@@ -670,6 +670,52 @@ Source/test evidence: `internal/integration/app/source_commit_commands.go`,
 `internal/platform/wiring/source_commit_commands_test.go`,
 `internal/app/source_commit_reuse_test.go` and
 `internal/adapters/httpapi/source_commit_commands_test.go`.
+
+### Source Branch Upserts
+
+`POST /v1/source/branches` in the PostgreSQL profile uses a focused
+Integration command with `source:write`. The repository's current
+tenant/product/project ownership is authorized before branch or head-commit
+reads. Attached repositories require a current human product/project grant;
+detached repositories require a tenant-wide grant. Keys and collectors retain
+their tenant-scoped credential authorization.
+
+Normalized `(tenant, repository_id, name)` is branch identity. Creation and
+updates both return 201. An update preserves ID, name, schema version and
+creation time, while replacing `head_commit_id`, `protected` and
+`protection_hash`. Omitted values clear the head and protection hash and set
+`protected` to false; this is replacement, not PATCH behavior. A supplied head
+must exist in the same tenant and repository. A whitespace-only supplied head
+fails lookup rather than silently clearing an existing head.
+
+The shared source write adapter acquires the worker-projection fence before
+the repository-row lock, serializing first creation and subsequent updates.
+Only bounded ownership, head identity and branch metadata projections are
+read; repository clone URLs and commit author/message metadata are not loaded.
+Every executed update appends `source_branch.updated`, even when values are
+unchanged. Branch changes, audit entries and successful HTTP replay state share
+a transaction. Replay does not reapply an old branch state or append another
+audit; rollback leaves both the branch and audit unchanged. No outbox job is
+created. The explicit local-memory profile retains its compatibility path.
+
+Tenant, repository and head IDs are limited to 1024 UTF-8 bytes. Combined
+tenant/repository/normalized-name identity is limited to 2304 bytes to fit the
+unique index without relying on text compression. Protection-hash metadata is
+limited to 64 KiB. Text is trimmed, valid UTF-8 and NUL-free; the existing
+64 KiB HTTP envelope limit remains. Non-object bodies, null fields, unknown or
+duplicate fields and wrong types fail validation. Oversized or inconsistent
+stored branch metadata returns conflict without a truncated response.
+Historical rows and the v1 response shape are unchanged; new PostgreSQL-profile
+creation timestamps use UTC microseconds.
+
+The protection hash remains opaque submitted metadata, not a newly enforced
+digest format or a proof of provider branch protection. Recording does not
+verify provider identity, branch rules or repository contents. Do not put
+secrets in branch metadata.
+
+Source/test evidence: `internal/integration/app/source_branch_commands.go`,
+`internal/platform/wiring/source_branch_commands_test.go` and
+`internal/adapters/httpapi/source_branch_commands_test.go`.
 
 ### Deployment Environment Creation
 

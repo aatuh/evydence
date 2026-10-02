@@ -24,6 +24,17 @@ const MaxSourceRepositoryKeyBytes = 2304
 
 type SourceProjectIdentity struct{ ID, TenantID, ProductID string }
 type SourceRepositoryIdentity struct{ ID, TenantID, ProjectID, ProductID string }
+type SourceRepositoryWriteReader interface {
+	LockSourceRepositoryForWrite(context.Context, string, string) (SourceRepositoryIdentity, error)
+}
+
+func validateSourceRepositoryIdentity(v SourceRepositoryIdentity, tenant, id string) error {
+	if v.ID != id || !validSourceText(v.ID, 1024, false) || v.TenantID != tenant || !validSourceText(v.ProjectID, 1024, true) || v.ProjectID != "" && !validSourceText(v.ProductID, 1024, false) || v.ProjectID == "" && v.ProductID != "" {
+		return ErrNotFound
+	}
+	return nil
+}
+
 type SourceRepositoryCreationReader interface {
 	LockRepositoryCreation(context.Context, string) error
 	LockRepositoryProject(context.Context, string, string) (SourceProjectIdentity, error)
@@ -108,8 +119,8 @@ func (s *SourceRepositoryCommands) CreateSourceRepository(ctx context.Context, a
 			return err
 		}
 		if found {
-			if !validSourceText(identity.ID, 1024, false) || identity.TenantID != a.TenantID || !validSourceText(identity.ProjectID, 1024, true) || identity.ProjectID != "" && !validSourceText(identity.ProductID, 1024, false) || identity.ProjectID == "" && identity.ProductID != "" {
-				return ErrNotFound
+			if err := validateSourceRepositoryIdentity(identity, a.TenantID, identity.ID); err != nil {
+				return err
 			}
 			if err := tx.Authorize(ctx, a, sourceRepositoryAuthorization(identity.ProjectID, identity.ProductID)); err != nil {
 				return err

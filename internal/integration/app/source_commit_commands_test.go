@@ -45,7 +45,7 @@ func (f *sourceCommitFake) Authorize(ctx context.Context, a identitydomain.Actor
 	}
 	return integrationquery.NewSourceWriteAuthorizer().Authorize(ctx, a, r)
 }
-func (f *sourceCommitFake) LockSourceCommitRepository(context.Context, string, string) (SourceRepositoryIdentity, error) {
+func (f *sourceCommitFake) LockSourceRepositoryForWrite(context.Context, string, string) (SourceRepositoryIdentity, error) {
 	if f.failure == "repository" {
 		return SourceRepositoryIdentity{}, ErrNotFound
 	}

@@ -13,7 +13,7 @@ import (
 	integrationdomain "github.com/aatuh/evydence/internal/integration/domain"
 )
 
-func (r source) LockSourceCommitRepository(ctx context.Context, tenant, id string) (integrationapp.SourceRepositoryIdentity, error) {
+func (r source) LockSourceRepositoryForWrite(ctx context.Context, tenant, id string) (integrationapp.SourceRepositoryIdentity, error) {
 	// Projection/audit writers acquire this fence before relational locks.
 	// Locking the repository also serializes a SHA whose row does not exist yet.
 	if err := coordination.LockWorkerProjection(ctx, r.tx, tenant); err != nil {

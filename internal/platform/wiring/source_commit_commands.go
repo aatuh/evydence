@@ -42,8 +42,8 @@ type sourceCommitTransaction struct {
 func (t sourceCommitTransaction) Authorize(ctx context.Context, a identitydomain.Actor, r application.AuthorizationRequest) error {
 	return integrationquery.NewSourceWriteAuthorizer().Authorize(ctx, a, r)
 }
-func (t sourceCommitTransaction) LockSourceCommitRepository(ctx context.Context, tenant, id string) (integrationapp.SourceRepositoryIdentity, error) {
-	v, err := t.reader.LockSourceCommitRepository(ctx, tenant, id)
+func (t sourceCommitTransaction) LockSourceRepositoryForWrite(ctx context.Context, tenant, id string) (integrationapp.SourceRepositoryIdentity, error) {
+	v, err := t.reader.LockSourceRepositoryForWrite(ctx, tenant, id)
 	return v, mapSourceRepositoryWriteError(err)
 }
 func (t sourceCommitTransaction) SourceCommitBySHA(ctx context.Context, tenant, repository, sha string) (integrationdomain.SourceCommit, bool, error) {

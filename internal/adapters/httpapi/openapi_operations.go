@@ -641,7 +641,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Source commit creation request.", "#/components/schemas/RecordSourceCommitRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created source commit envelope.", "#/components/schemas/SourceCommitEnvelope")
 	case "upsertSourceBranch":
-		operation.Description = "Records or updates source branch metadata and protected-branch snapshot hash."
+		operation.Description = "Records or replaces source branch metadata after current repository tenant/project authorization before metadata reads. PostgreSQL mode requires any supplied head commit to belong to the same repository and tenant. Existing branch identity and creation time are retained; head, protected flag and protection hash are replaced, including defaults when omitted. Repository/name upserts serialize; each executed create/update and its audit persist in the same transaction with replay state. Combined tenant/repository/name identity is limited to 2304 UTF-8 bytes and protection hash metadata to 64 KiB. A supplied protection hash is recorded metadata only; recording does not verify provider identity or branch protection."
 		operation.RequestBody = jsonRequest("Source branch upsert request.", "#/components/schemas/UpsertSourceBranchRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Source branch envelope.", "#/components/schemas/SourceBranchEnvelope")
 	case "recordPullRequest":

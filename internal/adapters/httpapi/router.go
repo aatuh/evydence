@@ -75,6 +75,7 @@ type Server struct {
 	deploymentCommands                DeploymentCommands
 	sourceRepositoryCommands          SourceRepositoryCommands
 	sourceCommitCommands              SourceCommitCommands
+	sourceBranchCommands              SourceBranchCommands
 	subjectVerification               SubjectVerification
 	transparencyCheckpointCommands    TransparencyCheckpointCommands
 	merkleCreationCommands            MerkleCreationCommands
@@ -205,6 +206,7 @@ type ServerOptions struct {
 	DeploymentCommands            DeploymentCommands
 	SourceRepositoryCommands      SourceRepositoryCommands
 	SourceCommitCommands          SourceCommitCommands
+	SourceBranchCommands          SourceBranchCommands
 	// SubjectVerification dispatches every generic subject without Ledger fallback.
 	SubjectVerification            SubjectVerification
 	TransparencyCheckpointCommands TransparencyCheckpointCommands
@@ -371,6 +373,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.deploymentCommands = opts.DeploymentCommands
 	server.sourceRepositoryCommands = opts.SourceRepositoryCommands
 	server.sourceCommitCommands = opts.SourceCommitCommands
+	server.sourceBranchCommands = opts.SourceBranchCommands
 	server.subjectVerification = opts.SubjectVerification
 	server.transparencyCheckpointCommands = opts.TransparencyCheckpointCommands
 	server.merkleCreationCommands = opts.MerkleCreationCommands
@@ -1425,6 +1428,13 @@ func (s *Server) upsertSourceBranch(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
+		}
+		if s.sourceBranchCommands != nil {
+			if err := validateNonNullableObjectFields(body, "repository_id", "name", "head_commit_id", "protected", "protection_hash"); err != nil {
+				return 0, nil, err
+			}
+			v, err := s.sourceBranchCommands.UpsertSourceBranch(ctx, actor, integrationapp.UpsertSourceBranchInput{RepositoryID: req.RepositoryID, Name: req.Name, HeadCommitID: req.HeadCommitID, Protected: req.Protected, ProtectionHash: req.ProtectionHash})
+			return http.StatusCreated, sourceBranchFromCommand(v), mapSourceRepositoryCommandError(err)
 		}
 		branch, err := s.ledger.UpsertSourceBranch(ctx, actor, app.UpsertBranchInput{
 			RepositoryID: req.RepositoryID, Name: req.Name, HeadCommitID: req.HeadCommitID, Protected: req.Protected, ProtectionHash: req.ProtectionHash,

@@ -16,7 +16,7 @@ import (
 // SourceCommitReader exposes only current ownership and one bounded commit,
 // never repository contents or a tenant-wide source-state snapshot.
 type SourceCommitReader interface {
-	LockSourceCommitRepository(context.Context, string, string) (SourceRepositoryIdentity, error)
+	SourceRepositoryWriteReader
 	SourceCommitBySHA(context.Context, string, string, string) (integrationdomain.SourceCommit, bool, error)
 }
 type SourceCommitTransaction interface {
@@ -101,12 +101,12 @@ func (s *SourceCommitCommands) RecordSourceCommit(ctx context.Context, a identit
 		if err := tx.Authorize(ctx, a, scope); err != nil {
 			return err
 		}
-		r, err := tx.LockSourceCommitRepository(ctx, a.TenantID, in.RepositoryID)
+		r, err := tx.LockSourceRepositoryForWrite(ctx, a.TenantID, in.RepositoryID)
 		if err != nil {
 			return err
 		}
-		if r.ID != in.RepositoryID || r.TenantID != a.TenantID || !validSourceText(r.ProjectID, 1024, true) || r.ProjectID != "" && !validSourceText(r.ProductID, 1024, false) || r.ProjectID == "" && r.ProductID != "" {
-			return ErrNotFound
+		if err := validateSourceRepositoryIdentity(r, a.TenantID, in.RepositoryID); err != nil {
+			return err
 		}
 		if err := tx.Authorize(ctx, a, sourceRepositoryAuthorization(r.ProjectID, r.ProductID)); err != nil {
 			return err

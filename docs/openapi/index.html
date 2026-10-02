@@ -2846,13 +2846,13 @@
               <div><dt>Responses</dt><dd>201 application/json: SigningProviderEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/source/branches record source branch records or updates source branch metadata and protected-branch snapshot hash. upsertsourcebranch evydence source:write">
+          <article class="operation" data-operation data-search="post /v1/source/branches record source branch records or replaces source branch metadata after current repository tenant/project authorization before metadata reads. postgresql mode requires any supplied head commit to belong to the same repository and tenant. existing branch identity and creation time are retained; head, protected flag and protection hash are replaced, including defaults when omitted. repository/name upserts serialize; each executed create/update and its audit persist in the same transaction with replay state. combined tenant/repository/name identity is limited to 2304 utf-8 bytes and protection hash metadata to 64 kib. a supplied protection hash is recorded metadata only; recording does not verify provider identity or branch protection. upsertsourcebranch evydence source:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/source/branches</code>
             </div>
             <h3>Record source branch</h3>
-            <p>Records or updates source branch metadata and protected-branch snapshot hash.</p>
+            <p>Records or replaces source branch metadata after current repository tenant/project authorization before metadata reads. PostgreSQL mode requires any supplied head commit to belong to the same repository and tenant. Existing branch identity and creation time are retained; head, protected flag and protection hash are replaced, including defaults when omitted. Repository/name upserts serialize; each executed create/update and its audit persist in the same transaction with replay state. Combined tenant/repository/name identity is limited to 2304 UTF-8 bytes and protection hash metadata to 64 KiB. A supplied protection hash is recorded metadata only; recording does not verify provider identity or branch protection.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>upsertSourceBranch</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

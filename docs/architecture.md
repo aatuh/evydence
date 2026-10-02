@@ -470,6 +470,14 @@ audit and replay state are atomic. Raw commit messages never reach the storage
 or audit ports. See [source commit recording](api.md#source-commit-recording)
 for hash inputs, grant boundaries and metadata-only limitations.
 
+PostgreSQL-profile source branch upserts share the repository ownership and
+serialization port with source commit recording. A bounded head-commit identity
+read enforces tenant/repository binding without loading author metadata. A
+bounded branch read preserves creation identity while replacing current branch
+state. Each execution and audit is atomic, including unchanged updates; HTTP
+replay does not reapply old state. See [source branch upserts](api.md#source-branch-upserts)
+for replacement defaults, concurrency and submitted-protection limitations.
+
 PostgreSQL-profile deployment-environment creation uses an operations-owned
 command with tenant/product grants and bounded parent/name reads. The
 product-row lock serializes creation and original-row reuse without blocking
