@@ -13,9 +13,14 @@ import (
 	"github.com/aatuh/evydence/internal/app"
 	releaseapp "github.com/aatuh/evydence/internal/release/app"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
+	releasequery "github.com/aatuh/evydence/internal/release/query"
 )
 
 var _ releaseapp.BuildIdentityReader = releaseCatalog{}
+
+func (r releaseCatalog) ReadBuildArtifactGrant(ctx context.Context, request releasequery.ArtifactReadRequest) (releasequery.ArtifactPoint, error) {
+	return ReadArtifactGrant(ctx, r.tx, request)
+}
 
 type buildIdentityQueryer interface {
 	QueryRow(context.Context, string, ...any) pgx.Row

@@ -105,6 +105,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.ArtifactSignatureCommands != nil {
 		t.Fatal("local memory bound durable artifact signature creation")
 	}
+	if memory.BuildAttestationCommands != nil {
+		t.Fatal("local memory must keep explicit attestation compatibility binding")
+	}
 	if memory.DeploymentEnvironmentCommands != nil {
 		t.Fatal("local memory bound durable environment creation")
 	}
@@ -213,6 +216,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.ArtifactSignatureCommands == nil {
 		t.Fatal("PostgreSQL artifact signature creation still uses Ledger")
+	}
+	if options.BuildAttestationCommands == nil {
+		t.Fatal("PostgreSQL attestation upload still uses Ledger")
 	}
 	if options.DeploymentEnvironmentCommands == nil {
 		t.Fatal("PostgreSQL environment creation still uses Ledger")

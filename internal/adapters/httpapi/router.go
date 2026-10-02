@@ -71,6 +71,7 @@ type Server struct {
 	backupVerification                BackupVerification
 	backupGenerationCommands          BackupGenerationCommands
 	artifactSignatureCommands         ArtifactSignatureCommands
+	buildAttestationCommands          BuildAttestationCommands
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
 	deploymentCommands                DeploymentCommands
 	sourceRepositoryCommands          SourceRepositoryCommands
@@ -204,6 +205,7 @@ type ServerOptions struct {
 	BackupVerification            BackupVerification
 	BackupGenerationCommands      BackupGenerationCommands
 	ArtifactSignatureCommands     ArtifactSignatureCommands
+	BuildAttestationCommands      BuildAttestationCommands
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
 	DeploymentCommands            DeploymentCommands
 	SourceRepositoryCommands      SourceRepositoryCommands
@@ -373,6 +375,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.backupVerification = opts.BackupVerification
 	server.backupGenerationCommands = opts.BackupGenerationCommands
 	server.artifactSignatureCommands = opts.ArtifactSignatureCommands
+	server.buildAttestationCommands = opts.BuildAttestationCommands
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands
 	server.sourceRepositoryCommands = opts.SourceRepositoryCommands
@@ -1290,6 +1293,10 @@ func (s *Server) getBuild(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) uploadBuildAttestation(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+		if s.buildAttestationCommands != nil {
+			attestation, err := s.buildAttestationCommands.UploadBuildAttestation(ctx, actor, r.PathValue("id"), body)
+			return http.StatusCreated, buildAttestationFromCommand(attestation), mapBuildAttestationCommandError(err)
+		}
 		attestation, err := s.releaseCatalog.UploadBuildAttestation(ctx, actor, r.PathValue("id"), body)
 		return http.StatusCreated, attestation, err
 	})

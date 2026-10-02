@@ -72,8 +72,8 @@ func NewBuildAttestationCommands(config BuildAttestationCommandConfig) (*BuildAt
 }
 
 // releaseBuildAttestationTransactions is only the legacy/local Service bridge.
-// Durable composition must supply a focused runner directly; the production
-// attestation binding remains transitional until those adapters are migrated.
+// Durable composition supplies a focused runner directly; the PostgreSQL
+// attestation binding never uses this compatibility transaction adapter.
 type releaseBuildAttestationTransactions struct{ runner TransactionRunner }
 
 func (r releaseBuildAttestationTransactions) ExecuteBuildAttestation(ctx context.Context, fn func(context.Context, BuildAttestationTransaction) error) error {

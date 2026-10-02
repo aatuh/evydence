@@ -107,15 +107,16 @@ func runWithContext(ctx context.Context) error {
 	defer cancelStartup()
 	migrationsDir := envDefault("EVYDENCE_MIGRATIONS_DIR", "migrations")
 	runtime, err := wiring.OpenRuntime(startupCtx, wiring.RuntimeConfig{
-		Process:        wiring.API,
-		Profile:        profile,
-		Production:     production,
-		DatabaseURL:    databaseURL,
-		LoadMode:       os.Getenv("EVYDENCE_POSTGRES_LOAD_MODE"),
-		MigrationsDir:  migrationsDir,
-		SkipMigrations: strings.EqualFold(os.Getenv("EVYDENCE_SKIP_MIGRATIONS"), "true"),
-		ObjectStore:    wiring.ObjectStoreConfigFromEnv(),
-		Cosign:         cosignVerifier,
+		Process:            wiring.API,
+		Profile:            profile,
+		Production:         production,
+		WorkerOwnedParsers: cfg.WorkerOwnedParserSideEffects,
+		DatabaseURL:        databaseURL,
+		LoadMode:           os.Getenv("EVYDENCE_POSTGRES_LOAD_MODE"),
+		MigrationsDir:      migrationsDir,
+		SkipMigrations:     strings.EqualFold(os.Getenv("EVYDENCE_SKIP_MIGRATIONS"), "true"),
+		ObjectStore:        wiring.ObjectStoreConfigFromEnv(),
+		Cosign:             cosignVerifier,
 	})
 	if err != nil {
 		return err

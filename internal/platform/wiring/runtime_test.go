@@ -41,12 +41,12 @@ func TestOpenRuntimeRejectsUnsafeConfigurationBeforeOpeningAdapters(t *testing.T
 }
 
 func TestOpenRuntimeBuildsExplicitLocalMemoryMode(t *testing.T) {
-	runtime, err := OpenRuntime(t.Context(), RuntimeConfig{Process: API, Profile: LocalMemory, ObjectStore: ObjectStoreConfig{Backend: "filesystem", Directory: t.TempDir()}})
+	runtime, err := OpenRuntime(t.Context(), RuntimeConfig{Process: API, Profile: LocalMemory, WorkerOwnedParsers: true, ObjectStore: ObjectStoreConfig{Backend: "filesystem", Directory: t.TempDir()}})
 	if err != nil || runtime == nil {
 		t.Fatalf("local runtime=%#v error=%v", runtime, err)
 	}
 	defer runtime.Close()
-	if runtime.Process != API || runtime.Production || runtime.Profile != LocalMemory || runtime.Postgres != nil || runtime.Objects == nil || len(runtime.Profile.Limitations()) == 0 {
+	if runtime.Process != API || runtime.Production || runtime.Profile != LocalMemory || runtime.Postgres != nil || runtime.Objects == nil || !runtime.WorkerOwnedParsers || len(runtime.Profile.Limitations()) == 0 {
 		t.Fatalf("local runtime did not retain explicit limitations: %#v", runtime)
 	}
 }
@@ -102,14 +102,14 @@ func TestOpenRuntimeSharesPostgresMigrationAndObjectRules(t *testing.T) {
 	params.Set("search_path", schema)
 	parsed.RawQuery = params.Encode()
 	config := RuntimeConfig{
-		Process: Worker, Profile: PostgreSQL, DatabaseURL: parsed.String(),
+		Process: Worker, Profile: PostgreSQL, DatabaseURL: parsed.String(), WorkerOwnedParsers: true,
 		MigrationsDir: "../../../migrations", ObjectStore: ObjectStoreConfig{Backend: "filesystem", Directory: t.TempDir()},
 	}
 	runtime, err := OpenRuntime(ctx, config)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if runtime.Process != Worker || runtime.Production || runtime.Profile != PostgreSQL || runtime.Postgres == nil || runtime.Objects == nil {
+	if runtime.Process != Worker || runtime.Production || runtime.Profile != PostgreSQL || runtime.Postgres == nil || runtime.Objects == nil || !runtime.WorkerOwnedParsers {
 		t.Fatalf("incomplete durable runtime: %#v", runtime)
 	}
 	if err := runtime.Postgres.CheckMigrationState(ctx, config.MigrationsDir); err != nil {

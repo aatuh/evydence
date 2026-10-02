@@ -353,9 +353,21 @@ validates staged lifecycle identity, and prepares the existing evidence and
 parser-provenance fields. It hashes PostgreSQL-precision UTC timestamps before
 payload/finalization-job and evidence/audit writes. All ports must share the
 caller's active transaction; this writer opens none of its own. It records
-structural parsing, not signature trust. Durable transaction composition and
-production HTTP binding remain EVY-905 work; these ports do not yet retire the
-Ledger storage adapter or prove live atomicity for the new writer.
+structural parsing, not signature trust. The PostgreSQL API now composes the
+standalone command and Evidence capability on one unit of work, including
+transaction-bound parent/artifact authorization. The ingestion command neither
+reads cached builds nor maintains Ledger maps. Evidence, attestation, staged
+payload lifecycle, both audit entries and worker jobs commit atomically with
+durable HTTP replay. The existing
+`EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS` setting reaches this composition;
+inline mode keeps its parsed projection. Local-memory mode retains the explicit
+compatibility adapter. Replay retains the existing privacy-filtered response
+contract, which omits `payload_ref`. Focused live tests cover write-failure
+rollback, tenant/grant denial before staging, canonical hashes, exact finalized
+bytes, malformed HTTP bodies and replay through a fresh server with no cached
+build. Other production commands and the transitional Ledger-owned HTTP replay
+envelope, including its broad cache refresh after commit, remain EVY-905
+migration work; this is not complete Ledger retirement.
 
 API-key and SSO-session verification now has a
 standalone identity application service with narrow credential-read and

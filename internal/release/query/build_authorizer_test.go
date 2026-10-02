@@ -65,3 +65,32 @@ func TestBuildAuthorizerChecksOutputArtifactAgainstCurrentGrantAssociations(t *t
 		t.Fatal("nil artifact reader accepted")
 	}
 }
+
+func TestBuildAttestationAuthorizerRequiresResolvedParentGrants(t *testing.T) {
+	reader := &buildArtifactPointReaderFake{}
+	auth, err := NewBuildAttestationAuthorizer(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := application.AuthorizationRequest{Scope: "build:write", Resources: application.ResourceReferences{ProductID: "prod_1", ProjectID: "proj_1", ReleaseID: "rel_1", BuildID: "build_1"}}
+	actor := catalogActor("build:write", "project", "proj_1", "build:write")
+	if err := auth.Authorize(t.Context(), actor, r); err != nil {
+		t.Fatal("resolved build denied", err)
+	}
+	actor.ResourceGrants = nil
+	if err := auth.Authorize(t.Context(), actor, r); !errors.Is(err, application.ErrForbidden) {
+		t.Fatal("revoked parent grant accepted", err)
+	}
+	actor = catalogActor("build:write", "project", "proj_other", "build:write")
+	if err := auth.Authorize(t.Context(), actor, r); !errors.Is(err, application.ErrForbidden) {
+		t.Fatal("foreign parent grant accepted", err)
+	}
+	actor = catalogActor("build:write", "project", "proj_1", "build:write")
+	for _, mutate := range []func(*application.ResourceReferences){func(v *application.ResourceReferences) { v.ProductID = "" }, func(v *application.ResourceReferences) { v.ProjectID = "" }, func(v *application.ResourceReferences) { v.ReleaseID = "" }, func(v *application.ResourceReferences) { v.ArtifactID = "artifact" }, func(v *application.ResourceReferences) { v.DeploymentID = "deployment" }} {
+		bad := r
+		mutate(&bad.Resources)
+		if err := auth.Authorize(t.Context(), actor, bad); !errors.Is(err, application.ErrForbidden) {
+			t.Fatal("incomplete or unrelated reference accepted", bad, err)
+		}
+	}
+}

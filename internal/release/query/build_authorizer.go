@@ -21,6 +21,30 @@ type buildAuthorizer struct {
 	artifacts ArtifactPointReader
 }
 
+// NewBuildAttestationAuthorizer accepts the build identity resolved and checked
+// by the attestation command, while retaining parent and current artifact-grant
+// policy. A build ID alone never conveys authority.
+func NewBuildAttestationAuthorizer(artifacts ArtifactPointReader) (application.Authorizer, error) {
+	base, err := NewBuildAuthorizer(artifacts)
+	if err != nil {
+		return nil, err
+	}
+	return buildAttestationAuthorizer{base}, nil
+}
+
+type buildAttestationAuthorizer struct{ base application.Authorizer }
+
+func (a buildAttestationAuthorizer) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
+	refs := request.Resources
+	if refs.BuildID != "" {
+		if refs.ProductID == "" || refs.ProjectID == "" || refs.ReleaseID == "" || refs != (application.ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID, BuildID: refs.BuildID}) {
+			return application.ErrForbidden
+		}
+		request.Resources.BuildID = ""
+	}
+	return a.base.Authorize(ctx, actor, request)
+}
+
 func (a buildAuthorizer) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
 	if request.Scope != "build:write" {
 		return application.ErrForbidden
