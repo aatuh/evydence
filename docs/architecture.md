@@ -345,9 +345,8 @@ use creation-only focused service interfaces. Live HTTP tests use an empty
 Ledger and durable transaction factory to verify fresh-instance replay, point
 reads, build/evidence/source-repository/deployment consumers, tenant and grant
 rejection, and creation/audit failure rollback. Local-memory mode keeps its
-explicit compatibility bindings. Product creation and release transitions still
-use compatibility HTTP bindings while their remaining consumers migrate to
-current database reads.
+explicit compatibility bindings. Product creation still uses a compatibility
+HTTP binding while its remaining consumers migrate to current database reads.
 Standalone release freeze and approval commands read current tenant-owned
 release state and product coordinates through the active unit of work, not a
 pool reader. The factory-only builder uses bounded SQL fields and acquires the
@@ -358,8 +357,14 @@ current authorization, expected revision, and lifecycle state before appending
 the audit entry atomically. UTC transition times use microsecond precision.
 Live tests cover a pending product/release, freeze plus approval in one outer
 transaction, compound rollback and replay, wrong tenant/grants, stored-field
-bounds, and competing freezes with one state/audit winner. Production HTTP
-still uses the compatibility command binding.
+bounds, and competing freezes with one state/audit winner. Production freeze
+and approval HTTP now depend on a transition-only focused interface. Fresh
+server instances with an empty Ledger verify the complete response metadata,
+durable replay and point reads, safe current-revision conflicts, tenant and
+grant denial, and rollback of state changes when update or audit insertion
+fails. Local memory keeps its explicit compatibility binding. Conditional
+action fingerprints include the validated strong `If-Match` revision; changing
+it under the same key conflicts rather than replaying a different intent.
 The transactional catalog repositories now expose tenant-filtered project and
 release point reads that verify the parent product in the same read and lock
 the selected rows. Standalone artifact registration now looks up digests in

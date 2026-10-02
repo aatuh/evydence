@@ -177,6 +177,19 @@ with `VERSION_CONFLICT` and a safe `current_revision` value in Problem Details;
 read the resource again before deciding whether to retry. These transitions
 append audit history and do not alter immutable evidence records.
 
+In the PostgreSQL profile, freeze and approval use focused durable commands,
+not cached Ledger release state. They require `release:write` and, for human
+sessions, a matching tenant, product, or release grant. The locked transaction
+checks current parent ownership, authorization, revision, and state; the state
+change and audit entry commit together. Draft freeze advances the revision by
+one and sets `frozen_at`; frozen approval advances it once more and sets
+`approved_at`, preserving the immutable release metadata and freeze time.
+Foreign releases return `404`; grant denial returns `403` without revision
+metadata. Transition reads bound IDs to 1024 UTF-8 bytes and stored release
+versions/product slugs to 64 KiB, rejecting oversized stored fields with a
+conflict rather than returning truncated values. Local-memory mode keeps its
+explicit compatibility binding.
+
 ## Minimal Release Evidence Workflow
 
 The getting-started tutorial has a runnable curl flow. This section is the compact API shape for client implementers.

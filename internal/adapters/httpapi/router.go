@@ -81,6 +81,7 @@ type Server struct {
 	artifactCommands                  ArtifactCommands
 	projectCommands                   ProjectCommands
 	releaseCreationCommands           ReleaseCreationCommands
+	releaseStateCommands              ReleaseStateCommands
 	evidenceCreationCommands          EvidenceCreationCommands
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
 	deploymentCommands                DeploymentCommands
@@ -221,6 +222,7 @@ type ServerOptions struct {
 	ArtifactCommands              ArtifactCommands
 	ProjectCommands               ProjectCommands
 	ReleaseCreationCommands       ReleaseCreationCommands
+	ReleaseStateCommands          ReleaseStateCommands
 	EvidenceCreationCommands      EvidenceCreationCommands
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
 	DeploymentCommands            DeploymentCommands
@@ -397,6 +399,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.artifactCommands = opts.ArtifactCommands
 	server.projectCommands = opts.ProjectCommands
 	server.releaseCreationCommands = opts.ReleaseCreationCommands
+	server.releaseStateCommands = opts.ReleaseStateCommands
 	server.evidenceCreationCommands = opts.EvidenceCreationCommands
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands
@@ -986,6 +989,10 @@ func (s *Server) freezeRelease(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return 0, nil, err
 		}
+		if s.releaseStateCommands != nil {
+			release, err := s.releaseStateCommands.FreezeRelease(ctx, actor, r.PathValue("id"), expectedRevision)
+			return http.StatusOK, releaseFromCommand(release), mapReleaseStateCommandError(err)
+		}
 		release, err := s.releaseCatalog.FreezeRelease(ctx, actor, r.PathValue("id"), expectedRevision)
 		return http.StatusOK, release, err
 	})
@@ -996,6 +1003,10 @@ func (s *Server) approveRelease(w http.ResponseWriter, r *http.Request) {
 		expectedRevision, err := expectedRevisionFromIfMatch(r)
 		if err != nil {
 			return 0, nil, err
+		}
+		if s.releaseStateCommands != nil {
+			release, err := s.releaseStateCommands.ApproveRelease(ctx, actor, r.PathValue("id"), expectedRevision)
+			return http.StatusOK, releaseFromCommand(release), mapReleaseStateCommandError(err)
 		}
 		release, err := s.releaseCatalog.ApproveRelease(ctx, actor, r.PathValue("id"), expectedRevision)
 		return http.StatusOK, release, err
