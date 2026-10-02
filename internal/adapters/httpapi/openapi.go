@@ -999,7 +999,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"target_branch":   map[string]any{"type": "string"},
 		"head_commit_id":  map[string]any{"type": "string"},
 		"review_decision": map[string]any{"type": "string"},
-	}, "repository_id", "provider", "provider_id", "title", "state"))
+	}, "repository_id", "provider_id", "title", "state"))
 	registry.RegisterSchema("PullRequest", objectSchema(map[string]any{
 		"id":              map[string]any{"type": "string"},
 		"tenant_id":       map[string]any{"type": "string"},

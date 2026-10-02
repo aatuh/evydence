@@ -76,6 +76,7 @@ type Server struct {
 	sourceRepositoryCommands          SourceRepositoryCommands
 	sourceCommitCommands              SourceCommitCommands
 	sourceBranchCommands              SourceBranchCommands
+	pullRequestCommands               PullRequestCommands
 	subjectVerification               SubjectVerification
 	transparencyCheckpointCommands    TransparencyCheckpointCommands
 	merkleCreationCommands            MerkleCreationCommands
@@ -207,6 +208,7 @@ type ServerOptions struct {
 	SourceRepositoryCommands      SourceRepositoryCommands
 	SourceCommitCommands          SourceCommitCommands
 	SourceBranchCommands          SourceBranchCommands
+	PullRequestCommands           PullRequestCommands
 	// SubjectVerification dispatches every generic subject without Ledger fallback.
 	SubjectVerification            SubjectVerification
 	TransparencyCheckpointCommands TransparencyCheckpointCommands
@@ -374,6 +376,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.sourceRepositoryCommands = opts.SourceRepositoryCommands
 	server.sourceCommitCommands = opts.SourceCommitCommands
 	server.sourceBranchCommands = opts.SourceBranchCommands
+	server.pullRequestCommands = opts.PullRequestCommands
 	server.subjectVerification = opts.SubjectVerification
 	server.transparencyCheckpointCommands = opts.TransparencyCheckpointCommands
 	server.merkleCreationCommands = opts.MerkleCreationCommands
@@ -1458,6 +1461,13 @@ func (s *Server) recordPullRequest(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
+		}
+		if s.pullRequestCommands != nil {
+			if err := validateNonNullableObjectFields(body, "repository_id", "provider", "provider_id", "title", "state", "source_branch", "target_branch", "head_commit_id", "review_decision"); err != nil {
+				return 0, nil, err
+			}
+			v, err := s.pullRequestCommands.RecordPullRequest(ctx, actor, integrationapp.RecordPullRequestInput{RepositoryID: req.RepositoryID, Provider: req.Provider, ProviderID: req.ProviderID, Title: req.Title, State: req.State, SourceBranch: req.SourceBranch, TargetBranch: req.TargetBranch, HeadCommitID: req.HeadCommitID, ReviewDecision: req.ReviewDecision})
+			return http.StatusCreated, pullRequestFromCommand(v), mapSourceRepositoryCommandError(err)
 		}
 		pr, err := s.ledger.RecordPullRequest(ctx, actor, app.RecordPullRequestInput{
 			RepositoryID: req.RepositoryID, Provider: req.Provider, ProviderID: req.ProviderID, Title: req.Title, State: req.State,

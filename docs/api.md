@@ -655,7 +655,7 @@ repository, which serializes first creation and duplicate SHA reuse. Parent
 ownership and existing commit reads are bounded. Commit, audit and successful
 HTTP replay state share a transaction; failures roll back, replay adds no
 effects, and no outbox job is created. This endpoint migration does not remove
-the remaining Ledger-backed pull-request or CI workflows.
+the remaining Ledger-backed CI workflows.
 
 Tenant/repository IDs are limited to 1024 UTF-8 bytes. Author metadata is trimmed,
 valid UTF-8, NUL-free and limited to 64 KiB; message input is limited to 64 KiB.
@@ -716,6 +716,52 @@ secrets in branch metadata.
 Source/test evidence: `internal/integration/app/source_branch_commands.go`,
 `internal/platform/wiring/source_branch_commands_test.go` and
 `internal/adapters/httpapi/source_branch_commands_test.go`.
+
+### Pull-Request Recording
+
+`POST /v1/source/pull-requests` in the PostgreSQL profile uses an
+Integration-owned command with `source:write`. The current repository's
+tenant/product/project ownership is authorized before provider or head-commit
+reads. Human sessions need a current product/project grant for attached
+repositories or a tenant-wide grant for detached ones. Foreign-tenant
+repositories and foreign/wrong-repository heads return not found.
+
+Records are append-only snapshots, not an upsert keyed by provider ID. Each
+executed call creates a new record and `pull_request.recorded` audit, even if
+the same provider ID was recorded before. Earlier snapshots remain unchanged.
+HTTP idempotency replay returns the original response without another record or
+audit; changed content under the same key is rejected. Snapshot, audit and
+successful replay state share a transaction. Failed writes/commits leave no
+partial snapshot, and no outbox job is created. Creation returns 201 with the
+existing v1 response shape.
+
+An omitted/blank provider defaults to the stored repository provider; an
+explicit provider remains submitted metadata and need not match that default.
+The default is read through a bounded projection only after authorization.
+Repository clone URLs, head-commit author/message metadata and earlier
+pull-request records are not loaded. A supplied head must exist in the same
+tenant and repository; whitespace-only supplied heads fail lookup instead of
+silently becoming an omitted head. Source/target branch names and review
+decisions remain opaque metadata, not resolved branch IDs or approval policy.
+
+Tenant, repository and head IDs are limited to 1024 UTF-8 bytes. Provider,
+provider ID, title, source/target branch names and review-decision text are
+limited to 64 KiB; text is trimmed, valid UTF-8 and NUL-free. Provider ID and
+title are required, and state must be `open`, `closed` or `merged`. The existing
+64 KiB HTTP envelope limit remains. Non-object bodies, null fields, unknown or
+duplicate fields and wrong types fail validation. Oversized stored provider
+defaults return conflict without a truncated value. Historical records are
+unchanged; new PostgreSQL-profile creation timestamps use UTC microseconds.
+
+Title/review metadata is intentionally stored in the scoped snapshot, not in
+audit entries. Do not submit secrets. Recording does not contact a provider,
+verify repository contents, establish review approval or prove merge authority.
+Local-memory mode retains its compatibility path. Provider/CI source-snapshot
+workflows remain separate migration work.
+
+Source/test evidence: `internal/integration/app/pull_request_commands.go`,
+`internal/platform/wiring/pull_request_commands_test.go` and
+`internal/adapters/httpapi/pull_request_commands_test.go`.
 
 ### Deployment Environment Creation
 

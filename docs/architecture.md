@@ -478,6 +478,15 @@ state. Each execution and audit is atomic, including unchanged updates; HTTP
 replay does not reapply old state. See [source branch upserts](api.md#source-branch-upserts)
 for replacement defaults, concurrency and submitted-protection limitations.
 
+PostgreSQL-profile pull-request recording uses a focused Integration command
+with the shared repository ownership/locking and head-identity ports. Only the
+provider default is read when omitted, after authorization; no earlier snapshots
+or unrelated repository/commit metadata are loaded. Each executed call appends
+a snapshot and audit atomically with replay state, even for an already-recorded
+provider ID. Title/review text stays in the scoped record, not the audit. See
+[pull-request recording](api.md#pull-request-recording) for metadata defaults,
+replay behavior and provider-trust limitations.
+
 PostgreSQL-profile deployment-environment creation uses an operations-owned
 command with tenant/product grants and bounded parent/name reads. The
 product-row lock serializes creation and original-row reuse without blocking

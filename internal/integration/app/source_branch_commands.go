@@ -13,9 +13,20 @@ import (
 const MaxSourceBranchKeyBytes = 2304
 
 type SourceCommitIdentity struct{ ID, TenantID, RepositoryID string }
+type SourceCommitIdentityReader interface {
+	SourceCommitIdentityByID(context.Context, string, string, string) (SourceCommitIdentity, error)
+}
+
+func validateSourceCommitIdentity(v SourceCommitIdentity, tenant, repository, id string) error {
+	if v.ID != id || v.ID == "" || v.TenantID != tenant || v.RepositoryID != repository {
+		return ErrNotFound
+	}
+	return nil
+}
+
 type SourceBranchReader interface {
 	SourceRepositoryWriteReader
-	SourceCommitIdentityByID(context.Context, string, string, string) (SourceCommitIdentity, error)
+	SourceCommitIdentityReader
 	SourceBranchByName(context.Context, string, string, string) (integrationdomain.SourceBranch, bool, error)
 }
 type SourceBranchTransaction interface {
@@ -86,8 +97,8 @@ func (s *SourceBranchCommands) UpsertSourceBranch(ctx context.Context, a identit
 			if err != nil {
 				return err
 			}
-			if h.ID != in.HeadCommitID || h.ID == "" || h.TenantID != a.TenantID || h.RepositoryID != r.ID {
-				return ErrNotFound
+			if err := validateSourceCommitIdentity(h, a.TenantID, r.ID, in.HeadCommitID); err != nil {
+				return err
 			}
 		}
 		v, found, err := tx.SourceBranchByName(ctx, a.TenantID, r.ID, in.Name)

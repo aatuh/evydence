@@ -645,7 +645,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Source branch upsert request.", "#/components/schemas/UpsertSourceBranchRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Source branch envelope.", "#/components/schemas/SourceBranchEnvelope")
 	case "recordPullRequest":
-		operation.Description = "Records pull-request review metadata linked to source repository evidence."
+		operation.Description = "Records an append-only pull-request metadata snapshot after current repository tenant/project authorization before metadata reads. Any supplied head commit must belong to the same repository and tenant. Each non-replayed call creates a new snapshot, even for the same provider ID; recording does not update an earlier snapshot. An omitted provider defaults to the stored repository provider. Snapshot, audit and HTTP replay state persist in the same transaction. Tenant/repository/head IDs are bounded to 1024 UTF-8 bytes and submitted metadata to 64 KiB; states are open, closed or merged. Recording does not verify provider identity, repository contents, review approval or merge authority."
 		operation.RequestBody = jsonRequest("Pull request record request.", "#/components/schemas/RecordPullRequestRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created pull request envelope.", "#/components/schemas/PullRequestEnvelope")
 	case "createDeploymentEnvironment":
