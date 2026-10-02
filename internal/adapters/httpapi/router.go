@@ -77,6 +77,7 @@ type Server struct {
 	artifactSignatureCommands         ArtifactSignatureCommands
 	buildAttestationCommands          BuildAttestationCommands
 	buildCommands                     BuildCommands
+	containerImageCommands            ContainerImageCommands
 	evidenceCreationCommands          EvidenceCreationCommands
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
 	deploymentCommands                DeploymentCommands
@@ -213,6 +214,7 @@ type ServerOptions struct {
 	ArtifactSignatureCommands     ArtifactSignatureCommands
 	BuildAttestationCommands      BuildAttestationCommands
 	BuildCommands                 BuildCommands
+	ContainerImageCommands        ContainerImageCommands
 	EvidenceCreationCommands      EvidenceCreationCommands
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
 	DeploymentCommands            DeploymentCommands
@@ -385,6 +387,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.artifactSignatureCommands = opts.ArtifactSignatureCommands
 	server.buildAttestationCommands = opts.BuildAttestationCommands
 	server.buildCommands = opts.BuildCommands
+	server.containerImageCommands = opts.ContainerImageCommands
 	server.evidenceCreationCommands = opts.EvidenceCreationCommands
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands
@@ -1135,6 +1138,12 @@ func (s *Server) registerContainerImage(w http.ResponseWriter, r *http.Request) 
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
+		}
+		if s.containerImageCommands != nil {
+			image, err := s.containerImageCommands.RegisterContainerImage(ctx, actor, releaseapp.RegisterContainerImageInput{
+				ArtifactID: req.ArtifactID, Repository: req.Repository, Tag: req.Tag, Digest: req.Digest, Platform: req.Platform,
+			})
+			return http.StatusCreated, containerImageFromCommand(image), mapBuildAttestationCommandError(err)
 		}
 		image, err := s.releaseCatalog.RegisterContainerImage(ctx, actor, app.RegisterContainerImageInput{
 			ArtifactID: req.ArtifactID, Repository: req.Repository, Tag: req.Tag, Digest: req.Digest, Platform: req.Platform,

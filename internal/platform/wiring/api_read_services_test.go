@@ -111,6 +111,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.BuildCommands != nil {
 		t.Fatal("local memory must keep explicit build creation compatibility binding")
 	}
+	if memory.ContainerImageCommands != nil {
+		t.Fatal("local memory must keep explicit container image compatibility binding")
+	}
 	if memory.EvidenceCreationCommands != nil {
 		t.Fatal("local memory must keep explicit evidence compatibility binding")
 	}
@@ -228,6 +231,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.BuildCommands == nil {
 		t.Fatal("PostgreSQL build creation still uses Ledger")
+	}
+	if options.ContainerImageCommands == nil {
+		t.Fatal("PostgreSQL container image registration still uses Ledger")
 	}
 	if options.EvidenceCreationCommands == nil {
 		t.Fatal("PostgreSQL evidence creation still uses Ledger")

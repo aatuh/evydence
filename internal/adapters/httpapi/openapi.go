@@ -1170,13 +1170,15 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"schema_version": map[string]any{"type": "string"},
 	}, "id", "name", "slug", "version", "controls", "schema_version"))
 	registry.RegisterSchema("ControlFrameworkTemplatePackListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/ControlFrameworkTemplatePack"))
-	registry.RegisterSchema("RegisterContainerImageRequest", objectSchema(map[string]any{
+	registerContainerImageRequest := objectSchema(map[string]any{
 		"artifact_id": map[string]any{"type": "string"},
 		"repository":  map[string]any{"type": "string"},
 		"tag":         map[string]any{"type": "string"},
 		"digest":      map[string]any{"type": "string"},
 		"platform":    map[string]any{"type": "string"},
-	}, "repository", "digest"))
+	}, "repository", "digest")
+	registerContainerImageRequest["description"] = "PostgreSQL profile: normalized artifact IDs are limited to 1024 UTF-8 bytes and repository text to 65536 bytes. Newly stored tag and platform text are limited to 65536 UTF-8 bytes. Stored text must be NUL-free. Reuse of a tenant/repository/digest identity returns the original immutable image, ignoring submitted tag and platform. Registration records submitted metadata; it does not download or verify a registry image."
+	registry.RegisterSchema("RegisterContainerImageRequest", registerContainerImageRequest)
 	registry.RegisterSchema("ContainerImage", objectSchema(map[string]any{
 		"id":             map[string]any{"type": "string"},
 		"tenant_id":      map[string]any{"type": "string"},

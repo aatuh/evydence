@@ -591,6 +591,22 @@ Metadata must be JSON-serializable. Invalid input is rejected before repository
 reads or writes, without exposing database errors. Submitted CI identity remains
 unverified metadata; it cannot set `oidc_verified` to `true`.
 
+Container-image registration in the PostgreSQL profile uses current durable
+artifact coordinates and grants, not cached Ledger artifacts. It requires
+`evidence:write`; human sessions must also be authorized for a supplied artifact
+or an existing image's actual artifact association, even if `artifact_id` is
+omitted. Reuse of `(tenant, repository, digest)` returns the original immutable
+image without another audit entry; submitted tag and platform do not amend it.
+Same-key HTTP replay also returns the original result; changed input with that
+key conflicts.
+
+Normalized artifact IDs are limited to 1 KiB of UTF-8 bytes and repository text
+to 64 KiB. New stored tag/platform text is limited to 64 KiB of UTF-8 bytes and
+must be NUL-free. Unsupported new storage text returns `400` without writes;
+oversized existing records return `409`, never truncated metadata. Explicit
+local-memory mode keeps its compatibility path. Registration records submitted
+metadata; it does not download or verify a registry image.
+
 ### Source Repository Creation
 
 `POST /v1/source/repositories` in the PostgreSQL profile uses an Integration-owned

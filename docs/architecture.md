@@ -424,8 +424,12 @@ valid UTF-8 without NUL characters. The adapter takes the worker-projection fenc
 before relational locks and serializes absent repository/digest reuse with a
 tenant row lock. Live regressions cover giant unrelated artifact metadata,
 pending grants, compound rollback/replay, audit failure and concurrent reuse.
-Production HTTP still uses the compatibility binding until this adapter is
-composed; these checks do not establish Ledger retirement or multi-writer support.
+The PostgreSQL HTTP profile now binds this command directly. Fresh-server HTTP
+tests use uncached artifacts and cover immutable replay/reuse, current grants,
+malformed input, private backend errors and atomic image/audit rollback. The
+explicit local-memory profile retains its compatibility binding. The outer
+Ledger replay/refresh envelope still needs migration; these checks do not
+establish Ledger retirement or multi-writer support.
 
 API-key and SSO-session verification now has a
 standalone identity application service with narrow credential-read and
