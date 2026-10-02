@@ -31,6 +31,8 @@ import (
 	operationsapp "github.com/aatuh/evydence/internal/operations/app"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	"github.com/aatuh/evydence/internal/platform/jsonbounds"
+	releaseapp "github.com/aatuh/evydence/internal/release/app"
+	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 	releasequery "github.com/aatuh/evydence/internal/release/query"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 	riskquery "github.com/aatuh/evydence/internal/risk/query"
@@ -74,6 +76,7 @@ type Server struct {
 	backupGenerationCommands          BackupGenerationCommands
 	artifactSignatureCommands         ArtifactSignatureCommands
 	buildAttestationCommands          BuildAttestationCommands
+	buildCommands                     BuildCommands
 	evidenceCreationCommands          EvidenceCreationCommands
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
 	deploymentCommands                DeploymentCommands
@@ -209,6 +212,7 @@ type ServerOptions struct {
 	BackupGenerationCommands      BackupGenerationCommands
 	ArtifactSignatureCommands     ArtifactSignatureCommands
 	BuildAttestationCommands      BuildAttestationCommands
+	BuildCommands                 BuildCommands
 	EvidenceCreationCommands      EvidenceCreationCommands
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
 	DeploymentCommands            DeploymentCommands
@@ -380,6 +384,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.backupGenerationCommands = opts.BackupGenerationCommands
 	server.artifactSignatureCommands = opts.ArtifactSignatureCommands
 	server.buildAttestationCommands = opts.BuildAttestationCommands
+	server.buildCommands = opts.BuildCommands
 	server.evidenceCreationCommands = opts.EvidenceCreationCommands
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands
@@ -1248,6 +1253,21 @@ func (s *Server) createBuild(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
+		}
+		if s.buildCommands != nil {
+			outputs := make([]releasedomain.BuildOutput, 0, len(req.Outputs))
+			for _, output := range req.Outputs {
+				outputs = append(outputs, releasedomain.BuildOutput{ArtifactID: output.ArtifactID, Digest: output.Digest})
+			}
+			build, err := s.buildCommands.CreateBuildRun(ctx, actor, releaseapp.CreateBuildRunInput{
+				ProjectID: req.ProjectID, ReleaseID: req.ReleaseID, Provider: req.Provider, CommitSHA: req.CommitSHA,
+				Repository: req.Repository, WorkflowRef: req.WorkflowRef, RunID: req.RunID, RunAttempt: req.RunAttempt,
+				JobID: req.JobID, GitHubActor: req.GitHubActor, Ref: req.Ref, OIDCSubject: req.OIDCSubject,
+				Status: req.Status, StartedAt: req.StartedAt, FinishedAt: req.FinishedAt,
+				ParametersHash: req.ParametersHash, EnvironmentHash: req.EnvironmentHash,
+				ProviderMetadata: req.ProviderMetadata, Outputs: outputs,
+			})
+			return http.StatusCreated, buildRunFromQuery(build), mapBuildAttestationCommandError(err)
 		}
 		build, err := s.releaseCatalog.CreateBuildRun(ctx, actor, app.CreateBuildRunInput{
 			ProjectID:        req.ProjectID,

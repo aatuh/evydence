@@ -54,7 +54,7 @@ func TestCreateBuildRunPreservesLegacyInputAndCommitsAtomically(t *testing.T) {
 	if build.SourceIdentity["source"] != "collector" || build.SourceIdentity["collector_id"] != fixture.actor.CollectorID || build.SourceIdentity["custom"] != "retained" {
 		t.Fatalf("source identity = %#v", build.SourceIdentity)
 	}
-	if len(fixture.authorizer.requests) != 3 {
+	if len(fixture.authorizer.requests) != 5 {
 		t.Fatalf("authorization requests = %#v", fixture.authorizer.requests)
 	}
 	wantResources := application.ResourceReferences{ProductID: product.ID, ProjectID: project.ID, ReleaseID: release.ID}
@@ -64,6 +64,9 @@ func TestCreateBuildRunPreservesLegacyInputAndCommitsAtomically(t *testing.T) {
 	wantArtifactResources := application.ResourceReferences{ArtifactID: artifact.ID}
 	if request := fixture.authorizer.requests[2]; request.Scope != ScopeBuildWrite || request.Resources != wantArtifactResources || request.ScopeOnly {
 		t.Fatalf("artifact authorization = %#v", request)
+	}
+	if fixture.authorizer.requests[3] != fixture.authorizer.requests[1] || fixture.authorizer.requests[4] != fixture.authorizer.requests[2] {
+		t.Fatal("transaction did not reauthorize identical parents and artifact", fixture.authorizer.requests)
 	}
 	stored, ok := fixture.transactions.state.builds[build.ID]
 	if !ok || !reflect.DeepEqual(stored, build) {

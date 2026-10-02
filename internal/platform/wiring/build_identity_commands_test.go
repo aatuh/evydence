@@ -30,7 +30,7 @@ func TestPostgresBuildCreationReadsOnlyCurrentCoordinates(t *testing.T) {
 	exec(`INSERT INTO releases(id,tenant_id,product_id,version,state,created_at)VALUES('release','tenant','product','1.0.0','draft',now()),('other-release','tenant','other-product','1.0.0','draft',now()),('foreign','other','foreign','1.0.0','draft',now())`)
 	digest := "sha256:" + strings.Repeat("a", 64)
 	exec(`INSERT INTO artifacts(id,tenant_id,name,media_type,size,digest,created_at)VALUES('artifact','tenant',repeat('x',9000000),repeat('x',9000000),1,$1,now()),('foreign','other','Foreign','application/octet-stream',1,$1,now())`, digest)
-	commands, err := BuildBuildCommands(store, store)
+	commands, err := BuildBuildCommands(store)
 	if err != nil {
 		t.Fatal(err)
 	}

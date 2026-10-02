@@ -339,7 +339,7 @@ release point reads that verify the parent product in the same read and lock
 the selected rows. Standalone artifact registration now looks up digests in
 current tenant-scoped rows, authorizes reuse of an existing artifact, and
 recovers from concurrent digest inserts without a duplicate audit entry. A
-standalone build-create command reads only project tenant/product ownership,
+focused build-create command reads only project tenant/product ownership,
 release tenant/product/version coordinates, and output artifact tenant/digest
 identity, then rechecks them under share locks in the write transaction. Its
 PostgreSQL adapter acquires the worker-projection fence before those relational
@@ -349,15 +349,22 @@ conflict, never truncated values. Product/project names, artifact names/media
 types and release lifecycle metadata do not enter this command. Human output
 grants use the existing current tenant-valid evidence/build association
 predicates through an identity-only projection, not Ledger artifact links or
-artifact metadata. Build and audit effects are atomic with durable HTTP replay
-when called through the idempotency executor. CI-provided source metadata
+artifact metadata. Parent and output-artifact authorization is repeated against
+the transaction's current coordinates before any writes. Initial reads reuse
+the active idempotency transaction, so pending parents and output associations
+are visible without a separate pool connection. Build and audit effects are
+atomic with durable HTTP replay when called through the idempotency executor.
+CI-provided source metadata
 remains unverified metadata, including a forced `oidc_verified: false` that
 submitted metadata cannot override. Live regression tests in
 `internal/platform/wiring/build_identity_commands_test.go` exercise large
-unrelated metadata, tenant/grant isolation, rollback and replay. Production HTTP
-still uses the compatibility command binding until downstream attestation and
-evidence consumers can read these durable builds; this adapter alone does not
-complete that migration.
+unrelated metadata, tenant/grant isolation, rollback and replay. The PostgreSQL
+HTTP profile now binds this focused command. Tests in
+`internal/platform/wiring/build_creation_commands_test.go` cover pending parent
+visibility, build and audit failures, and the HTTP build-to-evidence-to-attestation
+flow without cached parents or builds. The explicit local-memory profile keeps
+the compatibility command binding. Startup loading and the outer Ledger replay
+and refresh envelope remain migration work; this binding does not remove them.
 
 Build-attestation upload orchestration now lives in the standalone Release
 `BuildAttestationCommands`. Its four-read, fixed-shape transaction port rechecks

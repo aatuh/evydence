@@ -27,6 +27,7 @@ type BuildIdentityReader interface {
 }
 
 type BuildTransaction interface {
+	application.Authorizer
 	GetProject(context.Context, string, string) (releasedomain.Project, error)
 	GetRelease(context.Context, string, string) (releasedomain.Release, error)
 	GetArtifact(context.Context, string, string) (releasedomain.Artifact, error)
@@ -152,6 +153,9 @@ func (s *BuildCommands) CreateBuildRun(ctx context.Context, actor identitydomain
 		if !sameReleaseCoordinates(currentRelease, release) || currentProject.ProductID != currentRelease.ProductID {
 			return ErrConflict
 		}
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeBuildWrite, Resources: resources}); err != nil {
+			return err
+		}
 		for id, artifact := range artifacts {
 			current, err := tx.GetArtifact(ctx, actor.TenantID, id)
 			if err != nil {
@@ -162,6 +166,9 @@ func (s *BuildCommands) CreateBuildRun(ctx context.Context, actor identitydomain
 			}
 			if !sameArtifactCoordinates(current, artifact) {
 				return ErrConflict
+			}
+			if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeBuildWrite, Resources: application.ResourceReferences{ArtifactID: id}}); err != nil {
+				return err
 			}
 		}
 		if err := tx.InsertBuildRun(ctx, build); err != nil {
@@ -185,6 +192,10 @@ func (r releaseBuildTransactions) ExecuteBuild(ctx context.Context, command func
 }
 
 type releaseBuildTransaction struct{ tx Transaction }
+
+func (t releaseBuildTransaction) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
+	return t.tx.Authorization().Authorize(ctx, actor, request)
+}
 
 func (t releaseBuildTransaction) GetProject(ctx context.Context, tenantID, id string) (releasedomain.Project, error) {
 	return t.tx.Catalog().GetProject(ctx, tenantID, id)

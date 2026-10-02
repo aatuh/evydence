@@ -250,7 +250,7 @@ func TestPostgresCatalogCommandsCommitProductProjectReleaseArtifactBuildAuditAnd
 	if err := buildAuthorizer.Authorize(ctx, human, artifactWrite); !errors.Is(err, application.ErrForbidden) {
 		t.Fatalf("unlinked output artifact authorized: %v", err)
 	}
-	builds, err := BuildBuildCommands(runtime.Postgres, runtime.Postgres)
+	builds, err := BuildBuildCommands(runtime.Postgres)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -59,3 +59,28 @@ func TestStandaloneBuildCommandsPreserveParentArtifactAndAuditBoundaries(t *test
 		t.Fatalf("audit failure committed a build: %#v", fixture.transactions.state)
 	}
 }
+
+func TestBuildCreationReauthorizesParentsAndArtifactsBeforeAnyWrites(t *testing.T) {
+	for _, deniedResource := range []string{"parent", "artifact"} {
+		t.Run(deniedResource, func(t *testing.T) {
+			fixture := newServiceFixture(t)
+			_, project, release := seedReleaseScope(t, fixture)
+			digest := testSHA256('a')
+			artifact := releasedomain.Artifact{ID: "artifact", TenantID: fixture.actor.TenantID, Digest: digest}
+			fixture.reader.artifacts[artifact.ID] = artifact
+			fixture.transactions.state.artifacts[artifact.ID] = artifact
+			fixture.transactions.beforeCommand = func(_ *fakeState) {
+				fixture.authorizer.authorize = func(r application.AuthorizationRequest) error {
+					if deniedResource == "parent" && r.Resources.ProjectID != "" || deniedResource == "artifact" && r.Resources.ArtifactID != "" {
+						return application.ErrForbidden
+					}
+					return nil
+				}
+			}
+			v, err := fixture.service.CreateBuildRun(t.Context(), fixture.actor, CreateBuildRunInput{ProjectID: project.ID, ReleaseID: release.ID, Provider: "generic_ci", CommitSHA: strings.Repeat("a", 40), Status: "passed", StartedAt: fixture.now, Outputs: []releasedomain.BuildOutput{{ArtifactID: artifact.ID, Digest: digest}}})
+			if !errors.Is(err, application.ErrForbidden) || v.ID != "" || len(fixture.transactions.state.builds) != 0 || len(fixture.transactions.state.audit) != 0 || fixture.transactions.commits != 0 || fixture.transactions.rollbacks != 1 {
+				t.Fatal("revoked authority committed build", v, err, fixture.transactions)
+			}
+		})
+	}
+}
