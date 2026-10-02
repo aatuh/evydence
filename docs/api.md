@@ -210,6 +210,10 @@ Product slugs are trimmed and must contain no more than 1024 UTF-8 bytes. Longer
 slugs return `400 VALIDATION_FAILED` before a database write; this limit keeps
 the per-tenant natural identity within the supported PostgreSQL index budget.
 
+Product create, read, and list responses contain `id`, `tenant_id`, `name`,
+`slug`, and `created_at`. They do not return `schema_version`; the corrected
+OpenAPI schema no longer advertises or requires that unsupported field.
+
 Representative response shape:
 
 ```json

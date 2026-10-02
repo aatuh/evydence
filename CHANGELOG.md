@@ -54,6 +54,11 @@ release artifacts.
 
 ### Changed
 
+- Corrected the `Product` OpenAPI response schema to omit the unsupported
+  `schema_version` field. Create, read, and list JSON and stored product records
+  are unchanged; clients must not require a field the server never returned.
+  See [the migration note](docs/reference/api-versioning.md#unreleased-product-schema-correction).
+
 - PostgreSQL GitHub/GitLab source snapshots now compose focused Integration
   commands in one transaction, including audit and idempotency state. Late
   failures roll back earlier inserts and branch updates, and repository reuse

@@ -1757,13 +1757,12 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"slug": map[string]any{"type": "string", "description": "Nonempty product slug, trimmed before validation; at most 1024 UTF-8 bytes so the tenant/slug natural identity fits the supported PostgreSQL index."},
 	}, "name", "slug"))
 	registry.RegisterSchema("Product", objectSchema(map[string]any{
-		"id":             map[string]any{"type": "string"},
-		"tenant_id":      map[string]any{"type": "string"},
-		"name":           map[string]any{"type": "string"},
-		"slug":           map[string]any{"type": "string"},
-		"schema_version": map[string]any{"type": "string"},
-		"created_at":     map[string]any{"type": "string", "format": "date-time"},
-	}, "id", "tenant_id", "name", "slug", "schema_version", "created_at"))
+		"id":         map[string]any{"type": "string"},
+		"tenant_id":  map[string]any{"type": "string"},
+		"name":       map[string]any{"type": "string"},
+		"slug":       map[string]any{"type": "string"},
+		"created_at": map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "name", "slug", "created_at"))
 	registry.RegisterSchema("ProductEnvelope", dataEnvelopeSchema("#/components/schemas/Product"))
 	registry.RegisterSchema("ProductListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/Product"))
 	createProjectRequest := objectSchema(map[string]any{

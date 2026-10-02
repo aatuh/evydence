@@ -83,6 +83,17 @@ These contracts are documented under
 [provider source snapshots](../api.md#provider-source-snapshots). No stored
 schema migration is required, and historical source rows remain unchanged.
 
+## Unreleased Product Schema Correction
+
+The `Product` response schema no longer advertises or requires
+`schema_version`. Product creation, point reads, and lists already return only
+`id`, `tenant_id`, `name`, `slug`, and `created_at`. This corrects the schema,
+not the runtime JSON or persisted product records. Clients generated from the
+older schema must not require the nonexistent field; regenerate them from the
+corrected contract. No database migration is needed. This correction does not
+approve additional compatibility changes or supersede the exact prerelease
+change record above; the compatibility gate must still pass before closure.
+
 ## Stable-Line Rule
 
 A stable `/v1` line permits additive fields, endpoints, and optional filters.
