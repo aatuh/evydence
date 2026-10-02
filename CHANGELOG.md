@@ -13,6 +13,10 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Candidate transition requests now mark `reason` required in OpenAPI, matching
+the existing promotion/rejection validation. See the
+[migration note](docs/reference/api-versioning.md#unreleased-candidate-transition-schema-correction).
+
 ### Added
 
 - Production control coverage and CRA readiness reports now use bounded, tenant-scoped PostgreSQL snapshots with current-subject validation, actual subject timestamps for freshness, and fail-closed capacity limits. Local-memory mode retains its compatibility report path.

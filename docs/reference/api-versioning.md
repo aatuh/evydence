@@ -36,6 +36,15 @@ The gate never fetches a baseline or resolves external OpenAPI references. It
 uses only the checked-in release artifact and invokes `oasdiff` with structured
 arguments and external-reference loading disabled.
 
+## Unreleased Candidate Transition Schema Correction
+
+`ReleaseCandidateTransitionRequest.reason` is now required in OpenAPI. Both
+promotion and rejection already reject a missing or blank reason with `400`;
+this corrects the generated contract, not runtime request acceptance. Clients
+generated from an older schema must supply a non-empty `reason` together with
+the documented strong `If-Match` revision. The schema correction is a
+compatibility-gate change, not an approved exception or evidence of a release.
+
 ## Prerelease Baseline Reconciliation
 
 The current baseline is the published `v0.1.0-rc.7` OpenAPI asset with digest

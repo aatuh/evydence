@@ -881,7 +881,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "release_id", "name"))
 	candidateTransitionRequest := objectSchema(map[string]any{
 		"reason": map[string]any{"type": "string"},
-	})
+	}, "reason")
 	candidateTransitionRequest["description"] = "Promotion/rejection requires a non-empty trimmed reason and a strong If-Match revision. In PostgreSQL, reason must be NUL-free UTF-8 and at most 64 KiB of UTF-8 bytes; the entire HTTP JSON body is also capped at 64 KiB. A focused command reads one locked candidate and its tenant-owned release/product coordinate, requires release:write and a matching tenant/product/release grant for human sessions, and authorizes before exposing revision conflicts. Only open candidates at the expected revision transition. State/revision/time changes and audit commit together; name, reference lists, snapshot hash, schema version, and creation metadata remain unchanged. Stored names are bounded at 64 KiB, IDs/schema identifiers at 1024 bytes, state at 32 bytes, hash at 128 bytes, and JSON snapshots at 1 MiB; unsupported stored snapshots fail with 409 rather than truncation. Local-memory transitions keep the explicit compatibility binding."
 	registry.RegisterSchema("ReleaseCandidateTransitionRequest", candidateTransitionRequest)
 	registry.RegisterSchema("ReleaseCandidate", objectSchema(map[string]any{
