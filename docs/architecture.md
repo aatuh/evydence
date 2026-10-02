@@ -347,8 +347,15 @@ optional text fields 64 KiB limits, and source identity and outputs each a
 1 MiB JSON limit, all checked before transfer. It rejects overflow and malformed
 JSON shapes instead of truncating, selects no parent names, and normalizes times
 to UTC. Transaction reads acquire the projection fence before share-locking all
-four rows. Evidence-writer composition and production HTTP binding remain
-EVY-905 work; these ports do not yet retire the Ledger storage adapter.
+four rows. The Evidence-owned `BuildAttestationEvidenceWriter` now supplies the
+fixed-shape ADR 0003 capability: it rechecks parent scope and artifact grants,
+validates staged lifecycle identity, and prepares the existing evidence and
+parser-provenance fields. It hashes PostgreSQL-precision UTC timestamps before
+payload/finalization-job and evidence/audit writes. All ports must share the
+caller's active transaction; this writer opens none of its own. It records
+structural parsing, not signature trust. Durable transaction composition and
+production HTTP binding remain EVY-905 work; these ports do not yet retire the
+Ledger storage adapter or prove live atomicity for the new writer.
 
 API-key and SSO-session verification now has a
 standalone identity application service with narrow credential-read and
