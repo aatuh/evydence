@@ -452,6 +452,16 @@ Evidence summaries, questionnaire drafts, graph snapshots, PDF packages, and ano
 
 ## Provider And Deployment Boundaries
 
+PostgreSQL-profile deployment-environment creation uses an operations-owned
+command with tenant/product grants and bounded parent/name reads. The
+product-row lock serializes creation and original-row reuse without blocking
+foreign-key readers; environment and audit append commit together with replay
+state. It does not build Ledger maps. See
+[deployment environment creation](api.md#deployment-environment-creation)
+for input bounds, identity reuse and the metadata-only boundary.
+Deployment-event recording still uses the documented compatibility evidence
+bridge while its production command path is migrated in EVY-905.
+
 GitHub OIDC subject metadata can be captured, and stored OIDC/SAML identity links can be verified against tenant metadata. OIDC provider records can include public JWKS material for local EdDSA or RS256 ID-token signature and claim verification, and SAML provider records can include PEM signing certificates for local assertion signature and claim verification. Trust material can be rotated without recreating the provider, and OIDC public JWKS can be refreshed from discovery metadata. SSO credential exchange can issue bearer session secrets plus HttpOnly cookies for browser clients after local OIDC/SAML verification. Live provider management API verification, browser redirect/callback orchestration, and external group synchronization remain trust boundaries outside those records. Collector supply-chain records track pinned collector versions with signature, SBOM, and scan evidence where available; commercial and marketplace collector definitions add extension metadata without granting provider trust.
 
 Air-gapped import-bundle workflows preserve the same tenant-scoped import path after controlled transfer. Object-retention policy APIs record tenant-scoped retention intent and, when the S3/MinIO object-store adapter is configured, verify bucket versioning plus default object-lock mode and duration. Policies can also name a tenant-prefixed sample object key for object-level retention and optional legal-hold checks where the provider supports them. Those checks are evidence for the configured bucket and sample object only; WORM/object-lock enforcement, IAM policy, lifecycle rules, and deployment-specific retention review remain operator responsibilities.

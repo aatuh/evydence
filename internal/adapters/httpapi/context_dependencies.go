@@ -12,6 +12,7 @@ import (
 	experimentaldomain "github.com/aatuh/evydence/internal/experimental/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	integrationdomain "github.com/aatuh/evydence/internal/integration/domain"
+	operationsapp "github.com/aatuh/evydence/internal/operations/app"
 	operationsdomain "github.com/aatuh/evydence/internal/operations/domain"
 	operationsquery "github.com/aatuh/evydence/internal/operations/query"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
@@ -145,6 +146,10 @@ type ArtifactSignatureVerification interface {
 
 type ArtifactSignatureCommands interface {
 	CreateArtifactSignature(context.Context, identitydomain.Actor, verificationapp.CreateArtifactSignatureInput) (verificationdomain.ArtifactSignature, error)
+}
+
+type DeploymentEnvironmentCommands interface {
+	CreateDeploymentEnvironment(context.Context, identitydomain.Actor, operationsapp.CreateEnvironmentInput) (operationsdomain.DeploymentEnvironment, error)
 }
 
 type MerkleVerification interface {

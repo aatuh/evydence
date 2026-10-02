@@ -25,6 +25,7 @@ import (
 	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	identityquery "github.com/aatuh/evydence/internal/identity/query"
+	operationsapp "github.com/aatuh/evydence/internal/operations/app"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	"github.com/aatuh/evydence/internal/platform/jsonbounds"
 	releasequery "github.com/aatuh/evydence/internal/release/query"
@@ -69,6 +70,7 @@ type Server struct {
 	backupVerification                BackupVerification
 	backupGenerationCommands          BackupGenerationCommands
 	artifactSignatureCommands         ArtifactSignatureCommands
+	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
 	subjectVerification               SubjectVerification
 	transparencyCheckpointCommands    TransparencyCheckpointCommands
 	merkleCreationCommands            MerkleCreationCommands
@@ -195,6 +197,7 @@ type ServerOptions struct {
 	BackupVerification            BackupVerification
 	BackupGenerationCommands      BackupGenerationCommands
 	ArtifactSignatureCommands     ArtifactSignatureCommands
+	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
 	// SubjectVerification dispatches every generic subject without Ledger fallback.
 	SubjectVerification            SubjectVerification
 	TransparencyCheckpointCommands TransparencyCheckpointCommands
@@ -357,6 +360,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.backupVerification = opts.BackupVerification
 	server.backupGenerationCommands = opts.BackupGenerationCommands
 	server.artifactSignatureCommands = opts.ArtifactSignatureCommands
+	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.subjectVerification = opts.SubjectVerification
 	server.transparencyCheckpointCommands = opts.TransparencyCheckpointCommands
 	server.merkleCreationCommands = opts.MerkleCreationCommands
@@ -1452,6 +1456,13 @@ func (s *Server) createDeploymentEnvironment(w http.ResponseWriter, r *http.Requ
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
+		}
+		if s.deploymentEnvironmentCommands != nil {
+			if err := validateNonNullableObjectFields(body, "product_id", "name", "kind"); err != nil {
+				return 0, nil, err
+			}
+			env, err := s.deploymentEnvironmentCommands.CreateDeploymentEnvironment(ctx, actor, operationsapp.CreateEnvironmentInput{ProductID: req.ProductID, Name: req.Name, Kind: req.Kind})
+			return http.StatusCreated, deploymentEnvironmentFromQuery(env), mapDeploymentCommandError(err)
 		}
 		env, err := s.ledger.CreateDeploymentEnvironment(ctx, actor, app.CreateEnvironmentInput{ProductID: req.ProductID, Name: req.Name, Kind: req.Kind})
 		return http.StatusCreated, env, err

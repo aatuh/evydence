@@ -649,7 +649,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Pull request record request.", "#/components/schemas/RecordPullRequestRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created pull request envelope.", "#/components/schemas/PullRequestEnvelope")
 	case "createDeploymentEnvironment":
-		operation.Description = "Creates a tenant-scoped deployment environment for release deployment evidence."
+		operation.Description = "Creates tenant-owned deployment environment metadata after deployment:write authorization. PostgreSQL serializes tenant/product/name reuse and returns the original environment without changing its kind or appending another audit entry. Human sessions need a tenant or product grant. New environment and audit records commit in the same transaction; replay adds no effects. Tenant/product IDs are bounded at 1024 bytes and kind text at 64 KiB; the combined tenant ID, product ID and normalized name is bounded at 2304 bytes to fit the unique database key. This records an environment definition, not proof of an actual deployment."
 		operation.RequestBody = jsonRequest("Deployment environment creation request.", "#/components/schemas/CreateDeploymentEnvironmentRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created deployment environment envelope.", "#/components/schemas/DeploymentEnvironmentEnvelope")
 	case "listDeploymentEnvironments":

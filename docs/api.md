@@ -585,6 +585,38 @@ Current SSO endpoints model admin-managed provider, identity-link, trust-materia
 
 Source snapshots capture submitted provider metadata. They do not call provider APIs or verify OIDC tokens.
 
+### Deployment Environment Creation
+
+`POST /v1/environments` in the PostgreSQL profile uses a focused command with
+`deployment:write` authorization. Human sessions need a current tenant or
+product grant; release/project-only grants do not authorize creation of a
+product-wide environment. The product lookup is tenant-scoped and selects only
+identity, not product metadata or all environments.
+
+The normalized `(tenant, product_id, name)` identifies an environment. Requests
+for an existing name return the original row, including its original `kind`,
+without another audit entry. PostgreSQL serializes name reuse with a product-row
+no-key-update lock, including the initially empty set. Different tenant or
+product identities cannot reuse that row. Creation and its audit append commit
+atomically with HTTP idempotency state; replay adds no effects and creates no
+outbox job. `deployment-environment.v1.0.0` and response fields are unchanged.
+
+Tenant/product IDs are bounded at 1024 bytes and kind text at 64 KiB. The sum
+of tenant ID, product ID and normalized name is limited to 2304 UTF-8 bytes,
+so the unique PostgreSQL key fits without relying on text compression. This
+rejects oversized names with validation instead of a database insertion error;
+historical rows are not changed. The existing 64 KiB HTTP JSON-envelope limit
+still applies. Required text is trimmed and
+must be non-empty, valid UTF-8 and NUL-free. Non-object envelopes, explicit
+nulls, duplicate fields and unknown fields are rejected. Oversized stored
+environment metadata fails with conflict rather than returning a truncated row.
+The environment is metadata, not evidence that an actual deployment occurred.
+Explicit local-memory mode retains its compatibility path.
+
+Source/test evidence: `internal/operations/app/deployment_environment_commands.go`,
+`internal/platform/wiring/deployment_environment_commands_test.go` and
+`internal/adapters/httpapi/deployment_environment_commands_test.go`.
+
 ### Controls, Reports, Packages, And Governance
 
 | Method | Path | Notes |
