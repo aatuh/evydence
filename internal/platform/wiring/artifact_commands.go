@@ -27,7 +27,7 @@ func BuildArtifactCommands(reader releasequery.ArtifactPointReader, factory app.
 	return releaseapp.NewArtifactCommands(releaseapp.ArtifactCommandConfig{
 		Authorizer:   authorizer,
 		Transactions: artifactTransactions{factory: factory, authorizer: authorizer},
-		Clock:        application.ClockFunc(time.Now),
+		Clock:        application.ClockFunc(func() time.Time { return time.Now().UTC().Truncate(time.Microsecond) }),
 		IDs:          application.IDGeneratorFunc(application.NewID),
 	})
 }
@@ -64,7 +64,7 @@ func (t artifactTransaction) ArtifactByDigest(ctx context.Context, tenantID, dig
 	}
 	return releasedomain.Artifact{
 		ID: artifact.ID, TenantID: artifact.TenantID, Name: artifact.Name,
-		MediaType: artifact.MediaType, Size: artifact.Size, Digest: artifact.Digest, CreatedAt: artifact.CreatedAt,
+		MediaType: artifact.MediaType, Size: artifact.Size, Digest: artifact.Digest, CreatedAt: artifact.CreatedAt.UTC(),
 	}, true, nil
 }
 

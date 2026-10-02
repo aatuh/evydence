@@ -338,7 +338,10 @@ The transactional catalog repositories now expose tenant-filtered project and
 release point reads that verify the parent product in the same read and lock
 the selected rows. Standalone artifact registration now looks up digests in
 current tenant-scoped rows, authorizes reuse of an existing artifact, and
-recovers from concurrent digest inserts without a duplicate audit entry. A
+recovers from concurrent digest inserts without a duplicate audit entry. Its
+standalone durable command emits microsecond-precision UTC creation times and
+normalizes stored timestamps to UTC, so fresh-instance reuse returns identical
+immutable metadata regardless of the database/session timezone. A
 focused build-create command reads only project tenant/product ownership,
 release tenant/product/version coordinates, and output artifact tenant/digest
 identity, then rechecks them under share locks in the write transaction. Its
