@@ -638,8 +638,25 @@ and 20 supporting references, and total input text at 128 KiB before copying or
 deduplication. Finding labels are bounded projections, not full scanner JSON.
 Transaction-fake tests cover exact bounds, current-grant ordering, foreign or
 inconsistent references, review dates, cancellation, late audit failure, and
-commit rollback. PostgreSQL readers/writes and HTTP binding for this core remain
-EVY-905 work; the current decision route still uses its compatibility service.
+commit rollback. The PostgreSQL decision repository now implements this core's
+bounded read port inside an active transaction. It selects finding coordinates
+from at most two matching current typed scan sources, rejects ambiguity and
+malformed or oversized selected labels, and resolves SBOM context without
+transferring scanner or component inventories. SBOM selection preserves PURL
+precedence over name/version fallback, then creation-time, ID, and component
+order, including Unicode whitespace normalization. Evidence, VEX and all six
+support types require current tenant-owned parent relationships; approvals also
+validate their release, waiver, customer-package/redaction, contract-diff/typed
+contract sources, or security-review/typed document subject. Active-head reads
+return only identity/status fields, ordered by ID and row-locked, with a maximum
+129-row request. The exclusive tenant projection fence is acquired before row
+locks and retained through the surrounding transaction. Live tests cover these
+reads, foreign/broken parents, oversized historical content, pending rows,
+rollback visibility, head limits, and fence release. Durable append-only
+supersession writes, command composition, and HTTP binding remain EVY-905 work;
+the current decision route still uses its compatibility service. The reader
+still uses the existing `superseded_by` active-head projection; this does not
+claim that the legacy writer preserves append-only supersession history.
 The read-only release evidence-flow plan also uses a focused service in the
 PostgreSQL profile: one tenant-filtered SQL statement collects nine release
 counts from a consistent snapshot, then current resource grants are checked

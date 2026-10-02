@@ -59,9 +59,18 @@ or active-head reads, foreign/inconsistent reference rejection, deterministic
 supersession without changing prior content, bounded text/reference/head work,
 review validation, cancellation, and rollback through a late audit or commit
 failure. `internal/risk/domain/decision_rules_test.go` checks the closed support
-record vocabulary. These are transaction-fake checks, not PostgreSQL locking,
-HTTP replay, redaction/export, or deployment proof. SQL adapters and route binding
-remain incomplete EVY-905 work; no route-wide security claim is added.
+record vocabulary. These core checks use transaction fakes.
+`internal/platform/wiring/vulnerability_decision_readers_test.go` and
+`vulnerability_decision_reference_readers_test.go` additionally exercise the
+PostgreSQL read port against isolated live schemas: tenant/parent/typed-source
+checks, all six support types and five approval subjects, malformed and
+oversized selected fields, deterministic SBOM enrichment, bounded active-head
+identity/status reads, pending-row and rollback visibility, and transaction
+projection fencing. Large decision statements, notes, package manifests, and
+diff documents do not cross these coordinate-only read ports. This is read-port
+evidence, not durable decision/supersession writes, command wiring, HTTP replay,
+redaction/export, or deployment proof. Those migrations remain incomplete
+EVY-905 work; no route-wide security claim is added.
 
 ## Change and release rules
 

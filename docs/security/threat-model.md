@@ -116,9 +116,17 @@ new transaction-only core's grant ordering, current reference checks, bounded
 active-head reads, deterministic supersession, cancellation, and decision/audit
 rollback. Prior statements and notes are absent from its supersession port.
 The support vocabulary is closed by `internal/risk/domain/decision_rules.go`.
-These transaction-fake tests do not prove SQL isolation, HTTP replay, export
-redaction, or production retirement; durable adapters and HTTP binding remain
-EVY-905 work.
+The live PostgreSQL reader tests in
+`internal/platform/wiring/vulnerability_decision_readers_test.go` and
+`vulnerability_decision_reference_readers_test.go` cover current tenant-owned
+typed sources and parent relationships, support-subject validation, ambiguous
+findings, bounded field transfer and active-head sentinels, stable SBOM
+selection, pending-row/rollback behavior, and the tenant projection fence.
+They do not prove durable append-only decision/supersession writes, HTTP replay,
+export redaction, or production retirement. The legacy active-head projection
+still uses `superseded_by`; the reader is not proof that historical decision
+rows are never updated. Durable append-only writes, command composition, and
+HTTP binding remain EVY-905 work.
 
 ## Attacker capabilities
 
