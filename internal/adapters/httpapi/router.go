@@ -68,6 +68,7 @@ type Server struct {
 	releaseManifestCheckpoint         ReleaseManifestCheckpoint
 	backupVerification                BackupVerification
 	backupGenerationCommands          BackupGenerationCommands
+	artifactSignatureCommands         ArtifactSignatureCommands
 	subjectVerification               SubjectVerification
 	transparencyCheckpointCommands    TransparencyCheckpointCommands
 	merkleCreationCommands            MerkleCreationCommands
@@ -193,6 +194,7 @@ type ServerOptions struct {
 	ReleaseManifestCheckpoint     ReleaseManifestCheckpoint
 	BackupVerification            BackupVerification
 	BackupGenerationCommands      BackupGenerationCommands
+	ArtifactSignatureCommands     ArtifactSignatureCommands
 	// SubjectVerification dispatches every generic subject without Ledger fallback.
 	SubjectVerification            SubjectVerification
 	TransparencyCheckpointCommands TransparencyCheckpointCommands
@@ -354,6 +356,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.releaseManifestCheckpoint = opts.ReleaseManifestCheckpoint
 	server.backupVerification = opts.BackupVerification
 	server.backupGenerationCommands = opts.BackupGenerationCommands
+	server.artifactSignatureCommands = opts.ArtifactSignatureCommands
 	server.subjectVerification = opts.SubjectVerification
 	server.transparencyCheckpointCommands = opts.TransparencyCheckpointCommands
 	server.merkleCreationCommands = opts.MerkleCreationCommands
@@ -1116,6 +1119,19 @@ func (s *Server) createArtifactSignature(w http.ResponseWriter, r *http.Request)
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
+		}
+		if s.artifactSignatureCommands != nil {
+			if err := validateNonNullableObjectFields(body, "artifact_id", "algorithm", "key_id", "signature", "payload", "payload_media_type"); err != nil {
+				return 0, nil, err
+			}
+			if len(req.Payload) > 0 {
+				var payload map[string]json.RawMessage
+				if json.Unmarshal(req.Payload, &payload) != nil || payload == nil {
+					return 0, nil, app.ErrValidation
+				}
+			}
+			sig, err := s.artifactSignatureCommands.CreateArtifactSignature(ctx, actor, verificationapp.CreateArtifactSignatureInput{ArtifactID: req.ArtifactID, Algorithm: req.Algorithm, KeyID: req.KeyID, Signature: req.Signature, RawPayload: req.Payload, PayloadMediaType: req.PayloadMediaType})
+			return http.StatusCreated, artifactSignatureFromQuery(sig), mapVerificationCommandError(err)
 		}
 		sig, err := s.ledger.CreateArtifactSignature(ctx, actor, app.CreateArtifactSignatureInput{
 			ArtifactID: req.ArtifactID, Algorithm: req.Algorithm, KeyID: req.KeyID, Signature: req.Signature,

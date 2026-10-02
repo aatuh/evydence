@@ -446,6 +446,48 @@ Source/test evidence: `internal/verification/app/merkle_verification.go`,
 `internal/platform/wiring/merkle_verification_test.go` and
 `internal/adapters/httpapi/merkle_verification_test.go`.
 
+## Artifact Signature Recording
+
+`POST /v1/artifact-signatures` in the PostgreSQL profile uses a focused command,
+not Ledger maps. `evidence:write` scope is checked before data access. A human
+session additionally needs a tenant grant or a product/project/release grant
+covering a current evidence or build association with the artifact. The grant
+query uses the command transaction and returns only identity and visibility;
+large artifact names and association lists are not copied into the command.
+The current tenant and artifact digest remain share-locked through persistence.
+Foreign and missing artifacts return not found before payload staging.
+
+The record retains `artifact-signature.v1.0.0` and `recorded` status. Any
+non-empty algorithm and detached signature text can be recorded; this is not
+cryptographic verification or a trust-root decision. IDs are limited to 1024
+bytes, algorithm/signature text to 64 KiB, and payload media type to 4096 bytes.
+Invalid UTF-8, embedded NUL and blank required text are rejected. The HTTP
+request keeps its existing 64 KiB JSON-envelope limit; optional `payload` must
+be an object. Explicit nulls, duplicate fields and unknown envelope fields
+are rejected. Direct application payloads have the existing 20 MiB evidence
+document ceiling; this does not enlarge the HTTP envelope limit.
+
+Optional payload bytes are hashed and staged through the shared object-ingestion
+boundary, which checks tenant, digest, byte count, media type, canonical keys,
+creation time and staged status returned by storage. No private signing key is
+read or generated. Signature metadata, staged lifecycle metadata, a deduplicated
+`finalize_payload` job and the artifact-digest audit append commit atomically
+with HTTP replay state. Successful replay does not restage or append records.
+Without a payload there is no lifecycle record or finalization job. The worker
+performs verified, repeatable finalization separately.
+
+A failed database transaction can leave staged bytes without metadata; the
+existing payload reconciliation procedure handles these provider orphans.
+Staging does not prove finalization, trusted signature validity, certificate
+identity, transparency inclusion or successful release verification. Explicit
+local-memory mode retains its compatibility path; historical records are not
+rewritten.
+
+Source/test evidence: `internal/verification/app/artifact_signature_commands.go`,
+`internal/platform/wiring/artifact_signature_commands_test.go`,
+`internal/app/object_staging_test.go` and
+`internal/adapters/httpapi/artifact_signature_commands_test.go`.
+
 ## Artifact Signature Metadata Assessment
 
 `POST /v1/verify` with `subject_type: artifact_signature` assesses recorded

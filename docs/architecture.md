@@ -155,6 +155,14 @@ Local-memory inspection shares the profile and root-policy evaluation but retain
 its explicit compatibility storage/transaction path. Other verification subjects
 and broad startup Ledger retirement remain EVY-905 work.
 
+PostgreSQL-profile artifact-signature creation uses a focused command with
+transaction-scoped artifact grants, bounded digest reads and the shared
+Ledger-independent payload staging boundary. Signature, staged lifecycle,
+finalization job and audit persist atomically; creation records evidence without
+assigning cryptographic trust. See
+[artifact signature recording](reference/verification-results.md#artifact-signature-recording)
+for authorization, input bounds and orphan-reconciliation limits.
+
 Artifact-signature requests to `POST /v1/verify` use a focused metadata-only
 command in the PostgreSQL profile. The tenant, selected artifact and signature
 remain share-locked through receipt, audit and outbox insertion. After

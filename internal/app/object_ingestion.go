@@ -37,21 +37,9 @@ func (l *Ledger) stagePayloadSource(ctx context.Context, tenantID, mediaType str
 	if !ok {
 		return ObjectPayload{}, ErrConflict
 	}
-	payload, err := newStagedObjectPayload(tenantID, mediaType, source.Digest, l.now())
+	payload, err := StageObjectPayload(ctx, stager, tenantID, mediaType, source, l.now())
 	if err != nil {
 		return ObjectPayload{}, err
-	}
-	reader, err := source.Open()
-	if err != nil {
-		return ObjectPayload{}, err
-	}
-	defer reader.Close()
-	payload, err = stager.StagePayload(ctx, payload, reader)
-	if err != nil {
-		return ObjectPayload{}, err
-	}
-	if payload.Size != source.Size || payload.Digest != source.Digest || payload.Status != ObjectPayloadStaged {
-		return ObjectPayload{}, ErrValidation
 	}
 	if l.unitOfWork != nil {
 		return payload, nil
@@ -68,6 +56,44 @@ func (l *Ledger) stagePayloadSource(ctx context.Context, tenantID, mediaType str
 	payload.UpdatedAt = now
 	payload.FinalizedAt = &now
 	return payload, nil
+}
+
+// StageObjectPayload is the shared, Ledger-independent staging boundary. It
+// verifies the returned metadata against the requested identity; persistence
+// and finalization remain the caller's transactional responsibility.
+func StageObjectPayload(ctx context.Context, objects PayloadObjectStore, tenantID, mediaType string, source PayloadSource, at time.Time) (ObjectPayload, error) {
+	if ctx == nil {
+		return ObjectPayload{}, context.Canceled
+	}
+	if err := ctx.Err(); err != nil {
+		return ObjectPayload{}, err
+	}
+	if err := validatePayloadSource(source, EvidenceDocumentLimit); err != nil {
+		return ObjectPayload{}, err
+	}
+	if objects == nil {
+		return ObjectPayload{}, ErrConflict
+	}
+	expected, err := newStagedObjectPayload(tenantID, mediaType, source.Digest, at)
+	if err != nil {
+		return ObjectPayload{}, err
+	}
+	reader, err := source.Open()
+	if err != nil {
+		return ObjectPayload{}, err
+	}
+	if reader == nil {
+		return ObjectPayload{}, ErrValidation
+	}
+	defer reader.Close()
+	p, err := objects.StagePayload(ctx, expected, reader)
+	if err != nil {
+		return ObjectPayload{}, err
+	}
+	if validateObjectPayload(p) != nil || p.TenantID != expected.TenantID || p.Size != source.Size || p.Digest != expected.Digest || !ObjectMediaTypesMatch(expected.MediaType, p.MediaType) || p.StagingKey != expected.StagingKey || p.FinalKey != expected.FinalKey || p.Status != ObjectPayloadStaged || !p.CreatedAt.Equal(expected.CreatedAt) || p.FinalizedAt != nil || p.FailedAt != nil || p.OrphanedAt != nil || p.FailureCode != "" {
+		return ObjectPayload{}, ErrValidation
+	}
+	return p, nil
 }
 
 func newStagedObjectPayload(tenantID, mediaType, digest string, now time.Time) (ObjectPayload, error) {

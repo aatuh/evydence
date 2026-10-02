@@ -566,7 +566,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Signing operation creation request.", "#/components/schemas/CreateSigningOperationRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created signing operation envelope.", "#/components/schemas/SigningOperationEnvelope")
 	case "createArtifactSignature":
-		operation.Description = "Records detached artifact signature evidence and optional raw signature payload metadata."
+		operation.Description = "Records detached artifact signature evidence with recorded status; creation does not verify cryptographic trust. PostgreSQL authorizes the current tenant-owned artifact, stages optional JSON payload bytes, and commits signature metadata, payload lifecycle, finalization job and audit in the same transaction. Human sessions need a current artifact association covered by evidence:write grants. IDs are bounded at 1024 bytes; algorithm and signature text at 64 KiB. Payload staging is not finalization."
 		operation.RequestBody = jsonRequest("Artifact signature creation request.", "#/components/schemas/CreateArtifactSignatureRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created artifact signature envelope.", "#/components/schemas/ArtifactSignatureEnvelope")
 	case "getArtifactSignature":

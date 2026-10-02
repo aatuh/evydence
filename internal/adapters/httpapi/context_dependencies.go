@@ -143,6 +143,10 @@ type ArtifactSignatureVerification interface {
 	VerifyArtifactSignature(context.Context, identitydomain.Actor, string) (verificationdomain.VerificationResult, error)
 }
 
+type ArtifactSignatureCommands interface {
+	CreateArtifactSignature(context.Context, identitydomain.Actor, verificationapp.CreateArtifactSignatureInput) (verificationdomain.ArtifactSignature, error)
+}
+
 type MerkleVerification interface {
 	VerifyMerkleBatch(context.Context, identitydomain.Actor, string) (verificationdomain.VerificationResult, error)
 }

@@ -167,6 +167,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create backup generation commands: %w", err)
 	}
+	options.ArtifactSignatureCommands, err = BuildArtifactSignatureCommands(store, store, runtime.Objects)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create artifact signature commands: %w", err)
+	}
 	options.SubjectVerification, err = verificationapp.NewSubjectVerificationCommands(verificationapp.SubjectVerificationConfig{
 		Authorizer: verificationquery.NewEvidenceVerificationAuthorizer(),
 		AuditChain: options.AuditChainVerification, Evidence: options.EvidenceVerification,

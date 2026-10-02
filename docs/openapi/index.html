@@ -302,7 +302,7 @@
               <code>/v1/artifact-signatures</code>
             </div>
             <h3>Create artifact signature</h3>
-            <p>Records detached artifact signature evidence and optional raw signature payload metadata.</p>
+            <p>Records detached artifact signature evidence with recorded status; creation does not verify cryptographic trust. PostgreSQL authorizes the current tenant-owned artifact, stages optional JSON payload bytes, and commits signature metadata, payload lifecycle, finalization job and audit in the same transaction. Human sessions need a current artifact association covered by evidence:write grants. IDs are bounded at 1024 bytes; algorithm and signature text at 64 KiB. Payload staging is not finalization.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createArtifactSignature</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

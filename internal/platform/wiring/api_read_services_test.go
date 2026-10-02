@@ -102,6 +102,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.BackupGenerationCommands != nil {
 		t.Fatal("local memory bound durable backup generation")
 	}
+	if memory.ArtifactSignatureCommands != nil {
+		t.Fatal("local memory bound durable artifact signature creation")
+	}
 	if memory.SigningCustodyQuery != nil {
 		t.Fatal("local memory bound durable custody query")
 	}
@@ -186,6 +189,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.BackupGenerationCommands == nil {
 		t.Fatal("PostgreSQL backup generation still uses Ledger")
+	}
+	if options.ArtifactSignatureCommands == nil {
+		t.Fatal("PostgreSQL artifact signature creation still uses Ledger")
 	}
 	if options.SigningCustodyQuery == nil {
 		t.Fatal("PostgreSQL custody report still uses Ledger")
