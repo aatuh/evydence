@@ -128,12 +128,7 @@ func (s *SourceRepositoryCommands) CreateSourceRepository(ctx context.Context, a
 		if err := tx.InsertSourceRepository(ctx, v); err != nil {
 			return err
 		}
-		actorType, actorID := "api_key", a.KeyID
-		if a.CollectorID != "" {
-			actorType, actorID = "collector", a.CollectorID
-		} else if a.UserID != "" {
-			actorType, actorID = "human_user", a.UserID
-		}
+		actorType, actorID := sourceAuditIdentity(a)
 		if _, err := tx.AppendAudit(ctx, application.AuditEvent{ID: s.config.IDs.NewID("ace"), TenantID: a.TenantID, EntryType: "source_repository.created", SubjectType: "source_repository", SubjectID: v.ID, ActorType: actorType, ActorID: actorID, OccurredAt: v.CreatedAt}); err != nil {
 			return err
 		}

@@ -637,7 +637,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, queryParam("project_id", "Project id.", "string"))
 		operation.Responses[http.StatusOK] = jsonResponse("Source repository list envelope.", "#/components/schemas/SourceRepositoryListEnvelope")
 	case "recordSourceCommit":
-		operation.Description = "Records immutable source commit metadata and stores only a hash of the commit message."
+		operation.Description = "Records immutable source commit metadata using current repository tenant/project authorization before metadata reads. PostgreSQL mode normalizes 40-character hexadecimal SHAs to lowercase and returns the original repository/SHA record without changing metadata or auditing twice. Commit and audit are persisted in the same transaction. Stores only sha256 of exact nonblank message bytes; whitespace-only messages have no hash. Author and message inputs are bounded to 64 KiB; timestamps use UTC microseconds and committed_at defaults to recording time when omitted. Recording does not verify provider identity or repository contents."
 		operation.RequestBody = jsonRequest("Source commit creation request.", "#/components/schemas/RecordSourceCommitRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created source commit envelope.", "#/components/schemas/SourceCommitEnvelope")
 	case "upsertSourceBranch":

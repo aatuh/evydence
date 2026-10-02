@@ -161,6 +161,10 @@ type SourceRepositoryCommands interface {
 	CreateSourceRepository(context.Context, identitydomain.Actor, integrationapp.CreateSourceRepositoryInput) (integrationdomain.SourceRepository, error)
 }
 
+type SourceCommitCommands interface {
+	RecordSourceCommit(context.Context, identitydomain.Actor, integrationapp.RecordSourceCommitInput) (integrationdomain.SourceCommit, error)
+}
+
 type MerkleVerification interface {
 	VerifyMerkleBatch(context.Context, identitydomain.Actor, string) (verificationdomain.VerificationResult, error)
 }

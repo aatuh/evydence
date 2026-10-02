@@ -424,7 +424,7 @@ func (l *Ledger) RecordSourceCommit(ctx context.Context, actor domain.Actor, in 
 	if err := require(actor, ScopeSourceWrite); err != nil {
 		return domain.SourceCommit{}, err
 	}
-	in.RepositoryID, in.SHA = strings.TrimSpace(in.RepositoryID), strings.TrimSpace(in.SHA)
+	in.RepositoryID, in.SHA = strings.TrimSpace(in.RepositoryID), strings.ToLower(strings.TrimSpace(in.SHA))
 	if in.RepositoryID == "" || !validCommitSHA(in.SHA) {
 		return domain.SourceCommit{}, ErrValidation
 	}

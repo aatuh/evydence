@@ -957,7 +957,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"author":        map[string]any{"type": "string"},
 		"message":       map[string]any{"type": "string", "description": "Commit message is hashed before storage."},
 		"committed_at":  map[string]any{"type": "string", "format": "date-time"},
-	}, "repository_id", "sha", "committed_at"))
+	}, "repository_id", "sha"))
 	registry.RegisterSchema("SourceCommit", objectSchema(map[string]any{
 		"id":             map[string]any{"type": "string"},
 		"tenant_id":      map[string]any{"type": "string"},

@@ -627,6 +627,50 @@ Source/test evidence: `internal/integration/app/source_repository_commands.go`,
 `internal/app/source_repository_creation_authz_test.go` and
 `internal/adapters/httpapi/source_repository_commands_test.go`.
 
+### Source Commit Recording
+
+`POST /v1/source/commits` in the PostgreSQL profile uses an Integration-owned
+command, not Ledger maps. It requires `source:write`, with the repository's
+current tenant/product/project ownership checked before reading commit metadata.
+Human sessions need a current product/project grant for attached repositories
+or a tenant-wide grant for detached ones. Foreign-tenant repositories return
+not found; removed or wrong-project grants cannot read existing commits.
+
+Repository ID and normalized lowercase 40-character hexadecimal SHA identify
+the immutable record. Reuse returns the original author, message hash and
+timestamps even if a new request supplies different metadata. It appends no
+second audit entry. The local-memory compatibility path also normalizes SHAs
+before reuse, correcting case-only duplicate creation. SHA-256 Git object IDs
+are not supported by the current 40-character contract.
+
+The command stores only `sha256:` plus the SHA-256 digest of the exact submitted
+message bytes, without trimming nonblank messages. Empty/whitespace-only
+messages have no hash. The raw message is not passed to persistence or auditing;
+author metadata is intentionally retained and must not contain secrets.
+Recording metadata does not verify provider identity, repository contents,
+commit signatures or provenance.
+
+The adapter takes the worker-projection fence before locking the tenant-owned
+repository, which serializes first creation and duplicate SHA reuse. Parent
+ownership and existing commit reads are bounded. Commit, audit and successful
+HTTP replay state share a transaction; failures roll back, replay adds no
+effects, and no outbox job is created. This endpoint migration does not remove
+the remaining Ledger-backed source branch, pull-request or CI workflows.
+
+Tenant/repository IDs are limited to 1024 UTF-8 bytes. Author metadata is trimmed,
+valid UTF-8, NUL-free and limited to 64 KiB; message input is limited to 64 KiB.
+The existing 64 KiB HTTP envelope limit remains. Non-object bodies, null fields,
+unknown/duplicate fields and malformed timestamps fail validation. Omitted
+`committed_at` defaults to recording time; new PostgreSQL-profile timestamps
+use UTC microseconds. Oversized or inconsistent stored commit metadata returns
+conflict instead of a truncated record. Historical rows and v1 response fields
+are unchanged.
+
+Source/test evidence: `internal/integration/app/source_commit_commands.go`,
+`internal/platform/wiring/source_commit_commands_test.go`,
+`internal/app/source_commit_reuse_test.go` and
+`internal/adapters/httpapi/source_commit_commands_test.go`.
+
 ### Deployment Environment Creation
 
 `POST /v1/environments` in the PostgreSQL profile uses a focused command with

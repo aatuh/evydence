@@ -74,6 +74,7 @@ type Server struct {
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
 	deploymentCommands                DeploymentCommands
 	sourceRepositoryCommands          SourceRepositoryCommands
+	sourceCommitCommands              SourceCommitCommands
 	subjectVerification               SubjectVerification
 	transparencyCheckpointCommands    TransparencyCheckpointCommands
 	merkleCreationCommands            MerkleCreationCommands
@@ -203,6 +204,7 @@ type ServerOptions struct {
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
 	DeploymentCommands            DeploymentCommands
 	SourceRepositoryCommands      SourceRepositoryCommands
+	SourceCommitCommands          SourceCommitCommands
 	// SubjectVerification dispatches every generic subject without Ledger fallback.
 	SubjectVerification            SubjectVerification
 	TransparencyCheckpointCommands TransparencyCheckpointCommands
@@ -368,6 +370,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands
 	server.sourceRepositoryCommands = opts.SourceRepositoryCommands
+	server.sourceCommitCommands = opts.SourceCommitCommands
 	server.subjectVerification = opts.SubjectVerification
 	server.transparencyCheckpointCommands = opts.TransparencyCheckpointCommands
 	server.merkleCreationCommands = opts.MerkleCreationCommands
@@ -1396,6 +1399,13 @@ func (s *Server) recordSourceCommit(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
+		}
+		if s.sourceCommitCommands != nil {
+			if err := validateNonNullableObjectFields(body, "repository_id", "sha", "author", "message", "committed_at"); err != nil {
+				return 0, nil, err
+			}
+			v, err := s.sourceCommitCommands.RecordSourceCommit(ctx, actor, integrationapp.RecordSourceCommitInput{RepositoryID: req.RepositoryID, SHA: req.SHA, Author: req.Author, Message: req.Message, CommittedAt: req.CommittedAt})
+			return http.StatusCreated, sourceCommitFromCommand(v), mapSourceRepositoryCommandError(err)
 		}
 		commit, err := s.ledger.RecordSourceCommit(ctx, actor, app.RecordCommitInput{
 			RepositoryID: req.RepositoryID, SHA: req.SHA, Author: req.Author, Message: req.Message, CommittedAt: req.CommittedAt,

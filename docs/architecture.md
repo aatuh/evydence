@@ -461,6 +461,15 @@ worker lock order. It does not load Ledger maps or invoke provider/network
 services. See [source repository creation](api.md#source-repository-creation)
 for grant boundaries, validation limits and metadata-only semantics.
 
+PostgreSQL-profile source commit recording uses the same Integration ownership
+policy with a focused transaction port. Repository ownership and a single
+commit are read through bounded projections; no clone URL or provider payload
+is loaded. The projection fence precedes the repository serialization lock.
+Lowercase SHA reuse returns the original record without new effects; new commit,
+audit and replay state are atomic. Raw commit messages never reach the storage
+or audit ports. See [source commit recording](api.md#source-commit-recording)
+for hash inputs, grant boundaries and metadata-only limitations.
+
 PostgreSQL-profile deployment-environment creation uses an operations-owned
 command with tenant/product grants and bounded parent/name reads. The
 product-row lock serializes creation and original-row reuse without blocking
