@@ -23,6 +23,11 @@ func TestPostgresApprovalHTTPUsesCurrentSubjectsAndAtomicReplayWithoutLedger(t *
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 	seedApprovalSubjects(t, ctx, store, pool)
+	// The identifier-only command fixture omits severity, which the release
+	// summary correctly requires. Supply it without shrinking hostile documents.
+	if _, err := pool.Exec(ctx, `UPDATE vulnerability_scans SET findings='[{"id":"finding","vulnerability":"CVE-TEST","severity":"high","state":"open"}]'`); err != nil {
+		t.Fatal(err)
+	}
 	actor := domain.Actor{TenantID: "tenant", UserID: "human", Scopes: []string{"release:write"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "release", ResourceID: "release", Scopes: []string{"release:write"}}}}
 	auth := &attestationHTTPActor{actor: actor}
 	request := func(key, body string, want int) string {
@@ -75,6 +80,43 @@ func TestPostgresApprovalHTTPUsesCurrentSubjectsAndAtomicReplayWithoutLedger(t *
 		if err := pool.QueryRow(ctx, `SELECT(SELECT count(*)FROM approval_records),(SELECT count(*)FROM audit_chain_entries WHERE entry_type='approval.created' AND actor_id='human' AND actor_type='human_user')`).Scan(&records, &audits); err != nil || records != count || audits != count {
 			t.Fatal("approval effects leaked", records, audits, count, err)
 		}
+	}
+	lifecycle := func() [2]string {
+		t.Helper()
+		var hashes [2]string
+		if err := pool.QueryRow(ctx, `SELECT md5(to_jsonb(r)::text),md5(to_jsonb(w)::text) FROM releases r,waivers w WHERE r.id='release' AND w.id='waiver'`).Scan(&hashes[0], &hashes[1]); err != nil {
+			t.Fatal(err)
+		}
+		return hashes
+	}
+	beforeLifecycle := lifecycle()
+	for i, subject := range []struct{ typ, id string }{{"release", "release"}, {"contract_diff", "diff"}, {"waiver", "waiver"}, {"security_review", "review"}, {"customer_package", "package"}} {
+		body := fmt.Sprintf(`{"subject_type":%q,"subject_id":%q,"decision":"accepted","reason":"Reviewed"}`, subject.typ, subject.id)
+		key := fmt.Sprintf("accepted-%d", i)
+		v := decode(request(key, body, 201))
+		count++
+		if v.ID == "" || v.Decision != "accepted" || v.SubjectType != subject.typ || v.SubjectID != subject.id || v.ApproverID != "human" || v.Reason != "Reviewed" || v.SchemaVersion != domain.ApprovalRecordSchemaVersion || v.CreatedAt.IsZero() {
+			t.Fatal("accepted decision was rejected or promoted", v)
+		}
+		if replay := decode(request(key, body, 201)); replay != v {
+			t.Fatal("accepted replay changed immutable record", replay, v)
+		}
+		request(key, strings.ReplaceAll(body, `"accepted"`, `"approved"`), 409)
+		auth.actor.ResourceGrants = nil
+		request(key, body, 403)
+		request(key+"-denied", body, 403)
+		auth.actor = actor
+		auth.actor.TenantID = "other"
+		request(key+"-foreign", body, 404)
+		auth.actor = actor
+		counts()
+	}
+	if after := lifecycle(); after != beforeLifecycle {
+		t.Fatal("accepted records changed waiver or release lifecycle", beforeLifecycle, after)
+	}
+	summary, err := store.ReadReleaseSecuritySummarySnapshot(ctx, "tenant", "release")
+	if err != nil || summary.ApprovalSummary.Total != 1 || summary.ApprovalSummary.Approved != 0 {
+		t.Fatal("accepted record was counted as an approved release", summary.ApprovalSummary, err)
 	}
 	for i, subject := range []struct{ typ, id string }{{"release", "release"}, {"contract_diff", "diff"}, {"waiver", "waiver"}, {"security_review", "review"}, {"customer_package", "package"}} {
 		body := fmt.Sprintf(`{"subject_type":%q,"subject_id":%q,"decision":"approved","reason":"Reviewed","evidence_id":"ev-sbom"}`, subject.typ, subject.id)

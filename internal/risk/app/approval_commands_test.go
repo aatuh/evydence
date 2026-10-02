@@ -83,6 +83,25 @@ func TestApprovalCommandsAppendAndAuthorizeCurrentCoordinates(t *testing.T) {
 		t.Fatal("replay authorization emitted effects or loaded evidence", err)
 	}
 }
+
+func TestApprovalCommandsPreservePublishedDecisions(t *testing.T) {
+	for _, decision := range []string{"approved", "rejected", "accepted"} {
+		t.Run(decision, func(t *testing.T) {
+			s, f, actor, now := approvalFixture(t)
+			input := CreateApprovalInput{SubjectType: "release", SubjectID: "release", Decision: " " + decision + " ", Reason: "Reviewed"}
+			if err := s.AuthorizeApproval(t.Context(), actor, input); err != nil {
+				t.Fatal("published decision rejected before replay", err)
+			}
+			if len(f.writes)+len(f.audits) != 0 {
+				t.Fatal("read-only authorization emitted effects")
+			}
+			v, err := s.CreateApprovalRecord(t.Context(), actor, input)
+			if err != nil || v.Decision != decision || v.CreatedAt != now || len(f.writes) != 1 || f.writes[0] != v || len(f.audits) != 1 || f.audits[0].SubjectID != v.ID || f.commits != 2 {
+				t.Fatal("published decision was rejected, changed, or not atomically recorded", v, err)
+			}
+		})
+	}
+}
 func TestApprovalCommandsRejectInvalidInputsAndForeignSubjects(t *testing.T) {
 	for _, input := range []CreateApprovalInput{{}, {SubjectType: "artifact", SubjectID: "artifact", Decision: "approved", Reason: "Review"}, {SubjectType: "release", SubjectID: "release", Decision: "unknown", Reason: "Review"}, {SubjectType: "release", SubjectID: "release", Decision: "approved", Reason: " "}, {SubjectType: "release", SubjectID: "bad\x00", Decision: "approved", Reason: "Review"}, {SubjectType: "release", SubjectID: strings.Repeat("x", 1025), Decision: "approved", Reason: "Review"}, {SubjectType: "release", SubjectID: "release", Decision: "approved", Reason: strings.Repeat("x", 65537)}} {
 		s, f, a, _ := approvalFixture(t)

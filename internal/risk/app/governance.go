@@ -316,7 +316,7 @@ func validApprovalSubject(value string) bool {
 }
 
 func validApprovalDecision(value string) bool {
-	return value == "approved" || value == "rejected"
+	return value == "approved" || value == "rejected" || value == "accepted"
 }
 
 func cloneWaiver(value riskdomain.Waiver) riskdomain.Waiver {

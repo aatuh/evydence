@@ -1083,12 +1083,12 @@ Source/test evidence: `internal/operations/app/deployment_commands.go`,
 
 ### Approval Creation
 
-`POST /v1/approvals` records an immutable `approved` or `rejected` decision for
-a `release`, `contract_diff`, `waiver`, `security_review`, or `customer_package`.
-Creating a record does not itself approve a waiver or change release state.
-The existing OpenAPI request enum also advertises `accepted`, but the current
-command rejects it; that pre-existing contract discrepancy still needs resolution
-before ticket closure.
+`POST /v1/approvals` records an immutable `approved`, `rejected`, or `accepted`
+decision for a `release`, `contract_diff`, `waiver`, `security_review`, or
+`customer_package`, matching the published request enum. Creating a record does
+not itself approve a waiver or change release state. The release security
+summary counts release-scoped records of all three decisions in `total`, but
+only `approved` records in `approved`; `accepted` is not an approval.
 
 In PostgreSQL mode, current tenant-owned parent coordinates and `release:write`
 grants are checked before new requests and idempotency replay. Human sessions
