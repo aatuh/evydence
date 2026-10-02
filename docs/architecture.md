@@ -311,12 +311,25 @@ release point reads that verify the parent product in the same read and lock
 the selected rows. Standalone artifact registration now looks up digests in
 current tenant-scoped rows, authorizes reuse of an existing artifact, and
 recovers from concurrent digest inserts without a duplicate audit entry. A
-standalone build-create command uses the project and release points and
-rechecks output artifact digests in the write transaction. Human output grants
-are checked against current tenant-valid evidence or build associations, not
-the Ledger's cached artifact links. CI-provided source metadata remains
-unverified metadata. Production HTTP still uses the compatibility command
-binding until downstream consumers can read these durable builds.
+standalone build-create command reads only project tenant/product ownership,
+release tenant/product/version coordinates, and output artifact tenant/digest
+identity, then rechecks them under share locks in the write transaction. Its
+PostgreSQL adapter acquires the worker-projection fence before those relational
+locks. IDs are bounded at 1024 UTF-8 bytes, stored release versions at 64 KiB,
+and stored SHA-256 digests at 71 bytes; oversized stored coordinates return
+conflict, never truncated values. Product/project names, artifact names/media
+types and release lifecycle metadata do not enter this command. Human output
+grants use the existing current tenant-valid evidence/build association
+predicates through an identity-only projection, not Ledger artifact links or
+artifact metadata. Build and audit effects are atomic with durable HTTP replay
+when called through the idempotency executor. CI-provided source metadata
+remains unverified metadata, including a forced `oidc_verified: false` that
+submitted metadata cannot override. Live regression tests in
+`internal/platform/wiring/build_identity_commands_test.go` exercise large
+unrelated metadata, tenant/grant isolation, rollback and replay. Production HTTP
+still uses the compatibility command binding until downstream attestation and
+evidence consumers can read these durable builds; this adapter alone does not
+complete that migration.
 API-key and SSO-session verification now has a
 standalone identity application service with narrow credential-read and
 activity-write ports. The PostgreSQL profile binds those ports to current

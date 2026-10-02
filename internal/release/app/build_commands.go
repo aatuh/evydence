@@ -16,6 +16,16 @@ type BuildReader interface {
 	GetArtifact(context.Context, string, string) (releasedomain.Artifact, error)
 }
 
+// BuildIdentityReader returns only the coordinates needed by build creation:
+// project ID/tenant/product, release ID/tenant/product/version, and artifact
+// ID/tenant/digest. Metadata fields in the domain values remain empty. Durable
+// transaction adapters lock these coordinates before returning them.
+type BuildIdentityReader interface {
+	ReadBuildProject(context.Context, string, string) (releasedomain.Project, error)
+	ReadBuildRelease(context.Context, string, string) (releasedomain.Release, error)
+	ReadBuildArtifact(context.Context, string, string) (releasedomain.Artifact, error)
+}
+
 type BuildTransaction interface {
 	GetProject(context.Context, string, string) (releasedomain.Project, error)
 	GetRelease(context.Context, string, string) (releasedomain.Release, error)

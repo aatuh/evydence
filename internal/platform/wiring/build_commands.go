@@ -16,8 +16,8 @@ import (
 // BuildStorageReader binds current parent points and output-artifact grant
 // associations to one durable, tenant-scoped source.
 type BuildStorageReader interface {
-	releasequery.CatalogPointReader
-	releasequery.ArtifactPointReader
+	releaseapp.BuildIdentityReader
+	ReadBuildArtifactGrant(context.Context, releasequery.ArtifactReadRequest) (releasequery.ArtifactPoint, error)
 }
 
 // BuildBuildCommands composes build creation without Ledger state. The reader
@@ -26,7 +26,7 @@ func BuildBuildCommands(reader BuildStorageReader, factory app.UnitOfWorkFactory
 	if reader == nil || factory == nil {
 		return nil, errors.New("build reader and transactions are required")
 	}
-	authorizer, err := releasequery.NewBuildAuthorizer(reader)
+	authorizer, err := releasequery.NewBuildAuthorizer(buildArtifactGrants{reader})
 	if err != nil {
 		return nil, err
 	}
@@ -40,74 +40,60 @@ func BuildBuildCommands(reader BuildStorageReader, factory app.UnitOfWorkFactory
 
 type buildParentReader struct{ source BuildStorageReader }
 
+type buildArtifactGrants struct{ source BuildStorageReader }
+
+func (r buildArtifactGrants) GetArtifactPoint(ctx context.Context, request releasequery.ArtifactReadRequest) (releasequery.ArtifactPoint, error) {
+	return r.source.ReadBuildArtifactGrant(ctx, request)
+}
+
 func (r buildParentReader) GetProject(ctx context.Context, tenantID, id string) (releasedomain.Project, error) {
-	project, err := r.source.GetProject(ctx, tenantID, id)
-	return project, mapProjectReadError(err)
+	project, err := r.source.ReadBuildProject(ctx, tenantID, id)
+	return project, mapProductWriteError(err)
 }
 
 func (r buildParentReader) GetRelease(ctx context.Context, tenantID, id string) (releasedomain.Release, error) {
-	release, err := r.source.GetRelease(ctx, tenantID, id)
-	return release, mapProjectReadError(err)
+	release, err := r.source.ReadBuildRelease(ctx, tenantID, id)
+	return release, mapProductWriteError(err)
 }
 
 func (r buildParentReader) GetArtifact(ctx context.Context, tenantID, id string) (releasedomain.Artifact, error) {
-	point, err := r.source.GetArtifactPoint(ctx, releasequery.ArtifactReadRequest{TenantID: tenantID, ID: id, TenantWide: true})
-	if err != nil {
-		return releasedomain.Artifact{}, mapProjectReadError(err)
-	}
-	if !point.Visible || point.Artifact.TenantID != tenantID || point.Artifact.ID != id {
-		return releasedomain.Artifact{}, releaseapp.ErrNotFound
-	}
-	return point.Artifact, nil
+	artifact, err := r.source.ReadBuildArtifact(ctx, tenantID, id)
+	return artifact, mapProductWriteError(err)
 }
 
 type buildTransactions struct{ factory app.UnitOfWorkFactory }
 
 func (t buildTransactions) ExecuteBuild(ctx context.Context, command func(context.Context, releaseapp.BuildTransaction) error) error {
 	return mapProductWriteError(app.ExecuteUnitOfWork(ctx, t.factory, func(ctx context.Context, repositories app.Repositories) error {
-		if repositories.ReleaseCatalog == nil || repositories.Builds == nil || repositories.Audit == nil {
+		reader, ok := repositories.ReleaseCatalog.(releaseapp.BuildIdentityReader)
+		if !ok || repositories.Builds == nil || repositories.Audit == nil {
 			return app.ErrValidation
 		}
 		return command(ctx, buildTransaction{
-			catalog: repositories.ReleaseCatalog, builds: repositories.Builds, audit: repositories.Audit,
+			reader: reader, builds: repositories.Builds, audit: repositories.Audit,
 		})
 	}))
 }
 
 type buildTransaction struct {
-	catalog app.ReleaseCatalogRepository
-	builds  app.BuildRepository
-	audit   app.AuditRepository
+	reader releaseapp.BuildIdentityReader
+	builds app.BuildRepository
+	audit  app.AuditRepository
 }
 
 func (t buildTransaction) GetProject(ctx context.Context, tenantID, id string) (releasedomain.Project, error) {
-	project, err := t.catalog.GetProject(ctx, tenantID, id)
-	if err != nil {
-		return releasedomain.Project{}, mapProductWriteError(err)
-	}
-	return releasedomain.Project{
-		ID: project.ID, TenantID: project.TenantID, ProductID: project.ProductID,
-		Name: project.Name, CreatedAt: project.CreatedAt,
-	}, nil
+	project, err := t.reader.ReadBuildProject(ctx, tenantID, id)
+	return project, mapProductWriteError(err)
 }
 
 func (t buildTransaction) GetRelease(ctx context.Context, tenantID, id string) (releasedomain.Release, error) {
-	release, err := t.catalog.GetRelease(ctx, tenantID, id)
-	if err != nil {
-		return releasedomain.Release{}, mapProductWriteError(err)
-	}
-	return releaseFromCatalogRow(release)
+	release, err := t.reader.ReadBuildRelease(ctx, tenantID, id)
+	return release, mapProductWriteError(err)
 }
 
 func (t buildTransaction) GetArtifact(ctx context.Context, tenantID, id string) (releasedomain.Artifact, error) {
-	artifact, err := t.catalog.GetArtifact(ctx, tenantID, id)
-	if err != nil {
-		return releasedomain.Artifact{}, mapProductWriteError(err)
-	}
-	return releasedomain.Artifact{
-		ID: artifact.ID, TenantID: artifact.TenantID, Name: artifact.Name,
-		MediaType: artifact.MediaType, Size: artifact.Size, Digest: artifact.Digest, CreatedAt: artifact.CreatedAt,
-	}, nil
+	artifact, err := t.reader.ReadBuildArtifact(ctx, tenantID, id)
+	return artifact, mapProductWriteError(err)
 }
 
 func (t buildTransaction) InsertBuildRun(ctx context.Context, build releasedomain.BuildRun) error {
@@ -128,5 +114,5 @@ func (t buildTransaction) InsertBuildRun(ctx context.Context, build releasedomai
 }
 
 func (t buildTransaction) AppendAudit(ctx context.Context, event application.AuditEvent) (application.AuditReceipt, error) {
-	return catalogTransaction{catalog: t.catalog, audit: t.audit}.AppendAudit(ctx, event)
+	return catalogTransaction{audit: t.audit}.AppendAudit(ctx, event)
 }
