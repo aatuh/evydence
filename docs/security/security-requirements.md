@@ -67,10 +67,18 @@ checks, all six support types and five approval subjects, malformed and
 oversized selected fields, deterministic SBOM enrichment, bounded active-head
 identity/status reads, pending-row and rollback visibility, and transaction
 projection fencing. Large decision statements, notes, package manifests, and
-diff documents do not cross these coordinate-only read ports. This is read-port
-evidence, not durable decision/supersession writes, command wiring, HTTP replay,
-redaction/export, or deployment proof. Those migrations remain incomplete
-EVY-905 work; no route-wide security claim is added.
+diff documents do not cross these coordinate-only read ports.
+`vulnerability_decision_append_test.go` checks the PostgreSQL append port:
+unchanged historical row content, current source/reference checks, stale-head
+rejection, constrained head uniqueness, tenant foreign keys and deferred finding
+ownership checks, insert/outer rollback, append-only relationship enforcement,
+and lossless migration round-trip with lossy downgrade rejection.
+`vulnerability_decision_backup_test.go` proves the new versioned backup
+commitment covers relationship metadata without committing derived head rows.
+The v1 allowlist/hash vocabulary remains reproducible. This is storage-port
+evidence, not command wiring, HTTP replay, redaction/export, or deployment proof.
+Legacy writers/readers and route composition remain incomplete EVY-905 work;
+no route-wide or global historical-row immutability claim is added.
 
 ## Change and release rules
 

@@ -187,17 +187,25 @@ Source/test evidence: `internal/verification/app/subject_verification.go`,
 with tenant-wide `admin` authorization before reads; human actors need a tenant
 grant. An empty JSON object (or omitted body) is accepted. Non-object bodies,
 unknown fields and duplicate fields are rejected. The command creates
-`backup-manifest.v2.0.0` with `tenant-relational-state.v1` state-hash semantics.
+`backup-manifest.v2.0.0` with `tenant-relational-state.v2` state-hash semantics.
 The response field layout and eight legacy resource-count names are unchanged.
 
 The commitment covers the full declared tenant-owned relational metadata set in
-[`backup_commitment_catalog.go`](../../internal/adapters/postgres/repositories/backup_commitment_catalog.go),
+[`backup_commitment_catalog.go`](../../internal/adapters/postgres/repositories/backup_commitment_catalog.go)
+and its versioned additions in
+[`backup_commitment.go`](../../internal/adapters/postgres/repositories/backup_commitment.go),
 including evidence, decisions, releases, identity authorization metadata,
 signing public metadata, existing manifests and audit records. It is not merely
 a hash of counts or a chain head. One bounded SQL statement supplies one MVCC
 view across all resources; rows stream into a digest without rebuilding tenant
 maps. Tenant, projection and chain fences keep the audit view stable for fresh
-canonical-chain and referenced-local-signature consistency checks. Failed
+canonical-chain and referenced-local-signature consistency checks. The v2
+profile adds append-only vulnerability-decision supersession relationships;
+derived head rows and the response view contain no independent history and
+are excluded. The original v1 allowlist remains unchanged in
+`BackupCommitmentProfileResourcesV1`; `NewBackupStateDigesterWithProfile` can
+reproduce a historical v1 commitment using that declared profile. Existing
+manifests retain their original hashes and recorded profile limitations. Failed
 consistency observations remain failed in the generated manifest.
 
 Credential hashes, private signing bytes, replay records, compatibility

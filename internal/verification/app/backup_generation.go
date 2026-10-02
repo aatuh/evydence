@@ -11,9 +11,10 @@ import (
 )
 
 const (
-	BackupStateCommitmentProfile  = "tenant-relational-state.v1"
-	MaxBackupStateCommitmentRows  = 32768
-	MaxBackupStateCommitmentBytes = 8 << 20
+	BackupStateCommitmentProfileV1 = "tenant-relational-state.v1"
+	BackupStateCommitmentProfile   = "tenant-relational-state.v2"
+	MaxBackupStateCommitmentRows   = 32768
+	MaxBackupStateCommitmentBytes  = 8 << 20
 )
 
 // BackupStateCommitment contains only a completed digest and scalar counts.

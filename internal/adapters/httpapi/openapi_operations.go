@@ -444,7 +444,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("Audit-chain entry list envelope.", "#/components/schemas/AuditChainEntryListEnvelope")
 	case "generateBackupManifest":
-		operation.Description = "Generates a tenant-scoped metadata commitment, not a restore receipt or proof that an operator backup completed. PostgreSQL emits backup-manifest.v2.0.0 with tenant-relational-state.v1 semantics; historical and local-memory v1 hashes remain distinct. Credential material, replay bookkeeping and raw object payload bytes are excluded."
+		operation.Description = "Generates a tenant-scoped metadata commitment, not a restore receipt or proof that an operator backup completed. PostgreSQL emits backup-manifest.v2.0.0 with tenant-relational-state.v2 semantics, including append-only decision supersession history; historical commitments retain their recorded profiles and local-memory v1 hashes remain distinct. Credential material, replay bookkeeping and raw object payload bytes are excluded."
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusCreated] = jsonResponse("Backup manifest envelope.", "#/components/schemas/BackupManifestEnvelope")
 	case "verifyBackupManifest":

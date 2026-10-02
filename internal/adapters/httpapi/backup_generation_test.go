@@ -31,7 +31,7 @@ func TestBackupGenerationOpenAPIDeclaresMetadataCommitmentNotRestoreProof(t *tes
 	paths := asStringAnyMap(t, doc["paths"])
 	operation := operationMap(t, paths, "/v1/backup-manifests", "post")
 	description, _ := operation["description"].(string)
-	for _, required := range []string{"backup-manifest.v2.0.0", "tenant-relational-state.v1", "not a restore receipt"} {
+	for _, required := range []string{"backup-manifest.v2.0.0", verificationapp.BackupStateCommitmentProfile, "not a restore receipt"} {
 		if !strings.Contains(description, required) {
 			t.Fatal("missing scope/version/nonclaim", description)
 		}

@@ -122,11 +122,17 @@ The live PostgreSQL reader tests in
 typed sources and parent relationships, support-subject validation, ambiguous
 findings, bounded field transfer and active-head sentinels, stable SBOM
 selection, pending-row/rollback behavior, and the tenant projection fence.
-They do not prove durable append-only decision/supersession writes, HTTP replay,
-export redaction, or production retirement. The legacy active-head projection
-still uses `superseded_by`; the reader is not proof that historical decision
-rows are never updated. Durable append-only writes, command composition, and
-HTTP binding remain EVY-905 work.
+`vulnerability_decision_append_test.go` proves the SQL append port preserves
+historical decision rows while inserting tenant/finding-bound relationships,
+checks current heads and references, enforces active-head uniqueness, and
+rolls back insert or outer failures. The migration rejects edits/deletes of
+relationship history and refuses lossy downgrade; the ID-cascade regression
+keeps the derived constraint consistent. Backup commitments include the new
+relationships under an explicit v2 profile, with historical v1 reproduction
+preserved. These checks do not prove HTTP replay, export redaction, production
+retirement, or immutability through the remaining legacy writers. Migrating
+legacy queries/writes, focused command composition, and HTTP binding remain
+EVY-905 work.
 
 ## Attacker capabilities
 

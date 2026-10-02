@@ -3,6 +3,7 @@ package repositories
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -15,6 +16,15 @@ import (
 // BackupCommitmentProfileResources returns a fresh copy of the declared profile
 // so tooling can reproduce commitments and check migration coverage.
 func BackupCommitmentProfileResources() []verificationapp.BackupCommitmentResource {
+	sources := BackupCommitmentProfileResourcesV1()
+	sources = append(sources, verificationapp.BackupCommitmentResource{Name: "vulnerability_decision_supersessions", Columns: []string{"tenant_id", "finding_id", "predecessor_id", "successor_id", "created_at", "schema_version"}})
+	sort.Slice(sources, func(i, j int) bool { return sources[i].Name < sources[j].Name })
+	return sources
+}
+
+// BackupCommitmentProfileResourcesV1 retains the original allowlist for
+// historical commitment reproduction; v2 adds durable decision relationships.
+func BackupCommitmentProfileResourcesV1() []verificationapp.BackupCommitmentResource {
 	var sources []verificationapp.BackupCommitmentResource
 	for _, line := range strings.Split(strings.TrimSpace(backupCommitmentCatalog), "\n") {
 		name, columns, _ := strings.Cut(line, "|")
@@ -59,6 +69,8 @@ func (r integrity) ReadBackupStateCommitment(ctx context.Context, tenant string)
 			predicate = `id=$1`
 		case "tenant_audit_sequences":
 			key = `tenant_id`
+		case "vulnerability_decision_supersessions":
+			key = `predecessor_id`
 		case "object_payloads":
 			key = `object_key`
 		case "outbox_job_attempts":

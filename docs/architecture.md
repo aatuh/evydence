@@ -652,11 +652,29 @@ return only identity/status fields, ordered by ID and row-locked, with a maximum
 129-row request. The exclusive tenant projection fence is acquired before row
 locks and retained through the surrounding transaction. Live tests cover these
 reads, foreign/broken parents, oversized historical content, pending rows,
-rollback visibility, head limits, and fence release. Durable append-only
-supersession writes, command composition, and HTTP binding remain EVY-905 work;
-the current decision route still uses its compatibility service. The reader
-still uses the existing `superseded_by` active-head projection; this does not
-claim that the legacy writer preserves append-only supersession history.
+rollback visibility, head limits, and fence release. The append adapter compares
+bounded current heads and source/reference coordinates, then inserts immutable
+supersession relationships and the new decision without updating historical
+decision rows. Migration `20261002000100_vulnerability_decision_supersession`
+retains existing rows and legacy `superseded_by` values. Tenant/ID foreign keys
+bind both relationship ends to the same tenant, and deferred constraint triggers
+check finding agreement at commit, including related finding changes. Two-key
+indexes preserve the declared 1 KiB identity limits without exceeding PostgreSQL
+btree tuple bounds. A derived head table's primary key replaces the legacy
+active-row index; triggers maintain that constraint for legacy writes too.
+Relationship updates/deletes are rejected, and downgrade refuses to discard
+nonempty supersession history. The response view derives `superseded_by` from
+new links with a legacy-field fallback; the focused head reader excludes linked
+predecessors. Live tests prove unchanged historical row content, expected-head
+conflicts, database-enforced active-head uniqueness, tenant-safe relationship
+ends, rollback on either insert and outer abort, and migration round-trip/data
+preservation. These are storage-port tests, not route or production proof.
+Remaining query/worker/legacy-writer migration, focused command composition,
+and HTTP binding remain EVY-905 work; the current decision route still uses its
+compatibility service. PostgreSQL backup commitments now use an explicit v2
+profile that includes supersession history; the immutable v1 allowlist and
+digester remain available for historical reproduction. See
+[verification results](reference/verification-results.md#tenant-scoped-backup-manifest-generation).
 The read-only release evidence-flow plan also uses a focused service in the
 PostgreSQL profile: one tenant-filtered SQL statement collects nine release
 counts from a consistent snapshot, then current resource grants are checked

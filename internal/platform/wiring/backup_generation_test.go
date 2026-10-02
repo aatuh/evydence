@@ -226,7 +226,9 @@ func TestPostgresBackupCommitmentProfileClassifiesEveryMigrationTableAndColumn(t
 			fields[r.Name][c] = true
 		}
 	}
-	excludedTables := map[string]bool{"ledger_state": true, "resource_index": true, "schema_migrations": true, "idempotency_records": true}
+	// The head table and response view contain only relationships already
+	// committed by decision records and supersessions, not independent history.
+	excludedTables := map[string]bool{"ledger_state": true, "resource_index": true, "schema_migrations": true, "idempotency_records": true, "vulnerability_decision_heads": true, "vulnerability_decision_projection": true}
 	excludedColumns := map[string]bool{"api_keys.hash": true, "customer_portal_access.hash": true, "sso_sessions.hash": true, "signing_keys.encrypted_private_key": true, "outbox_jobs.payload": true, "outbox_jobs.last_error": true, "outbox_jobs.lease_token": true, "vex_import_reports.failure_detail": true}
 	rows, err := pool.Query(ctx, `SELECT table_name,column_name FROM information_schema.columns WHERE table_schema=current_schema() ORDER BY table_name,column_name`)
 	if err != nil {

@@ -42,6 +42,35 @@ func TestBackupStateDigesterCanonicalizesRowsWithoutNumericPrecisionLoss(t *test
 	}
 }
 
+func TestBackupCommitmentVersionsKeepLegacyHashReproducible(t *testing.T) {
+	resources := []BackupCommitmentResource{{Name: "products", Columns: []string{"id", "tenant_id"}}}
+	hash := func(profile string) string {
+		t.Helper()
+		d, err := NewBackupStateDigesterWithProfile(profile, "tenant", resources)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := d.Append("products", "product", []byte(`{"id":"product","tenant_id":"tenant"}`)); err != nil {
+			t.Fatal(err)
+		}
+		h, _, _, err := d.Finish()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return h
+	}
+	legacy := hash(BackupStateCommitmentProfileV1)
+	if legacy != "sha256:75b81056765bafc0210dad2d1daf64ffbaf64e02c526a9aea780a34217957086" {
+		t.Fatal("legacy v1 commitment changed", legacy)
+	}
+	if hash(BackupStateCommitmentProfile) == legacy {
+		t.Fatal("v2 hash omitted profile separation")
+	}
+	if _, err := NewBackupStateDigesterWithProfile("unknown", "tenant", resources); !errors.Is(err, ErrValidation) {
+		t.Fatal("unknown commitment profile accepted", err)
+	}
+}
+
 func TestBackupStateDigesterNeverPublishesOverflowPrefix(t *testing.T) {
 	d, err := NewBackupStateDigester("tenant", []BackupCommitmentResource{{Name: "products", Columns: []string{"id", "tenant_id"}}})
 	if err != nil {

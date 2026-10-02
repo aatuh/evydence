@@ -27,6 +27,15 @@ type BackupStateDigester struct {
 }
 
 func NewBackupStateDigester(tenant string, resources []BackupCommitmentResource) (*BackupStateDigester, error) {
+	return NewBackupStateDigesterWithProfile(BackupStateCommitmentProfile, tenant, resources)
+}
+
+// NewBackupStateDigesterWithProfile reproduces either declared commitment
+// version. Callers must supply that version's unchanged resource vocabulary.
+func NewBackupStateDigesterWithProfile(profile, tenant string, resources []BackupCommitmentResource) (*BackupStateDigester, error) {
+	if profile != BackupStateCommitmentProfileV1 && profile != BackupStateCommitmentProfile {
+		return nil, ErrValidation
+	}
 	if !validSigningKeyText(tenant) || len(tenant) > 1024 || len(resources) == 0 || len(resources) > 128 {
 		return nil, ErrValidation
 	}
@@ -58,7 +67,7 @@ func NewBackupStateDigester(tenant string, resources []BackupCommitmentResource)
 	header, err := json.Marshal(struct {
 		Profile, Tenant string
 		Resources       []BackupCommitmentResource
-	}{BackupStateCommitmentProfile, tenant, owned})
+	}{profile, tenant, owned})
 	if err != nil {
 		return nil, err
 	}
