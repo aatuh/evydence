@@ -3687,53 +3687,14 @@ func syncRiskBuildControlRows(ctx context.Context, tx pgx.Tx, state app.Persiste
 		if decision.ID == "" || decision.TenantID == "" || decision.FindingID == "" || decision.ScanID == "" {
 			continue
 		}
-		supportingRefs := decision.SupportingRefs
-		if supportingRefs == nil {
-			supportingRefs = []domain.SubjectRef{}
+		// A supersession records the successor's supplied timestamp, or the
+		// current import time when none is supplied; never the predecessor's age.
+		var supersessionTime time.Time
+		if successor, ok := state.Decisions[decision.SupersededBy]; ok {
+			supersessionTime = successor.CreatedAt
 		}
-		supportingRefsJSON, err := json.Marshal(supportingRefs)
-		if err != nil {
-			return fmt.Errorf("encode vulnerability decision supporting refs: %w", err)
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO vulnerability_decisions (
-				id, tenant_id, finding_id, scan_id, release_id, vulnerability,
-				component, sbom_id, sbom_component_purl, sbom_component_name,
-				status, justification, impact_statement, action_statement,
-				customer_visible, internal_notes, source, evidence_id, evidence_ids, supporting_refs, vex_document_id,
-				supersedes, superseded_by, approved_by, reviewed_at, review_due_at, schema_version, created_at
-			)
-			VALUES (
-				$1, $2, $3, $4, $5, $6,
-				$7, $8, $9, $10,
-				$11, $12, $13, $14,
-				$15, $16, $17, $18, $19, $20,
-				$21, $22, $23, $24, $25, $26, $27, $28
-			)
-			ON CONFLICT (id) DO UPDATE SET
-				superseded_by = EXCLUDED.superseded_by,
-				approved_by = EXCLUDED.approved_by,
-				reviewed_at = COALESCE(vulnerability_decisions.reviewed_at, EXCLUDED.reviewed_at),
-				review_due_at = COALESCE(vulnerability_decisions.review_due_at, EXCLUDED.review_due_at),
-				sbom_id = COALESCE(NULLIF(vulnerability_decisions.sbom_id, ''), EXCLUDED.sbom_id),
-				sbom_component_purl = COALESCE(NULLIF(vulnerability_decisions.sbom_component_purl, ''), EXCLUDED.sbom_component_purl),
-				sbom_component_name = COALESCE(NULLIF(vulnerability_decisions.sbom_component_name, ''), EXCLUDED.sbom_component_name),
-				customer_visible = vulnerability_decisions.customer_visible OR EXCLUDED.customer_visible,
-				internal_notes = COALESCE(NULLIF(vulnerability_decisions.internal_notes, ''), EXCLUDED.internal_notes),
-				evidence_ids = CASE
-					WHEN cardinality(vulnerability_decisions.evidence_ids) = 0 THEN EXCLUDED.evidence_ids
-					ELSE vulnerability_decisions.evidence_ids
-				END,
-				supporting_refs = CASE
-					WHEN vulnerability_decisions.supporting_refs = '[]'::jsonb THEN EXCLUDED.supporting_refs
-					ELSE vulnerability_decisions.supporting_refs
-				END
-		`, decision.ID, decision.TenantID, decision.FindingID, decision.ScanID, nullableString(decision.ReleaseID), decision.Vulnerability,
-			nullableString(decision.Component), nullableString(decision.SBOMID), nullableString(decision.SBOMComponentPURL), nullableString(decision.SBOMComponentName),
-			decision.Status, decision.Justification, nullableString(decision.ImpactStatement), nullableString(decision.ActionStatement),
-			decision.CustomerVisible, nullableString(decision.InternalNotes), decision.Source, nullableString(decision.EvidenceID), textArray(decision.EvidenceIDs), supportingRefsJSON, nullableString(decision.VEXDocumentID), nullableString(decision.Supersedes), nullableString(decision.SupersededBy),
-			nullableString(decision.ApprovedBy), nullableTime(decision.ReviewedAt), nullableTime(decision.ReviewDueAt), decision.SchemaVersion, nonZeroTime(decision.CreatedAt)); err != nil {
-			return fmt.Errorf("upsert vulnerability decision row: %w", err)
+		if err := importDecisionRow(ctx, tx, decision, supersessionTime); err != nil {
+			return err
 		}
 	}
 	for _, exception := range state.Exceptions {

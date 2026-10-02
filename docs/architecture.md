@@ -681,10 +681,21 @@ current head identities and shares the append-only row writer. It retains its
 legacy ownership contract rather than claiming the focused command's stricter
 source/reference validation. Tests prove unchanged historical content and stale
 head rejection. These are adapter/storage-port tests, not route or production
-proof. The bulk relational synchronizer still has a mutable decision upsert and
-must be migrated before enabling the focused command. Focused command composition
-and HTTP binding also remain EVY-905 work; the current decision route still uses
-its compatibility service. PostgreSQL backup commitments now use an explicit v2
+proof. The bulk relational synchronizer now inserts new decision rows or compares
+all historical content in SQL; it no longer updates existing decision fields.
+Only successor links are appended. Identical replays, including a loaded
+projection or an original active row replayed after supersession, cannot
+reactivate a predecessor. Tests cover every stored content field, replayed links,
+nullable/empty collections and unspecified legacy creation clocks, stale heads,
+foreign/missing/misbound successors, insert failures, and late transaction abort.
+These trusted import/sync paths retain initial legacy rows and their raw
+`superseded_by` fields; they are not new API authorization or source-validation
+ports. A same-ID historical content mismatch now fails instead of silently
+merging or ignoring changed metadata. Supersession timestamps use a supplied
+successor creation time or the time of import, never the predecessor's age.
+Focused command composition and HTTP binding remain EVY-905 work; the current
+decision route still uses its compatibility service. PostgreSQL backup commitments
+now use an explicit v2
 profile that includes supersession history; the immutable v1 allowlist and
 digester remain available for historical reproduction. See
 [verification results](reference/verification-results.md#tenant-scoped-backup-manifest-generation).
