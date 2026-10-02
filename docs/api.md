@@ -206,8 +206,28 @@ Stored candidate names are bounded at 64 KiB, IDs/schema identifiers at 1024
 bytes, state at 32 bytes, hash at 128 bytes, and the JSON snapshot at 1 MiB.
 Oversized or malformed stored snapshots return `409` rather than truncated
 values. Transition times use microsecond-precision UTC. Local-memory mode
-keeps its compatibility binding; candidate creation is not migrated by this
-transition change.
+keeps its compatibility binding.
+
+Candidate creation in PostgreSQL also uses a focused durable command. It
+requires `release:write` and, for human sessions, a matching tenant, product,
+or release grant. The active transaction verifies current tenant-owned parent
+coordinates and every supplied build, artifact, SBOM, scan, VEX, OpenAPI, and
+bundle ID. Builds and parsed evidence/bundle records must belong to the same
+release; artifacts are tenant-scoped and human reuse additionally requires a
+current authorized build/evidence association. Missing, foreign, wrong-release,
+or inconsistent source-evidence references return `404`; grant denial returns
+`403`. Validation does not read foreign-context payloads or cached Ledger maps.
+
+Names and identifiers are trimmed, non-empty, NUL-free UTF-8. New names are
+bounded at 64 KiB, and parent/reference IDs at 1024 UTF-8 bytes. The seven
+reference arrays together are limited to 4096 entries and 64 KiB of identifier
+bytes; sorting preserves duplicate IDs. The entire HTTP JSON body is limited
+to 64 KiB, including syntax and escapes. Invalid input returns `400` without
+candidate/audit writes. A new candidate starts `open` at revision 1, with a
+microsecond-precision UTC timestamp and the existing versioned normalized-JSON
+snapshot hash. Candidate and audit effects commit together. Same-key replay
+returns the original candidate; changed request bytes with that key conflict.
+Local-memory creation retains its compatibility binding.
 
 ## Minimal Release Evidence Workflow
 

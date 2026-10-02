@@ -84,6 +84,7 @@ type Server struct {
 	releaseCreationCommands           ReleaseCreationCommands
 	releaseStateCommands              ReleaseStateCommands
 	candidateStateCommands            CandidateStateCommands
+	candidateCommands                 CandidateCommands
 	evidenceCreationCommands          EvidenceCreationCommands
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
 	deploymentCommands                DeploymentCommands
@@ -227,6 +228,7 @@ type ServerOptions struct {
 	ReleaseCreationCommands       ReleaseCreationCommands
 	ReleaseStateCommands          ReleaseStateCommands
 	CandidateStateCommands        CandidateStateCommands
+	CandidateCommands             CandidateCommands
 	EvidenceCreationCommands      EvidenceCreationCommands
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
 	DeploymentCommands            DeploymentCommands
@@ -406,6 +408,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.releaseCreationCommands = opts.ReleaseCreationCommands
 	server.releaseStateCommands = opts.ReleaseStateCommands
 	server.candidateStateCommands = opts.CandidateStateCommands
+	server.candidateCommands = opts.CandidateCommands
 	server.evidenceCreationCommands = opts.EvidenceCreationCommands
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands
@@ -1038,6 +1041,13 @@ func (s *Server) createReleaseCandidate(w http.ResponseWriter, r *http.Request) 
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
+		}
+		if s.candidateCommands != nil {
+			candidate, err := s.candidateCommands.CreateReleaseCandidate(ctx, actor, releaseapp.CreateReleaseCandidateInput{
+				ReleaseID: req.ReleaseID, Name: req.Name, BuildIDs: req.BuildIDs, ArtifactIDs: req.ArtifactIDs,
+				SBOMIDs: req.SBOMIDs, ScanIDs: req.ScanIDs, VEXIDs: req.VEXIDs, ContractIDs: req.ContractIDs, BundleIDs: req.BundleIDs,
+			})
+			return http.StatusCreated, releaseCandidateFromQuery(candidate), mapBuildAttestationCommandError(err)
 		}
 		candidate, err := s.releaseCatalog.CreateReleaseCandidate(ctx, actor, app.CreateReleaseCandidateInput{
 			ReleaseID: req.ReleaseID, Name: req.Name, BuildIDs: req.BuildIDs, ArtifactIDs: req.ArtifactIDs,

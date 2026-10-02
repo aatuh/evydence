@@ -868,7 +868,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"created_at":              map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "name", "key_id", "algorithm", "public_key", "allowed_predicate_types", "expected_builder_ids", "required_claims", "status", "schema_version", "created_at"))
 	registry.RegisterSchema("DSSETrustRootEnvelope", dataEnvelopeSchema("#/components/schemas/DSSETrustRoot"))
-	registry.RegisterSchema("CreateReleaseCandidateRequest", objectSchema(map[string]any{
+	createCandidateRequest := objectSchema(map[string]any{
 		"release_id":   map[string]any{"type": "string"},
 		"name":         map[string]any{"type": "string"},
 		"build_ids":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
@@ -878,7 +878,9 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"vex_ids":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 		"contract_ids": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 		"bundle_ids":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-	}, "release_id", "name"))
+	}, "release_id", "name")
+	createCandidateRequest["description"] = "PostgreSQL candidate creation uses a focused durable command requiring release:write and a matching tenant/product/release grant for human sessions. Current tenant-owned parent coordinates and all supplied reference IDs are validated in the active transaction without foreign-context payload or cached Ledger reads. Builds and parsed evidence/bundle references must belong to the same release; artifacts are tenant-scoped and human reuse needs a current authorized build/evidence association. Missing, foreign, wrong-release, or inconsistent source-evidence references return 404, and grant denial returns 403. Trimmed names and IDs are non-empty, NUL-free UTF-8: new names are bounded at 64 KiB, parent/reference IDs at 1024 bytes, and the combined reference arrays at 4096 entries and 64 KiB of identifier bytes. Sorting preserves duplicates. The whole HTTP JSON body is capped at 64 KiB including syntax/escapes. Invalid input returns 400 without candidate/audit writes. New snapshots start open at revision 1 with microsecond-precision UTC timestamps and the existing versioned normalized-JSON snapshot hash; candidate/audit effects commit together. Same-key replay returns the original snapshot and changed request bytes conflict. Local-memory creation retains its explicit compatibility binding."
+	registry.RegisterSchema("CreateReleaseCandidateRequest", createCandidateRequest)
 	candidateTransitionRequest := objectSchema(map[string]any{
 		"reason": map[string]any{"type": "string"},
 	}, "reason")

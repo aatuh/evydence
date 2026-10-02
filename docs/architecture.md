@@ -396,8 +396,8 @@ and competing transitions with one state/audit winner. Production candidate
 promotion/rejection HTTP now uses a transition-only dependency. Fresh-server
 tests with empty Ledger candidate maps verify immutable snapshot DTOs,
 durable point/list reads, conditional replay, safe revision metadata, and
-storage/audit rollback. Candidate creation remains on the broad catalog
-binding; local-memory transitions retain their explicit compatibility path.
+storage/audit rollback. Local-memory transitions retain their explicit
+compatibility path.
 Standalone candidate creation now has a factory-only transaction builder.
 It reads the current tenant-owned release/product coordinates without release
 version or product metadata, then validates all seven reference groups through
@@ -414,7 +414,13 @@ profile is retained. Snapshot creation and audit append commit together, with
 microsecond-precision UTC times. Live tests verify pending parents and every
 reference type, compound rollback/replay, foreign/missing/wrong-release
 references, removed grants, artifact reuse, and insertion/audit failures.
-The candidate-create HTTP binding remains to migrate to this focused service.
+Production candidate-create HTTP now uses a creation-only dependency. Fresh
+empty-Ledger servers verify all snapshot fields/reference lists, durable
+point/list reads and replay, downstream promotion, adversarial input, foreign
+parents, removed grants, safe storage errors, and insertion/audit rollback.
+No authoritative candidate cache is published. Local-memory creation keeps
+its explicit compatibility binding; remaining production Ledger composition
+and full-state command-view reloads are still migration work.
 The transactional catalog repositories now expose tenant-filtered project and
 release point reads that verify the parent product in the same read and lock
 the selected rows. Standalone artifact registration now looks up digests in
