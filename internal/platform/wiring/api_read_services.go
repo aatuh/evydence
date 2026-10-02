@@ -409,6 +409,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create waiver commands: %w", err)
 	}
+	options.ExceptionCommands, err = BuildExceptionCommands(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create exception commands: %w", err)
+	}
 	options.VulnerabilityDecisionSummaryQuery, err = BuildVulnerabilityDecisionSummaryQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create vulnerability decision summary query: %w", err)

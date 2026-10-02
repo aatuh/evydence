@@ -632,7 +632,7 @@ reservation/replay, and approval, audit, and replay completion share one unit of
 work. Optional evidence retains the existing same-tenant ownership rule, not a
 new same-release requirement. Live HTTP tests use fresh servers with forbidden
 Ledger refreshes and cover replay, role removal, malformed input, and rollback.
-Exception lifecycle commands and other compatibility paths remain open.
+Other compatibility paths remain open.
 
 Waiver creation and approval now bind transaction-only commands in PostgreSQL
 as well. Current release/finding ownership or tenant-wide control/policy scope
@@ -651,6 +651,23 @@ It compares stored core fields and any supplied lifecycle metadata, rejecting
 mismatches. An unchanged older snapshot may omit later approval/supersession
 metadata without undoing it. Legacy initial imports remain supported; an absent
 historical creation time on replay never replaces the stored timestamp.
+
+Exception creation and approval also bind focused transaction-only commands
+in PostgreSQL. Current tenant-owned release/product, optional finding, and
+control/framework parents are resolved before reservation or replay. Metadata
+authorization precedes the single bounded approval-record read; queries take
+the tenant projection fence before row locks and retain it through commit.
+Existing conditional approval metadata and audit writes share the durable
+idempotency transaction. Repeated approval of an unexpired exception returns
+the original record without a second approval audit. Live tests cover concurrent
+approvals, current-parent replay authorization, expiry, and rollback at each
+write/completion/commit stage without Ledger refreshes.
+
+Trusted exception replay uses the same no-rewrite discipline as waivers: core
+fields and supplied approval metadata must match, while omitted later approval
+metadata in an unchanged older snapshot cannot undo durable state. Initial
+legacy imports remain supported. These changes do not convert all exception
+metadata to append-only projections or retire production Ledger startup.
 
 Vulnerability-decision creation now has a separate transaction-only command
 core. It uses the existing normalization and decision-construction rules, but

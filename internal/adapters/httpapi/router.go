@@ -92,6 +92,7 @@ type Server struct {
 	vulnerabilityDecisionCommands     VulnerabilityDecisionCommands
 	approvalCommands                  ApprovalCommands
 	waiverCommands                    WaiverCommands
+	exceptionCommands                 ExceptionCommands
 	durableCommandExecutor            DurableCommandExecutor
 	evidenceCreationCommands          EvidenceCreationCommands
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
@@ -243,6 +244,7 @@ type ServerOptions struct {
 	VulnerabilityDecisionCommands VulnerabilityDecisionCommands
 	ApprovalCommands              ApprovalCommands
 	WaiverCommands                WaiverCommands
+	ExceptionCommands             ExceptionCommands
 	DurableCommandExecutor        DurableCommandExecutor
 	EvidenceCreationCommands      EvidenceCreationCommands
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
@@ -361,7 +363,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if ctx == nil {
 		return nil, errors.New("server context is required")
 	}
-	if (opts.VulnerabilityDecisionCommands != nil || opts.ApprovalCommands != nil || opts.WaiverCommands != nil) && opts.DurableCommandExecutor == nil {
+	if (opts.VulnerabilityDecisionCommands != nil || opts.ApprovalCommands != nil || opts.WaiverCommands != nil || opts.ExceptionCommands != nil) && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused commands require durable idempotency")
 	}
 	if ledger == nil {
@@ -433,6 +435,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.vulnerabilityDecisionCommands = opts.VulnerabilityDecisionCommands
 	server.approvalCommands = opts.ApprovalCommands
 	server.waiverCommands = opts.WaiverCommands
+	server.exceptionCommands = opts.ExceptionCommands
 	server.durableCommandExecutor = opts.DurableCommandExecutor
 	server.evidenceCreationCommands = opts.EvidenceCreationCommands
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
@@ -3211,6 +3214,10 @@ func (s *Server) missingEvidenceReport(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createException(w http.ResponseWriter, r *http.Request) {
+	if s.exceptionCommands != nil {
+		s.createDurableException(w, r)
+		return
+	}
 	var req struct {
 		ReleaseID string    `json:"release_id"`
 		FindingID string    `json:"finding_id"`
@@ -3269,6 +3276,10 @@ func (s *Server) listExceptions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) approveException(w http.ResponseWriter, r *http.Request) {
+	if s.exceptionCommands != nil {
+		s.approveDurableException(w, r)
+		return
+	}
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
 		exception, err := s.riskDecisions.ApproveException(ctx, actor, r.PathValue("id"))
 		return http.StatusOK, exception, err

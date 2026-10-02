@@ -78,12 +78,14 @@ func (s *WaiverCommands) prepareCreate(ctx context.Context, actor identitydomain
 	in.ControlID, in.PolicyID = strings.TrimSpace(in.ControlID), strings.TrimSpace(in.PolicyID)
 	in.Owner, in.Risk, in.Reason, in.Supersedes = strings.TrimSpace(in.Owner), strings.TrimSpace(in.Risk), strings.TrimSpace(in.Reason), strings.TrimSpace(in.Supersedes)
 	in.ExpiresAt = in.ExpiresAt.UTC().Truncate(time.Microsecond)
-	if !validWaiverScope(in.ScopeType) || in.ScopeID == "" || in.Owner == "" || in.Risk == "" || in.Reason == "" || !validWaiverTime(in.ExpiresAt) {
+	if !validWaiverScope(in.ScopeType) || in.ScopeID == "" || in.Owner == "" || in.Risk == "" || in.Reason == "" || !validRiskLifecycleTime(in.ExpiresAt) {
 		return in, ErrValidation
 	}
 	return in, nil
 }
-func validWaiverTime(v time.Time) bool { return !v.IsZero() && v.Year() >= 1 && v.Year() <= 9999 }
+func validRiskLifecycleTime(v time.Time) bool {
+	return !v.IsZero() && v.Year() >= 1 && v.Year() <= 9999
+}
 
 func authorizeWaiverSubject(ctx context.Context, tx WaiverTransaction, actor identitydomain.Actor, kind, id string) error {
 	if !validWaiverScope(kind) || !validControlText(id, 1024, true) {
@@ -123,7 +125,7 @@ func readAuthorizedWaiverState(ctx context.Context, tx WaiverTransaction, actor 
 	if v.ID != id || v.TenantID != actor.TenantID {
 		return WaiverTransitionState{}, ErrNotFound
 	}
-	if !validControlText(v.SupersededBy, 1024, false) || !validWaiverTime(v.ExpiresAt) {
+	if !validControlText(v.SupersededBy, 1024, false) || !validRiskLifecycleTime(v.ExpiresAt) {
 		return WaiverTransitionState{}, ErrValidation
 	}
 	if err := authorizeWaiverSubject(ctx, tx, actor, v.ScopeType, v.ScopeID); err != nil {
@@ -174,7 +176,7 @@ func (s *WaiverCommands) CreateWaiver(ctx context.Context, actor identitydomain.
 		return riskdomain.Waiver{}, err
 	}
 	now := s.config.Clock.Now().UTC().Truncate(time.Microsecond)
-	if !validWaiverTime(now) || !in.ExpiresAt.After(now) {
+	if !validRiskLifecycleTime(now) || !in.ExpiresAt.After(now) {
 		return riskdomain.Waiver{}, ErrValidation
 	}
 	v := riskdomain.Waiver{ID: s.config.IDs.NewID("wv"), TenantID: actor.TenantID, ScopeType: in.ScopeType, ScopeID: in.ScopeID, ControlID: in.ControlID, PolicyID: in.PolicyID, Owner: in.Owner, Risk: in.Risk, Reason: in.Reason, ExpiresAt: in.ExpiresAt, Supersedes: in.Supersedes, SchemaVersion: riskdomain.WaiverSchemaVersion, CreatedAt: now}
@@ -230,7 +232,7 @@ func (s *WaiverCommands) ApproveWaiver(ctx context.Context, actor identitydomain
 		return riskdomain.Waiver{}, err
 	}
 	now := s.config.Clock.Now().UTC().Truncate(time.Microsecond)
-	if !validWaiverTime(now) {
+	if !validRiskLifecycleTime(now) {
 		return riskdomain.Waiver{}, ErrValidation
 	}
 	var result riskdomain.Waiver
@@ -254,7 +256,7 @@ func (s *WaiverCommands) ApproveWaiver(ctx context.Context, actor identitydomain
 				return ErrValidation
 			}
 		}
-		if !validControlText(v.Owner, 1024, true) || !validControlText(v.Risk, 1024, true) || !validControlText(v.Reason, 65536, true) || !validControlText(v.SchemaVersion, 1024, true) || !validWaiverTime(v.CreatedAt) || v.ApprovedBy != "" || v.ApprovedAt != nil {
+		if !validControlText(v.Owner, 1024, true) || !validControlText(v.Risk, 1024, true) || !validControlText(v.Reason, 65536, true) || !validControlText(v.SchemaVersion, 1024, true) || !validRiskLifecycleTime(v.CreatedAt) || v.ApprovedBy != "" || v.ApprovedAt != nil {
 			return ErrValidation
 		}
 		v.Approved, v.ApprovedBy, v.ApprovedAt = true, auditActorID(actor), cloneTimePointer(&now)

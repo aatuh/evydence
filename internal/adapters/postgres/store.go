@@ -3701,19 +3701,8 @@ func syncRiskBuildControlRows(ctx context.Context, tx pgx.Tx, state app.Persiste
 		if exception.ID == "" || exception.TenantID == "" || exception.ReleaseID == "" {
 			continue
 		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO exceptions (
-				id, tenant_id, release_id, finding_id, control_id, reason,
-				owner, expires_at, approved, approved_by, approved_at, created_at
-			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-			ON CONFLICT (id) DO UPDATE SET
-				approved = EXCLUDED.approved,
-				approved_by = EXCLUDED.approved_by,
-				approved_at = EXCLUDED.approved_at
-		`, exception.ID, exception.TenantID, exception.ReleaseID, nullableString(exception.FindingID), nullableString(exception.ControlID), exception.Reason,
-			exception.Owner, exception.ExpiresAt, exception.Approved, nullableString(exception.ApprovedBy), nullableTime(exception.ApprovedAt), nonZeroTime(exception.CreatedAt)); err != nil {
-			return fmt.Errorf("upsert exception row: %w", err)
+		if err := importExceptionRow(ctx, tx, exception); err != nil {
+			return err
 		}
 	}
 	for _, framework := range state.ControlFrameworks {

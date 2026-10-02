@@ -1081,6 +1081,43 @@ Source/test evidence: `internal/operations/app/deployment_commands.go`,
 | `POST` | `/v1/customer-portal/package/view` | Exchange package token from a form body for scoped HTML package review. |
 | `POST` | `/v1/customer-portal/package/view/download` | Exchange package token from a form body for scoped ZIP package download. |
 
+### Exception Lifecycle
+
+`POST /v1/exceptions` creates a release-owned exception with optional finding
+and control references. `POST /v1/exceptions/{id}/approve` records its approval
+transition. Both require `release:write`; human sessions need a matching
+tenant, product, or release grant.
+
+In PostgreSQL mode, transaction-only commands resolve current tenant-owned
+release/product coordinates before reservation and replay. A finding must
+belong to that same release/product, and a control and its framework must
+remain tenant-owned. Approval rechecks these references before reading one
+bounded exception record. Neither route refreshes Ledger state.
+
+Creation requires a future expiry. Approval preserves all original core
+fields and commits approval metadata, audit, and replay completion atomically.
+Unlike waiver approval, approving an already-approved, unexpired exception
+with a new key returns the original approval without another audit event.
+Expired exceptions reject new approvals with 409. Completed responses remain
+replayable after expiry, subject to current grants and parent ownership.
+
+PostgreSQL identifiers and owner are limited to 1024 UTF-8 bytes, and reasons
+to 65536 bytes. Invalid text or explicit null creation fields returns 400.
+Expiry must fit years 1–9999 and is normalized to UTC microsecond precision.
+Authorization reads exclude historical reasons; oversized historical records
+cannot be approved through the bounded command. The approval route retains
+its existing ignored-body behavior. Local-memory mode retains its explicit
+compatibility path, not durable transaction guarantees.
+
+Trusted relational/snapshot replay never rewrites existing exception rows.
+Unchanged older snapshots may omit later approval metadata but cannot undo it.
+Changed historical content or new approvals supplied only through bulk replay
+are rejected; initial legacy imports into an empty destination remain supported.
+
+Source/test evidence: `internal/risk/app/exception_commands.go`,
+`internal/adapters/postgres/repositories/exception_reads.go`, and
+`internal/platform/wiring/exception_http_test.go`.
+
 ### Waiver Lifecycle
 
 `POST /v1/waivers` creates a waiver scoped to a `release`, `finding`, `control`,
