@@ -1780,10 +1780,12 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"created_at": map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "product_id", "name", "created_at"))
 	registry.RegisterSchema("ProjectEnvelope", dataEnvelopeSchema("#/components/schemas/Project"))
-	registry.RegisterSchema("CreateReleaseRequest", objectSchema(map[string]any{
+	createReleaseRequest := objectSchema(map[string]any{
 		"product_id": map[string]any{"type": "string"},
 		"version":    map[string]any{"type": "string"},
-	}, "product_id", "version"))
+	}, "product_id", "version")
+	createReleaseRequest["description"] = "Release creation accepts product_id and version and requires release:write. PostgreSQL human sessions also need a tenant or matching product grant. The current tenant-owned product is rechecked in the write transaction and release/audit effects commit together; cached Ledger products and releases are not used. New releases start in draft at revision 1. Versions are unique within each product: a different-key request for an existing version returns 409, while same-key replay returns the original release. Trimmed product IDs and versions must be non-empty, NUL-free UTF-8; product IDs are bounded at 1024 UTF-8 bytes and new release versions at 64 KiB of UTF-8 bytes. Unsupported input returns 400 and oversized stored parent coordinates return 409, never truncated values. Explicit local-memory mode retains its compatibility path. Recording a release does not assert approval, verification, or compliance."
+	registry.RegisterSchema("CreateReleaseRequest", createReleaseRequest)
 	registry.RegisterSchema("Release", objectSchema(map[string]any{
 		"id":          map[string]any{"type": "string"},
 		"tenant_id":   map[string]any{"type": "string"},

@@ -80,6 +80,7 @@ type Server struct {
 	containerImageCommands            ContainerImageCommands
 	artifactCommands                  ArtifactCommands
 	projectCommands                   ProjectCommands
+	releaseCreationCommands           ReleaseCreationCommands
 	evidenceCreationCommands          EvidenceCreationCommands
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
 	deploymentCommands                DeploymentCommands
@@ -219,6 +220,7 @@ type ServerOptions struct {
 	ContainerImageCommands        ContainerImageCommands
 	ArtifactCommands              ArtifactCommands
 	ProjectCommands               ProjectCommands
+	ReleaseCreationCommands       ReleaseCreationCommands
 	EvidenceCreationCommands      EvidenceCreationCommands
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
 	DeploymentCommands            DeploymentCommands
@@ -394,6 +396,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.containerImageCommands = opts.ContainerImageCommands
 	server.artifactCommands = opts.ArtifactCommands
 	server.projectCommands = opts.ProjectCommands
+	server.releaseCreationCommands = opts.ReleaseCreationCommands
 	server.evidenceCreationCommands = opts.EvidenceCreationCommands
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands
@@ -886,6 +889,10 @@ func (s *Server) createRelease(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
+		}
+		if s.releaseCreationCommands != nil {
+			release, err := s.releaseCreationCommands.CreateRelease(ctx, actor, releaseapp.CreateReleaseInput{ProductID: req.ProductID, Version: req.Version})
+			return http.StatusCreated, releaseFromCommand(release), mapBuildAttestationCommandError(err)
 		}
 		release, err := s.releaseCatalog.CreateRelease(ctx, actor, req.ProductID, req.Version)
 		return http.StatusCreated, release, err

@@ -235,6 +235,22 @@ values. Explicit local-memory mode retains its compatibility path.
 {"product_id":"prod_...","version":"1.0.0"}
 ```
 
+In the PostgreSQL profile, release creation uses current durable product
+coordinates and a version-existence check, not cached Ledger products or
+releases. It requires `release:write`; human sessions also need a tenant or
+matching product grant. A new release starts in `draft` at revision `1`.
+Versions are unique within each product: a different-key request for an existing
+version returns `409`; same-key replay returns the original release, while
+changed request bytes with that key conflict. Release/audit effects commit
+together, and product coordinates are rechecked in the write transaction.
+
+Product IDs and versions are trimmed and must be non-empty, NUL-free UTF-8.
+Product IDs are bounded at 1024 UTF-8 bytes and new release versions at 64 KiB
+of UTF-8 bytes. Unsupported input returns `400` without release/audit writes;
+oversized stored parent coordinates return `409`, never truncated values.
+Explicit local-memory mode retains its compatibility path. Recording a release
+does not assert approval, verification, or compliance.
+
 `POST /v1/releases/{id}/evidence-flow/start` returns a read-only workflow plan
 with current evidence counts, required endpoints, scopes, idempotency guidance,
 assumptions, and limitations. It does not create evidence or replace the

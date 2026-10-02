@@ -340,13 +340,14 @@ compound rollback, single-execution replay, tenant/grant denial, and bounds.
 Concurrent release-create tests prove one release/audit pair for a product's
 version, conflicts for losing requests, and independent versions across products.
 These database adapters and the idempotency executor have been exercised together
-without constructing a Ledger. Production project-create HTTP now uses a
-creation-only focused service interface. Live HTTP tests use an empty Ledger
-and durable transaction factory to verify fresh-instance replay, point reads,
-build/evidence/source-repository consumers, tenant and grant rejection, and
-project/audit failure rollback. Local-memory mode keeps its explicit
-compatibility binding. Product and release creation still use compatibility
-HTTP bindings while their remaining consumers migrate to current database reads.
+without constructing a Ledger. Production project- and release-create HTTP now
+use creation-only focused service interfaces. Live HTTP tests use an empty
+Ledger and durable transaction factory to verify fresh-instance replay, point
+reads, build/evidence/source-repository/deployment consumers, tenant and grant
+rejection, and creation/audit failure rollback. Local-memory mode keeps its
+explicit compatibility bindings. Product creation and release transitions still
+use compatibility HTTP bindings while their remaining consumers migrate to
+current database reads.
 Standalone release freeze and approval commands read current tenant-owned
 release and product coordinates, recheck the expected revision under a
 PostgreSQL row lock, and commit the transition with its audit entry. Live

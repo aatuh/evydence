@@ -187,6 +187,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create project commands: %w", err)
 	}
+	options.ReleaseCreationCommands, err = BuildReleaseCommands(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create release creation commands: %w", err)
+	}
 	options.BuildAttestationCommands, err = BuildBuildAttestationCommands(store, runtime.Objects, runtime.WorkerOwnedParsers)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create build attestation commands: %w", err)
