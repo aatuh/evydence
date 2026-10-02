@@ -320,7 +320,11 @@ func newLedgerEvidenceTransaction(ledger *Ledger) *ledgerEvidenceTransaction {
 	}
 }
 
-func (t *ledgerEvidenceTransaction) Evidence() evidenceapp.Repository           { return t }
+func (t *ledgerEvidenceTransaction) Evidence() evidenceapp.Repository { return t }
+
+func (t *ledgerEvidenceTransaction) Authorize(ctx context.Context, actor domain.Actor, request application.AuthorizationRequest) error {
+	return (ledgerLockedContextAuthorizer{ledger: t.ledger}).Authorize(ctx, actor, request)
+}
 func (t *ledgerEvidenceTransaction) Ingestion() evidenceapp.IngestionRepository { return t }
 func (t *ledgerEvidenceTransaction) Payloads() evidenceapp.PayloadRecorder      { return t }
 func (t *ledgerEvidenceTransaction) Outbox() application.OutboxEnqueuer         { return t }

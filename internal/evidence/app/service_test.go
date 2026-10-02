@@ -810,6 +810,7 @@ func newEvidenceServiceFixture(t *testing.T) *evidenceServiceFixture {
 		sbomDiffs: map[string]evidencedomain.SBOMDiff{}, contractDiffs: map[string]evidencedomain.ContractDiff{},
 	}}
 	authorizer := &fakeEvidenceAuthorizer{}
+	transactions.authorizer = authorizer
 	objects := &fakeObjectIngestion{stageNow: now}
 	parser := &fakeEvidenceParser{}
 	scanScopeProber := &fakeVulnerabilityScanScopeProber{scope: VulnerabilityScanScope{ReleaseID: "rel_1"}}
@@ -1090,6 +1091,10 @@ func (s fakeEvidenceState) clone() fakeEvidenceState {
 }
 
 type fakeEvidenceTransactions struct {
+	commitErr          error
+	authorizer         *fakeEvidenceAuthorizer
+	beforeExecute      func()
+	emptyAuditReceipt  bool
 	state              fakeEvidenceState
 	auditErr           error
 	auditFailAt        int
@@ -1103,8 +1108,12 @@ type fakeEvidenceTransactions struct {
 }
 
 func (f *fakeEvidenceTransactions) Execute(ctx context.Context, command TransactionCommand) error {
+	if f.beforeExecute != nil {
+		f.beforeExecute()
+	}
 	pending := f.state.clone()
 	tx := &fakeEvidenceTransaction{
+		authorizer: f.authorizer, emptyAuditReceipt: f.emptyAuditReceipt,
 		state: &pending, auditErr: f.auditErr, auditFailAt: f.auditFailAt,
 		ingestionWriteErr: f.ingestionWriteErr, scopeValidator: f.scopeValidator,
 		beforeLinkCAS: f.beforeLinkCAS,
@@ -1117,12 +1126,18 @@ func (f *fakeEvidenceTransactions) Execute(ctx context.Context, command Transact
 	}
 	f.validatedScopes = append(f.validatedScopes, tx.validatedScopes...)
 	f.validatedArtifacts = append(f.validatedArtifacts, tx.validatedArtifacts...)
+	if f.commitErr != nil {
+		f.rollbacks++
+		return f.commitErr
+	}
 	f.state = pending
 	f.commits++
 	return nil
 }
 
 type fakeEvidenceTransaction struct {
+	authorizer         *fakeEvidenceAuthorizer
+	emptyAuditReceipt  bool
 	state              *fakeEvidenceState
 	auditErr           error
 	auditFailAt        int
@@ -1136,6 +1151,13 @@ type fakeEvidenceTransaction struct {
 
 func (f *fakeEvidenceTransaction) Evidence() Repository {
 	return fakeEvidenceRepository{tx: f}
+}
+
+func (f *fakeEvidenceTransaction) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return f.authorizer.Authorize(ctx, actor, request)
 }
 func (f *fakeEvidenceTransaction) Payloads() PayloadRecorder {
 	return fakePayloadRecorder{state: f.state}
@@ -1218,6 +1240,9 @@ func (f fakeEvidenceAudit) AppendAudit(_ context.Context, value application.Audi
 		return application.AuditReceipt{}, errAuditFailure
 	}
 	f.tx.state.audit = append(f.tx.state.audit, value)
+	if f.tx.emptyAuditReceipt {
+		return application.AuditReceipt{}, nil
+	}
 	return application.AuditReceipt{ID: value.ID}, nil
 }
 

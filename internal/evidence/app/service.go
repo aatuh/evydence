@@ -127,6 +127,7 @@ type PayloadRecorder interface {
 }
 
 type Transaction interface {
+	application.Authorizer
 	Evidence() Repository
 	Ingestion() IngestionRepository
 	Payloads() PayloadRecorder
@@ -184,6 +185,7 @@ type Config struct {
 }
 
 type Service struct {
+	creation                     *EvidenceCreationCommands
 	reader                       Reader
 	transactions                 TransactionRunner
 	projectionRefresher          ProjectionRefresher
@@ -204,8 +206,17 @@ func NewService(config Config) (*Service, error) {
 	if config.Reader == nil || config.Transactions == nil || config.Authorizer == nil || config.Objects == nil || config.SourceObjects == nil || config.Parser == nil || config.VulnerabilityScanScopeProber == nil || config.Canonicalizer == nil || config.LifecycleSanitizer == nil || config.Clock == nil || config.IDs == nil || strings.TrimSpace(config.CanonicalizationProfile) == "" {
 		return nil, ErrValidation
 	}
+	creation, err := NewEvidenceCreationCommands(EvidenceCreationCommandConfig{
+		Reader: config.Reader, Transactions: evidenceCreationTransactions{config.Transactions},
+		Authorizer: config.Authorizer, Payloads: config.Objects, Canonicalizer: config.Canonicalizer,
+		CanonicalizationProfile: config.CanonicalizationProfile, Clock: config.Clock, IDs: config.IDs,
+	})
+	if err != nil {
+		return nil, err
+	}
 	return &Service{
-		reader: config.Reader, transactions: config.Transactions, authorizer: config.Authorizer,
+		creation: creation,
+		reader:   config.Reader, transactions: config.Transactions, authorizer: config.Authorizer,
 		projectionRefresher: config.ProjectionRefresher,
 		objects:             config.Objects, sourceObjects: config.SourceObjects, parser: config.Parser, vulnerabilityScanScopeProber: config.VulnerabilityScanScopeProber,
 		canonicalizer: config.Canonicalizer, lifecycleSanitizer: config.LifecycleSanitizer,
@@ -239,25 +250,7 @@ type CreateEvidenceInput struct {
 }
 
 func (s *Service) CreateEvidence(ctx context.Context, actor identitydomain.Actor, input CreateEvidenceInput) (evidencedomain.EvidenceItem, error) {
-	prepared, err := s.prepareEvidence(ctx, actor, input)
-	if err != nil {
-		return evidencedomain.EvidenceItem{}, err
-	}
-	err = s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-		return s.persistPreparedEvidence(ctx, tx, actor, &prepared)
-	})
-	if err != nil {
-		return evidencedomain.EvidenceItem{}, err
-	}
-	return cloneEvidence(prepared.item), nil
-}
-
-type preparedEvidence struct {
-	input       CreateEvidenceInput
-	scope       EvidenceScope
-	subjectRefs []evidencedomain.SubjectRef
-	item        evidencedomain.EvidenceItem
-	at          time.Time
+	return s.creation.CreateEvidence(ctx, actor, input)
 }
 
 func (s *Service) prepareEvidence(ctx context.Context, actor identitydomain.Actor, input CreateEvidenceInput) (preparedEvidence, error) {
@@ -265,113 +258,11 @@ func (s *Service) prepareEvidence(ctx context.Context, actor identitydomain.Acto
 }
 
 func (s *Service) prepareEvidenceForScope(ctx context.Context, actor identitydomain.Actor, authorizationScope string, input CreateEvidenceInput) (preparedEvidence, error) {
-	if err := contextError(ctx); err != nil {
-		return preparedEvidence{}, err
-	}
-	if authorizationScope != ScopeEvidenceWrite && authorizationScope != ScopeSecurityWrite {
-		return preparedEvidence{}, ErrValidation
-	}
-	if err := s.authorize(ctx, actor, authorizationScope, application.ResourceReferences{}, true); err != nil {
-		return preparedEvidence{}, err
-	}
-	input.ProductID = strings.TrimSpace(input.ProductID)
-	input.ProjectID = strings.TrimSpace(input.ProjectID)
-	input.ReleaseID = strings.TrimSpace(input.ReleaseID)
-	input.BuildID = strings.TrimSpace(input.BuildID)
-	input.DeploymentID = strings.TrimSpace(input.DeploymentID)
-	input.Type = strings.TrimSpace(input.Type)
-	input.Subtype = strings.TrimSpace(input.Subtype)
-	input.Title = strings.TrimSpace(input.Title)
-	input.PayloadHash = strings.TrimSpace(input.PayloadHash)
-	input.PayloadRef = strings.TrimSpace(input.PayloadRef)
-	input.PayloadMediaType = strings.TrimSpace(input.PayloadMediaType)
-	subjectRefs, err := normalizeSubjectRefs(input.SubjectRefs)
-	if err != nil {
-		return preparedEvidence{}, err
-	}
-	input.SubjectRefs = subjectRefs
-	// Deployment evidence is owned by the deployment command, which validates
-	// deployment:write authority and persists the deployment/event back-reference
-	// atomically. Generic evidence and parser callers must not opt into its
-	// pending-reference exception by choosing reserved type/subtype values.
-	if isDeploymentEvent(input.Type, input.Subtype) || input.Type == parserNormalizationType {
-		return preparedEvidence{}, ErrValidation
-	}
-	if input.Type == "" || input.Title == "" || !validDigest(input.PayloadHash) || input.PayloadSize < 0 {
-		return preparedEvidence{}, ErrValidation
-	}
-	if input.ObservedAt.IsZero() {
-		input.ObservedAt = s.clock.Now()
-	}
-	if err := s.validatePayload(ctx, actor.TenantID, input); err != nil {
-		return preparedEvidence{}, err
-	}
-	if actor.CollectorID != "" {
-		input.CollectorID = actor.CollectorID
-	}
-	scope := EvidenceScope{
-		ProductID: input.ProductID, ProjectID: input.ProjectID, ReleaseID: input.ReleaseID,
-		BuildID: input.BuildID, DeploymentID: input.DeploymentID,
-		AllowPendingDeployment: input.DeploymentID != "" && input.Type == "deployment" && input.Subtype == "event",
-	}
-	if err := s.reader.ValidateScope(ctx, actor.TenantID, scope); err != nil {
-		return preparedEvidence{}, err
-	}
-	if err := s.authorize(ctx, actor, authorizationScope, resourceReferences(scope), false); err != nil {
-		return preparedEvidence{}, err
-	}
-	if err := s.validateAndAuthorizeSubjectRefs(ctx, actor, authorizationScope, subjectRefs); err != nil {
-		return preparedEvidence{}, err
-	}
-	input.SubjectRefs = withEvidenceOriginRefs(input.SubjectRefs, scope)
-	now := s.clock.Now().UTC()
-	item := evidencedomain.EvidenceItem{
-		ID: s.ids.NewID("ev"), TenantID: actor.TenantID, ProductID: input.ProductID, ProjectID: input.ProjectID,
-		ReleaseID: input.ReleaseID, BuildID: input.BuildID, DeploymentID: input.DeploymentID,
-		Type: input.Type, Subtype: input.Subtype, Title: input.Title, SourceSystem: nonEmpty(input.SourceSystem, "api"),
-		SourceIdentity: cloneMap(input.SourceIdentity), CollectorID: strings.TrimSpace(input.CollectorID), UploadedBy: actor.KeyID,
-		ObservedAt: input.ObservedAt.UTC(), EvidenceVersion: 1, SchemaVersion: evidencedomain.EvidenceItemSchemaVersion,
-		PayloadRef: input.PayloadRef, PayloadHash: input.PayloadHash, PayloadMediaType: input.PayloadMediaType, PayloadSize: input.PayloadSize,
-		Canonicalization: s.canonicalizationProfile, SubjectRefs: append([]evidencedomain.SubjectRef(nil), input.SubjectRefs...),
-		TrustLevel: "L2", VerificationStatus: "pending", Tags: sortedStrings(input.Tags), Metadata: cloneMap(input.Metadata),
-		Limitations: append([]string(nil), input.Limitations...), CreatedAt: now,
-	}
-	canonicalHash, err := s.canonicalizer.HashEvidence(ctx, item)
-	if err != nil || !validDigest(canonicalHash) {
-		if err != nil {
-			return preparedEvidence{}, err
-		}
-		return preparedEvidence{}, ErrValidation
-	}
-	item.CanonicalHash = canonicalHash
-	return preparedEvidence{input: input, scope: scope, subjectRefs: subjectRefs, item: item, at: now}, nil
+	return s.creation.preparer.prepareEvidenceForScope(ctx, actor, authorizationScope, input)
 }
 
 func (s *Service) persistPreparedEvidence(ctx context.Context, tx Transaction, actor identitydomain.Actor, prepared *preparedEvidence) error {
-	if err := tx.Evidence().ValidateScope(ctx, actor.TenantID, prepared.scope); err != nil {
-		return err
-	}
-	if err := revalidateSubjectRefs(ctx, tx, actor.TenantID, prepared.subjectRefs); err != nil {
-		return err
-	}
-	if prepared.input.StagedPayload.Status == PayloadStatusStaged {
-		if err := tx.Payloads().RecordStagedPayload(ctx, prepared.input.StagedPayload); err != nil {
-			return err
-		}
-		if err := tx.Outbox().EnqueueOutbox(ctx, application.OutboxEvent{
-			ID: s.ids.NewID("job"), TenantID: actor.TenantID, Kind: "finalize_payload", SubjectType: "object_payload",
-			SubjectID: prepared.input.StagedPayload.Digest, CreatedAt: prepared.at,
-			Payload: map[string]any{"payload_digest": prepared.input.StagedPayload.Digest, "payload_lifecycle": PayloadLifecycleVersion},
-		}); err != nil {
-			return err
-		}
-	}
-	receipt, err := tx.Audit().AppendAudit(ctx, s.auditEvent(actor, prepared.at, "evidence.created", prepared.item.ID, prepared.item.PayloadHash))
-	if err != nil {
-		return err
-	}
-	prepared.item.ChainEntryID = receipt.ID
-	return tx.Evidence().InsertEvidence(ctx, prepared.item)
+	return s.creation.preparer.persistPreparedEvidence(ctx, evidenceCreationTransaction{tx}, actor, prepared)
 }
 
 func (s *Service) GetEvidence(ctx context.Context, actor identitydomain.Actor, id string) (evidencedomain.EvidenceItem, error) {
@@ -810,88 +701,16 @@ func (s *Service) ListLifecycleEvents(ctx context.Context, actor identitydomain.
 	return result, nil
 }
 
-func (s *Service) validatePayload(ctx context.Context, tenantID string, input CreateEvidenceInput) error {
-	payload := input.StagedPayload
-	if !payload.Present() {
-		return nil
-	}
-	if err := s.objects.ValidateStagedPayload(ctx, payload); err != nil {
-		return err
-	}
-	if payload.TenantID != tenantID || payload.Digest != input.PayloadHash || payload.Reference() != input.PayloadRef || payload.Size != input.PayloadSize || payload.MediaType != input.PayloadMediaType {
-		return ErrValidation
-	}
-	if payload.Status != PayloadStatusStaged && payload.Status != PayloadStatusFinalized {
-		return ErrValidation
-	}
-	return nil
-}
-
 func (s *Service) authorize(ctx context.Context, actor identitydomain.Actor, scope string, resources application.ResourceReferences, scopeOnly bool) error {
 	return s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: scope, Resources: resources, ScopeOnly: scopeOnly})
 }
 
 func (s *Service) validateAndAuthorizeArtifactReference(ctx context.Context, actor identitydomain.Actor, scope, artifactID, digest string) error {
-	if artifactID == "" {
-		return nil
-	}
-	if err := s.authorize(ctx, actor, scope, application.ResourceReferences{ArtifactID: artifactID}, false); err != nil {
-		return err
-	}
-	return s.reader.ValidateArtifactReference(ctx, actor.TenantID, artifactID, digest)
-}
-
-func (s *Service) validateAndAuthorizeSubjectRefs(ctx context.Context, actor identitydomain.Actor, scope string, refs []evidencedomain.SubjectRef) error {
-	for _, ref := range refs {
-		if ref.ID == "" {
-			continue
-		}
-		if ref.Type == "artifact" {
-			digest, _ := canonicalSupportedSubjectDigest(ref.Digest)
-			if err := s.validateAndAuthorizeArtifactReference(ctx, actor, scope, ref.ID, digest); err != nil {
-				return err
-			}
-			continue
-		}
-		referenceScope, resources, err := subjectReferenceScope(ref)
-		if err != nil {
-			continue
-		}
-		if err := s.authorize(ctx, actor, scope, resources, false); err != nil {
-			return err
-		}
-		if err := s.reader.ValidateScope(ctx, actor.TenantID, referenceScope); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func revalidateSubjectRefs(ctx context.Context, tx Transaction, tenantID string, refs []evidencedomain.SubjectRef) error {
-	for _, ref := range refs {
-		if ref.ID == "" {
-			continue
-		}
-		if ref.Type == "artifact" {
-			digest, _ := canonicalSupportedSubjectDigest(ref.Digest)
-			if err := tx.Ingestion().ValidateArtifactReference(ctx, tenantID, ref.ID, digest); err != nil {
-				return err
-			}
-			continue
-		}
-		referenceScope, _, err := subjectReferenceScope(ref)
-		if err != nil {
-			continue
-		}
-		if err := tx.Evidence().ValidateScope(ctx, tenantID, referenceScope); err != nil {
-			return err
-		}
-	}
-	return nil
+	return s.creation.preparer.validateAndAuthorizeArtifactReference(ctx, actor, scope, artifactID, digest)
 }
 
 func (s *Service) auditEvent(actor identitydomain.Actor, at time.Time, entryType, evidenceID, payloadHash string) application.AuditEvent {
-	return application.AuditEvent{ID: s.ids.NewID("ace"), TenantID: actor.TenantID, EntryType: entryType, SubjectType: "evidence_item", SubjectID: evidenceID, ActorType: auditActorType(actor), ActorID: auditActorID(actor), OccurredAt: at.UTC(), PayloadHash: payloadHash}
+	return s.creation.preparer.auditEvent(actor, at, entryType, evidenceID, payloadHash)
 }
 
 func evidenceReferences(item evidencedomain.EvidenceItem) application.ResourceReferences {
@@ -1191,9 +1010,47 @@ func cloneMap(value map[string]any) map[string]any {
 	}
 	result := make(map[string]any, len(value))
 	for key, item := range value {
-		result[key] = item
+		result[key] = cloneEvidenceJSONValue(item)
 	}
 	return result
+}
+
+// Copy the mutable JSON shapes produced by input decoding and parser adapters
+// without converting numbers or changing empty containers in canonical inputs.
+func cloneEvidenceJSONValue(value any) any {
+	switch value := value.(type) {
+	case map[string]any:
+		if value == nil {
+			return value
+		}
+		result := make(map[string]any, len(value))
+		for key, item := range value {
+			result[key] = cloneEvidenceJSONValue(item)
+		}
+		return result
+	case []any:
+		if value == nil {
+			return value
+		}
+		result := make([]any, len(value))
+		for index, item := range value {
+			result[index] = cloneEvidenceJSONValue(item)
+		}
+		return result
+	case []string:
+		return append(value[:0:0], value...)
+	case []map[string]any:
+		if value == nil {
+			return value
+		}
+		result := make([]map[string]any, len(value))
+		for index, item := range value {
+			result[index] = cloneEvidenceJSONValue(item).(map[string]any)
+		}
+		return result
+	default:
+		return value
+	}
 }
 
 func sortedStrings(values []string) []string {

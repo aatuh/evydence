@@ -55,6 +55,23 @@ Evidence-bundle export (`POST /v1/evidence-bundles`) also uses focused durable c
 
 ## Bounded-context transition
 
+Generic evidence creation now has standalone Evidence-owned
+`EvidenceCreationCommands`, with a two-check reader and flat transaction ports
+for scope/artifact validation, authorization, payload recording, audit, outbox
+and insertion. It needs no parser, document reader, lifecycle sanitizer or
+projection refresher. The compatibility Evidence service delegates creation
+and parser preparation to the same implementation. Recognized parent and
+subject references are revalidated and authorized inside the transaction before
+any writes; empty audit receipts fail closed. New evidence hashes use UTC
+microsecond timestamps, matching PostgreSQL persistence precision without
+rehashing historical records. Nested JSON-shaped source identity and metadata
+are copied without changing numeric types or empty containers; non-JSON or
+cyclic creation metadata is rejected before hashing. Existing response and
+schema fields remain unchanged. Focused transaction-fake tests cover these
+invariants, not live database atomicity. The standalone PostgreSQL/HTTP
+composition and the remaining evidence/parser Ledger adapters are still
+EVY-905 migration work.
+
 PostgreSQL-profile external transparency-checkpoint creation uses a focused
 command and reads only the tenant-owned batch root, not Ledger state or batch
 leaves/signatures. The selected root stays locked until checkpoint and audit
