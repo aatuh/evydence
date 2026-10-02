@@ -580,6 +580,18 @@ The built-in control-template catalog is owned by the risk context and read
 without the Ledger in the PostgreSQL profile. It contains static starter
 definitions, not tenant state; installation still uses the transactional
 compatibility command path. Local-memory mode retains the Ledger list path.
+Manual framework and security-control creation now also have focused risk
+commands composed solely from the active write transaction. Their readers
+return tenant-owned existence bits rather than framework metadata or control
+inventories; the PostgreSQL projection fence precedes parent locks and audit
+appends. Framework/version and control/code uniqueness checks, current
+tenant-wide administration grants, insertion, and audit share that transaction.
+The commands preserve slug derivation, requirement order, applicability sorting
+with duplicates, limitation order, and existing schema versions. They reject
+unsupported text/index sizes and excessive list work before persistence. Their
+HTTP bindings, template installation, and evidence-link commands still use the
+compatibility path at this stage; this boundary does not retire production
+Ledger startup or its remaining maps.
 The read-only release evidence-flow plan also uses a focused service in the
 PostgreSQL profile: one tenant-filtered SQL statement collects nine release
 counts from a consistent snapshot, then current resource grants are checked

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/domain"
+	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
 
 const (
@@ -916,29 +917,23 @@ func (l *Ledger) acceptedControlExceptionsLocked(tenantID, releaseID string) []d
 }
 
 func normalizeControlRequirements(in []domain.ControlEvidenceRequirement) ([]domain.ControlEvidenceRequirement, error) {
-	out := make([]domain.ControlEvidenceRequirement, 0, len(in))
-	seen := map[string]struct{}{}
+	owned := make([]riskdomain.ControlEvidenceRequirement, 0, len(in))
 	for _, req := range in {
-		req.Type = strings.TrimSpace(req.Type)
-		if !supportedControlEvidenceType(req.Type) || req.FreshnessDays < 0 || req.FreshnessDays > 3650 {
-			return nil, ErrValidation
-		}
-		if _, ok := seen[req.Type]; ok {
-			return nil, ErrValidation
-		}
-		seen[req.Type] = struct{}{}
-		out = append(out, req)
+		owned = append(owned, riskdomain.ControlEvidenceRequirement{Type: req.Type, FreshnessDays: req.FreshnessDays, Required: req.Required})
+	}
+	normalized, err := riskdomain.NormalizeControlRequirements(owned)
+	if err != nil {
+		return nil, ErrValidation
+	}
+	out := make([]domain.ControlEvidenceRequirement, 0, len(normalized))
+	for _, req := range normalized {
+		out = append(out, domain.ControlEvidenceRequirement{Type: req.Type, FreshnessDays: req.FreshnessDays, Required: req.Required})
 	}
 	return out, nil
 }
 
 func supportedControlEvidenceType(value string) bool {
-	switch strings.TrimSpace(value) {
-	case "sbom", "vulnerability_scan", "vex", "vulnerability_decision", "artifact", "build", "build_attestation", "openapi_contract", "release_bundle", "exception":
-		return true
-	default:
-		return false
-	}
+	return riskdomain.SupportedControlEvidenceType(value)
 }
 
 func validControlConfidence(value string) bool {
@@ -969,21 +964,7 @@ func scopeMatches(resourceValue, requestedValue string) bool {
 }
 
 func slugify(value string) string {
-	value = strings.ToLower(strings.TrimSpace(value))
-	var b strings.Builder
-	lastDash := false
-	for _, r := range value {
-		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' {
-			b.WriteRune(r)
-			lastDash = false
-			continue
-		}
-		if !lastDash {
-			b.WriteByte('-')
-			lastDash = true
-		}
-	}
-	return strings.Trim(b.String(), "-")
+	return riskdomain.ControlFrameworkSlug(value)
 }
 
 func cleanStrings(in []string) []string {
