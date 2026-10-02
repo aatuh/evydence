@@ -43,22 +43,31 @@ func TestStandaloneArtifactCommandsPreserveDigestDeduplicationAndAudit(t *testin
 }
 
 type conflictingArtifactTransactions struct {
-	artifact   releasedomain.Artifact
-	lookups    int
-	authorized int
-	audits     int
+	artifact      releasedomain.Artifact
+	lookups       int
+	authorized    int
+	metadataReads int
+	audits        int
 }
 
 func (t *conflictingArtifactTransactions) ExecuteArtifact(ctx context.Context, command func(context.Context, ArtifactTransaction) error) error {
 	return command(ctx, t)
 }
 
-func (t *conflictingArtifactTransactions) ArtifactByDigest(context.Context, string, string) (releasedomain.Artifact, bool, error) {
+func (t *conflictingArtifactTransactions) ArtifactIdentityByDigest(context.Context, string, string) (ArtifactRegistrationIdentity, bool, error) {
 	t.lookups++
 	if t.lookups == 1 {
-		return releasedomain.Artifact{}, false, nil
+		return ArtifactRegistrationIdentity{}, false, nil
 	}
-	return t.artifact, true, nil
+	return ArtifactRegistrationIdentity{ID: t.artifact.ID, TenantID: t.artifact.TenantID, Digest: t.artifact.Digest}, true, nil
+}
+
+func (t *conflictingArtifactTransactions) ReadArtifactMetadata(context.Context, string, string) (releasedomain.Artifact, error) {
+	t.metadataReads++
+	if t.authorized == 0 {
+		return releasedomain.Artifact{}, application.ErrForbidden
+	}
+	return t.artifact, nil
 }
 
 func (t *conflictingArtifactTransactions) InsertArtifact(context.Context, releasedomain.Artifact) error {
@@ -93,7 +102,7 @@ func TestArtifactCommandsResolveConcurrentDigestConflictWithoutNewAudit(t *testi
 	artifact, err := commands.RegisterArtifact(t.Context(), fixture.actor, RegisterArtifactInput{
 		Name: "Loser", MediaType: "application/octet-stream", Digest: digest, Size: 1,
 	})
-	if err != nil || artifact.ID != transactions.artifact.ID || transactions.lookups != 2 || transactions.authorized != 1 || transactions.audits != 0 {
+	if err != nil || artifact.ID != transactions.artifact.ID || transactions.lookups != 2 || transactions.authorized != 1 || transactions.metadataReads != 1 || transactions.audits != 0 {
 		t.Fatalf("race resolution artifact=%#v err=%v tx=%#v", artifact, err, transactions)
 	}
 }

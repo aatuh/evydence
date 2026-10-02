@@ -10,10 +10,21 @@ import (
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 )
 
-// ArtifactTransaction keeps digest lookup, duplicate authorization, insertion,
-// and audit inside the caller's commit boundary.
+type ArtifactRegistrationIdentity struct {
+	ID       string
+	TenantID string
+	Digest   string
+}
+
+type ArtifactRegistrationReader interface {
+	ArtifactIdentityByDigest(context.Context, string, string) (ArtifactRegistrationIdentity, bool, error)
+	ReadArtifactMetadata(context.Context, string, string) (releasedomain.Artifact, error)
+}
+
+// ArtifactTransaction separates identity/grant checks from private metadata
+// reads and keeps all effects inside the caller's commit boundary.
 type ArtifactTransaction interface {
-	ArtifactByDigest(context.Context, string, string) (releasedomain.Artifact, bool, error)
+	ArtifactRegistrationReader
 	InsertArtifact(context.Context, releasedomain.Artifact) error
 	AuthorizeExisting(context.Context, identitydomain.Actor, string) error
 	AppendAudit(context.Context, application.AuditEvent) (application.AuditReceipt, error)
@@ -68,27 +79,23 @@ func (s *ArtifactCommands) RegisterArtifact(ctx context.Context, actor identityd
 		MediaType: input.MediaType, Size: input.Size, Digest: input.Digest, CreatedAt: s.clock.Now().UTC(),
 	}
 	err := s.transactions.ExecuteArtifact(ctx, func(ctx context.Context, tx ArtifactTransaction) error {
-		if existing, exists, err := tx.ArtifactByDigest(ctx, actor.TenantID, input.Digest); err != nil {
+		if existing, exists, err := tx.ArtifactIdentityByDigest(ctx, actor.TenantID, input.Digest); err != nil {
 			return err
 		} else if exists {
-			if err := authorizeExistingArtifact(ctx, tx, actor, existing, input.Digest); err != nil {
-				return err
-			}
-			artifact = existing
-			return nil
+			var err error
+			artifact, err = readAuthorizedArtifact(ctx, tx, actor, existing, input.Digest)
+			return err
 		}
 		if err := tx.InsertArtifact(ctx, artifact); err != nil {
 			if errors.Is(err, ErrConflict) {
-				existing, exists, lookupErr := tx.ArtifactByDigest(ctx, actor.TenantID, input.Digest)
+				existing, exists, lookupErr := tx.ArtifactIdentityByDigest(ctx, actor.TenantID, input.Digest)
 				if lookupErr != nil {
 					return lookupErr
 				}
 				if exists {
-					if err := authorizeExistingArtifact(ctx, tx, actor, existing, input.Digest); err != nil {
-						return err
-					}
-					artifact = existing
-					return nil
+					var err error
+					artifact, err = readAuthorizedArtifact(ctx, tx, actor, existing, input.Digest)
+					return err
 				}
 			}
 			return err
@@ -102,14 +109,27 @@ func (s *ArtifactCommands) RegisterArtifact(ctx context.Context, actor identityd
 	return artifact, nil
 }
 
-func authorizeExistingArtifact(ctx context.Context, tx ArtifactTransaction, actor identitydomain.Actor, existing releasedomain.Artifact, digest string) error {
+func readAuthorizedArtifact(ctx context.Context, tx ArtifactTransaction, actor identitydomain.Actor, existing ArtifactRegistrationIdentity, digest string) (releasedomain.Artifact, error) {
 	if existing.TenantID != actor.TenantID || strings.TrimSpace(existing.ID) == "" {
-		return ErrNotFound
+		return releasedomain.Artifact{}, ErrNotFound
 	}
 	if existing.Digest != digest {
-		return ErrConflict
+		return releasedomain.Artifact{}, ErrConflict
 	}
-	return tx.AuthorizeExisting(ctx, actor, existing.ID)
+	if err := tx.AuthorizeExisting(ctx, actor, existing.ID); err != nil {
+		return releasedomain.Artifact{}, err
+	}
+	artifact, err := tx.ReadArtifactMetadata(ctx, actor.TenantID, existing.ID)
+	if err != nil {
+		return releasedomain.Artifact{}, err
+	}
+	if !artifactBelongsToTenant(artifact, actor.TenantID, existing.ID) {
+		return releasedomain.Artifact{}, ErrNotFound
+	}
+	if artifact.Digest != existing.Digest {
+		return releasedomain.Artifact{}, ErrConflict
+	}
+	return artifact, nil
 }
 
 type releaseArtifactTransactions struct{ runner TransactionRunner }
@@ -122,8 +142,13 @@ func (r releaseArtifactTransactions) ExecuteArtifact(ctx context.Context, comman
 
 type releaseArtifactTransaction struct{ tx Transaction }
 
-func (t releaseArtifactTransaction) ArtifactByDigest(ctx context.Context, tenantID, digest string) (releasedomain.Artifact, bool, error) {
-	return t.tx.Catalog().ArtifactByDigest(ctx, tenantID, digest)
+func (t releaseArtifactTransaction) ArtifactIdentityByDigest(ctx context.Context, tenantID, digest string) (ArtifactRegistrationIdentity, bool, error) {
+	v, found, err := t.tx.Catalog().ArtifactByDigest(ctx, tenantID, digest)
+	return ArtifactRegistrationIdentity{ID: v.ID, TenantID: v.TenantID, Digest: v.Digest}, found, err
+}
+
+func (t releaseArtifactTransaction) ReadArtifactMetadata(ctx context.Context, tenantID, id string) (releasedomain.Artifact, error) {
+	return t.tx.Catalog().GetArtifact(ctx, tenantID, id)
 }
 
 func (t releaseArtifactTransaction) InsertArtifact(ctx context.Context, artifact releasedomain.Artifact) error {

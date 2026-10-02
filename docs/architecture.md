@@ -345,8 +345,16 @@ immutable metadata regardless of the database/session timezone. Duplicate
 authorization now uses the current transaction's identity-only artifact-grant
 reader; pending build/evidence associations are visible without a pool read or
 Ledger links. A live regression proves pending grant reuse, compound rollback
-and single-execution replay. Bounded duplicate metadata reads and production
-artifact-registration HTTP binding remain migration work. A
+and single-execution replay. Durable duplicate registration separates bounded
+identity lookup from authorization and only then loads private metadata. The
+identity and metadata queries are tenant-filtered and share-locked; they acquire
+the worker-projection fence before the tenant lock that serializes absent digest
+identities. IDs are bounded at 1024 UTF-8 bytes, names and media types at 64 KiB,
+and SHA-256 digests at 71 bytes. Oversized stored fields return conflict, never
+truncated metadata; new records reject oversized, invalid UTF-8, or NUL-bearing
+fields. Unit tests verify authorization precedes metadata access, and live tests
+cover denied access, oversized stored fields, and immutable authorized reuse.
+Production artifact-registration HTTP binding remains migration work. A
 focused build-create command reads only project tenant/product ownership,
 release tenant/product/version coordinates, and output artifact tenant/digest
 identity, then rechecks them under share locks in the write transaction. Its

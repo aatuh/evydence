@@ -3,7 +3,9 @@ package wiring
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/app"
 	application "github.com/aatuh/evydence/internal/application"
@@ -37,7 +39,8 @@ type artifactTransactions struct{ factory app.UnitOfWorkFactory }
 func (t artifactTransactions) ExecuteArtifact(ctx context.Context, command func(context.Context, releaseapp.ArtifactTransaction) error) error {
 	return mapProductWriteError(app.ExecuteUnitOfWork(ctx, t.factory, func(ctx context.Context, repositories app.Repositories) error {
 		grants, ok := repositories.ReleaseCatalog.(artifactGrantReader)
-		if !ok || repositories.Audit == nil {
+		reader, valid := repositories.ReleaseCatalog.(releaseapp.ArtifactRegistrationReader)
+		if !ok || !valid || repositories.Audit == nil {
 			return app.ErrValidation
 		}
 		authorizer, err := releasequery.NewArtifactWriteAuthorizer(buildArtifactGrants{grants})
@@ -45,32 +48,40 @@ func (t artifactTransactions) ExecuteArtifact(ctx context.Context, command func(
 			return err
 		}
 		return command(ctx, artifactTransaction{
-			catalog: repositories.ReleaseCatalog, audit: repositories.Audit, authorizer: authorizer,
+			catalog: repositories.ReleaseCatalog, reader: reader, audit: repositories.Audit, authorizer: authorizer,
 		})
 	}))
 }
 
 type artifactTransaction struct {
-	catalog    app.ReleaseCatalogRepository
+	catalog interface {
+		InsertArtifact(context.Context, domain.Artifact) error
+	}
+	reader     releaseapp.ArtifactRegistrationReader
 	audit      app.AuditRepository
 	authorizer application.Authorizer
 }
 
-func (t artifactTransaction) ArtifactByDigest(ctx context.Context, tenantID, digest string) (releasedomain.Artifact, bool, error) {
-	artifact, found, err := t.catalog.ArtifactByDigest(ctx, tenantID, digest)
-	if err != nil {
-		return releasedomain.Artifact{}, false, mapProductWriteError(err)
-	}
-	if !found {
-		return releasedomain.Artifact{}, false, nil
-	}
-	return releasedomain.Artifact{
-		ID: artifact.ID, TenantID: artifact.TenantID, Name: artifact.Name,
-		MediaType: artifact.MediaType, Size: artifact.Size, Digest: artifact.Digest, CreatedAt: artifact.CreatedAt.UTC(),
-	}, true, nil
+func (t artifactTransaction) ArtifactIdentityByDigest(ctx context.Context, tenantID, digest string) (releaseapp.ArtifactRegistrationIdentity, bool, error) {
+	v, found, err := t.reader.ArtifactIdentityByDigest(ctx, tenantID, digest)
+	return v, found, mapProductWriteError(err)
+}
+
+func (t artifactTransaction) ReadArtifactMetadata(ctx context.Context, tenantID, id string) (releasedomain.Artifact, error) {
+	v, err := t.reader.ReadArtifactMetadata(ctx, tenantID, id)
+	return v, mapProductWriteError(err)
 }
 
 func (t artifactTransaction) InsertArtifact(ctx context.Context, artifact releasedomain.Artifact) error {
+	// New records must fit the bounded metadata projection used on reuse.
+	for _, field := range []struct {
+		text  string
+		limit int
+	}{{artifact.ID, 1024}, {artifact.TenantID, 1024}, {artifact.Name, 65536}, {artifact.MediaType, 65536}, {artifact.Digest, 71}} {
+		if len(field.text) > field.limit || !utf8.ValidString(field.text) || strings.ContainsRune(field.text, 0) {
+			return releaseapp.ErrValidation
+		}
+	}
 	return mapProductWriteError(t.catalog.InsertArtifact(ctx, domain.Artifact{
 		ID: artifact.ID, TenantID: artifact.TenantID, Name: artifact.Name,
 		MediaType: artifact.MediaType, Size: artifact.Size, Digest: artifact.Digest, CreatedAt: artifact.CreatedAt,
@@ -84,5 +95,5 @@ func (t artifactTransaction) AuthorizeExisting(ctx context.Context, actor identi
 }
 
 func (t artifactTransaction) AppendAudit(ctx context.Context, event application.AuditEvent) (application.AuditReceipt, error) {
-	return catalogTransaction{catalog: t.catalog, audit: t.audit}.AppendAudit(ctx, event)
+	return catalogTransaction{audit: t.audit}.AppendAudit(ctx, event)
 }
