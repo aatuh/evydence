@@ -981,7 +981,7 @@ func (s *Server) releaseSecuritySummary(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) freezeRelease(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
+	s.createConditional(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
 		expectedRevision, err := expectedRevisionFromIfMatch(r)
 		if err != nil {
 			return 0, nil, err
@@ -992,7 +992,7 @@ func (s *Server) freezeRelease(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) approveRelease(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
+	s.createConditional(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
 		expectedRevision, err := expectedRevisionFromIfMatch(r)
 		if err != nil {
 			return 0, nil, err
@@ -1093,7 +1093,7 @@ func (s *Server) transitionReleaseCandidate(w http.ResponseWriter, r *http.Reque
 	var req struct {
 		Reason string `json:"reason"`
 	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+	s.createConditional(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
 		if err := decodeJSON(body, &req); err != nil {
 			return 0, nil, err
 		}
@@ -3933,6 +3933,10 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request, run func(*Server
 }
 
 func (s *Server) createWithLimit(w http.ResponseWriter, r *http.Request, limit int64, run func(*Server, requestContext, domain.Actor, []byte) (int, any, error)) {
+	s.createWithFingerprint(w, r, limit, run, nil)
+}
+
+func (s *Server) createWithFingerprint(w http.ResponseWriter, r *http.Request, limit int64, run func(*Server, requestContext, domain.Actor, []byte) (int, any, error), fingerprint func(*http.Request, []byte) ([]byte, error)) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
 		return
@@ -3943,7 +3947,15 @@ func (s *Server) createWithLimit(w http.ResponseWriter, r *http.Request, limit i
 		writeProblem(w, r, err)
 		return
 	}
-	status, response, err := s.idempotency.WithBody(ctx, actor, r.Method, r.URL.Path, r.Header.Get("Idempotency-Key"), body, func(commandCtx context.Context, scope commandScope) (int, any, error) {
+	input := body
+	if fingerprint != nil {
+		input, err = fingerprint(r, body)
+		if err != nil {
+			writeProblem(w, r, err)
+			return
+		}
+	}
+	status, response, err := s.idempotency.WithBody(ctx, actor, r.Method, r.URL.Path, r.Header.Get("Idempotency-Key"), input, func(commandCtx context.Context, scope commandScope) (int, any, error) {
 		commandServer := *s
 		scope.bind(&commandServer)
 		return run(&commandServer, commandCtx, actor, body)

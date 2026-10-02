@@ -32,6 +32,15 @@ authenticated tenant, actor, HTTP method, and path. The service stores a
 request digest, not the raw request body, and uses an internal hashed lease
 owner while a command is pending.
 
+Conditional release and release-candidate actions also bind the canonical
+`If-Match` revision into that digest and validate the header before replay.
+Changing the revision with the same key returns `409 IDEMPOTENCY_KEY_REUSED`;
+an invalid or missing header returns `400` even for a completed key. Completed
+conditional-action keys created by older versions using only a body digest
+cannot be replayed under the stronger fingerprint: read the current resource
+before retrying with a new key and its current revision. Do not blindly repeat
+an action whose earlier outcome is unknown.
+
 Native document uploads also bind their media type and relationship/version
 headers into the request digest. During the bounded retention window, a retry
 of a record created before those headers were included can fall back to the
