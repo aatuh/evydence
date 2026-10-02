@@ -401,6 +401,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create durable command executor: %w", err)
 	}
+	options.ApprovalCommands, err = BuildApprovalCommands(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create approval commands: %w", err)
+	}
 	options.VulnerabilityDecisionSummaryQuery, err = BuildVulnerabilityDecisionSummaryQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create vulnerability decision summary query: %w", err)

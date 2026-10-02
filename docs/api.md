@@ -1081,6 +1081,28 @@ Source/test evidence: `internal/operations/app/deployment_commands.go`,
 | `POST` | `/v1/customer-portal/package/view` | Exchange package token from a form body for scoped HTML package review. |
 | `POST` | `/v1/customer-portal/package/view/download` | Exchange package token from a form body for scoped ZIP package download. |
 
+### Approval Creation
+
+`POST /v1/approvals` records an immutable `approved` or `rejected` decision for
+a `release`, `contract_diff`, `waiver`, `security_review`, or `customer_package`.
+Creating a record does not itself approve a waiver or change release state.
+The existing OpenAPI request enum also advertises `accepted`, but the current
+command rejects it; that pre-existing contract discrepancy still needs resolution
+before ticket closure.
+
+In PostgreSQL mode, current tenant-owned parent coordinates and `release:write`
+grants are checked before new requests and idempotency replay. Human sessions
+need a matching product/release grant; a waiver on a tenant-wide control or
+policy instead requires a tenant grant. Optional `evidence_id` must belong to
+the tenant; it is not required to match the subject's release. The approval,
+audit entry, and successful replay record commit atomically without Ledger
+cloning or whole-state refresh.
+
+PostgreSQL command identities are limited to 1024 UTF-8 bytes and the reason to
+65536 bytes. Invalid UTF-8, NUL text, explicit null fields, unsupported subjects,
+and unknown decision values return 400. Local-memory mode retains its explicit
+compatibility command; it is not proof of durable operation.
+
 Manual framework/control creation in PostgreSQL uses focused commands and
 existence-only reads in the active transaction, not Ledger inventories. Each
 record and its audit append commit together; same-key replay returns the

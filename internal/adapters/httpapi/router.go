@@ -90,6 +90,7 @@ type Server struct {
 	controlTemplateCommands           ControlTemplateCommands
 	controlEvidenceCommands           ControlEvidenceCommands
 	vulnerabilityDecisionCommands     VulnerabilityDecisionCommands
+	approvalCommands                  ApprovalCommands
 	durableCommandExecutor            DurableCommandExecutor
 	evidenceCreationCommands          EvidenceCreationCommands
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
@@ -239,6 +240,7 @@ type ServerOptions struct {
 	ControlTemplateCommands       ControlTemplateCommands
 	ControlEvidenceCommands       ControlEvidenceCommands
 	VulnerabilityDecisionCommands VulnerabilityDecisionCommands
+	ApprovalCommands              ApprovalCommands
 	DurableCommandExecutor        DurableCommandExecutor
 	EvidenceCreationCommands      EvidenceCreationCommands
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
@@ -357,8 +359,8 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if ctx == nil {
 		return nil, errors.New("server context is required")
 	}
-	if opts.VulnerabilityDecisionCommands != nil && opts.DurableCommandExecutor == nil {
-		return nil, errors.New("focused decision commands require durable idempotency")
+	if (opts.VulnerabilityDecisionCommands != nil || opts.ApprovalCommands != nil) && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused commands require durable idempotency")
 	}
 	if ledger == nil {
 		var err error
@@ -427,6 +429,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.controlTemplateCommands = opts.ControlTemplateCommands
 	server.controlEvidenceCommands = opts.ControlEvidenceCommands
 	server.vulnerabilityDecisionCommands = opts.VulnerabilityDecisionCommands
+	server.approvalCommands = opts.ApprovalCommands
 	server.durableCommandExecutor = opts.DurableCommandExecutor
 	server.evidenceCreationCommands = opts.EvidenceCreationCommands
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
@@ -2008,6 +2011,10 @@ func (s *Server) approveWaiver(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createApproval(w http.ResponseWriter, r *http.Request) {
+	if s.approvalCommands != nil {
+		s.createDurableApproval(w, r)
+		return
+	}
 	var req struct {
 		SubjectType string `json:"subject_type"`
 		SubjectID   string `json:"subject_id"`

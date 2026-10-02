@@ -621,6 +621,19 @@ and prove link/audit rollback and safe error responses. The handler rejects
 null fields and invalid decoded control IDs before they reach storage.
 Local-memory mode retains its explicit compatibility path. These boundaries
 do not retire production Ledger startup or its remaining maps.
+
+Approval creation also binds a transaction-only command and direct durable
+idempotency in PostgreSQL. Identifier-only queries resolve all five existing
+subjects through current tenant-owned parents, including waiver scope, contract
+source ownership, security-review source type, and customer-package redaction
+profile ownership. Human sessions need a matching product/release grant; waivers
+on tenant-wide controls/policies require a tenant grant. Authorization runs before
+reservation/replay, and approval, audit, and replay completion share one unit of
+work. Optional evidence retains the existing same-tenant ownership rule, not a
+new same-release requirement. Live HTTP tests use fresh servers with forbidden
+Ledger refreshes and cover replay, role removal, malformed input, and rollback.
+Waiver/exception lifecycle commands and other compatibility paths remain open.
+
 Vulnerability-decision creation now has a separate transaction-only command
 core. It uses the existing normalization and decision-construction rules, but
 does not refresh projections or list a tenant's full decision history. Current
