@@ -3,11 +3,14 @@ package wiring
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/app"
 	application "github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
+	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releaseapp "github.com/aatuh/evydence/internal/release/app"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 	releasequery "github.com/aatuh/evydence/internal/release/query"
@@ -21,78 +24,60 @@ func BuildProductCommands(factory app.UnitOfWorkFactory) (*releaseapp.ProductCom
 	}
 	return releaseapp.NewProductCommands(releaseapp.ProductCommandConfig{
 		Authorizer:   releasequery.NewCatalogAuthorizer(),
-		Transactions: catalogTransactions{factory: factory},
-		Clock:        application.ClockFunc(time.Now),
+		Transactions: productTransactions{factory: factory},
+		Clock:        application.ClockFunc(func() time.Time { return time.Now().UTC().Truncate(time.Microsecond) }),
 		IDs:          application.IDGeneratorFunc(application.NewID),
 	})
 }
 
-type catalogTransactions struct{ factory app.UnitOfWorkFactory }
+type productTransactions struct{ factory app.UnitOfWorkFactory }
 
-func (t catalogTransactions) ExecuteProduct(ctx context.Context, command func(context.Context, releaseapp.ProductTransaction) error) error {
+func (t productTransactions) ExecuteProduct(ctx context.Context, command func(context.Context, releaseapp.ProductTransaction) error) error {
 	return mapProductWriteError(app.ExecuteUnitOfWork(ctx, t.factory, func(ctx context.Context, repositories app.Repositories) error {
-		if repositories.ReleaseCatalog == nil || repositories.Audit == nil {
+		slugs, ok := repositories.ReleaseCatalog.(releaseapp.ProductSlugReader)
+		if !ok || repositories.Audit == nil {
 			return app.ErrValidation
 		}
-		return command(ctx, catalogTransaction{catalog: repositories.ReleaseCatalog, audit: repositories.Audit})
+		return command(ctx, productTransaction{slugs: slugs, writer: repositories.ReleaseCatalog, audit: repositories.Audit})
 	}))
 }
 
+type productTransaction struct {
+	slugs  releaseapp.ProductSlugReader
+	writer interface {
+		InsertProduct(context.Context, domain.Product) error
+	}
+	audit app.AuditRepository
+}
+
+func (t productTransaction) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
+	return releasequery.NewCatalogAuthorizer().Authorize(ctx, actor, request)
+}
+
+func (t productTransaction) ProductSlugExists(ctx context.Context, tenantID, slug string) (bool, error) {
+	exists, err := t.slugs.ProductSlugExists(ctx, tenantID, slug)
+	return exists, mapProductWriteError(err)
+}
+
+func (t productTransaction) InsertProduct(ctx context.Context, product releasedomain.Product) error {
+	for _, field := range []struct {
+		text  string
+		limit int
+	}{{product.ID, 1024}, {product.TenantID, 1024}, {product.Name, 65536}, {product.Slug, 1024}} {
+		if field.text == "" || len(field.text) > field.limit || !utf8.ValidString(field.text) || strings.ContainsRune(field.text, 0) {
+			return releaseapp.ErrValidation
+		}
+	}
+	return mapProductWriteError(t.writer.InsertProduct(ctx, domain.Product{ID: product.ID, TenantID: product.TenantID, Name: product.Name, Slug: product.Slug, CreatedAt: product.CreatedAt}))
+}
+
+func (t productTransaction) AppendAudit(ctx context.Context, event application.AuditEvent) (application.AuditReceipt, error) {
+	return catalogTransaction{audit: t.audit}.AppendAudit(ctx, event)
+}
+
+// Shared audit translation holds no catalog reader or writer capability.
 type catalogTransaction struct {
-	catalog app.ReleaseCatalogRepository
-	audit   app.AuditRepository
-}
-
-func (t catalogTransaction) ProductBySlug(ctx context.Context, tenantID, slug string) (releasedomain.Product, bool, error) {
-	product, found, err := t.catalog.ProductBySlug(ctx, tenantID, slug)
-	if err != nil {
-		return releasedomain.Product{}, false, mapProductWriteError(err)
-	}
-	if !found {
-		return releasedomain.Product{}, false, nil
-	}
-	return releasedomain.Product{ID: product.ID, TenantID: product.TenantID, Name: product.Name, Slug: product.Slug, CreatedAt: product.CreatedAt}, true, nil
-}
-
-func (t catalogTransaction) InsertProduct(ctx context.Context, product releasedomain.Product) error {
-	return mapProductWriteError(t.catalog.InsertProduct(ctx, domain.Product{
-		ID: product.ID, TenantID: product.TenantID, Name: product.Name, Slug: product.Slug, CreatedAt: product.CreatedAt,
-	}))
-}
-
-func (t catalogTransaction) GetProduct(ctx context.Context, tenantID, id string) (releasedomain.Product, error) {
-	product, err := t.catalog.GetProduct(ctx, tenantID, id)
-	if err != nil {
-		return releasedomain.Product{}, mapProductWriteError(err)
-	}
-	return releasedomain.Product{ID: product.ID, TenantID: product.TenantID, Name: product.Name, Slug: product.Slug, CreatedAt: product.CreatedAt}, nil
-}
-
-func (t catalogTransaction) InsertProject(ctx context.Context, project releasedomain.Project) error {
-	return mapProductWriteError(t.catalog.InsertProject(ctx, domain.Project{
-		ID: project.ID, TenantID: project.TenantID, ProductID: project.ProductID,
-		Name: project.Name, CreatedAt: project.CreatedAt,
-	}))
-}
-
-func (t catalogTransaction) ReleaseByVersion(ctx context.Context, tenantID, productID, version string) (releasedomain.Release, bool, error) {
-	release, found, err := t.catalog.ReleaseByVersion(ctx, tenantID, productID, version)
-	if err != nil {
-		return releasedomain.Release{}, false, mapProductWriteError(err)
-	}
-	if !found {
-		return releasedomain.Release{}, false, nil
-	}
-	converted, err := releaseFromCatalogRow(release)
-	return converted, true, err
-}
-
-func (t catalogTransaction) InsertRelease(ctx context.Context, release releasedomain.Release) error {
-	return mapProductWriteError(t.catalog.InsertRelease(ctx, domain.Release{
-		ID: release.ID, TenantID: release.TenantID, ProductID: release.ProductID,
-		Version: release.Version, Revision: release.Revision, State: release.State.String(),
-		CreatedAt: release.CreatedAt, FrozenAt: release.FrozenAt, ApprovedAt: release.ApprovedAt,
-	}))
+	audit app.AuditRepository
 }
 
 func (t catalogTransaction) AppendAudit(ctx context.Context, event application.AuditEvent) (application.AuditReceipt, error) {

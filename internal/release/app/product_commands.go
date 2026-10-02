@@ -12,9 +12,15 @@ import (
 // ProductTransaction exposes only the product and audit writes required by
 // product creation. A caller owns the transaction and its commit boundary.
 type ProductTransaction interface {
-	ProductBySlug(context.Context, string, string) (releasedomain.Product, bool, error)
+	application.Authorizer
+	ProductSlugReader
 	InsertProduct(context.Context, releasedomain.Product) error
 	AppendAudit(context.Context, application.AuditEvent) (application.AuditReceipt, error)
+}
+
+// ProductSlugReader returns only existence, never another product's metadata.
+type ProductSlugReader interface {
+	ProductSlugExists(context.Context, string, string) (bool, error)
 }
 
 type ProductTransactionRunner interface {
@@ -59,7 +65,10 @@ func (s *ProductCommands) CreateProduct(ctx context.Context, actor identitydomai
 	}
 	product := releasedomain.Product{ID: s.ids.NewID("prod"), TenantID: actor.TenantID, Name: input.Name, Slug: input.Slug, CreatedAt: s.clock.Now().UTC()}
 	err := s.transactions.ExecuteProduct(ctx, func(ctx context.Context, tx ProductTransaction) error {
-		if _, exists, err := tx.ProductBySlug(ctx, actor.TenantID, input.Slug); err != nil {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeProductWrite, TenantWide: true}); err != nil {
+			return err
+		}
+		if exists, err := tx.ProductSlugExists(ctx, actor.TenantID, input.Slug); err != nil {
 			return err
 		} else if exists {
 			return ErrConflict
@@ -88,8 +97,13 @@ func (r releaseProductTransactions) ExecuteProduct(ctx context.Context, command 
 
 type releaseProductTransaction struct{ tx Transaction }
 
-func (t releaseProductTransaction) ProductBySlug(ctx context.Context, tenantID, slug string) (releasedomain.Product, bool, error) {
-	return t.tx.Catalog().ProductBySlug(ctx, tenantID, slug)
+func (t releaseProductTransaction) ProductSlugExists(ctx context.Context, tenantID, slug string) (bool, error) {
+	_, exists, err := t.tx.Catalog().ProductBySlug(ctx, tenantID, slug)
+	return exists, err
+}
+
+func (t releaseProductTransaction) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
+	return t.tx.Authorization().Authorize(ctx, actor, request)
 }
 
 func (t releaseProductTransaction) InsertProduct(ctx context.Context, product releasedomain.Product) error {

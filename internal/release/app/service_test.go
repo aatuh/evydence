@@ -16,7 +16,7 @@ import (
 var errDenied = errors.New("denied")
 var errAudit = errors.New("audit failed")
 
-func TestCreateProductAuthorizesBeforeOneAtomicTransaction(t *testing.T) {
+func TestCreateProductAuthorizesBeforeAndInsideOneAtomicTransaction(t *testing.T) {
 	fixture := newServiceFixture(t)
 	product, err := fixture.service.CreateProduct(context.Background(), fixture.actor, CreateProductInput{Name: " Payments ", Slug: " payments "})
 	if err != nil {
@@ -25,8 +25,13 @@ func TestCreateProductAuthorizesBeforeOneAtomicTransaction(t *testing.T) {
 	if product.ID != "prod_1" || product.TenantID != fixture.actor.TenantID || product.Name != "Payments" || product.Slug != "payments" || !product.CreatedAt.Equal(fixture.now) {
 		t.Fatalf("product = %#v", product)
 	}
-	if fixture.authorizer.calls != 1 || fixture.authorizer.transactionStartedAtCall {
-		t.Fatalf("authorization calls=%d transaction_started_at_call=%t", fixture.authorizer.calls, fixture.authorizer.transactionStartedAtCall)
+	if fixture.authorizer.calls != 2 || !reflect.DeepEqual(fixture.authorizer.startedCalls, []bool{false, true}) {
+		t.Fatalf("authorization calls=%d transaction_started_at_calls=%v", fixture.authorizer.calls, fixture.authorizer.startedCalls)
+	}
+	for _, request := range fixture.authorizer.requests {
+		if request.Scope != ScopeProductWrite || !request.TenantWide || request.ScopeOnly || request.Resources != (application.ResourceReferences{}) {
+			t.Fatalf("product authorization no longer tenant-wide: %#v", request)
+		}
 	}
 	if fixture.transactions.calls != 1 || fixture.transactions.commits != 1 || fixture.transactions.rollbacks != 0 {
 		t.Fatalf("transactions = %#v", fixture.transactions)
@@ -581,6 +586,7 @@ type fakeAuthorizer struct {
 	calls                    int
 	err                      error
 	transactionStartedAtCall bool
+	startedCalls             []bool
 	requests                 []application.AuthorizationRequest
 	authorize                func(application.AuthorizationRequest) error
 }
@@ -588,6 +594,7 @@ type fakeAuthorizer struct {
 func (f *fakeAuthorizer) Authorize(_ context.Context, _ identitydomain.Actor, request application.AuthorizationRequest) error {
 	f.calls++
 	f.transactionStartedAtCall = f.transactionStartedAtCall || f.transactions.calls > 0
+	f.startedCalls = append(f.startedCalls, f.transactions.calls > 0)
 	f.requests = append(f.requests, request)
 	if f.authorize != nil {
 		return f.authorize(request)

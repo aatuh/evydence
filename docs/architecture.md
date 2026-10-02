@@ -322,6 +322,18 @@ protocol but still clones and reloads Ledger state for its command view.
 Migrating the HTTP command bindings to focused services remains EVY-905 work.
 The release context now has standalone product-, project-, and release-create
 commands with narrow tenant-scoped repositories and audit transactions.
+Durable product creation uses a boolean slug-existence port; it never loads an
+existing product's name, slug, or creation metadata to detect a duplicate.
+The transaction repeats tenant-wide authorization before its first catalog
+read. PostgreSQL acquires the worker-projection fence before locking the tenant
+row, serializing absent slugs; the unique constraint remains the durable
+backstop. New product IDs and tenant IDs are bounded to 1024 UTF-8 bytes,
+names to 64 KiB, and slugs to 1024 bytes; write fields must be NUL-free UTF-8.
+Creation times use microsecond-precision UTC. Live tests cover pending-slug
+visibility, rollback, durable replay, wrong-level and removed grants, invalid
+storage text, independent slugs across tenants, and concurrent creation with
+one product/audit pair. Shared audit translation no longer exposes full catalog
+reads or project/release insert methods.
 Project and release creation check the parent product both before and inside
 the write transaction; release versions remain unique per product. Both durable
 creation builders take only a unit-of-work factory. Their initial reads use the

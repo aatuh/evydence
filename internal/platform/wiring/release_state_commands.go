@@ -103,18 +103,6 @@ func (t releaseStateCommandTransaction) AppendAudit(ctx context.Context, event a
 	return catalogTransaction{audit: t.audit}.AppendAudit(ctx, event)
 }
 
-func releaseFromCatalogRow(release domain.Release) (releasedomain.Release, error) {
-	state, err := releasedomain.ParseReleaseState(release.State)
-	if err != nil {
-		return releasedomain.Release{}, releaseapp.ErrValidation
-	}
-	return releasedomain.Release{
-		ID: release.ID, TenantID: release.TenantID, ProductID: release.ProductID,
-		Version: release.Version, State: state, Revision: release.Revision,
-		FrozenAt: release.FrozenAt, ApprovedAt: release.ApprovedAt, CreatedAt: release.CreatedAt,
-	}, nil
-}
-
 func mapReleaseStateWriteError(err error) error {
 	if revision, ok := app.CurrentRevision(err); ok {
 		return releaseapp.NewVersionConflict(revision)
