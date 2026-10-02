@@ -265,7 +265,7 @@ type CreateProjectInput struct {
 
 func (s *Service) CreateProject(ctx context.Context, actor identitydomain.Actor, input CreateProjectInput) (releasedomain.Project, error) {
 	commands, err := NewProjectCommands(ProjectCommandConfig{
-		Reader: s.reader, Authorizer: s.authorizer,
+		Reader: legacyProjectParent{source: s.reader}, Authorizer: s.authorizer,
 		Transactions: releaseProjectTransactions{runner: s.transactions},
 		Clock:        s.clock, IDs: s.ids,
 	})

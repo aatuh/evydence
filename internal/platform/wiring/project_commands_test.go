@@ -11,23 +11,7 @@ import (
 	"github.com/aatuh/evydence/internal/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releaseapp "github.com/aatuh/evydence/internal/release/app"
-	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 )
-
-type memoryProjectParentReader struct{ factory app.UnitOfWorkFactory }
-
-func (r memoryProjectParentReader) GetProduct(ctx context.Context, tenantID, id string) (releasedomain.Product, error) {
-	var product releasedomain.Product
-	err := app.ExecuteUnitOfWork(ctx, r.factory, func(ctx context.Context, repositories app.Repositories) error {
-		value, err := repositories.ReleaseCatalog.GetProduct(ctx, tenantID, id)
-		if err != nil {
-			return err
-		}
-		product = releasedomain.Product{ID: value.ID, TenantID: value.TenantID, Name: value.Name, Slug: value.Slug, CreatedAt: value.CreatedAt}
-		return nil
-	})
-	return product, err
-}
 
 func TestProjectCommandsReadDirectlyCreatedProductWithoutLedger(t *testing.T) {
 	ctx := context.Background()
@@ -47,7 +31,7 @@ func TestProjectCommandsReadDirectlyCreatedProductWithoutLedger(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	projects, err := BuildProjectCommands(memoryProjectParentReader{factory: memory}, memory)
+	projects, err := BuildProjectCommands(memory)
 	if err != nil {
 		t.Fatal(err)
 	}

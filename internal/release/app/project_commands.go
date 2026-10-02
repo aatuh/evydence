@@ -9,14 +9,21 @@ import (
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 )
 
-// ProjectReader supplies a tenant-scoped parent point read before a write
-// transaction. The transaction rechecks that parent's coordinates.
+// ProjectProductCoordinates carries only the parent identity needed for
+// ownership, grant checks, and immutable slug drift detection.
+type ProjectProductCoordinates struct {
+	ID       string
+	TenantID string
+	Slug     string
+}
+
+// ProjectReader supplies parent coordinates, never private product metadata.
 type ProjectReader interface {
-	GetProduct(context.Context, string, string) (releasedomain.Product, error)
+	ReadProjectProductCoordinates(context.Context, string, string) (ProjectProductCoordinates, error)
 }
 
 type ProjectTransaction interface {
-	GetProduct(context.Context, string, string) (releasedomain.Product, error)
+	ProjectReader
 	InsertProject(context.Context, releasedomain.Project) error
 	AppendAudit(context.Context, application.AuditEvent) (application.AuditReceipt, error)
 }
@@ -66,11 +73,11 @@ func (s *ProjectCommands) CreateProject(ctx context.Context, actor identitydomai
 	if input.ProductID == "" || input.Name == "" {
 		return releasedomain.Project{}, ErrValidation
 	}
-	product, err := s.reader.GetProduct(ctx, actor.TenantID, input.ProductID)
+	product, err := s.reader.ReadProjectProductCoordinates(ctx, actor.TenantID, input.ProductID)
 	if err != nil {
 		return releasedomain.Project{}, err
 	}
-	if !productBelongsToTenant(product, actor.TenantID, input.ProductID) {
+	if product.TenantID != actor.TenantID || product.ID != input.ProductID {
 		return releasedomain.Project{}, ErrNotFound
 	}
 	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{
@@ -80,14 +87,14 @@ func (s *ProjectCommands) CreateProject(ctx context.Context, actor identitydomai
 	}
 	project := releasedomain.Project{ID: s.ids.NewID("proj"), TenantID: actor.TenantID, ProductID: product.ID, Name: input.Name, CreatedAt: s.clock.Now().UTC()}
 	err = s.transactions.ExecuteProject(ctx, func(ctx context.Context, tx ProjectTransaction) error {
-		current, err := tx.GetProduct(ctx, actor.TenantID, product.ID)
+		current, err := tx.ReadProjectProductCoordinates(ctx, actor.TenantID, product.ID)
 		if err != nil {
 			return err
 		}
-		if !productBelongsToTenant(current, actor.TenantID, product.ID) {
+		if current.TenantID != actor.TenantID || current.ID != product.ID {
 			return ErrNotFound
 		}
-		if !sameProductCoordinates(current, product) {
+		if current != product {
 			return ErrConflict
 		}
 		if err := tx.InsertProject(ctx, project); err != nil {
@@ -112,8 +119,21 @@ func (r releaseProjectTransactions) ExecuteProject(ctx context.Context, command 
 
 type releaseProjectTransaction struct{ tx Transaction }
 
-func (t releaseProjectTransaction) GetProduct(ctx context.Context, tenantID, id string) (releasedomain.Product, error) {
-	return t.tx.Catalog().GetProduct(ctx, tenantID, id)
+func (t releaseProjectTransaction) ReadProjectProductCoordinates(ctx context.Context, tenantID, id string) (ProjectProductCoordinates, error) {
+	return legacyProjectParent{source: t.tx.Catalog()}.ReadProjectProductCoordinates(ctx, tenantID, id)
+}
+
+// Only the legacy/local service bridge reads full catalog models. Production
+// composition supplies the explicit bounded coordinate port directly.
+type legacyProjectParent struct {
+	source interface {
+		GetProduct(context.Context, string, string) (releasedomain.Product, error)
+	}
+}
+
+func (r legacyProjectParent) ReadProjectProductCoordinates(ctx context.Context, tenantID, id string) (ProjectProductCoordinates, error) {
+	v, err := r.source.GetProduct(ctx, tenantID, id)
+	return ProjectProductCoordinates{ID: v.ID, TenantID: v.TenantID, Slug: v.Slug}, err
 }
 
 func (t releaseProjectTransaction) InsertProject(ctx context.Context, project releasedomain.Project) error {

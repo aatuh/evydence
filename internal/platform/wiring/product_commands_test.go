@@ -140,7 +140,7 @@ func TestPostgresCatalogCommandsCommitProductProjectReleaseArtifactBuildAuditAnd
 	if _, _, err := idempotency.WithBody(ctx, actor, "POST", "/v1/products", "live-product", []byte(`{"name":"Live"}`), create); err != nil || runs != 1 {
 		t.Fatalf("durable replay runs=%d err=%v", runs, err)
 	}
-	projects, err := BuildProjectCommands(runtime.Postgres, runtime.Postgres)
+	projects, err := BuildProjectCommands(runtime.Postgres)
 	if err != nil {
 		t.Fatal(err)
 	}

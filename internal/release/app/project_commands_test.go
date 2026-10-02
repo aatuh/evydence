@@ -16,7 +16,7 @@ func TestStandaloneProjectCommandsRequireCurrentTenantOwnedParent(t *testing.T) 
 	fixture.reader.products[parent.ID] = parent
 	fixture.transactions.state.products[parent.ID] = parent
 	commands, err := NewProjectCommands(ProjectCommandConfig{
-		Reader: fixture.reader, Authorizer: fixture.authorizer,
+		Reader: legacyProjectParent{source: fixture.reader}, Authorizer: fixture.authorizer,
 		Transactions: releaseProjectTransactions{runner: fixture.transactions},
 		Clock:        application.ClockFunc(func() time.Time { return fixture.now }),
 		IDs:          application.IDGeneratorFunc(func(prefix string) string { return prefix + "_standalone" }),

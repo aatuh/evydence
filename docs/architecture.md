@@ -323,7 +323,17 @@ Migrating the HTTP command bindings to focused services remains EVY-905 work.
 The release context now has standalone product-, project-, and release-create
 commands with narrow tenant-scoped repositories and audit transactions.
 Project and release creation check the parent product both before and inside
-the write transaction; release versions remain unique per product. Their
+the write transaction; release versions remain unique per product. The durable
+project-create builder now takes only a unit-of-work factory. Its initial read
+uses the enclosing transaction when present, so pending products are visible;
+both reads use a coordinate-only port containing product ID, tenant ID, and
+slug, preserving the existing slug-drift check without loading product names or
+timestamps. PostgreSQL acquires the worker-projection fence before a share lock
+on the tenant-filtered product. IDs are bounded at 1024 UTF-8 bytes and stored
+slugs at 64 KiB; oversized stored coordinates return conflict, not truncation.
+New project names must be NUL-free UTF-8 within 64 KiB, and durable creation
+times use microsecond-precision UTC. Live tests cover pending-parent visibility,
+compound rollback, single-execution replay, tenant/grant denial, and bounds. Their
 database adapters and the idempotency executor have been exercised together
 without constructing a Ledger. Production HTTP still uses the compatibility
 command binding because later Ledger-backed commands must be migrated to
