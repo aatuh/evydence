@@ -17,9 +17,13 @@ const ScopeControlsAdmin = "controls:admin"
 // ControlCreationReader transfers existence only, never a framework's metadata
 // or an inventory of controls. All reads occur in the active write transaction.
 type ControlCreationReader interface {
-	FrameworkVersionExists(context.Context, string, string, string) (bool, error)
+	FrameworkVersionReader
 	ControlFrameworkExists(context.Context, string, string) (bool, error)
 	SecurityControlCodeExists(context.Context, string, string, string) (bool, error)
+}
+
+type FrameworkVersionReader interface {
+	FrameworkVersionExists(context.Context, string, string, string) (bool, error)
 }
 
 type ControlTransaction interface {

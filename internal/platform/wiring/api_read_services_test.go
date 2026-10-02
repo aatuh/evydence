@@ -39,6 +39,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.ControlCommands != nil {
 		t.Fatal("local memory bound durable control creation")
 	}
+	if memory.ControlTemplateCommands != nil {
+		t.Fatal("local memory bound durable control template installation")
+	}
 	if memory.ReleaseReadinessReportQuery != nil {
 		t.Fatal("local-memory profile unexpectedly bound durable readiness reports")
 	}
@@ -312,6 +315,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.ControlCommands == nil {
 		t.Fatal("PostgreSQL control creation still uses Ledger")
+	}
+	if options.ControlTemplateCommands == nil {
+		t.Fatal("PostgreSQL control template installation still uses Ledger")
 	}
 	if options.TrustConfigurationCommands == nil {
 		t.Fatal("PostgreSQL lacks durable trust commands")

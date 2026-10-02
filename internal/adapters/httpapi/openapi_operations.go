@@ -702,9 +702,10 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Description = "Lists built-in control framework template packs available for explicit tenant installation."
 		operation.Responses[http.StatusOK] = jsonResponse("Control framework template pack list envelope.", "#/components/schemas/ControlFrameworkTemplatePackListEnvelope")
 	case "installControlFrameworkTemplatePack":
-		operation.Description = "Installs a named control framework template pack into the tenant as ordinary framework/control records."
-		operation.Parameters = append(operation.Parameters, pathParam("slug", "Control framework template pack slug."))
-		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
+		operation.Description = "Installs a named starter pack as ordinary framework/control records. PostgreSQL uses a focused transaction with current tenant-level controls:admin grants for human sessions, a tenant-scoped version existence check, all starter controls, and one audit attributed to the authenticated principal. Same-key replay returns the original framework; changed request bytes or a different-key duplicate tenant/slug/version return 409. No cached Ledger inventory is used. The trimmed slug is NUL-free UTF-8 and bounded at 1024 bytes before durable replay reservation; invalid slugs return 400 and unknown slugs 404. An optional body must be an empty JSON object; blank/absent bodies retain their existing acceptance. Malformed, non-object, null, or unknown-field bodies return 400. Local-memory mode retains its explicit compatibility installation command. Starter content organizes technical evidence, not framework compliance or control efficacy."
+		operation.Parameters = append(operation.Parameters, pathParam("slug", "Control framework template pack slug; trimmed, NUL-free UTF-8, at most 1024 bytes."))
+		operation.RequestBody = jsonRequest("Optional empty JSON object; an absent or blank body uses an empty object.", "#/components/schemas/EmptyObject")
+		operation.RequestBody.Required = false
 		operation.Responses[http.StatusCreated] = jsonResponse("Installed control framework envelope.", "#/components/schemas/ControlFrameworkEnvelope")
 	case "registerContainerImage":
 		operation.Description = "Registers OCI/container image metadata and digest evidence linked to an optional artifact."

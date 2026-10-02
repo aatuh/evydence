@@ -27,6 +27,12 @@ rejects null fields/items and missing requirement booleans in both profiles,
 matching the published contract. See the
 [migration note](docs/reference/api-versioning.md#unreleased-control-creation-boundary).
 
+Control-template installation now uses focused PostgreSQL transactions and
+records the actual installer principal, allowing authorized human sessions to
+commit. Invalid slugs are rejected before durable replay storage; empty-object
+body validation and optional-body OpenAPI now match the documented contract.
+See the same [migration note](docs/reference/api-versioning.md#unreleased-control-creation-boundary).
+
 ### Added
 
 - Production control coverage and CRA readiness reports now use bounded, tenant-scoped PostgreSQL snapshots with current-subject validation, actual subject timestamps for freshness, and fail-closed capacity limits. Local-memory mode retains its compatibility report path.

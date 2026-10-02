@@ -75,6 +75,19 @@ previous decoder acceptance of null or absent booleans was not a documented
 contract. No historical record is rewritten. This note does not approve the
 outstanding compatibility change set or claim a release.
 
+Control-template installation uses the same PostgreSQL tenant-level
+administration rule and now records the actual human/key/collector audit
+principal. The previous API-key-only audit attribution prevented human-session
+installation from committing. Framework/control content and schema versions
+are unchanged, and historical audits are not rewritten. A different-key
+duplicate version still conflicts; only same-key replay returns the original
+result. Invalid NUL/UTF-8 or oversized slugs are rejected before replay storage.
+The OpenAPI empty-object request body is now optional, matching the existing
+blank/absent-body behavior. Both profiles reject malformed/non-object/null or
+unknown-field bodies instead of silently ignoring them. Clients should omit
+the body or send `{}`. These corrections do not approve the outstanding
+compatibility change set or claim a release.
+
 ## Prerelease Baseline Reconciliation
 
 The current baseline is the published `v0.1.0-rc.7` OpenAPI asset with digest

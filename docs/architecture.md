@@ -578,8 +578,13 @@ build query joins its project, release, and product in one statement before
 the service applies resource grants.
 The built-in control-template catalog is owned by the risk context and read
 without the Ledger in the PostgreSQL profile. It contains static starter
-definitions, not tenant state; installation still uses the transactional
-compatibility command path. Local-memory mode retains the Ledger list path.
+definitions, not tenant state. Installation now uses a focused risk command:
+one transaction checks the tenant/slug/version key, inserts the framework and
+every starter control, and appends a single installation audit attributed to
+the authenticated principal. The read port returns only version existence.
+Outer rollback, late control/audit failures, same-key replay, and competing
+installs preserve atomicity; a different-key duplicate version conflicts.
+Local-memory mode retains its explicit Ledger catalog/installation paths.
 Manual framework and security-control creation now also have focused risk
 commands composed solely from the active write transaction. Their readers
 return tenant-owned existence bits rather than framework metadata or control
@@ -592,9 +597,9 @@ unsupported text/index sizes and excessive list work before persistence.
 PostgreSQL HTTP creation routes bind these commands directly: separate server
 instances can create, replay, read, and report a framework/control without
 publishing authoritative Ledger maps. Local-memory mode retains its explicit
-compatibility command binding. Template installation and evidence-link commands
-still use the compatibility path; this boundary does not retire production
-Ledger startup or its remaining maps.
+compatibility command binding. Evidence-link commands still use the
+compatibility path; these boundaries do not retire production Ledger startup or
+its remaining maps.
 The read-only release evidence-flow plan also uses a focused service in the
 PostgreSQL profile: one tenant-filtered SQL statement collects nine release
 counts from a consistent snapshot, then current resource grants are checked

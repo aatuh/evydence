@@ -1048,7 +1048,7 @@ Source/test evidence: `internal/operations/app/deployment_commands.go`,
 | `POST` | `/v1/control-frameworks` | Create framework version with `controls:admin`; PostgreSQL human sessions need a current tenant-level grant. |
 | `GET` | `/v1/control-frameworks` | List frameworks. Human sessions need a current tenant-level `controls:read` grant; scoped credentials need that issued scope. |
 | `GET` | `/v1/control-framework-template-packs` | List built-in starter packs. |
-| `POST` | `/v1/control-framework-template-packs/{slug}/install` | Copy starter pack to tenant records. |
+| `POST` | `/v1/control-framework-template-packs/{slug}/install` | Atomically install a starter pack with `controls:admin`; PostgreSQL human sessions need a current tenant-level grant. |
 | `POST` | `/v1/controls` | Create control under a current tenant-owned framework with the same `controls:admin` grant rule. |
 | `GET` | `/v1/controls/{id}` | Read a control through its tenant-owned framework; uses the same `controls:read` grant rule. |
 | `POST` | `/v1/controls/{id}/evidence` | Append control evidence link. |
@@ -1100,8 +1100,23 @@ trimmed and sorted without removing duplicates or empty entries; limitations
 retain order/duplicates but omit trimmed blanks. Together these two lists are
 bounded at 1024 input entries and 64 KiB of input text. Optional arrays may be
 omitted; explicit null fields/items are rejected in both runtime profiles.
-Local-memory creation retains its compatibility command. Template installation
-and evidence linking remain separate compatibility commands at this stage.
+Local-memory creation retains its compatibility command. Evidence linking
+remains a separate compatibility command at this stage.
+
+PostgreSQL template installation uses a focused transaction with the same
+tenant-wide administration policy. It appends the framework, all starter
+controls, and one installation audit attributed to the authenticated principal.
+Starter names, objectives, requirements, limitations, and schema versions are
+preserved. A different-key duplicate tenant/slug/version returns `409`; same-key
+replay returns the original framework, and changed request bytes conflict.
+The trimmed slug must be NUL-free UTF-8 of at most 1024 bytes; invalid paths are
+rejected with `400` before durable replay reservation, and unknown slugs return
+`404`. The body is optional; when supplied it must be an empty JSON object
+(a blank body retains its existing empty-object behavior). Malformed bodies,
+null, arrays, and unknown fields now return `400` in both profiles instead of
+being ignored. Local-memory mode retains its compatibility installation
+command. Starter packs organize technical evidence, not compliance or control
+effectiveness conclusions.
 
 | Method | Path | Notes |
 |--------|------|-------|

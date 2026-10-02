@@ -87,6 +87,7 @@ type Server struct {
 	candidateStateCommands            CandidateStateCommands
 	candidateCommands                 CandidateCommands
 	controlCommands                   ControlCommands
+	controlTemplateCommands           ControlTemplateCommands
 	evidenceCreationCommands          EvidenceCreationCommands
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
 	deploymentCommands                DeploymentCommands
@@ -232,6 +233,7 @@ type ServerOptions struct {
 	CandidateStateCommands        CandidateStateCommands
 	CandidateCommands             CandidateCommands
 	ControlCommands               ControlCommands
+	ControlTemplateCommands       ControlTemplateCommands
 	EvidenceCreationCommands      EvidenceCreationCommands
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
 	DeploymentCommands            DeploymentCommands
@@ -413,6 +415,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.candidateStateCommands = opts.CandidateStateCommands
 	server.candidateCommands = opts.CandidateCommands
 	server.controlCommands = opts.ControlCommands
+	server.controlTemplateCommands = opts.ControlTemplateCommands
 	server.evidenceCreationCommands = opts.EvidenceCreationCommands
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands
@@ -664,7 +667,21 @@ func (s *Server) listControlFrameworkTemplatePacks(w http.ResponseWriter, r *htt
 }
 
 func (s *Server) installControlFrameworkTemplatePack(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
+	if err := validateControlTemplateSlug(r.PathValue("slug")); err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeJSON(body, &struct{}{}); err != nil {
+			return 0, nil, err
+		}
+		if err := validateNonNullableObjectFields(body); err != nil {
+			return 0, nil, err
+		}
+		if s.controlTemplateCommands != nil {
+			framework, err := s.controlTemplateCommands.InstallControlFrameworkTemplatePack(ctx, actor, r.PathValue("slug"))
+			return http.StatusCreated, controlFrameworkFromQuery(framework), mapControlCommandError(err)
+		}
 		framework, err := s.ledger.InstallControlFrameworkTemplatePack(ctx, actor, r.PathValue("slug"))
 		return http.StatusCreated, framework, err
 	})
