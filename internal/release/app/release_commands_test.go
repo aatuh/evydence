@@ -16,7 +16,7 @@ func TestStandaloneReleaseCommandsRequireCurrentTenantOwnedProduct(t *testing.T)
 	fixture.reader.products[parent.ID] = parent
 	fixture.transactions.state.products[parent.ID] = parent
 	commands, err := NewReleaseCommands(ReleaseCommandConfig{
-		Reader: fixture.reader, Authorizer: fixture.authorizer,
+		Reader: legacyProductCoordinates{source: fixture.reader}, Authorizer: fixture.authorizer,
 		Transactions: releaseCreationTransactions{runner: fixture.transactions},
 		Clock:        application.ClockFunc(func() time.Time { return fixture.now }),
 		IDs:          application.IDGeneratorFunc(func(prefix string) string { return prefix + "_standalone" }),

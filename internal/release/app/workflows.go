@@ -603,10 +603,6 @@ func artifactBelongsToTenant(artifact releasedomain.Artifact, tenantID, id strin
 	return artifact.TenantID == tenantID && artifact.ID == id
 }
 
-func sameProductCoordinates(left, right releasedomain.Product) bool {
-	return left.ID == right.ID && left.TenantID == right.TenantID && left.Slug == right.Slug
-}
-
 func sameProjectCoordinates(left, right releasedomain.Project) bool {
 	return left.ID == right.ID && left.TenantID == right.TenantID && left.ProductID == right.ProductID
 }

@@ -38,15 +38,6 @@ func (t catalogTransactions) ExecuteProduct(ctx context.Context, command func(co
 	}))
 }
 
-func (t catalogTransactions) ExecuteReleaseCreation(ctx context.Context, command func(context.Context, releaseapp.ReleaseCreationTransaction) error) error {
-	return mapProductWriteError(app.ExecuteUnitOfWork(ctx, t.factory, func(ctx context.Context, repositories app.Repositories) error {
-		if repositories.ReleaseCatalog == nil || repositories.Audit == nil {
-			return app.ErrValidation
-		}
-		return command(ctx, catalogTransaction{catalog: repositories.ReleaseCatalog, audit: repositories.Audit})
-	}))
-}
-
 type catalogTransaction struct {
 	catalog app.ReleaseCatalogRepository
 	audit   app.AuditRepository

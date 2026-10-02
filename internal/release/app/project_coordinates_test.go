@@ -12,14 +12,14 @@ import (
 
 // This fake intentionally cannot load product metadata or unrelated catalogs.
 type coordinateOnlyProject struct {
-	parent  ProjectProductCoordinates
-	current ProjectProductCoordinates
+	parent  ProductCoordinates
+	current ProductCoordinates
 	reads   int
 	project releasedomain.Project
 	audit   application.AuditEvent
 }
 
-func (f *coordinateOnlyProject) ReadProjectProductCoordinates(context.Context, string, string) (ProjectProductCoordinates, error) {
+func (f *coordinateOnlyProject) ReadProductCoordinates(context.Context, string, string) (ProductCoordinates, error) {
 	f.reads++
 	if f.reads == 1 {
 		return f.parent, nil
@@ -41,17 +41,17 @@ func (f *coordinateOnlyProject) AppendAudit(_ context.Context, v application.Aud
 func TestProjectCreationNeedsOnlyCurrentProductCoordinates(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
-		change func(*ProjectProductCoordinates)
+		change func(*ProductCoordinates)
 		want   error
 	}{
-		{"same coordinates", func(*ProjectProductCoordinates) {}, nil},
-		{"slug drift", func(v *ProjectProductCoordinates) { v.Slug = "changed" }, ErrConflict},
-		{"foreign tenant", func(v *ProjectProductCoordinates) { v.TenantID = "other" }, ErrNotFound},
-		{"wrong product", func(v *ProjectProductCoordinates) { v.ID = "other" }, ErrNotFound},
+		{"same coordinates", func(*ProductCoordinates) {}, nil},
+		{"slug drift", func(v *ProductCoordinates) { v.Slug = "changed" }, ErrConflict},
+		{"foreign tenant", func(v *ProductCoordinates) { v.TenantID = "other" }, ErrNotFound},
+		{"wrong product", func(v *ProductCoordinates) { v.ID = "other" }, ErrNotFound},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newServiceFixture(t)
-			coords := ProjectProductCoordinates{ID: "product", TenantID: f.actor.TenantID, Slug: "product"}
+			coords := ProductCoordinates{ID: "product", TenantID: f.actor.TenantID, Slug: "product"}
 			current := coords
 			tc.change(&current)
 			tx := &coordinateOnlyProject{parent: coords, current: current}

@@ -174,7 +174,7 @@ func TestPostgresCatalogCommandsCommitProductProjectReleaseArtifactBuildAuditAnd
 	if auditCount != 2 || replayCount != 2 {
 		t.Fatalf("catalog commits audit=%d replay=%d, want two each", auditCount, replayCount)
 	}
-	releases, err := BuildReleaseCommands(runtime.Postgres, runtime.Postgres)
+	releases, err := BuildReleaseCommands(runtime.Postgres)
 	if err != nil {
 		t.Fatal(err)
 	}

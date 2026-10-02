@@ -9,15 +9,13 @@ import (
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 )
 
-// ReleaseReader supplies a tenant-scoped product point read before the write.
-// The transaction rechecks the parent and version uniqueness under one commit.
-type ReleaseReader interface {
-	GetProduct(context.Context, string, string) (releasedomain.Product, error)
+type ReleaseVersionReader interface {
+	ReleaseVersionExists(context.Context, string, string, string) (bool, error)
 }
 
 type ReleaseCreationTransaction interface {
-	GetProduct(context.Context, string, string) (releasedomain.Product, error)
-	ReleaseByVersion(context.Context, string, string, string) (releasedomain.Release, bool, error)
+	ProductCoordinateReader
+	ReleaseVersionReader
 	InsertRelease(context.Context, releasedomain.Release) error
 	AppendAudit(context.Context, application.AuditEvent) (application.AuditReceipt, error)
 }
@@ -27,7 +25,7 @@ type ReleaseCreationTransactionRunner interface {
 }
 
 type ReleaseCommandConfig struct {
-	Reader       ReleaseReader
+	Reader       ProductCoordinateReader
 	Authorizer   application.Authorizer
 	Transactions ReleaseCreationTransactionRunner
 	Clock        application.Clock
@@ -35,7 +33,7 @@ type ReleaseCommandConfig struct {
 }
 
 type ReleaseCommands struct {
-	reader       ReleaseReader
+	reader       ProductCoordinateReader
 	authorizer   application.Authorizer
 	transactions ReleaseCreationTransactionRunner
 	clock        application.Clock
@@ -67,11 +65,11 @@ func (s *ReleaseCommands) CreateRelease(ctx context.Context, actor identitydomai
 	if input.ProductID == "" || input.Version == "" {
 		return releasedomain.Release{}, ErrValidation
 	}
-	product, err := s.reader.GetProduct(ctx, actor.TenantID, input.ProductID)
+	product, err := s.reader.ReadProductCoordinates(ctx, actor.TenantID, input.ProductID)
 	if err != nil {
 		return releasedomain.Release{}, err
 	}
-	if !productBelongsToTenant(product, actor.TenantID, input.ProductID) {
+	if product.TenantID != actor.TenantID || product.ID != input.ProductID {
 		return releasedomain.Release{}, ErrNotFound
 	}
 	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{
@@ -84,22 +82,19 @@ func (s *ReleaseCommands) CreateRelease(ctx context.Context, actor identitydomai
 		return releasedomain.Release{}, ErrValidation
 	}
 	err = s.transactions.ExecuteReleaseCreation(ctx, func(ctx context.Context, tx ReleaseCreationTransaction) error {
-		current, err := tx.GetProduct(ctx, actor.TenantID, product.ID)
+		current, err := tx.ReadProductCoordinates(ctx, actor.TenantID, product.ID)
 		if err != nil {
 			return err
 		}
-		if !productBelongsToTenant(current, actor.TenantID, product.ID) {
+		if current.TenantID != actor.TenantID || current.ID != product.ID {
 			return ErrNotFound
 		}
-		if !sameProductCoordinates(current, product) {
+		if current != product {
 			return ErrConflict
 		}
-		if existing, exists, err := tx.ReleaseByVersion(ctx, actor.TenantID, product.ID, input.Version); err != nil {
+		if exists, err := tx.ReleaseVersionExists(ctx, actor.TenantID, product.ID, input.Version); err != nil {
 			return err
 		} else if exists {
-			if existing.TenantID != actor.TenantID || strings.TrimSpace(existing.ID) == "" {
-				return ErrNotFound
-			}
 			return ErrConflict
 		}
 		if err := tx.InsertRelease(ctx, release); err != nil {
@@ -124,12 +119,19 @@ func (r releaseCreationTransactions) ExecuteReleaseCreation(ctx context.Context,
 
 type releaseCreationTransaction struct{ tx Transaction }
 
-func (t releaseCreationTransaction) GetProduct(ctx context.Context, tenantID, id string) (releasedomain.Product, error) {
-	return t.tx.Catalog().GetProduct(ctx, tenantID, id)
+func (t releaseCreationTransaction) ReadProductCoordinates(ctx context.Context, tenantID, id string) (ProductCoordinates, error) {
+	return legacyProductCoordinates{source: t.tx.Catalog()}.ReadProductCoordinates(ctx, tenantID, id)
 }
 
-func (t releaseCreationTransaction) ReleaseByVersion(ctx context.Context, tenantID, productID, version string) (releasedomain.Release, bool, error) {
-	return t.tx.Catalog().ReleaseByVersion(ctx, tenantID, productID, version)
+func (t releaseCreationTransaction) ReleaseVersionExists(ctx context.Context, tenantID, productID, version string) (bool, error) {
+	v, found, err := t.tx.Catalog().ReleaseByVersion(ctx, tenantID, productID, version)
+	if err != nil {
+		return false, err
+	}
+	if found && (v.TenantID != tenantID || strings.TrimSpace(v.ID) == "") {
+		return false, ErrNotFound
+	}
+	return found, nil
 }
 
 func (t releaseCreationTransaction) InsertRelease(ctx context.Context, release releasedomain.Release) error {

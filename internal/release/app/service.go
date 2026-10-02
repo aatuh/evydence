@@ -265,7 +265,7 @@ type CreateProjectInput struct {
 
 func (s *Service) CreateProject(ctx context.Context, actor identitydomain.Actor, input CreateProjectInput) (releasedomain.Project, error) {
 	commands, err := NewProjectCommands(ProjectCommandConfig{
-		Reader: legacyProjectParent{source: s.reader}, Authorizer: s.authorizer,
+		Reader: legacyProductCoordinates{source: s.reader}, Authorizer: s.authorizer,
 		Transactions: releaseProjectTransactions{runner: s.transactions},
 		Clock:        s.clock, IDs: s.ids,
 	})
@@ -313,7 +313,7 @@ type CreateReleaseInput struct {
 
 func (s *Service) CreateRelease(ctx context.Context, actor identitydomain.Actor, input CreateReleaseInput) (releasedomain.Release, error) {
 	commands, err := NewReleaseCommands(ReleaseCommandConfig{
-		Reader: s.reader, Authorizer: s.authorizer,
+		Reader: legacyProductCoordinates{source: s.reader}, Authorizer: s.authorizer,
 		Transactions: releaseCreationTransactions{runner: s.transactions},
 		Clock:        s.clock, IDs: s.ids,
 	})
