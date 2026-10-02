@@ -380,6 +380,20 @@ grant denial, and rollback of state changes when update or audit insertion
 fails. Local memory keeps its explicit compatibility binding. Conditional
 action fingerprints include the validated strong `If-Match` revision; changing
 it under the same key conflicts rather than replaying a different intent.
+Standalone release-candidate promotion/rejection now has a factory-only
+transaction builder. It reads one locked candidate plus the current tenant-owned
+release/product coordinate in a single SQL statement, without loading release
+versions or product names. The worker-projection fence precedes candidate and
+parent locks. Authorization runs against those locked coordinates before a
+revision conflict can disclose the current revision. Snapshot fields remain
+unchanged; the transition time/revision and audit append commit together.
+Stored candidate names are bounded at 64 KiB, IDs/schema identifiers at 1024
+bytes, state at 32 bytes, hash at 128 bytes, and the JSON snapshot at 1 MiB;
+oversized, non-object, or incorrectly typed snapshot references fail closed
+with conflict rather than truncation. Live tests cover pending candidate
+visibility, compound rollback/replay, tenant/grant denial, write/audit failures,
+and competing transitions with one state/audit winner. The candidate HTTP
+binding still uses the broad catalog service until its focused migration.
 The transactional catalog repositories now expose tenant-filtered project and
 release point reads that verify the parent product in the same read and lock
 the selected rows. Standalone artifact registration now looks up digests in
