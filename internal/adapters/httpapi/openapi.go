@@ -891,6 +891,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"tenant_id":      map[string]any{"type": "string"},
 		"release_id":     map[string]any{"type": "string"},
 		"name":           map[string]any{"type": "string"},
+		"revision":       map[string]any{"type": "integer", "format": "int64", "minimum": 1},
 		"state":          map[string]any{"type": "string"},
 		"build_ids":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 		"artifact_ids":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}},

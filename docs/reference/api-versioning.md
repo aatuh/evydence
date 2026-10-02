@@ -45,6 +45,17 @@ generated from an older schema must supply a non-empty `reason` together with
 the documented strong `If-Match` revision. The schema correction is a
 compatibility-gate change, not an approved exception or evidence of a release.
 
+## Unreleased Candidate Revision Schema Correction
+
+The `ReleaseCandidate` response schema now defines its already-required
+`revision` property as a positive `int64` integer. Create, read, list, and
+transition responses already return this value; it was previously listed as
+required without a property definition. Regenerate affected clients so that
+they can read the revision and supply it in the strong `If-Match` header when
+promoting or rejecting a candidate. Runtime responses and historical records
+are unchanged. This correction does not approve the compatibility change set
+or claim a release.
+
 ## Prerelease Baseline Reconciliation
 
 The current baseline is the published `v0.1.0-rc.7` OpenAPI asset with digest
