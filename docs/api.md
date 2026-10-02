@@ -190,6 +190,25 @@ versions/product slugs to 64 KiB, rejecting oversized stored fields with a
 conflict rather than returning truncated values. Local-memory mode keeps its
 explicit compatibility binding.
 
+In the PostgreSQL profile, candidate promotion/rejection uses a focused durable
+command with one locked candidate and its current tenant-owned release/product
+coordinate. It requires `release:write`; human sessions also need a matching
+tenant, product, or release grant. Grant denial returns `403` without current
+revision metadata; a foreign or dangling-parent candidate returns `404`.
+Only an `open` candidate at the expected revision can transition, advancing
+the revision once and setting `promoted_at` or `rejected_at`. The candidate's
+name, reference lists, snapshot hash, schema version, and creation metadata
+remain unchanged, and the state change and audit append commit together.
+
+The request `reason` is required, trimmed, non-empty, NUL-free UTF-8 and at most
+64 KiB of UTF-8 bytes; the entire HTTP JSON body is also capped at 64 KiB.
+Stored candidate names are bounded at 64 KiB, IDs/schema identifiers at 1024
+bytes, state at 32 bytes, hash at 128 bytes, and the JSON snapshot at 1 MiB.
+Oversized or malformed stored snapshots return `409` rather than truncated
+values. Transition times use microsecond-precision UTC. Local-memory mode
+keeps its compatibility binding; candidate creation is not migrated by this
+transition change.
+
 ## Minimal Release Evidence Workflow
 
 The getting-started tutorial has a runnable curl flow. This section is the compact API shape for client implementers.

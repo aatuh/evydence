@@ -83,6 +83,7 @@ type Server struct {
 	projectCommands                   ProjectCommands
 	releaseCreationCommands           ReleaseCreationCommands
 	releaseStateCommands              ReleaseStateCommands
+	candidateStateCommands            CandidateStateCommands
 	evidenceCreationCommands          EvidenceCreationCommands
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
 	deploymentCommands                DeploymentCommands
@@ -225,6 +226,7 @@ type ServerOptions struct {
 	ProjectCommands               ProjectCommands
 	ReleaseCreationCommands       ReleaseCreationCommands
 	ReleaseStateCommands          ReleaseStateCommands
+	CandidateStateCommands        CandidateStateCommands
 	EvidenceCreationCommands      EvidenceCreationCommands
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
 	DeploymentCommands            DeploymentCommands
@@ -403,6 +405,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.projectCommands = opts.ProjectCommands
 	server.releaseCreationCommands = opts.ReleaseCreationCommands
 	server.releaseStateCommands = opts.ReleaseStateCommands
+	server.candidateStateCommands = opts.CandidateStateCommands
 	server.evidenceCreationCommands = opts.EvidenceCreationCommands
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands
@@ -1118,6 +1121,10 @@ func (s *Server) transitionReleaseCandidate(w http.ResponseWriter, r *http.Reque
 		expectedRevision, err := expectedRevisionFromIfMatch(r)
 		if err != nil {
 			return 0, nil, err
+		}
+		if s.candidateStateCommands != nil {
+			candidate, err := s.candidateStateCommands.UpdateReleaseCandidateState(ctx, actor, r.PathValue("id"), state, req.Reason, expectedRevision)
+			return http.StatusOK, releaseCandidateFromQuery(candidate), mapReleaseStateCommandError(err)
 		}
 		candidate, err := s.releaseCatalog.UpdateReleaseCandidateState(ctx, actor, r.PathValue("id"), state, req.Reason, expectedRevision)
 		return http.StatusOK, candidate, err

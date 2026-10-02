@@ -123,6 +123,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.ProductCommands != nil {
 		t.Fatal("local memory must keep explicit product creation compatibility binding")
 	}
+	if memory.CandidateStateCommands != nil {
+		t.Fatal("local memory must keep explicit candidate transition compatibility binding")
+	}
 	if memory.ReleaseCreationCommands != nil {
 		t.Fatal("local memory must keep explicit release creation compatibility binding")
 	}
@@ -258,6 +261,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.ProductCommands == nil {
 		t.Fatal("PostgreSQL product creation still uses Ledger")
+	}
+	if options.CandidateStateCommands == nil {
+		t.Fatal("PostgreSQL candidate transitions still use Ledger")
 	}
 	if options.ReleaseCreationCommands == nil {
 		t.Fatal("PostgreSQL release creation still uses Ledger")

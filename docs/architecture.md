@@ -392,8 +392,12 @@ bytes, state at 32 bytes, hash at 128 bytes, and the JSON snapshot at 1 MiB;
 oversized, non-object, or incorrectly typed snapshot references fail closed
 with conflict rather than truncation. Live tests cover pending candidate
 visibility, compound rollback/replay, tenant/grant denial, write/audit failures,
-and competing transitions with one state/audit winner. The candidate HTTP
-binding still uses the broad catalog service until its focused migration.
+and competing transitions with one state/audit winner. Production candidate
+promotion/rejection HTTP now uses a transition-only dependency. Fresh-server
+tests with empty Ledger candidate maps verify immutable snapshot DTOs,
+durable point/list reads, conditional replay, safe revision metadata, and
+storage/audit rollback. Candidate creation remains on the broad catalog
+binding; local-memory transitions retain their explicit compatibility path.
 The transactional catalog repositories now expose tenant-filtered project and
 release point reads that verify the parent product in the same read and lock
 the selected rows. Standalone artifact registration now looks up digests in
