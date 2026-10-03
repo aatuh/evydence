@@ -143,6 +143,8 @@ type Server struct {
 	evidenceSummaryCommands           EvidenceSummaryCommands
 	questionnaireDraftCommands        QuestionnaireDraftCommands
 	questionnairePackageCommands      QuestionnairePackageCommands
+	portalAccessCommands              PortalAccessCommands
+	portalTokenCommands               PortalTokenCommands
 	questionnaireTemplateCommands     QuestionnaireTemplateCommands
 	answerLibraryCommands             AnswerLibraryCommands
 	releaseCatalog                    releaseCatalogService
@@ -235,6 +237,10 @@ type ServerOptions struct {
 	QuestionnaireDraftCommands QuestionnaireDraftCommands
 	// QuestionnairePackageCommands generates bounded responses without Ledger state.
 	QuestionnairePackageCommands QuestionnairePackageCommands
+	// PortalAccessCommands issues and revokes scoped one-time tokens without Ledger.
+	PortalAccessCommands PortalAccessCommands
+	// PortalTokenCommands verifies and audits bounded package-token access.
+	PortalTokenCommands PortalTokenCommands
 	// QuestionnaireTemplateCommands creates bounded tenant definitions without Ledger.
 	QuestionnaireTemplateCommands QuestionnaireTemplateCommands
 	// AnswerLibraryCommands creates scoped drafts without reading Ledger state.
@@ -467,6 +473,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.QuestionnairePackageCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused questionnaire packages require durable idempotency")
 	}
+	if opts.PortalAccessCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused portal writes require durable idempotency")
+	}
 	if opts.QuestionnaireTemplateCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused questionnaire templates require durable idempotency")
 	}
@@ -588,6 +597,8 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.evidenceSummaryCommands = opts.EvidenceSummaryCommands
 	server.questionnaireDraftCommands = opts.QuestionnaireDraftCommands
 	server.questionnairePackageCommands = opts.QuestionnairePackageCommands
+	server.portalAccessCommands = opts.PortalAccessCommands
+	server.portalTokenCommands = opts.PortalTokenCommands
 	server.questionnaireTemplateCommands = opts.QuestionnaireTemplateCommands
 	server.answerLibraryCommands = opts.AnswerLibraryCommands
 	server.durableStreamedCommandExecutor, _ = opts.DurableCommandExecutor.(DurableStreamedCommandExecutor)

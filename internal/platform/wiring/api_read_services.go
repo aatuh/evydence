@@ -37,6 +37,14 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	store := runtime.Postgres
 	var options httpapi.ServerOptions
 	var err error
+	options.PortalAccessCommands, err = BuildPortalAccessCommands(store, pepper, runtime.Production)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create portal access commands: %w", err)
+	}
+	options.PortalTokenCommands, err = BuildPortalTokenCommands(store, store, pepper, runtime.Production)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create portal token commands: %w", err)
+	}
 	normalizedChecks := operationsquery.NormalizeReadinessChecks(readinessChecks)
 	configuredChecks := make(map[string]bool, len(normalizedChecks))
 	for _, check := range normalizedChecks {

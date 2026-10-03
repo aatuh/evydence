@@ -2674,12 +2674,12 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "result"))
 	registry.RegisterSchema("ReleaseBundleVerificationEnvelope", dataEnvelopeSchema("#/components/schemas/ReleaseBundleVerification"))
 	registry.RegisterSchema("CreateCustomerPortalAccessRequest", objectSchema(map[string]any{
-		"package_id":     map[string]any{"type": "string"},
-		"customer_name":  map[string]any{"type": "string"},
-		"reviewer_name":  map[string]any{"type": "string", "description": "Optional external reviewer display name for this package access record."},
-		"reviewer_email": map[string]any{"type": "string", "description": "Optional external reviewer email label. It is not used as an authentication secret."},
+		"package_id":     map[string]any{"type": "string", "minLength": 1, "maxLength": 1024, "description": "Current tenant-owned package ID; at most 1024 UTF-8 bytes."},
+		"customer_name":  map[string]any{"type": "string", "minLength": 1, "maxLength": 640, "description": "Recipient label; at most 640 UTF-8 bytes before 160-rune/control-character normalization."},
+		"reviewer_name":  map[string]any{"type": "string", "maxLength": 640, "description": "Optional external reviewer display name; at most 640 UTF-8 bytes before label normalization."},
+		"reviewer_email": map[string]any{"type": "string", "maxLength": 640, "description": "Optional external reviewer email label, lowercased; at most 640 UTF-8 bytes. It is not an authentication secret."},
 		"require_nda":    map[string]any{"type": "boolean"},
-		"watermark":      map[string]any{"type": "string", "description": "Optional customer-visible distribution watermark. It is not a token or secret."},
+		"watermark":      map[string]any{"type": "string", "maxLength": 640, "description": "Optional customer-visible distribution watermark; at most 640 UTF-8 bytes before label normalization. ZIP rendering rejects sensitive content, including email-shaped watermark text."},
 		"expires_at":     map[string]any{"type": "string", "format": "date-time"},
 	}, "package_id", "customer_name", "expires_at"))
 	registry.RegisterSchema("CustomerPortalAccess", objectSchema(map[string]any{
@@ -2711,9 +2711,9 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	registry.RegisterSchema("CustomerPortalAccessEnvelope", dataEnvelopeSchema("#/components/schemas/CustomerPortalAccess"))
 	registry.RegisterSchema("CustomerPortalAccessListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/CustomerPortalAccess"))
 	registry.RegisterSchema("CustomerPortalPackageRequest", objectSchema(map[string]any{
-		"token":           map[string]any{"type": "string", "description": "Customer portal access token issued by createCustomerPortalAccess."},
+		"token":           map[string]any{"type": "string", "maxLength": 1024, "description": "Customer portal token issued by createCustomerPortalAccess; raw input is limited to 1024 UTF-8 bytes in PostgreSQL mode. Sent only in the request body."},
 		"nda_accepted":    map[string]any{"type": "boolean", "description": "Set true to record acceptance for NDA-gated portal access."},
-		"nda_accepted_by": map[string]any{"type": "string", "description": "Reviewer label recorded when NDA acceptance is required. Do not include secrets."},
+		"nda_accepted_by": map[string]any{"type": "string", "maxLength": 640, "description": "Reviewer label recorded when NDA acceptance is required; at most 640 UTF-8 bytes before normalization. Do not include secrets."},
 	}, "token"))
 }
 

@@ -29,6 +29,11 @@ func (c *HMACAuthenticationCredentials) GenerateSession() (Credential, error) {
 	return c.generate("evysso_")
 }
 
+// GeneratePortalAccess preserves the existing package-token hash format.
+func (c *HMACAuthenticationCredentials) GeneratePortalAccess() (Credential, error) {
+	return c.generate("evycp_")
+}
+
 func (c *HMACAuthenticationCredentials) generate(prefix string) (Credential, error) {
 	if c == nil || len(c.pepper) == 0 {
 		return Credential{}, ErrValidation

@@ -1904,6 +1904,50 @@ Source/test evidence: `internal/operations/app/deployment_commands.go`,
 | `POST` | `/v1/customer-portal/package/view` | Exchange package token from a form body for scoped HTML package review. |
 | `POST` | `/v1/customer-portal/package/view/download` | Exchange package token from a form body for scoped ZIP package download. |
 
+### Customer Portal Lifecycle
+
+In PostgreSQL mode, focused Package commands issue/revoke access and verify
+package tokens without Ledger maps or reloads. Issuance and revocation require
+`package:write` and, for human sessions, a current matching tenant, product,
+release, or customer-package grant. Current package/product/release ownership
+is checked before both writes and idempotency replay. Cookie-authenticated
+writes require a same-host HTTPS `Origin`; bearer authentication takes precedence.
+
+Creation keeps the existing response fields and `evycp_` token/HMAC format.
+Only the first successful response contains `secret`; replay preserves the
+existing privacy-safe projection, omitting recipient PII and redacting sensitive
+strings rather than returning those fields again. Changed body bytes conflict
+with the original key. Replay never generates another token, even after expiry.
+New creation/revocation timestamps use UTC microseconds.
+
+Creation IDs accept at most 1024 UTF-8 bytes and recipient/watermark labels at
+most 640 bytes before the historical 160-rune/control-character normalization.
+Reviewer email labels are lowercased. JSON fields are exact, non-nullable, and
+reject duplicate/unknown/mixed-case fields, invalid UTF-8 and NUL. Optional
+fields may be omitted. A new token expiry must be in the future. Token/NDA JSON
+also uses exact non-nullable fields; NDA labels have the same 640-byte bound.
+Browser forms retain their existing 256-byte acceptance-label bound. These
+JSON routes retain the 64 KiB body limit. Revocation bodies remain ignored.
+
+Token access resolves at most two prefix candidates, then verifies one locked
+credential after acquiring the tenant writer fence. Ambiguous prefixes fail
+closed. Raw PostgreSQL-profile token input is limited to 1024 UTF-8 bytes.
+Tokens and hashes are never returned in package, HTML, ZIP, audit, or replay
+outputs. Access checks token revocation/expiry and current package ownership/
+expiry, and reads only the selected package's bounded manifest (at most 8 MiB).
+NDA acceptance, portal counters and access/download audit entries commit
+together. NDA-required denials commit an audit event; wrong tokens sharing a
+live prefix commit a failed-access counter/audit and revoke access on the fifth
+failure. Storage/audit/commit failure rolls back every effect. This records
+acceptance as evidence; it does not establish legal NDA sufficiency.
+
+HTML keeps escaping, restrictive CSP and no-store/no-referrer headers. ZIP
+rendering keeps its existing size limits and sensitive-content guard: an
+email-bearing default watermark can be rejected, so use an explicit
+customer-safe watermark for distribution. No private payloads are added.
+Local-memory mode remains explicit compatibility mode; production Ledger
+startup retirement and other extension workflows remain open EVY-905 work.
+
 ### Built-in Policy Evaluation
 
 `POST /v1/policies/evaluate` accepts `release_id` and appends an immutable

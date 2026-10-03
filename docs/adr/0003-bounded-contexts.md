@@ -9,6 +9,13 @@ legacy-facade retirement remain assigned to EVY-905 and EVY-906.
 
 ## Context
 
+Package-owned `PortalAccessCommands` and `PortalTokenCommands` now own durable
+portal issuance, revocation, NDA acceptance, failure limits and audited package
+access. Their selected-row repository and credential ports do not expose Ledger
+state. Prefix lookup index `20261003000100_customer_portal_token_lookup` belongs
+to Package and reporting. The remaining local identity facade and record-only
+archive renderer are compatibility utilities, not production token authority.
+
 The implementation has useful transaction-scoped repository ports, but the
 commands and queries not yet migrated to focused services remain behind
 `internal/app.Ledger`. The legacy `internal/domain` package also remains the
@@ -284,7 +291,7 @@ exactly one context while preserving existing data and migration history.
 | `20261002000100_vulnerability_decision_supersession` | Vulnerability decisions and governance — append-only supersession relationships and constrained active-head projection. |
 | `20260815000100_vulnerability_scan_adapter_identity` | Evidence ingestion. |
 | `20261001000300_evidence_verification_indexes` | Verification and signing — bounded reads of evidence-owned parser facts. |
-| `20260528000800_customer_portal_access_counters`, `20260528001500_package_retention_relational_columns`, `20260601000400_customer_portal_nda_answer_library`, `20260601000500_customer_portal_reviewers` | Package and reporting. |
+| `20260528000800_customer_portal_access_counters`, `20260528001500_package_retention_relational_columns`, `20260601000400_customer_portal_nda_answer_library`, `20260601000500_customer_portal_reviewers`, `20261003000100_customer_portal_token_lookup` | Package and reporting. |
 | `20260528001000_signed_incident_webhooks` | Operations and incidents. |
 | `20260528001100_static_oidc_jwks`, `20260528001200_saml_provider_certificates`, `20260528001300_sso_trust_material_timestamp`, `20260529000200_sso_session_groups` | Identity and access. |
 | `20260528000900_future_extensions_and_partial_closures` | Experimental peripherals. |

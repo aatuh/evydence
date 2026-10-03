@@ -58,6 +58,35 @@ func TestHMACAuthenticationCredentialsRejectMissingPepper(t *testing.T) {
 	}
 }
 
+func TestHMACAuthenticationCredentialsGenerateCompatiblePortalTokens(t *testing.T) {
+	c, err := NewHMACAuthenticationCredentials("test-pepper")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, err := c.GeneratePortalAccess()
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := c.GeneratePortalAccess()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range []Credential{a, b} {
+		raw, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(v.Secret, "evycp_"))
+		if len(v.Secret) != 49 || !strings.HasPrefix(v.Secret, "evycp_") || err != nil || len(raw) != 32 || len(v.Prefix) != 12 || v.Prefix != c.Prefix(v.Secret) || !c.Equal(v.Hash, c.Hash(v.Secret)) {
+			t.Fatal("portal credential format differs")
+		}
+	}
+	if a.Secret == b.Secret || a.Hash == b.Hash {
+		t.Fatal("portal entropy repeated")
+	}
+	for _, missing := range []*HMACAuthenticationCredentials{nil, {}} {
+		if v, err := missing.GeneratePortalAccess(); !errors.Is(err, ErrValidation) || v != (Credential{}) {
+			t.Fatal("missing portal pepper produced material")
+		}
+	}
+}
+
 func TestHMACAuthenticationCredentialsGenerateCompatibleDistinctSSOSessions(t *testing.T) {
 	c, err := NewHMACAuthenticationCredentials("test-pepper")
 	if err != nil {

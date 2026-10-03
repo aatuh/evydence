@@ -627,6 +627,28 @@ current authority and referenced ownership. These restrictions require release
 compatibility review; this note does not approve an exception, claim production
 Ledger retirement, or establish compliance conclusions.
 
+## Unreleased Customer Portal Boundary
+
+PostgreSQL portal issuance, revocation and token consumers now use focused
+Package services. Existing routes, JSON fields, schema versions, HMAC token
+format, NDA/failure-limit behavior and privacy-safe replay projection remain.
+The additive `20261003000100_customer_portal_token_lookup` migration indexes
+prefix lookup without rewriting records or enforcing a new uniqueness rule.
+Token access sees creation/revocation immediately without a Ledger refresh.
+
+Human writes/replay now require matching current package grants, rather than
+tenant membership plus a credential scope alone. Ownership must resolve through
+current tenant-owned package/product/release records. Cookie writes require
+same-host HTTPS Origin protection. JSON aliases, null and malformed/oversized
+text fail closed; selected database projections are bounded. New timestamps
+use UTC microseconds. Revocation bodies remain ignored. Existing email-bearing
+watermarks can still be rejected by ZIP privacy validation; use an explicit
+customer-safe watermark. See [portal lifecycle](../api.md#customer-portal-lifecycle).
+
+These authorization/input restrictions need release compatibility review and
+the exact project-owned breaking-change gate before ticket closure. No
+exception, external review, or production Ledger retirement is claimed here.
+
 ## Unreleased Questionnaire Package Boundary
 
 `POST /v1/questionnaire-packages` now binds focused Package commands in

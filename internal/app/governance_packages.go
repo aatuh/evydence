@@ -908,6 +908,13 @@ func customerPackageArchive(pkg domain.CustomerSecurityPackage) (CustomerPackage
 	return CustomerPackageArchive{PackageID: pkg.ID, Filename: "evydence-customer-package-" + pkg.ID + ".zip", MediaType: "application/zip", Bytes: body, Hash: hashBytes(body), Size: int64(len(body))}, nil
 }
 
+// RenderCustomerPackageArchive is a bounded, record-only compatibility utility.
+// Durable portal commands supply the authorized committed package; rendering
+// performs no Ledger lookup, transaction, token verification, or state mutation.
+func RenderCustomerPackageArchive(pkg domain.CustomerSecurityPackage) (CustomerPackageArchive, error) {
+	return customerPackageArchive(pkg)
+}
+
 func customerPackageDecisionExport(pkg domain.CustomerSecurityPackage) map[string]any {
 	decisions := packageHTMLRecords(pkg.Manifest["vulnerability_decisions"])
 	if len(decisions) == 0 {

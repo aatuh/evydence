@@ -20,21 +20,30 @@ import (
 const maxPortalFormBody = 64 << 10
 
 func (s *Server) createCustomerPortalAccess(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		PackageID     string    `json:"package_id"`
-		CustomerName  string    `json:"customer_name"`
-		ReviewerName  string    `json:"reviewer_name"`
-		ReviewerEmail string    `json:"reviewer_email"`
-		RequireNDA    bool      `json:"require_nda"`
-		Watermark     string    `json:"watermark"`
-		ExpiresAt     time.Time `json:"expires_at"`
+	if err := validateSSOCookieMutation(r); err != nil {
+		writeProblem(w, r, err)
+		return
 	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
+	if s.portalAccessCommands != nil {
+		s.createDurablePortalAccess(w, r)
+		return
+	}
+	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+		in, err := decodePortalAccessRequest(body)
+		if err != nil {
 			return 0, nil, err
 		}
-		access, secret, err := s.ledger.CreateCustomerPortalAccess(ctx, actor, app.CreateCustomerPortalAccessInput{PackageID: req.PackageID, CustomerName: req.CustomerName, ReviewerName: req.ReviewerName, ReviewerEmail: req.ReviewerEmail, RequireNDA: req.RequireNDA, Watermark: req.Watermark, ExpiresAt: req.ExpiresAt})
+		access, secret, err := s.ledger.CreateCustomerPortalAccess(ctx, actor, portalAccessLegacyInput(in))
 		return http.StatusCreated, map[string]any{"access": access, "secret": secret}, err
+	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+		in, err := decodePortalAccessRequest(body)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ledger.AuthorizeCustomerPortalAccessCreate(r.Context(), a, portalAccessLegacyInput(in)); err != nil {
+			return nil, err
+		}
+		return body, nil
 	})
 }
 
@@ -72,28 +81,37 @@ func (s *Server) listCustomerPortalAccess(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) revokeCustomerPortalAccess(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
+	if err := validateSSOCookieMutation(r); err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	if s.portalAccessCommands != nil {
+		s.revokeDurablePortalAccess(w, r)
+		return
+	}
+	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
 		access, err := s.ledger.RevokeCustomerPortalAccess(ctx, actor, r.PathValue("id"))
 		return http.StatusOK, access, err
+	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+		if err := s.ledger.AuthorizeCustomerPortalAccessRevoke(r.Context(), a, r.PathValue("id")); err != nil {
+			return nil, err
+		}
+		return body, nil
 	})
 }
 
 func (s *Server) accessCustomerPortalPackage(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Token         string `json:"token"`
-		NDAAccepted   bool   `json:"nda_accepted"`
-		NDAAcceptedBy string `json:"nda_accepted_by"`
-	}
 	body, err := readBody(r)
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	if err := decodeJSON(body, &req); err != nil {
+	req, err := decodePortalTokenRequest(body)
+	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	pkg, err := s.ledger.AccessCustomerPortalPackageWithAcceptance(r.Context(), req.Token, app.CustomerPortalAcceptanceInput{NDAAccepted: req.NDAAccepted, NDAAcceptedBy: req.NDAAcceptedBy})
+	pkg, err := s.portalPackage(r.Context(), req.Token, app.CustomerPortalAcceptanceInput{NDAAccepted: req.NDAAccepted, NDAAcceptedBy: req.NDAAcceptedBy})
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -103,21 +121,17 @@ func (s *Server) accessCustomerPortalPackage(w http.ResponseWriter, r *http.Requ
 }
 
 func (s *Server) downloadCustomerPortalPackage(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Token         string `json:"token"`
-		NDAAccepted   bool   `json:"nda_accepted"`
-		NDAAcceptedBy string `json:"nda_accepted_by"`
-	}
 	body, err := readBody(r)
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	if err := decodeJSON(body, &req); err != nil {
+	req, err := decodePortalTokenRequest(body)
+	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	archive, err := s.ledger.ExportCustomerPortalPackageArchiveWithAcceptance(r.Context(), req.Token, app.CustomerPortalAcceptanceInput{NDAAccepted: req.NDAAccepted, NDAAcceptedBy: req.NDAAcceptedBy})
+	archive, err := s.portalArchive(r.Context(), req.Token, app.CustomerPortalAcceptanceInput{NDAAccepted: req.NDAAccepted, NDAAcceptedBy: req.NDAAcceptedBy})
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -136,7 +150,7 @@ func (s *Server) customerPortalPackageView(w http.ResponseWriter, r *http.Reques
 		writeProblem(w, r, err)
 		return
 	}
-	pkg, err := s.ledger.AccessCustomerPortalPackageWithAcceptance(r.Context(), req.Token, app.CustomerPortalAcceptanceInput{NDAAccepted: req.NDAAccepted, NDAAcceptedBy: req.NDAAcceptedBy})
+	pkg, err := s.portalPackage(r.Context(), req.Token, app.CustomerPortalAcceptanceInput{NDAAccepted: req.NDAAccepted, NDAAcceptedBy: req.NDAAcceptedBy})
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -150,7 +164,7 @@ func (s *Server) downloadCustomerPortalPackageView(w http.ResponseWriter, r *htt
 		writeProblem(w, r, err)
 		return
 	}
-	archive, err := s.ledger.ExportCustomerPortalPackageArchiveWithAcceptance(r.Context(), req.Token, app.CustomerPortalAcceptanceInput{NDAAccepted: req.NDAAccepted, NDAAcceptedBy: req.NDAAcceptedBy})
+	archive, err := s.portalArchive(r.Context(), req.Token, app.CustomerPortalAcceptanceInput{NDAAccepted: req.NDAAccepted, NDAAcceptedBy: req.NDAAcceptedBy})
 	if err != nil {
 		writeProblem(w, r, err)
 		return

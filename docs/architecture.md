@@ -1136,6 +1136,19 @@ Merkle batches, signed checkpoints, optional transparency checkpoint/public tran
 
 ## Reports And Customer-Facing Packages
 
+PostgreSQL portal issuance/revocation and token-based JSON, HTML and ZIP access
+now use focused Package commands. Administrative guards read only current
+package ownership and selected public portal metadata, not manifests or hashes.
+Token verification resolves bounded prefix coordinates, takes the tenant writer
+fence before row locks, and rechecks one credential and package. NDA transitions,
+monotonic portal counters and access/download audits commit together; failed
+tokens and NDA-required denials retain their audited denial effects. Shared
+record-only HTML/ZIP rendering does not regain Ledger access. The API composition
+root binds both issuer and consumer so newly issued/revoked tokens are visible
+immediately without reloading broad state. Local mode retains explicit
+compatibility paths. See [portal lifecycle](api.md#customer-portal-lifecycle)
+for bounds, privacy-safe replay and existing archive-content limitations.
+
 Control coverage and CRA-readiness reports use versioned tenant-created controls, explicit evidence links, approved unexpired control exceptions, and built-in starter packs for CRA-readiness, NIST SSDF-lite, SOC 2-style technical evidence, and ISO 27001-style technical evidence.
 
 In the PostgreSQL profile, these reports read controls, current tenant-owned evidence subjects, and active exceptions from one repeatable-read snapshot. Subject scope and observed time are resolved from durable records before freshness is evaluated; stored link coordinates alone do not grant report inclusion. The reader rejects reports above 4096 combined controls, links, and exceptions or 8 MiB of selected text rather than silently truncating them; SQL preflight bounds individual control, link, and exception rows before transfer. An empty framework yields unknown coverage, and broad reports do not apply release-specific waivers. Local-memory mode retains the compatibility Ledger report path. These reports organize recorded technical evidence; they do not determine legal compliance.

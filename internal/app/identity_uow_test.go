@@ -299,7 +299,8 @@ func TestIdentityWritesCommitCredentialSecretsBeforePublication(t *testing.T) {
 	if snapshot.APIKeys[key.ID].Hash == "" || snapshot.SSOSessions[session.ID].Hash == "" || len(snapshot.AuditEntries[actor.TenantID]) != 8 {
 		t.Fatalf("identity credentials/audit were not committed together: %#v", snapshot)
 	}
-	ledger.customerPackages["pkg_identity_uow"] = domain.CustomerSecurityPackage{ID: "pkg_identity_uow", TenantID: actor.TenantID, Title: "Identity UOW package", State: "published", ManifestHash: "sha256:identity-uow-package", ExpiresAt: fixedNow().Add(time.Hour), SchemaVersion: domain.CustomerPackageSchemaVersion, CreatedAt: fixedNow()}
+	ledger.products["portal_product"] = domain.Product{ID: "portal_product", TenantID: actor.TenantID, Name: "Portal product"}
+	ledger.customerPackages["pkg_identity_uow"] = domain.CustomerSecurityPackage{ID: "pkg_identity_uow", TenantID: actor.TenantID, ProductID: "portal_product", Title: "Identity UOW package", State: "published", ManifestHash: "sha256:identity-uow-package", ExpiresAt: fixedNow().Add(time.Hour), SchemaVersion: domain.CustomerPackageSchemaVersion, CreatedAt: fixedNow()}
 	portalAccess, portalSecret, err := ledger.CreateCustomerPortalAccess(ctx, actor, CreateCustomerPortalAccessInput{PackageID: "pkg_identity_uow", CustomerName: "Example", ExpiresAt: fixedNow().Add(time.Hour)})
 	if err != nil {
 		t.Fatalf("create portal access: %v", err)
