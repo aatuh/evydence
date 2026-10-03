@@ -2194,6 +2194,39 @@ token hashes, and internal decision notes. Redaction profiles can be created
 from explicit `allowed_types` or the `customer_safe` / `security_review`
 presets; preset policy fields cannot be overridden in the create request.
 
+### Questionnaire Template Creation
+
+`POST /v1/questionnaire-templates` creates a tenant-wide definition and requires
+`package:write`; human sessions need a current tenant-level grant. Product or
+release grants cannot create tenant-wide templates. Name/version and question
+IDs/prompts must be nonblank after trimming. Question IDs must be unique after
+trimming, and question order is preserved. Optional `control_id` values are
+trimmed and must identify current tenant-owned controls with same-tenant
+frameworks. Evidence types remain selectors, not claims that evidence exists.
+`allowed_fields` remains inert metadata: entries are trimmed and sorted while
+duplicates and blank strings are preserved; it is not a redaction policy.
+
+Raw UTF-8/NUL-free inputs are bounded before trimming: 1024 bytes for name,
+version, question ID, control ID, evidence type and each allowed field; 64 KiB
+for each prompt. There must be 1–512 questions and at most 128 allowed fields
+per question. Aggregate input text and the encoded public template each have
+a 4 MiB budget; overflow fails instead of truncating. The existing HTTP body
+limit still applies independently. Both profiles reject explicit null
+fields/items, duplicate/unknown fields, and mixed-case field aliases. Cookie
+mutations require one same-host HTTPS Origin; explicit bearer credentials
+retain precedence.
+
+PostgreSQL uses focused Package commands, locking only the tenant and selected
+control/framework identities after the worker/audit fence. It does not load
+other templates, evidence payloads, control objectives, or an answer library.
+Template, caller-attributed audit and successful idempotency completion commit
+together. Replay retains the body-based fingerprint and rechecks current
+tenant-wide authority and referenced control ownership. A different key with
+the same tenant/name/version still conflicts. New durable timestamps use UTC
+microsecond precision. Historical rows, response fields, schema versions and
+optional-field omission are unchanged. Local memory keeps its storage facade,
+with the same normalization and current authority/ownership replay checks.
+
 ### Questionnaire Draft Creation
 
 `POST /v1/questionnaire-drafts` requires `package:read`, a tenant-owned

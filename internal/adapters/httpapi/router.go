@@ -142,6 +142,7 @@ type Server struct {
 	providerVerificationCommands      ProviderVerificationCommands
 	evidenceSummaryCommands           EvidenceSummaryCommands
 	questionnaireDraftCommands        QuestionnaireDraftCommands
+	questionnaireTemplateCommands     QuestionnaireTemplateCommands
 	releaseCatalog                    releaseCatalogService
 	productQuery                      ProductQuery
 	catalogPointQuery                 CatalogPointQuery
@@ -230,6 +231,8 @@ type ServerOptions struct {
 	EvidenceSummaryCommands EvidenceSummaryCommands
 	// QuestionnaireDraftCommands selects authorized bounded answers without Ledger state.
 	QuestionnaireDraftCommands QuestionnaireDraftCommands
+	// QuestionnaireTemplateCommands creates bounded tenant definitions without Ledger.
+	QuestionnaireTemplateCommands QuestionnaireTemplateCommands
 	// ReadinessQuery probes production dependencies independently of Ledger state.
 	ReadinessQuery ReadinessQuery
 	// MetricsQuery supplies bounded tenant counters in the PostgreSQL profile.
@@ -455,6 +458,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.QuestionnaireDraftCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused questionnaire drafts require durable idempotency")
 	}
+	if opts.QuestionnaireTemplateCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused questionnaire templates require durable idempotency")
+	}
 	if opts.CollectorCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused collectors require durable idempotency")
 	}
@@ -569,6 +575,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.providerVerificationCommands = opts.ProviderVerificationCommands
 	server.evidenceSummaryCommands = opts.EvidenceSummaryCommands
 	server.questionnaireDraftCommands = opts.QuestionnaireDraftCommands
+	server.questionnaireTemplateCommands = opts.QuestionnaireTemplateCommands
 	server.durableStreamedCommandExecutor, _ = opts.DurableCommandExecutor.(DurableStreamedCommandExecutor)
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands

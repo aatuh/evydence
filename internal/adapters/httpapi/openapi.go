@@ -1364,10 +1364,17 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"limitations":  map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 	}, "question_id", "answer"))
 	registry.RegisterSchema("CreateQuestionnaireTemplateRequest", objectSchema(map[string]any{
-		"name":      map[string]any{"type": "string"},
-		"version":   map[string]any{"type": "string"},
-		"questions": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/QuestionnaireQuestion"}},
+		"name":      map[string]any{"type": "string", "minLength": 1, "maxLength": packageapp.MaxQuestionnaireTemplateTextBytes, "description": "Required nonblank name; trimmed after a 1024-byte UTF-8/NUL-free raw input bound."},
+		"version":   map[string]any{"type": "string", "minLength": 1, "maxLength": packageapp.MaxQuestionnaireTemplateTextBytes, "description": "Required nonblank version; trimmed after a 1024-byte UTF-8/NUL-free raw input bound."},
+		"questions": map[string]any{"type": "array", "minItems": 1, "maxItems": packageapp.MaxQuestionnaireTemplateQuestions, "description": "Ordered questions with unique trimmed IDs; aggregate input text and encoded template are each limited to 4 MiB.", "items": map[string]any{"$ref": "#/components/schemas/CreateQuestionnaireQuestion"}},
 	}, "name", "version", "questions"))
+	registry.RegisterSchema("CreateQuestionnaireQuestion", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string", "minLength": 1, "maxLength": packageapp.MaxQuestionnaireTemplateTextBytes, "description": "Nonblank and unique after trimming; raw UTF-8/NUL-free input is limited to 1024 bytes."},
+		"prompt":         map[string]any{"type": "string", "minLength": 1, "maxLength": packageapp.MaxQuestionnaireTemplatePromptBytes, "description": "Nonblank prompt, trimmed after a 64 KiB raw UTF-8/NUL-free input bound."},
+		"evidence_type":  map[string]any{"type": "string", "maxLength": packageapp.MaxQuestionnaireTemplateTextBytes, "description": "Optional trimmed evidence selector; raw UTF-8/NUL-free input is limited to 1024 bytes."},
+		"control_id":     map[string]any{"type": "string", "maxLength": packageapp.MaxQuestionnaireTemplateTextBytes, "description": "Optional trimmed tenant-owned control with a current same-tenant framework; raw UTF-8/NUL-free input is limited to 1024 bytes."},
+		"allowed_fields": map[string]any{"type": "array", "maxItems": packageapp.MaxQuestionnaireTemplateFields, "description": "Inert metadata, trimmed and sorted; duplicates and blank strings retain their existing meaning.", "items": map[string]any{"type": "string", "maxLength": packageapp.MaxQuestionnaireTemplateTextBytes, "description": "Raw UTF-8/NUL-free input is limited to 1024 bytes."}},
+	}, "id", "prompt"))
 	registry.RegisterSchema("QuestionnaireTemplate", objectSchema(map[string]any{
 		"id":             map[string]any{"type": "string"},
 		"tenant_id":      map[string]any{"type": "string"},

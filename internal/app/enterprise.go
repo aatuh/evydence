@@ -8,8 +8,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
+	packageapp "github.com/aatuh/evydence/internal/package/app"
+	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
 
 type CreateOrganizationInput struct {
@@ -558,26 +561,33 @@ func (s packageReportService) CreateQuestionnaireTemplate(ctx context.Context, a
 	if err := ctx.Err(); err != nil {
 		return domain.QuestionnaireTemplate{}, err
 	}
-	if err := require(actor, ScopePackageWrite); err != nil {
+	if err := fromIdentityContextError(application.AuthorizeTenantWideScope(ctx, actor, ScopePackageWrite)); err != nil {
 		return domain.QuestionnaireTemplate{}, err
 	}
-	in.Name, in.Version = strings.TrimSpace(in.Name), strings.TrimSpace(in.Version)
-	if in.Name == "" || in.Version == "" || len(in.Questions) == 0 {
+	if len(in.Questions) > packageapp.MaxQuestionnaireTemplateQuestions {
 		return domain.QuestionnaireTemplate{}, ErrValidation
 	}
-	questions := append([]domain.QuestionnaireQuestion(nil), in.Questions...)
-	for i := range questions {
-		questions[i].ID = strings.TrimSpace(questions[i].ID)
-		questions[i].Prompt = strings.TrimSpace(questions[i].Prompt)
-		questions[i].EvidenceType = strings.TrimSpace(questions[i].EvidenceType)
-		if questions[i].ID == "" || questions[i].Prompt == "" {
-			return domain.QuestionnaireTemplate{}, ErrValidation
-		}
-		questions[i].AllowedFields = sortedStrings(questions[i].AllowedFields)
+	ownedQuestions := make([]packagedomain.QuestionnaireQuestion, len(in.Questions))
+	for i, q := range in.Questions {
+		ownedQuestions[i] = packagedomain.QuestionnaireQuestion{ID: q.ID, Prompt: q.Prompt, EvidenceType: q.EvidenceType, ControlID: q.ControlID, AllowedFields: q.AllowedFields}
+	}
+	normalized, err := packageapp.NormalizeQuestionnaireTemplateInput(packageapp.CreateQuestionnaireTemplateInput{Name: in.Name, Version: in.Version, Questions: ownedQuestions})
+	if err != nil {
+		return domain.QuestionnaireTemplate{}, ErrValidation
+	}
+	questions := make([]domain.QuestionnaireQuestion, len(normalized.Questions))
+	for i, q := range normalized.Questions {
+		questions[i] = domain.QuestionnaireQuestion{ID: q.ID, Prompt: q.Prompt, EvidenceType: q.EvidenceType, ControlID: q.ControlID, AllowedFields: q.AllowedFields}
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	tpl := domain.QuestionnaireTemplate{ID: newID("qt"), TenantID: actor.TenantID, Name: in.Name, Version: in.Version, Questions: questions, SchemaVersion: domain.QuestionnaireTemplateVersion, CreatedAt: l.now()}
+	if err := l.validateQuestionnaireTemplateControlsLocked(actor.TenantID, packageapp.QuestionnaireTemplateControlIDs(normalized.Questions)); err != nil {
+		return domain.QuestionnaireTemplate{}, err
+	}
+	tpl := domain.QuestionnaireTemplate{ID: newID("qt"), TenantID: actor.TenantID, Name: normalized.Name, Version: normalized.Version, Questions: questions, SchemaVersion: domain.QuestionnaireTemplateVersion, CreatedAt: l.now()}
+	if err := packageapp.ValidateQuestionnaireTemplateRecord(packagedomain.QuestionnaireTemplate{ID: tpl.ID, TenantID: tpl.TenantID, Name: tpl.Name, Version: tpl.Version, Questions: normalized.Questions, SchemaVersion: tpl.SchemaVersion, CreatedAt: tpl.CreatedAt}); err != nil {
+		return domain.QuestionnaireTemplate{}, ErrValidation
+	}
 	if l.unitOfWork != nil {
 		var entry domain.AuditChainEntry
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
@@ -592,14 +602,51 @@ func (s packageReportService) CreateQuestionnaireTemplate(ctx context.Context, a
 		}
 		l.questionTemplates[tpl.ID] = tpl
 		l.publishCommittedAuditEntryLocked(entry)
-		return tpl, nil
+		return cloneQuestionnaireTemplateDTO(tpl), nil
 	}
 	l.questionTemplates[tpl.ID] = tpl
 	_, _ = l.appendChainLocked(actor.TenantID, "questionnaire_template.created", "questionnaire_template", tpl.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {
 		return domain.QuestionnaireTemplate{}, err
 	}
-	return tpl, nil
+	return cloneQuestionnaireTemplateDTO(tpl), nil
+}
+
+// Local-memory replay checks use only ownership IDs. Production template
+// creation/replay binds the focused Package port and never calls this facade.
+func (l *Ledger) AuthorizeQuestionnaireTemplateCreate(ctx context.Context, actor domain.Actor, controlIDs []string) error {
+	if l == nil {
+		return ErrValidation
+	}
+	if err := fromIdentityContextError(application.AuthorizeTenantWideScope(ctx, actor, ScopePackageWrite)); err != nil {
+		return err
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.validateQuestionnaireTemplateControlsLocked(actor.TenantID, controlIDs)
+}
+func (l *Ledger) validateQuestionnaireTemplateControlsLocked(tenant string, ids []string) error {
+	if len(ids) > packageapp.MaxQuestionnaireTemplateQuestions {
+		return ErrValidation
+	}
+	if _, ok := l.tenants[tenant]; !ok {
+		return ErrNotFound
+	}
+	for _, id := range ids {
+		c, ok := l.controls[id]
+		f, frameworkExists := l.frameworks[c.FrameworkID]
+		if !ok || c.TenantID != tenant || !frameworkExists || f.TenantID != tenant {
+			return ErrNotFound
+		}
+	}
+	return nil
+}
+func cloneQuestionnaireTemplateDTO(v domain.QuestionnaireTemplate) domain.QuestionnaireTemplate {
+	v.Questions = append([]domain.QuestionnaireQuestion(nil), v.Questions...)
+	for i := range v.Questions {
+		v.Questions[i].AllowedFields = append([]string(nil), v.Questions[i].AllowedFields...)
+	}
+	return v
 }
 
 func (s packageReportService) CreateQuestionnairePackage(ctx context.Context, actor domain.Actor, in CreateQuestionnairePackageInput) (domain.QuestionnairePackage, error) {

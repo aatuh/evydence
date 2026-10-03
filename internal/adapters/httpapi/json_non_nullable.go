@@ -45,3 +45,26 @@ func validateNonNullableArrayItems(body []byte, name string) error {
 	}
 	return nil
 }
+
+// encoding/json matches tagged fields case-insensitively. For strict request
+// objects, reject aliases as well as null so a second spelling cannot override
+// a canonical field or bypass its non-nullability check.
+func validateExactNonNullableObjectFields(body []byte, names ...string) error {
+	if err := validateNonNullableObjectFields(body, names...); err != nil {
+		return err
+	}
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(body, &fields) != nil || fields == nil {
+		return app.ErrValidation
+	}
+	allowed := make(map[string]bool, len(names))
+	for _, name := range names {
+		allowed[name] = true
+	}
+	for name := range fields {
+		if !allowed[name] {
+			return app.ErrValidation
+		}
+	}
+	return nil
+}

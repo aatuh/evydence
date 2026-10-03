@@ -579,6 +579,32 @@ These restrictions require release compatibility review; this note does not
 approve an exception, claim production Ledger retirement, establish customer
 redaction, or provide compliance conclusions.
 
+## Unreleased Questionnaire Template Boundary
+
+`POST /v1/questionnaire-templates` now uses focused Package commands in
+PostgreSQL. Tenant/control/framework identity locks replace aggregate state
+access; definition, caller-attributed audit and successful replay completion
+are atomic. Routes, response fields, schema versions, question order and
+optional-field omission remain unchanged. Allowed-field sorting retains blank
+strings and duplicates. New durable timestamps use UTC microsecond precision;
+historical rows are not rewritten and no migration is required.
+
+Human creation/replay now requires a current tenant-level `package:write`
+grant. Product/release grants cannot define tenant-wide templates. Duplicate
+trimmed question IDs, missing/foreign controls or mismatched control-framework
+ownership now fail closed. Optional control IDs are newly trimmed. Clients
+must use coherent tenant-owned controls or omit optional selectors.
+
+Both profiles reject null/duplicate/unknown/mixed-case fields and invalid
+UTF-8/NUL; raw text, collection and aggregate/encoded-byte limits are stated
+in [template creation](../api.md#questionnaire-template-creation). Cookie
+mutations require same-host HTTPS Origin protection, with bearer precedence.
+The new bounded input-question schema does not restrict historical response
+schemas. Successful replay retains the body-based fingerprint but rechecks
+current authority and referenced ownership. These restrictions require release
+compatibility review; this note does not approve an exception, claim production
+Ledger retirement, or establish compliance conclusions.
+
 ## Deprecation Lifecycle
 
 No operation is currently marked deprecated. When one is, the operation must

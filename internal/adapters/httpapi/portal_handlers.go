@@ -13,6 +13,7 @@ import (
 	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
+	packageapp "github.com/aatuh/evydence/internal/package/app"
 	packagequery "github.com/aatuh/evydence/internal/package/query"
 )
 
@@ -447,17 +448,30 @@ func escapeHTML(value string) string {
 }
 
 func (s *Server) createQuestionnaireTemplate(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Name      string                         `json:"name"`
-		Version   string                         `json:"version"`
-		Questions []domain.QuestionnaireQuestion `json:"questions"`
+	if err := validateSSOCookieMutation(r); err != nil {
+		writeProblem(w, r, err)
+		return
 	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
+	if s.questionnaireTemplateCommands != nil {
+		s.createDurableQuestionnaireTemplate(w, r)
+		return
+	}
+	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+		req, err := decodeQuestionnaireTemplateRequest(body)
+		if err != nil {
 			return 0, nil, err
 		}
-		tpl, err := s.ledger.CreateQuestionnaireTemplate(ctx, actor, app.CreateQuestionnaireTemplateInput{Name: req.Name, Version: req.Version, Questions: req.Questions})
+		tpl, err := s.ledger.CreateQuestionnaireTemplate(ctx, actor, app.CreateQuestionnaireTemplateInput{Name: req.Name, Version: req.Version, Questions: questionnaireQuestionsFromCommand(req.Questions)})
 		return http.StatusCreated, tpl, err
+	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+		in, err := decodeQuestionnaireTemplateRequest(body)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ledger.AuthorizeQuestionnaireTemplateCreate(r.Context(), a, packageapp.QuestionnaireTemplateControlIDs(in.Questions)); err != nil {
+			return nil, err
+		}
+		return body, nil
 	})
 }
 

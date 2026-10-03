@@ -1161,8 +1161,18 @@ resource grants, preventing permission downgrades from returning an old private
 answer even when the draft root remains accessible. Local-memory keeps its
 storage facade and shares selection rules through explicit pure helpers.
 See [questionnaire draft creation](api.md#questionnaire-draft-creation) for
-limits and compatibility. Other questionnaire commands and startup Ledger
-retirement remain EVY-905 work.
+limits and compatibility.
+
+Questionnaire-template creation also binds a focused Package command. Its
+transaction port can validate tenant/control/framework identities, insert one
+definition, and append an audit; it cannot access full tenant state or private
+control text. Tenant-wide human authority, shared canonical input/record
+validation and exact encoded-byte bounds apply before persistence. The shared
+worker/audit fence precedes parent locks, and template/audit/replay effects
+commit together. Both profiles recheck current template-create authority on
+replay. See [template creation](api.md#questionnaire-template-creation).
+Answer-library writes, questionnaire-package generation, other extension
+workflows and startup Ledger retirement remain EVY-905 work.
 
 PostgreSQL evidence-summary creation now binds Package-owned focused commands
 directly through the composition root. One transaction locks root coordinates,

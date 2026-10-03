@@ -19,6 +19,12 @@ func NewBundleImportAuthorizer() application.Authorizer {
 	return tenantWideCommandAuthorizer{scope: "bundle:write"}
 }
 
+// Questionnaire definitions are tenant-wide; product/release grants cannot
+// authorize creation of definitions visible across the tenant.
+func NewQuestionnaireTemplateAuthorizer() application.Authorizer {
+	return tenantWideCommandAuthorizer{scope: "package:write"}
+}
+
 type tenantWideCommandAuthorizer struct{ scope string }
 
 func (a tenantWideCommandAuthorizer) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {

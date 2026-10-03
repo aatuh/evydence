@@ -143,7 +143,7 @@
         <div class="summary-card"><strong>3.1.0</strong><span>OpenAPI version</span></div>
         <div class="summary-card"><strong>172</strong><span>registered paths</span></div>
         <div class="summary-card"><strong>189</strong><span>operations</span></div>
-        <div class="summary-card"><strong>391</strong><span>schemas</span></div>
+        <div class="summary-card"><strong>392</strong><span>schemas</span></div>
       </div>
     </header>
     <main>
@@ -1962,13 +1962,13 @@
               <div><dt>Responses</dt><dd>201 application/json: QuestionnairePackageEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/questionnaire-templates create questionnaire template creates a tenant questionnaire template with explicit evidence/control mapping fields. createquestionnairetemplate evydence package:write">
+          <article class="operation" data-operation data-search="post /v1/questionnaire-templates create questionnaire template creates a tenant-wide questionnaire definition under package:write; human sessions require a current tenant-level grant. questions retain input order and require unique trimmed ids, nonblank prompts and current same-tenant control/framework references when supplied. name, version, selectors and allowed fields are limited to 1024 raw utf-8/nul-free bytes; prompts to 64 kib; question count to 512; allowed fields to 128 per question. aggregate input text and the encoded template each have a 4 mib budget. allowed fields are inert metadata, trimmed/sorted with duplicates and blank strings preserved. postgresql uses focused package commands, locks only tenant and selected control/framework identities after the worker/audit fence, and commits template, caller audit and successful body-keyed idempotency replay together. replays recheck current tenant-wide authority and referenced control ownership. both profiles reject null/duplicate/unknown/mixed-case fields, invalid utf-8 and nul; cookie mutations require one same-host https origin, with explicit bearer precedence. historical templates and response schemas are unchanged; local memory retains its storage facade. createquestionnairetemplate evydence package:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/questionnaire-templates</code>
             </div>
             <h3>Create questionnaire template</h3>
-            <p>Creates a tenant questionnaire template with explicit evidence/control mapping fields.</p>
+            <p>Creates a tenant-wide questionnaire definition under package:write; human sessions require a current tenant-level grant. Questions retain input order and require unique trimmed IDs, nonblank prompts and current same-tenant control/framework references when supplied. Name, version, selectors and allowed fields are limited to 1024 raw UTF-8/NUL-free bytes; prompts to 64 KiB; question count to 512; allowed fields to 128 per question. Aggregate input text and the encoded template each have a 4 MiB budget. Allowed fields are inert metadata, trimmed/sorted with duplicates and blank strings preserved. PostgreSQL uses focused Package commands, locks only tenant and selected control/framework identities after the worker/audit fence, and commits template, caller audit and successful body-keyed idempotency replay together. Replays recheck current tenant-wide authority and referenced control ownership. Both profiles reject null/duplicate/unknown/mixed-case fields, invalid UTF-8 and NUL; cookie mutations require one same-host HTTPS Origin, with explicit bearer precedence. Historical templates and response schemas are unchanged; local memory retains its storage facade.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createQuestionnaireTemplate</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -3794,6 +3794,11 @@
             <td><code>CreateQuestionnairePackageRequest</code></td>
             <td>object</td>
             <td>template_id</td>
+          </tr>
+          <tr>
+            <td><code>CreateQuestionnaireQuestion</code></td>
+            <td>object</td>
+            <td>id, prompt</td>
           </tr>
           <tr>
             <td><code>CreateQuestionnaireTemplateRequest</code></td>
