@@ -732,6 +732,35 @@ credential material, generic log redaction,
 and customer-package redaction do not acquire that exception. Local-memory mode
 retains its explicit compatibility binding and shares input normalization.
 
+#### Role Binding Writes
+
+`POST /v1/role-bindings` uses focused Identity commands in PostgreSQL mode.
+It requires `identity:admin` (or admin) and a current tenant-wide grant for
+human sessions; a product-only grant cannot delegate roles. Current subject and
+resource ownership is checked before durable reservation and completed replay.
+The binding, audit entry, and safe replay completion commit atomically without
+loading user, collector, credential, or evidence inventories.
+
+Subjects are `user` or `collector`. Roles remain `tenant_admin`,
+`security_engineer`, `release_manager`, `customer_verifier`, and `collector`.
+An omitted/empty resource type with an empty ID means tenant-wide; `tenant`
+accepts an empty ID or the current tenant ID. The other supported types are
+`product`, `project`, `release`, `customer_security_package`, and `evidence_bundle`;
+their missing IDs and foreign targets return `404`. Current organization,
+collector-key, product, and optional release parents must resolve in the tenant;
+a package's release must match its product. Target metadata and manifests are
+not loaded. Binding metadata does not activate revoked credentials or grant
+the reserved explicit `instance:admin` scope.
+
+All fields are trimmed without changing case. Direct inputs require UTF-8/NUL-free
+text, type/role values at most 128 bytes, and IDs at most 1024 bytes. The same
+strict HTTP decoding and 64 KiB body limit as membership writes apply. New
+timestamps use UTC microseconds. Repeating a completed key and body returns
+the original public binding without more effects; a different key intentionally
+creates another assignment even when its grant coordinates match. Local memory
+retains its compatibility binding and shares input normalization. See the
+[unreleased compatibility note](reference/api-versioning.md#unreleased-role-binding-write-boundary).
+
 Current SSO endpoints model admin-managed provider, identity-link, trust-material, and session records plus API-first session logout. OIDC provider records can include public JWKS material, and SAML provider records can include PEM-encoded assertion signing certificates; both can be rotated through `POST /v1/sso/providers/{id}/trust-material`. OIDC public JWKS can also be refreshed from the configured issuer with `POST /v1/sso/providers/{id}/discover-oidc`. `POST /v1/provider-verifications` can verify a supplied OIDC ID token or SAML assertion locally for issuer, audience, subject, time bounds, and signature. When an OIDC `access_token` is supplied, the same endpoint can call either the provider's discovered UserInfo endpoint or a configured operator-controlled provider validation gateway, verify the returned subject, and record any configured group-claim mapping checks without storing the access token. The provider validation gateway receives only non-secret request metadata and an `access_token_present` flag, not the supplied token. `POST /v1/sso/session-exchanges` uses local token/assertion verification and a verified identity link to issue a one-time SSO bearer secret and an HttpOnly cookie for browser clients. OIDC group claim values can map to session-scoped roles through the provider `groups_claim` and `role_mapping`; no permanent role binding is created from token claims. External group synchronization into permanent role bindings is not implemented in this slice.
 
 ### Products, Releases, Evidence, And Risk

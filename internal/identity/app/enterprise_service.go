@@ -281,13 +281,9 @@ func (s *Service) CreateRoleBinding(ctx context.Context, actor identitydomain.Ac
 	if err := s.authorizeIdentityAdmin(ctx, actor); err != nil {
 		return identitydomain.RoleBinding{}, err
 	}
-	input.SubjectType = strings.TrimSpace(input.SubjectType)
-	input.SubjectID = strings.TrimSpace(input.SubjectID)
-	input.Role = strings.TrimSpace(input.Role)
-	input.ResourceType = strings.TrimSpace(input.ResourceType)
-	input.ResourceID = strings.TrimSpace(input.ResourceID)
-	if !validRoleSubject(input.SubjectType) || input.SubjectID == "" || !validRole(input.Role) {
-		return identitydomain.RoleBinding{}, ErrValidation
+	input, err := normalizeRoleBindingInput(actor.TenantID, input)
+	if err != nil {
+		return identitydomain.RoleBinding{}, err
 	}
 	if err := s.grantTargets.ValidateSubject(ctx, actor.TenantID, input.SubjectType, input.SubjectID); err != nil {
 		return identitydomain.RoleBinding{}, err

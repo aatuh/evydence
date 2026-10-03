@@ -35,6 +35,11 @@ See the same [migration note](docs/reference/api-versioning.md#unreleased-contro
 
 ### Added
 
+- PostgreSQL role assignment now uses focused Identity commands with current
+  tenant-wide human authority, tenant-owned subject/resource parents, and atomic
+  binding, audit, and replay effects. Valid grant forms and repeated assignments
+  remain; strict input bounds fail before storage. See the
+  [compatibility note](docs/reference/api-versioning.md#unreleased-role-binding-write-boundary).
 - Security-scan and manual-document uploads now use focused PostgreSQL commands
   with current security-scope grants and atomic evidence, document, payload,
   audit, finalizer, and safe replay effects. Their OpenAPI schemas now match

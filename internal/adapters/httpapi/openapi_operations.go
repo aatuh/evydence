@@ -78,7 +78,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Deactivated human user envelope.", "#/components/schemas/HumanUserEnvelope")
 	case "createRoleBinding":
-		operation.Description = "Creates a tenant-scoped role binding for a user or collector subject."
+		operation.Description = "Creates a tenant-scoped role binding for a user or collector subject. PostgreSQL uses focused Identity commands with current tenant-wide human admin authority and bounded current subject/resource ownership checks before writes and replay. Binding, audit and safe replay completion commit atomically. Empty/omitted resource type with an empty ID, or tenant with an empty/current tenant ID, remains tenant-wide; supported scoped resources require a nonempty owned ID. A package's optional release must match its product. Reusing a completed key/body returns the original public binding; a new key intentionally permits another assignment with identical grant coordinates. No credential hashes, target metadata or evidence manifests are loaded."
 		operation.RequestBody = jsonRequest("Role binding creation request.", "#/components/schemas/CreateRoleBindingRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created role binding envelope.", "#/components/schemas/RoleBindingEnvelope")
 	case "listRoleBindings":

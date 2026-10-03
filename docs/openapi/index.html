@@ -2608,13 +2608,13 @@
               <div><dt>Responses</dt><dd>200 application/json: RoleBindingListEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/role-bindings create role binding creates a tenant-scoped role binding for a user or collector subject. createrolebinding evydence identity:admin">
+          <article class="operation" data-operation data-search="post /v1/role-bindings create role binding creates a tenant-scoped role binding for a user or collector subject. postgresql uses focused identity commands with current tenant-wide human admin authority and bounded current subject/resource ownership checks before writes and replay. binding, audit and safe replay completion commit atomically. empty/omitted resource type with an empty id, or tenant with an empty/current tenant id, remains tenant-wide; supported scoped resources require a nonempty owned id. a package&#x27;s optional release must match its product. reusing a completed key/body returns the original public binding; a new key intentionally permits another assignment with identical grant coordinates. no credential hashes, target metadata or evidence manifests are loaded. createrolebinding evydence identity:admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/role-bindings</code>
             </div>
             <h3>Create role binding</h3>
-            <p>Creates a tenant-scoped role binding for a user or collector subject.</p>
+            <p>Creates a tenant-scoped role binding for a user or collector subject. PostgreSQL uses focused Identity commands with current tenant-wide human admin authority and bounded current subject/resource ownership checks before writes and replay. Binding, audit and safe replay completion commit atomically. Empty/omitted resource type with an empty ID, or tenant with an empty/current tenant ID, remains tenant-wide; supported scoped resources require a nonempty owned ID. A package&#x27;s optional release must match its product. Reusing a completed key/body returns the original public binding; a new key intentionally permits another assignment with identical grant coordinates. No credential hashes, target metadata or evidence manifests are loaded.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createRoleBinding</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

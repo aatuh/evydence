@@ -139,6 +139,10 @@ func (s *Server) deactivateUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createRoleBinding(w http.ResponseWriter, r *http.Request) {
+	if s.roleBindingCommands != nil {
+		s.createDurableRoleBinding(w, r)
+		return
+	}
 	var req struct {
 		SubjectType  string `json:"subject_type"`
 		SubjectID    string `json:"subject_id"`

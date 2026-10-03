@@ -315,6 +315,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create membership commands: %w", err)
 	}
+	options.RoleBindingCommands, err = BuildRoleBindingCommands(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create role binding commands: %w", err)
+	}
 	options.InstanceAdminQuery, err = BuildInstanceAdminQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create instance admin query: %w", err)

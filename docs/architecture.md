@@ -718,7 +718,17 @@ audit, replay and deferred-commit stages. Fixed versioned user replay retains
 the required public email for authorized administration; generic diagnostics
 and customer-package redaction remain unchanged. See
 [organization and user writes](api.md#organization-and-user-writes) for limits
-and compatibility. Other identity commands and startup Ledger retirement
+and compatibility. PostgreSQL role assignment now binds focused Identity commands
+using a target-resolution port rather than cross-context repository inventories.
+Bounded identity-only SQL holds the subject and coherent resource parents through
+commit; no names, credential hashes, evidence payloads or manifests are selected.
+Worker/audit fencing precedes tenant and parent locks. Assignment, audit and safe
+replay completion share one transaction; current tenant-wide human authority and
+parents are checked before replay. Live HTTP tests cover real session grants,
+direct foreign rows, foreign/mismatched parents, repeated assignment, restart
+replay and write/audit/replay/deferred-commit rollback. See
+[role binding writes](api.md#role-binding-writes) for compatibility and bounds.
+Other identity commands and startup Ledger retirement
 remain EVY-905 work. Production API-key inventory pages read public metadata from tenant-
 filtered PostgreSQL rows without selecting credential hashes. Role-binding
 inventory also pages current tenant rows in PostgreSQL instead of reading

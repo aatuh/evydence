@@ -281,6 +281,25 @@ This is an unreleased implementation note, not compatibility approval, email
 ownership verification or release evidence. Exact compatibility validation
 remains required before EVY-905 closure.
 
+## Unreleased Role Binding Write Boundary
+
+PostgreSQL role assignment now uses a focused Identity transaction instead of
+Ledger state. Routes, response schemas, five role names, two subject types,
+tenant aliases and repeated assignment with a new idempotency key remain.
+Current tenant-wide human admin authority and tenant-owned subject/resource
+parents are checked before writes and completed replay. A customer package's
+optional release must match its product. Foreign or missing scoped targets
+return `404`; empty scoped IDs never become tenant-wide grants.
+
+Strict PostgreSQL decoding rejects invalid UTF-8 and null, duplicate, unknown
+or trailing fields already excluded by the contract. Shared normalization also
+bounds local-memory direct inputs before storage. New timestamps use UTC
+microseconds; no migration or historical-row rewrite is required. See
+[role binding writes](../api.md#role-binding-writes) for exact limits. This is
+an unreleased implementation note, not compatibility approval, provider-side
+verification or release evidence. Exact compatibility validation remains
+required before EVY-905 closure.
+
 ## Stable-Line Rule
 
 A stable `/v1` line permits additive fields, endpoints, and optional filters.
