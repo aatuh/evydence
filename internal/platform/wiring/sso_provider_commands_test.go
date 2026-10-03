@@ -2,8 +2,14 @@ package wiring
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
+	"math/big"
 	"net/http/httptest"
 	"reflect"
 	"strings"
@@ -40,7 +46,7 @@ INSERT INTO role_bindings(id,tenant_id,subject_type,subject_id,role,resource_typ
 	}
 	const secret = "evysso_provider_fixture"
 	exec(`INSERT INTO sso_sessions(id,tenant_id,user_id,provider_id,prefix,hash,expires_at,schema_version,created_at)VALUES('session','tenant','operator','provider',$1,$2,now()+interval '1 hour','sso-session.v1',now())`, credentials.Prefix(secret), credentials.Hash(secret))
-	request := func(key, body string, want int) map[string]any {
+	request := func(key, body string, want int, route ...string) map[string]any {
 		t.Helper()
 		opts, err := BuildAPIReadServices(&Runtime{Process: API, Profile: PostgreSQL, Postgres: store}, "provider-test-pepper", []app.ReadinessCheck{{Name: "postgres", Check: store.CheckReadiness}, {Name: "migrations", Check: func(ctx context.Context) error { return store.CheckMigrationState(ctx, "../../../migrations") }}})
 		if err != nil || opts.SSOProviderCommands == nil {
@@ -55,7 +61,11 @@ INSERT INTO role_bindings(id,tenant_id,subject_type,subject_id,role,resource_typ
 		if err != nil {
 			t.Fatal(err)
 		}
-		r := httptest.NewRequest("POST", "/v1/sso/providers", strings.NewReader(body)).WithContext(ctx)
+		path := "/v1/sso/providers"
+		if len(route) != 0 {
+			path = route[0]
+		}
+		r := httptest.NewRequest("POST", path, strings.NewReader(body)).WithContext(ctx)
 		r.Header.Set("Authorization", "Bearer "+secret)
 		r.Header.Set("Content-Type", "application/json")
 		r.Header.Set("Idempotency-Key", key)
@@ -155,9 +165,211 @@ INSERT INTO role_bindings(id,tenant_id,subject_type,subject_id,role,resource_typ
 	if err != nil {
 		t.Fatal(err)
 	}
+	rotationPath := "/v1/sso/providers/" + first["id"].(string) + "/trust-material"
+	const trustBody = `{"jwks":{"keys":[{"kty":"OKP","kid":"rotated","crv":"Ed25519","x":"new-public-only"}]}}`
+	rotated := request("trust-rotation", trustBody, 200, rotationPath)
+	if rotated["id"] != first["id"] || rotated["created_at"] != first["created_at"] || rotated["trust_material_updated_at"] == nil {
+		t.Fatal("trust rotation changed immutable provider fields")
+	}
+	before = counts()
+	if replay := request("trust-rotation", trustBody, 200, rotationPath); !reflect.DeepEqual(rotated, replay) || counts() != before {
+		t.Fatal("trust restart replay changed DTO or duplicated effects")
+	}
+	request("foreign-trust", trustBody, 404, "/v1/sso/providers/unrelated/trust-material")
+	request("missing-trust", trustBody, 404, "/v1/sso/providers/missing/trust-material")
+	request("private-trust", strings.Replace(trustBody, `"x":"new-public-only"`, `"x":"new-public-only","d":"private-provider-canary"`, 1), 400, rotationPath)
+	request("trust-rotation", strings.Replace(trustBody, "rotated", "changed", 1), 409, rotationPath)
+	exec(`UPDATE role_bindings SET resource_type='product',resource_id='product' WHERE id='operator-grant'`)
+	request("trust-rotation", trustBody, 403, rotationPath)
+	exec(`UPDATE role_bindings SET resource_type='tenant',resource_id='tenant' WHERE id='operator-grant'`)
+	exec(`UPDATE sso_providers SET tenant_id='other' WHERE id=$1`, first["id"])
+	request("trust-rotation", trustBody, 404, rotationPath)
+	exec(`UPDATE sso_providers SET tenant_id='tenant',name=repeat('x',9437184) WHERE id=$1`, first["id"])
+	request("trust-rotation", trustBody, 409, rotationPath)
+	exec(`UPDATE sso_providers SET name='Example' WHERE id=$1`, first["id"])
+	for _, malformed := range []struct {
+		set     string
+		restore any
+	}{
+		{`role_mapping=jsonb_build_object('oversized',repeat('x',9437184))`, rotated["role_mapping"]},
+		{`jwks=jsonb_build_object('oversized',repeat('x',9437184))`, rotated["jwks"]},
+		{`saml_signing_certificates=jsonb_build_array(repeat('x',9437184))`, nil},
+		{`role_mapping='[]'::jsonb`, rotated["role_mapping"]},
+		{`jwks='[]'::jsonb`, rotated["jwks"]},
+		{`saml_signing_certificates='{}'::jsonb`, nil},
+	} {
+		exec(`UPDATE sso_providers SET `+malformed.set+` WHERE id=$1`, first["id"])
+		request("trust-rotation", trustBody, 409, rotationPath)
+		field, _, _ := strings.Cut(malformed.set, "=")
+		encoded, err := json.Marshal(malformed.restore)
+		if err != nil {
+			t.Fatal(err)
+		}
+		exec(`UPDATE sso_providers SET `+field+`=$2::jsonb WHERE id=$1`, first["id"], encoded)
+		if counts() != before {
+			t.Fatal("bounded trust lookup emitted effects", field)
+		}
+	}
+	if replay := request("trust-rotation", trustBody, 200, rotationPath); !reflect.DeepEqual(rotated, replay) || counts() != before {
+		t.Fatal("trust guards mutated saved provider/receipt")
+	}
 	a = domain.Actor{TenantID: "missing", KeyID: "key", Scopes: []string{"identity:admin"}}
 	if out, err := c.CreateSSOProvider(ctx, a, identityapp.CreateSSOProviderInput{Name: "Fixture", Type: "oidc", Issuer: "https://issuer.example.test", ClientID: "client"}); !errors.Is(err, identityapp.ErrNotFound) || out.ID != "" || counts() != before {
 		t.Fatal("missing tenant provider creation produced effects", err)
+	}
+}
+
+func TestPostgresSSOTrustSAMLRetainsOnlyPublicCertificatesAndReplays(t *testing.T) {
+	store, pool := openHTMLReportWiringStore(t)
+	ctx := t.Context()
+	if _, err := pool.Exec(ctx, `INSERT INTO tenants(id,name)VALUES('tenant','SAML rotation')`); err != nil {
+		t.Fatal(err)
+	}
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC)
+	template := &x509.Certificate{SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "saml.example.test"}, NotBefore: now.Add(-time.Hour), NotAfter: now.Add(time.Hour), KeyUsage: x509.KeyUsageDigitalSignature}
+	der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	certificate := string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}))
+	private, err := x509.MarshalPKCS8PrivateKey(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := BuildSSOProviderCommands(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := domain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{"identity:admin"}}
+	p, err := c.CreateSSOProvider(ctx, a, identityapp.CreateSSOProviderInput{Name: "Fixture", Type: "saml", Issuer: "https://saml.example.test/entity", ClientID: "client", RoleMapping: map[string]string{"token-reviewers": "security_engineer"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := identityapp.UpdateSSOProviderTrustMaterialInput{SAMLSigningCertificates: []string{" \n" + certificate + string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: private}))}}
+	executor := app.IdempotencyUnitOfWork{Transactions: store, Authorize: func(ctx context.Context, _ app.Repositories) error {
+		return c.AuthorizeUpdateSSOProviderTrustMaterial(ctx, a, p.ID, in)
+	}}
+	run := func(ctx context.Context, _ app.Repositories) (int, any, error) {
+		v, err := c.UpdateSSOProviderTrustMaterial(ctx, a, p.ID, in)
+		if err == nil && (v.ID != p.ID || !v.CreatedAt.Equal(p.CreatedAt) || v.JWKS != nil || v.TrustMaterialUpdatedAt == nil || !reflect.DeepEqual(v.SAMLSigningCertificates, []string{certificate})) {
+			return 0, nil, errors.New("SAML rotation changed public provider contract")
+		}
+		return 200, domain.SSOProvider(v), err
+	}
+	path := "/v1/sso/providers/" + p.ID + "/trust-material"
+	status, first, err := executor.WithBody(ctx, a, "POST", path, "saml-rotation", []byte(`{}`), run)
+	if err != nil || status != 200 {
+		t.Fatal("SAML public rotation failed", err)
+	}
+	status, replay, err := executor.WithBody(ctx, a, "POST", path, "saml-rotation", []byte(`{}`), run)
+	firstJSON, firstErr := json.Marshal(first)
+	replayJSON, replayErr := json.Marshal(replay)
+	var firstDTO, replayDTO map[string]any
+	if firstErr != nil || replayErr != nil || json.Unmarshal(firstJSON, &firstDTO) != nil || json.Unmarshal(replayJSON, &replayDTO) != nil {
+		t.Fatal("SAML rotation response is not public JSON")
+	}
+	if err != nil || status != 200 || !reflect.DeepEqual(firstDTO, replayDTO) {
+		t.Fatal("SAML rotation changed replay", err)
+	}
+	var stored, saved, payloadHash string
+	var audits int
+	if err := pool.QueryRow(ctx, `SELECT saml_signing_certificates::text,(SELECT response::text FROM idempotency_records WHERE idempotency_key='saml-rotation'),(SELECT payload_hash FROM audit_chain_entries WHERE entry_type='sso_provider.trust_material_updated'),(SELECT count(*)FROM audit_chain_entries WHERE entry_type='sso_provider.trust_material_updated') FROM sso_providers WHERE id=$1`, p.ID).Scan(&stored, &saved, &payloadHash, &audits); err != nil || audits != 1 || !strings.HasPrefix(payloadHash, "sha256:") || strings.Contains(stored+saved, "PRIVATE KEY") {
+		t.Fatal("SAML public persistence leaked private PEM or duplicated audit", err)
+	}
+	var certificates []string
+	if err := json.Unmarshal([]byte(stored), &certificates); err != nil || !reflect.DeepEqual(certificates, []string{certificate}) {
+		t.Fatal("SAML persistence changed normalized certificate", err)
+	}
+}
+
+func TestPostgresSSOTrustWriteAuditReplayAndDeferredCommitFailuresRollBack(t *testing.T) {
+	store, pool := openHTMLReportWiringStore(t)
+	ctx := t.Context()
+	if _, err := pool.Exec(ctx, `INSERT INTO tenants(id,name)VALUES('tenant','Trust rotation')`); err != nil {
+		t.Fatal(err)
+	}
+	c, err := BuildSSOProviderCommands(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := domain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{"identity:admin"}}
+	p, err := c.CreateSSOProvider(ctx, a, identityapp.CreateSSOProviderInput{Name: "Fixture", Type: "oidc", Issuer: "https://issuer.example.test", ClientID: "client"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := identityapp.UpdateSSOProviderTrustMaterialInput{JWKS: map[string]any{"keys": []any{map[string]any{"kty": "OKP", "kid": "rotated", "crv": "Ed25519", "x": "public-only"}}}}
+	executor := app.IdempotencyUnitOfWork{Transactions: store, Authorize: func(ctx context.Context, _ app.Repositories) error {
+		return c.AuthorizeUpdateSSOProviderTrustMaterial(ctx, a, p.ID, in)
+	}}
+	run := func(ctx context.Context, _ app.Repositories) (int, any, error) {
+		v, err := c.UpdateSSOProviderTrustMaterial(ctx, a, p.ID, in)
+		return 200, domain.SSOProvider(v), err
+	}
+	path := "/v1/sso/providers/" + p.ID + "/trust-material"
+	snapshot := func() (string, [2]int) {
+		t.Helper()
+		var trust string
+		var counts [2]int
+		if err := pool.QueryRow(ctx, `SELECT jsonb_build_object('jwks',jwks,'certificates',saml_signing_certificates,'updated_at',trust_material_updated_at)::text,(SELECT count(*)FROM audit_chain_entries),(SELECT count(*)FROM idempotency_records WHERE state='completed') FROM sso_providers WHERE id=$1`, p.ID).Scan(&trust, &counts[0], &counts[1]); err != nil {
+			t.Fatal(err)
+		}
+		return trust, counts
+	}
+	for _, stage := range []string{"sso_providers", "audit_chain_entries", "replay", "commit"} {
+		var setup, teardown string
+		switch stage {
+		case "replay":
+			setup = `CREATE OR REPLACE FUNCTION reject_trust_stage()RETURNS trigger LANGUAGE plpgsql AS $$BEGIN IF NEW.state='completed' THEN RAISE EXCEPTION 'private trust storage';END IF;RETURN NEW;END$$;CREATE TRIGGER reject_trust_stage BEFORE UPDATE ON idempotency_records FOR EACH ROW EXECUTE FUNCTION reject_trust_stage()`
+			teardown = `DROP TRIGGER reject_trust_stage ON idempotency_records`
+		case "commit":
+			setup = `CREATE OR REPLACE FUNCTION reject_trust_stage()RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RAISE EXCEPTION 'private trust storage';END$$;CREATE CONSTRAINT TRIGGER reject_trust_stage AFTER UPDATE ON sso_providers DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION reject_trust_stage()`
+			teardown = `DROP TRIGGER reject_trust_stage ON sso_providers`
+		default:
+			operation := "INSERT"
+			if stage == "sso_providers" {
+				operation = "UPDATE"
+			}
+			setup = `CREATE OR REPLACE FUNCTION reject_trust_stage()RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RAISE EXCEPTION 'private trust storage';END$$;CREATE TRIGGER reject_trust_stage BEFORE ` + operation + ` ON ` + stage + ` FOR EACH ROW EXECUTE FUNCTION reject_trust_stage()`
+			teardown = `DROP TRIGGER reject_trust_stage ON ` + stage
+		}
+		beforeTrust, before := snapshot()
+		if _, err := pool.Exec(ctx, setup); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := executor.WithBody(ctx, a, "POST", path, stage, []byte(`{}`), run); err == nil {
+			t.Fatal("trust fault did not fail", stage)
+		}
+		if trust, counts := snapshot(); trust != beforeTrust || counts != before {
+			t.Fatal("trust failure committed partial update, audit, or replay", stage)
+		}
+		var unsafe int
+		if err := pool.QueryRow(ctx, `SELECT count(*)FROM idempotency_records WHERE idempotency_key=$1 AND(response<>'null'::jsonb OR status<>0)`, stage).Scan(&unsafe); err != nil || unsafe != 0 {
+			t.Fatal("failed trust rotation retained success", stage, err)
+		}
+		if _, err := pool.Exec(ctx, teardown); err != nil {
+			t.Fatal(err)
+		}
+		status, response, err := executor.WithBody(ctx, a, "POST", path, stage, []byte(`{}`), run)
+		if stage == "replay" || stage == "commit" {
+			if err != nil || status != 200 || response == nil {
+				t.Fatal("rolled back trust rotation cannot retry", stage, err)
+			}
+			before[0]++
+			before[1]++
+			committed, _ := snapshot()
+			if _, _, err := executor.WithBody(ctx, a, "POST", path, stage, []byte(`{}`), run); err != nil {
+				t.Fatal("trust retry cannot replay", stage, err)
+			}
+			if trust, counts := snapshot(); trust != committed || counts != before {
+				t.Fatal("trust retry duplicated effects", stage)
+			}
+		} else if !errors.Is(err, app.ErrIdempotencyFailed) {
+			t.Fatal("failed trust reservation unexpectedly retried", stage, err)
+		}
 	}
 }
 

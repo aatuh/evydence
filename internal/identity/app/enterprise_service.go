@@ -370,11 +370,7 @@ func (s *Service) UpdateSSOProviderTrustMaterial(ctx context.Context, actor iden
 	if id == "" {
 		return identitydomain.SSOProvider{}, ErrValidation
 	}
-	jwks, err := s.trustMaterial.NormalizeJWKS(input.JWKS)
-	if err != nil {
-		return identitydomain.SSOProvider{}, ErrValidation
-	}
-	certificates, err := s.trustMaterial.NormalizeSAMLSigningCertificates(input.SAMLSigningCertificates)
+	input, err := normalizeSSOTrustInput(input, s.trustMaterial)
 	if err != nil {
 		return identitydomain.SSOProvider{}, ErrValidation
 	}
@@ -386,31 +382,13 @@ func (s *Service) UpdateSSOProviderTrustMaterial(ctx context.Context, actor iden
 		return identitydomain.SSOProvider{}, ErrNotFound
 	}
 	expected := cloneSSOProvider(provider)
-	provider = cloneSSOProvider(provider)
-	switch provider.Type {
-	case "oidc":
-		if len(jwks) == 0 || len(certificates) != 0 {
-			return identitydomain.SSOProvider{}, ErrValidation
-		}
-		provider.JWKS = cloneAnyMap(jwks)
-		provider.SAMLSigningCertificates = nil
-	case "saml":
-		if len(certificates) == 0 || len(jwks) != 0 {
-			return identitydomain.SSOProvider{}, ErrValidation
-		}
-		provider.JWKS = nil
-		provider.SAMLSigningCertificates = append([]string(nil), certificates...)
-	default:
+	provider, err = applySSOTrustInput(provider, input)
+	if err != nil {
 		return identitydomain.SSOProvider{}, ErrValidation
 	}
 	now := s.clock.Now().UTC()
 	provider.TrustMaterialUpdatedAt = &now
-	payloadHash, err := s.canonicalHasher.Hash(struct {
-		ProviderID              string         `json:"provider_id"`
-		JWKS                    map[string]any `json:"jwks,omitempty"`
-		SAMLSigningCertificates []string       `json:"saml_signing_certificates,omitempty"`
-		UpdatedAt               string         `json:"updated_at"`
-	}{ProviderID: provider.ID, JWKS: provider.JWKS, SAMLSigningCertificates: provider.SAMLSigningCertificates, UpdatedAt: now.Format(time.RFC3339Nano)})
+	payloadHash, err := s.canonicalHasher.Hash(ssoTrustHashInput(provider, now))
 	if err != nil {
 		return identitydomain.SSOProvider{}, err
 	}

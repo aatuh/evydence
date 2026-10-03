@@ -215,6 +215,12 @@ See the same [migration note](docs/reference/api-versioning.md#unreleased-contro
 
 ### Fixed
 
+- PostgreSQL SSO trust rotation now uses a bounded tenant-owned provider read
+  and atomic update/audit/replay commands without Ledger reloads. Strict decoding
+  rejects null trust fields/items and NUL-bearing public-key text. Authorized
+  replay preserves normalized public SAML PEM and harmless group names without
+  weakening generic redaction; old receipts are not repaired. See the
+  [compatibility note](docs/reference/api-versioning.md#unreleased-sso-trust-rotation-boundary).
 - PostgreSQL SSO provider registration now uses focused Identity commands with
   atomic provider/audit/replay writes and current tenant-wide checks before
   replay. Both profiles reject unsafe issuer URLs, NUL metadata and null

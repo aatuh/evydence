@@ -11,15 +11,18 @@ import (
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
-// Registration needs only a stable current tenant, not a provider inventory.
+// Provider commands need a stable tenant and at most one owned provider,
+// never a provider inventory. The tenant lock also serializes trust writes.
 type SSOProviderWriteReader interface {
 	LockSSOProviderCreation(context.Context, string) error
+	ReadOwnedSSOProvider(context.Context, string, string) (identitydomain.SSOProvider, error)
 }
 type SSOProviderTransaction interface {
 	SSOProviderWriteReader
 	application.Authorizer
 	application.AuditAppender
 	InsertSSOProvider(context.Context, identitydomain.SSOProvider) error
+	CompareAndSwapSSOProviderTrustMaterial(context.Context, identitydomain.SSOProvider, identitydomain.SSOProvider) error
 }
 type SSOProviderTransactions interface {
 	ExecuteSSOProvider(context.Context, func(context.Context, SSOProviderTransaction) error) error
@@ -28,13 +31,14 @@ type SSOProviderCommandConfig struct {
 	Transactions  SSOProviderTransactions
 	Authorizer    application.Authorizer
 	TrustMaterial TrustMaterialValidator
+	Hasher        CanonicalHasher
 	Clock         application.Clock
 	IDs           application.IDGenerator
 }
 type SSOProviderCommands struct{ config SSOProviderCommandConfig }
 
 func NewSSOProviderCommands(c SSOProviderCommandConfig) (*SSOProviderCommands, error) {
-	if c.Transactions == nil || c.Authorizer == nil || c.TrustMaterial == nil || c.Clock == nil || c.IDs == nil {
+	if c.Transactions == nil || c.Authorizer == nil || c.TrustMaterial == nil || c.Hasher == nil || c.Clock == nil || c.IDs == nil {
 		return nil, ErrValidation
 	}
 	return &SSOProviderCommands{c}, nil
@@ -111,19 +115,25 @@ func validSSOPublicKeyText(jwks map[string]any) bool {
 	return true
 }
 func (s *SSOProviderCommands) prepare(ctx context.Context, a identitydomain.Actor, in CreateSSOProviderInput) (CreateSSOProviderInput, error) {
-	if s == nil || ctx == nil {
-		return in, ErrValidation
-	}
-	if err := ctx.Err(); err != nil {
+	if err := s.authorizeActor(ctx, a); err != nil {
 		return in, err
-	}
-	if err := s.config.Authorizer.Authorize(ctx, a, membershipAuthorization()); err != nil {
-		return in, err
-	}
-	if !validAPIKeyID(a.TenantID) || !validAPIKeyID(actorID(a)) {
-		return in, ErrValidation
 	}
 	return normalizeSSOProviderInput(in, s.config.TrustMaterial)
+}
+func (s *SSOProviderCommands) authorizeActor(ctx context.Context, a identitydomain.Actor) error {
+	if s == nil || ctx == nil {
+		return ErrValidation
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := s.config.Authorizer.Authorize(ctx, a, membershipAuthorization()); err != nil {
+		return err
+	}
+	if !validAPIKeyID(a.TenantID) || !validAPIKeyID(actorID(a)) {
+		return ErrValidation
+	}
+	return nil
 }
 func (s *SSOProviderCommands) execute(ctx context.Context, a identitydomain.Actor, run func(context.Context, SSOProviderTransaction) error) error {
 	return s.config.Transactions.ExecuteSSOProvider(ctx, func(ctx context.Context, tx SSOProviderTransaction) error {

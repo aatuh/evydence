@@ -16,7 +16,7 @@ func BuildSSOProviderCommands(factory app.UnitOfWorkFactory) (*identityapp.SSOPr
 	if factory == nil {
 		return nil, errors.New("SSO provider transactions are required")
 	}
-	return identityapp.NewSSOProviderCommands(identityapp.SSOProviderCommandConfig{Transactions: ssoProviderTransactions{factory}, Authorizer: identityapp.NewMembershipWriteAuthorizer(), TrustMaterial: identityapp.PublicTrustMaterialValidator{}, Clock: application.ClockFunc(time.Now), IDs: application.IDGeneratorFunc(application.NewID)})
+	return identityapp.NewSSOProviderCommands(identityapp.SSOProviderCommandConfig{Transactions: ssoProviderTransactions{factory}, Authorizer: identityapp.NewMembershipWriteAuthorizer(), TrustMaterial: identityapp.PublicTrustMaterialValidator{}, Hasher: verificationCanonicalHasher{}, Clock: application.ClockFunc(time.Now), IDs: application.IDGeneratorFunc(application.NewID)})
 }
 
 type ssoProviderTransactions struct{ factory app.UnitOfWorkFactory }
@@ -35,6 +35,7 @@ type ssoProviderTransaction struct {
 	identityapp.SSOProviderWriteReader
 	identity interface {
 		InsertSSOProvider(context.Context, domain.SSOProvider) error
+		CompareAndSwapSSOProviderTrustMaterial(context.Context, domain.SSOProvider, domain.SSOProvider) error
 	}
 	audit app.AuditRepository
 }
@@ -44,6 +45,9 @@ func (t ssoProviderTransaction) Authorize(ctx context.Context, a identitydomain.
 }
 func (t ssoProviderTransaction) InsertSSOProvider(ctx context.Context, v identitydomain.SSOProvider) error {
 	return mapAPIKeyWriteError(t.identity.InsertSSOProvider(ctx, domain.SSOProvider(v)))
+}
+func (t ssoProviderTransaction) CompareAndSwapSSOProviderTrustMaterial(ctx context.Context, expected, v identitydomain.SSOProvider) error {
+	return mapAPIKeyWriteError(t.identity.CompareAndSwapSSOProviderTrustMaterial(ctx, domain.SSOProvider(expected), domain.SSOProvider(v)))
 }
 func (t ssoProviderTransaction) AppendAudit(ctx context.Context, v application.AuditEvent) (application.AuditReceipt, error) {
 	out, err := appendAuditEvent(ctx, t.audit, v)

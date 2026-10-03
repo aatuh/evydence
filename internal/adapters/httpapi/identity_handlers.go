@@ -216,15 +216,16 @@ func (s *Server) createSSOProvider(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) updateSSOProviderTrustMaterial(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		JWKS                    map[string]any `json:"jwks"`
-		SAMLSigningCertificates []string       `json:"saml_signing_certificates"`
+	if s.ssoProviderCommands != nil {
+		s.updateDurableSSOTrustMaterial(w, r)
+		return
 	}
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
+		in, err := decodeSSOTrustRequest(body)
+		if err != nil {
 			return 0, nil, err
 		}
-		provider, err := s.identityAccess.UpdateSSOProviderTrustMaterial(ctx, actor, r.PathValue("id"), app.UpdateSSOProviderTrustMaterialInput{JWKS: req.JWKS, SAMLSigningCertificates: req.SAMLSigningCertificates})
+		provider, err := s.identityAccess.UpdateSSOProviderTrustMaterial(ctx, actor, r.PathValue("id"), app.UpdateSSOProviderTrustMaterialInput(in))
 		return http.StatusOK, provider, err
 	})
 }

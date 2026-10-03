@@ -9,7 +9,7 @@ import (
 	"github.com/aatuh/evydence/internal/platform/redaction"
 )
 
-// Provider registration publishes group-to-role metadata, not credentials.
+// Provider registration and trust rotation publish public metadata, not credentials.
 // Preserve harmless group identifiers such as token-reviewers only inside
 // this versioned DTO. Generic logs/packages keep their existing denylist.
 func publicSSOProviderReplay(value any) (map[string]any, bool) {
@@ -22,7 +22,7 @@ func publicSSOProviderReplay(value any) (map[string]any, bool) {
 		return nil, false
 	}
 	var p domain.SSOProvider
-	if json.Unmarshal(encoded, &p) != nil || p.SchemaVersion != domain.SSOProviderSchemaVersion || p.Status != "active" || p.CreatedAt.IsZero() || p.TrustMaterialUpdatedAt != nil || p.RoleMapping == nil {
+	if json.Unmarshal(encoded, &p) != nil || p.SchemaVersion != domain.SSOProviderSchemaVersion || p.Status != "active" || p.CreatedAt.IsZero() || p.TrustMaterialUpdatedAt != nil && p.TrustMaterialUpdatedAt.IsZero() || p.RoleMapping == nil {
 		return nil, false
 	}
 	for _, id := range []string{p.ID, p.TenantID} {
@@ -68,5 +68,15 @@ func publicSSOProviderReplay(value any) (map[string]any, bool) {
 	safe, _ := redaction.RemoveSensitive(projected)
 	result := safe.(map[string]any)
 	result["role_mapping"] = roles
+	// Diagnostic redaction flattens line breaks. Only the parsed, normalized
+	// public certificate can bypass that transformation; arbitrary PEM input
+	// and trailing private blocks never reach this versioned replay field.
+	if len(p.SAMLSigningCertificates) != 0 {
+		certificates := make([]any, len(p.SAMLSigningCertificates))
+		for i, certificate := range p.SAMLSigningCertificates {
+			certificates[i] = certificate
+		}
+		result["saml_signing_certificates"] = certificates
+	}
 	return result, true
 }

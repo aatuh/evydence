@@ -18,6 +18,59 @@ type ssoProviderHTTPFake struct {
 	actor            identitydomain.Actor
 	input            identityapp.CreateSSOProviderInput
 	guardErr, runErr error
+	id               string
+	trust            identityapp.UpdateSSOProviderTrustMaterialInput
+}
+
+func (f *ssoProviderHTTPFake) AuthorizeUpdateSSOProviderTrustMaterial(_ context.Context, a identitydomain.Actor, id string, in identityapp.UpdateSSOProviderTrustMaterialInput) error {
+	f.guards++
+	f.actor, f.id, f.trust = a, id, in
+	return f.guardErr
+}
+func (f *ssoProviderHTTPFake) UpdateSSOProviderTrustMaterial(_ context.Context, a identitydomain.Actor, id string, in identityapp.UpdateSSOProviderTrustMaterialInput) (identitydomain.SSOProvider, error) {
+	f.calls++
+	now := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	return identitydomain.SSOProvider{ID: id, TenantID: a.TenantID, Name: "Fixture", Type: "oidc", Issuer: "https://issuer.example.test", ClientID: "client", JWKS: in.JWKS, SAMLSigningCertificates: in.SAMLSigningCertificates, TrustMaterialUpdatedAt: &now, Status: "active", SchemaVersion: identitydomain.SSOProviderSchemaVersion, CreatedAt: now}, f.runErr
+}
+
+func TestSSOTrustHTTPDispatchesFocusedCommandAndStrictJSON(t *testing.T) {
+	base, secret := testServer(t)
+	f := &ssoProviderHTTPFake{}
+	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{SSOProviderCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const path = "/v1/sso/providers/provider/trust-material"
+	const body = `{"jwks":{"keys":[{"kty":"OKP","kid":"fixture","crv":"Ed25519","x":"public-only"}]}}`
+	for i, bad := range []string{"null", "[]", `{`, `{} {}`, `{"extra":true}`, `{"jwks":null}`, `{"jwks":{},"jwks":{}}`, `{"saml_signing_certificates":null}`, `{"saml_signing_certificates":[null]}`, `{"jwks":{"kid":"` + string([]byte{0xff}) + `"}}`, strings.Repeat(" ", 65537) + body} {
+		postRaw(t, s, secret, path, fmt.Sprintf("bad-trust-%d", i), []byte(bad), 400)
+	}
+	if f.guards+f.calls != 0 {
+		t.Fatal("invalid trust request reached focused port")
+	}
+	postRaw(t, s, "", path, "unauth", []byte(body), 401)
+	out := postRaw(t, s, secret, path, "trust-rotation", []byte(body), 200)
+	if f.guards != 1 || f.calls != 1 || f.id != "provider" || !strings.Contains(out, `"trust_material_updated_at"`) || !strings.Contains(out, `"x":"public-only"`) {
+		t.Fatal("trust input or DTO mapping lost")
+	}
+	for i, ec := range []struct {
+		err    error
+		status int
+	}{{identityapp.ErrValidation, 400}, {identityapp.ErrNotFound, 404}, {identityapp.ErrConflict, 409}, {application.ErrUnauthorized, 401}, {application.ErrForbidden, 403}, {errors.New("private trust SQL"), 500}} {
+		for _, phase := range []string{"guard", "run"} {
+			f.guardErr, f.runErr = nil, nil
+			if phase == "guard" {
+				f.guardErr = ec.err
+			} else {
+				f.runErr = ec.err
+			}
+			before := f.calls
+			out := postRaw(t, s, secret, path, fmt.Sprintf("%s-trust-%d", phase, i), []byte(body), ec.status)
+			if phase == "guard" && f.calls != before || strings.Contains(out, "private trust SQL") || strings.Contains(out, "public-only") || strings.Contains(out, "issuer.example.test") {
+				t.Fatal("trust guard bypassed or failure leaked internals")
+			}
+		}
+	}
 }
 
 func (f *ssoProviderHTTPFake) AuthorizeCreateSSOProvider(_ context.Context, a identitydomain.Actor, in identityapp.CreateSSOProviderInput) error {

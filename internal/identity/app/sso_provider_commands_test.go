@@ -18,11 +18,16 @@ type ssoProviderFixture struct {
 	phase     string
 	calls     int
 	cancel    context.CancelFunc
+	current   *identitydomain.SSOProvider
 }
 
 func (f *ssoProviderFixture) ExecuteSSOProvider(ctx context.Context, fn func(context.Context, SSOProviderTransaction) error) error {
 	f.calls++
 	staged := &ssoProviderFixture{phase: f.phase, cancel: f.cancel}
+	if f.current != nil {
+		p := cloneSSOProvider(*f.current)
+		staged.current = &p
+	}
 	if err := fn(ctx, staged); err != nil {
 		return err
 	}
@@ -31,6 +36,30 @@ func (f *ssoProviderFixture) ExecuteSSOProvider(ctx context.Context, fn func(con
 	}
 	f.providers = append(f.providers, staged.providers...)
 	f.audits = append(f.audits, staged.audits...)
+	f.current = staged.current
+	return nil
+}
+func (f *ssoProviderFixture) ReadOwnedSSOProvider(_ context.Context, tenant, id string) (identitydomain.SSOProvider, error) {
+	if f.phase == "read" {
+		return identitydomain.SSOProvider{}, errors.New("private provider read")
+	}
+	if f.current == nil {
+		return identitydomain.SSOProvider{}, ErrNotFound
+	}
+	return cloneSSOProvider(*f.current), nil
+}
+func (f *ssoProviderFixture) CompareAndSwapSSOProviderTrustMaterial(_ context.Context, expected, v identitydomain.SSOProvider) error {
+	if f.phase == "cas" {
+		return ErrConflict
+	}
+	if f.phase == "write" {
+		return errors.New("private provider update")
+	}
+	if f.current == nil || !reflect.DeepEqual(*f.current, expected) {
+		return ErrConflict
+	}
+	p := cloneSSOProvider(v)
+	f.current = &p
 	return nil
 }
 func (f *ssoProviderFixture) Authorize(ctx context.Context, a identitydomain.Actor, r application.AuthorizationRequest) error {
@@ -64,7 +93,7 @@ func (f *ssoProviderFixture) AppendAudit(_ context.Context, v application.AuditE
 }
 func ssoProviderForTest(t *testing.T, f *ssoProviderFixture) (*SSOProviderCommands, identitydomain.Actor, CreateSSOProviderInput) {
 	t.Helper()
-	s, err := NewSSOProviderCommands(SSOProviderCommandConfig{Transactions: f, Authorizer: NewMembershipWriteAuthorizer(), TrustMaterial: PublicTrustMaterialValidator{}, Clock: application.ClockFunc(func() time.Time { return time.Date(2026, 9, 1, 1, 2, 3, 123456789, time.FixedZone("fixture", 3600)) }), IDs: application.IDGeneratorFunc(func(p string) string { return p + "_new" })})
+	s, err := NewSSOProviderCommands(SSOProviderCommandConfig{Transactions: f, Authorizer: NewMembershipWriteAuthorizer(), TrustMaterial: PublicTrustMaterialValidator{}, Hasher: ssoProviderTestHasher{}, Clock: application.ClockFunc(func() time.Time { return time.Date(2026, 9, 1, 1, 2, 3, 123456789, time.FixedZone("fixture", 3600)) }), IDs: application.IDGeneratorFunc(func(p string) string { return p + "_new" })})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +208,7 @@ func TestSSOProviderCommandsPublishNothingAfterFailures(t *testing.T) {
 func TestSSOProviderCommandsRequireDependenciesAndBoundEveryMetadataField(t *testing.T) {
 	f := &ssoProviderFixture{}
 	s, a, in := ssoProviderForTest(t, f)
-	for _, missing := range []string{"transactions", "authorizer", "trust", "clock", "ids"} {
+	for _, missing := range []string{"transactions", "authorizer", "trust", "hasher", "clock", "ids"} {
 		config := s.config
 		switch missing {
 		case "transactions":
@@ -188,6 +217,8 @@ func TestSSOProviderCommandsRequireDependenciesAndBoundEveryMetadataField(t *tes
 			config.Authorizer = nil
 		case "trust":
 			config.TrustMaterial = nil
+		case "hasher":
+			config.Hasher = nil
 		case "clock":
 			config.Clock = nil
 		case "ids":

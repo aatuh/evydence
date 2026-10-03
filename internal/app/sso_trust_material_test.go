@@ -73,6 +73,10 @@ func TestSSOTrustMaterialPrivateImportCannotCreateRotateOrRefreshProvider(t *tes
 		t.Fatal("public provider creation rejected", err)
 	}
 	before = counts()
+	badText := map[string]any{"keys": []any{map[string]any{"kty": "OKP", "kid": "bad\x00", "crv": "Ed25519", "x": "public-only"}}}
+	if p, err := ledger.UpdateSSOProviderTrustMaterial(t.Context(), actor, provider.ID, UpdateSSOProviderTrustMaterialInput{JWKS: badText}); !errors.Is(err, ErrValidation) || p.ID != "" || counts() != before {
+		t.Fatal("NUL trust material produced effects", err)
+	}
 	if p, err := ledger.UpdateSSOProviderTrustMaterial(t.Context(), actor, provider.ID, UpdateSSOProviderTrustMaterialInput{JWKS: private}); !errors.Is(err, ErrValidation) || p.ID != "" || counts() != before {
 		t.Fatal("private trust rotation produced effects", err)
 	}

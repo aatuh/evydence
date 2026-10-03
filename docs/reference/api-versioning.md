@@ -340,6 +340,28 @@ for exact limits and migration guidance. Historical rows/backups are not
 scrubbed, and registration is not live provider verification. Required exact
 compatibility validation and review remain outstanding before EVY-905 closure.
 
+## Unreleased SSO Trust Rotation Boundary
+
+PostgreSQL trust rotation now uses focused Identity commands and one bounded
+tenant-owned provider read. Current tenant-wide authority and provider checks
+precede reservation or replay. Trust update, canonical-hash audit and replay
+receipt commit together. The existing `200` provider DTO, provider-type trust
+rules and canonical hash fields remain; new trust timestamps use UTC microseconds.
+
+Both profiles now reject NUL-bearing retained JWK text and explicit null trust
+fields/items before lookup or persistence. Missing/foreign providers return
+`404`; oversized or ill-typed stored metadata returns `409` rather than loading
+or truncating it. Remove null fields and submit only the public trust fields
+appropriate to the provider type. Authorized replay preserves normalized public
+SAML PEM line breaks and harmless public group names in the versioned provider
+DTO; generic privacy redaction is unchanged.
+
+See [SSO trust rotation](../api.md#sso-trust-rotation) for exact limits. This does
+not scrub historical material or repair older receipts whose public PEM was
+already flattened. It makes no live provider call and is not provider ownership,
+key custody, compatibility approval or release evidence. Exact compatibility
+validation and review remain required before EVY-905 closure.
+
 ## Stable-Line Rule
 
 A stable `/v1` line permits additive fields, endpoints, and optional filters.

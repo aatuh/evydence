@@ -791,6 +791,36 @@ private-material requests cannot replay retained PostgreSQL successes; this
 does not delete or scrub historical records. Registration makes no live
 provider call and does not prove provider ownership or key custody.
 
+#### SSO Trust Rotation
+
+In PostgreSQL mode, `POST /v1/sso/providers/{id}/trust-material` uses focused
+Identity commands, not Ledger state or provider inventories. Current tenant-wide
+`identity:admin` authority, input validation and tenant-owned provider lookup run
+before reservation or completed replay. Missing/foreign providers return `404`;
+scoped human grants return `403`. One locked provider row supplies unchanged
+public metadata and the expected trust version. Its text fields are bounded to
+65,536 bytes (type/status 128, schema version 1024); each stored JSON field is
+limited to 128 KiB of JSONB text before transfer. Oversized or ill-typed stored
+metadata returns `409`, never a truncated response.
+
+OIDC rotation requires nonempty `jwks` and no SAML certificates; SAML requires
+certificates and no JWKS. The 64 KiB body limit, strict UTF-8/duplicate/unknown
+field checks, and non-null fields/items apply in both profiles. Retained JWK
+strings must be NUL-free. Provider update, canonical-hash
+`sso_provider.trust_material_updated` audit and safe replay completion share one
+transaction. ID, tenant, creation time and unrelated provider metadata remain
+unchanged; the new trust timestamp uses UTC microseconds.
+
+Success remains `200` with the provider DTO. A completed matching key/body returns
+the original DTO without another update or audit; changed content returns `409`.
+Replay preserves normalized public PEM line breaks and harmless group names
+within this versioned DTO, not arbitrary PEM or private material. Generic
+diagnostic/customer-package redaction is unchanged. Local memory shares trust
+normalization and strict decoding but remains non-durable. No live provider call
+is made, and neither provider ownership nor key custody is proved. Existing rows,
+receipts and backups are not scrubbed or repaired. See the
+[compatibility note](reference/api-versioning.md#unreleased-sso-trust-rotation-boundary).
+
 #### SSO Public Trust Material
 
 SSO trust normalization is a stateless Identity policy shared by provider

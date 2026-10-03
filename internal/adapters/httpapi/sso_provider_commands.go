@@ -13,6 +13,44 @@ import (
 type SSOProviderCommands interface {
 	AuthorizeCreateSSOProvider(context.Context, identitydomain.Actor, identityapp.CreateSSOProviderInput) error
 	CreateSSOProvider(context.Context, identitydomain.Actor, identityapp.CreateSSOProviderInput) (identitydomain.SSOProvider, error)
+	AuthorizeUpdateSSOProviderTrustMaterial(context.Context, identitydomain.Actor, string, identityapp.UpdateSSOProviderTrustMaterialInput) error
+	UpdateSSOProviderTrustMaterial(context.Context, identitydomain.Actor, string, identityapp.UpdateSSOProviderTrustMaterialInput) (identitydomain.SSOProvider, error)
+}
+
+func decodeSSOTrustRequest(body []byte) (identityapp.UpdateSSOProviderTrustMaterialInput, error) {
+	var req struct {
+		JWKS         map[string]any `json:"jwks"`
+		Certificates []*string      `json:"saml_signing_certificates"`
+	}
+	if err := decodeMembershipJSON(body, &req); err != nil {
+		return identityapp.UpdateSSOProviderTrustMaterialInput{}, err
+	}
+	if err := validateNonNullableObjectFields(body, "jwks", "saml_signing_certificates"); err != nil {
+		return identityapp.UpdateSSOProviderTrustMaterialInput{}, err
+	}
+	in := identityapp.UpdateSSOProviderTrustMaterialInput{JWKS: req.JWKS}
+	for _, cert := range req.Certificates {
+		if cert == nil {
+			return identityapp.UpdateSSOProviderTrustMaterialInput{}, app.ErrValidation
+		}
+		in.SAMLSigningCertificates = append(in.SAMLSigningCertificates, *cert)
+	}
+	return in, nil
+}
+func (s *Server) updateDurableSSOTrustMaterial(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	var in identityapp.UpdateSSOProviderTrustMaterialInput
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
+		var err error
+		in, err = decodeSSOTrustRequest(body)
+		if err != nil {
+			return err
+		}
+		return mapIdentityCommandError(s.ssoProviderCommands.AuthorizeUpdateSSOProviderTrustMaterial(ctx, a, id, in))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.ssoProviderCommands.UpdateSSOProviderTrustMaterial(ctx, a, id, in)
+		return http.StatusOK, domain.SSOProvider(v), mapIdentityCommandError(err)
+	})
 }
 
 func decodeSSOProviderRequest(body []byte) (identityapp.CreateSSOProviderInput, error) {

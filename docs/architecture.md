@@ -703,8 +703,17 @@ atomic provider/audit/replay writes, and current tenant-wide authorization
 before reservation or completed replay. It loads no provider inventory and
 does not refresh Ledger state. Local memory shares metadata normalization and
 strict transport decoding through its existing compatibility binding. Trust
-rotation, discovery, identity-link and session command composition still need
-migration. See [SSO provider registration](api.md#sso-provider-registration) and
+rotation now also binds focused Identity commands. A tenant-filtered, bounded
+provider read holds the current trust version through conditional update; the
+update, canonical-hash audit and safe replay receipt commit together. Current
+authority, input and provider checks precede reservation/replay. Live tests cover
+restart replay, foreign/scoped access, oversized and ill-typed stored metadata,
+public SAML PEM preservation, and write/audit/replay/deferred-commit rollback.
+Only normalized public certificates and harmless group names get purpose-fixed
+replay preservation; generic privacy redaction is unchanged. Discovery,
+identity-link and session command composition still need migration. See
+[SSO provider registration](api.md#sso-provider-registration),
+[SSO trust rotation](api.md#sso-trust-rotation) and
 [SSO public trust material](api.md#sso-public-trust-material) for compatibility,
 limits and historical-record caveats.
 
