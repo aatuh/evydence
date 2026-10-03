@@ -66,6 +66,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.EvidenceSummaryCommands != nil {
 		t.Fatal("local memory bound durable evidence summaries")
 	}
+	if memory.QuestionnaireDraftCommands != nil {
+		t.Fatal("local memory bound durable questionnaire drafts")
+	}
 	if memory.IncidentCommands != nil {
 		t.Fatal("local memory bound durable incidents")
 	}
@@ -285,6 +288,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.EvidenceSummaryCommands == nil {
 		t.Fatal("PostgreSQL summaries still use Ledger")
+	}
+	if options.QuestionnaireDraftCommands == nil {
+		t.Fatal("PostgreSQL drafts still use Ledger")
 	}
 	if options.BundleImportCommand == nil {
 		t.Fatal("PostgreSQL profile omitted bundle imports")

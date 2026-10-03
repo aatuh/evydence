@@ -2194,6 +2194,47 @@ token hashes, and internal decision notes. Redaction profiles can be created
 from explicit `allowed_types` or the `customer_safe` / `security_review`
 presets; preset policy fields cannot be overridden in the create request.
 
+### Questionnaire Draft Creation
+
+`POST /v1/questionnaire-drafts` requires `package:read`, a tenant-owned
+`template_id`, and optional coherent `product_id` / `release_id`. Human sessions
+need a matching tenant, product, or release grant. Each reusable answer is
+authorized independently; product authority cannot disclose tenant-wide answer
+text. Candidate matching uses any matching question ID, control ID, or evidence
+type, then ranks matching question/control/type at 8/4/2 points and each scoped
+product/release at 1 point. Newest creation time and ID ascending break ties.
+The existing stored-coordinate selection is retained: omitting `product_id`
+does not include product-scoped library entries merely because a release has
+that parent. Without an authorized answer, control-linked or type-matched
+evidence supplies citations, otherwise the response states that none is
+recorded. Every citation must belong to the tenant and requested scope.
+
+The PostgreSQL profile reads question selectors and candidate scope metadata,
+not template prompts, raw evidence payloads, or every private library answer.
+Only the authorized winning answer text is fetched. Limits are 512 questions,
+4096 combined candidate occurrences across questions, 4096 combined citation
+occurrences, 1024-byte identifiers/selectors, 64 KiB per answer/limitation, and
+128 limitations per response. Question/candidate selector text has one 4 MiB
+budget; encoded responses and the public draft each have a 4 MiB bound.
+Overflow fails rather than silently truncating evidence. Both HTTP profiles
+reject null, duplicate/unknown fields, invalid UTF-8/NUL identifiers, and raw
+identifier input above 1024 bytes before trimming. Cookie writes require one
+same-host HTTPS Origin; explicit bearer credentials retain precedence.
+
+Draft, manifest-hash-linked caller audit, and successful idempotency completion
+commit together. The existing normalized-JSON response hash, schema version,
+question order, library citation order, sorted fallback citations, and fallback
+wording remain unchanged. Replay checks current root access and binds its
+request identity to the caller's sorted, deduplicated scopes and human resource
+grants: changed permissions return `409` when root access remains allowed,
+or the ordinary authorization error when it does not. Use a new key for a new
+draft under changed permissions. Permission ordering alone does not change the
+fingerprint. Older body-only draft replay keys conflict rather than exposing
+answers created under unrecorded authority; historical drafts are not rewritten.
+Local-memory storage retains its compatibility command with scoped answer and
+citation checks and the same HTTP replay binding. Drafts require human review;
+they are not redacted customer packages or compliance conclusions.
+
 ### Integrity, Verification, And Operations
 
 | Method | Path | Notes |

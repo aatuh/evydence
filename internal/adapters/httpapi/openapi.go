@@ -1398,9 +1398,9 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "id", "tenant_id", "template_id", "responses", "manifest_hash", "schema_version", "created_at"))
 	registry.RegisterSchema("QuestionnairePackageEnvelope", dataEnvelopeSchema("#/components/schemas/QuestionnairePackage"))
 	registry.RegisterSchema("CreateQuestionnaireDraftRequest", objectSchema(map[string]any{
-		"template_id": map[string]any{"type": "string"},
-		"product_id":  map[string]any{"type": "string"},
-		"release_id":  map[string]any{"type": "string"},
+		"template_id": map[string]any{"type": "string", "minLength": 1, "maxLength": packageapp.MaxQuestionnaireDraftIDBytes, "description": "Required tenant-owned template identifier; trimmed after a 1024-byte UTF-8/NUL-free input bound."},
+		"product_id":  map[string]any{"type": "string", "maxLength": packageapp.MaxQuestionnaireDraftIDBytes, "description": "Optional tenant-owned product; must agree with release_id when both are supplied."},
+		"release_id":  map[string]any{"type": "string", "maxLength": packageapp.MaxQuestionnaireDraftIDBytes, "description": "Optional tenant-owned release; current parent ownership is checked."},
 	}, "template_id"))
 	registry.RegisterSchema("QuestionnaireDraft", objectSchema(map[string]any{
 		"id":             map[string]any{"type": "string"},

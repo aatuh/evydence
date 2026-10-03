@@ -552,6 +552,33 @@ Restrictions still require release compatibility review; this note does not
 approve an exception, claim production Ledger retirement, or establish legal
 compliance or customer-package redaction.
 
+## Unreleased Questionnaire Draft Boundary
+
+`POST /v1/questionnaire-drafts` now uses focused Package commands in PostgreSQL.
+Bounded selector/scope reads replace Ledger maps and full template documents;
+draft, caller-attributed audit and successful replay completion are atomic.
+Existing response fields, response hash/omitempty semantics, question ordering,
+answer specificity/recency/ID ranking, and fallback text remain compatible.
+
+Both HTTP profiles reject null/duplicate/unknown fields, invalid UTF-8/NUL IDs
+and raw IDs above 1024 bytes, and require same-host HTTPS Origin protection for
+cookie writes. Independent answer grants and citation scope checks now prevent
+drafting from bypassing library visibility or following misleading links into
+another product/release. PostgreSQL rejects selections above 512 questions,
+4096 candidate/citation occurrences, the documented text bounds or 4 MiB
+selector/output budgets; it does not return a partial draft on overflow.
+
+Draft replay now binds the caller's canonical scopes and human resource grants
+in addition to request bytes. A permission change conflicts (`409`) when current
+root access is still allowed; missing current access still fails authorization.
+Use a new key to generate a new draft under changed permissions. Unchanged
+permissions retain exact successful replay; ordering/duplicates do not matter.
+Historical body-only replay fingerprints conflict without rewriting records.
+See [questionnaire draft creation](../api.md#questionnaire-draft-creation).
+These restrictions require release compatibility review; this note does not
+approve an exception, claim production Ledger retirement, establish customer
+redaction, or provide compliance conclusions.
+
 ## Deprecation Lifecycle
 
 No operation is currently marked deprecated. When one is, the operation must

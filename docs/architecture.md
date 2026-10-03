@@ -1148,6 +1148,22 @@ Source snapshots, deployment records, signed incident webhook events, incident p
 
 Evidence summaries, questionnaire drafts, graph snapshots, PDF packages, and anomaly reports are generated from stored records with citations, assumptions, and limitations. Customer-facing packages require explicit package scope, redaction profile, expiry, and access auditing. Customer package JSON and ZIP download paths return scoped manifest metadata and verification guidance; raw tenant evidence payload bytes are not returned.
 
+PostgreSQL questionnaire drafts bind focused Package commands and a pure
+tenant/product/release policy in the composition root. The worker/audit fence
+precedes root/template locks. Bounded question selectors and candidate scope
+metadata are selected before authorized winner text; template prompts and raw
+evidence payloads never cross these ports. Citation parents are resolved and
+locked so misleading control-link/library coordinates cannot broaden scope.
+The focused writer rechecks ordered template identities, citations, output
+bounds and the versioned response hash; draft, audit and replay commit together.
+HTTP replay fingerprints also bind the original credential scopes and human
+resource grants, preventing permission downgrades from returning an old private
+answer even when the draft root remains accessible. Local-memory keeps its
+storage facade and shares selection rules through explicit pure helpers.
+See [questionnaire draft creation](api.md#questionnaire-draft-creation) for
+limits and compatibility. Other questionnaire commands and startup Ledger
+retirement remain EVY-905 work.
+
 PostgreSQL evidence-summary creation now binds Package-owned focused commands
 directly through the composition root. One transaction locks root coordinates,
 authorizes the scope, preflights bounded citation lengths/IDs, reads only their

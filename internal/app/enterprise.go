@@ -631,7 +631,11 @@ func (s packageReportService) CreateQuestionnairePackage(ctx context.Context, ac
 	}
 	responses := []domain.QuestionnaireResponse{}
 	for _, question := range tpl.Questions {
-		responses = append(responses, l.questionnaireResponseForQuestionLocked(actor.TenantID, question, in.ProductID, in.ReleaseID))
+		response, err := l.questionnaireResponseForQuestionLocked(actor, ScopePackageWrite, question, in.ProductID, in.ReleaseID)
+		if err != nil {
+			return domain.QuestionnairePackage{}, err
+		}
+		responses = append(responses, response)
 	}
 	hash, err := canonicalAnyHash(responses)
 	if err != nil {

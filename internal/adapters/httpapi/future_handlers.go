@@ -29,17 +29,23 @@ func (s *Server) createEvidenceSummary(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createQuestionnaireDraft(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		TemplateID string `json:"template_id"`
-		ProductID  string `json:"product_id"`
-		ReleaseID  string `json:"release_id"`
+	if err := validateSSOCookieMutation(r); err != nil {
+		writeProblem(w, r, err)
+		return
 	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
+	if s.questionnaireDraftCommands != nil {
+		s.createDurableQuestionnaireDraft(w, r)
+		return
+	}
+	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+		req, err := decodeQuestionnaireDraftRequest(body)
+		if err != nil {
 			return 0, nil, err
 		}
 		draft, err := s.ledger.CreateQuestionnaireDraft(ctx, actor, app.CreateQuestionnaireDraftInput{TemplateID: req.TemplateID, ProductID: req.ProductID, ReleaseID: req.ReleaseID})
 		return http.StatusCreated, draft, err
+	}, func(_ *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+		return questionnaireDraftReplayFingerprint(a, body)
 	})
 }
 

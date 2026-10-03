@@ -141,6 +141,7 @@ type Server struct {
 	ssoExchangeCommands               SSOExchangeCommands
 	providerVerificationCommands      ProviderVerificationCommands
 	evidenceSummaryCommands           EvidenceSummaryCommands
+	questionnaireDraftCommands        QuestionnaireDraftCommands
 	releaseCatalog                    releaseCatalogService
 	productQuery                      ProductQuery
 	catalogPointQuery                 CatalogPointQuery
@@ -227,6 +228,8 @@ type ServerOptions struct {
 	ProviderVerificationCommands ProviderVerificationCommands
 	// EvidenceSummaryCommands creates bounded citation reports without Ledger state.
 	EvidenceSummaryCommands EvidenceSummaryCommands
+	// QuestionnaireDraftCommands selects authorized bounded answers without Ledger state.
+	QuestionnaireDraftCommands QuestionnaireDraftCommands
 	// ReadinessQuery probes production dependencies independently of Ledger state.
 	ReadinessQuery ReadinessQuery
 	// MetricsQuery supplies bounded tenant counters in the PostgreSQL profile.
@@ -449,6 +452,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.EvidenceSummaryCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused evidence summaries require durable idempotency")
 	}
+	if opts.QuestionnaireDraftCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused questionnaire drafts require durable idempotency")
+	}
 	if opts.CollectorCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused collectors require durable idempotency")
 	}
@@ -562,6 +568,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.ssoExchangeCommands = opts.SSOExchangeCommands
 	server.providerVerificationCommands = opts.ProviderVerificationCommands
 	server.evidenceSummaryCommands = opts.EvidenceSummaryCommands
+	server.questionnaireDraftCommands = opts.QuestionnaireDraftCommands
 	server.durableStreamedCommandExecutor, _ = opts.DurableCommandExecutor.(DurableStreamedCommandExecutor)
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands
@@ -4296,6 +4303,14 @@ func (s *Server) createWithLimit(w http.ResponseWriter, r *http.Request, limit i
 }
 
 func (s *Server) createWithFingerprint(w http.ResponseWriter, r *http.Request, limit int64, run func(*Server, requestContext, domain.Actor, []byte) (int, any, error), fingerprint func(*http.Request, []byte) ([]byte, error)) {
+	var actorFingerprint func(*http.Request, domain.Actor, []byte) ([]byte, error)
+	if fingerprint != nil {
+		actorFingerprint = func(r *http.Request, _ domain.Actor, body []byte) ([]byte, error) { return fingerprint(r, body) }
+	}
+	s.createWithActorFingerprint(w, r, limit, run, actorFingerprint)
+}
+
+func (s *Server) createWithActorFingerprint(w http.ResponseWriter, r *http.Request, limit int64, run func(*Server, requestContext, domain.Actor, []byte) (int, any, error), fingerprint func(*http.Request, domain.Actor, []byte) ([]byte, error)) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
 		return
@@ -4308,7 +4323,7 @@ func (s *Server) createWithFingerprint(w http.ResponseWriter, r *http.Request, l
 	}
 	input := body
 	if fingerprint != nil {
-		input, err = fingerprint(r, body)
+		input, err = fingerprint(r, actor, body)
 		if err != nil {
 			writeProblem(w, r, err)
 			return

@@ -60,7 +60,7 @@ func TestIdempotencyCommandWrappersUseOpaqueContextRebinding(t *testing.T) {
 	t.Parallel()
 
 	targets := map[string]string{
-		"router.go":             "createWithFingerprint",
+		"router.go":             "createWithActorFingerprint",
 		"ingestion_handlers.go": "createStreamedEvidence",
 	}
 	fset := token.NewFileSet()
@@ -127,6 +127,7 @@ func TestCreateWrappersDelegateToTheOpaqueFingerprintExecutor(t *testing.T) {
 	for _, tc := range []struct{ filename, function, target, fingerprint string }{
 		{"router.go", "create", "createWithLimit", ""},
 		{"router.go", "createWithLimit", "createWithFingerprint", "nil"},
+		{"router.go", "createWithFingerprint", "createWithActorFingerprint", "actorFingerprint"},
 		{"conditional_idempotency.go", "createConditional", "createWithFingerprint", "conditionalActionFingerprint"},
 	} {
 		file, err := parser.ParseFile(token.NewFileSet(), tc.filename, nil, 0)
@@ -207,6 +208,7 @@ func TestContextOwnedHandlersDoNotCallLedgerDirectly(t *testing.T) {
 		// Package generation and read-only readiness reporting.
 		"createReleaseBundle", "createRedactionProfile", "createCustomerPackage", "getCustomerPackage", "exportEvidenceBundle",
 		"importEvidenceBundle", "createReportTemplate", "renderReportTemplate", "craReadinessHTMLPackage", "releaseReadinessReport",
+		"createDurableQuestionnaireDraft",
 		// Verification policy and signing-key administration.
 		"verifyReleaseBundle", "verifyAuditChain", "verifyCosignSignature", "verifyBuildAttestationSignature", "createDSSETrustRoot",
 		"createMerkleBatch", "verifyMerkleBatch", "createTransparencyCheckpoint", "createObjectRetentionPolicy",
