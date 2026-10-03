@@ -20,7 +20,7 @@ const (
 	MaxCustomerPackageArchiveBytes  = 32 << 20
 	MaxCustomerPackageExpandedBytes = 40 << 20
 	// MaxEvidenceSummaryItems caps report construction over a scoped release.
-	MaxEvidenceSummaryItems = 512
+	MaxEvidenceSummaryItems = packageapp.MaxEvidenceSummaryItems
 	// Evidence graph snapshots are deliberately bounded materialized views,
 	// never unbounded tenant graph traversals.
 	MaxEvidenceGraphNodes = 4096

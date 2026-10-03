@@ -4,6 +4,7 @@ import (
 	"github.com/aatuh/api-toolkit/v3/specs"
 
 	"github.com/aatuh/evydence/internal/app"
+	packageapp "github.com/aatuh/evydence/internal/package/app"
 )
 
 func NewSpecRegistry() *specs.Registry {
@@ -1325,10 +1326,10 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "id", "tenant_id", "bundle_hash", "result", "imported_count", "schema_version", "created_at"))
 	registry.RegisterSchema("EvidenceBundleImportEnvelope", dataEnvelopeSchema("#/components/schemas/EvidenceBundleImport"))
 	registry.RegisterSchema("CreateEvidenceSummaryRequest", objectSchema(map[string]any{
-		"subject_type": map[string]any{"type": "string"},
-		"subject_id":   map[string]any{"type": "string"},
-		"evidence_ids": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-	}, "subject_type", "subject_id", "evidence_ids"))
+		"subject_type": map[string]any{"type": "string", "enum": []string{"tenant", "product", "release", "evidence", "build", "customer_package"}},
+		"subject_id":   map[string]any{"type": "string", "minLength": 1, "maxLength": packageapp.MaxEvidenceSummaryIDBytes, "description": "Non-blank, NUL-free UTF-8 identifier, at most 1024 bytes after trimming."},
+		"evidence_ids": map[string]any{"type": "array", "maxItems": packageapp.MaxEvidenceSummaryItems, "uniqueItems": true, "description": "Omit or use [] for automatic selection; explicit identifiers must remain unique and non-blank after trimming, with at most 1024 bytes each.", "items": map[string]any{"type": "string", "minLength": 1, "maxLength": packageapp.MaxEvidenceSummaryIDBytes}},
+	}, "subject_type", "subject_id"))
 	registry.RegisterSchema("EvidenceCitation", objectSchema(map[string]any{
 		"evidence_id":    map[string]any{"type": "string"},
 		"type":           map[string]any{"type": "string"},

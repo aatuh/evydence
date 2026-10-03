@@ -1214,13 +1214,13 @@
               <div><dt>Responses</dt><dd>201 application/json: EvidenceGraphSnapshotEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/evidence-summaries create evidence-backed summary creates an evidence-backed summary with citations, assumptions, and limitations. createevidencesummary evydence report:read">
+          <article class="operation" data-operation data-search="post /v1/evidence-summaries create evidence-backed summary creates an evidence-backed technical summary with citations, assumptions, and limitations. supports tenant, product, release, evidence, build, and customer_package roots. omit evidence_ids or use [] for automatic selection; explicit ids are trimmed, sorted, unique and limited to 512. automatic selection uses stored product/project/release coordinates, not inferred parents, exact build identity or a customer package&#x27;s frozen manifest. postgresql reads only bounded citation metadata under current report:read root authority and commits the summary, caller-attributed audit and successful idempotency replay in the same transaction. citation titles are limited to 64 kib, type text to 128 bytes, identifiers/hashes to 1024 bytes, and selected metadata plus the encoded public result each have a 4 mib budget. oversized selections fail rather than truncate. replays recheck current root authority. cookie-authenticated creates require a single same-host https origin; explicit bearer credentials retain precedence. local-memory mode keeps its compatibility report path. these summaries do not assert legal compliance, certification, or release security. createevidencesummary evydence report:read">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/evidence-summaries</code>
             </div>
             <h3>Create evidence-backed summary</h3>
-            <p>Creates an evidence-backed summary with citations, assumptions, and limitations.</p>
+            <p>Creates an evidence-backed technical summary with citations, assumptions, and limitations. Supports tenant, product, release, evidence, build, and customer_package roots. Omit evidence_ids or use [] for automatic selection; explicit IDs are trimmed, sorted, unique and limited to 512. Automatic selection uses stored product/project/release coordinates, not inferred parents, exact build identity or a customer package&#x27;s frozen manifest. PostgreSQL reads only bounded citation metadata under current report:read root authority and commits the summary, caller-attributed audit and successful idempotency replay in the same transaction. Citation titles are limited to 64 KiB, type text to 128 bytes, identifiers/hashes to 1024 bytes, and selected metadata plus the encoded public result each have a 4 MiB budget. Oversized selections fail rather than truncate. Replays recheck current root authority. Cookie-authenticated creates require a single same-host HTTPS Origin; explicit bearer credentials retain precedence. Local-memory mode keeps its compatibility report path. These summaries do not assert legal compliance, certification, or release security.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createEvidenceSummary</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -3708,7 +3708,7 @@
           <tr>
             <td><code>CreateEvidenceSummaryRequest</code></td>
             <td>object</td>
-            <td>subject_type, subject_id, evidence_ids</td>
+            <td>subject_type, subject_id</td>
           </tr>
           <tr>
             <td><code>CreateExceptionRequest</code></td>

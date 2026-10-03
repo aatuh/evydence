@@ -10,13 +10,17 @@ import (
 )
 
 func (s *Server) createEvidenceSummary(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		SubjectType string   `json:"subject_type"`
-		SubjectID   string   `json:"subject_id"`
-		EvidenceIDs []string `json:"evidence_ids"`
+	if err := validateSSOCookieMutation(r); err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	if s.evidenceSummaryCommands != nil {
+		s.createDurableEvidenceSummary(w, r)
+		return
 	}
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
+		req, err := decodeEvidenceSummaryRequest(body)
+		if err != nil {
 			return 0, nil, err
 		}
 		summary, err := s.ledger.CreateEvidenceSummary(ctx, actor, app.CreateEvidenceSummaryInput{SubjectType: req.SubjectType, SubjectID: req.SubjectID, EvidenceIDs: req.EvidenceIDs})

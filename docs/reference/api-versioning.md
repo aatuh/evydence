@@ -526,6 +526,32 @@ for exact limits. Historical records are not rewritten. These restrictions
 require release compatibility review; this note is not an approved exception,
 provider verification evidence or proof of production Ledger retirement.
 
+## Unreleased Evidence Summary Boundary
+
+`POST /v1/evidence-summaries` now uses focused Package commands in PostgreSQL,
+with bounded citation reads and atomic summary/audit/replay writes. The route,
+response fields, schema version, citation ordering, assumption/limitation text,
+and stored product/project/release selection semantics are preserved. Evidence
+and build roots are not exact-single-record/build filters, and customer-package
+roots still select current scope rather than a frozen/redacted manifest.
+
+Both HTTP profiles now reject null/malformed/non-object JSON, duplicate/unknown
+fields, invalid UTF-8/NUL identifiers, and blank/duplicate-after-trimming IDs.
+IDs are limited to 1024 bytes and explicit lists to 512. PostgreSQL additionally
+bounds citation title/type/hash text and preflights a 4 MiB metadata budget;
+the existing 4 MiB encoded-summary bound remains. Cookie-authenticated writes
+require same-host HTTPS Origin protection. Root authorization is current on
+replay; no historical summaries are rewritten.
+
+OpenAPI now declares the six already-supported subject types and these input
+bounds. `evidence_ids` is optional, correcting the previous schema that marked
+it required despite already supporting omission for automatic selection. See
+[evidence summary creation](../api.md#evidence-summary-creation). Regenerate
+clients and use scoped explicit IDs to avoid oversized automatic reports.
+Restrictions still require release compatibility review; this note does not
+approve an exception, claim production Ledger retirement, or establish legal
+compliance or customer-package redaction.
+
 ## Deprecation Lifecycle
 
 No operation is currently marked deprecated. When one is, the operation must

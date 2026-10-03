@@ -1148,6 +1148,18 @@ Source snapshots, deployment records, signed incident webhook events, incident p
 
 Evidence summaries, questionnaire drafts, graph snapshots, PDF packages, and anomaly reports are generated from stored records with citations, assumptions, and limitations. Customer-facing packages require explicit package scope, redaction profile, expiry, and access auditing. Customer package JSON and ZIP download paths return scoped manifest metadata and verification guidance; raw tenant evidence payload bytes are not returned.
 
+PostgreSQL evidence-summary creation now binds Package-owned focused commands
+directly through the composition root. One transaction locks root coordinates,
+authorizes the scope, preflights bounded citation lengths/IDs, reads only their
+text, and inserts the summary with its audit/replay effects. The shared
+worker/audit fence precedes root row locks. Resolved authorization coordinates
+are separate from stored selection filters, preserving evidence/build/package
+root behavior without loading payloads or manifests. See
+[evidence summary creation](api.md#evidence-summary-creation) for limits and
+the customer-package/redaction distinction. Explicit local-memory mode keeps
+its compatibility report path; production startup still constructs Ledger
+while the remaining EVY-905 workflows are migrated.
+
 ## Provider And Deployment Boundaries
 
 PostgreSQL collector registration, release evidence recording, and commercial

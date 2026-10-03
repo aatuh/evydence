@@ -1090,7 +1090,7 @@ retroactively scrubbed; see the
 | `POST` | `/v1/evidence` | Create immutable evidence metadata. |
 | `GET` | `/v1/evidence` | List evidence by release/type. |
 | `GET` | `/v1/evidence/search` | Search by product, project, release, build, deployment, type, subtype, source, collector, verification status, subject, tag, created time, and limit. |
-| `POST` | `/v1/evidence-summaries` | Create evidence-cited technical summary with assumptions and limitations. |
+| `POST` | `/v1/evidence-summaries` | Create evidence-cited technical summary with assumptions and limitations; see [evidence summary creation](#evidence-summary-creation). |
 | `POST` | `/v1/evidence-graph-snapshots` | Persist product/release evidence adjacency snapshot. |
 | `GET` | `/v1/evidence/{id}` | Read evidence. |
 | `POST` | `/v1/evidence/{id}/supersede` | Supersede without mutating original. |
@@ -1485,6 +1485,49 @@ must be NUL-free. Unsupported new storage text returns `400` without writes;
 oversized existing records return `409`, never truncated metadata. Explicit
 local-memory mode keeps its compatibility path. Registration records submitted
 metadata; it does not download or verify a registry image.
+
+### Evidence Summary Creation
+
+`POST /v1/evidence-summaries` accepts `subject_type`, `subject_id`, and optional
+`evidence_ids`. Supported roots are `tenant`, `product`, `release`, `evidence`,
+`build`, and `customer_package`. Omit the array or send `[]` for automatic
+selection. Explicit IDs are trimmed, sorted, non-blank, unique after trimming,
+and limited to 512. Subject/evidence IDs must be NUL-free UTF-8 text of at most
+1024 bytes after trimming. Null fields/items, malformed/non-object JSON,
+unknown or duplicate fields, and invalid UTF-8 are rejected with `400`.
+
+The PostgreSQL profile resolves and locks the tenant-owned root before reading
+citations. A human session needs a current `report:read` grant covering that
+root (tenant, product, project, release, or customer-security-package as
+applicable); issued credentials use their `report:read` scope. Root ownership
+and authorization are rechecked before an idempotent replay is returned.
+Foreign/missing roots or explicit evidence IDs return `404`; evidence outside
+the root's selection coordinates returns `400`.
+
+Selection deliberately retains the stored product/project/release semantics.
+For an evidence root, it can include siblings sharing those coordinates. A
+build root selects its project/release evidence, not only rows with that build
+ID. A customer-package root selects current product/release evidence, not its
+frozen manifest; package expiry and redaction are not applied to this internal
+summary. Do not distribute it as a redacted customer package. Resolved parent
+coordinates authorize the root but do not add inferred selection filters.
+
+Only evidence ID, type, title, and canonical hash become citations. PostgreSQL
+preflights lengths and locks selected rows before transferring their text;
+payload references, arbitrary metadata, source identity, and package manifests
+are not read. It rejects rather than truncates automatic selections above 512
+records. Titles are limited to 64 KiB, type text to 128 bytes, and hashes to
+1024 bytes. Selected citation text/coordinates and the complete encoded public
+summary each have a 4 MiB budget. Summary, caller-attributed audit entry, and
+successful replay commit atomically; failures return no summary body.
+
+Cookie-authenticated creates require a single same-host HTTPS `Origin`, while
+explicit bearer credentials retain precedence. Local-memory mode keeps its
+Ledger-backed report generation with the same request decoder and existing
+item/output limits. Response names, deterministic citation order, schema
+version, assumptions, and limitations are unchanged. Summaries organize
+recorded technical evidence; they do not establish legal compliance,
+certification, or release security.
 
 ### Collector Writes
 
