@@ -492,22 +492,30 @@ func (s *Server) createQuestionnairePackage(w http.ResponseWriter, r *http.Reque
 }
 
 func (s *Server) createQuestionnaireAnswerLibraryEntry(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		QuestionID   string   `json:"question_id"`
-		EvidenceType string   `json:"evidence_type"`
-		ControlID    string   `json:"control_id"`
-		ProductID    string   `json:"product_id"`
-		ReleaseID    string   `json:"release_id"`
-		Answer       string   `json:"answer"`
-		EvidenceIDs  []string `json:"evidence_ids"`
-		Limitations  []string `json:"limitations"`
+	if err := validateSSOCookieMutation(r); err != nil {
+		writeProblem(w, r, err)
+		return
 	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
+	if s.answerLibraryCommands != nil {
+		s.createDurableAnswerLibraryEntry(w, r)
+		return
+	}
+	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+		in, err := decodeAnswerLibraryRequest(body)
+		if err != nil {
 			return 0, nil, err
 		}
-		entry, err := s.ledger.CreateQuestionnaireAnswerLibraryEntry(ctx, actor, app.CreateQuestionnaireAnswerLibraryEntryInput{QuestionID: req.QuestionID, EvidenceType: req.EvidenceType, ControlID: req.ControlID, ProductID: req.ProductID, ReleaseID: req.ReleaseID, Answer: req.Answer, EvidenceIDs: req.EvidenceIDs, Limitations: req.Limitations})
+		entry, err := s.ledger.CreateQuestionnaireAnswerLibraryEntry(ctx, actor, answerLibraryLegacyInput(in))
 		return http.StatusCreated, entry, err
+	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+		in, err := decodeAnswerLibraryRequest(body)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ledger.AuthorizeQuestionnaireAnswerLibraryCreate(r.Context(), a, answerLibraryLegacyInput(in)); err != nil {
+			return nil, err
+		}
+		return body, nil
 	})
 }
 

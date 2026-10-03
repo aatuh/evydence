@@ -210,6 +210,7 @@ func TestContextOwnedHandlersDoNotCallLedgerDirectly(t *testing.T) {
 		"importEvidenceBundle", "createReportTemplate", "renderReportTemplate", "craReadinessHTMLPackage", "releaseReadinessReport",
 		"createDurableQuestionnaireDraft",
 		"createDurableQuestionnaireTemplate",
+		"createDurableAnswerLibraryEntry",
 		// Verification policy and signing-key administration.
 		"verifyReleaseBundle", "verifyAuditChain", "verifyCosignSignature", "verifyBuildAttestationSignature", "createDSSETrustRoot",
 		"createMerkleBatch", "verifyMerkleBatch", "createTransparencyCheckpoint", "createObjectRetentionPolicy",

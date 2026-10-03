@@ -54,6 +54,11 @@ func (r evidence) LockEvidenceBundleEvidence(ctx context.Context, tenantID, id s
 	if err != nil {
 		return application.ResourceReferences{}, err
 	}
+	return r.lockEvidenceBundleCoordinates(ctx, tenantID, raw)
+}
+
+// The caller has already share-locked the selected evidence coordinates.
+func (r evidence) lockEvidenceBundleCoordinates(ctx context.Context, tenantID string, raw application.ResourceReferences) (application.ResourceReferences, error) {
 	refs, err := ResolveEvidenceBundleCoordinates(ctx, r.tx, tenantID, raw)
 	if err != nil {
 		if errors.Is(err, evidencequery.ErrNotFound) {

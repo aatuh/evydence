@@ -7,11 +7,16 @@ import (
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
-func NewQuestionnaireDraftAuthorizer() application.Authorizer { return questionnaireDraftAuthorizer{} }
+func NewQuestionnaireDraftAuthorizer() application.Authorizer {
+	return questionnaireScopeAuthorizer{scope: "package:read"}
+}
+func NewAnswerLibraryAuthorizer() application.Authorizer {
+	return questionnaireScopeAuthorizer{scope: "package:write"}
+}
 
-type questionnaireDraftAuthorizer struct{}
+type questionnaireScopeAuthorizer struct{ scope string }
 
-func (questionnaireDraftAuthorizer) Authorize(ctx context.Context, a identitydomain.Actor, r application.AuthorizationRequest) error {
+func (p questionnaireScopeAuthorizer) Authorize(ctx context.Context, a identitydomain.Actor, r application.AuthorizationRequest) error {
 	if ctx == nil {
 		return application.ErrUnauthorized
 	}
@@ -21,7 +26,7 @@ func (questionnaireDraftAuthorizer) Authorize(ctx context.Context, a identitydom
 	if a.TenantID == "" || a.UserID == "" && a.KeyID == "" && a.CollectorID == "" {
 		return application.ErrUnauthorized
 	}
-	if r.Scope != "package:read" || !a.HasScope(r.Scope) && !a.HasScope("admin") {
+	if r.Scope != p.scope || !a.HasScope(r.Scope) && !a.HasScope("admin") {
 		return application.ErrForbidden
 	}
 	refs := r.Resources

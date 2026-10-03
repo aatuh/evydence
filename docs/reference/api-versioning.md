@@ -36,6 +36,28 @@ The gate never fetches a baseline or resolves external OpenAPI references. It
 uses only the checked-in release artifact and invokes `oasdiff` with structured
 arguments and external-reference loading disabled.
 
+## Unreleased Answer-Library Creation Boundary
+
+Answer-library creation now uses focused PostgreSQL commands. Human
+tenant/product/release grants, stored-coordinate citation filtering, sorted
+duplicate references/limitations, release-only response omission, the default
+human-review warning, schema versions and response fields are preserved.
+Different-key duplicate content remains allowed; same-key replay keeps its
+body fingerprint and rechecks current root grants and all cited/control parent
+ownership. New durable timestamps use UTC microsecond precision.
+
+Creation now applies the byte/count/output limits in
+[API Reference](../api.md#questionnaire-answer-library-creation), checks current
+same-tenant control frameworks and coherent citation parents, and rejects
+blank citations, explicit null fields/items, mixed-case aliases, invalid
+UTF-8/NUL input and unsafe cookie origins. Clients should omit optional fields
+instead of sending null and must stay within the complete 64 KiB HTTP body
+limit. Release parents are used for authorization, not to widen raw selection.
+These are input/ownership restrictions; historical rows and response schemas
+are not rewritten. This note does not approve the outstanding release-baseline
+compatibility change set or claim a release, customer-package redaction,
+evidence completeness or compliance conclusions.
+
 ## Unreleased Candidate Transition Schema Correction
 
 `ReleaseCandidateTransitionRequest.reason` is now required in OpenAPI. Both

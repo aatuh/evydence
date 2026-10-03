@@ -25,6 +25,10 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 			"CreateQuestionnaireAnswerLibraryEntry",
 			"ListQuestionnaireAnswerLibrary",
 		},
+		"answer_library_creation.go": {
+			"AuthorizeQuestionnaireAnswerLibraryCreate",
+			"authorizeAnswerLibraryCreateLocked",
+		},
 		"risk_workflows.go": {
 			"CreateIncident",
 			"RecordIncidentTimelineEvent",
@@ -62,7 +66,8 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 		for _, name := range funcs {
 			fn := functionBody(t, body, name)
 			if !strings.Contains(fn, "authorizeResourceLocked") && !strings.Contains(fn, "resourceAllowedLocked") &&
-				!strings.Contains(fn, "releaseCommands.") && !strings.Contains(fn, "evidenceCommands.") {
+				!strings.Contains(fn, "releaseCommands.") && !strings.Contains(fn, "evidenceCommands.") &&
+				!strings.Contains(fn, "authorizeAnswerLibraryCreateLocked") && !strings.Contains(fn, "packagequery.NewAnswerLibraryAuthorizer().Authorize") {
 				t.Fatalf("%s.%s missing resource-scoped authorization call", file, name)
 			}
 		}

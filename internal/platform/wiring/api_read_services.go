@@ -111,6 +111,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create questionnaire template commands: %w", err)
 	}
+	options.AnswerLibraryCommands, err = BuildAnswerLibraryCommands(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create answer library commands: %w", err)
+	}
 	options.BundleImportCommand, err = BuildBundleImportCommand(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create bundle import command: %w", err)

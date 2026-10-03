@@ -1171,8 +1171,19 @@ validation and exact encoded-byte bounds apply before persistence. The shared
 worker/audit fence precedes parent locks, and template/audit/replay effects
 commit together. Both profiles recheck current template-create authority on
 replay. See [template creation](api.md#questionnaire-template-creation).
-Answer-library writes, questionnaire-package generation, other extension
-workflows and startup Ledger retirement remain EVY-905 work.
+Answer-library creation also binds a focused Package command. Its flat ports
+resolve only current root/reference ownership, authorize tenant/product/release
+grants, and insert one bounded draft plus caller audit. Selected controls have
+same-tenant framework parents, and cited evidence has coherent current
+product/project/release/build/deployment parents. Raw selection coordinates
+remain separate from resolved authorization coordinates. The shared worker/audit
+fence precedes selected row locks; answer/audit/replay effects commit together.
+Replay rechecks current root grants and referenced ownership without loading
+existing private answers or evidence payloads. Local memory retains its storage
+facade and shared input/record validation. See
+[answer-library creation](api.md#questionnaire-answer-library-creation).
+Questionnaire-package generation, other extension workflows and startup Ledger
+retirement remain EVY-905 work.
 
 PostgreSQL evidence-summary creation now binds Package-owned focused commands
 directly through the composition root. One transaction locks root coordinates,

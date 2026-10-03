@@ -37,6 +37,7 @@ func TestQuestionnaireAnswerLibraryFiltersEveryEntryForHumanGrant(t *testing.T) 
 
 func TestQuestionnaireAnswerLibraryGlobalCreateRequiresTenantGrant(t *testing.T) {
 	ledger := NewLedger(Config{})
+	ledger.tenants["ten_1"] = domain.Tenant{ID: "ten_1"}
 	actor := domain.Actor{TenantID: "ten_1", UserID: "usr_1", Scopes: []string{ScopePackageWrite}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: "prod_allowed", Scopes: []string{ScopePackageWrite}}}}
 	_, err := ledger.CreateQuestionnaireAnswerLibraryEntry(t.Context(), actor, CreateQuestionnaireAnswerLibraryEntryInput{QuestionID: "q1", Answer: "tenant-wide draft"})
 	if !errors.Is(err, ErrForbidden) {

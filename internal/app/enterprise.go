@@ -713,42 +713,16 @@ func (s packageReportService) CreateQuestionnairePackage(ctx context.Context, ac
 	return pkg, nil
 }
 
-func (s packageReportService) CreateQuestionnaireAnswerLibraryEntry(ctx context.Context, actor domain.Actor, in CreateQuestionnaireAnswerLibraryEntryInput) (domain.QuestionnaireAnswerLibraryEntry, error) {
+func (s packageReportService) CreateQuestionnaireAnswerLibraryEntry(ctx context.Context, actor domain.Actor, raw CreateQuestionnaireAnswerLibraryEntryInput) (domain.QuestionnaireAnswerLibraryEntry, error) {
 	l := s.ledger
-	if err := ctx.Err(); err != nil {
+	in, err := prepareLocalAnswerLibraryInput(ctx, actor, raw)
+	if err != nil {
 		return domain.QuestionnaireAnswerLibraryEntry{}, err
-	}
-	if err := require(actor, ScopePackageWrite); err != nil {
-		return domain.QuestionnaireAnswerLibraryEntry{}, err
-	}
-	in.QuestionID, in.EvidenceType, in.ControlID = strings.TrimSpace(in.QuestionID), strings.TrimSpace(in.EvidenceType), strings.TrimSpace(in.ControlID)
-	in.ProductID, in.ReleaseID = strings.TrimSpace(in.ProductID), strings.TrimSpace(in.ReleaseID)
-	in.Answer = strings.TrimSpace(in.Answer)
-	if in.Answer == "" || (in.QuestionID == "" && in.EvidenceType == "" && in.ControlID == "") {
-		return domain.QuestionnaireAnswerLibraryEntry{}, ErrValidation
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if in.ProductID != "" || in.ReleaseID != "" {
-		if err := l.ensureScopeLocked(actor.TenantID, in.ProductID, "", in.ReleaseID); err != nil {
-			return domain.QuestionnaireAnswerLibraryEntry{}, err
-		}
-	}
-	if err := l.authorizeResourceLocked(actor, ScopePackageWrite, resourceRefs{ProductID: in.ProductID, ReleaseID: in.ReleaseID}); err != nil {
+	if err := l.authorizeAnswerLibraryCreateLocked(ctx, actor, in); err != nil {
 		return domain.QuestionnaireAnswerLibraryEntry{}, err
-	}
-	if in.ControlID != "" {
-		control, ok := l.controls[in.ControlID]
-		if !ok || control.TenantID != actor.TenantID {
-			return domain.QuestionnaireAnswerLibraryEntry{}, ErrNotFound
-		}
-	}
-	evidenceIDs := sortedStrings(in.EvidenceIDs)
-	for _, id := range evidenceIDs {
-		item, ok := l.evidence[id]
-		if !ok || item.TenantID != actor.TenantID || !evidenceMatchesRefs(item, resourceRefs{ProductID: in.ProductID, ReleaseID: in.ReleaseID}) {
-			return domain.QuestionnaireAnswerLibraryEntry{}, ErrNotFound
-		}
 	}
 	entry := domain.QuestionnaireAnswerLibraryEntry{
 		ID:            newID("qal"),
@@ -759,13 +733,13 @@ func (s packageReportService) CreateQuestionnaireAnswerLibraryEntry(ctx context.
 		ProductID:     in.ProductID,
 		ReleaseID:     in.ReleaseID,
 		Answer:        in.Answer,
-		EvidenceIDs:   evidenceIDs,
-		Limitations:   sortedStrings(in.Limitations),
+		EvidenceIDs:   in.EvidenceIDs,
+		Limitations:   in.Limitations,
 		SchemaVersion: domain.QuestionnaireAnswerLibraryVersion,
 		CreatedAt:     l.now(),
 	}
-	if len(entry.Limitations) == 0 {
-		entry.Limitations = []string{"Answer library entries are reusable drafts and require human review before external use."}
+	if err := packageapp.ValidateAnswerLibraryRecord(answerLibraryEntryToContext(entry)); err != nil {
+		return domain.QuestionnaireAnswerLibraryEntry{}, fromPackageContextError(err)
 	}
 	if l.unitOfWork != nil {
 		var auditEntry domain.AuditChainEntry
@@ -781,14 +755,14 @@ func (s packageReportService) CreateQuestionnaireAnswerLibraryEntry(ctx context.
 		}
 		l.answerLibrary[entry.ID] = entry
 		l.publishCommittedAuditEntryLocked(auditEntry)
-		return entry, nil
+		return cloneAnswerLibraryDTO(entry), nil
 	}
 	l.answerLibrary[entry.ID] = entry
 	_, _ = l.appendChainLocked(actor.TenantID, "questionnaire_answer_library.created", "questionnaire_answer_library", entry.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {
 		return domain.QuestionnaireAnswerLibraryEntry{}, err
 	}
-	return entry, nil
+	return cloneAnswerLibraryDTO(entry), nil
 }
 
 func (s packageReportService) ListQuestionnaireAnswerLibrary(ctx context.Context, actor domain.Actor, in ListQuestionnaireAnswerLibraryInput) ([]domain.QuestionnaireAnswerLibraryEntry, error) {
@@ -827,7 +801,7 @@ func (s packageReportService) ListQuestionnaireAnswerLibrary(ctx context.Context
 		if !l.resourceAllowedLocked(actor, ScopePackageRead, resourceRefs{ProductID: entry.ProductID, ReleaseID: entry.ReleaseID}) {
 			continue
 		}
-		out = append(out, entry)
+		out = append(out, cloneAnswerLibraryDTO(entry))
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	return out, nil

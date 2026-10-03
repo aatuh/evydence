@@ -1422,16 +1422,22 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"created_at":     map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "template_id", "responses", "manifest_hash", "limitations", "schema_version", "created_at"))
 	registry.RegisterSchema("QuestionnaireDraftEnvelope", dataEnvelopeSchema("#/components/schemas/QuestionnaireDraft"))
-	registry.RegisterSchema("CreateQuestionnaireAnswerLibraryEntryRequest", objectSchema(map[string]any{
-		"question_id":   map[string]any{"type": "string"},
-		"evidence_type": map[string]any{"type": "string"},
-		"control_id":    map[string]any{"type": "string"},
-		"product_id":    map[string]any{"type": "string"},
-		"release_id":    map[string]any{"type": "string"},
-		"answer":        map[string]any{"type": "string"},
-		"evidence_ids":  map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-		"limitations":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-	}, "answer"))
+	answerLibraryRequest := objectSchema(map[string]any{
+		"question_id":   map[string]any{"type": "string", "maxLength": packageapp.MaxAnswerLibraryIDBytes, "description": "Optional question selector; at least one nonblank question_id, evidence_type or control_id is required. Raw input is bounded to 1024 UTF-8/NUL-free bytes before trimming."},
+		"evidence_type": map[string]any{"type": "string", "maxLength": packageapp.MaxAnswerLibraryIDBytes, "description": "Optional inert evidence-type selector, not a validation or trust claim."},
+		"control_id":    map[string]any{"type": "string", "maxLength": packageapp.MaxAnswerLibraryIDBytes, "description": "Optional current same-tenant control with a same-tenant framework."},
+		"product_id":    map[string]any{"type": "string", "maxLength": packageapp.MaxAnswerLibraryIDBytes, "description": "Optional current tenant-owned product; must agree with release_id. Citation filtering uses stored product_id, not inferred evidence parents."},
+		"release_id":    map[string]any{"type": "string", "maxLength": packageapp.MaxAnswerLibraryIDBytes, "description": "Optional current tenant-owned release; its product is resolved for authorization only, not added to the response."},
+		"answer":        map[string]any{"type": "string", "minLength": 1, "maxLength": packageapp.MaxAnswerLibraryTextBytes, "description": "Required nonblank draft answer, trimmed after a 64 KiB raw UTF-8/NUL-free byte bound. The complete HTTP body retains its 64 KiB limit."},
+		"evidence_ids":  map[string]any{"type": "array", "maxItems": packageapp.MaxAnswerLibraryEvidenceIDs, "items": map[string]any{"type": "string", "minLength": 1, "maxLength": packageapp.MaxAnswerLibraryIDBytes}, "description": "Optional current same-tenant evidence references, sorted with duplicates preserved; each ID is nonblank and bounded to 1024 raw bytes. All stored parents must be coherent."},
+		"limitations":   map[string]any{"type": "array", "maxItems": packageapp.MaxAnswerLibraryLimitations, "items": map[string]any{"type": "string", "maxLength": packageapp.MaxAnswerLibraryTextBytes}, "description": "Optional limitations, each bounded to 64 KiB raw bytes, trimmed/sorted with duplicates and blanks preserved. Omitted or empty arrays use the existing human-review warning."},
+	}, "answer")
+	answerLibraryRequest["anyOf"] = []any{
+		map[string]any{"required": []string{"question_id"}, "properties": map[string]any{"question_id": map[string]any{"minLength": 1}}},
+		map[string]any{"required": []string{"evidence_type"}, "properties": map[string]any{"evidence_type": map[string]any{"minLength": 1}}},
+		map[string]any{"required": []string{"control_id"}, "properties": map[string]any{"control_id": map[string]any{"minLength": 1}}},
+	}
+	registry.RegisterSchema("CreateQuestionnaireAnswerLibraryEntryRequest", answerLibraryRequest)
 	registry.RegisterSchema("QuestionnaireAnswerLibraryEntry", objectSchema(map[string]any{
 		"id":             map[string]any{"type": "string"},
 		"tenant_id":      map[string]any{"type": "string"},

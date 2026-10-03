@@ -2227,6 +2227,47 @@ microsecond precision. Historical rows, response fields, schema versions and
 optional-field omission are unchanged. Local memory keeps its storage facade,
 with the same normalization and current authority/ownership replay checks.
 
+### Questionnaire Answer Library Creation
+
+`POST /v1/questionnaire-answer-library` requires `package:write`, a nonblank
+answer, and at least one nonblank `question_id`, `evidence_type`, or `control_id`.
+Human sessions need a current matching tenant/product/release grant; entries
+without product/release scope require tenant-wide authority. Optional parents
+must belong to the tenant and agree. Release-only input resolves the product
+for authorization but leaves `product_id` omitted in the stored/public record.
+An explicit control must have a current same-tenant framework. Evidence-type
+selectors and answer text are recorded drafts, not independently verified facts.
+
+Citation IDs are checked against current tenant-owned evidence and coherent
+product/project/release/build/deployment parents. Explicit product/release
+filters match the evidence's stored coordinates: an inferred parent does not
+make an otherwise nonmatching citation eligible. PostgreSQL selects only
+bounded ownership metadata; it does not load evidence payloads, control
+objectives, package manifests, or existing private answers.
+
+Raw UTF-8/NUL-free fields are bounded before trimming: 1024 bytes for selectors,
+scope IDs and each citation ID; 64 KiB for the answer and each limitation. Limits
+are 4096 citation occurrences and 128 limitations. Aggregate input text,
+selected citation coordinates, and encoded public output each have a 4 MiB
+budget. The complete HTTP body still has its independent 64 KiB limit.
+Citations must be nonblank. Citations/limitations are trimmed and sorted, with
+duplicates preserved; blank limitations remain inert metadata. Omitted or empty
+limitations use the existing human-review warning. Both profiles reject null
+fields/items, duplicate/unknown/mixed-case fields, invalid UTF-8 and NUL. Cookie
+mutations require one same-host HTTPS Origin; bearer credentials retain precedence.
+
+The PostgreSQL composition root binds the focused Package command. The shared
+worker/audit fence precedes selected root/reference locks. Answer, caller audit
+and successful body-keyed replay completion commit together. Same-key replay
+rechecks current root grants and every referenced ownership boundary; changed
+body content conflicts. A different key may create another entry with identical
+content. New durable timestamps use UTC microsecond precision. Historical
+records, response fields, schema versions and optional-field omission remain
+unchanged. Local memory keeps its storage facade with shared validation,
+current replay guards and copied result slices. Missing/foreign references fail
+with `404`; inconsistent durable citation parents fail with `409`. These drafts
+require human review, not customer-package redaction or compliance conclusions.
+
 ### Questionnaire Draft Creation
 
 `POST /v1/questionnaire-drafts` requires `package:read`, a tenant-owned
