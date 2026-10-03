@@ -112,6 +112,20 @@ func (ledgerEvidencePayloadParser) ParseVulnerabilityScan(_ context.Context, sou
 }
 
 func (ledgerEvidencePayloadParser) ParseOpenAPIContract(ctx context.Context, source evidenceapp.PayloadSource) (evidenceapp.ParsedOpenAPIContract, error) {
+	return (OpenAPIContractPayloadParser{}).ParseOpenAPIContract(ctx, source)
+}
+
+// OpenAPIContractPayloadParser is a stateless adapter. Focused production
+// ingestion does not construct a Ledger or unrelated document parsers.
+type OpenAPIContractPayloadParser struct{}
+
+func (OpenAPIContractPayloadParser) ParseOpenAPIContract(ctx context.Context, source evidenceapp.PayloadSource) (evidenceapp.ParsedOpenAPIContract, error) {
+	if ctx == nil {
+		return evidenceapp.ParsedOpenAPIContract{}, evidenceapp.ErrValidation
+	}
+	if err := ctx.Err(); err != nil {
+		return evidenceapp.ParsedOpenAPIContract{}, err
+	}
 	var document *openapi3.T
 	err := parseDigestBoundEvidenceSource(source, func(reader io.Reader) error {
 		var err error
@@ -238,11 +252,11 @@ func parseDigestBoundEvidenceSource(source evidenceapp.PayloadSource, parse func
 		return ErrValidation
 	}
 	reader, err := legacy.Open()
-	if err != nil {
+	if err != nil || reader == nil {
 		return ErrValidation
 	}
 	hasher, counter := sha256.New(), &payloadByteCounter{}
-	parseErr := parse(io.TeeReader(reader, io.MultiWriter(hasher, counter)))
+	parseErr := parse(io.TeeReader(io.LimitReader(reader, source.Size+1), io.MultiWriter(hasher, counter)))
 	closeErr := reader.Close()
 	if parseErr != nil {
 		return parseErr

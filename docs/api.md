@@ -48,6 +48,11 @@ legacy body-only digest only after the current fingerprint conflicts. Newly
 created records always retain the stronger fingerprint, so changing a semantic
 header while reusing their key still returns a conflict.
 
+In PostgreSQL mode, retained native OpenAPI upload receipts additionally require
+the original tenant, product, release, version, and payload hash to match. A
+body-only receipt with different or missing coordinates returns `409`; it never
+executes a new upload. Current ownership and grants are checked before replay.
+
 For 24 hours after reservation:
 
 - Reusing a completed key with the same request returns the original safe
@@ -714,6 +719,38 @@ does not prove SBOM completeness or vulnerability coverage.
 Source/test evidence: `internal/evidence/app/sbom_diff_commands.go`,
 `internal/adapters/postgres/repositories/sbom_diff_reads.go`, and
 `internal/platform/wiring/sbom_diff_commands_test.go`.
+
+### OpenAPI Contract Ingestion
+
+`POST /v1/openapi-contracts` requires `evidence:write`. Wrapped JSON supplies
+`product_id`, optional `release_id`, `version`, and `spec` within the existing
+64 KiB request limit. Native `application/vnd.oai.openapi+json` uploads stream
+up to 20 MiB and require single, nonblank `X-Evydence-Product-ID`,
+`X-Evydence-Release-ID`, and `X-Evydence-Version` headers. Explicit null fields,
+duplicate wrapped fields or native metadata headers, and unknown wrapped fields
+are rejected. Product/release IDs are limited to 1024 UTF-8 bytes and version
+to 65,536 bytes; required values must be nonblank and may not contain NUL.
+
+PostgreSQL mode resolves and locks current tenant/product/release coordinates,
+then checks human resource grants before parsing or object staging. The parser
+verifies the full source size and SHA-256 digest, rejects external references,
+and retains the existing operation normalization and provenance. Operation
+projections use the same bounds as [stored contract diffs](#stored-openapi-contract-diffs).
+Evidence, contract, audit, payload lifecycle, parser/finalization jobs, and safe
+idempotency completion share the active command transaction. Failed commits
+leave no partial database effects; unreferenced staged bytes remain recoverable
+through the [payload recovery workflow](runbooks/object-store-recovery.md).
+
+With worker-owned parsing and object storage, the response includes the parsed
+operations, while the stored contract initially has zero paths and no operations
+until its parser job runs. Inline mode, or explicit development operation
+without an object store, persists the parsed projection. Evidence remains
+`pending`; accepting an OpenAPI document does not prove API compatibility or
+release security. Local-memory mode retains its explicit compatibility path.
+
+Source/test evidence: `internal/evidence/app/openapi_ingestion_commands.go`,
+`internal/app/evidence_parser_adapter.go`, and
+`internal/platform/wiring/openapi_ingestion_commands_test.go`.
 
 ### Stored OpenAPI Contract Diffs
 

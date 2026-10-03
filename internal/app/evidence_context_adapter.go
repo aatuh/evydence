@@ -843,22 +843,7 @@ func openAPIContractToEvidenceContext(value domain.OpenAPIContract) evidencedoma
 }
 
 func openAPIContractFromEvidenceContext(value evidencedomain.OpenAPIContract) domain.OpenAPIContract {
-	var operations []domain.OpenAPIOperation
-	if value.Operations != nil {
-		operations = make([]domain.OpenAPIOperation, 0, len(value.Operations))
-	}
-	for _, operation := range value.Operations {
-		operations = append(operations, domain.OpenAPIOperation{
-			Path: operation.Path, Method: operation.Method, OperationID: operation.OperationID, Deprecated: operation.Deprecated,
-			RequestBodyRequired: operation.RequestBodyRequired, RequiredRequestFields: append([]string(nil), operation.RequiredRequestFields...),
-			ResponseStatuses: append([]string(nil), operation.ResponseStatuses...),
-		})
-	}
-	return domain.OpenAPIContract{
-		ID: value.ID, TenantID: value.TenantID, ProductID: value.ProductID, ReleaseID: value.ReleaseID,
-		Version: value.Version, Hash: value.Hash, PathCount: value.PathCount, Operations: operations,
-		EvidenceID: value.EvidenceID, CreatedAt: value.CreatedAt,
-	}
+	return domain.OpenAPIContractFromContext(value)
 }
 
 func vexDocumentToEvidenceContext(value domain.VEXDocument) evidencedomain.VEXDocument {

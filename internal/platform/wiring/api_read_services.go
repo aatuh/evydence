@@ -215,6 +215,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create evidence creation commands: %w", err)
 	}
+	options.OpenAPIIngestionCommands, err = BuildOpenAPIIngestionCommands(store, runtime.Objects, runtime.WorkerOwnedParsers)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create OpenAPI ingestion commands: %w", err)
+	}
 	options.DeploymentEnvironmentCommands, err = BuildDeploymentEnvironmentCommands(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create environment commands: %w", err)

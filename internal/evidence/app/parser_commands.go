@@ -387,6 +387,10 @@ func subjectForArtifact(artifactID string) []evidencedomain.SubjectRef {
 }
 
 func (s *Service) parserJob(tenantID, kind, subjectType, subjectID string, source PayloadSource, staged StagedPayload, parserVersion string, now time.Time) application.OutboxEvent {
+	return newParserJob(s.ids, tenantID, kind, subjectType, subjectID, source, staged, parserVersion, now)
+}
+
+func newParserJob(ids application.IDGenerator, tenantID, kind, subjectType, subjectID string, source PayloadSource, staged StagedPayload, parserVersion string, now time.Time) application.OutboxEvent {
 	payload := map[string]any{
 		"payload_ref": staged.Reference(), "payload_hash": source.Digest, "parser_version": parserVersion,
 	}
@@ -395,7 +399,7 @@ func (s *Service) parserJob(tenantID, kind, subjectType, subjectID string, sourc
 		payload["payload_digest"] = staged.Digest
 	}
 	return application.OutboxEvent{
-		ID: s.ids.NewID("job"), TenantID: tenantID, Kind: kind, SubjectType: subjectType,
+		ID: ids.NewID("job"), TenantID: tenantID, Kind: kind, SubjectType: subjectType,
 		SubjectID: subjectID, Payload: payload, CreatedAt: now,
 	}
 }

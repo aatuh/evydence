@@ -119,21 +119,29 @@ type evidenceCreationTransactions struct{ factory app.UnitOfWorkFactory }
 
 func (r evidenceCreationTransactions) ExecuteEvidenceCreation(ctx context.Context, fn func(context.Context, evidenceapp.EvidenceCreationTransaction) error) error {
 	return mapEvidenceCreationError(app.ExecuteUnitOfWork(ctx, r.factory, func(ctx context.Context, repos app.Repositories) error {
-		scopes, ok := repos.Evidence.(evidencequery.EvidenceCreationScopeReader)
-		artifacts, valid := repos.ReleaseCatalog.(evidenceCreationArtifactReader)
-		if !ok || !valid || repos.Audit == nil || repos.Payloads == nil || repos.Outbox == nil {
-			return app.ErrValidation
-		}
-		artifactPolicy, err := releasequery.NewArtifactWriteAuthorizer(creationArtifactGrants{artifacts})
+		tx, err := newEvidenceCreationTransaction(repos)
 		if err != nil {
 			return err
 		}
-		auth, err := evidencequery.NewEvidenceCreationAuthorizer(scopes, artifactPolicy)
-		if err != nil {
-			return err
-		}
-		return fn(ctx, evidenceCreationTransaction{Authorizer: auth, scopes: scopes, artifacts: artifacts, evidence: repos.Evidence, audit: repos.Audit, payloads: repos.Payloads, outbox: repos.Outbox})
+		return fn(ctx, tx)
 	}))
+}
+
+func newEvidenceCreationTransaction(repos app.Repositories) (evidenceCreationTransaction, error) {
+	scopes, ok := repos.Evidence.(evidencequery.EvidenceCreationScopeReader)
+	artifacts, valid := repos.ReleaseCatalog.(evidenceCreationArtifactReader)
+	if !ok || !valid || repos.Audit == nil || repos.Payloads == nil || repos.Outbox == nil {
+		return evidenceCreationTransaction{}, app.ErrValidation
+	}
+	artifactPolicy, err := releasequery.NewArtifactWriteAuthorizer(creationArtifactGrants{artifacts})
+	if err != nil {
+		return evidenceCreationTransaction{}, err
+	}
+	auth, err := evidencequery.NewEvidenceCreationAuthorizer(scopes, artifactPolicy)
+	if err != nil {
+		return evidenceCreationTransaction{}, err
+	}
+	return evidenceCreationTransaction{Authorizer: auth, scopes: scopes, artifacts: artifacts, evidence: repos.Evidence, audit: repos.Audit, payloads: repos.Payloads, outbox: repos.Outbox}, nil
 }
 
 type creationArtifactGrants struct {

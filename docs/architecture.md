@@ -96,8 +96,21 @@ existing pure comparison rules while retaining attachment to any release of
 the common product. Reads, diff insertion, audit, and replay completion join the
 active transaction; snapshot import cannot rewrite the historical diff. See
 [stored OpenAPI contract diffs](api.md#stored-openapi-contract-diffs) for limits
-and compatibility. Other ingestion paths and startup Ledger retirement remain
-EVY-905 work.
+and compatibility.
+
+OpenAPI contract ingestion (`POST /v1/openapi-contracts`) now binds a focused
+Evidence command in the PostgreSQL composition root. Its flat transaction ports
+reuse generic evidence preparation without constructing a Ledger or unrelated
+parsers. Identifier-only parent resolution and current grants precede the
+stateless, digest/size-bound parser and object staging. Contract, evidence,
+audit, payload metadata, outbox, and durable replay completion join one active
+transaction, including pending parents in compound commands. Replay checks
+current authorization without parsing or staging; retained body-only native
+receipts also require exact original coordinates. Parser-owned stored
+projections, inline operation data, and worker finalization semantics are
+preserved. See [OpenAPI contract ingestion](api.md#openapi-contract-ingestion)
+for input limits and compatibility. Other ingestion paths and startup Ledger
+retirement remain EVY-905 work.
 
 ## Bounded-context transition
 

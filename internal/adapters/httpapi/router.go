@@ -100,6 +100,8 @@ type Server struct {
 	contractDiffCommands              ContractDiffCommands
 	durableCommandExecutor            DurableCommandExecutor
 	evidenceCreationCommands          EvidenceCreationCommands
+	openAPIIngestionCommands          OpenAPIIngestionCommands
+	durableStreamedCommandExecutor    DurableStreamedCommandExecutor
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
 	deploymentCommands                DeploymentCommands
 	sourceRepositoryCommands          SourceRepositoryCommands
@@ -257,6 +259,7 @@ type ServerOptions struct {
 	ContractDiffCommands          ContractDiffCommands
 	DurableCommandExecutor        DurableCommandExecutor
 	EvidenceCreationCommands      EvidenceCreationCommands
+	OpenAPIIngestionCommands      OpenAPIIngestionCommands
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
 	DeploymentCommands            DeploymentCommands
 	SourceRepositoryCommands      SourceRepositoryCommands
@@ -373,6 +376,11 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if ctx == nil {
 		return nil, errors.New("server context is required")
 	}
+	if opts.OpenAPIIngestionCommands != nil {
+		if _, ok := opts.DurableCommandExecutor.(DurableStreamedCommandExecutor); !ok {
+			return nil, errors.New("focused OpenAPI ingestion requires durable streamed idempotency")
+		}
+	}
 	if (opts.VulnerabilityDecisionCommands != nil || opts.ApprovalCommands != nil || opts.WaiverCommands != nil || opts.ExceptionCommands != nil || opts.VulnerabilityWorkflowCommands != nil || opts.CustomPolicyCommands != nil || opts.PolicyEvaluationCommands != nil || opts.SBOMDiffCommands != nil || opts.ContractDiffCommands != nil) && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused commands require durable idempotency")
 	}
@@ -453,6 +461,8 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.contractDiffCommands = opts.ContractDiffCommands
 	server.durableCommandExecutor = opts.DurableCommandExecutor
 	server.evidenceCreationCommands = opts.EvidenceCreationCommands
+	server.openAPIIngestionCommands = opts.OpenAPIIngestionCommands
+	server.durableStreamedCommandExecutor, _ = opts.DurableCommandExecutor.(DurableStreamedCommandExecutor)
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands
 	server.sourceRepositoryCommands = opts.SourceRepositoryCommands
@@ -3091,6 +3101,10 @@ func (s *Server) vulnerabilityDecisionSummaryReport(w http.ResponseWriter, r *ht
 }
 
 func (s *Server) uploadOpenAPIContract(w http.ResponseWriter, r *http.Request) {
+	if s.openAPIIngestionCommands != nil {
+		s.uploadDurableOpenAPIContract(w, r)
+		return
+	}
 	if requestMediaType(r) == "application/vnd.oai.openapi+json" {
 		productID, err := requiredSingleHeader(r, "X-Evydence-Product-ID")
 		if err != nil {
