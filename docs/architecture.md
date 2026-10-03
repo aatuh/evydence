@@ -146,7 +146,20 @@ bounded versioned decision request; only the post-commit worker writes mapped
 decisions. Replay checks current authorization without parsing, staging, or
 Ledger reloads, and retained body-only native receipts require exact original
 coordinates. See [VEX ingestion](api.md#vex-ingestion) for limits and
-compatibility. Other ingestion paths, VEX previews, and startup Ledger
+compatibility.
+
+VEX previews bind a focused Evidence query with an explicit read-only Risk
+mapping port in PostgreSQL mode. One repeatable-read snapshot resolves current
+release ownership and artifact associations, authorizes grants before parsing,
+and selects only relevant finding coordinates and active-decision presence.
+Private decision notes, evidence metadata, and object payloads are not loaded.
+The reader caps release scans and candidate findings at 4096 each and combined
+candidate text at 8 MiB; malformed or oversized projections fail closed without
+partial results. Shared Risk matching rules retain advisory counts, ambiguity,
+duplicates, and original statement indexes. Snapshot changes become visible on
+the next request, with no Ledger reload, persistence, jobs, or replay records.
+See [VEX import preview](api.md#3-upload-sbom-and-vulnerability-evidence) for
+grant and compatibility limits. Other ingestion paths and startup Ledger
 retirement remain EVY-905 work.
 
 ## Bounded-context transition

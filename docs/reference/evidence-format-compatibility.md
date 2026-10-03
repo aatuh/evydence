@@ -203,6 +203,9 @@ staging. See [VEX ingestion](../api.md#vex-ingestion) for source-byte semantics,
 normalized projection and worker-request budgets, and retained body-only
 native receipt compatibility. Historical rows and parser identities are
 unchanged; acceptance still does not establish source authority or trust.
+Production previews also use a focused read-only snapshot and the shared Risk
+matching policy. Their current artifact grants, candidate budgets, and advisory
+limits are documented in [VEX import preview](../api.md#3-upload-sbom-and-vulnerability-evidence).
 
 Evidence: `internal/evidence/app/vex_ingestion_commands.go`,
 `internal/platform/wiring/vex_ingestion_commands.go`,

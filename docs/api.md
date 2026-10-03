@@ -534,6 +534,33 @@ mapping counts, warnings, invalid-statement issues, and mapping failures. It
 does not store raw payloads, create evidence, create decisions, or enqueue
 worker jobs, so it does not require `Idempotency-Key`.
 
+In PostgreSQL mode, one read-only repeatable-read snapshot resolves current
+tenant-owned release parents and optional artifact ownership. Human release
+and artifact `evidence:read` grants are checked before full parsing or candidate
+selection. Artifact visibility uses the current evidence/build association
+policy; an unrelated same-tenant artifact is no longer sufficient for a human
+preview. Missing or foreign parent IDs return `404`; denied grants return
+`403`. The optional artifact is an authorized reference, not a filter on the
+release's scan findings.
+
+The request remains wrapped JSON, capped at 64 KiB, with the
+[VEX ingestion](#vex-ingestion) ID and normalized-document bounds. Null,
+duplicate, and unknown envelope fields are rejected. The query selects only
+relevant finding coordinates and active-decision presence, never private notes,
+source evidence metadata, or object-store bytes. It allows at most 4096 release
+scans, 4096 candidate findings, and 8 MiB of combined candidate text. Oversized
+or malformed stored projections fail closed with `409`, not truncation or a
+partial preview. Pending scans with no findings contribute no candidates.
+
+Risk-context matching retains the existing ambiguity and duplicate rules,
+original statement indexes, parser versions, warnings, assumptions, and
+limitations. New preview timestamps use UTC microsecond precision. Previews
+create no audit, outbox, or idempotency records and do not prove future worker
+mapping, source authority, vulnerability coverage, or release security.
+Local-memory mode retains its explicit compatibility path. Source/test evidence:
+`internal/evidence/query/vex_preview.go`, `internal/risk/app/vex_preview.go`, and
+`internal/platform/wiring/vex_preview_query_test.go`.
+
 Customer-safe decision summary:
 
 ```http

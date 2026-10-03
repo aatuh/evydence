@@ -22,3 +22,20 @@ func VEXImportReportFromContext(v evidencedomain.VEXImportReport) VEXImportRepor
 	}
 	return VEXImportReport{ID: v.ID, TenantID: v.TenantID, VEXDocumentID: v.VEXDocumentID, EvidenceID: v.EvidenceID, ReleaseID: v.ReleaseID, ArtifactID: v.ArtifactID, ParserVersion: v.ParserVersion, Status: v.Status, StatementCount: v.StatementCount, DecisionsCreated: v.DecisionsCreated, DecisionsSuperseded: v.DecisionsSuperseded, UnsupportedFields: append([]string(nil), v.UnsupportedFields...), Warnings: append([]string(nil), v.Warnings...), InvalidStatements: issues(v.InvalidStatements), MappingFailures: issues(v.MappingFailures), FailureCode: v.FailureCode, FailureDetail: v.FailureDetail, SchemaVersion: v.SchemaVersion, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt}
 }
+
+func VEXImportPreviewFromContext(v evidencedomain.VEXImportPreview) VEXImportPreview {
+	out := VEXImportPreview{TenantID: v.TenantID, ReleaseID: v.ReleaseID, ArtifactID: v.ArtifactID, Format: v.Format, ParserVersion: v.ParserVersion, Advisory: v.Advisory, StatementCount: v.StatementCount, DecisionsWouldCreate: v.DecisionsWouldCreate, DecisionsWouldSupersede: v.DecisionsWouldSupersede, Warnings: append([]string(nil), v.Warnings...), Assumptions: append([]string(nil), v.Assumptions...), Limitations: append([]string(nil), v.Limitations...), SchemaVersion: v.SchemaVersion, GeneratedAt: v.GeneratedAt}
+	if v.StatusSummary != nil {
+		out.StatusSummary = map[string]int{}
+		for k, n := range v.StatusSummary {
+			out.StatusSummary[k] = n
+		}
+	}
+	for _, i := range v.InvalidStatements {
+		out.InvalidStatements = append(out.InvalidStatements, VEXImportIssue{StatementIndex: i.StatementIndex, Code: i.Code, Detail: i.Detail})
+	}
+	for _, i := range v.MappingFailures {
+		out.MappingFailures = append(out.MappingFailures, VEXImportIssue{StatementIndex: i.StatementIndex, Code: i.Code, Detail: i.Detail})
+	}
+	return out
+}

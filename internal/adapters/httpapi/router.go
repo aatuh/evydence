@@ -104,6 +104,7 @@ type Server struct {
 	sbomIngestionCommands             SBOMIngestionCommands
 	scanIngestionCommands             VulnerabilityScanIngestionCommands
 	vexIngestionCommands              VEXIngestionCommands
+	vexPreviewQuery                   VEXPreviewQuery
 	durableStreamedCommandExecutor    DurableStreamedCommandExecutor
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
 	deploymentCommands                DeploymentCommands
@@ -266,6 +267,7 @@ type ServerOptions struct {
 	SBOMIngestionCommands         SBOMIngestionCommands
 	ScanIngestionCommands         VulnerabilityScanIngestionCommands
 	VEXIngestionCommands          VEXIngestionCommands
+	VEXPreviewQuery               VEXPreviewQuery
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
 	DeploymentCommands            DeploymentCommands
 	SourceRepositoryCommands      SourceRepositoryCommands
@@ -471,6 +473,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.sbomIngestionCommands = opts.SBOMIngestionCommands
 	server.scanIngestionCommands = opts.ScanIngestionCommands
 	server.vexIngestionCommands = opts.VEXIngestionCommands
+	server.vexPreviewQuery = opts.VEXPreviewQuery
 	server.durableStreamedCommandExecutor, _ = opts.DurableCommandExecutor.(DurableStreamedCommandExecutor)
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands
@@ -2729,6 +2732,10 @@ func (s *Server) uploadVEX(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) previewVEXImport(w http.ResponseWriter, r *http.Request) {
+	if s.vexPreviewQuery != nil {
+		s.previewDurableVEX(w, r, "openvex")
+		return
+	}
 	var req struct {
 		ReleaseID  string          `json:"release_id"`
 		ArtifactID string          `json:"artifact_id"`
@@ -2819,6 +2826,10 @@ func (s *Server) uploadCycloneDXVEX(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) previewCycloneDXVEXImport(w http.ResponseWriter, r *http.Request) {
+	if s.vexPreviewQuery != nil {
+		s.previewDurableVEX(w, r, "cyclonedx")
+		return
+	}
 	var req struct {
 		ReleaseID  string          `json:"release_id"`
 		ArtifactID string          `json:"artifact_id"`

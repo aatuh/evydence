@@ -96,7 +96,8 @@ func (c *VEXIngestionCommands) AuthorizeUploadVEX(ctx context.Context, a identit
 	})
 }
 
-func validVEXIngestionProjection(p ParsedVEX, format string) bool {
+// ValidVEXIngestionProjection is shared by upload and advisory preview paths.
+func ValidVEXIngestionProjection(p ParsedVEX, format string) bool {
 	if p.StatementCount <= 0 || p.StatementCount > VEXIngestionStatementLimit || len(p.Statements) > VEXIngestionStatementLimit || len(p.InvalidStatements) > VEXIngestionStatementLimit || len(p.Warnings) > VEXIngestionStatementLimit || len(p.Limitations) > VEXIngestionStatementLimit || !validIngestionMetadata(p.Metadata, p.Limitations) {
 		return false
 	}
@@ -171,7 +172,7 @@ func (c *VEXIngestionCommands) UploadVEXPayload(ctx context.Context, a identityd
 			return err
 		}
 		parsed.Format, parsed.Author, parsed.Version, parsed.ParserVersion = strings.ToLower(strings.TrimSpace(parsed.Format)), strings.TrimSpace(parsed.Author), strings.TrimSpace(parsed.Version), strings.TrimSpace(parsed.ParserVersion)
-		if !validVEXIngestionProjection(parsed, in.Format) {
+		if !ValidVEXIngestionProjection(parsed, in.Format) {
 			return ErrValidation
 		}
 		media, title := OpenVEXMediaType, "OpenVEX document"

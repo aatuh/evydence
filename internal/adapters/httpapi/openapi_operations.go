@@ -11,6 +11,8 @@ import (
 
 const focusedVEXIngestionDescription = " In PostgreSQL mode, a focused command checks current tenant-owned release parents and human release/artifact grants before parsing or staging. IDs are NUL-free UTF-8 bounded at 1024 bytes; wrapped JSON remains capped at 64 KiB and rejects null, duplicate, and unknown fields. Declared source size and SHA-256 are verified. Normalized projections are limited to 100,000 statements, 1 MiB per string, and 64 MiB combined projection strings; the versioned post-commit decision request permits at most 1,000,000 values and 20 MiB combined decision text. Overflow fails validation rather than truncating. VEX, accepted report, evidence, audit, payload metadata, outbox jobs, and idempotency completion commit together; decisions are never written during upload. Replay checks current grants without parsing or staging. Retained body-only native OpenVEX receipts require exact tenant, release, optional artifact, and format and never execute a new upload. Normalized VEX metadata and the accepted report are always retained, regardless of worker-owned parsing. Acceptance does not establish source authority, signature trust, or legal sufficiency."
 
+const focusedVEXPreviewDescription = " In PostgreSQL mode, one read-only repeatable-read snapshot resolves current tenant-owned release parents and optional artifact ownership, then checks human release and artifact grants before parsing or candidate selection. The wrapped JSON request is limited to 64 KiB and rejects null, duplicate, and unknown fields. IDs are NUL-free UTF-8 bounded at 1024 bytes. Reads select only relevant finding coordinates and active-decision presence, never private notes or evidence metadata; at most 4096 release scans, 4096 candidate findings, and 8 MiB of combined candidate text are allowed. Oversized or malformed stored projections fail closed without a partial preview. Matching preserves duplicate and ambiguity policy and original statement indexes. Results remain advisory and create no audit, outbox, or idempotency records; Idempotency-Key is not required."
+
 func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 	addProblemResponses(&operation)
 	switch operation.OperationID {
@@ -294,6 +296,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Responses[http.StatusCreated] = jsonResponse("Created VEX document envelope.", "#/components/schemas/VEXDocumentEnvelope")
 	case "previewVEXImport":
 		operation.Description = "Validates an OpenVEX payload and returns advisory mapping counts without storing raw payloads, creating evidence, creating decisions, or enqueueing parser jobs."
+		operation.Description += focusedVEXPreviewDescription
 		operation.RequestBody = jsonRequest("OpenVEX import preview request.", "#/components/schemas/EvidenceUploadRequest")
 		operation.Responses[http.StatusOK] = jsonResponse("Advisory VEX import preview envelope.", "#/components/schemas/VEXImportPreviewEnvelope")
 	case "uploadCycloneDXVEX":
@@ -303,6 +306,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Responses[http.StatusCreated] = jsonResponse("Created VEX document envelope.", "#/components/schemas/VEXDocumentEnvelope")
 	case "previewCycloneDXVEXImport":
 		operation.Description = "Validates a CycloneDX VEX payload and returns advisory mapping counts without storing raw payloads, creating evidence, creating decisions, or enqueueing parser jobs."
+		operation.Description += focusedVEXPreviewDescription
 		operation.RequestBody = jsonRequest("CycloneDX VEX import preview request.", "#/components/schemas/EvidenceUploadRequest")
 		operation.Responses[http.StatusOK] = jsonResponse("Advisory VEX import preview envelope.", "#/components/schemas/VEXImportPreviewEnvelope")
 	case "getVEX":
