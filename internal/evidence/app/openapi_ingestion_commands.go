@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 	"time"
 
@@ -105,14 +104,8 @@ func (c *OpenAPIIngestionCommands) UploadOpenAPIContractPayload(ctx context.Cont
 		}
 		// Validate before deep-copying parser metadata; a cyclic or unsupported
 		// value must not enter canonicalization or durable evidence.
-		encoded, err := json.Marshal(parsed.Metadata)
-		if err != nil || int64(len(encoded)) > EvidenceDocumentLimit {
+		if !validIngestionMetadata(parsed.Metadata, parsed.Limitations) {
 			return ErrValidation
-		}
-		for _, value := range parsed.Limitations {
-			if !validDiffText(value, int(EvidenceDocumentLimit), false) {
-				return ErrValidation
-			}
 		}
 		staged, err := c.config.Objects.StagePayloadSource(ctx, a.TenantID, OpenAPIMediaType, source)
 		if err != nil {

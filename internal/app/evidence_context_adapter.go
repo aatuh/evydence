@@ -800,26 +800,11 @@ func sbomToEvidenceContext(value domain.SBOM) evidencedomain.SBOM {
 }
 
 func sbomFromEvidenceContext(value evidencedomain.SBOM) domain.SBOM {
-	var components []domain.SBOMComponent
-	if value.Components != nil {
-		components = make([]domain.SBOMComponent, 0, len(value.Components))
-	}
-	for _, component := range value.Components {
-		components = append(components, sbomComponentFromEvidenceContext(component))
-	}
-	return domain.SBOM{
-		ID: value.ID, TenantID: value.TenantID, EvidenceID: value.EvidenceID, ReleaseID: value.ReleaseID,
-		ArtifactID: value.ArtifactID, Format: value.Format, SpecVersion: value.SpecVersion,
-		ComponentCount: value.ComponentCount, Components: components, CreatedAt: value.CreatedAt,
-	}
+	return domain.SBOMFromContext(value)
 }
 
 func sbomComponentToEvidenceContext(value domain.SBOMComponent) evidencedomain.SBOMComponent {
 	return evidencedomain.SBOMComponent{Identity: value.Identity, Name: value.Name, Version: value.Version, PURL: value.PURL}
-}
-
-func sbomComponentFromEvidenceContext(value evidencedomain.SBOMComponent) domain.SBOMComponent {
-	return domain.SBOMComponent{Identity: value.Identity, Name: value.Name, Version: value.Version, PURL: value.PURL}
 }
 
 func openAPIContractToEvidenceContext(value domain.OpenAPIContract) evidencedomain.OpenAPIContract {

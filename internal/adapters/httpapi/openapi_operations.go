@@ -259,6 +259,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Responses[http.StatusCreated] = jsonResponse("Created source snapshot resources envelope.", "#/components/schemas/SourceSnapshotEnvelope")
 	case "uploadSBOM":
 		operation.Description = "Uploads a CycloneDX SBOM payload, stores raw bytes in object storage, and records normalized SBOM metadata. Use application/vnd.cyclonedx+json with the explicit metadata headers for streaming uploads up to 20 MiB; the JSON envelope remains limited to small requests."
+		operation.Description += focusedSBOMIngestionDescription
 		operation.RequestBody = streamingDocumentRequest("CycloneDX SBOM upload request.", "#/components/schemas/EvidenceUploadRequest", "application/vnd.cyclonedx+json", app.EvidenceDocumentLimit)
 		operation.Parameters = append(operation.Parameters, optionalHeaderParam("X-Evydence-Release-ID", "Required for a native CycloneDX document upload."), optionalHeaderParam("X-Evydence-Artifact-ID", "Optional artifact id for a native CycloneDX document upload."))
 		setRequestBodyLimit(&operation, app.EvidenceDocumentLimit)
@@ -721,6 +722,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Responses[http.StatusCreated] = jsonResponse("Created manual security document envelope.", "#/components/schemas/ManualSecurityDocumentEnvelope")
 	case "uploadSPDXSBOM":
 		operation.Description = "Uploads an SPDX 2.2 or 2.3 JSON SBOM payload, stores immutable raw bytes as evidence, and records deterministic normalization metadata. Use application/spdx+json with explicit metadata headers for streaming uploads up to 20 MiB; the JSON envelope remains limited to small requests."
+		operation.Description += focusedSBOMIngestionDescription
 		operation.RequestBody = streamingDocumentRequest("SPDX SBOM upload request.", "#/components/schemas/UploadSPDXSBOMRequest", "application/spdx+json", app.EvidenceDocumentLimit)
 		operation.Parameters = append(operation.Parameters, optionalHeaderParam("X-Evydence-Release-ID", "Required for a native SPDX document upload."), optionalHeaderParam("X-Evydence-Artifact-ID", "Optional artifact id for a native SPDX document upload."))
 		setRequestBodyLimit(&operation, app.EvidenceDocumentLimit)
@@ -1105,6 +1107,8 @@ func addJSONResponseExamples(operation *specs.Operation, status int, examples ma
 	response.Content["application/json"] = media
 	operation.Responses[status] = response
 }
+
+const focusedSBOMIngestionDescription = " In PostgreSQL mode, a focused command validates current tenant-owned release parents and human release/artifact grants before parsing or staging. IDs are NUL-free UTF-8 bounded at 1024 bytes. Wrapped JSON remains capped at 64 KiB and rejects null, duplicate, and unknown fields; native uploads require one nonblank release header and allow one optional artifact header. Declared source size and SHA-256 are verified. Evidence, SBOM, audit, payload metadata, outbox jobs, and idempotency completion commit together. Replay checks current grants without parsing; retained body-only native receipts require matching tenant, release, optional artifact, and format and never execute a new upload. With worker-owned parsing and object storage, the response contains parsed components while the stored projection stays accepted until its parser job runs. Acceptance does not prove SBOM completeness or release security."
 
 func cyclonedxSBOMUploadExample() map[string]any {
 	return map[string]any{

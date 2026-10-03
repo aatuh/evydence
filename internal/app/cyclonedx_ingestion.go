@@ -1,8 +1,6 @@
 package app
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"io"
 
@@ -27,29 +25,17 @@ func validateAndNormalizeCycloneDXSource(source PayloadSource, validator *cyclon
 	if validatePayloadSource(source, EvidenceDocumentLimit) != nil || validator == nil {
 		return cyclonedxNormalization{}, ErrValidation
 	}
-	payloadReader, err := source.Open()
+	var parsed cyclonedxparser.Result
+	err := parseDigestBoundEvidenceSource(payloadSourceToEvidenceContext(source), func(reader io.Reader) error {
+		var err error
+		parsed, err = validator.ValidateAndParseReader(reader, cyclonedxparser.DefaultLimits(EvidenceDocumentLimit))
+		return err
+	})
 	if err != nil {
-		return cyclonedxNormalization{}, ErrValidation
-	}
-
-	hasher := sha256.New()
-	counter := &payloadByteCounter{}
-	reader := io.TeeReader(payloadReader, io.MultiWriter(hasher, counter))
-	parsed, parseErr := validator.ValidateAndParseReader(reader, cyclonedxparser.DefaultLimits(EvidenceDocumentLimit))
-	closeErr := payloadReader.Close()
-	if parseErr != nil {
-		if errors.Is(parseErr, cyclonedxparser.ErrInvalid) {
+		if errors.Is(err, cyclonedxparser.ErrInvalid) {
 			return cyclonedxNormalization{}, ErrValidation
 		}
-		return cyclonedxNormalization{}, parseErr
-	}
-	if closeErr != nil {
-		return cyclonedxNormalization{}, ErrValidation
-	}
-
-	digest := "sha256:" + hex.EncodeToString(hasher.Sum(nil))
-	if counter.n != source.Size || digest != source.Digest {
-		return cyclonedxNormalization{}, ErrValidation
+		return cyclonedxNormalization{}, err
 	}
 	return normalizeCycloneDXResult(parsed), nil
 }

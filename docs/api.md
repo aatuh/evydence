@@ -49,9 +49,11 @@ created records always retain the stronger fingerprint, so changing a semantic
 header while reusing their key still returns a conflict.
 
 In PostgreSQL mode, retained native OpenAPI upload receipts additionally require
-the original tenant, product, release, version, and payload hash to match. A
-body-only receipt with different or missing coordinates returns `409`; it never
-executes a new upload. Current ownership and grants are checked before replay.
+the original tenant, product, release, version, and payload hash to match. Native
+SBOM receipts require the original tenant, release, optional artifact, and
+format. A body-only receipt with different or missing required coordinates
+returns `409`; it never executes a new upload. Current ownership and grants are
+checked before replay.
 
 For 24 hours after reservation:
 
@@ -691,6 +693,45 @@ Current SSO endpoints model admin-managed provider, identity-link, trust-materia
 | `POST` | `/v1/release-candidates/{id}/promote` | Promote release candidate; requires `If-Match` with current revision. |
 | `POST` | `/v1/release-candidates/{id}/reject` | Reject release candidate; requires `If-Match` with current revision. |
 | `POST` | `/v1/remediation-tasks` | Create remediation task. |
+
+### SBOM Ingestion
+
+`POST /v1/sboms` (CycloneDX) and `POST /v1/sboms/spdx` require
+`evidence:write`. Wrapped JSON supplies `release_id`, optional `artifact_id`,
+and `payload` within the existing 64 KiB request limit. Native
+`application/vnd.cyclonedx+json` or `application/spdx+json` uploads stream up to
+20 MiB and require a single, nonblank `X-Evydence-Release-ID`; the single
+`X-Evydence-Artifact-ID` is optional. Explicit null fields, duplicate wrapped
+fields or native metadata headers, and unknown wrapped fields are rejected.
+IDs are limited to 1024 UTF-8 bytes; required IDs must be nonblank and all IDs
+must exclude NUL. See [evidence-format compatibility](reference/evidence-format-compatibility.md)
+for accepted versions, parser identities, and format-specific limitations.
+
+In PostgreSQL mode, the focused Evidence command resolves and locks current
+tenant-owned release parents and checks current release and optional-artifact
+grants before parsing or object staging. For human grant checks, missing and
+foreign artifact IDs both return `403` under the existing artifact-write policy.
+The stateless parsers verify the declared source size and SHA-256, while
+retaining existing normalization and provenance. Component counts and string
+lengths use the same bounds as [stored SBOM diffs](#stored-sbom-diffs).
+
+SBOM, evidence, audit, payload lifecycle, parser/finalization jobs, and safe
+idempotency completion share the active command transaction, including pending
+parents in compound commands. Replay rechecks current ownership/grants without
+parsing or staging. Failed commits leave no partial database effects;
+unreferenced staged bytes remain recoverable through the
+[payload recovery workflow](runbooks/object-store-recovery.md).
+
+With worker-owned parsing and object storage, the response includes parsed
+components, while the stored SBOM initially has zero components until its
+parser job runs. Inline mode, or explicit development operation without an
+object store, persists the parsed projection. Evidence remains `pending`;
+acceptance does not prove SBOM completeness or release security. Local-memory
+mode retains its explicit compatibility path.
+
+Source/test evidence: `internal/evidence/app/sbom_ingestion_commands.go`,
+`internal/app/evidence_parser_adapter.go`, and
+`internal/platform/wiring/sbom_ingestion_commands_test.go`.
 
 ### Stored SBOM Diffs
 

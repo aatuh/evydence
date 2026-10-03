@@ -39,7 +39,21 @@ func (ledgerEvidencePayloadParser) ProbeVulnerabilityScanScope(ctx context.Conte
 	return evidenceapp.VulnerabilityScanScope{ReleaseID: releaseID}, nil
 }
 
-func (ledgerEvidencePayloadParser) ParseSBOM(_ context.Context, format string, source evidenceapp.PayloadSource) (evidenceapp.ParsedSBOM, error) {
+func (ledgerEvidencePayloadParser) ParseSBOM(ctx context.Context, format string, source evidenceapp.PayloadSource) (evidenceapp.ParsedSBOM, error) {
+	return (SBOMPayloadParser{}).ParseSBOM(ctx, format, source)
+}
+
+// SBOMPayloadParser reuses the checked normalization pipeline without a Ledger
+// or unrelated document parser dependencies.
+type SBOMPayloadParser struct{}
+
+func (SBOMPayloadParser) ParseSBOM(ctx context.Context, format string, source evidenceapp.PayloadSource) (evidenceapp.ParsedSBOM, error) {
+	if ctx == nil {
+		return evidenceapp.ParsedSBOM{}, evidenceapp.ErrValidation
+	}
+	if err := ctx.Err(); err != nil {
+		return evidenceapp.ParsedSBOM{}, err
+	}
 	legacySource := payloadSourceFromEvidenceContext(source)
 	switch strings.ToLower(strings.TrimSpace(format)) {
 	case "cyclonedx":

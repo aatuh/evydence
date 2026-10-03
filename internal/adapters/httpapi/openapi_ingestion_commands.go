@@ -3,7 +3,6 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"strings"
 
@@ -77,29 +76,13 @@ func (s *Server) uploadDurableNativeOpenAPI(w http.ResponseWriter, r *http.Reque
 	}
 	defer cleanup()
 	in := evidenceapp.OpenAPIIngestionInput{ProductID: product, ReleaseID: release, Version: version}
-	executor := s.durableStreamedCommandExecutor
 	guard := func(ctx context.Context) error {
 		return mapEvidenceCreationCommandError(s.openAPIIngestionCommands.AuthorizeUploadOpenAPIContract(ctx, a, in))
 	}
-	fingerprint := streamedRequestFingerprint(source.Digest, map[string]string{"media_type": requestMediaType(r), "product_id": product, "release_id": release, "version": version})
-	status, response, err := executor.WithBodyDigest(r.Context(), a, r.Method, r.URL.Path, r.Header.Get("Idempotency-Key"), fingerprint, guard, func(ctx context.Context) (int, any, error) {
+	s.executeDurableNativeDocument(w, r, a, source.Digest, map[string]string{"media_type": requestMediaType(r), "product_id": product, "release_id": release, "version": version}, guard, func(ctx context.Context) (int, any, error) {
 		v, err := s.openAPIIngestionCommands.UploadOpenAPIContractPayload(ctx, a, in, evidenceapp.PayloadSource{Digest: source.Digest, Size: source.Size, Open: source.Open})
 		return http.StatusCreated, domain.OpenAPIContractFromContext(v), mapEvidenceCreationCommandError(err)
-	})
-	if errors.Is(err, app.ErrIdempotencyConflict) && fingerprint != source.Digest {
-		// Compatibility is replay-only. Never run a new upload with the older,
-		// weaker body-only fingerprint or expose another resource's saved result.
-		status, response, err = executor.WithBodyDigest(r.Context(), a, r.Method, r.URL.Path, r.Header.Get("Idempotency-Key"), source.Digest, guard, func(context.Context) (int, any, error) { return 0, nil, app.ErrIdempotencyConflict })
-	}
-	if err == nil && !openAPIReplayMatches(response, a, in, source.Digest) {
-		err = app.ErrIdempotencyConflict
-	}
-	if err != nil {
-		writeProblem(w, r, err)
-		return
-	}
-	w.Header().Set("Idempotency-Key", r.Header.Get("Idempotency-Key"))
-	writeData(w, status, response)
+	}, func(response any) bool { return openAPIReplayMatches(response, a, in, source.Digest) })
 }
 func openAPIReplayMatches(response any, a domain.Actor, in evidenceapp.OpenAPIIngestionInput, digest string) bool {
 	var tenant, product, release, version, hash string

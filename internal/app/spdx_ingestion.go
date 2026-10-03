@@ -1,8 +1,6 @@
 package app
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"io"
 )
 
@@ -12,22 +10,14 @@ func validateAndNormalizeSPDXSource(source PayloadSource) (spdxNormalization, er
 	if validatePayloadSource(source, EvidenceDocumentLimit) != nil {
 		return spdxNormalization{}, ErrValidation
 	}
-	reader, err := source.Open()
+	var normalized spdxNormalization
+	err := parseDigestBoundEvidenceSource(payloadSourceToEvidenceContext(source), func(reader io.Reader) error {
+		var err error
+		normalized, err = parseSPDXReader(reader, EvidenceDocumentLimit)
+		return err
+	})
 	if err != nil {
-		return spdxNormalization{}, ErrValidation
-	}
-	hasher, counter := sha256.New(), &payloadByteCounter{}
-	normalized, parseErr := parseSPDXReader(io.TeeReader(reader, io.MultiWriter(hasher, counter)), EvidenceDocumentLimit)
-	closeErr := reader.Close()
-	if parseErr != nil {
-		return spdxNormalization{}, parseErr
-	}
-	if closeErr != nil {
-		return spdxNormalization{}, ErrValidation
-	}
-	digest := "sha256:" + hex.EncodeToString(hasher.Sum(nil))
-	if counter.n != source.Size || digest != source.Digest {
-		return spdxNormalization{}, ErrValidation
+		return spdxNormalization{}, err
 	}
 	return normalized, nil
 }

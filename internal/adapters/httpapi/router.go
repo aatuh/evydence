@@ -101,6 +101,7 @@ type Server struct {
 	durableCommandExecutor            DurableCommandExecutor
 	evidenceCreationCommands          EvidenceCreationCommands
 	openAPIIngestionCommands          OpenAPIIngestionCommands
+	sbomIngestionCommands             SBOMIngestionCommands
 	durableStreamedCommandExecutor    DurableStreamedCommandExecutor
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
 	deploymentCommands                DeploymentCommands
@@ -260,6 +261,7 @@ type ServerOptions struct {
 	DurableCommandExecutor        DurableCommandExecutor
 	EvidenceCreationCommands      EvidenceCreationCommands
 	OpenAPIIngestionCommands      OpenAPIIngestionCommands
+	SBOMIngestionCommands         SBOMIngestionCommands
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
 	DeploymentCommands            DeploymentCommands
 	SourceRepositoryCommands      SourceRepositoryCommands
@@ -376,9 +378,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if ctx == nil {
 		return nil, errors.New("server context is required")
 	}
-	if opts.OpenAPIIngestionCommands != nil {
+	if opts.OpenAPIIngestionCommands != nil || opts.SBOMIngestionCommands != nil {
 		if _, ok := opts.DurableCommandExecutor.(DurableStreamedCommandExecutor); !ok {
-			return nil, errors.New("focused OpenAPI ingestion requires durable streamed idempotency")
+			return nil, errors.New("focused document ingestion requires durable streamed idempotency")
 		}
 	}
 	if (opts.VulnerabilityDecisionCommands != nil || opts.ApprovalCommands != nil || opts.WaiverCommands != nil || opts.ExceptionCommands != nil || opts.VulnerabilityWorkflowCommands != nil || opts.CustomPolicyCommands != nil || opts.PolicyEvaluationCommands != nil || opts.SBOMDiffCommands != nil || opts.ContractDiffCommands != nil) && opts.DurableCommandExecutor == nil {
@@ -462,6 +464,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.durableCommandExecutor = opts.DurableCommandExecutor
 	server.evidenceCreationCommands = opts.EvidenceCreationCommands
 	server.openAPIIngestionCommands = opts.OpenAPIIngestionCommands
+	server.sbomIngestionCommands = opts.SBOMIngestionCommands
 	server.durableStreamedCommandExecutor, _ = opts.DurableCommandExecutor.(DurableStreamedCommandExecutor)
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands
@@ -2277,6 +2280,10 @@ func (s *Server) importEvidenceBundle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) uploadSPDXSBOM(w http.ResponseWriter, r *http.Request) {
+	if s.sbomIngestionCommands != nil {
+		s.uploadDurableSBOM(w, r, "spdx")
+		return
+	}
 	if requestMediaType(r) == "application/spdx+json" {
 		releaseID, err := requiredSingleHeader(r, "X-Evydence-Release-ID")
 		if err != nil {
@@ -2573,6 +2580,10 @@ func (s *Server) listEvidenceLifecycleEvents(w http.ResponseWriter, r *http.Requ
 }
 
 func (s *Server) uploadSBOM(w http.ResponseWriter, r *http.Request) {
+	if s.sbomIngestionCommands != nil {
+		s.uploadDurableSBOM(w, r, "cyclonedx")
+		return
+	}
 	if requestMediaType(r) == "application/vnd.cyclonedx+json" {
 		releaseID, err := requiredSingleHeader(r, "X-Evydence-Release-ID")
 		if err != nil {

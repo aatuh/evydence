@@ -105,10 +105,14 @@ behavior. This shared parser identifies its interpretation as
 
 The conformant upload transaction binds schema validation and normalization to
 the same bounded byte stream and verifies the source's declared size and SHA-256
-before normalized data is trusted. Authorization happens before attacker-
-controlled payload parsing, while object staging and evidence publication happen
-only after schema validation and normalization succeed. Accepted source bytes
-remain byte-for-byte raw evidence; fields outside the normalized subset are not
+before normalized data is trusted. The reader consumes at most the declared
+size plus one overflow byte, even when that claim is below the 20 MiB document
+limit. Authorization happens before attacker-controlled payload parsing, while
+object staging and evidence publication happen
+only after schema validation and normalization succeed. See
+[SBOM ingestion](../api.md#sbom-ingestion) for PostgreSQL command atomicity,
+replay, and worker-owned projections. Accepted source bytes remain byte-for-byte
+raw evidence; fields outside the normalized subset are not
 silently represented as trusted normalized data.
 
 Current-version `parse_sbom` worker replay uses
@@ -144,9 +148,12 @@ normalized subset are accepted and reported as parser warnings and import
 report metadata rather than silently normalized or rejected.
 
 The upload transaction authorizes release and artifact targets before opening
-the raw source, binds normalization to the declared source size and SHA-256,
-then stages the same source as immutable evidence. Current-version worker
-replay dispatches by the durable parser version and uses the shared SPDX parser.
+the raw source, bounds reader consumption to the declared size plus one
+overflow byte, verifies the source size and SHA-256, then stages the same source
+as immutable evidence. See [SBOM ingestion](../api.md#sbom-ingestion) for
+PostgreSQL command atomicity, replay, and worker-owned projections.
+Current-version worker replay dispatches by the durable parser version and uses
+the shared SPDX parser.
 This does not claim historical parser-version migration or prove SBOM
 completeness.
 

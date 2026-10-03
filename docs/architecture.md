@@ -109,7 +109,19 @@ current authorization without parsing or staging; retained body-only native
 receipts also require exact original coordinates. Parser-owned stored
 projections, inline operation data, and worker finalization semantics are
 preserved. See [OpenAPI contract ingestion](api.md#openapi-contract-ingestion)
-for input limits and compatibility. Other ingestion paths and startup Ledger
+for input limits and compatibility.
+
+CycloneDX and SPDX SBOM ingestion (`POST /v1/sboms` and
+`POST /v1/sboms/spdx`) likewise bind one focused Evidence command in the
+PostgreSQL composition root. Identifier-only release ownership and current
+optional-artifact grants are checked before the stateless shared normalization
+pipeline opens source bytes or stages objects. Its reader enforces the declared
+size before parsing and verifies the source digest. Flat transaction ports
+reuse generic evidence preparation; SBOM, evidence, audit, payload lifecycle,
+outbox, and replay completion join the same active transaction. Parser-owned
+stored components, inline responses, and body-only native receipt compatibility
+are preserved without Ledger reloads. See [SBOM ingestion](api.md#sbom-ingestion)
+for limits and compatibility. Other ingestion paths and startup Ledger
 retirement remain EVY-905 work.
 
 ## Bounded-context transition

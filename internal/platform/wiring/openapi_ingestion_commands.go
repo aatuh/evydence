@@ -28,7 +28,7 @@ func BuildOpenAPIIngestionCommands(factory app.UnitOfWorkFactory, objects app.Ob
 		return nil, err
 	}
 	clock := application.ClockFunc(func() time.Time { return time.Now().UTC().Truncate(time.Microsecond) })
-	return evidenceapp.NewOpenAPIIngestionCommands(evidenceapp.OpenAPIIngestionCommandConfig{Authorizer: auth, Transactions: openAPIIngestionTransactions{factory}, Parser: app.OpenAPIContractPayloadParser{}, Objects: openAPIPayloadStager{objects, clock}, Payloads: evidenceCreationPayloadValidator{}, Canonicalizer: evidenceCanonicalHasher{}, CanonicalizationProfile: evidencedomain.EvidenceCanonicalizationProfileVersion, Clock: clock, IDs: application.IDGeneratorFunc(application.NewID), WorkerOwnedParsers: workerOwned})
+	return evidenceapp.NewOpenAPIIngestionCommands(evidenceapp.OpenAPIIngestionCommandConfig{Authorizer: auth, Transactions: openAPIIngestionTransactions{factory}, Parser: app.OpenAPIContractPayloadParser{}, Objects: evidenceDocumentStager{objects, clock}, Payloads: evidenceCreationPayloadValidator{}, Canonicalizer: evidenceCanonicalHasher{}, CanonicalizationProfile: evidencedomain.EvidenceCanonicalizationProfileVersion, Clock: clock, IDs: application.IDGeneratorFunc(application.NewID), WorkerOwnedParsers: workerOwned})
 }
 
 type openAPIIngestionTransactions struct{ factory app.UnitOfWorkFactory }
@@ -47,24 +47,4 @@ type openAPIIngestionTransaction struct{ evidenceCreationTransaction }
 
 func (t openAPIIngestionTransaction) InsertOpenAPIContract(ctx context.Context, v evidencedomain.OpenAPIContract) error {
 	return mapEvidenceCreationError(t.evidence.InsertOpenAPIContract(ctx, domain.OpenAPIContractFromContext(v)))
-}
-
-type openAPIPayloadStager struct {
-	objects app.ObjectStore
-	clock   application.Clock
-}
-
-func (s openAPIPayloadStager) StagePayloadSource(ctx context.Context, tenant, mediaType string, source evidenceapp.PayloadSource) (evidenceapp.StagedPayload, error) {
-	if s.objects == nil {
-		return evidenceapp.StagedPayload{}, nil
-	}
-	objects, ok := s.objects.(app.PayloadObjectStore)
-	if !ok {
-		return evidenceapp.StagedPayload{}, evidenceapp.ErrConflict
-	}
-	p, err := app.StageObjectPayload(ctx, objects, tenant, mediaType, app.PayloadSource{Digest: source.Digest, Size: source.Size, Open: source.Open}, s.clock.Now())
-	if err != nil {
-		return evidenceapp.StagedPayload{}, mapEvidenceCreationError(err)
-	}
-	return evidenceapp.StagedPayload{TenantID: p.TenantID, Digest: p.Digest, Size: p.Size, MediaType: p.MediaType, StagingKey: p.StagingKey, FinalKey: p.FinalKey, Status: string(p.Status), CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}, nil
 }
