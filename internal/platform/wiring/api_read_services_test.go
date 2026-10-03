@@ -48,6 +48,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.SSOProviderCommands != nil {
 		t.Fatal("local memory bound durable provider registration")
 	}
+	if memory.SSOIdentityLinkCommands != nil {
+		t.Fatal("local memory bound durable identity linking")
+	}
 	if memory.IncidentCommands != nil {
 		t.Fatal("local memory bound durable incidents")
 	}

@@ -245,18 +245,16 @@ func (s *Server) refreshSSOProviderOIDCTrustMaterial(w http.ResponseWriter, r *h
 }
 
 func (s *Server) linkSSOIdentity(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		UserID     string `json:"user_id"`
-		ProviderID string `json:"provider_id"`
-		Subject    string `json:"subject"`
-		Email      string `json:"email"`
-		Verified   bool   `json:"verified"`
+	if s.ssoIdentityLinkCommands != nil {
+		s.linkDurableSSOIdentity(w, r)
+		return
 	}
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
+		in, err := decodeSSOIdentityLinkRequest(body)
+		if err != nil {
 			return 0, nil, err
 		}
-		link, err := s.identityAccess.LinkSSOIdentity(ctx, actor, app.LinkSSOIdentityInput{UserID: req.UserID, ProviderID: req.ProviderID, Subject: req.Subject, Email: req.Email, Verified: req.Verified})
+		link, err := s.identityAccess.LinkSSOIdentity(ctx, actor, app.LinkSSOIdentityInput(in))
 		return http.StatusCreated, link, err
 	})
 }

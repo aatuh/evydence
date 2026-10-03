@@ -718,10 +718,23 @@ never fetch metadata. A newly acquired command validates fetched issuer/public
 keys, conditionally updates trust and appends its canonical-hash audit in the
 same transaction as safe replay completion. Live tests cover current grants,
 restart replay without refetching, unavailable providers and all four rollback
-stages. Identity-link and session command composition still need migration. See
+stages. Session command composition still needs migration. Identity linking
+now uses a separate focused Identity command with a tenant/projection lock and
+one current user/provider/email existence query. Parent share locks hold
+ownership and email through link/audit/replay commit; no user display metadata
+or provider trust inventory is transferred. Current tenant-wide authority and
+parents are checked even before completed replay. Live checks cover uniqueness,
+permission/parent changes, restart DTO replay, all four rollback stages and
+parent-lock contention. This stores an administrator assertion, not provider
+credential verification or a session/role grant. Production Ledger startup
+removal remains open. Transitional credential-exchange snapshot validation
+now acquires the same mutation fence before identity-table/parent locks,
+avoiding inverted ordering with focused identity writes; token verification
+still runs outside that transaction. See
 [SSO provider registration](api.md#sso-provider-registration),
 [SSO trust rotation](api.md#sso-trust-rotation),
-[OIDC discovery refresh](api.md#oidc-discovery-refresh) and
+[OIDC discovery refresh](api.md#oidc-discovery-refresh),
+[SSO identity linking](api.md#sso-identity-linking) and
 [SSO public trust material](api.md#sso-public-trust-material) for compatibility,
 limits and historical-record caveats.
 

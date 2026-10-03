@@ -205,6 +205,18 @@ func TestLinkSSOIdentityRequiresSameTenantMatchingEmail(t *testing.T) {
 	}
 }
 
+func TestLinkSSOIdentityRejectsUnsafeSubjectBeforePersistence(t *testing.T) {
+	for _, subject := range []string{"subject\x00", string([]byte{0xff})} {
+		fixture := newIdentityServiceFixture(t)
+		fixture.reader.users = []identitydomain.HumanUser{{ID: "usr_1", TenantID: fixture.actor.TenantID, Email: "person@example.test", Status: "active"}}
+		fixture.reader.providers = []identitydomain.SSOProvider{{ID: "sso_1", TenantID: fixture.actor.TenantID}}
+		link, err := fixture.service.LinkSSOIdentity(t.Context(), fixture.actor, LinkSSOIdentityInput{UserID: "usr_1", ProviderID: "sso_1", Subject: subject, Email: "person@example.test", Verified: true})
+		if !errors.Is(err, ErrValidation) || link.ID != "" || fixture.transactions.commits != 0 {
+			t.Fatal("unsafe identity subject persisted", err)
+		}
+	}
+}
+
 func TestCreateSSOSessionReturnsSecretOnlyAfterCommit(t *testing.T) {
 	fixture := newIdentityServiceFixture(t)
 	fixture.reader.users = []identitydomain.HumanUser{{ID: "usr_1", TenantID: fixture.actor.TenantID, Email: "person@example.test", Status: "active"}}

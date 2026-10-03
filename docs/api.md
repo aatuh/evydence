@@ -852,6 +852,40 @@ and body rules but remains non-durable. Discovery does not authenticate users,
 prove provider ownership/key custody, synchronize groups or scrub historical
 material. See the [compatibility note](reference/api-versioning.md#unreleased-oidc-discovery-boundary).
 
+#### SSO Identity Linking
+
+`POST /v1/sso/identity-links` records an administrator's verified-ownership
+assertion; it does not verify a provider token or assertion. It requires
+tenant-wide `identity:admin` authority (including the existing admin grant),
+a current tenant-owned user and provider, and an exact match between the user's
+stored email and the trimmed/lowercased input. Subjects are trimmed but remain
+case-sensitive. Missing/foreign parents or an email mismatch return `404`.
+Inactive target users/providers remain linkable administrative metadata;
+linking neither activates them nor grants a role or session.
+
+All five request fields (`user_id`, `provider_id`, `subject`, `email`, `verified`)
+are required and non-null, and `verified` must be `true`. IDs are at most 1 KiB
+each. The normalized tenant/provider/subject strings together must fit 2304
+UTF-8 bytes, and tenant/email together must also fit 2304 bytes. Email must be
+a plain mailbox, not a display-name address. Invalid UTF-8, NUL, oversized
+text, malformed/non-object/duplicate/unknown/trailing JSON or bodies above
+64 KiB return `400` before reservation. A new key for an existing
+tenant/provider/subject returns `409`; links are not reassigned or superseded.
+
+In PostgreSQL mode, the focused command locks current parent rows without
+selecting names, user/provider inventories, JWKS, certificates or credentials.
+Link insertion, `identity_link.created` audit attributed to the real caller,
+and safe replay completion share one transaction. Success remains `201` with
+the link DTO. Matching retries return the saved DTO without duplicate links or
+audits, but current authority, parent ownership and email checks still apply.
+The versioned administration replay retains the published email and plain
+email-shaped provider subjects; unknown fields and credential-like text remain
+redacted. Generic logs/customer packages retain their PII redaction policy.
+
+Local memory shares input/replay policy through its explicit compatibility
+path and remains non-durable. Historical rows and receipts are not rewritten.
+See the [compatibility note](reference/api-versioning.md#unreleased-sso-identity-link-boundary).
+
 #### SSO Public Trust Material
 
 SSO trust normalization is a stateless Identity policy shared by provider

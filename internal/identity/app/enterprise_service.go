@@ -460,12 +460,9 @@ func (s *Service) LinkSSOIdentity(ctx context.Context, actor identitydomain.Acto
 	if err := s.authorizeIdentityAdmin(ctx, actor); err != nil {
 		return identitydomain.UserIdentityLink{}, err
 	}
-	input.UserID = strings.TrimSpace(input.UserID)
-	input.ProviderID = strings.TrimSpace(input.ProviderID)
-	input.Subject = strings.TrimSpace(input.Subject)
-	input.Email = strings.ToLower(strings.TrimSpace(input.Email))
-	if input.UserID == "" || input.ProviderID == "" || input.Subject == "" || input.Email == "" || !input.Verified {
-		return identitydomain.UserIdentityLink{}, ErrValidation
+	input, err := normalizeSSOIdentityLinkInput(actor.TenantID, input)
+	if err != nil {
+		return identitydomain.UserIdentityLink{}, err
 	}
 	user, err := s.reader.User(ctx, actor.TenantID, input.UserID)
 	if err != nil {

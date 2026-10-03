@@ -294,6 +294,9 @@ func safeIdempotencyReplayResponse(response any) (any, error) {
 	if provider, ok := publicSSOProviderReplay(decoded); ok {
 		return provider, nil
 	}
+	if link, ok := publicSSOIdentityLinkReplay(decoded); ok {
+		return link, nil
+	}
 	if !changed {
 		return response, nil
 	}

@@ -35,6 +35,15 @@ See the same [migration note](docs/reference/api-versioning.md#unreleased-contro
 
 ### Added
 
+- PostgreSQL SSO identity linking now uses focused Identity commands with
+  current tenant-wide authority and tenant-owned user/provider/email checks.
+  Link, actual-caller audit and safe replay commit together; restart replay
+  retains only published administration metadata. Both profiles reject unsafe
+  text/JSON and oversized identities before storage. See the
+  [compatibility note](docs/reference/api-versioning.md#unreleased-sso-identity-link-boundary).
+- SSO credential-exchange snapshot validation now takes the shared mutation
+  fence before identity-table locks, matching focused identity writes and
+  avoiding inverted transaction lock ordering.
 - PostgreSQL role assignment now uses focused Identity commands with current
   tenant-wide human authority, tenant-owned subject/resource parents, and atomic
   binding, audit, and replay effects. Valid grant forms and repeated assignments

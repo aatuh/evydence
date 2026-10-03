@@ -386,6 +386,33 @@ ownership/key custody, synchronize groups or scrub historical rows/receipts and
 backups. Exact compatibility validation and review remain required before
 EVY-905 closure; this note is not approval or release evidence.
 
+## Unreleased SSO Identity Link Boundary
+
+PostgreSQL identity linking now uses a focused transaction with current
+tenant-wide authority and locked tenant-owned user/provider/email checks before
+reservation or replay. Link, actual-caller audit and safe replay completion
+commit together. The `201` versioned DTO and case-sensitive trimmed subject
+remain; email is still trimmed/lowercased and must match the current user.
+Inactive targets remain linkable metadata, not session or role grants.
+
+Both profiles now reject NUL/invalid UTF-8, ambiguous/null JSON fields,
+non-mailbox email and oversized indexed identities before persistence. IDs are
+limited to 1 KiB each, tenant/provider/subject together to 2304 UTF-8 bytes, and
+tenant/email together to 2304 bytes. OpenAPI now restricts `verified` to `true`,
+matching the existing business rule. Clients must not send `false`, null,
+duplicate or unknown fields, display-name mailboxes or values above these
+limits. Existing tenant/provider/subject identities still conflict with a new
+key; no reassignment or silent reuse is introduced.
+
+New versioned link replay receipts preserve the published administration email
+and plain email-shaped subjects while excluding unknown data and credential-
+like text. Generic log/package redaction is unchanged. Stored historical
+receipts, rows and backups are not scrubbed or backfilled; an old receipt that
+already omitted email is not repaired by replay. See
+[SSO identity linking](../api.md#sso-identity-linking) for the contract and
+non-claims. Exact compatibility validation and review remain required before
+EVY-905 closure; this note is not approval or release evidence.
+
 ## Stable-Line Rule
 
 A stable `/v1` line permits additive fields, endpoints, and optional filters.

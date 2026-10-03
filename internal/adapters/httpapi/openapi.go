@@ -1599,7 +1599,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"provider_id": map[string]any{"type": "string"},
 		"subject":     map[string]any{"type": "string"},
 		"email":       map[string]any{"type": "string", "format": "email"},
-		"verified":    map[string]any{"type": "boolean"},
+		"verified":    map[string]any{"type": "boolean", "enum": []bool{true}},
 	}, "user_id", "provider_id", "subject", "email", "verified"))
 	registry.RegisterSchema("UserIdentityLink", objectSchema(map[string]any{
 		"id":             map[string]any{"type": "string"},

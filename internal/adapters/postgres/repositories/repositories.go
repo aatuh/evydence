@@ -298,11 +298,16 @@ func (r identity) ValidateSSOExchangeState(ctx context.Context, snapshot app.SSO
 	if err := app.ValidateSSOExchangeSnapshot(snapshot); err != nil {
 		return err
 	}
+	// Exchange later appends an audit under this same fence. Acquire it before
+	// table/parent locks, matching focused identity administration, or a link
+	// write holding the fence can wait on a table held by the exchange.
+	if err := coordination.LockWorkerProjection(ctx, r.tx, snapshot.Provider.TenantID); err != nil {
+		return writeError("lock SSO identity mutation", err)
+	}
 	// SHARE table locks make identity-link absence, user presence/state, and the
 	// user's role-binding set stable through commit. The existing provider row
 	// is held by FOR SHARE below. Identity administration writes are infrequent,
-	// while SSO exchanges can continue concurrently because SHARE locks are
-	// compatible.
+	// while the shared mutation fence determines same-tenant write ordering.
 	if _, err := r.tx.Exec(ctx, `LOCK TABLE user_identity_links IN SHARE MODE`); err != nil {
 		return writeError("lock SSO identity link range", err)
 	}

@@ -2931,13 +2931,13 @@
               <div><dt>Responses</dt><dd>201 application/json: SourceRepositoryEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/sso/identity-links link sso identity links a verified provider subject to a tenant-scoped human user. linkssoidentity evydence identity:admin">
+          <article class="operation" data-operation data-search="post /v1/sso/identity-links link sso identity records an administrator-asserted verified provider subject for a current tenant-owned user with matching normalized email. postgresql uses a focused identity transaction: current tenant-wide identity:admin authority and parent ownership/email checks precede reservation or replay; link, audit and safe replay commit atomically. this does not verify a live provider credential, activate the user/provider, issue a session or grant roles. linkssoidentity evydence identity:admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/sso/identity-links</code>
             </div>
             <h3>Link SSO identity</h3>
-            <p>Links a verified provider subject to a tenant-scoped human user.</p>
+            <p>Records an administrator-asserted verified provider subject for a current tenant-owned user with matching normalized email. PostgreSQL uses a focused Identity transaction: current tenant-wide identity:admin authority and parent ownership/email checks precede reservation or replay; link, audit and safe replay commit atomically. This does not verify a live provider credential, activate the user/provider, issue a session or grant roles.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>linkSSOIdentity</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
