@@ -687,6 +687,34 @@ Current SSO endpoints model admin-managed provider, identity-link, trust-materia
 | `POST` | `/v1/release-candidates/{id}/reject` | Reject release candidate; requires `If-Match` with current revision. |
 | `POST` | `/v1/remediation-tasks` | Create remediation task. |
 
+### Stored SBOM Diffs
+
+`POST /v1/sbom-diffs` requires `evidence:read`, two distinct stored SBOM IDs,
+and optional `release_id` matching an explicitly stored release of either
+SBOM. In PostgreSQL mode, the focused Evidence command resolves current
+tenant-owned source evidence, product/project/release/build/deployment parents,
+and matching artifact references before loading components. Human sessions
+need current matching grants for both inputs and any linked artifact.
+
+Components are read in the command transaction under the tenant projection
+fence. Each source is bounded to 100,000 components, 64 MiB of normalized JSON,
+and 1 MiB per component string. Invalid projections fail as 400, not truncated
+diffs. Input IDs are limited to 1024 UTF-8 bytes; blank required IDs, NUL,
+invalid UTF-8, and explicit null fields are rejected. The request body retains
+its 64 KiB limit. Existing component identity precedence, sorted added/removed
+sets, unchanged count, dependency records, and response fields are retained.
+
+Diff, dependency changes, audit, and idempotency completion commit atomically.
+Replay checks current ownership/grants without reading components and returns
+the original result; changed request bytes return 409. Trusted snapshot replay
+cannot rewrite existing diffs or dependency records. Local-memory mode retains
+its explicit compatibility path. A diff compares stored component data; it
+does not prove SBOM completeness or vulnerability coverage.
+
+Source/test evidence: `internal/evidence/app/sbom_diff_commands.go`,
+`internal/adapters/postgres/repositories/sbom_diff_reads.go`, and
+`internal/platform/wiring/sbom_diff_commands_test.go`.
+
 ### Instance Outbox Operations
 
 | Method | Path | Notes |

@@ -81,6 +81,15 @@ retains the existing 13 checks and policy-set version. See
 compatibility; other production paths and startup Ledger retirement remain
 EVY-905 work.
 
+SBOM diff creation (`POST /v1/sbom-diffs`) uses a focused Evidence command with
+identifier-only parent resolution before bounded component reads. Both inputs,
+dependency records, audit, and replay completion share the active command
+transaction and tenant projection fence, including pending inputs in compound
+commands. The existing deterministic diff evaluator is reused. Historical diff
+and dependency imports compare existing records instead of updating them. See
+[stored SBOM diffs](api.md#stored-sbom-diffs) for limits and compatibility.
+OpenAPI diffs and other ingestion paths still need EVY-905 migration.
+
 ## Bounded-context transition
 
 Generic evidence creation now has standalone Evidence-owned

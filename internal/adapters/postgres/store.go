@@ -4118,39 +4118,16 @@ func syncIncidentSecurityGovernanceRows(ctx context.Context, tx pgx.Tx, state ap
 		if diff.ID == "" || diff.TenantID == "" || diff.BaseSBOMID == "" || diff.TargetSBOMID == "" {
 			continue
 		}
-		document, err := json.Marshal(diff)
-		if err != nil {
-			return fmt.Errorf("encode sbom diff document: %w", err)
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO sbom_diffs (
-				id, tenant_id, base_sbom_id, target_sbom_id, release_id,
-				document, schema_version, created_at
-			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-			ON CONFLICT (id) DO UPDATE SET document = EXCLUDED.document
-		`, diff.ID, diff.TenantID, diff.BaseSBOMID, diff.TargetSBOMID, nullableString(diff.ReleaseID),
-			document, diff.SchemaVersion, nonZeroTime(diff.CreatedAt)); err != nil {
-			return fmt.Errorf("upsert sbom diff row: %w", err)
+		if err := importSBOMDiffRow(ctx, tx, diff); err != nil {
+			return err
 		}
 	}
 	for _, change := range state.DependencyChanges {
 		if change.ID == "" || change.TenantID == "" || change.SBOMDiffID == "" {
 			continue
 		}
-		component, err := json.Marshal(change.Component)
-		if err != nil {
-			return fmt.Errorf("encode dependency component: %w", err)
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO dependency_changes (
-				id, tenant_id, sbom_diff_id, change_type, component,
-				schema_version, created_at
-			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)
-			ON CONFLICT (id) DO UPDATE SET component = EXCLUDED.component
-		`, change.ID, change.TenantID, change.SBOMDiffID, change.ChangeType, component, change.SchemaVersion, nonZeroTime(change.CreatedAt)); err != nil {
-			return fmt.Errorf("upsert dependency change row: %w", err)
+		if err := importDependencyChangeRow(ctx, tx, change); err != nil {
+			return err
 		}
 	}
 	for _, record := range state.VulnerabilityWorkflow {

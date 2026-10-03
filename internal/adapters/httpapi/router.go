@@ -96,6 +96,7 @@ type Server struct {
 	vulnerabilityWorkflowCommands     VulnerabilityWorkflowCommands
 	customPolicyCommands              CustomPolicyCommands
 	policyEvaluationCommands          PolicyEvaluationCommands
+	sbomDiffCommands                  SBOMDiffCommands
 	durableCommandExecutor            DurableCommandExecutor
 	evidenceCreationCommands          EvidenceCreationCommands
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
@@ -251,6 +252,7 @@ type ServerOptions struct {
 	VulnerabilityWorkflowCommands VulnerabilityWorkflowCommands
 	CustomPolicyCommands          CustomPolicyCommands
 	PolicyEvaluationCommands      PolicyEvaluationCommands
+	SBOMDiffCommands              SBOMDiffCommands
 	DurableCommandExecutor        DurableCommandExecutor
 	EvidenceCreationCommands      EvidenceCreationCommands
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
@@ -369,7 +371,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if ctx == nil {
 		return nil, errors.New("server context is required")
 	}
-	if (opts.VulnerabilityDecisionCommands != nil || opts.ApprovalCommands != nil || opts.WaiverCommands != nil || opts.ExceptionCommands != nil || opts.VulnerabilityWorkflowCommands != nil || opts.CustomPolicyCommands != nil || opts.PolicyEvaluationCommands != nil) && opts.DurableCommandExecutor == nil {
+	if (opts.VulnerabilityDecisionCommands != nil || opts.ApprovalCommands != nil || opts.WaiverCommands != nil || opts.ExceptionCommands != nil || opts.VulnerabilityWorkflowCommands != nil || opts.CustomPolicyCommands != nil || opts.PolicyEvaluationCommands != nil || opts.SBOMDiffCommands != nil) && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused commands require durable idempotency")
 	}
 	if ledger == nil {
@@ -445,6 +447,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.vulnerabilityWorkflowCommands = opts.VulnerabilityWorkflowCommands
 	server.customPolicyCommands = opts.CustomPolicyCommands
 	server.policyEvaluationCommands = opts.PolicyEvaluationCommands
+	server.sbomDiffCommands = opts.SBOMDiffCommands
 	server.durableCommandExecutor = opts.DurableCommandExecutor
 	server.evidenceCreationCommands = opts.EvidenceCreationCommands
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
@@ -2295,6 +2298,10 @@ func (s *Server) uploadSPDXSBOM(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createSBOMDiff(w http.ResponseWriter, r *http.Request) {
+	if s.sbomDiffCommands != nil {
+		s.createDurableSBOMDiff(w, r)
+		return
+	}
 	var req struct {
 		BaseSBOMID   string `json:"base_sbom_id"`
 		TargetSBOMID string `json:"target_sbom_id"`

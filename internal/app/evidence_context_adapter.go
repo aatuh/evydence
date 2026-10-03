@@ -995,26 +995,7 @@ func manualSecurityDocumentFromEvidenceContext(value evidencedomain.ManualSecuri
 }
 
 func sbomDiffFromEvidenceContext(value evidencedomain.SBOMDiff) domain.SBOMDiff {
-	added := make([]domain.SBOMComponent, 0, len(value.AddedComponents))
-	for _, component := range value.AddedComponents {
-		added = append(added, sbomComponentFromEvidenceContext(component))
-	}
-	removed := make([]domain.SBOMComponent, 0, len(value.RemovedComponents))
-	for _, component := range value.RemovedComponents {
-		removed = append(removed, sbomComponentFromEvidenceContext(component))
-	}
-	changes := make([]domain.DependencyChange, 0, len(value.DependencyChanges))
-	for _, change := range value.DependencyChanges {
-		changes = append(changes, domain.DependencyChange{
-			ID: change.ID, TenantID: change.TenantID, SBOMDiffID: change.SBOMDiffID, ChangeType: change.ChangeType,
-			Component: sbomComponentFromEvidenceContext(change.Component), SchemaVersion: change.SchemaVersion, CreatedAt: change.CreatedAt,
-		})
-	}
-	return domain.SBOMDiff{
-		ID: value.ID, TenantID: value.TenantID, BaseSBOMID: value.BaseSBOMID, TargetSBOMID: value.TargetSBOMID,
-		ReleaseID: value.ReleaseID, AddedComponents: added, RemovedComponents: removed, UnchangedCount: value.UnchangedCount,
-		DependencyChanges: changes, SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt,
-	}
+	return domain.SBOMDiffFromContext(value)
 }
 
 func contractDiffFromEvidenceContext(value evidencedomain.ContractDiff) domain.ContractDiff {
