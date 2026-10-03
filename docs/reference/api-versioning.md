@@ -235,6 +235,27 @@ is required. See [collector writes](../api.md#collector-writes) for bounds.
 This note does not approve outstanding compatibility exceptions or claim a
 release; the exact compatibility gate still applies before EVY-905 closure.
 
+## Unreleased API Key Write Boundary
+
+PostgreSQL `POST /v1/api-keys` now uses a focused Identity command and durable
+idempotency rather than Ledger credential state. Existing route, scope,
+response schema, HMAC format, non-unique key names, scope trimming/sorting,
+duplicate/blank/unknown scope compatibility, and explicit `instance:admin`
+delegation rules remain. Human sessions require current tenant-wide authority
+before writes and replay. The public key DTO now survives restart replay;
+the one-time secret and stored hash never do. Generic logging and customer
+package redaction is unchanged.
+
+Strict PostgreSQL request decoding rejects explicitly null fields and null
+scope items already excluded by the published schema. Direct text, scope,
+identity, and serializable-expiry bounds now fail before storage; the shared
+input normalization also protects the local Identity facade. New durable
+timestamps and expiry values use UTC microseconds. Historical rows need no
+migration or rewrite. Past expiry remains accepted but cannot authenticate.
+See [API key issuance](../api.md#api-key-issuance) for exact bounds. This is an
+unreleased implementation note, not compatibility approval or release proof;
+the exact compatibility gate remains required before EVY-905 closure.
+
 ## Stable-Line Rule
 
 A stable `/v1` line permits additive fields, endpoints, and optional filters.

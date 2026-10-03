@@ -283,10 +283,9 @@ func (s *Service) CreateAPIKey(ctx context.Context, actor identitydomain.Actor, 
 	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeAdmin, ScopeOnly: true, TenantWide: true}); err != nil {
 		return identitydomain.APIKey{}, "", err
 	}
-	input.Name = strings.TrimSpace(input.Name)
-	input.Scopes = sortedStrings(input.Scopes)
-	if input.Name == "" || len(input.Scopes) == 0 {
-		return identitydomain.APIKey{}, "", ErrValidation
+	input, err := normalizeAPIKeyCreateInput(input)
+	if err != nil {
+		return identitydomain.APIKey{}, "", err
 	}
 	if err := s.grantPolicy.AuthorizeScopes(actor, input.Scopes); err != nil {
 		return identitydomain.APIKey{}, "", err

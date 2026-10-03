@@ -12,6 +12,7 @@ import (
 	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
+	identityapp "github.com/aatuh/evydence/internal/identity/app"
 )
 
 func require(actor domain.Actor, scope string) error {
@@ -31,11 +32,8 @@ func require(actor domain.Actor, scope string) error {
 }
 
 func requireGrantableScopes(actor domain.Actor, scopes []string) error {
-	for _, scope := range scopes {
-		scope = strings.TrimSpace(scope)
-		if requiresExplicitScope(scope) && !actorHasExactScope(actor, scope) {
-			return ErrForbidden
-		}
+	if err := identityapp.AuthorizeAPIKeyScopes(actor, scopes); err != nil {
+		return ErrForbidden
 	}
 	return nil
 }

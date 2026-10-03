@@ -698,7 +698,16 @@ standalone identity application service with narrow credential-read and
 activity-write ports. The PostgreSQL profile binds those ports to current
 credential, session, user, role-binding, and provider rows; API-key and collector
 activity updates commit atomically. Local-memory mode retains the Ledger-backed
-adapter. Production API-key inventory pages read public metadata from tenant-
+adapter. PostgreSQL API-key issuance now binds a separate focused Identity
+command with flat credential/audit transaction ports. It reads only a current
+tenant identity, fences worker/audit writes in the established order, and
+shares the HMAC issuer and production pepper policy with authentication.
+Authority is checked before durable reservation/replay; key, audit and replay
+completion share one commit. A fixed public DTO projection preserves replay
+metadata without the hash or one-time secret; generic diagnostic/package
+redaction is unchanged. See [API key issuance](api.md#api-key-issuance) for
+bounds and compatibility. Other identity commands and startup Ledger retirement
+remain EVY-905 work. Production API-key inventory pages read public metadata from tenant-
 filtered PostgreSQL rows without selecting credential hashes. Role-binding
 inventory also pages current tenant rows in PostgreSQL instead of reading
 the startup Ledger snapshot. Local memory retains the Ledger-backed

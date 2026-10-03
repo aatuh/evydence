@@ -636,6 +636,37 @@ Important scope boundaries:
 | Instance admin | `GET /v1/admin/instance` and `GET /v1/admin/readiness` require explicit `instance:admin`; tenant admin and ordinary wildcard tenant keys are insufficient. |
 | Customer portal | `POST /v1/customer-portal/package` and `/v1/customer-portal/package/download` are public token exchange endpoints and intentionally do not use bearer authentication. Optional NDA acceptance and distribution watermarks are recorded without storing supplied tokens. Successful exchanges and downloads are visible through the tenant audit log without storing the supplied token. |
 
+### API Key Issuance
+
+`POST /v1/api-keys` uses a focused Identity command in the PostgreSQL profile.
+It requires `admin`, an `Idempotency-Key`, and a current tenant-wide grant for
+human sessions. A tenant wildcard does not permit delegating `instance:admin`;
+that scope requires explicit instance authority. Current authority is checked
+before reservation and replay. Explicit local-memory mode retains its Ledger
+path; credential issuance does not load key or tenant inventories in PostgreSQL.
+
+The API key, audit event, and replay completion commit atomically. Keys use the
+same random `evy_` secret, twelve-character public prefix, configured pepper,
+and HMAC hash as authentication. Production rejects the default/local pepper.
+The first response returns the secret once; restart replay preserves only the
+public `api_key` DTO, never its hash or secret. A lost initial response cannot
+recover the secret. A failed insert, audit, replay completion, or commit returns
+no credential and leaves no key/audit effects.
+
+Names and scopes are trimmed; scopes are sorted without removing duplicates,
+unknown strings, or historically accepted blank entries. Blank/unknown entries
+grant no recognized authority. Names are not unique: a new idempotency key can
+issue another key with the same name. Optional past expiry is retained for
+compatibility, but an expired or revoked credential cannot authenticate.
+New durable timestamps use UTC microseconds; expiry inputs are cloned.
+
+JSON bodies are limited to 64 KiB. Malformed, duplicate/trailing, unknown,
+explicitly null fields (including optional expiry), and null scope items return
+`400`. Direct inputs require UTF-8/NUL-free text, names of at most 64 KiB,
+at most 1024 scopes of at most 128 bytes each, canonical IDs of at most 1024
+bytes, and expiry years from 1 through 9999 after UTC normalization. See the
+[unreleased compatibility note](reference/api-versioning.md#unreleased-api-key-write-boundary).
+
 ## Endpoint Catalog
 
 ### System

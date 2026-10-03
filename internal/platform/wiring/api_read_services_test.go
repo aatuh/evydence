@@ -36,6 +36,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 		t.Fatalf("local memory dependencies=%#v error=%v", memory, err)
 	}
 	store := &postgres.Store{}
+	if memory.APIKeyCommands != nil {
+		t.Fatal("local memory bound durable API key issuance")
+	}
 	if memory.IncidentCommands != nil {
 		t.Fatal("local memory bound durable incidents")
 	}
@@ -366,6 +369,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.CollectorCommands == nil {
 		t.Fatal("postgres omitted focused collectors")
+	}
+	if options.APIKeyCommands == nil {
+		t.Fatal("PostgreSQL API key issuance remains Ledger-backed")
 	}
 	if options.SBOMIngestionCommands == nil {
 		t.Fatal("PostgreSQL SBOM ingestion still uses Ledger")

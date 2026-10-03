@@ -307,6 +307,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create authenticator: %w", err)
 	}
+	options.APIKeyCommands, err = BuildAPIKeyCommands(store, pepper, runtime.Production)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create API key commands: %w", err)
+	}
 	options.InstanceAdminQuery, err = BuildInstanceAdminQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create instance admin query: %w", err)

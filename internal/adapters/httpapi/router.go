@@ -50,6 +50,7 @@ const requestIDHeader = "X-Request-ID"
 type Server struct {
 	ledger                            *app.Ledger
 	authn                             Authenticator
+	apiKeyCommands                    APIKeyCommands
 	readinessQuery                    ReadinessQuery
 	metricsQuery                      MetricsQuery
 	retentionQuery                    RetentionQuery
@@ -197,6 +198,8 @@ type ServerOptions struct {
 	// Authenticator overrides the local-memory Ledger authentication adapter.
 	// Production binds it to current PostgreSQL credential and grant rows.
 	Authenticator Authenticator
+	// APIKeyCommands issues credentials without Ledger inventories or state.
+	APIKeyCommands APIKeyCommands
 	// ReadinessQuery probes production dependencies independently of Ledger state.
 	ReadinessQuery ReadinessQuery
 	// MetricsQuery supplies bounded tenant counters in the PostgreSQL profile.
@@ -392,6 +395,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if ctx == nil {
 		return nil, errors.New("server context is required")
 	}
+	if opts.APIKeyCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused API keys require durable idempotency")
+	}
 	if opts.CollectorCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused collectors require durable idempotency")
 	}
@@ -495,6 +501,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.incidentCommands = opts.IncidentCommands
 	server.incidentWebhookCommands = opts.IncidentWebhookCommands
 	server.collectorCommands = opts.CollectorCommands
+	server.apiKeyCommands = opts.APIKeyCommands
 	server.durableStreamedCommandExecutor, _ = opts.DurableCommandExecutor.(DurableStreamedCommandExecutor)
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands
@@ -4161,6 +4168,10 @@ func (s *Server) verifySubject(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createAPIKey(w http.ResponseWriter, r *http.Request) {
+	if s.apiKeyCommands != nil {
+		s.createDurableAPIKey(w, r)
+		return
+	}
 	var req struct {
 		Name      string     `json:"name"`
 		Scopes    []string   `json:"scopes"`

@@ -126,7 +126,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("SSO identity link request.", "#/components/schemas/LinkSSOIdentityRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created SSO identity link envelope.", "#/components/schemas/UserIdentityLinkEnvelope")
 	case "createAPIKey":
-		operation.Description = "Creates a tenant-scoped API key and returns the secret exactly once. Stored records expose only non-secret key metadata."
+		operation.Description = "Creates a tenant-scoped API key atomically with audit and replay state. PostgreSQL uses a focused Identity command and current tenant-wide admin authority. Delegating instance:admin requires explicit instance authority, not a tenant wildcard. The first response returns the secret once; restart replay retains only the public key metadata, never its secret or hash. Names are not unique; scopes retain existing trimming, sorting and duplicate/blank/unknown-string behavior."
 		operation.RequestBody = jsonRequest("API key creation request.", "#/components/schemas/CreateAPIKeyRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created API key and one-time secret envelope.", "#/components/schemas/APIKeyCreateEnvelope")
 	case "listAPIKeys":

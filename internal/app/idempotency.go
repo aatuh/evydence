@@ -283,6 +283,11 @@ func safeIdempotencyReplayResponse(response any) (any, error) {
 		root["collector"].(map[string]any)["api_key_id"] = binding
 		return root, nil
 	}
+	if keyMetadata, ok := publicAPIKeyCreationReplayMetadata(decoded); ok {
+		root := safe.(map[string]any)
+		root["api_key"] = keyMetadata
+		return root, nil
+	}
 	if !changed {
 		return response, nil
 	}
