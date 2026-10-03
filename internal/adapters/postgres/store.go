@@ -4202,38 +4202,16 @@ func syncIncidentSecurityGovernanceRows(ctx context.Context, tx pgx.Tx, state ap
 		if policy.ID == "" || policy.TenantID == "" {
 			continue
 		}
-		rules, err := json.Marshal(policy.Rules)
-		if err != nil {
-			return fmt.Errorf("encode custom policy rules: %w", err)
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO custom_policies (
-				id, tenant_id, name, version, description, rules,
-				schema_version, created_at
-			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-			ON CONFLICT (id) DO UPDATE SET description = EXCLUDED.description, rules = EXCLUDED.rules
-		`, policy.ID, policy.TenantID, policy.Name, policy.Version, nullableString(policy.Description), rules, policy.SchemaVersion, nonZeroTime(policy.CreatedAt)); err != nil {
-			return fmt.Errorf("upsert custom policy row: %w", err)
+		if err := importCustomPolicyRow(ctx, tx, policy); err != nil {
+			return err
 		}
 	}
 	for _, evaluation := range state.CustomPolicyEvaluations {
 		if evaluation.ID == "" || evaluation.TenantID == "" || evaluation.PolicyID == "" {
 			continue
 		}
-		checks, err := json.Marshal(evaluation.Checks)
-		if err != nil {
-			return fmt.Errorf("encode custom policy checks: %w", err)
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO custom_policy_evaluations (
-				id, tenant_id, policy_id, release_id, result, checks,
-				input_hash, schema_version, created_at
-			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-			ON CONFLICT (id) DO UPDATE SET result = EXCLUDED.result, checks = EXCLUDED.checks
-		`, evaluation.ID, evaluation.TenantID, evaluation.PolicyID, evaluation.ReleaseID, evaluation.Result, checks, evaluation.InputHash, evaluation.SchemaVersion, nonZeroTime(evaluation.CreatedAt)); err != nil {
-			return fmt.Errorf("upsert custom policy evaluation row: %w", err)
+		if err := importCustomPolicyEvaluationRow(ctx, tx, evaluation); err != nil {
+			return err
 		}
 	}
 	for _, waiver := range state.Waivers {

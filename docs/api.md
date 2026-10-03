@@ -1081,6 +1081,50 @@ Source/test evidence: `internal/operations/app/deployment_commands.go`,
 | `POST` | `/v1/customer-portal/package/view` | Exchange package token from a form body for scoped HTML package review. |
 | `POST` | `/v1/customer-portal/package/view/download` | Exchange package token from a form body for scoped ZIP package download. |
 
+### Custom Policies
+
+`POST /v1/custom-policies` creates an immutable tenant-wide policy definition
+with `name`, `version`, optional `description`, and a nonempty `rules` array.
+Name/version/description are trimmed; rule names and severity labels retain
+their original text and order. Severity is any nonblank label, not a closed
+severity enum. Evidence types use the existing custom-policy vocabulary;
+omitting `evidence_type` makes a metadata-only rule. Duplicate tenant/name/version
+definitions return 409. Creation requires `policy:write`; in PostgreSQL mode,
+human sessions require a tenant-wide grant, not merely a product or release grant.
+
+`POST /v1/custom-policies/{id}/evaluate` accepts `release_id` and appends an
+evaluation. It requires `policy:read` and, for PostgreSQL human sessions, a
+matching current tenant/product/release grant. Both policy and release must belong to the caller's
+tenant, with valid current product ownership. Evaluation checks evidence presence
+only: a required missing type fails, an optional missing type passes, and a
+metadata-only rule passes. It does not verify payloads, freshness, approvals,
+vulnerability resolution, SBOM completeness, or legal compliance. Evidence with
+inconsistent tenant/product/project/release parents is not counted.
+
+In PostgreSQL mode, these routes use focused commands and one transaction for
+record, audit, and idempotency completion. Current ownership/grants are checked
+before saved-response replay without loading rules or evidence payloads. A new
+evaluation reads one bounded definition and at most 19 evidence-presence facts,
+not all tenant state or prior evaluations. Same-key replay preserves the original
+record; different request bytes return 409. Existing JSON fields, schema versions,
+rule explanations, and normalized-JSON input hashes are retained. New record
+timestamps use UTC microseconds. Trusted snapshot replay can add historical
+policies/evaluations but rejects changes to existing records.
+
+New inputs reject invalid UTF-8, NUL, explicit null fields/items, blank required
+labels, and unsupported evidence types with 400. IDs, names, and versions are
+limited to 1024 UTF-8 bytes each; tenant/name/version together to 2048 bytes to
+stay within the database uniqueness-index budget. Descriptions and rule names
+are limited to 65536 bytes, severity/evidence-type labels to 128 bytes, and
+definitions to 4096 rules. Stored rule JSON has an 8 MiB read ceiling; oversized
+definitions fail without truncation for new evaluations. The HTTP body still
+has its existing 64 KiB limit, including JSON syntax and escapes. Local-memory
+mode retains its explicit compatibility path.
+
+Source/test evidence: `internal/risk/app/custom_policy_commands.go`,
+`internal/adapters/postgres/repositories/custom_policy_reads.go`, and
+`internal/platform/wiring/custom_policy_http_test.go`.
+
 ### Vulnerability Workflow Annotations
 
 `POST /v1/vulnerability-findings/{id}/workflow` appends one annotation with

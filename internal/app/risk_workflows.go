@@ -1035,18 +1035,14 @@ func cyclonedxAnalysisStatus(state string) string {
 }
 
 func (l *Ledger) evaluatePolicyRuleLocked(tenantID, releaseID string, rule domain.PolicyRule) domain.PolicyCheck {
-	if rule.EvidenceType == "" {
-		return domain.PolicyCheck{Name: rule.Name, Result: "passed", Severity: rule.Severity, Explanation: "metadata-only custom policy rule recorded"}
-	}
+	present := false
 	for _, item := range l.evidence {
 		if item.TenantID == tenantID && item.ReleaseID == releaseID && item.Type == rule.EvidenceType {
-			return domain.PolicyCheck{Name: rule.Name, Result: "passed", Severity: rule.Severity, Explanation: rule.EvidenceType + " evidence exists"}
+			present = true
+			break
 		}
 	}
-	if rule.Required {
-		return domain.PolicyCheck{Name: rule.Name, Result: "failed", Severity: rule.Severity, Missing: []string{rule.EvidenceType}, Explanation: rule.EvidenceType + " evidence is missing"}
-	}
-	return domain.PolicyCheck{Name: rule.Name, Result: "passed", Severity: rule.Severity, Explanation: "optional evidence not present"}
+	return domain.PolicyCheck(riskdomain.EvaluateCustomPolicyRule(riskdomain.PolicyRule(rule), present))
 }
 
 func validSeverity(severity string) bool {
@@ -1090,12 +1086,7 @@ func validVulnWorkflowAction(action string) bool {
 }
 
 func validPolicyEvidenceType(typ string) bool {
-	switch typ {
-	case "sbom", "vulnerability_scan", "vex", "vulnerability_decision", "artifact", "build", "build_attestation", "openapi_contract", "release_bundle", "exception", "sast", "dast", "secret_scan", "license_scan", "api_security", "deployment", "threat_model", "security_review", "pen_test_report":
-		return true
-	default:
-		return false
-	}
+	return riskdomain.ValidPolicyEvidenceType(typ)
 }
 
 func validContractDiffResult(result string) bool {

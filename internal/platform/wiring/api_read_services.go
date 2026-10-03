@@ -417,6 +417,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create vulnerability workflow commands: %w", err)
 	}
+	options.CustomPolicyCommands, err = BuildCustomPolicyCommands(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create custom policy commands: %w", err)
+	}
 	options.VulnerabilityDecisionSummaryQuery, err = BuildVulnerabilityDecisionSummaryQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create vulnerability decision summary query: %w", err)

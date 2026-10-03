@@ -3871,12 +3871,7 @@ func validSigningProviderType(value string) bool {
 }
 
 func validPolicyEvidenceType(value string) bool {
-	switch value {
-	case "sbom", "vulnerability_scan", "vex", "vulnerability_decision", "artifact", "build", "build_attestation", "openapi_contract", "release_bundle", "exception", "sast", "dast", "secret_scan", "license_scan", "api_security", "deployment", "threat_model", "security_review", "pen_test_report":
-		return true
-	default:
-		return false
-	}
+	return riskdomain.ValidPolicyEvidenceType(value)
 }
 
 func validContractDiffResult(value string) bool {

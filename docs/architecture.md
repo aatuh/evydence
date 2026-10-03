@@ -53,6 +53,20 @@ PostgreSQL-profile release-bundle creation now uses that snapshot reader and a f
 
 Evidence-bundle export (`POST /v1/evidence-bundles`) also uses focused durable commands in the PostgreSQL profile. Its read-only repeatable-read snapshot selects evidence IDs and validated tenant-owned product/project/release/build/deployment coordinates, the indexed audit head, and public object-lock proof metadata, never raw evidence payloads or provider locations. The same 4096 combined evidence/proof-row and 8 MiB proof-metadata limits apply. Automatic selection omits only authorization denials; explicit unauthorized IDs and inconsistent stored parents fail closed. A release-scoped export requires a matching release-root grant as well as authorization for selected evidence. Before persistence, selected rows and their parents are share-locked and their resolved coordinates must still match the earlier snapshot. The staged signature is cryptographically verified against the current signing-key lifecycle, then bundle, signature and signature-linked audit entry commit atomically; export adds no worker job. The bundle describes its earlier committed view, not necessarily the newest state. Existing schema versions, normalized-JSON hashing, response fields and replay remain unchanged. Explicit JSON `null` export fields are rejected according to the non-nullable API schema; omitted filters remain valid. Local-memory mode delegates to the same orchestration through compatibility ports. Neither path proves evidence completeness, external key custody, legal compliance or complete provider WORM enforcement.
 
+PostgreSQL-profile custom policy creation/evaluation uses Risk-owned commands,
+bounded database readers, and direct durable HTTP dispatch. Creation checks
+tenant-wide policy-write permission and relies on the tenant/name/version unique
+constraint. Evaluation resolves current policy/release ownership before loading
+one definition and at most 19 evidence-presence facts under the transaction's
+tenant projection fence. Evidence payloads and evaluation history are not read.
+The shared presence-only rule evaluator preserves existing explanations and
+arbitrary nonblank severity labels; versioned DTO mappers preserve the existing
+normalized-JSON hash input. Policy/evaluation, audit, and replay completion commit
+together. Snapshot import is insert-or-compare, never an update of historical
+policy inputs or evaluation results. Other production command paths and startup
+Ledger retirement remain EVY-905 work. See [custom policies](api.md#custom-policies)
+for authorization, limits, and non-claims.
+
 ## Bounded-context transition
 
 Generic evidence creation now has standalone Evidence-owned
