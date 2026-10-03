@@ -215,6 +215,12 @@ See the same [migration note](docs/reference/api-versioning.md#unreleased-contro
 
 ### Fixed
 
+- PostgreSQL OIDC discovery refresh now uses focused Identity commands and the
+  configured hardened network adapter, with bounded current-provider checks and
+  atomic trust/audit/replay effects. Completed retries do not refetch keys.
+  Strict optional empty-object bodies and unsafe discovered public text are
+  validated in both profiles; no historical scrub is claimed. See the
+  [compatibility note](docs/reference/api-versioning.md#unreleased-oidc-discovery-boundary).
 - PostgreSQL SSO trust rotation now uses a bounded tenant-owned provider read
   and atomic update/audit/replay commands without Ledger reloads. Strict decoding
   rejects null trust fields/items and NUL-bearing public-key text. Authorized

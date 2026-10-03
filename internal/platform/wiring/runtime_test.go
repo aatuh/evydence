@@ -41,12 +41,13 @@ func TestOpenRuntimeRejectsUnsafeConfigurationBeforeOpeningAdapters(t *testing.T
 }
 
 func TestOpenRuntimeBuildsExplicitLocalMemoryMode(t *testing.T) {
-	runtime, err := OpenRuntime(t.Context(), RuntimeConfig{Process: API, Profile: LocalMemory, WorkerOwnedParsers: true, ObjectStore: ObjectStoreConfig{Backend: "filesystem", Directory: t.TempDir()}})
+	discovery := &ssoDiscoveryWiringFake{}
+	runtime, err := OpenRuntime(t.Context(), RuntimeConfig{Process: API, Profile: LocalMemory, WorkerOwnedParsers: true, ObjectStore: ObjectStoreConfig{Backend: "filesystem", Directory: t.TempDir()}, OIDC: discovery})
 	if err != nil || runtime == nil {
 		t.Fatalf("local runtime=%#v error=%v", runtime, err)
 	}
 	defer runtime.Close()
-	if runtime.Process != API || runtime.Production || runtime.Profile != LocalMemory || runtime.Postgres != nil || runtime.Objects == nil || !runtime.WorkerOwnedParsers || len(runtime.Profile.Limitations()) == 0 {
+	if runtime.Process != API || runtime.Production || runtime.Profile != LocalMemory || runtime.Postgres != nil || runtime.Objects == nil || !runtime.WorkerOwnedParsers || len(runtime.Profile.Limitations()) == 0 || runtime.OIDC != discovery {
 		t.Fatalf("local runtime did not retain explicit limitations: %#v", runtime)
 	}
 }

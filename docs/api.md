@@ -821,6 +821,37 @@ is made, and neither provider ownership nor key custody is proved. Existing rows
 receipts and backups are not scrubbed or repaired. See the
 [compatibility note](reference/api-versioning.md#unreleased-sso-trust-rotation-boundary).
 
+#### OIDC Discovery Refresh
+
+In PostgreSQL mode, `POST /v1/sso/providers/{id}/discover-oidc` uses focused
+Identity commands and the same bounded tenant-owned provider projection as
+[trust rotation](#sso-trust-rotation). Current tenant-wide `identity:admin`
+authority, provider ownership/type and body checks run before reservation or
+completed replay, without provider calls. Omit the body or send `{}`; null,
+non-object, unknown fields, trailing JSON, invalid raw UTF-8 and bodies above
+64 KiB return `400`. The provider must be OIDC; missing/foreign providers return
+`404`, and oversized/ill-typed stored metadata returns `409`.
+
+Only a newly acquired command invokes the runtime's existing hardened discovery
+adapter. Its HTTPS, destination, same-origin JWKS and configured timeout policy
+remain; the request contains tenant/provider IDs and issuer, not credentials.
+Issuer mismatch, empty/private keys, unsafe retained public text or provider
+failure returns `422` without a provider update or audit. The safe failure
+receipt contains no raw provider error or partial response. Valid refresh
+conditionally updates trust and commits the canonical-hash
+`sso_provider.oidc_trust_material_refreshed` audit and safe replay together.
+Creation time and unrelated provider metadata remain; the new trust timestamp
+uses UTC microseconds.
+
+Success remains `200` with the provider DTO. Completed matching retries return
+that original DTO without refetching, even if the provider is subsequently
+unavailable; current local authorization and provider checks still apply.
+Discovery runs within the active command transaction, so provider latency can
+delay writes until the configured timeout. Local memory shares normalization
+and body rules but remains non-durable. Discovery does not authenticate users,
+prove provider ownership/key custody, synchronize groups or scrub historical
+material. See the [compatibility note](reference/api-versioning.md#unreleased-oidc-discovery-boundary).
+
 #### SSO Public Trust Material
 
 SSO trust normalization is a stateless Identity policy shared by provider

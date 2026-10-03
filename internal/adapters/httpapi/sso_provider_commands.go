@@ -15,6 +15,28 @@ type SSOProviderCommands interface {
 	CreateSSOProvider(context.Context, identitydomain.Actor, identityapp.CreateSSOProviderInput) (identitydomain.SSOProvider, error)
 	AuthorizeUpdateSSOProviderTrustMaterial(context.Context, identitydomain.Actor, string, identityapp.UpdateSSOProviderTrustMaterialInput) error
 	UpdateSSOProviderTrustMaterial(context.Context, identitydomain.Actor, string, identityapp.UpdateSSOProviderTrustMaterialInput) (identitydomain.SSOProvider, error)
+	AuthorizeRefreshSSOProviderOIDCTrustMaterial(context.Context, identitydomain.Actor, string) error
+	RefreshSSOProviderOIDCTrustMaterial(context.Context, identitydomain.Actor, string) (identitydomain.SSOProvider, error)
+}
+
+func decodeSSODiscoveryRequest(body []byte) error {
+	if err := decodeMembershipJSON(body, &struct{}{}); err != nil {
+		return err
+	}
+	return validateNonNullableObjectFields(body)
+}
+
+func (s *Server) refreshDurableSSOTrustMaterial(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
+		if err := decodeSSODiscoveryRequest(body); err != nil {
+			return err
+		}
+		return mapIdentityCommandError(s.ssoProviderCommands.AuthorizeRefreshSSOProviderOIDCTrustMaterial(ctx, a, id))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.ssoProviderCommands.RefreshSSOProviderOIDCTrustMaterial(ctx, a, id)
+		return http.StatusOK, domain.SSOProvider(v), mapIdentityCommandError(err)
+	})
 }
 
 func decodeSSOTrustRequest(body []byte) (identityapp.UpdateSSOProviderTrustMaterialInput, error) {

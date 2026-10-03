@@ -83,6 +83,10 @@ func TestSSOTrustMaterialPrivateImportCannotCreateRotateOrRefreshProvider(t *tes
 	if p, err := ledger.RefreshSSOProviderOIDCTrustMaterial(t.Context(), actor, provider.ID); !errors.Is(err, ErrVerificationFailed) || p.ID != "" || counts() != before {
 		t.Fatal("private discovery response produced effects", err)
 	}
+	discovery.result.JWKS = badText
+	if p, err := ledger.RefreshSSOProviderOIDCTrustMaterial(t.Context(), actor, provider.ID); !errors.Is(err, ErrVerificationFailed) || p.ID != "" || counts() != before {
+		t.Fatal("NUL discovery text produced effects", err)
+	}
 	ledger.mu.Lock()
 	stored := ledger.ssoProviders[provider.ID]
 	ledger.mu.Unlock()

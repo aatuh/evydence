@@ -49,18 +49,25 @@ func ssoTrustHashInput(p identitydomain.SSOProvider, now time.Time) any {
 		UpdatedAt    string         `json:"updated_at"`
 	}{p.ID, p.JWKS, p.SAMLSigningCertificates, now.Format(time.RFC3339Nano)}
 }
-func (s *SSOProviderCommands) prepareTrust(ctx context.Context, a identitydomain.Actor, id string, in UpdateSSOProviderTrustMaterialInput) (string, UpdateSSOProviderTrustMaterialInput, error) {
+func (s *SSOProviderCommands) prepareProviderID(ctx context.Context, a identitydomain.Actor, id string) (string, error) {
 	if err := s.authorizeActor(ctx, a); err != nil {
-		return id, in, err
+		return id, err
 	}
 	if !validAPIKeyText(id, 1024) {
-		return id, in, ErrValidation
+		return id, ErrValidation
 	}
 	id = strings.TrimSpace(id)
 	if id == "" {
-		return id, in, ErrValidation
+		return id, ErrValidation
 	}
-	in, err := normalizeSSOTrustInput(in, s.config.TrustMaterial)
+	return id, nil
+}
+func (s *SSOProviderCommands) prepareTrust(ctx context.Context, a identitydomain.Actor, id string, in UpdateSSOProviderTrustMaterialInput) (string, UpdateSSOProviderTrustMaterialInput, error) {
+	id, err := s.prepareProviderID(ctx, a, id)
+	if err != nil {
+		return id, in, err
+	}
+	in, err = normalizeSSOTrustInput(in, s.config.TrustMaterial)
 	return id, in, err
 }
 func readOwnedSSOProvider(ctx context.Context, tx SSOProviderTransaction, tenant, id string) (identitydomain.SSOProvider, error) {

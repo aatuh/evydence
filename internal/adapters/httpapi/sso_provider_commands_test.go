@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -20,6 +21,89 @@ type ssoProviderHTTPFake struct {
 	guardErr, runErr error
 	id               string
 	trust            identityapp.UpdateSSOProviderTrustMaterialInput
+}
+
+func TestSSODiscoveryOpenAPIDescribesOptionalEmptyObjectBody(t *testing.T) {
+	s, _ := testServer(t)
+	encoded, err := s.OpenAPI()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc struct {
+		Paths map[string]map[string]struct {
+			RequestBody struct {
+				Required bool `json:"required"`
+				Content  map[string]struct {
+					Schema struct {
+						Ref string `json:"$ref"`
+					} `json:"schema"`
+				} `json:"content"`
+			} `json:"requestBody"`
+		} `json:"paths"`
+	}
+	if err := json.Unmarshal(encoded, &doc); err != nil {
+		t.Fatal(err)
+	}
+	op := doc.Paths["/v1/sso/providers/{id}/discover-oidc"]["post"]
+	if op.RequestBody.Required || op.RequestBody.Content["application/json"].Schema.Ref != "#/components/schemas/EmptyObject" {
+		t.Fatal("discovery OpenAPI rejects the supported omitted body or permits an unrelated request")
+	}
+}
+
+func (f *ssoProviderHTTPFake) AuthorizeRefreshSSOProviderOIDCTrustMaterial(_ context.Context, a identitydomain.Actor, id string) error {
+	f.guards++
+	f.actor, f.id = a, id
+	return f.guardErr
+}
+
+func (f *ssoProviderHTTPFake) RefreshSSOProviderOIDCTrustMaterial(_ context.Context, a identitydomain.Actor, id string) (identitydomain.SSOProvider, error) {
+	f.calls++
+	now := time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC)
+	return identitydomain.SSOProvider{ID: id, TenantID: a.TenantID, Name: "Fixture", Type: "oidc", Issuer: "https://issuer.example.test", ClientID: "client", RoleMapping: map[string]string{"token-reviewers": "security_engineer"}, Status: "active", SchemaVersion: identitydomain.SSOProviderSchemaVersion, CreatedAt: now, TrustMaterialUpdatedAt: &now}, f.runErr
+}
+
+func TestSSODiscoveryHTTPUsesFocusedCommandAndRejectsNonemptyOrMalformedBody(t *testing.T) {
+	base, secret := testServer(t)
+	f := &ssoProviderHTTPFake{}
+	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{SSOProviderCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const path = "/v1/sso/providers/provider/discover-oidc"
+	for i, bad := range []string{"null", "[]", `{`, `{} {}`, `{"extra":true}`, `{"jwks":{"keys":[]}}`, `{"bad":"` + string([]byte{0xff}) + `"}`, strings.Repeat(" ", 65537) + `{}`} {
+		postRaw(t, s, secret, path, fmt.Sprintf("bad-discovery-%d", i), []byte(bad), 400)
+	}
+	if f.guards+f.calls != 0 {
+		t.Fatal("invalid discovery body reached focused port")
+	}
+	postRaw(t, s, "", path, "unauth-discovery", []byte(`{}`), 401)
+	for i, body := range []string{`{}`, ""} {
+		out := postRaw(t, s, secret, path, fmt.Sprintf("discovery-%d", i), []byte(body), 200)
+		if f.id != "provider" || f.actor.TenantID == "" || !strings.Contains(out, "trust_material_updated_at") {
+			t.Fatal("discovery path/actor/DTO mapping lost")
+		}
+	}
+	for i, ec := range []struct {
+		err    error
+		status int
+	}{
+		{identityapp.ErrValidation, 400}, {identityapp.ErrNotFound, 404}, {identityapp.ErrConflict, 409},
+		{identityapp.ErrVerificationFailed, 422}, {application.ErrUnauthorized, 401}, {application.ErrForbidden, 403}, {errors.New("private discovery storage"), 500},
+	} {
+		for _, phase := range []string{"guard", "run"} {
+			f.guardErr, f.runErr = nil, nil
+			if phase == "guard" {
+				f.guardErr = ec.err
+			} else {
+				f.runErr = ec.err
+			}
+			before := f.calls
+			out := postRaw(t, s, secret, path, fmt.Sprintf("%s-discovery-%d", phase, i), []byte(`{}`), ec.status)
+			if phase == "guard" && f.calls != before || strings.Contains(out, "private discovery storage") || strings.Contains(out, "issuer.example.test") {
+				t.Fatal("discovery failure ignored guard or exposed private metadata")
+			}
+		}
+	}
 }
 
 func (f *ssoProviderHTTPFake) AuthorizeUpdateSSOProviderTrustMaterial(_ context.Context, a identitydomain.Actor, id string, in identityapp.UpdateSSOProviderTrustMaterialInput) error {

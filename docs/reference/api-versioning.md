@@ -362,6 +362,30 @@ already flattened. It makes no live provider call and is not provider ownership,
 key custody, compatibility approval or release evidence. Exact compatibility
 validation and review remain required before EVY-905 closure.
 
+## Unreleased OIDC Discovery Boundary
+
+PostgreSQL OIDC discovery refresh now binds focused Identity commands and the
+configured hardened discovery adapter through the composition root. Current
+tenant-wide authority and bounded provider ownership/type checks precede replay
+without provider calls. Conditional trust update, canonical-hash audit and safe
+replay completion commit together; completed retries do not refetch keys. The
+existing `200` provider DTO, canonical hash fields and issuer trailing-slash
+normalization remain. New trust timestamps use UTC microseconds.
+
+Both profiles now validate the optional empty-object body rather than ignoring
+arbitrary request content. Omit the body or send `{}`; remove unrelated fields.
+OpenAPI marks the body optional to match the existing omission behavior. Unsafe
+retained JWK text from discovery is rejected before JSON normalization or
+persistence, including NUL and invalid UTF-8; unrecognized extensions remain
+omitted. Provider/issuer/key verification failures return `422` without trust
+updates or audits; stored oversized/ill-typed providers fail closed with `409`.
+
+See [OIDC discovery refresh](../api.md#oidc-discovery-refresh) for limits and
+transaction/timeout behavior. This does not authenticate users, prove provider
+ownership/key custody, synchronize groups or scrub historical rows/receipts and
+backups. Exact compatibility validation and review remain required before
+EVY-905 closure; this note is not approval or release evidence.
+
 ## Stable-Line Rule
 
 A stable `/v1` line permits additive fields, endpoints, and optional filters.

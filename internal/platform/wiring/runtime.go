@@ -40,6 +40,7 @@ type RuntimeConfig struct {
 	SkipMigrations     bool
 	ObjectStore        ObjectStoreConfig
 	Cosign             app.CosignPolicyVerifier
+	OIDC               app.OIDCDiscoveryClient
 }
 
 // Runtime owns the shared API/worker infrastructure lifetime. The API's
@@ -52,6 +53,7 @@ type Runtime struct {
 	Postgres           *postgres.Store
 	Objects            app.ObjectStore
 	Cosign             app.CosignPolicyVerifier
+	OIDC               app.OIDCDiscoveryClient
 	lease              func()
 	closed             sync.Once
 }
@@ -90,7 +92,7 @@ func OpenRuntime(ctx context.Context, config RuntimeConfig) (_ *Runtime, err err
 		if backend != "" && backend != "filesystem" {
 			return nil, errors.New("EVYDENCE_RUNTIME_PROFILE=local_memory supports only EVYDENCE_OBJECT_STORE=filesystem")
 		}
-		runtime := &Runtime{Process: config.Process, Profile: profile, Production: config.Production, WorkerOwnedParsers: config.WorkerOwnedParsers, Cosign: config.Cosign}
+		runtime := &Runtime{Process: config.Process, Profile: profile, Production: config.Production, WorkerOwnedParsers: config.WorkerOwnedParsers, Cosign: config.Cosign, OIDC: config.OIDC}
 		if backend != "" {
 			objects, _, err := OpenObjectStore(ctx, config.ObjectStore)
 			if err != nil {
@@ -116,7 +118,7 @@ func OpenRuntime(ctx context.Context, config RuntimeConfig) (_ *Runtime, err err
 	if err != nil {
 		return nil, runtimeAdapterError("open PostgreSQL runtime", err)
 	}
-	runtime := &Runtime{Process: config.Process, Profile: profile, Production: config.Production, WorkerOwnedParsers: config.WorkerOwnedParsers, Postgres: store, Cosign: config.Cosign}
+	runtime := &Runtime{Process: config.Process, Profile: profile, Production: config.Production, WorkerOwnedParsers: config.WorkerOwnedParsers, Postgres: store, Cosign: config.Cosign, OIDC: config.OIDC}
 	defer func() {
 		if err != nil {
 			runtime.Close()

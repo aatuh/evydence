@@ -28,6 +28,8 @@ func mapIdentityCommandError(err error) error {
 		return app.ErrNotFound
 	case errors.Is(err, identityapp.ErrConflict):
 		return app.ErrConflict
+	case errors.Is(err, identityapp.ErrVerificationFailed):
+		return app.ErrVerificationFailed
 	case errors.Is(err, application.ErrForbidden):
 		return app.ErrForbidden
 	default:

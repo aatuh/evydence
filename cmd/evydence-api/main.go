@@ -117,6 +117,7 @@ func runWithContext(ctx context.Context) error {
 		SkipMigrations:     strings.EqualFold(os.Getenv("EVYDENCE_SKIP_MIGRATIONS"), "true"),
 		ObjectStore:        wiring.ObjectStoreConfigFromEnv(),
 		Cosign:             cosignVerifier,
+		OIDC:               cfg.OIDC,
 	})
 	if err != nil {
 		return err

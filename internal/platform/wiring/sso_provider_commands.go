@@ -12,11 +12,26 @@ import (
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
-func BuildSSOProviderCommands(factory app.UnitOfWorkFactory) (*identityapp.SSOProviderCommands, error) {
+func BuildSSOProviderCommands(factory app.UnitOfWorkFactory, discovery app.OIDCDiscoveryClient) (*identityapp.SSOProviderCommands, error) {
 	if factory == nil {
 		return nil, errors.New("SSO provider transactions are required")
 	}
-	return identityapp.NewSSOProviderCommands(identityapp.SSOProviderCommandConfig{Transactions: ssoProviderTransactions{factory}, Authorizer: identityapp.NewMembershipWriteAuthorizer(), TrustMaterial: identityapp.PublicTrustMaterialValidator{}, Hasher: verificationCanonicalHasher{}, Clock: application.ClockFunc(time.Now), IDs: application.IDGeneratorFunc(application.NewID)})
+	var oidc identityapp.OIDCDiscovery
+	if discovery != nil {
+		oidc = ssoOIDCDiscovery{discovery}
+	}
+	return identityapp.NewSSOProviderCommands(identityapp.SSOProviderCommandConfig{Transactions: ssoProviderTransactions{factory}, Authorizer: identityapp.NewMembershipWriteAuthorizer(), TrustMaterial: identityapp.PublicTrustMaterialValidator{}, Hasher: verificationCanonicalHasher{}, OIDCDiscovery: oidc, Clock: application.ClockFunc(time.Now), IDs: application.IDGeneratorFunc(application.NewID)})
+}
+
+// Translate the existing network adapter's public DTOs, not Ledger state.
+type ssoOIDCDiscovery struct{ client app.OIDCDiscoveryClient }
+
+func (d ssoOIDCDiscovery) FetchOIDCTrustMaterial(ctx context.Context, r identityapp.OIDCDiscoveryRequest) (identityapp.OIDCDiscoveryResult, error) {
+	result, err := d.client.FetchOIDCTrustMaterial(ctx, app.OIDCDiscoveryRequest{TenantID: r.TenantID, ProviderID: r.ProviderID, Issuer: r.Issuer})
+	if err != nil {
+		return identityapp.OIDCDiscoveryResult{}, err
+	}
+	return identityapp.OIDCDiscoveryResult{Issuer: result.Issuer, JWKS: result.JWKS}, nil
 }
 
 type ssoProviderTransactions struct{ factory app.UnitOfWorkFactory }

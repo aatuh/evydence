@@ -319,7 +319,7 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create role binding commands: %w", err)
 	}
-	options.SSOProviderCommands, err = BuildSSOProviderCommands(store)
+	options.SSOProviderCommands, err = BuildSSOProviderCommands(store, runtime.OIDC)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create SSO provider commands: %w", err)
 	}

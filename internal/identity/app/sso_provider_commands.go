@@ -32,6 +32,7 @@ type SSOProviderCommandConfig struct {
 	Authorizer    application.Authorizer
 	TrustMaterial TrustMaterialValidator
 	Hasher        CanonicalHasher
+	OIDCDiscovery OIDCDiscovery
 	Clock         application.Clock
 	IDs           application.IDGenerator
 }

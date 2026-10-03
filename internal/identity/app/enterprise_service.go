@@ -425,11 +425,11 @@ func (s *Service) RefreshSSOProviderOIDCTrustMaterial(ctx context.Context, actor
 		return identitydomain.SSOProvider{}, ErrValidation
 	}
 	result, err := s.oidcDiscovery.FetchOIDCTrustMaterial(ctx, OIDCDiscoveryRequest{TenantID: actor.TenantID, ProviderID: provider.ID, Issuer: provider.Issuer})
-	if err != nil || normalizedIssuer(result.Issuer) != normalizedIssuer(provider.Issuer) {
+	if err != nil {
 		return identitydomain.SSOProvider{}, ErrVerificationFailed
 	}
-	jwks, err := s.trustMaterial.NormalizeJWKS(result.JWKS)
-	if err != nil || len(jwks) == 0 {
+	jwks, err := normalizeDiscoveredJWKS(result, provider.Issuer, s.trustMaterial)
+	if err != nil {
 		return identitydomain.SSOProvider{}, ErrVerificationFailed
 	}
 	expected := cloneSSOProvider(provider)
@@ -438,12 +438,7 @@ func (s *Service) RefreshSSOProviderOIDCTrustMaterial(ctx context.Context, actor
 	current.JWKS = cloneAnyMap(jwks)
 	current.SAMLSigningCertificates = nil
 	current.TrustMaterialUpdatedAt = &now
-	payloadHash, err := s.canonicalHasher.Hash(struct {
-		ProviderID string         `json:"provider_id"`
-		Issuer     string         `json:"issuer"`
-		JWKS       map[string]any `json:"jwks"`
-		UpdatedAt  string         `json:"updated_at"`
-	}{ProviderID: current.ID, Issuer: current.Issuer, JWKS: current.JWKS, UpdatedAt: now.Format(time.RFC3339Nano)})
+	payloadHash, err := s.canonicalHasher.Hash(ssoDiscoveryHashInput(current, now))
 	if err != nil {
 		return identitydomain.SSOProvider{}, err
 	}

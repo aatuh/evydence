@@ -231,7 +231,14 @@ func (s *Server) updateSSOProviderTrustMaterial(w http.ResponseWriter, r *http.R
 }
 
 func (s *Server) refreshSSOProviderOIDCTrustMaterial(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
+	if s.ssoProviderCommands != nil {
+		s.refreshDurableSSOTrustMaterial(w, r)
+		return
+	}
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeSSODiscoveryRequest(body); err != nil {
+			return 0, nil, err
+		}
 		provider, err := s.identityAccess.RefreshSSOProviderOIDCTrustMaterial(ctx, actor, r.PathValue("id"))
 		return http.StatusOK, provider, err
 	})

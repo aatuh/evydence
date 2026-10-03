@@ -710,10 +710,18 @@ authority, input and provider checks precede reservation/replay. Live tests cove
 restart replay, foreign/scoped access, oversized and ill-typed stored metadata,
 public SAML PEM preservation, and write/audit/replay/deferred-commit rollback.
 Only normalized public certificates and harmless group names get purpose-fixed
-replay preservation; generic privacy redaction is unchanged. Discovery,
-identity-link and session command composition still need migration. See
+replay preservation; generic privacy redaction is unchanged. OIDC discovery
+refresh now uses the same focused transaction capability and provider projection.
+The composition root supplies the existing hardened network adapter explicitly;
+its stateless DTO translation has no Ledger dependency. Read-only replay guards
+never fetch metadata. A newly acquired command validates fetched issuer/public
+keys, conditionally updates trust and appends its canonical-hash audit in the
+same transaction as safe replay completion. Live tests cover current grants,
+restart replay without refetching, unavailable providers and all four rollback
+stages. Identity-link and session command composition still need migration. See
 [SSO provider registration](api.md#sso-provider-registration),
-[SSO trust rotation](api.md#sso-trust-rotation) and
+[SSO trust rotation](api.md#sso-trust-rotation),
+[OIDC discovery refresh](api.md#oidc-discovery-refresh) and
 [SSO public trust material](api.md#sso-public-trust-material) for compatibility,
 limits and historical-record caveats.
 

@@ -22,11 +22,22 @@ import (
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 )
 
+type ssoDiscoveryWiringFake struct {
+	requests []app.OIDCDiscoveryRequest
+	result   app.OIDCDiscoveryResult
+	err      error
+}
+
+func (d *ssoDiscoveryWiringFake) FetchOIDCTrustMaterial(_ context.Context, r app.OIDCDiscoveryRequest) (app.OIDCDiscoveryResult, error) {
+	d.requests = append(d.requests, r)
+	return d.result, d.err
+}
+
 func TestPostgresSSOProviderHTTPUsesCurrentAuthorityAndRestartReplayWithoutLedger(t *testing.T) {
 	store, pool := openHTMLReportWiringStore(t)
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
-	if c, err := BuildSSOProviderCommands(nil); err == nil || c != nil {
+	if c, err := BuildSSOProviderCommands(nil, nil); err == nil || c != nil {
 		t.Fatal("missing provider transactions accepted")
 	}
 	exec := func(query string, args ...any) {
@@ -46,9 +57,10 @@ INSERT INTO role_bindings(id,tenant_id,subject_type,subject_id,role,resource_typ
 	}
 	const secret = "evysso_provider_fixture"
 	exec(`INSERT INTO sso_sessions(id,tenant_id,user_id,provider_id,prefix,hash,expires_at,schema_version,created_at)VALUES('session','tenant','operator','provider',$1,$2,now()+interval '1 hour','sso-session.v1',now())`, credentials.Prefix(secret), credentials.Hash(secret))
+	discovery := &ssoDiscoveryWiringFake{result: app.OIDCDiscoveryResult{Issuer: "https://issuer.example.test/tenant/", JWKS: map[string]any{"keys": []any{map[string]any{"kty": "OKP", "kid": "discovered", "crv": "Ed25519", "x": "public-only", "client_secret": "private-provider-canary"}}}}}
 	request := func(key, body string, want int, route ...string) map[string]any {
 		t.Helper()
-		opts, err := BuildAPIReadServices(&Runtime{Process: API, Profile: PostgreSQL, Postgres: store}, "provider-test-pepper", []app.ReadinessCheck{{Name: "postgres", Check: store.CheckReadiness}, {Name: "migrations", Check: func(ctx context.Context) error { return store.CheckMigrationState(ctx, "../../../migrations") }}})
+		opts, err := BuildAPIReadServices(&Runtime{Process: API, Profile: PostgreSQL, Postgres: store, OIDC: discovery}, "provider-test-pepper", []app.ReadinessCheck{{Name: "postgres", Check: store.CheckReadiness}, {Name: "migrations", Check: func(ctx context.Context) error { return store.CheckMigrationState(ctx, "../../../migrations") }}})
 		if err != nil || opts.SSOProviderCommands == nil {
 			t.Fatal("provider registration remains Ledger-backed", err)
 		}
@@ -161,7 +173,7 @@ INSERT INTO role_bindings(id,tenant_id,subject_type,subject_id,role,resource_typ
 	if err := pool.QueryRow(ctx, `SELECT entry_type,actor_type,actor_id FROM audit_chain_entries WHERE subject_id=$1`, first["id"]).Scan(&action, &actorType, &actorID); err != nil || action != "sso_provider.created" || actorType != "human_user" || actorID != "operator" {
 		t.Fatal("provider audit attribution lost", err)
 	}
-	c, err := BuildSSOProviderCommands(store)
+	c, err := BuildSSOProviderCommands(store, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,6 +225,52 @@ INSERT INTO role_bindings(id,tenant_id,subject_type,subject_id,role,resource_typ
 	if replay := request("trust-rotation", trustBody, 200, rotationPath); !reflect.DeepEqual(rotated, replay) || counts() != before {
 		t.Fatal("trust guards mutated saved provider/receipt")
 	}
+	discoveryPath := "/v1/sso/providers/" + first["id"].(string) + "/discover-oidc"
+	refreshed := request("provider-discovery", `{}`, 200, discoveryPath)
+	if len(discovery.requests) != 1 || discovery.requests[0] != (app.OIDCDiscoveryRequest{TenantID: "tenant", ProviderID: first["id"].(string), Issuer: first["issuer"].(string)}) || refreshed["created_at"] != first["created_at"] || refreshed["trust_material_updated_at"] == nil {
+		t.Fatal("discovery composition lost current provider identity")
+	}
+	before = counts()
+	discovery.err = errors.New("private-provider-canary")
+	if replay := request("provider-discovery", `{}`, 200, discoveryPath); !reflect.DeepEqual(refreshed, replay) || counts() != before || len(discovery.requests) != 1 {
+		t.Fatal("discovery replay fetched keys or changed public DTO")
+	}
+	request("provider-discovery", "", 409, discoveryPath)
+	for _, body := range []string{"null", "[]", `{} {}`, `{"extra":true}`} {
+		request("malformed-discovery", body, 400, discoveryPath)
+	}
+	request("foreign-discovery", `{}`, 404, "/v1/sso/providers/unrelated/discover-oidc")
+	exec(`UPDATE role_bindings SET resource_type='product',resource_id='product' WHERE id='operator-grant'`)
+	request("provider-discovery", `{}`, 403, discoveryPath)
+	exec(`UPDATE role_bindings SET resource_type='tenant',resource_id='tenant' WHERE id='operator-grant'`)
+	exec(`UPDATE role_bindings SET role='collector' WHERE id='operator-grant'`)
+	request("provider-discovery", `{}`, 403, discoveryPath)
+	exec(`UPDATE role_bindings SET role='tenant_admin' WHERE id='operator-grant';UPDATE human_users SET status='deactivated',deactivated_at=now() WHERE id='operator'`)
+	request("provider-discovery", `{}`, 401, discoveryPath)
+	exec(`UPDATE human_users SET status='active',deactivated_at=NULL WHERE id='operator'`)
+	exec(`UPDATE sso_providers SET type='saml' WHERE id=$1`, first["id"])
+	request("provider-discovery", `{}`, 400, discoveryPath)
+	exec(`UPDATE sso_providers SET type='oidc',tenant_id='other' WHERE id=$1`, first["id"])
+	request("provider-discovery", `{}`, 404, discoveryPath)
+	exec(`UPDATE sso_providers SET tenant_id='tenant',name=repeat('x',9437184) WHERE id=$1`, first["id"])
+	request("provider-discovery", `{}`, 409, discoveryPath)
+	exec(`UPDATE sso_providers SET name='Example' WHERE id=$1`, first["id"])
+	if counts() != before || len(discovery.requests) != 1 {
+		t.Fatal("discovery guards fetched metadata or reserved retries")
+	}
+	request("unavailable-discovery", `{}`, 422, discoveryPath)
+	if after := counts(); after[0] != before[0] || after[1] != before[1] || after[2] != before[2]+1 || len(discovery.requests) != 2 {
+		t.Fatal("failed discovery changed providers or audit")
+	}
+	var failureState, failureBody string
+	var failureStatus int
+	if err := pool.QueryRow(ctx, `SELECT state,response::text,status FROM idempotency_records WHERE idempotency_key='unavailable-discovery'`).Scan(&failureState, &failureBody, &failureStatus); err != nil || failureState != "failed" || failureBody != "null" || failureStatus != 0 {
+		t.Fatal("failed discovery retained a partial result or provider error", err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT response::text FROM idempotency_records WHERE idempotency_key='provider-discovery'`).Scan(&saved); err != nil || strings.Contains(saved, "private-provider-canary") {
+		t.Fatal("discovery receipt retained provider extensions", err)
+	}
+	before = counts()
 	a = domain.Actor{TenantID: "missing", KeyID: "key", Scopes: []string{"identity:admin"}}
 	if out, err := c.CreateSSOProvider(ctx, a, identityapp.CreateSSOProviderInput{Name: "Fixture", Type: "oidc", Issuer: "https://issuer.example.test", ClientID: "client"}); !errors.Is(err, identityapp.ErrNotFound) || out.ID != "" || counts() != before {
 		t.Fatal("missing tenant provider creation produced effects", err)
@@ -240,7 +298,7 @@ func TestPostgresSSOTrustSAMLRetainsOnlyPublicCertificatesAndReplays(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	c, err := BuildSSOProviderCommands(store)
+	c, err := BuildSSOProviderCommands(store, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -287,12 +345,20 @@ func TestPostgresSSOTrustSAMLRetainsOnlyPublicCertificatesAndReplays(t *testing.
 }
 
 func TestPostgresSSOTrustWriteAuditReplayAndDeferredCommitFailuresRollBack(t *testing.T) {
+	for _, mode := range []string{"manual", "discovery"} {
+		t.Run(mode, func(t *testing.T) { testPostgresSSOTrustRollback(t, mode) })
+	}
+}
+
+func testPostgresSSOTrustRollback(t *testing.T, mode string) {
+	t.Helper()
 	store, pool := openHTMLReportWiringStore(t)
 	ctx := t.Context()
 	if _, err := pool.Exec(ctx, `INSERT INTO tenants(id,name)VALUES('tenant','Trust rotation')`); err != nil {
 		t.Fatal(err)
 	}
-	c, err := BuildSSOProviderCommands(store)
+	discovery := &ssoDiscoveryWiringFake{result: app.OIDCDiscoveryResult{Issuer: "https://issuer.example.test", JWKS: map[string]any{"keys": []any{map[string]any{"kty": "OKP", "kid": "discovered", "crv": "Ed25519", "x": "public-only"}}}}}
+	c, err := BuildSSOProviderCommands(store, discovery)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -303,13 +369,23 @@ func TestPostgresSSOTrustWriteAuditReplayAndDeferredCommitFailuresRollBack(t *te
 	}
 	in := identityapp.UpdateSSOProviderTrustMaterialInput{JWKS: map[string]any{"keys": []any{map[string]any{"kty": "OKP", "kid": "rotated", "crv": "Ed25519", "x": "public-only"}}}}
 	executor := app.IdempotencyUnitOfWork{Transactions: store, Authorize: func(ctx context.Context, _ app.Repositories) error {
+		if mode == "discovery" {
+			return c.AuthorizeRefreshSSOProviderOIDCTrustMaterial(ctx, a, p.ID)
+		}
 		return c.AuthorizeUpdateSSOProviderTrustMaterial(ctx, a, p.ID, in)
 	}}
 	run := func(ctx context.Context, _ app.Repositories) (int, any, error) {
+		if mode == "discovery" {
+			v, err := c.RefreshSSOProviderOIDCTrustMaterial(ctx, a, p.ID)
+			return 200, domain.SSOProvider(v), err
+		}
 		v, err := c.UpdateSSOProviderTrustMaterial(ctx, a, p.ID, in)
 		return 200, domain.SSOProvider(v), err
 	}
 	path := "/v1/sso/providers/" + p.ID + "/trust-material"
+	if mode == "discovery" {
+		path = "/v1/sso/providers/" + p.ID + "/discover-oidc"
+	}
 	snapshot := func() (string, [2]int) {
 		t.Helper()
 		var trust string
@@ -379,7 +455,7 @@ func TestPostgresSSOProviderWriteAuditReplayAndDeferredCommitFailuresRollBack(t 
 	if _, err := pool.Exec(ctx, `INSERT INTO tenants(id,name)VALUES('tenant','Providers')`); err != nil {
 		t.Fatal(err)
 	}
-	c, err := BuildSSOProviderCommands(store)
+	c, err := BuildSSOProviderCommands(store, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
