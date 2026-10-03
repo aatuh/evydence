@@ -330,7 +330,7 @@ func TestDraftAnswerSelectionUsesRecencyThenStableID(t *testing.T) {
 	y.CreatedAt = x.CreatedAt.Add(time.Second)
 	z := y
 	z.ID = "a"
-	winner, ok, err := selectDraftAnswer(t.Context(), f, a, f.scope, f.questions[0], []DraftAnswerCandidate{x, y, z})
+	winner, ok, err := selectDraftAnswer(t.Context(), f, a, f.scope, f.questions[0], []DraftAnswerCandidate{x, y, z}, ScopePackageRead)
 	if err != nil || !ok || winner.ID != "a" {
 		t.Fatal("unstable answer ranking", winner, err)
 	}

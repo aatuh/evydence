@@ -1386,10 +1386,10 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "id", "tenant_id", "name", "version", "questions", "schema_version", "created_at"))
 	registry.RegisterSchema("QuestionnaireTemplateEnvelope", dataEnvelopeSchema("#/components/schemas/QuestionnaireTemplate"))
 	registry.RegisterSchema("CreateQuestionnairePackageRequest", objectSchema(map[string]any{
-		"template_id": map[string]any{"type": "string"},
-		"package_id":  map[string]any{"type": "string"},
-		"product_id":  map[string]any{"type": "string"},
-		"release_id":  map[string]any{"type": "string"},
+		"template_id": map[string]any{"type": "string", "minLength": 1, "maxLength": packageapp.MaxQuestionnaireDraftIDBytes, "description": "Required tenant-owned template; raw UTF-8/NUL-free bytes are bounded before trimming."},
+		"package_id":  map[string]any{"type": "string", "maxLength": packageapp.MaxQuestionnaireDraftIDBytes, "description": "Optional current tenant-owned customer package association, independently authorized and coherent with explicit selection coordinates. It never supplies an implicit evidence filter or redaction."},
+		"product_id":  map[string]any{"type": "string", "maxLength": packageapp.MaxQuestionnaireDraftIDBytes, "description": "Optional tenant-owned product selection; must agree with release_id and package_id when supplied."},
+		"release_id":  map[string]any{"type": "string", "maxLength": packageapp.MaxQuestionnaireDraftIDBytes, "description": "Optional tenant-owned release selection; its product is resolved for authorization only, not added to the stored selection."},
 	}, "template_id"))
 	registry.RegisterSchema("QuestionnairePackage", objectSchema(map[string]any{
 		"id":             map[string]any{"type": "string"},

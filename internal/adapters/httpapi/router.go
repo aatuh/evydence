@@ -142,6 +142,7 @@ type Server struct {
 	providerVerificationCommands      ProviderVerificationCommands
 	evidenceSummaryCommands           EvidenceSummaryCommands
 	questionnaireDraftCommands        QuestionnaireDraftCommands
+	questionnairePackageCommands      QuestionnairePackageCommands
 	questionnaireTemplateCommands     QuestionnaireTemplateCommands
 	answerLibraryCommands             AnswerLibraryCommands
 	releaseCatalog                    releaseCatalogService
@@ -232,6 +233,8 @@ type ServerOptions struct {
 	EvidenceSummaryCommands EvidenceSummaryCommands
 	// QuestionnaireDraftCommands selects authorized bounded answers without Ledger state.
 	QuestionnaireDraftCommands QuestionnaireDraftCommands
+	// QuestionnairePackageCommands generates bounded responses without Ledger state.
+	QuestionnairePackageCommands QuestionnairePackageCommands
 	// QuestionnaireTemplateCommands creates bounded tenant definitions without Ledger.
 	QuestionnaireTemplateCommands QuestionnaireTemplateCommands
 	// AnswerLibraryCommands creates scoped drafts without reading Ledger state.
@@ -461,6 +464,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.QuestionnaireDraftCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused questionnaire drafts require durable idempotency")
 	}
+	if opts.QuestionnairePackageCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused questionnaire packages require durable idempotency")
+	}
 	if opts.QuestionnaireTemplateCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused questionnaire templates require durable idempotency")
 	}
@@ -581,6 +587,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.providerVerificationCommands = opts.ProviderVerificationCommands
 	server.evidenceSummaryCommands = opts.EvidenceSummaryCommands
 	server.questionnaireDraftCommands = opts.QuestionnaireDraftCommands
+	server.questionnairePackageCommands = opts.QuestionnairePackageCommands
 	server.questionnaireTemplateCommands = opts.QuestionnaireTemplateCommands
 	server.answerLibraryCommands = opts.AnswerLibraryCommands
 	server.durableStreamedCommandExecutor, _ = opts.DurableCommandExecutor.(DurableStreamedCommandExecutor)

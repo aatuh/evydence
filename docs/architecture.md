@@ -1182,8 +1182,17 @@ Replay rechecks current root grants and referenced ownership without loading
 existing private answers or evidence payloads. Local memory retains its storage
 facade and shared input/record validation. See
 [answer-library creation](api.md#questionnaire-answer-library-creation).
-Questionnaire-package generation, other extension workflows and startup Ledger
-retirement remain EVY-905 work.
+Questionnaire-package generation also binds focused Package commands. It shares
+the bounded response builder with drafts but authorizes both root selection and
+each private answer under `package:write`. Optional customer-package association
+has separate current parent/grant checks and never supplies an implicit evidence
+filter. Bounded parent coordinates replace manifest reads; the worker/audit fence
+precedes selected locks and package/audit/permission-bound replay commit together.
+The focused writer rechecks ordered question identities, citation ownership,
+output bounds and response hash. See
+[package creation](api.md#questionnaire-package-creation) for association and
+compatibility limits. Other extension workflows and startup Ledger retirement
+remain EVY-905 work.
 
 PostgreSQL evidence-summary creation now binds Package-owned focused commands
 directly through the composition root. One transaction locks root coordinates,

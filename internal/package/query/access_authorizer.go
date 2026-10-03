@@ -7,11 +7,13 @@ import (
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
-func NewPackageAccessAuthorizer() application.Authorizer { return packageAccessAuthorizer{} }
+func NewPackageAccessAuthorizer() application.Authorizer {
+	return packageAccessAuthorizer{scope: "package:read"}
+}
 
-type packageAccessAuthorizer struct{}
+type packageAccessAuthorizer struct{ scope string }
 
-func (packageAccessAuthorizer) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
+func (p packageAccessAuthorizer) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
 	if ctx == nil {
 		return application.ErrForbidden
 	}
@@ -21,7 +23,7 @@ func (packageAccessAuthorizer) Authorize(ctx context.Context, actor identitydoma
 	if actor.TenantID == "" || actor.UserID == "" && actor.KeyID == "" && actor.CollectorID == "" {
 		return application.ErrUnauthorized
 	}
-	if request.Scope != "package:read" || request.TenantWide || !actor.HasScope(request.Scope) && !actor.HasScope("admin") {
+	if request.Scope != p.scope || request.TenantWide || !actor.HasScope(request.Scope) && !actor.HasScope("admin") {
 		return application.ErrForbidden
 	}
 	refs := request.Resources

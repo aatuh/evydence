@@ -42,13 +42,20 @@ type DraftAnswer struct {
 	EvidenceIDs, Limitations []string
 }
 
-type QuestionnaireDraftReader interface {
-	ReadQuestionnaireDraftScope(context.Context, string, CreateQuestionnaireDraftInput) (QuestionnaireDraftScope, error)
+type QuestionnaireResponseReader interface {
 	ReadQuestionnaireDraftQuestions(context.Context, QuestionnaireDraftScope) ([]DraftQuestion, error)
 	ReadQuestionnaireDraftCandidates(context.Context, QuestionnaireDraftScope, DraftQuestion, int) ([]DraftAnswerCandidate, error)
 	ReadQuestionnaireDraftAnswer(context.Context, QuestionnaireDraftScope, string) (DraftAnswer, error)
 	ReadQuestionnaireDraftEvidence(context.Context, QuestionnaireDraftScope, DraftQuestion, int) ([]string, error)
 	ValidateQuestionnaireDraftEvidence(context.Context, QuestionnaireDraftScope, []string) error
+}
+type QuestionnaireDraftReader interface {
+	QuestionnaireResponseReader
+	ReadQuestionnaireDraftScope(context.Context, string, CreateQuestionnaireDraftInput) (QuestionnaireDraftScope, error)
+}
+type questionnaireResponseTransaction interface {
+	QuestionnaireResponseReader
+	application.Authorizer
 }
 type QuestionnaireDraftTransaction interface {
 	QuestionnaireDraftReader
@@ -139,112 +146,7 @@ func (s *QuestionnaireDraftCommands) CreateQuestionnaireDraft(ctx context.Contex
 		if err != nil {
 			return err
 		}
-		questions, err := tx.ReadQuestionnaireDraftQuestions(ctx, scope)
-		if err != nil {
-			return err
-		}
-		if len(questions) == 0 || len(questions) > MaxQuestionnaireDraftQuestions {
-			return ErrValidation
-		}
-		seen := make(map[string]bool, len(questions))
-		metadataBytes := 0
-		for _, q := range questions {
-			if !draftText(q.ID, MaxQuestionnaireDraftIDBytes, true) || !draftText(q.ControlID, MaxQuestionnaireDraftIDBytes, false) || !draftText(q.EvidenceType, MaxQuestionnaireDraftIDBytes, false) {
-				return ErrValidation
-			}
-			if seen[q.ID] {
-				return ErrConflict
-			}
-			seen[q.ID] = true
-			metadataBytes += len(q.ID) + len(q.ControlID) + len(q.EvidenceType)
-		}
-		responses := make([]packagedomain.QuestionnaireResponse, 0, len(questions))
-		facts, citations, bytes := 0, 0, 0
-		for _, q := range questions {
-			if err := contextError(ctx); err != nil {
-				return err
-			}
-			candidates, err := tx.ReadQuestionnaireDraftCandidates(ctx, scope, q, MaxQuestionnaireDraftFacts-facts)
-			if err != nil {
-				return err
-			}
-			facts += len(candidates)
-			if facts > MaxQuestionnaireDraftFacts {
-				return ErrValidation
-			}
-			for _, c := range candidates {
-				metadataBytes += len(c.ID) + len(c.QuestionID) + len(c.ControlID) + len(c.EvidenceType) + len(c.ProductID) + len(c.ReleaseID)
-				if metadataBytes > MaxGeneratedReportBytes {
-					return ErrValidation
-				}
-			}
-			winner, found, err := selectDraftAnswer(ctx, tx, a, scope, q, candidates)
-			if err != nil {
-				return err
-			}
-			r := packagedomain.QuestionnaireResponse{QuestionID: q.ID}
-			if found {
-				answer, err := tx.ReadQuestionnaireDraftAnswer(ctx, scope, winner.ID)
-				if err != nil {
-					return err
-				}
-				if answer.TenantID != a.TenantID {
-					return ErrNotFound
-				}
-				if answer.ID != winner.ID {
-					return ErrConflict
-				}
-				if !draftText(answer.Answer, MaxQuestionnaireDraftAnswerBytes, true) || len(answer.Limitations) > MaxQuestionnaireDraftLimitations {
-					return ErrValidation
-				}
-				r.Answer = answer.Answer
-				r.EvidenceIDs = append([]string(nil), answer.EvidenceIDs...)
-				r.Limitations = append([]string(nil), answer.Limitations...)
-			} else {
-				ids, err := tx.ReadQuestionnaireDraftEvidence(ctx, scope, q, MaxQuestionnaireDraftFacts-citations)
-				if err != nil {
-					return err
-				}
-				r.EvidenceIDs = append([]string(nil), ids...)
-				sort.Strings(r.EvidenceIDs)
-				r.Answer = "No matching evidence is recorded for this question."
-				if len(ids) > 0 {
-					r.Answer = "Evidence is available for review in the linked evidence records."
-				}
-				r.Limitations = []string{"Questionnaire responses summarize recorded evidence and require human review."}
-			}
-			citations += len(r.EvidenceIDs)
-			if citations > MaxQuestionnaireDraftFacts {
-				return ErrValidation
-			}
-			for _, id := range r.EvidenceIDs {
-				if !draftText(id, MaxQuestionnaireDraftIDBytes, true) {
-					return ErrValidation
-				}
-			}
-			for _, lim := range r.Limitations {
-				if !draftText(lim, MaxQuestionnaireDraftAnswerBytes, false) {
-					return ErrValidation
-				}
-			}
-			if err := tx.ValidateQuestionnaireDraftEvidence(ctx, scope, r.EvidenceIDs); err != nil {
-				return err
-			}
-			encoded, err := EncodeQuestionnaireResponses([]packagedomain.QuestionnaireResponse{r})
-			if err != nil {
-				return err
-			}
-			bytes += len(encoded)
-			if bytes > MaxGeneratedReportBytes {
-				return ErrValidation
-			}
-			responses = append(responses, r)
-		}
-		encoded, err := EncodeQuestionnaireResponses(responses)
-		if err != nil {
-			return err
-		}
-		hash, err := application.NormalizedJSONHash(json.RawMessage(encoded))
+		responses, hash, err := assembleQuestionnaireResponses(ctx, tx, a, scope, ScopePackageRead)
 		if err != nil {
 			return err
 		}
@@ -271,7 +173,116 @@ func (s *QuestionnaireDraftCommands) CreateQuestionnaireDraft(ctx context.Contex
 	return cloneQuestionnaireDraft(result), nil
 }
 
-func selectDraftAnswer(ctx context.Context, tx application.Authorizer, a identitydomain.Actor, s QuestionnaireDraftScope, q DraftQuestion, candidates []DraftAnswerCandidate) (DraftAnswerCandidate, bool, error) {
+func assembleQuestionnaireResponses(ctx context.Context, tx questionnaireResponseTransaction, a identitydomain.Actor, scope QuestionnaireDraftScope, requiredScope string) ([]packagedomain.QuestionnaireResponse, string, error) {
+	questions, err := tx.ReadQuestionnaireDraftQuestions(ctx, scope)
+	if err != nil {
+		return nil, "", err
+	}
+	if len(questions) == 0 || len(questions) > MaxQuestionnaireDraftQuestions {
+		return nil, "", ErrValidation
+	}
+	seen := make(map[string]bool, len(questions))
+	metadataBytes := 0
+	for _, q := range questions {
+		if !draftText(q.ID, MaxQuestionnaireDraftIDBytes, true) || !draftText(q.ControlID, MaxQuestionnaireDraftIDBytes, false) || !draftText(q.EvidenceType, MaxQuestionnaireDraftIDBytes, false) {
+			return nil, "", ErrValidation
+		}
+		if seen[q.ID] {
+			return nil, "", ErrConflict
+		}
+		seen[q.ID] = true
+		metadataBytes += len(q.ID) + len(q.ControlID) + len(q.EvidenceType)
+	}
+	responses := make([]packagedomain.QuestionnaireResponse, 0, len(questions))
+	facts, citations, bytes := 0, 0, 0
+	for _, q := range questions {
+		if err := contextError(ctx); err != nil {
+			return nil, "", err
+		}
+		candidates, err := tx.ReadQuestionnaireDraftCandidates(ctx, scope, q, MaxQuestionnaireDraftFacts-facts)
+		if err != nil {
+			return nil, "", err
+		}
+		facts += len(candidates)
+		if facts > MaxQuestionnaireDraftFacts {
+			return nil, "", ErrValidation
+		}
+		for _, c := range candidates {
+			metadataBytes += len(c.ID) + len(c.QuestionID) + len(c.ControlID) + len(c.EvidenceType) + len(c.ProductID) + len(c.ReleaseID)
+			if metadataBytes > MaxGeneratedReportBytes {
+				return nil, "", ErrValidation
+			}
+		}
+		winner, found, err := selectDraftAnswer(ctx, tx, a, scope, q, candidates, requiredScope)
+		if err != nil {
+			return nil, "", err
+		}
+		r := packagedomain.QuestionnaireResponse{QuestionID: q.ID}
+		if found {
+			answer, err := tx.ReadQuestionnaireDraftAnswer(ctx, scope, winner.ID)
+			if err != nil {
+				return nil, "", err
+			}
+			if answer.TenantID != a.TenantID {
+				return nil, "", ErrNotFound
+			}
+			if answer.ID != winner.ID {
+				return nil, "", ErrConflict
+			}
+			if !draftText(answer.Answer, MaxQuestionnaireDraftAnswerBytes, true) || len(answer.Limitations) > MaxQuestionnaireDraftLimitations {
+				return nil, "", ErrValidation
+			}
+			r.Answer = answer.Answer
+			r.EvidenceIDs = append([]string(nil), answer.EvidenceIDs...)
+			r.Limitations = append([]string(nil), answer.Limitations...)
+		} else {
+			ids, err := tx.ReadQuestionnaireDraftEvidence(ctx, scope, q, MaxQuestionnaireDraftFacts-citations)
+			if err != nil {
+				return nil, "", err
+			}
+			r.EvidenceIDs = append([]string(nil), ids...)
+			sort.Strings(r.EvidenceIDs)
+			r.Answer = "No matching evidence is recorded for this question."
+			if len(ids) > 0 {
+				r.Answer = "Evidence is available for review in the linked evidence records."
+			}
+			r.Limitations = []string{"Questionnaire responses summarize recorded evidence and require human review."}
+		}
+		citations += len(r.EvidenceIDs)
+		if citations > MaxQuestionnaireDraftFacts {
+			return nil, "", ErrValidation
+		}
+		for _, id := range r.EvidenceIDs {
+			if !draftText(id, MaxQuestionnaireDraftIDBytes, true) {
+				return nil, "", ErrValidation
+			}
+		}
+		for _, lim := range r.Limitations {
+			if !draftText(lim, MaxQuestionnaireDraftAnswerBytes, false) {
+				return nil, "", ErrValidation
+			}
+		}
+		if err := tx.ValidateQuestionnaireDraftEvidence(ctx, scope, r.EvidenceIDs); err != nil {
+			return nil, "", err
+		}
+		encoded, err := EncodeQuestionnaireResponses([]packagedomain.QuestionnaireResponse{r})
+		if err != nil {
+			return nil, "", err
+		}
+		bytes += len(encoded)
+		if bytes > MaxGeneratedReportBytes {
+			return nil, "", ErrValidation
+		}
+		responses = append(responses, r)
+	}
+	hash, err := HashQuestionnaireResponses(responses)
+	if err != nil {
+		return nil, "", err
+	}
+	return responses, hash, nil
+}
+
+func selectDraftAnswer(ctx context.Context, tx application.Authorizer, a identitydomain.Actor, s QuestionnaireDraftScope, q DraftQuestion, candidates []DraftAnswerCandidate, requiredScope string) (DraftAnswerCandidate, bool, error) {
 	var winner DraftAnswerCandidate
 	found := false
 	seen := make(map[string]bool, len(candidates))
@@ -296,7 +307,7 @@ func selectDraftAnswer(ctx context.Context, tx application.Authorizer, a identit
 		if !DraftAnswerMatchesQuestion(c, q) || c.ProductID != "" && c.ProductID != s.ProductID || c.ReleaseID != "" && c.ReleaseID != s.ReleaseID {
 			continue
 		}
-		err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopePackageRead, Resources: c.Resources, TenantWide: c.Resources == (application.ResourceReferences{})})
+		err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: requiredScope, Resources: c.Resources, TenantWide: c.Resources == (application.ResourceReferences{})})
 		if errors.Is(err, application.ErrForbidden) {
 			continue
 		}
@@ -363,39 +374,11 @@ func ValidateQuestionnaireDraftRecord(v packagedomain.QuestionnaireDraft) error 
 	if !draftText(v.ProductID, MaxQuestionnaireDraftIDBytes, false) || !draftText(v.ReleaseID, MaxQuestionnaireDraftIDBytes, false) || v.SchemaVersion != packagedomain.QuestionnaireDraftVersion || v.CreatedAt.IsZero() || v.CreatedAt.Year() < 1 || v.CreatedAt.Year() > 9999 || len(v.Responses) == 0 || len(v.Responses) > MaxQuestionnaireDraftQuestions {
 		return ErrValidation
 	}
-	seen := make(map[string]bool, len(v.Responses))
-	citations := 0
-	for _, r := range v.Responses {
-		if !draftText(r.QuestionID, MaxQuestionnaireDraftIDBytes, true) || seen[r.QuestionID] || !draftText(r.Answer, MaxQuestionnaireDraftAnswerBytes, true) || !validDraftLimitations(r.Limitations) {
-			return ErrValidation
-		}
-		seen[r.QuestionID] = true
-		citations += len(r.EvidenceIDs)
-		if citations > MaxQuestionnaireDraftFacts {
-			return ErrValidation
-		}
-		for _, id := range r.EvidenceIDs {
-			if !draftText(id, MaxQuestionnaireDraftIDBytes, true) {
-				return ErrValidation
-			}
-		}
-	}
 	if !validDraftLimitations(v.Limitations) {
 		return ErrValidation
 	}
-	responses, err := EncodeQuestionnaireResponses(v.Responses)
-	if err != nil {
+	if err := validateQuestionnaireResponses(v.Responses, v.ManifestHash); err != nil {
 		return err
-	}
-	if len(responses) > MaxGeneratedReportBytes {
-		return ErrValidation
-	}
-	hash, err := application.NormalizedJSONHash(json.RawMessage(responses))
-	if err != nil {
-		return err
-	}
-	if hash != v.ManifestHash {
-		return ErrValidation
 	}
 	public, err := EncodeQuestionnaireDraft(v)
 	if err != nil {
@@ -405,6 +388,59 @@ func ValidateQuestionnaireDraftRecord(v packagedomain.QuestionnaireDraft) error 
 		return ErrValidation
 	}
 	return nil
+}
+
+func validateQuestionnaireResponses(values []packagedomain.QuestionnaireResponse, manifestHash string) error {
+	hash, err := HashQuestionnaireResponses(values)
+	if err != nil {
+		return err
+	}
+	if hash != manifestHash {
+		return ErrValidation
+	}
+	return nil
+}
+
+// HashQuestionnaireResponses preflights collection and raw-text budgets before
+// encoding, then enforces the encoded-byte bound and legacy hash semantics.
+func HashQuestionnaireResponses(values []packagedomain.QuestionnaireResponse) (string, error) {
+	if len(values) == 0 || len(values) > MaxQuestionnaireDraftQuestions {
+		return "", ErrValidation
+	}
+	seen := make(map[string]bool, len(values))
+	citations := 0
+	textBytes := 0
+	for _, r := range values {
+		if !draftText(r.QuestionID, MaxQuestionnaireDraftIDBytes, true) || seen[r.QuestionID] || !draftText(r.Answer, MaxQuestionnaireDraftAnswerBytes, true) || !validDraftLimitations(r.Limitations) {
+			return "", ErrValidation
+		}
+		seen[r.QuestionID] = true
+		textBytes += len(r.QuestionID) + len(r.Answer)
+		for _, limitation := range r.Limitations {
+			textBytes += len(limitation)
+		}
+		citations += len(r.EvidenceIDs)
+		if citations > MaxQuestionnaireDraftFacts {
+			return "", ErrValidation
+		}
+		for _, id := range r.EvidenceIDs {
+			if !draftText(id, MaxQuestionnaireDraftIDBytes, true) {
+				return "", ErrValidation
+			}
+			textBytes += len(id)
+		}
+		if textBytes > MaxGeneratedReportBytes {
+			return "", ErrValidation
+		}
+	}
+	responses, err := EncodeQuestionnaireResponses(values)
+	if err != nil {
+		return "", err
+	}
+	if len(responses) > MaxGeneratedReportBytes {
+		return "", ErrValidation
+	}
+	return application.NormalizedJSONHash(json.RawMessage(responses))
 }
 
 func validDraftLimitations(values []string) bool {

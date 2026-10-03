@@ -476,18 +476,30 @@ func (s *Server) createQuestionnaireTemplate(w http.ResponseWriter, r *http.Requ
 }
 
 func (s *Server) createQuestionnairePackage(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		TemplateID string `json:"template_id"`
-		PackageID  string `json:"package_id"`
-		ProductID  string `json:"product_id"`
-		ReleaseID  string `json:"release_id"`
+	if err := validateSSOCookieMutation(r); err != nil {
+		writeProblem(w, r, err)
+		return
 	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
+	if s.questionnairePackageCommands != nil {
+		s.createDurableQuestionnairePackage(w, r)
+		return
+	}
+	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+		in, err := decodeQuestionnairePackageRequest(body)
+		if err != nil {
 			return 0, nil, err
 		}
-		pkg, err := s.ledger.CreateQuestionnairePackage(ctx, actor, app.CreateQuestionnairePackageInput{TemplateID: req.TemplateID, PackageID: req.PackageID, ProductID: req.ProductID, ReleaseID: req.ReleaseID})
+		pkg, err := s.ledger.CreateQuestionnairePackage(ctx, actor, questionnairePackageLegacyInput(in))
 		return http.StatusCreated, pkg, err
+	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+		in, err := decodeQuestionnairePackageRequest(body)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ledger.AuthorizeQuestionnairePackageCreate(r.Context(), a, questionnairePackageLegacyInput(in)); err != nil {
+			return nil, err
+		}
+		return questionnairePackageReplayFingerprint(a, body)
 	})
 }
 

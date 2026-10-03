@@ -627,6 +627,34 @@ current authority and referenced ownership. These restrictions require release
 compatibility review; this note does not approve an exception, claim production
 Ledger retirement, or establish compliance conclusions.
 
+## Unreleased Questionnaire Package Boundary
+
+`POST /v1/questionnaire-packages` now binds focused Package commands in
+PostgreSQL rather than Ledger maps. Bounded selection/association coordinates
+and question selectors replace broad state, prompts and manifest reads.
+Package, caller audit and successful idempotency completion are atomic. Existing
+response fields, schema version, raw selection coordinates, response ordering,
+answer ranking, fallback text and normalized-JSON hash remain unchanged; no
+migration or rewrite of historical packages is required.
+
+Human actors now need a current grant for the selection scope independently of
+any associated customer package. Unscoped selection requires tenant-wide
+authority. Optional `package_id` remains an association, not a derived filter;
+its current parents must agree with explicit selection. Independently scoped
+library answers and current citation parents are checked before disclosure.
+Null/duplicate/unknown/mixed-case fields, invalid UTF-8/NUL, oversized IDs and
+the documented collection/text/output limits fail closed. Cookie writes require
+same-host HTTPS Origin protection, with bearer precedence. See
+[package creation](../api.md#questionnaire-package-creation).
+
+Replay binds canonical credential scopes and human grants as well as body bytes.
+Changed permissions or historical body-only fingerprints conflict (`409`) when
+current root/association access still succeeds; missing authority still fails
+authorization. Use a new key to generate a new package under current permissions.
+These restrictions require release compatibility review; this note does not
+approve an exception, claim production Ledger retirement, establish customer
+redaction or provide compliance conclusions.
+
 ## Deprecation Lifecycle
 
 No operation is currently marked deprecated. When one is, the operation must

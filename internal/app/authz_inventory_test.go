@@ -22,12 +22,17 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 			"SecurityUpdateEvidenceReport",
 		},
 		"enterprise.go": {
+			"CreateQuestionnairePackage",
 			"CreateQuestionnaireAnswerLibraryEntry",
 			"ListQuestionnaireAnswerLibrary",
 		},
 		"answer_library_creation.go": {
 			"AuthorizeQuestionnaireAnswerLibraryCreate",
 			"authorizeAnswerLibraryCreateLocked",
+		},
+		"questionnaire_package_creation.go": {
+			"AuthorizeQuestionnairePackageCreate",
+			"authorizeQuestionnairePackageCreateLocked",
 		},
 		"risk_workflows.go": {
 			"CreateIncident",
@@ -67,7 +72,8 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 			fn := functionBody(t, body, name)
 			if !strings.Contains(fn, "authorizeResourceLocked") && !strings.Contains(fn, "resourceAllowedLocked") &&
 				!strings.Contains(fn, "releaseCommands.") && !strings.Contains(fn, "evidenceCommands.") &&
-				!strings.Contains(fn, "authorizeAnswerLibraryCreateLocked") && !strings.Contains(fn, "packagequery.NewAnswerLibraryAuthorizer().Authorize") {
+				!strings.Contains(fn, "authorizeAnswerLibraryCreateLocked") && !strings.Contains(fn, "packagequery.NewAnswerLibraryAuthorizer().Authorize") &&
+				!strings.Contains(fn, "authorizeQuestionnairePackageCreateLocked") && !strings.Contains(fn, "packagequery.NewQuestionnairePackageAuthorizer().Authorize") {
 				t.Fatalf("%s.%s missing resource-scoped authorization call", file, name)
 			}
 		}

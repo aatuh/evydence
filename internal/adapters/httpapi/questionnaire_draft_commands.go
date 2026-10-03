@@ -57,6 +57,10 @@ func (s *Server) createDurableQuestionnaireDraft(w http.ResponseWriter, r *http.
 // replay to the original permission set, not just current access to that root.
 // Only the resulting request hash is persisted; grants are not response data.
 func questionnaireDraftReplayFingerprint(a domain.Actor, body []byte) ([]byte, error) {
+	return questionnaireReplayFingerprint(a, body, "questionnaire-draft-permissions-v1")
+}
+
+func questionnaireReplayFingerprint(a domain.Actor, body []byte, version string) ([]byte, error) {
 	grants := []string{}
 	if a.UserID != "" && a.KeyID == "" && a.CollectorID == "" {
 		for _, g := range a.ResourceGrants {
@@ -71,7 +75,7 @@ func questionnaireDraftReplayFingerprint(a domain.Actor, body []byte) ([]byte, e
 		Version        string `json:"version"`
 		Scopes, Grants []string
 		Body           []byte
-	}{Version: "questionnaire-draft-permissions-v1", Scopes: draftPermissionSet(a.Scopes), Grants: draftPermissionSet(grants), Body: body})
+	}{Version: version, Scopes: draftPermissionSet(a.Scopes), Grants: draftPermissionSet(grants), Body: body})
 }
 
 func draftPermissionSet(values []string) []string {

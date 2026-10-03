@@ -651,30 +651,19 @@ func cloneQuestionnaireTemplateDTO(v domain.QuestionnaireTemplate) domain.Questi
 
 func (s packageReportService) CreateQuestionnairePackage(ctx context.Context, actor domain.Actor, in CreateQuestionnairePackageInput) (domain.QuestionnairePackage, error) {
 	l := s.ledger
-	if err := ctx.Err(); err != nil {
+	normalized, err := prepareLocalQuestionnairePackage(ctx, actor, in)
+	if err != nil {
 		return domain.QuestionnairePackage{}, err
 	}
-	if err := require(actor, ScopePackageWrite); err != nil {
-		return domain.QuestionnairePackage{}, err
-	}
-	in.TemplateID, in.PackageID = strings.TrimSpace(in.TemplateID), strings.TrimSpace(in.PackageID)
-	in.ProductID, in.ReleaseID = strings.TrimSpace(in.ProductID), strings.TrimSpace(in.ReleaseID)
+	in = CreateQuestionnairePackageInput{TemplateID: normalized.TemplateID, PackageID: normalized.PackageID, ProductID: normalized.ProductID, ReleaseID: normalized.ReleaseID}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	tpl, ok := l.questionTemplates[in.TemplateID]
-	if !ok || tpl.TenantID != actor.TenantID {
-		return domain.QuestionnairePackage{}, ErrNotFound
+	if err := l.authorizeQuestionnairePackageCreateLocked(ctx, actor, normalized); err != nil {
+		return domain.QuestionnairePackage{}, err
 	}
-	if in.PackageID != "" {
-		pkg, ok := l.customerPackages[in.PackageID]
-		if !ok || pkg.TenantID != actor.TenantID {
-			return domain.QuestionnairePackage{}, ErrNotFound
-		}
-	}
-	if in.ProductID != "" || in.ReleaseID != "" {
-		if err := l.ensureScopeLocked(actor.TenantID, in.ProductID, "", in.ReleaseID); err != nil {
-			return domain.QuestionnairePackage{}, err
-		}
+	tpl := l.questionTemplates[in.TemplateID]
+	if len(tpl.Questions) == 0 || len(tpl.Questions) > packageapp.MaxQuestionnaireDraftQuestions {
+		return domain.QuestionnairePackage{}, ErrValidation
 	}
 	responses := []domain.QuestionnaireResponse{}
 	for _, question := range tpl.Questions {
@@ -684,11 +673,14 @@ func (s packageReportService) CreateQuestionnairePackage(ctx context.Context, ac
 		}
 		responses = append(responses, response)
 	}
-	hash, err := canonicalAnyHash(responses)
+	hash, err := packageapp.HashQuestionnaireResponses(questionnairePackageToContext(domain.QuestionnairePackage{Responses: responses}).Responses)
 	if err != nil {
-		return domain.QuestionnairePackage{}, err
+		return domain.QuestionnairePackage{}, fromPackageContextError(err)
 	}
 	pkg := domain.QuestionnairePackage{ID: newID("qp"), TenantID: actor.TenantID, TemplateID: tpl.ID, PackageID: in.PackageID, ProductID: in.ProductID, ReleaseID: in.ReleaseID, Responses: responses, ManifestHash: hash, SchemaVersion: domain.QuestionnairePackageVersion, CreatedAt: l.now()}
+	if err := packageapp.ValidateQuestionnairePackageRecord(questionnairePackageToContext(pkg)); err != nil {
+		return domain.QuestionnairePackage{}, fromPackageContextError(err)
+	}
 	if l.unitOfWork != nil {
 		var entry domain.AuditChainEntry
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
@@ -701,16 +693,16 @@ func (s packageReportService) CreateQuestionnairePackage(ctx context.Context, ac
 		}); err != nil {
 			return domain.QuestionnairePackage{}, err
 		}
-		l.questionPackages[pkg.ID] = pkg
+		l.questionPackages[pkg.ID] = cloneQuestionnairePackageDTO(pkg)
 		l.publishCommittedAuditEntryLocked(entry)
-		return pkg, nil
+		return cloneQuestionnairePackageDTO(pkg), nil
 	}
-	l.questionPackages[pkg.ID] = pkg
+	l.questionPackages[pkg.ID] = cloneQuestionnairePackageDTO(pkg)
 	_, _ = l.appendChainLocked(actor.TenantID, "questionnaire_package.generated", "questionnaire_package", pkg.ID, actorType(actor), actorID(actor), hash, "")
 	if err := l.persistLocked(ctx); err != nil {
 		return domain.QuestionnairePackage{}, err
 	}
-	return pkg, nil
+	return cloneQuestionnairePackageDTO(pkg), nil
 }
 
 func (s packageReportService) CreateQuestionnaireAnswerLibraryEntry(ctx context.Context, actor domain.Actor, raw CreateQuestionnaireAnswerLibraryEntryInput) (domain.QuestionnaireAnswerLibraryEntry, error) {

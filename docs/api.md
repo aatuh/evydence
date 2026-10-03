@@ -2268,6 +2268,48 @@ current replay guards and copied result slices. Missing/foreign references fail
 with `404`; inconsistent durable citation parents fail with `409`. These drafts
 require human review, not customer-package redaction or compliance conclusions.
 
+### Questionnaire Package Creation
+
+`POST /v1/questionnaire-packages` requires `package:write`, one tenant-owned
+`template_id`, and optional coherent `product_id` / `release_id` selection.
+Human sessions need current matching tenant/product/release grants; omitting
+both selection coordinates requires tenant-wide authority. Reusable answer
+text is independently authorized under `package:write` before it is read.
+Ranking, response order, citation order and fallback wording follow the
+[questionnaire selection rules](#questionnaire-draft-creation).
+
+Optional `package_id` is an association with a current tenant-owned customer
+package, not an implicit evidence filter. Its current product/release parents
+must be coherent and agree with explicit selection coordinates. The association
+is separately authorized by tenant/product/release or customer-package grants;
+a package-only grant cannot authorize the evidence selection. Release-only
+input resolves its product for authorization without adding `product_id` to
+selection or output. Association does not download a package, enforce NDA or
+expiry, increment access counts, or apply its redaction profile. Generated
+answers are technical drafts requiring human review, not customer-safe exports
+or compliance conclusions.
+
+PostgreSQL reads bounded selectors, candidate ownership metadata, authorized
+winning answer text and citation coordinates, not template prompts, associated
+package manifests or raw evidence payloads. Limits are 512 questions, 4096
+combined candidate occurrences, 4096 combined citation occurrences, 1024-byte
+IDs/selectors, 64 KiB per answer/limitation, 128 limitations per response, and
+4 MiB each for selected selector metadata and encoded output. Overflow fails
+instead of truncating. Raw input is UTF-8/NUL-free and bounded before trimming;
+both HTTP profiles reject null, duplicate/unknown/mixed-case fields. Cookie
+mutations require one same-host HTTPS Origin; bearer credentials take precedence.
+
+The worker/audit fence precedes selected root/template/package locks. Package,
+manifest-hash-linked caller audit, and successful replay completion commit
+together. Response fields, schema version, optional-field omission and the
+normalized-JSON response hash remain unchanged. Replay rechecks current roots
+and association without reading answer text, and binds canonical credential
+scopes and human resource grants. Changed permissions or historical body-only
+fingerprints conflict with `409` when current access remains allowed; use a new
+key for a new result. Missing current authority still fails authorization.
+Local-memory mode retains its explicit storage facade with shared scope/record
+validation, current replay guards and copied returned response slices.
+
 ### Questionnaire Draft Creation
 
 `POST /v1/questionnaire-drafts` requires `package:read`, a tenant-owned

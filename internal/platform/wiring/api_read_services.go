@@ -107,6 +107,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create questionnaire draft commands: %w", err)
 	}
+	options.QuestionnairePackageCommands, err = BuildQuestionnairePackageCommands(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create questionnaire package commands: %w", err)
+	}
 	options.QuestionnaireTemplateCommands, err = BuildQuestionnaireTemplateCommands(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create questionnaire template commands: %w", err)

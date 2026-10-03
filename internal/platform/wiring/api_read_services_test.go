@@ -69,6 +69,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.QuestionnaireDraftCommands != nil {
 		t.Fatal("local memory bound durable questionnaire drafts")
 	}
+	if memory.QuestionnairePackageCommands != nil {
+		t.Fatal("local memory bound durable questionnaire packages")
+	}
 	if memory.QuestionnaireTemplateCommands != nil {
 		t.Fatal("local memory bound durable questionnaire templates")
 	}
@@ -297,6 +300,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.QuestionnaireDraftCommands == nil {
 		t.Fatal("PostgreSQL drafts still use Ledger")
+	}
+	if options.QuestionnairePackageCommands == nil {
+		t.Fatal("PostgreSQL questionnaire packages still use Ledger")
 	}
 	if options.QuestionnaireTemplateCommands == nil {
 		t.Fatal("PostgreSQL templates still use Ledger")
