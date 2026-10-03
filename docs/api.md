@@ -852,6 +852,39 @@ and body rules but remains non-durable. Discovery does not authenticate users,
 prove provider ownership/key custody, synchronize groups or scrub historical
 material. See the [compatibility note](reference/api-versioning.md#unreleased-oidc-discovery-boundary).
 
+#### Administrator-Issued SSO Sessions
+
+`POST /v1/sso/sessions` requires current tenant-wide `identity:admin` authority,
+a current active tenant-owned user and a tenant-owned provider. The provider
+need only exist; activation is not a new issuance precondition. This is an
+administrator-issued credential, not proof of a provider login. It grants no
+new roles and sets no browser cookie; authentication derives current user
+grants through the existing credential verifier.
+
+`user_id`, `provider_id` and `expires_at` are required and non-null. IDs are
+trimmed, limited to 1 KiB each, valid UTF-8 and NUL-free. Expiry must be a valid
+timestamp and strictly later than command time for new issuance; timestamps
+use UTC microseconds. Administrative issuance retains the existing lack of
+an upper lifetime cap, unlike credential exchange. Null/ambiguous/non-object
+JSON, unknown fields, trailing values, malformed UTF-8 and oversized bodies
+return `400`. Missing/foreign users/providers or an inactive user return `404`.
+
+PostgreSQL uses one focused transaction for the session, actual-caller
+`sso_session.created` audit and safe replay completion. Parent ownership and
+user status are held through commit without selecting display metadata,
+provider trust material or identity/session inventories. The first `201`
+response includes `session` and its one-time `evysso_` bearer `secret`; only the
+peppered HMAC hash is stored. A matching restart replay returns original
+session metadata, never its secret/hash or a newly minted credential. Current
+authority and parent checks still apply. Replay is not a current lifecycle
+read: a subsequently revoked or expired secret remains unusable even though
+the original metadata can be replayed. New issuance with an elapsed request
+expiry fails; completed metadata replay may outlive that expiry.
+
+Local memory shares input rules through its explicit non-durable compatibility
+path. Historical rows/receipts are not rewritten. See the
+[compatibility note](reference/api-versioning.md#unreleased-sso-session-issuance-boundary).
+
 #### SSO Identity Linking
 
 `POST /v1/sso/identity-links` records an administrator's verified-ownership

@@ -85,8 +85,8 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Description = "Lists tenant-scoped role bindings visible to the identity administrator."
 		operation.Responses[http.StatusOK] = jsonResponse("Role binding list envelope.", "#/components/schemas/RoleBindingListEnvelope")
 	case "createSSOSession":
-		operation.Description = "Creates an admin-managed human SSO session record and returns a one-time bearer secret."
-		operation.RequestBody = jsonRequest("SSO session creation request.", "#/components/schemas/CreateSSOSessionRequest")
+		operation.Description = "Creates an administrator-issued human SSO session with current tenant-wide identity:admin authority, a tenant-owned active user and a tenant-owned provider. PostgreSQL uses a focused Identity transaction for session, actual-caller audit and safe replay completion. The first 201 response returns the bearer secret once; completed replay contains only original session metadata and never reissues a credential. This route verifies no provider credential, grants no additional roles and sets no browser cookie."
+		operation.RequestBody = jsonRequest("All fields are required and non-null. User/provider IDs are trimmed, UTF-8/NUL-safe and at most 1 KiB each. Explicit expires_at must be in the future for new issuance, normalized to UTC microseconds; administrative issuance retains no upper lifetime cap. JSON must be one strict object without unknown or duplicate fields, trailing values or malformed UTF-8.", "#/components/schemas/CreateSSOSessionRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created SSO session and one-time secret envelope.", "#/components/schemas/SSOSessionCreateEnvelope")
 	case "exchangeSSOCredential":
 		operation.Description = "Exchanges a locally verified OIDC ID token or SAML assertion for an SSO session and HttpOnly browser cookie using configured tenant trust material and verified identity links. No live provider API or group synchronization call is made."

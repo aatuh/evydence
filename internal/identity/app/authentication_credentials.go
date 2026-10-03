@@ -20,6 +20,16 @@ type HMACAuthenticationCredentials struct{ pepper []byte }
 // Generate preserves the existing evy_ token and peppered HMAC format without
 // a Ledger or secret-bearing read model. Entropy failures return no material.
 func (c *HMACAuthenticationCredentials) Generate() (Credential, error) {
+	return c.generate("evy_")
+}
+
+// GenerateSession retains the existing session-specific credential prefix,
+// entropy and peppered HMAC format without depending on a Ledger.
+func (c *HMACAuthenticationCredentials) GenerateSession() (Credential, error) {
+	return c.generate("evysso_")
+}
+
+func (c *HMACAuthenticationCredentials) generate(prefix string) (Credential, error) {
 	if c == nil || len(c.pepper) == 0 {
 		return Credential{}, ErrValidation
 	}
@@ -27,7 +37,7 @@ func (c *HMACAuthenticationCredentials) Generate() (Credential, error) {
 	if _, err := rand.Read(raw[:]); err != nil {
 		return Credential{}, err
 	}
-	secret := "evy_" + base64.RawURLEncoding.EncodeToString(raw[:])
+	secret := prefix + base64.RawURLEncoding.EncodeToString(raw[:])
 	return Credential{Secret: secret, Prefix: c.Prefix(secret), Hash: c.Hash(secret)}, nil
 }
 

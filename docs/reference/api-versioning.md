@@ -413,6 +413,30 @@ already omitted email is not repaired by replay. See
 non-claims. Exact compatibility validation and review remain required before
 EVY-905 closure; this note is not approval or release evidence.
 
+## Unreleased SSO Session Issuance Boundary
+
+PostgreSQL administrator-issued SSO sessions now use a focused Identity
+transaction with current tenant-wide authority, an active tenant-owned user
+and a tenant-owned provider. Session, actual-caller audit and safe replay
+completion commit together. New credentials retain the `evysso_` prefix,
+32-byte random entropy, 12-character public prefix and peppered HMAC-SHA-256
+hash. The first `201` response returns the secret once; restart replay never
+returns it or generates another secret. Parent and authority checks still apply
+before completed replay. Existing admin issuance does not require a provider
+token/assertion, provider activation or identity link, and it adds no roles or
+browser cookie. The explicit expiry has no new upper lifetime cap.
+
+Both profiles now reject null/ambiguous JSON, unsafe/oversized identifiers and
+invalid timestamps before persistence; IDs are bounded to 1 KiB each. New
+timestamps use UTC microseconds. Clients must provide a valid explicit future
+expiry for issuance and must not rely on implicit null values, duplicate or
+unknown fields, NUL, malformed UTF-8 or IDs above the limits. A saved metadata
+replay can outlive its request expiry; it does not make a revoked/expired
+credential usable. Historical rows and receipts are not backfilled. See
+[administrator-issued SSO sessions](../api.md#administrator-issued-sso-sessions)
+for the contract. Exact compatibility validation/review and full closure gates
+remain required before EVY-905 completion; this note is not release evidence.
+
 ## Stable-Line Rule
 
 A stable `/v1` line permits additive fields, endpoints, and optional filters.

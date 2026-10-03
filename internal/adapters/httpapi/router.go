@@ -55,6 +55,7 @@ type Server struct {
 	roleBindingCommands               RoleBindingCommands
 	ssoProviderCommands               SSOProviderCommands
 	ssoIdentityLinkCommands           SSOIdentityLinkCommands
+	ssoSessionCommands                SSOSessionCommands
 	readinessQuery                    ReadinessQuery
 	metricsQuery                      MetricsQuery
 	retentionQuery                    RetentionQuery
@@ -212,6 +213,8 @@ type ServerOptions struct {
 	SSOProviderCommands SSOProviderCommands
 	// SSOIdentityLinkCommands links current tenant-owned users/providers directly.
 	SSOIdentityLinkCommands SSOIdentityLinkCommands
+	// SSOSessionCommands issues admin-managed sessions without Ledger state.
+	SSOSessionCommands SSOSessionCommands
 	// ReadinessQuery probes production dependencies independently of Ledger state.
 	ReadinessQuery ReadinessQuery
 	// MetricsQuery supplies bounded tenant counters in the PostgreSQL profile.
@@ -422,6 +425,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.SSOIdentityLinkCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused SSO identity links require durable idempotency")
 	}
+	if opts.SSOSessionCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused SSO sessions require durable idempotency")
+	}
 	if opts.CollectorCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused collectors require durable idempotency")
 	}
@@ -530,6 +536,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.roleBindingCommands = opts.RoleBindingCommands
 	server.ssoProviderCommands = opts.SSOProviderCommands
 	server.ssoIdentityLinkCommands = opts.SSOIdentityLinkCommands
+	server.ssoSessionCommands = opts.SSOSessionCommands
 	server.durableStreamedCommandExecutor, _ = opts.DurableCommandExecutor.(DurableStreamedCommandExecutor)
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands

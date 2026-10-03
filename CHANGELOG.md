@@ -35,6 +35,12 @@ See the same [migration note](docs/reference/api-versioning.md#unreleased-contro
 
 ### Added
 
+- PostgreSQL administrator-issued SSO sessions now use focused Identity
+  commands with current tenant-wide authority, an active tenant-owned user
+  and a tenant-owned provider. Session, actual-caller audit and safe replay
+  commit together; the compatible bearer secret is returned only once. Strict
+  body/ID/time rules apply to both profiles. See the
+  [compatibility note](docs/reference/api-versioning.md#unreleased-sso-session-issuance-boundary).
 - PostgreSQL SSO identity linking now uses focused Identity commands with
   current tenant-wide authority and tenant-owned user/provider/email checks.
   Link, actual-caller audit and safe replay commit together; restart replay

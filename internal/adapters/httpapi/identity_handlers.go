@@ -260,16 +260,16 @@ func (s *Server) linkSSOIdentity(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createSSOSession(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		UserID     string    `json:"user_id"`
-		ProviderID string    `json:"provider_id"`
-		ExpiresAt  time.Time `json:"expires_at"`
+	if s.ssoSessionCommands != nil {
+		s.createDurableSSOSession(w, r)
+		return
 	}
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
+		in, err := decodeSSOSessionRequest(body)
+		if err != nil {
 			return 0, nil, err
 		}
-		session, secret, err := s.identityAccess.CreateSSOSession(ctx, actor, app.CreateSSOSessionInput{UserID: req.UserID, ProviderID: req.ProviderID, ExpiresAt: req.ExpiresAt})
+		session, secret, err := s.identityAccess.CreateSSOSession(ctx, actor, app.CreateSSOSessionInput(in))
 		return http.StatusCreated, map[string]any{"session": session, "secret": secret}, err
 	})
 }

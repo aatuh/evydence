@@ -57,3 +57,32 @@ func TestHMACAuthenticationCredentialsRejectMissingPepper(t *testing.T) {
 		t.Fatalf("unsafe credentials=%#v error=%v", credentials, err)
 	}
 }
+
+func TestHMACAuthenticationCredentialsGenerateCompatibleDistinctSSOSessions(t *testing.T) {
+	c, err := NewHMACAuthenticationCredentials("test-pepper")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, err := c.GenerateSession()
+	if err != nil {
+		t.Fatal("session generation failed")
+	}
+	b, err := c.GenerateSession()
+	if err != nil {
+		t.Fatal("session generation failed")
+	}
+	for _, v := range []Credential{a, b} {
+		raw, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(v.Secret, "evysso_"))
+		if len(v.Secret) != 50 || !strings.HasPrefix(v.Secret, "evysso_") || err != nil || len(raw) != 32 || len(v.Prefix) != 12 || v.Prefix != c.Prefix(v.Secret) || len(v.Hash) != 64 || !c.Equal(v.Hash, c.Hash(v.Secret)) {
+			t.Fatal("session format/hash compatibility lost")
+		}
+	}
+	if a.Secret == b.Secret || a.Hash == b.Hash {
+		t.Fatal("session entropy repeated")
+	}
+	for _, missing := range []*HMACAuthenticationCredentials{nil, {}} {
+		if credential, err := missing.GenerateSession(); !errors.Is(err, ErrValidation) || credential != (Credential{}) {
+			t.Fatal("missing session pepper produced material", err)
+		}
+	}
+}

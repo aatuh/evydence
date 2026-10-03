@@ -502,10 +502,12 @@ func (s *Service) CreateSSOSession(ctx context.Context, actor identitydomain.Act
 	if err := s.authorizeIdentityAdmin(ctx, actor); err != nil {
 		return identitydomain.SSOSession{}, "", err
 	}
-	input.UserID = strings.TrimSpace(input.UserID)
-	input.ProviderID = strings.TrimSpace(input.ProviderID)
-	now := s.clock.Now().UTC()
-	if input.UserID == "" || input.ProviderID == "" || !input.ExpiresAt.After(now) {
+	input, err := normalizeSSOSessionInput(input)
+	if err != nil {
+		return identitydomain.SSOSession{}, "", err
+	}
+	now := s.clock.Now().UTC().Truncate(time.Microsecond)
+	if !input.ExpiresAt.After(now) {
 		return identitydomain.SSOSession{}, "", ErrValidation
 	}
 	user, err := s.reader.User(ctx, actor.TenantID, input.UserID)

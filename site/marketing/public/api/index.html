@@ -3033,13 +3033,13 @@
               <div><dt>Responses</dt><dd>201 application/json: SSOCredentialExchangeEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/sso/sessions create sso session creates an admin-managed human sso session record and returns a one-time bearer secret. createssosession evydence identity:admin">
+          <article class="operation" data-operation data-search="post /v1/sso/sessions create sso session creates an administrator-issued human sso session with current tenant-wide identity:admin authority, a tenant-owned active user and a tenant-owned provider. postgresql uses a focused identity transaction for session, actual-caller audit and safe replay completion. the first 201 response returns the bearer secret once; completed replay contains only original session metadata and never reissues a credential. this route verifies no provider credential, grants no additional roles and sets no browser cookie. createssosession evydence identity:admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/sso/sessions</code>
             </div>
             <h3>Create SSO session</h3>
-            <p>Creates an admin-managed human SSO session record and returns a one-time bearer secret.</p>
+            <p>Creates an administrator-issued human SSO session with current tenant-wide identity:admin authority, a tenant-owned active user and a tenant-owned provider. PostgreSQL uses a focused Identity transaction for session, actual-caller audit and safe replay completion. The first 201 response returns the bearer secret once; completed replay contains only original session metadata and never reissues a credential. This route verifies no provider credential, grants no additional roles and sets no browser cookie.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createSSOSession</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
