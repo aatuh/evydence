@@ -20,6 +20,7 @@ import (
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
+	integrationapp "github.com/aatuh/evydence/internal/integration/app"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
 
@@ -3274,17 +3275,8 @@ func validateQuestionnaireTemplate(template domain.QuestionnaireTemplate) error 
 }
 
 func validCollectorScopes(scopes []string) bool {
-	if len(scopes) == 0 {
-		return false
-	}
-	for _, scope := range scopes {
-		switch strings.TrimSpace(scope) {
-		case app.ScopeBuildWrite, app.ScopeBuildRead, app.ScopeEvidenceWrite, app.ScopeEvidenceRead, app.ScopeSourceWrite, app.ScopeSourceRead, app.ScopeBundleWrite, app.ScopeBundleRead:
-		default:
-			return false
-		}
-	}
-	return true
+	_, err := integrationapp.NormalizeCollectorScopes(scopes)
+	return err == nil
 }
 
 func (r verification) InsertPolicyEvaluation(ctx context.Context, evaluation domain.PolicyEvaluation) error {

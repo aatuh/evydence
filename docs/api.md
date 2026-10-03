@@ -1088,6 +1088,50 @@ oversized existing records return `409`, never truncated metadata. Explicit
 local-memory mode keeps its compatibility path. Registration records submitted
 metadata; it does not download or verify a registry image.
 
+### Collector Writes
+
+`POST /v1/collectors`, `POST /v1/collectors/{id}/releases`, and
+`POST /v1/commercial-collectors` use focused Integration commands in the
+PostgreSQL profile. All require `collector:admin` and an `Idempotency-Key`;
+human sessions also need a current tenant-wide grant. Issued keys retain their
+tenant-scoped credential authority. Guards check current authority before
+reservation and replay; explicit local memory retains the Ledger path.
+
+Collector registration atomically commits the collector, HMAC-hashed API key,
+audit entry, and replay record. The credential uses the same pepper and format
+as authentication; production rejects the local/default pepper. The first
+response includes the secret once. Restart replay retains public collector and
+key metadata, including the key binding, but never the secret or hash. A lost
+initial response cannot recover its secret. Omitted or empty scopes default to
+`build:write` and `evidence:write`; the eight build/evidence/source/bundle read
+and write scopes are the allowlist, with reads explicitly opt-in.
+
+Names, types, versions, and scopes are trimmed; scopes are sorted without
+discarding duplicates. Collector names are unique per tenant. Commercial
+identity is `(tenant, provider, name, version)` and requires non-empty allowed
+scopes and a SHA-256 manifest hash. Its hash is not whitespace-normalized.
+Duplicate creation under a new idempotency key returns `409`; same-key replay
+returns the original metadata. No code is downloaded or installed.
+
+Release recording reads only the current collector identity, signature digest
+and tenant-owned artifact, SBOM/evidence coordinates, and scan/evidence
+coordinates. Parent ownership and parsed/evidence release coordinates must
+agree, including before replay. Raw signatures, components, findings, and
+unrelated inventories are not transferred. Optional references may be omitted;
+all three references produce the historical `evidence_complete`/`healthy`
+labels, which describe recorded reference presence, not runtime safety,
+scanner authority, or vulnerability absence. A new pin clears previous pins
+only if its release and audit commit succeeds.
+
+JSON bodies are limited to 64 KiB; malformed, duplicate/trailing, unknown, or
+explicitly null fields and null scope entries return `400`. Text must be valid
+UTF-8 and NUL-free. IDs are bounded to 1024 bytes, scalar text to 64 KiB,
+scopes to 1024 entries of at most 128 bytes each, and combined indexed identity
+parts to 2304 bytes (`tenant + name`, or
+`tenant + provider + name + version`). Oversized direct inputs fail before
+storage. New timestamps use UTC microseconds. See the
+[unreleased compatibility note](reference/api-versioning.md#unreleased-collector-write-boundary).
+
 ### Source Repository Creation
 
 `POST /v1/source/repositories` in the PostgreSQL profile uses an Integration-owned

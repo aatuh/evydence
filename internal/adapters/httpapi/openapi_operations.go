@@ -133,7 +133,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Description = "Lists tenant-scoped API key metadata without key hashes or one-time secrets."
 		operation.Responses[http.StatusOK] = jsonResponse("API key list envelope.", "#/components/schemas/APIKeyListEnvelope")
 	case "createCollector":
-		operation.Description = "Creates a tenant-scoped collector identity, binds a scoped API key, and returns the collector key secret exactly once."
+		operation.Description = "Creates a tenant-scoped collector identity and scoped API key atomically with audit and replay state. PostgreSQL uses focused commands; human sessions require a current tenant-wide collector:admin grant. The secret is returned only in the first response; durable replay preserves public collector/key metadata without the secret or hash. Omitted or empty scopes default to build:write and evidence:write; read scopes require explicit opt-in."
 		operation.RequestBody = jsonRequest("Collector creation request.", "#/components/schemas/CreateCollectorRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created collector and one-time key secret envelope.", "#/components/schemas/CollectorCreateEnvelope")
 	case "listCollectors":
@@ -684,7 +684,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Deployment event id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Deployment event envelope.", "#/components/schemas/DeploymentEventEnvelope")
 	case "recordCollectorRelease":
-		operation.Description = "Records collector release supply-chain evidence for a tenant-scoped collector."
+		operation.Description = "Records collector release evidence through bounded current collector, signature/artifact, SBOM/evidence and scan/evidence reads in PostgreSQL. Human sessions require a tenant-wide collector:admin grant, checked before replay. Pins, release rows, audit and replay state commit atomically. Reference presence is not proof of runtime safety or vulnerability absence."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Collector id."))
 		operation.RequestBody = jsonRequest("Collector release record request.", "#/components/schemas/RecordCollectorReleaseRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created collector release envelope.", "#/components/schemas/CollectorReleaseEnvelope")
@@ -693,7 +693,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Collector id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Collector health report envelope.", "#/components/schemas/CollectorHealthReportEnvelope")
 	case "createCommercialCollector":
-		operation.Description = "Creates tenant-scoped commercial collector metadata without installing external code."
+		operation.Description = "Creates tenant-scoped commercial collector metadata through focused PostgreSQL commands under a current tenant-wide collector:admin grant for human sessions. Identity is tenant/provider/name/version; duplicate creation conflicts, while same-key replay returns original metadata after current authorization. Metadata, audit and replay state commit atomically. No external code is installed and no provider trust is granted."
 		operation.RequestBody = jsonRequest("Commercial collector definition request.", "#/components/schemas/CreateCommercialCollectorRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created commercial collector definition envelope.", "#/components/schemas/CommercialCollectorDefinitionEnvelope")
 	case "listCommercialCollectors":

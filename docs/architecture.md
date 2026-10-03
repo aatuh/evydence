@@ -1016,6 +1016,17 @@ Evidence summaries, questionnaire drafts, graph snapshots, PDF packages, and ano
 
 ## Provider And Deployment Boundaries
 
+PostgreSQL collector registration, release evidence recording, and commercial
+definitions use Integration-owned commands with flat transaction ports. A
+shared credential adapter issues HMAC-compatible one-time keys without Ledger
+state. Bounded tenant/ID and identity lookups hold coherent evidence parents
+through commit; the projection fence precedes relational locks. Collector/key,
+pin, audit, and replay effects are atomic, and replay preserves only public
+credential metadata. These routes never reload Ledger inventories. Explicit
+local memory retains its compatibility path. See
+[collector writes](api.md#collector-writes) for grants, limits, and the
+reference-presence-only health labels.
+
 PostgreSQL-profile source repository creation uses an Integration-owned command
 with bounded ownership reads and a separately authorized existing-row read.
 Tenant/provider/name reuse retains original metadata and commits new rows with

@@ -534,13 +534,13 @@
               <div><dt>Responses</dt><dd>200 application/json: CollectorListEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/collectors create collector creates a tenant-scoped collector identity, binds a scoped api key, and returns the collector key secret exactly once. createcollector evydence collector:admin">
+          <article class="operation" data-operation data-search="post /v1/collectors create collector creates a tenant-scoped collector identity and scoped api key atomically with audit and replay state. postgresql uses focused commands; human sessions require a current tenant-wide collector:admin grant. the secret is returned only in the first response; durable replay preserves public collector/key metadata without the secret or hash. omitted or empty scopes default to build:write and evidence:write; read scopes require explicit opt-in. createcollector evydence collector:admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/collectors</code>
             </div>
             <h3>Create collector</h3>
-            <p>Creates a tenant-scoped collector identity, binds a scoped API key, and returns the collector key secret exactly once.</p>
+            <p>Creates a tenant-scoped collector identity and scoped API key atomically with audit and replay state. PostgreSQL uses focused commands; human sessions require a current tenant-wide collector:admin grant. The secret is returned only in the first response; durable replay preserves public collector/key metadata without the secret or hash. Omitted or empty scopes default to build:write and evidence:write; read scopes require explicit opt-in.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createCollector</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -602,13 +602,13 @@
               <div><dt>Responses</dt><dd>200 application/json: CollectorHealthReportEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/collectors/{id}/releases record collector release evidence records collector release supply-chain evidence for a tenant-scoped collector. recordcollectorrelease evydence collector:admin">
+          <article class="operation" data-operation data-search="post /v1/collectors/{id}/releases record collector release evidence records collector release evidence through bounded current collector, signature/artifact, sbom/evidence and scan/evidence reads in postgresql. human sessions require a tenant-wide collector:admin grant, checked before replay. pins, release rows, audit and replay state commit atomically. reference presence is not proof of runtime safety or vulnerability absence. recordcollectorrelease evydence collector:admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/collectors/{id}/releases</code>
             </div>
             <h3>Record collector release evidence</h3>
-            <p>Records collector release supply-chain evidence for a tenant-scoped collector.</p>
+            <p>Records collector release evidence through bounded current collector, signature/artifact, SBOM/evidence and scan/evidence reads in PostgreSQL. Human sessions require a tenant-wide collector:admin grant, checked before replay. Pins, release rows, audit and replay state commit atomically. Reference presence is not proof of runtime safety or vulnerability absence.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>recordCollectorRelease</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -636,13 +636,13 @@
               <div><dt>Responses</dt><dd>200 application/json: CommercialCollectorDefinitionListEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/commercial-collectors create commercial collector definition creates tenant-scoped commercial collector metadata without installing external code. createcommercialcollector evydence collector:admin">
+          <article class="operation" data-operation data-search="post /v1/commercial-collectors create commercial collector definition creates tenant-scoped commercial collector metadata through focused postgresql commands under a current tenant-wide collector:admin grant for human sessions. identity is tenant/provider/name/version; duplicate creation conflicts, while same-key replay returns original metadata after current authorization. metadata, audit and replay state commit atomically. no external code is installed and no provider trust is granted. createcommercialcollector evydence collector:admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/commercial-collectors</code>
             </div>
             <h3>Create commercial collector definition</h3>
-            <p>Creates tenant-scoped commercial collector metadata without installing external code.</p>
+            <p>Creates tenant-scoped commercial collector metadata through focused PostgreSQL commands under a current tenant-wide collector:admin grant for human sessions. Identity is tenant/provider/name/version; duplicate creation conflicts, while same-key replay returns original metadata after current authorization. Metadata, audit and replay state commit atomically. No external code is installed and no provider trust is granted.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createCommercialCollector</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

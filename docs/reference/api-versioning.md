@@ -211,6 +211,30 @@ or claim a release. The exact compatibility gate still applies before EVY-905
 closure. See [signed incident webhooks](../api.md#signed-incident-webhooks)
 for byte limits and signing instructions.
 
+## Unreleased Collector Write Boundary
+
+PostgreSQL collector registration, release recording, and commercial
+definitions now use focused Integration commands. Route shapes, scopes,
+schema versions, response fields, duplicate identities, optional references,
+scope sorting/defaults, and the existing presence-based health labels are
+retained. Keys still use the existing HMAC format and configured pepper.
+Public collector/key metadata now survives durable restart replay, correcting
+over-redaction of the key object and its public binding; the secret and hash
+are never retained. Generic log and customer-package redaction is unchanged.
+
+Human writes now require a current tenant-wide `collector:admin` grant;
+resource-only grants cannot administer tenant credentials. Optional signature,
+SBOM and scan references must retain coherent current artifact/evidence parents
+and matching parsed/evidence release coordinates before writes or replay.
+Previously accepted stale or foreign parent bindings fail closed. Replace
+invalid references with correctly scoped evidence or omit the optional link.
+Explicit null inputs already excluded by the published schema now return
+`400`. UTF-8/NUL checks, direct text/scope/ID/index-key budgets, and UTC
+microsecond timestamps are explicit; no migration or historical-row rewrite
+is required. See [collector writes](../api.md#collector-writes) for bounds.
+This note does not approve outstanding compatibility exceptions or claim a
+release; the exact compatibility gate still applies before EVY-905 closure.
+
 ## Stable-Line Rule
 
 A stable `/v1` line permits additive fields, endpoints, and optional filters.

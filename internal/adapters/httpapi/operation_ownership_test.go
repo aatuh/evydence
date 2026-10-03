@@ -91,6 +91,9 @@ func TestBoundedContextOperationOwnershipMetadata(t *testing.T) {
 		"createRemediationTask":         operationOwnerOperationsIncidents,
 		"createIncidentWebhookReceiver": operationOwnerOperationsIncidents,
 		"receiveIncidentWebhook":        operationOwnerOperationsIncidents,
+		"createCollector":               "integration-ingestion",
+		"recordCollectorRelease":        "integration-ingestion",
+		"createCommercialCollector":     "integration-ingestion",
 
 		// These metadata assignments remain on the compatibility track.
 		"createGraphSnapshot":         operationOwnerReleaseLedger,
@@ -129,6 +132,7 @@ func TestBoundedContextOperationOwnershipMetadata(t *testing.T) {
 		"evidence-ingestion":     27,
 		"release-ledger":         6,
 		"operations-incidents":   5,
+		"integration-ingestion":  3,
 		"customer-delivery":      3,
 		"governance":             3,
 		"integrity-verification": 2,

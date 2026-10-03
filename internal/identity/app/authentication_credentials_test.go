@@ -1,7 +1,9 @@
 package app
 
 import (
+	"encoding/base64"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -23,6 +25,30 @@ func TestHMACAuthenticationCredentialsMatchPersistedKeyFormat(t *testing.T) {
 	}
 	if !credentials.Equal(hash, credentials.Hash(secret)) || credentials.Equal(hash, credentials.Hash("wrong-secret")) || credentials.Equal(hash, "short") {
 		t.Fatal("hash comparison accepted an invalid credential")
+	}
+}
+
+func TestHMACAuthenticationCredentialsGenerateCompatibleDistinctAPIKeys(t *testing.T) {
+	c, err := NewHMACAuthenticationCredentials("test-pepper")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, err := c.Generate()
+	if err != nil {
+		t.Fatal("credential generation failed")
+	}
+	b, err := c.Generate()
+	if err != nil {
+		t.Fatal("credential generation failed")
+	}
+	for _, v := range []Credential{a, b} {
+		raw, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(v.Secret, "evy_"))
+		if !strings.HasPrefix(v.Secret, "evy_") || err != nil || len(raw) != 32 || len(v.Prefix) != 12 || v.Prefix != c.Prefix(v.Secret) || len(v.Hash) != 64 || !c.Equal(v.Hash, c.Hash(v.Secret)) {
+			t.Fatal("generated credential violates persisted format")
+		}
+	}
+	if a.Secret == b.Secret || a.Hash == b.Hash {
+		t.Fatal("credential generation repeated material")
 	}
 }
 

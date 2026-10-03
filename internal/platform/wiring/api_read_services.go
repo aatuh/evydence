@@ -259,6 +259,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create source repository commands: %w", err)
 	}
+	options.CollectorCommands, err = BuildCollectorCommands(store, pepper, runtime.Production)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create collector commands: %w", err)
+	}
 	options.SourceCommitCommands, err = BuildSourceCommitCommands(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create source commit commands: %w", err)

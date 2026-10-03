@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/domain"
+	integrationapp "github.com/aatuh/evydence/internal/integration/app"
 	releaseapp "github.com/aatuh/evydence/internal/release/app"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 )
@@ -376,23 +377,12 @@ func (l *Ledger) UploadBuildAttestationPayload(ctx context.Context, actor domain
 }
 
 func validCollectorScopes(scopes []string) bool {
-	for _, scope := range scopes {
-		switch strings.TrimSpace(scope) {
-		case ScopeBuildWrite, ScopeBuildRead, ScopeEvidenceWrite, ScopeEvidenceRead, ScopeSourceWrite, ScopeSourceRead, ScopeBundleWrite, ScopeBundleRead:
-		default:
-			return false
-		}
-	}
-	return len(scopes) > 0
+	_, err := integrationapp.NormalizeCollectorScopes(scopes)
+	return err == nil
 }
 
 func validCollectorType(typ string) bool {
-	switch strings.TrimSpace(typ) {
-	case collectorTypeGitHubActions, collectorTypeGitLabCI, collectorTypeGenericCI, collectorTypeImportBundle:
-		return true
-	default:
-		return false
-	}
+	return integrationapp.ValidCollectorType(typ)
 }
 
 func validCommitSHA(value string) bool {

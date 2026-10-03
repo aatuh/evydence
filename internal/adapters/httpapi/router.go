@@ -108,6 +108,7 @@ type Server struct {
 	securityDocumentCommands          SecurityDocumentCommands
 	incidentCommands                  IncidentCommands
 	incidentWebhookCommands           IncidentWebhookCommands
+	collectorCommands                 CollectorCommands
 	durableStreamedCommandExecutor    DurableStreamedCommandExecutor
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
 	deploymentCommands                DeploymentCommands
@@ -274,6 +275,7 @@ type ServerOptions struct {
 	SecurityDocumentCommands      SecurityDocumentCommands
 	IncidentCommands              IncidentCommands
 	IncidentWebhookCommands       IncidentWebhookCommands
+	CollectorCommands             CollectorCommands
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
 	DeploymentCommands            DeploymentCommands
 	SourceRepositoryCommands      SourceRepositoryCommands
@@ -390,6 +392,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if ctx == nil {
 		return nil, errors.New("server context is required")
 	}
+	if opts.CollectorCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused collectors require durable idempotency")
+	}
 	if (opts.IncidentCommands != nil || opts.IncidentWebhookCommands != nil) && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused incidents require durable idempotency")
 	}
@@ -489,6 +494,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.securityDocumentCommands = opts.SecurityDocumentCommands
 	server.incidentCommands = opts.IncidentCommands
 	server.incidentWebhookCommands = opts.IncidentWebhookCommands
+	server.collectorCommands = opts.CollectorCommands
 	server.durableStreamedCommandExecutor, _ = opts.DurableCommandExecutor.(DurableStreamedCommandExecutor)
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands
@@ -543,6 +549,10 @@ func (s *Server) ValidateRoutes() error {
 }
 
 func (s *Server) createCollector(w http.ResponseWriter, r *http.Request) {
+	if s.collectorCommands != nil {
+		s.createDurableCollector(w, r)
+		return
+	}
 	var req struct {
 		Name    string   `json:"name"`
 		Type    string   `json:"type"`
@@ -597,6 +607,10 @@ func (s *Server) listCollectors(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) recordCollectorRelease(w http.ResponseWriter, r *http.Request) {
+	if s.collectorCommands != nil {
+		s.recordDurableCollectorRelease(w, r)
+		return
+	}
 	var req struct {
 		Version        string `json:"version"`
 		ArtifactDigest string `json:"artifact_digest"`
@@ -4022,6 +4036,10 @@ func (s *Server) createSigningProvider(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createCommercialCollector(w http.ResponseWriter, r *http.Request) {
+	if s.collectorCommands != nil {
+		s.createDurableCommercialCollector(w, r)
+		return
+	}
 	var req struct {
 		Name          string   `json:"name"`
 		Provider      string   `json:"provider"`

@@ -10,6 +10,7 @@ const (
 	operationOwnerIntegrityVerification = "integrity-verification"
 	operationOwnerReleaseLedger         = "release-ledger"
 	operationOwnerOperationsIncidents   = "operations-incidents"
+	operationOwnerIntegrationIngestion  = "integration-ingestion"
 )
 
 // boundedContextOperationOwner records context ownership by operation id.
@@ -57,6 +58,8 @@ func boundedContextOperationOwner(operationID string) (string, bool) {
 
 	case "createIncident", "recordIncidentTimeline", "createRemediationTask", "createIncidentWebhookReceiver", "receiveIncidentWebhook":
 		return operationOwnerOperationsIncidents, true
+	case "createCollector", "recordCollectorRelease", "createCommercialCollector":
+		return operationOwnerIntegrationIngestion, true
 
 	case "createGraphSnapshot", "createEvidenceSummary",
 		"getReleaseBundle", "getReleaseBundleManifest",

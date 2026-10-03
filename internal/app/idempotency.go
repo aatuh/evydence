@@ -273,7 +273,16 @@ func safeIdempotencyReplayResponse(response any) (any, error) {
 	if err := json.Unmarshal(encoded, &decoded); err != nil {
 		return nil, ErrValidation
 	}
+	keyMetadata, binding, publicCollectorKey := publicCollectorReplayMetadata(decoded)
 	safe, changed := redaction.RemoveSensitive(decoded)
+	if publicCollectorKey {
+		// This narrowly projected creation DTO is public metadata, not the
+		// secret-bearing api_key fields handled by the generic denylist.
+		root := safe.(map[string]any)
+		root["api_key"] = keyMetadata
+		root["collector"].(map[string]any)["api_key_id"] = binding
+		return root, nil
+	}
 	if !changed {
 		return response, nil
 	}

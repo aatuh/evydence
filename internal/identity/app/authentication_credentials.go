@@ -2,7 +2,9 @@ package app
 
 import (
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"strings"
 )
@@ -14,6 +16,20 @@ const LocalDevelopmentPepper = "local-dev-pepper-change-me"
 // HMACAuthenticationCredentials verifies the existing persisted API-key and
 // SSO-session hash format without requiring a Ledger instance.
 type HMACAuthenticationCredentials struct{ pepper []byte }
+
+// Generate preserves the existing evy_ token and peppered HMAC format without
+// a Ledger or secret-bearing read model. Entropy failures return no material.
+func (c *HMACAuthenticationCredentials) Generate() (Credential, error) {
+	if c == nil || len(c.pepper) == 0 {
+		return Credential{}, ErrValidation
+	}
+	var raw [32]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return Credential{}, err
+	}
+	secret := "evy_" + base64.RawURLEncoding.EncodeToString(raw[:])
+	return Credential{Secret: secret, Prefix: c.Prefix(secret), Hash: c.Hash(secret)}, nil
+}
 
 func NewHMACAuthenticationCredentials(pepper string) (*HMACAuthenticationCredentials, error) {
 	pepper = strings.TrimSpace(pepper)
