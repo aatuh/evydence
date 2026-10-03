@@ -35,6 +35,13 @@ See the same [migration note](docs/reference/api-versioning.md#unreleased-contro
 
 ### Added
 
+- Security-scan and manual-document uploads now use focused PostgreSQL commands
+  with current security-scope grants and atomic evidence, document, payload,
+  audit, finalizer, and safe replay effects. Their OpenAPI schemas now match
+  the reduced parser enums, optional format, fixed API-security category, and
+  opaque manual JSON payload. See the
+  [migration note](docs/reference/api-versioning.md#unreleased-security-document-schema-correction).
+
 - Production control coverage and CRA readiness reports now use bounded, tenant-scoped PostgreSQL snapshots with current-subject validation, actual subject timestamps for freshness, and fail-closed capacity limits. Local-memory mode retains its compatibility report path.
 
 - PostgreSQL-backed customer-portal access listing now pages within current tenant and resource grants without selecting token hashes; local-memory listing also enforces resource grants.

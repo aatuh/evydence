@@ -162,6 +162,20 @@ See [VEX import preview](api.md#3-upload-sbom-and-vulnerability-evidence) for
 grant and compatibility limits. Other ingestion paths and startup Ledger
 retirement remain EVY-905 work.
 
+Security-scan and manual-document uploads now bind a focused Evidence command
+in PostgreSQL mode. Its flat transaction exposes parent/artifact validation,
+security:write authorization, evidence/payload/audit/outbox insertion, and only
+the two accepted-document writes; it cannot reach policy, decision, or incident
+repositories. Current parents and grants are checked before the shared reduced
+scan parser or object staging. Evidence, document, payload metadata, finalizer,
+two audits, and safe replay completion share the active transaction, including
+pending parents in compound commands. Replay uses current grants without
+parsing, staging, or Ledger reloads. Central replay privacy continues to omit
+payload references; raw document bytes remain outside responses. Local-memory
+mode retains its explicit compatibility command and shares DTO conversion.
+See [security-document uploads](api.md#security-document-uploads) for bounds,
+reduced-format compatibility, and secret-scan flag limitations.
+
 ## Bounded-context transition
 
 Generic evidence creation now has standalone Evidence-owned

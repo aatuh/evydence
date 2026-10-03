@@ -16,15 +16,26 @@ type EvidenceCreationScopeReader interface {
 }
 
 func NewEvidenceCreationAuthorizer(reader EvidenceCreationScopeReader, artifactPolicy application.Authorizer) (application.Authorizer, error) {
+	return newEvidenceCreationAuthorizer(reader, artifactPolicy, "evidence:write")
+}
+
+// Security-owned uploads use the same coherent-parent policy without requiring
+// the unrelated evidence:write grant.
+func NewSecurityDocumentAuthorizer(reader EvidenceCreationScopeReader, artifactPolicy application.Authorizer) (application.Authorizer, error) {
+	return newEvidenceCreationAuthorizer(reader, artifactPolicy, "security:write")
+}
+
+func newEvidenceCreationAuthorizer(reader EvidenceCreationScopeReader, artifactPolicy application.Authorizer, scope string) (application.Authorizer, error) {
 	if reader == nil || artifactPolicy == nil {
 		return nil, ErrValidation
 	}
-	return evidenceCreationAuthorizer{reader, artifactPolicy}, nil
+	return evidenceCreationAuthorizer{reader, artifactPolicy, scope}, nil
 }
 
 type evidenceCreationAuthorizer struct {
 	reader    EvidenceCreationScopeReader
 	artifacts application.Authorizer
+	scope     string
 }
 
 func (a evidenceCreationAuthorizer) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
@@ -37,7 +48,7 @@ func (a evidenceCreationAuthorizer) Authorize(ctx context.Context, actor identit
 	if actor.TenantID == "" || actor.KeyID == "" && actor.UserID == "" && actor.CollectorID == "" {
 		return application.ErrUnauthorized
 	}
-	if request.Scope != "evidence:write" || !actor.HasScope(request.Scope) && !actor.HasScope("admin") {
+	if request.Scope != a.scope || !actor.HasScope(request.Scope) && !actor.HasScope("admin") {
 		return application.ErrForbidden
 	}
 	if request.TenantWide {

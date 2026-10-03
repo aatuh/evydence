@@ -9,6 +9,36 @@ import (
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 )
 
+func TestArtifactSecurityWriteAuthorizerKeepsScopeAndAssociationPolicy(t *testing.T) {
+	reader := &buildArtifactPointReaderFake{point: ArtifactPoint{Artifact: releasedomain.Artifact{ID: "artifact", TenantID: "ten_1"}, Visible: true}}
+	auth, err := NewArtifactSecurityWriteAuthorizer(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := catalogActor("security:write", "product", "product", "security:write")
+	r := application.AuthorizationRequest{Scope: "security:write", Resources: application.ResourceReferences{ArtifactID: "artifact"}}
+	if err := auth.Authorize(t.Context(), a, r); err != nil || len(reader.request.AllowedProductIDs) != 1 || reader.request.AllowedProductIDs[0] != "product" {
+		t.Fatal(reader.request, err)
+	}
+	reader.point.Visible = false
+	if err := auth.Authorize(t.Context(), a, r); !errors.Is(err, application.ErrForbidden) {
+		t.Fatal("unlinked artifact accepted", err)
+	}
+	reader.point.Visible = true
+	a.ResourceGrants[0].Scopes = []string{"evidence:write"}
+	if err := auth.Authorize(t.Context(), a, r); !errors.Is(err, application.ErrForbidden) {
+		t.Fatal("wrong grant scope accepted", err)
+	}
+	a.ResourceGrants[0].Scopes = []string{"security:write"}
+	r.Scope = "evidence:write"
+	if err := auth.Authorize(t.Context(), a, r); !errors.Is(err, application.ErrForbidden) {
+		t.Fatal("evidence scope accepted", err)
+	}
+	if _, err := NewArtifactSecurityWriteAuthorizer(nil); err == nil {
+		t.Fatal("missing reader accepted")
+	}
+}
+
 func TestArtifactWriteAuthorizerRequiresCurrentDuplicateGrant(t *testing.T) {
 	reader := &buildArtifactPointReaderFake{point: ArtifactPoint{
 		Artifact: releasedomain.Artifact{ID: "art_1", TenantID: "ten_1"}, Visible: true,

@@ -36,6 +36,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 		t.Fatalf("local memory dependencies=%#v error=%v", memory, err)
 	}
 	store := &postgres.Store{}
+	if memory.SecurityDocumentCommands != nil {
+		t.Fatal("local memory bound durable security documents")
+	}
 	if memory.VEXPreviewQuery != nil {
 		t.Fatal("local-memory profile bound durable VEX previews")
 	}
@@ -342,6 +345,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.VEXPreviewQuery == nil {
 		t.Fatal("PostgreSQL profile omitted focused VEX previews")
+	}
+	if options.SecurityDocumentCommands == nil {
+		t.Fatal("PostgreSQL security documents remain Ledger-backed")
 	}
 	if options.SBOMIngestionCommands == nil {
 		t.Fatal("PostgreSQL SBOM ingestion still uses Ledger")

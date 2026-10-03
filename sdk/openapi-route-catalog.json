@@ -114,7 +114,7 @@
       "method": "POST",
       "operation_id": "uploadAPISecurityScan",
       "path": "/v1/api-security-scans",
-      "request_schema": "#/components/schemas/UploadSecurityScanRequest",
+      "request_schema": "#/components/schemas/UploadAPISecurityScanRequest",
       "response_schemas": [
         "#/components/schemas/Problem",
         "#/components/schemas/SecurityScanEnvelope"

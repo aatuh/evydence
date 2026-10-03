@@ -13,7 +13,7 @@ Generated from 189 operations: 189 precise, 0 broad.
 | GET | /v1/admin/readiness | readinessDiagnostics | Bearer | instance:admin | - | - | - | 200:application/json:ReadinessDiagnosticsEnvelope | precise | experimental |
 | GET | /v1/api-keys | listAPIKeys | Bearer | admin | - | query:cursor, query:direction, query:page_size, query:sort | - | 200:application/json:APIKeyListEnvelope | precise | supported |
 | POST | /v1/api-keys | createAPIKey | Bearer | admin | required | - | application/json:CreateAPIKeyRequest | 201:application/json:APIKeyCreateEnvelope | precise | supported |
-| POST | /v1/api-security-scans | uploadAPISecurityScan | Bearer | security:write | required | - | application/json:UploadSecurityScanRequest | 201:application/json:SecurityScanEnvelope | precise | experimental |
+| POST | /v1/api-security-scans | uploadAPISecurityScan | Bearer | security:write | required | - | application/json:UploadAPISecurityScanRequest | 201:application/json:SecurityScanEnvelope | precise | experimental |
 | POST | /v1/approvals | createApproval | Bearer | release:write | required | - | application/json:CreateApprovalRequest | 201:application/json:ApprovalRecordEnvelope | precise | core |
 | POST | /v1/artifact-signatures | createArtifactSignature | Bearer | evidence:write | required | - | application/json:CreateArtifactSignatureRequest | 201:application/json:ArtifactSignatureEnvelope | precise | experimental |
 | GET | /v1/artifact-signatures/{id} | getArtifactSignature | Bearer | evidence:read | - | header:If-None-Match, path:id | - | 200:application/json:ArtifactSignatureEnvelope | precise | experimental |

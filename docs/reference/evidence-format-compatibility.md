@@ -385,9 +385,16 @@ mode reads only non-empty version and `runs[].results[].level`; tests use 2.1.0
 but the version is not allowlisted. Generic mode reads only finding severity.
 Unknown fields are rejected. This is not full SARIF or native scanner support.
 
-Evidence: `internal/app/risk_workflows.go` (`parseSecurityScan`) and security
-scan tests in `risk_workflows_more_test.go` and
-`security_document_uow_test.go`.
+PostgreSQL uploads now use focused transactional commands with current
+security-scope grants, bounded reduced projections, and safe replay. See
+[security-document uploads](../api.md#security-document-uploads) for exact
+envelope limits, enums, manual-payload encoding, and secret-scan flag
+limitations. No new native scanner format or complete SARIF claim is added.
+
+Evidence: `internal/evidence/app/risk_commands.go` (`parseSecurityScan`),
+`internal/evidence/app/security_document_commands_test.go`,
+`internal/platform/wiring/security_document_commands_test.go`, and legacy
+`internal/app/security_document_uow_test.go`.
 
 ## Unsupported inputs and failure guidance
 

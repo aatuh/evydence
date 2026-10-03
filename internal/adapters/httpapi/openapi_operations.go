@@ -13,6 +13,8 @@ const focusedVEXIngestionDescription = " In PostgreSQL mode, a focused command c
 
 const focusedVEXPreviewDescription = " In PostgreSQL mode, one read-only repeatable-read snapshot resolves current tenant-owned release parents and optional artifact ownership, then checks human release and artifact grants before parsing or candidate selection. The wrapped JSON request is limited to 64 KiB and rejects null, duplicate, and unknown fields. IDs are NUL-free UTF-8 bounded at 1024 bytes. Reads select only relevant finding coordinates and active-decision presence, never private notes or evidence metadata; at most 4096 release scans, 4096 candidate findings, and 8 MiB of combined candidate text are allowed. Oversized or malformed stored projections fail closed without a partial preview. Matching preserves duplicate and ambiguity policy and original statement indexes. Results remain advisory and create no audit, outbox, or idempotency records; Idempotency-Key is not required."
 
+const focusedSecurityDocumentDescription = " In PostgreSQL mode, focused security:write commands check current tenant-owned product/release parents and human resource grants before parsing or staging; scoped human artifact grants require a current authorized evidence/build association, while tenant-wide grants and issued credentials do not need a narrower association. No request reloads the Ledger aggregate. Wrapped JSON remains limited to 64 KiB and rejects null metadata/payload, duplicate keys, and unknown envelope fields. IDs are NUL-free UTF-8 bounded at 1024 bytes. Evidence, accepted document metadata, payload metadata, finalizer job, two audit entries, and safe idempotency completion commit in one transaction. Same-key replay rechecks current grants without parsing or staging and preserves safe metadata; payload_ref is omitted on replay by the central privacy policy. Raw payload bytes are never included in responses. Failed commands roll back document effects; a response-free failed-key record can remain. Local-memory mode retains its explicit compatibility command."
+
 func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 	addProblemResponses(&operation)
 	switch operation.OperationID {
@@ -723,10 +725,15 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Responses[http.StatusCreated] = jsonResponse("Registered container image envelope.", "#/components/schemas/ContainerImageEnvelope")
 	case "uploadSecurityScan", "uploadAPISecurityScan":
 		operation.Description = "Uploads SAST, DAST, secret, license, or API security scan metadata and raw JSON payload evidence without exposing raw payload bytes in responses."
+		operation.Description += focusedSecurityDocumentDescription + " The generic findings/severity and SARIF version/runs/results/level parsers are reduced contracts, not complete SARIF support. Omitted format defaults to generic. Projections are bounded at 100,000 findings, 1 MiB per label, and 8 MiB combined summary labels; overflow fails validation. Secret-scan redacted/quarantined flags record policy metadata and do not prove that stored raw bytes are scrubbed or safe to distribute. Scanner findings are not authoritative."
 		operation.RequestBody = jsonRequest("Security scan upload request.", "#/components/schemas/UploadSecurityScanRequest")
+		if operation.OperationID == "uploadAPISecurityScan" {
+			operation.RequestBody = jsonRequest("API security scan upload request; category is fixed to api_security and must not be supplied.", "#/components/schemas/UploadAPISecurityScanRequest")
+		}
 		operation.Responses[http.StatusCreated] = jsonResponse("Created security scan envelope.", "#/components/schemas/SecurityScanEnvelope")
 	case "uploadManualSecurityDocument":
 		operation.Description = "Uploads sensitive manual security evidence such as threat model, security review, or penetration-test report metadata and raw payload reference."
+		operation.Description += focusedSecurityDocumentDescription + " Payload is an opaque non-null JSON value whose exact encoded bytes are retained, not executed. Omitted media_type defaults to application/octet-stream. Manual evidence has lower default trust and requires human review; acceptance does not establish legal sufficiency."
 		operation.RequestBody = jsonRequest("Manual security document upload request.", "#/components/schemas/UploadManualSecurityDocumentRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created manual security document envelope.", "#/components/schemas/ManualSecurityDocumentEnvelope")
 	case "uploadSPDXSBOM":

@@ -411,8 +411,8 @@ func parseSecurityScan(format string, raw []byte) (parsedSecurityScan, error) {
 	if format == "sarif" {
 		var document struct {
 			Version string `json:"version"`
-			Runs    []struct {
-				Results []struct {
+			Runs    []*struct {
+				Results []*struct {
 					Level string `json:"level"`
 				} `json:"results"`
 			} `json:"runs"`
@@ -423,7 +423,13 @@ func parseSecurityScan(format string, raw []byte) (parsedSecurityScan, error) {
 		summary := map[string]int{}
 		total := 0
 		for _, run := range document.Runs {
+			if run == nil {
+				return parsedSecurityScan{}, ErrValidation
+			}
 			for _, result := range run.Results {
+				if result == nil {
+					return parsedSecurityScan{}, ErrValidation
+				}
 				total++
 				summary[nonEmpty(strings.ToLower(result.Level), "warning")]++
 			}
@@ -431,7 +437,7 @@ func parseSecurityScan(format string, raw []byte) (parsedSecurityScan, error) {
 		return parsedSecurityScan{Format: "sarif", FindingCount: total, Summary: summary}, nil
 	}
 	var document struct {
-		Findings []struct {
+		Findings []*struct {
 			Severity string `json:"severity"`
 		} `json:"findings"`
 	}
@@ -440,6 +446,9 @@ func parseSecurityScan(format string, raw []byte) (parsedSecurityScan, error) {
 	}
 	summary := map[string]int{}
 	for _, finding := range document.Findings {
+		if finding == nil {
+			return parsedSecurityScan{}, ErrValidation
+		}
 		summary[nonEmpty(strings.ToLower(finding.Severity), "unknown")]++
 	}
 	return parsedSecurityScan{Format: strings.TrimSpace(format), FindingCount: len(document.Findings), Summary: summary}, nil

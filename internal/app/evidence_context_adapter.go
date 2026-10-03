@@ -907,21 +907,11 @@ func cloneNullableIntMap(values map[string]int) map[string]int {
 }
 
 func securityScanFromEvidenceContext(value evidencedomain.SecurityScan) domain.SecurityScan {
-	return domain.SecurityScan{
-		ID: value.ID, TenantID: value.TenantID, ProductID: value.ProductID, ReleaseID: value.ReleaseID, ArtifactID: value.ArtifactID,
-		Category: value.Category, Format: value.Format, Scanner: value.Scanner, TargetRef: value.TargetRef, EvidenceID: value.EvidenceID,
-		PayloadRef: value.PayloadRef, PayloadHash: value.PayloadHash, FindingCount: value.FindingCount,
-		Summary: cloneIntMap(value.Summary), Redacted: value.Redacted, Quarantined: value.Quarantined,
-		SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt,
-	}
+	return domain.SecurityScanFromContext(value)
 }
 
 func manualSecurityDocumentFromEvidenceContext(value evidencedomain.ManualSecurityDocument) domain.ManualSecurityDocument {
-	return domain.ManualSecurityDocument{
-		ID: value.ID, TenantID: value.TenantID, ProductID: value.ProductID, ReleaseID: value.ReleaseID,
-		DocumentType: value.DocumentType, Title: value.Title, Sensitivity: value.Sensitivity, EvidenceID: value.EvidenceID,
-		PayloadRef: value.PayloadRef, PayloadHash: value.PayloadHash, SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt,
-	}
+	return domain.ManualSecurityDocumentFromContext(value)
 }
 
 func sbomDiffFromEvidenceContext(value evidencedomain.SBOMDiff) domain.SBOMDiff {

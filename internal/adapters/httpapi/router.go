@@ -105,6 +105,7 @@ type Server struct {
 	scanIngestionCommands             VulnerabilityScanIngestionCommands
 	vexIngestionCommands              VEXIngestionCommands
 	vexPreviewQuery                   VEXPreviewQuery
+	securityDocumentCommands          SecurityDocumentCommands
 	durableStreamedCommandExecutor    DurableStreamedCommandExecutor
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
 	deploymentCommands                DeploymentCommands
@@ -268,6 +269,7 @@ type ServerOptions struct {
 	ScanIngestionCommands         VulnerabilityScanIngestionCommands
 	VEXIngestionCommands          VEXIngestionCommands
 	VEXPreviewQuery               VEXPreviewQuery
+	SecurityDocumentCommands      SecurityDocumentCommands
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
 	DeploymentCommands            DeploymentCommands
 	SourceRepositoryCommands      SourceRepositoryCommands
@@ -384,6 +386,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if ctx == nil {
 		return nil, errors.New("server context is required")
 	}
+	if opts.SecurityDocumentCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused security documents require durable idempotency")
+	}
 	if opts.OpenAPIIngestionCommands != nil || opts.SBOMIngestionCommands != nil || opts.ScanIngestionCommands != nil || opts.VEXIngestionCommands != nil {
 		if _, ok := opts.DurableCommandExecutor.(DurableStreamedCommandExecutor); !ok {
 			return nil, errors.New("focused document ingestion requires durable streamed idempotency")
@@ -474,6 +479,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.scanIngestionCommands = opts.ScanIngestionCommands
 	server.vexIngestionCommands = opts.VEXIngestionCommands
 	server.vexPreviewQuery = opts.VEXPreviewQuery
+	server.securityDocumentCommands = opts.SecurityDocumentCommands
 	server.durableStreamedCommandExecutor, _ = opts.DurableCommandExecutor.(DurableStreamedCommandExecutor)
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands
@@ -1968,6 +1974,10 @@ func (s *Server) incidentReport(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) uploadSecurityScan(w http.ResponseWriter, r *http.Request) {
+	if s.securityDocumentCommands != nil {
+		s.uploadDurableSecurityScan(w, r, false)
+		return
+	}
 	var req struct {
 		ProductID  string          `json:"product_id"`
 		ReleaseID  string          `json:"release_id"`
@@ -1988,6 +1998,10 @@ func (s *Server) uploadSecurityScan(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) uploadAPISecurityScan(w http.ResponseWriter, r *http.Request) {
+	if s.securityDocumentCommands != nil {
+		s.uploadDurableSecurityScan(w, r, true)
+		return
+	}
 	var req struct {
 		ProductID  string          `json:"product_id"`
 		ReleaseID  string          `json:"release_id"`
@@ -2007,6 +2021,10 @@ func (s *Server) uploadAPISecurityScan(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) uploadManualSecurityDocument(w http.ResponseWriter, r *http.Request) {
+	if s.securityDocumentCommands != nil {
+		s.uploadDurableManualSecurityDocument(w, r)
+		return
+	}
 	var req struct {
 		ProductID    string          `json:"product_id"`
 		ReleaseID    string          `json:"release_id"`

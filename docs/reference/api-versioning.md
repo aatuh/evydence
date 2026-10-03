@@ -146,6 +146,27 @@ corrected contract. No database migration is needed. This correction does not
 approve additional compatibility changes or supersede the exact prerelease
 change record above; the compatibility gate must still pass before closure.
 
+## Unreleased Security-Document Schema Correction
+
+The security upload schemas now describe the existing reduced parsers:
+`secret_scan` and `license_scan`, not unsupported `secret`/`license` aliases;
+`pen_test_report`, not `pentest_report`; and optional `format`, defaulting to
+`generic`. The API-security convenience route uses its own request schema,
+because its category is fixed and a supplied `category` is rejected. Manual
+payloads accept any non-null JSON value and retain its encoded bytes rather
+than decoding strings into plain text. Regenerate clients from the corrected
+contract; no historical row or schema version changes.
+
+PostgreSQL mode now uses focused commands with current security-scope grants.
+Malformed null/duplicate-key/non-object scan documents and invalid UTF-8 fail
+before staging; null finding/run/result entries are rejected by the shared
+reduced parser. Initial tenant-scoped payload metadata remains available, but
+the existing central replay privacy policy omits `payload_ref` from stored
+and replayed responses. See [security-document uploads](../api.md#security-document-uploads)
+for limits and secret-scan flag non-claims. These corrections do not approve
+the expanded compatibility change set or claim a release; the exact gate must
+still pass before ticket closure.
+
 ## Stable-Line Rule
 
 A stable `/v1` line permits additive fields, endpoints, and optional filters.

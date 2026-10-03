@@ -11,13 +11,25 @@ import (
 // NewArtifactWriteAuthorizer permits creation with evidence:write scope, but
 // requires a current artifact association before a human can reuse a digest.
 func NewArtifactWriteAuthorizer(artifacts ArtifactPointReader) (application.Authorizer, error) {
+	return newArtifactWriteAuthorizer(artifacts, "evidence:write")
+}
+
+// Security scan uploads reuse the association policy with security:write.
+func NewArtifactSecurityWriteAuthorizer(artifacts ArtifactPointReader) (application.Authorizer, error) {
+	return newArtifactWriteAuthorizer(artifacts, "security:write")
+}
+
+func newArtifactWriteAuthorizer(artifacts ArtifactPointReader, scope string) (application.Authorizer, error) {
 	if artifacts == nil {
 		return nil, ErrValidation
 	}
-	return artifactWriteAuthorizer{artifacts: artifacts}, nil
+	return artifactWriteAuthorizer{artifacts: artifacts, scope: scope}, nil
 }
 
-type artifactWriteAuthorizer struct{ artifacts ArtifactPointReader }
+type artifactWriteAuthorizer struct {
+	artifacts ArtifactPointReader
+	scope     string
+}
 
 func (a artifactWriteAuthorizer) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
 	if ctx == nil {
@@ -29,7 +41,7 @@ func (a artifactWriteAuthorizer) Authorize(ctx context.Context, actor identitydo
 	if actor.TenantID == "" || actor.KeyID == "" && actor.UserID == "" && actor.CollectorID == "" {
 		return application.ErrUnauthorized
 	}
-	if request.Scope != "evidence:write" || !actor.HasScope(request.Scope) && !actor.HasScope("admin") {
+	if request.Scope != a.scope || !actor.HasScope(request.Scope) && !actor.HasScope("admin") {
 		return application.ErrForbidden
 	}
 	if request.ScopeOnly && !request.TenantWide && request.Resources == (application.ResourceReferences{}) {

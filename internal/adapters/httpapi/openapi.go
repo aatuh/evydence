@@ -2346,12 +2346,21 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"product_id":  map[string]any{"type": "string"},
 		"release_id":  map[string]any{"type": "string"},
 		"artifact_id": map[string]any{"type": "string"},
-		"category":    map[string]any{"type": "string", "enum": []string{"sast", "dast", "secret", "license", "api_security"}},
-		"format":      map[string]any{"type": "string"},
+		"category":    map[string]any{"type": "string", "enum": []string{"sast", "dast", "secret_scan", "license_scan", "api_security"}},
+		"format":      map[string]any{"type": "string", "default": "generic"},
 		"scanner":     map[string]any{"type": "string"},
 		"target_ref":  map[string]any{"type": "string"},
 		"payload":     map[string]any{"type": "object", "additionalProperties": true},
-	}, "category", "format", "scanner", "target_ref", "payload"))
+	}, "category", "scanner", "target_ref", "payload"))
+	registry.RegisterSchema("UploadAPISecurityScanRequest", objectSchema(map[string]any{
+		"product_id":  map[string]any{"type": "string"},
+		"release_id":  map[string]any{"type": "string"},
+		"artifact_id": map[string]any{"type": "string"},
+		"format":      map[string]any{"type": "string", "default": "generic"},
+		"scanner":     map[string]any{"type": "string"},
+		"target_ref":  map[string]any{"type": "string"},
+		"payload":     map[string]any{"type": "object", "additionalProperties": true},
+	}, "scanner", "target_ref", "payload"))
 	registry.RegisterSchema("SecurityScan", objectSchema(map[string]any{
 		"id":             map[string]any{"type": "string"},
 		"tenant_id":      map[string]any{"type": "string"},
@@ -2363,7 +2372,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"scanner":        map[string]any{"type": "string"},
 		"target_ref":     map[string]any{"type": "string"},
 		"evidence_id":    map[string]any{"type": "string"},
-		"payload_ref":    map[string]any{"type": "string"},
+		"payload_ref":    map[string]any{"type": "string", "description": "Tenant-scoped object metadata, not a public download URL; omitted on idempotent replay by the central privacy policy."},
 		"payload_hash":   map[string]any{"type": "string", "pattern": "^sha256:"},
 		"finding_count":  map[string]any{"type": "integer"},
 		"summary":        map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "integer"}},
@@ -2376,11 +2385,17 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	registry.RegisterSchema("UploadManualSecurityDocumentRequest", objectSchema(map[string]any{
 		"product_id":    map[string]any{"type": "string"},
 		"release_id":    map[string]any{"type": "string"},
-		"document_type": map[string]any{"type": "string", "enum": []string{"threat_model", "security_review", "pentest_report"}},
+		"document_type": map[string]any{"type": "string", "enum": []string{"threat_model", "security_review", "pen_test_report"}},
 		"title":         map[string]any{"type": "string"},
 		"sensitivity":   map[string]any{"type": "string", "enum": []string{"internal", "restricted", "confidential"}},
-		"payload":       map[string]any{"type": "string", "description": "Document payload or text supplied for object storage; responses expose only payload hash/ref metadata."},
-		"media_type":    map[string]any{"type": "string"},
+		"payload": map[string]any{"oneOf": []any{
+			map[string]any{"type": "object", "additionalProperties": true},
+			map[string]any{"type": "array", "items": map[string]any{}},
+			map[string]any{"type": "string"},
+			map[string]any{"type": "number"},
+			map[string]any{"type": "boolean"},
+		}, "description": "Opaque non-null JSON value; its exact encoded bytes are retained. Responses never contain raw payload bytes."},
+		"media_type": map[string]any{"type": "string"},
 	}, "document_type", "title", "sensitivity", "payload"))
 	registry.RegisterSchema("ManualSecurityDocument", objectSchema(map[string]any{
 		"id":             map[string]any{"type": "string"},
@@ -2391,7 +2406,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"title":          map[string]any{"type": "string"},
 		"sensitivity":    map[string]any{"type": "string"},
 		"evidence_id":    map[string]any{"type": "string"},
-		"payload_ref":    map[string]any{"type": "string"},
+		"payload_ref":    map[string]any{"type": "string", "description": "Tenant-scoped object metadata, not a public download URL; omitted on idempotent replay by the central privacy policy."},
 		"payload_hash":   map[string]any{"type": "string", "pattern": "^sha256:"},
 		"schema_version": map[string]any{"type": "string"},
 		"created_at":     map[string]any{"type": "string", "format": "date-time"},

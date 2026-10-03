@@ -235,6 +235,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create VEX preview query: %w", err)
 	}
+	options.SecurityDocumentCommands, err = BuildSecurityDocumentCommands(store, runtime.Objects)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create security document commands: %w", err)
+	}
 	options.DeploymentEnvironmentCommands, err = BuildDeploymentEnvironmentCommands(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create environment commands: %w", err)

@@ -30,6 +30,40 @@ type creationArtifactAuthorizerFake struct {
 	err     error
 }
 
+func TestSecurityDocumentAuthorizerKeepsSecurityScopeAndCurrentParents(t *testing.T) {
+	reader := &creationScopeFake{resolved: application.ResourceReferences{ProductID: "product", ReleaseID: "release"}}
+	artifacts := &creationArtifactAuthorizerFake{}
+	auth, err := NewSecurityDocumentAuthorizer(reader, artifacts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := identitydomain.Actor{TenantID: "tenant", UserID: "human", Scopes: []string{"security:write"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "product", ResourceID: "product", Scopes: []string{"security:write"}}}}
+	r := application.AuthorizationRequest{Scope: "security:write", Resources: application.ResourceReferences{ReleaseID: "release"}}
+	if err := auth.Authorize(t.Context(), a, r); err != nil {
+		t.Fatal(err)
+	}
+	a.ResourceGrants[0].Scopes = []string{"evidence:write"}
+	if err := auth.Authorize(t.Context(), a, r); !errors.Is(err, application.ErrForbidden) {
+		t.Fatal("wrong grant scope accepted", err)
+	}
+	a.ResourceGrants[0].Scopes = []string{"security:write"}
+	reader.err = ErrNotFound
+	if err := auth.Authorize(t.Context(), a, r); !errors.Is(err, ErrNotFound) {
+		t.Fatal("missing current parent accepted", err)
+	}
+	reader.err = nil
+	r.Resources = application.ResourceReferences{ArtifactID: "artifact"}
+	if err := auth.Authorize(t.Context(), a, r); err != nil || artifacts.request.Scope != "security:write" {
+		t.Fatal("artifact scope changed", err)
+	}
+	for _, scope := range []string{"evidence:write", "admin", "security:read"} {
+		r.Scope = scope
+		if err := auth.Authorize(t.Context(), a, r); !errors.Is(err, application.ErrForbidden) {
+			t.Fatal("unrelated scope accepted", scope, err)
+		}
+	}
+}
+
 func (a *creationArtifactAuthorizerFake) Authorize(_ context.Context, _ identitydomain.Actor, r application.AuthorizationRequest) error {
 	a.calls++
 	a.request = r

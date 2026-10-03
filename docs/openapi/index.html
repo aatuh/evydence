@@ -143,7 +143,7 @@
         <div class="summary-card"><strong>3.1.0</strong><span>OpenAPI version</span></div>
         <div class="summary-card"><strong>172</strong><span>registered paths</span></div>
         <div class="summary-card"><strong>189</strong><span>operations</span></div>
-        <div class="summary-card"><strong>390</strong><span>schemas</span></div>
+        <div class="summary-card"><strong>391</strong><span>schemas</span></div>
       </div>
     </header>
     <main>
@@ -262,20 +262,20 @@
               <div><dt>Responses</dt><dd>201 application/json: APIKeyCreateEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/api-security-scans upload api security scan uploads sast, dast, secret, license, or api security scan metadata and raw json payload evidence without exposing raw payload bytes in responses. uploadapisecurityscan evydence security:write">
+          <article class="operation" data-operation data-search="post /v1/api-security-scans upload api security scan uploads sast, dast, secret, license, or api security scan metadata and raw json payload evidence without exposing raw payload bytes in responses. in postgresql mode, focused security:write commands check current tenant-owned product/release parents and human resource grants before parsing or staging; scoped human artifact grants require a current authorized evidence/build association, while tenant-wide grants and issued credentials do not need a narrower association. no request reloads the ledger aggregate. wrapped json remains limited to 64 kib and rejects null metadata/payload, duplicate keys, and unknown envelope fields. ids are nul-free utf-8 bounded at 1024 bytes. evidence, accepted document metadata, payload metadata, finalizer job, two audit entries, and safe idempotency completion commit in one transaction. same-key replay rechecks current grants without parsing or staging and preserves safe metadata; payload_ref is omitted on replay by the central privacy policy. raw payload bytes are never included in responses. failed commands roll back document effects; a response-free failed-key record can remain. local-memory mode retains its explicit compatibility command. the generic findings/severity and sarif version/runs/results/level parsers are reduced contracts, not complete sarif support. omitted format defaults to generic. projections are bounded at 100,000 findings, 1 mib per label, and 8 mib combined summary labels; overflow fails validation. secret-scan redacted/quarantined flags record policy metadata and do not prove that stored raw bytes are scrubbed or safe to distribute. scanner findings are not authoritative. uploadapisecurityscan evydence security:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/api-security-scans</code>
             </div>
             <h3>Upload API security scan</h3>
-            <p>Uploads SAST, DAST, secret, license, or API security scan metadata and raw JSON payload evidence without exposing raw payload bytes in responses.</p>
+            <p>Uploads SAST, DAST, secret, license, or API security scan metadata and raw JSON payload evidence without exposing raw payload bytes in responses. In PostgreSQL mode, focused security:write commands check current tenant-owned product/release parents and human resource grants before parsing or staging; scoped human artifact grants require a current authorized evidence/build association, while tenant-wide grants and issued credentials do not need a narrower association. No request reloads the Ledger aggregate. Wrapped JSON remains limited to 64 KiB and rejects null metadata/payload, duplicate keys, and unknown envelope fields. IDs are NUL-free UTF-8 bounded at 1024 bytes. Evidence, accepted document metadata, payload metadata, finalizer job, two audit entries, and safe idempotency completion commit in one transaction. Same-key replay rechecks current grants without parsing or staging and preserves safe metadata; payload_ref is omitted on replay by the central privacy policy. Raw payload bytes are never included in responses. Failed commands roll back document effects; a response-free failed-key record can remain. Local-memory mode retains its explicit compatibility command. The generic findings/severity and SARIF version/runs/results/level parsers are reduced contracts, not complete SARIF support. Omitted format defaults to generic. Projections are bounded at 100,000 findings, 1 MiB per label, and 8 MiB combined summary labels; overflow fails validation. Secret-scan redacted/quarantined flags record policy metadata and do not prove that stored raw bytes are scrubbed or safe to distribute. Scanner findings are not authoritative.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>uploadAPISecurityScan</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
               <div><dt>Auth</dt><dd>BearerAuth</dd></div>
               <div><dt>Scopes</dt><dd>security:write</dd></div>
               <div><dt>Idempotency</dt><dd>Idempotency-Key</dd></div>
-              <div><dt>Request</dt><dd>application/json: UploadSecurityScanRequest</dd></div>
+              <div><dt>Request</dt><dd>application/json: UploadAPISecurityScanRequest</dd></div>
               <div><dt>Responses</dt><dd>201 application/json: SecurityScanEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
@@ -2727,13 +2727,13 @@
               <div><dt>Responses</dt><dd>200 application/json: SBOMEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/security-documents upload manual security document uploads sensitive manual security evidence such as threat model, security review, or penetration-test report metadata and raw payload reference. uploadmanualsecuritydocument evydence security:write">
+          <article class="operation" data-operation data-search="post /v1/security-documents upload manual security document uploads sensitive manual security evidence such as threat model, security review, or penetration-test report metadata and raw payload reference. in postgresql mode, focused security:write commands check current tenant-owned product/release parents and human resource grants before parsing or staging; scoped human artifact grants require a current authorized evidence/build association, while tenant-wide grants and issued credentials do not need a narrower association. no request reloads the ledger aggregate. wrapped json remains limited to 64 kib and rejects null metadata/payload, duplicate keys, and unknown envelope fields. ids are nul-free utf-8 bounded at 1024 bytes. evidence, accepted document metadata, payload metadata, finalizer job, two audit entries, and safe idempotency completion commit in one transaction. same-key replay rechecks current grants without parsing or staging and preserves safe metadata; payload_ref is omitted on replay by the central privacy policy. raw payload bytes are never included in responses. failed commands roll back document effects; a response-free failed-key record can remain. local-memory mode retains its explicit compatibility command. payload is an opaque non-null json value whose exact encoded bytes are retained, not executed. omitted media_type defaults to application/octet-stream. manual evidence has lower default trust and requires human review; acceptance does not establish legal sufficiency. uploadmanualsecuritydocument evydence security:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/security-documents</code>
             </div>
             <h3>Upload manual security document</h3>
-            <p>Uploads sensitive manual security evidence such as threat model, security review, or penetration-test report metadata and raw payload reference.</p>
+            <p>Uploads sensitive manual security evidence such as threat model, security review, or penetration-test report metadata and raw payload reference. In PostgreSQL mode, focused security:write commands check current tenant-owned product/release parents and human resource grants before parsing or staging; scoped human artifact grants require a current authorized evidence/build association, while tenant-wide grants and issued credentials do not need a narrower association. No request reloads the Ledger aggregate. Wrapped JSON remains limited to 64 KiB and rejects null metadata/payload, duplicate keys, and unknown envelope fields. IDs are NUL-free UTF-8 bounded at 1024 bytes. Evidence, accepted document metadata, payload metadata, finalizer job, two audit entries, and safe idempotency completion commit in one transaction. Same-key replay rechecks current grants without parsing or staging and preserves safe metadata; payload_ref is omitted on replay by the central privacy policy. Raw payload bytes are never included in responses. Failed commands roll back document effects; a response-free failed-key record can remain. Local-memory mode retains its explicit compatibility command. Payload is an opaque non-null JSON value whose exact encoded bytes are retained, not executed. Omitted media_type defaults to application/octet-stream. Manual evidence has lower default trust and requires human review; acceptance does not establish legal sufficiency.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>uploadManualSecurityDocument</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2744,13 +2744,13 @@
               <div><dt>Responses</dt><dd>201 application/json: ManualSecurityDocumentEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/security-scans upload security scan uploads sast, dast, secret, license, or api security scan metadata and raw json payload evidence without exposing raw payload bytes in responses. uploadsecurityscan evydence security:write">
+          <article class="operation" data-operation data-search="post /v1/security-scans upload security scan uploads sast, dast, secret, license, or api security scan metadata and raw json payload evidence without exposing raw payload bytes in responses. in postgresql mode, focused security:write commands check current tenant-owned product/release parents and human resource grants before parsing or staging; scoped human artifact grants require a current authorized evidence/build association, while tenant-wide grants and issued credentials do not need a narrower association. no request reloads the ledger aggregate. wrapped json remains limited to 64 kib and rejects null metadata/payload, duplicate keys, and unknown envelope fields. ids are nul-free utf-8 bounded at 1024 bytes. evidence, accepted document metadata, payload metadata, finalizer job, two audit entries, and safe idempotency completion commit in one transaction. same-key replay rechecks current grants without parsing or staging and preserves safe metadata; payload_ref is omitted on replay by the central privacy policy. raw payload bytes are never included in responses. failed commands roll back document effects; a response-free failed-key record can remain. local-memory mode retains its explicit compatibility command. the generic findings/severity and sarif version/runs/results/level parsers are reduced contracts, not complete sarif support. omitted format defaults to generic. projections are bounded at 100,000 findings, 1 mib per label, and 8 mib combined summary labels; overflow fails validation. secret-scan redacted/quarantined flags record policy metadata and do not prove that stored raw bytes are scrubbed or safe to distribute. scanner findings are not authoritative. uploadsecurityscan evydence security:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/security-scans</code>
             </div>
             <h3>Upload security scan</h3>
-            <p>Uploads SAST, DAST, secret, license, or API security scan metadata and raw JSON payload evidence without exposing raw payload bytes in responses.</p>
+            <p>Uploads SAST, DAST, secret, license, or API security scan metadata and raw JSON payload evidence without exposing raw payload bytes in responses. In PostgreSQL mode, focused security:write commands check current tenant-owned product/release parents and human resource grants before parsing or staging; scoped human artifact grants require a current authorized evidence/build association, while tenant-wide grants and issued credentials do not need a narrower association. No request reloads the Ledger aggregate. Wrapped JSON remains limited to 64 KiB and rejects null metadata/payload, duplicate keys, and unknown envelope fields. IDs are NUL-free UTF-8 bounded at 1024 bytes. Evidence, accepted document metadata, payload metadata, finalizer job, two audit entries, and safe idempotency completion commit in one transaction. Same-key replay rechecks current grants without parsing or staging and preserves safe metadata; payload_ref is omitted on replay by the central privacy policy. Raw payload bytes are never included in responses. Failed commands roll back document effects; a response-free failed-key record can remain. Local-memory mode retains its explicit compatibility command. The generic findings/severity and SARIF version/runs/results/level parsers are reduced contracts, not complete SARIF support. Omitted format defaults to generic. Projections are bounded at 100,000 findings, 1 MiB per label, and 8 MiB combined summary labels; overflow fails validation. Secret-scan redacted/quarantined flags record policy metadata and do not prove that stored raw bytes are scrubbed or safe to distribute. Scanner findings are not authoritative.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>uploadSecurityScan</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -5126,6 +5126,11 @@
             <td>none</td>
           </tr>
           <tr>
+            <td><code>UploadAPISecurityScanRequest</code></td>
+            <td>object</td>
+            <td>scanner, target_ref, payload</td>
+          </tr>
+          <tr>
             <td><code>UploadManualSecurityDocumentRequest</code></td>
             <td>object</td>
             <td>document_type, title, sensitivity, payload</td>
@@ -5143,7 +5148,7 @@
           <tr>
             <td><code>UploadSecurityScanRequest</code></td>
             <td>object</td>
-            <td>category, format, scanner, target_ref, payload</td>
+            <td>category, scanner, target_ref, payload</td>
           </tr>
           <tr>
             <td><code>UploadVulnerabilityScanBody</code></td>

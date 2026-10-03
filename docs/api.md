@@ -1734,6 +1734,51 @@ they do not establish legal compliance or complete WORM enforcement.
 | `POST` | `/v1/custom-policies` | Create deterministic custom policy. |
 | `POST` | `/v1/custom-policies/{id}/evaluate` | Store replayable policy evaluation. |
 
+#### Security-document uploads
+
+The three security-scan/manual-document upload routes require `security:write`,
+not `evidence:write`. In PostgreSQL mode they use focused commands rather than
+loading Ledger state. Current product/release ownership and human tenant,
+product, or release grants are checked before parsing or staging. An optional
+scan artifact also needs current ownership. A scoped human artifact grant
+requires an authorized evidence/build association; a build association must
+match its digest. Tenant-wide human grants and issued credentials do not need
+a narrower association; credentials remain scope-bound. Local-memory mode
+keeps its explicit compatibility path.
+
+Requests remain JSON envelopes capped at 64 KiB; there is no native streaming
+upload route for these documents. Null metadata/payload, duplicate keys,
+unknown envelope fields, and malformed reduced scan documents return `400`.
+Coordinate IDs must be NUL-free UTF-8, at most 1024 bytes. Scan categories are
+`sast`, `dast`, `secret_scan`, `license_scan`, and `api_security`. The
+API-security convenience route fixes `api_security` and rejects a supplied
+`category`. Omitted `format` defaults to `generic`; reduced generic mode reads
+`findings[].severity`, while reduced SARIF mode reads a non-empty `version` and
+`runs[].results[].level`. This is not complete SARIF or native scanner support.
+Direct command inputs are capped at 20 MiB, with 100,000 findings, 1 MiB per
+summary label, and 8 MiB combined summary labels; overflow fails closed.
+
+Manual document types are `threat_model`, `security_review`, and
+`pen_test_report`; sensitivity is `internal`, `confidential`, or `restricted`.
+`payload` may be any non-null JSON value. Its exact JSON-encoded bytes are
+retained, including quotes for a string value; it is not executed or converted
+to plain text. Omitted `media_type` defaults to `application/octet-stream`.
+
+Evidence, accepted document metadata, staged-payload metadata, finalizer job,
+two principal-attributed audit entries, and safe replay completion commit in
+one transaction. Current grants are rechecked before replay; replay does not
+parse, stage, or append duplicate effects. The initial response can include
+tenant-scoped `payload_ref` metadata, not a public download URL. The central
+privacy policy omits that field from stored/replayed responses while retaining
+safe IDs, hashes, counts, flags, and timestamps. A failed command rolls back
+document effects but can retain a response-free failed-key record.
+
+Raw payload bytes never appear in these responses. Secret-scan `redacted` and
+`quarantined` flags record policy metadata; they do not prove that stored raw
+bytes are scrubbed or safe to distribute. Manual evidence needs human review,
+and scanner evidence does not establish finding authority, release security,
+or legal sufficiency.
+
 In the PostgreSQL profile, an OpenAPI-contract read requires its stored source
 evidence, product, and optional release to resolve under the same tenant and
 product. Human sessions need a current `evidence:read` grant for the product
