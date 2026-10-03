@@ -389,11 +389,11 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("SBOM component result envelope.", "#/components/schemas/SBOMComponentRecordListEnvelope")
 	case "createIncident":
-		operation.Description = "Creates an append-only incident record linked to tenant-scoped product and optional release evidence."
+		operation.Description = "Creates an append-only incident linked to a current tenant-owned product and optional matching release. PostgreSQL uses a focused Operations command; incident:write and current human tenant/product/release grants are checked before creation or replay. Record, principal-attributed audit, and replay completion commit together. Omitted opened_at defaults to creation time; timestamps are UTC with microsecond precision. Null fields and NUL/invalid UTF-8 are rejected; IDs are capped at 1024 bytes and title at 64 KiB."
 		operation.RequestBody = jsonRequest("Incident creation request.", "#/components/schemas/CreateIncidentRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created incident envelope.", "#/components/schemas/IncidentEnvelope")
 	case "recordIncidentTimeline":
-		operation.Description = "Appends an incident timeline event and optional evidence reference."
+		operation.Description = "Appends a timeline event to a current tenant-owned incident. PostgreSQL uses a focused Operations command and independently checks incident:write grants for the incident and optional current evidence parents before creation or replay. Event, audit, and replay completion commit together. Omitted occurred_at defaults to creation time; timestamps are UTC with microsecond precision. Null fields and NUL/invalid UTF-8 are rejected; IDs are capped at 1024 bytes and event_type/summary at 64 KiB each. Linked evidence organizes recorded references without proving remediation completeness."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Incident id."))
 		operation.RequestBody = jsonRequest("Incident timeline event request.", "#/components/schemas/RecordIncidentTimelineRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created incident timeline event envelope.", "#/components/schemas/IncidentTimelineEventEnvelope")
@@ -416,7 +416,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Extensions = withStability(operation.OperationID, nil)
 		operation.Responses[http.StatusCreated] = jsonResponse("Accepted webhook event and timeline event envelope.", "#/components/schemas/IncidentWebhookDeliveryEnvelope")
 	case "createRemediationTask":
-		operation.Description = "Creates an incident or release remediation task linked to optional evidence."
+		operation.Description = "Creates a remediation task with at least one incident or release reference and optional evidence. PostgreSQL uses a focused Operations command and independently checks incident:write grants for every current tenant-owned reference before creation or replay. Authorized incident and release references need not share a product. Task, audit, and replay completion commit together. Omitted due_at is absent; explicit null is rejected as published. Timestamps are UTC with microsecond precision. IDs are capped at 1024 bytes and title/owner at 64 KiB each; NUL/invalid UTF-8 are rejected. Recording a task does not prove remediation completeness."
 		operation.RequestBody = jsonRequest("Remediation task creation request.", "#/components/schemas/CreateRemediationTaskRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created remediation task envelope.", "#/components/schemas/RemediationTaskEnvelope")
 	case "incidentReport":

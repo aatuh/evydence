@@ -721,6 +721,43 @@ Current SSO endpoints model admin-managed provider, identity-link, trust-materia
 | `POST` | `/v1/release-candidates/{id}/reject` | Reject release candidate; requires `If-Match` with current revision. |
 | `POST` | `/v1/remediation-tasks` | Create remediation task. |
 
+### Incident Commands
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST` | `/v1/incidents` | Create an incident for a product and optional matching release. |
+| `POST` | `/v1/incidents/{id}/timeline` | Append a timeline event with optional evidence. |
+| `POST` | `/v1/remediation-tasks` | Create a task for an incident and/or release with optional evidence. |
+
+All three require `incident:write`. PostgreSQL mode binds focused Operations
+commands, not Ledger maps. Current tenant-owned parent coordinates are
+share-locked through commit, and human sessions need a current tenant,
+product, or release grant for the incident. Optional evidence is separately
+authorized from its current product/project/release/build/deployment parents;
+evidence without narrower parents needs a tenant grant. Every supplied task
+reference is independently checked. Authorized incident and remediation
+release references may deliberately belong to different products; incident
+creation's optional release must match its specified product. Issued
+credentials remain scope-bound. Local-memory mode retains its explicit
+compatibility path.
+
+JSON envelopes retain the 64 KiB limit. In PostgreSQL mode, null fields
+(including optional `due_at`), malformed/duplicate-key/unknown-field bodies,
+invalid UTF-8, and NUL bytes fail with `400`. IDs are at most 1024 UTF-8 bytes;
+title, timeline event type/summary, and task owner are at most 64 KiB each for
+direct commands. Trimmed severity accepts `low`, `medium`, `high`, or
+`critical`, case-insensitively. Omitted `opened_at`/`occurred_at` default to
+creation time; omitted `due_at` remains absent. New timestamps are normalized
+to UTC microsecond precision to match durable reads and replay.
+
+The record, principal-attributed audit, and safe idempotency response commit
+together. Current grants and reference ownership are rechecked before replay,
+which does not append duplicate records or audits. Command failures can retain
+response-free failed-key records; completion/commit failures roll back the
+reservation and permit retry. Recorded evidence links and tasks organize
+technical evidence; they do not prove incident root cause or remediation
+completeness. Signed webhook receivers and ingestion are separate workflows.
+
 ### SBOM Ingestion
 
 `POST /v1/sboms` (CycloneDX) and `POST /v1/sboms/spdx` require

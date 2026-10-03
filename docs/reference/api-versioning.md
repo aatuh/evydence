@@ -167,6 +167,26 @@ for limits and secret-scan flag non-claims. These corrections do not approve
 the expanded compatibility change set or claim a release; the exact gate must
 still pass before ticket closure.
 
+## Unreleased Human Incident Command Boundary
+
+PostgreSQL incident creation, timeline append, and remediation-task creation
+now use focused Operations commands with current tenant-owned parent checks
+and `incident:write` grants before writes or replay. Route shapes, response
+fields, open defaults, append semantics, and schema versions are unchanged.
+Release-level incident grants remain sufficient, and separately authorized
+incident/remediation release references are not newly coupled to one product.
+No historical row is rewritten and no database migration is needed.
+
+New timestamps use UTC microsecond precision, matching PostgreSQL reads and
+same-key replay. The durable handlers reject explicit null fields, including
+`due_at`, according to the already non-nullable published request schemas;
+omit optional fields instead. Invalid NUL/UTF-8 and oversized direct inputs
+fail before persistence. Local memory retains the compatibility path. See
+[incident commands](../api.md#incident-commands) for bounds and reference
+grants. Ownership annotations now identify `operations-incidents`. This note
+does not approve the outstanding compatibility change set or claim a release;
+the exact gate must still pass before ticket closure.
+
 ## Stable-Line Rule
 
 A stable `/v1` line permits additive fields, endpoints, and optional filters.

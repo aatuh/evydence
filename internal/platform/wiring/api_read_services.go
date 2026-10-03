@@ -243,6 +243,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create environment commands: %w", err)
 	}
+	options.IncidentCommands, err = BuildIncidentCommands(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create incident commands: %w", err)
+	}
 	options.DeploymentCommands, err = BuildDeploymentCommands(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create deployment commands: %w", err)

@@ -1418,13 +1418,13 @@
               <div><dt>Responses</dt><dd>201 application/json: IncidentWebhookDeliveryEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/incidents create incident creates an append-only incident record linked to tenant-scoped product and optional release evidence. createincident evydence incident:write">
+          <article class="operation" data-operation data-search="post /v1/incidents create incident creates an append-only incident linked to a current tenant-owned product and optional matching release. postgresql uses a focused operations command; incident:write and current human tenant/product/release grants are checked before creation or replay. record, principal-attributed audit, and replay completion commit together. omitted opened_at defaults to creation time; timestamps are utc with microsecond precision. null fields and nul/invalid utf-8 are rejected; ids are capped at 1024 bytes and title at 64 kib. createincident evydence incident:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/incidents</code>
             </div>
             <h3>Create incident</h3>
-            <p>Creates an append-only incident record linked to tenant-scoped product and optional release evidence.</p>
+            <p>Creates an append-only incident linked to a current tenant-owned product and optional matching release. PostgreSQL uses a focused Operations command; incident:write and current human tenant/product/release grants are checked before creation or replay. Record, principal-attributed audit, and replay completion commit together. Omitted opened_at defaults to creation time; timestamps are UTC with microsecond precision. Null fields and NUL/invalid UTF-8 are rejected; IDs are capped at 1024 bytes and title at 64 KiB.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createIncident</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -1435,13 +1435,13 @@
               <div><dt>Responses</dt><dd>201 application/json: IncidentEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/incidents/{id}/timeline record incident timeline event appends an incident timeline event and optional evidence reference. recordincidenttimeline evydence incident:write">
+          <article class="operation" data-operation data-search="post /v1/incidents/{id}/timeline record incident timeline event appends a timeline event to a current tenant-owned incident. postgresql uses a focused operations command and independently checks incident:write grants for the incident and optional current evidence parents before creation or replay. event, audit, and replay completion commit together. omitted occurred_at defaults to creation time; timestamps are utc with microsecond precision. null fields and nul/invalid utf-8 are rejected; ids are capped at 1024 bytes and event_type/summary at 64 kib each. linked evidence organizes recorded references without proving remediation completeness. recordincidenttimeline evydence incident:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/incidents/{id}/timeline</code>
             </div>
             <h3>Record incident timeline event</h3>
-            <p>Appends an incident timeline event and optional evidence reference.</p>
+            <p>Appends a timeline event to a current tenant-owned incident. PostgreSQL uses a focused Operations command and independently checks incident:write grants for the incident and optional current evidence parents before creation or replay. Event, audit, and replay completion commit together. Omitted occurred_at defaults to creation time; timestamps are UTC with microsecond precision. Null fields and NUL/invalid UTF-8 are rejected; IDs are capped at 1024 bytes and event_type/summary at 64 KiB each. Linked evidence organizes recorded references without proving remediation completeness.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>recordIncidentTimeline</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2268,13 +2268,13 @@
               <div><dt>Responses</dt><dd>200 application/json: ReleaseSecuritySummaryEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/remediation-tasks create remediation task creates an incident or release remediation task linked to optional evidence. createremediationtask evydence incident:write">
+          <article class="operation" data-operation data-search="post /v1/remediation-tasks create remediation task creates a remediation task with at least one incident or release reference and optional evidence. postgresql uses a focused operations command and independently checks incident:write grants for every current tenant-owned reference before creation or replay. authorized incident and release references need not share a product. task, audit, and replay completion commit together. omitted due_at is absent; explicit null is rejected as published. timestamps are utc with microsecond precision. ids are capped at 1024 bytes and title/owner at 64 kib each; nul/invalid utf-8 are rejected. recording a task does not prove remediation completeness. createremediationtask evydence incident:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/remediation-tasks</code>
             </div>
             <h3>Create remediation task</h3>
-            <p>Creates an incident or release remediation task linked to optional evidence.</p>
+            <p>Creates a remediation task with at least one incident or release reference and optional evidence. PostgreSQL uses a focused Operations command and independently checks incident:write grants for every current tenant-owned reference before creation or replay. Authorized incident and release references need not share a product. Task, audit, and replay completion commit together. Omitted due_at is absent; explicit null is rejected as published. Timestamps are UTC with microsecond precision. IDs are capped at 1024 bytes and title/owner at 64 KiB each; NUL/invalid UTF-8 are rejected. Recording a task does not prove remediation completeness.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createRemediationTask</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

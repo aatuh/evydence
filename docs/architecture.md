@@ -176,6 +176,23 @@ mode retains its explicit compatibility command and shares DTO conversion.
 See [security-document uploads](api.md#security-document-uploads) for bounds,
 reduced-format compatibility, and secret-scan flag limitations.
 
+Human incident creation, timeline append, and remediation-task creation bind
+one focused Operations service in PostgreSQL mode. Its flat port exposes only
+identifier-based current ownership reads, incident-scope authorization, the
+three append operations, and audit insertion. The adapter selects bounded
+tenant-and-ID coordinates rather than incident text, evidence metadata, or
+release documents. The worker projection fence precedes row locks; coherent
+subject and parent share locks survive through command/replay commit. Each
+reference is independently granted, including tenant-only evidence and
+deliberately separate incident/remediation release scopes. Record, principal
+audit, and durable replay completion join one active transaction, including
+pending incidents in compound commands. Live tests forbid Ledger refreshes,
+check ownership locks/reparenting, and inject record/audit/completion/commit
+failures. Local memory retains its explicit compatibility path. See
+[incident commands](api.md#incident-commands) for input and compatibility
+limits. Signed incident webhook migration and startup Ledger retirement
+remain EVY-905 work.
+
 ## Bounded-context transition
 
 Generic evidence creation now has standalone Evidence-owned

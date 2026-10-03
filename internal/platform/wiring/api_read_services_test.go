@@ -36,6 +36,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 		t.Fatalf("local memory dependencies=%#v error=%v", memory, err)
 	}
 	store := &postgres.Store{}
+	if memory.IncidentCommands != nil {
+		t.Fatal("local memory bound durable incidents")
+	}
 	if memory.SecurityDocumentCommands != nil {
 		t.Fatal("local memory bound durable security documents")
 	}
@@ -348,6 +351,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.SecurityDocumentCommands == nil {
 		t.Fatal("PostgreSQL security documents remain Ledger-backed")
+	}
+	if options.IncidentCommands == nil {
+		t.Fatal("postgres omitted focused incidents")
 	}
 	if options.SBOMIngestionCommands == nil {
 		t.Fatal("PostgreSQL SBOM ingestion still uses Ledger")

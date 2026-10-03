@@ -142,7 +142,7 @@ This generated reference is the complete operation-level inventory for the commi
 | startReleaseEvidenceFlow | POST | `/v1/releases/{id}/evidence-flow/start` | `core` | `release-catalog` | `bearer` | release:read | required | - | 200:ReleaseEvidenceFlowEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | freezeRelease | POST | `/v1/releases/{id}/freeze` | `core` | `release-catalog` | `bearer` | release:write | required | EmptyObject | 200:ReleaseEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | releaseSecuritySummary | GET | `/v1/releases/{id}/security-summary` | `core` | `release-ledger` | `bearer` | report:read | not required | - | 200:ReleaseSecuritySummaryEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
-| createRemediationTask | POST | `/v1/remediation-tasks` | `experimental` | `release-ledger` | `bearer` | incident:write | required | CreateRemediationTaskRequest | 201:RemediationTaskEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
+| createRemediationTask | POST | `/v1/remediation-tasks` | `experimental` | `operations-incidents` | `bearer` | incident:write | required | CreateRemediationTaskRequest | 201:RemediationTaskEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | createReportTemplate | POST | `/v1/report-templates` | `experimental` | `reporting` | `bearer` | report:read | required | CreateReportTemplateRequest | 201:CustomReportTemplateEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | renderReportTemplate | POST | `/v1/report-templates/{id}/render` | `experimental` | `reporting` | `bearer` | report:read | required | RenderReportTemplateRequest | 201:RenderedCustomReportEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | generateAnomalyReport | POST | `/v1/reports/anomaly` | `experimental` | `reporting` | `bearer` | report:read | required | CreateAnomalyReportRequest | 201:AnomalyReportEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
@@ -299,7 +299,7 @@ Every `experimental` operation is an explicit candidate for a maintainer decisio
 | getReleaseCandidate | `release-catalog` | review experimental scope |
 | promoteReleaseCandidate | `release-catalog` | review experimental scope |
 | rejectReleaseCandidate | `release-catalog` | review experimental scope |
-| createRemediationTask | `release-ledger` | review experimental scope |
+| createRemediationTask | `operations-incidents` | review experimental scope |
 | createReportTemplate | `reporting` | review merge with report family |
 | renderReportTemplate | `reporting` | review merge with report family |
 | generateAnomalyReport | `reporting` | review merge with report family |

@@ -106,6 +106,7 @@ type Server struct {
 	vexIngestionCommands              VEXIngestionCommands
 	vexPreviewQuery                   VEXPreviewQuery
 	securityDocumentCommands          SecurityDocumentCommands
+	incidentCommands                  IncidentCommands
 	durableStreamedCommandExecutor    DurableStreamedCommandExecutor
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
 	deploymentCommands                DeploymentCommands
@@ -270,6 +271,7 @@ type ServerOptions struct {
 	VEXIngestionCommands          VEXIngestionCommands
 	VEXPreviewQuery               VEXPreviewQuery
 	SecurityDocumentCommands      SecurityDocumentCommands
+	IncidentCommands              IncidentCommands
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
 	DeploymentCommands            DeploymentCommands
 	SourceRepositoryCommands      SourceRepositoryCommands
@@ -386,6 +388,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if ctx == nil {
 		return nil, errors.New("server context is required")
 	}
+	if opts.IncidentCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused incidents require durable idempotency")
+	}
 	if opts.SecurityDocumentCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused security documents require durable idempotency")
 	}
@@ -480,6 +485,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.vexIngestionCommands = opts.VEXIngestionCommands
 	server.vexPreviewQuery = opts.VEXPreviewQuery
 	server.securityDocumentCommands = opts.SecurityDocumentCommands
+	server.incidentCommands = opts.IncidentCommands
 	server.durableStreamedCommandExecutor, _ = opts.DurableCommandExecutor.(DurableStreamedCommandExecutor)
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands
@@ -1856,6 +1862,10 @@ func (s *Server) getDeployment(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createIncident(w http.ResponseWriter, r *http.Request) {
+	if s.incidentCommands != nil {
+		s.createDurableIncident(w, r)
+		return
+	}
 	var req struct {
 		ProductID string    `json:"product_id"`
 		ReleaseID string    `json:"release_id"`
@@ -1873,6 +1883,10 @@ func (s *Server) createIncident(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) recordIncidentTimeline(w http.ResponseWriter, r *http.Request) {
+	if s.incidentCommands != nil {
+		s.recordDurableIncidentTimeline(w, r)
+		return
+	}
 	var req struct {
 		EventType  string    `json:"event_type"`
 		Summary    string    `json:"summary"`
@@ -1929,6 +1943,10 @@ func (s *Server) receiveIncidentWebhook(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) createRemediationTask(w http.ResponseWriter, r *http.Request) {
+	if s.incidentCommands != nil {
+		s.createDurableRemediationTask(w, r)
+		return
+	}
 	var req struct {
 		IncidentID string     `json:"incident_id"`
 		ReleaseID  string     `json:"release_id"`
