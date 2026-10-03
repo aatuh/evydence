@@ -121,8 +121,19 @@ reuse generic evidence preparation; SBOM, evidence, audit, payload lifecycle,
 outbox, and replay completion join the same active transaction. Parser-owned
 stored components, inline responses, and body-only native receipt compatibility
 are preserved without Ledger reloads. See [SBOM ingestion](api.md#sbom-ingestion)
-for limits and compatibility. Other ingestion paths and startup Ledger
-retirement remain EVY-905 work.
+for limits and compatibility.
+
+Vulnerability-scan ingestion (`POST /v1/vulnerability-scans`) binds a focused
+Evidence command with flat transaction ports in the PostgreSQL composition
+root. Scope-only authorization precedes the stateless, bounded release-ID
+probe; current tenant-owned release parents and human grants precede full
+findings normalization and staging. The same checked scanner adapters retain
+their parser identities and public finding fields. Evidence, scan, audit,
+payload metadata, outbox, and replay completion commit together without Ledger
+reloads. Replay probes the incoming scope but does not normalize findings or
+stage objects. See [vulnerability scan ingestion](api.md#vulnerability-scan-ingestion)
+for limits, worker-owned projections, and compatibility. Other ingestion paths
+and startup Ledger retirement remain EVY-905 work.
 
 ## Bounded-context transition
 

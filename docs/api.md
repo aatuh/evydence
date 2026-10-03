@@ -733,6 +733,48 @@ Source/test evidence: `internal/evidence/app/sbom_ingestion_commands.go`,
 `internal/app/evidence_parser_adapter.go`, and
 `internal/platform/wiring/sbom_ingestion_commands_test.go`.
 
+### Vulnerability Scan Ingestion
+
+`POST /v1/vulnerability-scans` requires `evidence:write` and streams generic
+scan JSON or a versioned native-scanner envelope up to 20 MiB. See
+[evidence-format compatibility](reference/evidence-format-compatibility.md#generic-vulnerability-scan-json)
+for the supported adapter schemas and normalization rules.
+
+In PostgreSQL mode, scope-only authorization precedes a complete bounded JSON
+token probe for the release ID. This probe verifies declared size and SHA-256
+without materializing findings. Normalized release IDs must be nonblank,
+NUL-free UTF-8, at most 1024 bytes. The focused Evidence command then checks
+current tenant-owned release parents and human resource grants before full
+normalization or object staging. The shared parser retains its depth, value,
+string, and selected-adapter finding limits. Normalized projections are bounded
+to 100,000 findings, 1 MiB per string, and 64 MiB of combined projection strings;
+severity summaries must exactly match the findings. Invalid projections fail
+validation rather than being truncated.
+
+Scan, evidence, audit, payload metadata, outbox jobs, and idempotency completion
+join one transaction, including pending parents in compound commands. A failed
+commit leaves no partial database effects; unreferenced staged bytes remain
+recoverable through the [payload recovery workflow](runbooks/object-store-recovery.md).
+Identical payloads reuse their digest-scoped finalization job, while each new
+scan gets its own parser job. New timestamps use UTC microsecond precision.
+
+Same-byte replay retains the existing body-digest fingerprint, rechecks current
+ownership/grants, and requires the original tenant and release coordinates.
+It still probes the bounded incoming document, but does not normalize findings
+or stage objects. Changed bytes return `409`.
+
+With worker-owned parsing and object storage, the upload response contains
+parsed findings, while the stored scan initially has empty parser fields and
+no findings or summary until its parser job runs. Inline mode, or explicit
+development operation without object storage, persists the parsed projection.
+Evidence remains `pending`; acceptance does not establish scanner authority,
+vulnerability coverage, or release security. Local-memory mode retains its
+explicit compatibility path; historical rows and parser identities are unchanged.
+
+Source/test evidence: `internal/evidence/app/vulnerability_scan_ingestion_commands.go`,
+`internal/app/evidence_parser_adapter.go`, and
+`internal/platform/wiring/vulnerability_scan_ingestion_commands_test.go`.
+
 ### Stored SBOM Diffs
 
 `POST /v1/sbom-diffs` requires `evidence:read`, two distinct stored SBOM IDs,

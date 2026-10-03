@@ -21,6 +21,17 @@ import (
 type ledgerEvidencePayloadParser struct{}
 
 func (ledgerEvidencePayloadParser) ProbeVulnerabilityScanScope(ctx context.Context, source evidenceapp.PayloadSource) (evidenceapp.VulnerabilityScanScope, error) {
+	return (VulnerabilityScanPayloadParser{}).ProbeVulnerabilityScanScope(ctx, source)
+}
+
+// VulnerabilityScanPayloadParser shares bounded scope probing and normalization
+// without constructing a Ledger or unrelated document parsers.
+type VulnerabilityScanPayloadParser struct{}
+
+func (VulnerabilityScanPayloadParser) ProbeVulnerabilityScanScope(ctx context.Context, source evidenceapp.PayloadSource) (evidenceapp.VulnerabilityScanScope, error) {
+	if ctx == nil {
+		return evidenceapp.VulnerabilityScanScope{}, evidenceapp.ErrValidation
+	}
 	if err := ctx.Err(); err != nil {
 		return evidenceapp.VulnerabilityScanScope{}, err
 	}
@@ -85,7 +96,17 @@ func (SBOMPayloadParser) ParseSBOM(ctx context.Context, format string, source ev
 	}
 }
 
-func (ledgerEvidencePayloadParser) ParseVulnerabilityScan(_ context.Context, source evidenceapp.PayloadSource) (evidenceapp.ParsedVulnerabilityScan, error) {
+func (ledgerEvidencePayloadParser) ParseVulnerabilityScan(ctx context.Context, source evidenceapp.PayloadSource) (evidenceapp.ParsedVulnerabilityScan, error) {
+	return (VulnerabilityScanPayloadParser{}).ParseVulnerabilityScan(ctx, source)
+}
+
+func (VulnerabilityScanPayloadParser) ParseVulnerabilityScan(ctx context.Context, source evidenceapp.PayloadSource) (evidenceapp.ParsedVulnerabilityScan, error) {
+	if ctx == nil {
+		return evidenceapp.ParsedVulnerabilityScan{}, evidenceapp.ErrValidation
+	}
+	if err := ctx.Err(); err != nil {
+		return evidenceapp.ParsedVulnerabilityScan{}, err
+	}
 	var parsed scannerparser.Result
 	err := parseDigestBoundEvidenceSource(source, func(reader io.Reader) error {
 		var err error

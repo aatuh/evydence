@@ -223,6 +223,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create SBOM ingestion commands: %w", err)
 	}
+	options.ScanIngestionCommands, err = BuildVulnerabilityScanIngestionCommands(store, runtime.Objects, runtime.WorkerOwnedParsers)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create vulnerability scan ingestion commands: %w", err)
+	}
 	options.DeploymentEnvironmentCommands, err = BuildDeploymentEnvironmentCommands(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create environment commands: %w", err)

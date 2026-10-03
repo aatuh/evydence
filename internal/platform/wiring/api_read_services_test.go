@@ -177,6 +177,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.OpenAPIIngestionCommands != nil {
 		t.Fatal("local memory must keep explicit OpenAPI ingestion compatibility binding")
 	}
+	if memory.ScanIngestionCommands != nil {
+		t.Fatal("local-memory profile unexpectedly bound durable scan ingestion")
+	}
 	if memory.SBOMIngestionCommands != nil {
 		t.Fatal("local memory must keep explicit SBOM ingestion compatibility binding")
 	}
@@ -324,6 +327,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.OpenAPIIngestionCommands == nil {
 		t.Fatal("PostgreSQL OpenAPI ingestion still uses Ledger")
+	}
+	if options.ScanIngestionCommands == nil {
+		t.Fatal("PostgreSQL profile did not bind focused scan ingestion")
 	}
 	if options.SBOMIngestionCommands == nil {
 		t.Fatal("PostgreSQL SBOM ingestion still uses Ledger")

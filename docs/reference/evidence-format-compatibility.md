@@ -344,7 +344,16 @@ identifiers of the same kind are rejected rather than selected arbitrarily;
 PURLs remain ecosystem-qualified, so packages are not conflated across
 ecosystems. Scanner data is evidence for review, not scanner authority.
 
-Evidence: `internal/app/ledger.go` (`UploadVulnerabilityScanPayload`),
+The PostgreSQL composition root binds a focused Evidence command and the
+stateless shared scanner parser, retaining `scanner-adapters-json.v1.0.0` and
+all normalized finding identity fields. See
+[vulnerability scan ingestion](../api.md#vulnerability-scan-ingestion) for
+authorization/probe ordering, projection limits, atomicity, replay, and
+worker-owned projections. No historical-format migration is claimed.
+
+Evidence: `internal/evidence/app/vulnerability_scan_ingestion_commands.go`,
+`internal/platform/wiring/vulnerability_scan_ingestion_commands_test.go`,
+`internal/app/evidence_parser_adapter.go`,
 `ParserVersionScannerAdaptersJSON`,
 `internal/app/parsers/scanners`,
 `TestUploadVulnerabilityScanCanDeferParserSideEffectsToWorker`, and HTTP

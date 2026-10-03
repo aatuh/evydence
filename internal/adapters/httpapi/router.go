@@ -102,6 +102,7 @@ type Server struct {
 	evidenceCreationCommands          EvidenceCreationCommands
 	openAPIIngestionCommands          OpenAPIIngestionCommands
 	sbomIngestionCommands             SBOMIngestionCommands
+	scanIngestionCommands             VulnerabilityScanIngestionCommands
 	durableStreamedCommandExecutor    DurableStreamedCommandExecutor
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
 	deploymentCommands                DeploymentCommands
@@ -262,6 +263,7 @@ type ServerOptions struct {
 	EvidenceCreationCommands      EvidenceCreationCommands
 	OpenAPIIngestionCommands      OpenAPIIngestionCommands
 	SBOMIngestionCommands         SBOMIngestionCommands
+	ScanIngestionCommands         VulnerabilityScanIngestionCommands
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
 	DeploymentCommands            DeploymentCommands
 	SourceRepositoryCommands      SourceRepositoryCommands
@@ -378,7 +380,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if ctx == nil {
 		return nil, errors.New("server context is required")
 	}
-	if opts.OpenAPIIngestionCommands != nil || opts.SBOMIngestionCommands != nil {
+	if opts.OpenAPIIngestionCommands != nil || opts.SBOMIngestionCommands != nil || opts.ScanIngestionCommands != nil {
 		if _, ok := opts.DurableCommandExecutor.(DurableStreamedCommandExecutor); !ok {
 			return nil, errors.New("focused document ingestion requires durable streamed idempotency")
 		}
@@ -465,6 +467,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.evidenceCreationCommands = opts.EvidenceCreationCommands
 	server.openAPIIngestionCommands = opts.OpenAPIIngestionCommands
 	server.sbomIngestionCommands = opts.SBOMIngestionCommands
+	server.scanIngestionCommands = opts.ScanIngestionCommands
 	server.durableStreamedCommandExecutor, _ = opts.DurableCommandExecutor.(DurableStreamedCommandExecutor)
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands
@@ -2832,6 +2835,10 @@ func (s *Server) previewCycloneDXVEXImport(w http.ResponseWriter, r *http.Reques
 }
 
 func (s *Server) uploadVulnerabilityScan(w http.ResponseWriter, r *http.Request) {
+	if s.scanIngestionCommands != nil {
+		s.uploadDurableVulnerabilityScan(w, r)
+		return
+	}
 	s.createStreamedEvidence(r.Context(), w, r, app.EvidenceDocumentLimit, nil, func(s *Server, ctx requestContext, actor domain.Actor, source app.PayloadSource) (int, any, error) {
 		scan, err := s.evidenceIngestion.UploadVulnerabilityScanPayload(ctx, actor, source)
 		return http.StatusCreated, scan, err

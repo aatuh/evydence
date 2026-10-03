@@ -890,26 +890,7 @@ func vexImportIssuesFromEvidenceContext(values []evidencedomain.VEXImportIssue) 
 }
 
 func vulnerabilityScanFromEvidenceContext(value evidencedomain.VulnerabilityScan) domain.VulnerabilityScan {
-	var findings []domain.VulnerabilityFinding
-	if value.Findings != nil {
-		findings = make([]domain.VulnerabilityFinding, 0, len(value.Findings))
-	}
-	for _, finding := range value.Findings {
-		findings = append(findings, domain.VulnerabilityFinding{
-			ID: finding.ID, Vulnerability: finding.Vulnerability, Component: finding.Component, Severity: finding.Severity,
-			State: finding.State, SeveritySource: finding.SeveritySource, FixVersion: finding.FixVersion,
-			Identity: domain.VulnerabilityIdentity{
-				CVE: finding.Identity.CVE, GHSA: finding.Identity.GHSA, OSV: finding.Identity.OSV,
-				VendorAdvisory: finding.Identity.VendorAdvisory, PURL: finding.Identity.PURL, CPE: finding.Identity.CPE,
-			},
-		})
-	}
-	return domain.VulnerabilityScan{
-		ID: value.ID, TenantID: value.TenantID, EvidenceID: value.EvidenceID, ReleaseID: value.ReleaseID,
-		Scanner: value.Scanner, Adapter: value.Adapter, AdapterVersion: value.AdapterVersion,
-		SourceSchema: value.SourceSchema, TargetRef: value.TargetRef, Summary: cloneNullableIntMap(value.Summary),
-		Findings: findings, CreatedAt: value.CreatedAt,
-	}
+	return domain.VulnerabilityScanFromContext(value)
 }
 
 func vulnerabilityScanToEvidenceContext(value domain.VulnerabilityScan) evidencedomain.VulnerabilityScan {
