@@ -179,8 +179,8 @@ const releaseUnhandledFindingsCTE = `WITH findings AS (
 		WHERE f.state='open' AND f.severity IN ('critical','high')
 		AND NOT EXISTS (
 			SELECT 1 FROM vulnerability_decision_projection AS d
-			WHERE d.tenant_id=$1 AND d.finding_id=f.finding_id AND coalesce(d.superseded_by,'')=''
-			AND d.id=(SELECT latest.id FROM vulnerability_decision_projection AS latest WHERE latest.tenant_id=$1 AND latest.finding_id=f.finding_id AND coalesce(latest.superseded_by,'')='' ORDER BY latest.created_at DESC,latest.id DESC LIMIT 1)
+			WHERE d.tenant_id=$1 AND d.finding_id=f.finding_id AND d.scan_id=f.scan_id AND d.release_id=$2 AND coalesce(d.superseded_by,'')=''
+			AND d.id=(SELECT latest.id FROM vulnerability_decision_projection AS latest WHERE latest.tenant_id=$1 AND latest.finding_id=f.finding_id AND latest.scan_id=f.scan_id AND latest.release_id=$2 AND coalesce(latest.superseded_by,'')='' ORDER BY latest.created_at DESC,latest.id DESC LIMIT 1)
 			AND d.status IN ('fixed','not_affected')
 		) AND NOT EXISTS (
 			SELECT 1 FROM exceptions AS x WHERE x.tenant_id=$1 AND x.release_id=$2 AND x.approved AND x.expires_at>$3 AND (coalesce(x.finding_id,'')='' OR x.finding_id=f.finding_id)

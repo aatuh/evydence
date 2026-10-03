@@ -124,3 +124,27 @@ func TestReadReleaseReadinessSnapshotUsesScopedTrustedFacts(t *testing.T) {
 		t.Fatalf("malformed findings snapshot=%#v err=%v", result, err)
 	}
 }
+
+func TestReadinessDecisionMustMatchCurrentFindingScanAndRelease(t *testing.T) {
+	store := isolatedRelationalTestStore(t)
+	ctx := t.Context()
+	if _, err := store.pool.Exec(ctx, `INSERT INTO tenants(id,name) VALUES('tenant','Tenant');INSERT INTO products(id,tenant_id,name,slug) VALUES('product','tenant','Product','product');INSERT INTO releases(id,tenant_id,product_id,version,state)VALUES('release','tenant','product','1','draft');INSERT INTO evidence_items(id,tenant_id,release_id,type,title,source_system,observed_at,schema_version,payload_hash,canonical_hash,canonicalization,trust_level,verification_status)VALUES('evidence','tenant','release','vulnerability_scan','Scan','test',now(),'evidence.v1','sha256:test','sha256:test','json','L2','pending');INSERT INTO vulnerability_scans(id,tenant_id,evidence_id,release_id,scanner,target_ref,summary,findings)VALUES('scan','tenant','evidence','release','test','target','{}','[{"id":"finding","severity":"high","state":"open"}]');INSERT INTO vulnerability_decisions(id,tenant_id,finding_id,scan_id,release_id,vulnerability,status,justification,source,schema_version)VALUES('decision','tenant','finding','wrong-scan','release','CVE-TEST','fixed','fixed','manual','decision.v1')`); err != nil {
+		t.Fatal(err)
+	}
+	for _, change := range []string{`UPDATE vulnerability_decisions SET scan_id='wrong-scan',release_id='release' WHERE id='decision'`, `UPDATE vulnerability_decisions SET scan_id='scan',release_id='wrong-release' WHERE id='decision'`} {
+		if _, err := store.pool.Exec(ctx, change); err != nil {
+			t.Fatal(err)
+		}
+		v, err := store.ReadReleaseReadinessSnapshot(ctx, "tenant", "release")
+		if err != nil || !v.UnhandledHigh {
+			t.Fatal("unrelated decision cleared high triage", v, err)
+		}
+	}
+	if _, err := store.pool.Exec(ctx, `UPDATE vulnerability_decisions SET scan_id='scan',release_id='release' WHERE id='decision'`); err != nil {
+		t.Fatal(err)
+	}
+	v, err := store.ReadReleaseReadinessSnapshot(ctx, "tenant", "release")
+	if err != nil || v.UnhandledHigh {
+		t.Fatal("matching decision lost handling", v, err)
+	}
+}
