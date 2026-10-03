@@ -25,7 +25,7 @@ func (l *Ledger) configureIdentityCommands() error {
 		Credentials: ledgerCredentialManager{ledger: l}, SessionCredentials: ledgerSessionCredentialManager{ledger: l},
 		GrantTargets: ledgerIdentityGrantTargets{ledger: l}, SessionGrants: ledgerIdentitySessionGrants{},
 		TrustMaterial: identityapp.PublicTrustMaterialValidator{}, CanonicalHasher: ledgerIdentityCanonicalHasher{},
-		OIDCDiscovery: discovery, CredentialVerifier: ledgerIdentityCredentialVerifier{}, VerificationPolicy: ledgerIdentityVerificationPolicy{},
+		OIDCDiscovery: discovery, CredentialVerifier: LocalSSOCredentialVerifier{}, VerificationPolicy: LocalSSOVerificationPolicy{},
 		Clock: application.ClockFunc(l.now), IDs: application.IDGeneratorFunc(newID),
 	})
 	if err != nil {
@@ -102,9 +102,11 @@ func (d ledgerIdentityOIDCDiscovery) FetchOIDCTrustMaterial(ctx context.Context,
 	return identityapp.OIDCDiscoveryResult{Issuer: result.Issuer, JWKS: cloneMap(result.JWKS)}, nil
 }
 
-type ledgerIdentityCredentialVerifier struct{}
+// LocalSSOCredentialVerifier uses configured public trust material only. It
+// owns no Ledger state and makes no provider/network calls.
+type LocalSSOCredentialVerifier struct{}
 
-func (ledgerIdentityCredentialVerifier) Verify(_ context.Context, request identityapp.CredentialVerificationRequest) (identityapp.CredentialVerificationResult, error) {
+func (LocalSSOCredentialVerifier) Verify(_ context.Context, request identityapp.CredentialVerificationRequest) (identityapp.CredentialVerificationResult, error) {
 	provider := ssoProviderFromIdentityContext(request.Provider)
 	var checks []domain.VerifyCheck
 	var groups []string
@@ -123,15 +125,17 @@ func (ledgerIdentityCredentialVerifier) Verify(_ context.Context, request identi
 	return identityapp.CredentialVerificationResult{Checks: verificationChecksToIdentityContext(checks), Groups: append([]string(nil), groups...)}, err
 }
 
-type ledgerIdentityVerificationPolicy struct{}
+// LocalSSOVerificationPolicy applies the existing versioned assurance profile
+// without depending on a Ledger or storage adapter.
+type LocalSSOVerificationPolicy struct{}
 
-func (ledgerIdentityVerificationPolicy) Assess(record identitydomain.ProviderVerification, provider identitydomain.SSOProvider, tokenSupplied bool) identitydomain.ProviderVerification {
+func (LocalSSOVerificationPolicy) Assess(record identitydomain.ProviderVerification, provider identitydomain.SSOProvider, tokenSupplied bool) identitydomain.ProviderVerification {
 	legacy := providerVerificationFromIdentityContext(record)
 	reassessProviderVerification(&legacy, ssoProviderFromIdentityContext(provider), tokenSupplied)
 	return providerVerificationToIdentityContext(legacy)
 }
 
-func (ledgerIdentityVerificationPolicy) ReturnsFailure(result string) bool {
+func (LocalSSOVerificationPolicy) ReturnsFailure(result string) bool {
 	return verificationReturnsFailure(result)
 }
 
@@ -1087,6 +1091,13 @@ func providerVerificationToIdentityContext(value domain.ProviderVerification) id
 }
 
 func providerVerificationFromIdentityContext(value identitydomain.ProviderVerification) domain.ProviderVerification {
+	return ProviderVerificationFromIdentity(value)
+}
+
+// ProviderVerificationFromIdentity maps the context-owned record to the
+// existing public/persistence DTO, including its JSON names and assurance
+// profile. It copies slices and has no Ledger or repository dependency.
+func ProviderVerificationFromIdentity(value identitydomain.ProviderVerification) domain.ProviderVerification {
 	return domain.ProviderVerification{
 		ID: value.ID, TenantID: value.TenantID, ProviderType: value.ProviderType, ProviderID: value.ProviderID,
 		Subject: value.Subject, Result: value.Result, Checks: verificationChecksFromIdentityContext(value.Checks),

@@ -305,8 +305,8 @@ func (r identity) ValidateSSOExchangeState(ctx context.Context, snapshot app.SSO
 		return writeError("lock SSO identity mutation", err)
 	}
 	// SHARE table locks make identity-link absence, user presence/state, and the
-	// user's role-binding set stable through commit. The existing provider row
-	// is held by FOR SHARE below. Identity administration writes are infrequent,
+	// user's role-binding set stable through commit. The bounded provider read
+	// holds its row lock below. Identity administration writes are infrequent,
 	// while the shared mutation fence determines same-tenant write ordering.
 	if _, err := r.tx.Exec(ctx, `LOCK TABLE user_identity_links IN SHARE MODE`); err != nil {
 		return writeError("lock SSO identity link range", err)
@@ -357,44 +357,27 @@ func (r identity) ValidateSSOExchangeState(ctx context.Context, snapshot app.SSO
 }
 
 func readSSOExchangeProvider(ctx context.Context, tx pgx.Tx, tenantID, providerID string) (domain.SSOProvider, error) {
-	var provider domain.SSOProvider
-	var groupsClaim *string
-	var roleMapping, jwks, certificates []byte
-	if err := tx.QueryRow(ctx, `
-		SELECT id, tenant_id, name, type, issuer, client_id, groups_claim,
-		       role_mapping, jwks, saml_signing_certificates,
-		       trust_material_updated_at, status, schema_version, created_at
-		FROM sso_providers
-		WHERE id = $1 AND tenant_id = $2
-		FOR SHARE
-	`, providerID, tenantID).Scan(
-		&provider.ID, &provider.TenantID, &provider.Name, &provider.Type, &provider.Issuer,
-		&provider.ClientID, &groupsClaim, &roleMapping, &jwks, &certificates,
-		&provider.TrustMaterialUpdatedAt, &provider.Status, &provider.SchemaVersion, &provider.CreatedAt,
-	); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return domain.SSOProvider{}, app.ErrNotFound
-		}
-		return domain.SSOProvider{}, writeError("read SSO exchange provider", err)
-	}
-	if groupsClaim != nil {
-		provider.GroupsClaim = *groupsClaim
-	}
-	if err := json.Unmarshal(roleMapping, &provider.RoleMapping); err != nil {
-		return domain.SSOProvider{}, fmt.Errorf("decode SSO exchange provider role mapping: %w", err)
-	}
-	if err := json.Unmarshal(jwks, &provider.JWKS); err != nil {
-		return domain.SSOProvider{}, fmt.Errorf("decode SSO exchange provider JWKS: %w", err)
-	}
-	if err := json.Unmarshal(certificates, &provider.SAMLSigningCertificates); err != nil {
-		return domain.SSOProvider{}, fmt.Errorf("decode SSO exchange provider certificates: %w", err)
-	}
-	return provider, nil
+	provider, err := (identity{tx: tx}).ReadOwnedSSOProvider(ctx, tenantID, providerID)
+	return domain.SSOProvider(provider), err
 }
 
 func readSSOExchangeLink(ctx context.Context, tx pgx.Tx, tenantID, providerID, subject string) (domain.UserIdentityLink, bool, error) {
+	// Lock before the bounded-size preflight, then transfer the complete row.
+	// The lock prevents a concurrent update from expanding metadata between
+	// the preflight and projection; excess is rejected, never truncated.
+	var oversized bool
+	err := tx.QueryRow(ctx, `SELECT octet_length(id)>1024 OR octet_length(tenant_id)>1024 OR octet_length(user_id)>1024 OR octet_length(provider_id)>1024 OR octet_length(subject)>65536 OR octet_length(email)>65536 OR octet_length(schema_version)>1024 FROM user_identity_links WHERE tenant_id=$1 AND provider_id=$2 AND subject=$3 FOR SHARE`, tenantID, providerID, subject).Scan(&oversized)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.UserIdentityLink{}, false, nil
+	}
+	if err != nil {
+		return domain.UserIdentityLink{}, false, writeError("bound SSO exchange identity link", err)
+	}
+	if oversized {
+		return domain.UserIdentityLink{}, false, app.ErrConflict
+	}
 	var link domain.UserIdentityLink
-	err := tx.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		SELECT id, tenant_id, user_id, provider_id, subject, email, verified,
 		       schema_version, created_at
 		FROM user_identity_links
@@ -413,9 +396,20 @@ func readSSOExchangeLink(ctx context.Context, tx pgx.Tx, tenantID, providerID, s
 }
 
 func readSSOExchangeUser(ctx context.Context, tx pgx.Tx, tenantID, userID string) (domain.HumanUser, bool, error) {
+	var oversized bool
+	err := tx.QueryRow(ctx, `SELECT octet_length(id)>1024 OR octet_length(tenant_id)>1024 OR coalesce(octet_length(organization_id),0)>1024 OR octet_length(email)>65536 OR octet_length(display_name)>65536 OR octet_length(status)>128 OR octet_length(schema_version)>1024 FROM human_users WHERE tenant_id=$1 AND id=$2 FOR SHARE`, tenantID, userID).Scan(&oversized)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.HumanUser{}, false, nil
+	}
+	if err != nil {
+		return domain.HumanUser{}, false, writeError("bound SSO exchange user", err)
+	}
+	if oversized {
+		return domain.HumanUser{}, false, app.ErrConflict
+	}
 	var user domain.HumanUser
 	var organizationID *string
-	err := tx.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		SELECT id, tenant_id, organization_id, email, display_name, status,
 		       deactivated_at, schema_version, created_at
 		FROM human_users
@@ -438,30 +432,27 @@ func readSSOExchangeUser(ctx context.Context, tx pgx.Tx, tenantID, userID string
 
 func readSSOExchangeRoleBindings(ctx context.Context, tx pgx.Tx, tenantID, userID string) ([]domain.RoleBinding, error) {
 	rows, err := tx.Query(ctx, `
-		SELECT id, tenant_id, subject_type, subject_id, role, resource_type,
-		       resource_id, schema_version, created_at
+		SELECT CASE WHEN octet_length(role)<=128 THEN role ELSE '' END,
+		       CASE WHEN coalesce(octet_length(resource_type),0)<=1024 THEN coalesce(resource_type,'') ELSE '' END,
+		       CASE WHEN coalesce(octet_length(resource_id),0)<=1024 THEN coalesce(resource_id,'') ELSE '' END,
+		       octet_length(role)>128 OR coalesce(octet_length(resource_type),0)>1024 OR coalesce(octet_length(resource_id),0)>1024
 		FROM role_bindings
-		WHERE tenant_id = $1 AND subject_type = 'user' AND subject_id = $2
+		WHERE tenant_id=$1 AND subject_type='user' AND subject_id=$2
+		ORDER BY id LIMIT 257
 	`, tenantID, userID)
 	if err != nil {
 		return nil, writeError("read SSO exchange role grants", err)
 	}
 	defer rows.Close()
-	bindings := []domain.RoleBinding{}
+	bindings := make([]domain.RoleBinding, 0)
 	for rows.Next() {
-		var binding domain.RoleBinding
-		var resourceType, resourceID *string
-		if err := rows.Scan(
-			&binding.ID, &binding.TenantID, &binding.SubjectType, &binding.SubjectID,
-			&binding.Role, &resourceType, &resourceID, &binding.SchemaVersion, &binding.CreatedAt,
-		); err != nil {
+		binding := domain.RoleBinding{TenantID: tenantID, SubjectType: "user", SubjectID: userID}
+		var oversized bool
+		if err := rows.Scan(&binding.Role, &binding.ResourceType, &binding.ResourceID, &oversized); err != nil {
 			return nil, writeError("scan SSO exchange role grant", err)
 		}
-		if resourceType != nil {
-			binding.ResourceType = *resourceType
-		}
-		if resourceID != nil {
-			binding.ResourceID = *resourceID
+		if oversized || len(bindings) == 256 {
+			return nil, app.ErrConflict
 		}
 		bindings = append(bindings, binding)
 	}

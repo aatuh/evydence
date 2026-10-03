@@ -742,9 +742,20 @@ before committing verification/session records and their audits. Failed trust
 or authorization assessments commit only a verification receipt; any storage,
 audit, cancellation, or commit failure returns no record or secret. Incoming
 credentials and issued secrets are not idempotency replay material. The
-production PostgreSQL reader/transaction and HTTP binding still need migration;
-this extraction does not establish bounded production login reads or Ledger
-retirement. Identity linking
+production composition now binds the command directly to PostgreSQL and HTTP,
+with no Ledger reload or login-state access. Short preflight transactions read
+only the selected provider, tenant-owned identity link/user, and at most 256
+user role bindings; the final transaction rechecks the same bounded projections.
+Provider JSON is bounded before transfer by the existing 128 KiB stored-field
+limits; link/user text is preflighted under a row lock, and grant fields are
+bounded in SQL. Excess historical data conflicts rather than producing a
+truncated identity or grant set. Empty provider collections use the same
+defensive-copy representation in both preflight and comparison. Live tests cover
+signed OIDC login on fresh servers with empty compatibility state, real session
+authentication, fresh credentials on repeated exchange, no replay receipts,
+identity changes between verification and commit, oversized projections, and
+write/audit/deferred-commit rollback without cookies. Production Ledger startup
+removal remains open. Identity linking
 now uses a separate focused Identity command with a tenant/projection lock and
 one current user/provider/email existence query. Parent share locks hold
 ownership and email through link/audit/replay commit; no user display metadata

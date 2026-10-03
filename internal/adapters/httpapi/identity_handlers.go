@@ -275,23 +275,25 @@ func (s *Server) createSSOSession(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) exchangeSSOCredential(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		ProviderID    string    `json:"provider_id"`
-		Subject       string    `json:"subject"`
-		IDToken       string    `json:"id_token"`
-		SAMLAssertion string    `json:"saml_assertion"`
-		ExpiresAt     time.Time `json:"expires_at"`
-	}
 	body, err := readBody(r)
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	if err := decodeJSON(body, &req); err != nil {
+	in, err := decodeSSOExchangeRequest(body)
+	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	verification, session, secret, err := s.identityAccess.ExchangeSSOCredential(r.Context(), app.ExchangeSSOCredentialInput{ProviderID: req.ProviderID, Subject: req.Subject, IDToken: req.IDToken, SAMLAssertion: req.SAMLAssertion, ExpiresAt: req.ExpiresAt})
+	var verification domain.ProviderVerification
+	var session domain.SSOSession
+	var secret string
+	if s.ssoExchangeCommands != nil {
+		v, result, issued, exchangeErr := s.ssoExchangeCommands.ExchangeSSOCredential(r.Context(), in)
+		verification, session, secret, err = app.ProviderVerificationFromIdentity(v), domain.SSOSession(result), issued, mapIdentityCommandError(exchangeErr)
+	} else {
+		verification, session, secret, err = s.identityAccess.ExchangeSSOCredential(r.Context(), app.ExchangeSSOCredentialInput(in))
+	}
 	if err != nil {
 		writeProblem(w, r, err)
 		return

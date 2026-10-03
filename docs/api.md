@@ -955,6 +955,43 @@ Local memory shares input/replay policy through its explicit compatibility
 path and remains non-durable. Historical rows and receipts are not rewritten.
 See the [compatibility note](reference/api-versioning.md#unreleased-sso-identity-link-boundary).
 
+#### SSO Credential Exchange
+
+`POST /v1/sso/session-exchanges` is public and accepts `provider_id`, `subject`,
+and exactly one nonempty `id_token` or `saml_assertion`. It verifies credentials
+against configured local public trust, requires a verified tenant-owned identity
+link and active user, and requires current user or mapped provider-group grants.
+It does not perform live provider verification, redirect/callback orchestration,
+or external group synchronization.
+
+Both profiles reject duplicate/unknown fields, non-object bodies, explicit null
+fields, invalid UTF-8, and NUL-bearing text with `400`. The provider ID is bounded
+at 1 KiB and subject/credential text at 64 KiB each before trimming, within the
+64 KiB request-body limit. Omitted or zero `expires_at` defaults to eight hours;
+explicit expiry must be future and at most twelve hours. Unsupported timestamps
+outside years 1–9999 are rejected.
+
+PostgreSQL reads only the selected provider, tenant-owned link/user, and at most
+256 role bindings. Provider fields retain the stored bounds documented for
+[trust rotation](#sso-trust-rotation); user/link identity fields and schema
+versions are capped at 1 KiB, subject/email/display text at 64 KiB, and status/role
+text at 128 bytes. Grant resource fields are capped at 1 KiB. Locked size checks
+precede link/user metadata transfer. Oversized stored metadata or more than 256
+bindings produces `409`, without truncation, session creation, or a cookie.
+
+Verification happens outside the write transaction. The transaction rechecks
+provider trust, link presence, user state and loaded grants before atomically
+committing verification, session and both audits. A failed assessment persists
+only a safe verification receipt and audit. A storage/audit/commit failure
+returns no session secret or cookie. Successful exchange returns the existing
+verification/session/secret envelope and sets a Secure, HttpOnly,
+SameSite=Strict cookie scoped to `/v1`.
+
+This route does not create idempotency receipts. Repeated valid requests may
+issue fresh sessions; no one-time consumption of provider tokens/assertions is
+claimed. Only session hashes are stored. Local memory remains non-durable, and
+production Ledger startup removal is still pending.
+
 #### SSO Public Trust Material
 
 SSO trust normalization is a stateless Identity policy shared by provider

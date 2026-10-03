@@ -335,6 +335,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create SSO revocation commands: %w", err)
 	}
+	options.SSOExchangeCommands, err = BuildSSOExchangeCommands(store, pepper, runtime.Production)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create SSO exchange commands: %w", err)
+	}
 	options.InstanceAdminQuery, err = BuildInstanceAdminQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create instance admin query: %w", err)

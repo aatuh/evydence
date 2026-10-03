@@ -171,10 +171,10 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"expires_at":  map[string]any{"type": "string", "format": "date-time"},
 	}, "user_id", "provider_id", "expires_at"))
 	registry.RegisterSchema("ExchangeSSOCredentialRequest", objectSchema(map[string]any{
-		"provider_id":    map[string]any{"type": "string"},
-		"subject":        map[string]any{"type": "string"},
-		"id_token":       map[string]any{"type": "string", "description": "OIDC ID token verified locally against configured public JWKS trust material."},
-		"saml_assertion": map[string]any{"type": "string", "description": "SAML assertion verified locally against configured SAML signing certificates."},
+		"provider_id":    map[string]any{"type": "string", "maxLength": 1024, "description": "Nonblank provider ID, bounded at 1024 UTF-8 bytes before trimming."},
+		"subject":        map[string]any{"type": "string", "maxLength": 65536, "description": "Nonblank subject, bounded at 65536 UTF-8 bytes before trimming; cannot contain the supplied credential."},
+		"id_token":       map[string]any{"type": "string", "maxLength": 65536, "description": "OIDC ID token verified locally against configured public JWKS trust material; bounded at 65536 UTF-8 bytes."},
+		"saml_assertion": map[string]any{"type": "string", "maxLength": 65536, "description": "SAML assertion verified locally against configured SAML signing certificates; bounded at 65536 UTF-8 bytes."},
 		"expires_at":     map[string]any{"type": "string", "format": "date-time", "description": "Optional session expiry, capped by the server."},
 	}, "provider_id", "subject"))
 	registry.RegisterSchema("CreateSSOProviderRequest", objectSchema(map[string]any{

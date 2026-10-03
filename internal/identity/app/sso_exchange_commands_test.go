@@ -455,3 +455,38 @@ func TestSSOExchangeCommandsRejectIncompleteGeneratedCredentialsBeforeTransactio
 		})
 	}
 }
+
+func TestSSOExchangeCommandsRejectUnsafeTextAndTimesBeforeTrustReads(t *testing.T) {
+	for _, field := range []string{"provider", "subject", "token", "assertion"} {
+		for _, bad := range []string{"value\x00", string([]byte{0xff}), strings.Repeat("x", 65537)} {
+			s, f, in, _ := exchangeCommandsForTest(t)
+			switch field {
+			case "provider":
+				in.ProviderID = bad
+			case "subject":
+				in.Subject = bad
+			case "token":
+				in.IDToken = bad
+			case "assertion":
+				in.IDToken = ""
+				in.SAMLAssertion = bad
+			}
+			v, session, secret, err := s.ExchangeSSOCredential(t.Context(), in)
+			if !errors.Is(err, ErrValidation) || v.ID != "" || session.ID != "" || secret != "" || f.reads+f.verificationsCalled+f.generations+f.transactions != 0 {
+				t.Fatal("unsafe exchange text reached trust or storage", field, err)
+			}
+		}
+	}
+	s, f, in, _ := exchangeCommandsForTest(t)
+	in.ProviderID = strings.Repeat("x", 1025)
+	if _, _, _, err := s.ExchangeSSOCredential(t.Context(), in); !errors.Is(err, ErrValidation) || f.reads != 0 {
+		t.Fatal("overlong provider identity reached reader", err)
+	}
+	for _, invalid := range []time.Time{{}, time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC)} {
+		s, f, in, _ := exchangeCommandsForTest(t)
+		s.config.Clock = application.ClockFunc(func() time.Time { return invalid })
+		if _, _, _, err := s.ExchangeSSOCredential(t.Context(), in); !errors.Is(err, ErrValidation) || f.reads != 0 {
+			t.Fatal("invalid clock reached trust or storage", err)
+		}
+	}
+}

@@ -138,6 +138,7 @@ type Server struct {
 	outboxReplayCommand               OutboxReplayCommand
 	idempotency                       idempotencyExecutor
 	identityAccess                    identityAccessService
+	ssoExchangeCommands               SSOExchangeCommands
 	releaseCatalog                    releaseCatalogService
 	productQuery                      ProductQuery
 	catalogPointQuery                 CatalogPointQuery
@@ -218,6 +219,8 @@ type ServerOptions struct {
 	SSOSessionCommands SSOSessionCommands
 	// SSOSessionRevocationCommands revokes/logout through locked durable metadata.
 	SSOSessionRevocationCommands SSOSessionRevocationCommands
+	// SSOExchangeCommands verifies public credentials and commits login directly.
+	SSOExchangeCommands SSOExchangeCommands
 	// ReadinessQuery probes production dependencies independently of Ledger state.
 	ReadinessQuery ReadinessQuery
 	// MetricsQuery supplies bounded tenant counters in the PostgreSQL profile.
@@ -544,6 +547,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.ssoIdentityLinkCommands = opts.SSOIdentityLinkCommands
 	server.ssoSessionCommands = opts.SSOSessionCommands
 	server.ssoSessionRevocationCommands = opts.SSOSessionRevocationCommands
+	server.ssoExchangeCommands = opts.SSOExchangeCommands
 	server.durableStreamedCommandExecutor, _ = opts.DurableCommandExecutor.(DurableStreamedCommandExecutor)
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands

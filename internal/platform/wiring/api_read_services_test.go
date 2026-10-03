@@ -57,6 +57,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.SSOSessionRevocationCommands != nil {
 		t.Fatal("local memory bound durable session revocation")
 	}
+	if memory.SSOExchangeCommands != nil {
+		t.Fatal("local memory bound durable credential exchange")
+	}
 	if memory.IncidentCommands != nil {
 		t.Fatal("local memory bound durable incidents")
 	}
@@ -399,6 +402,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.SSOProviderCommands == nil {
 		t.Fatal("PostgreSQL provider registration still uses Ledger")
+	}
+	if options.SSOExchangeCommands == nil {
+		t.Fatal("PostgreSQL credential exchange still uses Ledger")
 	}
 	if options.SBOMIngestionCommands == nil {
 		t.Fatal("PostgreSQL SBOM ingestion still uses Ledger")

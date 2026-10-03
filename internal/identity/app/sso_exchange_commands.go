@@ -65,6 +65,9 @@ func (s *SSOExchangeCommands) ExchangeSSOCredential(ctx context.Context, input E
 	if err := ctx.Err(); err != nil {
 		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", err
 	}
+	if !validAPIKeyText(input.ProviderID, 1024) || !validAPIKeyText(input.Subject, 65536) || !validAPIKeyText(input.IDToken, 65536) || !validAPIKeyText(input.SAMLAssertion, 65536) || (!input.ExpiresAt.IsZero() && !validAPIKeyTime(input.ExpiresAt)) {
+		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", ErrValidation
+	}
 	input.ProviderID = strings.TrimSpace(input.ProviderID)
 	input.Subject = strings.TrimSpace(input.Subject)
 	input.IDToken = strings.TrimSpace(input.IDToken)
@@ -74,10 +77,13 @@ func (s *SSOExchangeCommands) ExchangeSSOCredential(ctx context.Context, input E
 	}
 	now := s.config.Clock.Now().UTC()
 	expiresAt := input.ExpiresAt.UTC()
+	if now.IsZero() || !validAPIKeyTime(now) || (!expiresAt.IsZero() && !validAPIKeyTime(expiresAt)) {
+		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", ErrValidation
+	}
 	if expiresAt.IsZero() {
 		expiresAt = now.Add(8 * time.Hour)
 	}
-	if !expiresAt.After(now) || expiresAt.After(now.Add(12*time.Hour)) {
+	if !validAPIKeyTime(expiresAt) || !expiresAt.After(now) || expiresAt.After(now.Add(12*time.Hour)) {
 		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", ErrValidation
 	}
 	provider, err := s.config.Reader.SSOProviderByID(ctx, input.ProviderID)

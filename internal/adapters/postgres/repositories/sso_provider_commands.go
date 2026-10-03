@@ -56,6 +56,18 @@ func (r identity) ReadOwnedSSOProvider(ctx context.Context, tenant, id string) (
 	if oversized || json.Unmarshal(roleMapping, &p.RoleMapping) != nil || json.Unmarshal(jwks, &p.JWKS) != nil || json.Unmarshal(certificates, &p.SAMLSigningCertificates) != nil {
 		return identitydomain.SSOProvider{}, app.ErrConflict
 	}
+	// Match the Identity command's defensive-copy representation, including
+	// irrelevant empty trust collections. Otherwise valid OIDC rows storing
+	// certificates=[] compare differently from the captured nil snapshot.
+	if len(p.RoleMapping) == 0 {
+		p.RoleMapping = nil
+	}
+	if len(p.JWKS) == 0 {
+		p.JWKS = nil
+	}
+	if len(p.SAMLSigningCertificates) == 0 {
+		p.SAMLSigningCertificates = nil
+	}
 	p.CreatedAt = p.CreatedAt.UTC()
 	if updated.Valid {
 		v := updated.Time.UTC()

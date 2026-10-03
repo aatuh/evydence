@@ -475,6 +475,29 @@ security advisory, link a migration note and changelog entry, and be committed
 with the affected contract. Routine correctness, product, or implementation
 work is not a stable-line exception.
 
+## Unreleased SSO Credential Exchange Boundary
+
+`POST /v1/sso/session-exchanges` now binds focused Identity commands to bounded
+PostgreSQL reads without login Ledger inventories or refresh. It preserves the
+public response, configured local OIDC/SAML trust, verified-link/active-user/grant
+requirements, eight-hour default/twelve-hour maximum lifetime, and secure cookie
+attributes. Secret/cookie release follows the verification/session/audit commit;
+stale identity snapshots conflict and failed assessments retain safe receipts.
+
+Both profiles now reject explicit null fields, invalid UTF-8/NUL text, provider
+IDs above 1 KiB, subject/credential text above 64 KiB, and timestamps outside
+years 1–9999. Stored link/user fields and grants are bounded, and more than 256
+role bindings or oversized metadata conflicts rather than truncates. Empty
+provider trust collections are normalized consistently for snapshot comparison;
+historical rows are not rewritten. See [SSO credential exchange](../api.md#sso-credential-exchange)
+for exact bounds and outcomes.
+
+The public route remains non-idempotent: repeated valid credentials may issue
+new sessions, and no incoming credential or issued secret is replay material.
+These input restrictions require release compatibility review; this note is not
+an approved exception, publication evidence, or proof of production Ledger
+retirement, provider token single-use, or live provider verification.
+
 ## Deprecation Lifecycle
 
 No operation is currently marked deprecated. When one is, the operation must
