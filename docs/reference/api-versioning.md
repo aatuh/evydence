@@ -548,6 +548,29 @@ for exact limits. Historical records are not rewritten. These restrictions
 require release compatibility review; this note is not an approved exception,
 provider verification evidence or proof of production Ledger retirement.
 
+## Unreleased Graph Snapshot Boundary
+
+`POST /v1/evidence-graph-snapshots` now binds focused Package commands in the
+PostgreSQL profile. Route, response fields, schema version, normalized-JSON
+adjacency hash, node/edge ordering, opaque and digest-only reference behavior,
+stored-coordinate selection, and adjacency-only limitation are preserved.
+The builder is shared with explicit local memory. Creation no longer reads
+Ledger maps in PostgreSQL, and current root/grant guards precede replay.
+
+Both profiles now reject case aliases, duplicate/unknown/null fields, malformed
+JSON, invalid UTF-8/NUL IDs, and raw IDs above 1024 bytes. Mismatched
+product/release ownership and inconsistent selected evidence parents fail
+closed; local responses cannot mutate cached immutable snapshots. Cookie
+mutations require same-host HTTPS Origin protection. Selected labels, reference
+types, reference counts and PostgreSQL metadata now have explicit bounds; the
+existing 4096-node, 8192-edge and 4 MiB encoded-adjacency limits remain. Durable
+timestamps use UTC microseconds. Existing snapshots are not rewritten.
+
+See [graph snapshot creation](../api.md#graph-snapshot-creation) for exact
+selection, privacy-safe replay, hash and size limitations. These restrictions
+still require release compatibility review. This note is not an approved
+breaking-change exception or proof of complete production Ledger retirement.
+
 ## Unreleased Evidence Summary Boundary
 
 `POST /v1/evidence-summaries` now uses focused Package commands in PostgreSQL,

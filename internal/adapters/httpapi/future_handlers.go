@@ -50,16 +50,30 @@ func (s *Server) createQuestionnaireDraft(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) createGraphSnapshot(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		ProductID string `json:"product_id"`
-		ReleaseID string `json:"release_id"`
+	if err := validateSSOCookieMutation(r); err != nil {
+		writeProblem(w, r, err)
+		return
 	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
+	if s.graphSnapshotCommands != nil {
+		s.createDurableGraphSnapshot(w, r)
+		return
+	}
+	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+		req, err := decodeGraphSnapshotRequest(body)
+		if err != nil {
 			return 0, nil, err
 		}
 		graph, err := s.ledger.CreateGraphSnapshot(ctx, actor, app.CreateGraphSnapshotInput{ProductID: req.ProductID, ReleaseID: req.ReleaseID})
 		return http.StatusCreated, graph, err
+	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+		in, err := decodeGraphSnapshotRequest(body)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ledger.AuthorizeCreateGraphSnapshot(r.Context(), a, app.CreateGraphSnapshotInput{ProductID: in.ProductID, ReleaseID: in.ReleaseID}); err != nil {
+			return nil, err
+		}
+		return body, nil
 	})
 }
 

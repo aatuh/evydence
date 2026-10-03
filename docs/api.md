@@ -1091,7 +1091,7 @@ retroactively scrubbed; see the
 | `GET` | `/v1/evidence` | List evidence by release/type. |
 | `GET` | `/v1/evidence/search` | Search by product, project, release, build, deployment, type, subtype, source, collector, verification status, subject, tag, created time, and limit. |
 | `POST` | `/v1/evidence-summaries` | Create evidence-cited technical summary with assumptions and limitations; see [evidence summary creation](#evidence-summary-creation). |
-| `POST` | `/v1/evidence-graph-snapshots` | Persist product/release evidence adjacency snapshot. |
+| `POST` | `/v1/evidence-graph-snapshots` | Persist product/release evidence adjacency snapshot; see [graph snapshot creation](#graph-snapshot-creation). |
 | `GET` | `/v1/evidence/{id}` | Read evidence. |
 | `POST` | `/v1/evidence/{id}/supersede` | Supersede without mutating original. |
 | `POST` | `/v1/evidence/{id}/link` | Link evidence to another subject. |
@@ -1528,6 +1528,52 @@ item/output limits. Response names, deterministic citation order, schema
 version, assumptions, and limitations are unchanged. Summaries organize
 recorded technical evidence; they do not establish legal compliance,
 certification, or release security.
+
+### Graph Snapshot Creation
+
+`POST /v1/evidence-graph-snapshots` requires `evidence:read`, an
+`Idempotency-Key`, and at least one non-blank `product_id` or `release_id`.
+Raw IDs are bounded at 1024 UTF-8 bytes before trimming and cannot contain NUL.
+Both profiles reject malformed/non-object JSON, unknown or duplicate fields,
+case aliases, null fields, and invalid UTF-8 with `400`. Cookie-authenticated
+creation requires the same-host HTTPS `Origin`; bearer credentials take
+precedence. Foreign/missing roots and mismatched product/release pairs return
+`404`. Human sessions need a current matching tenant, product, or release grant.
+
+The PostgreSQL profile binds focused Package commands. Current ownership and
+grants are checked before replay without reading labels or existing snapshots.
+Creation holds the worker/audit fence and current root/evidence/parent locks
+through snapshot, audit, and replay commit. Stored labels, IDs, coordinates,
+and structured subject references are selected only after length/count
+preflight; payloads, source identities, arbitrary metadata, and other snapshots
+are never loaded. Storage/audit/commit failures publish no graph result.
+
+Selection retains the submitted stored-coordinate filters. Product-only graphs
+include rows with that stored product ID, not rows whose product can merely be
+inferred from a release. Release-only graphs can include rows with an omitted
+stored product ID; the inferred product authorizes ownership but adds neither a
+product node nor a product filter. Nodes are ordered as submitted product root,
+release root, then evidence IDs in bytewise order. Evidence edges use the stored
+release or, if absent, product parent. Non-empty subject IDs become recorded
+`references_<type>` edges; digest-only references add no edge. External/opaque
+references and edges to nodes outside this materialized view are not verified
+object existence or complete graph traversal.
+
+Limits are 4096 nodes, 8192 edges, 64 KiB per label, 1024 bytes per identifier,
+128 bytes per reference type, and 8192 reference records per selected evidence.
+PostgreSQL preflights a 4 MiB selected metadata/reference budget; the existing
+4 MiB encoded adjacency budget remains. Overflow fails rather than truncates.
+The schema version, adjacency-only limitation, and normalized-JSON SHA-256 over
+exact `nodes`/`edges` fields remain unchanged. Durable timestamps use UTC
+microsecond precision. Explicit local-memory mode uses the same pure graph
+builder and current replay guard, but retains its in-process persistence limits.
+
+This is an internal evidence view, not a redacted customer package. Labels and
+recorded references can contain sensitive metadata. Existing privacy-safe
+replay redaction may alter labels without changing the original stored graph
+hash; verify the authorized original snapshot, not a redacted replay projection.
+The graph does not prove evidence completeness, reference trust, release
+security, or legal compliance.
 
 ### Collector Writes
 

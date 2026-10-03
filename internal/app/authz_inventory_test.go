@@ -28,7 +28,9 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 			"CreateQuestionnaireAnswerLibraryEntry",
 			"ListQuestionnaireAnswerLibrary",
 		},
-		"portal_access_creation.go": {"AuthorizeCustomerPortalAccessCreate", "AuthorizeCustomerPortalAccessRevoke", "authorizePortalWriteLocked"},
+		"portal_access_creation.go":  {"AuthorizeCustomerPortalAccessCreate", "AuthorizeCustomerPortalAccessRevoke", "authorizePortalWriteLocked"},
+		"graph_snapshot_creation.go": {"AuthorizeCreateGraphSnapshot", "authorizeGraphSnapshotLocked"},
+		"future_extensions.go":       {"CreateGraphSnapshot"},
 		"answer_library_creation.go": {
 			"AuthorizeQuestionnaireAnswerLibraryCreate",
 			"authorizeAnswerLibraryCreateLocked",
@@ -77,7 +79,8 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 				!strings.Contains(fn, "releaseCommands.") && !strings.Contains(fn, "evidenceCommands.") &&
 				!strings.Contains(fn, "authorizeAnswerLibraryCreateLocked") && !strings.Contains(fn, "packagequery.NewAnswerLibraryAuthorizer().Authorize") &&
 				!strings.Contains(fn, "authorizeQuestionnairePackageCreateLocked") && !strings.Contains(fn, "packagequery.NewQuestionnairePackageAuthorizer().Authorize") &&
-				!strings.Contains(fn, "authorizePortalWriteLocked") && !strings.Contains(fn, "packagequery.NewPortalAccessWriteAuthorizer().Authorize") {
+				!strings.Contains(fn, "authorizePortalWriteLocked") && !strings.Contains(fn, "packagequery.NewPortalAccessWriteAuthorizer().Authorize") &&
+				!strings.Contains(fn, "authorizeGraphSnapshotLocked") {
 				t.Fatalf("%s.%s missing resource-scoped authorization call", file, name)
 			}
 		}

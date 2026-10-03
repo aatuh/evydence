@@ -23,8 +23,8 @@ const (
 	MaxEvidenceSummaryItems = packageapp.MaxEvidenceSummaryItems
 	// Evidence graph snapshots are deliberately bounded materialized views,
 	// never unbounded tenant graph traversals.
-	MaxEvidenceGraphNodes = 4096
-	MaxEvidenceGraphEdges = 8192
+	MaxEvidenceGraphNodes = packageapp.MaxEvidenceGraphNodes
+	MaxEvidenceGraphEdges = packageapp.MaxEvidenceGraphEdges
 )
 
 // ValidPayloadSize applies the size invariant before an ingestion service

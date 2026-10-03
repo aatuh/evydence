@@ -141,6 +141,7 @@ type Server struct {
 	ssoExchangeCommands               SSOExchangeCommands
 	providerVerificationCommands      ProviderVerificationCommands
 	evidenceSummaryCommands           EvidenceSummaryCommands
+	graphSnapshotCommands             GraphSnapshotCommands
 	questionnaireDraftCommands        QuestionnaireDraftCommands
 	questionnairePackageCommands      QuestionnairePackageCommands
 	portalAccessCommands              PortalAccessCommands
@@ -233,6 +234,8 @@ type ServerOptions struct {
 	ProviderVerificationCommands ProviderVerificationCommands
 	// EvidenceSummaryCommands creates bounded citation reports without Ledger state.
 	EvidenceSummaryCommands EvidenceSummaryCommands
+	// GraphSnapshotCommands materializes bounded committed adjacency without Ledger.
+	GraphSnapshotCommands GraphSnapshotCommands
 	// QuestionnaireDraftCommands selects authorized bounded answers without Ledger state.
 	QuestionnaireDraftCommands QuestionnaireDraftCommands
 	// QuestionnairePackageCommands generates bounded responses without Ledger state.
@@ -467,6 +470,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.EvidenceSummaryCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused evidence summaries require durable idempotency")
 	}
+	if opts.GraphSnapshotCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused graph snapshots require durable idempotency")
+	}
 	if opts.QuestionnaireDraftCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused questionnaire drafts require durable idempotency")
 	}
@@ -595,6 +601,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.ssoExchangeCommands = opts.SSOExchangeCommands
 	server.providerVerificationCommands = opts.ProviderVerificationCommands
 	server.evidenceSummaryCommands = opts.EvidenceSummaryCommands
+	server.graphSnapshotCommands = opts.GraphSnapshotCommands
 	server.questionnaireDraftCommands = opts.QuestionnaireDraftCommands
 	server.questionnairePackageCommands = opts.QuestionnairePackageCommands
 	server.portalAccessCommands = opts.PortalAccessCommands

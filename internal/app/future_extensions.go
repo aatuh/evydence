@@ -22,6 +22,7 @@ import (
 	"github.com/aatuh/evydence/internal/domain"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
+	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
 
 type CreateEvidenceSummaryInput struct {
@@ -297,96 +298,60 @@ func (l *Ledger) CreateGraphSnapshot(ctx context.Context, actor domain.Actor, in
 	if err := require(actor, ScopeEvidenceRead); err != nil {
 		return domain.EvidenceGraphSnapshot{}, err
 	}
-	productID, releaseID := strings.TrimSpace(in.ProductID), strings.TrimSpace(in.ReleaseID)
-	if productID == "" && releaseID == "" {
+	normalized, err := packageapp.NormalizeGraphSnapshotInput(packageapp.CreateGraphSnapshotInput{ProductID: in.ProductID, ReleaseID: in.ReleaseID})
+	if err != nil {
 		return domain.EvidenceGraphSnapshot{}, ErrValidation
 	}
+	productID, releaseID := normalized.ProductID, normalized.ReleaseID
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if err := l.ensureScopeLocked(actor.TenantID, productID, "", releaseID); err != nil {
+	scope, err := l.authorizeGraphSnapshotLocked(actor, normalized)
+	if err != nil {
 		return domain.EvidenceGraphSnapshot{}, err
 	}
 	refs := resourceRefs{ProductID: productID, ReleaseID: releaseID}
-	if err := l.authorizeResourceLocked(actor, ScopeEvidenceRead, refs); err != nil {
-		return domain.EvidenceGraphSnapshot{}, err
-	}
-	nodes := []domain.GraphNode{}
-	edges := []domain.GraphEdge{}
+	roots := []packagedomain.GraphNode{}
 	if productID != "" {
 		product := l.products[productID]
-		nodes = append(nodes, domain.GraphNode{ID: product.ID, Type: "product", Label: product.Name})
+		roots = append(roots, packagedomain.GraphNode{ID: product.ID, Type: "product", Label: product.Name})
 	}
 	if releaseID != "" {
 		release := l.releases[releaseID]
-		nodes = append(nodes, domain.GraphNode{ID: release.ID, Type: "release", Label: release.Version})
-		if productID != "" {
-			if len(edges) >= MaxEvidenceGraphEdges {
-				return domain.EvidenceGraphSnapshot{}, ErrValidation
-			}
-			edges = append(edges, domain.GraphEdge{From: productID, To: release.ID, Relationship: "has_release"})
-		}
+		roots = append(roots, packagedomain.GraphNode{ID: release.ID, Type: "release", Label: release.Version})
 	}
-	remainingNodes := MaxEvidenceGraphNodes - len(nodes)
-	if remainingNodes <= 0 {
-		return domain.EvidenceGraphSnapshot{}, ErrValidation
-	}
+	remainingNodes := MaxEvidenceGraphNodes - len(roots)
 	evidenceIDs, exceeded := l.evidenceIDsForRefsBoundedLocked(actor.TenantID, refs, "", remainingNodes)
 	if exceeded {
 		return domain.EvidenceGraphSnapshot{}, ErrValidation
 	}
+	items := make([]packageapp.GraphSnapshotEvidence, 0, len(evidenceIDs))
 	for _, id := range evidenceIDs {
-		if len(nodes) >= MaxEvidenceGraphNodes {
+		item := l.evidence[id]
+		if item.ReleaseID != "" {
+			parent, ok := l.releases[item.ReleaseID]
+			if !ok || parent.TenantID != actor.TenantID || parent.ProductID != scope.Resources.ProductID {
+				return domain.EvidenceGraphSnapshot{}, ErrNotFound
+			}
+		}
+		if len(item.SubjectRefs) > MaxEvidenceGraphEdges {
 			return domain.EvidenceGraphSnapshot{}, ErrValidation
 		}
-		item := l.evidence[id]
-		nodes = append(nodes, domain.GraphNode{ID: item.ID, Type: "evidence", Label: item.Title})
-		if item.ReleaseID != "" {
-			if len(edges) >= MaxEvidenceGraphEdges {
-				return domain.EvidenceGraphSnapshot{}, ErrValidation
-			}
-			edges = append(edges, domain.GraphEdge{From: item.ReleaseID, To: item.ID, Relationship: "has_evidence"})
-		} else if item.ProductID != "" {
-			if len(edges) >= MaxEvidenceGraphEdges {
-				return domain.EvidenceGraphSnapshot{}, ErrValidation
-			}
-			edges = append(edges, domain.GraphEdge{From: item.ProductID, To: item.ID, Relationship: "has_evidence"})
-		}
+		v := packageapp.GraphSnapshotEvidence{ID: item.ID, TenantID: item.TenantID, ProductID: item.ProductID, ReleaseID: item.ReleaseID, Title: item.Title}
 		for _, ref := range item.SubjectRefs {
-			if ref.ID != "" {
-				if len(edges) >= MaxEvidenceGraphEdges {
-					return domain.EvidenceGraphSnapshot{}, ErrValidation
-				}
-				edges = append(edges, domain.GraphEdge{From: item.ID, To: ref.ID, Relationship: "references_" + ref.Type})
-			}
+			v.References = append(v.References, packageapp.GraphSnapshotReference{Type: ref.Type, ID: ref.ID})
 		}
+		items = append(items, v)
 	}
-	graphMaterial := struct {
-		Nodes []domain.GraphNode `json:"nodes"`
-		Edges []domain.GraphEdge `json:"edges"`
-	}{Nodes: nodes, Edges: edges}
-	encodedGraph, err := json.Marshal(graphMaterial)
+	projection, err := packageapp.BuildGraphSnapshotProjection(scope, roots, items)
+	if err != nil {
+		return domain.EvidenceGraphSnapshot{}, fromPackageContextError(err)
+	}
+	hash, err := canonicalAnyHash(packageapp.GraphSnapshotHashMaterial(projection))
 	if err != nil {
 		return domain.EvidenceGraphSnapshot{}, err
 	}
-	if len(encodedGraph) > MaxGeneratedReportBytes {
-		return domain.EvidenceGraphSnapshot{}, ErrValidation
-	}
-	hash, err := canonicalAnyHash(graphMaterial)
-	if err != nil {
-		return domain.EvidenceGraphSnapshot{}, err
-	}
-	graph := domain.EvidenceGraphSnapshot{
-		ID:            newID("grf"),
-		TenantID:      actor.TenantID,
-		ProductID:     productID,
-		ReleaseID:     releaseID,
-		Nodes:         nodes,
-		Edges:         edges,
-		GraphHash:     hash,
-		Limitations:   []string{"Snapshot includes stored Evydence adjacency only; absence of a node is not proof that evidence does not exist elsewhere."},
-		SchemaVersion: domain.EvidenceGraphSnapshotVersion,
-		CreatedAt:     l.now(),
-	}
+	projection.ID, projection.GraphHash, projection.CreatedAt = newID("grf"), hash, l.now()
+	graph := graphSnapshotLegacyRecord(projection)
 	if l.unitOfWork != nil {
 		var entry domain.AuditChainEntry
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
@@ -399,11 +364,11 @@ func (l *Ledger) CreateGraphSnapshot(ctx context.Context, actor domain.Actor, in
 		}); err != nil {
 			return domain.EvidenceGraphSnapshot{}, err
 		}
-		l.graphSnapshots[graph.ID] = graph
+		l.graphSnapshots[graph.ID] = graphSnapshotLegacyRecord(projection)
 		l.publishCommittedAuditEntryLocked(entry)
 		return graph, nil
 	}
-	l.graphSnapshots[graph.ID] = graph
+	l.graphSnapshots[graph.ID] = graphSnapshotLegacyRecord(projection)
 	_, _ = l.appendChainLocked(actor.TenantID, "evidence_graph_snapshot.created", "evidence_graph_snapshot", graph.ID, actorType(actor), actorID(actor), hash, "")
 	if err := l.persistLocked(ctx); err != nil {
 		return domain.EvidenceGraphSnapshot{}, err

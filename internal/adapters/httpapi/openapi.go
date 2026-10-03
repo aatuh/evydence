@@ -2042,8 +2042,8 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "repository"))
 	registry.RegisterSchema("SourceSnapshotEnvelope", dataEnvelopeSchema("#/components/schemas/SourceSnapshotResult"))
 	registry.RegisterSchema("CreateGraphSnapshotRequest", objectSchema(map[string]any{
-		"product_id": map[string]any{"type": "string"},
-		"release_id": map[string]any{"type": "string"},
+		"product_id": map[string]any{"type": "string", "maxLength": 1024, "description": "Optional stored product filter and graph root. At least one product/release ID must be non-blank. Raw IDs are capped at 1024 UTF-8 bytes, trimmed, and NUL-free. A supplied product must own the supplied release."},
+		"release_id": map[string]any{"type": "string", "maxLength": 1024, "description": "Optional stored release filter and graph root. Raw IDs are capped at 1024 UTF-8 bytes, trimmed, and NUL-free. Release-only graphs authorize the current product parent without adding an inferred product filter or node. PostgreSQL commits bounded adjacency, audit, and replay atomically."},
 	}))
 	registry.RegisterSchema("EvidenceGraphNode", objectSchema(map[string]any{
 		"id":    map[string]any{"type": "string"},

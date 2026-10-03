@@ -1161,6 +1161,18 @@ Source snapshots, deployment records, signed incident webhook events, incident p
 
 Evidence summaries, questionnaire drafts, graph snapshots, PDF packages, and anomaly reports are generated from stored records with citations, assumptions, and limitations. Customer-facing packages require explicit package scope, redaction profile, expiry, and access auditing. Customer package JSON and ZIP download paths return scoped manifest metadata and verification guidance; raw tenant evidence payload bytes are not returned.
 
+PostgreSQL graph snapshots bind focused Package commands and selected adjacency
+repositories. Coordinate-only guards resolve current tenant ownership before
+replay; creation retains the worker/audit fence and root/evidence/parent locks
+through commit. SQL preflight bounds selected rows and text before fetching
+labels or structured references. The shared pure builder retains deterministic
+node/edge ordering and normalized-JSON hashing without loading raw payloads or
+unrelated tenant state. Snapshots and their hash-linked audit entries are
+append-only; failures publish no result. Recorded opaque references are not
+verification authority or evidence completeness. See
+[graph snapshot creation](api.md#graph-snapshot-creation) for exact limits and
+privacy-safe replay caveats. Startup Ledger removal remains outstanding.
+
 PostgreSQL questionnaire drafts bind focused Package commands and a pure
 tenant/product/release policy in the composition root. The worker/audit fence
 precedes root/template locks. Bounded question selectors and candidate scope

@@ -9,6 +9,13 @@ legacy-facade retirement remain assigned to EVY-905 and EVY-906.
 
 ## Context
 
+Package-owned `GraphSnapshotCommands` now materializes durable evidence
+adjacency through flat coordinate, root-label, selected-evidence and insert
+ports. The PostgreSQL concrete repository implements these ports without
+adding methods to `FutureExtensionsRepository`. A pure Package builder is
+shared with explicit local memory; normalized-JSON hashing remains an injected
+adapter. Remaining experimental peripherals do not gain graph authority.
+
 Package-owned `PortalAccessCommands` and `PortalTokenCommands` now own durable
 portal issuance, revocation, NDA acceptance, failure limits and audited package
 access. Their selected-row repository and credential ports do not expose Ledger
