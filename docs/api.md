@@ -1081,6 +1081,43 @@ Source/test evidence: `internal/operations/app/deployment_commands.go`,
 | `POST` | `/v1/customer-portal/package/view` | Exchange package token from a form body for scoped HTML package review. |
 | `POST` | `/v1/customer-portal/package/view/download` | Exchange package token from a form body for scoped ZIP package download. |
 
+### Built-in Policy Evaluation
+
+`POST /v1/policies/evaluate` accepts `release_id` and appends an immutable
+`policy_evaluation` using the existing `policy-set.v1.0.0` checks. It requires
+`verify:read`; PostgreSQL human sessions also require a current matching
+tenant/product/release grant. The release and its product must belong to the
+caller’s tenant. This records technical readiness checks, not a legal compliance
+conclusion or a guarantee of release security.
+
+In PostgreSQL mode, a focused Risk command resolves current release ownership
+before gathering facts. The bounded readiness projection runs inside the same
+command transaction, holding the tenant projection fence until evaluation,
+audit, and idempotency completion commit. It selects facts and bounded IDs,
+not raw payloads or prior evaluation history. A decision handles an open finding
+only when its scan and release coordinates match the finding being evaluated.
+Expired exceptions/package profiles and signing-key lifecycle are evaluated
+against a timestamp sampled after the release projection fence is acquired.
+Existing check names, explanations, policy-set
+version, and JSON fields are retained; new timestamps use UTC microseconds.
+
+Replay checks current ownership/grants without gathering readiness facts, then
+returns the original evaluation. Changed request bytes return 409; removed
+grants return 403 and missing/inconsistent release ownership returns 404. A new
+evaluation rejects oversized or malformed readiness projections rather than
+truncating them. Release IDs are limited to 1024 UTF-8 bytes, with invalid UTF-8,
+NUL, blank values, and explicit null rejected as 400. The entire JSON body
+retains its 64 KiB limit. Decision/exception diagnostic IDs and package counts
+share a 4096-record budget, selected IDs are limited to 1024 bytes, and signed
+bundle verification considers at most 256 signature rows with bounded public
+material. Trusted snapshot replay may add historical evaluations but cannot
+rewrite existing results, checks, or policy-set versions. Local-memory mode
+retains its explicit compatibility path.
+
+Source/test evidence: `internal/risk/app/policy_evaluation_commands.go`,
+`internal/adapters/postgres/policy_evaluation_repository.go`, and
+`internal/platform/wiring/policy_evaluation_http_test.go`.
+
 ### Custom Policies
 
 `POST /v1/custom-policies` creates an immutable tenant-wide policy definition

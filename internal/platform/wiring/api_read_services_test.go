@@ -63,6 +63,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.CustomPolicyCommands != nil {
 		t.Fatal("local memory bound durable custom policy commands")
 	}
+	if memory.PolicyEvaluationCommands != nil {
+		t.Fatal("local memory bound durable policy evaluation commands")
+	}
 	if memory.ReleaseReadinessReportQuery != nil {
 		t.Fatal("local-memory profile unexpectedly bound durable readiness reports")
 	}
@@ -360,6 +363,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.CustomPolicyCommands == nil {
 		t.Fatal("PostgreSQL custom policy commands still use Ledger")
+	}
+	if options.PolicyEvaluationCommands == nil {
+		t.Fatal("PostgreSQL policy evaluation commands still use Ledger")
 	}
 	if options.TrustConfigurationCommands == nil {
 		t.Fatal("PostgreSQL lacks durable trust commands")

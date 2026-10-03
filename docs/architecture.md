@@ -67,6 +67,20 @@ policy inputs or evaluation results. Other production command paths and startup
 Ledger retirement remain EVY-905 work. See [custom policies](api.md#custom-policies)
 for authorization, limits, and non-claims.
 
+Built-in policy evaluation (`POST /v1/policies/evaluate`) uses a focused Risk
+command and a dedicated transaction-scoped readiness-reader port. The existing
+readiness SQL projection executes in the command transaction under its tenant
+projection fence, without a second snapshot transaction or Ledger refresh.
+Current release/product ownership and grants are checked before facts and
+before saved-response replay. Evaluation, audit, and replay completion commit
+atomically. Existing verification-reader interfaces remain unchanged; the
+readiness port does not replace or wrap them. Historical evaluation import is
+insert-or-compare, never an update of result or checks. The shared pure evaluator
+retains the existing 13 checks and policy-set version. See
+[built-in policy evaluation](api.md#built-in-policy-evaluation) for limits and
+compatibility; other production paths and startup Ledger retirement remain
+EVY-905 work.
+
 ## Bounded-context transition
 
 Generic evidence creation now has standalone Evidence-owned

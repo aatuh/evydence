@@ -8,6 +8,7 @@ import (
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
 	operationsquery "github.com/aatuh/evydence/internal/operations/query"
+	riskapp "github.com/aatuh/evydence/internal/risk/app"
 )
 
 type Store interface {
@@ -249,29 +250,30 @@ type UnitOfWork interface {
 // expose bounded contexts rather than PersistedState so application services
 // cannot accidentally perform a whole-ledger write.
 type Repositories struct {
-	WorkerProjection WorkerProjectionStore
-	Identity         IdentityRepository
-	ReleaseCatalog   ReleaseCatalogRepository
-	Evidence         EvidenceRepository
-	Decisions        DecisionRepository
-	Audit            AuditRepository
-	Idempotency      IdempotencyRepository
-	Outbox           OutboxRepository
-	OutboxReplay     OutboxReplayRepository
-	Payloads         ObjectPayloadRepository
-	Controls         ControlRepository
-	Governance       GovernanceRepository
-	Builds           BuildRepository
-	SupplyChain      SupplyChainRepository
-	Source           SourceRepository
-	Deployments      DeploymentRepository
-	Packages         PackageRepository
-	Risk             RiskRepository
-	Signatures       SignatureRepository
-	Integrity        IntegrityRepository
-	Verification     VerificationRepository
-	Enterprise       EnterpriseRepository
-	Future           FutureExtensionsRepository
+	WorkerProjection       WorkerProjectionStore
+	Identity               IdentityRepository
+	ReleaseCatalog         ReleaseCatalogRepository
+	Evidence               EvidenceRepository
+	Decisions              DecisionRepository
+	Audit                  AuditRepository
+	Idempotency            IdempotencyRepository
+	Outbox                 OutboxRepository
+	OutboxReplay           OutboxReplayRepository
+	Payloads               ObjectPayloadRepository
+	Controls               ControlRepository
+	Governance             GovernanceRepository
+	Builds                 BuildRepository
+	SupplyChain            SupplyChainRepository
+	Source                 SourceRepository
+	Deployments            DeploymentRepository
+	Packages               PackageRepository
+	Risk                   RiskRepository
+	Signatures             SignatureRepository
+	Integrity              IntegrityRepository
+	Verification           VerificationRepository
+	PolicyEvaluationReader riskapp.PolicyEvaluationReader
+	Enterprise             EnterpriseRepository
+	Future                 FutureExtensionsRepository
 }
 
 type IdentityRepository interface {

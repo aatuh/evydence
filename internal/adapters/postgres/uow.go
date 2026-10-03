@@ -10,6 +10,7 @@ import (
 
 	"github.com/aatuh/evydence/internal/adapters/postgres/repositories"
 	"github.com/aatuh/evydence/internal/app"
+	riskapp "github.com/aatuh/evydence/internal/risk/app"
 )
 
 // BeginUnitOfWork begins one PostgreSQL transaction for a command. Focused
@@ -24,6 +25,12 @@ func (s *Store) BeginUnitOfWork(ctx context.Context) (app.UnitOfWork, error) {
 		return nil, fmt.Errorf("begin unit of work: %w", err)
 	}
 	repos := repositories.New(tx)
+	reader, ok := repos.Risk.(riskapp.PolicyEvaluationReleaseReader)
+	if !ok {
+		_ = tx.Rollback(context.WithoutCancel(ctx))
+		return nil, app.ErrValidation
+	}
+	repos.PolicyEvaluationReader = policyEvaluationRepository{releaseReader: reader, tx: tx}
 	repos.WorkerProjection = transactionWorkerProjectionStore{tx: tx}
 	return &unitOfWork{tx: tx, repositories: repos}, nil
 }

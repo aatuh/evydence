@@ -3436,18 +3436,8 @@ func syncReleaseLedgerCore(ctx context.Context, tx pgx.Tx, state app.PersistedSt
 		if policy.ID == "" || policy.TenantID == "" || policy.ReleaseID == "" {
 			continue
 		}
-		checks, err := json.Marshal(policy.Checks)
-		if err != nil {
-			return fmt.Errorf("encode policy checks: %w", err)
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO policy_evaluations (
-				id, tenant_id, release_id, result, policy_set, checks, created_at
-			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)
-			ON CONFLICT (id) DO UPDATE SET result = EXCLUDED.result, checks = EXCLUDED.checks
-		`, policy.ID, policy.TenantID, policy.ReleaseID, policy.Result, policy.PolicySet, checks, nonZeroTime(policy.CreatedAt)); err != nil {
-			return fmt.Errorf("upsert policy evaluation row: %w", err)
+		if err := importPolicyEvaluationRow(ctx, tx, policy); err != nil {
+			return err
 		}
 	}
 	for _, bundle := range state.Bundles {
