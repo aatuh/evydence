@@ -65,15 +65,15 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		delete(operation.Responses, http.StatusCreated)
 		operation.Responses[http.StatusOK] = jsonResponse("Requeued outbox job envelope.", "#/components/schemas/OutboxReplayEnvelope")
 	case "createOrganization":
-		operation.Description = "Creates a tenant-scoped organization record for human identity grouping."
+		operation.Description = "Creates a tenant-scoped organization record for human identity grouping. PostgreSQL uses focused Identity commands with current tenant-wide human authority and atomic audit/replay; slugs are trimmed and case-sensitive."
 		operation.RequestBody = jsonRequest("Organization creation request.", "#/components/schemas/CreateOrganizationRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created organization envelope.", "#/components/schemas/OrganizationEnvelope")
 	case "createUser":
-		operation.Description = "Creates a tenant-scoped human user metadata record. Authentication is still controlled by API keys or configured SSO/session flows."
+		operation.Description = "Creates a tenant-scoped human user metadata record. Authentication is still controlled by API keys or configured SSO/session flows. PostgreSQL uses focused Identity commands with current tenant-wide human authority and current optional organization ownership. Email is trimmed/lowercased and must be a plain mailbox address; this does not verify ownership. The fixed public user DTO, including required email, survives authorized durable replay without broadening log or customer-package redaction."
 		operation.RequestBody = jsonRequest("Human user creation request.", "#/components/schemas/CreateUserRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created human user envelope.", "#/components/schemas/HumanUserEnvelope")
 	case "deactivateUser":
-		operation.Description = "Deactivates a tenant-scoped human user as an audited lifecycle transition."
+		operation.Description = "Deactivates a tenant-scoped human user as an audited lifecycle transition. PostgreSQL uses a bounded current-user projection with tenant-wide human authority and current organization ownership; status, audit and replay commit atomically. Committed deactivation invalidates current-user session authentication. A completed matching request replays the public DTO without another transition; a new transition of an inactive user conflicts."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Human user id."))
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Deactivated human user envelope.", "#/components/schemas/HumanUserEnvelope")

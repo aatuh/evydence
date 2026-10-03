@@ -1690,13 +1690,13 @@
               <div><dt>Responses</dt><dd>200 application/json: OpenAPIDocument; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/organizations create organization creates a tenant-scoped organization record for human identity grouping. createorganization evydence identity:admin">
+          <article class="operation" data-operation data-search="post /v1/organizations create organization creates a tenant-scoped organization record for human identity grouping. postgresql uses focused identity commands with current tenant-wide human authority and atomic audit/replay; slugs are trimmed and case-sensitive. createorganization evydence identity:admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/organizations</code>
             </div>
             <h3>Create organization</h3>
-            <p>Creates a tenant-scoped organization record for human identity grouping.</p>
+            <p>Creates a tenant-scoped organization record for human identity grouping. PostgreSQL uses focused Identity commands with current tenant-wide human authority and atomic audit/replay; slugs are trimmed and case-sensitive.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createOrganization</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -3084,13 +3084,13 @@
               <div><dt>Responses</dt><dd>201 application/json: TransparencyCheckpointEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/users create user creates a tenant-scoped human user metadata record. authentication is still controlled by api keys or configured sso/session flows. createuser evydence identity:admin">
+          <article class="operation" data-operation data-search="post /v1/users create user creates a tenant-scoped human user metadata record. authentication is still controlled by api keys or configured sso/session flows. postgresql uses focused identity commands with current tenant-wide human authority and current optional organization ownership. email is trimmed/lowercased and must be a plain mailbox address; this does not verify ownership. the fixed public user dto, including required email, survives authorized durable replay without broadening log or customer-package redaction. createuser evydence identity:admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/users</code>
             </div>
             <h3>Create user</h3>
-            <p>Creates a tenant-scoped human user metadata record. Authentication is still controlled by API keys or configured SSO/session flows.</p>
+            <p>Creates a tenant-scoped human user metadata record. Authentication is still controlled by API keys or configured SSO/session flows. PostgreSQL uses focused Identity commands with current tenant-wide human authority and current optional organization ownership. Email is trimmed/lowercased and must be a plain mailbox address; this does not verify ownership. The fixed public user DTO, including required email, survives authorized durable replay without broadening log or customer-package redaction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createUser</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -3101,13 +3101,13 @@
               <div><dt>Responses</dt><dd>201 application/json: HumanUserEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/users/{id}/deactivate deactivate user deactivates a tenant-scoped human user as an audited lifecycle transition. deactivateuser evydence identity:admin">
+          <article class="operation" data-operation data-search="post /v1/users/{id}/deactivate deactivate user deactivates a tenant-scoped human user as an audited lifecycle transition. postgresql uses a bounded current-user projection with tenant-wide human authority and current organization ownership; status, audit and replay commit atomically. committed deactivation invalidates current-user session authentication. a completed matching request replays the public dto without another transition; a new transition of an inactive user conflicts. deactivateuser evydence identity:admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/users/{id}/deactivate</code>
             </div>
             <h3>Deactivate user</h3>
-            <p>Deactivates a tenant-scoped human user as an audited lifecycle transition.</p>
+            <p>Deactivates a tenant-scoped human user as an audited lifecycle transition. PostgreSQL uses a bounded current-user projection with tenant-wide human authority and current organization ownership; status, audit and replay commit atomically. Committed deactivation invalidates current-user session authentication. A completed matching request replays the public DTO without another transition; a new transition of an inactive user conflicts.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>deactivateUser</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

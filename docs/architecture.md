@@ -706,7 +706,19 @@ Authority is checked before durable reservation/replay; key, audit and replay
 completion share one commit. A fixed public DTO projection preserves replay
 metadata without the hash or one-time secret; generic diagnostic/package
 redaction is unchanged. See [API key issuance](api.md#api-key-issuance) for
-bounds and compatibility. Other identity commands and startup Ledger retirement
+bounds and compatibility. PostgreSQL organization/user creation and user
+deactivation bind focused Identity membership commands with flat read/write,
+authorization and audit ports. SQL selects tenant-scoped identity predicates,
+one bounded user and optional organization identities, never membership or
+credential inventories. Worker/audit fencing precedes tenant and parent locks;
+status, audit and replay completion commit together. Live empty-Ledger HTTP
+tests prove restart replay, foreign/revoked grants, current parents, bounded
+metadata, concurrent uniqueness, session revocation, and rollback at write,
+audit, replay and deferred-commit stages. Fixed versioned user replay retains
+the required public email for authorized administration; generic diagnostics
+and customer-package redaction remain unchanged. See
+[organization and user writes](api.md#organization-and-user-writes) for limits
+and compatibility. Other identity commands and startup Ledger retirement
 remain EVY-905 work. Production API-key inventory pages read public metadata from tenant-
 filtered PostgreSQL rows without selecting credential hashes. Role-binding
 inventory also pages current tenant rows in PostgreSQL instead of reading

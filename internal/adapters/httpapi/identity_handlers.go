@@ -91,6 +91,10 @@ func (s *Server) replayTerminalOutboxJob(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *Server) createOrganization(w http.ResponseWriter, r *http.Request) {
+	if s.membershipCommands != nil {
+		s.createDurableOrganization(w, r)
+		return
+	}
 	var req struct {
 		Name string `json:"name"`
 		Slug string `json:"slug"`
@@ -105,6 +109,10 @@ func (s *Server) createOrganization(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
+	if s.membershipCommands != nil {
+		s.createDurableUser(w, r)
+		return
+	}
 	var req struct {
 		OrganizationID string `json:"organization_id"`
 		Email          string `json:"email"`
@@ -120,6 +128,10 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) deactivateUser(w http.ResponseWriter, r *http.Request) {
+	if s.membershipCommands != nil {
+		s.deactivateDurableUser(w, r)
+		return
+	}
 	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
 		user, err := s.identityAccess.DeactivateUser(ctx, actor, r.PathValue("id"))
 		return http.StatusOK, user, err

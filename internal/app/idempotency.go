@@ -288,6 +288,9 @@ func safeIdempotencyReplayResponse(response any) (any, error) {
 		root["api_key"] = keyMetadata
 		return root, nil
 	}
+	if user, ok := publicHumanUserReplay(decoded); ok {
+		return user, nil
+	}
 	if !changed {
 		return response, nil
 	}

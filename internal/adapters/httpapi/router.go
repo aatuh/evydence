@@ -51,6 +51,7 @@ type Server struct {
 	ledger                            *app.Ledger
 	authn                             Authenticator
 	apiKeyCommands                    APIKeyCommands
+	membershipCommands                MembershipCommands
 	readinessQuery                    ReadinessQuery
 	metricsQuery                      MetricsQuery
 	retentionQuery                    RetentionQuery
@@ -200,6 +201,8 @@ type ServerOptions struct {
 	Authenticator Authenticator
 	// APIKeyCommands issues credentials without Ledger inventories or state.
 	APIKeyCommands APIKeyCommands
+	// MembershipCommands administers organizations/users without Ledger state.
+	MembershipCommands MembershipCommands
 	// ReadinessQuery probes production dependencies independently of Ledger state.
 	ReadinessQuery ReadinessQuery
 	// MetricsQuery supplies bounded tenant counters in the PostgreSQL profile.
@@ -398,6 +401,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.APIKeyCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused API keys require durable idempotency")
 	}
+	if opts.MembershipCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused membership requires durable idempotency")
+	}
 	if opts.CollectorCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused collectors require durable idempotency")
 	}
@@ -502,6 +508,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.incidentWebhookCommands = opts.IncidentWebhookCommands
 	server.collectorCommands = opts.CollectorCommands
 	server.apiKeyCommands = opts.APIKeyCommands
+	server.membershipCommands = opts.MembershipCommands
 	server.durableStreamedCommandExecutor, _ = opts.DurableCommandExecutor.(DurableStreamedCommandExecutor)
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands

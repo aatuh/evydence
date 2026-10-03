@@ -164,10 +164,9 @@ func (s *Service) CreateOrganization(ctx context.Context, actor identitydomain.A
 	if err := s.authorizeIdentityAdmin(ctx, actor); err != nil {
 		return identitydomain.Organization{}, err
 	}
-	input.Name = strings.TrimSpace(input.Name)
-	input.Slug = strings.TrimSpace(input.Slug)
-	if input.Name == "" || input.Slug == "" {
-		return identitydomain.Organization{}, ErrValidation
+	input, err := normalizeMembershipOrganization(actor.TenantID, input)
+	if err != nil {
+		return identitydomain.Organization{}, err
 	}
 	existing, found, err := s.reader.OrganizationBySlug(ctx, actor.TenantID, input.Slug)
 	if err != nil {
@@ -202,11 +201,9 @@ func (s *Service) CreateUser(ctx context.Context, actor identitydomain.Actor, in
 	if err := s.authorizeIdentityAdmin(ctx, actor); err != nil {
 		return identitydomain.HumanUser{}, err
 	}
-	input.OrganizationID = strings.TrimSpace(input.OrganizationID)
-	input.Email = strings.ToLower(strings.TrimSpace(input.Email))
-	input.DisplayName = strings.TrimSpace(input.DisplayName)
-	if input.Email == "" || !strings.Contains(input.Email, "@") || input.DisplayName == "" {
-		return identitydomain.HumanUser{}, ErrValidation
+	input, err := normalizeMembershipUser(actor.TenantID, input)
+	if err != nil {
+		return identitydomain.HumanUser{}, err
 	}
 	if input.OrganizationID != "" {
 		organization, err := s.reader.Organization(ctx, actor.TenantID, input.OrganizationID)

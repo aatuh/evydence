@@ -701,6 +701,37 @@ bytes, and expiry years from 1 through 9999 after UTC normalization. See the
 | `POST` | `/v1/api-keys` | Create one-time API key secret. |
 | `GET` | `/v1/api-keys` | Page tenant keys without secret hashes; admin scope and a tenant-wide grant for human sessions are required. |
 
+#### Organization And User Writes
+
+In the PostgreSQL profile, organization creation, user creation, and user
+deactivation use focused Identity commands, not Ledger state. All three require
+`identity:admin` (or admin); human sessions additionally need a current
+tenant-wide grant. Authorization and current optional organization/user parents
+are checked before durable reservation and replay. A foreign parent returns
+`404`; an existing slug/email or a new deactivation of an inactive user returns
+`409`. A completed request with the same idempotency key and body replays the
+original public DTO without repeating writes or audits. Slugs are trimmed but
+remain case-sensitive; emails are trimmed/lowercased and must parse as a plain
+mailbox address, not a display-name wrapper. This does not verify email ownership.
+
+Strict request decoding rejects invalid UTF-8, unknown/duplicate fields, trailing JSON,
+non-object bodies and explicit null fields. Deactivation accepts only an empty
+object (or an omitted body, as in the existing decoder). HTTP JSON remains
+limited to 64 KiB. Direct calls also reject invalid UTF-8/NUL, IDs above 1024
+bytes, names above 65536 bytes, and tenant plus slug/email keys above 2304 bytes.
+New timestamps use UTC microseconds. Deactivation reads one bounded user and
+locks current parents; oversized stored user metadata returns `409`, never a
+truncated response. Organization metadata and unrelated users are not loaded.
+
+User status, audit, and safe replay completion share one transaction. A committed
+deactivation makes the user's SSO sessions fail current-user authentication;
+rollback leaves them active. Authorized user replay retains the required email
+only in the fixed, versioned public DTO within the existing 24-hour idempotency
+expiry window; expiry does not itself prove physical deletion. Unknown fields,
+credential material, generic log redaction,
+and customer-package redaction do not acquire that exception. Local-memory mode
+retains its explicit compatibility binding and shares input normalization.
+
 Current SSO endpoints model admin-managed provider, identity-link, trust-material, and session records plus API-first session logout. OIDC provider records can include public JWKS material, and SAML provider records can include PEM-encoded assertion signing certificates; both can be rotated through `POST /v1/sso/providers/{id}/trust-material`. OIDC public JWKS can also be refreshed from the configured issuer with `POST /v1/sso/providers/{id}/discover-oidc`. `POST /v1/provider-verifications` can verify a supplied OIDC ID token or SAML assertion locally for issuer, audience, subject, time bounds, and signature. When an OIDC `access_token` is supplied, the same endpoint can call either the provider's discovered UserInfo endpoint or a configured operator-controlled provider validation gateway, verify the returned subject, and record any configured group-claim mapping checks without storing the access token. The provider validation gateway receives only non-secret request metadata and an `access_token_present` flag, not the supplied token. `POST /v1/sso/session-exchanges` uses local token/assertion verification and a verified identity link to issue a one-time SSO bearer secret and an HttpOnly cookie for browser clients. OIDC group claim values can map to session-scoped roles through the provider `groups_claim` and `role_mapping`; no permanent role binding is created from token claims. External group synchronization into permanent role bindings is not implemented in this slice.
 
 ### Products, Releases, Evidence, And Risk

@@ -39,6 +39,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.APIKeyCommands != nil {
 		t.Fatal("local memory bound durable API key issuance")
 	}
+	if memory.MembershipCommands != nil {
+		t.Fatal("local memory bound durable membership commands")
+	}
 	if memory.IncidentCommands != nil {
 		t.Fatal("local memory bound durable incidents")
 	}
@@ -372,6 +375,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.APIKeyCommands == nil {
 		t.Fatal("PostgreSQL API key issuance remains Ledger-backed")
+	}
+	if options.MembershipCommands == nil {
+		t.Fatal("PostgreSQL membership still uses Ledger")
 	}
 	if options.SBOMIngestionCommands == nil {
 		t.Fatal("PostgreSQL SBOM ingestion still uses Ledger")

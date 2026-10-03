@@ -256,6 +256,31 @@ See [API key issuance](../api.md#api-key-issuance) for exact bounds. This is an
 unreleased implementation note, not compatibility approval or release proof;
 the exact compatibility gate remains required before EVY-905 closure.
 
+## Unreleased Membership Write Boundary
+
+PostgreSQL organization/user creation and user deactivation now use focused
+Identity commands with one durable mutation/audit/replay transaction, not Ledger
+state. Routes, status codes, response schemas, case-sensitive trimmed slugs and
+lowercased trimmed emails remain. A fixed public user DTO now preserves the
+required email in authorized restart replay; logging/customer-package redaction
+is unchanged. This purpose-limited replay follows existing 24-hour idempotency
+expiry; this is not a physical-deletion guarantee.
+Human sessions require current tenant-wide `identity:admin` authority, including
+replay, and optional organization/user parents must still belong to the tenant.
+Committed deactivation invalidates current-user session authentication.
+
+Malformed mailbox strings, display-name wrappers and invalid UTF-8/NUL or
+oversized direct inputs now return validation errors before writes. Shared input
+normalization also protects local-memory creation. Strict PostgreSQL decoding
+rejects malformed UTF-8, null/unknown/duplicate fields and nonempty deactivation objects excluded
+by the published schema; omitted deactivation bodies remain compatible. Stored
+user metadata above the bounded projection returns `409` rather than truncating
+it. No migration or historical-row rewrite is required. See
+[organization and user writes](../api.md#organization-and-user-writes) for limits.
+This is an unreleased implementation note, not compatibility approval, email
+ownership verification or release evidence. Exact compatibility validation
+remains required before EVY-905 closure.
+
 ## Stable-Line Rule
 
 A stable `/v1` line permits additive fields, endpoints, and optional filters.
