@@ -129,30 +129,50 @@ func TestIdempotencyUnitOfWorkBodyDigestConflictsOnChangedBody(t *testing.T) {
 }
 
 func TestIdempotencyUnitOfWorkRollsBackFailedCommand(t *testing.T) {
-	ctx := context.Background()
-	memory := NewMemoryUnitOfWorkFactory()
-	actor := domain.Actor{TenantID: "ten_direct", KeyID: "key_direct"}
-	seedIdempotencyTenant(t, memory, actor.TenantID)
-	executor := IdempotencyUnitOfWork{Transactions: memory, Now: fixedNow}
-	commandErr := errors.New("command rejected")
-	command := func(ctx context.Context, repositories Repositories) (int, any, error) {
-		product := domain.Product{ID: "prod_failed", TenantID: actor.TenantID, Name: "Failed", Slug: "failed", CreatedAt: fixedNow()}
-		if err := repositories.ReleaseCatalog.InsertProduct(ctx, product); err != nil {
-			return 0, nil, err
+	for _, bodyDigest := range []bool{false, true} {
+		name := "body"
+		if bodyDigest {
+			name = "body_digest"
 		}
-		return 409, nil, commandErr
-	}
-	if _, _, err := executor.WithBody(ctx, actor, "POST", "/v1/products", "failed-key", []byte(`{"name":"Failed"}`), command); !errors.Is(err, commandErr) {
-		t.Fatalf("first error=%v, want command error", err)
-	}
-	snapshot, err := memory.Snapshot()
-	if err != nil || len(snapshot.Products) != 0 || len(snapshot.Idempotency) != 1 {
-		t.Fatalf("rollback state products=%d records=%d err=%v", len(snapshot.Products), len(snapshot.Idempotency), err)
-	}
-	for _, record := range snapshot.Idempotency {
-		if record.State != IdempotencyFailed || record.Response != nil {
-			t.Fatalf("failed reservation leaked response: %#v", record)
-		}
+		t.Run(name, func(t *testing.T) {
+			ctx := t.Context()
+			memory := NewMemoryUnitOfWorkFactory()
+			actor := domain.Actor{TenantID: "ten_direct", KeyID: "key_direct"}
+			seedIdempotencyTenant(t, memory, actor.TenantID)
+			executor := IdempotencyUnitOfWork{Transactions: memory, Now: fixedNow}
+			commandErr := errors.New("command rejected")
+			runs := 0
+			command := func(ctx context.Context, repositories Repositories) (int, any, error) {
+				runs++
+				product := domain.Product{ID: "prod_failed", TenantID: actor.TenantID, Name: "Failed", Slug: "failed", CreatedAt: fixedNow()}
+				if err := repositories.ReleaseCatalog.InsertProduct(ctx, product); err != nil {
+					return 0, nil, err
+				}
+				return 201, map[string]any{"id": product.ID, "secret": "partial-one-time-secret"}, commandErr
+			}
+			request := func() (int, any, error) {
+				body := []byte(`{"name":"Failed"}`)
+				if bodyDigest {
+					return executor.WithBodyDigest(ctx, actor, "POST", "/v1/products", "failed-key", hashBytes(body), command)
+				}
+				return executor.WithBody(ctx, actor, "POST", "/v1/products", "failed-key", body, command)
+			}
+			if status, response, err := request(); !errors.Is(err, commandErr) || status != 0 || response != nil {
+				t.Fatalf("failed command returned partial output: status=%d response_present=%t err=%v", status, response != nil, err)
+			}
+			snapshot, err := memory.Snapshot()
+			if err != nil || len(snapshot.Products) != 0 || len(snapshot.Idempotency) != 1 || runs != 1 {
+				t.Fatalf("rollback state products=%d records=%d runs=%d err=%v", len(snapshot.Products), len(snapshot.Idempotency), runs, err)
+			}
+			for _, record := range snapshot.Idempotency {
+				if record.State != IdempotencyFailed || record.Status != 0 || record.Response != nil {
+					t.Fatal("failed reservation retained partial output")
+				}
+			}
+			if status, response, err := request(); !errors.Is(err, ErrIdempotencyFailed) || status != 0 || response != nil || runs != 1 {
+				t.Fatalf("failed receipt replay returned output or reran command: status=%d response_present=%t runs=%d err=%v", status, response != nil, runs, err)
+			}
+		})
 	}
 }
 
@@ -187,15 +207,15 @@ func TestIdempotencyUnitOfWorkCommitFailureLeavesNoProductOrReplay(t *testing.T)
 	actor := domain.Actor{TenantID: "ten_direct", KeyID: "key_direct"}
 	seedIdempotencyTenant(t, memory, actor.TenantID)
 	executor := IdempotencyUnitOfWork{Transactions: commitFailingUnitOfWorkFactory{inner: memory}, Now: fixedNow}
-	_, _, err := executor.WithBody(ctx, actor, "POST", "/v1/products", "commit-failure", []byte(`{"name":"Failed"}`), func(ctx context.Context, repositories Repositories) (int, any, error) {
+	status, response, err := executor.WithBody(ctx, actor, "POST", "/v1/products", "commit-failure", []byte(`{"name":"Failed"}`), func(ctx context.Context, repositories Repositories) (int, any, error) {
 		product := domain.Product{ID: "prod_commit_failure", TenantID: actor.TenantID, Name: "Failed", Slug: "failed", CreatedAt: fixedNow()}
 		if err := repositories.ReleaseCatalog.InsertProduct(ctx, product); err != nil {
 			return 0, nil, err
 		}
 		return 201, map[string]any{"id": product.ID}, nil
 	})
-	if err == nil {
-		t.Fatal("commit failure must be returned")
+	if err == nil || status != 0 || response != nil {
+		t.Fatal("commit failure returned successful output")
 	}
 	snapshot, err := memory.Snapshot()
 	if err != nil || len(snapshot.Products) != 0 || len(snapshot.Idempotency) != 0 {

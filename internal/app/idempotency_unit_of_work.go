@@ -14,7 +14,8 @@ import (
 type IdempotentUnitOfWorkCommand func(context.Context, Repositories) (int, any, error)
 
 // IdempotencyUnitOfWork executes a command and its safe replay record in one
-// transaction without constructing or loading a Ledger aggregate.
+// transaction without constructing or loading a Ledger aggregate. Failed
+// execution returns no status or response, including partial callback output.
 type IdempotencyUnitOfWork struct {
 	Transactions UnitOfWorkFactory
 	Now          func() time.Time
@@ -119,7 +120,7 @@ func (executor IdempotencyUnitOfWork) withReservation(ctx context.Context, reser
 		// The command transaction rolled back. A separate safe failure record
 		// cannot make any partial command mutation durable.
 		_ = executor.persistFailure(context.WithoutCancel(ctx), reservation)
-		return execution, commandErr
+		return idempotencyExecution{}, commandErr
 	}
 	if err != nil {
 		return idempotencyExecution{}, err
