@@ -2,11 +2,8 @@ package app
 
 import (
 	"context"
-	"crypto/rsa"
-	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
-	"encoding/pem"
 	"sort"
 	"strings"
 	"time"
@@ -1357,78 +1354,13 @@ func validSSOType(value string) bool {
 }
 
 func normalizeJWKS(jwks map[string]any) (map[string]any, error) {
-	if len(jwks) == 0 {
-		return nil, nil
-	}
-	body, err := json.Marshal(jwks)
-	if err != nil || len(body) > 64*1024 {
-		return nil, ErrValidation
-	}
-	var normalized map[string]any
-	if err := json.Unmarshal(body, &normalized); err != nil {
-		return nil, err
-	}
-	keys, ok := normalized["keys"].([]any)
-	if !ok || len(keys) == 0 || len(keys) > 10 {
-		return nil, ErrValidation
-	}
-	for _, raw := range keys {
-		key, ok := raw.(map[string]any)
-		if !ok {
-			return nil, ErrValidation
-		}
-		kty, _ := key["kty"].(string)
-		kid, _ := key["kid"].(string)
-		if strings.TrimSpace(kid) == "" {
-			return nil, ErrValidation
-		}
-		switch kty {
-		case "OKP":
-			crv, _ := key["crv"].(string)
-			x, _ := key["x"].(string)
-			if crv != "Ed25519" || strings.TrimSpace(x) == "" {
-				return nil, ErrValidation
-			}
-		case "RSA":
-			n, _ := key["n"].(string)
-			e, _ := key["e"].(string)
-			if strings.TrimSpace(n) == "" || strings.TrimSpace(e) == "" {
-				return nil, ErrValidation
-			}
-		default:
-			return nil, ErrValidation
-		}
-	}
-	return normalized, nil
+	value, err := (identityapp.PublicTrustMaterialValidator{}).NormalizeJWKS(jwks)
+	return value, fromIdentityContextError(err)
 }
 
 func normalizeSAMLSigningCertificates(certs []string) ([]string, error) {
-	if len(certs) == 0 {
-		return nil, nil
-	}
-	if len(certs) > 5 {
-		return nil, ErrValidation
-	}
-	out := make([]string, 0, len(certs))
-	for _, raw := range certs {
-		value := strings.TrimSpace(raw)
-		if value == "" || len(value) > 16*1024 {
-			return nil, ErrValidation
-		}
-		block, _ := pem.Decode([]byte(value))
-		if block == nil || block.Type != "CERTIFICATE" {
-			return nil, ErrValidation
-		}
-		cert, err := x509.ParseCertificate(block.Bytes)
-		if err != nil {
-			return nil, ErrValidation
-		}
-		if _, ok := cert.PublicKey.(*rsa.PublicKey); !ok {
-			return nil, ErrValidation
-		}
-		out = append(out, string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw})))
-	}
-	return out, nil
+	value, err := (identityapp.PublicTrustMaterialValidator{}).NormalizeSAMLSigningCertificates(certs)
+	return value, fromIdentityContextError(err)
 }
 
 func validRetentionScope(value string) bool {

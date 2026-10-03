@@ -693,6 +693,15 @@ explicit local-memory profile retains its compatibility binding. The outer
 Ledger replay/refresh envelope still needs migration; these checks do not
 establish Ledger retirement or multi-writer support.
 
+SSO trust normalization now lives in a stateless Identity application policy,
+shared by local compatibility and production callers. It rejects recognized
+private/symmetric JOSE members, retains only supported public JWK fields, and
+normalizes parsed RSA public certificates without retaining trailing PEM blocks.
+It has no Ledger, HTTP, SQL, or provider-client dependency. Provider command
+composition still needs migration; extracting this policy does not retire its
+current Ledger-backed orchestration. See [SSO public trust material](api.md#sso-public-trust-material)
+for limits and historical-record caveats.
+
 API-key and SSO-session verification now has a
 standalone identity application service with narrow credential-read and
 activity-write ports. The PostgreSQL profile binds those ports to current

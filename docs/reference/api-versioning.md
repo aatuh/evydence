@@ -300,6 +300,26 @@ an unreleased implementation note, not compatibility approval, provider-side
 verification or release evidence. Exact compatibility validation remains
 required before EVY-905 closure.
 
+## Unreleased SSO Public Trust Normalization
+
+Provider creation, trust rotation and OIDC discovery now share a stateless
+Identity normalization policy. Recognized private/symmetric JOSE members are
+rejected instead of retained, even when null. Unsupported root/key extension
+metadata is no longer round-tripped; optional public members must have their
+documented string or string-array shapes. Supported public RSA/Ed25519 metadata,
+existing key/byte limits and RSA certificate normalization remain. Move unrelated
+metadata out of JWKS and remove private parameters before submitting public keys.
+
+This is prospective validation, not a historical-row or backup scrub. If private
+keys were previously imported, operators must review affected records, retained
+replay receipts, exports and backups, rotate the affected provider keys, and
+handle retained copies under their security/retention policy. No incident or
+cleanup is claimed here.
+See [SSO public trust material](../api.md#sso-public-trust-material) for exact
+bounds. This unreleased security correction is not compatibility approval or
+provider-side verification; exact compatibility validation remains required
+before EVY-905 closure.
+
 ## Stable-Line Rule
 
 A stable `/v1` line permits additive fields, endpoints, and optional filters.

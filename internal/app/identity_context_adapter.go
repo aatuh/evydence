@@ -24,7 +24,7 @@ func (l *Ledger) configureIdentityCommands() error {
 		Authorizer: ledgerContextAuthorizer{ledger: l}, GrantPolicy: ledgerIdentityGrantPolicy{},
 		Credentials: ledgerCredentialManager{ledger: l}, SessionCredentials: ledgerSessionCredentialManager{ledger: l},
 		GrantTargets: ledgerIdentityGrantTargets{ledger: l}, SessionGrants: ledgerIdentitySessionGrants{},
-		TrustMaterial: ledgerIdentityTrustMaterial{}, CanonicalHasher: ledgerIdentityCanonicalHasher{},
+		TrustMaterial: identityapp.PublicTrustMaterialValidator{}, CanonicalHasher: ledgerIdentityCanonicalHasher{},
 		OIDCDiscovery: discovery, CredentialVerifier: ledgerIdentityCredentialVerifier{}, VerificationPolicy: ledgerIdentityVerificationPolicy{},
 		Clock: application.ClockFunc(l.now), IDs: application.IDGeneratorFunc(newID),
 	})
@@ -86,18 +86,6 @@ type ledgerIdentitySessionGrants struct{}
 func (ledgerIdentitySessionGrants) GrantsForProviderGroups(provider identitydomain.SSOProvider, groups []string) []identitydomain.ResourceGrant {
 	legacy := ssoProviderFromIdentityContext(provider)
 	return cloneIdentityGrants(resourceGrantsForProviderGroups(legacy, groups))
-}
-
-type ledgerIdentityTrustMaterial struct{}
-
-func (ledgerIdentityTrustMaterial) NormalizeJWKS(value map[string]any) (map[string]any, error) {
-	result, err := normalizeJWKS(value)
-	return result, toIdentityContextError(err)
-}
-
-func (ledgerIdentityTrustMaterial) NormalizeSAMLSigningCertificates(value []string) ([]string, error) {
-	result, err := normalizeSAMLSigningCertificates(value)
-	return result, toIdentityContextError(err)
 }
 
 type ledgerIdentityCanonicalHasher struct{}

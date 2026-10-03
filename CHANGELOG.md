@@ -215,6 +215,11 @@ See the same [migration note](docs/reference/api-versioning.md#unreleased-contro
 
 ### Fixed
 
+- SSO trust imports now reject private/symmetric JOSE members and retain only
+  supported public JWK fields. Shared normalization lives in stateless Identity
+  code; valid public-key and certificate formats remain. Historical rows and
+  backups are not scrubbed. See the
+  [compatibility note](docs/reference/api-versioning.md#unreleased-sso-public-trust-normalization).
 - Artifact registration now rejects a missing or whitespace-only `media_type`
   before persistence, so in-memory and PostgreSQL-backed deployments apply the
   same request contract.

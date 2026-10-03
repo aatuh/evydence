@@ -2965,13 +2965,13 @@
               <div><dt>Responses</dt><dd>200 application/json: SSOSessionEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/sso/providers create sso provider records tenant sso provider metadata. optional static jwks public keys and saml signing certificates can be supplied for local token/assertion verification without live provider calls. createssoprovider evydence identity:admin">
+          <article class="operation" data-operation data-search="post /v1/sso/providers create sso provider records tenant sso provider metadata. optional static jwks public keys and saml signing certificates can be supplied for local token/assertion verification without live provider calls. shared stateless identity normalization rejects private/symmetric jose members, retains supported public jwk fields only, and normalizes parsed rsa certificates without trailing pem blocks. this validates supported metadata shapes, not provider ownership or key custody; historical rows and backups are not scrubbed. createssoprovider evydence identity:admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/sso/providers</code>
             </div>
             <h3>Create SSO provider</h3>
-            <p>Records tenant SSO provider metadata. Optional static JWKS public keys and SAML signing certificates can be supplied for local token/assertion verification without live provider calls.</p>
+            <p>Records tenant SSO provider metadata. Optional static JWKS public keys and SAML signing certificates can be supplied for local token/assertion verification without live provider calls. Shared stateless Identity normalization rejects private/symmetric JOSE members, retains supported public JWK fields only, and normalizes parsed RSA certificates without trailing PEM blocks. This validates supported metadata shapes, not provider ownership or key custody; historical rows and backups are not scrubbed.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createSSOProvider</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2982,13 +2982,13 @@
               <div><dt>Responses</dt><dd>201 application/json: SSOProviderEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/sso/providers/{id}/discover-oidc refresh sso provider oidc trust material fetches the oidc discovery document and public jwks for the tenant provider issuer, then stores refreshed public trust material. this does not authenticate users, store provider secrets, or synchronize groups. refreshssoprovideroidctrustmaterial evydence identity:admin">
+          <article class="operation" data-operation data-search="post /v1/sso/providers/{id}/discover-oidc refresh sso provider oidc trust material fetches the oidc discovery document and public jwks for the tenant provider issuer, then stores normalized public trust material. private/symmetric jose members or malformed supported fields fail verification without replacing current trust or appending an audit; unsupported extension metadata is not retained. this does not authenticate users, prove provider ownership, scrub historical records/backups, or synchronize groups. refreshssoprovideroidctrustmaterial evydence identity:admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/sso/providers/{id}/discover-oidc</code>
             </div>
             <h3>Refresh SSO provider OIDC trust material</h3>
-            <p>Fetches the OIDC discovery document and public JWKS for the tenant provider issuer, then stores refreshed public trust material. This does not authenticate users, store provider secrets, or synchronize groups.</p>
+            <p>Fetches the OIDC discovery document and public JWKS for the tenant provider issuer, then stores normalized public trust material. Private/symmetric JOSE members or malformed supported fields fail verification without replacing current trust or appending an audit; unsupported extension metadata is not retained. This does not authenticate users, prove provider ownership, scrub historical records/backups, or synchronize groups.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>refreshSSOProviderOIDCTrustMaterial</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2999,13 +2999,13 @@
               <div><dt>Responses</dt><dd>200 application/json: SSOProviderEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/sso/providers/{id}/trust-material update sso provider trust material rotates tenant sso provider public trust material for local oidc id-token or saml assertion verification without storing provider secrets. updatessoprovidertrustmaterial evydence identity:admin">
+          <article class="operation" data-operation data-search="post /v1/sso/providers/{id}/trust-material update sso provider trust material rotates tenant sso provider public trust material for local oidc id-token or saml assertion verification. shared stateless identity normalization rejects private/symmetric jose members and retains supported public jwk fields only; parsed rsa certificates exclude trailing pem blocks. invalid trust material does not replace current trust or append an audit. historical records and backups are not scrubbed. updatessoprovidertrustmaterial evydence identity:admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/sso/providers/{id}/trust-material</code>
             </div>
             <h3>Update SSO provider trust material</h3>
-            <p>Rotates tenant SSO provider public trust material for local OIDC ID-token or SAML assertion verification without storing provider secrets.</p>
+            <p>Rotates tenant SSO provider public trust material for local OIDC ID-token or SAML assertion verification. Shared stateless Identity normalization rejects private/symmetric JOSE members and retains supported public JWK fields only; parsed RSA certificates exclude trailing PEM blocks. Invalid trust material does not replace current trust or append an audit. Historical records and backups are not scrubbed.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>updateSSOProviderTrustMaterial</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

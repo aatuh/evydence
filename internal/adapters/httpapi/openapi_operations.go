@@ -104,16 +104,16 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Revoked current SSO session envelope.", "#/components/schemas/SSOSessionEnvelope")
 	case "createSSOProvider":
-		operation.Description = "Records tenant SSO provider metadata. Optional static JWKS public keys and SAML signing certificates can be supplied for local token/assertion verification without live provider calls."
+		operation.Description = "Records tenant SSO provider metadata. Optional static JWKS public keys and SAML signing certificates can be supplied for local token/assertion verification without live provider calls. Shared stateless Identity normalization rejects private/symmetric JOSE members, retains supported public JWK fields only, and normalizes parsed RSA certificates without trailing PEM blocks. This validates supported metadata shapes, not provider ownership or key custody; historical rows and backups are not scrubbed."
 		operation.RequestBody = jsonRequest("SSO provider creation request.", "#/components/schemas/CreateSSOProviderRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created SSO provider envelope.", "#/components/schemas/SSOProviderEnvelope")
 	case "updateSSOProviderTrustMaterial":
-		operation.Description = "Rotates tenant SSO provider public trust material for local OIDC ID-token or SAML assertion verification without storing provider secrets."
+		operation.Description = "Rotates tenant SSO provider public trust material for local OIDC ID-token or SAML assertion verification. Shared stateless Identity normalization rejects private/symmetric JOSE members and retains supported public JWK fields only; parsed RSA certificates exclude trailing PEM blocks. Invalid trust material does not replace current trust or append an audit. Historical records and backups are not scrubbed."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "SSO provider id."))
 		operation.RequestBody = jsonRequest("SSO provider trust material update request.", "#/components/schemas/UpdateSSOProviderTrustMaterialRequest")
 		operation.Responses[http.StatusOK] = jsonResponse("Updated SSO provider envelope.", "#/components/schemas/SSOProviderEnvelope")
 	case "refreshSSOProviderOIDCTrustMaterial":
-		operation.Description = "Fetches the OIDC discovery document and public JWKS for the tenant provider issuer, then stores refreshed public trust material. This does not authenticate users, store provider secrets, or synchronize groups."
+		operation.Description = "Fetches the OIDC discovery document and public JWKS for the tenant provider issuer, then stores normalized public trust material. Private/symmetric JOSE members or malformed supported fields fail verification without replacing current trust or appending an audit; unsupported extension metadata is not retained. This does not authenticate users, prove provider ownership, scrub historical records/backups, or synchronize groups."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "SSO provider id."))
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Refreshed SSO provider envelope.", "#/components/schemas/SSOProviderEnvelope")

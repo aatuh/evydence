@@ -763,6 +763,29 @@ retains its compatibility binding and shares input normalization. See the
 
 Current SSO endpoints model admin-managed provider, identity-link, trust-material, and session records plus API-first session logout. OIDC provider records can include public JWKS material, and SAML provider records can include PEM-encoded assertion signing certificates; both can be rotated through `POST /v1/sso/providers/{id}/trust-material`. OIDC public JWKS can also be refreshed from the configured issuer with `POST /v1/sso/providers/{id}/discover-oidc`. `POST /v1/provider-verifications` can verify a supplied OIDC ID token or SAML assertion locally for issuer, audience, subject, time bounds, and signature. When an OIDC `access_token` is supplied, the same endpoint can call either the provider's discovered UserInfo endpoint or a configured operator-controlled provider validation gateway, verify the returned subject, and record any configured group-claim mapping checks without storing the access token. The provider validation gateway receives only non-secret request metadata and an `access_token_present` flag, not the supplied token. `POST /v1/sso/session-exchanges` uses local token/assertion verification and a verified identity link to issue a one-time SSO bearer secret and an HttpOnly cookie for browser clients. OIDC group claim values can map to session-scoped roles through the provider `groups_claim` and `role_mapping`; no permanent role binding is created from token claims. External group synchronization into permanent role bindings is not implemented in this slice.
 
+#### SSO Public Trust Material
+
+SSO trust normalization is a stateless Identity policy shared by provider
+creation, trust rotation and OIDC discovery refresh. Nonempty JWKS is limited
+to 64 KiB and 1-10 RSA or Ed25519 public keys with nonempty `kid` and required public
+parameters. Recognized private/symmetric JOSE members (`d`, `p`, `q`, `dp`,
+`dq`, `qi`, `oth`, `k`) are rejected, even when null, at the root or in a key.
+Rejected new creation/rotation commands return `400`; rejected discovery
+material produces a verification failure without replacing current trust or
+appending an audit.
+
+Only `keys` and supported public JWK members are retained: `kty`, `kid`, `crv`,
+`x`, `n`, `e`, `alg`, `use`, `x5u`, `x5t`, `x5t#S256`, `key_ops`, and `x5c`.
+`key_ops` and `x5c` must be string arrays; other retained members must be strings.
+Unrecognized root/key extensions are omitted, not a metadata storage channel.
+SAML normalization retains at most five parsed RSA public certificates, each
+at most 16 KiB; only the normalized certificate is returned, not trailing PEM
+blocks. This checks supported metadata shape, not provider ownership, key
+custody, or the validity of a token/assertion. Never supply secrets in public
+fields. Historical records, retained replay receipts and backups are not
+retroactively scrubbed; see the
+[compatibility and operator note](reference/api-versioning.md#unreleased-sso-public-trust-normalization).
+
 ### Products, Releases, Evidence, And Risk
 
 | Method | Path | Notes |
